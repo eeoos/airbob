@@ -1,6 +1,32 @@
-version: '3'
-
 services:
+  elasticsearch:
+    build: .
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD}
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/http_ca.crt -u elastic:your_strong_password https://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s | grep -q '\"status\":\"yellow\"\\|\\\"status\":\"green\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379" # redis 기본 포트 사용
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes # AOF(Append Only File)
+
   influxdb:
     image: influxdb:1.8
     container_name: influxdb
@@ -26,3 +52,10 @@ services:
     entrypoint: ["sh", "-c", "tail -f /dev/null"]
     volumes:
       - ./scripts:/scripts
+
+volumes:
+  esdata:
+    driver: local
+  redisdata:
+    driver: local
+
