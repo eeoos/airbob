@@ -3,7 +3,7 @@ spring:
     name: airbob
 
   config:
-    import: optional:classpath:properties/env.properties
+    import: optional:file:.env[.properties]
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -45,7 +45,7 @@ spring:
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS}
     username: ${ELASTICSEARCH_USERNAME}
-    password: ${ELASTICSEARCH_PASSWORD}
+    password: ${ELASTIC_PASSWORD}
     connection-timeout: 10s
     socket-timeout: 30s
 

@@ -165,7 +165,7 @@ public class AccommodationIntegrationTest {
                 .basePrice(180000)
                 .type("GUESTHOUSE")
                 .addressInfo(AccommodationRequest.AddressInfo.builder()
-                        .postalCode(54321)
+                        .postalCode("54321")
                         .city("Busan")
                         .country("KR")
                         .district("Haeundae")
@@ -374,7 +374,7 @@ public class AccommodationIntegrationTest {
 
     private Address createAddress(String city) {
         return Address.builder()
-                .postalCode(12345)
+                .postalCode("12345")
                 .city(city)
                 .country("KR")
                 .district("District")

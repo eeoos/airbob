@@ -4,8 +4,10 @@ services:
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=true
-      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD}
+#      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=false
+#      - xpack.security.transport.ssl.enabled=true
+#      - xpack.security.http.ssl.enabled=true
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "9200:9200"
@@ -13,10 +15,10 @@ services:
     volumes:
       - esdata:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -s --cacert /usr/share/elasticsearch/config/certs/http_ca.crt -u elastic:your_strong_password https://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s | grep -q '\"status\":\"yellow\"\\|\\\"status\":\"green\"'"]
+      test: [ "CMD", "curl", "-s", "http://localhost:9200" ]
       interval: 10s
       timeout: 10s
-      retries: 5
+      retries: 12
 
   redis:
     image: redis:7.2-alpine
@@ -52,6 +54,17 @@ services:
     entrypoint: ["sh", "-c", "tail -f /dev/null"]
     volumes:
       - ./scripts:/scripts
+
+  kibana:
+    image: kibana:8.9.0
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 
 volumes:
   esdata:
