@@ -3,7 +3,6 @@ package kr.kro.airbob.common.exception;
 import java.util.stream.Collectors;
 
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.reservation.exception.AlreadyReservedException;
 import kr.kro.airbob.domain.auth.exception.NotEqualHostException;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
 import org.springframework.http.HttpStatus;
@@ -18,6 +17,9 @@ import kr.kro.airbob.cursor.exception.CursorEncodingException;
 import kr.kro.airbob.cursor.exception.CursorPageSizeException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
+import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.review.ReviewSortType;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
 import kr.kro.airbob.domain.review.ReviewSortType;
@@ -56,14 +58,6 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 			.status(HttpStatus.NOT_FOUND)
 			.build();
-	}
-
-	@ExceptionHandler(AlreadyReservedException.class)
-	public ResponseEntity<Void> handleAlreadyReservedException(AlreadyReservedException e) {
-		log.error("AlreadyReservedException: {}", e.getMessage());
-		return ResponseEntity
-				.status(HttpStatus.CONFLICT)
-				.build();
 	}
 
 	@ExceptionHandler(WishlistNotFoundException.class)
@@ -124,6 +118,24 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<Void> handleNotEqualHostException(NotEqualHostException e) {
 		log.error("NotEqualHostException: {}", e.getMessage());
 		return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+	}
+
+	@ExceptionHandler(InvalidReservationStatusException.class)
+	public ResponseEntity<Void> handleInvalidReservationStatusException(InvalidReservationStatusException e) {
+		log.error("InvalidReservationStatusException: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.CONFLICT).build();
+	}
+
+	@ExceptionHandler(ReservationConflictException.class)
+	public ResponseEntity<Void> handleReservationConflictException(ReservationConflictException e) {
+		log.error("ReservationConflictException: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.CONFLICT).build();
+	}
+
+	@ExceptionHandler(ReservationNotFoundException.class)
+	public ResponseEntity<Void> handleReservationNotFoundException(ReservationNotFoundException e) {
+		log.error("ReservationNotFoundException: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 	}
 
 	@ExceptionHandler(Exception.class)
