@@ -11,7 +11,7 @@ import org.springframework.data.elasticsearch.core.query.ScriptType;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.reservation.common.ReservationStatus;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -70,16 +70,13 @@ public class AccommodationIndexUpdater {
 
 	private List<LocalDate> getReservedDates(Long accommodationId) {
 		return reservationRepository
-			.findFutureReservationsByAccommodationIdAndStatus(
-				accommodationId,
-				ReservationStatus.COMPLETED,
-				LocalDate.now().atStartOfDay())
+			.findFutureCompletedReservations(accommodationId)
 			.stream()
 			.flatMap(reservation -> {
 				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();
 				LocalDate checkOutDate = reservation.getCheckOut().toLocalDate();
-
-				return checkInDate.datesUntil(checkOutDate);  // 체크아웃 날짜 제외
+				// checkOutDate는 숙박일에 포함되지 않으므로 datesUntil 사용
+				return checkInDate.datesUntil(checkOutDate);
 			})
 			.distinct()
 			.sorted()

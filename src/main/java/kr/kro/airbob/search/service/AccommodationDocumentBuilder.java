@@ -12,7 +12,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityReposit
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.AccommodationImage;
-import kr.kro.airbob.domain.reservation.common.ReservationStatus;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -113,16 +113,13 @@ public class AccommodationDocumentBuilder {
 
 	private List<LocalDate> getReservedDates(Long accommodationId) {
 		return reservationRepository
-			.findFutureReservationsByAccommodationIdAndStatus(
-				accommodationId,
-				ReservationStatus.COMPLETED,
-				LocalDate.now().atStartOfDay())
+			.findFutureCompletedReservations(accommodationId)
 			.stream()
 			.flatMap(reservation -> {
 				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();
 				LocalDate checkOutDate = reservation.getCheckOut().toLocalDate();
-
-				return checkInDate.datesUntil(checkOutDate);  // 체크아웃 날 제외
+				// checkOutDate는 숙박일에 포함되지 않으므로 datesUntil 사용
+				return checkInDate.datesUntil(checkOutDate);
 			})
 			.distinct()
 			.sorted()
