@@ -4,7 +4,7 @@ import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.accommoda
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodationAmenity.accommodationAmenity;
 import static kr.kro.airbob.domain.accommodation.entity.QAmenity.amenity;
 import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.occupancyPolicy;
-import static kr.kro.airbob.domain.reservation.entity.QReservedDate.reservedDate;
+import static kr.kro.airbob.domain.reservation.entity.QReservation.*;
 import static kr.kro.airbob.domain.review.QReview.review;
 
 import com.querydsl.core.BooleanBuilder;
@@ -24,6 +24,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.Accommodatio
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 
@@ -131,9 +132,15 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     private BooleanExpression availableDateFilter(AccommodationSearchConditionDto condition) {
-        return jpaQueryFactory.selectFrom(reservedDate)
-                .where(reservedDate.accommodation.eq(accommodation)
-                        .and(reservedDate.reservedAt.between(condition.getCheckIn(), condition.getCheckOut())))
-                .notExists();
+        return jpaQueryFactory
+            .select(reservation.id)
+            .from(reservation)
+            .where(
+                reservation.accommodation.eq(accommodation),
+                reservation.status.eq(ReservationStatus.COMPLETED),
+                reservation.checkIn.lt(condition.getCheckOut().atStartOfDay()),
+                reservation.checkOut.gt(condition.getCheckIn().atStartOfDay())
+            )
+            .notExists();
     }
 }
