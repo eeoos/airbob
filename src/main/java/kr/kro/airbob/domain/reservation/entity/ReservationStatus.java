@@ -1,7 +1,10 @@
-package kr.kro.airbob.domain.reservation.common;
+package kr.kro.airbob.domain.reservation.entity;
 
 public enum ReservationStatus {
 
-    COMPLETED, PENDING
+    PAYMENT_PENDING,
+    COMPLETED,
+    CANCELLED,
+    EXPIRED
 
 }
