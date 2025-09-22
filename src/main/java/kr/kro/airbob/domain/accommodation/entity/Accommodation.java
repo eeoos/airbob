@@ -1,5 +1,8 @@
 package kr.kro.airbob.domain.accommodation.entity;
 
+import java.time.LocalTime;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -50,18 +53,26 @@ public class Accommodation extends BaseEntity {
 	@OneToOne(fetch = FetchType.LAZY)
 	private Member member;
 
+	@Column(nullable = false)
+	private LocalTime checkInTime;
+
+	@Column(nullable = false)
+	private LocalTime checkOutTime;
+
 	public static Accommodation createAccommodation(AccommodationRequest.CreateAccommodationDto request,
 													Address address, OccupancyPolicy occupancyPolicy, Member member) {
 		return Accommodation.builder()
-				.name(request.getName())
-				.description(request.getDescription())
-				.basePrice(request.getBasePrice())
-				.thumbnailUrl(request.getThumbnailUrl())
-				.type(AccommodationType.valueOf(request.getType()))
-				.address(address)
-				.occupancyPolicy(occupancyPolicy)
-				.member(member)
-				.build();
+			.name(request.getName())
+			.description(request.getDescription())
+			.basePrice(request.getBasePrice())
+			.thumbnailUrl(request.getThumbnailUrl())
+			.type(AccommodationType.valueOf(request.getType()))
+			.address(address)
+			.occupancyPolicy(occupancyPolicy)
+			.member(member)
+			.checkInTime(request.getCheckInTime())
+			.checkOutTime(request.getCheckOutTime())
+			.build();
 	}
 
 	public void updateAccommodation(UpdateAccommodationDto request) {
