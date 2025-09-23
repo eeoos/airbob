@@ -61,6 +61,9 @@ public class Reservation extends BaseEntity {
 
 	private String message;
 
+	@Column(nullable = false)
+	private LocalDateTime expiresAt;
+
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
 		ReservationRequest.Create request) {
 
@@ -77,6 +80,7 @@ public class Reservation extends BaseEntity {
 			.totalPrice(price)
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.message(request.message())
+			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
 			.build();
 	}
 
@@ -94,5 +98,12 @@ public class Reservation extends BaseEntity {
 			throw new InvalidReservationStatusException();
 		}
 		this.status = ReservationStatus.COMPLETED;
+	}
+
+	public void expire() {
+		if (this.status != ReservationStatus.PAYMENT_PENDING) {
+			throw new InvalidReservationStatusException();
+		}
+		this.status = ReservationStatus.EXPIRED;
 	}
 }
