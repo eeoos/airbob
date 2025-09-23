@@ -22,6 +22,7 @@ CREATE TABLE reservation
     status VARCHAR(50) NOT NULL,
     message VARCHAR(500) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT FK_reservation_accommodation FOREIGN KEY (accommodation_id) REFERENCES accommodation(id),
     CONSTRAINT FK_reservation_member FOREIGN KEY (guest_id) REFERENCES member(id)
