@@ -47,7 +47,7 @@ public class ReservationLockManager {
 	}
 
 	public void releaseLocks(RLock lock) {
-		if (lock != null && lock.isLocked()) {
+		if (lock != null) {
 			lock.unlock();
 			log.info("다중 락 해제 성공.");
 		}
