@@ -42,7 +42,7 @@ public class PaymentService {
 		if (paymentSuccess) {
 			log.info("[결제]: 예약 ID {} 결제 성공", event.reservationId());
 			eventPublisher.publishEvent(new PaymentEvent.PaymentSucceededEvent(event.reservationId()));
-		}else{
+		} else{
 			// 결제 실패 이벤트
 		}
 	}
