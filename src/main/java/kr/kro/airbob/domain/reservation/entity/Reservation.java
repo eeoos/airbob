@@ -17,6 +17,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.Member;
@@ -72,6 +73,13 @@ public class Reservation extends BaseEntity {
 	@Column(nullable = false)
 	private LocalDateTime expiresAt;
 
+	@PrePersist
+	protected void onCreate() {
+		if (this.reservationUid == null) {
+			this.reservationUid = UUID.randomUUID();
+		}
+	}
+
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
 		ReservationRequest.Create request) {
 
@@ -105,7 +113,7 @@ public class Reservation extends BaseEntity {
 		if (this.status != ReservationStatus.PAYMENT_PENDING) {
 			throw new InvalidReservationStatusException();
 		}
-		this.status = ReservationStatus.COMPLETED;
+		this.status = ReservationStatus.CONFIRMED;
 	}
 
 	public void expire() {
