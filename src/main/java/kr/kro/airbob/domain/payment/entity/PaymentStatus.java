@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.common;
+package kr.kro.airbob.domain.payment.entity;
 
 public enum PaymentStatus {
 	READY,
@@ -8,5 +8,12 @@ public enum PaymentStatus {
 	CANCELED,
 	PARTIAL_CANCELED,
 	ABORTED,
-	EXPIRED
+	EXPIRED;
+
+	public static PaymentStatus from(String statusName) {
+		if (statusName == null) {
+			throw new IllegalArgumentException("결제 상태 값이 존재해야 합니다.");
+		}
+		return PaymentStatus.valueOf(statusName.toUpperCase());
+	}
 }

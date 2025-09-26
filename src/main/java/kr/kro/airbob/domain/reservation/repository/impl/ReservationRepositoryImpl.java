@@ -25,7 +25,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.from(reservation)
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
-				reservation.status.in(COMPLETED, PAYMENT_PENDING),
+				reservation.status.in(CONFIRMED, PAYMENT_PENDING),
 				reservation.checkIn.lt(checkOut),
 				reservation.checkOut.gt(checkIn)
 			)
@@ -42,7 +42,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
 				reservation.guest.id.eq(memberId),
-				reservation.status.eq(ReservationStatus.COMPLETED)
+				reservation.status.eq(ReservationStatus.CONFIRMED)
 			)
 			.fetchFirst();
 		return fetchFirst != null;
@@ -54,9 +54,11 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.selectFrom(reservation)
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
-				reservation.status.eq(ReservationStatus.COMPLETED),
+				reservation.status.eq(ReservationStatus.CONFIRMED),
 				reservation.checkOut.goe(LocalDateTime.now()) // 체크아웃 날짜가 오늘 이후인 것
 			)
 			.fetch();
 	}
 }
+
+

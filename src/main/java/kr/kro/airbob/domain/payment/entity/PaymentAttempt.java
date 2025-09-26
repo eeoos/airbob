@@ -11,9 +11,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.payment.common.PaymentMethod;
-import kr.kro.airbob.domain.payment.common.PaymentStatus;
+import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -57,4 +57,37 @@ public class PaymentAttempt extends BaseEntity {
 	@JoinColumn(name = "reservation_id", nullable = false)
 	private Reservation reservation;
 
+	public static PaymentAttempt create(TossPaymentResponse response, Reservation reservation) {
+		TossPaymentResponse.Failure failure = response.getFailure();
+		return PaymentAttempt.builder()
+			.paymentKey(response.getPaymentKey())
+			.orderId(response.getOrderId())
+			.amount(response.getTotalAmount())
+			.method(PaymentMethod.fromDescription(response.getMethod()))
+			.status(PaymentStatus.from(response.getStatus()))
+			.failureCode(failure != null ? failure.getCode() : null)
+			.failureMessage(failure != null ? failure.getMessage() : null)
+			.reservation(reservation)
+			.build();
+	}
+
+	// API 호출 실패 시 사용할 정적 팩토리 메서드 (추가하면 좋음)
+	public static PaymentAttempt createFailedAttempt(
+		String paymentKey,
+		String orderId,
+		Long amount,
+		Reservation reservation,
+		String errorCode,
+		String errorMessage) {
+		return PaymentAttempt.builder()
+			.paymentKey(paymentKey)
+			.orderId(orderId)
+			.amount(amount)
+			.method(PaymentMethod.UNKNOWN)
+			.status(PaymentStatus.ABORTED)
+			.failureCode(errorCode)
+			.failureMessage(errorMessage)
+			.reservation(reservation)
+			.build();
+	}
 }
