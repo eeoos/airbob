@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.Type;
 import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.CascadeType;
@@ -23,8 +22,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.payment.common.PaymentMethod;
-import kr.kro.airbob.domain.payment.common.PaymentStatus;
+import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -82,5 +80,19 @@ public class Payment extends BaseEntity {
 		if (this.paymentUid == null) {
 			this.paymentUid = UUID.randomUUID();
 		}
+	}
+
+	public static Payment create(TossPaymentResponse response, Reservation reservation) {
+		return Payment.builder()
+			.paymentKey(response.getPaymentKey())
+			.orderId(response.getOrderId())
+			.totalAmount(response.getTotalAmount())
+			.balanceAmount(response.getTotalAmount())
+			.balanceAmount(response.getBalanceAmount())
+			.method(PaymentMethod.fromDescription(response.getMethod()))
+			.status(PaymentStatus.from(response.getStatus()))
+			.approvedAt(response.getApprovedAt())
+			.reservation(reservation)
+			.build();
 	}
 }
