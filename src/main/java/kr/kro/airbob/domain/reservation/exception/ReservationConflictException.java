@@ -7,4 +7,8 @@ public class ReservationConflictException extends RuntimeException {
 	public ReservationConflictException() {
 		super(ERROR_MESSAGE);
 	}
+
+	public ReservationConflictException(String message) {
+		super(message);
+	}
 }

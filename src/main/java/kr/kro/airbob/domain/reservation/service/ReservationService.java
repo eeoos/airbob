@@ -1,9 +1,10 @@
 package kr.kro.airbob.domain.reservation.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
+import org.redisson.api.RLock;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,34 +37,54 @@ public class ReservationService {
 	private final ReservationRepository reservationRepository;
 	private final MemberRepository memberRepository;
 	private final AccommodationRepository accommodationRepository;
+
+	private final ReservationHoldService holdService;
+	private final ReservationLockManager lockManager;
+
 	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public ReservationResponse.Create createPendingReservation(Long memberId, ReservationRequest.Create request) {
-		Member guest = memberRepository.findById(memberId)
-			.orElseThrow(MemberNotFoundException::new);
 
-		Accommodation accommodation = accommodationRepository.findById(request.accommodationId())
-			.orElseThrow(AccommodationNotFoundException::new);
-
-		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
-		LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
-
-		if (reservationRepository.existsConflictingReservation(accommodation.getId(), checkInDateTime, checkOutDateTime)) {
-			throw new ReservationConflictException();
+		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
+			throw new ReservationConflictException("현재 다른 사용자가 해당 날짜로 결제를 진행 중입니다. 잠시 후 다시 시도해주세요.");
 		}
 
-		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request);
-		Reservation savedReservation = reservationRepository.save(pendingReservation);
+		List<String> lockKeys = DateLockKeyGenerator.generateLockKeys(request.accommodationId(), request.checkInDate(),
+			request.checkOutDate());
 
-		eventPublisher.publishEvent(
-			new ReservationEvent.ReservationPendingEvent(savedReservation.getId(), savedReservation.getTotalPrice())
-		);
+		RLock lock = null;
+		try{
+			lock = lockManager.acquireLocks(lockKeys);
 
-		return ReservationResponse.Create.from(savedReservation);
+			// -- 락 획득 성공 --
+			Member guest = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
+			Accommodation accommodation = accommodationRepository.findById(request.accommodationId())
+				.orElseThrow(AccommodationNotFoundException::new);
+
+			LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
+			LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
+
+			if (reservationRepository.existsConflictingReservation(request.accommodationId(), checkInDateTime, checkOutDateTime)) {
+				throw new ReservationConflictException("해당 날짜에 이미 예약이 확정되었거나 진행 중입니다.");
+			}
+
+			Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request);
+			Reservation savedReservation = reservationRepository.save(pendingReservation);
+
+			holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
+
+			eventPublisher.publishEvent(
+				new ReservationEvent.ReservationPendingEvent(savedReservation.getId(), savedReservation.getTotalPrice())
+			);
+
+			return ReservationResponse.Create.from(savedReservation);
+		} finally {
+			lockManager.releaseLocks(lock);
+		}
 	}
 
-	// @Async
+	// @Async // 굳이?
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
@@ -75,4 +96,7 @@ public class ReservationService {
 		// es 색인 이벤트 발행
 		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getId()));
 	}
+
+
+	// todo: 결제 실패 보상 트랜잭션 구현
 }
