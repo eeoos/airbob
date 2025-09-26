@@ -88,7 +88,6 @@ public class Payment extends BaseEntity {
 			.orderId(response.getOrderId())
 			.totalAmount(response.getTotalAmount())
 			.balanceAmount(response.getTotalAmount())
-			.balanceAmount(response.getBalanceAmount())
 			.method(PaymentMethod.fromDescription(response.getMethod()))
 			.status(PaymentStatus.from(response.getStatus()))
 			.approvedAt(response.getApprovedAt())
