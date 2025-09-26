@@ -7,8 +7,9 @@ import lombok.NoArgsConstructor;
 public class ReservationEvent {
 
 	public record ReservationPendingEvent(
-		Long reservationId,
-		Integer totalPrice
+		Integer amount,
+		String paymentKey,   // pg 결제 키
+		String orderId       // reservation_uid
 	) {
 	}
 }

@@ -6,10 +6,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentEvent {
 
-	public record PaymentSucceededEvent(Long reservationId) {
+	public record PaymentSucceededEvent(String reservationUid) {
 	}
 
-	public record PaymentFailedEvent(Long reservationId, String reason) {
+	public record PaymentFailedEvent(String reservationUid, String reason) {
 	}
 
 }
