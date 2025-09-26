@@ -137,7 +137,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             .from(reservation)
             .where(
                 reservation.accommodation.eq(accommodation),
-                reservation.status.eq(ReservationStatus.COMPLETED),
+                reservation.status.eq(ReservationStatus.CONFIRMED),
                 reservation.checkIn.lt(condition.getCheckOut().atStartOfDay()),
                 reservation.checkOut.gt(condition.getCheckIn().atStartOfDay())
             )

@@ -206,8 +206,8 @@ public class ReservationServiceTest {
 
         // then
         assertThat(result).isEqualTo(reservationId);
-        assertThat(reservedDate1.getStatus()).isEqualTo(ReservationStatus.COMPLETED);
-        assertThat(reservedDate2.getStatus()).isEqualTo(ReservationStatus.COMPLETED);
+        assertThat(reservedDate1.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+        assertThat(reservedDate2.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
     }
 
 

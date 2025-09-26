@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.exception;
+package kr.kro.airbob.domain.payment.exception.code;
 
 import java.util.Arrays;
 
