@@ -1,7 +1,7 @@
 -- V18__Refactor_reservation_tables.sql
 
 -- 기존 제약 조건 및 테이블 삭제
-ALTER TABLE IF EXISTS payment DROP FOREIGN KEY IF EXISTS FK_payment_reservation_id;
+ALTER TABLE payment DROP FOREIGN KEY FK_payment_reservation_id;
 DROP TABLE IF EXISTS payment;
 DROP TABLE IF EXISTS reserved_dates;
 DROP TABLE IF EXISTS reservation;
@@ -60,7 +60,7 @@ CREATE TABLE payment_attempt
     payment_key VARCHAR(200) NOT NULL,
     order_id VARCHAR(64) NOT NULL,
     amount BIGINT NOT NULL,
-    method VARCHAR(50) NOT NULL,
+    method VARCHAR(50) NULL,
     status VARCHAR(50) NOT NULL,
     failure_code VARCHAR(100) NULL,
     failure_message VARCHAR(512) NULL,
