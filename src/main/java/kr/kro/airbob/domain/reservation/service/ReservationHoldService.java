@@ -39,6 +39,11 @@ public class ReservationHoldService {
 		return results != null && results.stream().anyMatch(result -> result != null);
 	}
 
+	public void removeHold(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
+		List<String> holdKeys = generateHoldKeys(accommodationId, checkIn, checkOut);
+		redisTemplate.delete(holdKeys);
+	}
+
 	private List<String> generateHoldKeys(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
 		return checkIn.datesUntil(checkOut)
 			.map(date -> HOLD_KEY_PREFIX + accommodationId + ":" + date)

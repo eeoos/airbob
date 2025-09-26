@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationHoldService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ReservationScheduler {
 
 	private final ReservationRepository reservationRepository;
+	private final ReservationHoldService holdService;
 
 	@Scheduled(fixedRate = 300000)
 	@Transactional
@@ -38,8 +40,15 @@ public class ReservationScheduler {
 		expiredList.forEach(reservation -> {
 			log.warn("예약 ID {}가 결제 시간 초과로 만료 처리됩니다.", reservation.getId());
 			reservation.expire();
+
+			holdService.removeHold( // redis TTL 홀드 키 명시적 삭제
+				reservation.getAccommodation().getId(),
+				reservation.getCheckIn().toLocalDate(),
+				reservation.getCheckOut().toLocalDate()
+			);
 		});
 		log.info("{}건의 만료된 예약 정리 완료", expiredList.size());
 	}
 
 }
+
