@@ -62,3 +62,8 @@ slack:
     url: ${SLACK_WEBHOOK_URL}
   notification:
     enabled: true
+
+payment:
+  toss:
+    secret-key: ${TOSS_SECRET_KEY}
+    base-url: https://api.tosspayments.com
