@@ -23,13 +23,13 @@ public class ReservationController {
 	private final ReservationService reservationService;
 
 	@PostMapping
-	public ResponseEntity<ReservationResponse.Create> createReservation(
+	public ResponseEntity<ReservationResponse.Ready> createReservation(
 		HttpServletRequest request,
 		@Valid @RequestBody ReservationRequest.Create requestDto) {
 
 		Long memberId = (Long) request.getAttribute("memberId");
 
-		ReservationResponse.Create response = reservationService.createPendingReservation(1L, requestDto);
-		return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+		ReservationResponse.Ready response = reservationService.createPendingReservation(1L, requestDto);
+		return ResponseEntity.ok(response);
 	}
 }

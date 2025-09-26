@@ -33,4 +33,23 @@ public class ReservationResponse {
 				.build();
 		}
 	}
+
+	@Builder
+	public record Ready(
+		String reservationUid, // toss orderId
+		String orderName,
+		Integer amount,
+		String customerEmail,
+		String customerName
+	) {
+		public static Ready from(Reservation reservation) {
+			return Ready.builder()
+				.reservationUid(reservation.getReservationUid().toString())
+				.orderName(reservation.getAccommodation().getName())
+				.amount(reservation.getTotalPrice())
+				.customerEmail(reservation.getGuest().getEmail())
+				.customerName(reservation.getGuest().getNickname())
+				.build();
+		}
+	}
 }

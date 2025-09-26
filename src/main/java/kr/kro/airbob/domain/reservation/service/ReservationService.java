@@ -41,10 +41,9 @@ public class ReservationService {
 	private final ReservationHoldService holdService;
 	private final ReservationLockManager lockManager;
 
-	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
-	public ReservationResponse.Create createPendingReservation(Long memberId, ReservationRequest.Create request) {
+	public ReservationResponse.Ready createPendingReservation(Long memberId, ReservationRequest.Create request) {
 
 		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
 			throw new ReservationConflictException("현재 다른 사용자가 해당 날짜로 결제를 진행 중입니다. 잠시 후 다시 시도해주세요.");
@@ -52,10 +51,10 @@ public class ReservationService {
 
 		List<String> lockKeys = DateLockKeyGenerator.generateLockKeys(request.accommodationId(), request.checkInDate(),
 			request.checkOutDate());
+		RLock lock = lockManager.acquireLocks(lockKeys);
 
-		RLock lock = null;
 		try{
-			lock = lockManager.acquireLocks(lockKeys);
+			log.info("분산 락 획득 성공 (락 키: {})", lockKeys);
 
 			// -- 락 획득 성공 --
 			Member guest = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
@@ -70,33 +69,15 @@ public class ReservationService {
 			}
 
 			Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request);
-			Reservation savedReservation = reservationRepository.save(pendingReservation);
+			reservationRepository.save(pendingReservation);
 
 			holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
 
-			eventPublisher.publishEvent(
-				new ReservationEvent.ReservationPendingEvent(savedReservation.getId(), savedReservation.getTotalPrice())
-			);
+			log.info("예약 ID {} (UID: {}) PENDING 상태로 생성 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
 
-			return ReservationResponse.Create.from(savedReservation);
+			return ReservationResponse.Ready.from(pendingReservation);
 		} finally {
 			lockManager.releaseLocks(lock);
 		}
 	}
-
-	// @Async // 굳이?
-	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
-		Reservation reservation = reservationRepository.findById(event.reservationId())
-			.orElseThrow(ReservationNotFoundException::new);
-		log.info("예약ID {} 상태 변경 시도", reservation.getId());
-		reservation.confirm();
-		log.info("예약ID {} 예약 완료", reservation.getId());
-		// es 색인 이벤트 발행
-		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getId()));
-	}
-
-
-	// todo: 결제 실패 보상 트랜잭션 구현
 }
