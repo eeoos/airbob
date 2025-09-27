@@ -12,4 +12,7 @@ public class PaymentEvent {
 	public record PaymentFailedEvent(String reservationUid, String reason) {
 	}
 
+	public record PaymentCancellationFailedEvent(String reservationUid, String reason) {
+	}
+
 }
