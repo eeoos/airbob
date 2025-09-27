@@ -135,7 +135,7 @@ public class ReservationService {
 			reservation.getCheckOut().toLocalDate()
 		);
 
-		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getId()));
+		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString()));
 	}
 
 	@Async

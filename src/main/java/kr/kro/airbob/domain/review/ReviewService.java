@@ -60,7 +60,7 @@ public class ReviewService {
 
 		updateReviewSummaryOnCreate(accommodationId, request.rating());
 
-		eventPublisher.publishEvent(new ReviewSummaryChangedEvent(accommodationId));
+		eventPublisher.publishEvent(new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString()));
 
 		return new ReviewResponse.CreateResponse(savedReview.getId());
 	}
@@ -77,14 +77,14 @@ public class ReviewService {
 	@Transactional
 	public void deleteReview(Long reviewId) {
 		Review review = findReviewById(reviewId);
-		Long accommodationId = review.getAccommodation().getId();
+		Accommodation accommodation = review.getAccommodation();
 		int rating = review.getRating();
 
 		reviewRepository.delete(review);
 
-		updateReviewSummaryOnDelete(accommodationId, rating);
+		updateReviewSummaryOnDelete(accommodation.getId(), rating);
 
-		eventPublisher.publishEvent(new ReviewSummaryChangedEvent(accommodationId));
+		eventPublisher.publishEvent(new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString()));
 	}
 
 	@Transactional(readOnly = true)

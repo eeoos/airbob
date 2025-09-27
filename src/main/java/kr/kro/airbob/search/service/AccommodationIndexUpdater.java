@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
@@ -25,8 +26,8 @@ public class AccommodationIndexUpdater {
 	private final ElasticsearchOperations elasticsearchOperations;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final ReservationRepository reservationRepository;
-	public void updateReviewSummaryInIndex(Long accommodationId) {
-		AccommodationReviewSummary reviewSummary = reviewSummaryRepository.findByAccommodationId(accommodationId)
+	public void updateReviewSummaryInIndex(String accommodationUid) {
+		AccommodationReviewSummary reviewSummary = reviewSummaryRepository.findByAccommodation_AccommodationUid(UUID.fromString(accommodationUid))
 			.orElse(null);
 
 		Map<String, Object> params = new HashMap<>();
@@ -39,7 +40,7 @@ public class AccommodationIndexUpdater {
 		params.put("averageRating", averageRating);
 		params.put("reviewCount", reviewCount);
 
-		UpdateQuery updateQuery = UpdateQuery.builder(accommodationId.toString())
+		UpdateQuery updateQuery = UpdateQuery.builder(accommodationUid)
 			.withScriptType(ScriptType.INLINE)
 			.withScript(
 				"ctx._source.averageRating = params.averageRating; ctx._source.reviewCount = params.reviewCount")
@@ -49,8 +50,8 @@ public class AccommodationIndexUpdater {
 		elasticsearchOperations.update(updateQuery, IndexCoordinates.of(ACCOMMODATIONS));
 	}
 
-	public void updateReservedDatesInIndex(Long accommodationId) {
-		List<LocalDate> reservedDates = getReservedDates(accommodationId);
+	public void updateReservedDatesInIndex(String accommodationUid) {
+		List<LocalDate> reservedDates = getReservedDates(accommodationUid);
 
 		List<String> reservedDateStrings = reservedDates.stream()
 			.map(LocalDate::toString)
@@ -59,7 +60,7 @@ public class AccommodationIndexUpdater {
 		Map<String, Object> params = new HashMap<>();
 		params.put("reservedDates", reservedDateStrings);
 
-		UpdateQuery updateQuery = UpdateQuery.builder(accommodationId.toString())
+		UpdateQuery updateQuery = UpdateQuery.builder(accommodationUid)
 			.withScriptType(ScriptType.INLINE)
 			.withScript("ctx._source.reservedDates = params.reservedDates")
 			.withParams(params)
@@ -68,9 +69,9 @@ public class AccommodationIndexUpdater {
 		elasticsearchOperations.update(updateQuery, IndexCoordinates.of(ACCOMMODATIONS));
 	}
 
-	private List<LocalDate> getReservedDates(Long accommodationId) {
+	private List<LocalDate> getReservedDates(String accommodationUid) {
 		return reservationRepository
-			.findFutureCompletedReservations(accommodationId)
+			.findFutureCompletedReservations(UUID.fromString(accommodationUid))
 			.stream()
 			.flatMap(reservation -> {
 				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();

@@ -72,7 +72,7 @@ public class AccommodationService {
             saveValidAmenities(request.getAmenityInfos(), savedAccommodation);
         }
 
-        eventPublisher.publishEvent(new AccommodationCreatedEvent(savedAccommodation.getId()));
+        eventPublisher.publishEvent(new AccommodationCreatedEvent(savedAccommodation.getAccommodationUid().toString()));
 
         return savedAccommodation.getId();
     }
@@ -138,7 +138,7 @@ public class AccommodationService {
             saveValidAmenities(request.getAmenityInfos(), accommodation);
         }
 
-        eventPublisher.publishEvent(new AccommodationUpdatedEvent(accommodationId));
+        eventPublisher.publishEvent(new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString()));
     }
 
     @Transactional
@@ -149,7 +149,7 @@ public class AccommodationService {
         accommodationAmenityRepository.deleteByAccommodationId(accommodationId);
         accommodationRepository.delete(accommodation);
 
-        eventPublisher.publishEvent(new AccommodationDeletedEvent(accommodationId));
+        eventPublisher.publishEvent(new AccommodationDeletedEvent(accommodation.getAccommodationUid().toString()));
     }
 
     public List<AccommodationSearchResponseDto> searchAccommodations(AccommodationSearchConditionDto request, Pageable pageable) {
