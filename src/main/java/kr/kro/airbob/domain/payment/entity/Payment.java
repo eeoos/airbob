@@ -94,4 +94,21 @@ public class Payment extends BaseEntity {
 			.reservation(reservation)
 			.build();
 	}
+
+	public void updateOnCancel(TossPaymentResponse response) {
+		this.status = PaymentStatus.from(response.getStatus());
+		this.balanceAmount = response.getBalanceAmount();
+
+		if (response.getCancels() != null && !response.getCancels().isEmpty()) {
+			TossPaymentResponse.Cancel cancelData = response.getCancels().getLast();
+			PaymentCancel paymentCancel = PaymentCancel.create(cancelData, this);
+			this.addCancel(paymentCancel);
+		}
+	}
+
+	public void addCancel(PaymentCancel cancel) {
+		// 양방향 관계
+		this.cancels.add(cancel);
+		cancel.assignPayment(this);
+	}
 }
