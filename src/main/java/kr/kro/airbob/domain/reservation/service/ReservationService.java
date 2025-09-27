@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.reservation.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import org.redisson.api.RLock;
 import org.springframework.context.ApplicationEventPublisher;
@@ -17,6 +18,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.Member;
 import kr.kro.airbob.domain.member.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -40,6 +42,8 @@ public class ReservationService {
 
 	private final ReservationHoldService holdService;
 	private final ReservationLockManager lockManager;
+
+	private final ApplicationEventPublisher eventPublisher;
 
 
 	@Transactional
@@ -79,5 +83,25 @@ public class ReservationService {
 		} finally {
 			lockManager.releaseLocks(lock);
 		}
+	}
+
+	@Transactional
+	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request) {
+
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		log.info("[예약 취소]: Reservation UID {}", reservationUid);
+
+		reservation.cancel();
+
+		eventPublisher.publishEvent(
+			new ReservationEvent.ReservationCancelledEvent(
+				reservationUid,
+				request.cancelReason(),
+				request.cancelAmount()
+			)
+		);
+		log.info("[예약 취소 완료]: Reservation UID {} 상태 변경 및 이벤트 발행 완료", reservationUid);
 	}
 }
