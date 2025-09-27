@@ -118,4 +118,23 @@ public class ReservationService {
 
 		// TODO: 슬랙 알림 발송
 	}
+
+	@Async
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@TransactionalEventListener
+	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경 CONFORM", reservation.getId());
+		reservation.confirm();
+
+		holdService.removeHold(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckIn().toLocalDate(),
+			reservation.getCheckOut().toLocalDate()
+		);
+
+		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getId()));
+	}
 }
