@@ -122,4 +122,11 @@ public class Reservation extends BaseEntity {
 		}
 		this.status = ReservationStatus.EXPIRED;
 	}
+
+	public void cancel() {
+		if (this.status != ReservationStatus.CONFIRMED) {
+			throw new InvalidReservationStatusException("결제 완료 상태의 예약만 취소할 수 있습니다.");
+		}
+		this.status = ReservationStatus.CANCELLED;
+	}
 }
