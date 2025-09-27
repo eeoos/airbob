@@ -71,7 +71,6 @@ public class PaymentAttempt extends BaseEntity {
 			.build();
 	}
 
-	// API 호출 실패 시 사용할 정적 팩토리 메서드 (추가하면 좋음)
 	public static PaymentAttempt createFailedAttempt(
 		String paymentKey,
 		String orderId,

@@ -126,7 +126,7 @@ public class ReservationService {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
 			.orElseThrow(ReservationNotFoundException::new);
 
-		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경 CONFORM", reservation.getId());
+		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFORM)", reservation.getId());
 		reservation.confirm();
 
 		holdService.removeHold(
@@ -137,4 +137,22 @@ public class ReservationService {
 
 		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getId()));
 	}
+
+	@Async
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@TransactionalEventListener
+	public void handlePaymentFailed(PaymentEvent.PaymentFailedEvent event) {
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		log.warn("[결제 실패 확인]: 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), event.reason());
+		reservation.expire();
+
+		holdService.removeHold(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckIn().toLocalDate(),
+			reservation.getCheckOut().toLocalDate()
+		);
+	}
+
 }
