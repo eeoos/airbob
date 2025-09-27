@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.payment.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -8,8 +9,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
+@Setter // ?
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -25,10 +28,33 @@ public class TossPaymentResponse {
 	private Long balanceAmount;
 	private Failure failure;
 
+	private List<Cancel> cancels;
+
 	@Getter
+	@Setter
 	@Builder
+	@AllArgsConstructor
+	@NoArgsConstructor
 	public static class Failure {
 		private String code;
 		private String message;
+	}
+
+	@Getter
+	@Setter
+	@Builder
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class Cancel {
+		private Long cancelAmount;
+		private String cancelReason;
+		private Long taxFreeAmount;
+		private Integer taxExemptionAmount;
+		private Long refundableAmount;
+		private Long easyPayDiscountAmount;
+		private LocalDateTime canceledAt;
+		private String transactionKey;
+		private String receiptKey;
 	}
 }
