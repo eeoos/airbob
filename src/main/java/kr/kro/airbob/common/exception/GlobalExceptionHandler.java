@@ -20,6 +20,7 @@ import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentCancelException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
+import kr.kro.airbob.domain.payment.exception.VirtualAccountIssueException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
@@ -164,6 +165,12 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<Void> handlePaymentNotFoundException(PaymentNotFoundException e) {
 		log.error("PaymentNotFoundException: {}", e.getMessage());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+	}
+
+	@ExceptionHandler(VirtualAccountIssueException.class)
+	public ResponseEntity<Void> handleVirtualAccountIssueException(VirtualAccountIssueException e) {
+		log.error("VirtualAccountIssueException: {}", e.getMessage());
+		return ResponseEntity.status(e.getErrorCode().getStatusCode()).build();
 	}
 
 
