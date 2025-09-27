@@ -16,7 +16,6 @@ import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.accommodation.interceptor.AccommodationAuthorizationInterceptor;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.recentlyViewed.interceptor.RecentlyViewedAuthorizationInterceptor;
-import kr.kro.airbob.domain.reservation.interceptor.ReservationAuthorizationInterceptor;
 import kr.kro.airbob.domain.review.interceptor.ReviewAuthorizationInterceptor;
 import kr.kro.airbob.domain.wishlist.interceptor.WishlistAuthorizationInterceptor;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 	private final WishlistAuthorizationInterceptor wishlistInterceptor;
 	private final RecentlyViewedAuthorizationInterceptor recentlyViewedInterceptor;
 	private final ReviewAuthorizationInterceptor reviewInterceptor;
-	private final ReservationAuthorizationInterceptor reservationInterceptor;
 
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {

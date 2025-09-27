@@ -248,7 +248,7 @@ class AccommodationServiceTest {
         Long accommodationId = 1L;
 
         AccommodationRequest.AddressInfo addressInfo = AccommodationRequest.AddressInfo.builder()
-                .postalCode(12345)
+                .postalCode("12345")
                 .city("Seoul")
                 .country("KR")
                 .district("Gangnam")

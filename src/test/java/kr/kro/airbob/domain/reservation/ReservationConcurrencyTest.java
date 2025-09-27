@@ -119,7 +119,7 @@ public class ReservationConcurrencyTest {
                 .district("종로구")
                 .street("세종대로")
                 .detail("101호")
-                .postalCode(1536)
+                .postalCode("1536")
                 .latitude(37.5665)
                 .longitude(126.9780)
                 .build();

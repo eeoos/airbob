@@ -59,7 +59,7 @@ public class ReviewAuthorizationInterceptor implements HandlerInterceptor {
 
 		// -- 로그인 검증 end --
 
-		if (!reservationRepository.existsByAccommodationIdAndGuestId(accommodationId, requestMemberId)) {
+		if (!reservationRepository.existsCompletedReservationByGuest(accommodationId, requestMemberId)) { // 수정된 코드
 			response.sendError(HttpServletResponse.SC_FORBIDDEN, "숙소를 예약한 사용자만 리뷰를 작성할 수 있습니다.");
 			return false;
 		}

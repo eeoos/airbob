@@ -4,7 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import kr.kro.airbob.geo.dto.Coordinate;
 import lombok.AllArgsConstructor;
@@ -17,6 +21,7 @@ public class AccommodationRequest {
     @Getter
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class CreateAccommodationDto{
         @NotBlank
         @Size(min = 1, max = 50, message = "이름은 1 ~ 50자 이여야 합니다!")
@@ -24,8 +29,10 @@ public class AccommodationRequest {
         @NotBlank
         @Size(min = 1, max = 500, message = "설명은 1 ~ 500자 이여야 합니다!")
         private String description;
+
         @NotNull
         private int basePrice;
+
         @NotNull
         private Long hostId;
         @NotNull
@@ -36,6 +43,11 @@ public class AccommodationRequest {
         private String thumbnailUrl;
         @NotBlank
         private String type;
+
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
+        private LocalTime checkInTime;
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
+        private LocalTime checkOutTime;
 
     }
 
@@ -61,6 +73,7 @@ public class AccommodationRequest {
     @Getter
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class AmenityInfo {
         @NotBlank
         private String name;
@@ -71,6 +84,7 @@ public class AccommodationRequest {
     @Getter
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class OccupancyPolicyInfo {
         @NotNull
         private Integer maxOccupancy;
@@ -83,6 +97,7 @@ public class AccommodationRequest {
     @Getter
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class UpdateAccommodationDto {
         private String name;
         private String description;
@@ -96,6 +111,7 @@ public class AccommodationRequest {
     @Getter
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class AccommodationSearchConditionDto {
         private String city;
         private Integer minPrice;
