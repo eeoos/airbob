@@ -97,10 +97,11 @@ public class PaymentService {
 			payment.updateOnCancel(response);
 
 			log.info("[결제 취소 처리 완료]: PaymentKey {}의 상태 {} 변경 완료", payment.getPaymentKey(), payment.getStatus());
-			// TODO: 취소 성공/실패 이벤트를 발행 후속 처리
 		} catch (Exception e) {
 			log.error("[결제 취소 처리 실패]: Reservation UID {} 처리 중 예외 발생", reservationUid, e);
-			// TODO: 결제 취소 실패 보상 트랜잭션
+			eventPublisher.publishEvent(
+				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, e.getMessage())
+			);
 		}
 	}
 
