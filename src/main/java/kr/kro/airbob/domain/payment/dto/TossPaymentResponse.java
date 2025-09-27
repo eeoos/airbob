@@ -30,6 +30,8 @@ public class TossPaymentResponse {
 
 	private List<Cancel> cancels;
 
+	private VirtualAccount virtualAccount;
+
 	@Getter
 	@Setter
 	@Builder
@@ -56,5 +58,22 @@ public class TossPaymentResponse {
 		private LocalDateTime canceledAt;
 		private String transactionKey;
 		private String receiptKey;
+	}
+
+	@Getter
+	@Setter
+	@Builder
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class VirtualAccount {
+		private String accountNumber;
+		private String accountType;
+		private String bankCode;
+		private String customerName;
+		private LocalDateTime dueDate;
+		private boolean expired;
+		private String settlementStatus;
+		private String refundStatus;
 	}
 }

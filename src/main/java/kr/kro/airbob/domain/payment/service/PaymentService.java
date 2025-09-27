@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
@@ -121,6 +122,24 @@ public class PaymentService {
 			.orElseThrow(PaymentNotFoundException::new);
 
 		return PaymentResponse.PaymentInfo.from(payment);
+	}
+
+	@Transactional
+	public TossPaymentResponse issueVirtualAccount(String reservationUid, PaymentRequest.VirtualAccount request) {
+		log.info("[가상계좌 발급]: Reservation UID {}", reservationUid);
+
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		TossPaymentResponse response = tossPaymentsAdapter.issueVirtualAccount(reservation, request.bankCode(),
+			request.customerName());
+
+		PaymentAttempt attempt = PaymentAttempt.create(response, reservation);
+		paymentAttemptRepository.save(attempt);
+
+		log.info("[가상계좌 발급 완료]: Reservation UID {}", reservationUid);
+
+		return response;
 	}
 
 	private void processPaymentResponse(TossPaymentResponse response, Reservation reservation) {
