@@ -6,4 +6,8 @@ public class InvalidReservationStatusException extends RuntimeException{
 	public InvalidReservationStatusException() {
 		super(ERROR_MESSAGE);
 	}
+
+	public InvalidReservationStatusException(String message) {
+		super(message);
+	}
 }
