@@ -103,6 +103,13 @@ public class ReservationService {
 				request.cancelAmount()
 			)
 		);
+
+		eventPublisher.publishEvent(
+			new AccommodationIndexingEvents.ReservationChangedEvent(
+				reservation.getAccommodation().getAccommodationUid().toString()
+			)
+		);
+
 		log.info("[예약 취소 완료]: Reservation UID {} 상태 변경 및 이벤트 발행 완료", reservationUid);
 	}
 
