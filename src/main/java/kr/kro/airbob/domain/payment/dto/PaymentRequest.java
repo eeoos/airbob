@@ -14,4 +14,14 @@ public class PaymentRequest {
 		@NotBlank String orderId,
 		@NotNull @Positive Long amount
 	){}
+
+	public record Cancel(
+		@NotBlank(message = "취소 사유는 필수입니다.")
+		String cancelReason,
+
+		@Positive(message = "취소 금액은 0보다 커야 합니다.")
+		Long cancelAmount // 취소 금액, null이면 전액 취소
+		) {
+
+	}
 }
