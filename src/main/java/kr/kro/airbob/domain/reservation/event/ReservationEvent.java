@@ -12,4 +12,11 @@ public class ReservationEvent {
 		String orderId       // reservation_uid
 	) {
 	}
+
+	public record ReservationCancelledEvent(
+		String reservationUid,
+		String cancelReason,
+		Long cancelAmount // 전체 취소 시 null | 전체 금액
+	) {
+	}
 }
