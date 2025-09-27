@@ -154,5 +154,4 @@ public class ReservationService {
 			reservation.getCheckOut().toLocalDate()
 		);
 	}
-
 }
