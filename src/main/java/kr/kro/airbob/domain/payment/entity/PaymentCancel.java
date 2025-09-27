@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,4 +44,19 @@ public class PaymentCancel extends BaseEntity {
 
 	@Column(nullable = false)
 	private LocalDateTime canceledAt;
+
+	public void assignPayment(Payment payment) {
+		this.payment = payment;
+	}
+
+	public static PaymentCancel create(TossPaymentResponse.Cancel cancelData, Payment payment) {
+		return PaymentCancel.builder()
+			.cancelAmount(cancelData.getCancelAmount())
+			.cancelReason(cancelData.getCancelReason())
+			.transactionKey(cancelData.getTransactionKey())
+			.canceledAt(cancelData.getCanceledAt())
+			.payment(payment)
+			.build();
+	}
+
 }
