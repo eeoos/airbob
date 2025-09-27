@@ -47,7 +47,7 @@ public class AccommodationDocumentBuilder {
 		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
 		return AccommodationDocument.builder()
-			.id(accommodationUid)
+			.id(accommodation.getAccommodationUid().toString())
 			.accommodationId(accommodation.getId())
 			.name(accommodation.getName())
 			.description(accommodation.getDescription())

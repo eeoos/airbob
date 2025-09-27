@@ -115,6 +115,7 @@ public record AccommodationDocument(
 ) {
 
 	@Builder
+
 	public record Location(
 		@Field(type = FieldType.Double)
 		Double lat,

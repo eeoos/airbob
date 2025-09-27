@@ -115,7 +115,8 @@ public class DeadLetterQueueService {
 			event.getErrorMessage()
 		);
 
-		slackService.sendAlert(message);
+		// slackService.sendAlert(message);
+		// TODO: 디스코드로 변경 필요
 	}
 
 	private void handleRetryFailure(FailedIndexingEvent failedEvent) {

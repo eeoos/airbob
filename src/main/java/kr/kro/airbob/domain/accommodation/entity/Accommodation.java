@@ -15,6 +15,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
@@ -66,6 +67,13 @@ public class Accommodation extends BaseEntity {
 
 	@Column(nullable = false)
 	private LocalTime checkOutTime;
+
+	@PrePersist
+	protected void onCreate() {
+		if (this.accommodationUid == null) {
+			this.accommodationUid = UUID.randomUUID();
+		}
+	}
 
 	public static Accommodation createAccommodation(AccommodationRequest.CreateAccommodationDto request,
 													Address address, OccupancyPolicy occupancyPolicy, Member member) {
