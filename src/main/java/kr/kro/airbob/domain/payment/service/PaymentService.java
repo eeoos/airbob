@@ -13,12 +13,14 @@ import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
+import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
 import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
@@ -72,6 +74,53 @@ public class PaymentService {
 			saveFailedAttempt(event, reservation, "UNKNOWN_ERROR", e.getMessage());
 			handlePaymentFailure(reservationUid, "알 수 없는 오류가 발생했습니다.");
 		}
+	}
+
+	@Async
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void handleReservationCancelledEvent(ReservationEvent.ReservationCancelledEvent event) {
+		String reservationUid = event.reservationUid();
+		log.info("[결제 취소 처리]: Reservation UID {}", reservationUid);
+
+		try {
+			Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
+				.orElseThrow(PaymentNotFoundException::new);
+
+			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
+				payment.getPaymentKey(),
+				event.cancelReason(),
+				event.cancelAmount()
+			);
+
+			payment.updateOnCancel(response);
+
+			log.info("[결제 취소 처리 완료]: PaymentKey {}의 상태 {} 변경 완료", payment.getPaymentKey(), payment.getStatus());
+			// TODO: 취소 성공/실패 이벤트를 발행 후속 처리
+		} catch (Exception e) {
+			log.error("[결제 취소 처리 실패]: Reservation UID {} 처리 중 예외 발생", reservationUid, e);
+			// TODO: 결제 취소 실패 보상 트랜잭션
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public PaymentResponse.PaymentInfo findPaymentByPaymentKey(String paymentKey) {
+		TossPaymentResponse response = tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey);
+
+		Payment payment = paymentRepository.findByPaymentKey(paymentKey)
+			.orElseThrow(PaymentNotFoundException::new);
+
+		return PaymentResponse.PaymentInfo.from(payment);
+	}
+
+	@Transactional(readOnly = true)
+	public PaymentResponse.PaymentInfo findPaymentByOrderId(String orderId) {
+		TossPaymentResponse response = tossPaymentsAdapter.getPaymentByOrderId(orderId);
+
+		Payment payment = paymentRepository.findByOrderId(orderId)
+			.orElseThrow(PaymentNotFoundException::new);
+
+		return PaymentResponse.PaymentInfo.from(payment);
 	}
 
 	private void processPaymentResponse(TossPaymentResponse response, Reservation reservation) {
