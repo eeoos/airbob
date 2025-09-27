@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.redisson.api.RLock;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,5 +104,18 @@ public class ReservationService {
 			)
 		);
 		log.info("[예약 취소 완료]: Reservation UID {} 상태 변경 및 이벤트 발행 완료", reservationUid);
+	}
+
+	@Async
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@TransactionalEventListener
+	public void handlePaymentCancellationFailed(PaymentEvent.PaymentCancellationFailedEvent event) {
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		log.warn("[보상 트랜잭션]: 예약(UID: {})의 환불 실패, 예약 상태 CANCELLED -> CANCELLATION_FAILED 변경", event.reservationUid());
+		reservation.failCancellation();
+
+		// TODO: 슬랙 알림 발송
 	}
 }

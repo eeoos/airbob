@@ -112,6 +112,7 @@ public class TossPaymentsAdapter {
 		return getPayment(GET_PATH_BY_ORDER_ID, orderId);
 	}
 
+	// TODO: 도메인 재발급 후 웹훅 구현 필요
 	public TossPaymentResponse issueVirtualAccount(Reservation reservation,String bankCode, String customerName) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(AMOUNT, reservation.getTotalPrice());

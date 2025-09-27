@@ -129,4 +129,11 @@ public class Reservation extends BaseEntity {
 		}
 		this.status = ReservationStatus.CANCELLED;
 	}
+
+	public void failCancellation() {
+		if (this.status != ReservationStatus.CANCELLED) {
+			return;
+		}
+		this.status = ReservationStatus.CANCELLATION_FAILED;
+	}
 }
