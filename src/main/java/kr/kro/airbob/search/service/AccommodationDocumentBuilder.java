@@ -2,6 +2,7 @@ package kr.kro.airbob.search.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
@@ -29,23 +30,24 @@ public class AccommodationDocumentBuilder {
 	private final AccommodationImageRepository imageRepository;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 
-	public AccommodationDocument buildAccommodationDocument(Long accommodationId) {
-		Accommodation accommodation = accommodationRepository.findById(accommodationId)
+	public AccommodationDocument buildAccommodationDocument(String accommodationUid) {
+		Accommodation accommodation = accommodationRepository.findByAccommodationUid(UUID.fromString(accommodationUid))
 			.orElseThrow(AccommodationNotFoundException::new);
 
 		// 편의시설
-		List<String> amenityTypes = getAccommodationAmenities(accommodationId);
+		List<String> amenityTypes = getAccommodationAmenities(accommodationUid);
 
 		// 이미지
-		List<String> imageUrls = getAccommodationImages(accommodationId, accommodation.getThumbnailUrl());
+		List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
 
 		// 예약 날짜
-		List<LocalDate> reservedDates = getReservedDates(accommodationId);
+		List<LocalDate> reservedDates = getReservedDates(accommodationUid);
 
 		// 리뷰 요약
-		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationId);
+		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
 		return AccommodationDocument.builder()
+			.id(accommodation.getAccommodationUid().toString())
 			.accommodationId(accommodation.getId())
 			.name(accommodation.getName())
 			.description(accommodation.getDescription())
@@ -84,13 +86,13 @@ public class AccommodationDocumentBuilder {
 			.build();
 	}
 
-	private AccommodationReviewSummary getReviewSummary(Long accommodationId) {
-		return reviewSummaryRepository.findByAccommodationId(accommodationId)
+	private AccommodationReviewSummary getReviewSummary(String accommodationUid) {
+		return reviewSummaryRepository.findByAccommodation_AccommodationUid(UUID.fromString(accommodationUid))
 			.orElse(null);
 	}
 
-	private List<String> getAccommodationImages(Long accommodationId, String thumbnailUrl) {
-		List<String> imageUrls = imageRepository.findImagesByAccommodationId(accommodationId)
+	private List<String> getAccommodationImages(String accommodationUid, String thumbnailUrl) {
+		List<String> imageUrls = imageRepository.findImagesByAccommodationUid(UUID.fromString(accommodationUid))
 			.stream()
 			.map(AccommodationImage::getImageUrl)
 			.toList();
@@ -102,8 +104,8 @@ public class AccommodationDocumentBuilder {
 		return imageUrls;
 	}
 
-	private List<String> getAccommodationAmenities(Long accommodationId) {
-		return amenityRepository.findAllByAccommodationId(accommodationId)
+	private List<String> getAccommodationAmenities(String accommodationUid) {
+		return amenityRepository.findAllByAccommodation_AccommodationUid(UUID.fromString(accommodationUid))
 			.stream()
 			.map(AccommodationAmenity::getAmenity)
 			.map(amenity -> amenity.getName().name())
@@ -111,9 +113,9 @@ public class AccommodationDocumentBuilder {
 			.toList();
 	}
 
-	private List<LocalDate> getReservedDates(Long accommodationId) {
+	private List<LocalDate> getReservedDates(String accommodationUid) {
 		return reservationRepository
-			.findFutureCompletedReservations(accommodationId)
+			.findFutureCompletedReservations(UUID.fromString(accommodationUid))
 			.stream()
 			.flatMap(reservation -> {
 				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();

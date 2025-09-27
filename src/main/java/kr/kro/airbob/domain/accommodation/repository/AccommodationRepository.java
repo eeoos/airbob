@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.accommodation.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +15,9 @@ import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationRepos
 import kr.kro.airbob.domain.image.AccommodationImage;
 
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
+
+	Optional<Accommodation> findByAccommodationUid(UUID accommodationUid);
+
 	Optional<Address> findAddressById(Long accommodationId);
 
 	@Query("select a.member.id from Accommodation a where a.id = :id")

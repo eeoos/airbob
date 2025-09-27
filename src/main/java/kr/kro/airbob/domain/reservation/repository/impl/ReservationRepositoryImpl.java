@@ -1,10 +1,11 @@
 package kr.kro.airbob.domain.reservation.repository.impl;
 
-import static kr.kro.airbob.domain.reservation.entity.QReservation.*;
+import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
@@ -49,11 +50,11 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public List<Reservation> findFutureCompletedReservations(Long accommodationId) {
+	public List<Reservation> findFutureCompletedReservations(UUID accommodationUid) {
 		return queryFactory
 			.selectFrom(reservation)
 			.where(
-				reservation.accommodation.id.eq(accommodationId),
+				reservation.accommodation.accommodationUid.eq(accommodationUid),
 				reservation.status.eq(ReservationStatus.CONFIRMED),
 				reservation.checkOut.goe(LocalDateTime.now()) // 체크아웃 날짜가 오늘 이후인 것
 			)

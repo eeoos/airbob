@@ -2,6 +2,8 @@ package kr.kro.airbob.dlq.reprocessor;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,7 +51,7 @@ public class AccommodationEventReprocessor {
 	private boolean handleAccommodationCreated(String eventData) throws Exception {
 		AccommodationCreatedEvent event = objectMapper.readValue(eventData, AccommodationCreatedEvent.class);
 
-		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationId());
+		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());
 		searchRepository.save(document);
 
 		return true;
@@ -58,7 +60,7 @@ public class AccommodationEventReprocessor {
 	private boolean handleAccommodationUpdated(String eventData) throws Exception {
 		AccommodationUpdatedEvent event = objectMapper.readValue(eventData, AccommodationUpdatedEvent.class);
 
-		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationId());
+		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());
 		searchRepository.save(document);
 
 		return true;
@@ -67,7 +69,7 @@ public class AccommodationEventReprocessor {
 	private boolean handleAccommodationDeleted(String eventData) throws Exception {
 		AccommodationDeletedEvent event = objectMapper.readValue(eventData, AccommodationDeletedEvent.class);
 
-		searchRepository.deleteById(event.accommodationId());
+		searchRepository.deleteById(UUID.fromString(event.accommodationUid()));
 
 		return true;
 	}
@@ -75,7 +77,7 @@ public class AccommodationEventReprocessor {
 	private boolean handleReviewSummaryChanged(String eventData) throws Exception {
 		ReviewSummaryChangedEvent event = objectMapper.readValue(eventData, ReviewSummaryChangedEvent.class);
 
-		indexUpdater.updateReviewSummaryInIndex(event.accommodationId());
+		indexUpdater.updateReviewSummaryInIndex(event.accommodationUid());
 
 		return true;
 	}
@@ -83,7 +85,7 @@ public class AccommodationEventReprocessor {
 	private boolean handleReservationChanged(String eventData) throws Exception {
 		ReservationChangedEvent event = objectMapper.readValue(eventData, ReservationChangedEvent.class);
 
-		indexUpdater.updateReservedDatesInIndex(event.accommodationId());
+		indexUpdater.updateReservedDatesInIndex(event.accommodationUid());
 
 		return true;
 	}

@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.accommodation.repository;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +17,14 @@ public interface AccommodationImageRepository extends JpaRepository<Accommodatio
     ORDER BY ai.accommodation.id
     """)
 	List<AccommodationImage> findImagesByAccommodationId(@Param("accommodationId") Long accommodationId);
+
+	@Query("""
+    SELECT ai
+    FROM AccommodationImage ai
+    WHERE ai.accommodation.accommodationUid = :accommodationUid
+    ORDER BY ai.accommodation.id
+    """)
+	List<AccommodationImage> findImagesByAccommodationUid(@Param("accommodationUid") UUID accommodationUid);
 
 	@Query("""
 		SELECT 

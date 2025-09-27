@@ -19,6 +19,8 @@ import lombok.Builder;
 public record AccommodationDocument(
 
 	@Id
+	String id, // ES Document ID (accommodationUid)
+
 	Long accommodationId,
 
 	// accommodation
@@ -110,9 +112,10 @@ public record AccommodationDocument(
 
 	@Field(type = FieldType.Keyword)
 	String hostNickname
-	) {
+) {
 
 	@Builder
+
 	public record Location(
 		@Field(type = FieldType.Double)
 		Double lat,
@@ -121,3 +124,5 @@ public record AccommodationDocument(
 		Double lon
 	){}
 }
+
+

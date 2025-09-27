@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.reservation.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
@@ -10,5 +11,5 @@ public interface ReservationRepositoryCustom {
 
 	boolean existsCompletedReservationByGuest(Long accommodationId, Long memberId);
 
-	List<Reservation> findFutureCompletedReservations(Long accommodationId);
+	List<Reservation> findFutureCompletedReservations(UUID accommodationUid);
 }
