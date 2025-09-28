@@ -5,6 +5,7 @@ import static kr.kro.airbob.outbox.EventType.*;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.service.PaymentService;
@@ -23,6 +24,7 @@ public class PaymentKafkaConsumer {
 	private final DebeziumEventParser debeziumEventParser;
 
 	@KafkaListener(topics = "PAYMENT.events", groupId = "payment-group")
+	@Transactional
 	public void handlePaymentEvents(@Payload String message) throws Exception {
 		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
 		String eventType = parsedEvent.eventType();
@@ -36,6 +38,7 @@ public class PaymentKafkaConsumer {
 	}
 
 	@KafkaListener(topics = "RESERVATION.events", groupId = "payment-group")
+	@Transactional
 	public void handleReservationEvents(@Payload String message) throws Exception {
 		log.info("[KAFKA-CONSUME] Reservation Event 수신: {}", message);
 
