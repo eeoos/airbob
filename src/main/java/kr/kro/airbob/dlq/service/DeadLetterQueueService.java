@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+// NOTE: Kafka DQT로 변경함으로 더 이상 사용 X
 public class DeadLetterQueueService {
 
 	private final FailedEventRepository failedEventRepository;
