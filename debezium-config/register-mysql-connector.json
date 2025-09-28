@@ -11,9 +11,8 @@
     "database.server.name": "airbob_server",
     "database.include.list": "airbobdb",
     "table.include.list": "airbobdb.outbox",
-    "database.history.kafka.bootstrap.servers": "kafka:9092",
+    "database.history.kafka.bootstrap.servers": "kafka:29092",
     "database.history.kafka.topic": "schema-changes.inventory",
-    "topic.prefix": "outbox.events",
     "transforms": "outbox",
     "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
     "transforms.outbox.table.field.event.key": "aggregateId",
@@ -22,3 +21,4 @@
     "transforms.outbox.route.topic.replacement": "${routedByValue}.events"
   }
 }
+

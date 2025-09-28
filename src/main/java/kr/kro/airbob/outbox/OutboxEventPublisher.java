@@ -32,7 +32,6 @@ public class OutboxEventPublisher {
 			log.error("Outbox 이벤트 저장 실패: eventType={}, aggregateId={}, error={}",
 				eventType.name(), payload.getId(), e.getMessage());
 			throw new OutboxEventPublishingException(e);
-			// TODO custom 적용
 		}
 	}
 }

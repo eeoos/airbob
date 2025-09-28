@@ -5,19 +5,24 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=root
       - MYSQL_DATABASE=airbobdb
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=1234
+#      - MYSQL_USER=root
+#      - MYSQL_PASSWORD=1234
     ports:
       - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       # --- Debezium CDC를 위한 binlog 설정 ---
-      - --gconf "gtid_mode=ON"
-      - --gconf "enforce_gtid_consistency=ON"
-      - --gconf "log_bin=mysql-bin"
-      - --gconf "binlog_format=ROW"
-      - --gconf "binlog_row_image=FULL"
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
