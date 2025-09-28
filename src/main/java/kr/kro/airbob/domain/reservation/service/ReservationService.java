@@ -141,8 +141,10 @@ public class ReservationService {
 			reservation.getCheckOut().toLocalDate()
 		);
 
-		// Elasticsearch 색인 이벤트 발행 (이 부분은 추후 CDC로 대체)
-		// eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString()));
+		outboxEventPublisher.save(
+			EventType.RESERVATION_CHANGED,
+			new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString())
+		);
 	}
 
 	@Transactional
