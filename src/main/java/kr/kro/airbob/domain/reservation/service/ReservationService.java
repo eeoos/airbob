@@ -6,12 +6,10 @@ import java.util.UUID;
 
 import org.redisson.api.RLock;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -24,10 +22,10 @@ import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.search.event.AccommodationIndexingEvents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,11 +39,11 @@ public class ReservationService {
 	private final MemberRepository memberRepository;
 	private final AccommodationRepository accommodationRepository;
 
+
 	private final ReservationHoldService holdService;
 	private final ReservationLockManager lockManager;
-
+	private final DebeziumEventParser debeziumEventParser;
 	private final ApplicationEventPublisher eventPublisher;
-
 
 	@Transactional
 	public ReservationResponse.Ready createPendingReservation(Long memberId, ReservationRequest.Create request) {
@@ -78,7 +76,20 @@ public class ReservationService {
 
 			holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
 
-			log.info("예약 ID {} (UID: {}) PENDING 상태로 생성 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
+			/*ReservationEvent.ReservationPendingEvent eventPayload = new ReservationEvent.ReservationPendingEvent(
+				pendingReservation.getTotalPrice(),
+				null,
+				pendingReservation.getReservationUid().toString()
+			);
+
+			outboxEventPublisher.publish(
+				"RESERVATION",
+				pendingReservation.getReservationUid().toString(),
+				ReservationStatus.PAYMENT_PENDING.name(),
+				eventPayload
+			);*/
+
+			log.info("예약 ID {} (UID: {}) PENDING 상태로 생성 및 Outbox 저장 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
 
 			return ReservationResponse.Ready.from(pendingReservation);
 		} finally {
@@ -96,7 +107,7 @@ public class ReservationService {
 
 		reservation.cancel();
 
-		eventPublisher.publishEvent(
+		/*eventPublisher.publishEvent(
 			new ReservationEvent.ReservationCancelledEvent(
 				reservationUid,
 				request.cancelReason(),
@@ -108,46 +119,54 @@ public class ReservationService {
 			new AccommodationIndexingEvents.ReservationChangedEvent(
 				reservation.getAccommodation().getAccommodationUid().toString()
 			)
-		);
+		);*/
 
 		log.info("[예약 취소 완료]: Reservation UID {} 상태 변경 및 이벤트 발행 완료", reservationUid);
 	}
 
-	@Async
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	@TransactionalEventListener
-	public void handlePaymentCancellationFailed(PaymentEvent.PaymentCancellationFailedEvent event) {
-		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
-			.orElseThrow(ReservationNotFoundException::new);
+	@KafkaListener(topics = "PAYMENT.events", groupId = "reservation-service-group")
+	public void handlePaymentEvents(@Payload String message) {
+		log.info("[KAFKA-CONSUME] Payment Event 수신: {}", message);
+		try {
+			// 1. Debezium 메시지를 파싱하여 이벤트 타입과 실제 페이로드(JSON)를 먼저 얻습니다.
+			DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
 
-		log.warn("[보상 트랜잭션]: 예약(UID: {})의 환불 실패, 예약 상태 CANCELLED -> CANCELLATION_FAILED 변경", event.reservationUid());
-		reservation.failCancellation();
+			String eventType = parsedEvent.eventType();
+			String payloadJson = parsedEvent.payload();
 
-		// TODO: 슬랙 알림 발송
+			// 2. 이벤트 타입에 따라 적절한 DTO로 역직렬화합니다.
+			if ("PAYMENT_SUCCEEDED".equals(eventType)) {
+				PaymentEvent.PaymentSucceededEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentSucceededEvent.class);
+				handlePaymentSucceeded(event);
+			} else if ("PAYMENT_FAILED".equals(eventType)) {
+				PaymentEvent.PaymentFailedEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentFailedEvent.class);
+				handlePaymentFailed(event);
+			}
+		} catch (Exception e) {
+			log.error("[KAFKA-ERROR] Payment Event 처리 실패: {}", e.getMessage(), e);
+		}
 	}
 
-	@Async
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	@TransactionalEventListener
+	@Transactional
 	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
 			.orElseThrow(ReservationNotFoundException::new);
 
-		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFORM)", reservation.getId());
+		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED)", reservation.getId());
 		reservation.confirm();
 
+		// Redis 홀드 제거
 		holdService.removeHold(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckIn().toLocalDate(),
 			reservation.getCheckOut().toLocalDate()
 		);
 
+		// Elasticsearch 색인 이벤트 발행 (이 부분은 추후 CDC로 대체)
 		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString()));
 	}
 
-	@Async
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	@TransactionalEventListener
+	@Transactional
 	public void handlePaymentFailed(PaymentEvent.PaymentFailedEvent event) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
 			.orElseThrow(ReservationNotFoundException::new);
@@ -155,6 +174,7 @@ public class ReservationService {
 		log.warn("[결제 실패 확인]: 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), event.reason());
 		reservation.expire();
 
+		// Redis 홀드 제거
 		holdService.removeHold(
 			reservation.getAccommodation().getId(),
 			reservation.getCheckIn().toLocalDate(),

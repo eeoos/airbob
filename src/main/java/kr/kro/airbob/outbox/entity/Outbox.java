@@ -1,7 +1,5 @@
 package kr.kro.airbob.outbox.entity;
 
-import org.springframework.stereotype.Component;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -36,4 +34,13 @@ public class Outbox extends BaseEntity {
 
 	@Column(columnDefinition = "TEXT", nullable = false)
 	private String payload;
+
+	public static Outbox create(String aggregateType, String aggregateId, String eventType, String payload) {
+		return Outbox.builder()
+			.aggregateType(aggregateType)
+			.aggregateId(aggregateId)
+			.eventType(eventType)
+			.payload(payload)
+			.build();
+	}
 }

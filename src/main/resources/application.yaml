@@ -49,6 +49,13 @@ spring:
     connection-timeout: 10s
     socket-timeout: 30s
 
+  kafka:
+    consumer:
+      bootstrap-servers: localhost:9092 # Docker 외부에서 접속 시 localhost, 내부에서는 kafka:9092
+      group-id: payment-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 google:
   api:
     key: ${GOOGLE_API_KEY}
