@@ -1,19 +1,34 @@
 package kr.kro.airbob.search.event;
 
+import kr.kro.airbob.outbox.EventPayload;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AccommodationIndexingEvents {
 
-	// 숙소 이벤트
-	public record AccommodationCreatedEvent(String accommodationUid){}
-	public record AccommodationUpdatedEvent(String accommodationUid){}
-	public record AccommodationDeletedEvent(String accommodationUid){}
+	public record AccommodationCreatedEvent(String accommodationUid) implements EventPayload {
+		@Override
+		public String getId() { return accommodationUid; }
+	}
 
-	// 리뷰 이벤트
-	public record ReviewSummaryChangedEvent(String accommodationUid) {}
+	public record AccommodationUpdatedEvent(String accommodationUid) implements EventPayload {
+		@Override
+		public String getId() { return accommodationUid; }
+	}
 
-	// 예약 이벤트
-	public record ReservationChangedEvent(String accommodationUid){}
+	public record AccommodationDeletedEvent(String accommodationUid) implements EventPayload {
+		@Override
+		public String getId() { return accommodationUid; }
+	}
+
+	public record ReviewSummaryChangedEvent(String accommodationUid) implements EventPayload {
+		@Override
+		public String getId() { return accommodationUid; }
+	}
+
+	public record ReservationChangedEvent(String accommodationUid) implements EventPayload {
+		@Override
+		public String getId() { return accommodationUid; }
+	}
 }

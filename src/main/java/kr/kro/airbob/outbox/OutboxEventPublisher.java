@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.outbox.entity.Outbox;
+import kr.kro.airbob.outbox.exception.OutboxEventPublishingException;
 import kr.kro.airbob.outbox.repository.OutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,19 +20,18 @@ public class OutboxEventPublisher {
 	private final OutboxRepository outboxRepository;
 	private final ObjectMapper objectMapper;
 
-	// 메서드 이름을 save로 변경하고, EventType Enum을 받도록 수정
 	public void save(EventType eventType, EventPayload payload) {
 		try {
 			String serializedPayload = objectMapper.writeValueAsString(payload);
 
-			Outbox outboxEvent = Outbox.create(eventType.getAggregateType(), payload.getId(), eventType.getAggregateType(),
+			Outbox outboxEvent = Outbox.create(eventType.getAggregateType(), payload.getId(), eventType.name(),
 				serializedPayload);
 
 			outboxRepository.save(outboxEvent);
 		} catch (Exception e) {
 			log.error("Outbox 이벤트 저장 실패: eventType={}, aggregateId={}, error={}",
 				eventType.name(), payload.getId(), e.getMessage());
-			throw new RuntimeException("Outbox 이벤트 저장에 실패했습니다.", e);
+			throw new OutboxEventPublishingException(e);
 			// TODO custom 적용
 		}
 	}

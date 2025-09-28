@@ -1,13 +1,16 @@
 package kr.kro.airbob.kafka.consumer;
 
+import static kr.kro.airbob.outbox.EventType.*;
+
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.service.PaymentService;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
+import kr.kro.airbob.outbox.DebeziumEventParser;
+import kr.kro.airbob.outbox.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,22 +19,36 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PaymentKafkaConsumer {
 
-	private final ObjectMapper objectMapper;
 	private final PaymentService paymentService;
+	private final DebeziumEventParser debeziumEventParser;
 
-	// 구독하는 토픽을 깔끔한 비즈니스 토픽으로 변경!
-	@KafkaListener(topics = "reservation-pending", groupId = "payment-group")
-	public void handleReservationPending(String payload) {
-		try {
-			ReservationEvent.ReservationPendingEvent event = objectMapper.readValue(payload, ReservationEvent.ReservationPendingEvent.class);
+	@KafkaListener(topics = "PAYMENT.events", groupId = "payment-group")
+	public void handlePaymentEvents(@Payload String message) throws Exception {
+		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
+		String eventType = parsedEvent.eventType();
+		String payloadJson = parsedEvent.payload();
 
+		if (EventType.PAYMENT_CONFIRM_REQUESTED.name().equals(eventType)) {
+			PaymentRequest.Confirm event =
+				debeziumEventParser.deserialize(payloadJson, PaymentRequest.Confirm.class);
 			paymentService.processPaymentConfirmation(event);
-
-		} catch (JsonProcessingException e) {
-			log.error("ReservationPendingEvent 파싱 실패: payload={}", payload, e);
-			// TODO: DLQ 처리 로직
 		}
 	}
 
-	// ReservationCancelled 이벤트 핸들러도 동일하게 'reservation-cancelled' 토픽을 구독하도록 수정...
+	@KafkaListener(topics = "RESERVATION.events", groupId = "payment-group")
+	public void handleReservationEvents(@Payload String message) throws Exception {
+		log.info("[KAFKA-CONSUME] Reservation Event 수신: {}", message);
+
+		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
+		String eventType = parsedEvent.eventType();
+		String payloadJson = parsedEvent.payload();
+
+		if (EventType.RESERVATION_CANCELLED.name().equals(eventType)) {
+			ReservationEvent.ReservationCancelledEvent event =
+				debeziumEventParser.deserialize(payloadJson, ReservationEvent.ReservationCancelledEvent.class);
+			paymentService.processPaymentCancellation(event);
+		}
+	}
+
+
 }

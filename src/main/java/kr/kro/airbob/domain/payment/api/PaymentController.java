@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.service.PaymentService;
+import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
 
@@ -20,12 +21,15 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/payments")
 public class PaymentController {
 
+	private final OutboxEventPublisher outboxEventPublisher;
 	private final PaymentService paymentService;
 
 	@PostMapping("/confirm")
 	public ResponseEntity<Void> confirmPayment(@Valid @RequestBody PaymentRequest.Confirm request) {
-
-		paymentService.requestPaymentConfirmation(request);
+		outboxEventPublisher.save(
+			EventType.PAYMENT_CONFIRM_REQUESTED,
+			request
+		);
 		return ResponseEntity.accepted().build();
 	}
 

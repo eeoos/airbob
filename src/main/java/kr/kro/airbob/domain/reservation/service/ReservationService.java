@@ -22,10 +22,13 @@ import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.outbox.DebeziumEventParser;
+import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.search.event.AccommodationIndexingEvents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,11 +42,10 @@ public class ReservationService {
 	private final MemberRepository memberRepository;
 	private final AccommodationRepository accommodationRepository;
 
-
+	private final OutboxEventPublisher outboxEventPublisher;
 	private final ReservationHoldService holdService;
 	private final ReservationLockManager lockManager;
 	private final DebeziumEventParser debeziumEventParser;
-	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public ReservationResponse.Ready createPendingReservation(Long memberId, ReservationRequest.Create request) {
@@ -76,20 +78,7 @@ public class ReservationService {
 
 			holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
 
-			/*ReservationEvent.ReservationPendingEvent eventPayload = new ReservationEvent.ReservationPendingEvent(
-				pendingReservation.getTotalPrice(),
-				null,
-				pendingReservation.getReservationUid().toString()
-			);
-
-			outboxEventPublisher.publish(
-				"RESERVATION",
-				pendingReservation.getReservationUid().toString(),
-				ReservationStatus.PAYMENT_PENDING.name(),
-				eventPayload
-			);*/
-
-			log.info("예약 ID {} (UID: {}) PENDING 상태로 생성 및 Outbox 저장 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
+			log.info("예약 ID {} (UID: {}) PENDING 상태로 생성", pendingReservation.getId(), pendingReservation.getReservationUid());
 
 			return ReservationResponse.Ready.from(pendingReservation);
 		} finally {
@@ -107,7 +96,8 @@ public class ReservationService {
 
 		reservation.cancel();
 
-		/*eventPublisher.publishEvent(
+		outboxEventPublisher.save(
+			EventType.RESERVATION_CANCELLED,
 			new ReservationEvent.ReservationCancelledEvent(
 				reservationUid,
 				request.cancelReason(),
@@ -115,35 +105,24 @@ public class ReservationService {
 			)
 		);
 
-		eventPublisher.publishEvent(
-			new AccommodationIndexingEvents.ReservationChangedEvent(
-				reservation.getAccommodation().getAccommodationUid().toString()
-			)
-		);*/
-
 		log.info("[예약 취소 완료]: Reservation UID {} 상태 변경 및 이벤트 발행 완료", reservationUid);
 	}
 
 	@KafkaListener(topics = "PAYMENT.events", groupId = "reservation-service-group")
-	public void handlePaymentEvents(@Payload String message) {
+	public void handlePaymentEvents(@Payload String message) throws Exception { // 🔔 throws Exception 추가
 		log.info("[KAFKA-CONSUME] Payment Event 수신: {}", message);
-		try {
-			// 1. Debezium 메시지를 파싱하여 이벤트 타입과 실제 페이로드(JSON)를 먼저 얻습니다.
-			DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
 
-			String eventType = parsedEvent.eventType();
-			String payloadJson = parsedEvent.payload();
+		// 🔔 [제거] try-catch 블록 제거
+		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
+		String eventType = parsedEvent.eventType();
+		String payloadJson = parsedEvent.payload();
 
-			// 2. 이벤트 타입에 따라 적절한 DTO로 역직렬화합니다.
-			if ("PAYMENT_SUCCEEDED".equals(eventType)) {
-				PaymentEvent.PaymentSucceededEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentSucceededEvent.class);
-				handlePaymentSucceeded(event);
-			} else if ("PAYMENT_FAILED".equals(eventType)) {
-				PaymentEvent.PaymentFailedEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentFailedEvent.class);
-				handlePaymentFailed(event);
-			}
-		} catch (Exception e) {
-			log.error("[KAFKA-ERROR] Payment Event 처리 실패: {}", e.getMessage(), e);
+		if (EventType.PAYMENT_SUCCEEDED.name().equals(eventType)) {
+			PaymentEvent.PaymentSucceededEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentSucceededEvent.class);
+			handlePaymentSucceeded(event);
+		} else if (EventType.PAYMENT_FAILED.name().equals(eventType)) {
+			PaymentEvent.PaymentFailedEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentFailedEvent.class);
+			handlePaymentFailed(event);
 		}
 	}
 
@@ -163,7 +142,7 @@ public class ReservationService {
 		);
 
 		// Elasticsearch 색인 이벤트 발행 (이 부분은 추후 CDC로 대체)
-		eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString()));
+		// eventPublisher.publishEvent(new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString()));
 	}
 
 	@Transactional

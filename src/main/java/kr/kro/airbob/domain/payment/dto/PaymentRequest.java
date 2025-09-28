@@ -13,7 +13,7 @@ public class PaymentRequest {
 	public record Confirm(
 		@NotBlank String paymentKey,
 		@NotBlank String orderId,
-		@NotNull @Positive Long amount
+		@NotNull @Positive Integer amount
 	)implements EventPayload {
 		@Override
 		public String getId() {

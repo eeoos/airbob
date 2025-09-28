@@ -4,10 +4,7 @@ import static kr.kro.airbob.outbox.EventType.*;
 
 import java.util.UUID;
 
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -25,7 +22,6 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +39,7 @@ public class PaymentService {
 	private final TossPaymentsAdapter tossPaymentsAdapter;
 
 	@Transactional
-	public void processPaymentConfirmation(ReservationEvent.ReservationPendingEvent event) {
+	public void processPaymentConfirmation(PaymentRequest.Confirm event) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.orderId()))
 			.orElseThrow(ReservationNotFoundException::new);
 
@@ -69,17 +65,31 @@ public class PaymentService {
 	}
 
 	@Transactional
-	public void requestPaymentConfirmation(PaymentRequest.Confirm request) {
-		ReservationEvent.ReservationPendingEvent event = new ReservationEvent.ReservationPendingEvent(
-			request.amount().intValue(),
-			request.paymentKey(),
-			request.orderId()
-		);
+	public void processPaymentCancellation(ReservationEvent.ReservationCancelledEvent event) {
+		String reservationUid = event.reservationUid();
+		log.info("[결제 취소 처리]: Reservation UID {}", reservationUid);
 
-		outboxEventPublisher.save(
-			EventType.RESERVATION_PENDING,
-			event
-		);
+		try {
+			Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
+				.orElseThrow(PaymentNotFoundException::new);
+
+			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
+				payment.getPaymentKey(),
+				event.cancelReason(),
+				event.cancelAmount()
+			);
+
+			payment.updateOnCancel(response);
+
+			log.info("[결제 취소 처리 완료]: PaymentKey {}의 상태 {} 변경 완료", payment.getPaymentKey(), payment.getStatus());
+
+		} catch (Exception e) {
+			log.error("[결제 취소 처리 실패]: Reservation UID {} 처리 중 예외 발생", reservationUid, e);
+			outboxEventPublisher.save(
+				EventType.PAYMENT_CANCELLATION_FAILED,
+				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, e.getMessage())
+			);
+		}
 	}
 
 	@Transactional(readOnly = true)
@@ -140,7 +150,7 @@ public class PaymentService {
 		}
 	}
 
-	private void saveFailedAttempt(ReservationEvent.ReservationPendingEvent event, Reservation reservation, String code, String message) {
+	private void saveFailedAttempt(PaymentRequest.Confirm event, Reservation reservation, String code, String message) {
 		PaymentAttempt failedAttempt = PaymentAttempt.createFailedAttempt(event.paymentKey(), event.orderId(),
 			Long.valueOf(event.amount()), reservation, code, message);
 		paymentAttemptRepository.save(failedAttempt);
@@ -150,7 +160,7 @@ public class PaymentService {
 		log.error("[결제 실패]: Reservation UID {} 결제 실패. 사유: {}", reservationUid, reason);
 
 		outboxEventPublisher.save(
-			PAYMENT_CANCELLATION_FAILED,
+			PAYMENT_FAILED,
 			new PaymentEvent.PaymentFailedEvent(reservationUid, reason)
 		);
 	}
