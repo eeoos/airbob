@@ -10,6 +10,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -46,6 +47,7 @@ public class ReservationService {
 	private final ReservationHoldService holdService;
 	private final ReservationLockManager lockManager;
 	private final DebeziumEventParser debeziumEventParser;
+	private final TransactionTemplate transactionTemplate;
 
 	@Transactional
 	public ReservationResponse.Ready createPendingReservation(Long memberId, ReservationRequest.Create request) {
@@ -109,10 +111,9 @@ public class ReservationService {
 	}
 
 	@KafkaListener(topics = "PAYMENT.events", groupId = "reservation-service-group")
-	public void handlePaymentEvents(@Payload String message) throws Exception { // 🔔 throws Exception 추가
+	public void handlePaymentEvents(@Payload String message) throws Exception {
 		log.info("[KAFKA-CONSUME] Payment Event 수신: {}", message);
 
-		// 🔔 [제거] try-catch 블록 제거
 		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
 		String eventType = parsedEvent.eventType();
 		String payloadJson = parsedEvent.payload();
@@ -126,25 +127,43 @@ public class ReservationService {
 		}
 	}
 
-	@Transactional
 	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
-		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
-			.orElseThrow(ReservationNotFoundException::new);
+		Boolean success = transactionTemplate.execute(status -> {
+			try {
+				Reservation reservation = reservationRepository.findByReservationUid(
+						UUID.fromString(event.reservationUid()))
+					.orElseThrow(ReservationNotFoundException::new);
 
-		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED)", reservation.getId());
-		reservation.confirm();
+				log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED)", reservation.getId());
+				reservation.confirm();
 
-		// Redis 홀드 제거
-		holdService.removeHold(
-			reservation.getAccommodation().getId(),
-			reservation.getCheckIn().toLocalDate(),
-			reservation.getCheckOut().toLocalDate()
-		);
+				// Redis 홀드 제거
+				holdService.removeHold(
+					reservation.getAccommodation().getId(),
+					reservation.getCheckIn().toLocalDate(),
+					reservation.getCheckOut().toLocalDate()
+				);
 
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CHANGED,
-			new AccommodationIndexingEvents.ReservationChangedEvent(reservation.getAccommodation().getAccommodationUid().toString())
-		);
+				outboxEventPublisher.save(
+					EventType.RESERVATION_CHANGED,
+					new AccommodationIndexingEvents.ReservationChangedEvent(
+						reservation.getAccommodation().getAccommodationUid().toString())
+				);
+				return true;
+			} catch (Exception e) {
+				log.error("[예약 확정 실패] 예약 ID: {}의 상태 변경 중 오류 발생. 보상 트랜잭션 시작", event.reservationUid(), e);
+				status.setRollbackOnly(); // 트랜잭션 롤백
+				return false;
+			}
+		});
+
+		if (Boolean.FALSE.equals(success)) {
+			outboxEventPublisher.save(
+				EventType.RESERVATION_CONFIRMATION_FAILED,
+				new ReservationEvent.ReservationConfirmationFailedEvent(event.reservationUid(),
+					"Reservation confirmation failed.")
+			);
+		}
 	}
 
 	@Transactional

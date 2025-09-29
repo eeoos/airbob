@@ -50,6 +50,10 @@ public class PaymentKafkaConsumer {
 			ReservationEvent.ReservationCancelledEvent event =
 				debeziumEventParser.deserialize(payloadJson, ReservationEvent.ReservationCancelledEvent.class);
 			paymentService.processPaymentCancellation(event);
+		}else if (EventType.RESERVATION_CONFIRMATION_FAILED.name().equals(eventType)) { // 추가된 부분
+			ReservationEvent.ReservationConfirmationFailedEvent event =
+				debeziumEventParser.deserialize(payloadJson, ReservationEvent.ReservationConfirmationFailedEvent.class);
+			paymentService.compensatePayment(event);
 		}
 	}
 }

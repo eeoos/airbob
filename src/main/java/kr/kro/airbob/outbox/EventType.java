@@ -12,6 +12,7 @@ public enum EventType {
 	// 예약 이벤트
 	RESERVATION_PENDING("RESERVATION", "reservation-pending"),
 	RESERVATION_CANCELLED("RESERVATION", "reservation-cancelled"),
+	RESERVATION_CONFIRMATION_FAILED("RESERVATION", "reservation-confirmation-failed"),
 
 	// 결제 이벤트
 	PAYMENT_SUCCEEDED("PAYMENT", "payment-succeeded"),

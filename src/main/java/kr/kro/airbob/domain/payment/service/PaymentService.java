@@ -92,6 +92,38 @@ public class PaymentService {
 		}
 	}
 
+	@Transactional
+	public void compensatePayment(ReservationEvent.ReservationConfirmationFailedEvent event) {
+		String reservationUid = event.reservationUid();
+		log.warn("[결제 보상 트랜잭션 시작]: Reservation UID {}", reservationUid);
+
+		Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow(PaymentNotFoundException::new);
+
+		// 이미 취소된 건이라면 return
+		if (payment.getStatus() == PaymentStatus.CANCELED) {
+			log.warn("[결제 보상 트랜잭션] 이미 취소된 결제입니다. PaymentKey: {}", payment.getPaymentKey());
+			return;
+		}
+
+		try {
+			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
+				payment.getPaymentKey(),
+				"시스템 오류로 인한 예약 확정 실패",
+				null // 전액 취소
+			);
+			payment.updateOnCancel(response);
+			log.info("[결제 보상 트랜잭션 완료]: PaymentKey {}의 결제가 취소되었습니다.", payment.getPaymentKey());
+		} catch (Exception e) {
+			log.error("[결제 보상 트랜잭션 실패]: Reservation UID {} 처리 중 예외 발생. 수동 개입이 필요합니다.", reservationUid, e);
+			// 보상 트랜잭션 실패는 심각한 상황이므로, 별도의 모니터링/알림 채널로 알려야 함
+			outboxEventPublisher.save(
+				EventType.PAYMENT_CANCELLATION_FAILED,
+				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, "보상 트랜잭션 실패: " + e.getMessage())
+			);
+		}
+	}
+
 	@Transactional(readOnly = true)
 	public PaymentResponse.PaymentInfo findPaymentByPaymentKey(String paymentKey) {
 		TossPaymentResponse response = tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey);
