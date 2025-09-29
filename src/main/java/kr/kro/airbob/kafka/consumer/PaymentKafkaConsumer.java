@@ -52,6 +52,4 @@ public class PaymentKafkaConsumer {
 			paymentService.processPaymentCancellation(event);
 		}
 	}
-
-
 }

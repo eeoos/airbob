@@ -28,4 +28,14 @@ public class ReservationEvent {
 			return this.reservationUid;
 		}
 	}
+
+	public record ReservationConfirmationFailedEvent(
+		String reservationUid,
+		String reason
+	) implements EventPayload {
+		@Override
+		public String getId() {
+			return this.reservationUid;
+		}
+	}
 }
