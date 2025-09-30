@@ -6,9 +6,13 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.http.HttpStatusCode;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -50,6 +54,11 @@ public class TossPaymentsAdapter {
 	private final RestClient tossPaymentsRestClient;
 	private final ObjectMapper objectMapper;
 
+	@Retryable(
+		retryFor = { ResourceAccessException.class },
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 2000)
+	)
 	public TossPaymentResponse confirmPayment(String paymentKey, String orderId, Integer amount) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(PAYMENT_KEY, paymentKey);
@@ -61,7 +70,10 @@ public class TossPaymentsAdapter {
 				.uri(CONFIRM_PATH)
 				.body(payload)
 				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, response) -> {
+				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+					throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+				})
+				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 					String errorBody = new String(response.getBody().readAllBytes());
 					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 
@@ -76,6 +88,11 @@ public class TossPaymentsAdapter {
 		);
 	}
 
+	@Retryable(
+		retryFor = { ResourceAccessException.class },
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 2000)
+	)
 	public TossPaymentResponse cancelPayment(String paymentKey, String cancelReason, Long cancelAmount) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(CANCEL_REASON, cancelReason);
@@ -89,7 +106,10 @@ public class TossPaymentsAdapter {
 				.uri(CANCEL_PATH, paymentKey)
 				.body(payload)
 				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, response) -> {
+				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+					throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+				})
+				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 					String errorBody = new String(response.getBody().readAllBytes());
 					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 
@@ -113,6 +133,11 @@ public class TossPaymentsAdapter {
 	}
 
 	// TODO: 도메인 재발급 후 웹훅 구현 필요
+	@Retryable(
+		retryFor = { ResourceAccessException.class },
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 2000)
+	)
 	public TossPaymentResponse issueVirtualAccount(Reservation reservation,String bankCode, String customerName) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(AMOUNT, reservation.getTotalPrice());
@@ -126,7 +151,10 @@ public class TossPaymentsAdapter {
 				.uri(VIRTUAL_ACCOUNTS_PATH)
 				.body(payload)
 				.retrieve()
-				.onStatus(HttpStatusCode::isError, (request, response) -> {
+				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+					throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+				})
+				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 					String errorBody = new String(response.getBody().readAllBytes());
 					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 					String errorCode =
@@ -142,11 +170,19 @@ public class TossPaymentsAdapter {
 		);
 	}
 
+	@Retryable(
+		retryFor = { ResourceAccessException.class },
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 2000)
+	)
 	private TossPaymentResponse getPayment(String path, String id) {
 		return tossPaymentsRestClient.get()
 			.uri(path, id)
 			.retrieve()
-			.onStatus(HttpStatusCode::isError, (request, response) -> {
+			.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+				throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+			})
+			.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 				String errorBody = new String(response.getBody().readAllBytes());
 				TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 
@@ -159,17 +195,12 @@ public class TossPaymentsAdapter {
 			.body(TossPaymentResponse.class);
 	}
 
-	private TossPaymentResponse parseErrorResponse(String errorBody) {
+	private TossPaymentResponse parseErrorResponse(String errorBody)  throws IOException {
 		try {
 			return objectMapper.readValue(errorBody, TossPaymentResponse.class);
-		} catch (IOException e) {
+		} catch (JsonProcessingException e) {
 			log.error("토스페이먼츠 에러 응답 파싱 실패", e);
-			return TossPaymentResponse.builder()
-					.failure(TossPaymentResponse.Failure.builder()
-						.code(PARSING_FAILED_CODE)
-						.message(errorBody)
-						.build())
-						.build();
+			throw new IOException("토스 페이먼츠 응답 파싱 실패: " + errorBody, e);
 		}
 	}
 }
