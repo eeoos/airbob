@@ -1,3 +1,3 @@
-FROM debezium/connect:2.5
+FROM confluentinc/cp-kafka-connect:7.6.1
 
-ADD https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar /kafka/libs/
+RUN confluent-hub install --no-prompt debezium/debezium-connector-mysql:2.4.2

@@ -93,3 +93,6 @@ flyway_schema_history.lock
 ## 환경변수
 .env.*
 .env
+
+# MySQL volume
+docker-volume/mysql/

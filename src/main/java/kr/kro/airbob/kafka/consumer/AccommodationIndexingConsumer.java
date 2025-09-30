@@ -19,7 +19,7 @@ public class AccommodationIndexingConsumer {
 	private final DebeziumEventParser debeziumEventParser;
 	private final AccommodationIndexingService indexingService;
 
-	@KafkaListener(topics = "accommodation-events", groupId = "indexing-group")
+	@KafkaListener(topics = "ACCOMMODATION.events", groupId = "indexing-group")
 	public void handleAccommodationEvents(@Payload String message) throws Exception {
 		log.info("[KAFKA-CONSUME] Accommodation Indexing Event 수신: {}", message);
 
