@@ -15,7 +15,6 @@ import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.exception.TossPaymentCancelException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
@@ -50,6 +49,7 @@ public class TossPaymentsAdapter {
 	public static final String GET_PATH_BY_ORDER_ID = "/v1/payments/orders/{orderId}";
 	public static final String VALID_HOURS = "validHours";
 	public static final String VIRTUAL_ACCOUNTS_PATH = "/v1/virtual-accounts";
+	public static final String TOSS_API_SERVER_ERROR = "토스 페이먼츠 API 서버 에러: ";
 
 	private final RestClient tossPaymentsRestClient;
 	private final ObjectMapper objectMapper;
@@ -71,7 +71,7 @@ public class TossPaymentsAdapter {
 				.body(payload)
 				.retrieve()
 				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-					throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 					String errorBody = new String(response.getBody().readAllBytes());
@@ -107,7 +107,7 @@ public class TossPaymentsAdapter {
 				.body(payload)
 				.retrieve()
 				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-					throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 					String errorBody = new String(response.getBody().readAllBytes());
@@ -152,7 +152,7 @@ public class TossPaymentsAdapter {
 				.body(payload)
 				.retrieve()
 				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-					throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 					String errorBody = new String(response.getBody().readAllBytes());
@@ -180,7 +180,7 @@ public class TossPaymentsAdapter {
 			.uri(path, id)
 			.retrieve()
 			.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-				throw new ResourceAccessException("토스 페이먼츠 API 서버 에러: " + response.getStatusCode());
+				throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 			})
 			.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
 				String errorBody = new String(response.getBody().readAllBytes());
