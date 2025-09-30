@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import kr.kro.airbob.outbox.entity.Outbox;
 import kr.kro.airbob.outbox.exception.OutboxEventPublishingException;

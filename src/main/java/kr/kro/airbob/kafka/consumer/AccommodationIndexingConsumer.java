@@ -1,8 +1,13 @@
 package kr.kro.airbob.kafka.consumer;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventType;
@@ -20,12 +25,13 @@ public class AccommodationIndexingConsumer {
 	private final AccommodationIndexingService indexingService;
 
 	@KafkaListener(topics = "ACCOMMODATION.events", groupId = "indexing-group")
-	public void handleAccommodationEvents(@Payload String message) throws Exception {
-		log.info("[KAFKA-CONSUME] Accommodation Indexing Event 수신: {}", message);
+	public void handleAccommodationEvents(
+		@Payload String payloadJson,
+		@Header("eventType") String eventType) throws Exception {
 
-		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
-		String eventType = parsedEvent.eventType();
-		String payloadJson = parsedEvent.payload();
+		eventType = eventType.replace("\"", "");
+
+		log.info("[KAFKA-CONSUME] Accommodation Indexing Event 수신: type={}, message={}", eventType, payloadJson);
 
 		// 이벤트 타입에 따른 해당 색인 서비스 호출
 		switch (EventType.from(eventType)) {
