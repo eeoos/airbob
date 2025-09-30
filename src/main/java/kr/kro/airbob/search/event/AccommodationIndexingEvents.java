@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 public class AccommodationIndexingEvents {
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public record AccommodationCreatedEvent(String accommodationUid, String id) implements EventPayload {
+	public record AccommodationCreatedEvent(String accommodationUid) implements EventPayload {
 		@Override
 		@JsonIgnore
 		public String getId() { return accommodationUid; }

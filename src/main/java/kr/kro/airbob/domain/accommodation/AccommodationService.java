@@ -76,7 +76,7 @@ public class AccommodationService {
 
         outboxEventPublisher.save(
             EventType.ACCOMMODATION_CREATED,
-            new AccommodationCreatedEvent(savedAccommodation.getAccommodationUid().toString(), savedAccommodation.getAccommodationUid().toString())
+            new AccommodationCreatedEvent(savedAccommodation.getAccommodationUid().toString())
         );
 
 
