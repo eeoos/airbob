@@ -116,7 +116,7 @@ public class PaymentService {
 			log.info("[결제 보상 트랜잭션 완료]: PaymentKey {}의 결제가 취소되었습니다.", payment.getPaymentKey());
 		} catch (Exception e) {
 			log.error("[결제 보상 트랜잭션 실패]: Reservation UID {} 처리 중 예외 발생. 수동 개입이 필요합니다.", reservationUid, e);
-			// 보상 트랜잭션 실패는 심각한 상황이므로, 별도의 모니터링/알림 채널로 알려야 함
+			// 보상 트랜잭션 실패: 별도의 모니터링/알림 채널로 공지
 			outboxEventPublisher.save(
 				EventType.PAYMENT_CANCELLATION_FAILED,
 				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, "보상 트랜잭션 실패: " + e.getMessage())

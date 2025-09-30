@@ -23,9 +23,11 @@ import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventType;
@@ -166,19 +168,37 @@ public class ReservationService {
 		}
 	}
 
-	@Transactional
 	public void handlePaymentFailed(PaymentEvent.PaymentFailedEvent event) {
+
+		String reservationUid = event.reservationUid();
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.reservationUid()))
 			.orElseThrow(ReservationNotFoundException::new);
+		try{
+			transactionTemplate.executeWithoutResult(status -> {
 
-		log.warn("[결제 실패 확인]: 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), event.reason());
-		reservation.expire();
 
-		// Redis 홀드 제거
-		holdService.removeHold(
-			reservation.getAccommodation().getId(),
-			reservation.getCheckIn().toLocalDate(),
-			reservation.getCheckOut().toLocalDate()
-		);
+				if (reservation.getStatus() == ReservationStatus.EXPIRED) {
+					log.info("[결제 실패 확인] 이미 만료 처리된 예약입니다: {}", reservation.getId());
+					return;
+				}
+
+				log.warn("[결제 실패 확인]: 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), event.reason());
+				reservation.expire();
+			});
+		}catch (Exception e ){
+			log.error("[예약 만료 처리 실패] Reservation UID: {} 처리 중 DB 오류 발생", reservationUid, e);
+			throw new ReservationStateChangeException("예약을 만료시키는 작업에 실패했습니다. Reservation UID: " + reservationUid, e);
+		}
+
+		try {
+			holdService.removeHold(
+				reservation.getAccommodation().getId(),
+				reservation.getCheckIn().toLocalDate(),
+				reservation.getCheckOut().toLocalDate()
+			);
+		} catch (Exception e) {
+			log.error("[Redis 홀드 제거 실패] Reservation UID: {}의 홀드 제거 중 오류 발생. TTL에 의해 자동 제거됩니다.", reservationUid, e);
+		}
+
 	}
 }

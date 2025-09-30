@@ -25,6 +25,7 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusExcept
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.review.ReviewSortType;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
 import kr.kro.airbob.domain.review.ReviewSortType;
@@ -147,6 +148,12 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<Void> handleReservationLockException(ReservationLockException e) {
 		log.error("ReservationLockException: {}", e.getMessage());
 		return ResponseEntity.status(HttpStatus.CONFLICT).build();
+	}
+
+	@ExceptionHandler(ReservationStateChangeException.class)
+	public ResponseEntity<Void> handleReservationStateChangeException(ReservationStateChangeException e) {
+		log.error("ReservationStateChangeException: {}", e.getMessage());
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 	}
 
 	@ExceptionHandler(TossPaymentCancelException.class)
