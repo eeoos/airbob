@@ -112,23 +112,6 @@ public class ReservationService {
 		log.info("[예약 취소 완료]: Reservation UID {} 상태 변경 및 이벤트 발행 완료", reservationUid);
 	}
 
-	@KafkaListener(topics = "PAYMENT.events", groupId = "reservation-service-group")
-	public void handlePaymentEvents(@Payload String message) throws Exception {
-		log.info("[KAFKA-CONSUME] Payment Event 수신: {}", message);
-
-		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
-		String eventType = parsedEvent.eventType();
-		String payloadJson = parsedEvent.payload();
-
-		if (EventType.PAYMENT_SUCCEEDED.name().equals(eventType)) {
-			PaymentEvent.PaymentSucceededEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentSucceededEvent.class);
-			handlePaymentSucceeded(event);
-		} else if (EventType.PAYMENT_FAILED.name().equals(eventType)) {
-			PaymentEvent.PaymentFailedEvent event = debeziumEventParser.deserialize(payloadJson, PaymentEvent.PaymentFailedEvent.class);
-			handlePaymentFailed(event);
-		}
-	}
-
 	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
 		Boolean success = transactionTemplate.execute(status -> {
 			try {
