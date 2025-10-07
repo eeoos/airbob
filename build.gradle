@@ -72,6 +72,12 @@ dependencies {
 	// MySQL JDBC 드라이버
 	runtimeOnly 'com.mysql:mysql-connector-j'
 
+	// Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	// 테스트
+	testImplementation 'org.springframework.kafka:spring-kafka-test'
+
 	//query dsl
 	implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
 	annotationProcessor "com.querydsl:querydsl-apt:5.0.0:jakarta"

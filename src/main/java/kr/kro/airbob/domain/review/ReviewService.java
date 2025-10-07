@@ -26,6 +26,8 @@ import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
+import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.search.event.AccommodationIndexingEvents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +43,7 @@ public class ReviewService {
 	private final AccommodationReviewSummaryRepository summaryRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
-	private final ApplicationEventPublisher eventPublisher;
+	private final OutboxEventPublisher outboxEventPublisher;
 
 	@Transactional
 	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request, Long memberId) {
@@ -60,7 +62,10 @@ public class ReviewService {
 
 		updateReviewSummaryOnCreate(accommodationId, request.rating());
 
-		eventPublisher.publishEvent(new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString()));
+		outboxEventPublisher.save(
+			EventType.REVIEW_SUMMARY_CHANGED,
+			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
+		);
 
 		return new ReviewResponse.CreateResponse(savedReview.getId());
 	}
@@ -84,7 +89,10 @@ public class ReviewService {
 
 		updateReviewSummaryOnDelete(accommodation.getId(), rating);
 
-		eventPublisher.publishEvent(new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString()));
+		outboxEventPublisher.save(
+			EventType.REVIEW_SUMMARY_CHANGED,
+			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
+		);
 	}
 
 	@Transactional(readOnly = true)

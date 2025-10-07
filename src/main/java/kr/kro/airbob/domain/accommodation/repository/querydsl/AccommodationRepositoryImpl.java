@@ -1,21 +1,27 @@
 package kr.kro.airbob.domain.accommodation.repository.querydsl;
 
-import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.accommodation;
-import static kr.kro.airbob.domain.accommodation.entity.QAccommodationAmenity.accommodationAmenity;
-import static kr.kro.airbob.domain.accommodation.entity.QAmenity.amenity;
-import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.occupancyPolicy;
+import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
+import static kr.kro.airbob.domain.accommodation.entity.QAccommodationAmenity.*;
+import static kr.kro.airbob.domain.accommodation.entity.QAmenity.*;
+import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.*;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.*;
-import static kr.kro.airbob.domain.review.QReview.review;
+import static kr.kro.airbob.domain.review.QReview.*;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Pageable;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+
 import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AccommodationSearchConditionDto;
@@ -24,9 +30,10 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.Accommodatio
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.entity.QAddress;
+import kr.kro.airbob.domain.member.QMember;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 
 @RequiredArgsConstructor
 public class AccommodationRepositoryImpl implements AccommodationRepositoryCustom {
@@ -44,6 +51,19 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
         Map<Long, Tuple> reviewMap = makeReviewMapByAccommodation();
 
         return new ArrayList<>(getSearchResults(resultList, reviewMap).values());
+    }
+
+    @Override
+    public Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid) {
+        Accommodation result = jpaQueryFactory.
+            selectFrom(accommodation)
+            .leftJoin(accommodation.address, QAddress.address).fetchJoin()
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
+            .leftJoin(accommodation.member, QMember.member).fetchJoin()
+            .where(accommodation.accommodationUid.eq(accommodationUid))
+            .fetchOne();
+
+        return Optional.ofNullable(result);
     }
 
     private Map<Long, Tuple> makeReviewMapByAccommodation() {

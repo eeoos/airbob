@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.payment.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import kr.kro.airbob.outbox.EventPayload;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -12,8 +13,13 @@ public class PaymentRequest {
 	public record Confirm(
 		@NotBlank String paymentKey,
 		@NotBlank String orderId,
-		@NotNull @Positive Long amount
-	){}
+		@NotNull @Positive Integer amount
+	)implements EventPayload {
+		@Override
+		public String getId() {
+			return this.orderId;
+		}
+	}
 
 	public record Cancel(
 		@NotBlank(message = "취소 사유는 필수입니다.")

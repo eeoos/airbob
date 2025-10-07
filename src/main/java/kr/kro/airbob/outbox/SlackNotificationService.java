@@ -1,4 +1,4 @@
-package kr.kro.airbob.dlq.service;
+package kr.kro.airbob.outbox;
 
 import java.util.Map;
 

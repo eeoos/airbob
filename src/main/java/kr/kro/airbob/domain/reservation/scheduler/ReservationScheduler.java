@@ -14,6 +14,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationHoldService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+// TODO: Spring Batch 적용 필요
 @Slf4j
 @Component
 @RequiredArgsConstructor

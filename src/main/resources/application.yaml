@@ -20,6 +20,7 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
         format_sql: true
         show_sql: true
+        default_batch_fetch_size: 100
 
   flyway:
     enabled: true               # Flyway 사용 활성화
@@ -48,6 +49,19 @@ spring:
     password: ${ELASTIC_PASSWORD}
     connection-timeout: 10s
     socket-timeout: 30s
+
+  kafka:
+    consumer:
+      bootstrap-servers: localhost:9092 # Docker 외부에서 접속 시 localhost, 내부에서는 kafka:9092
+      group-id: payment-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+    producer:
+      bootstrap-servers: localhost:9092
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 google:
   api:
