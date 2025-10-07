@@ -5,6 +5,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +26,7 @@ public class AccommodationIndexingConsumer {
 	private final AccommodationIndexingService indexingService;
 
 	@KafkaListener(topics = "ACCOMMODATION.events", groupId = "indexing-group")
+	@Transactional(readOnly = true)
 	public void handleAccommodationEvents(
 		@Payload String payloadJson,
 		@Header("eventType") String eventType) throws Exception {

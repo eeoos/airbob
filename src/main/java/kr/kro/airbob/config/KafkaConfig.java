@@ -1,7 +1,5 @@
 package kr.kro.airbob.config;
 
-import java.util.function.BiFunction;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,7 +8,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 
-import kr.kro.airbob.dlq.service.SlackNotificationService;
+import kr.kro.airbob.outbox.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
 
 @Configuration
