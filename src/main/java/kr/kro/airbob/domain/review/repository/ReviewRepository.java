@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.review.repository;
 
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +15,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, ReviewRep
 	Long findAccommodationIdByReviewId(@Param("reviewId") Long reviewId);
 
 	@Query("select r.author.id from Review r where r.id = :reviewId")
-	Long findMemberIdByReviewId(@Param("reviewId") Long reviewId);
+	Optional<Long> findMemberIdByReviewId(@Param("reviewId") Long reviewId);
 
 	boolean existsByAccommodationIdAndAuthorId(Long accommodationId, Long authorId);
 }
