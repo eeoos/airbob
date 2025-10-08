@@ -1,14 +1,11 @@
 package kr.kro.airbob.domain.reservation.exception;
 
-public class ReservationLockException extends RuntimeException{
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "해당 날짜에 대한 예약 시도가 많습니다. 잠시 후에 다시 시도해주세요.";
+public class ReservationLockException extends BaseException {
 
 	public ReservationLockException() {
-		super(ERROR_MESSAGE);
-	}
-
-	public ReservationLockException(String message) {
-		super(message);
+		super(ErrorCode.RESERVATION_LOCK_FAILED);
 	}
 }

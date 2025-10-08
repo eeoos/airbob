@@ -72,6 +72,7 @@ public class Payment extends BaseEntity {
 	@Column(nullable = false)
 	private Long balanceAmount; // 잔액
 
+	@Builder.Default
 	@OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<PaymentCancel> cancels = new ArrayList<>();
 

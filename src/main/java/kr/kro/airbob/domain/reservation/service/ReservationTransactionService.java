@@ -57,7 +57,7 @@ public class ReservationTransactionService {
 			return reservation;
 		} catch (Exception e) {
 			log.error("[예약 만료 처리 실패]: Reservation UID: {} 처리 중 DB 오류 발생", reservationUid, e);
-			throw new ReservationStateChangeException("예약을 만료시키는 작업에 실패했습니다. Reservation UID: " + reservationUid, e);
+			throw new ReservationStateChangeException();
 		}
 	}
 }

@@ -22,6 +22,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -49,7 +50,7 @@ public class ReservationService {
 	public ReservationResponse.Ready createPendingReservation(Long memberId, ReservationRequest.Create request) {
 
 		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
-			throw new ReservationConflictException("현재 다른 사용자가 해당 날짜로 결제를 진행 중입니다. 잠시 후 다시 시도해주세요.");
+			throw new ReservationLockException();
 		}
 
 		List<String> lockKeys = DateLockKeyGenerator.generateLockKeys(request.accommodationId(), request.checkInDate(),
@@ -68,7 +69,7 @@ public class ReservationService {
 			LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
 
 			if (reservationRepository.existsConflictingReservation(request.accommodationId(), checkInDateTime, checkOutDateTime)) {
-				throw new ReservationConflictException("해당 날짜에 이미 예약이 확정되었거나 진행 중입니다.");
+				throw new ReservationConflictException();
 			}
 
 			Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request);
@@ -183,7 +184,7 @@ public class ReservationService {
 			return reservation;
 		} catch (Exception e) {
 			log.error("[예약 만료 처리 실패] Reservation UID: {} 처리 중 DB 오류 발생", reservationUid, e);
-			throw new ReservationStateChangeException("예약을 만료시키는 작업에 실패했습니다. Reservation UID: " + reservationUid, e);
+			throw new ReservationStateChangeException();
 		}
 	}
 

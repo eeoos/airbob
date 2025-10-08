@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.exception.TossPaymentCancelException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
+import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentInquiryException;
 import kr.kro.airbob.domain.payment.exception.VirtualAccountIssueException;
 import kr.kro.airbob.domain.payment.exception.code.PaymentCancelErrorCode;
@@ -81,7 +82,7 @@ public class TossPaymentsAdapter {
 						UNKNOWN_ERROR;
 					PaymentConfirmErrorCode confirmErrorCode = PaymentConfirmErrorCode.fromErrorCode(errorCode);
 
-					throw new TossPaymentConfirmException(confirmErrorCode);
+					throw new TossPaymentException(confirmErrorCode);
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -117,7 +118,7 @@ public class TossPaymentsAdapter {
 						UNKNOWN_ERROR;
 					PaymentCancelErrorCode cancelErrorCode = PaymentCancelErrorCode.fromErrorCode(errorCode);
 
-					throw new TossPaymentCancelException(cancelErrorCode);
+					throw new TossPaymentException(cancelErrorCode);
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -163,7 +164,7 @@ public class TossPaymentsAdapter {
 					VirtualAccountIssueErrorCode virtualAccountIssueErrorCode = VirtualAccountIssueErrorCode.fromErrorCode(
 						errorCode);
 
-					throw new VirtualAccountIssueException(virtualAccountIssueErrorCode);
+					throw new TossPaymentException(virtualAccountIssueErrorCode);
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -190,7 +191,7 @@ public class TossPaymentsAdapter {
 					UNKNOWN_ERROR;
 				PaymentInquiryErrorCode inquiryErrorCode = PaymentInquiryErrorCode.fromErrorCode(errorCode);
 
-				throw new TossPaymentInquiryException(inquiryErrorCode);
+				throw new TossPaymentException(inquiryErrorCode);
 			})
 			.body(TossPaymentResponse.class);
 	}

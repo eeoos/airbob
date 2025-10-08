@@ -1,13 +1,15 @@
 package kr.kro.airbob.domain.reservation.exception;
 
-public class InvalidReservationStatusException extends RuntimeException{
-	public static final String ERROR_MESSAGE = "결제 대기 상태의 예약만 확정할 수 있습니다.";
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
+
+public class InvalidReservationStatusException extends BaseException {
 
 	public InvalidReservationStatusException() {
-		super(ERROR_MESSAGE);
+		super(ErrorCode.RESERVATION_CONFLICT);
 	}
 
-	public InvalidReservationStatusException(String message) {
-		super(message);
+	public InvalidReservationStatusException(ErrorCode errorCode) {
+		super(errorCode);
 	}
 }

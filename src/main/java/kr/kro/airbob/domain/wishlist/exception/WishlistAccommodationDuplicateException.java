@@ -1,18 +1,11 @@
 package kr.kro.airbob.domain.wishlist.exception;
 
-public class WishlistAccommodationDuplicateException extends RuntimeException {
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "이미 위시리스트에 추가된 숙소입니다.";
-
-	public WishlistAccommodationDuplicateException(String message) {
-		super(message);
-	}
+public class WishlistAccommodationDuplicateException extends BaseException {
 
 	public WishlistAccommodationDuplicateException() {
-		super(ERROR_MESSAGE);
-	}
-
-	public WishlistAccommodationDuplicateException(String message, Throwable cause) {
-		super(message, cause);
+		super(ErrorCode.WISHLIST_ACCOMMODATION_DUPLICATE);
 	}
 }

@@ -9,7 +9,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum PaymentCardErrorCode {
+public enum PaymentCardErrorCode implements TossErrorCode{
 
 	// 400
 	INVALID_CARD_EXPIRATION(HttpStatus.BAD_REQUEST, "카드 정보를 다시 확인해주세요. (유효기간)"),

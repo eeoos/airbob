@@ -20,8 +20,11 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.Member;
 import kr.kro.airbob.domain.member.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
+import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -39,6 +42,7 @@ public class ReviewService {
 
 	private final ReviewRepository reviewRepository;
 	private final MemberRepository memberRepository;
+	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationReviewSummaryRepository summaryRepository;
 
@@ -51,17 +55,17 @@ public class ReviewService {
 		Member author = findMemberById(memberId);
 		Accommodation accommodation = findAccommodationById(accommodationId);
 
+		validateReviewCreation(accommodationId, memberId);
+
 		Review review = Review.builder()
 			.rating(request.rating())
 			.content(request.content())
 			.accommodation(accommodation)
 			.author(author)
 			.build();
-
 		Review savedReview = reviewRepository.save(review);
 
 		updateReviewSummaryOnCreate(accommodationId, request.rating());
-
 		outboxEventPublisher.save(
 			EventType.REVIEW_SUMMARY_CHANGED,
 			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
@@ -129,6 +133,18 @@ public class ReviewService {
 			.orElse(null);
 
 		return ReviewResponse.ReviewSummary.of(summary);
+	}
+
+
+	private void validateReviewCreation(Long accommodationId, Long memberId) {
+		// 예약한 사용자인지 확인
+		if (!reservationRepository.existsCompletedReservationByGuest(accommodationId, memberId)) {
+			throw new ReviewCreationForbiddenException();
+		}
+		// 이미 리뷰를 작성했는지 확인
+		if (reviewRepository.existsByAccommodationIdAndAuthorId(accommodationId, memberId)) {
+			throw new ReviewAlreadyExistsException();
+		}
 	}
 
 	private Member findMemberById(Long memberId) {

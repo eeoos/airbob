@@ -37,7 +37,7 @@ public class ReviewAuthorizationInterceptor implements HandlerInterceptor {
 
 		if (method.equalsIgnoreCase("PATCH") || method.equalsIgnoreCase("DELETE")) {
 			Map<String, String> pathVariables = (Map<String, String>)request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
-			Long reviewId;
+			long reviewId;
 
 			try {
 				reviewId = Long.parseLong(pathVariables.get("reviewId"));

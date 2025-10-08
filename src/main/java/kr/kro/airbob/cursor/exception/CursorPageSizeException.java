@@ -1,17 +1,11 @@
 package kr.kro.airbob.cursor.exception;
 
-public class CursorPageSizeException extends RuntimeException{
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	private static final String ERROR_MESSAGE = "커서 페이지 크기는 1 이상이여야 합니다.";
+public class CursorPageSizeException extends BaseException {
 
-	public CursorPageSizeException(String message) {
-		super(message);
-	}
 	public CursorPageSizeException() {
-		super(ERROR_MESSAGE);
-	}
-
-	public CursorPageSizeException(String message, Throwable cause) {
-		super(message, cause);
+		super(ErrorCode.CURSOR_PAGE_SIZE_INVALID);
 	}
 }

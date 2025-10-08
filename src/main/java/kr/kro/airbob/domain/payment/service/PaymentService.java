@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.payment.service;
 
 import static kr.kro.airbob.outbox.EventType.*;
 
-import java.io.IOException;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -17,10 +16,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
-import kr.kro.airbob.domain.payment.exception.TossPaymentCancelException;
-import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
-import kr.kro.airbob.domain.payment.exception.TossPaymentInquiryException;
-import kr.kro.airbob.domain.payment.exception.VirtualAccountIssueException;
+import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -58,7 +54,7 @@ public class PaymentService {
 				event.amount()
 			);
 			processPaymentResponse(response, reservation);
-		} catch (TossPaymentConfirmException e) {
+		} catch (TossPaymentException e) {
 			log.error("[결제 최종 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name());
 			saveFailedAttempt(event, reservation, e.getErrorCode().name(), e.getMessage());
 			handlePaymentFailure(reservationUid, "결제 승인에 실패했습니다.");
@@ -90,7 +86,7 @@ public class PaymentService {
 			payment.updateOnCancel(response);
 			log.info("[결제 취소 처리 완료]: PaymentKey {}의 상태 {} 변경 완료", payment.getPaymentKey(), payment.getStatus());
 
-		} catch (TossPaymentCancelException e) {
+		} catch (TossPaymentException e) {
 			log.error("[결제 취소 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(), e);
 			outboxEventPublisher.save(
 				EventType.PAYMENT_CANCELLATION_FAILED,
@@ -132,7 +128,7 @@ public class PaymentService {
 			);
 			payment.updateOnCancel(response);
 			log.info("[결제 보상 트랜잭션 완료]: PaymentKey {}의 결제가 취소되었습니다.", payment.getPaymentKey());
-		} catch (TossPaymentCancelException e) {
+		} catch (TossPaymentException e) {
 			log.error("[결제 보상 트랜잭션 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}. 수동 개입 필요.", reservationUid, e.getErrorCode().name(), e);
 			outboxEventPublisher.save(
 				EventType.PAYMENT_CANCELLATION_FAILED,
@@ -160,7 +156,7 @@ public class PaymentService {
 			Payment payment = paymentRepository.findByPaymentKey(paymentKey)
 				.orElseThrow(PaymentNotFoundException::new);
 			return PaymentResponse.PaymentInfo.from(payment);
-		} catch (TossPaymentInquiryException e) {
+		} catch (TossPaymentException e) {
 			log.warn("[결제 조회 실패] API 조회 실패. PaymentKey: {}, Code: {}", paymentKey, e.getErrorCode().name());
 			throw e;
 		} catch (ResourceAccessException e) {
@@ -176,7 +172,7 @@ public class PaymentService {
 			Payment payment = paymentRepository.findByOrderId(orderId)
 				.orElseThrow(PaymentNotFoundException::new);
 			return PaymentResponse.PaymentInfo.from(payment);
-		} catch (TossPaymentInquiryException e) {
+		} catch (TossPaymentException e) {
 			log.warn("[결제 조회 실패] API 조회 실패. OrderId: {}, Code: {}", orderId, e.getErrorCode().name());
 			throw e;
 		} catch (ResourceAccessException e) {
@@ -198,7 +194,7 @@ public class PaymentService {
 			paymentAttemptRepository.save(attempt);
 			log.info("[가상계좌 발급 완료]: Reservation UID {}", reservationUid);
 			return response;
-		} catch (VirtualAccountIssueException e) {
+		} catch (TossPaymentException e) {
 			log.error("[가상계좌 발급 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(), e);
 			// 가상계좌 발급 실패는 Saga의 시작 부분이므로, 사용자에게 직접 에러를 전달해야 함
 			throw e;

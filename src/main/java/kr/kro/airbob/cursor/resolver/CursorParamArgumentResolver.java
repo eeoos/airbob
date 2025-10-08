@@ -56,7 +56,7 @@ public class CursorParamArgumentResolver implements HandlerMethodArgumentResolve
 		int size = sizeParam != null ? Integer.parseInt(sizeParam) : annotation.defaultSize();
 
 		if (size < 1) {
-			throw new CursorPageSizeException("커서 페이지 크기는 1 이상이여야 합니다.");
+			throw new CursorPageSizeException();
 		}
 
 		return size;

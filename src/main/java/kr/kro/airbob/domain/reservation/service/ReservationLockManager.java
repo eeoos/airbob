@@ -42,7 +42,7 @@ public class ReservationLockManager {
 			return multiLock;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new ReservationLockException("예약 처리 중 예기치 않은 오류가 발생했습니다.");
+			throw new ReservationLockException();
 		}
 	}
 
