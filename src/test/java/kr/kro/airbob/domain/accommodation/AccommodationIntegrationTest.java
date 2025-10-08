@@ -16,6 +16,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.*;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;
 import kr.kro.airbob.domain.accommodation.entity.*;
 import kr.kro.airbob.domain.accommodation.repository.*;
+import kr.kro.airbob.domain.accommodation.service.AccommodationService;
 import kr.kro.airbob.domain.member.Member;
 import kr.kro.airbob.domain.member.MemberRepository;
 import kr.kro.airbob.domain.reservation.entity.ReservedDate;

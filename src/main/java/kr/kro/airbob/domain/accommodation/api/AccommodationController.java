@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation;
+package kr.kro.airbob.domain.accommodation.api;
 
 import java.util.List;
 import java.util.Map;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import kr.kro.airbob.domain.accommodation.service.AccommodationService;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;

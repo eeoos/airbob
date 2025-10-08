@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -31,7 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TossPaymentsAdapter {
 
 	public static final String PAYMENT_KEY = "paymentKey";
@@ -54,6 +54,11 @@ public class TossPaymentsAdapter {
 
 	private final RestClient tossPaymentsRestClient;
 	private final ObjectMapper objectMapper;
+
+	public TossPaymentsAdapter(@Qualifier("tossPaymentRestClient") RestClient tossPaymentsRestClient, ObjectMapper objectMapper) {
+		this.tossPaymentsRestClient = tossPaymentsRestClient;
+		this.objectMapper = objectMapper;
+	}
 
 	@Retryable(
 		retryFor = { ResourceAccessException.class },

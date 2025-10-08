@@ -22,7 +22,7 @@ public class RestClientConfig {
 	@Value("${payment.toss.base-url}")
 	private String baseUrl;
 
-	@Bean
+	@Bean(name = "tossPaymentRestClient")
 	public RestClient tossPaymentRestClient() {
 		String encodedAuth = Base64.getEncoder()
 			.encodeToString((tossSecretKey + BASIC_DELIMITER).getBytes(StandardCharsets.UTF_8));
@@ -32,5 +32,10 @@ public class RestClientConfig {
 			.defaultHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_PREFIX + encodedAuth)
 			.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
 			.build();
+	}
+
+	@Bean(name = "generalRestClient")
+	public RestClient generalRestClient() {
+		return RestClient.create();
 	}
 }
