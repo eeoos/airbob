@@ -30,7 +30,7 @@ public class ReservationController {
 
 		Long memberId = (Long) request.getAttribute("memberId");
 
-		ReservationResponse.Ready response = reservationService.createPendingReservation(1L, requestDto);
+		ReservationResponse.Ready response = reservationService.createPendingReservation(memberId, requestDto);
 		return ResponseEntity.ok(response);
 	}
 

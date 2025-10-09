@@ -25,7 +25,6 @@ public class PaymentEventsConsumer {
 	private final DebeziumEventParser debeziumEventParser;
 
 	@KafkaListener(topics = "PAYMENT.events", groupId = "payment-group")
-	@Transactional
 	public void handlePaymentEvents(@Payload String message) throws Exception {
 		DebeziumEventParser.ParsedEvent parsedEvent = debeziumEventParser.parse(message);
 		String eventType = parsedEvent.eventType();
@@ -54,7 +53,6 @@ public class PaymentEventsConsumer {
 	}
 
 	@KafkaListener(topics = "RESERVATION.events", groupId = "payment-group")
-	@Transactional
 	public void handleReservationEvents(@Payload String message) throws Exception {
 		log.info("[KAFKA-CONSUME] Reservation Event 수신: {}", message);
 
@@ -66,11 +64,7 @@ public class PaymentEventsConsumer {
 			ReservationEvent.ReservationCancelledEvent event =
 				debeziumEventParser.deserialize(payloadJson, ReservationEvent.ReservationCancelledEvent.class);
 			paymentService.processPaymentCancellation(event);
-		} else if (EventType.RESERVATION_CONFIRMATION_FAILED.name().equals(eventType)) {
-			ReservationEvent.ReservationConfirmationFailedEvent event =
-				debeziumEventParser.deserialize(payloadJson, ReservationEvent.ReservationConfirmationFailedEvent.class);
-			paymentService.compensatePayment(event);
-		}else {
+		} else {
 			log.warn("알 수 없는 예약 이벤트 타입입니다: {}", eventType);
 		}
 	}

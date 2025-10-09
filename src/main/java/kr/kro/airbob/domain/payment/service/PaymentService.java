@@ -36,10 +36,9 @@ public class PaymentService {
 	private final ReservationRepository reservationRepository;
 	private final PaymentAttemptRepository paymentAttemptRepository;
 
-	private final OutboxEventPublisher outboxEventPublisher;
 	private final TossPaymentsAdapter tossPaymentsAdapter;
+	private final PaymentTransactionService paymentTransactionService;
 
-	@Transactional
 	public void processPaymentConfirmation(PaymentRequest.Confirm event) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.orderId()))
 			.orElseThrow(ReservationNotFoundException::new);
@@ -48,31 +47,34 @@ public class PaymentService {
 		log.info("[결제 승인 처리 시작]: Reservation UID {}", reservationUid);
 
 		try {
+			// Toss 결제 API 호출
 			TossPaymentResponse response = tossPaymentsAdapter.confirmPayment(
 				event.paymentKey(),
 				event.orderId(),
 				event.amount()
 			);
-			processPaymentResponse(response, reservation);
+
+			if (PaymentStatus.DONE.toString().equalsIgnoreCase(response.getStatus())) {
+				paymentTransactionService.processSuccessfulPayment(response, reservation);
+			} else {
+				String reason = response.getFailure() != null ? response.getFailure().getMessage() :
+					"결제 실패 (상태: " + response.getStatus() + ")";
+				paymentTransactionService.processFailedPayment(event, reservation, response.getFailure().getCode(), reason);
+			}
 		} catch (TossPaymentException e) {
-			log.error("[결제 최종 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name());
-			saveFailedAttempt(event, reservation, e.getErrorCode().name(), e.getMessage());
-			handlePaymentFailure(reservationUid, "결제 승인에 실패했습니다.");
+			paymentTransactionService.processFailedPayment(event, reservation, e.getErrorCode().name(), e.getMessage());
 		} catch (ResourceAccessException e) {
 			log.error("[결제 최종 실패] 재시도 소진. Reservation UID: {}. 수동 확인 필요.", reservationUid, e);
-			saveFailedAttempt(event, reservation, "RETRY_EXHAUSTED", e.getMessage());
-			handlePaymentFailure(reservationUid, "결제 시스템 오류로 인해 실패했습니다. 잠시 후 다시 시도해주세요.");
+			paymentTransactionService.processFailedPayment(event, reservation, "RETRY_EXHAUSTED", e.getMessage());
 		} catch (Exception e) {
 			log.error("[결제 최종 실패] 알 수 없는 예외 발생. Reservation UID: {}", reservationUid, e);
-			saveFailedAttempt(event, reservation, "UNKNOWN_ERROR", e.getMessage());
-			handlePaymentFailure(reservationUid, "알 수 없는 오류가 발생했습니다.");
+			paymentTransactionService.processFailedPayment(event, reservation, "UNKNOWN_ERROR", e.getMessage());
 		}
 	}
 
-	@Transactional
 	public void processPaymentCancellation(ReservationEvent.ReservationCancelledEvent event) {
 		String reservationUid = event.reservationUid();
-		log.info("[결제 취소 처리]: Reservation UID {}", reservationUid);
+		log.info("[결제 취소 처리 시작]: Reservation UID {}", reservationUid);
 
 		Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(PaymentNotFoundException::new);
@@ -83,73 +85,21 @@ public class PaymentService {
 				event.cancelReason(),
 				event.cancelAmount()
 			);
-			payment.updateOnCancel(response);
-			log.info("[결제 취소 처리 완료]: PaymentKey {}의 상태 {} 변경 완료", payment.getPaymentKey(), payment.getStatus());
+
+			paymentTransactionService.processSuccessfulCancellation(payment, response);
 
 		} catch (TossPaymentException e) {
-			log.error("[결제 취소 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(), e);
-			outboxEventPublisher.save(
-				EventType.PAYMENT_CANCELLATION_FAILED,
-				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, e.getMessage())
-			);
+			log.error("[결제 취소 실패] Toss API 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(), e);
+			paymentTransactionService.processFailedCancellation(reservationUid, e.getMessage());
 		} catch (ResourceAccessException e) {
 			log.error("[결제 취소 실패] 재시도 소진. Reservation UID: {}. 수동 개입 필요.", reservationUid, e);
-			outboxEventPublisher.save(
-				EventType.PAYMENT_CANCELLATION_FAILED,
-				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, "결제 취소 중 외부 시스템 오류 발생")
-			);
+			paymentTransactionService.processFailedCancellation(reservationUid, "결제 취소 중 외부 시스템 오류 발생");
 		} catch (Exception e) {
 			log.error("[결제 취소 처리 실패]: Reservation UID {} 처리 중 알 수 없는 예외 발생", reservationUid, e);
-			outboxEventPublisher.save(
-				EventType.PAYMENT_CANCELLATION_FAILED,
-				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, e.getMessage())
-			);
+			paymentTransactionService.processFailedCancellation(reservationUid, e.getMessage());
 		}
 	}
 
-	@Transactional
-	public void compensatePayment(ReservationEvent.ReservationConfirmationFailedEvent event) {
-		String reservationUid = event.reservationUid();
-		log.warn("[결제 보상 트랜잭션 시작]: Reservation UID {}", reservationUid);
-
-		Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
-			.orElseThrow(PaymentNotFoundException::new);
-
-		if (payment.getStatus() == PaymentStatus.CANCELED) {
-			log.warn("[결제 보상 트랜잭션] 이미 취소된 결제입니다. PaymentKey: {}", payment.getPaymentKey());
-			return;
-		}
-
-		try {
-			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
-				payment.getPaymentKey(),
-				"시스템 오류로 인한 예약 확정 실패",
-				null
-			);
-			payment.updateOnCancel(response);
-			log.info("[결제 보상 트랜잭션 완료]: PaymentKey {}의 결제가 취소되었습니다.", payment.getPaymentKey());
-		} catch (TossPaymentException e) {
-			log.error("[결제 보상 트랜잭션 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}. 수동 개입 필요.", reservationUid, e.getErrorCode().name(), e);
-			outboxEventPublisher.save(
-				EventType.PAYMENT_CANCELLATION_FAILED,
-				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, "보상 트랜잭션 실패 (재시도 불가): " + e.getMessage())
-			);
-		} catch (ResourceAccessException e) {
-			log.error("[결제 보상 트랜잭션 실패] 재시도 소진. Reservation UID: {}. 수동 개입 필요.", reservationUid, e);
-			outboxEventPublisher.save(
-				EventType.PAYMENT_CANCELLATION_FAILED,
-				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, "보상 트랜잭션 실패 (외부 시스템 오류)")
-			);
-		} catch (Exception e) {
-			log.error("[결제 보상 트랜잭션 실패]: Reservation UID {} 처리 중 알 수 없는 예외 발생. 수동 개입이 필요합니다.", reservationUid, e);
-			outboxEventPublisher.save(
-				EventType.PAYMENT_CANCELLATION_FAILED,
-				new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, "보상 트랜잭션 실패: " + e.getMessage())
-			);
-		}
-	}
-
-	@Transactional
 	public void compensatePaymentByReservationUid(String reservationUid) {
 		log.warn("[DLQ 보상 트랜잭션 시작]: Reservation UID {}", reservationUid);
 
@@ -223,53 +173,20 @@ public class PaymentService {
 			.orElseThrow(ReservationNotFoundException::new);
 
 		try {
-			TossPaymentResponse response = tossPaymentsAdapter.issueVirtualAccount(reservation, request.bankCode(), request.customerName());
+			TossPaymentResponse response = tossPaymentsAdapter.issueVirtualAccount(reservation, request.bankCode(),
+				request.customerName());
 			PaymentAttempt attempt = PaymentAttempt.create(response, reservation);
 			paymentAttemptRepository.save(attempt);
 			log.info("[가상계좌 발급 완료]: Reservation UID {}", reservationUid);
 			return response;
 		} catch (TossPaymentException e) {
-			log.error("[가상계좌 발급 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(), e);
-			// 가상계좌 발급 실패는 Saga의 시작 부분이므로, 사용자에게 직접 에러를 전달해야 함
+			log.error("[가상계좌 발급 실패] 재시도 불가 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(),
+				e);
+			// 가상계좌 발급 실패는 Saga의 시작 부분이므로, 사용자에게 직접 에러를 전달
 			throw e;
 		} catch (ResourceAccessException e) {
 			log.error("[가상계좌 발급 실패] 재시도 소진. Reservation UID: {}.", reservationUid, e);
 			throw e; // 컨트롤러로 예외를 전달하여 5xx 에러 응답
 		}
-	}
-
-	private void processPaymentResponse(TossPaymentResponse response, Reservation reservation) {
-		PaymentAttempt attempt = PaymentAttempt.create(response, reservation);
-		paymentAttemptRepository.save(attempt);
-
-		if (PaymentStatus.DONE.toString().equalsIgnoreCase(response.getStatus())) {
-			Payment payment = Payment.create(response, reservation);
-			paymentRepository.save(payment);
-
-			log.info("[결제 성공]: Reservation UID {} 의 결제가 성공적으로 처리되었습니다.", reservation.getReservationUid());
-
-			outboxEventPublisher.save(
-				PAYMENT_SUCCEEDED,
-				new PaymentEvent.PaymentSucceededEvent(reservation.getReservationUid().toString())
-			);
-		} else {
-			String reason = response.getFailure() != null ? response.getFailure().getMessage() : "결제 실패 (상태: " + response.getStatus() + ")";
-			handlePaymentFailure(reservation.getReservationUid().toString(), reason);
-		}
-	}
-
-	private void saveFailedAttempt(PaymentRequest.Confirm event, Reservation reservation, String code, String message) {
-		PaymentAttempt failedAttempt = PaymentAttempt.createFailedAttempt(event.paymentKey(), event.orderId(),
-			Long.valueOf(event.amount()), reservation, code, message);
-		paymentAttemptRepository.save(failedAttempt);
-	}
-
-	private void handlePaymentFailure(String reservationUid, String reason) {
-		log.error("[결제 실패]: Reservation UID {} 결제 실패. 사유: {}", reservationUid, reason);
-
-		outboxEventPublisher.save(
-			PAYMENT_FAILED,
-			new PaymentEvent.PaymentFailedEvent(reservationUid, reason)
-		);
 	}
 }
