@@ -149,6 +149,40 @@ public class PaymentService {
 		}
 	}
 
+	@Transactional
+	public void compensatePaymentByReservationUid(String reservationUid) {
+		log.warn("[DLQ 보상 트랜잭션 시작]: Reservation UID {}", reservationUid);
+
+		Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow(() -> {
+				log.error("[DLQ-FATAL] 보상 트랜잭션 실패: reservationUid {}에 해당하는 결제 정보를 찾을 수 없음. 수동 확인 필요", reservationUid);
+				return new PaymentNotFoundException();
+			});
+
+		// 이미 취소된 결제인지 확인
+		if (payment.getStatus() == PaymentStatus.CANCELED || payment.getStatus() == PaymentStatus.PARTIAL_CANCELED) {
+			log.warn("[DLQ 보상 트랜잭션] 이미 취소된 결제. PaymentKey: {}", payment.getPaymentKey());
+			return;
+		}
+
+		try {
+			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
+				payment.getPaymentKey(),
+				"시스템 오류로 인한 예약 확정 실패 (Saga 보상)",
+				null // 전액 취소
+			);
+			payment.updateOnCancel(response);
+			log.info("[DLQ 보상 트랜잭션 완료]: PaymentKey {} 결제 취소 완료.", payment.getPaymentKey());
+		} catch (TossPaymentException e) {
+			log.error("[DLQ-FATAL] 보상 트랜잭션(결제 취소) 중 Toss API 오류 발생. Reservation UID: {}, Code: {}. 수동 개입 필요.",
+				reservationUid, e.getErrorCode().name(), e);
+			throw e;
+		} catch (Exception e) {
+			log.error("[DLQ-FATAL] 보상 트랜잭션 중 알 수 없는 오류 발생. Reservation UID: {}. 수동 개입 필요", reservationUid, e);
+			throw e;
+		}
+	}
+
 	@Transactional(readOnly = true)
 	public PaymentResponse.PaymentInfo findPaymentByPaymentKey(String paymentKey) {
 		try {

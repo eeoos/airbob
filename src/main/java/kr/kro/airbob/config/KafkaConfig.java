@@ -54,6 +54,5 @@ public class KafkaConfig {
 			exception.getMessage()
 		);
 		slackNotificationService.sendAlert(message);
-		// TODO: 디스코드로 변경 필요
 	}
 }
