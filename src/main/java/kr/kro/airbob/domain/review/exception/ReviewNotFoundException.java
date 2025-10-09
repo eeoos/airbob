@@ -1,10 +1,11 @@
 package kr.kro.airbob.domain.review.exception;
 
-public class ReviewNotFoundException extends RuntimeException{
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "존재하지 않는 후기입니다.";
+public class ReviewNotFoundException extends BaseException {
 
 	public ReviewNotFoundException() {
-		super(ERROR_MESSAGE);
+		super(ErrorCode.REVIEW_NOT_FOUND);
 	}
 }

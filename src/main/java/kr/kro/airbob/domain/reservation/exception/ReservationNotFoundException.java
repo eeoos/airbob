@@ -1,10 +1,11 @@
 package kr.kro.airbob.domain.reservation.exception;
 
-public class ReservationNotFoundException extends RuntimeException {
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "존재하지 않는 예약입니다.";
+public class ReservationNotFoundException extends BaseException {
 
 	public ReservationNotFoundException() {
-		super(ERROR_MESSAGE);
+		super(ErrorCode.PAYMENT_NOT_FOUND);
 	}
 }

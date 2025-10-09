@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 import kr.kro.airbob.cursor.util.CursorDecoder;
+import kr.kro.airbob.domain.accommodation.api.AccommodationController;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AddressInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.CreateAccommodationDto;
@@ -33,6 +34,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.OccupancyPoli
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.UpdateAccommodationDto;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;
 import kr.kro.airbob.domain.accommodation.interceptor.AccommodationAuthorizationInterceptor;
+import kr.kro.airbob.domain.accommodation.service.AccommodationService;
 import kr.kro.airbob.domain.auth.AuthService;
 import kr.kro.airbob.domain.recentlyViewed.interceptor.RecentlyViewedAuthorizationInterceptor;
 import kr.kro.airbob.domain.review.interceptor.ReviewAuthorizationInterceptor;

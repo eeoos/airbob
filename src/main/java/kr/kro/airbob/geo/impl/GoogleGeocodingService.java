@@ -2,8 +2,10 @@ package kr.kro.airbob.geo.impl;
 
 import java.net.URI;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -20,19 +22,22 @@ import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class GoogleGeocodingService implements GeocodingService {
 
 	public static final String OK = "OK";
-	private final RestTemplate restTemplate;
+	private final RestClient restClient;
 	private final ViewportAdjuster viewportAdjuster;
-	private final ObjectMapper objectMapper;
 
 	// todo: 배포 후엔 api ip 제한 걸기
 	@Value("${google.api.key}")
 	private String googleApiKey;
 
 	private static final String GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+
+	public GoogleGeocodingService(@Qualifier("generalRestClient") RestClient restClient, ViewportAdjuster viewportAdjuster) {
+		this.restClient = restClient;
+		this.viewportAdjuster = viewportAdjuster;
+	}
 
 	@Override
 	public GeocodeResult getCoordinates(String address) {
@@ -48,7 +53,10 @@ public class GoogleGeocodingService implements GeocodingService {
 				.build()
 				.toUriString();
 
-			GoogleGeocodeResponse response = restTemplate.getForObject(url, GoogleGeocodeResponse.class);
+			GoogleGeocodeResponse response = restClient.get()
+				.uri(url)
+				.retrieve()
+				.body(GoogleGeocodeResponse.class);
 
 			if (response != null && OK.equals(response.getStatus()) && !response.getResults().isEmpty()) {
 				GoogleGeocodeResponse.Result result = response.getResults().getFirst();

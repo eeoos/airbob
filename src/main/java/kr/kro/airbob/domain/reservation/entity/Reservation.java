@@ -19,6 +19,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -111,21 +112,21 @@ public class Reservation extends BaseEntity {
 
 	public void confirm() {
 		if (this.status != ReservationStatus.PAYMENT_PENDING) {
-			throw new InvalidReservationStatusException();
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CONFIRM_RESERVATION);
 		}
 		this.status = ReservationStatus.CONFIRMED;
 	}
 
 	public void expire() {
 		if (this.status != ReservationStatus.PAYMENT_PENDING) {
-			throw new InvalidReservationStatusException();
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_EXPIRE_RESERVATION);
 		}
 		this.status = ReservationStatus.EXPIRED;
 	}
 
 	public void cancel() {
 		if (this.status != ReservationStatus.CONFIRMED) {
-			throw new InvalidReservationStatusException("결제 완료 상태의 예약만 취소할 수 있습니다.");
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLED;
 	}

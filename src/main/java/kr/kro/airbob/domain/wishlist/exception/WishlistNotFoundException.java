@@ -1,10 +1,11 @@
 package kr.kro.airbob.domain.wishlist.exception;
 
-public class WishlistNotFoundException extends RuntimeException {
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "존재하지 않는 위시리스트입니다.";
+public class WishlistNotFoundException extends BaseException {
 
 	public WishlistNotFoundException() {
-		super(ERROR_MESSAGE);
+		super(ErrorCode.WISHLIST_NOT_FOUND);
 	}
 }

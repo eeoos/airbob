@@ -1,10 +1,11 @@
 package kr.kro.airbob.domain.payment.exception;
 
-public class PaymentNotFoundException extends RuntimeException{
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "존재하지 않는 결제 정보입니다.";
+public class PaymentNotFoundException extends BaseException {
 
 	public PaymentNotFoundException() {
-		super(ERROR_MESSAGE);
+		super(ErrorCode.PAYMENT_NOT_FOUND);
 	}
 }

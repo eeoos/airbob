@@ -9,7 +9,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum VirtualAccountIssueErrorCode {
+public enum VirtualAccountIssueErrorCode implements TossErrorCode{
 
 	// 400
 	DUPLICATED_ORDER_ID(HttpStatus.BAD_REQUEST, "이미 승인 및 취소가 진행된 중복된 주문번호 입니다. 다른 주문번호로 진행해주세요."),

@@ -9,7 +9,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum PaymentConfirmErrorCode {
+public enum PaymentConfirmErrorCode implements TossErrorCode{
 
 	// 400
 	ALREADY_PROCESSED_PAYMENT(HttpStatus.BAD_REQUEST, "이미 처리된 결제 입니다."),

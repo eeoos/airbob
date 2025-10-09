@@ -12,13 +12,30 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @EnableRetry
 public class AsyncConfig {
 
-	@Bean
-	public TaskExecutor taskExecutor() {
+	private static final int PROCESSORS = Math.max(2, Runtime.getRuntime().availableProcessors());
+
+	@Bean(name = "elasticsearchTaskExecutor")
+	public TaskExecutor elasticsearchTaskExecutor() {
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(2);
-		executor.setMaxPoolSize(5);
+		executor.setCorePoolSize(PROCESSORS * 2);
+		executor.setMaxPoolSize(PROCESSORS * 2);
 		executor.setQueueCapacity(100);
-		executor.setThreadNamePrefix("elasticsearch-indexing-");
+		executor.setThreadNamePrefix("es-indexing-");
+		executor.setWaitForTasksToCompleteOnShutdown(true);
+		executor.setAwaitTerminationSeconds(60);
+		executor.initialize();
+		return executor;
+	}
+
+	@Bean(name = "generalTaskExecutor")
+	public TaskExecutor generalTaskExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(PROCESSORS);
+		executor.setMaxPoolSize(PROCESSORS);
+		executor.setQueueCapacity(50);
+		executor.setThreadNamePrefix("general-async-");
+		executor.setWaitForTasksToCompleteOnShutdown(true);
+		executor.setAwaitTerminationSeconds(60);
 		executor.initialize();
 		return executor;
 	}

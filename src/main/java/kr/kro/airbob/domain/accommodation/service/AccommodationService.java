@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation;
+package kr.kro.airbob.domain.accommodation.service;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 

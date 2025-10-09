@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.exception.TossPaymentCancelException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
+import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentInquiryException;
 import kr.kro.airbob.domain.payment.exception.VirtualAccountIssueException;
 import kr.kro.airbob.domain.payment.exception.code.PaymentCancelErrorCode;
@@ -30,7 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TossPaymentsAdapter {
 
 	public static final String PAYMENT_KEY = "paymentKey";
@@ -53,6 +54,11 @@ public class TossPaymentsAdapter {
 
 	private final RestClient tossPaymentsRestClient;
 	private final ObjectMapper objectMapper;
+
+	public TossPaymentsAdapter(@Qualifier("tossPaymentRestClient") RestClient tossPaymentsRestClient, ObjectMapper objectMapper) {
+		this.tossPaymentsRestClient = tossPaymentsRestClient;
+		this.objectMapper = objectMapper;
+	}
 
 	@Retryable(
 		retryFor = { ResourceAccessException.class },
@@ -81,7 +87,7 @@ public class TossPaymentsAdapter {
 						UNKNOWN_ERROR;
 					PaymentConfirmErrorCode confirmErrorCode = PaymentConfirmErrorCode.fromErrorCode(errorCode);
 
-					throw new TossPaymentConfirmException(confirmErrorCode);
+					throw new TossPaymentException(confirmErrorCode);
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -117,7 +123,7 @@ public class TossPaymentsAdapter {
 						UNKNOWN_ERROR;
 					PaymentCancelErrorCode cancelErrorCode = PaymentCancelErrorCode.fromErrorCode(errorCode);
 
-					throw new TossPaymentCancelException(cancelErrorCode);
+					throw new TossPaymentException(cancelErrorCode);
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -163,7 +169,7 @@ public class TossPaymentsAdapter {
 					VirtualAccountIssueErrorCode virtualAccountIssueErrorCode = VirtualAccountIssueErrorCode.fromErrorCode(
 						errorCode);
 
-					throw new VirtualAccountIssueException(virtualAccountIssueErrorCode);
+					throw new TossPaymentException(virtualAccountIssueErrorCode);
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -190,7 +196,7 @@ public class TossPaymentsAdapter {
 					UNKNOWN_ERROR;
 				PaymentInquiryErrorCode inquiryErrorCode = PaymentInquiryErrorCode.fromErrorCode(errorCode);
 
-				throw new TossPaymentInquiryException(inquiryErrorCode);
+				throw new TossPaymentException(inquiryErrorCode);
 			})
 			.body(TossPaymentResponse.class);
 	}

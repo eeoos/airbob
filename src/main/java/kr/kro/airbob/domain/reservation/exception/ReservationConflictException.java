@@ -1,14 +1,11 @@
 package kr.kro.airbob.domain.reservation.exception;
 
-public class ReservationConflictException extends RuntimeException {
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "해당 날짜에 이미 확정된 예약이 존재합니다.";
+public class ReservationConflictException extends BaseException {
 
 	public ReservationConflictException() {
-		super(ERROR_MESSAGE);
-	}
-
-	public ReservationConflictException(String message) {
-		super(message);
+		super(ErrorCode.RESERVATION_CONFLICT);
 	}
 }

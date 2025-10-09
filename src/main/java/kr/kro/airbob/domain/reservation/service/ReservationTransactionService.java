@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
@@ -55,9 +56,11 @@ public class ReservationTransactionService {
 			log.warn("[결제 실패 확인] 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), reason);
 			reservation.expire();
 			return reservation;
+		} catch (BaseException e) {
+			throw e;
 		} catch (Exception e) {
 			log.error("[예약 만료 처리 실패]: Reservation UID: {} 처리 중 DB 오류 발생", reservationUid, e);
-			throw new ReservationStateChangeException("예약을 만료시키는 작업에 실패했습니다. Reservation UID: " + reservationUid, e);
+			throw new ReservationStateChangeException(e);
 		}
 	}
 }

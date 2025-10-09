@@ -1,10 +1,11 @@
 package kr.kro.airbob.domain.auth.exception;
 
-public class InvalidPasswordException extends RuntimeException{
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 
-	public static final String ERROR_MESSAGE = "비밀번호가 일치하지 않습니다.";
+public class InvalidPasswordException extends BaseException {
 
 	public InvalidPasswordException() {
-		super(ERROR_MESSAGE);
+		super(ErrorCode.INVALID_PASSWORD);
 	}
 }

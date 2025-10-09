@@ -1,15 +1,13 @@
 package kr.kro.airbob.domain.payment.exception;
 
 import kr.kro.airbob.domain.payment.exception.code.PaymentConfirmErrorCode;
+import kr.kro.airbob.domain.payment.exception.code.TossErrorCode;
 import lombok.Getter;
 
 @Getter
-public class TossPaymentConfirmException extends RuntimeException{
+public class TossPaymentConfirmException extends TossPaymentException {
 
-	private final PaymentConfirmErrorCode errorCode;
-
-	public TossPaymentConfirmException(PaymentConfirmErrorCode errorCode) {
-		super(errorCode.getErrorCode());
-		this.errorCode = errorCode;
+	public TossPaymentConfirmException(TossErrorCode errorCode) {
+		super(errorCode);
 	}
 }
