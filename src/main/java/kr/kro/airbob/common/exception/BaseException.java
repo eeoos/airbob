@@ -15,4 +15,10 @@ public class BaseException extends RuntimeException {
 		super(errorCode.getMessage());
 		this.errorCode = errorCode;
 	}
+
+	public BaseException(Throwable cause, ErrorCode errorCode) {
+		super(cause);
+		this.errorCode = errorCode;
+	}
+
 }
