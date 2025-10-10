@@ -2,9 +2,11 @@ package kr.kro.airbob.domain.auth;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.dto.AuthRequestDto.LoginRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,7 +22,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/v1/auth/login")
-    public void login(@RequestBody LoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<Void>> login(@RequestBody LoginRequest request, HttpServletResponse response) {
         String sessionId = authService.login(request.getEmail(), request.getPassword());
 
         Cookie cookie = new Cookie("SESSION_ID", sessionId);
@@ -28,11 +30,13 @@ public class AuthController {
         cookie.setPath("/");
         cookie.setMaxAge(3600); // 1시간
         response.addCookie(cookie);
+
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @PostMapping("/v1/auth/logout")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@CookieValue("SESSION_ID") String sessionId) {
+    public ResponseEntity<ApiResponse<Void>> logout(@CookieValue("SESSION_ID") String sessionId) {
         authService.logout(sessionId);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
     }
 }

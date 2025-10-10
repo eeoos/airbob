@@ -11,6 +11,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AccommodationSearchConditionDto;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.CreateAccommodationDto;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
@@ -50,7 +51,7 @@ public class AccommodationService {
     private final GeocodingService geocodingService;
 
     @Transactional
-    public Long createAccommodation(CreateAccommodationDto request) {
+    public AccommodationResponse.Create createAccommodation(CreateAccommodationDto request) {
 
         Member member = memberRepository.findById(request.getHostId())
                 .orElseThrow(MemberNotFoundException::new);
@@ -78,7 +79,7 @@ public class AccommodationService {
         );
 
 
-        return savedAccommodation.getId();
+        return new AccommodationResponse.Create(savedAccommodation.getId());
     }
 
     private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
@@ -162,7 +163,4 @@ public class AccommodationService {
         );
     }
 
-    public List<AccommodationSearchResponseDto> searchAccommodations(AccommodationSearchConditionDto request, Pageable pageable) {
-        return accommodationRepository.searchByFilter(request, pageable);
-    }
 }

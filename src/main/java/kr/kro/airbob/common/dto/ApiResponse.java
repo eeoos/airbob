@@ -21,7 +21,7 @@ public class ApiResponse<T> {
 	}
 
 	// 성공(데이터 X)
-	public static ApiResponse<?> success() {
+	public static <T> ApiResponse<T> success() {
 		return new ApiResponse<>(true, null, null);
 	}
 

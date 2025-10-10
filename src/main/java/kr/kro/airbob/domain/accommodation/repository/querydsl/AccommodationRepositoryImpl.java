@@ -5,7 +5,7 @@ import static kr.kro.airbob.domain.accommodation.entity.QAccommodationAmenity.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAmenity.*;
 import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.*;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.*;
-import static kr.kro.airbob.domain.review.QReview.*;
+import static kr.kro.airbob.domain.review.entity.QReview.*;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -31,7 +31,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
-import kr.kro.airbob.domain.member.QMember;
+import kr.kro.airbob.domain.member.entity.QMember;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.RequiredArgsConstructor;
 

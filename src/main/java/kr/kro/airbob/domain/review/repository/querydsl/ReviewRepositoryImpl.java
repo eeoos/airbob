@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.review.repository.querydsl;
 
-import static kr.kro.airbob.domain.member.QMember.*;
-import static kr.kro.airbob.domain.review.QReview.*;
+import static kr.kro.airbob.domain.member.entity.QMember.*;
+import static kr.kro.airbob.domain.review.entity.QReview.*;
 
 import java.time.LocalDateTime;
 import java.util.List;

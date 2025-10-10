@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
@@ -30,36 +31,35 @@ public class ReviewController {
 	private final ReviewService reviewService;
 
 	@PostMapping("/v1/accommodations/{accommodationId}/reviews")
-	public ResponseEntity<ReviewResponse.CreateResponse> createReview(
+	public ResponseEntity<ApiResponse<ReviewResponse.CreateResponse>> createReview(
 		@PathVariable Long accommodationId,
 		@Valid @RequestBody ReviewRequest.CreateRequest request) {
-
 
 		ReviewResponse.CreateResponse response =
 			reviewService.createReview(accommodationId, request);
 
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@PatchMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
-	public ResponseEntity<ReviewResponse.UpdateResponse> updateReview(
+	public ResponseEntity<ApiResponse<ReviewResponse.UpdateResponse>> updateReview(
 		@PathVariable Long reviewId,
 		@Valid @RequestBody ReviewRequest.UpdateRequest request) {
 
 		ReviewResponse.UpdateResponse response =
 			reviewService.updateReviewContent(reviewId, request);
 
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@DeleteMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
-	@ResponseStatus(HttpStatus.OK)
-	public void deleteReview(@PathVariable Long reviewId) {
+	public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
 		reviewService.deleteReview(reviewId);
+		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews")
-	public ResponseEntity<ReviewResponse.ReviewInfos> findReviews(
+	public ResponseEntity<ApiResponse<ReviewResponse.ReviewInfos>> findReviews(
 		@PathVariable Long accommodationId,
 		@RequestParam(defaultValue = "LATEST") ReviewSortType sortType,
 		@CursorParam CursorRequest.ReviewCursorPageRequest cursorRequest) {
@@ -67,16 +67,16 @@ public class ReviewController {
 		ReviewResponse.ReviewInfos response =
 			reviewService.findReviews(accommodationId, cursorRequest, sortType);
 
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	// todo: 리뷰 이미지 업로드 해야함
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews/summary")
-	public ResponseEntity<ReviewResponse.ReviewSummary> findReviewSummary(@PathVariable Long accommodationId) {
+	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(@PathVariable Long accommodationId) {
 
 		ReviewResponse.ReviewSummary response =
 			reviewService.findReviewSummary(accommodationId);
 
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

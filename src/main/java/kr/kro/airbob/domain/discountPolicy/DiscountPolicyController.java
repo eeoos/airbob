@@ -1,8 +1,8 @@
 package kr.kro.airbob.domain.discountPolicy;
 
-import kr.kro.airbob.domain.discountPolicy.dto.request.DiscountPolicyCreateDto;
-import kr.kro.airbob.domain.discountPolicy.dto.request.DiscountPolicyUpdateDto;
-import kr.kro.airbob.domain.discountPolicy.dto.response.DiscountPolicyResponseDto;
+import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.discountPolicy.dto.DiscountPolicyRequest;
+import kr.kro.airbob.domain.discountPolicy.dto.DiscountPolicyResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,26 +18,27 @@ public class DiscountPolicyController {
     private final DiscountPolicyService discountpolicyService;
 
     @GetMapping("/v1/discount")
-    public ResponseEntity<List<DiscountPolicyResponseDto>> findValidDiscountPolicies() {
-        List<DiscountPolicyResponseDto> discountPolicies = discountpolicyService.findValidDiscountPolicies();
-        return ResponseEntity.ok(discountPolicies);
+    public ResponseEntity<ApiResponse<DiscountPolicyResponse.DiscountPolicyInfos>> findValidDiscountPolicies() {
+        DiscountPolicyResponse.DiscountPolicyInfos discountPolicies = discountpolicyService.findValidDiscountPolicies();
+        return ResponseEntity.ok(ApiResponse.success(discountPolicies));
     }
 
     @PostMapping("/v1/discount")
-    public ResponseEntity<Void> createDiscountPolicy(@RequestBody DiscountPolicyCreateDto discountPolicyCreateDto) {
+    public ResponseEntity<ApiResponse<Void>> createDiscountPolicy(@RequestBody DiscountPolicyRequest.Create discountPolicyCreateDto) {
         discountpolicyService.createDiscountPolicy(discountPolicyCreateDto);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
     }
 
     @PatchMapping("/v1/discount/{discountPolicyId}")
-    public ResponseEntity<Void> updateDiscountPolicy(@RequestBody DiscountPolicyUpdateDto discountPolicyUpdateDto, @PathVariable Long discountPolicyId){
+    public ResponseEntity<ApiResponse<Void>> updateDiscountPolicy(@RequestBody DiscountPolicyRequest.Update discountPolicyUpdateDto, @PathVariable Long discountPolicyId){
         discountpolicyService.updateDiscountPolicy(discountPolicyUpdateDto, discountPolicyId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @DeleteMapping("/v1/discount/{discountPolicyId}")
-    public ResponseEntity<Void> deleteDiscountPolicy(@PathVariable Long discountPolicyId){
+    public ResponseEntity<ApiResponse<Void>> deleteDiscountPolicy(@PathVariable Long discountPolicyId){
         discountpolicyService.deletePolicy(discountPolicyId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
     }
+
 }

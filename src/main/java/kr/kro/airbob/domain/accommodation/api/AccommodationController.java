@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
@@ -39,33 +40,26 @@ public class AccommodationController {
 
     //todo 이미지 저장 로직 추가
     @PostMapping("/v1/accommodations")
-    public ResponseEntity<Map<String, Long>> registerAccommodation(@RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
+    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(@RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
                                                                    HttpServletRequest request){
         String sessionId = SessionUtil.getSessionIdByCookie(request);
         authService.validateHost(sessionId, requestDto.getHostId());
 
-        Long savedAccommodationId = accommodationService.createAccommodation(requestDto);
+        AccommodationResponse.Create response = accommodationService.createAccommodation(requestDto);
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(Map.of("id", savedAccommodationId));
+            .body(ApiResponse.success(response));
     }
 
     @PatchMapping("/v1/accommodations/{accommodationId}")
-    @ResponseStatus(HttpStatus.OK)
-    public void updateAccommodation(@PathVariable Long accommodationId, @RequestBody AccommodationRequest.UpdateAccommodationDto request){
+    public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId, @RequestBody AccommodationRequest.UpdateAccommodationDto request){
         accommodationService.updateAccommodation(accommodationId, request);
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @DeleteMapping("/v1/accommodations/{accommodationId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteAccommodation(@PathVariable Long accommodationId) {
+    public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {
         accommodationService.deleteAccommodation(accommodationId);
-    }
-
-    @GetMapping("/v1/accommodations")
-    public ResponseEntity<List<AccommodationResponse.AccommodationSearchResponseDto>> searchAccommodationsByCondition(
-            @ModelAttribute AccommodationRequest.AccommodationSearchConditionDto request, Pageable pageable) {
-        List<AccommodationSearchResponseDto> result = accommodationService.searchAccommodations(request, pageable);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
     }
 }
 
