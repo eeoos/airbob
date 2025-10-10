@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
-import kr.kro.airbob.domain.review.ReviewSortType;
+import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 public interface ReviewRepositoryCustom {

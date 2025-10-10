@@ -6,8 +6,7 @@ import jakarta.persistence.*;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.discountPolicy.common.DiscountType;
 import kr.kro.airbob.domain.discountPolicy.common.PromotionType;
-import kr.kro.airbob.domain.discountPolicy.dto.request.DiscountPolicyCreateDto;
-import kr.kro.airbob.domain.discountPolicy.dto.request.DiscountPolicyUpdateDto;
+import kr.kro.airbob.domain.discountPolicy.dto.DiscountPolicyRequest;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -52,31 +51,31 @@ public class DiscountPolicy extends BaseEntity {
 	@Column(nullable = false)
 	private Boolean isActive;
 
-	public static DiscountPolicy of(DiscountPolicyCreateDto discountPolicyCreateDto) {
+	public static DiscountPolicy of(DiscountPolicyRequest.Create discountPolicyCreateDto) {
         return DiscountPolicy.builder()
-                .name(discountPolicyCreateDto.getName())
-                .discountRate(discountPolicyCreateDto.getDiscountRate())
-                .description(discountPolicyCreateDto.getDescription())
-                .discountType(discountPolicyCreateDto.getDiscountType())
-                .promotionType(discountPolicyCreateDto.getPromotionType())
-                .minPaymentPrice(discountPolicyCreateDto.getMinPaymentPrice())
-                .maxApplyPrice(discountPolicyCreateDto.getMaxApplyPrice())
-                .startDate(discountPolicyCreateDto.getStartDate())
-                .endDate(discountPolicyCreateDto.getEndDate())
-                .isActive(discountPolicyCreateDto.getIsActive()).build();
+                .name(discountPolicyCreateDto.name())
+                .discountRate(discountPolicyCreateDto.discountRate())
+                .description(discountPolicyCreateDto.description())
+                .discountType(discountPolicyCreateDto.discountType())
+                .promotionType(discountPolicyCreateDto.promotionType())
+                .minPaymentPrice(discountPolicyCreateDto.minPaymentPrice())
+                .maxApplyPrice(discountPolicyCreateDto.maxApplyPrice())
+                .startDate(discountPolicyCreateDto.startDate())
+                .endDate(discountPolicyCreateDto.endDate())
+                .isActive(discountPolicyCreateDto.isActive()).build();
 	}
 
-	public void updateWithDto(DiscountPolicyUpdateDto dto) {
-		if (dto.getName() != null) this.name = dto.getName();
-		if (dto.getDiscountRate() != null) this.discountRate = dto.getDiscountRate();
-		if (dto.getDescription() != null) this.description = dto.getDescription();
-		if (dto.getDiscountType() != null) this.discountType = dto.getDiscountType();
-		if (dto.getPromotionType() != null) this.promotionType = dto.getPromotionType();
-		if (dto.getMinPaymentPrice() != null) this.minPaymentPrice = dto.getMinPaymentPrice();
-		if (dto.getMaxApplyPrice() != null) this.maxApplyPrice = dto.getMaxApplyPrice();
-		if (dto.getStartDate() != null) this.startDate = dto.getStartDate();
-		if (dto.getEndDate() != null) this.endDate = dto.getEndDate();
-		if (dto.getIsActive() != null) this.isActive = dto.getIsActive();
+	public void updateWithDto(DiscountPolicyRequest.Update dto) {
+		if (dto.name() != null) this.name = dto.name();
+		if (dto.discountRate() != null) this.discountRate = dto.discountRate();
+		if (dto.description() != null) this.description = dto.description();
+		if (dto.discountType() != null) this.discountType = dto.discountType();
+		if (dto.promotionType() != null) this.promotionType = dto.promotionType();
+		if (dto.minPaymentPrice() != null) this.minPaymentPrice = dto.minPaymentPrice();
+		if (dto.maxApplyPrice() != null) this.maxApplyPrice = dto.maxApplyPrice();
+		if (dto.startDate() != null) this.startDate = dto.startDate();
+		if (dto.endDate() != null) this.endDate = dto.endDate();
+		if (dto.isActive() != null) this.isActive = dto.isActive();
 	}
 
 }

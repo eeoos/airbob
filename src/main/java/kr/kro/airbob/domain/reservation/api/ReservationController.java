@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -18,28 +18,25 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/reservations")
+@RequestMapping("/api")
 public class ReservationController {
 
 	private final ReservationService reservationService;
 
-	@PostMapping
-	public ResponseEntity<ReservationResponse.Ready> createReservation(
-		HttpServletRequest request,
-		@Valid @RequestBody ReservationRequest.Create requestDto) {
+	@PostMapping("/v1/reservations")
+	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> createReservation(
+		@Valid @RequestBody ReservationRequest.Create request) {
 
-		Long memberId = (Long) request.getAttribute("memberId");
-
-		ReservationResponse.Ready response = reservationService.createPendingReservation(memberId, requestDto);
-		return ResponseEntity.ok(response);
+		ReservationResponse.Ready response = reservationService.createPendingReservation(request);
+		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@DeleteMapping("/{reservationUid}")
-	public ResponseEntity<Void> cancelReservation(
+	@DeleteMapping("/v1/reservations/{reservationUid}")
+	public ResponseEntity<ApiResponse<Void>> cancelReservation(
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request
 	) {
 		reservationService.cancelReservation(reservationUid, request);
-		return ResponseEntity.accepted().build();
+		return ResponseEntity.accepted().body(ApiResponse.success());
 	}
 }

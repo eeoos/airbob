@@ -3,13 +3,12 @@ package kr.kro.airbob.domain.auth;
 import java.util.UUID;
 
 import org.mindrot.jbcrypt.BCrypt;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.exception.NotEqualHostException;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import lombok.RequiredArgsConstructor;
 

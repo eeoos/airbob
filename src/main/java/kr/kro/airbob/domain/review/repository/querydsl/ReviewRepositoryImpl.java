@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.review.repository.querydsl;
 
-import static kr.kro.airbob.domain.member.QMember.*;
-import static kr.kro.airbob.domain.review.QReview.*;
+import static kr.kro.airbob.domain.member.entity.QMember.*;
+import static kr.kro.airbob.domain.review.entity.QReview.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,7 +16,7 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.review.ReviewSortType;
+import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.RequiredArgsConstructor;
 

@@ -11,6 +11,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AccommodationSearchConditionDto;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.CreateAccommodationDto;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
@@ -22,17 +23,15 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.AmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +51,7 @@ public class AccommodationService {
     private final GeocodingService geocodingService;
 
     @Transactional
-    public Long createAccommodation(CreateAccommodationDto request) {
+    public AccommodationResponse.Create createAccommodation(CreateAccommodationDto request) {
 
         Member member = memberRepository.findById(request.getHostId())
                 .orElseThrow(MemberNotFoundException::new);
@@ -80,7 +79,7 @@ public class AccommodationService {
         );
 
 
-        return savedAccommodation.getId();
+        return new AccommodationResponse.Create(savedAccommodation.getId());
     }
 
     private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
@@ -164,7 +163,4 @@ public class AccommodationService {
         );
     }
 
-    public List<AccommodationSearchResponseDto> searchAccommodations(AccommodationSearchConditionDto request, Pageable pageable) {
-        return accommodationRepository.searchByFilter(request, pageable);
-    }
 }
