@@ -1,7 +1,9 @@
-package kr.kro.airbob.domain.member;
+package kr.kro.airbob.domain.member.service;
 
+import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequestDto.SignupMemberRequestDto;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;

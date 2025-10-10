@@ -12,34 +12,32 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/discount")
+@RequestMapping("/api")
 public class DiscountPolicyController {
 
     private final DiscountPolicyService discountpolicyService;
 
-    @GetMapping("")
+    @GetMapping("/v1/discount")
     public ResponseEntity<List<DiscountPolicyResponseDto>> findValidDiscountPolicies() {
         List<DiscountPolicyResponseDto> discountPolicies = discountpolicyService.findValidDiscountPolicies();
         return ResponseEntity.ok(discountPolicies);
     }
 
-    @PostMapping("")
+    @PostMapping("/v1/discount")
     public ResponseEntity<Void> createDiscountPolicy(@RequestBody DiscountPolicyCreateDto discountPolicyCreateDto) {
         discountpolicyService.createDiscountPolicy(discountPolicyCreateDto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    @PatchMapping("/{discountPolicyId}")
+    @PatchMapping("/v1/discount/{discountPolicyId}")
     public ResponseEntity<Void> updateDiscountPolicy(@RequestBody DiscountPolicyUpdateDto discountPolicyUpdateDto, @PathVariable Long discountPolicyId){
         discountpolicyService.updateDiscountPolicy(discountPolicyUpdateDto, discountPolicyId);
         return ResponseEntity.ok().build();
     }
 
-    @DeleteMapping("/{discountPolicyId}")
+    @DeleteMapping("/v1/discount/{discountPolicyId}")
     public ResponseEntity<Void> deleteDiscountPolicy(@PathVariable Long discountPolicyId){
         discountpolicyService.deletePolicy(discountPolicyId);
         return ResponseEntity.noContent().build();
     }
-
-
 }

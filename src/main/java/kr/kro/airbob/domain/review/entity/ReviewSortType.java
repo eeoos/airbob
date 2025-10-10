@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.review;
+package kr.kro.airbob.domain.review.entity;
 
 public enum ReviewSortType {
 	LATEST,

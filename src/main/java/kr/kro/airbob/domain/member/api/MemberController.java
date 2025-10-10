@@ -1,7 +1,8 @@
-package kr.kro.airbob.domain.member;
+package kr.kro.airbob.domain.member.api;
 
 import jakarta.validation.Valid;
 import kr.kro.airbob.domain.member.dto.MemberRequestDto;
+import kr.kro.airbob.domain.member.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,12 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/members")
+@RequestMapping("/api")
 public class MemberController {
 
     private final MemberService memberService;
 
-    @PostMapping
+    @PostMapping("/v1/members")
     @ResponseStatus(HttpStatus.CREATED)
     public void signup(@RequestBody @Valid MemberRequestDto.SignupMemberRequestDto request) {
         memberService.createMember(request);

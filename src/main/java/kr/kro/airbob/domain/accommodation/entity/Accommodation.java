@@ -20,7 +20,7 @@ import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.UpdateAccommodationDto;
-import kr.kro.airbob.domain.member.Member;
+import kr.kro.airbob.domain.member.entity.Member;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

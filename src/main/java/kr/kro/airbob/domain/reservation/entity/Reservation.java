@@ -21,7 +21,7 @@ import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.member.Member;
+import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import lombok.AccessLevel;

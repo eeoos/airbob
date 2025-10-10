@@ -1,28 +1,31 @@
-package kr.kro.airbob.domain.review;
+package kr.kro.airbob.domain.review.service;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.entity.Review;
+import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
@@ -31,7 +34,6 @@ import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryReposito
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,7 +52,9 @@ public class ReviewService {
 	private final OutboxEventPublisher outboxEventPublisher;
 
 	@Transactional
-	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request, Long memberId) {
+	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request) {
+
+		Long memberId = getMemberId();
 
 		Member author = findMemberById(memberId);
 		Accommodation accommodation = findAccommodationById(accommodationId);
@@ -193,5 +197,9 @@ public class ReviewService {
 		return AccommodationReviewSummary.builder()
 			.accommodation(accommodation)
 			.build();
+	}
+
+	private Long getMemberId() {
+		return UserContext.get().id();
 	}
 }

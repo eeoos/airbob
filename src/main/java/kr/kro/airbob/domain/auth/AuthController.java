@@ -13,13 +13,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/login")
+    @PostMapping("/v1/auth/login")
     public void login(@RequestBody LoginRequest request, HttpServletResponse response) {
         String sessionId = authService.login(request.getEmail(), request.getPassword());
 
@@ -30,7 +30,7 @@ public class AuthController {
         response.addCookie(cookie);
     }
 
-    @PostMapping("/logout")
+    @PostMapping("/v1/auth/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@CookieValue("SESSION_ID") String sessionId) {
         authService.logout(sessionId);

@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import kr.kro.airbob.domain.review.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 
 public interface AccommodationReviewSummaryRepository extends JpaRepository<AccommodationReviewSummary, Long> {
 

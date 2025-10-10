@@ -31,14 +31,14 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @Slf4j
 @RequiredArgsConstructor
-@RequestMapping("/api/accommodations")
+@RequestMapping("/api")
 public class AccommodationController {
 
     private final AccommodationService accommodationService;
     private final AuthService authService;
 
     //todo 이미지 저장 로직 추가
-    @PostMapping
+    @PostMapping("/v1/accommodations")
     public ResponseEntity<Map<String, Long>> registerAccommodation(@RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
                                                                    HttpServletRequest request){
         String sessionId = SessionUtil.getSessionIdByCookie(request);
@@ -49,19 +49,19 @@ public class AccommodationController {
             .body(Map.of("id", savedAccommodationId));
     }
 
-    @PatchMapping("/{accommodationId}")
+    @PatchMapping("/v1/accommodations/{accommodationId}")
     @ResponseStatus(HttpStatus.OK)
     public void updateAccommodation(@PathVariable Long accommodationId, @RequestBody AccommodationRequest.UpdateAccommodationDto request){
         accommodationService.updateAccommodation(accommodationId, request);
     }
 
-    @DeleteMapping("/{accommodationId}")
+    @DeleteMapping("/v1/accommodations/{accommodationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteAccommodation(@PathVariable Long accommodationId) {
         accommodationService.deleteAccommodation(accommodationId);
     }
 
-    @GetMapping
+    @GetMapping("/v1/accommodations")
     public ResponseEntity<List<AccommodationResponse.AccommodationSearchResponseDto>> searchAccommodationsByCondition(
             @ModelAttribute AccommodationRequest.AccommodationSearchConditionDto request, Pageable pageable) {
         List<AccommodationSearchResponseDto> result = accommodationService.searchAccommodations(request, pageable);

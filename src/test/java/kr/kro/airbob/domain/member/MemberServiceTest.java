@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import kr.kro.airbob.domain.member.dto.MemberRequestDto.SignupMemberRequestDto;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.service.MemberService;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;

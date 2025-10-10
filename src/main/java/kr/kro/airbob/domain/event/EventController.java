@@ -18,14 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Slf4j
 @RequiredArgsConstructor
-@RequestMapping("/api/event")
+@RequestMapping("/api")
 public class EventController {
 
     private final EventService eventService;
 
     private record MemberRequest(Long memberId) {}
 
-    @PostMapping("/{eventId}")
+    @PostMapping("/v1/event/{eventId}")
     public ResponseEntity<String> applyEvent(@PathVariable Long eventId, @RequestBody MemberRequest request) {
         int eventMaxParticipants = eventService.getEventMaxParticipants(eventId);
         ApplyResult applyResult = eventService.applyToEvent(eventId, request.memberId, eventMaxParticipants);

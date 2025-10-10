@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -18,23 +17,20 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/reservations")
+@RequestMapping("/api")
 public class ReservationController {
 
 	private final ReservationService reservationService;
 
-	@PostMapping
+	@PostMapping("/v1/reservations")
 	public ResponseEntity<ReservationResponse.Ready> createReservation(
-		HttpServletRequest request,
-		@Valid @RequestBody ReservationRequest.Create requestDto) {
+		@Valid @RequestBody ReservationRequest.Create request) {
 
-		Long memberId = (Long) request.getAttribute("memberId");
-
-		ReservationResponse.Ready response = reservationService.createPendingReservation(memberId, requestDto);
+		ReservationResponse.Ready response = reservationService.createPendingReservation(request);
 		return ResponseEntity.ok(response);
 	}
 
-	@DeleteMapping("/{reservationUid}")
+	@DeleteMapping("/v1/reservations/{reservationUid}")
 	public ResponseEntity<Void> cancelReservation(
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request

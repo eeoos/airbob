@@ -17,8 +17,8 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.Accommodatio
 import kr.kro.airbob.domain.accommodation.entity.*;
 import kr.kro.airbob.domain.accommodation.repository.*;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.entity.ReservedDate;
 import kr.kro.airbob.domain.reservation.repository.ReservedDateRepository;
 import org.junit.jupiter.api.BeforeEach;

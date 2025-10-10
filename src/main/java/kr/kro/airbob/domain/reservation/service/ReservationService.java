@@ -10,27 +10,25 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
-import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,7 +47,9 @@ public class ReservationService {
 	private final ReservationTransactionService transactionService;
 
 	@Transactional
-	public ReservationResponse.Ready createPendingReservation(Long memberId, ReservationRequest.Create request) {
+	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request) {
+
+		Long memberId = getMemberId();
 
 		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
 			throw new ReservationLockException();
@@ -162,5 +162,9 @@ public class ReservationService {
 			reservation.getAccommodation().getId(),
 			reservation.getCheckIn().toLocalDate(),
 			reservation.getCheckOut().toLocalDate());
+	}
+
+	private Long getMemberId() {
+		return UserContext.get().id();
 	}
 }

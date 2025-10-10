@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.HttpServletRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,35 +15,30 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @Slf4j
 @RequiredArgsConstructor
-@RequestMapping("/api/members/recentlyViewed")
+@RequestMapping("/api")
 public class RecentlyViewedController {
 
 	private final RecentlyViewedService recentlyViewedService;
 
-	@PostMapping("/{accommodationId}")
-	public ResponseEntity<Void> addRecentlyViewed(@PathVariable Long accommodationId, HttpServletRequest request) {
+	@PostMapping("/v1/members/recentlyViewed/{accommodationId}")
+	public ResponseEntity<Void> addRecentlyViewed(@PathVariable Long accommodationId) {
 
-		Long memberId = (Long)request.getAttribute("memberId");
 
-		recentlyViewedService.addRecentlyViewed(memberId, accommodationId);
+		recentlyViewedService.addRecentlyViewed(accommodationId);
 		return ResponseEntity.ok().build();
 	}
 
-	@DeleteMapping("/{accommodationId}")
+	@DeleteMapping("/v1/members/recentlyViewed/{accommodationId}")
 	public ResponseEntity<Void> removeRecentlyViewed(
-		@PathVariable Long accommodationId,
-		HttpServletRequest request) {
-		Long memberId = (Long)request.getAttribute("memberId");
-		recentlyViewedService.removeRecentlyViewed(memberId, accommodationId);
+		@PathVariable Long accommodationId) {
+		recentlyViewedService.removeRecentlyViewed(accommodationId);
 		return ResponseEntity.ok().build();
 	}
 
-	@GetMapping
-	public ResponseEntity<AccommodationResponse.RecentlyViewedAccommodations> getRecentlyViewed(
-		HttpServletRequest request) {
-		Long memberId = (Long) request.getAttribute("memberId");
+	@GetMapping("/v1/members/recentlyViewed")
+	public ResponseEntity<AccommodationResponse.RecentlyViewedAccommodations> getRecentlyViewed() {
 		AccommodationResponse.RecentlyViewedAccommodations response =
-			recentlyViewedService.getRecentlyViewed(memberId);
+			recentlyViewedService.getRecentlyViewed();
 		return ResponseEntity.ok(response);
 
 	}

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.member;
+package kr.kro.airbob.domain.member.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

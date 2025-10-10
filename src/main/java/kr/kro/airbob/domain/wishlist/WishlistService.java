@@ -11,6 +11,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -21,10 +22,10 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.AccommodationImage;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.review.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
@@ -51,9 +52,10 @@ public class WishlistService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	@Transactional
-	public WishlistResponse.CreateResponse createWishlist(WishlistRequest.createRequest request, Long loggedInMemberId) {
+	public WishlistResponse.CreateResponse createWishlist(WishlistRequest.createRequest request) {
 
-		final Member member = findMemberById(loggedInMemberId);
+		Long memberId = getMemberId();
+		final Member member = findMemberById(memberId);
 
 		Wishlist wishlist = Wishlist.builder()
 			.name(request.name())
@@ -85,13 +87,15 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request, Long loggedInMemberId) {
+	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request) {
 
 		Long lastId = request.lastId();
 		LocalDateTime lastCreatedAt = request.lastCreatedAt();
 
+		Long memberId = getMemberId();
+
 		Slice<Wishlist> wishlistSlice = wishlistRepository.findByMemberIdWithCursor(
-			loggedInMemberId,
+			memberId,
 			lastId,
 			lastCreatedAt,
 			PageRequest.of(0, request.size())
@@ -298,5 +302,9 @@ public class WishlistService {
 		if (wishlistAccommodationRepository.existsByWishlistIdAndAccommodationId(wishlistId, accommodationId)) {
 			throw new WishlistAccommodationDuplicateException();
 		}
+	}
+
+	private Long getMemberId() {
+		return UserContext.get().id();
 	}
 }

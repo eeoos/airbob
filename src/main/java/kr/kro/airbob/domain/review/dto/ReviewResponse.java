@@ -6,7 +6,7 @@ import java.util.List;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.review.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import lombok.Builder;
 
 public class ReviewResponse {

@@ -8,8 +8,8 @@ import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
-import kr.kro.airbob.domain.member.Member;
-import kr.kro.airbob.domain.member.MemberRepository;
+import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

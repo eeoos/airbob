@@ -18,13 +18,13 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/payments")
+@RequestMapping("/api")
 public class PaymentController {
 
 	private final OutboxEventPublisher outboxEventPublisher;
 	private final PaymentService paymentService;
 
-	@PostMapping("/confirm")
+	@PostMapping("/v1/payments/confirm")
 	public ResponseEntity<Void> confirmPayment(@Valid @RequestBody PaymentRequest.Confirm request) {
 		outboxEventPublisher.save(
 			EventType.PAYMENT_CONFIRM_REQUESTED,
@@ -33,12 +33,12 @@ public class PaymentController {
 		return ResponseEntity.accepted().build();
 	}
 
-	@GetMapping("/{paymentKey}")
+	@GetMapping("/v1/payments/{paymentKey}")
 	public ResponseEntity<PaymentResponse.PaymentInfo> getPaymentByPaymentKey(@PathVariable String paymentKey) {
 		PaymentResponse.PaymentInfo response = paymentService.findPaymentByPaymentKey(paymentKey);
 		return ResponseEntity.ok(response);
 	}
-	@GetMapping("/orders/{orderId}")
+	@GetMapping("/v1/payments/orders/{orderId}")
 	public ResponseEntity<PaymentResponse.PaymentInfo> getPaymentByOrderId(@PathVariable String orderId) {
 		PaymentResponse.PaymentInfo response = paymentService.findPaymentByOrderId(orderId);
 		return ResponseEntity.ok(response);

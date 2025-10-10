@@ -16,12 +16,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.review.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,8 @@ public class RecentlyViewedService {
 	private static final int MAX_COUNT = 100;
 	private static final long TTL_DAYS = 7;
 
-	public void addRecentlyViewed(Long memberId, Long accommodationId) {
+	public void addRecentlyViewed(Long accommodationId) {
+		Long memberId = getMemberId();
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 		long timestamp = System.currentTimeMillis();
 
@@ -55,12 +57,14 @@ public class RecentlyViewedService {
 		redisTemplate.expire(key, Duration.ofDays(TTL_DAYS));
 	}
 
-	public void removeRecentlyViewed(Long memberId, Long accommodationId) {
+	public void removeRecentlyViewed(Long accommodationId) {
+		Long memberId = getMemberId();
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 		redisTemplate.opsForZSet().remove(key, accommodationId.toString());
 	}
 
-	public AccommodationResponse.RecentlyViewedAccommodations getRecentlyViewed(Long memberId) {
+	public AccommodationResponse.RecentlyViewedAccommodations getRecentlyViewed() {
+		Long memberId = getMemberId();
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 
 		Set<ZSetOperations.TypedTuple<String>> recentlyViewedWithScores = redisTemplate.opsForZSet()
@@ -170,5 +174,9 @@ public class RecentlyViewedService {
 					),
 					Collectors.toList()
 				)));
+	}
+
+	private Long getMemberId() {
+		return UserContext.get().id();
 	}
 }
