@@ -3,10 +3,14 @@ package kr.kro.airbob.domain.accommodation.interceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Map;
+
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
 
 @Component
 @RequiredArgsConstructor
@@ -19,39 +23,31 @@ public class AccommodationAuthorizationInterceptor implements HandlerInterceptor
         throws IOException {
 
         String method = request.getMethod();
-        String uri = request.getRequestURI();
 
-        if (!(method.equals("PATCH") || method.equals("DELETE"))) {
+        if (!(method.equalsIgnoreCase("PATCH") || method.equalsIgnoreCase("DELETE"))) {
             return true; // 수정/삭제가 아니면 통과
         }
 
-        // URI에서 숙소 ID 추출 (예: /api/accommodations/123)
-        String[] segments = uri.split("/");
+        Map<String, String> pathVariables = (Map<String, String>)request.getAttribute(
+            HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
         Long accommodationId;
         try {
-            accommodationId = Long.parseLong(segments[segments.length - 1]);
+            if (pathVariables == null || !pathVariables.containsKey("accommodationId")) {
+                return true;
+            }
+            accommodationId = Long.parseLong(pathVariables.get("accommodationId"));
         } catch (NumberFormatException e) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "유효하지 않은 숙소 ID입니다.");
             return false;
         }
 
-        // 필터에서 저장한 memberId 가져오기
-        Long requestMemberId = (Long) request.getAttribute("memberId");
-        if (requestMemberId == null) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다.");
-            return false;
-        }
+        Long currentMemberId = UserContext.get().id();
 
-        // 숙소 정보 조회 및 작성자 검증
-        Long writerId = accommodationRepository.findHostIdByAccommodationId(accommodationId).orElse(null);
+        Long hostId = accommodationRepository.findHostIdByAccommodationId(accommodationId)
+            .orElse(null);
 
-        if (writerId == null) {
-            response.sendError(HttpServletResponse.SC_NOT_FOUND, "숙소를 찾을 수 없습니다.");
-            return false;
-        }
-
-        if (!writerId.equals(requestMemberId)) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "해당 숙소는 작성자만 .");
+        if (hostId == null || !hostId.equals(currentMemberId)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "해당 숙소에 대한 수정/삭제 권한이 없습니다.");
             return false;
         }
 

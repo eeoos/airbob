@@ -9,6 +9,7 @@ import org.springframework.web.servlet.HandlerMapping;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
@@ -29,7 +30,7 @@ public class ReviewAuthorizationInterceptor implements HandlerInterceptor {
 			return true;
 		}
 
-		Long requestMemberId = (Long) request.getAttribute("memberId");
+		Long requestMemberId = UserContext.get().id();
 		if (requestMemberId == null) {
 			response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다.");
 			return false;

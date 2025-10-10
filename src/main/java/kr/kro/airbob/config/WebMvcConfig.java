@@ -4,18 +4,16 @@ import java.util.List;
 
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.accommodation.interceptor.AccommodationAuthorizationInterceptor;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
-import kr.kro.airbob.domain.recentlyViewed.interceptor.RecentlyViewedAuthorizationInterceptor;
+import kr.kro.airbob.domain.payment.interceptor.PaymentAuthorizationInterceptor;
+import kr.kro.airbob.domain.reservation.interceptor.ReservationAuthorizationInterceptor;
 import kr.kro.airbob.domain.review.interceptor.ReviewAuthorizationInterceptor;
 import kr.kro.airbob.domain.wishlist.interceptor.WishlistAuthorizationInterceptor;
 import lombok.RequiredArgsConstructor;
@@ -28,10 +26,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 	private final CursorParamArgumentResolver cursorParamArgumentResolver;
 	private final SessionAuthFilter sessionAuthFilter;
-	private final AccommodationAuthorizationInterceptor interceptor;
-	private final WishlistAuthorizationInterceptor wishlistInterceptor;
-	private final RecentlyViewedAuthorizationInterceptor recentlyViewedInterceptor;
 	private final ReviewAuthorizationInterceptor reviewInterceptor;
+	private final AccommodationAuthorizationInterceptor interceptor;
+	private final PaymentAuthorizationInterceptor paymentInterceptor;
+	private final WishlistAuthorizationInterceptor wishlistInterceptor;
+	private final ReservationAuthorizationInterceptor reservationInterceptor;
 
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
@@ -47,14 +46,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		registry.addInterceptor(wishlistInterceptor)
 			.addPathPatterns("/api/members/wishlists/**");
 
-		registry.addInterceptor(recentlyViewedInterceptor)
-			.addPathPatterns("/api/members/recentlyViewed/**");
-
 		registry.addInterceptor(reviewInterceptor)
 			.addPathPatterns("/api/accommodations/*/reviews/**");
 
-		// registry.addInterceptor(reservationInterceptor)
-		// 		.addPathPatterns("/api/reservations/accommodations/**"); // todo: 수정 필요
+		registry.addInterceptor(reservationInterceptor)
+			.addPathPatterns("/api/reservations/{reservationUid}/**");
+
+		// 💥 추가: 결제 관련 경로에 인가 인터셉터 적용
+		registry.addInterceptor(paymentInterceptor)
+			.addPathPatterns("/api/payments/{paymentKey}", "/api/payments/orders/{orderId}");
 	}
 
 	@Bean

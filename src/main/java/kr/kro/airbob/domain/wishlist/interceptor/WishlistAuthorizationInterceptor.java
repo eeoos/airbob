@@ -1,10 +1,14 @@
 package kr.kro.airbob.domain.wishlist.interceptor;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,76 +24,31 @@ public class WishlistAuthorizationInterceptor implements HandlerInterceptor {
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-		String method = request.getMethod();
-		String uri = request.getRequestURI();
+		Map<String, String> pathVariables = (Map<String, String>)request.getAttribute(
+			HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
 
-		// 모든 요청에서 memberId 확인 및 설정
-		Long requestMemberId = (Long)request.getAttribute("memberId");
-		if (requestMemberId == null) {
-			response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다.");
-			return false;
+		// wishlist가 없는 경로는 소유권 검사 대상 X
+		if (pathVariables == null || !pathVariables.containsKey("wishlistId")) {
+			return true;
 		}
 
-		// 위시리스트 생성, 조회는 memberId 설정 후 바로 통과
-		if ((method.equalsIgnoreCase("POST") || method.equalsIgnoreCase("GET"))
-			&& uri.matches("^/api/members/wishlists/?$")) {
-			return true; // memberId는 이미 설정됨
-		}
-
-		// URI에서 wishlistId 추출
-		String[] segments = uri.split("/");
 		Long wishlistId;
 		try {
-			wishlistId = Long.parseLong(segments[WISHLIST_ID_INDEX]);
+			wishlistId = Long.parseLong(pathVariables.get("wishlistId"));
 		} catch (NumberFormatException e) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "유효하지 않은 위시리스트 ID입니다.");
 			return false;
 		}
 
-		// 위시리스트 생성자 검증
-		Long memberId = wishlistRepository.findMemberIdByWishlistId(wishlistId).orElse(null);
+		Long currentMemberId = UserContext.get().id();
 
-		if (memberId == null) {
-			response.sendError(HttpServletResponse.SC_NOT_FOUND, "위시리스트를 찾을 수 없습니다.");
+		Long ownerId = wishlistRepository.findMemberIdByWishlistId(wishlistId).orElse(null);
+
+		if (ownerId == null || !ownerId.equals(currentMemberId)) {
+			response.sendError(HttpServletResponse.SC_FORBIDDEN, "해당 위시리스트에 대한 접근 권한이 없습니다.");
 			return false;
 		}
 
-		if (!memberId.equals(requestMemberId)) {
-			response.sendError(HttpServletResponse.SC_FORBIDDEN, "위시리스트에 대한 접근 권한이 없습니다.");
-			return false;
-		}
-
-		// 위시리스트-숙소 생성, 조회 통과 - 없어도 되지만 명시적으로 표시
-		if ((method.equalsIgnoreCase("POST") || method.equalsIgnoreCase("GET"))
-			&& uri.matches("^/api/members/wishlists/\\d+/accommodations/?$")) {
-			return true;
-		}
-
-		if ((method.equalsIgnoreCase("PATCH") || method.equalsIgnoreCase("DELETE"))
-			&& uri.matches("^/api/members/wishlists/\\d+/accommodations/\\d+$")) {
-			// 위시리스트 숙소 메모 수정, 삭제인 경우 위시리스트 내부 항목인지 검증 절차
-			Long wishlistAccommodationId;
-
-			try {
-				wishlistAccommodationId = Long.parseLong(segments[WISHLIST_ACCOMMODATION_ID_INDEX]);
-			} catch (NumberFormatException e) {
-				response.sendError(HttpServletResponse.SC_BAD_REQUEST, "유효하지 않은 위시리스트-숙소 ID입니다.");
-				return false;
-			}
-
-			Long foundWishlistId = wishlistAccommodationRepository.findWishlistIdByWishlistAccommodationId(
-				wishlistAccommodationId).orElse(null);
-
-			if (foundWishlistId == null) {
-				response.sendError(HttpServletResponse.SC_NOT_FOUND, "위시리스트-숙소를 찾을 수 없습니다.");
-				return false;
-			}
-
-			if (!foundWishlistId.equals(wishlistId)) {
-				response.sendError(HttpServletResponse.SC_FORBIDDEN, "해당 위시리스트에 속하지 않은 숙소입니다.");
-				return false;
-			}
-		}
 		return true;
 	}
 }
