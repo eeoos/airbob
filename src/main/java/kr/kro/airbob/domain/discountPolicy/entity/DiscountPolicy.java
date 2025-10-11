@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.common.domain.DeletableEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.discountPolicy.common.DiscountType;
 import kr.kro.airbob.domain.discountPolicy.common.PromotionType;
@@ -20,7 +19,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DiscountPolicy extends DeletableEntity {
+public class DiscountPolicy extends UpdatableEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

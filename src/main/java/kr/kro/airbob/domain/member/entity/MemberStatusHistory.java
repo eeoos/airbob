@@ -1,15 +1,18 @@
-package kr.kro.airbob.domain.wishlist;
+package kr.kro.airbob.domain.member.entity;
 
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.common.domain.UpdatableEntity;
-import kr.kro.airbob.domain.member.entity.Member;
+import jakarta.persistence.PrePersist;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,19 +24,27 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Wishlist extends UpdatableEntity {
+public class MemberStatusHistory {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	private String name;
-
-	@ManyToOne(fetch = FetchType.LAZY)
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "member_id")
 	private Member member;
 
-	public void updateName(String name) {
-		this.name = name;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private MemberStatus newStatus;
+
+	@Column(nullable = false, updatable = false)
+	private LocalDateTime changedAt;
+
+	private String reason;
+
+	@PrePersist
+	protected void onPrePersist() {
+		this.changedAt = LocalDateTime.now();
 	}
 }
