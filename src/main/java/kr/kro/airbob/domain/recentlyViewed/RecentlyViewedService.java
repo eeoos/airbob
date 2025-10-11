@@ -20,6 +20,7 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -83,7 +84,7 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<Accommodation> accommodationsInDb = accommodationRepository.findByIdIn(new ArrayList<>(accommodationIdsFromRedis));
+		List<Accommodation> accommodationsInDb = accommodationRepository.findByIdInAndStatus(new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 		Map<Long, Accommodation> accommodationMap = accommodationsInDb.stream()
 			.collect(Collectors.toMap(Accommodation::getId, accommodation -> accommodation));
 

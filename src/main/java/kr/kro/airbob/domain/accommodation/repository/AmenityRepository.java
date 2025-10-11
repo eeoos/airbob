@@ -9,6 +9,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AmenityRepository extends JpaRepository<Amenity, Long> {
     List<Amenity> findByNameIn(Collection<AmenityType> names);
-
-    Optional<Amenity> findByName(AmenityType amenityType);
 }

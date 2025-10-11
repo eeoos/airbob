@@ -15,6 +15,7 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -155,7 +156,7 @@ public class ReviewService {
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {
-		return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
+		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	private Review findReviewById(Long reviewId) {

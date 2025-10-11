@@ -18,8 +18,10 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -52,6 +54,7 @@ public class WishlistService {
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
 	private final AccommodationReviewSummaryRepository summaryRepository;
+	private final AccommodationImageRepository accommodationImageRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
@@ -244,7 +247,7 @@ public class WishlistService {
 	}
 
 	private Map<Long, List<String>> getAccommodationImageUrls(List<Long> accommodationIds) {
-		List<AccommodationImage> results = accommodationRepository
+		List<AccommodationImage> results = accommodationImageRepository
 			.findAccommodationImagesByAccommodationIds(accommodationIds);
 
 		return results .stream()
@@ -296,7 +299,7 @@ public class WishlistService {
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {
-		return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
+		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	private WishlistAccommodation findWishlistAccommodation(Long wishlistAccommodationId){

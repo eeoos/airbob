@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -46,7 +47,7 @@ public class ReservationTransactionService {
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String changedBy,
 		String reason) {
 		Member guest = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
-		Accommodation accommodation = accommodationRepository.findById(request.accommodationId())
+		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
 
 		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
