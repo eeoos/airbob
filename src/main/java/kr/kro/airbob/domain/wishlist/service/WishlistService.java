@@ -25,6 +25,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -291,11 +292,11 @@ public class WishlistService {
 	}
 
 	private Wishlist findWishlistById(Long wishlistId) {
-		return wishlistRepository.findById(wishlistId).orElseThrow(WishlistNotFoundException::new);
+		return wishlistRepository.findByIdAndStatus(wishlistId, WishlistStatus.ACTIVE).orElseThrow(WishlistNotFoundException::new);
 	}
 
 	private Member findMemberById(Long loggedInMemberId) {
-		return memberRepository.findById(loggedInMemberId).orElseThrow(MemberNotFoundException::new);
+		return memberRepository.findByIdAndStatus(loggedInMemberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {

@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.context.UserContext;
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -19,6 +21,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -84,8 +87,12 @@ public class ReviewService {
 	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request) {
 		Review review = findReviewById(reviewId);
 
-		review.updateContent(request.content());
+		if (review.getStatus() != ReviewStatus.PUBLISHED) {
+			//todo apply custom error
+			throw new BaseException(ErrorCode.METHOD_NOT_ALLOWED);
+		}
 
+		review.updateContent(request.content());
 		return new ReviewResponse.UpdateResponse(review.getId());
 	}
 
@@ -146,13 +153,13 @@ public class ReviewService {
 			throw new ReviewCreationForbiddenException();
 		}
 		// 이미 리뷰를 작성했는지 확인
-		if (reviewRepository.existsByAccommodationIdAndAuthorId(accommodationId, memberId)) {
+		if (reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(accommodationId, memberId, ReviewStatus.PUBLISHED)) {
 			throw new ReviewAlreadyExistsException();
 		}
 	}
 
 	private Member findMemberById(Long memberId) {
-		return memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
+		return memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {

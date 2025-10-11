@@ -18,4 +18,6 @@ import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistRepositoryCusto
 public interface WishlistRepository extends JpaRepository<Wishlist, Long>, WishlistRepositoryCustom {
 
 	boolean existsByIdAndMemberId(Long id, Long memberId);
+
+	Optional<Wishlist> findByIdAndStatus(Long id, WishlistStatus status);
 }

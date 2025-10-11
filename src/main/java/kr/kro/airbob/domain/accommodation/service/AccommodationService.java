@@ -24,6 +24,7 @@ import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.AmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.geo.GeocodingService;
@@ -53,7 +54,7 @@ public class AccommodationService {
     @Transactional
     public AccommodationResponse.Create createAccommodation(CreateAccommodationDto request) {
 
-        Member member = memberRepository.findById(request.getHostId())
+        Member member = memberRepository.findByIdAndStatus(request.getHostId(), MemberStatus.ACTIVE)
                 .orElseThrow(MemberNotFoundException::new);
 
         OccupancyPolicy occupancyPolicy = OccupancyPolicy.createOccupancyPolicy(request.getOccupancyPolicyInfo());

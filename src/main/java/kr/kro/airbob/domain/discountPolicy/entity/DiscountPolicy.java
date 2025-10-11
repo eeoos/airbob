@@ -79,4 +79,10 @@ public class DiscountPolicy extends UpdatableEntity {
 		if (dto.isActive() != null) this.isActive = dto.isActive();
 	}
 
+	public void deactivate() {
+		this.isActive = false;
+	}
+	public void activate() {
+		this.isActive = true;
+	}
 }

@@ -11,6 +11,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -46,7 +47,7 @@ public class ReservationTransactionService {
 	@Transactional
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String changedBy,
 		String reason) {
-		Member guest = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
+		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
 
