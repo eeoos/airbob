@@ -17,10 +17,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WishlistAuthorizationInterceptor implements HandlerInterceptor {
 
-	public static final int WISHLIST_ID_INDEX = 4;
-	public static final int WISHLIST_ACCOMMODATION_ID_INDEX = 6;
 	private final WishlistRepository wishlistRepository;
-	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {

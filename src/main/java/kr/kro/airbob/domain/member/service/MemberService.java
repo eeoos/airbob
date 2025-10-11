@@ -30,6 +30,16 @@ public class MemberService {
 
         Member member = Member.createMember(request, hashedPassword);
         memberRepository.save(member);
+
+        MemberStatusHistory history = MemberStatusHistory.builder()
+            .member(member)
+            .previousStatus(null) // 생성 시점에는 이전 상태 X
+            .newStatus(MemberStatus.ACTIVE)
+            .changedBy("SYSTEM:SIGNUP")
+            .reason("신규 회원가입")
+            .build();
+
+        historyRepository.save(history);
     }
 
     @Transactional
@@ -38,8 +48,10 @@ public class MemberService {
             .orElseThrow(MemberNotFoundException::new);
 
         MemberStatus previousStatus = member.getStatus();
-
         member.delete();
+
+        memberRepository.save(member);
+
         MemberStatusHistory history = MemberStatusHistory.builder()
             .member(member)
             .previousStatus(previousStatus)
