@@ -13,7 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import kr.kro.airbob.domain.wishlist.WishlistAccommodation;
+import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
 
 @Repository
 public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long> {

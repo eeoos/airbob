@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.wishlist;
+package kr.kro.airbob.domain.wishlist.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -31,6 +31,9 @@ import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.entity.Wishlist;
+import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
+import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationNotFoundException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
@@ -85,7 +88,7 @@ public class WishlistService {
 
 		// 위시리스트에 속한 숙소 삭제
 		wishlistAccommodationRepository.deleteAllByWishlistId(wishlist.getId());
-		wishlistRepository.delete(wishlist);
+		wishlist.delete();
 	}
 
 	@Transactional(readOnly = true)
@@ -96,8 +99,9 @@ public class WishlistService {
 
 		Long memberId = getMemberId();
 
-		Slice<Wishlist> wishlistSlice = wishlistRepository.findByMemberIdWithCursor(
+		Slice<Wishlist> wishlistSlice = wishlistRepository.findByMemberIdAndStatusWithCursor(
 			memberId,
+			WishlistStatus.ACTIVE,
 			lastId,
 			lastCreatedAt,
 			PageRequest.of(0, request.size())

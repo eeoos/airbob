@@ -17,6 +17,7 @@ import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.common.context.UserContext;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.IpCountryService;
@@ -186,6 +187,8 @@ public class AccommodationSearchService {
 		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, Viewport viewport, Pageable pageable) {
 
 		Criteria criteria = new Criteria();
+
+		criteria = criteria.and(Criteria.where("status").is(AccommodationStatus.PUBLISHED.name()));
 
 		GeoPoint topLeft = new GeoPoint(viewport.northeast().lat(), viewport.southwest().lng()); // 북동
 		GeoPoint bottomRight = new GeoPoint(viewport.southwest().lat(), viewport.northeast().lng()); // 남서

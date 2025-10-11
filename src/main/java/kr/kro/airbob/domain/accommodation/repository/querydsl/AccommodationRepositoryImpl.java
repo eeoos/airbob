@@ -28,6 +28,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.Accommodation
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
@@ -42,6 +43,8 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     @Override
     public List<AccommodationSearchResponseDto> searchByFilter(AccommodationSearchConditionDto condition, Pageable pageable) {
         BooleanBuilder builder = new BooleanBuilder();
+
+        builder.and(accommodation.status.eq(AccommodationStatus.PUBLISHED));
 
         //동적 쿼리 생성
         addFilterClause(condition, builder);

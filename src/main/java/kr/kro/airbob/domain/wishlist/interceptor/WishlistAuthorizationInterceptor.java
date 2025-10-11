@@ -42,9 +42,7 @@ public class WishlistAuthorizationInterceptor implements HandlerInterceptor {
 
 		Long currentMemberId = UserContext.get().id();
 
-		Long ownerId = wishlistRepository.findMemberIdByWishlistId(wishlistId).orElse(null);
-
-		if (ownerId == null || !ownerId.equals(currentMemberId)) {
+		if (!wishlistRepository.existsByIdAndMemberId(wishlistId, currentMemberId)) {
 			response.sendError(HttpServletResponse.SC_FORBIDDEN, "해당 위시리스트에 대한 접근 권한이 없습니다.");
 			return false;
 		}

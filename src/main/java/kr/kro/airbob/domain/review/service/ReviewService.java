@@ -26,6 +26,7 @@ import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
@@ -90,16 +91,14 @@ public class ReviewService {
 	@Transactional
 	public void deleteReview(Long reviewId) {
 		Review review = findReviewById(reviewId);
-		Accommodation accommodation = review.getAccommodation();
-		int rating = review.getRating();
 
-		reviewRepository.delete(review);
+		review.deleteByUser();
 
-		updateReviewSummaryOnDelete(accommodation.getId(), rating);
+		updateReviewSummaryOnDelete(review.getAccommodation().getId(), review.getRating());
 
 		outboxEventPublisher.save(
 			EventType.REVIEW_SUMMARY_CHANGED,
-			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
+			new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
 		);
 	}
 
@@ -114,8 +113,8 @@ public class ReviewService {
 		LocalDateTime lastCreatedAt = cursorRequest.lastCreatedAt();
 		Integer lastRating = cursorRequest.lastRating();
 
-		Slice<ReviewResponse.ReviewInfo> reviewSlice = reviewRepository.findByAccommodationIdWithCursor(
-			accommodationId, lastId, lastCreatedAt, lastRating, sortType, pageRequest);
+		Slice<ReviewResponse.ReviewInfo> reviewSlice = reviewRepository.findByAccommodationIdAndStatusWithCursor(
+			accommodationId, ReviewStatus.PUBLISHED, lastId, lastCreatedAt, lastRating, sortType, pageRequest);
 
 		List<ReviewResponse.ReviewInfo> reviewInfos = reviewSlice.getContent().stream().toList();
 

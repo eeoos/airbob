@@ -40,12 +40,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AccommodationService {
 
-    private final AccommodationRepository accommodationRepository;
-    private final MemberRepository memberRepository;
-    private final AmenityRepository amenityRepository;
     private final AccommodationAmenityRepository accommodationAmenityRepository;
     private final OccupancyPolicyRepository occupancyPolicyRepository;
+    private final AccommodationRepository accommodationRepository;
+    private final AmenityRepository amenityRepository;
     private final AddressRepository addressRepository;
+    private final MemberRepository memberRepository;
 
     private final OutboxEventPublisher outboxEventPublisher;
     private final GeocodingService geocodingService;
@@ -154,8 +154,7 @@ public class AccommodationService {
         Accommodation accommodation = accommodationRepository.findById(accommodationId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 숙소입니다."));
 
-        accommodationAmenityRepository.deleteByAccommodationId(accommodationId);
-        accommodationRepository.delete(accommodation);
+        accommodation.delete();
 
         outboxEventPublisher.save(
             EventType.ACCOMMODATION_DELETED,

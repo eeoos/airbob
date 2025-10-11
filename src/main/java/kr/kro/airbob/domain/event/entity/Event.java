@@ -1,13 +1,13 @@
 package kr.kro.airbob.domain.event.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import java.time.LocalDateTime;
-import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.event.common.EventStatus;
 import lombok.AccessLevel;

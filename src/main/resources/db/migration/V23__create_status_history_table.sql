@@ -32,3 +32,11 @@ CREATE TABLE reservation_status_history
 
 CREATE INDEX idx_reservation_status_history_reservation_id ON reservation_status_history (reservation_id);
 
+ALTER TABLE accommodation ADD COLUMN status VARCHAR(20) NOT NULL;
+UPDATE accommodation SET status = 'PUBLISHED';
+
+ALTER TABLE review ADD COLUMN status VARCHAR(20) NOT NULL;
+UPDATE review SET status = 'PUBLISHED';
+
+ALTER TABLE wishlist ADD COLUMN status VARCHAR(20) NOT NULL;
+UPDATE wishlist SET status = 'ACTIVE';

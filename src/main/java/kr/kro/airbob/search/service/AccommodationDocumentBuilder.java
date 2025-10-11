@@ -47,6 +47,7 @@ public class AccommodationDocumentBuilder {
 			.description(accommodation.getDescription())
 			.basePrice(accommodation.getBasePrice())
 			.type(accommodation.getType().name())
+			.status(accommodation.getStatus().name())
 			.createdAt(accommodation.getCreatedAt())
 			.location(AccommodationDocument.Location.builder()
 				.lat(accommodation.getAddress().getLatitude())
