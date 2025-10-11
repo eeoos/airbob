@@ -54,7 +54,6 @@ public class WishlistService {
 	private final WishlistRepository wishlistRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
-	private final AccommodationReviewSummaryRepository summaryRepository;
 	private final AccommodationImageRepository accommodationImageRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
@@ -183,68 +182,46 @@ public class WishlistService {
 	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodations(Long wishlistId,
 		CursorRequest.CursorPageRequest request) {
 
-		Long lastId = request.lastId();
-		LocalDateTime lastCreatedAt = request.lastCreatedAt();
+		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice =
+			wishlistAccommodationRepository.findAccommodationsInWishlist(
+				wishlistId,
+				request.lastId(),
+				request.lastCreatedAt(),
+				PageRequest.of(0, request.size())
+			);
 
-		Slice<WishlistAccommodation> wishlistAccommodationSlice = wishlistAccommodationRepository.findByWishlistIdWithCursor(
-			wishlistId,
-			lastId,
-			lastCreatedAt,
-			PageRequest.of(0, request.size())
-		);
+		List<WishlistAccommodationResponse.WishlistAccommodationInfo> infos = slice.getContent();
 
-		List<WishlistAccommodation> wishlistAccommodations = wishlistAccommodationSlice.getContent();
-
-		if (wishlistAccommodations.isEmpty()) {
+		if (infos.isEmpty()) {
 			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-				wishlistAccommodations,
-				wishlistAccommodationSlice.hasNext(),
-				WishlistAccommodation::getId,
-				WishlistAccommodation::getCreatedAt
+				infos,
+				slice.hasNext(),
+				WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
+				WishlistAccommodationResponse.WishlistAccommodationInfo::createdAt
 			);
 			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo);
 		}
 
-		List<Long> accommodationIds = wishlistAccommodations.stream().map(wa -> wa.getAccommodation().getId()).toList();
+		List<Long> accommodationIds = infos.stream()
+			.map(WishlistAccommodationResponse.WishlistAccommodationInfo::accommodationId)
+			.toList();
 
-		// 숙소 이미지
 		Map<Long, List<String>> imageUrlsMap = getAccommodationImageUrls(accommodationIds);
-
-		// 숙소 편의시설
 		Map<Long, List<AccommodationResponse.AmenityInfoResponse>> amenitiesMap = getAccommodationAmenities(accommodationIds);
 
-		// 숙소 리뷰 평점
-		Map<Long, BigDecimal> ratingMap = getAccommodationRatings(accommodationIds);
-
-		List<WishlistAccommodationResponse.WishlistAccommodationInfo> wishlistAccommodationInfos = wishlistAccommodations.stream()
-			.map(wa -> {
-				Accommodation accommodation = wa.getAccommodation();
-				Long accommodationId = accommodation.getId();
-
-				AccommodationResponse.WishlistAccommodationInfo accommodationInfo =
-					new AccommodationResponse.WishlistAccommodationInfo(
-						accommodationId,
-						accommodation.getName(),
-						imageUrlsMap.getOrDefault(accommodationId, List.of()),
-						amenitiesMap.getOrDefault(accommodationId, List.of()),
-						ratingMap.get(accommodationId)
-					);
-
-				return new WishlistAccommodationResponse.WishlistAccommodationInfo(
-					wa.getId(),
-					wa.getMemo(),
-					accommodationInfo
-				);
-			}).toList();
+		infos.forEach(info -> {
+			info.imageUrls().addAll(imageUrlsMap.getOrDefault(info.accommodationId(), List.of()));
+			info.amenities().addAll(amenitiesMap.getOrDefault(info.accommodationId(), List.of()));
+		});
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-			wishlistAccommodations,
-			wishlistAccommodationSlice.hasNext(),
-			WishlistAccommodation::getId,
-			WishlistAccommodation::getCreatedAt
+			infos,
+			slice.hasNext(),
+			WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
+			WishlistAccommodationResponse.WishlistAccommodationInfo::createdAt
 		);
 
-		return new WishlistAccommodationResponse.WishlistAccommodationInfos(wishlistAccommodationInfos, pageInfo);
+		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo);
 	}
 
 	private Map<Long, List<String>> getAccommodationImageUrls(List<Long> accommodationIds) {
@@ -277,17 +254,6 @@ public class WishlistService {
 					),
 					Collectors.toList()
 				)
-			));
-	}
-
-	private Map<Long, BigDecimal> getAccommodationRatings(List<Long> accommodationIds) {
-		List<AccommodationReviewSummary> results
-			= summaryRepository.findByAccommodationIdIn(accommodationIds);
-
-		return results.stream()
-			.collect(Collectors.toMap(
-				AccommodationReviewSummary::getAccommodationId,
-				AccommodationReviewSummary::getAverageRating
 			));
 	}
 

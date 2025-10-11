@@ -14,9 +14,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
+import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistAccommodationRepositoryCustom;
 
 @Repository
-public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long> {
+public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long>,
+	WishlistAccommodationRepositoryCustom {
 
 	void deleteAllByWishlistId(Long wishlistId);
 
@@ -49,27 +51,8 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 """, nativeQuery = true)
 	Map<Long, String> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
 
-	@Query("""
-		SELECT wa 
-		FROM WishlistAccommodation wa
-		JOIN FETCH wa.accommodation a
-		WHERE wa.wishlist.id = :wishlistId
-	 	AND (:lastCreatedAt IS NULL
-	 		OR wa.createdAt < :lastCreatedAt
-	 		OR (wa.createdAt = :lastCreatedAt AND wa.id < :lastId))
-	 	ORDER BY wa.createdAt DESC, wa.id DESC 
-""")
-	Slice<WishlistAccommodation> findByWishlistIdWithCursor(
-		@Param("wishlistId") Long wishlistId,
-		@Param("lastId") Long lastId,
-		@Param("lastCreatedAt") LocalDateTime lastCreatedAt,
-		Pageable pageable);
-
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
 
-	@Query("select wa.wishlist.id from WishlistAccommodation wa where wa.id = :wishlistAccommodationId")
-	Optional<Long> findWishlistIdByWishlistAccommodationId(
-		@Param("accommodationId") Long wishlistAccommodationId);
 
 	@Query("""
 	SELECT 
