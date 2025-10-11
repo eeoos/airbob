@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.common.domain.DeletableEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -22,7 +23,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Review extends UpdatableEntity {
+public class Review extends DeletableEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

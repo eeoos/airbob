@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import java.time.LocalDateTime;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.common.domain.DeletableEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.event.common.EventStatus;
 import lombok.AccessLevel;
@@ -21,7 +22,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Event extends UpdatableEntity {
+public class Event extends DeletableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
