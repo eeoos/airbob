@@ -31,6 +31,7 @@ import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
+import kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException;
 import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
@@ -58,9 +59,7 @@ public class ReviewService {
 	private final OutboxEventPublisher outboxEventPublisher;
 
 	@Transactional
-	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request) {
-
-		Long memberId = getMemberId();
+	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request, Long memberId) {
 
 		Member author = findMemberById(memberId);
 		Accommodation accommodation = findAccommodationById(accommodationId);
@@ -85,8 +84,12 @@ public class ReviewService {
 	}
 
 	@Transactional
-	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request) {
+	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request, Long memberId) {
 		Review review = findReviewById(reviewId);
+
+		if (!review.getAuthor().getId().equals(memberId)) {
+			throw new ReviewAccessDeniedException();
+		}
 
 		if (review.getStatus() != ReviewStatus.PUBLISHED) {
 			throw new ReviewUpdateForbiddenException();
@@ -97,8 +100,12 @@ public class ReviewService {
 	}
 
 	@Transactional
-	public void deleteReview(Long reviewId) {
+	public void deleteReview(Long reviewId, Long memberId) {
 		Review review = findReviewById(reviewId);
+
+		if (!review.getAuthor().getId().equals(memberId)) {
+			throw new ReviewAccessDeniedException();
+		}
 
 		review.deleteByUser();
 
@@ -206,7 +213,4 @@ public class ReviewService {
 			.build();
 	}
 
-	private Long getMemberId() {
-		return UserContext.get().id();
-	}
 }

@@ -37,6 +37,7 @@ import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
+import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationNotFoundException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
@@ -60,9 +61,8 @@ public class WishlistService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	@Transactional
-	public WishlistResponse.Create createWishlist(WishlistRequest.Create request) {
+	public WishlistResponse.Create createWishlist(WishlistRequest.Create request, Long memberId) {
 
-		Long memberId = getMemberId();
 		final Member member = findMemberById(memberId);
 
 		Wishlist wishlist = Wishlist.builder()
@@ -75,9 +75,9 @@ public class WishlistService {
 	}
 
 	@Transactional
-	public WishlistResponse.Update updateWishlist(Long wishlistId, WishlistRequest.Update request) {
+	public WishlistResponse.Update updateWishlist(Long wishlistId, WishlistRequest.Update request, Long memberId) {
 
-		Wishlist wishlist = findWishlistById(wishlistId);
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		wishlist.updateName(request.name());
 
@@ -85,9 +85,9 @@ public class WishlistService {
 	}
 
 	@Transactional
-	public void deleteWishlist(Long wishlistId) {
+	public void deleteWishlist(Long wishlistId, Long memberId) {
 		// 위시리스트 존재, 작성자 id 검증을 위한 조회
-		Wishlist wishlist = findWishlistById(wishlistId);
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		// 위시리스트에 속한 숙소 삭제
 		wishlistAccommodationRepository.deleteAllByWishlistId(wishlist.getId());
@@ -95,12 +95,11 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request) {
+	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request, Long memberId) {
 
 		Long lastId = request.lastId();
 		LocalDateTime lastCreatedAt = request.lastCreatedAt();
 
-		Long memberId = getMemberId();
 
 		Slice<Wishlist> wishlistSlice = wishlistRepository.findByMemberIdAndStatusWithCursor(
 			memberId,
@@ -142,12 +141,12 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistAccommodationResponse.Create createWishlistAccommodation(Long wishlistId,
-		WishlistAccommodationRequest.Create request) {
+		WishlistAccommodationRequest.Create request, Long memberId) {
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		Accommodation accommodation = findAccommodationById(request.accommodationId());
 		validateWishlistAccommodationDuplicate(wishlistId, accommodation.getId());
 
-		Wishlist wishlist = findWishlistById(wishlistId);
 
 		WishlistAccommodation wishlistAccommodation = WishlistAccommodation.builder()
 			.wishlist(wishlist)
@@ -280,7 +279,13 @@ public class WishlistService {
 		}
 	}
 
-	private Long getMemberId() {
-		return UserContext.get().id();
+	private Wishlist findWishlistByIdAndMemberId(Long wishlistId, Long memberId) {
+		Wishlist wishlist = wishlistRepository.findByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
+			.orElseThrow(WishlistNotFoundException::new);
+
+		if (!wishlist.getMember().getId().equals(memberId)) {
+			throw new WishlistAccessDeniedException();
+		}
+		return wishlist;
 	}
 }

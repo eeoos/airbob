@@ -18,6 +18,8 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationAccessDeniedException;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
@@ -83,43 +85,11 @@ public class AccommodationService {
         return new AccommodationResponse.Create(savedAccommodation.getId());
     }
 
-    private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
-        Map<AmenityType, Integer> amenityCountMap = getAmenityCountMap(request);
-
-        List<Amenity> amenities = amenityRepository.findByNameIn(amenityCountMap.keySet());
-
-        saveAccommodationAmenity(savedAccommodation, amenities, amenityCountMap);
-    }
-
-    private void saveAccommodationAmenity(Accommodation savedAccommodation, List<Amenity> amenities,
-                           Map<AmenityType, Integer> amenityCountMap) {
-
-        List<AccommodationAmenity> accommodationAmenityList = new ArrayList<>();
-        for (Amenity amenity : amenities) {
-            int count = amenityCountMap.get(amenity.getName());
-
-            AccommodationAmenity accommodationAmenity = AccommodationAmenity.createAccommodationAmenity(
-                    savedAccommodation, amenity, count);
-            accommodationAmenityList.add(accommodationAmenity);
-        }
-        accommodationAmenityRepository.saveAll(accommodationAmenityList);
-    }
-
-    private Map<AmenityType, Integer> getAmenityCountMap(List<AmenityInfo> request) {
-        return request.stream()
-                .filter(info -> AmenityType.isValid(info.getName()))
-                .filter(info -> info.getCount() > 0)
-                .collect(Collectors.toMap(
-                        info -> AmenityType.valueOf(info.getName().toUpperCase()),
-                        AmenityInfo::getCount,
-                        Integer::sum
-                ));
-    }
-
     @Transactional
-    public void updateAccommodation(Long accommodationId, AccommodationRequest.UpdateAccommodationDto request) {
-        Accommodation accommodation = accommodationRepository.findById(accommodationId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 숙소입니다."));
+    public void updateAccommodation(Long accommodationId, AccommodationRequest.UpdateAccommodationDto request, Long memberId) {
+        Accommodation accommodation = findAccommodationById(accommodationId);
+
+        validateOwner(memberId, accommodation);
 
         accommodation.updateAccommodation(request);
 
@@ -151,9 +121,10 @@ public class AccommodationService {
     }
 
     @Transactional
-    public void deleteAccommodation(Long accommodationId) {
-        Accommodation accommodation = accommodationRepository.findById(accommodationId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 숙소입니다."));
+    public void deleteAccommodation(Long accommodationId, Long memberId) {
+        Accommodation accommodation = findAccommodationById(accommodationId);
+
+        validateOwner(memberId, accommodation);
 
         accommodation.delete();
 
@@ -161,6 +132,49 @@ public class AccommodationService {
             EventType.ACCOMMODATION_DELETED,
             new AccommodationDeletedEvent(accommodation.getAccommodationUid().toString())
         );
+    }
+
+    private void validateOwner(Long memberId, Accommodation accommodation) {
+        if (!accommodation.getMember().getId().equals(memberId)) {
+            throw new AccommodationAccessDeniedException();
+        }
+    }
+
+    private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
+        Map<AmenityType, Integer> amenityCountMap = getAmenityCountMap(request);
+
+        List<Amenity> amenities = amenityRepository.findByNameIn(amenityCountMap.keySet());
+
+        saveAccommodationAmenity(savedAccommodation, amenities, amenityCountMap);
+    }
+
+    private void saveAccommodationAmenity(Accommodation savedAccommodation, List<Amenity> amenities,
+        Map<AmenityType, Integer> amenityCountMap) {
+
+        List<AccommodationAmenity> accommodationAmenityList = new ArrayList<>();
+        for (Amenity amenity : amenities) {
+            int count = amenityCountMap.get(amenity.getName());
+
+            AccommodationAmenity accommodationAmenity = AccommodationAmenity.createAccommodationAmenity(
+                savedAccommodation, amenity, count);
+            accommodationAmenityList.add(accommodationAmenity);
+        }
+        accommodationAmenityRepository.saveAll(accommodationAmenityList);
+    }
+
+    private Map<AmenityType, Integer> getAmenityCountMap(List<AmenityInfo> request) {
+        return request.stream()
+            .filter(info -> AmenityType.isValid(info.getName()))
+            .filter(info -> info.getCount() > 0)
+            .collect(Collectors.toMap(
+                info -> AmenityType.valueOf(info.getName().toUpperCase()),
+                AmenityInfo::getCount,
+                Integer::sum
+            ));
+    }
+
+    private Accommodation findAccommodationById(Long accommodationId) {
+        return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
     }
 
 }

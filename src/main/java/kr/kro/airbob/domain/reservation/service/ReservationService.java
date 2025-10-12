@@ -64,12 +64,11 @@ public class ReservationService {
 		}
 	}
 
-	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request) {
+	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
 
-		Long memberId = UserContext.get().id();
 		String changedBy = "USER_ID:" + memberId;
 
-		transactionService.cancelReservationInTx(reservationUid, request, changedBy);
+		transactionService.cancelReservationInTx(reservationUid, request, changedBy, memberId);
 	}
 
 	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event, Acknowledgment ack) {

@@ -22,6 +22,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
+import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -86,9 +87,13 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional
-	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, String changedBy) {
+	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, String changedBy, Long memberId) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
+
+		if (!reservation.getGuest().getId().equals(memberId)) {
+			throw new ReservationAccessDeniedException();
+		}
 
 		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.cancel();

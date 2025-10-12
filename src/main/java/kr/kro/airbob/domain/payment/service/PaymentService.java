@@ -13,6 +13,7 @@ import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
@@ -132,11 +133,17 @@ public class PaymentService {
 	}
 
 	@Transactional(readOnly = true)
-	public PaymentResponse.PaymentInfo findPaymentByPaymentKey(String paymentKey) {
+	public PaymentResponse.PaymentInfo findPaymentByPaymentKey(String paymentKey, Long memberId) {
 		try {
-			TossPaymentResponse response = tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey);
 			Payment payment = paymentRepository.findByPaymentKey(paymentKey)
 				.orElseThrow(PaymentNotFoundException::new);
+
+			if (!payment.getReservation().getGuest().getId().equals(memberId)) {
+				throw new PaymentAccessDeniedException();
+			}
+
+			TossPaymentResponse response = tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey);
+
 			return PaymentResponse.PaymentInfo.from(payment);
 		} catch (TossPaymentException e) {
 			log.warn("[결제 조회 실패] API 조회 실패. PaymentKey: {}, Code: {}", paymentKey, e.getErrorCode().name());
@@ -148,11 +155,15 @@ public class PaymentService {
 	}
 
 	@Transactional(readOnly = true)
-	public PaymentResponse.PaymentInfo findPaymentByOrderId(String orderId) {
+	public PaymentResponse.PaymentInfo findPaymentByOrderId(String orderId, Long memberId) {
 		try {
-			TossPaymentResponse response = tossPaymentsAdapter.getPaymentByOrderId(orderId);
 			Payment payment = paymentRepository.findByOrderId(orderId)
 				.orElseThrow(PaymentNotFoundException::new);
+
+			if (!payment.getReservation().getGuest().getId().equals(memberId)) {
+				throw new PaymentAccessDeniedException();
+			}
+			TossPaymentResponse response = tossPaymentsAdapter.getPaymentByOrderId(orderId);
 			return PaymentResponse.PaymentInfo.from(payment);
 		} catch (TossPaymentException e) {
 			log.warn("[결제 조회 실패] API 조회 실패. OrderId: {}, Code: {}", orderId, e.getErrorCode().name());
