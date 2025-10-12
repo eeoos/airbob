@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.geo.ClientIpExtractor;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
@@ -35,6 +36,7 @@ public class AccommodationSearchController {
 		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable,
 		HttpServletRequest request) {
 
+		Long memberId = UserContext.get().id();
 		if (pageable.getPageNumber() > MAX_PAGE_NUMBER) {
 			pageable = PageRequest.of(MAX_PAGE_NUMBER, DEFAULT_PAGE_SIZE);
 		}
@@ -46,7 +48,7 @@ public class AccommodationSearchController {
 		String clientIp = clientIpExtractor.extractClientIp(request);
 
 		AccommodationSearchResponse.AccommodationSearchInfos infos =
-			accommodationSearchService.searchAccommodations(searchRequest, clientIp, mapBounds, pageable);
+			accommodationSearchService.searchAccommodations(searchRequest, clientIp, mapBounds, pageable, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(infos));
 	}

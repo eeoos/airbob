@@ -27,8 +27,8 @@ public class ReservationController {
 	@PostMapping("/v1/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> createReservation(
 		@Valid @RequestBody ReservationRequest.Create request) {
-
-		ReservationResponse.Ready response = reservationService.createPendingReservation(request);
+		Long memberId = UserContext.get().id();
+		ReservationResponse.Ready response = reservationService.createPendingReservation(request, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 

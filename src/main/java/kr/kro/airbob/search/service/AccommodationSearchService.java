@@ -42,7 +42,7 @@ public class AccommodationSearchService {
 
 	public AccommodationSearchResponse.AccommodationSearchInfos searchAccommodations(
 		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, String clientIp,
-		AccommodationSearchRequest.MapBoundsDto mapBounds, Pageable pageable) {
+		AccommodationSearchRequest.MapBoundsDto mapBounds, Pageable pageable, Long memberId) {
 
 		// 요청 검증
 		if (!validateSearchRequest(searchRequest)) {
@@ -73,7 +73,6 @@ public class AccommodationSearchService {
 		}
 
 		List<Long> accommodationIds = documents.stream().map(AccommodationDocument::accommodationId).toList();
-		Long memberId = getMemberId();
 		Set<Long> wishlistAccommodationIds = getWishlistAccommodationIds(accommodationIds, memberId);
 
 		List<AccommodationSearchResponse.AccommodationSearchInfo> searchInfos = documents.stream()
@@ -248,9 +247,5 @@ public class AccommodationSearchService {
 
 		return wishlistAccommodationRepository.findAccommodationIdsByMemberIdAndAccommodationIds(memberId,
 			accommodationIds);
-	}
-
-	private Long getMemberId() {
-		return UserContext.get().id();
 	}
 }

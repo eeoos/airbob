@@ -28,7 +28,7 @@ public enum ErrorCode {
 
 
 	// accommodation
-	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않는 숙소입니다."),
+	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않거나 삭제된 숙소입니다."),
 	ACCOMMODATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "숙소에 대한 접근 권한이 없습니다."),
 
 
