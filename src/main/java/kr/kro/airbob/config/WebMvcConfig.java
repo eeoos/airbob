@@ -67,8 +67,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			"/api/v1/accommodations/*/reviews/*",
 			"/api/v1/members/wishlists",
 			"/api/v1/members/wishlists/*",
-			"/api/v1/members/recentlyViewed",
-			"/api/v1/members/recentlyViewed/*",
+			"/api/v1/members/recently-viewed",
+			"/api/v1/members/recently-viewed/*",
 			"/api/v1/reservations/accommodations/*",
 			"/api/v1/reservations"
 			);
