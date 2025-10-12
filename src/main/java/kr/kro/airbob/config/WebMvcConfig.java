@@ -52,7 +52,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		registry.addInterceptor(reservationInterceptor)
 			.addPathPatterns("/api/reservations/{reservationUid}/**");
 
-		// 💥 추가: 결제 관련 경로에 인가 인터셉터 적용
 		registry.addInterceptor(paymentInterceptor)
 			.addPathPatterns("/api/payments/{paymentKey}", "/api/payments/orders/{orderId}");
 	}
@@ -61,11 +60,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
 	public FilterRegistrationBean<SessionAuthFilter> sessionFilter() {
 		log.info("sessionFilter");
 		FilterRegistrationBean<SessionAuthFilter> bean = new FilterRegistrationBean<>(sessionAuthFilter);
-		bean.addUrlPatterns("/api/accommodations", "/api/accommodations/*",
-			"/api/accommodations/*/reviews", "/api/accommodations/*/reviews/*",
-			"/api/members/wishlists", "/api/members/wishlists/*",
-			"/api/members/recentlyViewed", "/api/members/recentlyViewed/*",
-			"/api/reservations/accommodations/*");
+		bean.addUrlPatterns(
+			"/api/v1/accommodations",
+			"/api/v1/accommodations/*",
+			"/api/v1/accommodations/*/reviews",
+			"/api/v1/accommodations/*/reviews/*",
+			"/api/v1/members/wishlists",
+			"/api/v1/members/wishlists/*",
+			"/api/v1/members/recentlyViewed",
+			"/api/v1/members/recentlyViewed/*",
+			"/api/v1/reservations/accommodations/*",
+			"/api/v1/reservations"
+			);
 		bean.setOrder(1);
 		return bean;
 	}
