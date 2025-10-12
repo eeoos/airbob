@@ -48,7 +48,8 @@ public class ReservationTransactionService {
 
 	@Transactional
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String changedBy,
-		String reason) {
+		String reason, Runnable afterCommitTask) {
+
 		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
@@ -70,6 +71,15 @@ public class ReservationTransactionService {
 			.changedBy(changedBy)
 			.reason(reason)
 			.build());
+
+		if (afterCommitTask != null) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					afterCommitTask.run();
+				}
+			});
+		}
 
 		log.info("예약 ID {} (UID: {}) PENDING 상태로 DB 저장 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
 		return pendingReservation;

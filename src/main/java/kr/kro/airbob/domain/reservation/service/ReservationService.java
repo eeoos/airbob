@@ -5,8 +5,6 @@ import java.util.List;
 import org.redisson.api.RLock;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -42,24 +40,23 @@ public class ReservationService {
 		RLock lock = lockManager.acquireLocks(lockKeys);
 
 		try{
+			Runnable afterCommitTask = () -> {
+				log.info("DB 트랜잭션 커밋 완료. Redis 홀드 생성 시작.");
+				try {
+					holdService.holdDates(
+						request.accommodationId(), request.checkInDate(), request.checkOutDate());
+				} catch (Exception e) {
+					log.error("[CRITICAL] Redis 홀드 생성 실패. Reservation 생성은 완료됨.", e);
+				}
+			};
+
 			Reservation pendingReservation = transactionService.createPendingReservationInTx(
 				request,
 				memberId,
 				changedBy,
-				"사용자 예약 생성"
+				"사용자 예약 생성",
+				afterCommitTask
 			);
-
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					log.info("DB 트랜잭션 커밋 완료. ReservationUID: {}. Redis 홀드 생성 시작.", pendingReservation.getReservationUid());
-					try {
-						holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
-					} catch (Exception e) {
-						log.error("[CRITICAL] PENDING 예약 생성 후 Redis 홀드 실패. ReservationUID: {}", pendingReservation.getReservationUid(), e);
-					}
-				}
-			});
 
 			return ReservationResponse.Ready.from(pendingReservation);
 		} finally {
