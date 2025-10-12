@@ -1,6 +1,7 @@
 package kr.kro.airbob.kafka.consumer;
 
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +33,7 @@ public class DlqConsumer {
 	private final SlackNotificationService slackNotificationService;
 
 	@KafkaListener(topics = "${spring.kafka.consumer.properties.spring.kafka.dead-letter-publishing.topic-name}", groupId = "dlq-group")
-	public void consumeDlqEvents(@Payload String message) {
+	public void consumeDlqEvents(@Payload String message, Acknowledgment ack) {
 		log.warn("[DLQ-CONSUME] DLQ 메시지 수신: {}", message);
 		DebeziumEventParser.ParsedEvent parsedEvent = null;
 
@@ -47,11 +48,16 @@ public class DlqConsumer {
 
 				log.warn("[DLQ-COMPENSATION] 예약 확정 실패에 대한 결제 보상 트랜잭션 시작. ReservationUID: {}", event.reservationUid());
 
+				// 보상 트랜잭션 시도
 				paymentService.compensatePaymentByReservationUid(event.reservationUid());
 
 			} else {
 				log.warn("[DLQ-IGNORE] 처리 로직이 존재하지 않는 DLQ 메시지. EventType: {}", eventType);
 			}
+
+			ack.acknowledge();
+			log.info("[DLQ-ACK] 메시지 처리 성공. DLQ에서 메시지 제거.");
+
 		} catch (Exception e) {
 			log.error("[DLQ-FATAL] DLQ 메시지 자동 처리 중 심각한 오류 발생. 수동 개입 필요. Message: {}", message, e);
 
@@ -61,6 +67,9 @@ public class DlqConsumer {
 				e.getMessage(),
 				message);
 			slackNotificationService.sendAlert(alertMessage);
+
+			ack.acknowledge();
+			log.warn("[DLQ-ACK] 처리 실패했으나, 무한 재시도 방지를 위해 메시지 제거.");
 		}
 	}
 }

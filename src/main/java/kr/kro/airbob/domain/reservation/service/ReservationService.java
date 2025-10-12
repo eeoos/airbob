@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.service;
 import java.util.List;
 
 import org.redisson.api.RLock;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -74,46 +75,54 @@ public class ReservationService {
 		transactionService.cancelReservationInTx(reservationUid, request, changedBy);
 	}
 
-	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event) {
-
-		Reservation reservation = transactionService.confirmReservationInTx(event.reservationUid());
-
-		if (reservation != null) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					log.info("DB 트랜잭션 커밋 완료. Reservation UID: {}. Redis 홀드 제거 시작.", event.reservationUid());
+	public void handlePaymentSucceeded(PaymentEvent.PaymentSucceededEvent event, Acknowledgment ack) {
+		Runnable afterCommitTask = () -> {
+			try {
+				Reservation reservation = transactionService.findByReservationUidNullable(event.reservationUid());
+				if (reservation != null) {
 					removeReservationHold(reservation);
+					log.info("[AFTER_COMMIT] Redis 홀드 제거 완료. Reservation UID={}", reservation.getReservationUid());
+				} else {
+					log.warn("[AFTER_COMMIT] Reservation UID={} 조회 실패. Redis 해제 스킵.", event.reservationUid());
 				}
-			});
-		}
+			} catch (Exception e) {
+				log.error("[AFTER_COMMIT] Redis 홀드 제거 실패 (DB 커밋은 완료됨).", e);
+			} finally {
+				ack.acknowledge();
+				log.info("[KAFKA-ACK] 예약 확정 성공. Offset 커밋 완료. UID={}", event.reservationUid());
+			}
+		};
+
+		transactionService.confirmReservationInTx(event.reservationUid(), afterCommitTask);
 	}
 
-	public void handlePaymentFailed(PaymentEvent.PaymentFailedEvent event) {
-
-		Reservation reservation = transactionService.expireReservationInTx(event.reservationUid(), event.reason());
-
-		if (reservation != null) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					log.info("DB 트랜잭션 커밋 완료. ReservationUID: {}. Redis 홀드 제거 시작.", event.reservationUid());
+	public void handlePaymentFailed(PaymentEvent.PaymentFailedEvent event, Acknowledgment ack) {
+		Runnable afterCommitTask = () -> {
+			try {
+				Reservation reservation = transactionService.findByReservationUidNullable(event.reservationUid());
+				if (reservation != null) {
 					removeReservationHold(reservation);
+					log.info("[AFTER_COMMIT] Redis 홀드 제거 완료. Reservation UID={}", reservation.getReservationUid());
+				} else {
+					log.warn("[AFTER_COMMIT] Reservation UID={} 조회 실패. Redis 해제 스킵.", event.reservationUid());
 				}
-			});
-		}
+			} catch (Exception e) {
+				log.error("[AFTER_COMMIT] Redis 홀드 제거 실패 (DB 커밋은 완료됨).", e);
+			}finally {
+				ack.acknowledge();
+				log.info("[KAFKA-ACK] 예약 만료 성공. Offset 커밋 완료. UID={}", event.reservationUid());
+			}
+		};
+
+		transactionService.expireReservationInTx(event.reservationUid(), event.reason(), afterCommitTask);
 	}
 
 	private void removeReservationHold(Reservation reservation) {
-		try {
-			holdService.removeHold(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckIn().toLocalDate(),
-				reservation.getCheckOut().toLocalDate()
-			);
-		} catch (Exception e) {
-			log.error("Redis 홀드 제거 실패 (DB 커밋은 완료). ReservationUID: {}", reservation.getReservationUid(), e);
-		}
+		holdService.removeHold(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckIn().toLocalDate(),
+			reservation.getCheckOut().toLocalDate()
+		);
 	}
 
 	private Long getMemberId() {

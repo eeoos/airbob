@@ -16,18 +16,15 @@ import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
-import kr.kro.airbob.domain.payment.exception.TossPaymentCancelException;
-import kr.kro.airbob.domain.payment.exception.TossPaymentConfirmException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
-import kr.kro.airbob.domain.payment.exception.TossPaymentInquiryException;
-import kr.kro.airbob.domain.payment.exception.VirtualAccountIssueException;
+import kr.kro.airbob.domain.payment.exception.TossPaymentResponseParsingException;
 import kr.kro.airbob.domain.payment.exception.code.PaymentCancelErrorCode;
 import kr.kro.airbob.domain.payment.exception.code.PaymentConfirmErrorCode;
 import kr.kro.airbob.domain.payment.exception.code.PaymentInquiryErrorCode;
 import kr.kro.airbob.domain.payment.exception.code.VirtualAccountIssueErrorCode;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -80,14 +77,18 @@ public class TossPaymentsAdapter {
 					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					String errorBody = new String(response.getBody().readAllBytes());
-					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
+					try {
+						String errorBody = new String(response.getBody().readAllBytes());
+						TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 
-					String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
-						UNKNOWN_ERROR;
-					PaymentConfirmErrorCode confirmErrorCode = PaymentConfirmErrorCode.fromErrorCode(errorCode);
+						String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
+							UNKNOWN_ERROR;
+						PaymentConfirmErrorCode confirmErrorCode = PaymentConfirmErrorCode.fromErrorCode(errorCode);
 
-					throw new TossPaymentException(confirmErrorCode);
+						throw new TossPaymentException(confirmErrorCode);
+					} catch (IOException e) {
+						throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+					}
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -116,14 +117,19 @@ public class TossPaymentsAdapter {
 					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					String errorBody = new String(response.getBody().readAllBytes());
-					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
+					try {
+						String errorBody = new String(response.getBody().readAllBytes());
+						TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 
-					String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
-						UNKNOWN_ERROR;
-					PaymentCancelErrorCode cancelErrorCode = PaymentCancelErrorCode.fromErrorCode(errorCode);
+						String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
+							UNKNOWN_ERROR;
+						PaymentCancelErrorCode cancelErrorCode = PaymentCancelErrorCode.fromErrorCode(errorCode);
 
-					throw new TossPaymentException(cancelErrorCode);
+						throw new TossPaymentException(cancelErrorCode);
+					} catch (IOException e) {
+						throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+					}
+
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -161,15 +167,20 @@ public class TossPaymentsAdapter {
 					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					String errorBody = new String(response.getBody().readAllBytes());
-					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
-					String errorCode =
-						errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() : UNKNOWN_ERROR;
+					try {
+						String errorBody = new String(response.getBody().readAllBytes());
+						TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
+						String errorCode =
+							errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() : UNKNOWN_ERROR;
 
-					VirtualAccountIssueErrorCode virtualAccountIssueErrorCode = VirtualAccountIssueErrorCode.fromErrorCode(
-						errorCode);
+						VirtualAccountIssueErrorCode virtualAccountIssueErrorCode = VirtualAccountIssueErrorCode.fromErrorCode(
+							errorCode);
 
-					throw new TossPaymentException(virtualAccountIssueErrorCode);
+						throw new TossPaymentException(virtualAccountIssueErrorCode);
+					} catch (IOException e) {
+						throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+					}
+
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -189,24 +200,29 @@ public class TossPaymentsAdapter {
 				throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 			})
 			.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-				String errorBody = new String(response.getBody().readAllBytes());
-				TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
+				try {
+					String errorBody = new String(response.getBody().readAllBytes());
+					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
 
-				String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
-					UNKNOWN_ERROR;
-				PaymentInquiryErrorCode inquiryErrorCode = PaymentInquiryErrorCode.fromErrorCode(errorCode);
+					String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
+						UNKNOWN_ERROR;
+					PaymentInquiryErrorCode inquiryErrorCode = PaymentInquiryErrorCode.fromErrorCode(errorCode);
 
-				throw new TossPaymentException(inquiryErrorCode);
+					throw new TossPaymentException(inquiryErrorCode);
+				} catch (IOException e) {
+					throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+				}
+
 			})
 			.body(TossPaymentResponse.class);
 	}
 
-	private TossPaymentResponse parseErrorResponse(String errorBody)  throws IOException {
+	private TossPaymentResponse parseErrorResponse(String errorBody){
 		try {
 			return objectMapper.readValue(errorBody, TossPaymentResponse.class);
 		} catch (JsonProcessingException e) {
 			log.error("토스페이먼츠 에러 응답 파싱 실패", e);
-			throw new IOException("토스 페이먼츠 응답 파싱 실패: " + errorBody, e);
+			throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
 		}
 	}
 }

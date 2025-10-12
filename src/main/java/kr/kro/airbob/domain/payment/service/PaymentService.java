@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.payment.service;
 
 import java.util.UUID;
 
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.ResourceAccessException;
@@ -34,7 +35,7 @@ public class PaymentService {
 	private final TossPaymentsAdapter tossPaymentsAdapter;
 	private final PaymentTransactionService paymentTransactionService;
 
-	public void processPaymentConfirmation(PaymentRequest.Confirm event) {
+	public void processPaymentConfirmation(PaymentRequest.Confirm event, Acknowledgment ack) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(event.orderId()))
 			.orElseThrow(ReservationNotFoundException::new);
 
@@ -50,7 +51,7 @@ public class PaymentService {
 			);
 
 			if (PaymentStatus.DONE.toString().equalsIgnoreCase(response.getStatus())) {
-				paymentTransactionService.processSuccessfulPayment(response, reservation);
+				paymentTransactionService.processSuccessfulPayment(response, reservation, ack::acknowledge);
 			} else {
 				String reason = response.getFailure() != null ? response.getFailure().getMessage() :
 					"결제 실패 (상태: " + response.getStatus() + ")";
@@ -67,7 +68,7 @@ public class PaymentService {
 		}
 	}
 
-	public void processPaymentCancellation(ReservationEvent.ReservationCancelledEvent event) {
+	public void processPaymentCancellation(ReservationEvent.ReservationCancelledEvent event,  Acknowledgment ack) {
 		String reservationUid = event.reservationUid();
 		log.info("[결제 취소 처리 시작]: Reservation UID {}", reservationUid);
 
@@ -81,17 +82,17 @@ public class PaymentService {
 				event.cancelAmount()
 			);
 
-			paymentTransactionService.processSuccessfulCancellation(payment, response);
+			paymentTransactionService.processSuccessfulCancellation(payment, response, ack::acknowledge);
 
 		} catch (TossPaymentException e) {
 			log.error("[결제 취소 실패] Toss API 오류. Reservation UID: {}, Code: {}", reservationUid, e.getErrorCode().name(), e);
-			paymentTransactionService.processFailedCancellation(reservationUid, e.getMessage());
+			paymentTransactionService.processFailedCancellationInTx(reservationUid, e.getMessage(), ack::acknowledge);
 		} catch (ResourceAccessException e) {
 			log.error("[결제 취소 실패] 재시도 소진. Reservation UID: {}. 수동 개입 필요.", reservationUid, e);
-			paymentTransactionService.processFailedCancellation(reservationUid, "결제 취소 중 외부 시스템 오류 발생");
+			paymentTransactionService.processFailedCancellationInTx(reservationUid, "결제 취소 중 외부 시스템 오류 발생", ack::acknowledge);
 		} catch (Exception e) {
 			log.error("[결제 취소 처리 실패]: Reservation UID {} 처리 중 알 수 없는 예외 발생", reservationUid, e);
-			paymentTransactionService.processFailedCancellation(reservationUid, e.getMessage());
+			paymentTransactionService.processFailedCancellationInTx(reservationUid, e.getMessage(), ack::acknowledge);
 		}
 	}
 
@@ -104,24 +105,26 @@ public class PaymentService {
 				return new PaymentNotFoundException();
 			});
 
-		// 이미 취소된 결제인지 확인
 		if (payment.getStatus() == PaymentStatus.CANCELED || payment.getStatus() == PaymentStatus.PARTIAL_CANCELED) {
 			log.warn("[DLQ 보상 트랜잭션] 이미 취소된 결제. PaymentKey: {}", payment.getPaymentKey());
-			return;
+			return; // 이미 처리됐으면 아무것도 안 함
 		}
 
 		try {
+			// TOSS API 호출
 			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
 				payment.getPaymentKey(),
 				"시스템 오류로 인한 예약 확정 실패 (Saga 보상)",
-				null // 전액 취소
+				null
 			);
-			payment.updateOnCancel(response);
-			log.info("[DLQ 보상 트랜잭션 완료]: PaymentKey {} 결제 취소 완료.", payment.getPaymentKey());
+
+			// DB 트랜잭션 호출
+			paymentTransactionService.processCompensationInTx(payment, response);
+
 		} catch (TossPaymentException e) {
 			log.error("[DLQ-FATAL] 보상 트랜잭션(결제 취소) 중 Toss API 오류 발생. Reservation UID: {}, Code: {}. 수동 개입 필요.",
 				reservationUid, e.getErrorCode().name(), e);
-			throw e;
+			throw e; // 예외를 다시 던져 DLQ 컨슈머가 실패했음을 인지하게 함
 		} catch (Exception e) {
 			log.error("[DLQ-FATAL] 보상 트랜잭션 중 알 수 없는 오류 발생. Reservation UID: {}. 수동 개입 필요", reservationUid, e);
 			throw e;

@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -101,10 +103,20 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional
-	public Reservation confirmReservationInTx(String reservationUid) {
+	public void confirmReservationInTx(String reservationUid, Runnable afterCommitTask) {
 
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
+
+		if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
+			log.info("[결제 성공 확인] 이미 확정 처리된 예약: {}", reservation.getId());
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override public void afterCommit() {
+					if (afterCommitTask != null) afterCommitTask.run();
+				}
+			});
+			return;
+		}
 
 		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.confirm();
@@ -123,18 +135,27 @@ public class ReservationTransactionService {
 				reservation.getAccommodation().getAccommodationUid().toString()
 			)
 		);
+
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				if (afterCommitTask != null) {
+					afterCommitTask.run();
+				}
+			}
+		});
+
 		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED)", reservation.getId());
-		return reservation;
 	}
 
 	@Transactional
-	public Reservation expireReservationInTx(String reservationUid, String reason) {
+	public void expireReservationInTx(String reservationUid, String reason, Runnable afterCommitTask) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
 		if (reservation.getStatus() == ReservationStatus.EXPIRED) {
 			log.info("[결제 실패 확인] 이미 만료 처리된 예약: {}", reservation.getId());
-			return null;
+			return;
 		}
 
 		ReservationStatus previousStatus = reservation.getStatus();
@@ -148,7 +169,20 @@ public class ReservationTransactionService {
 			.reason(reason)
 			.build());
 
-		log.warn("[결제 실패 확인] 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), reason);
-		return reservation;
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				if (afterCommitTask != null) {
+					afterCommitTask.run();
+				}
+			}
+		});
+
+		log.info("[결제 실패 확인] 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), reason);
+	}
+
+	public Reservation findByReservationUidNullable(String reservationUid) {
+		return reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElse(null);
 	}
 }

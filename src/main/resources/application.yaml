@@ -55,11 +55,13 @@ spring:
       bootstrap-servers: localhost:9092 # Docker 외부에서 접속 시 localhost, 내부에서는 kafka:9092
       group-id: payment-service-group
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         spring.kafka.dead-letter-publishing.topic-name: PAYMENT.events.DLT
-
+    listener:
+      ack-mode: MANUAL
     producer:
       bootstrap-servers: localhost:9092
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
