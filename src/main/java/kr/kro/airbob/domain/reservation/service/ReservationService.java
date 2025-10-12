@@ -26,9 +26,8 @@ public class ReservationService {
 
 	private final ReservationTransactionService transactionService;
 
-	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request) {
+	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
 
-		Long memberId = getMemberId();
 		String changedBy = "USER_ID:" + memberId;
 
 		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
@@ -119,9 +118,5 @@ public class ReservationService {
 			reservation.getCheckIn().toLocalDate(),
 			reservation.getCheckOut().toLocalDate()
 		);
-	}
-
-	private Long getMemberId() {
-		return UserContext.get().id();
 	}
 }

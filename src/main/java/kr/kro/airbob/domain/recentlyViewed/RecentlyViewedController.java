@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import lombok.RequiredArgsConstructor;
@@ -23,22 +24,24 @@ public class RecentlyViewedController {
 
 	@PostMapping("/v1/members/recently-viewed/{accommodationId}")
 	public ResponseEntity<ApiResponse<Void>> addRecentlyViewed(@PathVariable Long accommodationId) {
-
-		recentlyViewedService.addRecentlyViewed(accommodationId);
+		Long memberId = UserContext.get().id();
+		recentlyViewedService.addRecentlyViewed(accommodationId, memberId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@DeleteMapping("/v1/members/recently-viewed/{accommodationId}")
 	public ResponseEntity<ApiResponse<Void>> removeRecentlyViewed(
 		@PathVariable Long accommodationId) {
-		recentlyViewedService.removeRecentlyViewed(accommodationId);
+		Long memberId = UserContext.get().id();
+		recentlyViewedService.removeRecentlyViewed(accommodationId, memberId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/members/recently-viewed")
 	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodations>> getRecentlyViewed() {
+		Long memberId = UserContext.get().id();
 		AccommodationResponse.RecentlyViewedAccommodations response =
-			recentlyViewedService.getRecentlyViewed();
+			recentlyViewedService.getRecentlyViewed(memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 
 	}

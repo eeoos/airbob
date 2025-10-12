@@ -44,8 +44,7 @@ public class RecentlyViewedService {
 	private static final int MAX_COUNT = 100;
 	private static final long TTL_DAYS = 7;
 
-	public void addRecentlyViewed(Long accommodationId) {
-		Long memberId = getMemberId();
+	public void addRecentlyViewed(Long accommodationId, Long memberId) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 		long timestamp = System.currentTimeMillis();
 
@@ -58,14 +57,12 @@ public class RecentlyViewedService {
 		redisTemplate.expire(key, Duration.ofDays(TTL_DAYS));
 	}
 
-	public void removeRecentlyViewed(Long accommodationId) {
-		Long memberId = getMemberId();
+	public void removeRecentlyViewed(Long accommodationId, Long memberId) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 		redisTemplate.opsForZSet().remove(key, accommodationId.toString());
 	}
 
-	public AccommodationResponse.RecentlyViewedAccommodations getRecentlyViewed() {
-		Long memberId = getMemberId();
+	public AccommodationResponse.RecentlyViewedAccommodations getRecentlyViewed(Long memberId) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 
 		Set<ZSetOperations.TypedTuple<String>> recentlyViewedWithScores = redisTemplate.opsForZSet()
@@ -175,9 +172,5 @@ public class RecentlyViewedService {
 					),
 					Collectors.toList()
 				)));
-	}
-
-	private Long getMemberId() {
-		return UserContext.get().id();
 	}
 }
