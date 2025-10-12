@@ -155,6 +155,11 @@ public class ReservationTransactionService {
 
 		if (reservation.getStatus() == ReservationStatus.EXPIRED) {
 			log.info("[결제 실패 확인] 이미 만료 처리된 예약: {}", reservation.getId());
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override public void afterCommit() {
+					if (afterCommitTask != null) afterCommitTask.run();
+				}
+			});
 			return;
 		}
 

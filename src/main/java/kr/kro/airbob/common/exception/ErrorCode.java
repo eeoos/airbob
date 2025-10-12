@@ -17,7 +17,7 @@ public enum ErrorCode {
 	CURSOR_ENCODING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C005", "커서 인코딩 중 오류가 발생했습니다."),
 	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "커서 페이지 크기는 1 이상이어야 합니다."),
 	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
-	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", ""),
+	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 
 	// auth & member
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "존재하지 않거나 활성 상태가 아닌 사용자입니다."),
@@ -64,6 +64,7 @@ public enum ErrorCode {
 	REVIEW_SUMMARY_NOT_FOUND(HttpStatus.NOT_FOUND, "V002", "리뷰 요약 정보를 찾을 수 없습니다."),
 	REVIEW_CREATION_DENIED(HttpStatus.FORBIDDEN, "V003", "리뷰를 작성할 권한이 없습니다."),
 	REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "V004", "이미 리뷰를 작성했습니다."),
+	REVIEW_UPDATE_FORBIDDEN(HttpStatus.FORBIDDEN, "V005", "게시된 리뷰만 수정할 수 있습니다."),
 
 	// discount
 	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다.");

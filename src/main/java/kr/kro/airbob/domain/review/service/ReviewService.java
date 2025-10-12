@@ -35,6 +35,7 @@ import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
+import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
@@ -88,8 +89,7 @@ public class ReviewService {
 		Review review = findReviewById(reviewId);
 
 		if (review.getStatus() != ReviewStatus.PUBLISHED) {
-			//todo apply custom error
-			throw new BaseException(ErrorCode.METHOD_NOT_ALLOWED);
+			throw new ReviewUpdateForbiddenException();
 		}
 
 		review.updateContent(request.content());
