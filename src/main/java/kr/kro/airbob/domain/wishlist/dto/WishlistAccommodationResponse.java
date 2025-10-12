@@ -1,6 +1,11 @@
 package kr.kro.airbob.domain.wishlist.dto;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+
+import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
@@ -27,9 +32,18 @@ public class WishlistAccommodationResponse {
 	}
 
 	public record WishlistAccommodationInfo(
-		long id,
-		String name,
-		AccommodationResponse.WishlistAccommodationInfo accommodationInfo
+		long wishlistAccommodationId,
+		String memo,
+		long accommodationId,
+		String accommodationName,
+		BigDecimal averageRating,
+		LocalDateTime createdAt,
+		List<String> imageUrls,
+		List<AccommodationResponse.AmenityInfoResponse> amenities
 	) {
+		@QueryProjection
+		public WishlistAccommodationInfo(long wishlistAccommodationId, String memo, long accommodationId, String accommodationName, BigDecimal averageRating, LocalDateTime createdAt) {
+			this(wishlistAccommodationId, memo, accommodationId, accommodationName, averageRating, createdAt, new ArrayList<>(), new ArrayList<>());
+		}
 	}
 }

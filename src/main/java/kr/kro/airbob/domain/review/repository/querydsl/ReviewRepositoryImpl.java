@@ -18,6 +18,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -26,7 +27,8 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 	private final JPAQueryFactory jpaQueryFactory;
 
 	@Override
-	public Slice<ReviewResponse.ReviewInfo> findByAccommodationIdWithCursor(Long accommodationId, Long lastId,
+	public Slice<ReviewResponse.ReviewInfo> findByAccommodationIdAndStatusWithCursor(
+		Long accommodationId, ReviewStatus status, Long lastId,
 		LocalDateTime lastCreatedAt, Integer lastRating, ReviewSortType sortType, Pageable pageable) {
 
 		List<ReviewResponse.ReviewInfo> content = jpaQueryFactory
@@ -44,6 +46,7 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 			.join(review.author, member)
 			.where(
 				review.accommodation.id.eq(accommodationId),
+				review.status.eq(status),
 				getCursorCondition(lastId, lastCreatedAt, lastRating, sortType)
 			)
 			.orderBy(getOrderSpecifiers(sortType))

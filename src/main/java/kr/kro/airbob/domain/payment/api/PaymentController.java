@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
@@ -36,12 +37,14 @@ public class PaymentController {
 
 	@GetMapping("/v1/payments/{paymentKey}")
 	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByPaymentKey(@PathVariable String paymentKey) {
-		PaymentResponse.PaymentInfo response = paymentService.findPaymentByPaymentKey(paymentKey);
+		Long memberId = UserContext.get().id();
+		PaymentResponse.PaymentInfo response = paymentService.findPaymentByPaymentKey(paymentKey, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 	@GetMapping("/v1/payments/orders/{orderId}")
 	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByOrderId(@PathVariable String orderId) {
-		PaymentResponse.PaymentInfo response = paymentService.findPaymentByOrderId(orderId);
+		Long memberId = UserContext.get().id();
+		PaymentResponse.PaymentInfo response = paymentService.findPaymentByOrderId(orderId, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

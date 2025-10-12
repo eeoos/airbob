@@ -11,13 +11,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.context.UserContext;
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -26,10 +30,13 @@ import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
+import kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException;
 import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
+import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
@@ -52,9 +59,7 @@ public class ReviewService {
 	private final OutboxEventPublisher outboxEventPublisher;
 
 	@Transactional
-	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request) {
-
-		Long memberId = getMemberId();
+	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request, Long memberId) {
 
 		Member author = findMemberById(memberId);
 		Accommodation accommodation = findAccommodationById(accommodationId);
@@ -79,27 +84,36 @@ public class ReviewService {
 	}
 
 	@Transactional
-	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request) {
+	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request, Long memberId) {
 		Review review = findReviewById(reviewId);
 
-		review.updateContent(request.content());
+		if (!review.getAuthor().getId().equals(memberId)) {
+			throw new ReviewAccessDeniedException();
+		}
 
+		if (review.getStatus() != ReviewStatus.PUBLISHED) {
+			throw new ReviewUpdateForbiddenException();
+		}
+
+		review.updateContent(request.content());
 		return new ReviewResponse.UpdateResponse(review.getId());
 	}
 
 	@Transactional
-	public void deleteReview(Long reviewId) {
+	public void deleteReview(Long reviewId, Long memberId) {
 		Review review = findReviewById(reviewId);
-		Accommodation accommodation = review.getAccommodation();
-		int rating = review.getRating();
 
-		reviewRepository.delete(review);
+		if (!review.getAuthor().getId().equals(memberId)) {
+			throw new ReviewAccessDeniedException();
+		}
 
-		updateReviewSummaryOnDelete(accommodation.getId(), rating);
+		review.deleteByUser();
+
+		updateReviewSummaryOnDelete(review.getAccommodation().getId(), review.getRating());
 
 		outboxEventPublisher.save(
 			EventType.REVIEW_SUMMARY_CHANGED,
-			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
+			new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
 		);
 	}
 
@@ -114,8 +128,8 @@ public class ReviewService {
 		LocalDateTime lastCreatedAt = cursorRequest.lastCreatedAt();
 		Integer lastRating = cursorRequest.lastRating();
 
-		Slice<ReviewResponse.ReviewInfo> reviewSlice = reviewRepository.findByAccommodationIdWithCursor(
-			accommodationId, lastId, lastCreatedAt, lastRating, sortType, pageRequest);
+		Slice<ReviewResponse.ReviewInfo> reviewSlice = reviewRepository.findByAccommodationIdAndStatusWithCursor(
+			accommodationId, ReviewStatus.PUBLISHED, lastId, lastCreatedAt, lastRating, sortType, pageRequest);
 
 		List<ReviewResponse.ReviewInfo> reviewInfos = reviewSlice.getContent().stream().toList();
 
@@ -146,17 +160,17 @@ public class ReviewService {
 			throw new ReviewCreationForbiddenException();
 		}
 		// 이미 리뷰를 작성했는지 확인
-		if (reviewRepository.existsByAccommodationIdAndAuthorId(accommodationId, memberId)) {
+		if (reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(accommodationId, memberId, ReviewStatus.PUBLISHED)) {
 			throw new ReviewAlreadyExistsException();
 		}
 	}
 
 	private Member findMemberById(Long memberId) {
-		return memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
+		return memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {
-		return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
+		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	private Review findReviewById(Long reviewId) {
@@ -199,7 +213,4 @@ public class ReviewService {
 			.build();
 	}
 
-	private Long getMemberId() {
-		return UserContext.get().id();
-	}
 }

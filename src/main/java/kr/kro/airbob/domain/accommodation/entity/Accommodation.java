@@ -16,7 +16,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.UpdateAccommodationDto;
@@ -32,7 +32,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Accommodation extends BaseEntity {
+public class Accommodation extends UpdatableEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -68,10 +68,17 @@ public class Accommodation extends BaseEntity {
 	@Column(nullable = false)
 	private LocalTime checkOutTime;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private AccommodationStatus status;
+
 	@PrePersist
 	protected void onCreate() {
 		if (this.accommodationUid == null) {
 			this.accommodationUid = UUID.randomUUID();
+		}
+		if (this.status == null) {
+			this.status = AccommodationStatus.PUBLISHED; // 생성 시 기본 상태
 		}
 	}
 
@@ -88,6 +95,7 @@ public class Accommodation extends BaseEntity {
 			.member(member)
 			.checkInTime(request.getCheckInTime())
 			.checkOutTime(request.getCheckOutTime())
+			.status(AccommodationStatus.PUBLISHED)
 			.build();
 	}
 
@@ -115,5 +123,17 @@ public class Accommodation extends BaseEntity {
 
 	public void updateOccupancyPolicy(OccupancyPolicy occupancyPolicy) {
 		this.occupancyPolicy = occupancyPolicy;
+	}
+
+	public void publish() {
+		this.status = AccommodationStatus.PUBLISHED;
+	}
+
+	public void unpublish() {
+		this.status = AccommodationStatus.UNPUBLISHED;
+	}
+
+	public void delete() {
+		this.status = AccommodationStatus.DELETED;
 	}
 }

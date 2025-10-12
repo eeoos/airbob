@@ -7,15 +7,11 @@ import org.springframework.data.domain.Slice;
 
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
 
 public interface ReviewRepositoryCustom {
 
-	Slice<ReviewResponse.ReviewInfo> findByAccommodationIdWithCursor(
-		Long accommodationId,
-		Long lastId,
-		LocalDateTime lastCreatedAt,
-		Integer lastRating,
-		ReviewSortType sortType,
-		Pageable pageable
-	);
+	Slice<ReviewResponse.ReviewInfo> findByAccommodationIdAndStatusWithCursor(
+		Long accommodationId, ReviewStatus status, Long lastId,
+		LocalDateTime lastCreatedAt, Integer lastRating, ReviewSortType sortType, Pageable pageable);
 }

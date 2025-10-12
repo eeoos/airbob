@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
@@ -52,13 +53,15 @@ public class AccommodationController {
 
     @PatchMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId, @RequestBody AccommodationRequest.UpdateAccommodationDto request){
-        accommodationService.updateAccommodation(accommodationId, request);
+        Long memberId = UserContext.get().id();
+        accommodationService.updateAccommodation(accommodationId, request, memberId);
         return ResponseEntity.ok(ApiResponse.success());
     }
 
     @DeleteMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {
-        accommodationService.deleteAccommodation(accommodationId);
+        Long memberId = UserContext.get().id();
+        accommodationService.deleteAccommodation(accommodationId, memberId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -36,7 +37,8 @@ public class ReservationController {
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request
 	) {
-		reservationService.cancelReservation(reservationUid, request);
+		Long memberId = UserContext.get().id();
+		reservationService.cancelReservation(reservationUid, request, memberId);
 		return ResponseEntity.accepted().body(ApiResponse.success());
 	}
 }

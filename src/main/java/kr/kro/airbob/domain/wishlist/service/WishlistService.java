@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.wishlist;
+package kr.kro.airbob.domain.wishlist.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,11 +18,14 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -31,6 +34,10 @@ import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.entity.Wishlist;
+import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
+import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
+import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationNotFoundException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
@@ -48,15 +55,14 @@ public class WishlistService {
 	private final WishlistRepository wishlistRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
-	private final AccommodationReviewSummaryRepository summaryRepository;
+	private final AccommodationImageRepository accommodationImageRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	@Transactional
-	public WishlistResponse.Create createWishlist(WishlistRequest.Create request) {
+	public WishlistResponse.Create createWishlist(WishlistRequest.Create request, Long memberId) {
 
-		Long memberId = getMemberId();
 		final Member member = findMemberById(memberId);
 
 		Wishlist wishlist = Wishlist.builder()
@@ -69,9 +75,9 @@ public class WishlistService {
 	}
 
 	@Transactional
-	public WishlistResponse.Update updateWishlist(Long wishlistId, WishlistRequest.Update request) {
+	public WishlistResponse.Update updateWishlist(Long wishlistId, WishlistRequest.Update request, Long memberId) {
 
-		Wishlist wishlist = findWishlistById(wishlistId);
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		wishlist.updateName(request.name());
 
@@ -79,25 +85,25 @@ public class WishlistService {
 	}
 
 	@Transactional
-	public void deleteWishlist(Long wishlistId) {
+	public void deleteWishlist(Long wishlistId, Long memberId) {
 		// 위시리스트 존재, 작성자 id 검증을 위한 조회
-		Wishlist wishlist = findWishlistById(wishlistId);
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		// 위시리스트에 속한 숙소 삭제
 		wishlistAccommodationRepository.deleteAllByWishlistId(wishlist.getId());
-		wishlistRepository.delete(wishlist);
+		wishlist.delete();
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request) {
+	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request, Long memberId) {
 
 		Long lastId = request.lastId();
 		LocalDateTime lastCreatedAt = request.lastCreatedAt();
 
-		Long memberId = getMemberId();
 
-		Slice<Wishlist> wishlistSlice = wishlistRepository.findByMemberIdWithCursor(
+		Slice<Wishlist> wishlistSlice = wishlistRepository.findByMemberIdAndStatusWithCursor(
 			memberId,
+			WishlistStatus.ACTIVE,
 			lastId,
 			lastCreatedAt,
 			PageRequest.of(0, request.size())
@@ -135,12 +141,12 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistAccommodationResponse.Create createWishlistAccommodation(Long wishlistId,
-		WishlistAccommodationRequest.Create request) {
+		WishlistAccommodationRequest.Create request, Long memberId) {
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		Accommodation accommodation = findAccommodationById(request.accommodationId());
 		validateWishlistAccommodationDuplicate(wishlistId, accommodation.getId());
 
-		Wishlist wishlist = findWishlistById(wishlistId);
 
 		WishlistAccommodation wishlistAccommodation = WishlistAccommodation.builder()
 			.wishlist(wishlist)
@@ -175,72 +181,50 @@ public class WishlistService {
 	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodations(Long wishlistId,
 		CursorRequest.CursorPageRequest request) {
 
-		Long lastId = request.lastId();
-		LocalDateTime lastCreatedAt = request.lastCreatedAt();
+		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice =
+			wishlistAccommodationRepository.findAccommodationsInWishlist(
+				wishlistId,
+				request.lastId(),
+				request.lastCreatedAt(),
+				PageRequest.of(0, request.size())
+			);
 
-		Slice<WishlistAccommodation> wishlistAccommodationSlice = wishlistAccommodationRepository.findByWishlistIdWithCursor(
-			wishlistId,
-			lastId,
-			lastCreatedAt,
-			PageRequest.of(0, request.size())
-		);
+		List<WishlistAccommodationResponse.WishlistAccommodationInfo> infos = slice.getContent();
 
-		List<WishlistAccommodation> wishlistAccommodations = wishlistAccommodationSlice.getContent();
-
-		if (wishlistAccommodations.isEmpty()) {
+		if (infos.isEmpty()) {
 			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-				wishlistAccommodations,
-				wishlistAccommodationSlice.hasNext(),
-				WishlistAccommodation::getId,
-				WishlistAccommodation::getCreatedAt
+				infos,
+				slice.hasNext(),
+				WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
+				WishlistAccommodationResponse.WishlistAccommodationInfo::createdAt
 			);
 			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo);
 		}
 
-		List<Long> accommodationIds = wishlistAccommodations.stream().map(wa -> wa.getAccommodation().getId()).toList();
+		List<Long> accommodationIds = infos.stream()
+			.map(WishlistAccommodationResponse.WishlistAccommodationInfo::accommodationId)
+			.toList();
 
-		// 숙소 이미지
 		Map<Long, List<String>> imageUrlsMap = getAccommodationImageUrls(accommodationIds);
-
-		// 숙소 편의시설
 		Map<Long, List<AccommodationResponse.AmenityInfoResponse>> amenitiesMap = getAccommodationAmenities(accommodationIds);
 
-		// 숙소 리뷰 평점
-		Map<Long, BigDecimal> ratingMap = getAccommodationRatings(accommodationIds);
-
-		List<WishlistAccommodationResponse.WishlistAccommodationInfo> wishlistAccommodationInfos = wishlistAccommodations.stream()
-			.map(wa -> {
-				Accommodation accommodation = wa.getAccommodation();
-				Long accommodationId = accommodation.getId();
-
-				AccommodationResponse.WishlistAccommodationInfo accommodationInfo =
-					new AccommodationResponse.WishlistAccommodationInfo(
-						accommodationId,
-						accommodation.getName(),
-						imageUrlsMap.getOrDefault(accommodationId, List.of()),
-						amenitiesMap.getOrDefault(accommodationId, List.of()),
-						ratingMap.get(accommodationId)
-					);
-
-				return new WishlistAccommodationResponse.WishlistAccommodationInfo(
-					wa.getId(),
-					wa.getMemo(),
-					accommodationInfo
-				);
-			}).toList();
+		infos.forEach(info -> {
+			info.imageUrls().addAll(imageUrlsMap.getOrDefault(info.accommodationId(), List.of()));
+			info.amenities().addAll(amenitiesMap.getOrDefault(info.accommodationId(), List.of()));
+		});
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
-			wishlistAccommodations,
-			wishlistAccommodationSlice.hasNext(),
-			WishlistAccommodation::getId,
-			WishlistAccommodation::getCreatedAt
+			infos,
+			slice.hasNext(),
+			WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
+			WishlistAccommodationResponse.WishlistAccommodationInfo::createdAt
 		);
 
-		return new WishlistAccommodationResponse.WishlistAccommodationInfos(wishlistAccommodationInfos, pageInfo);
+		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo);
 	}
 
 	private Map<Long, List<String>> getAccommodationImageUrls(List<Long> accommodationIds) {
-		List<AccommodationImage> results = accommodationRepository
+		List<AccommodationImage> results = accommodationImageRepository
 			.findAccommodationImagesByAccommodationIds(accommodationIds);
 
 		return results .stream()
@@ -272,27 +256,16 @@ public class WishlistService {
 			));
 	}
 
-	private Map<Long, BigDecimal> getAccommodationRatings(List<Long> accommodationIds) {
-		List<AccommodationReviewSummary> results
-			= summaryRepository.findByAccommodationIdIn(accommodationIds);
-
-		return results.stream()
-			.collect(Collectors.toMap(
-				AccommodationReviewSummary::getAccommodationId,
-				AccommodationReviewSummary::getAverageRating
-			));
-	}
-
 	private Wishlist findWishlistById(Long wishlistId) {
-		return wishlistRepository.findById(wishlistId).orElseThrow(WishlistNotFoundException::new);
+		return wishlistRepository.findByIdAndStatus(wishlistId, WishlistStatus.ACTIVE).orElseThrow(WishlistNotFoundException::new);
 	}
 
 	private Member findMemberById(Long loggedInMemberId) {
-		return memberRepository.findById(loggedInMemberId).orElseThrow(MemberNotFoundException::new);
+		return memberRepository.findByIdAndStatus(loggedInMemberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
 	private Accommodation findAccommodationById(Long accommodationId) {
-		return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
+		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
 	private WishlistAccommodation findWishlistAccommodation(Long wishlistAccommodationId){
@@ -306,7 +279,13 @@ public class WishlistService {
 		}
 	}
 
-	private Long getMemberId() {
-		return UserContext.get().id();
+	private Wishlist findWishlistByIdAndMemberId(Long wishlistId, Long memberId) {
+		Wishlist wishlist = wishlistRepository.findByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
+			.orElseThrow(WishlistNotFoundException::new);
+
+		if (!wishlist.getMember().getId().equals(memberId)) {
+			throw new WishlistAccessDeniedException();
+		}
+		return wishlist;
 	}
 }

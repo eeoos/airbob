@@ -48,6 +48,6 @@ public class DiscountPolicyService {
         DiscountPolicy discountPolicy = discountPolicyRepository.findById(discountPolicyId)
                 .orElseThrow(DiscountNotFoundException::new);
 
-        discountPolicyRepository.delete(discountPolicy);
+        discountPolicy.deactivate();
     }
 }

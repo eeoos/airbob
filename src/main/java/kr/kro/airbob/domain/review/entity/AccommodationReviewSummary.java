@@ -12,6 +12,7 @@ import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Version;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -22,7 +23,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AccommodationReviewSummary extends BaseEntity {
+public class AccommodationReviewSummary extends UpdatableEntity {
 
 	@Id
 	@Column(name = "accommodation_id")

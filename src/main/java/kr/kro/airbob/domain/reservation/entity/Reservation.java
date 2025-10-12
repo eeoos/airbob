@@ -19,6 +19,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -35,7 +36,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Reservation extends BaseEntity {
+public class Reservation extends UpdatableEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

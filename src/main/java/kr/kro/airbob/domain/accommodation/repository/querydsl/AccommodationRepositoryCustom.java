@@ -11,6 +11,5 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.Accommodatio
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 
 public interface AccommodationRepositoryCustom {
-    List<AccommodationSearchResponseDto> searchByFilter(AccommodationSearchConditionDto condition, Pageable pageable);
     Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
 }

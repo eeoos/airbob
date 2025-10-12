@@ -12,10 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.wishlist.WishlistService;
+import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
@@ -34,8 +35,8 @@ public class WishlistController {
 	@PostMapping("/v1/members/wishlists")
 	public ResponseEntity<ApiResponse<WishlistResponse.Create>> createWishlist(
 		@Valid @RequestBody WishlistRequest.Create request){
-
-		WishlistResponse.Create response = wishlistService.createWishlist(request);
+		Long memberId = UserContext.get().id();
+		WishlistResponse.Create response = wishlistService.createWishlist(request, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -43,23 +44,24 @@ public class WishlistController {
 	public ResponseEntity<ApiResponse<WishlistResponse.Update>> updateWishlist(
 		@PathVariable Long wishlistId,
 		@Valid @RequestBody WishlistRequest.Update request) {
-
-		WishlistResponse.Update response = wishlistService.updateWishlist(wishlistId, request);
+		Long memberId = UserContext.get().id();
+		WishlistResponse.Update response = wishlistService.updateWishlist(wishlistId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@DeleteMapping("/v1/members/wishlists/{wishlistId}")
 	public ResponseEntity<ApiResponse<Void>> deleteWishlist(@PathVariable Long wishlistId) {
-		wishlistService.deleteWishlist(wishlistId);
+		Long memberId = UserContext.get().id();
+		wishlistService.deleteWishlist(wishlistId, memberId);
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/members/wishlists")
 	public ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> findWishlists(
 		@CursorParam CursorRequest.CursorPageRequest request) {
-
-		WishlistResponse.WishlistInfos response = wishlistService.findWishlists(request);
+		Long memberId = UserContext.get().id();
+		WishlistResponse.WishlistInfos response = wishlistService.findWishlists(request, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -67,8 +69,9 @@ public class WishlistController {
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Create>> createWishlistAccommodation(
 		@PathVariable Long wishlistId,
 		@Valid @RequestBody WishlistAccommodationRequest.Create request) {
+		Long memberId = UserContext.get().id();
 		WishlistAccommodationResponse.Create response =
-			wishlistService.createWishlistAccommodation(wishlistId, request);
+			wishlistService.createWishlistAccommodation(wishlistId, request, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 

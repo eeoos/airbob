@@ -17,9 +17,10 @@ public enum ErrorCode {
 	CURSOR_ENCODING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C005", "커서 인코딩 중 오류가 발생했습니다."),
 	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "커서 페이지 크기는 1 이상이어야 합니다."),
 	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
+	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 
 	// auth & member
-	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "존재하지 않는 사용자입니다."),
+	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "존재하지 않거나 활성 상태가 아닌 사용자입니다."),
 	EMAIL_DUPLICATION(HttpStatus.CONFLICT, "M002", "이미 존재하는 이메일입니다."),
 	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "M003", "비밀번호가 일치하지 않습니다."),
 	UNAUTHORIZED_ACCESS(HttpStatus.UNAUTHORIZED, "M004", "인증이 필요합니다."),
@@ -28,6 +29,7 @@ public enum ErrorCode {
 
 	// accommodation
 	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않는 숙소입니다."),
+	ACCOMMODATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "숙소에 대한 접근 권한이 없습니다."),
 
 
 	// reservation
@@ -38,11 +40,14 @@ public enum ErrorCode {
 	CANNOT_CONFIRM_RESERVATION(HttpStatus.CONFLICT, "R005", "결제 대기 상태의 예약만 확정할 수 있습니다."),
 	CANNOT_EXPIRE_RESERVATION(HttpStatus.CONFLICT, "R006", "결제 대기 상태의 예약만 만료시킬 수 있습니다."),
 	RESERVATION_STATE_CHANGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R007", "예약 상태를 변경하는 중 내부 서버 오류가 발생했습니다."),
+	RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "R008", "해당 예약에 대한 접근 권한이 없습니다."),
 
 
 	// payment
 	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "존재하지 않는 결제 정보입니다."),
 	TOSS_PAYMENT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 예외"),
+	TOSS_PAYMENT_RESPONSE_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "토스페이먼츠 에러 응답 파싱 실패"),
+	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
 	// TOSS_PAYMENT_CONFIRM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 결제 승인에 실패했습니다."),
 	// TOSS_PAYMENT_CANCEL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "Toss Payments 결제 취소에 실패했습니다."),
 	// TOSS_PAYMENT_INQUIRY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P004", "Toss Payments 결제 조회에 실패했습니다."),
@@ -62,6 +67,8 @@ public enum ErrorCode {
 	REVIEW_SUMMARY_NOT_FOUND(HttpStatus.NOT_FOUND, "V002", "리뷰 요약 정보를 찾을 수 없습니다."),
 	REVIEW_CREATION_DENIED(HttpStatus.FORBIDDEN, "V003", "리뷰를 작성할 권한이 없습니다."),
 	REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "V004", "이미 리뷰를 작성했습니다."),
+	REVIEW_UPDATE_FORBIDDEN(HttpStatus.FORBIDDEN, "V005", "게시된 리뷰만 수정할 수 있습니다."),
+	REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "V006", "해당 리뷰에 대한 권한이 없습니다."),
 
 	// discount
 	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다.");

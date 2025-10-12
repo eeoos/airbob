@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
@@ -34,9 +35,9 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<ReviewResponse.CreateResponse>> createReview(
 		@PathVariable Long accommodationId,
 		@Valid @RequestBody ReviewRequest.CreateRequest request) {
-
+		Long memberId = UserContext.get().id();
 		ReviewResponse.CreateResponse response =
-			reviewService.createReview(accommodationId, request);
+			reviewService.createReview(accommodationId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -45,16 +46,17 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<ReviewResponse.UpdateResponse>> updateReview(
 		@PathVariable Long reviewId,
 		@Valid @RequestBody ReviewRequest.UpdateRequest request) {
-
+		Long memberId = UserContext.get().id();
 		ReviewResponse.UpdateResponse response =
-			reviewService.updateReviewContent(reviewId, request);
+			reviewService.updateReviewContent(reviewId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@DeleteMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
 	public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
-		reviewService.deleteReview(reviewId);
+		Long memberId = UserContext.get().id();
+		reviewService.deleteReview(reviewId, memberId);
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
 	}
 

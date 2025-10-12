@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.wishlist;
+package kr.kro.airbob.domain.wishlist.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -7,8 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.common.domain.UpdatableEntity;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,19 +20,23 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Wishlist extends BaseEntity {
+public class WishlistAccommodation extends UpdatableEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	private String name;
+	private String memo;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "member_id")
-	private Member member;
+	@JoinColumn(name = "wishlist_id")
+	private Wishlist wishlist;
 
-	public void updateName(String name) {
-		this.name = name;
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "accommodation_id")
+	private Accommodation accommodation;
+
+	public void updateMemo(String memo) {
+		this.memo = memo;
 	}
 }

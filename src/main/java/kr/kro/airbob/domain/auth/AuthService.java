@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.exception.NotEqualHostException;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,8 @@ public class AuthService {
     private final SessionRedisRepository sessionRedisRepository;
 
     public String login(String email, String password) {
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(MemberNotFoundException::new);
+        Member member = memberRepository.findByEmailAndStatus(email, MemberStatus.ACTIVE)
+            .orElseThrow(MemberNotFoundException::new);
 
         if (!BCrypt.checkpw(password, member.getPassword())) {
             throw new InvalidPasswordException();

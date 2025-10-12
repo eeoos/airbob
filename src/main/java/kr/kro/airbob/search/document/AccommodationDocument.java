@@ -46,6 +46,9 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	String type,
 
+	@Field(type = FieldType.Keyword)
+	String status,
+
 	@Field(type = FieldType.Date)
 	LocalDateTime createdAt,
 
