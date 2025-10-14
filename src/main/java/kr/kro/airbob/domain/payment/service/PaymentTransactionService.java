@@ -4,8 +4,6 @@ import static kr.kro.airbob.outbox.EventType.*;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
@@ -31,7 +29,7 @@ public class PaymentTransactionService {
 
 	// 결제 성공 시 DB 작업 처리하는 트랜잭션 메서드
 	@Transactional
-	public void processSuccessfulPayment(TossPaymentResponse response, Reservation reservation, Runnable afterCommitTask) {
+	public void processSuccessfulPayment(TossPaymentResponse response, Reservation reservation) {
 		PaymentAttempt attempt = PaymentAttempt.create(response, reservation);
 		paymentAttemptRepository.save(attempt);
 
@@ -39,16 +37,9 @@ public class PaymentTransactionService {
 		paymentRepository.save(payment);
 
 		outboxEventPublisher.save(
-			PAYMENT_SUCCEEDED,
-			new PaymentEvent.PaymentSucceededEvent(reservation.getReservationUid().toString())
+			PAYMENT_COMPLETED,
+			new PaymentEvent.PaymentCompletedEvent(reservation.getReservationUid().toString())
 		);
-
-		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override
-			public void afterCommit() {
-				afterCommitTask.run();
-			}
-		});
 	}
 
 	// 결제 실패 시 DB 작업 처리하는 트랜잭션 메서드
@@ -59,16 +50,9 @@ public class PaymentTransactionService {
 	}
 
 	@Transactional
-	public void processSuccessfulCancellation(Payment payment, TossPaymentResponse response, Runnable afterCommitTask) {
+	public void processSuccessfulCancellation(Payment payment, TossPaymentResponse response) {
 		payment.updateOnCancel(response);
 		log.info("[결제 취소 처리 완료]: PaymentKey {}의 상태 {} 변경 완료", payment.getPaymentKey(), payment.getStatus());
-
-		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override
-			public void afterCommit() {
-				afterCommitTask.run();
-			}
-		});
 	}
 
 	@Transactional
@@ -78,20 +62,11 @@ public class PaymentTransactionService {
 	}
 
 	@Transactional
-	public void processFailedCancellationInTx(String reservationUid, String reason, Runnable afterCommitTask) {
+	public void processFailedCancellationInTx(String reservationUid, String reason) {
 		outboxEventPublisher.save(
 			PAYMENT_CANCELLATION_FAILED,
 			new PaymentEvent.PaymentCancellationFailedEvent(reservationUid, reason)
 		);
-
-		if (afterCommitTask != null) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					afterCommitTask.run();
-				}
-			});
-		}
 	}
 
 	private void saveFailedAttempt(PaymentRequest.Confirm event, Reservation reservation, String code, String message) {

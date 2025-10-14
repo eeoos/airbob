@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentEvent {
 
-	public record PaymentSucceededEvent(String reservationUid) implements EventPayload {
+	public record PaymentCompletedEvent(String reservationUid) implements EventPayload {
 		@Override
 		public String getId() {
 			return this.reservationUid;
@@ -28,4 +28,12 @@ public class PaymentEvent {
 		}
 	}
 
+	public record PaymentCancellationRequestedEvent(
+		String reservationUid,
+		String cancelReason,
+		Long cancelAmount
+	) implements EventPayload {
+		@Override
+		public String getId() { return reservationUid; }
+	}
 }

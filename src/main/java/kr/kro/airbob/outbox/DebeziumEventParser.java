@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -14,39 +15,34 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DebeziumEventParser {
 
-	public static final String PAYLOAD = "payload";
 	private final ObjectMapper objectMapper;
 
-	public ParsedEvent parse(String message) {
+	public <T extends EventPayload> EventEnvelope<T> parse(String debeziumMessage, Class<T> payloadType) {
 		try {
-			JsonNode rootNode = objectMapper.readTree(message);
-
-			JsonNode payloadNode = rootNode.path(PAYLOAD);
-			if (payloadNode.isMissingNode() || payloadNode.isNull()) {
-				throw new IOException("Debezium 메시지에 payload 필드가 없습니다.");
-			}
-
-			String eventType = payloadNode.path("eventType").asText();
-			String eventPayload = payloadNode.path("payload").asText();
-
-			if (eventType.isEmpty() || eventPayload.isEmpty()) {
-				throw new IOException("Outbox 이벤트에 eventType 또는 payload 필드가 비어있습니다.");
-			}
-
-			return new ParsedEvent(eventType, eventPayload);
+			String envelopeJson = extractEnvelopeJson(debeziumMessage);
+			JavaType type = objectMapper.getTypeFactory().constructParametricType(EventEnvelope.class, payloadType);
+			return objectMapper.readValue(envelopeJson, type);
 		} catch (IOException e) {
 			throw new DebeziumEventParsingException(e);
 		}
 	}
 
-	public <T extends EventPayload> T deserialize(String payloadJson, Class<T> payloadType) {
+	public String getEventType(String debeziumMessage) {
 		try {
-			return objectMapper.readValue(payloadJson, payloadType);
+			String envelopeJson = extractEnvelopeJson(debeziumMessage);
+			JsonNode envelopeNode = objectMapper.readTree(envelopeJson);
+			return envelopeNode.path("event_type").asText();
 		} catch (IOException e) {
 			throw new DebeziumEventParsingException(e);
 		}
 	}
 
-	public record ParsedEvent(String eventType, String payload) {
+	private String extractEnvelopeJson(String debeziumMessage) throws IOException {
+		JsonNode rootNode = objectMapper.readTree(debeziumMessage);
+		JsonNode payloadNode = rootNode.path("payload");
+		if (payloadNode.isMissingNode() || !payloadNode.isTextual()) {
+			throw new IOException("Debezium 메시지에서 'payload' 필드를 찾을 수 없거나 텍스트 형식이 아닙니다.");
+		}
+		return payloadNode.asText();
 	}
 }

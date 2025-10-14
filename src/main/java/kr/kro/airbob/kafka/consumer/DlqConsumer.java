@@ -6,7 +6,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
-import kr.kro.airbob.domain.payment.service.PaymentService;
+import kr.kro.airbob.domain.payment.service.PaymentCompensationService;
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.SlackNotificationService;
@@ -28,29 +28,23 @@ public class DlqConsumer {
 		• *Original Message*: ```%s```
 		""";
 
-	private final PaymentService paymentService;
 	private final DebeziumEventParser debeziumEventParser;
 	private final SlackNotificationService slackNotificationService;
+	private final PaymentCompensationService paymentCompensationService;
 
 	@KafkaListener(topics = "${spring.kafka.consumer.properties.spring.kafka.dead-letter-publishing.topic-name}", groupId = "dlq-group")
 	public void consumeDlqEvents(@Payload String message, Acknowledgment ack) {
 		log.warn("[DLQ-CONSUME] DLQ 메시지 수신: {}", message);
-		DebeziumEventParser.ParsedEvent parsedEvent = null;
 
+		String eventType = "UNKNOWN"; // 예외 발생 시를 대비한 초기화
 		try {
-			parsedEvent = debeziumEventParser.parse(message);
-			String eventType = parsedEvent.eventType();
-			String payloadJson = parsedEvent.payload();
+			eventType = debeziumEventParser.getEventType(message);
 
-			if (EventType.PAYMENT_SUCCEEDED.name().equals(eventType)) {
-				PaymentEvent.PaymentSucceededEvent event = debeziumEventParser.deserialize(payloadJson,
-					PaymentEvent.PaymentSucceededEvent.class);
+			if (EventType.PAYMENT_COMPLETED.name().equals(eventType)) {
+				PaymentEvent.PaymentCompletedEvent event = debeziumEventParser.parse(message, PaymentEvent.PaymentCompletedEvent.class).payload();
 
 				log.warn("[DLQ-COMPENSATION] 예약 확정 실패에 대한 결제 보상 트랜잭션 시작. ReservationUID: {}", event.reservationUid());
-
-				// 보상 트랜잭션 시도
-				paymentService.compensatePaymentByReservationUid(event.reservationUid());
-
+				paymentCompensationService.compensate(event.reservationUid());
 			} else {
 				log.warn("[DLQ-IGNORE] 처리 로직이 존재하지 않는 DLQ 메시지. EventType: {}", eventType);
 			}
@@ -62,7 +56,7 @@ public class DlqConsumer {
 			log.error("[DLQ-FATAL] DLQ 메시지 자동 처리 중 심각한 오류 발생. 수동 개입 필요. Message: {}", message, e);
 
 			String alertMessage = String.format(ALERT_MESSAGE,
-				(parsedEvent != null ? parsedEvent.eventType() : "Unknown"),
+				eventType,
 				e.getClass().getSimpleName(),
 				e.getMessage(),
 				message);

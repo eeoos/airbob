@@ -13,7 +13,7 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
-import kr.kro.airbob.domain.payment.service.PaymentService;
+import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class PaymentController {
 
 	private final OutboxEventPublisher outboxEventPublisher;
-	private final PaymentService paymentService;
+	private final PaymentQueryService paymentQueryService;
 
 	@PostMapping("/v1/payments/confirm")
 	public ResponseEntity<ApiResponse<Void>> confirmPayment(@Valid @RequestBody PaymentRequest.Confirm request) {
@@ -38,13 +38,13 @@ public class PaymentController {
 	@GetMapping("/v1/payments/{paymentKey}")
 	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByPaymentKey(@PathVariable String paymentKey) {
 		Long memberId = UserContext.get().id();
-		PaymentResponse.PaymentInfo response = paymentService.findPaymentByPaymentKey(paymentKey, memberId);
+		PaymentResponse.PaymentInfo response = paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 	@GetMapping("/v1/payments/orders/{orderId}")
 	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByOrderId(@PathVariable String orderId) {
 		Long memberId = UserContext.get().id();
-		PaymentResponse.PaymentInfo response = paymentService.findPaymentByOrderId(orderId, memberId);
+		PaymentResponse.PaymentInfo response = paymentQueryService.findPaymentByOrderId(orderId, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

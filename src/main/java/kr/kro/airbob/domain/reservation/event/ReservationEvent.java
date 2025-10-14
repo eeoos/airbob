@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.event;
 
+import java.time.LocalDate;
+
 import kr.kro.airbob.outbox.EventPayload;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -36,6 +38,28 @@ public class ReservationEvent {
 		@Override
 		public String getId() {
 			return this.reservationUid;
+		}
+	}
+
+	public record ReservationConfirmedEvent(
+		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate
+	) implements EventPayload {
+		@Override
+		public String getId() {
+			return accommodationId.toString();
+		}
+	}
+
+	public record ReservationExpiredEvent(
+		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate
+	) implements EventPayload {
+		@Override
+		public String getId() {
+			return accommodationId.toString();
 		}
 	}
 }
