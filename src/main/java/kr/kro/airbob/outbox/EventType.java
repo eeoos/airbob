@@ -24,6 +24,10 @@ public enum EventType {
 	PAYMENT_FAILED("PAYMENT", "payment-events"),
 	PAYMENT_CANCELLATION_FAILED("PAYMENT", "payment-events"),
 
+	PG_CALL_REQUESTED("PAYMENT", "payment-events"),       // PG API 호출 요청
+	PG_CALL_SUCCEEDED("PAYMENT", "payment-events"),       // PG API 호출 성공
+	PG_CALL_FAILED("PAYMENT", "payment-events"), // PG API 호출 실패
+
 	// 숙소 색인 이벤트
 	ACCOMMODATION_CREATED("ACCOMMODATION", "accommodation-events"),
 	ACCOMMODATION_UPDATED("ACCOMMODATION", "accommodation-events"),
