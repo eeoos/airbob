@@ -62,4 +62,14 @@ public class ReservationEvent {
 			return accommodationId.toString();
 		}
 	}
+
+	public record ReservationCancellationRevertRequestedEvent(
+		String reservationUid,
+		String reason
+	) implements EventPayload {
+		@Override
+		public String getId() {
+			return this.reservationUid;
+		}
+	}
 }

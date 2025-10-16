@@ -10,6 +10,7 @@ import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,5 +66,9 @@ public class ReservationService {
 
 	public void expireReservation(PaymentEvent.PaymentFailedEvent event) {
 		transactionService.expireReservationInTx(event.reservationUid(), event.reason());
+	}
+
+	public void revertCancellation(ReservationEvent.ReservationCancellationRevertRequestedEvent event) {
+		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
 	}
 }

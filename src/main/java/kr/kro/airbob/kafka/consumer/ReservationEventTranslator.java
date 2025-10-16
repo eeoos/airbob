@@ -1,7 +1,5 @@
 package kr.kro.airbob.kafka.consumer;
 
-import java.io.IOException;
-
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -25,7 +23,7 @@ public class ReservationEventTranslator {
 	private final DebeziumEventParser debeziumEventParser;
 	private final OutboxEventPublisher outboxEventPublisher;
 
-	@KafkaListener(topics = "RESERVATION.events", groupId = "translator-group")
+	@KafkaListener(topics = "RESERVATION.events", groupId = "reservation-translator-group")
 	public void translateReservationEvents(@Payload String message, Acknowledgment ack) {
 		try {
 			String eventType = debeziumEventParser.getEventType(message);
@@ -35,15 +33,16 @@ public class ReservationEventTranslator {
 					debeziumEventParser.parse(message, ReservationEvent.ReservationCancelledEvent.class);
 				ReservationEvent.ReservationCancelledEvent payload = envelope.payload();
 
+				// PG 취소 API 호출 이벤트 발행
 				outboxEventPublisher.save(
-					EventType.PAYMENT_CANCELLATION_REQUESTED,
+					EventType.PG_CANCEL_CALL_REQUESTED,
 					new PaymentEvent.PaymentCancellationRequestedEvent(
 						payload.reservationUid(),
 						payload.cancelReason(),
 						payload.cancelAmount()
 					)
 				);
-				log.info("[TRANSLATOR] RESERVATION_CANCELLED -> PAYMENT_CANCELLATION_REQUESTED 발행. UID: {}", payload.reservationUid());
+				log.info("[TRANSLATOR] RESERVATION_CANCELLED -> PG_CANCEL_CALL_REQUESTED 발행. UID: {}", payload.reservationUid());
 			}
 			ack.acknowledge();
 		} catch (DebeziumEventParsingException e) {
@@ -54,5 +53,4 @@ public class ReservationEventTranslator {
 			throw e; // Kafka ErrorHandler 재시도 및 DLQ 전송
 		}
 	}
-
 }

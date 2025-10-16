@@ -55,6 +55,12 @@ public class ReservationEventsConsumer {
 					reservationHoldService.removeHold(event.accommodationId(), event.checkInDate(), event.checkOutDate());
 					log.info("[KAFKA] 예약 만료 완료. Redis 홀드 제거. Accommodation ID={}", event.accommodationId());
 				}
+				case RESERVATION_CANCELLATION_REVERT_REQUESTED -> {
+					EventEnvelope<ReservationEvent.ReservationCancellationRevertRequestedEvent> envelope =
+						debeziumEventParser.parse(message, ReservationEvent.ReservationCancellationRevertRequestedEvent.class);
+					ReservationEvent.ReservationCancellationRevertRequestedEvent event = envelope.payload();
+					reservationService.revertCancellation(event);
+				}
 				/*case RESERVATION_PENDING -> {
 					// 추후 알림과 같은 기능 생기면 로직 추가
 				}*/

@@ -16,6 +16,7 @@ public enum EventType {
 	RESERVATION_EXPIRED("RESERVATION", "reservation-events"),   // 예약 만료 완료
 	RESERVATION_PENDING("RESERVATION", "reservation-events"), // 예약 보류
 	RESERVATION_CANCELLED("RESERVATION", "reservation-events"), // 예약 취소
+	RESERVATION_CANCELLATION_REVERT_REQUESTED("RESERVATION", "reservation-events"), // 예약 취소 실패 보상 요청
 
 	// 결제 이벤트
 	PAYMENT_CONFIRM_REQUESTED("PAYMENT", "payment-events"), // 결제 승인 요청
@@ -27,6 +28,10 @@ public enum EventType {
 	PG_CALL_REQUESTED("PAYMENT", "payment-events"),       // PG API 호출 요청
 	PG_CALL_SUCCEEDED("PAYMENT", "payment-events"),       // PG API 호출 성공
 	PG_CALL_FAILED("PAYMENT", "payment-events"), // PG API 호출 실패
+
+	PG_CANCEL_CALL_REQUESTED("PAYMENT", "payment-events"),   // PG 취소 API 호출 요청
+	PG_CANCEL_CALL_SUCCEEDED("PAYMENT", "payment-events"),   // PG 취소 API 호출 성공
+	PG_CANCEL_CALL_FAILED("PAYMENT", "payment-events"),      // PG 취소 API 호출 실패
 
 	// 숙소 색인 이벤트
 	ACCOMMODATION_CREATED("ACCOMMODATION", "accommodation-events"),

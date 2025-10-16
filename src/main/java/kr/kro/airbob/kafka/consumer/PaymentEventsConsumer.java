@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
-import kr.kro.airbob.domain.payment.service.PaymentCancellationService;
-import kr.kro.airbob.domain.payment.service.PaymentConfirmationService;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationProcessor;
+import kr.kro.airbob.domain.payment.service.PaymentConfirmationProcessor;
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventEnvelope;
 import kr.kro.airbob.outbox.EventType;
@@ -22,11 +22,10 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PaymentEventsConsumer {
 
-	private final PaymentCancellationService paymentCancellationService;
-	private final PaymentConfirmationService paymentConfirmationService;
 	private final DebeziumEventParser debeziumEventParser;
 	private final OutboxEventPublisher outboxEventPublisher;
-
+	private final PaymentConfirmationProcessor confirmationProcessor;
+	private final PaymentCancellationProcessor cancellationProcessor;
 	@KafkaListener(topics = "PAYMENT.events", groupId = "payment-group")
 	public void handlePaymentEvents(@Payload String message, Acknowledgment ack) {
 		try {
@@ -36,30 +35,32 @@ public class PaymentEventsConsumer {
 				case PAYMENT_CONFIRM_REQUESTED -> {
 					EventEnvelope<PaymentRequest.Confirm> envelope =
 						debeziumEventParser.parse(message, PaymentRequest.Confirm.class);
-					paymentConfirmationService.processPaymentConfirmation(envelope.payload());
-				}
-				case PAYMENT_COMPLETED -> {
-					EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope =
-						debeziumEventParser.parse(message, PaymentEvent.PaymentCompletedEvent.class);
+
 					outboxEventPublisher.save(
-						EventType.RESERVATION_CONFIRM_REQUESTED,
+						EventType.PG_CALL_REQUESTED,
 						envelope.payload()
 					);
-					log.info("[KAFKA] 결제 완료. 예약 확정 요청 이벤트 발행. UID={}", envelope.payload().reservationUid());
+					log.info("[KAFKA] PG사 결제 승인 API 호출 요청 이벤트 발행. Order ID={}", envelope.payload().orderId());
 				}
-				case PAYMENT_FAILED -> {
-					EventEnvelope<PaymentEvent.PaymentFailedEvent> envelope =
-						debeziumEventParser.parse(message, PaymentEvent.PaymentFailedEvent.class);
-					outboxEventPublisher.save(
-						EventType.RESERVATION_EXPIRE_REQUESTED,
-						envelope.payload()
-					);
-					log.info("[KAFKA] 결제 실패. 예약 만료 요청 이벤트 발행. UID={}", envelope.payload().reservationUid());
+				case PG_CALL_SUCCEEDED -> {
+					EventEnvelope<PaymentEvent.PgCallSucceededEvent> envelope =
+						debeziumEventParser.parse(message, PaymentEvent.PgCallSucceededEvent.class);
+					confirmationProcessor.processSuccess(envelope.payload());
 				}
-				case PAYMENT_CANCELLATION_REQUESTED -> {
-					EventEnvelope<PaymentEvent.PaymentCancellationRequestedEvent> envelope =
-						debeziumEventParser.parse(message, PaymentEvent.PaymentCancellationRequestedEvent.class);
-					paymentCancellationService.process(envelope.payload());
+				case PG_CALL_FAILED -> {
+					EventEnvelope<PaymentEvent.PgCallFailedEvent> envelope =
+						debeziumEventParser.parse(message, PaymentEvent.PgCallFailedEvent.class);
+					confirmationProcessor.processFailure(envelope.payload());
+				}
+				case PG_CANCEL_CALL_SUCCEEDED -> {
+					EventEnvelope<PaymentEvent.PgCancelCallSucceededEvent> envelope =
+						debeziumEventParser.parse(message, PaymentEvent.PgCancelCallSucceededEvent.class);
+					cancellationProcessor.processSuccess(envelope.payload());
+				}
+				case PG_CANCEL_CALL_FAILED -> {
+					EventEnvelope<PaymentEvent.PgCancelCallFailedEvent> envelope =
+						debeziumEventParser.parse(message, PaymentEvent.PgCancelCallFailedEvent.class);
+					cancellationProcessor.processFailure(envelope.payload());
 				}
 				default -> log.warn("[KAFKA-SKIP] 알 수 없는 결제 이벤트 타입: {}", eventType);
 			}

@@ -193,6 +193,32 @@ public class ReservationTransactionService {
 		log.info("[결제 실패 확인] 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), reason);
 	}
 
+	@Transactional
+	public void revertCancellationInTx(String reservationUid, String reason) {
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		// 이미 CANCELLATION_FAILED 상태라면 중복 처리 방지
+		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED) {
+			log.warn("[보상-SKIP] 이미 취소 실패 처리된 예약입니다. UID: {}", reservationUid);
+			return;
+		}
+
+		ReservationStatus previousStatus = reservation.getStatus();
+		reservation.failCancellation();
+
+		historyRepository.save(ReservationStatusHistory.builder()
+			.reservation(reservation)
+			.previousStatus(previousStatus)
+			.newStatus(ReservationStatus.CANCELLATION_FAILED)
+			.changedBy(KAFKA_CONSUMER)
+			.reason("결제 취소 실패 보상 트랜잭션: " + reason)
+			.build()
+		);
+
+		log.info("[보상-SUCCESS] 예약 취소 실패 보상 처리 완료. 예약 상태 CANCELLATION_FAILED로 변경. UID: {}", reservationUid);
+	}
+
 	public Reservation findByReservationUidNullable(String reservationUid) {
 		return reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElse(null);
