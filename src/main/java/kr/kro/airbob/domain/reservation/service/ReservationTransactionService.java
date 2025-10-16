@@ -48,8 +48,8 @@ public class ReservationTransactionService {
 	private final ReservationStatusHistoryRepository historyRepository;
 
 	@Transactional
-	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String changedBy,
-		String reason) {
+	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
+		String changedBy = "USER_ID:" + memberId;
 
 		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
@@ -88,7 +88,9 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional
-	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, String changedBy, Long memberId) {
+	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
+		String changedBy = "USER_ID:" + memberId;
+
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 

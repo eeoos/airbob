@@ -27,8 +27,6 @@ public class ReservationService {
 
 	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
 
-		String changedBy = "USER_ID:" + memberId;
-
 		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
 			throw new ReservationLockException();
 		}
@@ -41,7 +39,6 @@ public class ReservationService {
 			Reservation pendingReservation = transactionService.createPendingReservationInTx(
 				request,
 				memberId,
-				changedBy,
 				"사용자 예약 생성"
 			);
 
@@ -54,10 +51,7 @@ public class ReservationService {
 	}
 
 	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
-
-		String changedBy = "USER_ID:" + memberId;
-
-		transactionService.cancelReservationInTx(reservationUid, request, changedBy, memberId);
+		transactionService.cancelReservationInTx(reservationUid, request, memberId);
 	}
 
 	public void confirmReservation(PaymentEvent.PaymentCompletedEvent event) {
