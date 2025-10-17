@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.event;
+package kr.kro.airbob.domain.event.repository;
 
 import kr.kro.airbob.domain.event.entity.EventParticipant;
 import org.springframework.data.jpa.repository.JpaRepository;

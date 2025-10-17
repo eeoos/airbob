@@ -48,8 +48,8 @@ public class ReservationTransactionService {
 	private final ReservationStatusHistoryRepository historyRepository;
 
 	@Transactional
-	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String changedBy,
-		String reason, Runnable afterCommitTask) {
+	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
+		String changedBy = "USER_ID:" + memberId;
 
 		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
@@ -73,21 +73,24 @@ public class ReservationTransactionService {
 			.reason(reason)
 			.build());
 
-		if (afterCommitTask != null) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					afterCommitTask.run();
-				}
-			});
-		}
+		// SAGA 시작 이벤트 발행
+		outboxEventPublisher.save(
+			EventType.RESERVATION_PENDING,
+			new ReservationEvent.ReservationPendingEvent(
+				pendingReservation.getTotalPrice(),
+				null, // 이 시점에는 paymentKey X
+				pendingReservation.getReservationUid().toString()
+			)
+		);
 
 		log.info("예약 ID {} (UID: {}) PENDING 상태로 DB 저장 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
 		return pendingReservation;
 	}
 
 	@Transactional
-	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, String changedBy, Long memberId) {
+	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
+		String changedBy = "USER_ID:" + memberId;
+
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
@@ -118,18 +121,13 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional
-	public void confirmReservationInTx(String reservationUid, Runnable afterCommitTask) {
+	public void confirmReservationInTx(String reservationUid) {
 
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
 		if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
 			log.info("[결제 성공 확인] 이미 확정 처리된 예약: {}", reservation.getId());
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override public void afterCommit() {
-					if (afterCommitTask != null) afterCommitTask.run();
-				}
-			});
 			return;
 		}
 
@@ -145,36 +143,32 @@ public class ReservationTransactionService {
 			.build());
 
 		outboxEventPublisher.save(
+			EventType.RESERVATION_CONFIRMED,
+			new ReservationEvent.ReservationConfirmedEvent(
+				reservation.getAccommodation().getId(),
+				reservation.getCheckIn().toLocalDate(),
+				reservation.getCheckOut().toLocalDate()
+			)
+		);
+
+		// es 색인
+		outboxEventPublisher.save(
 			EventType.RESERVATION_CHANGED,
 			new AccommodationIndexingEvents.ReservationChangedEvent(
 				reservation.getAccommodation().getAccommodationUid().toString()
 			)
 		);
 
-		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override
-			public void afterCommit() {
-				if (afterCommitTask != null) {
-					afterCommitTask.run();
-				}
-			}
-		});
-
-		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED)", reservation.getId());
+		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED) 및 이벤트 발행 완료", reservation.getId());
 	}
 
 	@Transactional
-	public void expireReservationInTx(String reservationUid, String reason, Runnable afterCommitTask) {
+	public void expireReservationInTx(String reservationUid, String reason) {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
 		if (reservation.getStatus() == ReservationStatus.EXPIRED) {
 			log.info("[결제 실패 확인] 이미 만료 처리된 예약: {}", reservation.getId());
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override public void afterCommit() {
-					if (afterCommitTask != null) afterCommitTask.run();
-				}
-			});
 			return;
 		}
 
@@ -189,16 +183,42 @@ public class ReservationTransactionService {
 			.reason(reason)
 			.build());
 
-		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override
-			public void afterCommit() {
-				if (afterCommitTask != null) {
-					afterCommitTask.run();
-				}
-			}
-		});
+		outboxEventPublisher.save(
+			EventType.RESERVATION_EXPIRED,
+			new ReservationEvent.ReservationExpiredEvent(
+				reservation.getAccommodation().getId(),
+				reservation.getCheckIn().toLocalDate(),
+				reservation.getCheckOut().toLocalDate()
+			)
+		);
 
 		log.info("[결제 실패 확인] 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), reason);
+	}
+
+	@Transactional
+	public void revertCancellationInTx(String reservationUid, String reason) {
+		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElseThrow(ReservationNotFoundException::new);
+
+		// 이미 CANCELLATION_FAILED 상태라면 중복 처리 방지
+		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED) {
+			log.warn("[보상-SKIP] 이미 취소 실패 처리된 예약입니다. UID: {}", reservationUid);
+			return;
+		}
+
+		ReservationStatus previousStatus = reservation.getStatus();
+		reservation.failCancellation();
+
+		historyRepository.save(ReservationStatusHistory.builder()
+			.reservation(reservation)
+			.previousStatus(previousStatus)
+			.newStatus(ReservationStatus.CANCELLATION_FAILED)
+			.changedBy(KAFKA_CONSUMER)
+			.reason("결제 취소 실패 보상 트랜잭션: " + reason)
+			.build()
+		);
+
+		log.info("[보상-SUCCESS] 예약 취소 실패 보상 처리 완료. 예약 상태 CANCELLATION_FAILED로 변경. UID: {}", reservationUid);
 	}
 
 	public Reservation findByReservationUidNullable(String reservationUid) {

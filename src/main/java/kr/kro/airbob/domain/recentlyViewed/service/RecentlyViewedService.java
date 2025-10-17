@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.recentlyViewed;
+package kr.kro.airbob.domain.recentlyViewed.service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -16,7 +16,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
@@ -62,14 +61,14 @@ public class RecentlyViewedService {
 		redisTemplate.opsForZSet().remove(key, accommodationId.toString());
 	}
 
-	public AccommodationResponse.RecentlyViewedAccommodations getRecentlyViewed(Long memberId) {
+	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewed(Long memberId) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 
 		Set<ZSetOperations.TypedTuple<String>> recentlyViewedWithScores = redisTemplate.opsForZSet()
 			.reverseRangeWithScores(key, 0, -1);
 
 		if (recentlyViewedWithScores == null || recentlyViewedWithScores.isEmpty()) {
-			return AccommodationResponse.RecentlyViewedAccommodations.builder()
+			return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
 				.accommodations(new ArrayList<>())
 				.totalCount(0)
 				.build();
@@ -101,7 +100,7 @@ public class RecentlyViewedService {
 		Map<Long, List<AccommodationResponse.AmenityInfoResponse>> amenityMap = getAmenityMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
-		List<AccommodationResponse.RecentlyViewedAccommodation> recentlyViewedAccommodations = recentlyViewedWithScores.stream()
+		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
 			.map(tuple -> {
 				Long accommodationId = Long.parseLong(tuple.getValue());
 				Accommodation accommodation = accommodationMap.get(accommodationId);
@@ -114,7 +113,7 @@ public class RecentlyViewedService {
 					.atZone(ZoneId.systemDefault())
 					.toLocalDateTime();
 
-				return AccommodationResponse.RecentlyViewedAccommodation.builder()
+				return AccommodationResponse.RecentlyViewedAccommodationInfo.builder()
 					.viewedAt(viewAt)
 					.accommodationId(accommodationId)
 					.accommodationName(accommodation.getName())
@@ -127,9 +126,9 @@ public class RecentlyViewedService {
 			.filter(Objects::nonNull)
 			.toList();
 
-		return AccommodationResponse.RecentlyViewedAccommodations.builder()
-			.accommodations(recentlyViewedAccommodations)
-			.totalCount(recentlyViewedAccommodations.size())
+		return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
+			.accommodations(recentlyViewedAccommodationInfos)
+			.totalCount(recentlyViewedAccommodationInfos.size())
 			.build();
 	}
 

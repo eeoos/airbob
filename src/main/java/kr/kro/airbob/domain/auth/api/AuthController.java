@@ -1,8 +1,9 @@
-package kr.kro.airbob.domain.auth;
+package kr.kro.airbob.domain.auth.api;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.auth.dto.AuthRequestDto.LoginRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -11,7 +12,6 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController

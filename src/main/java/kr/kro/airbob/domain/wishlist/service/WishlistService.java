@@ -1,6 +1,5 @@
 package kr.kro.airbob.domain.wishlist.service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +10,6 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -28,8 +26,6 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
@@ -144,7 +140,7 @@ public class WishlistService {
 		WishlistAccommodationRequest.Create request, Long memberId) {
 		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
-		Accommodation accommodation = findAccommodationById(request.accommodationId());
+		Accommodation accommodation = findAccommodationByIdAndStatus(request.accommodationId());
 		validateWishlistAccommodationDuplicate(wishlistId, accommodation.getId());
 
 
@@ -256,15 +252,11 @@ public class WishlistService {
 			));
 	}
 
-	private Wishlist findWishlistById(Long wishlistId) {
-		return wishlistRepository.findByIdAndStatus(wishlistId, WishlistStatus.ACTIVE).orElseThrow(WishlistNotFoundException::new);
-	}
-
 	private Member findMemberById(Long loggedInMemberId) {
 		return memberRepository.findByIdAndStatus(loggedInMemberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
-	private Accommodation findAccommodationById(Long accommodationId) {
+	private Accommodation findAccommodationByIdAndStatus(Long accommodationId) {
 		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 

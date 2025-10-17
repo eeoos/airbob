@@ -38,8 +38,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			"/api/v1/members/wishlists/*",
 			"/api/v1/members/recently-viewed",
 			"/api/v1/members/recently-viewed/*",
+			"/api/v1/reservations/accommodations",
 			"/api/v1/reservations/accommodations/*",
-			"/api/v1/reservations"
+			"/api/v1/reservations",
+			"/api/v1/reservations/*"
 			);
 		bean.setOrder(1);
 		return bean;

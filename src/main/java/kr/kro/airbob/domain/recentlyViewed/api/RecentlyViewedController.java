@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.recentlyViewed;
+package kr.kro.airbob.domain.recentlyViewed.api;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,9 +39,9 @@ public class RecentlyViewedController {
 	}
 
 	@GetMapping("/v1/members/recently-viewed")
-	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodations>> getRecentlyViewed() {
+	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed() {
 		Long memberId = UserContext.get().id();
-		AccommodationResponse.RecentlyViewedAccommodations response =
+		AccommodationResponse.RecentlyViewedAccommodationInfos response =
 			recentlyViewedService.getRecentlyViewed(memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 

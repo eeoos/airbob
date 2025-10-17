@@ -8,13 +8,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AccommodationSearchConditionDto;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.CreateAccommodationDto;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.AccommodationSearchResponseDto;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
@@ -35,7 +34,6 @@ import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -134,6 +132,12 @@ public class AccommodationService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public AccommodationResponse.AccommodationInfo findAccommodation(Long accommodationId) {
+        Accommodation accommodation = findAccommodationById(accommodationId);
+        return new AccommodationResponse.AccommodationInfo(accommodation.getId());
+    }
+
     private void validateOwner(Long memberId, Accommodation accommodation) {
         if (!accommodation.getMember().getId().equals(memberId)) {
             throw new AccommodationAccessDeniedException();
@@ -177,4 +181,7 @@ public class AccommodationService {
         return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
     }
 
+    private Accommodation findAccommodationByIdAndStatus(Long accommodationId, AccommodationStatus status) {
+        return accommodationRepository.findByIdAndStatus(accommodationId, status).orElseThrow(AccommodationNotFoundException::new);
+    }
 }

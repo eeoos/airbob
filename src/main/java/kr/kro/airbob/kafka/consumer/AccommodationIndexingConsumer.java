@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.outbox.DebeziumEventParser;
+import kr.kro.airbob.outbox.EventEnvelope;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.exception.DebeziumEventParsingException;
 import kr.kro.airbob.search.event.AccommodationIndexingEvents.AccommodationCreatedEvent;
@@ -29,46 +30,44 @@ public class AccommodationIndexingConsumer {
 
 	@KafkaListener(topics = "ACCOMMODATION.events", groupId = "indexing-group")
 	@Transactional(readOnly = true)
-	public void handleAccommodationEvents(@Payload String payloadJson, @Header("eventType") String eventType, Acknowledgment ack) {
-
-		eventType = eventType.replace("\"", "");
-		log.info("[KAFKA-CONSUME] Accommodation Indexing Event 수신: type={}, message={}", eventType, payloadJson);
+	public void handleAccommodationEvents(@Payload String message, Acknowledgment ack) {
+		log.info("[KAFKA-CONSUME] Accommodation Indexing Event 수신: message={}", message);
 
 		try {
-			// 이벤트 타입에 따른 해당 색인 서비스 호출
+			String eventType = debeziumEventParser.getEventType(message);
+
 			switch (EventType.from(eventType)) {
 				case ACCOMMODATION_CREATED -> {
-					var event = debeziumEventParser.deserialize(payloadJson, AccommodationCreatedEvent.class);
-					indexingService.indexNewAccommodation(event);
+					EventEnvelope<AccommodationCreatedEvent> envelope = debeziumEventParser.parse(message, AccommodationCreatedEvent.class);
+					indexingService.indexNewAccommodation(envelope.payload());
 				}
 				case ACCOMMODATION_UPDATED -> {
-					var event = debeziumEventParser.deserialize(payloadJson, AccommodationUpdatedEvent.class);
-					indexingService.updateAccommodationIndex(event);
+					EventEnvelope<AccommodationUpdatedEvent> envelope = debeziumEventParser.parse(message, AccommodationUpdatedEvent.class);
+					indexingService.updateAccommodationIndex(envelope.payload());
 				}
 				case ACCOMMODATION_DELETED -> {
-					var event = debeziumEventParser.deserialize(payloadJson, AccommodationDeletedEvent.class);
-					indexingService.deleteAccommodationIndex(event);
+					EventEnvelope<AccommodationDeletedEvent> envelope = debeziumEventParser.parse(message, AccommodationDeletedEvent.class);
+					indexingService.deleteAccommodationIndex(envelope.payload());
 				}
 				case REVIEW_SUMMARY_CHANGED -> {
-					var event = debeziumEventParser.deserialize(payloadJson, ReviewSummaryChangedEvent.class);
-					indexingService.updateReviewSummaryInIndex(event);
+					EventEnvelope<ReviewSummaryChangedEvent> envelope = debeziumEventParser.parse(message, ReviewSummaryChangedEvent.class);
+					indexingService.updateReviewSummaryInIndex(envelope.payload());
 				}
 				case RESERVATION_CHANGED -> {
-					var event = debeziumEventParser.deserialize(payloadJson, ReservationChangedEvent.class);
-					indexingService.updateReservedDatesInIndex(event);
+					EventEnvelope<ReservationChangedEvent> envelope = debeziumEventParser.parse(message, ReservationChangedEvent.class);
+					indexingService.updateReservedDatesInIndex(envelope.payload());
 				}
 				default -> log.warn("알 수 없는 색인 이벤트 타입입니다: {}", eventType);
 			}
 
-			// 모든 작업이 성공적으로 끝나면 Kafka에 메시지 처리 완료 알림
 			ack.acknowledge();
 			log.info("[KAFKA-ACK] ES 색인 작업 성공. Offset 커밋. EventType: {}", eventType);
 
 		} catch (DebeziumEventParsingException e) {
-			log.error("[INDEX-POISON][DEBEZIUM] 메시지 파싱 실패 - 재시도 불필요: {}", payloadJson, e);
+			log.error("[INDEX-POISON][DEBEZIUM] 메시지 파싱 실패 - 재시도 불필요: {}", message, e);
 			ack.acknowledge();
 		} catch (IllegalArgumentException e) {
-			log.error("[INDEX-POISON][FIELD] 필드 형식 불일치(UUID/enum 변환 실패 등) - 재시도 불필요: {}", payloadJson, e);
+			log.error("[INDEX-POISON][FIELD] 필드 형식 불일치(UUID/enum 변환 실패 등) - 재시도 불필요: {}", message, e);
 			ack.acknowledge();
 		} catch (Exception e) {
 			log.error("[INDEX-NACK] 인덱싱 처리 중 예외 발생 - 재시도 예정", e);

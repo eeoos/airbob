@@ -1,11 +1,8 @@
 package kr.kro.airbob.outbox;
 
-import java.time.LocalDateTime;
-
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import kr.kro.airbob.outbox.entity.Outbox;
 import kr.kro.airbob.outbox.exception.OutboxEventPublishingException;
@@ -23,10 +20,15 @@ public class OutboxEventPublisher {
 
 	public void save(EventType eventType, EventPayload payload) {
 		try {
-			String serializedPayload = objectMapper.writeValueAsString(payload);
+			EventEnvelope<?> envelope = EventEnvelope.of(eventType, payload);
+			String serializedEnvelope = objectMapper.writeValueAsString(envelope);
 
-			Outbox outboxEvent = Outbox.create(eventType.getAggregateType(), payload.getId(), eventType.name(),
-				serializedPayload);
+			Outbox outboxEvent = Outbox.create(
+				eventType.getAggregateType(),
+				payload.getId(),
+				eventType.name(),
+				serializedEnvelope
+			);
 
 			outboxRepository.save(outboxEvent);
 		} catch (Exception e) {
