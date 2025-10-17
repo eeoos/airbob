@@ -1,14 +1,13 @@
-package kr.kro.airbob.domain.discountPolicy;
+package kr.kro.airbob.domain.discountPolicy.api;
 
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.discountPolicy.service.DiscountPolicyService;
 import kr.kro.airbob.domain.discountPolicy.dto.DiscountPolicyRequest;
 import kr.kro.airbob.domain.discountPolicy.dto.DiscountPolicyResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor

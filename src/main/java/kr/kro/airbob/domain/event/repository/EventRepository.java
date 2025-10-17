@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.event;
+package kr.kro.airbob.domain.event.repository;
 
 import jakarta.persistence.LockModeType;
 import java.util.Optional;

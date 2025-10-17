@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.auth;
+package kr.kro.airbob.domain.auth.repository;
 
 import java.time.Duration;
 import java.util.Optional;

@@ -58,7 +58,6 @@ class ReservationConcurrencyTest {
 	private AddressRepository addressRepository;
 	@Autowired
 	private OccupancyPolicyRepository occupancyPolicyRepository;
-	// [핵심] 자식 테이블인 History Repository 주입
 	@Autowired
 	private ReservationStatusHistoryRepository historyRepository;
 
@@ -94,7 +93,6 @@ class ReservationConcurrencyTest {
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
 
-		// [핵심] 빠져있던 Elasticsearch 주소 설정 추가
 		registry.add("spring.elasticsearch.uris", () -> "http://" + elasticsearchContainer.getHost() + ":" + elasticsearchContainer.getMappedPort(9200));
 
 		registry.add("spring.kafka.consumer.enabled", () -> "false");
@@ -105,7 +103,6 @@ class ReservationConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		// [핵심] 참조 무결성을 위해 자식 테이블부터 삭제
 		historyRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
@@ -130,7 +127,6 @@ class ReservationConcurrencyTest {
 
 	@AfterEach
 	void tearDown() {
-		// [핵심] 참조 무결성을 위해 자식 테이블부터 삭제
 		historyRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();

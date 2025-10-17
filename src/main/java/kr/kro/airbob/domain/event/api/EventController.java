@@ -1,10 +1,11 @@
-package kr.kro.airbob.domain.event;
+package kr.kro.airbob.domain.event.api;
 
 import static kr.kro.airbob.domain.event.common.ApplyResult.DUPLICATE;
 import static kr.kro.airbob.domain.event.common.ApplyResult.FULL;
 import static kr.kro.airbob.domain.event.common.ApplyResult.SUCCESS;
 
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.event.service.EventService;
 import kr.kro.airbob.domain.event.common.ApplyResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

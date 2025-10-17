@@ -1,8 +1,10 @@
-package kr.kro.airbob.domain.event;
+package kr.kro.airbob.domain.event.service;
 
 import java.time.LocalDateTime;
 import kr.kro.airbob.domain.event.entity.Event;
 import kr.kro.airbob.domain.event.entity.EventParticipant;
+import kr.kro.airbob.domain.event.repository.EventParticipantRepository;
+import kr.kro.airbob.domain.event.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

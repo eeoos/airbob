@@ -1,11 +1,9 @@
-package kr.kro.airbob.domain.event;
+package kr.kro.airbob.domain.event.service;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import kr.kro.airbob.domain.event.common.ApplyResult;
-import kr.kro.airbob.domain.event.entity.Event;
-import kr.kro.airbob.domain.event.entity.EventParticipant;
+import kr.kro.airbob.domain.event.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;

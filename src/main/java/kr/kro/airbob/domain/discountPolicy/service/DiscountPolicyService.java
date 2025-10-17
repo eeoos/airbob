@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.discountPolicy;
+package kr.kro.airbob.domain.discountPolicy.service;
 
 import java.util.List;
 
