@@ -41,7 +41,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			"/api/v1/reservations/accommodations",
 			"/api/v1/reservations/accommodations/*",
 			"/api/v1/reservations",
-			"/api/v1/reservations/*"
+			"/api/v1/reservations/*",
+			"/v1/my/accommodations"
 			);
 		bean.setOrder(1);
 		return bean;

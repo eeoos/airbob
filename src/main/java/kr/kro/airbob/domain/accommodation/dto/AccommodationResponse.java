@@ -6,14 +6,37 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.Builder;
 
 public class AccommodationResponse {
 
 	public record Create(long id) {
+	}
+
+	@Builder
+	public record MyAccommodationInfo(
+		Long id,
+		String name,
+		String thumbnailUrl,
+		AccommodationStatus status,
+		String location,
+		Integer basePrice,
+		ReviewResponse.ReviewSummary reviewSummary,
+		LocalDateTime createdAt
+	) {
+	}
+
+	@Builder
+	public record MyAccommodationInfos(
+		List<MyAccommodationInfo> accommodations,
+		CursorResponse.PageInfo pageInfo
+	) {
+
 	}
 
 	@Builder

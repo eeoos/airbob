@@ -15,6 +15,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.cursor.annotation.CursorParam;
+import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
@@ -67,9 +69,11 @@ public class AccommodationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping("/v1/accommodations/my-listings")
-    public ResponseEntity<ApiResponse<AccommodationResponse.AccommodationInfos>> getMyAccommodations() {
-        // 무한 스크롤
+    @GetMapping("/v1/my/accommodations")
+    public ResponseEntity<ApiResponse<AccommodationResponse.MyAccommodationInfos>> getMyAccommodations(
+        @CursorParam CursorRequest.CursorPageRequest request) {
+        Long memberId = UserContext.get().id();
+        return ResponseEntity.ok(ApiResponse.success(accommodationService.findMyAccommodations(memberId, request)));
     }
 }
 

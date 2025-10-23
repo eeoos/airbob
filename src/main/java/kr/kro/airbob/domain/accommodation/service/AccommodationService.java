@@ -4,15 +4,25 @@ import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
@@ -35,8 +45,8 @@ import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.image.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -48,9 +58,6 @@ import kr.kro.airbob.geo.dto.GeocodeResult;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -67,6 +74,7 @@ public class AccommodationService {
     private final AddressRepository addressRepository;
     private final MemberRepository memberRepository;
 
+    private final CursorPageInfoCreator cursorPageInfoCreator;
     private final OutboxEventPublisher outboxEventPublisher;
     private final GeocodingService geocodingService;
 
@@ -214,6 +222,70 @@ public class AccommodationService {
             .unavailableDates(unavailableDates)
             .isInWishlist(isInWishlist)
             .build();
+    }
+
+    @Transactional(readOnly = true)
+    public AccommodationResponse.MyAccommodationInfos findMyAccommodations(Long hostId, CursorRequest.CursorPageRequest cursorRequest) {
+        Slice<Accommodation> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
+            hostId,
+            cursorRequest.lastId(),
+            cursorRequest.lastCreatedAt(),
+            PageRequest.of(0, cursorRequest.size())
+        );
+
+        List<Accommodation> accommodations = accommodationSlice.getContent();
+        if (accommodations.isEmpty()) {
+            CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
+                Collections.emptyList(), false, acc -> 0L, acc -> null
+            );
+            return AccommodationResponse.MyAccommodationInfos.builder()
+                .accommodations(Collections.emptyList())
+                .pageInfo(pageInfo)
+                .build();
+        }
+
+        List<Long> accommodationIds = accommodations.stream()
+            .map(Accommodation::getId)
+            .toList();
+        Map<Long, AccommodationReviewSummary> reviewSummaryMap = reviewSummaryRepository.findByAccommodationIdIn(
+                accommodationIds)
+            .stream()
+            .collect(Collectors.toMap(AccommodationReviewSummary::getAccommodationId, Function.identity()));
+
+        List<AccommodationResponse.MyAccommodationInfo> accommodationInfos = accommodations.stream()
+            .map(acc -> {
+                Address address = acc.getAddress();
+                AccommodationReviewSummary reviewSummary = reviewSummaryMap.get(acc.getId());
+                String location = (address.getCity() != null ? address.getCity() : "") +
+                    (address.getDistrict() != null ? " " + address.getDistrict() : "");
+
+                ReviewResponse.ReviewSummary reviewSummaryDto = ReviewResponse.ReviewSummary.of(reviewSummary);
+
+                return AccommodationResponse.MyAccommodationInfo.builder()
+                    .id(acc.getId())
+                    .name(acc.getName())
+                    .thumbnailUrl(acc.getThumbnailUrl())
+                    .status(acc.getStatus())
+                    .location(location.trim())
+                    .basePrice(acc.getBasePrice())
+                    .reviewSummary(reviewSummaryDto)
+                    .createdAt(acc.getCreatedAt())
+                    .build();
+
+            }).toList();
+
+        CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
+            accommodations,
+            accommodationSlice.hasNext(),
+            Accommodation::getId,
+            Accommodation::getCreatedAt
+        );
+
+        return AccommodationResponse.MyAccommodationInfos.builder()
+            .accommodations(accommodationInfos)
+            .pageInfo(pageInfo)
+            .build();
+
     }
 
     private List<AccommodationResponse.AmenityInfo> getAmenities(Long accommodationId) {
