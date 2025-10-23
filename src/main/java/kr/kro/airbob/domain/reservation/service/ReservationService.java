@@ -5,6 +5,7 @@ import java.util.List;
 import org.redisson.api.RLock;
 import org.springframework.stereotype.Service;
 
+import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -64,5 +65,9 @@ public class ReservationService {
 
 	public void revertCancellation(ReservationEvent.ReservationCancellationRevertRequestedEvent event) {
 		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
+	}
+
+	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest) {
+		return transactionService.findMyReservations(memberId, cursorRequest);
 	}
 }

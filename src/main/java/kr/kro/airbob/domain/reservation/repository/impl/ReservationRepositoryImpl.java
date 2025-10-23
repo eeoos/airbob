@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.repository.impl;
 
+import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
+import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
@@ -7,6 +9,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
+
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -59,6 +66,40 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				reservation.checkOut.goe(LocalDateTime.now()) // 체크아웃 날짜가 오늘 이후인 것
 			)
 			.fetch();
+	}
+
+	@Override
+	public Slice<Reservation> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
+		LocalDateTime lastCreatedAt, Pageable pageable) {
+
+		List<Reservation> content = queryFactory
+			.selectFrom(reservation)
+			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
+			.leftJoin(accommodation.address, address).fetchJoin()
+			.where(
+				reservation.guest.id.eq(guestId),
+				cursorCondition(lastId, lastCreatedAt)
+			)
+			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
+			.limit(pageable.getPageSize() + 1)
+			.fetch();
+
+		boolean hasNext = content.size() > pageable.getPageSize();
+		if (hasNext) {
+			content.remove(pageable.getPageSize());
+		}
+
+		return new SliceImpl<>(content, pageable, hasNext);
+	}
+
+	private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {
+		if (lastId == null || lastCreatedAt == null) {
+			return null;
+		}
+
+		return reservation.createdAt.lt(lastCreatedAt)
+			.or(reservation.createdAt.eq(lastCreatedAt)
+				.and(reservation.id.lt(lastId)));
 	}
 }
 

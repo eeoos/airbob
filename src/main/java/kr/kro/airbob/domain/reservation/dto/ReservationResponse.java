@@ -1,7 +1,13 @@
 package kr.kro.airbob.domain.reservation.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
+import io.reactivex.rxjava3.internal.operators.flowable.FlowableFromCallable;
+import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
@@ -51,5 +57,53 @@ public class ReservationResponse {
 				.customerName(reservation.getGuest().getNickname())
 				.build();
 		}
+	}
+
+	@Builder
+	public record MyReservationInfo(
+		long reservationId,
+		String reservationUid,
+		ReservationStatus status,
+
+		Long accommodationId,
+		String accommodationName,
+		String accommodationThumbnailUrl,
+		String accommodationLocation,
+
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+
+		Integer totalPrice,
+
+		LocalDateTime createdAt
+	){
+		public static MyReservationInfo from(Reservation reservation) {
+			Accommodation accommodation = reservation.getAccommodation();
+			Address address = accommodation.getAddress();
+
+			String location = (address.getCity() != null ? address.getCity() : "") +
+				(address.getDistrict() != null ? " " + address.getDistrict() : "");
+
+			return MyReservationInfo.builder()
+				.reservationId(reservation.getId())
+				.reservationUid(reservation.getReservationUid().toString())
+				.status(reservation.getStatus())
+				.accommodationId(accommodation.getId())
+				.accommodationName(accommodation.getName())
+				.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
+				.accommodationLocation(location.trim())
+				.checkInDate(reservation.getCheckIn().toLocalDate())
+				.checkOutDate(reservation.getCheckOut().toLocalDate())
+				.totalPrice(reservation.getTotalPrice())
+				.createdAt(reservation.getCreatedAt())
+				.build();
+		}
+	}
+
+	@Builder
+	public record MyReservationInfos(
+		List<MyReservationInfo> reservations,
+		CursorResponse.PageInfo pageInfo
+	) {
 	}
 }

@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.reservation.api;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.cursor.annotation.CursorParam;
+import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -35,10 +38,21 @@ public class ReservationController {
 	@DeleteMapping("/v1/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<Void>> cancelReservation(
 		@PathVariable String reservationUid,
-		@Valid @RequestBody PaymentRequest.Cancel request
-	) {
+		@Valid @RequestBody PaymentRequest.Cancel request) {
 		Long memberId = UserContext.get().id();
 		reservationService.cancelReservation(reservationUid, request, memberId);
 		return ResponseEntity.accepted().body(ApiResponse.success());
+	}
+
+	@GetMapping("/v1/reservations/{reservationUid}")
+	public ResponseEntity<ApiResponse<ReservationResponse.>> getMyReservationDetail(@PathVariable String reservationUid) {
+
+	}
+
+	@GetMapping("/v1/reservations/my")
+	public ResponseEntity<ApiResponse<ReservationResponse.MyReservationInfos>> getMyReservations(
+		@CursorParam CursorRequest.CursorPageRequest request) {
+		Long memberId = UserContext.get().id();
+		return ResponseEntity.ok(ApiResponse.success(reservationService.findMyReservations(memberId, request)));
 	}
 }

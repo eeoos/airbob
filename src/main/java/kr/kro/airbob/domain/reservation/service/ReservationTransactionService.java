@@ -1,13 +1,18 @@
 package kr.kro.airbob.domain.reservation.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -18,6 +23,7 @@ import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
@@ -41,6 +47,7 @@ public class ReservationTransactionService {
 	private static final String KAFKA_CONSUMER = "SYSTEM:KAFKA_CONSUMER";
 
 	private final OutboxEventPublisher outboxEventPublisher;
+	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberRepository memberRepository;
 	private final ReservationRepository reservationRepository;
@@ -221,7 +228,36 @@ public class ReservationTransactionService {
 		log.info("[보상-SUCCESS] 예약 취소 실패 보상 처리 완료. 예약 상태 CANCELLATION_FAILED로 변경. UID: {}", reservationUid);
 	}
 
+	@Transactional(readOnly = true)
+	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId,
+		CursorRequest.CursorPageRequest cursorRequest) {
+
+		Slice<Reservation> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
+			memberId,
+			cursorRequest.lastId(),
+			cursorRequest.lastCreatedAt(),
+			PageRequest.of(0, cursorRequest.size())
+		);
+
+		List<ReservationResponse.MyReservationInfo> reservationInfos = reservationSlice.getContent().stream()
+			.map(ReservationResponse.MyReservationInfo::from)
+			.collect(Collectors.toList());
+
+		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
+			reservationSlice.getContent(),
+			reservationSlice.hasNext(),
+			Reservation::getId,
+			Reservation::getCreatedAt
+		);
+
+		return ReservationResponse.MyReservationInfos.builder()
+			.reservations(reservationInfos)
+			.pageInfo(pageInfo)
+			.build();
+	}
+
 	public Reservation findByReservationUidNullable(String reservationUid) {
+
 		return reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElse(null);
 	}

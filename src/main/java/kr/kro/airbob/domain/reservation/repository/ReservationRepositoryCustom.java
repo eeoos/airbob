@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 public interface ReservationRepositoryCustom {
@@ -12,4 +15,11 @@ public interface ReservationRepositoryCustom {
 	boolean existsCompletedReservationByGuest(Long accommodationId, Long memberId);
 
 	List<Reservation> findFutureCompletedReservations(UUID accommodationUid);
+
+	Slice<Reservation> findMyReservationsByGuestIdWithCursor(
+		Long guestId,
+		Long lastId,
+		LocalDateTime lastCreatedAt,
+		Pageable pageable
+	);
 }
