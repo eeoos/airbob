@@ -2,11 +2,14 @@ package kr.kro.airbob.domain.reservation.repository.impl;
 
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
+import static kr.kro.airbob.domain.member.entity.QMember.*;
+import static kr.kro.airbob.domain.payment.entity.QPayment.*;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -100,6 +103,23 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		return reservation.createdAt.lt(lastCreatedAt)
 			.or(reservation.createdAt.eq(lastCreatedAt)
 				.and(reservation.id.lt(lastId)));
+	}
+
+	@Override
+	public Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId) {
+
+		Reservation result = queryFactory
+			.selectFrom(reservation)
+			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
+			.leftJoin(accommodation.address, address).fetchJoin()
+			.leftJoin(accommodation.member, member).fetchJoin()
+			.where(
+				reservation.reservationUid.eq(reservationUid),
+				reservation.guest.id.eq(guestId)
+			)
+			.fetchOne();
+
+		return Optional.ofNullable(result);
 	}
 }
 

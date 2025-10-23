@@ -70,4 +70,8 @@ public class ReservationService {
 	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest) {
 		return transactionService.findMyReservations(memberId, cursorRequest);
 	}
+
+	public ReservationResponse.DetailInfo findMyReservationDetail(String reservationUidStr, Long memberId) {
+		return transactionService.findMyReservationDetail(reservationUidStr, memberId);
+	}
 }

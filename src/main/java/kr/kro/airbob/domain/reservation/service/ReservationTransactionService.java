@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -15,6 +16,7 @@ import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -22,6 +24,9 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -50,6 +55,7 @@ public class ReservationTransactionService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberRepository memberRepository;
+	private final PaymentRepository paymentRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationStatusHistoryRepository historyRepository;
@@ -254,6 +260,62 @@ public class ReservationTransactionService {
 			.reservations(reservationInfos)
 			.pageInfo(pageInfo)
 			.build();
+	}
+
+	@Transactional(readOnly = true)
+	public ReservationResponse.DetailInfo findMyReservationDetail(String reservationUidStr, Long memberId) {
+		UUID reservationUid = UUID.fromString(reservationUidStr);
+
+		Reservation reservation = reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId)
+			.orElseThrow(ReservationNotFoundException::new);
+
+		Payment payment = paymentRepository.findByReservationReservationUid(reservationUid)
+			.orElse(null);
+
+		Accommodation accommodation = reservation.getAccommodation();
+		Address address = accommodation.getAddress();
+		Member host = accommodation.getMember();
+
+		ReservationResponse.AccommodationAddressInfo addressInfo = ReservationResponse.AccommodationAddressInfo.builder()
+			.country(address.getCountry())
+			.city(address.getCity())
+			.district(address.getDistrict())
+			.street(address.getStreet())
+			.detail(address.getDetail())
+			.postalCode(address.getPostalCode())
+			.fullAddress(buildFullAddress(address))
+			.latitude(address.getLatitude())
+			.longitude(address.getLongitude())
+			.build();
+
+		ReservationResponse.AccommodationHostInfo hostInfo = ReservationResponse.AccommodationHostInfo.builder()
+			.id(host.getId())
+			.nickname(host.getNickname())
+			.build();
+
+		// mapstruct 적용
+		return ReservationResponse.DetailInfo.builder()
+			.reservationUid(reservation.getReservationUid().toString())
+			.status(reservation.getStatus())
+			.createdAt(reservation.getCreatedAt())
+			.guestCount(reservation.getGuestCount())
+			.accommodationId(accommodation.getId())
+			.accommodationName(accommodation.getName())
+			.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
+			.accommodationAddress(addressInfo)
+			.accommodationHost(hostInfo)
+			.checkInDateTime(reservation.getCheckIn())
+			.checkOutDateTime(reservation.getCheckOut())
+			.checkInTime(reservation.getCheckIn().toLocalTime())
+			.checkOutTime(reservation.getCheckOut().toLocalTime())
+			.paymentInfo(PaymentResponse.PaymentInfo.from(payment))
+			.build();
+	}
+
+	private String buildFullAddress(Address address) {
+		return Stream.of(address.getCountry(), address.getCity(), address.getDistrict(), address.getStreet(), address.getDetail())
+			.filter(s -> s != null && !s.isBlank())
+			.collect(Collectors.joining(" "));
 	}
 
 	public Reservation findByReservationUidNullable(String reservationUid) {

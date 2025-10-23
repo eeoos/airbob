@@ -45,8 +45,10 @@ public class ReservationController {
 	}
 
 	@GetMapping("/v1/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.>> getMyReservationDetail(@PathVariable String reservationUid) {
-
+	public ResponseEntity<ApiResponse<ReservationResponse.DetailInfo>> getMyReservationDetail(@PathVariable String reservationUid) {
+		Long memberId = UserContext.get().id();
+		return ResponseEntity.ok(
+			ApiResponse.success(reservationService.findMyReservationDetail(reservationUid, memberId)));
 	}
 
 	@GetMapping("/v1/reservations/my")

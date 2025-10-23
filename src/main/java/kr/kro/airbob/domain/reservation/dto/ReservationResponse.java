@@ -2,12 +2,14 @@ package kr.kro.airbob.domain.reservation.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import io.reactivex.rxjava3.internal.operators.flowable.FlowableFromCallable;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.Address;
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
@@ -104,6 +106,51 @@ public class ReservationResponse {
 	public record MyReservationInfos(
 		List<MyReservationInfo> reservations,
 		CursorResponse.PageInfo pageInfo
+	) {
+	}
+
+	@Builder
+	public record DetailInfo(
+		String reservationUid,
+		ReservationStatus status,
+		LocalDateTime createdAt,
+		Integer guestCount,
+		String message,
+
+
+		Long accommodationId,
+		String accommodationName,
+		String accommodationThumbnailUrl,
+		AccommodationAddressInfo accommodationAddress,
+		AccommodationHostInfo accommodationHost,
+
+		LocalDateTime checkInDateTime,
+		LocalDateTime checkOutDateTime,
+		LocalTime checkInTime,
+		LocalTime checkOutTime,
+
+		PaymentResponse.PaymentInfo paymentInfo
+	) {
+	}
+
+	@Builder
+	public record AccommodationAddressInfo(
+		String country,
+		String city,
+		String district,
+		String street,
+		String detail,
+		String postalCode,
+		String fullAddress,
+		Double latitude,
+		Double longitude
+	) {
+	}
+
+	@Builder
+	public record AccommodationHostInfo(
+		Long id,
+		String nickname
 	) {
 	}
 }

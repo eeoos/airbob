@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.reservation.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
@@ -22,4 +23,6 @@ public interface ReservationRepositoryCustom {
 		LocalDateTime lastCreatedAt,
 		Pageable pageable
 	);
+
+	Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
 }
