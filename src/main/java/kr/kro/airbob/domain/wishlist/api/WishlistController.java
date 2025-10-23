@@ -80,8 +80,9 @@ public class WishlistController {
 		@PathVariable Long wishlistAccommodationId,
 		@Valid @RequestBody WishlistAccommodationRequest.Update request) {
 
+		Long memberId = UserContext.get().id();
 		WishlistAccommodationResponse.Update response =
-			wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request);
+			wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -89,8 +90,9 @@ public class WishlistController {
 	@DeleteMapping("/v1/members/wishlists/{wishlistId}/accommodations/{wishlistAccommodationId}")
 	public ResponseEntity<ApiResponse<Void>> deleteWishlistAccommodation(
 		@PathVariable Long wishlistAccommodationId) {
+		Long memberId = UserContext.get().id();
 
-		wishlistService.deleteWishlistAccommodation(wishlistAccommodationId);
+		wishlistService.deleteWishlistAccommodation(wishlistAccommodationId, memberId);
 
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
 	}

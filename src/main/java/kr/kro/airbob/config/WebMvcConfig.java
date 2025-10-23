@@ -32,16 +32,19 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		bean.addUrlPatterns(
 			"/api/v1/accommodations",
 			"/api/v1/accommodations/*",
+
 			"/api/v1/accommodations/*/reviews",
 			"/api/v1/accommodations/*/reviews/*",
+
 			"/api/v1/members/wishlists",
 			"/api/v1/members/wishlists/*",
+
 			"/api/v1/members/recently-viewed",
 			"/api/v1/members/recently-viewed/*",
-			"/api/v1/reservations/accommodations",
-			"/api/v1/reservations/accommodations/*",
+
 			"/api/v1/reservations",
 			"/api/v1/reservations/*",
+
 			"/v1/my/accommodations"
 			);
 		bean.setOrder(1);

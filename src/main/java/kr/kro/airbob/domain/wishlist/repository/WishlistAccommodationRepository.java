@@ -20,6 +20,8 @@ import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistAccommodationRe
 public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long>,
 	WishlistAccommodationRepositoryCustom {
 
+	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
+
 	void deleteAllByWishlistId(Long wishlistId);
 
 	@Query("""

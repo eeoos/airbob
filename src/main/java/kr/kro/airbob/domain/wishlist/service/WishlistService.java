@@ -34,6 +34,7 @@ import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
+import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationNotFoundException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
@@ -157,18 +158,18 @@ public class WishlistService {
 
 	@Transactional
 	public WishlistAccommodationResponse.Update updateWishlistAccommodation(
-		Long wishlistAccommodationId, WishlistAccommodationRequest.Update request) {
+		Long wishlistAccommodationId, WishlistAccommodationRequest.Update request, Long memberId) {
 
-		WishlistAccommodation wishlistAccommodation = findWishlistAccommodation(wishlistAccommodationId);
+		WishlistAccommodation wishlistAccommodation = findWishlistAccommodationForMember(wishlistAccommodationId, memberId);
 		wishlistAccommodation.updateMemo(request.memo());
 
 		return new WishlistAccommodationResponse.Update(wishlistAccommodation.getId());
 	}
 
 	@Transactional
-	public void deleteWishlistAccommodation(Long wishlistAccommodationId) {
+	public void deleteWishlistAccommodation(Long wishlistAccommodationId, Long memberId) {
 
-		WishlistAccommodation wishlistAccommodation = findWishlistAccommodation(wishlistAccommodationId);
+		WishlistAccommodation wishlistAccommodation = findWishlistAccommodationForMember(wishlistAccommodationId, memberId);
 
 		wishlistAccommodationRepository.delete(wishlistAccommodation);
 	}
@@ -279,5 +280,10 @@ public class WishlistService {
 			throw new WishlistAccessDeniedException();
 		}
 		return wishlist;
+	}
+
+	private WishlistAccommodation findWishlistAccommodationForMember(Long wishlistAccommodationId, Long memberId) {
+		return wishlistAccommodationRepository.findByIdAndWishlistMemberId(wishlistAccommodationId, memberId)
+			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
 	}
 }

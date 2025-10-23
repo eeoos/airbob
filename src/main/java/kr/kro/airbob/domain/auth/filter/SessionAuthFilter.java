@@ -14,12 +14,14 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.domain.auth.common.SessionUtil;
 import lombok.extern.slf4j.Slf4j;
-
+import java.util.regex.Pattern;
 @Component
 @Slf4j
 public class SessionAuthFilter extends OncePerRequestFilter {
 
     private final RedisTemplate<String, Object> redisTemplate;
+
+    private static final Pattern ACCOMMODATION_DETAIL_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+$");
 
     public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -32,7 +34,9 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        if (path.equals("/api/accommodations") && method.equals("GET")) {
+        if (("GET".equals(method) && path.equals("/api/accommodations")) ||
+            ("GET".equals(method) && ACCOMMODATION_DETAIL_PATH_PATTERN.matcher(path).matches())) {
+            log.info("[SessionAuthFilter] 인증 건너뛰기: {} {}", method, path);
             filterChain.doFilter(request, response); // 필터 건너뜀
             return;
         }
@@ -66,8 +70,12 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
         if (value instanceof Number number) {
             return number.longValue();
-        } else {
+        } else if (value != null) {
+            log.error("세션 값 타입 오류: SESSION:{} 값 = {}, 타입 = {}", sessionId, value, value.getClass().getName());
             throw new IllegalStateException("Unexpected session type: " + value.getClass());
+        } else {
+            log.error("세션 값 누락: SESSION:{}", sessionId);
+            throw new IllegalStateException("Session value not found in Redis for key: SESSION:" + sessionId);
         }
     }
 }

@@ -34,8 +34,6 @@ public class AccommodationRequest {
         private int basePrice;
 
         @NotNull
-        private Long hostId;
-        @NotNull
         private AddressInfo addressInfo;
         private List<AmenityInfo> amenityInfos;
         @NotNull

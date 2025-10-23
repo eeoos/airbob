@@ -40,7 +40,8 @@ public class AccommodationController {
         @RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
         HttpServletRequest request) {
         String sessionId = SessionUtil.getSessionIdByCookie(request);
-        authService.validateHost(sessionId, requestDto.getHostId());
+        Long memberId = UserContext.get().id();
+        authService.validateHost(sessionId, memberId);
 
         AccommodationResponse.Create response = accommodationService.createAccommodation(requestDto);
         return ResponseEntity.status(HttpStatus.CREATED)
