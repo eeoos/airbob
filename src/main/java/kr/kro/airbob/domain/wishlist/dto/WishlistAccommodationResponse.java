@@ -39,7 +39,7 @@ public class WishlistAccommodationResponse {
 		BigDecimal averageRating,
 		LocalDateTime createdAt,
 		List<String> imageUrls,
-		List<AccommodationResponse.AmenityInfoResponse> amenities
+		List<AccommodationResponse.AmenityInfo> amenities
 	) {
 		@QueryProjection
 		public WishlistAccommodationInfo(long wishlistAccommodationId, String memo, long accommodationId, String accommodationName, BigDecimal averageRating, LocalDateTime createdAt) {

@@ -97,7 +97,7 @@ public class RecentlyViewedService {
 
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
 		Map<Long, BigDecimal> reviewRatingMap = getReviewRatingMap(existingIdList);
-		Map<Long, List<AccommodationResponse.AmenityInfoResponse>> amenityMap = getAmenityMap(existingIdList);
+		Map<Long, List<AccommodationResponse.AmenityInfo>> amenityMap = getAmenityMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
@@ -155,7 +155,7 @@ public class RecentlyViewedService {
 	}
 
 
-	private Map<Long, List<AccommodationResponse.AmenityInfoResponse>> getAmenityMap(
+	private Map<Long, List<AccommodationResponse.AmenityInfo>> getAmenityMap(
 		List<Long> accommodationIds) {
 
 		List<AccommodationAmenity> results =
@@ -165,7 +165,7 @@ public class RecentlyViewedService {
 			.collect(Collectors.groupingBy(
 				aa -> aa.getAccommodation().getId(),
 				Collectors.mapping(
-					result -> new AccommodationResponse.AmenityInfoResponse(
+					result -> new AccommodationResponse.AmenityInfo(
 						result.getAmenity().getName(),
 						result.getCount()
 					),

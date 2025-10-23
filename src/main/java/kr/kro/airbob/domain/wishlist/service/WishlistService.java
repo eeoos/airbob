@@ -202,7 +202,7 @@ public class WishlistService {
 			.toList();
 
 		Map<Long, List<String>> imageUrlsMap = getAccommodationImageUrls(accommodationIds);
-		Map<Long, List<AccommodationResponse.AmenityInfoResponse>> amenitiesMap = getAccommodationAmenities(accommodationIds);
+		Map<Long, List<AccommodationResponse.AmenityInfo>> amenitiesMap = getAccommodationAmenities(accommodationIds);
 
 		infos.forEach(info -> {
 			info.imageUrls().addAll(imageUrlsMap.getOrDefault(info.accommodationId(), List.of()));
@@ -233,7 +233,7 @@ public class WishlistService {
 			));
 	}
 
-	private Map<Long, List<AccommodationResponse.AmenityInfoResponse>> getAccommodationAmenities(
+	private Map<Long, List<AccommodationResponse.AmenityInfo>> getAccommodationAmenities(
 		List<Long> accommodationIds) {
 
 		List<AccommodationAmenity> results
@@ -243,7 +243,7 @@ public class WishlistService {
 			.collect(Collectors.groupingBy(
 				aa -> aa.getAccommodation().getId(),
 				Collectors.mapping(
-					result -> new AccommodationResponse.AmenityInfoResponse(
+					result -> new AccommodationResponse.AmenityInfo(
 						result.getAmenity().getName(),
 						result.getCount()
 					),

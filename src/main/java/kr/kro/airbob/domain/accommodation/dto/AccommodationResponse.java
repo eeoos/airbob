@@ -1,26 +1,95 @@
 package kr.kro.airbob.domain.accommodation.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
+import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
-import lombok.AccessLevel;
+import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.Builder;
-import lombok.NoArgsConstructor;
 
 public class AccommodationResponse {
 
 	public record Create(long id) {
 	}
 
-	public record AccommodationInfo(
-		long id
+	@Builder
+	public record DetailInfo(
+		long id,
+		String name,
+		String description,
+		AccommodationType type,
+		Integer basePrice,
+		LocalTime checkInTime,
+		LocalTime checkOutTime,
 
+		AddressInfo address,
+		Coordinate coordinate,
+
+		HostInfo host,
+
+		PolicyInfo policyInfo,
+
+		List<AmenityInfo> amenities,
+
+		List<String> imageUrls,
+
+		ReviewResponse.ReviewSummary reviewSummary,
+
+		List<LocalDate> unavailableDates,
+		Boolean isInWishlist
+	) {
+
+	}
+
+	@Builder
+	public record AddressInfo(
+		String country,
+		String city,
+		String district,
+		String street,
+		String detail,
+		String postalCode,
+		String fullAddress
 	) {
 	}
 
-	public record AmenityInfoResponse(
+	@Builder
+	public record Coordinate(
+		Double latitude,
+		Double longitude
+	) {
+	}
+
+	@Builder
+	public record HostInfo(
+		Long id,
+		String nickname,
+		String profileImageUrl
+	) {
+	}
+
+	@Builder
+	public record PolicyInfo(
+		Integer maxOccupancy,
+		Integer adultOccupancy,
+		Integer childOccupancy,
+		Integer infantOccupancy,
+		Integer petOccupancy
+	) {
+	}
+
+	public record AccommodationInfos(
+		List<DetailInfo> infos,
+		Integer count
+	) {
+	}
+
+	@Builder
+	public record AmenityInfo(
 		AmenityType type,
 		Integer count
 	) {
@@ -39,10 +108,9 @@ public class AccommodationResponse {
 		Long accommodationId,
 		String accommodationName,
 		String thumbnailUrl,
-		List<AmenityInfoResponse> amenities,
+		List<AmenityInfo> amenities,
 		BigDecimal averageRating,
 		Boolean isInWishlist
 	) {
 	}
-
 }

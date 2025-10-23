@@ -28,4 +28,6 @@ public interface AccommodationImageRepository extends JpaRepository<Accommodatio
     """)
 	List<AccommodationImage> findAccommodationImagesByAccommodationIds(
 		@Param("accommodationIds") List<Long> accommodationIds);
+
+
 }

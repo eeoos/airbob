@@ -52,6 +52,7 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 	Map<Long, String> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
 
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
+	boolean existsByMemberIdAndAccommodationId(Long memberId, Long accommodationId);
 
 
 	@Query("""

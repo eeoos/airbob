@@ -34,8 +34,9 @@ public class AccommodationController {
 
     //todo 이미지 저장 로직 추가
     @PostMapping("/v1/accommodations")
-    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(@RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
-                                                                   HttpServletRequest request){
+    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
+        @RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
+        HttpServletRequest request) {
         String sessionId = SessionUtil.getSessionIdByCookie(request);
         authService.validateHost(sessionId, requestDto.getHostId());
 
@@ -45,7 +46,8 @@ public class AccommodationController {
     }
 
     @PatchMapping("/v1/accommodations/{accommodationId}")
-    public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId, @RequestBody AccommodationRequest.UpdateAccommodationDto request){
+    public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId,
+        @RequestBody AccommodationRequest.UpdateAccommodationDto request) {
         Long memberId = UserContext.get().id();
         accommodationService.updateAccommodation(accommodationId, request, memberId);
         return ResponseEntity.ok(ApiResponse.success());
@@ -59,9 +61,15 @@ public class AccommodationController {
     }
 
     @GetMapping("/v1/accommodations/{accommodationId}")
-    public ResponseEntity<ApiResponse<AccommodationResponse.AccommodationInfo>> findAccommodation(@PathVariable Long accommodationId) {
-        AccommodationResponse.AccommodationInfo response = accommodationService.findAccommodation(accommodationId);
+    public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getAccommodation(
+        @PathVariable Long accommodationId) {
+        AccommodationResponse.DetailInfo response = accommodationService.findAccommodation(accommodationId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/v1/accommodations/my-listings")
+    public ResponseEntity<ApiResponse<AccommodationResponse.AccommodationInfos>> getMyAccommodations() {
+        // 무한 스크롤
     }
 }
 
