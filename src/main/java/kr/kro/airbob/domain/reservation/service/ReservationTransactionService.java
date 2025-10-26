@@ -269,8 +269,7 @@ public class ReservationTransactionService {
 		Reservation reservation = reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId)
 			.orElseThrow(ReservationNotFoundException::new);
 
-		Payment payment = paymentRepository.findByReservationReservationUid(reservationUid)
-			.orElse(null);
+		Payment payment = findPaymentByReservationUidNullable(reservationUid);
 
 		Accommodation accommodation = reservation.getAccommodation();
 		Address address = accommodation.getAddress();
@@ -312,6 +311,83 @@ public class ReservationTransactionService {
 			.build();
 	}
 
+	@Transactional(readOnly = true)
+	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest ) {
+		Slice<Reservation> reservationSlice = reservationRepository.findHostReservationsByHostIdWithCursor(
+			hostId,
+			cursorRequest.lastId(),
+			cursorRequest.lastCreatedAt(),
+			PageRequest.of(0, cursorRequest.size())
+		);
+
+		List<Reservation> reservations = reservationSlice.getContent();
+
+		List<ReservationResponse.HostReservationInfo> reservationInfos = reservations.stream()
+			.map(r -> {
+				Accommodation accommodation = r.getAccommodation();
+				Member guest = r.getGuest();
+
+				return ReservationResponse.HostReservationInfo.builder()
+					.reservationUid(r.getReservationUid().toString())
+					.status(r.getStatus())
+					.accommodationId(accommodation.getId())
+					.accommodationName(accommodation.getName())
+					.guestId(guest.getId())
+					.guestNickName(guest.getNickname())
+					.checkInDate(r.getCheckIn().toLocalDate())
+					.checkOutDate(r.getCheckOut().toLocalDate())
+					.createdAt(r.getCreatedAt())
+					.build();
+			}).collect(Collectors.toList());
+
+		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
+			reservations,
+			reservationSlice.hasNext(),
+			Reservation::getId,
+			Reservation::getCreatedAt
+		);
+
+		return ReservationResponse.HostReservationInfos.builder()
+			.reservations(reservationInfos)
+			.pageInfo(pageInfo)
+			.build();
+	}
+
+	@Transactional(readOnly = true)
+	public ReservationResponse.HostDetailInfo findHostReservationDetail(String reservationUidStr, Long hostId) {
+
+		UUID reservationUid = UUID.fromString(reservationUidStr);
+
+		Reservation reservation = reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
+			.orElseThrow(ReservationNotFoundException::new);
+
+		Payment payment = findPaymentByReservationUidNullable(reservationUid);
+
+		Accommodation accommodation = reservation.getAccommodation();
+		Member guest = reservation.getGuest();
+
+		ReservationResponse.GuestInfo guestInfo = ReservationResponse.GuestInfo.builder()
+			.id(guest.getId())
+			.nickname(guest.getNickname())
+			.build();
+
+		PaymentResponse.PaymentInfo paymentInfo = (payment != null) ? PaymentResponse.PaymentInfo.from(payment) : null;
+
+		return ReservationResponse.HostDetailInfo.builder()
+			.reservationUid(reservation.getReservationUid().toString())
+			.status(reservation.getStatus())
+			.createdAt(reservation.getCreatedAt())
+			.guestCount(reservation.getGuestCount())
+			.message(reservation.getMessage())
+			.accommodationId(accommodation.getId())
+			.accommodationName(accommodation.getName())
+			.checkInDateTime(reservation.getCheckIn())
+			.checkOutDateTime(reservation.getCheckOut())
+			.guestInfo(guestInfo)
+			.paymentInfo(paymentInfo)
+			.build();
+	}
+
 	private String buildFullAddress(Address address) {
 		return Stream.of(address.getCountry(), address.getCity(), address.getDistrict(), address.getStreet(), address.getDetail())
 			.filter(s -> s != null && !s.isBlank())
@@ -321,6 +397,11 @@ public class ReservationTransactionService {
 	public Reservation findByReservationUidNullable(String reservationUid) {
 
 		return reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElse(null);
+	}
+
+	private Payment findPaymentByReservationUidNullable(UUID reservationUid) {
+		return paymentRepository.findByReservationReservationUid(reservationUid)
 			.orElse(null);
 	}
 }

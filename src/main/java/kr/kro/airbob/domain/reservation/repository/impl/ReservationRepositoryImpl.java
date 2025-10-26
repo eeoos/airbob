@@ -19,6 +19,7 @@ import org.springframework.data.domain.SliceImpl;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
+import kr.kro.airbob.domain.member.entity.QMember;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
@@ -28,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
 	private final JPAQueryFactory queryFactory;
+
+	private final QMember guestMember = new QMember("guestMember");
 
 	@Override
 	public boolean existsConflictingReservation(Long accommodationId, LocalDateTime checkIn, LocalDateTime checkOut) {
@@ -116,6 +119,45 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.where(
 				reservation.reservationUid.eq(reservationUid),
 				reservation.guest.id.eq(guestId)
+			)
+			.fetchOne();
+
+		return Optional.ofNullable(result);
+	}
+
+	@Override
+	public Slice<Reservation> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
+		LocalDateTime lastCreatedAt, Pageable pageable) {
+
+		List<Reservation> content = queryFactory
+			.selectFrom(reservation)
+			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
+			.innerJoin(reservation.guest, guestMember).fetchJoin()
+			.where(
+				accommodation.member.id.eq(hostId),
+				cursorCondition(lastId, lastCreatedAt)
+			)
+			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
+			.limit(pageable.getPageSize() + 1)
+			.fetch();
+
+		boolean hasNext = content.size() > pageable.getPageSize();
+		if (hasNext) {
+			content.remove(pageable.getPageSize());
+		}
+
+		return new SliceImpl<>(content, pageable, hasNext);
+	}
+
+	@Override
+	public Optional<Reservation> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId) {
+		Reservation result = queryFactory
+			.selectFrom(reservation)
+			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
+			.innerJoin(reservation.guest, guestMember).fetchJoin()
+			.where(
+				reservation.reservationUid.eq(reservationUid),
+				accommodation.member.id.eq(hostId)
 			)
 			.fetchOne();
 

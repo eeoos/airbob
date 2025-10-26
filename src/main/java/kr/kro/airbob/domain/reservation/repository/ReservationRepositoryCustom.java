@@ -24,5 +24,14 @@ public interface ReservationRepositoryCustom {
 		Pageable pageable
 	);
 
+	Slice<Reservation> findHostReservationsByHostIdWithCursor(
+		Long hostId,
+		Long lastId,
+		LocalDateTime lastCreatedAt,
+		Pageable pageable
+	);
+
 	Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
+
+	Optional<Reservation> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId);
 }

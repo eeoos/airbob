@@ -57,4 +57,24 @@ public class ReservationController {
 		Long memberId = UserContext.get().id();
 		return ResponseEntity.ok(ApiResponse.success(reservationService.findMyReservations(memberId, request)));
 	}
+
+	@GetMapping("/v1/host/reservations")
+	public ResponseEntity<ApiResponse<ReservationResponse.HostReservationInfos>> getHostReservations(
+		@CursorParam CursorRequest.CursorPageRequest cursorRequest) {
+
+		Long hostId = UserContext.get().id();
+		ReservationResponse.HostReservationInfos response = reservationService.findHostReservations(hostId, cursorRequest);
+
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
+
+	@GetMapping("/v1/host/reservations/{reservationUid}")
+	public ResponseEntity<ApiResponse<ReservationResponse.HostDetailInfo>> getHostReservationDetail(
+		@PathVariable String reservationUid) {
+
+		Long hostId = UserContext.get().id();
+		ReservationResponse.HostDetailInfo response = reservationService.findHostReservationDetail(reservationUid, hostId);
+
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
 }

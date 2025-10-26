@@ -153,4 +153,56 @@ public class ReservationResponse {
 		String nickname
 	) {
 	}
+
+	@Builder
+	public record GuestInfo(
+		Long id,
+		String nickname
+	) {
+	}
+
+	@Builder
+	public record HostReservationInfo(
+		String reservationUid,
+		ReservationStatus status,
+
+		Long accommodationId,
+		String accommodationName,
+
+		Long guestId,
+		String guestNickName,
+
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+
+		LocalDateTime createdAt
+	){
+	}
+
+	@Builder
+	public record HostReservationInfos(
+		List<HostReservationInfo> reservations,
+		CursorResponse.PageInfo pageInfo
+	) {
+	}
+
+	@Builder
+	public record HostDetailInfo(
+		String reservationUid,
+		ReservationStatus status,
+		LocalDateTime createdAt,
+		Integer guestCount,
+		String message,
+
+		Long accommodationId,
+		String accommodationName,
+
+		LocalDateTime checkInDateTime,
+		LocalDateTime checkOutDateTime,
+
+		GuestInfo guestInfo,
+
+		PaymentResponse.PaymentInfo paymentInfo
+	) {
+	}
 }

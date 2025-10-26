@@ -74,4 +74,12 @@ public class ReservationService {
 	public ReservationResponse.DetailInfo findMyReservationDetail(String reservationUidStr, Long memberId) {
 		return transactionService.findMyReservationDetail(reservationUidStr, memberId);
 	}
+
+	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest ) {
+		return transactionService.findHostReservations(hostId, cursorRequest);
+	}
+
+	public ReservationResponse.HostDetailInfo findHostReservationDetail(String reservationUid, Long hostId) {
+		return transactionService.findHostReservationDetail(reservationUid, hostId);
+	}
 }
