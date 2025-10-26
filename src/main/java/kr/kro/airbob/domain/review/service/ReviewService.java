@@ -2,17 +2,17 @@ package kr.kro.airbob.domain.review.service;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.exception.BaseException;
-import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -20,6 +20,13 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.image.entity.ReviewImage;
+import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
+import kr.kro.airbob.domain.image.exception.ImageAccessDeniedException;
+import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
+import kr.kro.airbob.domain.image.exception.ImageUploadException;
+import kr.kro.airbob.domain.image.exception.InvalidImageFormatException;
+import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
@@ -38,6 +45,7 @@ import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
@@ -49,14 +57,19 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ReviewService {
 
+	public static final int MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+	public static final String IMAGE_JPEG = "image/jpeg";
+	public static final String IMAGE_PNG = "image/png";
 	private final ReviewRepository reviewRepository;
 	private final MemberRepository memberRepository;
+	private final ReviewImageRepository reviewImageRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationReviewSummaryRepository summaryRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 	private final OutboxEventPublisher outboxEventPublisher;
+	private final S3ImageUploader s3ImageUploader;
 
 	@Transactional
 	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request, Long memberId) {
@@ -153,6 +166,75 @@ public class ReviewService {
 		return ReviewResponse.ReviewSummary.of(summary);
 	}
 
+	@Transactional
+	public ReviewResponse.UploadReviewImages uploadReviewImages(Long reviewId, List<MultipartFile> images,
+		Long memberId) {
+		Review review = findReviewById(reviewId);
+		validateReviewAuthor(memberId, review);
+
+		List<ReviewResponse.ImageInfo> uploadedImages = new ArrayList<>();
+
+		for (MultipartFile image : images) {
+			validateImageFile(image);
+
+			String imageUrl;
+			try {
+				String dirName = "reviews/" + reviewId;
+				imageUrl = s3ImageUploader.upload(image, dirName);
+			} catch (IOException e) {
+				log.error("리뷰 이미지 업로드 실패: reviewId={}, fileName={}", reviewId, image.getOriginalFilename(), e);
+				throw new ImageUploadException(image.getOriginalFilename());
+			}
+
+			ReviewImage reviewImage = ReviewImage.builder()
+				.review(review)
+				.imageUrl(imageUrl)
+				.build();
+			ReviewImage savedImage = reviewImageRepository.save(reviewImage);
+
+			uploadedImages.add(ReviewResponse.ImageInfo.builder()
+				.id(savedImage.getId())
+				.imageUrl(savedImage.getImageUrl())
+				.build());
+		}
+		return ReviewResponse.UploadReviewImages.builder()
+			.uploadedImages(uploadedImages)
+			.build();
+	}
+
+	@Transactional
+	public void deleteReviewImage(Long reviewId, Long imageId, Long memberId) {
+		ReviewImage image = reviewImageRepository.findByIdAndReviewAuthorId(imageId, memberId)
+			.orElseThrow(ReviewAccessDeniedException::new);
+
+		if (!image.getReview().getId().equals(reviewId)) {
+			throw new ImageAccessDeniedException();
+		}
+
+		s3ImageUploader.delete(image.getImageUrl());
+
+		reviewImageRepository.delete(image);
+	}
+
+	private void validateReviewAuthor(Long memberId, Review review) {
+		if (!review.getAuthor().getId().equals(memberId)) {
+			throw new ReviewAccessDeniedException();
+		}
+	}
+
+
+	private void validateImageFile(MultipartFile file) {
+		if (file.isEmpty()) {
+			throw new EmptyImageFileException();
+		}
+		if (file.getSize() > MAX_IMAGE_SIZE) {
+			throw new ImageFileSizeExceededException();
+		}
+		String contentType = file.getContentType();
+		if (contentType == null || (!contentType.equals(IMAGE_JPEG) && !contentType.equals(IMAGE_PNG))) {
+			throw new InvalidImageFormatException();
+		}
+	}
 
 	private void validateReviewCreation(Long accommodationId, Long memberId) {
 		// 예약한 사용자인지 확인

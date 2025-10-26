@@ -70,6 +70,7 @@ public enum ErrorCode {
 	REVIEW_UPDATE_FORBIDDEN(HttpStatus.FORBIDDEN, "V005", "게시된 리뷰만 수정할 수 있습니다."),
 	REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "V006", "해당 리뷰에 대한 권한이 없습니다."),
 
+
 	// discount
 	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다."),
 

@@ -7,12 +7,12 @@ import java.util.List;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
+import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReviewResponse {
-
-	private ReviewResponse() {
-	}
 
 	public record CreateResponse(
 		long id
@@ -54,5 +54,18 @@ public class ReviewResponse {
 				summary.getAverageRating()
 			);
 		}
+	}
+
+	@Builder
+	public record ImageInfo(
+		Long id,
+		String imageUrl
+	) {
+	}
+
+	@Builder
+	public record UploadReviewImages(
+		List<ImageInfo> uploadedImages
+	) {
 	}
 }

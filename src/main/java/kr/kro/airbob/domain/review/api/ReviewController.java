@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.review.api;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
@@ -42,7 +45,7 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@PatchMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
+	@PatchMapping("/v1/reviews/{reviewId}")
 	public ResponseEntity<ApiResponse<ReviewResponse.UpdateResponse>> updateReview(
 		@PathVariable Long reviewId,
 		@Valid @RequestBody ReviewRequest.UpdateRequest request) {
@@ -53,10 +56,33 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@DeleteMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
+	@DeleteMapping("/v1/reviews/{reviewId}")
 	public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
 		Long memberId = UserContext.get().id();
 		reviewService.deleteReview(reviewId, memberId);
+		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+	}
+
+	@PostMapping("/v1/reviews/{reviewId}/images")
+	public ResponseEntity<ApiResponse<ReviewResponse.UploadReviewImages>> uploadReviewImages(
+		@PathVariable Long reviewId,
+		@RequestParam("images") List<MultipartFile> images) {
+
+		Long memberId = UserContext.get().id();
+		ReviewResponse.UploadReviewImages response = reviewService.uploadReviewImages(reviewId, images,
+			memberId);
+
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+	}
+
+	@DeleteMapping("/v1/reviews/{reviewId}/images/{imageId}")
+	public ResponseEntity<ApiResponse<Void>> deleteReviewImage(
+		@PathVariable Long reviewId,
+		@PathVariable Long imageId) {
+
+		Long memberId = UserContext.get().id();
+		reviewService.deleteReviewImage(reviewId, imageId, memberId);
+
 		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
 	}
 
@@ -72,7 +98,6 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	// todo: 리뷰 이미지 업로드 해야함
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews/summary")
 	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(@PathVariable Long accommodationId) {
 
