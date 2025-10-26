@@ -102,5 +102,15 @@ public class AccommodationController {
         Long memberId = UserContext.get().id();
         return ResponseEntity.ok(ApiResponse.success(accommodationService.findMyAccommodations(memberId, request)));
     }
+
+    @GetMapping("/v1/host/accommodations/{accommodationId}")
+    public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getHostAccommodationDetail(
+        @PathVariable Long accommodationId) {
+
+        Long hostId = UserContext.get().id();
+        AccommodationResponse.DetailInfo response = accommodationService.findHostAccommodationDetail(accommodationId, hostId);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }
 

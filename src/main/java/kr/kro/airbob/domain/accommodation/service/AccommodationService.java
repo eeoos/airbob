@@ -375,6 +375,61 @@ public class AccommodationService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public AccommodationResponse.DetailInfo findHostAccommodationDetail(Long accommodationId, Long hostId) {
+        Accommodation accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
+            .orElseThrow(AccommodationNotFoundException::new);
+
+        Address address = accommodation.getAddress();
+        OccupancyPolicy policy = accommodation.getOccupancyPolicy();
+        Member host = accommodation.getMember();
+
+        List<AccommodationResponse.AmenityInfo> amenities = getAmenities(accommodationId);
+        List<String> imageUrls = getImageUrls(accommodation.getAccommodationUid());
+        ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
+        List<LocalDate> unavailableDates = getUnavailableDates(accommodation.getAccommodationUid());
+
+        return AccommodationResponse.DetailInfo.builder()
+            .id(accommodation.getId())
+            .name(accommodation.getName())
+            .description(accommodation.getDescription())
+            .type(accommodation.getType())
+            .basePrice(accommodation.getBasePrice())
+            .checkInTime(accommodation.getCheckInTime())
+            .checkOutTime(accommodation.getCheckOutTime())
+            .address(AccommodationResponse.AddressInfo.builder()
+                .country(address.getCountry())
+                .city(address.getCity())
+                .district(address.getDistrict())
+                .street(address.getStreet())
+                .detail(address.getDetail())
+                .postalCode(address.getPostalCode())
+                .fullAddress(buildFullAddress(address))
+                .build())
+            .coordinate(AccommodationResponse.Coordinate.builder()
+                .latitude(address.getLatitude())
+                .longitude(address.getLongitude())
+                .build())
+            .host(AccommodationResponse.HostInfo.builder()
+                .id(host.getId())
+                .nickname(host.getNickname())
+                .profileImageUrl(host.getThumbnailImageUrl())
+                .build())
+            .policyInfo(AccommodationResponse.PolicyInfo.builder()
+                .maxOccupancy(policy.getMaxOccupancy())
+                .adultOccupancy(policy.getAdultOccupancy())
+                .childOccupancy(policy.getChildOccupancy())
+                .infantOccupancy(policy.getInfantOccupancy())
+                .petOccupancy(policy.getPetOccupancy())
+                .build())
+            .amenities(amenities)
+            .imageUrls(imageUrls)
+            .reviewSummary(reviewSummary)
+            .unavailableDates(unavailableDates)
+            .isInWishlist(null)
+            .build();
+    }
+
     private void validateImageFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new EmptyImageFileException();

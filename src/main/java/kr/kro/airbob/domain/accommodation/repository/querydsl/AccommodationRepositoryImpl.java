@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.accommodation.repository.querydsl;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.*;
+import static kr.kro.airbob.domain.member.entity.QMember.*;
 import static kr.kro.airbob.domain.review.entity.QAccommodationReviewSummary.*;
 
 import java.time.LocalDateTime;
@@ -33,7 +34,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             selectFrom(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
             .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .leftJoin(accommodation.member, QMember.member).fetchJoin()
+            .leftJoin(accommodation.member, member).fetchJoin()
             .where(accommodation.accommodationUid.eq(accommodationUid))
             .fetchOne();
 
@@ -46,7 +47,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             selectFrom(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
             .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .leftJoin(accommodation.member, QMember.member).fetchJoin()
+            .leftJoin(accommodation.member, member).fetchJoin()
             .where(accommodation.id.eq(accommodationId)
                 .and(accommodation.status.eq(status)))
             .fetchOne();
@@ -77,6 +78,22 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
         }
 
         return new SliceImpl<>(content, pageable, hasNext);
+    }
+
+    @Override
+    public Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId) {
+        Accommodation result = jpaQueryFactory
+            .selectFrom(accommodation)
+            .leftJoin(accommodation.address, address).fetchJoin()
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
+            .leftJoin(accommodation.member, member).fetchJoin()
+            .where(
+                accommodation.id.eq(accommodationId),
+                accommodation.member.id.eq(hostId)
+            )
+            .fetchOne();
+
+        return Optional.ofNullable(result);
     }
 
     private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {

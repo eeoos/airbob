@@ -20,4 +20,6 @@ public interface AccommodationRepositoryCustom {
         LocalDateTime lastCreatedAt,
         Pageable pageable
     );
+
+    Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
 }
