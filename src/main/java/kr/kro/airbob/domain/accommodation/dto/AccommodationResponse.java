@@ -105,12 +105,6 @@ public class AccommodationResponse {
 	) {
 	}
 
-	public record AccommodationInfos(
-		List<DetailInfo> infos,
-		Integer count
-	) {
-	}
-
 	@Builder
 	public record AmenityInfo(
 		AmenityType type,
@@ -134,6 +128,19 @@ public class AccommodationResponse {
 		List<AmenityInfo> amenities,
 		BigDecimal averageRating,
 		Boolean isInWishlist
+	) {
+	}
+
+	@Builder
+	public record ImageInfo(
+		Long id,
+		String imageUrl
+	){
+	}
+
+	@Builder
+	public record UploadImages(
+		List<ImageInfo> uploadedImages
 	) {
 	}
 }
