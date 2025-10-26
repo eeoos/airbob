@@ -22,6 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -358,7 +360,7 @@ public class AccommodationService {
             .orElseThrow(ImageNotFoundException::new);
 
         if (!image.getAccommodation().getId().equals(accommodationId)) {
-            throw new ImageAccessDeniedException();
+            throw new InvalidInputException();
         }
 
         validateMinimumImageCount(accommodation.getId());

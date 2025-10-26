@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -208,7 +209,7 @@ public class ReviewService {
 			.orElseThrow(ReviewAccessDeniedException::new);
 
 		if (!image.getReview().getId().equals(reviewId)) {
-			throw new ImageAccessDeniedException();
+			throw new InvalidInputException();
 		}
 
 		s3ImageUploader.delete(image.getImageUrl());
