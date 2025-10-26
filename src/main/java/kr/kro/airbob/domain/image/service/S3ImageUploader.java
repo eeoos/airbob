@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image;
+package kr.kro.airbob.domain.image.service;
 
 import java.io.IOException;
 import java.net.MalformedURLException;

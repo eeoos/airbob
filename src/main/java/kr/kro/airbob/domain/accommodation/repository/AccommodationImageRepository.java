@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import kr.kro.airbob.domain.image.AccommodationImage;
+import kr.kro.airbob.domain.image.entity.AccommodationImage;
 
 public interface AccommodationImageRepository extends JpaRepository<AccommodationImage, Long> {
 
@@ -29,5 +29,8 @@ public interface AccommodationImageRepository extends JpaRepository<Accommodatio
 	List<AccommodationImage> findAccommodationImagesByAccommodationIds(
 		@Param("accommodationIds") List<Long> accommodationIds);
 
+	long countByAccommodationId(Long accommodationId);
+
+	List<AccommodationImage> findByAccommodationIdOrderByIdAsc(Long accommodationId);
 
 }

@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.accommodation.api;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -9,7 +11,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -34,7 +38,6 @@ public class AccommodationController {
     private final AccommodationService accommodationService;
     private final AuthService authService;
 
-    //todo 이미지 저장 로직 추가
     @PostMapping("/v1/accommodations")
     public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
         @RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
@@ -43,7 +46,7 @@ public class AccommodationController {
         Long memberId = UserContext.get().id();
         authService.validateHost(sessionId, memberId);
 
-        AccommodationResponse.Create response = accommodationService.createAccommodation(requestDto);
+        AccommodationResponse.Create response = accommodationService.createAccommodation(requestDto, memberId);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success(response));
     }
@@ -60,6 +63,29 @@ public class AccommodationController {
     public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {
         Long memberId = UserContext.get().id();
         accommodationService.deleteAccommodation(accommodationId, memberId);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+    }
+
+    @PostMapping("/v1/accommodations/{accommodationId}/images")
+    public ResponseEntity<ApiResponse<AccommodationResponse.UploadImages>> uploadAccommodationImages(
+        @PathVariable Long accommodationId,
+        @RequestParam("images") List<MultipartFile> images) {
+
+        Long memberId = UserContext.get().id();
+        AccommodationResponse.UploadImages response = accommodationService.uploadImages(accommodationId, images,
+            memberId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/v1/accommodations/{accommodationId}/images/{imageId}")
+    public ResponseEntity<ApiResponse<Void>> deleteAccommodationImage(
+        @PathVariable Long accommodationId,
+        @PathVariable Long imageId) {
+
+        Long memberId = UserContext.get().id();
+        accommodationService.deleteImage(accommodationId, imageId, memberId);
+
         return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
     }
 

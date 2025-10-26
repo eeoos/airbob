@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.image;
+package kr.kro.airbob.domain.image.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

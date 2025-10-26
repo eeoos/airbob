@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.accommodation.service;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
@@ -42,7 +44,15 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.AmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
-import kr.kro.airbob.domain.image.AccommodationImage;
+import kr.kro.airbob.domain.image.entity.AccommodationImage;
+import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
+import kr.kro.airbob.domain.image.exception.ImageAccessDeniedException;
+import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
+import kr.kro.airbob.domain.image.exception.ImageNotFoundException;
+import kr.kro.airbob.domain.image.exception.ImageUploadException;
+import kr.kro.airbob.domain.image.exception.InsufficientImageCountException;
+import kr.kro.airbob.domain.image.exception.InvalidImageFormatException;
+import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
@@ -58,11 +68,16 @@ import kr.kro.airbob.geo.dto.GeocodeResult;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AccommodationService {
 
+    public static final int MAX_IMAEG_SIZE = 10 * 1024 * 1024;
+    public static final String IMAEG_JPEG = "image/jpeg";
+    public static final String IMAGE_PNG = "image/png";
     private final AccommodationReviewSummaryRepository reviewSummaryRepository;
     private final WishlistAccommodationRepository wishlistAccommodationRepository;
     private final AccommodationAmenityRepository accommodationAmenityRepository;
@@ -77,11 +92,12 @@ public class AccommodationService {
     private final CursorPageInfoCreator cursorPageInfoCreator;
     private final OutboxEventPublisher outboxEventPublisher;
     private final GeocodingService geocodingService;
+    private final S3ImageUploader s3ImageUploader;
 
     @Transactional
-    public AccommodationResponse.Create createAccommodation(CreateAccommodationDto request) {
+    public AccommodationResponse.Create createAccommodation(CreateAccommodationDto request, Long memberId) {
 
-        Member member = memberRepository.findByIdAndStatus(request.getHostId(), MemberStatus.ACTIVE)
+        Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
                 .orElseThrow(MemberNotFoundException::new);
 
         OccupancyPolicy occupancyPolicy = OccupancyPolicy.createOccupancyPolicy(request.getOccupancyPolicyInfo());
@@ -286,6 +302,112 @@ public class AccommodationService {
             .pageInfo(pageInfo)
             .build();
 
+    }
+
+    @Transactional
+    public AccommodationResponse.UploadImages uploadImages(Long accommodationId, List<MultipartFile> images,
+        Long memberId) {
+
+        Accommodation accommodation = findAccommodationById(accommodationId);
+        validateOwner(memberId, accommodation);
+
+        List<AccommodationResponse.ImageInfo> uploadedImages = new ArrayList<>();
+
+        for (MultipartFile image : images) {
+            validateImageFile(image);
+
+            String imageUrl;
+            try {
+                String dirName = "images/" + accommodationId;
+                imageUrl = s3ImageUploader.upload(image, dirName);
+            } catch (IOException e) {
+                log.error("이미지 업로드 실패: accommodationId={}, fileName={}", accommodation.getId(),
+                    image.getOriginalFilename(), e);
+                throw new ImageUploadException(image.getOriginalFilename());
+            }
+
+            AccommodationImage accommodationImage = AccommodationImage.builder()
+                .accommodation(accommodation)
+                .imageUrl(imageUrl)
+                .build();
+            AccommodationImage savedImage = accommodationImageRepository.save(accommodationImage);
+
+            uploadedImages.add(AccommodationResponse.ImageInfo.builder()
+                .id(savedImage.getId())
+                .imageUrl(savedImage.getImageUrl())
+                .build());
+        }
+
+        if (!uploadedImages.isEmpty() && accommodation.getThumbnailUrl() == null) {
+            updateThumbnail(accommodation, uploadedImages.getFirst().imageUrl());
+        }
+
+        validateMinimumImageCount(accommodation.getId());
+
+        return AccommodationResponse.UploadImages.builder()
+            .uploadedImages(uploadedImages)
+            .build();
+    }
+
+    @Transactional
+    public void deleteImage(Long accommodationId, Long imageId, Long memberId) {
+        Accommodation accommodation = findAccommodationById(accommodationId);
+        validateOwner(memberId, accommodation);
+
+        AccommodationImage image = accommodationImageRepository.findById(imageId)
+            .orElseThrow(ImageNotFoundException::new);
+
+        if (!image.getAccommodation().getId().equals(accommodationId)) {
+            throw new ImageAccessDeniedException();
+        }
+
+        validateMinimumImageCount(accommodation.getId());
+
+        s3ImageUploader.delete(image.getImageUrl());
+
+        accommodationImageRepository.delete(image);
+
+        // 썸네일이었는지 여부
+        if (image.getImageUrl().equals(accommodation.getThumbnailUrl())) {
+            findAndUpdateThumbnail(accommodation);
+        }
+    }
+
+    private void validateImageFile(MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new EmptyImageFileException();
+        }
+
+        if (file.getSize() > MAX_IMAEG_SIZE) {
+            throw new ImageFileSizeExceededException();
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.equals(IMAEG_JPEG) && !contentType.equals(IMAGE_PNG))) {
+            throw new InvalidImageFormatException();
+        }
+    }
+
+    private void validateMinimumImageCount(Long accommodationId) {
+        long count = accommodationImageRepository.countByAccommodationId(accommodationId);
+        if (count < 5) {
+            log.warn("숙소 ID {}의 이미지 개수가 최소 요구 사항(5개) 미만입니다: {}개", accommodationId, count);
+            throw new InsufficientImageCountException("current image count: " + count);
+        }
+    }
+
+    private void updateThumbnail(Accommodation accommodation, String imageUrl) {
+        accommodation.updateThumbnailUrl(imageUrl);
+    }
+
+    private void findAndUpdateThumbnail(Accommodation accommodation) {
+
+        List<AccommodationImage> remainingImages = accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodation.getId());
+        if (!remainingImages.isEmpty()) {
+            updateThumbnail(accommodation, remainingImages.getFirst().getImageUrl());
+        } else {
+            updateThumbnail(accommodation, null);
+        }
     }
 
     private List<AccommodationResponse.AmenityInfo> getAmenities(Long accommodationId) {

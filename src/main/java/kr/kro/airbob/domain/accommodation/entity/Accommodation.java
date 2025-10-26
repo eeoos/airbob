@@ -136,4 +136,8 @@ public class Accommodation extends UpdatableEntity {
 	public void delete() {
 		this.status = AccommodationStatus.DELETED;
 	}
+
+	public void updateThumbnailUrl(String imageUrl) {
+		this.thumbnailUrl = imageUrl;
+	}
 }

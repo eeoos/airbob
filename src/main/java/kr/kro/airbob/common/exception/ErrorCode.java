@@ -71,8 +71,17 @@ public enum ErrorCode {
 	REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "V006", "해당 리뷰에 대한 권한이 없습니다."),
 
 	// discount
-	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다.");
+	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다."),
 
+	// image
+	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "이미지 업로드 중 오류가 발생했습니다."),
+	IMAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I002", "이미지 삭제 중 오류가 발생했습니다."),
+	INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "I003", "지원하지 않는 이미지 형식입니다. (JPG, PNG만 가능합니다)"),
+	IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "I004", "요청한 이미지를 찾을 수 없습니다."),
+	IMAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "I005", "해당 이미지에 대한 권한이 없습니다."),
+	IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "I005", "이미지는 최소 5개 이상 등록해야 합니다."),
+	EMPTY_IMAGE_FILE(HttpStatus.BAD_REQUEST, "I007", "이미지 파일이 비어 있습니다."),
+	IMAGE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "I008", "이미지 파일 크기는 10MB를 초과할 수 없습니다.");
 
 	private final HttpStatus status;
 	private final String code;
