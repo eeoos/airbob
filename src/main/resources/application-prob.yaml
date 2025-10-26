@@ -1,0 +1,57 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  jpa:
+    properties:
+      hibernate:
+        format_sql: false
+        show_sql: false
+        default_batch_fetch_size: 100
+
+  flyway:
+    url: ${SPRING_DATASOURCE_URL}
+    user: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: 6379
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS}
+    username: ${ELASTICSEARCH_USERNAME}
+    password: ${ELASTIC_PASSWORD}
+    connection-timeout: 10s
+    socket-timeout: 30s
+
+  kafka:
+    consumer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      group-id: payment-service-group
+    producer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+cloud:
+  aws:
+    s3:
+      bucket: ${AWS_S3_BUCKET_NAME}
+    region:
+      static: ${AWS_REGION}
+    stack:
+      auto: false
+  cloudfront:
+    domain: ${CLOUDFRONT_DOMAIN}
+
+slack:
+  notification:
+    enabled: true # 알림 켜기
+
+logging:
+  level:
+    kr.kro.airbob: INFO
+    org.hibernate.SQL: INFO

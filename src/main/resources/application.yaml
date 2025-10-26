@@ -2,14 +2,8 @@ spring:
   application:
     name: airbob
 
-  config:
-    import: optional:file:.env[.properties]
-
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+  profiles:
+    active: dev
 
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
@@ -18,23 +12,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        format_sql: true
-        show_sql: true
-        default_batch_fetch_size: 100
 
   flyway:
     enabled: true               # Flyway 사용 활성화
-    url: ${SPRING_DATASOURCE_URL}
-    user: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
     locations: classpath:db/migration  # 마이그레이션 파일 위치(기본값)
     baseline-on-migrate: true   # 기존 DB에 적용 시 필수(옵션)
     baseline-version: 1          # Baseline 기준 버전(옵션)
-
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: 6379
 
   jackson:
     property-naming-strategy: SNAKE_CASE
@@ -43,17 +26,8 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
-  elasticsearch:
-    uris: ${ELASTICSEARCH_URIS}
-    username: ${ELASTICSEARCH_USERNAME}
-    password: ${ELASTIC_PASSWORD}
-    connection-timeout: 10s
-    socket-timeout: 30s
-
   kafka:
     consumer:
-      bootstrap-servers: localhost:9092 # Docker 외부에서 접속 시 localhost, 내부에서는 kafka:9092
-      group-id: payment-service-group
       auto-offset-reset: earliest
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -63,7 +37,6 @@ spring:
     listener:
       ack-mode: MANUAL
     producer:
-      bootstrap-servers: localhost:9092
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 

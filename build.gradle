@@ -29,6 +29,12 @@ ext {
 	snippetsDir = layout.buildDirectory.dir("generated-snippets").get().asFile
 }
 
+dependencyManagement {
+	imports {
+		mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:3.1.1"
+	}
+}
+
 dependencies {
 	// Spring Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -74,6 +80,9 @@ dependencies {
 
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
+
+	// Spring Cloud AWS
+	implementation "io.awspring.cloud:spring-cloud-aws-starter-s3"
 
 	// 테스트
 	testImplementation 'org.springframework.kafka:spring-kafka-test'
