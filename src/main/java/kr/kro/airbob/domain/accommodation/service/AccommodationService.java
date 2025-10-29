@@ -282,7 +282,7 @@ public class AccommodationService {
 
             String imageUrl;
             try {
-                String dirName = "images/" + accommodationId;
+                String dirName = "accommodations/" + accommodationId;
                 imageUrl = s3ImageUploader.upload(image, dirName);
             } catch (IOException e) {
                 log.error("이미지 업로드 실패: accommodationId={}, fileName={}", accommodation.getId(),

@@ -23,15 +23,14 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.entity.ReviewImage;
 import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
-import kr.kro.airbob.domain.image.exception.ImageAccessDeniedException;
 import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
 import kr.kro.airbob.domain.image.exception.ImageUploadException;
 import kr.kro.airbob.domain.image.exception.InvalidImageFormatException;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -51,7 +50,6 @@ import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.SuperBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -89,7 +87,7 @@ public class ReviewService {
 			.build();
 		Review savedReview = reviewRepository.save(review);
 
-		updateReviewSummaryOnCreate(accommodationId, request.rating());
+		updateReviewSummaryOnCreate(accommodation, request.rating());
 		outboxEventPublisher.save(
 			EventType.REVIEW_SUMMARY_CHANGED,
 			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
@@ -100,11 +98,7 @@ public class ReviewService {
 
 	@Transactional
 	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request, Long memberId) {
-		Review review = findReviewById(reviewId);
-
-		if (!review.getAuthor().getId().equals(memberId)) {
-			throw new ReviewAccessDeniedException();
-		}
+		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
 
 		if (review.getStatus() != ReviewStatus.PUBLISHED) {
 			throw new ReviewUpdateForbiddenException();
@@ -116,11 +110,7 @@ public class ReviewService {
 
 	@Transactional
 	public void deleteReview(Long reviewId, Long memberId) {
-		Review review = findReviewById(reviewId);
-
-		if (!review.getAuthor().getId().equals(memberId)) {
-			throw new ReviewAccessDeniedException();
-		}
+		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
 
 		review.deleteByUser();
 
@@ -171,10 +161,11 @@ public class ReviewService {
 	@Transactional
 	public ReviewResponse.UploadReviewImages uploadReviewImages(Long reviewId, List<MultipartFile> images,
 		Long memberId) {
-		Review review = findReviewById(reviewId);
-		validateReviewAuthor(memberId, review);
+
+		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
 
 		List<ReviewResponse.ImageInfo> uploadedImages = new ArrayList<>();
+		List<ReviewImage> savedImages = new ArrayList<>();
 
 		for (MultipartFile image : images) {
 			validateImageFile(image);
@@ -192,13 +183,19 @@ public class ReviewService {
 				.review(review)
 				.imageUrl(imageUrl)
 				.build();
-			ReviewImage savedImage = reviewImageRepository.save(reviewImage);
 
+			savedImages.add(reviewImage);
+		}
+
+		List<ReviewImage> actuallySavedImages = reviewImageRepository.saveAll(savedImages);
+
+		for (ReviewImage savedImage : actuallySavedImages) {
 			uploadedImages.add(ReviewResponse.ImageInfo.builder()
 				.id(savedImage.getId())
 				.imageUrl(savedImage.getImageUrl())
 				.build());
 		}
+
 		return ReviewResponse.UploadReviewImages.builder()
 			.uploadedImages(uploadedImages)
 			.build();
@@ -257,27 +254,20 @@ public class ReviewService {
 		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
 	}
 
-	private Review findReviewById(Long reviewId) {
-		return reviewRepository.findById(reviewId).orElseThrow(ReviewNotFoundException::new);
+	private Review findReviewByIdAndAuthorId(Long reviewId, Long memberId) {
+		return reviewRepository.findByIdAndAuthorId(reviewId, memberId).orElseThrow(ReviewNotFoundException::new);
 	}
 
 	private AccommodationReviewSummary findSummaryByAccommodationId(Long accommodationId) {
 		return summaryRepository.findByAccommodationId(accommodationId).orElseThrow(ReviewSummaryNotFoundException::new);
 	}
 
-	private void updateReviewSummaryOnCreate(Long accommodationId, int rating) {
-		AccommodationReviewSummary summary = summaryRepository.findByAccommodationId(accommodationId)
-			.orElseGet(() -> createNewSummary(accommodationId));
+	private void updateReviewSummaryOnCreate(Accommodation accommodation, int rating) {
+		AccommodationReviewSummary summary = summaryRepository.findByAccommodationId(accommodation.getId())
+			.orElseGet(() -> createNewSummary(accommodation));
 
 		summary.addReview(rating);
 		summaryRepository.save(summary); // 명시적 save
-	}
-
-	private void updateReviewSummaryOnUpdate(Long accommodationId, int oldRating, int newRating) {
-
-		AccommodationReviewSummary summary = findSummaryByAccommodationId(accommodationId);
-
-		summary.updateReview(oldRating, newRating);
 	}
 
 	private void updateReviewSummaryOnDelete(Long accommodationId, int rating) {
@@ -290,11 +280,9 @@ public class ReviewService {
 		}
 	}
 
-	private AccommodationReviewSummary createNewSummary(Long accommodationId) {
-		Accommodation accommodation = findAccommodationById(accommodationId);
+	private AccommodationReviewSummary createNewSummary(Accommodation accommodation) {
 		return AccommodationReviewSummary.builder()
 			.accommodation(accommodation)
 			.build();
 	}
-
 }
