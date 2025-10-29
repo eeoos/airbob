@@ -85,6 +85,8 @@ public class Accommodation extends UpdatableEntity {
 
 	public static Accommodation createAccommodation(Member member) {
 		return Accommodation.builder()
+			.checkInTime(LocalTime.of(15, 0)) // 기본값: 3시
+			.checkOutTime(LocalTime.of(11, 0)) // 기본값: 11시
 			.member(member)
 			.build();
 	}
