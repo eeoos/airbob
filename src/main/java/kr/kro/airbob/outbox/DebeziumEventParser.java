@@ -10,29 +10,35 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.outbox.exception.DebeziumEventParsingException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class DebeziumEventParser {
 
 	private final ObjectMapper objectMapper;
 
-	public <T extends EventPayload> EventEnvelope<T> parse(String debeziumMessage, Class<T> payloadType) {
+	public <T extends EventPayload> EventEnvelope<T> parse(String eventEnvelopeJson, Class<T> payloadType) {
 		try {
-			String envelopeJson = extractEnvelopeJson(debeziumMessage);
 			JavaType type = objectMapper.getTypeFactory().constructParametricType(EventEnvelope.class, payloadType);
-			return objectMapper.readValue(envelopeJson, type);
+			return objectMapper.readValue(eventEnvelopeJson, type);
 		} catch (IOException e) {
+			log.error("EventEnvelope 파싱 실패 JSON: {}", eventEnvelopeJson, e);
 			throw new DebeziumEventParsingException(e);
 		}
 	}
 
-	public String getEventType(String debeziumMessage) {
+	public String getEventType(String eventEnvelopeJson) {
 		try {
-			String envelopeJson = extractEnvelopeJson(debeziumMessage);
-			JsonNode envelopeNode = objectMapper.readTree(envelopeJson);
-			return envelopeNode.path("event_type").asText();
+			JsonNode envelopeNode = objectMapper.readTree(eventEnvelopeJson);
+			if (envelopeNode.hasNonNull("event_type")) {
+				return envelopeNode.path("event_type").asText();
+			} else {
+				throw new IOException("event_type 필드가 NULL이거나 존재하지 않음. EventEnvelope JSON: " + eventEnvelopeJson);
+			}
 		} catch (IOException e) {
+			log.error("EventEnvelope에서 eventType 획득 실패 JSON: {}", eventEnvelopeJson, e);
 			throw new DebeziumEventParsingException(e);
 		}
 	}
