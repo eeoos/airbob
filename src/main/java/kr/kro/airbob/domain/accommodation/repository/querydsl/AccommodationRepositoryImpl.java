@@ -96,6 +96,21 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
         return Optional.ofNullable(result);
     }
 
+    @Override
+    public Optional<Accommodation> findWithDetailsExceptHostById(Long accommodationId, Long hostId) {
+        Accommodation result = jpaQueryFactory
+            .selectFrom(accommodation)
+            .leftJoin(accommodation.address, address).fetchJoin()
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
+            .where(
+                accommodation.id.eq(accommodationId),
+                accommodation.member.id.eq(hostId)
+            )
+            .fetchOne();
+
+        return Optional.ofNullable(result);
+    }
+
     private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {
         if (lastId == null || lastCreatedAt == null) {
             return null;

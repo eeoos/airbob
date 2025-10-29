@@ -39,25 +39,33 @@ public class AccommodationController {
     private final AuthService authService;
 
     @PostMapping("/v1/accommodations")
-    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
-        @RequestBody @Valid AccommodationRequest.CreateAccommodationDto requestDto,
-        HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(HttpServletRequest request) {
         String sessionId = SessionUtil.getSessionIdByCookie(request);
         Long memberId = UserContext.get().id();
         authService.validateHost(sessionId, memberId);
 
-        AccommodationResponse.Create response = accommodationService.createAccommodation(requestDto, memberId);
+        AccommodationResponse.Create response = accommodationService.createAccommodation(memberId);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success(response));
     }
 
     @PatchMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId,
-        @RequestBody AccommodationRequest.UpdateAccommodationDto request) {
+        @RequestBody AccommodationRequest.Update request) {
         Long memberId = UserContext.get().id();
         accommodationService.updateAccommodation(accommodationId, request, memberId);
         return ResponseEntity.ok(ApiResponse.success());
     }
+
+    @PatchMapping("/v1/accommodations/{accommodationId}/publish")
+    public ResponseEntity<ApiResponse<Void>> publishAccommodation(@PathVariable Long accommodationId) {
+        Long memberId = UserContext.get().id();
+        accommodationService.publishAccommodation(accommodationId, memberId);
+
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+
 
     @DeleteMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {

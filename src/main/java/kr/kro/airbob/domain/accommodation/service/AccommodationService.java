@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -22,7 +23,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
@@ -30,7 +30,6 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.CreateAccommodationDto;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
@@ -38,7 +37,6 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationAccessDeniedException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
@@ -48,7 +46,6 @@ import kr.kro.airbob.domain.accommodation.repository.AmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
-import kr.kro.airbob.domain.image.exception.ImageAccessDeniedException;
 import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
 import kr.kro.airbob.domain.image.exception.ImageNotFoundException;
 import kr.kro.airbob.domain.image.exception.ImageUploadException;
@@ -77,9 +74,10 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AccommodationService {
 
-    public static final int MAX_IMAEG_SIZE = 10 * 1024 * 1024;
-    public static final String IMAEG_JPEG = "image/jpeg";
+    public static final int MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+    public static final String IMAGE_JPEG = "image/jpeg";
     public static final String IMAGE_PNG = "image/png";
+
     private final AccommodationReviewSummaryRepository reviewSummaryRepository;
     private final WishlistAccommodationRepository wishlistAccommodationRepository;
     private final AccommodationAmenityRepository accommodationAmenityRepository;
@@ -97,77 +95,38 @@ public class AccommodationService {
     private final S3ImageUploader s3ImageUploader;
 
     @Transactional
-    public AccommodationResponse.Create createAccommodation(CreateAccommodationDto request, Long memberId) {
+    public AccommodationResponse.Create createAccommodation(Long memberId) {
 
         Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
                 .orElseThrow(MemberNotFoundException::new);
 
-        OccupancyPolicy occupancyPolicy = OccupancyPolicy.createOccupancyPolicy(request.getOccupancyPolicyInfo());
-        occupancyPolicyRepository.save(occupancyPolicy);
-
-        String addressStr = geocodingService.buildAddressString(request.getAddressInfo());
-        GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
-
-        Address address = Address.createAddress(request.getAddressInfo(), geocodeResult);
-        addressRepository.save(address);
-
-        Accommodation accommodation = Accommodation.createAccommodation(request, address, occupancyPolicy, member);
+        Accommodation accommodation = Accommodation.createAccommodation(member);
         Accommodation savedAccommodation = accommodationRepository.save(accommodation);
-
-        //사전에 정의해둔 어메니티만 저장 가능
-        if (request.getAmenityInfos() != null) {
-            saveValidAmenities(request.getAmenityInfos(), savedAccommodation);
-        }
-
-        outboxEventPublisher.save(
-            EventType.ACCOMMODATION_CREATED,
-            new AccommodationCreatedEvent(savedAccommodation.getAccommodationUid().toString())
-        );
-
 
         return new AccommodationResponse.Create(savedAccommodation.getId());
     }
 
     @Transactional
-    public void updateAccommodation(Long accommodationId, AccommodationRequest.UpdateAccommodationDto request, Long memberId) {
-        Accommodation accommodation = findAccommodationById(accommodationId);
+    public void updateAccommodation(Long accommodationId, AccommodationRequest.Update request, Long memberId) {
 
-        validateOwner(memberId, accommodation);
+        Accommodation accommodation = findAccommodationByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
         accommodation.updateAccommodation(request);
+        updateAddress(accommodation, request.addressInfo());
+        updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
+        updateAmenities(accommodation, request.amenityInfos());
 
-        if (request.getAddressInfo() != null && accommodation.getAddress().isChanged(request.getAddressInfo())) {
-            String addressStr = geocodingService.buildAddressString(request.getAddressInfo());
-            GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
-
-            Address newAddress = Address.createAddress(request.getAddressInfo(), geocodeResult);
-            Address savedAddress = addressRepository.save(newAddress);
-
-            accommodation.updateAddress(savedAddress);
+        if (accommodation.getStatus() == AccommodationStatus.PUBLISHED) { // 게시 상태인 경우 ES 색인 이벤트 발행
+            outboxEventPublisher.save(
+                EventType.ACCOMMODATION_UPDATED,
+                new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
+            );
         }
-
-        if (request.getOccupancyPolicyInfo() != null) {
-            OccupancyPolicy occupancyPolicy = OccupancyPolicy.createOccupancyPolicy(request.getOccupancyPolicyInfo());
-            OccupancyPolicy savedOccupancyPolicy = occupancyPolicyRepository.save(occupancyPolicy);
-            accommodation.updateOccupancyPolicy(savedOccupancyPolicy);
-        }
-
-        if (request.getAmenityInfos() != null && !request.getAmenityInfos().isEmpty()){
-            accommodationAmenityRepository.deleteAllByAccommodationId(accommodationId);
-            saveValidAmenities(request.getAmenityInfos(), accommodation);
-        }
-
-        outboxEventPublisher.save(
-            EventType.ACCOMMODATION_UPDATED,
-            new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
-        );
     }
 
     @Transactional
     public void deleteAccommodation(Long accommodationId, Long memberId) {
-        Accommodation accommodation = findAccommodationById(accommodationId);
-
-        validateOwner(memberId, accommodation);
+        Accommodation accommodation = findAccommodationByIdAndMemberId(accommodationId, memberId);
 
         accommodation.delete();
 
@@ -310,10 +269,10 @@ public class AccommodationService {
     public AccommodationResponse.UploadImages uploadImages(Long accommodationId, List<MultipartFile> images,
         Long memberId) {
 
-        Accommodation accommodation = findAccommodationById(accommodationId);
-        validateOwner(memberId, accommodation);
+        Accommodation accommodation = findAccommodationByIdAndMemberId(accommodationId, memberId);
 
         List<AccommodationResponse.ImageInfo> uploadedImages = new ArrayList<>();
+        List<AccommodationImage> savedImages = new ArrayList<>();
 
         for (MultipartFile image : images) {
             validateImageFile(image);
@@ -332,19 +291,19 @@ public class AccommodationService {
                 .accommodation(accommodation)
                 .imageUrl(imageUrl)
                 .build();
-            AccommodationImage savedImage = accommodationImageRepository.save(accommodationImage);
+            savedImages.add(accommodationImage);
+        }
 
+        List<AccommodationImage> actuallySavedImages = accommodationImageRepository.saveAll(savedImages);
+
+        for (AccommodationImage savedImage : actuallySavedImages) {
             uploadedImages.add(AccommodationResponse.ImageInfo.builder()
                 .id(savedImage.getId())
                 .imageUrl(savedImage.getImageUrl())
                 .build());
         }
 
-        if (!uploadedImages.isEmpty() && accommodation.getThumbnailUrl() == null) {
-            updateThumbnail(accommodation, uploadedImages.getFirst().imageUrl());
-        }
-
-        validateMinimumImageCount(accommodation.getId());
+        findAndUpdateThumbnail(accommodation);
 
         return AccommodationResponse.UploadImages.builder()
             .uploadedImages(uploadedImages)
@@ -353,8 +312,7 @@ public class AccommodationService {
 
     @Transactional
     public void deleteImage(Long accommodationId, Long imageId, Long memberId) {
-        Accommodation accommodation = findAccommodationById(accommodationId);
-        validateOwner(memberId, accommodation);
+        Accommodation accommodation = findAccommodationByIdAndMemberId(accommodationId, memberId);
 
         AccommodationImage image = accommodationImageRepository.findById(imageId)
             .orElseThrow(ImageNotFoundException::new);
@@ -363,14 +321,12 @@ public class AccommodationService {
             throw new InvalidInputException();
         }
 
-        validateMinimumImageCount(accommodation.getId());
-
         s3ImageUploader.delete(image.getImageUrl());
 
         accommodationImageRepository.delete(image);
 
-        // 썸네일이었는지 여부
         if (image.getImageUrl().equals(accommodation.getThumbnailUrl())) {
+            // 삭제된 이미지가 현재 썸네일이었을 경우 새로운 썸네일 설정
             findAndUpdateThumbnail(accommodation);
         }
     }
@@ -430,40 +386,85 @@ public class AccommodationService {
             .build();
     }
 
+    @Transactional
+    public void publishAccommodation(Long accommodationId, Long memberId) {
+        Accommodation accommodation = findAccommodationWithDetailsExceptByIdAndMemberId(accommodationId, memberId);
+
+        validateAccommodationForPublishing(accommodation);
+
+        accommodation.publish();
+
+        outboxEventPublisher.save(
+            EventType.ACCOMMODATION_UPDATED,
+            new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
+        );
+    }
+
+    private void validateAccommodationForPublishing(Accommodation accommodation) {
+        if (accommodation.getName() == null || accommodation.getName().isBlank()) {
+            throw new InvalidInputException("숙소 이름은 필수입니다.");
+        }
+        if (accommodation.getDescription() == null || accommodation.getDescription().isBlank()) {
+            throw new InvalidInputException("숙소 설명은 필수입니다.");
+        }
+
+        Address address = accommodation.getAddress();
+        if (address == null || address.getCountry() == null || address.getCity() == null
+            || address.getDistrict() == null || address.getStreet() == null || address.getDetail() == null
+            || address.getPostalCode() == null || address.getLatitude() == null || address.getLongitude() == null) {
+
+            throw new InvalidInputException("숙소 주소 정보는 필수입니다.");
+        }
+
+        if (accommodation.getBasePrice() == null || accommodation.getBasePrice() < 5000) { // 가격 검증 (5000원 이상)
+            throw new InvalidInputException("기본 가격 정보가 유효하지 않습니다 (5000원 이상이어야 함).");
+        }
+
+        if (accommodation.getType() == null) {
+            throw new InvalidInputException("숙소 타입은 필수입니다.");
+        }
+        OccupancyPolicy policy = accommodation.getOccupancyPolicy();
+        if (policy == null || policy.getMaxOccupancy() == null || policy.getAdultOccupancy() == null
+            || policy.getChildOccupancy() == null || policy.getInfantOccupancy() == null
+            || policy.getPetOccupancy() == null) {
+
+            throw new InvalidInputException("수용 인원 정책 정보는 필수입니다.");
+        }
+
+        if (accommodation.getCheckInTime() == null || accommodation.getCheckOutTime() == null) {
+            throw new InvalidInputException("체크인/체크아웃 시간은 필수입니다.");
+        }
+
+        long imageCount = accommodationImageRepository.countByAccommodationId(accommodation.getId());
+        int minImageCount = 5; // 최소 이미지 개수
+        if (imageCount < minImageCount) {
+            throw new InsufficientImageCountException("이미지는 최소 " + minImageCount + "개 이상 등록해야 게시할 수 있습니다. 현재: " + imageCount + "개");
+        }
+
+    }
+
     private void validateImageFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new EmptyImageFileException();
         }
 
-        if (file.getSize() > MAX_IMAEG_SIZE) {
+        if (file.getSize() > MAX_IMAGE_SIZE) {
             throw new ImageFileSizeExceededException();
         }
 
         String contentType = file.getContentType();
-        if (contentType == null || (!contentType.equals(IMAEG_JPEG) && !contentType.equals(IMAGE_PNG))) {
+        if (contentType == null || (!contentType.equals(IMAGE_JPEG) && !contentType.equals(IMAGE_PNG))) {
             throw new InvalidImageFormatException();
         }
-    }
-
-    private void validateMinimumImageCount(Long accommodationId) {
-        long count = accommodationImageRepository.countByAccommodationId(accommodationId);
-        if (count < 5) {
-            log.warn("숙소 ID {}의 이미지 개수가 최소 요구 사항(5개) 미만입니다: {}개", accommodationId, count);
-            throw new InsufficientImageCountException("current image count: " + count);
-        }
-    }
-
-    private void updateThumbnail(Accommodation accommodation, String imageUrl) {
-        accommodation.updateThumbnailUrl(imageUrl);
     }
 
     private void findAndUpdateThumbnail(Accommodation accommodation) {
 
         List<AccommodationImage> remainingImages = accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodation.getId());
-        if (!remainingImages.isEmpty()) {
-            updateThumbnail(accommodation, remainingImages.getFirst().getImageUrl());
-        } else {
-            updateThumbnail(accommodation, null);
+        String newThumbnailUrl = remainingImages.isEmpty() ? null : remainingImages.getFirst().getImageUrl();
+
+        if (!Objects.equals(accommodation.getThumbnailUrl(), newThumbnailUrl)) {
+            accommodation.updateThumbnailUrl(newThumbnailUrl);
         }
     }
 
@@ -522,14 +523,10 @@ public class AccommodationService {
             .collect(Collectors.joining(" "));
     }
 
-    private void validateOwner(Long memberId, Accommodation accommodation) {
-        if (!accommodation.getMember().getId().equals(memberId)) {
-            throw new AccommodationAccessDeniedException();
-        }
-    }
-
     private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
         Map<AmenityType, Integer> amenityCountMap = getAmenityCountMap(request);
+
+        if(amenityCountMap.isEmpty()) return;
 
         List<Amenity> amenities = amenityRepository.findByNameIn(amenityCountMap.keySet());
 
@@ -552,20 +549,69 @@ public class AccommodationService {
 
     private Map<AmenityType, Integer> getAmenityCountMap(List<AmenityInfo> request) {
         return request.stream()
-            .filter(info -> AmenityType.isValid(info.getName()))
-            .filter(info -> info.getCount() > 0)
+            .filter(info -> AmenityType.isValid(info.name()))
+            .filter(info -> info.count() > 0)
             .collect(Collectors.toMap(
-                info -> AmenityType.valueOf(info.getName().toUpperCase()),
-                AmenityInfo::getCount,
+                info -> AmenityType.valueOf(info.name().toUpperCase()),
+                AmenityInfo::count,
                 Integer::sum
             ));
     }
 
-    private Accommodation findAccommodationById(Long accommodationId) {
-        return accommodationRepository.findById(accommodationId).orElseThrow(AccommodationNotFoundException::new);
+    private void updateOccupancyPolicy(Accommodation accommodation, AccommodationRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
+        if (occupancyPolicyInfo == null) {
+            return;
+        }
+
+        OccupancyPolicy currentPolicy = accommodation.getOccupancyPolicy();
+        if (currentPolicy == null) {
+            OccupancyPolicy newPolicy = OccupancyPolicy.createOccupancyPolicy(occupancyPolicyInfo);
+            OccupancyPolicy savedPolicy = occupancyPolicyRepository.save(newPolicy);
+            accommodation.updateOccupancyPolicy(savedPolicy);
+        }
+    }
+
+    private void updateAddress(Accommodation accommodation, AccommodationRequest.AddressInfo addressInfo) {
+        if (addressInfo == null) {
+            return;
+        }
+
+        Address currentAddress = accommodation.getAddress();
+
+        if (currentAddress == null || currentAddress.isChanged(addressInfo)) {
+            String addressStr = geocodingService.buildAddressString(addressInfo);
+            GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
+            Address newAddress = Address.createAddress(addressInfo, geocodeResult);
+            Address savedAddress = addressRepository.save(newAddress);
+            accommodation.updateAddress(savedAddress);
+        }
+    }
+
+    private void updateAmenities(Accommodation accommodation, List<AmenityInfo> amenityInfos) {
+        if (amenityInfos == null) {
+            return;
+        }
+
+        accommodationAmenityRepository.deleteByAccommodationId(accommodation.getId());
+
+        if (!amenityInfos.isEmpty()) {
+            saveValidAmenities(amenityInfos, accommodation);
+        }
+    }
+
+    private Accommodation findAccommodationWithDetailsExceptByIdAndMemberId(Long accommodationId, Long memberId) {
+        return accommodationRepository.findWithDetailsExceptHostById(accommodationId, memberId).orElseThrow(AccommodationNotFoundException::new);
+    }
+
+    private Accommodation findAccommodationByIdAndMemberIdExceptDeleted(Long accommodationId, Long memberId) {
+        return accommodationRepository.findByIdAndMemberIdAndStatusNot(accommodationId, memberId, AccommodationStatus.DELETED).orElseThrow(AccommodationNotFoundException::new);
     }
 
     private Accommodation findAccommodationByIdAndStatus(Long accommodationId, AccommodationStatus status) {
         return accommodationRepository.findByIdAndStatus(accommodationId, status).orElseThrow(AccommodationNotFoundException::new);
+    }
+
+    private Accommodation findAccommodationByIdAndMemberId(Long accommodationId, Long memberId) {
+        return accommodationRepository.findByIdAndMemberId(accommodationId, memberId).orElseThrow(AccommodationNotFoundException::new);
     }
 }

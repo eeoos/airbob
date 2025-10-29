@@ -22,4 +22,6 @@ public interface AccommodationRepositoryCustom {
     );
 
     Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
+    Optional<Accommodation> findWithDetailsExceptHostById(Long accommodationId, Long hostId);
+
 }

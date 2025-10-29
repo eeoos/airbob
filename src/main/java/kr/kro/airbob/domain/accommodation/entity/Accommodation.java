@@ -19,7 +19,7 @@ import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.UpdateAccommodationDto;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.Update;
 import kr.kro.airbob.domain.member.entity.Member;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -78,47 +78,44 @@ public class Accommodation extends UpdatableEntity {
 			this.accommodationUid = UUID.randomUUID();
 		}
 		if (this.status == null) {
-			this.status = AccommodationStatus.PUBLISHED; // 생성 시 기본 상태
+			this.status = AccommodationStatus.DRAFT; // 생성 시 기본 상태
 		}
 	}
 
-	public static Accommodation createAccommodation(AccommodationRequest.CreateAccommodationDto request,
-													Address address, OccupancyPolicy occupancyPolicy, Member member) {
+	public static Accommodation createAccommodation(Member member) {
 		return Accommodation.builder()
-			.name(request.getName())
-			.description(request.getDescription())
-			.basePrice(request.getBasePrice())
-			.thumbnailUrl(request.getThumbnailUrl())
-			.type(AccommodationType.valueOf(request.getType()))
-			.address(address)
-			.occupancyPolicy(occupancyPolicy)
 			.member(member)
-			.checkInTime(request.getCheckInTime())
-			.checkOutTime(request.getCheckOutTime())
-			.status(AccommodationStatus.PUBLISHED)
 			.build();
 	}
 
-	public void updateAccommodation(UpdateAccommodationDto request) {
-		if (request.getName() != null) {
-			this.name = request.getName();
+	public void updateAccommodation(Update request) {
+		if (request.name() != null) {
+			this.name = request.name();
 		}
 
-		if (request.getDescription() != null) {
-			this.description = request.getDescription();
+		if (request.description() != null) {
+			this.description = request.description();
 		}
 
-		if (request.getBasePrice() != null) {
-			this.basePrice = request.getBasePrice();
+		if (request.basePrice() != null) {
+			this.basePrice = request.basePrice();
 		}
 
-		if (request.getType() != null) {
-			this.type = AccommodationType.valueOf(request.getType().toUpperCase());
+		if (request.type() != null) {
+			this.type = AccommodationType.valueOf(request.type().toUpperCase());
+		}
+
+		if (request.checkInTime() != null) {
+			this.checkInTime =request.checkInTime();
+		}
+
+		if (request.checkOutTime() != null) {
+			this.checkOutTime =request.checkOutTime();
 		}
 	}
 
-	public void updateAddress(Address newAddress) {
-		this.address = newAddress;
+	public void updateAddress(Address address) {
+		this.address = address;
 	}
 
 	public void updateOccupancyPolicy(OccupancyPolicy occupancyPolicy) {

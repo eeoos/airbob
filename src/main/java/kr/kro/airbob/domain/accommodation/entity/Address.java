@@ -39,23 +39,23 @@ public class Address extends BaseEntity {
 	public static Address createAddress(AccommodationRequest.AddressInfo addressInfo, GeocodeResult geocodeResult) {
 
 		return Address.builder()
-			.country(addressInfo.getCountry())
-			.city(addressInfo.getCity())
-			.district(addressInfo.getDistrict())
-			.street(addressInfo.getStreet())
-			.detail(addressInfo.getDetail())
-			.postalCode(addressInfo.getPostalCode())
+			.country(addressInfo.country())
+			.city(addressInfo.city())
+			.district(addressInfo.district())
+			.street(addressInfo.street())
+			.detail(addressInfo.detail())
+			.postalCode(addressInfo.postalCode())
 			.latitude(geocodeResult.success() ? geocodeResult.latitude() : null)
 			.longitude(geocodeResult.success() ? geocodeResult.longitude() : null)
 			.build();
 	}
 
 	public boolean isChanged(AccommodationRequest.AddressInfo newAddressInfo) {
-		return !Objects.equals(this.country, newAddressInfo.getCountry()) ||
-			!Objects.equals(this.city, newAddressInfo.getCity()) ||
-			!Objects.equals(this.district, newAddressInfo.getDistrict()) ||
-			!Objects.equals(this.street, newAddressInfo.getStreet()) ||
-			!Objects.equals(this.detail, newAddressInfo.getDetail()) ||
-			!Objects.equals(this.postalCode, newAddressInfo.getPostalCode());
+		return !Objects.equals(this.country, newAddressInfo.country()) ||
+			!Objects.equals(this.city, newAddressInfo.city()) ||
+			!Objects.equals(this.district, newAddressInfo.district()) ||
+			!Objects.equals(this.street, newAddressInfo.street()) ||
+			!Objects.equals(this.detail, newAddressInfo.detail()) ||
+			!Objects.equals(this.postalCode, newAddressInfo.postalCode());
 	}
 }

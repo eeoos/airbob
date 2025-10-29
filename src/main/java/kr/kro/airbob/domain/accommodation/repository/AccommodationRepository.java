@@ -16,7 +16,8 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 
 	List<Accommodation> findByIdInAndStatus(List<Long> accommodationIds, AccommodationStatus status);
 
-	@Query("select a.member.id from Accommodation a where a.id = :id")
-	Optional<Long> findHostIdByAccommodationId(Long id);
+	Optional<Accommodation> findByIdAndMemberId(Long accommodationId, Long memberId);
+
+	Optional<Accommodation> findByIdAndMemberIdAndStatusNot(Long accommodationId, Long memberId, AccommodationStatus accommodationStatus);
 
 }

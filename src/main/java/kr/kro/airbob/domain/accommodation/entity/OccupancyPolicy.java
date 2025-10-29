@@ -30,11 +30,11 @@ public class OccupancyPolicy extends BaseEntity {
 
 	public static OccupancyPolicy createOccupancyPolicy(AccommodationRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
 		return OccupancyPolicy.builder()
-				.maxOccupancy(occupancyPolicyInfo.getMaxOccupancy())
-				.adultOccupancy(occupancyPolicyInfo.getAdultOccupancy())
-				.childOccupancy(occupancyPolicyInfo.getChildOccupancy())
-				.infantOccupancy(occupancyPolicyInfo.getInfantOccupancy())
-				.petOccupancy(occupancyPolicyInfo.getPetOccupancy())
+				.maxOccupancy(occupancyPolicyInfo.maxOccupancy())
+				.adultOccupancy(occupancyPolicyInfo.adultOccupancy())
+				.childOccupancy(occupancyPolicyInfo.childOccupancy())
+				.infantOccupancy(occupancyPolicyInfo.infantOccupancy())
+				.petOccupancy(occupancyPolicyInfo.petOccupancy())
 				.build();
 	}
 }

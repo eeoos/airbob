@@ -19,12 +19,6 @@ public class AccommodationIndexingService {
 	private final AccommodationDocumentBuilder documentBuilder;
 	private final AccommodationIndexUpdater indexUpdater;
 
-	public void indexNewAccommodation(AccommodationCreatedEvent event) {
-		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());
-		searchRepository.save(document);
-		log.info("[ES-INDEX] 숙소 생성: {}", event.accommodationUid());
-	}
-
 	public void updateAccommodationIndex(AccommodationUpdatedEvent event) {
 		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());
 		searchRepository.save(document);

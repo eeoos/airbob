@@ -69,8 +69,7 @@ public class ReservationController {
 	}
 
 	@GetMapping("/v1/host/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.HostDetailInfo>> getHostReservationDetail(
-		@PathVariable String reservationUid) {
+	public ResponseEntity<ApiResponse<ReservationResponse.HostDetailInfo>> getHostReservationDetail(@PathVariable String reservationUid) {
 
 		Long hostId = UserContext.get().id();
 		ReservationResponse.HostDetailInfo response = reservationService.findHostReservationDetail(reservationUid, hostId);
