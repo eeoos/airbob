@@ -12,13 +12,13 @@ import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.event.common.EventStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
-@Builder
+@SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Event extends UpdatableEntity {

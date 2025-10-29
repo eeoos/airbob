@@ -13,6 +13,7 @@ import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationRepos
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
 
 	Optional<Accommodation> findByIdAndStatus(Long id, AccommodationStatus status);
+	Optional<Accommodation> findByIdAndMemberIdAndStatus(Long id, Long memberId, AccommodationStatus status);
 
 	List<Accommodation> findByIdInAndStatus(List<Long> accommodationIds, AccommodationStatus status);
 

@@ -1,13 +1,10 @@
 package kr.kro.airbob.domain.wishlist.repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -54,7 +51,7 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 	Map<Long, String> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
 
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
-	boolean existsByMemberIdAndAccommodationId(Long memberId, Long accommodationId);
+	boolean existsByWishlist_Member_IdAndAccommodation_Id(Long memberId, Long accommodationId);
 
 
 	@Query("""

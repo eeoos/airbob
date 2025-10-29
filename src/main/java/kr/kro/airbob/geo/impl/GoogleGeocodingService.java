@@ -90,11 +90,11 @@ public class GoogleGeocodingService implements GeocodingService {
 	public String buildAddressString(AccommodationRequest.AddressInfo addressInfo) {
 
 		return String.format("%s %s %s %s %s",
-				addressInfo.getCountry(),
-				addressInfo.getCity(),
-				addressInfo.getDistrict(),
-				addressInfo.getStreet(),
-				addressInfo.getDetail())
+				addressInfo.country(),
+				addressInfo.city(),
+				addressInfo.district(),
+				addressInfo.street(),
+				addressInfo.detail())
 			.replaceAll("\\s", " ")
 			.trim();
 	}

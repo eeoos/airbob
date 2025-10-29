@@ -24,8 +24,8 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
-import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.auth.common.SessionUtil;
+import kr.kro.airbob.domain.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -51,7 +51,7 @@ public class AccommodationController {
 
     @PatchMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId,
-        @RequestBody AccommodationRequest.Update request) {
+        @RequestBody @Valid AccommodationRequest.Update request) {
         Long memberId = UserContext.get().id();
         accommodationService.updateAccommodation(accommodationId, request, memberId);
         return ResponseEntity.ok(ApiResponse.success());
@@ -65,7 +65,13 @@ public class AccommodationController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 
+    @PatchMapping("/v1/accommodations/{accommodationId}/unpublish")
+    public ResponseEntity<ApiResponse<Void>> unpublishAccommodation(@PathVariable Long accommodationId) {
+        Long memberId = UserContext.get().id();
+        accommodationService.unpublishAccommodation(accommodationId, memberId);
 
+        return ResponseEntity.ok(ApiResponse.success());
+    }
 
     @DeleteMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {

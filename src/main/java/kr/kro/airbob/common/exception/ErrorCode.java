@@ -31,7 +31,9 @@ public enum ErrorCode {
 	// accommodation
 	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않거나 삭제된 숙소입니다."),
 	ACCOMMODATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "숙소에 대한 접근 권한이 없습니다."),
-
+	ACCOMMODATION_NOT_PUBLISHED(HttpStatus.BAD_REQUEST, "A003", "게시된 상태의 숙소만 미게시할 수 있습니다."),
+	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
+	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
 
 	// reservation
 	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "존재하지 않는 예약입니다."),
@@ -49,11 +51,6 @@ public enum ErrorCode {
 	TOSS_PAYMENT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 예외"),
 	TOSS_PAYMENT_RESPONSE_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "토스페이먼츠 에러 응답 파싱 실패"),
 	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
-	// TOSS_PAYMENT_CONFIRM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 결제 승인에 실패했습니다."),
-	// TOSS_PAYMENT_CANCEL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "Toss Payments 결제 취소에 실패했습니다."),
-	// TOSS_PAYMENT_INQUIRY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P004", "Toss Payments 결제 조회에 실패했습니다."),
-	// TOSS_VIRTUAL_ACCOUNT_ISSUE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P005", "Toss Payments 가상계좌 발급에 실패했습니다."),
-
 
 	// wishlist
 	WISHLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "W001", "존재하지 않는 위시리스트입니다."),
@@ -81,7 +78,6 @@ public enum ErrorCode {
 	INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "I003", "지원하지 않는 이미지 형식입니다. (JPG, PNG만 가능합니다)"),
 	IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "I004", "요청한 이미지를 찾을 수 없습니다."),
 	IMAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "I005", "해당 이미지에 대한 권한이 없습니다."),
-	IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "I005", "이미지는 최소 5개 이상 등록해야 합니다."),
 	EMPTY_IMAGE_FILE(HttpStatus.BAD_REQUEST, "I007", "이미지 파일이 비어 있습니다."),
 	IMAGE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "I008", "이미지 파일 크기는 10MB를 초과할 수 없습니다.");
 
