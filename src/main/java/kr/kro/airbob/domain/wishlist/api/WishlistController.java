@@ -65,7 +65,9 @@ public class WishlistController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@PostMapping("/v1/members/wishlists/{wishlistId}/accommodations")
+
+
+	@PostMapping("/v1/members/wishlists/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Create>> createWishlistAccommodation(
 		@PathVariable Long wishlistId,
 		@Valid @RequestBody WishlistAccommodationRequest.Create request) {
@@ -75,7 +77,7 @@ public class WishlistController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@PatchMapping("/v1/members/wishlists/{wishlistId}/accommodations/{wishlistAccommodationId}")
+	@PatchMapping("/v1/members/wishlists/{wishlistAccommodationId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Update>> updateWishlistAccommodation(
 		@PathVariable Long wishlistAccommodationId,
 		@Valid @RequestBody WishlistAccommodationRequest.Update request) {
@@ -87,7 +89,7 @@ public class WishlistController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@DeleteMapping("/v1/members/wishlists/{wishlistId}/accommodations/{wishlistAccommodationId}")
+	@DeleteMapping("/v1/members/wishlists/{wishlistAccommodationId}")
 	public ResponseEntity<ApiResponse<Void>> deleteWishlistAccommodation(
 		@PathVariable Long wishlistAccommodationId) {
 		Long memberId = UserContext.get().id();
@@ -98,7 +100,7 @@ public class WishlistController {
 	}
 
 	// todo: 추후 필터링 적용(날짜, 게스트 인원)
-	@GetMapping("/v1/members/wishlists/{wishlistId}/accommodations")
+	@GetMapping("/v1/members/wishlists/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodations(
 		@CursorParam CursorRequest.CursorPageRequest request,
 		@PathVariable Long wishlistId

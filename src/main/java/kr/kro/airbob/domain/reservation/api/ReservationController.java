@@ -44,21 +44,21 @@ public class ReservationController {
 		return ResponseEntity.accepted().body(ApiResponse.success());
 	}
 
-	@GetMapping("/v1/reservations/{reservationUid}")
+	@GetMapping("/v1/my/guest/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<ReservationResponse.DetailInfo>> getMyReservationDetail(@PathVariable String reservationUid) {
 		Long memberId = UserContext.get().id();
 		return ResponseEntity.ok(
 			ApiResponse.success(reservationService.findMyReservationDetail(reservationUid, memberId)));
 	}
 
-	@GetMapping("/v1/reservations/my")
+	@GetMapping("/v1/my/guest/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.MyReservationInfos>> getMyReservations(
 		@CursorParam CursorRequest.CursorPageRequest request) {
 		Long memberId = UserContext.get().id();
 		return ResponseEntity.ok(ApiResponse.success(reservationService.findMyReservations(memberId, request)));
 	}
 
-	@GetMapping("/v1/host/reservations")
+	@GetMapping("/v1/my/host/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.HostReservationInfos>> getHostReservations(
 		@CursorParam CursorRequest.CursorPageRequest cursorRequest) {
 
@@ -68,7 +68,7 @@ public class ReservationController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@GetMapping("/v1/host/reservations/{reservationUid}")
+	@GetMapping("/v1/my/host/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<ReservationResponse.HostDetailInfo>> getHostReservationDetail(@PathVariable String reservationUid) {
 
 		Long hostId = UserContext.get().id();

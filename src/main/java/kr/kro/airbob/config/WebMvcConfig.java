@@ -45,8 +45,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			"/api/v1/reservations",
 			"/api/v1/reservations/*",
 
-			"/api/v1/my/accommodations",
-
 			"/api/v1/host/reservations",
 			"/api/v1/host/reservations/*",
 

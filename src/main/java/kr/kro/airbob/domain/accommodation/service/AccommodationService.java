@@ -129,7 +129,7 @@ public class AccommodationService {
 
     @Transactional
     public void deleteAccommodation(Long accommodationId, Long memberId) {
-        Accommodation accommodation = findByIdAndMemberId(accommodationId, memberId);
+        Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
         accommodation.delete();
 
@@ -272,7 +272,8 @@ public class AccommodationService {
     public AccommodationResponse.UploadImages uploadImages(Long accommodationId, List<MultipartFile> images,
         Long memberId) {
 
-        Accommodation accommodation = findByIdAndMemberId(accommodationId, memberId);
+        // todo: 숙소 + 호스트 조회 -> 호스트인지 여부 검증으로 변경 필요
+        Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
         List<AccommodationResponse.ImageInfo> uploadedImages = new ArrayList<>();
         List<AccommodationImage> savedImages = new ArrayList<>();
@@ -313,10 +314,12 @@ public class AccommodationService {
             .build();
     }
 
+    //todo: query 2번
     @Transactional
     public void deleteImage(Long accommodationId, Long imageId, Long memberId) {
-        Accommodation accommodation = findByIdAndMemberId(accommodationId, memberId);
+        Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
+        // 숙소 이미지 + 숙소 함께 조회
         AccommodationImage image = accommodationImageRepository.findById(imageId)
             .orElseThrow(ImageNotFoundException::new);
 
@@ -405,7 +408,7 @@ public class AccommodationService {
 
     @Transactional
     public void unpublishAccommodation(Long accommodationId, Long memberId) {
-        Accommodation accommodation = findByIdAndMemberId(accommodationId, memberId);
+        Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
         if (accommodation.getStatus() != AccommodationStatus.PUBLISHED) {
             throw new AccommodationStateException();
@@ -629,7 +632,7 @@ public class AccommodationService {
         return accommodationRepository.findByIdAndStatus(accommodationId, status).orElseThrow(AccommodationNotFoundException::new);
     }
 
-    private Accommodation findByIdAndMemberId(Long accommodationId, Long memberId) {
-        return accommodationRepository.findByIdAndMemberId(accommodationId, memberId).orElseThrow(AccommodationNotFoundException::new);
+    private Accommodation findByIdAndMemberIdExceptDeleted(Long accommodationId, Long memberId) {
+        return accommodationRepository.findByIdAndMemberIdAndStatusNot(accommodationId, memberId, AccommodationStatus.DELETED).orElseThrow(AccommodationNotFoundException::new);
     }
 }

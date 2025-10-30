@@ -107,6 +107,7 @@ public class ReservationTransactionService {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
+		// todo: 추가 쿼리 발생 -> member까지 같이 조회 고려 필요
 		if (!reservation.getGuest().getId().equals(memberId)) {
 			throw new ReservationAccessDeniedException();
 		}
