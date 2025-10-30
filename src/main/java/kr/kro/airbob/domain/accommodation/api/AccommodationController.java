@@ -77,7 +77,7 @@ public class AccommodationController {
     public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {
         Long memberId = UserContext.get().id();
         accommodationService.deleteAccommodation(accommodationId, memberId);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @PostMapping("/v1/accommodations/{accommodationId}/images")
@@ -100,7 +100,7 @@ public class AccommodationController {
         Long memberId = UserContext.get().id();
         accommodationService.deleteImage(accommodationId, imageId, memberId);
 
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @GetMapping("/v1/accommodations/{accommodationId}")

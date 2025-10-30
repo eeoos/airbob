@@ -60,7 +60,7 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
 		Long memberId = UserContext.get().id();
 		reviewService.deleteReview(reviewId, memberId);
-		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@PostMapping("/v1/reviews/{reviewId}/images")
@@ -83,7 +83,7 @@ public class ReviewController {
 		Long memberId = UserContext.get().id();
 		reviewService.deleteReviewImage(reviewId, imageId, memberId);
 
-		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews")

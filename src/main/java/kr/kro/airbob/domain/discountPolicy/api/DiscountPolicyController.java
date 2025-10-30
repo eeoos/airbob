@@ -37,7 +37,7 @@ public class DiscountPolicyController {
     @DeleteMapping("/v1/discount/{discountPolicyId}")
     public ResponseEntity<ApiResponse<Void>> deleteDiscountPolicy(@PathVariable Long discountPolicyId){
         discountpolicyService.deletePolicy(discountPolicyId);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
 }

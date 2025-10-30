@@ -37,6 +37,6 @@ public class AuthController {
     @PostMapping("/v1/auth/logout")
     public ResponseEntity<ApiResponse<Void>> logout(@CookieValue("SESSION_ID") String sessionId) {
         authService.logout(sessionId);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 }

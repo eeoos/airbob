@@ -54,7 +54,7 @@ public class WishlistController {
 	public ResponseEntity<ApiResponse<Void>> deleteWishlist(@PathVariable Long wishlistId) {
 		Long memberId = UserContext.get().id();
 		wishlistService.deleteWishlist(wishlistId, memberId);
-		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/members/wishlists")
@@ -96,7 +96,7 @@ public class WishlistController {
 
 		wishlistService.deleteWishlistAccommodation(wishlistAccommodationId, memberId);
 
-		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	// todo: 추후 필터링 적용(날짜, 게스트 인원)
