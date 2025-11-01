@@ -36,7 +36,7 @@ public class AccommodationDocumentBuilder {
 			.orElseThrow(AccommodationNotFoundException::new);
 
 		List<String> amenityTypes = getAccommodationAmenities(accommodationUid);
-		List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
+		// List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
 		List<LocalDate> reservedDates = getReservedDates(accommodationUid);
 		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
@@ -67,7 +67,7 @@ public class AccommodationDocumentBuilder {
 			.hostId(accommodation.getMember().getId())
 			.hostNickname(accommodation.getMember().getNickname())
 			.amenityTypes(amenityTypes)
-			.imageUrls(imageUrls)
+			.thumbnailUrl(accommodation.getThumbnailUrl())
 			.reservedDates(reservedDates)
 			.averageRating(reviewSummary != null ? reviewSummary.getAverageRating().doubleValue() : null)
 			.reviewCount(reviewSummary != null ? reviewSummary.getTotalReviewCount() : null)

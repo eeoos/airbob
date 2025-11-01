@@ -94,9 +94,9 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	List<String> amenityTypes,
 
-	// 숙소 이미지
+	// 숙소 썸네일
 	@Field(type = FieldType.Keyword)
-	List<String> imageUrls,
+	String thumbnailUrl,
 
 	// 예약
 	@Field(type = FieldType.Date)
@@ -118,7 +118,6 @@ public record AccommodationDocument(
 ) {
 
 	@Builder
-
 	public record Location(
 		@Field(type = FieldType.Double)
 		Double lat,

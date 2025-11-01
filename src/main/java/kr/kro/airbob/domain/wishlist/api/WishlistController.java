@@ -65,8 +65,6 @@ public class WishlistController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-
-
 	@PostMapping("/v1/members/wishlists/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Create>> createWishlistAccommodation(
 		@PathVariable Long wishlistId,

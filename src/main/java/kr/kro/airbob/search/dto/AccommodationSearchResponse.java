@@ -2,7 +2,6 @@ package kr.kro.airbob.search.dto;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
-import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 
@@ -21,7 +20,7 @@ public class AccommodationSearchResponse {
 		long id,
 		String name,
 		String locationSummary, // ex) 동작구 사당동
-		List<String> accommodationImageUrls,
+		String accommodationThumbnailUrl,
 		Coordinate coordinate,
 		PriceResponse pricePerNight,
 		ReviewResponse.ReviewSummary review,
@@ -39,7 +38,7 @@ public class AccommodationSearchResponse {
 				.id(doc.accommodationId())
 				.name(doc.name())
 				.locationSummary(String.format("%s %s", doc.district(), doc.street()))
-				.accommodationImageUrls(doc.imageUrls() != null ? doc.imageUrls() : List.of())
+				.accommodationThumbnailUrl(doc.thumbnailUrl())
 				.coordinate(new Coordinate(
 					doc.location() != null ? doc.location().lat() : null,
 					doc.location() != null ? doc.location().lon() : null

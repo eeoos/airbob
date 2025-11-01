@@ -3,7 +3,6 @@ package kr.kro.airbob.search.service;
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
