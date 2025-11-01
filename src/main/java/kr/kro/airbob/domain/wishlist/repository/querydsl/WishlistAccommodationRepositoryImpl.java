@@ -14,6 +14,7 @@ import org.springframework.data.domain.SliceImpl;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.wishlist.dto.QWishlistAccommodationResponse_WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,9 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 				accommodation.id,
 				accommodation.name,
 				accommodationReviewSummary.averageRating,
-				wishlistAccommodation.createdAt
+				accommodationReviewSummary.totalReviewCount,
+				wishlistAccommodation.createdAt,
+				accommodation.thumbnailUrl
 			))
 			.from(wishlistAccommodation)
 			.join(wishlistAccommodation.accommodation, accommodation)
@@ -42,6 +45,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
 			.where(
 				wishlistAccommodation.wishlist.id.eq(wishlistId),
+				accommodation.status.eq(AccommodationStatus.PUBLISHED),
 				cursorCondition(lastId, lastCreatedAt)
 			)
 			.orderBy(wishlistAccommodation.createdAt.desc(), wishlistAccommodation.id.desc())

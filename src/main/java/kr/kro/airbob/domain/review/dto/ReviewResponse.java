@@ -50,7 +50,7 @@ public class ReviewResponse {
 				return new ReviewSummary(0, BigDecimal.ZERO);
 			}
 			return new ReviewSummary(
-				summary.getTotalReviewCount().intValue(),
+				summary.getTotalReviewCount(),
 				summary.getAverageRating()
 			);
 		}

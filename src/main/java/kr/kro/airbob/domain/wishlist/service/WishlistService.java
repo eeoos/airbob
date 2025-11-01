@@ -202,11 +202,9 @@ public class WishlistService {
 			.map(WishlistAccommodationResponse.WishlistAccommodationInfo::accommodationId)
 			.toList();
 
-		Map<Long, List<String>> imageUrlsMap = getAccommodationImageUrls(accommodationIds);
 		Map<Long, List<AccommodationResponse.AmenityInfo>> amenitiesMap = getAccommodationAmenities(accommodationIds);
 
 		infos.forEach(info -> {
-			info.imageUrls().addAll(imageUrlsMap.getOrDefault(info.accommodationId(), List.of()));
 			info.amenities().addAll(amenitiesMap.getOrDefault(info.accommodationId(), List.of()));
 		});
 
@@ -220,7 +218,7 @@ public class WishlistService {
 		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo);
 	}
 
-	private Map<Long, List<String>> getAccommodationImageUrls(List<Long> accommodationIds) {
+	/*private Map<Long, List<String>> getAccommodationImageUrls(List<Long> accommodationIds) {
 		List<AccommodationImage> results = accommodationImageRepository
 			.findAccommodationImagesByAccommodationIds(accommodationIds);
 
@@ -232,7 +230,7 @@ public class WishlistService {
 					Collectors.toList()
 				)
 			));
-	}
+	}*/
 
 	private Map<Long, List<AccommodationResponse.AmenityInfo>> getAccommodationAmenities(
 		List<Long> accommodationIds) {

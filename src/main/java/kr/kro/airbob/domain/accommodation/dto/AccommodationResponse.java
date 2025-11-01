@@ -127,6 +127,7 @@ public class AccommodationResponse {
 		String thumbnailUrl,
 		List<AmenityInfo> amenities,
 		BigDecimal averageRating,
+		Integer reviewCount, // 추가
 		Boolean isInWishlist
 	) {
 	}

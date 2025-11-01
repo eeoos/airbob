@@ -24,7 +24,7 @@ public class AccommodationSearchResponse {
 		Coordinate coordinate,
 		PriceResponse pricePerNight,
 		ReviewResponse.ReviewSummary review,
-		String hostName,
+		String hostName, // todo: 넣을지 여부 결정 필요
 		Boolean isInWishlist
 	){
 		public static AccommodationSearchInfo from(AccommodationDocument doc, boolean isInWishlist) {

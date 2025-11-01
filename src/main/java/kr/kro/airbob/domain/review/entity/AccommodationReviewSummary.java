@@ -40,12 +40,15 @@ public class AccommodationReviewSummary extends UpdatableEntity {
 	private Accommodation accommodation;
 
 	@Column(nullable = false)
+	@Builder.Default
 	private Integer totalReviewCount = 0;
 
 	@Column(nullable = false)
+	@Builder.Default
 	private Long ratingSum = 0L;
 
 	@Column(precision = 3, scale = 2)
+	@Builder.Default
 	private BigDecimal averageRating = BigDecimal.ZERO;
 
 	public void addReview(int rating) {

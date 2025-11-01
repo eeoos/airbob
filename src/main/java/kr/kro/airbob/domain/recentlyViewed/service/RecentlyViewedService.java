@@ -1,6 +1,5 @@
 package kr.kro.airbob.domain.recentlyViewed.service;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -22,6 +21,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
@@ -38,6 +38,7 @@ public class RecentlyViewedService {
 	private final AccommodationReviewSummaryRepository summaryRepository;
 	private final AccommodationAmenityRepository accommodationAmenityRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
+
 
 	private static final String RECENTLY_VIEWED_KEY_PREFIX = "recently_viewed:";
 	private static final int MAX_COUNT = 100;
@@ -96,7 +97,7 @@ public class RecentlyViewedService {
 		}
 
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
-		Map<Long, BigDecimal> reviewRatingMap = getReviewRatingMap(existingIdList);
+		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
 		Map<Long, List<AccommodationResponse.AmenityInfo>> amenityMap = getAmenityMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
@@ -113,13 +114,16 @@ public class RecentlyViewedService {
 					.atZone(ZoneId.systemDefault())
 					.toLocalDateTime();
 
+				ReviewResponse.ReviewSummary reviewSummary = reviewSummaryMap.get(accommodationId);
+
 				return AccommodationResponse.RecentlyViewedAccommodationInfo.builder()
 					.viewedAt(viewAt)
 					.accommodationId(accommodationId)
 					.accommodationName(accommodation.getName())
 					.thumbnailUrl(accommodation.getThumbnailUrl())
 					.amenities(amenityMap.getOrDefault(accommodationId, List.of()))
-					.averageRating(reviewRatingMap.get(accommodationId))
+					.averageRating(reviewSummary.averageRating())
+					.reviewCount(reviewSummary.totalCount())
 					.isInWishlist(wishlistMap.getOrDefault(accommodationId, false))
 					.build();
 			})
@@ -143,14 +147,14 @@ public class RecentlyViewedService {
 			));
 	}
 
-	private Map<Long, BigDecimal> getReviewRatingMap(List<Long> accommodationIds) {
+	private Map<Long, ReviewResponse.ReviewSummary> getReviewSummaryMap(List<Long> accommodationIds) {
 		List<AccommodationReviewSummary> summaries = summaryRepository.findByAccommodationIdIn(
 			accommodationIds);
 
 		return summaries.stream()
 			.collect(Collectors.toMap(
 				AccommodationReviewSummary::getAccommodationId,
-				AccommodationReviewSummary::getAverageRating
+				ReviewResponse.ReviewSummary::of
 			));
 	}
 

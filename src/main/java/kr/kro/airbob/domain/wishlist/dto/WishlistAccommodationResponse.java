@@ -37,13 +37,15 @@ public class WishlistAccommodationResponse {
 		long accommodationId,
 		String accommodationName,
 		BigDecimal averageRating,
+		int reviewCount, // 추가
 		LocalDateTime createdAt,
-		List<String> imageUrls,
-		List<AccommodationResponse.AmenityInfo> amenities
+		String thumbnailUrl,
+		List<AccommodationResponse.AmenityInfo> amenities,
+		Boolean isInWishlist // 추가
 	) {
 		@QueryProjection
-		public WishlistAccommodationInfo(long wishlistAccommodationId, String memo, long accommodationId, String accommodationName, BigDecimal averageRating, LocalDateTime createdAt) {
-			this(wishlistAccommodationId, memo, accommodationId, accommodationName, averageRating, createdAt, new ArrayList<>(), new ArrayList<>());
+		public WishlistAccommodationInfo(long wishlistAccommodationId, String memo, long accommodationId, String accommodationName, BigDecimal averageRating, int reviewCount, LocalDateTime createdAt, String thumbnailUrl) {
+			this(wishlistAccommodationId, memo, accommodationId, accommodationName, averageRating, reviewCount,createdAt, thumbnailUrl, new ArrayList<>(), true);
 		}
 	}
 }
