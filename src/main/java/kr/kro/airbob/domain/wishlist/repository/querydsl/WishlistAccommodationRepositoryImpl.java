@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.wishlist.repository.querydsl;
 
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
+import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.review.entity.QAccommodationReviewSummary.*;
 import static kr.kro.airbob.domain.wishlist.entity.QWishlistAccommodation.*;
 
@@ -41,6 +42,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			))
 			.from(wishlistAccommodation)
 			.join(wishlistAccommodation.accommodation, accommodation)
+			.join(accommodation.address, address).fetchJoin()
 			.leftJoin(accommodationReviewSummary)
 			.on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
 			.where(

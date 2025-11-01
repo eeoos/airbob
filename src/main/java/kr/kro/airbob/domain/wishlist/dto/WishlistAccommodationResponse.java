@@ -9,6 +9,8 @@ import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -36,16 +38,34 @@ public class WishlistAccommodationResponse {
 		String memo,
 		long accommodationId,
 		String accommodationName,
-		BigDecimal averageRating,
-		int reviewCount, // 추가
-		LocalDateTime createdAt,
 		String thumbnailUrl,
-		List<AccommodationResponse.AmenityInfo> amenities,
-		Boolean isInWishlist // 추가
+		String locationSummary,
+		BigDecimal averageRating,
+		int reviewCount,
+		LocalDateTime createdAt,
+		Boolean isInWishlist
 	) {
 		@QueryProjection
-		public WishlistAccommodationInfo(long wishlistAccommodationId, String memo, long accommodationId, String accommodationName, BigDecimal averageRating, int reviewCount, LocalDateTime createdAt, String thumbnailUrl) {
-			this(wishlistAccommodationId, memo, accommodationId, accommodationName, averageRating, reviewCount,createdAt, thumbnailUrl, new ArrayList<>(), true);
+		public WishlistAccommodationInfo(
+			long wishlistAccommodationId,
+			String memo,
+			Accommodation accommodation,
+			BigDecimal averageRating,
+			int reviewCount,
+			LocalDateTime createdAt) {
+
+			this(
+				wishlistAccommodationId,
+				memo,
+				accommodation.getId(),
+				accommodation.getName(),
+				accommodation.getThumbnailUrl(),
+				String.format("%s %s", accommodation.getAddress().getDistrict(),accommodation.getAddress().getStreet()),
+				averageRating,
+				reviewCount,
+				createdAt,
+				true
+			);
 		}
 	}
 }

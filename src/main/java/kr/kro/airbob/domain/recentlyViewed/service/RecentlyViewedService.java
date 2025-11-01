@@ -81,7 +81,7 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<Accommodation> accommodationsInDb = accommodationRepository.findByIdInAndStatus(new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
+		List<Accommodation> accommodationsInDb = accommodationRepository.findWithAddressByIdAndStatusIn(new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 		Map<Long, Accommodation> accommodationMap = accommodationsInDb.stream()
 			.collect(Collectors.toMap(Accommodation::getId, accommodation -> accommodation));
 
@@ -98,7 +98,7 @@ public class RecentlyViewedService {
 
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
 		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
-		Map<Long, List<AccommodationResponse.AmenityInfo>> amenityMap = getAmenityMap(existingIdList);
+		// Map<Long, List<AccommodationResponse.AmenityInfo>> amenityMap = getAmenityMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
@@ -121,7 +121,8 @@ public class RecentlyViewedService {
 					.accommodationId(accommodationId)
 					.accommodationName(accommodation.getName())
 					.thumbnailUrl(accommodation.getThumbnailUrl())
-					.amenities(amenityMap.getOrDefault(accommodationId, List.of()))
+					// .amenities(amenityMap.getOrDefault(accommodationId, List.of()))
+					.locationSummary(String.format("%s %s", accommodation.getAddress().getDistrict(),accommodation.getAddress().getStreet()))
 					.averageRating(reviewSummary.averageRating())
 					.reviewCount(reviewSummary.totalCount())
 					.isInWishlist(wishlistMap.getOrDefault(accommodationId, false))

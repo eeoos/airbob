@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.accommodation.repository.querydsl;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +21,8 @@ public interface AccommodationRepositoryCustom {
         LocalDateTime lastCreatedAt,
         Pageable pageable
     );
+
+    List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status);
 
     Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
     Optional<Accommodation> findWithDetailsExceptHostById(Long accommodationId, Long hostId);

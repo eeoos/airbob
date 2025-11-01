@@ -97,6 +97,20 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
+    public List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status) {
+        List<Accommodation> results = jpaQueryFactory.
+            selectFrom(accommodation)
+            .leftJoin(accommodation.address, address).fetchJoin()
+            .where(
+                accommodation.id.in(accommodationIds),
+                accommodation.status.eq(status)
+            )
+            .fetch();
+
+        return results;
+    }
+
+    @Override
     public Optional<Accommodation> findWithDetailsExceptHostById(Long accommodationId, Long hostId) {
         Accommodation result = jpaQueryFactory
             .selectFrom(accommodation)

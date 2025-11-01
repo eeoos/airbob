@@ -36,7 +36,6 @@ public class AccommodationResponse {
 		List<MyAccommodationInfo> accommodations,
 		CursorResponse.PageInfo pageInfo
 	) {
-
 	}
 
 	@Builder
@@ -65,7 +64,6 @@ public class AccommodationResponse {
 		List<LocalDate> unavailableDates,
 		Boolean isInWishlist
 	) {
-
 	}
 
 	@Builder
@@ -125,9 +123,9 @@ public class AccommodationResponse {
 		Long accommodationId,
 		String accommodationName,
 		String thumbnailUrl,
-		List<AmenityInfo> amenities,
+		String locationSummary,
 		BigDecimal averageRating,
-		Integer reviewCount, // 추가
+		int reviewCount, // 추가
 		Boolean isInWishlist
 	) {
 	}

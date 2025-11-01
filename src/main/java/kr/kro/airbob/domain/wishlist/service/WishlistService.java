@@ -19,13 +19,11 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
+import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
@@ -36,7 +34,6 @@ import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateException;
-import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationNotFoundException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistRepository;
@@ -52,7 +49,6 @@ public class WishlistService {
 	private final WishlistRepository wishlistRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
-	private final AccommodationImageRepository accommodationImageRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
@@ -114,6 +110,7 @@ public class WishlistService {
 		Map<Long, Long> wishlistItemCounts = wishlistAccommodationRepository.countByWishlistIds(wishlistIds);
 
 		// 위시리스트별 가장 최근에 추가된 숙소 썸네일 Url 조회
+		// todo: queryDSL로 변경하면서 숙소의 상태가 publish인 조건도 추가 필요
 		Map<Long, String> thumbnailUrls = wishlistAccommodationRepository.findLatestThumbnailUrlsByWishlistIds(wishlistIds);
 
 		List<WishlistResponse.WishlistInfo> wishlistInfos = wishlistSlice.getContent().stream()
@@ -198,16 +195,6 @@ public class WishlistService {
 			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo);
 		}
 
-		List<Long> accommodationIds = infos.stream()
-			.map(WishlistAccommodationResponse.WishlistAccommodationInfo::accommodationId)
-			.toList();
-
-		Map<Long, List<AccommodationResponse.AmenityInfo>> amenitiesMap = getAccommodationAmenities(accommodationIds);
-
-		infos.forEach(info -> {
-			info.amenities().addAll(amenitiesMap.getOrDefault(info.accommodationId(), List.of()));
-		});
-
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			infos,
 			slice.hasNext(),
@@ -218,50 +205,12 @@ public class WishlistService {
 		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo);
 	}
 
-	/*private Map<Long, List<String>> getAccommodationImageUrls(List<Long> accommodationIds) {
-		List<AccommodationImage> results = accommodationImageRepository
-			.findAccommodationImagesByAccommodationIds(accommodationIds);
-
-		return results .stream()
-			.collect(Collectors.groupingBy(
-				ai -> ai.getAccommodation().getId(),
-				Collectors.mapping(
-					AccommodationImage::getImageUrl,
-					Collectors.toList()
-				)
-			));
-	}*/
-
-	private Map<Long, List<AccommodationResponse.AmenityInfo>> getAccommodationAmenities(
-		List<Long> accommodationIds) {
-
-		List<AccommodationAmenity> results
-			= amenityRepository.findAccommodationAmenitiesByAccommodationIds(accommodationIds);
-
-		return results.stream()
-			.collect(Collectors.groupingBy(
-				aa -> aa.getAccommodation().getId(),
-				Collectors.mapping(
-					result -> new AccommodationResponse.AmenityInfo(
-						result.getAmenity().getName(),
-						result.getCount()
-					),
-					Collectors.toList()
-				)
-			));
-	}
-
 	private Member findMemberById(Long loggedInMemberId) {
 		return memberRepository.findByIdAndStatus(loggedInMemberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 	}
 
 	private Accommodation findAccommodationByIdAndStatus(Long accommodationId) {
 		return accommodationRepository.findByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED).orElseThrow(AccommodationNotFoundException::new);
-	}
-
-	private WishlistAccommodation findWishlistAccommodation(Long wishlistAccommodationId){
-		return wishlistAccommodationRepository.findById(wishlistAccommodationId)
-			.orElseThrow(WishlistAccommodationNotFoundException::new);
 	}
 
 	private void validateWishlistAccommodationDuplicate(Long wishlistId, Long accommodationId) {
