@@ -224,31 +224,19 @@ public class AccommodationService {
                 .build();
         }
 
-        List<Long> accommodationIds = accommodations.stream()
-            .map(Accommodation::getId)
-            .toList();
-        Map<Long, AccommodationReviewSummary> reviewSummaryMap = reviewSummaryRepository.findByAccommodationIdIn(
-                accommodationIds)
-            .stream()
-            .collect(Collectors.toMap(AccommodationReviewSummary::getAccommodationId, Function.identity()));
-
         List<AccommodationResponse.MyAccommodationInfo> accommodationInfos = accommodations.stream()
             .map(acc -> {
                 Address address = acc.getAddress();
-                AccommodationReviewSummary reviewSummary = reviewSummaryMap.get(acc.getId());
                 String location = (address.getCity() != null ? address.getCity() : "") +
                     (address.getDistrict() != null ? " " + address.getDistrict() : "");
-
-                ReviewResponse.ReviewSummary reviewSummaryDto = ReviewResponse.ReviewSummary.of(reviewSummary);
 
                 return AccommodationResponse.MyAccommodationInfo.builder()
                     .id(acc.getId())
                     .name(acc.getName())
                     .thumbnailUrl(acc.getThumbnailUrl())
                     .status(acc.getStatus())
+                    .type(acc.getType())
                     .location(location.trim())
-                    .basePrice(acc.getBasePrice())
-                    .reviewSummary(reviewSummaryDto)
                     .createdAt(acc.getCreatedAt())
                     .build();
 

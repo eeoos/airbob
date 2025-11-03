@@ -63,7 +63,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             .select(accommodation)
             .from(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
-            .leftJoin(accommodationReviewSummary).on(accommodationReviewSummary.accommodation.id.eq(accommodation.id))
+            // .leftJoin(accommodationReviewSummary).on(accommodationReviewSummary.accommodation.id.eq(accommodation.id))
             .where(
                 accommodation.member.id.eq(hostId),
                 cursorCondition(lastId, lastCreatedAt)

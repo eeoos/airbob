@@ -24,6 +24,7 @@ import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -64,6 +65,8 @@ public class Reservation extends UpdatableEntity {
 	@Column(nullable = false)
 	private LocalDateTime checkOut;
 
+	// todo: 숙박하는 세부 정보를 넣어야 함.
+	// 성인, 어린이, 유아, 펫
 	@Column(nullable = false)
 	private Integer guestCount;
 
@@ -110,7 +113,7 @@ public class Reservation extends UpdatableEntity {
 		long nights = ChronoUnit.DAYS.between(checkIn.toLocalDate(), checkOut.toLocalDate());
 
 		if (nights <= 0) {
-			return 0;
+			throw new InvalidReservationDateException();
 		}
 		return (int) (basePrice * nights);
 	}

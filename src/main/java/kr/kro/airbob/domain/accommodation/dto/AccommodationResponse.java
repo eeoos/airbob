@@ -24,9 +24,10 @@ public class AccommodationResponse {
 		String name,
 		String thumbnailUrl,
 		AccommodationStatus status,
+		AccommodationType type,
 		String location,
-		Integer basePrice,
-		ReviewResponse.ReviewSummary reviewSummary,
+		// Integer basePrice,
+		// ReviewResponse.ReviewSummary reviewSummary,
 		LocalDateTime createdAt
 	) {
 	}

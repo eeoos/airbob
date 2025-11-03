@@ -35,6 +35,7 @@ public enum ErrorCode {
 	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
 	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
 
+
 	// reservation
 	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "존재하지 않는 예약입니다."),
 	RESERVATION_CONFLICT(HttpStatus.CONFLICT, "R002", "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."), // 날짜 중복
@@ -44,6 +45,7 @@ public enum ErrorCode {
 	CANNOT_EXPIRE_RESERVATION(HttpStatus.CONFLICT, "R006", "결제 대기 상태의 예약만 만료시킬 수 있습니다."),
 	RESERVATION_STATE_CHANGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R007", "예약 상태를 변경하는 중 내부 서버 오류가 발생했습니다."),
 	RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "R008", "해당 예약에 대한 접근 권한이 없습니다."),
+	INVALID_RESERVATION_DATE(HttpStatus.BAD_REQUEST, "R009", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
 
 
 	// payment

@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.reservation.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -34,6 +36,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
@@ -334,14 +337,19 @@ public class ReservationTransactionService {
 				return ReservationResponse.HostReservationInfo.builder()
 					.reservationUid(r.getReservationUid().toString())
 					.status(r.getStatus())
-					.accommodationId(accommodation.getId())
-					.accommodationName(accommodation.getName())
-					.thumbnailUrl(accommodation.getThumbnailUrl())
-					.guestId(guest.getId())
-					.guestNickName(guest.getNickname())
+					.hostInfo(ReservationResponse.AccommodationGuestInfo.builder()
+						.id(guest.getId())
+						.nickname(guest.getNickname())
+						.build())
+					.guestCount(r.getGuestCount())
 					.checkInDate(r.getCheckIn().toLocalDate())
 					.checkOutDate(r.getCheckOut().toLocalDate())
 					.createdAt(r.getCreatedAt())
+					.accommodationId(accommodation.getId())
+					.accommodationName(accommodation.getName())
+					.thumbnailUrl(accommodation.getThumbnailUrl())
+					.confirmationCode(r.getConfirmationCode())
+					.totalPrice(r.getTotalPrice())
 					.build();
 			}).collect(Collectors.toList());
 

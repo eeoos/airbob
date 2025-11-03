@@ -117,7 +117,6 @@ public class ReservationResponse {
 		Integer guestCount,
 		String message,
 
-
 		Long accommodationId,
 		String accommodationName,
 		String accommodationThumbnailUrl,
@@ -155,6 +154,13 @@ public class ReservationResponse {
 	}
 
 	@Builder
+	public record AccommodationGuestInfo(
+		Long id,
+		String nickname
+	) {
+	}
+
+	@Builder
 	public record GuestInfo(
 		Long id,
 		String nickname
@@ -165,18 +171,16 @@ public class ReservationResponse {
 	public record HostReservationInfo(
 		String reservationUid,
 		ReservationStatus status,
-
-		Long accommodationId,
-		String accommodationName,
-
-		Long guestId,
-		String guestNickName,
-		String thumbnailUrl,
-
+		AccommodationGuestInfo hostInfo,
+		int guestCount,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
-
-		LocalDateTime createdAt
+		LocalDateTime createdAt,
+		Long accommodationId,
+		String accommodationName,
+		String thumbnailUrl,
+		String confirmationCode,
+		Integer totalPrice
 	){
 	}
 
