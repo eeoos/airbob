@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -107,7 +108,7 @@ public class ReservationTransactionService {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
-		// todo: 추가 쿼리 발생 -> member까지 같이 조회 고려 필요
+		// todo: 추가 쿼리 발생 -> member까지 같이 조회 필요
 		if (!reservation.getGuest().getId().equals(memberId)) {
 			throw new ReservationAccessDeniedException();
 		}
@@ -145,8 +146,10 @@ public class ReservationTransactionService {
 			return;
 		}
 
+		String confirmationCode = createConfirmationCode();
+
 		ReservationStatus previousStatus = reservation.getStatus();
-		reservation.confirm();
+		reservation.confirm(confirmationCode);
 
 		historyRepository.save(ReservationStatusHistory.builder()
 			.reservation(reservation)
@@ -333,6 +336,7 @@ public class ReservationTransactionService {
 					.status(r.getStatus())
 					.accommodationId(accommodation.getId())
 					.accommodationName(accommodation.getName())
+					.thumbnailUrl(accommodation.getThumbnailUrl())
 					.guestId(guest.getId())
 					.guestNickName(guest.getNickname())
 					.checkInDate(r.getCheckIn().toLocalDate())
@@ -387,6 +391,19 @@ public class ReservationTransactionService {
 			.guestInfo(guestInfo)
 			.paymentInfo(paymentInfo)
 			.build();
+	}
+
+	private String createConfirmationCode() {
+		String confirmationCode;
+		do {
+			confirmationCode = generateConfirmationCode();
+		} while (reservationRepository.existsByConfirmationCode(confirmationCode));
+
+		return confirmationCode;
+	}
+
+	private String generateConfirmationCode() {
+		return RandomStringUtils.randomAlphanumeric(6).toUpperCase();
 	}
 
 	private String buildFullAddress(Address address) {

@@ -171,6 +171,7 @@ public class ReservationResponse {
 
 		Long guestId,
 		String guestNickName,
+		String thumbnailUrl,
 
 		LocalDate checkInDate,
 		LocalDate checkOutDate,

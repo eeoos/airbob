@@ -47,6 +47,9 @@ public class Reservation extends UpdatableEntity {
 	@Column(nullable = false, unique = true, columnDefinition = "BINARY(16)")
 	private UUID reservationUid;
 
+	@Column(length = 10, unique = true)
+	private String confirmationCode;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "accommodation_id", nullable = false)
 	private Accommodation accommodation;
@@ -112,11 +115,12 @@ public class Reservation extends UpdatableEntity {
 		return (int) (basePrice * nights);
 	}
 
-	public void confirm() {
+	public void confirm(String confirmationCode) {
 		if (this.status != ReservationStatus.PAYMENT_PENDING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CONFIRM_RESERVATION);
 		}
 		this.status = ReservationStatus.CONFIRMED;
+		this.confirmationCode = confirmationCode;
 	}
 
 	public void expire() {
