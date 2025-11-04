@@ -65,9 +65,7 @@ public class ReservationResponse {
 	public record MyReservationInfo(
 		long reservationId,
 		String reservationUid,
-		ReservationStatus status,
 
-		Long accommodationId,
 		String accommodationName,
 		String accommodationThumbnailUrl,
 		String accommodationLocation,
@@ -89,8 +87,6 @@ public class ReservationResponse {
 			return MyReservationInfo.builder()
 				.reservationId(reservation.getId())
 				.reservationUid(reservation.getReservationUid().toString())
-				.status(reservation.getStatus())
-				.accommodationId(accommodation.getId())
 				.accommodationName(accommodation.getName())
 				.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
 				.accommodationLocation(location.trim())

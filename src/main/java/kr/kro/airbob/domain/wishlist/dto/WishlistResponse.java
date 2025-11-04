@@ -32,7 +32,7 @@ public class WishlistResponse {
 		long id,
 		String name,
 		LocalDateTime createdAt,
-		long wishlistItemCount,
+		Long wishlistItemCount,
 		String thumbnailImageUrl
 	) {
 	}
