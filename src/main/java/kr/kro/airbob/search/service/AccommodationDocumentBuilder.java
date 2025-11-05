@@ -94,19 +94,6 @@ public class AccommodationDocumentBuilder {
 			.toList();
 	}
 
-	private List<String> getAccommodationImages(UUID accommodationUid, String thumbnailUrl) {
-		List<String> imageUrls = imageRepository.findImagesByAccommodationUid(accommodationUid)
-			.stream()
-			.map(AccommodationImage::getImageUrl)
-			.toList();
-
-		// 이미지가 없는 경우 썸네일 조회
-		if (imageUrls.isEmpty() && thumbnailUrl != null) {
-			imageUrls = List.of(thumbnailUrl);
-		}
-		return imageUrls;
-	}
-
 	private List<String> getAccommodationAmenities(UUID accommodationUid) {
 		return amenityRepository.findAllByAccommodation_AccommodationUid(accommodationUid)
 			.stream()

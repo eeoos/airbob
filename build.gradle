@@ -85,7 +85,7 @@ dependencies {
 	implementation "io.awspring.cloud:spring-cloud-aws-starter-s3"
 
 	// Commons Lang
-	implementation 'org.apache.commons:commons-lang3:3.14.0'
+	implementation 'org.apache.commons:commons-lang3:3.18.0'
 
 	// 테스트
 	testImplementation 'org.springframework.kafka:spring-kafka-test'

@@ -17,8 +17,5 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 	List<Reservation> findAllByStatusAndExpiresAtBefore(ReservationStatus status, LocalDateTime expiresAt);
 	Optional<Reservation> findByReservationUid(UUID reservationUid);
 
-	@Query("SELECT r.guest.id FROM Reservation r WHERE r.reservationUid = :reservationUid")
-	Optional<Long> findGuestIdByReservationUid(@Param("reservationUid") UUID reservationUid);
-
 	boolean existsByConfirmationCode(String newCode);
 }

@@ -36,7 +36,6 @@ public class RecentlyViewedService {
 	private final RedisTemplate<String, String> redisTemplate;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationReviewSummaryRepository summaryRepository;
-	private final AccommodationAmenityRepository accommodationAmenityRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 
@@ -98,7 +97,6 @@ public class RecentlyViewedService {
 
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
 		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
-		// Map<Long, List<AccommodationResponse.AmenityInfo>> amenityMap = getAmenityMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
@@ -157,24 +155,5 @@ public class RecentlyViewedService {
 				AccommodationReviewSummary::getAccommodationId,
 				ReviewResponse.ReviewSummary::of
 			));
-	}
-
-
-	private Map<Long, List<AccommodationResponse.AmenityInfo>> getAmenityMap(
-		List<Long> accommodationIds) {
-
-		List<AccommodationAmenity> results =
-			accommodationAmenityRepository.findAccommodationAmenitiesByAccommodationIds(accommodationIds);
-
-		return results.stream()
-			.collect(Collectors.groupingBy(
-				aa -> aa.getAccommodation().getId(),
-				Collectors.mapping(
-					result -> new AccommodationResponse.AmenityInfo(
-						result.getAmenity().getName(),
-						result.getCount()
-					),
-					Collectors.toList()
-				)));
 	}
 }

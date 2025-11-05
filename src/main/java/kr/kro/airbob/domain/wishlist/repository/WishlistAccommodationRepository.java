@@ -17,20 +17,6 @@ import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistAccommodationRe
 public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long>,
 	WishlistAccommodationRepositoryCustom {
 
-	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
-
-	void deleteAllByWishlistId(Long wishlistId);
-
-	@Query("""
-		SELECT 
-			wa.wishlist.id,
-			COUNT(wa)
-		FROM WishlistAccommodation  wa
-		WHERE wa.wishlist.id IN :wishlistIds
-		GROUP BY wa.wishlist.id
-""")
-	Map<Long, Long> countByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
-
 	@Query(value = """
 		SELECT 
 			wishlist_id,
@@ -45,24 +31,15 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 			FROM wishlist_accommodation wa
 			JOIN accommodation a ON wa.accommodation_id = a.id
 			WHERE wa.wishlist_id IN :wishlistIds
+			  AND a.status = 'PUBLISHED'
 		) ranked
 		WHERE rn = 1
-""", nativeQuery = true)
+	""", nativeQuery = true)
 	Map<Long, String> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
 
+	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
+	void deleteAllByWishlistId(Long wishlistId);
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
 	boolean existsByWishlist_Member_IdAndAccommodation_Id(Long memberId, Long accommodationId);
-
-
-	@Query("""
-	SELECT 
-		wa.accommodation.id
-	FROM WishlistAccommodation wa 
-	WHERE wa.wishlist.member.id = :memberId
-	AND wa.accommodation.id IN :accommodationIds
-	""")
-	Set<Long> findAccommodationIdsByMemberIdAndAccommodationIds(
-		@Param("memberId") Long memberId,
-		@Param("accommodationIds") List<Long> accommodationIds);
 }
 

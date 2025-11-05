@@ -2,17 +2,24 @@ package kr.kro.airbob.domain.wishlist.repository.querydsl;
 
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
+import static kr.kro.airbob.domain.member.entity.QMember.*;
 import static kr.kro.airbob.domain.review.entity.QAccommodationReviewSummary.*;
+import static kr.kro.airbob.domain.wishlist.entity.QWishlist.*;
 import static kr.kro.airbob.domain.wishlist.entity.QWishlistAccommodation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 
+import com.querydsl.core.group.GroupBy;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -58,6 +65,41 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 		}
 
 		return new SliceImpl<>(content, pageable, hasNext);
+	}
+
+	@Override
+	public Map<Long, Long> countByWishlistIds(List<Long> wishlistIds) {
+		return queryFactory
+			.select(
+				wishlistAccommodation.wishlist.id,
+				wishlistAccommodation.count()
+			)
+			.from(wishlistAccommodation)
+			.join(wishlistAccommodation.accommodation, accommodation)
+			.where(
+				wishlistAccommodation.wishlist.id.in(wishlistIds),
+				accommodation.status.eq(AccommodationStatus.PUBLISHED)
+			)
+			.groupBy(wishlistAccommodation.wishlist.id)
+			.transform(GroupBy.groupBy(wishlistAccommodation.wishlist.id).as(wishlistAccommodation.count()));
+	}
+
+	@Override
+	public Set<Long> findAccommodationIdsByMemberIdAndAccommodationIds(Long memberId, List<Long> accommodationIds) {
+		List<Long> result = queryFactory
+			.select(wishlistAccommodation.accommodation.id)
+			.from(wishlistAccommodation)
+			.join(wishlistAccommodation.wishlist, wishlist)
+			.join(wishlist.member, member)
+			.join(wishlistAccommodation.accommodation, accommodation)
+			.where(
+				member.id.eq(memberId),
+				accommodation.id.in(accommodationIds),
+				accommodation.status.eq(AccommodationStatus.PUBLISHED)
+			)
+			.fetch();
+
+		return new HashSet<>(result);
 	}
 
 	private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {

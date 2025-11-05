@@ -73,7 +73,7 @@ public class ReservationResponse {
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
 
-		Integer totalPrice,
+		// Integer totalPrice,
 
 		LocalDateTime createdAt
 	){
@@ -92,7 +92,7 @@ public class ReservationResponse {
 				.accommodationLocation(location.trim())
 				.checkInDate(reservation.getCheckIn().toLocalDate())
 				.checkOutDate(reservation.getCheckOut().toLocalDate())
-				.totalPrice(reservation.getTotalPrice())
+				// .totalPrice(reservation.getTotalPrice())
 				.createdAt(reservation.getCreatedAt())
 				.build();
 		}

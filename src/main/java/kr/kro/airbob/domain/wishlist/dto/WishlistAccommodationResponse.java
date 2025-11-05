@@ -64,7 +64,7 @@ public class WishlistAccommodationResponse {
 				averageRating,
 				reviewCount,
 				createdAt,
-				true
+				true // wishlist_accommodation 테이블에서 조회한 것이므로 true
 			);
 		}
 	}
