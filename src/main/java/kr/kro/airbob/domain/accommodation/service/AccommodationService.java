@@ -226,8 +226,14 @@ public class AccommodationService {
         List<AccommodationResponse.MyAccommodationInfo> accommodationInfos = accommodations.stream()
             .map(acc -> {
                 Address address = acc.getAddress();
-                String location = (address.getCity() != null ? address.getCity() : "") +
-                    (address.getDistrict() != null ? " " + address.getDistrict() : "");
+
+                String location = null;
+                if (address != null) {
+                    String city = (address.getCity() != null ? address.getCity() : "");
+                    String district = (address.getDistrict() != null ? " " + address.getDistrict() : "");
+
+                    location = (city + district).trim();
+                }
 
                 return AccommodationResponse.MyAccommodationInfo.builder()
                     .id(acc.getId())
@@ -235,7 +241,7 @@ public class AccommodationService {
                     .thumbnailUrl(acc.getThumbnailUrl())
                     .status(acc.getStatus())
                     .type(acc.getType())
-                    .location(location.trim())
+                    .location(location)
                     .createdAt(acc.getCreatedAt())
                     .build();
 
