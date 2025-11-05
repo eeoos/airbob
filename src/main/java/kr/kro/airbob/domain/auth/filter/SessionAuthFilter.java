@@ -12,21 +12,28 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.common.dto.ErrorResponse;
+import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.auth.common.SessionUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.util.regex.Pattern;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @Component
 @Slf4j
 public class SessionAuthFilter extends OncePerRequestFilter {
 
     private final RedisTemplate<String, Object> redisTemplate;
-
+    private final ObjectMapper objectMapper;
     private static final Pattern ACCOMMODATION_DETAIL_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+$");
 
-    public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate) {
+    public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -46,10 +53,17 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         // 세션 ID가 없거나 레디스에 없으면 401 Unauthorized 반환
         if (sessionId == null || !Boolean.TRUE.equals(redisTemplate.hasKey("SESSION:" + sessionId))) {
             log.warn("[SessionAuthFilter] 인증 실패 - 세션 없음 또는 무효: {}", sessionId);
+
+            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.UNAUTHORIZED_ACCESS);
+            ApiResponse<?> apiResponse = ApiResponse.error(errorResponse);
+
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setCharacterEncoding("UTF-8");
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"error\": \"인증이 필요합니다.\"}");
+
+            String jsonResponse = objectMapper.writeValueAsString(apiResponse);
+            response.getWriter().write(jsonResponse);
+
             return;
         }
 
