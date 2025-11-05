@@ -66,6 +66,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             // .leftJoin(accommodationReviewSummary).on(accommodationReviewSummary.accommodation.id.eq(accommodation.id))
             .where(
                 accommodation.member.id.eq(hostId),
+                accommodation.status.ne(AccommodationStatus.DELETED),
                 cursorCondition(lastId, lastCreatedAt)
             )
             .orderBy(accommodation.createdAt.desc(), accommodation.id.desc())
