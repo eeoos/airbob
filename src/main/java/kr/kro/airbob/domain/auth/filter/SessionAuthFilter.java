@@ -31,58 +31,74 @@ public class SessionAuthFilter extends OncePerRequestFilter {
     private static final Pattern ACCOMMODATION_DETAIL_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+$");
     private static final Pattern REVIEW_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+/reviews$");
     private static final Pattern REVIEW_SUMMARY_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+/reviews/summary$");
+    private static final String SEARCH_PATH = "/api/v1/search/accommodations";
 
     public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
-        log.info("doFilterInternal");
+        throws ServletException, IOException {
+
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        if ("GET".equals(method) &&
-            (path.equals("/api/accommodations") ||
-                ACCOMMODATION_DETAIL_PATH_PATTERN.matcher(path).matches() ||
+        // 공개 GET 경로인지 확인
+        final boolean isPublicGet = "GET".equals(method) &&
+            (ACCOMMODATION_DETAIL_PATH_PATTERN.matcher(path).matches() ||
                 REVIEW_PATH_PATTERN.matcher(path).matches() ||
-                REVIEW_SUMMARY_PATH_PATTERN.matcher(path).matches()
-            )) {
-            log.info("[SessionAuthFilter] 인증 건너뛰기: {} {}", method, path);
-            filterChain.doFilter(request, response); // 필터 건너뜀
-            return;
-        }
+                REVIEW_SUMMARY_PATH_PATTERN.matcher(path).matches() ||
+                path.equals(SEARCH_PATH));
 
         String sessionId = SessionUtil.getSessionIdByCookie(request);
+        Long memberId = null;
 
-        // 세션 ID가 없거나 레디스에 없으면 401 Unauthorized 반환
-        if (sessionId == null || !Boolean.TRUE.equals(redisTemplate.hasKey("SESSION:" + sessionId))) {
-            log.warn("[SessionAuthFilter] 인증 실패 - 세션 없음 또는 무효: {}", sessionId);
+        // 세션이 있으면 사용자 ID 조회 (없어도 에러 X)
+        if (sessionId != null && Boolean.TRUE.equals(redisTemplate.hasKey("SESSION:" + sessionId))) {
+            try {
+                memberId = checkMemberIdType(sessionId);
+            } catch (Exception e) {
+                log.warn("[SessionAuthFilter] 유효하지 않은 세션값 (무시): SESSION:{}", sessionId, e);
+                // 세션값이 이상해도 공개 GET은 통과시켜야 하므로 예외를 던지지 않음
+            }
+        }
 
-            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.UNAUTHORIZED_ACCESS);
-            ApiResponse<?> apiResponse = ApiResponse.error(errorResponse);
-
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setCharacterEncoding("UTF-8");
-            response.setContentType("application/json;charset=UTF-8");
-
-            String jsonResponse = objectMapper.writeValueAsString(apiResponse);
-            response.getWriter().write(jsonResponse);
-
+        // 필수 인증 검사
+        // 공개 GET 경로가 아닌데
+        // memberId가 null이면 401 에러 반환
+        if (!isPublicGet && memberId == null) {
+            log.warn("[SessionAuthFilter] 필수 인증 실패 (401): {} {}", method, path);
+            sendUnauthorizedError(response);
             return;
         }
 
+        // UserContext 설정 및 필터 체인
         try {
-            long memberId = checkMemberIdType(sessionId);
-
-            UserInfo userInfo = new UserInfo(memberId);
-            UserContext.set(userInfo);
-
+            if (memberId != null) {
+                UserContext.set(new UserInfo(memberId));
+                log.info("[SessionAuthFilter] 인증된 요청 (User: {}): {} {}", memberId, method, path);
+            } else {
+                // 비로그인 사용자 (공개 GET): UserContext 설정 X(null 유지)
+                log.info("[SessionAuthFilter] 비인증 요청 (Public): {} {}", method, path);
+            }
             filterChain.doFilter(request, response);
-        } finally{
-            UserContext.clear();
+        } finally {
+            UserContext.clear(); // ThreadLocal 정리
         }
+    }
+
+    private void sendUnauthorizedError(HttpServletResponse response) throws IOException {
+        ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.UNAUTHORIZED_ACCESS);
+        ApiResponse<?> apiResponse = ApiResponse.error(errorResponse);
+
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json;charset=UTF-8");
+
+        String jsonResponse = objectMapper.writeValueAsString(apiResponse);
+        response.getWriter().write(jsonResponse);
     }
 
     private long checkMemberIdType(String sessionId) {
