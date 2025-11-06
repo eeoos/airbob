@@ -36,7 +36,8 @@ public class AccommodationSearchController {
 		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable,
 		HttpServletRequest request) {
 
-		Long memberId = UserContext.get().id();
+		Long memberId = UserContext.get() == null ? null : UserContext.get().id();
+
 		if (pageable.getPageNumber() > MAX_PAGE_NUMBER) {
 			pageable = PageRequest.of(MAX_PAGE_NUMBER, DEFAULT_PAGE_SIZE);
 		}
