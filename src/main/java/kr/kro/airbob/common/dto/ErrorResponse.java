@@ -23,6 +23,13 @@ public class ErrorResponse {
 		this.code = code.getCode();
 	}
 
+	private ErrorResponse(final ErrorCode code, final FieldError fieldError) {
+		this.message = code.getMessage();
+		this.status = code.getStatus().value();
+		this.errors = List.of(fieldError);
+		this.code = code.getCode();
+	}
+
 	// 일반 에러 처리용
 	public static ErrorResponse of(final ErrorCode code) {
 		return new ErrorResponse(code, new ArrayList<>());
@@ -33,6 +40,11 @@ public class ErrorResponse {
 		return new ErrorResponse(code, FieldError.of(bindingResult));
 	}
 
+	// 커스텀 필드 에러용
+	public static ErrorResponse of(final ErrorCode code, String field, String reason) {
+		FieldError fieldError = new FieldError(field, "N/A", reason);
+		return new ErrorResponse(code, fieldError);
+	}
 	public record FieldError(
 		String field,
 		String value,

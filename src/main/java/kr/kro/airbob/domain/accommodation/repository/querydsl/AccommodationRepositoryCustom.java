@@ -25,6 +25,6 @@ public interface AccommodationRepositoryCustom {
     List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status);
 
     Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
-    Optional<Accommodation> findWithDetailsExceptHostById(Long accommodationId, Long hostId);
+    Optional<Accommodation> findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long hostId);
 
 }

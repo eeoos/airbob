@@ -2,6 +2,7 @@ package kr.kro.airbob.common.exception;
 
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.common.dto.ErrorResponse;
+import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.TossErrorCode;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,13 @@ public class GlobalExceptionHandler {
 
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.TOSS_PAYMENT_ERROR);
 		return new ResponseEntity<>(ApiResponse.error(response), tossErrorCode.getStatusCode());
+	}
+
+	@ExceptionHandler(PublishingFieldRequiredException.class)
+	protected ResponseEntity<ApiResponse<?>> handlePublishingFieldRequiredException(PublishingFieldRequiredException e) {
+		log.warn("handlePublishingFieldRequiredException: field={}, reason={}", e.getFieldName(), e.getReason());
+		final ErrorResponse response = ErrorResponse.of(e.getErrorCode(), e.getFieldName(), e.getReason());
+		return new ResponseEntity<>(ApiResponse.error(response), e.getErrorCode().getStatus());
 	}
 
 	@ExceptionHandler(BaseException.class)

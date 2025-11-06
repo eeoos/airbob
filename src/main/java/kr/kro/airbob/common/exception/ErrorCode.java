@@ -34,6 +34,7 @@ public enum ErrorCode {
 	ACCOMMODATION_NOT_PUBLISHED(HttpStatus.BAD_REQUEST, "A003", "게시된 상태의 숙소만 미게시할 수 있습니다."),
 	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
 	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
+	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A003", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
 
 
 	// reservation

@@ -112,14 +112,15 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Optional<Accommodation> findWithDetailsExceptHostById(Long accommodationId, Long hostId) {
+    public Optional<Accommodation> findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long hostId) {
         Accommodation result = jpaQueryFactory
             .selectFrom(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
             .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
             .where(
                 accommodation.id.eq(accommodationId),
-                accommodation.member.id.eq(hostId)
+                accommodation.member.id.eq(hostId),
+                accommodation.status.ne(AccommodationStatus.DELETED)
             )
             .fetchOne();
 

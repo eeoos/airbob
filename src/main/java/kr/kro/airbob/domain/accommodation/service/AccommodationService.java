@@ -39,7 +39,7 @@ import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
-import kr.kro.airbob.domain.accommodation.exception.PublishingValidationException;
+import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -387,7 +387,7 @@ public class AccommodationService {
 
     @Transactional
     public void publishAccommodation(Long accommodationId, Long memberId) {
-        Accommodation accommodation = findWithDetailsExceptHostById(accommodationId, memberId);
+        Accommodation accommodation = findWithDetailsExceptHostAndDeletedById(accommodationId, memberId);
 
         validateAccommodationForPublishing(accommodation);
 
@@ -417,10 +417,10 @@ public class AccommodationService {
 
     private void validateAccommodationForPublishing(Accommodation accommodation) {
         if (accommodation.getName() == null || accommodation.getName().isBlank()) {
-            throw new PublishingValidationException("숙소 이름");
+            throw new PublishingFieldRequiredException("name");
         }
         if (accommodation.getDescription() == null || accommodation.getDescription().isBlank()) {
-            throw new PublishingValidationException("숙소 설명");
+            throw new PublishingFieldRequiredException("description");
         }
 
         Address address = accommodation.getAddress();
@@ -428,26 +428,26 @@ public class AccommodationService {
             || address.getDistrict() == null || address.getStreet() == null || address.getDetail() == null
             || address.getPostalCode() == null || address.getLatitude() == null || address.getLongitude() == null) {
 
-            throw new PublishingValidationException("숙소 주소");
+            throw new PublishingFieldRequiredException("addressInfo", "주소 정보(세부 항목 포함)가 누락되었습니다.");
         }
 
         if (accommodation.getBasePrice() == null || accommodation.getBasePrice() < 5000) { // 가격 검증 (5000원 이상)
-            throw new PublishingValidationException(ErrorCode.ACCOMMODATION_INVALID_PRICE);
+            throw new PublishingFieldRequiredException("basePrice", "기본 가격은 5000원 이상이어야 합니다.");
         }
 
         if (accommodation.getType() == null) {
-            throw new PublishingValidationException("숙소 타입");
+            throw new PublishingFieldRequiredException("type");
         }
         OccupancyPolicy policy = accommodation.getOccupancyPolicy();
         if (policy == null || policy.getMaxOccupancy() == null || policy.getAdultOccupancy() == null
             || policy.getChildOccupancy() == null || policy.getInfantOccupancy() == null
             || policy.getPetOccupancy() == null) {
 
-            throw new PublishingValidationException("수용 인원");
+            throw new PublishingFieldRequiredException("occupancyPolicyInfo", "수용 인원 정책(세부 항목 포함)이 누락되었습니다.");
         }
 
         if (accommodation.getCheckInTime() == null || accommodation.getCheckOutTime() == null) {
-            throw new PublishingValidationException("체크인/체크아웃");
+            throw new PublishingFieldRequiredException("checkInTime/checkOutTime", "체크인/체크아웃 시간은 필수입니다.");
         }
 
         long imageCount = accommodationImageRepository.countByAccommodationId(accommodation.getId());
@@ -613,8 +613,8 @@ public class AccommodationService {
         }
     }
 
-    private Accommodation findWithDetailsExceptHostById(Long accommodationId, Long memberId) {
-        return accommodationRepository.findWithDetailsExceptHostById(accommodationId, memberId).orElseThrow(AccommodationNotFoundException::new);
+    private Accommodation findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long memberId) {
+        return accommodationRepository.findWithDetailsExceptHostAndDeletedById(accommodationId, memberId).orElseThrow(AccommodationNotFoundException::new);
     }
 
     private Accommodation findByIdAndMemberIdAndStatusNot(Long accommodationId, Long memberId) {
