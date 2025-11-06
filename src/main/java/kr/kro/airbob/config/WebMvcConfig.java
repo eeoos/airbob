@@ -61,7 +61,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			"/api/v1/host/accommodations",
 			"/api/v1/host/accommodations/*",
 
-			"/api/v1/auth/logout"
+			"/api/v1/auth/logout",
+
+			"/api/v1/search/accommodations"
 			);
 		bean.setOrder(1);
 		return bean;
