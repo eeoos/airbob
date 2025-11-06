@@ -1,25 +1,25 @@
 package kr.kro.airbob.common.exception;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.common.dto.ErrorResponse;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.TossErrorCode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
 
 	// @Valid 유효성 검사 실패 시
-	@ExceptionHandler(MethodArgumentNotValidException.class)
-	protected ResponseEntity<ApiResponse<?>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
-		log.warn("handleMethodArgumentNotValidException: {}", e.getMessage());
+	@ExceptionHandler(BindException.class)
+	protected ResponseEntity<ApiResponse<?>> handleBindException(BindException e) {
+		log.warn("handleBindException (Validation Failed): {}", e.getMessage());
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, e.getBindingResult());
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
 	}

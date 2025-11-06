@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.geo.ClientIpExtractor;
@@ -31,8 +32,8 @@ public class AccommodationSearchController {
 
 	@GetMapping("/v1/search/accommodations")
 	public ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> searchAccommodations(
-		@ModelAttribute AccommodationSearchRequest.MapBoundsDto mapBounds,
-		@ModelAttribute AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
+		@Valid @ModelAttribute AccommodationSearchRequest.MapBoundsDto mapBounds,
+		@Valid @ModelAttribute AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
 		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable,
 		HttpServletRequest request) {
 

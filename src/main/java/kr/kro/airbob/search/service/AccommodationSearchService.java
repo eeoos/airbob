@@ -44,11 +44,6 @@ public class AccommodationSearchService {
 		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, String clientIp,
 		AccommodationSearchRequest.MapBoundsDto mapBounds, Pageable pageable, Long memberId) {
 
-		// 요청 검증
-		if (!validateSearchRequest(searchRequest)) {
-			return createEmptySearchResult(pageable);
-		}
-
 		// 인원이 유효하지 않으면 기본값 (성인:1)
 		if (!searchRequest.isValidOccupancy()) {
 			searchRequest.setDefaultOccupancy();
@@ -85,27 +80,6 @@ public class AccommodationSearchService {
 			.staySearchResultListing(searchInfos)
 			.pageInfo(pageInfo)
 			.build();
-	}
-
-	private boolean validateSearchRequest(AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest) {
-
-		// 가격 범위 검증
-		if (!searchRequest.isValidPriceRange()) {
-			log.warn("유효하지 않은 가격 범위: minPrice={}, maxPrice={}",
-				searchRequest.getMinPrice(), searchRequest.getMaxPrice());
-			return false;
-		}
-
-		// 체크인/체크아웃 날짜 검증
-		if (searchRequest.getCheckIn() != null && searchRequest.getCheckOut() != null) {
-			if (searchRequest.getCheckIn().isAfter(searchRequest.getCheckOut())) {
-				log.warn("Check-in 날짜 {}는 check-out 날짜 {}보다 이전이여야 합니다.",
-					searchRequest.getCheckIn(), searchRequest.getCheckOut());
-				return false;
-			}
-		}
-
-		return true;
 	}
 
 	private AccommodationSearchResponse.AccommodationSearchInfos createEmptySearchResult(Pageable pageable) {

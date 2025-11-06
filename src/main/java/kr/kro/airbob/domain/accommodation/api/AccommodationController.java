@@ -39,10 +39,9 @@ public class AccommodationController {
     private final AuthService authService;
 
     @PostMapping("/v1/accommodations")
-    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(HttpServletRequest request) {
-        String sessionId = SessionUtil.getSessionIdByCookie(request);
+    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation() {
+
         Long memberId = UserContext.get().id();
-        authService.validateHost(sessionId, memberId);
 
         AccommodationResponse.Create response = accommodationService.createAccommodation(memberId);
         return ResponseEntity.status(HttpStatus.CREATED)
