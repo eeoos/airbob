@@ -29,6 +29,8 @@ public class SessionAuthFilter extends OncePerRequestFilter {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private static final Pattern ACCOMMODATION_DETAIL_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+$");
+    private static final Pattern REVIEW_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+/reviews$");
+    private static final Pattern REVIEW_SUMMARY_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+/reviews/summary$");
 
     public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
@@ -41,8 +43,12 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        if (("GET".equals(method) && path.equals("/api/accommodations")) ||
-            ("GET".equals(method) && ACCOMMODATION_DETAIL_PATH_PATTERN.matcher(path).matches())) {
+        if ("GET".equals(method) &&
+            (path.equals("/api/accommodations") ||
+                ACCOMMODATION_DETAIL_PATH_PATTERN.matcher(path).matches() ||
+                REVIEW_PATH_PATTERN.matcher(path).matches() ||
+                REVIEW_SUMMARY_PATH_PATTERN.matcher(path).matches()
+            )) {
             log.info("[SessionAuthFilter] 인증 건너뛰기: {} {}", method, path);
             filterChain.doFilter(request, response); // 필터 건너뜀
             return;

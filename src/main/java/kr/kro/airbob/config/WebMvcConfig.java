@@ -39,17 +39,29 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			"/api/v1/members/wishlists",
 			"/api/v1/members/wishlists/*",
 
+			"/api/v1/members/wishlists/accommodations",
+			"/api/v1/members/wishlists/accommodations/*",
+
 			"/api/v1/members/recently-viewed",
 			"/api/v1/members/recently-viewed/*",
 
 			"/api/v1/reservations",
 			"/api/v1/reservations/*",
 
+			"/api/v1/payments/confirm",
+			"/api/v1/payments/*",
+			"/api/v1/payments/orders/*",
+
 			"/api/v1/host/reservations",
 			"/api/v1/host/reservations/*",
 
+			"/api/v1/guest/reservations",
+			"/api/v1/guest/reservations/*",
+
 			"/api/v1/host/accommodations",
-			"/api/v1/host/accommodations/*"
+			"/api/v1/host/accommodations/*",
+
+			"/api/v1/auth/logout"
 			);
 		bean.setOrder(1);
 		return bean;
