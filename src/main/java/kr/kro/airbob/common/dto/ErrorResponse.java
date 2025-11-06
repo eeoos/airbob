@@ -43,10 +43,9 @@ public class ErrorResponse {
 			return fieldErrors.stream()
 				.map(error -> new FieldError(
 					error.getField(),
-					error.getRejectedValue().toString(),
+					error.getRejectedValue() == null ? "null" : error.getRejectedValue().toString(),
 					error.getDefaultMessage()))
 				.toList();
 		}
 	}
-
 }
