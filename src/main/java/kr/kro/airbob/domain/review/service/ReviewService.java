@@ -72,7 +72,7 @@ public class ReviewService {
 	private final S3ImageUploader s3ImageUploader;
 
 	@Transactional
-	public ReviewResponse.CreateResponse createReview(Long accommodationId, ReviewRequest.CreateRequest request, Long memberId) {
+	public ReviewResponse.Create createReview(Long accommodationId, ReviewRequest.Create request, Long memberId) {
 
 		Member author = findMemberById(memberId);
 		Accommodation accommodation = findAccommodationById(accommodationId);
@@ -93,11 +93,11 @@ public class ReviewService {
 			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
 		);
 
-		return new ReviewResponse.CreateResponse(savedReview.getId());
+		return new ReviewResponse.Create(savedReview.getId());
 	}
 
 	@Transactional
-	public ReviewResponse.UpdateResponse updateReviewContent(Long reviewId, ReviewRequest.UpdateRequest request, Long memberId) {
+	public ReviewResponse.Update updateReviewContent(Long reviewId, ReviewRequest.Update request, Long memberId) {
 		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
 
 		if (review.getStatus() != ReviewStatus.PUBLISHED) {
@@ -105,7 +105,7 @@ public class ReviewService {
 		}
 
 		review.updateContent(request.content());
-		return new ReviewResponse.UpdateResponse(review.getId());
+		return new ReviewResponse.Update(review.getId());
 	}
 
 	@Transactional

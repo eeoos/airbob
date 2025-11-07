@@ -173,7 +173,9 @@ public class WishlistService {
 
 	@Transactional(readOnly = true)
 	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodations(Long wishlistId,
-		CursorRequest.CursorPageRequest request) {
+		CursorRequest.CursorPageRequest request, Long memberId) {
+
+		findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice =
 			wishlistAccommodationRepository.findAccommodationsInWishlist(

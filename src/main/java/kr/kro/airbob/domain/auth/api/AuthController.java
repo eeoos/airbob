@@ -4,9 +4,9 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.service.AuthService;
-import kr.kro.airbob.domain.auth.dto.AuthRequestDto.LoginRequest;
+import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +22,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/v1/auth/login")
-    public ResponseEntity<ApiResponse<Void>> login(@RequestBody LoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<Void>> login(@RequestBody Login request, HttpServletResponse response) {
         String sessionId = authService.login(request.getEmail(), request.getPassword());
 
         Cookie cookie = new Cookie("SESSION_ID", sessionId);

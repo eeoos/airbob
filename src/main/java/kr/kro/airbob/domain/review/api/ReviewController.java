@@ -34,22 +34,22 @@ public class ReviewController {
 	private final ReviewService reviewService;
 
 	@PostMapping("/v1/accommodations/{accommodationId}/reviews")
-	public ResponseEntity<ApiResponse<ReviewResponse.CreateResponse>> createReview(
+	public ResponseEntity<ApiResponse<ReviewResponse.Create>> createReview(
 		@PathVariable Long accommodationId,
-		@Valid @RequestBody ReviewRequest.CreateRequest request) {
+		@Valid @RequestBody ReviewRequest.Create request) {
 		Long memberId = UserContext.get().id();
-		ReviewResponse.CreateResponse response =
+		ReviewResponse.Create response =
 			reviewService.createReview(accommodationId, request, memberId);
 
-		return ResponseEntity.ok(ApiResponse.success(response));
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
 	}
 
 	@PatchMapping("/v1/reviews/{reviewId}")
-	public ResponseEntity<ApiResponse<ReviewResponse.UpdateResponse>> updateReview(
+	public ResponseEntity<ApiResponse<ReviewResponse.Update>> updateReview(
 		@PathVariable Long reviewId,
-		@Valid @RequestBody ReviewRequest.UpdateRequest request) {
+		@Valid @RequestBody ReviewRequest.Update request) {
 		Long memberId = UserContext.get().id();
-		ReviewResponse.UpdateResponse response =
+		ReviewResponse.Update response =
 			reviewService.updateReviewContent(reviewId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));

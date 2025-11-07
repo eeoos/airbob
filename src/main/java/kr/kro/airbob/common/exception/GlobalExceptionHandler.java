@@ -2,8 +2,10 @@ package kr.kro.airbob.common.exception;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
+import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.common.dto.ErrorResponse;
@@ -33,6 +35,23 @@ public class GlobalExceptionHandler {
 
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.TOSS_PAYMENT_ERROR);
 		return new ResponseEntity<>(ApiResponse.error(response), tossErrorCode.getStatusCode());
+	}
+
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	protected ResponseEntity<ApiResponse<?>> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e) {
+		log.warn("handleMethodArgumentTypeMismatchException: Parameter '{}' requires type '{}' but value was '{}'",
+			e.getName(), e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "N/A", e.getValue());
+
+		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_TYPE_VALUE);
+		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_TYPE_VALUE.getStatus());
+	}
+
+	@ExceptionHandler(MissingRequestCookieException.class)
+	protected ResponseEntity<ApiResponse<?>> handleMissingRequestCookieException(MissingRequestCookieException e) {
+		log.warn("handleMissingRequestCookieException: {} - Required cookie '{}' is missing.", e.getMessage(), e.getCookieName());
+		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
+		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
 	}
 
 	@ExceptionHandler(PublishingFieldRequiredException.class)

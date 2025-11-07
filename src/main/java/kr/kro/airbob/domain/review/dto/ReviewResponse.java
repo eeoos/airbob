@@ -14,12 +14,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReviewResponse {
 
-	public record CreateResponse(
+	public record Create(
 		long id
 	) {
 	}
 
-	public record UpdateResponse(
+	public record Update(
 		long id
 	) {
 	}

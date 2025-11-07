@@ -35,7 +35,7 @@ public class ReservationController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@DeleteMapping("/v1/reservations/{reservationUid}")
+	@PostMapping("/v1/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<Void>> cancelReservation(
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request) {
@@ -44,21 +44,23 @@ public class ReservationController {
 		return ResponseEntity.accepted().body(ApiResponse.success());
 	}
 
-	@GetMapping("/v1/my/guest/reservations/{reservationUid}")
+	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<ReservationResponse.DetailInfo>> getMyReservationDetail(@PathVariable String reservationUid) {
 		Long memberId = UserContext.get().id();
 		return ResponseEntity.ok(
 			ApiResponse.success(reservationService.findMyReservationDetail(reservationUid, memberId)));
 	}
 
-	@GetMapping("/v1/my/guest/reservations")
+	@GetMapping("/v1/profile/guest/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.MyReservationInfos>> getMyReservations(
 		@CursorParam CursorRequest.CursorPageRequest request) {
 		Long memberId = UserContext.get().id();
-		return ResponseEntity.ok(ApiResponse.success(reservationService.findMyReservations(memberId, request)));
+		ReservationResponse.MyReservationInfos response = reservationService.findMyReservations(memberId,
+			request);
+		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@GetMapping("/v1/my/host/reservations")
+	@GetMapping("/v1/profile/host/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.HostReservationInfos>> getHostReservations(
 		@CursorParam CursorRequest.CursorPageRequest cursorRequest) {
 
@@ -68,7 +70,7 @@ public class ReservationController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@GetMapping("/v1/my/host/reservations/{reservationUid}")
+	@GetMapping("/v1/profile/host/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<ReservationResponse.HostDetailInfo>> getHostReservationDetail(@PathVariable String reservationUid) {
 
 		Long hostId = UserContext.get().id();

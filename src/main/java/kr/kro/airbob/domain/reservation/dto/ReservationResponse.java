@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
-import io.reactivex.rxjava3.internal.operators.flowable.FlowableFromCallable;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.Address;
@@ -117,7 +116,7 @@ public class ReservationResponse {
 		String accommodationName,
 		String accommodationThumbnailUrl,
 		AccommodationAddressInfo accommodationAddress,
-		AccommodationHostInfo accommodationHost,
+		UserInfo accommodationHost,
 
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
@@ -143,23 +142,10 @@ public class ReservationResponse {
 	}
 
 	@Builder
-	public record AccommodationHostInfo(
+	public record UserInfo(
 		Long id,
-		String nickname
-	) {
-	}
-
-	@Builder
-	public record AccommodationGuestInfo(
-		Long id,
-		String nickname
-	) {
-	}
-
-	@Builder
-	public record GuestInfo(
-		Long id,
-		String nickname
+		String nickname,
+		String profileImageUrl
 	) {
 	}
 
@@ -167,7 +153,7 @@ public class ReservationResponse {
 	public record HostReservationInfo(
 		String reservationUid,
 		ReservationStatus status,
-		AccommodationGuestInfo hostInfo,
+		UserInfo hostInfo,
 		int guestCount,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
@@ -201,7 +187,7 @@ public class ReservationResponse {
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
 
-		GuestInfo guestInfo,
+		UserInfo guestInfo,
 
 		PaymentResponse.PaymentInfo paymentInfo
 	) {

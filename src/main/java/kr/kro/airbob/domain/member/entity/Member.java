@@ -10,10 +10,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.member.common.MemberRole;
-import kr.kro.airbob.domain.member.dto.MemberRequestDto.SignupMemberRequestDto;
+import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -49,7 +48,7 @@ public class Member extends UpdatableEntity {
 		this.status = MemberStatus.ACTIVE; // 기본 상태 ACTIVE
 	}
 
-	public static Member createMember(SignupMemberRequestDto request, String hashedPassword) {
+	public static Member createMember(Signup request, String hashedPassword) {
 		return Member.builder()
 				.nickname(request.getNickname())
 				.email(request.getEmail())

@@ -6,12 +6,14 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-public class MemberRequestDto {
+public class MemberRequest {
     @Getter
     @Builder
     @AllArgsConstructor
-    public static class SignupMemberRequestDto {
+    @NoArgsConstructor
+    public static class Signup {
         @NotBlank
         @Size(min = 1, max = 20)
         private String nickname;

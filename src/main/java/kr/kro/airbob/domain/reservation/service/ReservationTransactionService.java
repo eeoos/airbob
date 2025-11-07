@@ -1,8 +1,6 @@
 package kr.kro.airbob.domain.reservation.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -36,7 +34,6 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
-import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
@@ -294,9 +291,10 @@ public class ReservationTransactionService {
 			.longitude(address.getLongitude())
 			.build();
 
-		ReservationResponse.AccommodationHostInfo hostInfo = ReservationResponse.AccommodationHostInfo.builder()
+		ReservationResponse.UserInfo hostInfo = ReservationResponse.UserInfo.builder()
 			.id(host.getId())
 			.nickname(host.getNickname())
+			.profileImageUrl(host.getThumbnailImageUrl())
 			.build();
 
 		// mapstruct 적용
@@ -337,9 +335,10 @@ public class ReservationTransactionService {
 				return ReservationResponse.HostReservationInfo.builder()
 					.reservationUid(r.getReservationUid().toString())
 					.status(r.getStatus())
-					.hostInfo(ReservationResponse.AccommodationGuestInfo.builder()
+					.hostInfo(ReservationResponse.UserInfo.builder()
 						.id(guest.getId())
 						.nickname(guest.getNickname())
+						.profileImageUrl(guest.getThumbnailImageUrl())
 						.build())
 					.guestCount(r.getGuestCount())
 					.checkInDate(r.getCheckIn().toLocalDate())
@@ -379,9 +378,10 @@ public class ReservationTransactionService {
 		Accommodation accommodation = reservation.getAccommodation();
 		Member guest = reservation.getGuest();
 
-		ReservationResponse.GuestInfo guestInfo = ReservationResponse.GuestInfo.builder()
+		ReservationResponse.UserInfo guestInfo = ReservationResponse.UserInfo.builder()
 			.id(guest.getId())
 			.nickname(guest.getNickname())
+			.profileImageUrl(guest.getThumbnailImageUrl())
 			.build();
 
 		PaymentResponse.PaymentInfo paymentInfo = (payment != null) ? PaymentResponse.PaymentInfo.from(payment) : null;

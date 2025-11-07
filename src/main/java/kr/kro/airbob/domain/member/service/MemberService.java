@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.member.service;
 
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.member.dto.MemberRequestDto.SignupMemberRequestDto;
+import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.entity.MemberStatusHistory;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
@@ -21,7 +21,7 @@ public class MemberService {
     private final MemberStatusHistoryRepository historyRepository;
 
     @Transactional
-    public void createMember(SignupMemberRequestDto request) {
+    public void createMember(Signup request) {
         if(memberRepository.existsByEmailAndStatus(request.getEmail(), MemberStatus.ACTIVE)){
             throw new DuplicatedEmailException();
         }

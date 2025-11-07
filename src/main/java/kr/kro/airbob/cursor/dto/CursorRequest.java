@@ -2,12 +2,12 @@ package kr.kro.airbob.cursor.dto;
 
 import java.time.LocalDateTime;
 
+import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CursorRequest {
-
-	private CursorRequest() {
-	}
 
 	@Builder
 	public record CursorPageRequest(

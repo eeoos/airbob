@@ -24,6 +24,7 @@ public class PaymentQueryService {
 	@Transactional(readOnly = true)
 	public PaymentResponse.PaymentInfo findPaymentByPaymentKey(String paymentKey, Long memberId) {
 		try {
+			// todo: Guest 같이 조회하게끔 수정
 			Payment payment = paymentRepository.findByPaymentKey(paymentKey)
 				.orElseThrow(PaymentNotFoundException::new);
 
@@ -44,6 +45,7 @@ public class PaymentQueryService {
 	@Transactional(readOnly = true)
 	public PaymentResponse.PaymentInfo findPaymentByOrderId(String orderId, Long memberId) {
 		try {
+			// todo: Guest 같이 조회하게끔 수정
 			Payment payment = paymentRepository.findByOrderId(orderId)
 				.orElseThrow(PaymentNotFoundException::new);
 

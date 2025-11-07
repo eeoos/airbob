@@ -16,11 +16,11 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +37,7 @@ public class WishlistController {
 		@Valid @RequestBody WishlistRequest.Create request){
 		Long memberId = UserContext.get().id();
 		WishlistResponse.Create response = wishlistService.createWishlist(request, memberId);
-		return ResponseEntity.ok(ApiResponse.success(response));
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
 	}
 
 	@PatchMapping("/v1/members/wishlists/{wishlistId}")
@@ -97,15 +97,15 @@ public class WishlistController {
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
-	// todo: 추후 필터링 적용(날짜, 게스트 인원)
 	@GetMapping("/v1/members/wishlists/accommodations/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodations(
 		@CursorParam CursorRequest.CursorPageRequest request,
 		@PathVariable Long wishlistId
 	) {
+		Long memberId = UserContext.get().id();
 
 		WishlistAccommodationResponse.WishlistAccommodationInfos response
-			= wishlistService.findWishlistAccommodations(wishlistId, request);
+			= wishlistService.findWishlistAccommodations(wishlistId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

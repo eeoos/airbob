@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
@@ -24,8 +23,6 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
-import kr.kro.airbob.domain.auth.common.SessionUtil;
-import kr.kro.airbob.domain.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 public class AccommodationController {
 
     private final AccommodationService accommodationService;
-    private final AuthService authService;
 
     @PostMapping("/v1/accommodations")
     public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation() {
@@ -109,14 +105,14 @@ public class AccommodationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping("/v1/host/accommodations")
-    public ResponseEntity<ApiResponse<AccommodationResponse.MyAccommodationInfos>> getMyAccommodations(
+    @GetMapping("/v1/profile/host/accommodations")
+    public ResponseEntity<ApiResponse<AccommodationResponse.MyAccommodationInfos>> getHostAccommodations(
         @CursorParam CursorRequest.CursorPageRequest request) {
         Long memberId = UserContext.get().id();
         return ResponseEntity.ok(ApiResponse.success(accommodationService.findMyAccommodations(memberId, request)));
     }
 
-    @GetMapping("/v1/host/accommodations/{accommodationId}")
+    @GetMapping("/v1/profile/host/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getHostAccommodationDetail(
         @PathVariable Long accommodationId) {
 
