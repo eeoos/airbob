@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -18,6 +19,9 @@ import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.auth.common.SessionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Arrays;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,10 +32,22 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private static final Pattern ACCOMMODATION_DETAIL_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+$");
-    private static final Pattern REVIEW_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+/reviews$");
-    private static final Pattern REVIEW_SUMMARY_PATH_PATTERN = Pattern.compile("^/api/v1/accommodations/\\d+/reviews/summary$");
-    private static final String SEARCH_PATH = "/api/v1/search/accommodations";
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+
+    // 인증이 필요 없는 경로 목록 (메서드 무관)
+    private static final Set<String> PUBLIC_PATHS = Set.of(
+        "/api/v1/auth/login",  // 로그인
+        "/api/v1/members"      // 회원가입
+    );
+
+    // GET 메서드일 때만 인증이 필요 없는 경로 목록
+    private static final String[] PUBLIC_GET_PATHS = {
+        "/api/v1/accommodations/*", // 숙소 상세
+        "/api/v1/accommodations/*/reviews", // 리뷰 목록
+        "/api/v1/accommodations/*/reviews/summary", // 리뷰 요약
+        "/api/v1/search/accommodations" // 검색
+    };
 
     public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
@@ -45,47 +61,44 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        // 공개 GET 경로인지 확인
-        final boolean isPublicGet = "GET".equals(method) &&
-            (ACCOMMODATION_DETAIL_PATH_PATTERN.matcher(path).matches() ||
-                REVIEW_PATH_PATTERN.matcher(path).matches() ||
-                REVIEW_SUMMARY_PATH_PATTERN.matcher(path).matches() ||
-                path.equals(SEARCH_PATH));
+        // HTTP 메서드와 무관하게 항상 공개되는 경로
+        boolean isPublicPath = PUBLIC_PATHS.stream()
+            .anyMatch(p -> pathMatcher.match(p, path));
+
+        // GET 메서드일 때만 공개되는 경로
+        boolean isPublicGet = "GET".equals(method) &&
+            Arrays.stream(PUBLIC_GET_PATHS)
+                .anyMatch(p -> pathMatcher.match(p, path));
 
         String sessionId = SessionUtil.getSessionIdByCookie(request);
         Long memberId = null;
 
-        // 세션이 있으면 사용자 ID 조회 (없어도 에러 X)
         if (sessionId != null && Boolean.TRUE.equals(redisTemplate.hasKey("SESSION:" + sessionId))) {
             try {
                 memberId = checkMemberIdType(sessionId);
             } catch (Exception e) {
                 log.warn("[SessionAuthFilter] 유효하지 않은 세션값 (무시): SESSION:{}", sessionId, e);
-                // 세션값이 이상해도 공개 GET은 통과시켜야 하므로 예외를 던지지 않음
             }
         }
 
-        // 필수 인증 검사
-        // 공개 GET 경로가 아닌데
-        // memberId가 null이면 401 에러 반환
-        if (!isPublicGet && memberId == null) {
+        // 인증 검사 로직
+        // 공개 경로도 아니고, 공개 GET 경로도 아닌데 memberId(인증)가 없으면 401
+        if (!isPublicPath && !isPublicGet && memberId == null) {
             log.warn("[SessionAuthFilter] 필수 인증 실패 (401): {} {}", method, path);
             sendUnauthorizedError(response);
             return;
         }
 
-        // UserContext 설정 및 필터 체인
         try {
             if (memberId != null) {
                 UserContext.set(new UserInfo(memberId));
                 log.info("[SessionAuthFilter] 인증된 요청 (User: {}): {} {}", memberId, method, path);
             } else {
-                // 비로그인 사용자 (공개 GET): UserContext 설정 X(null 유지)
                 log.info("[SessionAuthFilter] 비인증 요청 (Public): {} {}", method, path);
             }
             filterChain.doFilter(request, response);
         } finally {
-            UserContext.clear(); // ThreadLocal 정리
+            UserContext.clear();
         }
     }
 
