@@ -114,5 +114,9 @@ public class AccommodationSearchRequest {
 			return (topLeftLat == null && topLeftLng == null && bottomRightLat == null && bottomRightLng == null) ||
 				(topLeftLat != null && topLeftLng != null && bottomRightLat != null && bottomRightLng != null);
 		}
+
+		public boolean hasAllBounds() {
+			return topLeftLat != null && topLeftLng != null && bottomRightLat != null && bottomRightLng != null;
+		}
 	}
 }

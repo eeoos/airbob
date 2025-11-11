@@ -97,8 +97,6 @@ public class AccommodationResponse {
 	@Builder
 	public record PolicyInfo(
 		Integer maxOccupancy,
-		Integer adultOccupancy,
-		Integer childOccupancy,
 		Integer infantOccupancy,
 		Integer petOccupancy
 	) {

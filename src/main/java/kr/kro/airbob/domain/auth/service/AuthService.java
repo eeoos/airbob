@@ -4,10 +4,12 @@ import java.util.UUID;
 
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.exception.NotEqualHostException;
+import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
@@ -39,12 +41,16 @@ public class AuthService {
         sessionRedisRepository.deleteSession(sessionId);
     }
 
+    @Transactional(readOnly = true)
+    public MemberResponse.MeInfo getMemberInfo(Long memberId) {
+        Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
+            .orElseThrow(MemberNotFoundException::new);
 
-    public void validateHost(String sessionId, Long hostId) {
-        Long memberId = sessionRedisRepository.getMemberIdBySession(sessionId).orElse(null);
-
-        if (!hostId.equals(memberId)) {
-            throw new NotEqualHostException();
-        }
+        return new MemberResponse.MeInfo(
+            member.getId(),
+            member.getEmail(),
+            member.getNickname(),
+            member.getThumbnailImageUrl()
+        );
     }
 }

@@ -33,6 +33,8 @@ public class AccommodationSearchResponse {
 			String currencyCode = format.getCurrency().getCurrencyCode();
 			String displayName = format.getCurrency().getDisplayName();
 			String basePrice = format.format(doc.basePrice());
+			Double rating = doc.averageRating() != null ? doc.averageRating() : 0.0;
+			Integer count = doc.reviewCount() != null ? doc.reviewCount() : 0;
 
 			return AccommodationSearchInfo.builder()
 				.id(doc.accommodationId())
@@ -49,8 +51,8 @@ public class AccommodationSearchResponse {
 					.price(basePrice)
 					.build())
 				.review(ReviewResponse.ReviewSummary.builder()
-					.averageRating(new BigDecimal(String.valueOf(doc.averageRating())))
-					.totalCount(doc.reviewCount())
+					.averageRating(new BigDecimal(String.valueOf(rating)))
+					.totalCount(count)
 					.build())
 				// .hostName(doc.hostNickname())
 				.isInWishlist(isInWishlist)

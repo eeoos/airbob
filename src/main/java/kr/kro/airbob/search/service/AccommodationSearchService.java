@@ -16,11 +16,9 @@ import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.stereotype.Service;
 
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.geo.IpCountryService;
 import kr.kro.airbob.geo.ViewportAdjuster;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 import kr.kro.airbob.search.document.AccommodationDocument;
@@ -35,13 +33,13 @@ import lombok.extern.slf4j.Slf4j;
 public class AccommodationSearchService {
 
 	private final GeocodingService geocodingService;
-	private final IpCountryService ipCountryService;
+	// private final IpCountryService ipCountryService;
 	private final ViewportAdjuster viewportAdjuster;
 	private final ElasticsearchOperations elasticsearchOperations;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	public AccommodationSearchResponse.AccommodationSearchInfos searchAccommodations(
-		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, String clientIp,
+		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
 		AccommodationSearchRequest.MapBoundsDto mapBounds, Pageable pageable, Long memberId) {
 
 		// 인원이 유효하지 않으면 기본값 (성인:1)
@@ -49,7 +47,7 @@ public class AccommodationSearchService {
 			searchRequest.setDefaultOccupancy();
 		}
 
-		Viewport viewport = determineViewport(searchRequest, clientIp, mapBounds);
+		Viewport viewport = determineViewport(searchRequest, mapBounds);
 		if (viewport == null) {
 			return createEmptySearchResult(pageable);
 		}
@@ -109,11 +107,11 @@ public class AccommodationSearchService {
 	}
 
 	private Viewport determineViewport(
-		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, String clientIp, AccommodationSearchRequest.MapBoundsDto mapBounds) {
+		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, AccommodationSearchRequest.MapBoundsDto mapBounds) {
 
 
 		// 지도 드래그
-		if (mapBounds.isValid()) {
+		if (mapBounds.hasAllBounds()) {
 			return createViewportFromDragArea(mapBounds);
 		}
 
@@ -128,25 +126,7 @@ public class AccommodationSearchService {
 			}
 		}
 
-		// ip 기반 국가 조회
-		return getViewportFromIpCountry(clientIp);
-	}
-
-	private Viewport getViewportFromIpCountry(String clientIp) {
-		try {
-			Optional<GeocodeResult> countryResult = ipCountryService.getCountryFromIp(clientIp);
-			if (countryResult.isPresent()) {
-				GeocodeResult result = countryResult.get();
-				GeocodeResult countryGeocode = geocodingService.getCoordinates(result.formattedAddress());
-				if (countryGeocode.success() && countryGeocode.viewport() != null) {
-					return viewportAdjuster.adjustViewportIfSmall(countryGeocode.viewport()); // 국가 단위도 조정 검증을 해야할까?
-				}
-			}
-		} catch (Exception e) {
-			log.warn("IP 기반 국가 정보 조회 실패: {}", e.getMessage());
-		}
-
-		return null; // 최종 fallback인 ip 기반 국가 조회 실패 시 null 반환
+		return null;
 	}
 
 	private Viewport createViewportFromDragArea(AccommodationSearchRequest.MapBoundsDto mapBounds) {
@@ -163,13 +143,27 @@ public class AccommodationSearchService {
 
 		criteria = criteria.and(Criteria.where("status").is(AccommodationStatus.PUBLISHED.name()));
 
-		GeoPoint topLeft = new GeoPoint(viewport.northeast().lat(), viewport.southwest().lng()); // 북동
-		GeoPoint bottomRight = new GeoPoint(viewport.southwest().lat(), viewport.northeast().lng()); // 남서
+		String destination = searchRequest.getDestination();
 
-		GeoBox boundingBox = new GeoBox(topLeft, bottomRight);
+		criteria = criteria.and(Criteria.where("status").is(AccommodationStatus.PUBLISHED.name()));
 
-		// 지리
-		criteria = criteria.and(Criteria.where("location").boundedBy(boundingBox));
+		if (viewport != null) {
+			GeoPoint topLeft = new GeoPoint(viewport.northeast().lat(), viewport.southwest().lng());
+			GeoPoint bottomRight = new GeoPoint(viewport.southwest().lat(), viewport.northeast().lng());
+			GeoBox boundingBox = new GeoBox(topLeft, bottomRight);
+			criteria = criteria.and(Criteria.where("location").boundedBy(boundingBox));
+		}
+
+		if (destination != null && !destination.trim().isEmpty()) {
+			criteria = criteria.and(new Criteria()
+				.or(Criteria.where("name").matches(destination))
+				.or(Criteria.where("description").matches(destination))
+				.or(Criteria.where("country").matches(destination)) //
+				.or(Criteria.where("city").matches(destination))
+				.or(Criteria.where("district").matches(destination))
+				.or(Criteria.where("street").matches(destination))
+			);
+		}
 
 		// 가격
 		if (searchRequest.getMinPrice() != null) {
@@ -191,20 +185,25 @@ public class AccommodationSearchService {
 
 		// 반려동물 동반
 		if (searchRequest.hasPet()) {
-			criteria = criteria.and(Criteria.where("petOccupancy").greaterThanEqual(searchRequest.getPetOccupancy()));
+			criteria = criteria.and(Criteria.where("maxPets").greaterThanEqual(searchRequest.getPetOccupancy()));
 		}
 
 		// 인원
-		int totalGuests = searchRequest.getTotalGuests();
+		int totalGuests = searchRequest.getTotalGuests(); // (성인 + 어린이)
 		if (totalGuests > 0) {
-			criteria = criteria.and(Criteria.where("maxOccupancy").greaterThanEqual(totalGuests));
+			criteria = criteria.and(Criteria.where("maxGuests").greaterThanEqual(totalGuests));
+		}
+
+		Integer infantOccupancy = searchRequest.getInfantOccupancy();
+		if (infantOccupancy != null && infantOccupancy > 0) {
+			criteria = criteria.and(Criteria.where("maxInfants").greaterThanEqual(infantOccupancy));
 		}
 
 		// 예약 가능 날짜
 		if (searchRequest.getCheckIn() != null && searchRequest.getCheckOut() != null) {
 			criteria = criteria.and(
 				Criteria.where("reservedDates").not().in(
-					searchRequest.getCheckIn().datesUntil(searchRequest.getCheckOut())
+					searchRequest.getCheckIn().datesUntil(searchRequest.getCheckOut()).toList()
 				)
 			);
 		}

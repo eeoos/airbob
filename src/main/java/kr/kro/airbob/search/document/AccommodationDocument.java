@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
@@ -49,23 +50,43 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	String status,
 
-	@Field(type = FieldType.Date)
+	@Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS")
 	LocalDateTime createdAt,
 
 	// 위치 정보
 	@GeoPointField
 	Location location,
 
-	@Field(type = FieldType.Keyword)
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+		}
+	)
 	String country,
 
-	@Field(type = FieldType.Keyword)
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+		}
+	)
 	String city,
 
-	@Field(type = FieldType.Keyword)
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+		}
+	)
 	String district,
 
-	@Field(type = FieldType.Text)
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+		}
+	)
 	String street,
 
 	@Field(type = FieldType.Text)
@@ -76,19 +97,13 @@ public record AccommodationDocument(
 
 	// 인원 정책
 	@Field(type = FieldType.Integer)
-	Integer maxOccupancy,
+	Integer maxGuests,
 
 	@Field(type = FieldType.Integer)
-	Integer adultOccupancy,
+	Integer maxInfants,
 
 	@Field(type = FieldType.Integer)
-	Integer childOccupancy,
-
-	@Field(type = FieldType.Integer)
-	Integer infantOccupancy,
-
-	@Field(type = FieldType.Integer)
-	Integer petOccupancy,
+	Integer maxPets,
 
 	// 편의시설
 	@Field(type = FieldType.Keyword)

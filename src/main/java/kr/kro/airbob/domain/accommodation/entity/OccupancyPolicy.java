@@ -24,16 +24,12 @@ public class OccupancyPolicy extends BaseEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 	private Integer maxOccupancy;
-	private Integer adultOccupancy;
-	private Integer childOccupancy;
 	private Integer infantOccupancy;
 	private Integer petOccupancy;
 
 	public static OccupancyPolicy createOccupancyPolicy(AccommodationRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
 		return OccupancyPolicy.builder()
 				.maxOccupancy(occupancyPolicyInfo.maxOccupancy())
-				.adultOccupancy(occupancyPolicyInfo.adultOccupancy())
-				.childOccupancy(occupancyPolicyInfo.childOccupancy())
 				.infantOccupancy(occupancyPolicyInfo.infantOccupancy())
 				.petOccupancy(occupancyPolicyInfo.petOccupancy())
 				.build();

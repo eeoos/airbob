@@ -190,8 +190,6 @@ public class AccommodationService {
                 .build())
             .policyInfo(AccommodationResponse.PolicyInfo.builder()
                 .maxOccupancy(policy.getMaxOccupancy())
-                .adultOccupancy(policy.getAdultOccupancy())
-                .childOccupancy(policy.getChildOccupancy())
                 .infantOccupancy(policy.getInfantOccupancy())
                 .petOccupancy(policy.getPetOccupancy())
                 .build())
@@ -372,8 +370,6 @@ public class AccommodationService {
                 .build())
             .policyInfo(AccommodationResponse.PolicyInfo.builder()
                 .maxOccupancy(policy.getMaxOccupancy())
-                .adultOccupancy(policy.getAdultOccupancy())
-                .childOccupancy(policy.getChildOccupancy())
                 .infantOccupancy(policy.getInfantOccupancy())
                 .petOccupancy(policy.getPetOccupancy())
                 .build())
@@ -439,8 +435,8 @@ public class AccommodationService {
             throw new PublishingFieldRequiredException("type");
         }
         OccupancyPolicy policy = accommodation.getOccupancyPolicy();
-        if (policy == null || policy.getMaxOccupancy() == null || policy.getAdultOccupancy() == null
-            || policy.getChildOccupancy() == null || policy.getInfantOccupancy() == null
+        if (policy == null || policy.getMaxOccupancy() == null
+            || policy.getInfantOccupancy() == null
             || policy.getPetOccupancy() == null) {
 
             throw new PublishingFieldRequiredException("occupancyPolicyInfo", "수용 인원 정책(세부 항목 포함)이 누락되었습니다.");

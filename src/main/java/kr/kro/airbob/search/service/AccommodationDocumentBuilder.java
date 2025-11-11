@@ -12,7 +12,6 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -26,7 +25,6 @@ public class AccommodationDocumentBuilder {
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
 	private final ReservationRepository reservationRepository;
-	private final AccommodationImageRepository imageRepository;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 
 	public AccommodationDocument buildAccommodationDocument(String accommodationUidStr) {
@@ -59,11 +57,9 @@ public class AccommodationDocumentBuilder {
 			.street(accommodation.getAddress().getStreet())
 			.addressDetail(accommodation.getAddress().getDetail())
 			.postalCode(accommodation.getAddress().getPostalCode())
-			.maxOccupancy(accommodation.getOccupancyPolicy().getMaxOccupancy())
-			.adultOccupancy(accommodation.getOccupancyPolicy().getAdultOccupancy())
-			.childOccupancy(accommodation.getOccupancyPolicy().getChildOccupancy())
-			.infantOccupancy(accommodation.getOccupancyPolicy().getInfantOccupancy())
-			.petOccupancy(accommodation.getOccupancyPolicy().getPetOccupancy())
+			.maxGuests(accommodation.getOccupancyPolicy().getMaxOccupancy())
+			.maxInfants(accommodation.getOccupancyPolicy().getInfantOccupancy())
+			.maxPets(accommodation.getOccupancyPolicy().getPetOccupancy())
 			.hostId(accommodation.getMember().getId())
 			.hostNickname(accommodation.getMember().getNickname())
 			.amenityTypes(amenityTypes)

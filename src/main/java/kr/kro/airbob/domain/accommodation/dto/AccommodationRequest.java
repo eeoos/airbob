@@ -86,14 +86,6 @@ public class AccommodationRequest {
         @Positive(message = "최대 수용 인원은 1 이상이어야 합니다.")
         Integer maxOccupancy,
 
-        @NotNull(message = "성인 수용 인원은 필수입니다.")
-        @Positive(message = "성인 수용 인원은 1 이상이어야 합니다.")
-        Integer adultOccupancy,
-
-        @NotNull(message = "아동 수용 인원은 필수입니다.")
-        @PositiveOrZero(message = "아동 수용 인원은 0 이상이어야 합니다.")
-        Integer childOccupancy,
-
         @NotNull(message = "유아 수용 인원은 필수입니다.")
         @PositiveOrZero(message = "유아 수용 인원은 0 이상이어야 합니다.")
         Integer infantOccupancy,

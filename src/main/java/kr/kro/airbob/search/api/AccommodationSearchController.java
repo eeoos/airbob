@@ -25,7 +25,6 @@ import lombok.RequiredArgsConstructor;
 public class AccommodationSearchController {
 
 	private final AccommodationSearchService accommodationSearchService;
-	private final ClientIpExtractor clientIpExtractor;
 
 	private static final int DEFAULT_PAGE_SIZE = 18;
 	private static final int MAX_PAGE_NUMBER = 14;
@@ -34,8 +33,7 @@ public class AccommodationSearchController {
 	public ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> searchAccommodations(
 		@Valid @ModelAttribute AccommodationSearchRequest.MapBoundsDto mapBounds,
 		@Valid @ModelAttribute AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
-		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable,
-		HttpServletRequest request) {
+		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable) {
 
 		Long memberId = UserContext.get() == null ? null : UserContext.get().id();
 
@@ -47,10 +45,8 @@ public class AccommodationSearchController {
 			pageable = PageRequest.of(pageable.getPageNumber(), DEFAULT_PAGE_SIZE);
 		}
 
-		String clientIp = clientIpExtractor.extractClientIp(request);
-
 		AccommodationSearchResponse.AccommodationSearchInfos infos =
-			accommodationSearchService.searchAccommodations(searchRequest, clientIp, mapBounds, pageable, memberId);
+			accommodationSearchService.searchAccommodations(searchRequest, mapBounds, pageable, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(infos));
 	}
