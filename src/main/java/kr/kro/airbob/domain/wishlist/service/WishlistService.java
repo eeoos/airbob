@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.wishlist.service;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -13,12 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
@@ -48,7 +46,6 @@ public class WishlistService {
 	private final MemberRepository memberRepository;
 	private final WishlistRepository wishlistRepository;
 	private final AccommodationRepository accommodationRepository;
-	private final AccommodationAmenityRepository amenityRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
@@ -88,7 +85,10 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
-	public WishlistResponse.WishlistInfos findWishlists(CursorRequest.CursorPageRequest request, Long memberId) {
+	public WishlistResponse.WishlistInfos findWishlists(
+		CursorRequest.CursorPageRequest request,
+		Long memberId,
+		Long accommodationId) {
 
 		Long lastId = request.lastId();
 		LocalDateTime lastCreatedAt = request.lastCreatedAt();
@@ -102,6 +102,19 @@ public class WishlistService {
 			PageRequest.of(0, request.size())
 		);
 
+		List<Wishlist> wishlists = wishlistSlice.getContent();
+		if (wishlists.isEmpty()) {
+			return WishlistResponse.WishlistInfos.builder()
+				.wishlists(Collections.emptyList())
+				.pageInfo(cursorPageInfoCreator.createPageInfo(
+					Collections.emptyList(),
+					false,
+					Wishlist::getId,
+					Wishlist::getCreatedAt
+				))
+				.build();
+		}
+
 		List<Long> wishlistIds = wishlistSlice.getContent().stream()
 			.map(Wishlist::getId)
 			.toList();
@@ -110,18 +123,50 @@ public class WishlistService {
 		Map<Long, Long> wishlistItemCounts = wishlistAccommodationRepository.countByWishlistIds(wishlistIds);
 
 		// 위시리스트별 가장 최근에 추가된 숙소 썸네일 Url 조회
-		// todo: queryDSL로 변경하면서 숙소의 상태가 publish인 조건도 추가 필요
-		Map<Long, String> thumbnailUrls = wishlistAccommodationRepository.findLatestThumbnailUrlsByWishlistIds(wishlistIds);
+		List<WishlistAccommodationRepository.WishlistThumbnailInfo> thumbnailInfos =
+			wishlistAccommodationRepository.findLatestThumbnailUrlsByWishlistIds(wishlistIds);
 
-		List<WishlistResponse.WishlistInfo> wishlistInfos = wishlistSlice.getContent().stream()
-			.map(wishlist ->
-				new WishlistResponse.WishlistInfo(
-					wishlist.getId(),
-					wishlist.getName(),
-					wishlist.getCreatedAt(),
-					wishlistItemCounts.getOrDefault(wishlist.getId(), 0L),
-					thumbnailUrls.get(wishlist.getId()) // nullable
-				)).toList();
+		Map<Long, String> thumbnailUrls = thumbnailInfos.stream()
+			.collect(Collectors.toMap(
+				WishlistAccommodationRepository.WishlistThumbnailInfo::getWishlist_id,
+				WishlistAccommodationRepository.WishlistThumbnailInfo::getThumbnail_url
+			));
+
+		List<WishlistResponse.WishlistInfo> wishlistInfos;
+
+		if (accommodationId != null) {
+			Map<Long, Long> accommodationStatusMap = wishlistAccommodationRepository
+				.findWishlistAccIdsMapByWishlistIdsAndAccId(wishlistIds, accommodationId);
+
+			wishlistInfos = wishlists.stream()
+				.map(wishlist -> {
+					Long currentWishlistId = wishlist.getId();
+					Long wishlistAccommodationId = accommodationStatusMap.get(currentWishlistId);
+					Boolean isContained = (wishlistAccommodationId != null);
+
+					return new WishlistResponse.WishlistInfo(
+						currentWishlistId,
+						wishlist.getName(),
+						wishlist.getCreatedAt(),
+						wishlistItemCounts.getOrDefault(currentWishlistId, 0L),
+						thumbnailUrls.get(currentWishlistId),
+						isContained,
+						wishlistAccommodationId
+					);
+				}).toList();
+		} else {
+			wishlistInfos = wishlists.stream()
+				.map(wishlist ->
+					new WishlistResponse.WishlistInfo(
+						wishlist.getId(),
+						wishlist.getName(),
+						wishlist.getCreatedAt(),
+						wishlistItemCounts.getOrDefault(wishlist.getId(), 0L),
+						thumbnailUrls.get(wishlist.getId()),
+						null,
+						null
+					)).toList();
+		}
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			wishlistSlice.getContent(),
@@ -130,7 +175,10 @@ public class WishlistService {
 			Wishlist::getCreatedAt
 		);
 
-		return new WishlistResponse.WishlistInfos(wishlistInfos, pageInfo);
+		return WishlistResponse.WishlistInfos.builder()
+			.wishlists(wishlistInfos)
+			.pageInfo(pageInfo)
+			.build();
 	}
 
 	@Transactional

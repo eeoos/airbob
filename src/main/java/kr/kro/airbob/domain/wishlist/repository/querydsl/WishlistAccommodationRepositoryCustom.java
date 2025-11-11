@@ -17,4 +17,6 @@ public interface WishlistAccommodationRepositoryCustom {
 
 	Map<Long, Long> countByWishlistIds(List<Long> wishlistIds);
 	Set<Long> findAccommodationIdsByMemberIdAndAccommodationIds(Long memberId, List<Long> accommodationIds);
+
+	Map<Long, Long> findWishlistAccIdsMapByWishlistIdsAndAccId(List<Long> wishlistIds, Long accommodationId);
 }

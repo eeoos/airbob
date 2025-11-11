@@ -12,11 +12,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 
+import com.querydsl.core.Tuple;
 import com.querydsl.core.group.GroupBy;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
@@ -25,6 +27,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.wishlist.dto.QWishlistAccommodationResponse_WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.entity.QWishlistAccommodation;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -69,7 +72,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 
 	@Override
 	public Map<Long, Long> countByWishlistIds(List<Long> wishlistIds) {
-		return queryFactory
+		List<Tuple> results = queryFactory
 			.select(
 				wishlistAccommodation.wishlist.id,
 				wishlistAccommodation.count()
@@ -81,7 +84,13 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 				accommodation.status.eq(AccommodationStatus.PUBLISHED)
 			)
 			.groupBy(wishlistAccommodation.wishlist.id)
-			.transform(GroupBy.groupBy(wishlistAccommodation.wishlist.id).as(wishlistAccommodation.count()));
+			.fetch();
+
+		return results.stream()
+			.collect(Collectors.toMap(
+				tuple -> tuple.get(0, Long.class),
+				tuple -> tuple.get(1, Long.class)
+			));
 	}
 
 	@Override
@@ -100,6 +109,27 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.fetch();
 
 		return new HashSet<>(result);
+	}
+
+	@Override
+	public Map<Long, Long> findWishlistAccIdsMapByWishlistIdsAndAccId(List<Long> wishlistIds, Long accommodationId) {
+		List<Tuple> results = queryFactory
+			.select(
+				wishlistAccommodation.wishlist.id,
+				wishlistAccommodation.id // wishlistAccommodationId
+			)
+			.from(wishlistAccommodation)
+			.where(
+				wishlistAccommodation.wishlist.id.in(wishlistIds),
+				wishlistAccommodation.accommodation.id.eq(accommodationId)
+			)
+			.fetch();
+
+		return results.stream()
+			.collect(Collectors.toMap(
+				tuple -> tuple.get(0, Long.class),
+				tuple -> tuple.get(1, Long.class)
+			));
 	}
 
 	private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {

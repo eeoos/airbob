@@ -17,6 +17,11 @@ import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistAccommodationRe
 public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long>,
 	WishlistAccommodationRepositoryCustom {
 
+	public interface WishlistThumbnailInfo {
+		Long getWishlist_id();
+		String getThumbnail_url();
+	}
+
 	@Query(value = """
 		SELECT 
 			wishlist_id,
@@ -35,7 +40,7 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 		) ranked
 		WHERE rn = 1
 	""", nativeQuery = true)
-	Map<Long, String> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
+	List<WishlistThumbnailInfo> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
 
 	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
 	void deleteAllByWishlistId(Long wishlistId);

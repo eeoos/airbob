@@ -2,15 +2,12 @@ package kr.kro.airbob.domain.wishlist.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.Address;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

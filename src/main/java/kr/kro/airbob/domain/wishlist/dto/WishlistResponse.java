@@ -6,11 +6,11 @@ import java.util.List;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class WishlistResponse {
-
 
 	public record Create(
 		long id
@@ -22,20 +22,23 @@ public class WishlistResponse {
 	) {
 	}
 
+	@Builder
 	public record WishlistInfos(
 		List<WishlistInfo> wishlists,
 		CursorResponse.PageInfo pageInfo
 	) {
 	}
 
+	@Builder
 	public record WishlistInfo(
 		long id,
 		String name,
 		LocalDateTime createdAt,
 		Long wishlistItemCount,
-		String thumbnailImageUrl
+		String thumbnailImageUrl,
+		Boolean isContained,
+		Long wishlistAccommodationId
 	) {
 	}
-
 
 }
