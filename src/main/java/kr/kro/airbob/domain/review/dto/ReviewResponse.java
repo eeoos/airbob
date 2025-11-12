@@ -42,7 +42,7 @@ public class ReviewResponse {
 
 	@Builder
 	public record ReviewSummary(
-		int totalCount,
+		Integer totalCount,
 		BigDecimal averageRating
 	) {
 		public static ReviewSummary of(AccommodationReviewSummary summary) {

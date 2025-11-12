@@ -5,6 +5,7 @@ import static kr.kro.airbob.geo.dto.GoogleGeocodeResponse.Geometry.*;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
@@ -203,7 +204,7 @@ public class AccommodationSearchService {
 		if (searchRequest.getCheckIn() != null && searchRequest.getCheckOut() != null) {
 			criteria = criteria.and(
 				Criteria.where("reservedDates").not().in(
-					searchRequest.getCheckIn().datesUntil(searchRequest.getCheckOut()).toList()
+					searchRequest.getCheckIn().datesUntil(searchRequest.getCheckOut()).collect(Collectors.toList())
 				)
 			);
 		}

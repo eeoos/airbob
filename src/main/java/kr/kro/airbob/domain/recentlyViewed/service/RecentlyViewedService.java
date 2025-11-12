@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.recentlyViewed.service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -121,8 +122,8 @@ public class RecentlyViewedService {
 					.thumbnailUrl(accommodation.getThumbnailUrl())
 					// .amenities(amenityMap.getOrDefault(accommodationId, List.of()))
 					.locationSummary(String.format("%s %s", accommodation.getAddress().getDistrict(),accommodation.getAddress().getStreet()))
-					.averageRating(reviewSummary.averageRating())
-					.reviewCount(reviewSummary.totalCount())
+					.averageRating(reviewSummary != null ? reviewSummary.averageRating() : BigDecimal.ZERO)
+					.reviewCount(reviewSummary != null ? reviewSummary.totalCount() : 0)
 					.isInWishlist(wishlistMap.getOrDefault(accommodationId, false))
 					.build();
 			})
