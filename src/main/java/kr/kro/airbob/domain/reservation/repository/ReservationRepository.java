@@ -6,8 +6,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -17,5 +15,5 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 	List<Reservation> findAllByStatusAndExpiresAtBefore(ReservationStatus status, LocalDateTime expiresAt);
 	Optional<Reservation> findByReservationUid(UUID reservationUid);
 
-	boolean existsByConfirmationCode(String newCode);
+	boolean existsByReservationCode(String reservationCode);
 }

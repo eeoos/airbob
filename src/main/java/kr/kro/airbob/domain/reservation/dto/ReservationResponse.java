@@ -107,6 +107,7 @@ public class ReservationResponse {
 	@Builder
 	public record DetailInfo(
 		String reservationUid,
+		String reservationCode,
 		ReservationStatus status,
 		LocalDateTime createdAt,
 		Integer guestCount,
@@ -161,7 +162,7 @@ public class ReservationResponse {
 		Long accommodationId,
 		String accommodationName,
 		String thumbnailUrl,
-		String confirmationCode,
+		String reservationCode,
 		Integer totalPrice
 	){
 	}
@@ -176,6 +177,7 @@ public class ReservationResponse {
 	@Builder
 	public record HostDetailInfo(
 		String reservationUid,
+		String reservationCode,
 		ReservationStatus status,
 		LocalDateTime createdAt,
 		Integer guestCount,

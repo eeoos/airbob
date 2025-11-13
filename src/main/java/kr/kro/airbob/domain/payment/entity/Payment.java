@@ -21,7 +21,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -54,7 +53,7 @@ public class Payment extends UpdatableEntity {
 	private String orderId;
 
 	@Column(nullable = false)
-	private Long totalAmount;
+	private Long amount;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
@@ -89,11 +88,11 @@ public class Payment extends UpdatableEntity {
 		return Payment.builder()
 			.paymentKey(response.getPaymentKey())
 			.orderId(response.getOrderId())
-			.totalAmount(response.getTotalAmount())
+			.amount(response.getTotalAmount())
 			.balanceAmount(response.getTotalAmount())
 			.method(PaymentMethod.fromDescription(response.getMethod()))
 			.status(PaymentStatus.from(response.getStatus()))
-			.approvedAt(response.getApprovedAt())
+			.approvedAt(response.getApprovedAt().toLocalDateTime())
 			.reservation(reservation)
 			.build();
 	}

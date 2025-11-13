@@ -27,6 +27,8 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -57,6 +59,7 @@ public class ReservationTransactionService {
 
 	private final MemberRepository memberRepository;
 	private final PaymentRepository paymentRepository;
+	private final PaymentAttemptRepository paymentAttemptRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationStatusHistoryRepository historyRepository;
@@ -76,7 +79,9 @@ public class ReservationTransactionService {
 			throw new ReservationConflictException();
 		}
 
-		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request);
+		String reservationCode = createReservationCode();
+
+		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request, reservationCode);
 		reservationRepository.save(pendingReservation);
 
 		historyRepository.save(ReservationStatusHistory.builder()
@@ -146,10 +151,8 @@ public class ReservationTransactionService {
 			return;
 		}
 
-		String confirmationCode = createConfirmationCode();
-
 		ReservationStatus previousStatus = reservation.getStatus();
-		reservation.confirm(confirmationCode);
+		reservation.confirm();
 
 		historyRepository.save(ReservationStatusHistory.builder()
 			.reservation(reservation)
@@ -274,6 +277,19 @@ public class ReservationTransactionService {
 			.orElseThrow(ReservationNotFoundException::new);
 
 		Payment payment = findPaymentByReservationUidNullable(reservationUid);
+		PaymentResponse.PaymentInfo paymentInfo = null;
+
+		if (payment != null) { // 결제 완료된 예약
+			paymentInfo = PaymentResponse.PaymentInfo.from(payment);
+		} else if (reservation.getStatus() == ReservationStatus.PAYMENT_PENDING) { // 결제 대기중인 예약(가상계좌)
+			paymentInfo = paymentAttemptRepository
+				.findByOrderIdOrderByCreatedAtDesc(reservationUidStr)
+				.stream()
+				.filter(pa -> pa.getMethod() == PaymentMethod.VIRTUAL_ACCOUNT)
+				.findFirst()
+				.map(PaymentResponse.PaymentInfo::from)
+				.orElse(null);
+		}
 
 		Accommodation accommodation = reservation.getAccommodation();
 		Address address = accommodation.getAddress();
@@ -300,6 +316,7 @@ public class ReservationTransactionService {
 		// mapstruct 적용
 		return ReservationResponse.DetailInfo.builder()
 			.reservationUid(reservation.getReservationUid().toString())
+			.reservationCode(reservation.getReservationCode())
 			.status(reservation.getStatus())
 			.createdAt(reservation.getCreatedAt())
 			.guestCount(reservation.getGuestCount())
@@ -312,7 +329,7 @@ public class ReservationTransactionService {
 			.checkOutDateTime(reservation.getCheckOut())
 			.checkInTime(reservation.getCheckIn().toLocalTime())
 			.checkOutTime(reservation.getCheckOut().toLocalTime())
-			.paymentInfo(PaymentResponse.PaymentInfo.from(payment))
+			.paymentInfo(paymentInfo)
 			.build();
 	}
 
@@ -347,7 +364,7 @@ public class ReservationTransactionService {
 					.accommodationId(accommodation.getId())
 					.accommodationName(accommodation.getName())
 					.thumbnailUrl(accommodation.getThumbnailUrl())
-					.confirmationCode(r.getConfirmationCode())
+					.reservationCode(r.getReservationCode())
 					.totalPrice(r.getTotalPrice())
 					.build();
 			}).collect(Collectors.toList());
@@ -388,6 +405,7 @@ public class ReservationTransactionService {
 
 		return ReservationResponse.HostDetailInfo.builder()
 			.reservationUid(reservation.getReservationUid().toString())
+			.reservationCode(reservation.getReservationCode())
 			.status(reservation.getStatus())
 			.createdAt(reservation.getCreatedAt())
 			.guestCount(reservation.getGuestCount())
@@ -401,16 +419,16 @@ public class ReservationTransactionService {
 			.build();
 	}
 
-	private String createConfirmationCode() {
-		String confirmationCode;
+	private String createReservationCode() {
+		String reservationCode;
 		do {
-			confirmationCode = generateConfirmationCode();
-		} while (reservationRepository.existsByConfirmationCode(confirmationCode));
+			reservationCode = generateReservationCode();
+		} while (reservationRepository.existsByReservationCode(reservationCode));
 
-		return confirmationCode;
+		return reservationCode;
 	}
 
-	private String generateConfirmationCode() {
+	private String generateReservationCode() {
 		return RandomStringUtils.randomAlphanumeric(6).toUpperCase();
 	}
 

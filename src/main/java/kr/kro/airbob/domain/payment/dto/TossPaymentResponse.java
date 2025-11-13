@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.payment.dto;
 
-import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -23,8 +23,8 @@ public class TossPaymentResponse {
 	private Long totalAmount;
 	private String method;
 	private String status;
-	private LocalDateTime requestedAt;
-	private LocalDateTime approvedAt;
+	private ZonedDateTime requestedAt;
+	private ZonedDateTime approvedAt;
 	private Long balanceAmount;
 	private Failure failure;
 
@@ -55,7 +55,7 @@ public class TossPaymentResponse {
 		private Integer taxExemptionAmount;
 		private Long refundableAmount;
 		private Long easyPayDiscountAmount;
-		private LocalDateTime canceledAt;
+		private ZonedDateTime canceledAt;
 		private String transactionKey;
 		private String receiptKey;
 	}
@@ -71,7 +71,7 @@ public class TossPaymentResponse {
 		private String accountType;
 		private String bankCode;
 		private String customerName;
-		private LocalDateTime dueDate;
+		private ZonedDateTime dueDate;
 		private boolean expired;
 		private String settlementStatus;
 		private String refundStatus;

@@ -55,7 +55,7 @@ public class PaymentCancel extends BaseEntity {
 			.cancelAmount(cancelData.getCancelAmount())
 			.cancelReason(cancelData.getCancelReason())
 			.transactionKey(cancelData.getTransactionKey())
-			.canceledAt(cancelData.getCanceledAt())
+			.canceledAt(cancelData.getCanceledAt().toLocalDateTime())
 			.payment(payment)
 			.build();
 	}

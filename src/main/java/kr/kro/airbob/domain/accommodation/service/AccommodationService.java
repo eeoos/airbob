@@ -4,6 +4,7 @@ import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -561,9 +562,11 @@ public class AccommodationService {
         return request.stream()
             .filter(info -> AmenityType.isValid(info.name()))
             .filter(info -> info.count() > 0)
+            .map(info -> new AbstractMap.SimpleEntry<>(AmenityType.valueOf(info.name().toUpperCase()), info.count()))
+            .filter(entry -> entry.getKey() != AmenityType.UNKNOWN)
             .collect(Collectors.toMap(
-                info -> AmenityType.valueOf(info.name().toUpperCase()),
-                AmenityInfo::count,
+                Map.Entry::getKey,
+                Map.Entry::getValue,
                 Integer::sum
             ));
     }

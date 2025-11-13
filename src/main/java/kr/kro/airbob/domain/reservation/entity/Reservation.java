@@ -18,7 +18,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -28,7 +27,6 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateExceptio
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -49,7 +47,7 @@ public class Reservation extends UpdatableEntity {
 	private UUID reservationUid;
 
 	@Column(length = 10, unique = true)
-	private String confirmationCode;
+	private String reservationCode;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "accommodation_id", nullable = false)
@@ -90,7 +88,7 @@ public class Reservation extends UpdatableEntity {
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
-		ReservationRequest.Create request) {
+		ReservationRequest.Create request, String reservationCode) {
 
 		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
 		LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
@@ -118,12 +116,11 @@ public class Reservation extends UpdatableEntity {
 		return (int) (basePrice * nights);
 	}
 
-	public void confirm(String confirmationCode) {
+	public void confirm() {
 		if (this.status != ReservationStatus.PAYMENT_PENDING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CONFIRM_RESERVATION);
 		}
 		this.status = ReservationStatus.CONFIRMED;
-		this.confirmationCode = confirmationCode;
 	}
 
 	public void expire() {
