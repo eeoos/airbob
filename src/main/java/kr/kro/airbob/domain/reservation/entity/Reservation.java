@@ -104,6 +104,7 @@ public class Reservation extends UpdatableEntity {
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.message(request.message())
 			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
+			.reservationCode(reservationCode)
 			.build();
 	}
 

@@ -63,6 +63,21 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
+	public boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId) {
+		Integer fetchFirst = queryFactory
+			.selectOne()
+			.from(reservation)
+			.where(
+				reservation.accommodation.id.eq(accommodationId),
+				reservation.guest.id.eq(memberId),
+				reservation.status.eq(CONFIRMED),
+				reservation.checkOut.before(LocalDateTime.now())
+			)
+			.fetchFirst();
+		return fetchFirst != null;
+	}
+
+	@Override
 	public List<Reservation> findFutureCompletedReservations(UUID accommodationUid) {
 		return queryFactory
 			.selectFrom(reservation)

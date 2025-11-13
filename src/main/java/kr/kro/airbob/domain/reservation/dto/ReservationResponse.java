@@ -124,7 +124,9 @@ public class ReservationResponse {
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 
-		PaymentResponse.PaymentInfo paymentInfo
+		PaymentResponse.PaymentInfo paymentInfo,
+
+		Boolean canWriteReview
 	) {
 	}
 

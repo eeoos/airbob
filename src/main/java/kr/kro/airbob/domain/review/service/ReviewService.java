@@ -236,8 +236,8 @@ public class ReviewService {
 	}
 
 	private void validateReviewCreation(Long accommodationId, Long memberId) {
-		// 예약한 사용자인지 확인
-		if (!reservationRepository.existsCompletedReservationByGuest(accommodationId, memberId)) {
+		// 예약한 사용자인지와 체크아웃까지 완료했는지 확인
+		if (!reservationRepository.existsPastCompletedReservationByGuest(accommodationId, memberId)) {
 			throw new ReviewCreationForbiddenException();
 		}
 		// 이미 리뷰를 작성했는지 확인

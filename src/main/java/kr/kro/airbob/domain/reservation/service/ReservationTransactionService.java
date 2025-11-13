@@ -41,6 +41,8 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationStatusHistoryRepository;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
+import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.search.event.AccommodationIndexingEvents;
@@ -58,10 +60,11 @@ public class ReservationTransactionService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberRepository memberRepository;
+	private final ReviewRepository reviewRepository;
 	private final PaymentRepository paymentRepository;
-	private final PaymentAttemptRepository paymentAttemptRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
+	private final PaymentAttemptRepository paymentAttemptRepository;
 	private final ReservationStatusHistoryRepository historyRepository;
 
 	@Transactional
@@ -295,6 +298,18 @@ public class ReservationTransactionService {
 		Address address = accommodation.getAddress();
 		Member host = accommodation.getMember();
 
+		boolean canWriteReview = false;
+		if (reservation.getStatus() == ReservationStatus.CONFIRMED &&
+			reservation.getCheckOut().isBefore(LocalDateTime.now())) {
+
+			// 아직 작성한 리뷰가 없는지 확인
+			canWriteReview = !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
+				accommodation.getId(),
+				memberId,
+				ReviewStatus.PUBLISHED
+			);
+		}
+
 		ReservationResponse.AccommodationAddressInfo addressInfo = ReservationResponse.AccommodationAddressInfo.builder()
 			.country(address.getCountry())
 			.city(address.getCity())
@@ -330,6 +345,7 @@ public class ReservationTransactionService {
 			.checkInTime(reservation.getCheckIn().toLocalTime())
 			.checkOutTime(reservation.getCheckOut().toLocalTime())
 			.paymentInfo(paymentInfo)
+			.canWriteReview(canWriteReview)
 			.build();
 	}
 
