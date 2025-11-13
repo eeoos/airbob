@@ -32,6 +32,7 @@ public interface ReservationRepositoryCustom {
 		Long hostId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
+		ReservationFilterType filterType,
 		Pageable pageable
 	);
 

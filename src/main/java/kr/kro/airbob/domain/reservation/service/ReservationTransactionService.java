@@ -352,11 +352,12 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional(readOnly = true)
-	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest ) {
+	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 		Slice<Reservation> reservationSlice = reservationRepository.findHostReservationsByHostIdWithCursor(
 			hostId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
+			filterType,
 			PageRequest.of(0, cursorRequest.size())
 		);
 

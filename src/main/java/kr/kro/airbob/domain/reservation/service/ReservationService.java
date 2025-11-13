@@ -76,8 +76,8 @@ public class ReservationService {
 		return transactionService.findMyReservationDetail(reservationUidStr, memberId);
 	}
 
-	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest ) {
-		return transactionService.findHostReservations(hostId, cursorRequest);
+	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
+		return transactionService.findHostReservations(hostId, cursorRequest, filterType);
 	}
 
 	public ReservationResponse.HostDetailInfo findHostReservationDetail(String reservationUid, Long hostId) {

@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.reservation.repository.impl;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.member.entity.QMember.*;
-import static kr.kro.airbob.domain.payment.entity.QPayment.*;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
@@ -100,7 +99,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.leftJoin(accommodation.address, address).fetchJoin()
 			.where(
 				reservation.guest.id.eq(guestId),
-				buildFilterExpression(filterType),
+				buildGuestReservationFilter(filterType),
 				cursorCondition(lastId, lastCreatedAt)
 			)
 			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
@@ -144,7 +143,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
 	@Override
 	public Slice<Reservation> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
-		LocalDateTime lastCreatedAt, Pageable pageable) {
+		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Pageable pageable) {
 
 		List<Reservation> content = queryFactory
 			.selectFrom(reservation)
@@ -152,6 +151,8 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.innerJoin(reservation.guest, guestMember).fetchJoin()
 			.where(
 				accommodation.member.id.eq(hostId),
+				reservation.status.ne(PAYMENT_PENDING),
+				buildHostReservationFilter(filterType),
 				cursorCondition(lastId, lastCreatedAt)
 			)
 			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
@@ -181,10 +182,10 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		return Optional.ofNullable(result);
 	}
 
-	private BooleanExpression buildFilterExpression(ReservationFilterType filter) {
+	private BooleanExpression buildGuestReservationFilter(ReservationFilterType filterType) {
 		LocalDateTime now = LocalDateTime.now();
 
-		switch (filter) {
+		switch (filterType) {
 			case PAST:
 				// 이전 여행: CONFIRMED이면서 체크아웃이 과거
 				return reservation.status.eq(CONFIRMED)
@@ -199,6 +200,23 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 					.or(
 						reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now))
 					);
+		}
+	}
+
+	private BooleanExpression buildHostReservationFilter(ReservationFilterType filterType) {
+		LocalDateTime now = LocalDateTime.now();
+		switch (filterType) {
+			case CANCELLED:
+				// 취소된 예약: CANCELLED, CANCELLATION_FAILED, EXPIRED
+				return reservation.status.in(CANCELLED, CANCELLATION_FAILED, EXPIRED);
+			case PAST:
+				// 완료된: CONFIRMED이면서 체크아웃이 과거
+				return reservation.status.eq(CONFIRMED).and(reservation.checkOut.before(now));
+			case UPCOMING:
+			default:
+				// 다가오는 예약: CONFIRMED이면서 체크아웃이 미래
+				return reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now));
+
 		}
 	}
 }
