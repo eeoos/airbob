@@ -21,6 +21,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.member.entity.QMember;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
 import lombok.RequiredArgsConstructor;
@@ -91,7 +92,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
 	@Override
 	public Slice<Reservation> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
-		LocalDateTime lastCreatedAt, Pageable pageable) {
+		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Pageable pageable) {
 
 		List<Reservation> content = queryFactory
 			.selectFrom(reservation)
@@ -99,6 +100,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.leftJoin(accommodation.address, address).fetchJoin()
 			.where(
 				reservation.guest.id.eq(guestId),
+				buildFilterExpression(filterType),
 				cursorCondition(lastId, lastCreatedAt)
 			)
 			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
@@ -177,6 +179,27 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.fetchOne();
 
 		return Optional.ofNullable(result);
+	}
+
+	private BooleanExpression buildFilterExpression(ReservationFilterType filter) {
+		LocalDateTime now = LocalDateTime.now();
+
+		switch (filter) {
+			case PAST:
+				// 이전 여행: CONFIRMED이면서 체크아웃이 과거
+				return reservation.status.eq(CONFIRMED)
+					.and(reservation.checkOut.before(now));
+			case CANCELLED:
+				// 취소된: CANCELLED, CANCELLATION_FAILED, EXPIRED
+				return reservation.status.in(CANCELLED, CANCELLATION_FAILED, EXPIRED);
+			case UPCOMING:
+			default:
+				// 다가올 여행: PENDING이거나, CONFIRMED이면서 체크아웃이 미래
+				return reservation.status.in(PAYMENT_PENDING)
+					.or(
+						reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now))
+					);
+		}
 	}
 }
 

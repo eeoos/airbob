@@ -33,6 +33,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
@@ -246,12 +247,13 @@ public class ReservationTransactionService {
 
 	@Transactional(readOnly = true)
 	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId,
-		CursorRequest.CursorPageRequest cursorRequest) {
+		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 
 		Slice<Reservation> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			memberId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
+			filterType,
 			PageRequest.of(0, cursorRequest.size())
 		);
 

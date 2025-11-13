@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 
 public interface ReservationRepositoryCustom {
 	boolean existsConflictingReservation(Long accommodationId, LocalDateTime checkIn, LocalDateTime checkOut);
@@ -23,6 +24,7 @@ public interface ReservationRepositoryCustom {
 		Long guestId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
+		ReservationFilterType filterType,
 		Pageable pageable
 	);
 

@@ -11,6 +11,7 @@ import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import lombok.RequiredArgsConstructor;
@@ -67,8 +68,8 @@ public class ReservationService {
 		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
 	}
 
-	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest) {
-		return transactionService.findMyReservations(memberId, cursorRequest);
+	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
+		return transactionService.findMyReservations(memberId, cursorRequest, filterType);
 	}
 
 	public ReservationResponse.DetailInfo findMyReservationDetail(String reservationUidStr, Long memberId) {

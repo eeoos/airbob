@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
+import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 
@@ -53,10 +55,11 @@ public class ReservationController {
 
 	@GetMapping("/v1/profile/guest/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.MyReservationInfos>> getMyReservations(
-		@CursorParam CursorRequest.CursorPageRequest request) {
+		@CursorParam CursorRequest.CursorPageRequest request,
+		@RequestParam(defaultValue = "UPCOMING")ReservationFilterType filterType) {
 		Long memberId = UserContext.get().id();
 		ReservationResponse.MyReservationInfos response = reservationService.findMyReservations(memberId,
-			request);
+			request, filterType);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
