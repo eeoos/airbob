@@ -22,6 +22,7 @@ import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -107,9 +108,12 @@ public class AccommodationController {
 
     @GetMapping("/v1/profile/host/accommodations")
     public ResponseEntity<ApiResponse<AccommodationResponse.MyAccommodationInfos>> getHostAccommodations(
-        @CursorParam CursorRequest.CursorPageRequest request) {
+        @CursorParam CursorRequest.CursorPageRequest request,
+        @RequestParam(required = false) AccommodationStatus status) {
         Long memberId = UserContext.get().id();
-        return ResponseEntity.ok(ApiResponse.success(accommodationService.findMyAccommodations(memberId, request)));
+        AccommodationResponse.MyAccommodationInfos response = accommodationService.findMyAccommodations(
+            memberId, request, status);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/v1/profile/host/accommodations/{accommodationId}")

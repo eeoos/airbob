@@ -194,12 +194,13 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				// 취소된: CANCELLED, CANCELLATION_FAILED, EXPIRED
 				return reservation.status.in(CANCELLED, CANCELLATION_FAILED, EXPIRED);
 			case UPCOMING:
-			default:
 				// 다가올 여행: PENDING이거나, CONFIRMED이면서 체크아웃이 미래
 				return reservation.status.in(PAYMENT_PENDING)
 					.or(
 						reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now))
 					);
+			default:
+				return null;
 		}
 	}
 
@@ -213,10 +214,10 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				// 완료된: CONFIRMED이면서 체크아웃이 과거
 				return reservation.status.eq(CONFIRMED).and(reservation.checkOut.before(now));
 			case UPCOMING:
-			default:
 				// 다가오는 예약: CONFIRMED이면서 체크아웃이 미래
 				return reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now));
-
+			default:
+				return null;
 		}
 	}
 }

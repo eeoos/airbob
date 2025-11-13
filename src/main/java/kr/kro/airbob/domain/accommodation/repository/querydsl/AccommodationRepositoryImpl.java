@@ -57,7 +57,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
 
     @Override
     public Slice<Accommodation> findMyAccommodationsByHostIdWithCursor(Long hostId, Long lastId,
-        LocalDateTime lastCreatedAt, Pageable pageable) {
+        LocalDateTime lastCreatedAt, AccommodationStatus status, Pageable pageable) {
 
         List<Accommodation> content = jpaQueryFactory
             .select(accommodation)
@@ -67,6 +67,7 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             .where(
                 accommodation.member.id.eq(hostId),
                 accommodation.status.ne(AccommodationStatus.DELETED),
+                buildAccommodationStatusFilter(status),
                 cursorCondition(lastId, lastCreatedAt)
             )
             .orderBy(accommodation.createdAt.desc(), accommodation.id.desc())
@@ -125,6 +126,14 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             .fetchOne();
 
         return Optional.ofNullable(result);
+    }
+
+    private BooleanExpression buildAccommodationStatusFilter(AccommodationStatus status) {
+        if (status == null) {
+            return null;
+        }
+
+        return accommodation.status.eq(status);
     }
 
     private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {

@@ -19,6 +19,7 @@ public interface AccommodationRepositoryCustom {
         Long hostId,
         Long lastId,
         LocalDateTime lastCreatedAt,
+        AccommodationStatus status,
         Pageable pageable
     );
 

@@ -56,7 +56,7 @@ public class ReservationController {
 	@GetMapping("/v1/profile/guest/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.MyReservationInfos>> getMyReservations(
 		@CursorParam CursorRequest.CursorPageRequest request,
-		@RequestParam(defaultValue = "UPCOMING") ReservationFilterType filterType) {
+		@RequestParam(required = false) ReservationFilterType filterType) {
 		Long memberId = UserContext.get().id();
 		ReservationResponse.MyReservationInfos response = reservationService.findMyReservations(memberId,
 			request, filterType);
@@ -66,7 +66,7 @@ public class ReservationController {
 	@GetMapping("/v1/profile/host/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.HostReservationInfos>> getHostReservations(
 		@CursorParam CursorRequest.CursorPageRequest cursorRequest,
-		@RequestParam(defaultValue = "UPCOMING") ReservationFilterType filterType) {
+		@RequestParam(required = false) ReservationFilterType filterType) {
 
 		Long hostId = UserContext.get().id();
 		ReservationResponse.HostReservationInfos response = reservationService.findHostReservations(hostId, cursorRequest, filterType);

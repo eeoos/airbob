@@ -203,11 +203,12 @@ public class AccommodationService {
     }
 
     @Transactional(readOnly = true)
-    public AccommodationResponse.MyAccommodationInfos findMyAccommodations(Long hostId, CursorRequest.CursorPageRequest cursorRequest) {
+    public AccommodationResponse.MyAccommodationInfos findMyAccommodations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, AccommodationStatus status) {
         Slice<Accommodation> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
             hostId,
             cursorRequest.lastId(),
             cursorRequest.lastCreatedAt(),
+            status,
             PageRequest.of(0, cursorRequest.size())
         );
 
