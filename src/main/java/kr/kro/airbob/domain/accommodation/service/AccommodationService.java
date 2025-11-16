@@ -93,7 +93,7 @@ public class AccommodationService {
 
     private final CursorPageInfoCreator cursorPageInfoCreator;
     private final OutboxEventPublisher outboxEventPublisher;
-    // private final GeocodingService geocodingService;
+    private final GeocodingService geocodingService;
     private final S3ImageUploader s3ImageUploader;
 
     @Transactional
@@ -338,6 +338,26 @@ public class AccommodationService {
         OccupancyPolicy policy = accommodation.getOccupancyPolicy();
         Member host = accommodation.getMember();
 
+        AccommodationResponse.AddressInfo addressInfo = (address != null) ?
+            AccommodationResponse.AddressInfo.builder()
+                .country(address.getCountry())
+                .city(address.getCity())
+                .district(address.getDistrict())
+                .street(address.getStreet())
+                .detail(address.getDetail())
+                .postalCode(address.getPostalCode())
+                .fullAddress(buildFullAddress(address))
+                .build() :
+            AccommodationResponse.AddressInfo.builder().build();
+
+        AccommodationResponse.PolicyInfo policyInfo = (policy != null) ?
+            AccommodationResponse.PolicyInfo.builder()
+                .maxOccupancy(policy.getMaxOccupancy())
+                .infantOccupancy(policy.getInfantOccupancy())
+                .petOccupancy(policy.getPetOccupancy())
+                .build() :
+            AccommodationResponse.PolicyInfo.builder().build();
+
         List<AccommodationResponse.AmenityInfo> amenities = getAmenities(accommodationId);
         List<String> imageUrls = getImageUrls(accommodation.getAccommodationUid());
         ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
@@ -351,29 +371,17 @@ public class AccommodationService {
             .basePrice(accommodation.getBasePrice())
             .checkInTime(accommodation.getCheckInTime())
             .checkOutTime(accommodation.getCheckOutTime())
-            .address(AccommodationResponse.AddressInfo.builder()
-                .country(address.getCountry())
-                .city(address.getCity())
-                .district(address.getDistrict())
-                .street(address.getStreet())
-                .detail(address.getDetail())
-                .postalCode(address.getPostalCode())
-                .fullAddress(buildFullAddress(address))
-                .build())
+            .address(addressInfo)
             .coordinate(AccommodationResponse.Coordinate.builder()
-                .latitude(address.getLatitude())
-                .longitude(address.getLongitude())
+                .latitude(address != null ? address.getLatitude() : null)
+                .longitude(address != null ? address.getLongitude() : null)
                 .build())
             .host(AccommodationResponse.HostInfo.builder()
                 .id(host.getId())
                 .nickname(host.getNickname())
                 .profileImageUrl(host.getThumbnailImageUrl())
                 .build())
-            .policyInfo(AccommodationResponse.PolicyInfo.builder()
-                .maxOccupancy(policy.getMaxOccupancy())
-                .infantOccupancy(policy.getInfantOccupancy())
-                .petOccupancy(policy.getPetOccupancy())
-                .build())
+            .policyInfo(policyInfo)
             .amenities(amenities)
             .imageUrls(imageUrls)
             .reviewSummary(reviewSummary)
@@ -592,7 +600,9 @@ public class AccommodationService {
         Address currentAddress = accommodation.getAddress();
 
         if (currentAddress == null || currentAddress.isChanged(addressInfo)) {
-            Address newAddress = Address.createAddress(addressInfo);
+            String addressStr = geocodingService.buildAddressString(addressInfo);
+            GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
+            Address newAddress = Address.createAddress(addressInfo, geocodeResult);
             Address savedAddress = addressRepository.save(newAddress);
             accommodation.updateAddress(savedAddress);
         }

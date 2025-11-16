@@ -37,7 +37,7 @@ public class Address extends BaseEntity {
 	private Double latitude;
 	private Double longitude;
 
-	public static Address createAddress(AccommodationRequest.AddressInfo addressInfo) {
+	public static Address createAddress(AccommodationRequest.AddressInfo addressInfo, GeocodeResult geocodeResult) {
 
 		return Address.builder()
 			.country(addressInfo.country())
@@ -46,8 +46,8 @@ public class Address extends BaseEntity {
 			.street(addressInfo.street())
 			.detail(addressInfo.detail())
 			.postalCode(addressInfo.postalCode())
-			.latitude(addressInfo.latitude())
-			.longitude(addressInfo.longitude())
+			.latitude(geocodeResult.success() ? geocodeResult.latitude() : null)
+			.longitude(geocodeResult.success() ? geocodeResult.longitude() : null)
 			.build();
 	}
 
