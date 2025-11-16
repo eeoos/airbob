@@ -19,7 +19,7 @@ public class AccommodationResponse {
 	}
 
 	@Builder
-	public record MyAccommodationInfo(
+	public record HostAccommodationInfo(
 		Long id,
 		String name,
 		String thumbnailUrl,
@@ -33,14 +33,42 @@ public class AccommodationResponse {
 	}
 
 	@Builder
-	public record MyAccommodationInfos(
-		List<MyAccommodationInfo> accommodations,
+	public record HostAccommodationInfos(
+		List<HostAccommodationInfo> accommodations,
 		CursorResponse.PageInfo pageInfo
 	) {
 	}
 
 	@Builder
 	public record DetailInfo(
+		long id,
+		String name,
+		String description,
+		AccommodationType type,
+		Integer basePrice,
+		LocalTime checkInTime,
+		LocalTime checkOutTime,
+
+		AddressInfo address,
+		Coordinate coordinate,
+
+		HostInfo host,
+
+		PolicyInfo policyInfo,
+
+		List<AmenityInfo> amenities,
+
+		List<String> imageUrls,
+
+		ReviewResponse.ReviewSummary reviewSummary,
+
+		List<LocalDate> unavailableDates,
+		Boolean isInWishlist
+	) {
+	}
+
+	@Builder
+	public record HostDetailInfo(
 		long id,
 		String name,
 		String description,

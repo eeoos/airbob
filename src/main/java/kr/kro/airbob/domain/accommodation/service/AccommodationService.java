@@ -23,7 +23,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
@@ -94,7 +93,7 @@ public class AccommodationService {
 
     private final CursorPageInfoCreator cursorPageInfoCreator;
     private final OutboxEventPublisher outboxEventPublisher;
-    private final GeocodingService geocodingService;
+    // private final GeocodingService geocodingService;
     private final S3ImageUploader s3ImageUploader;
 
     @Transactional
@@ -203,7 +202,7 @@ public class AccommodationService {
     }
 
     @Transactional(readOnly = true)
-    public AccommodationResponse.MyAccommodationInfos findMyAccommodations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, AccommodationStatus status) {
+    public AccommodationResponse.HostAccommodationInfos findMyAccommodations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, AccommodationStatus status) {
         Slice<Accommodation> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
             hostId,
             cursorRequest.lastId(),
@@ -217,13 +216,13 @@ public class AccommodationService {
             CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
                 Collections.emptyList(), false, acc -> 0L, acc -> null
             );
-            return AccommodationResponse.MyAccommodationInfos.builder()
+            return AccommodationResponse.HostAccommodationInfos.builder()
                 .accommodations(Collections.emptyList())
                 .pageInfo(pageInfo)
                 .build();
         }
 
-        List<AccommodationResponse.MyAccommodationInfo> accommodationInfos = accommodations.stream()
+        List<AccommodationResponse.HostAccommodationInfo> accommodationInfos = accommodations.stream()
             .map(acc -> {
                 Address address = acc.getAddress();
 
@@ -235,7 +234,7 @@ public class AccommodationService {
                     location = (city + district).trim();
                 }
 
-                return AccommodationResponse.MyAccommodationInfo.builder()
+                return AccommodationResponse.HostAccommodationInfo.builder()
                     .id(acc.getId())
                     .name(acc.getName())
                     .thumbnailUrl(acc.getThumbnailUrl())
@@ -254,7 +253,7 @@ public class AccommodationService {
             Accommodation::getCreatedAt
         );
 
-        return AccommodationResponse.MyAccommodationInfos.builder()
+        return AccommodationResponse.HostAccommodationInfos.builder()
             .accommodations(accommodationInfos)
             .pageInfo(pageInfo)
             .build();
@@ -593,9 +592,7 @@ public class AccommodationService {
         Address currentAddress = accommodation.getAddress();
 
         if (currentAddress == null || currentAddress.isChanged(addressInfo)) {
-            String addressStr = geocodingService.buildAddressString(addressInfo);
-            GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
-            Address newAddress = Address.createAddress(addressInfo, geocodeResult);
+            Address newAddress = Address.createAddress(addressInfo);
             Address savedAddress = addressRepository.save(newAddress);
             accommodation.updateAddress(savedAddress);
         }

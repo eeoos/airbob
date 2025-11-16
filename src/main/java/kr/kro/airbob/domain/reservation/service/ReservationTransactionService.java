@@ -324,7 +324,7 @@ public class ReservationTransactionService {
 			.longitude(address.getLongitude())
 			.build();
 
-		ReservationResponse.UserInfo hostInfo = ReservationResponse.UserInfo.builder()
+		ReservationResponse.MemberInfo hostInfo = ReservationResponse.MemberInfo.builder()
 			.id(host.getId())
 			.nickname(host.getNickname())
 			.profileImageUrl(host.getThumbnailImageUrl())
@@ -371,7 +371,7 @@ public class ReservationTransactionService {
 				return ReservationResponse.HostReservationInfo.builder()
 					.reservationUid(r.getReservationUid().toString())
 					.status(r.getStatus())
-					.hostInfo(ReservationResponse.UserInfo.builder()
+					.guestInfo(ReservationResponse.MemberInfo.builder()
 						.id(guest.getId())
 						.nickname(guest.getNickname())
 						.profileImageUrl(guest.getThumbnailImageUrl())
@@ -382,7 +382,7 @@ public class ReservationTransactionService {
 					.createdAt(r.getCreatedAt())
 					.accommodationId(accommodation.getId())
 					.accommodationName(accommodation.getName())
-					.thumbnailUrl(accommodation.getThumbnailUrl())
+					// .thumbnailUrl(accommodation.getThumbnailUrl())
 					.reservationCode(r.getReservationCode())
 					.totalPrice(r.getTotalPrice())
 					.build();
@@ -412,9 +412,10 @@ public class ReservationTransactionService {
 		Payment payment = findPaymentByReservationUidNullable(reservationUid);
 
 		Accommodation accommodation = reservation.getAccommodation();
+		Address address = accommodation.getAddress();
 		Member guest = reservation.getGuest();
 
-		ReservationResponse.UserInfo guestInfo = ReservationResponse.UserInfo.builder()
+		ReservationResponse.MemberInfo guestInfo = ReservationResponse.MemberInfo.builder()
 			.id(guest.getId())
 			.nickname(guest.getNickname())
 			.profileImageUrl(guest.getThumbnailImageUrl())
@@ -428,11 +429,12 @@ public class ReservationTransactionService {
 			.status(reservation.getStatus())
 			.createdAt(reservation.getCreatedAt())
 			.guestCount(reservation.getGuestCount())
-			.message(reservation.getMessage())
-			.accommodationId(accommodation.getId())
-			.accommodationName(accommodation.getName())
 			.checkInDateTime(reservation.getCheckIn())
 			.checkOutDateTime(reservation.getCheckOut())
+			.accommodationId(accommodation.getId())
+			.accommodationName(accommodation.getName())
+			.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
+			.accommodationAddress(buildFullAddress(address))
 			.guestInfo(guestInfo)
 			.paymentInfo(paymentInfo)
 			.build();

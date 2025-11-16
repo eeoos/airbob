@@ -107,11 +107,11 @@ public class AccommodationController {
     }
 
     @GetMapping("/v1/profile/host/accommodations")
-    public ResponseEntity<ApiResponse<AccommodationResponse.MyAccommodationInfos>> getHostAccommodations(
+    public ResponseEntity<ApiResponse<AccommodationResponse.HostAccommodationInfos>> getHostAccommodations(
         @CursorParam CursorRequest.CursorPageRequest request,
         @RequestParam(required = false) AccommodationStatus status) {
         Long memberId = UserContext.get().id();
-        AccommodationResponse.MyAccommodationInfos response = accommodationService.findMyAccommodations(
+        AccommodationResponse.HostAccommodationInfos response = accommodationService.findMyAccommodations(
             memberId, request, status);
         return ResponseEntity.ok(ApiResponse.success(response));
     }

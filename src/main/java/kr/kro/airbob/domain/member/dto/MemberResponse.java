@@ -11,8 +11,7 @@ public class MemberResponse {
 	public record ReviewerInfo(
 		long id,
 		String nickname,
-		String thumbnailImageUrl,
-		LocalDateTime joinedAt
+		String thumbnailImageUrl
 	) {
 	}
 

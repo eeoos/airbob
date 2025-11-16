@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -137,6 +139,41 @@ public class ReviewService {
 			accommodationId, ReviewStatus.PUBLISHED, lastId, lastCreatedAt, lastRating, sortType, pageRequest);
 
 		List<ReviewResponse.ReviewInfo> reviewInfos = reviewSlice.getContent().stream().toList();
+
+		if (!reviewInfos.isEmpty()) {
+			List<Long> reviewIds = reviewInfos.stream()
+				.map(ReviewResponse.ReviewInfo::id)
+				.toList();
+
+			List<ReviewImage> images = reviewImageRepository.findAllByReview_IdIn(reviewIds);
+
+			Map<Long, List<ReviewResponse.ImageInfo>> imagesByReviewId = images.stream()
+				.collect(Collectors.groupingBy(
+					reviewImage -> reviewImage.getReview().getId(),
+					Collectors.mapping(
+						img -> new ReviewResponse.ImageInfo(img.getId(), img.getImageUrl()),
+						Collectors.toList()
+					)
+				));
+
+			reviewInfos = reviewInfos.stream()
+				.map(reviewInfo -> {
+					List<ReviewResponse.ImageInfo> imageList = imagesByReviewId.get(reviewInfo.id());
+					if (imageList == null) {
+						return reviewInfo;
+					}
+
+					return new ReviewResponse.ReviewInfo(
+						reviewInfo.id(),
+						reviewInfo.rating(),
+						reviewInfo.content(),
+						reviewInfo.reviewedAt(),
+						reviewInfo.reviewer(),
+						imageList
+					);
+				})
+				.toList();
+		}
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			reviewSlice.getContent(),

@@ -16,6 +16,7 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.member.dto.MemberResponse;
+import kr.kro.airbob.domain.review.dto.QReviewResponse_ReviewInfo;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
@@ -32,7 +33,7 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 		LocalDateTime lastCreatedAt, Integer lastRating, ReviewSortType sortType, Pageable pageable) {
 
 		List<ReviewResponse.ReviewInfo> content = jpaQueryFactory
-			.select(Projections.constructor(ReviewResponse.ReviewInfo.class,
+			.select(new QReviewResponse_ReviewInfo(
 				review.id,
 				review.rating,
 				review.content,
@@ -40,8 +41,8 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 				Projections.constructor(MemberResponse.ReviewerInfo.class,
 					member.id,
 					member.nickname,
-					member.thumbnailImageUrl,
-					member.createdAt)))
+					member.thumbnailImageUrl)
+			))
 			.from(review)
 			.join(review.author, member)
 			.where(

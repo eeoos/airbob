@@ -2,7 +2,10 @@ package kr.kro.airbob.domain.review.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+
+import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
@@ -36,8 +39,26 @@ public class ReviewResponse {
 		int rating,
 		String content,
 		LocalDateTime reviewedAt,
-		MemberResponse.ReviewerInfo reviewer
+		MemberResponse.ReviewerInfo reviewer,
+		List<ImageInfo> images
 	) {
+
+		@QueryProjection
+		public ReviewInfo(long id,
+			int rating,
+			String content,
+			LocalDateTime reviewedAt,
+			MemberResponse.ReviewerInfo reviewer) {
+
+			this(
+				id,
+				rating,
+				content,
+				reviewedAt,
+				reviewer,
+				new ArrayList<>()
+			);
+		}
 	}
 
 	@Builder

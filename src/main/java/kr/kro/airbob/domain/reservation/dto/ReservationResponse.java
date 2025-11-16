@@ -117,7 +117,7 @@ public class ReservationResponse {
 		String accommodationName,
 		String accommodationThumbnailUrl,
 		AccommodationAddressInfo accommodationAddress,
-		UserInfo accommodationHost,
+		MemberInfo accommodationHost,
 
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
@@ -145,7 +145,7 @@ public class ReservationResponse {
 	}
 
 	@Builder
-	public record UserInfo(
+	public record MemberInfo(
 		Long id,
 		String nickname,
 		String profileImageUrl
@@ -156,14 +156,14 @@ public class ReservationResponse {
 	public record HostReservationInfo(
 		String reservationUid,
 		ReservationStatus status,
-		UserInfo hostInfo,
+		MemberInfo guestInfo,
 		int guestCount,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
 		LocalDateTime createdAt,
 		Long accommodationId,
 		String accommodationName,
-		String thumbnailUrl,
+		// String thumbnailUrl,
 		String reservationCode,
 		Integer totalPrice
 	){
@@ -183,15 +183,16 @@ public class ReservationResponse {
 		ReservationStatus status,
 		LocalDateTime createdAt,
 		Integer guestCount,
-		String message,
-
-		Long accommodationId,
-		String accommodationName,
 
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
 
-		UserInfo guestInfo,
+		Long accommodationId,
+		String accommodationName,
+		String accommodationThumbnailUrl,
+		String accommodationAddress,
+
+		MemberInfo guestInfo,
 
 		PaymentResponse.PaymentInfo paymentInfo
 	) {

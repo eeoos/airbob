@@ -173,6 +173,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.selectFrom(reservation)
 			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
 			.innerJoin(reservation.guest, guestMember).fetchJoin()
+			.leftJoin(accommodation.address, address).fetchJoin()
 			.where(
 				reservation.reservationUid.eq(reservationUid),
 				accommodation.member.id.eq(hostId)
