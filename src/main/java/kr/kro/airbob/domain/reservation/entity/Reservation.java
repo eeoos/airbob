@@ -108,7 +108,7 @@ public class Reservation extends UpdatableEntity {
 			.build();
 	}
 
-	private static int calculatePrice(int basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
+	private static int calculatePrice(Long basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
 		long nights = ChronoUnit.DAYS.between(checkIn.toLocalDate(), checkOut.toLocalDate());
 
 		if (nights <= 0) {

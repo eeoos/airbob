@@ -41,8 +41,8 @@ public record AccommodationDocument(
 	)
 	String description,
 
-	@Field(type = FieldType.Integer)
-	Integer basePrice,
+	@Field(type = FieldType.Long)
+	Long basePrice,
 
 	@Field(type = FieldType.Keyword)
 	String type,

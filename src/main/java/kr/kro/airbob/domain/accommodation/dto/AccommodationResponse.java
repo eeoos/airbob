@@ -45,7 +45,7 @@ public class AccommodationResponse {
 		String name,
 		String description,
 		AccommodationType type,
-		Integer basePrice,
+		Long basePrice,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 

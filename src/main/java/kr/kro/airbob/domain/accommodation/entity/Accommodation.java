@@ -47,7 +47,10 @@ public class Accommodation extends UpdatableEntity {
 
 	private String description;
 
-	private Integer basePrice;
+	private Long basePrice;
+
+	@Column(length = 3)
+	private String currency;
 
 	private String thumbnailUrl;
 
@@ -102,6 +105,10 @@ public class Accommodation extends UpdatableEntity {
 
 		if (request.basePrice() != null) {
 			this.basePrice = request.basePrice();
+		}
+
+		if (request.currency() != null) {
+			this.currency = request.currency();
 		}
 
 		if (request.type() != null) {

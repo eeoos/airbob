@@ -30,8 +30,10 @@ public class AccommodationRequest {
         @Size(min = 1, max = 5000, message = "설명은 1 ~ 5000자 이여야 합니다!")
         String description,
 
-        @Min(value = 5000, message = "기본 가격은 5000원 이상이어야 합니다.")
-        Integer basePrice,
+        @Positive(message = "기본 가격은 1 이상이어야 합니다.")
+        Long basePrice,
+
+        String currency,
 
         @Valid
         AddressInfo addressInfo,
