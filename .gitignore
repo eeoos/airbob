@@ -96,3 +96,6 @@ flyway_schema_history.lock
 
 # MySQL volume
 docker-volume/mysql/
+
+# Mock data
+src/main/resources/mock-data/
