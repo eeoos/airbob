@@ -35,7 +35,7 @@ public class AccommodationDocumentBuilder {
 
 		List<String> amenityTypes = getAccommodationAmenities(accommodationUid);
 		// List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
-		List<LocalDate> reservedDates = getReservedDates(accommodationUid);
+		List<AccommodationDocument.DateRange> reservationRanges = getReservationRanges(accommodationUid);
 		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
 		return AccommodationDocument.builder()
@@ -64,7 +64,7 @@ public class AccommodationDocumentBuilder {
 			.hostNickname(accommodation.getMember().getNickname())
 			.amenityTypes(amenityTypes)
 			.thumbnailUrl(accommodation.getThumbnailUrl())
-			.reservedDates(reservedDates)
+			.reservationRanges(reservationRanges)
 			.averageRating(reviewSummary != null ? reviewSummary.getAverageRating().doubleValue() : null)
 			.reviewCount(reviewSummary != null ? reviewSummary.getTotalReviewCount() : null)
 			.build();
@@ -75,18 +75,15 @@ public class AccommodationDocumentBuilder {
 			.orElse(null);
 	}
 
-	private List<LocalDate> getReservedDates(UUID accommodationUid) {
+	private List<AccommodationDocument.DateRange> getReservationRanges(UUID accommodationUid) {
 		return reservationRepository
 			.findFutureCompletedReservations(accommodationUid)
 			.stream()
-			.flatMap(reservation -> {
-				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();
-				LocalDate checkOutDate = reservation.getCheckOut().toLocalDate();
-				// checkOutDate는 숙박일에 포함되지 않으므로 datesUntil 사용
-				return checkInDate.datesUntil(checkOutDate);
-			})
-			.distinct()
-			.sorted()
+			.map(reservation -> AccommodationDocument.DateRange.builder()
+				.gte(reservation.getCheckIn().toLocalDate()) // Check-in (gte)
+				.lt(reservation.getCheckOut().toLocalDate()) // Check-out (lt)
+				.build()
+			)
 			.toList();
 	}
 

@@ -34,6 +34,7 @@ public class Address extends BaseEntity {
 	private String street;
 	private String detail;
 	private String postalCode;
+
 	private Double latitude;
 	private Double longitude;
 

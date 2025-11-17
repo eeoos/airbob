@@ -114,8 +114,8 @@ public record AccommodationDocument(
 	String thumbnailUrl,
 
 	// 예약
-	@Field(type = FieldType.Date)
-	List<LocalDate> reservedDates,
+	@Field(type = FieldType.Date_Range)
+	List<DateRange> reservationRanges,
 
 	// 리뷰
 	@Field(type= FieldType.Double)
@@ -140,6 +140,15 @@ public record AccommodationDocument(
 		@Field(type = FieldType.Double)
 		Double lon
 	){}
+
+	@Builder
+	public record DateRange(
+		@Field(type = FieldType.Date)
+		LocalDate gte,
+
+		@Field(type = FieldType.Date)
+		LocalDate lt
+	) {}
 }
 
 

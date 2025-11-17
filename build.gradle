@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.5.0'
+	id 'org.springframework.boot' version '3.5.7'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'org.asciidoctor.jvm.convert' version '3.3.2'
 }
@@ -86,6 +86,9 @@ dependencies {
 
 	// Commons Lang
 	implementation 'org.apache.commons:commons-lang3:3.18.0'
+
+	// Json
+	implementation 'org.json:json:20250107'
 
 	// 테스트
 	testImplementation 'org.springframework.kafka:spring-kafka-test'

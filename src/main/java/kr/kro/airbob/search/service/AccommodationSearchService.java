@@ -3,18 +3,18 @@ package kr.kro.airbob.search.service;
 import static kr.kro.airbob.geo.dto.GoogleGeocodeResponse.Geometry.*;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.geo.GeoBox;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
-import org.springframework.data.elasticsearch.core.query.Criteria;
-import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
+import org.springframework.data.elasticsearch.core.query.Query;
+import org.springframework.data.elasticsearch.core.query.StringQuery;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -53,7 +53,7 @@ public class AccommodationSearchService {
 			return createEmptySearchResult(pageable);
 		}
 
-		CriteriaQuery query = buildElasticsearchQuery(searchRequest, viewport, pageable);
+		Query query = buildElasticsearchQuery(searchRequest, viewport, pageable);
 
 		SearchHits<AccommodationDocument> searchHits = elasticsearchOperations.search(query, AccommodationDocument.class);
 
@@ -137,81 +137,93 @@ public class AccommodationSearchService {
 		return new Viewport(northeast, southwest);
 	}
 
-	private CriteriaQuery buildElasticsearchQuery(
+	private Query buildElasticsearchQuery(
 		AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest, Viewport viewport, Pageable pageable) {
 
-		Criteria criteria = new Criteria();
+		JSONObject query = new JSONObject();
+		JSONObject bool = new JSONObject();
+		JSONArray must = new JSONArray();
+		JSONArray mustNot = new JSONArray();
 
-		criteria = criteria.and(Criteria.where("status").is(AccommodationStatus.PUBLISHED.name()));
+		// PUBLISHED 상태 숙소만
+		must.put(new JSONObject().put("term", new JSONObject().put("status", AccommodationStatus.PUBLISHED.name())));
 
-		String destination = searchRequest.getDestination();
-
-		criteria = criteria.and(Criteria.where("status").is(AccommodationStatus.PUBLISHED.name()));
-
+		// 지리 (Viewport)
 		if (viewport != null) {
 			GeoPoint topLeft = new GeoPoint(viewport.northeast().lat(), viewport.southwest().lng());
 			GeoPoint bottomRight = new GeoPoint(viewport.southwest().lat(), viewport.northeast().lng());
-			GeoBox boundingBox = new GeoBox(topLeft, bottomRight);
-			criteria = criteria.and(Criteria.where("location").boundedBy(boundingBox));
+
+			must.put(new JSONObject().put("geo_bounding_box", new JSONObject()
+				.put("location", new JSONObject()
+					.put("top_left", new JSONObject().put("lat", topLeft.getLat()).put("lon", topLeft.getLon()))
+					.put("bottom_right", new JSONObject().put("lat", bottomRight.getLat()).put("lon", bottomRight.getLon()))
+				)
+			));
 		}
 
+		// 텍스트 (Destination)
+		String destination = searchRequest.getDestination();
 		if (destination != null && !destination.trim().isEmpty()) {
-			criteria = criteria.and(new Criteria()
-				.or(Criteria.where("name").matches(destination))
-				.or(Criteria.where("description").matches(destination))
-				.or(Criteria.where("country").matches(destination)) //
-				.or(Criteria.where("city").matches(destination))
-				.or(Criteria.where("district").matches(destination))
-				.or(Criteria.where("street").matches(destination))
-			);
+			must.put(new JSONObject().put("multi_match", new JSONObject()
+				.put("query", destination)
+				.put("fields", new JSONArray().put("name").put("description").put("country").put("city").put("district").put("street"))
+			));
 		}
 
 		// 가격
+		JSONObject priceRange = new JSONObject();
 		if (searchRequest.getMinPrice() != null) {
-			criteria = criteria.and(Criteria.where("basePrice").greaterThanEqual(searchRequest.getMinPrice()));
+			priceRange.put("gte", searchRequest.getMinPrice());
 		}
 		if (searchRequest.getMaxPrice() != null) {
-			criteria = criteria.and(Criteria.where("basePrice").lessThanEqual(searchRequest.getMaxPrice()));
+			priceRange.put("lte", searchRequest.getMaxPrice());
+		}
+		if (priceRange.length() > 0) {
+			must.put(new JSONObject().put("range", new JSONObject().put("basePrice", priceRange)));
 		}
 
-		// 타입
+		// 숙소 타입
 		if (searchRequest.getAccommodationTypes() != null && !searchRequest.getAccommodationTypes().isEmpty()) {
-			criteria = criteria.and(Criteria.where("type").in(searchRequest.getAccommodationTypes()));
+			must.put(new JSONObject().put("terms", new JSONObject().put("type", new JSONArray(searchRequest.getAccommodationTypes()))));
 		}
 
-		// 편의 시설
+		// 편의시설
 		if (searchRequest.getAmenityTypes() != null && !searchRequest.getAmenityTypes().isEmpty()) {
-			criteria = criteria.and(Criteria.where("amenityTypes").in(searchRequest.getAmenityTypes()));
-		}
-
-		// 반려동물 동반
-		if (searchRequest.hasPet()) {
-			criteria = criteria.and(Criteria.where("maxPets").greaterThanEqual(searchRequest.getPetOccupancy()));
+			must.put(new JSONObject().put("terms", new JSONObject().put("amenityTypes", new JSONArray(searchRequest.getAmenityTypes()))));
 		}
 
 		// 인원
-		int totalGuests = searchRequest.getTotalGuests(); // (성인 + 어린이)
-		if (totalGuests > 0) {
-			criteria = criteria.and(Criteria.where("maxGuests").greaterThanEqual(totalGuests));
+		if (searchRequest.getTotalGuests() > 0) {
+			must.put(new JSONObject().put("range", new JSONObject().put("maxGuests", new JSONObject().put("gte", searchRequest.getTotalGuests()))));
 		}
-
-		Integer infantOccupancy = searchRequest.getInfantOccupancy();
-		if (infantOccupancy != null && infantOccupancy > 0) {
-			criteria = criteria.and(Criteria.where("maxInfants").greaterThanEqual(infantOccupancy));
+		if (searchRequest.getInfantOccupancy() != null && searchRequest.getInfantOccupancy() > 0) {
+			must.put(new JSONObject().put("range", new JSONObject().put("maxInfants", new JSONObject().put("gte", searchRequest.getInfantOccupancy()))));
+		}
+		if (searchRequest.hasPet()) {
+			must.put(new JSONObject().put("range", new JSONObject().put("maxPets", new JSONObject().put("gte", searchRequest.getPetOccupancy()))));
 		}
 
 		// 예약 가능 날짜
 		if (searchRequest.getCheckIn() != null && searchRequest.getCheckOut() != null) {
-			criteria = criteria.and(
-				Criteria.where("reservedDates").not().in(
-					searchRequest.getCheckIn().datesUntil(searchRequest.getCheckOut()).collect(Collectors.toList())
+			// 요청 범위 ∩ 예약된 범위 == EMPTY
+			mustNot.put(new JSONObject().put("range", new JSONObject()
+				.put("reservationRanges", new JSONObject()
+					.put("gte", searchRequest.getCheckIn().toString())
+					.put("lt", searchRequest.getCheckOut().toString())
+					.put("relation", "INTERSECTS")
 				)
-			);
+			));
 		}
 
-		return CriteriaQuery.builder(criteria)
-			.withPageable(pageable)
-			.build();
+		// 쿼리 조립
+		bool.put("must", must);
+		if (mustNot.length() > 0) {
+			bool.put("must_not", mustNot);
+		}
+
+		JSONObject boolQuery = new JSONObject().put("bool", bool);
+
+		return new StringQuery(boolQuery.toString()).setPageable(pageable);
 	}
 
 	private Set<Long> getWishlistAccommodationIds(List<Long> accommodationIds, Long memberId) {
