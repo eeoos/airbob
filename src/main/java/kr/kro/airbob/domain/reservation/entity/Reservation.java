@@ -69,7 +69,10 @@ public class Reservation extends UpdatableEntity {
 	private Integer guestCount;
 
 	@Column(nullable = false)
-	private Integer totalPrice;
+	private Long totalPrice;
+
+	@Column(length = 3)
+	private String currency;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
@@ -92,7 +95,7 @@ public class Reservation extends UpdatableEntity {
 
 		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
 		LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
-		int price = calculatePrice(accommodation.getBasePrice(), checkInDateTime, checkOutDateTime);
+		Long price = calculatePrice(accommodation.getBasePrice(), checkInDateTime, checkOutDateTime);
 
 		return Reservation.builder()
 			.accommodation(accommodation)
@@ -101,6 +104,9 @@ public class Reservation extends UpdatableEntity {
 			.checkOut(checkOutDateTime)
 			.guestCount(request.guestCount())
 			.totalPrice(price)
+			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
+			// 이후 국제화 도입 필요
+			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.message(request.message())
 			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
@@ -108,13 +114,13 @@ public class Reservation extends UpdatableEntity {
 			.build();
 	}
 
-	private static int calculatePrice(Long basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
+	private static Long calculatePrice(Long basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
 		long nights = ChronoUnit.DAYS.between(checkIn.toLocalDate(), checkOut.toLocalDate());
 
 		if (nights <= 0) {
 			throw new InvalidReservationDateException();
 		}
-		return (int) (basePrice * nights);
+		return (basePrice * nights);
 	}
 
 	public void confirm() {

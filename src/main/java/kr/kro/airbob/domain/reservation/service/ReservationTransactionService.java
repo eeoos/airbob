@@ -385,6 +385,7 @@ public class ReservationTransactionService {
 					// .thumbnailUrl(accommodation.getThumbnailUrl())
 					.reservationCode(r.getReservationCode())
 					.totalPrice(r.getTotalPrice())
+					.currency(r.getCurrency())
 					.build();
 			}).collect(Collectors.toList());
 

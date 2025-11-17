@@ -46,6 +46,7 @@ public class AccommodationResponse {
 		String description,
 		AccommodationType type,
 		Long basePrice,
+		String currency,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 
@@ -73,7 +74,8 @@ public class AccommodationResponse {
 		String name,
 		String description,
 		AccommodationType type,
-		Integer basePrice,
+		Long basePrice,
+		String currency,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 

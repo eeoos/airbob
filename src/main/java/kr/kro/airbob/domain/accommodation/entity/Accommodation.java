@@ -108,7 +108,8 @@ public class Accommodation extends UpdatableEntity {
 		}
 
 		if (request.currency() != null) {
-			this.currency = request.currency();
+			// this.currency = request.currency();
+			this.currency = "KRW";
 		}
 
 		if (request.type() != null) {

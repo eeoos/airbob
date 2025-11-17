@@ -168,6 +168,7 @@ public class AccommodationService {
             .description(accommodation.getDescription())
             .type(accommodation.getType())
             .basePrice(accommodation.getBasePrice())
+            .currency(accommodation.getCurrency())
             .checkInTime(accommodation.getCheckInTime())
             .checkOutTime(accommodation.getCheckOutTime())
             .address(AccommodationResponse.AddressInfo.builder()
@@ -330,7 +331,7 @@ public class AccommodationService {
     }
 
     @Transactional(readOnly = true)
-    public AccommodationResponse.DetailInfo findHostAccommodationDetail(Long accommodationId, Long hostId) {
+    public AccommodationResponse.HostDetailInfo findHostAccommodationDetail(Long accommodationId, Long hostId) {
         Accommodation accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
             .orElseThrow(AccommodationNotFoundException::new);
 
@@ -363,12 +364,13 @@ public class AccommodationService {
         ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
         List<LocalDate> unavailableDates = getUnavailableDates(accommodation.getAccommodationUid());
 
-        return AccommodationResponse.DetailInfo.builder()
+        return AccommodationResponse.HostDetailInfo.builder()
             .id(accommodation.getId())
             .name(accommodation.getName())
             .description(accommodation.getDescription())
             .type(accommodation.getType())
             .basePrice(accommodation.getBasePrice())
+            .currency(accommodation.getCurrency())
             .checkInTime(accommodation.getCheckInTime())
             .checkOutTime(accommodation.getCheckOutTime())
             .address(addressInfo)

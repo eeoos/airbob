@@ -117,11 +117,11 @@ public class AccommodationController {
     }
 
     @GetMapping("/v1/profile/host/accommodations/{accommodationId}")
-    public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getHostAccommodationDetail(
+    public ResponseEntity<ApiResponse<AccommodationResponse.HostDetailInfo>> getHostAccommodationDetail(
         @PathVariable Long accommodationId) {
 
         Long hostId = UserContext.get().id();
-        AccommodationResponse.DetailInfo response = accommodationService.findHostAccommodationDetail(accommodationId, hostId);
+        AccommodationResponse.HostDetailInfo response = accommodationService.findHostAccommodationDetail(accommodationId, hostId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

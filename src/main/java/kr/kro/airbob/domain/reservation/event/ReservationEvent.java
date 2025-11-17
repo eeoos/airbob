@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 public class ReservationEvent {
 
 	public record ReservationPendingEvent(
-		Integer amount,
+		Long amount,
 		String paymentKey,   // pg 결제 키
 		String orderId       // reservation_uid
 	) implements EventPayload {

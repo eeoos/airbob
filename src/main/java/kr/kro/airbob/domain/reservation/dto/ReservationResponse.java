@@ -25,7 +25,9 @@ public class ReservationResponse {
 		String accommodationName,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
-		int totalPrice,
+		Long totalPrice,
+		String currency,
+
 		ReservationStatus status
 	){
 		public static Create from(Reservation reservation) {
@@ -36,6 +38,7 @@ public class ReservationResponse {
 				.checkInDate(reservation.getCheckIn().toLocalDate())
 				.checkOutDate(reservation.getCheckOut().toLocalDate())
 				.totalPrice(reservation.getTotalPrice())
+				.currency(reservation.getCurrency())
 				.status(reservation.getStatus())
 				.build();
 		}
@@ -45,7 +48,7 @@ public class ReservationResponse {
 	public record Ready(
 		String reservationUid, // toss orderId
 		String orderName,
-		Integer amount,
+		Long amount,
 		String customerEmail,
 		String customerName
 	) {
@@ -165,7 +168,8 @@ public class ReservationResponse {
 		String accommodationName,
 		// String thumbnailUrl,
 		String reservationCode,
-		Integer totalPrice
+		Long totalPrice,
+		String currency
 	){
 	}
 
