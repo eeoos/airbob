@@ -438,8 +438,8 @@ public class AccommodationService {
             throw new PublishingFieldRequiredException("addressInfo", "주소 정보(세부 항목 포함)가 누락되었습니다.");
         }
 
-        if (accommodation.getBasePrice() == null || accommodation.getBasePrice() < 5000) { // 가격 검증 (5000원 이상)
-            throw new PublishingFieldRequiredException("basePrice", "기본 가격은 5000원 이상이어야 합니다.");
+        if (accommodation.getBasePrice() == null || accommodation.getBasePrice() < 1) { // 가격 검증 (1 이상)
+            throw new PublishingFieldRequiredException("basePrice", "기본 가격은 1원 이상이어야 합니다.");
         }
 
         if (accommodation.getType() == null) {
@@ -458,7 +458,7 @@ public class AccommodationService {
         }
 
         long imageCount = accommodationImageRepository.countByAccommodationId(accommodation.getId());
-        int minImageCount = 5; // 최소 이미지 개수
+        int minImageCount = 1; // 최소 이미지 개수
         if (imageCount < minImageCount) {
             throw new InsufficientImageCountException("이미지는 최소 " + minImageCount + "개 이상 등록해야 게시할 수 있습니다. 현재: " + imageCount + "개");
         }

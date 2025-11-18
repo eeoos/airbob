@@ -55,6 +55,8 @@ cloud:
 
 logging:
   level:
+#    kr.kro.airbob: INFO
+#    org.hibernate.SQL: INFO
     kr.kro.airbob: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql: TRACE

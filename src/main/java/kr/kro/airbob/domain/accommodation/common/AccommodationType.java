@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.accommodation.common;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public enum AccommodationType {

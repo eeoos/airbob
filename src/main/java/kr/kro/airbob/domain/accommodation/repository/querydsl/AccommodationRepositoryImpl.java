@@ -11,11 +11,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.support.PageableExecutionUtils;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -26,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class AccommodationRepositoryImpl implements AccommodationRepositoryCustom {
+
     private final JPAQueryFactory jpaQueryFactory;
 
     @Override
@@ -126,6 +130,31 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             .fetchOne();
 
         return Optional.ofNullable(result);
+    }
+
+    @Override
+    public Page<Accommodation> findForIndexing(Pageable pageable) {
+
+        // 1. Content Query: N+1 방지를 위해 Member, Policy를 fetchJoin
+        List<Accommodation> content = jpaQueryFactory
+            .selectFrom(accommodation)
+            .leftJoin(accommodation.member, member).fetchJoin()
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
+            .offset(pageable.getOffset())
+            .limit(pageable.getPageSize())
+            // ★ 경고: 이 쿼리는 Pageable의 'sort'를 동적으로 처리하지 않습니다.
+            // (이전 @Query는 자동으로 처리해줬지만, QueryDSL은 수동 구현이 필요합니다)
+            // (정렬이 꼭 필요하다면 기존 search() 메서드의 applySorting 로직을 참고해야 합니다)
+            .fetch();
+
+        // 2. Count Query: 전체 개수 조회 (Join 불필요)
+        JPAQuery<Long> countQuery = jpaQueryFactory
+            .select(accommodation.count())
+            .from(accommodation);
+
+        // 3. Spring Data 유틸리티로 Page 객체 생성
+        // (countQuery::fetchOne은 content가 비어있을 때 등 필요할 때만 호출됨)
+        return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
     private BooleanExpression buildAccommodationStatusFilter(AccommodationStatus status) {

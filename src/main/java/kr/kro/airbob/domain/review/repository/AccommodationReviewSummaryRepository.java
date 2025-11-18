@@ -7,8 +7,10 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.repository.querydsl.AccommodationReviewSummaryRepositoryCustom;
 
-public interface AccommodationReviewSummaryRepository extends JpaRepository<AccommodationReviewSummary, Long> {
+public interface AccommodationReviewSummaryRepository extends JpaRepository<AccommodationReviewSummary, Long>,
+	AccommodationReviewSummaryRepositoryCustom {
 
 	Optional<AccommodationReviewSummary> findByAccommodationId(Long accommodationId);
 

@@ -45,6 +45,9 @@ public record AccommodationDocument(
 	Long basePrice,
 
 	@Field(type = FieldType.Keyword)
+	String currency,
+
+	@Field(type = FieldType.Keyword)
 	String type,
 
 	@Field(type = FieldType.Keyword)

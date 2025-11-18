@@ -87,6 +87,9 @@ dependencies {
 	// Commons Lang
 	implementation 'org.apache.commons:commons-lang3:3.18.0'
 
+	// Jackson CSV
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
+
 	// Json
 	implementation 'org.json:json:20250107'
 

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
@@ -27,5 +28,7 @@ public interface AccommodationRepositoryCustom {
 
     Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
     Optional<Accommodation> findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long hostId);
+
+    Page<Accommodation> findForIndexing(Pageable pageable);
 
 }

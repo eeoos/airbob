@@ -42,7 +42,6 @@ public class Accommodation extends UpdatableEntity {
 	@JdbcTypeCode(SqlTypes.BINARY)
 	@Column(nullable = false, unique = true, updatable = false, columnDefinition = "BINARY(16)")
 	private UUID accommodationUid;
-
 	private String name;
 
 	private String description;
@@ -109,6 +108,7 @@ public class Accommodation extends UpdatableEntity {
 
 		if (request.currency() != null) {
 			// this.currency = request.currency();
+			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
 			this.currency = "KRW";
 		}
 

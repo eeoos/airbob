@@ -1,21 +1,30 @@
 package kr.kro.airbob.search.service;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.Address;
+import kr.kro.airbob.domain.accommodation.entity.Amenity;
+import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -44,6 +53,7 @@ public class AccommodationDocumentBuilder {
 			.name(accommodation.getName())
 			.description(accommodation.getDescription())
 			.basePrice(accommodation.getBasePrice())
+			.currency(accommodation.getCurrency())
 			.type(accommodation.getType().name())
 			.status(accommodation.getStatus().name())
 			.createdAt(accommodation.getCreatedAt())
@@ -94,5 +104,83 @@ public class AccommodationDocumentBuilder {
 			.map(amenity -> amenity.getName().name())
 			.distinct()
 			.toList();
+	}
+
+	public AccommodationDocument build(Accommodation accommodation,
+		AccommodationReviewSummary summary,
+		List<AccommodationAmenity> amenities) {
+		if (accommodation == null) {
+			return null;
+		}
+
+		AccommodationDocument.AccommodationDocumentBuilder builder = AccommodationDocument.builder();
+
+		builder.id(accommodation.getAccommodationUid().toString());
+
+		builder.accommodationId(accommodation.getId())
+			.name(accommodation.getName())
+			.description(accommodation.getDescription())
+			.basePrice(accommodation.getBasePrice())
+			.currency(accommodation.getCurrency())
+			.thumbnailUrl(accommodation.getThumbnailUrl())
+			.type(accommodation.getType().name())
+			.status(accommodation.getStatus().name())
+			.createdAt(accommodation.getCreatedAt());
+
+		Member host = accommodation.getMember();
+		if (host != null) {
+			builder.hostId(host.getId())
+				.hostNickname(host.getNickname());
+		}
+
+		if (accommodation.getAddress() != null) {
+			builder.country(accommodation.getAddress().getCountry())
+				.city(accommodation.getAddress().getCity())
+				.district(accommodation.getAddress().getDistrict())
+				.street(accommodation.getAddress().getStreet())
+				.addressDetail(buildFullAddress(accommodation.getAddress()))
+				.postalCode(accommodation.getAddress().getPostalCode())
+				.location(AccommodationDocument.Location.builder()
+					.lat(accommodation.getAddress().getLatitude())
+					.lon(accommodation.getAddress().getLongitude())
+					.build());
+		}
+
+		OccupancyPolicy policy = accommodation.getOccupancyPolicy();
+		if (policy != null) {
+			builder.maxGuests(policy.getMaxOccupancy())
+				.maxInfants(policy.getInfantOccupancy())
+				.maxPets(policy.getPetOccupancy());
+		} else {
+			// ES에서 null 필터링 문제를 피하기 위해 기본값 0 설정
+			builder.maxGuests(0).maxInfants(0).maxPets(0);
+		}
+
+		List<String> amenityNames;
+		if (amenities != null && !amenities.isEmpty()) {
+			amenityNames = amenities.stream()
+				.map(am -> am.getAmenity().getName().name())
+				.collect(Collectors.toList());
+		} else {
+			amenityNames = Collections.emptyList();
+		}
+		builder.amenityTypes(amenityNames);
+
+		if (summary != null) {
+			builder.averageRating(summary.getAverageRating() != null ? summary.getAverageRating().doubleValue() : 0.0)
+				.reviewCount(summary.getTotalReviewCount() != null ? summary.getTotalReviewCount() : 0);
+		} else {
+			// 리뷰가 없는 숙소(summary=null)는 0점으로 초기화
+			builder.averageRating(0.0)
+				.reviewCount(0);
+		}
+
+		return builder.build();
+	}
+
+	private String buildFullAddress(Address address) {
+		return Stream.of(address.getCountry(), address.getCity(), address.getDistrict(), address.getStreet(), address.getDetail())
+			.filter(s -> s != null && !s.isBlank())
+			.collect(Collectors.joining(" "));
 	}
 }
