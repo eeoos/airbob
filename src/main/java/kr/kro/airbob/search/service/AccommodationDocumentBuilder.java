@@ -1,30 +1,24 @@
 package kr.kro.airbob.search.service;
 
-import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
-import kr.kro.airbob.domain.accommodation.entity.Address;
-import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -56,7 +50,7 @@ public class AccommodationDocumentBuilder {
 			.currency(accommodation.getCurrency())
 			.type(accommodation.getType().name())
 			.status(accommodation.getStatus().name())
-			.createdAt(accommodation.getCreatedAt())
+			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant())
 			.location(AccommodationDocument.Location.builder()
 				.lat(accommodation.getAddress().getLatitude())
 				.lon(accommodation.getAddress().getLongitude())
@@ -125,7 +119,7 @@ public class AccommodationDocumentBuilder {
 			.thumbnailUrl(accommodation.getThumbnailUrl())
 			.type(accommodation.getType().name())
 			.status(accommodation.getStatus().name())
-			.createdAt(accommodation.getCreatedAt());
+			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
 
 		Member host = accommodation.getMember();
 		if (host != null) {
@@ -138,7 +132,7 @@ public class AccommodationDocumentBuilder {
 				.city(accommodation.getAddress().getCity())
 				.district(accommodation.getAddress().getDistrict())
 				.street(accommodation.getAddress().getStreet())
-				.addressDetail(buildFullAddress(accommodation.getAddress()))
+				.addressDetail(accommodation.getAddress().buildFullAddress())
 				.postalCode(accommodation.getAddress().getPostalCode())
 				.location(AccommodationDocument.Location.builder()
 					.lat(accommodation.getAddress().getLatitude())
@@ -176,11 +170,5 @@ public class AccommodationDocumentBuilder {
 		}
 
 		return builder.build();
-	}
-
-	private String buildFullAddress(Address address) {
-		return Stream.of(address.getCountry(), address.getCity(), address.getDistrict(), address.getStreet(), address.getDetail())
-			.filter(s -> s != null && !s.isBlank())
-			.collect(Collectors.joining(" "));
 	}
 }

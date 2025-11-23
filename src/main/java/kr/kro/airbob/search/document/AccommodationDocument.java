@@ -1,5 +1,6 @@
 package kr.kro.airbob.search.document;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,10 +14,15 @@ import org.springframework.data.elasticsearch.annotations.GeoPointField;
 import org.springframework.data.elasticsearch.annotations.InnerField;
 import org.springframework.data.elasticsearch.annotations.MultiField;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+
 import lombok.Builder;
 
 @Document(indexName = "accommodations")
 @Builder
+@JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
 public record AccommodationDocument(
 
 	@Id
@@ -53,17 +59,17 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	String status,
 
-	@Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS")
-	LocalDateTime createdAt,
+	@Field(type = FieldType.Date, format = {DateFormat.date_time})
+	Instant createdAt,
 
 	// 위치 정보
 	@GeoPointField
 	Location location,
 
 	@MultiField(
-		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		mainField = @Field(type = FieldType.Keyword),
 		otherFields = {
-			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+			@InnerField(suffix = "lower", type = FieldType.Keyword, normalizer = "lowercase_normalizer")
 		}
 	)
 	String country,
@@ -92,7 +98,7 @@ public record AccommodationDocument(
 	)
 	String street,
 
-	@Field(type = FieldType.Text)
+	@Field(type = FieldType.Keyword)
 	String addressDetail,
 
 	@Field(type = FieldType.Keyword)
@@ -124,7 +130,7 @@ public record AccommodationDocument(
 	@Field(type= FieldType.Double)
 	Double averageRating,
 
-	@Field(type = FieldType.Integer)
+	@Field(type = FieldType.Long)
 	Integer reviewCount,
 
 	// 호스트

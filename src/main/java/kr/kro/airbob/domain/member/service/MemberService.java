@@ -26,9 +26,10 @@ public class MemberService {
             throw new DuplicatedEmailException();
         }
 
-        String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
+        // String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
 
-        Member member = Member.createMember(request, hashedPassword);
+        // Member member = Member.createMember(request, hashedPassword);
+        Member member = Member.createMember(request, request.getPassword());
         memberRepository.save(member);
 
         MemberStatusHistory history = MemberStatusHistory.builder()

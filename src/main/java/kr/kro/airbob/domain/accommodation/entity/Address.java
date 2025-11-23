@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.accommodation.entity;
 
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -11,11 +13,9 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import lombok.extern.slf4j.Slf4j;
 
 @Entity
 @Getter
@@ -29,6 +29,7 @@ public class Address extends BaseEntity {
 	private Long id;
 
 	private String country;
+	private String province;
 	private String city;
 	private String district;
 	private String street;
@@ -42,6 +43,7 @@ public class Address extends BaseEntity {
 
 		return Address.builder()
 			.country(addressInfo.country())
+			.province(addressInfo.province())
 			.city(addressInfo.city())
 			.district(addressInfo.district())
 			.street(addressInfo.street())
@@ -54,10 +56,18 @@ public class Address extends BaseEntity {
 
 	public boolean isChanged(AccommodationRequest.AddressInfo newAddressInfo) {
 		return !Objects.equals(this.country, newAddressInfo.country()) ||
+			!Objects.equals(this.province, newAddressInfo.province()) ||
 			!Objects.equals(this.city, newAddressInfo.city()) ||
 			!Objects.equals(this.district, newAddressInfo.district()) ||
 			!Objects.equals(this.street, newAddressInfo.street()) ||
 			!Objects.equals(this.detail, newAddressInfo.detail()) ||
 			!Objects.equals(this.postalCode, newAddressInfo.postalCode());
+	}
+
+	public String buildFullAddress() {
+
+		return Stream.of(this.getCountry(), this.getProvince(), this.getCity(), this.getDistrict(), this.getStreet(), this.getDetail())
+			.filter(s -> s != null && !s.isBlank())
+			.collect(Collectors.joining(" "));
 	}
 }

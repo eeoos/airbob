@@ -68,7 +68,7 @@ public class AccommodationSearchRequest {
 		}
 
 		// 총 인원 수 계산 (유아, 펫 제외)
-		public int getTotalGuests() {
+		public double getTotalGuests() {
 			return (adultOccupancy != null ? adultOccupancy : 0) +
 				(childOccupancy != null ? childOccupancy : 0);
 		}

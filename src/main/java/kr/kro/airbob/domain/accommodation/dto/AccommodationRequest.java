@@ -44,10 +44,10 @@ public class AccommodationRequest {
         OccupancyPolicyInfo occupancyPolicyInfo,
 
         String type,
-        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm[:ss]")
         LocalTime checkInTime,
 
-        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm[:ss]")
         LocalTime checkOutTime
     ){
     }
@@ -58,10 +58,14 @@ public class AccommodationRequest {
         @Size(max = 12, message = "우편번호는 최대 12자입니다.")
         String postalCode,
 
-        @NotBlank(message = "도시는 필수입니다.")
-        String city,
         @NotBlank(message = "국가는 필수입니다.")
         String country,
+
+        @NotBlank(message = "행정구역(시/도/주)는 필수입니다.")
+        String province,
+        @NotBlank(message = "도시는 필수입니다.")
+        String city,
+
         @NotBlank(message = "상세 주소는 필수입니다.")
         String detail,
         @NotBlank(message = "지역구는 필수입니다.")

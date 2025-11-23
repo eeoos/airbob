@@ -178,7 +178,7 @@ public class AccommodationService {
                 .street(address.getStreet())
                 .detail(address.getDetail())
                 .postalCode(address.getPostalCode())
-                .fullAddress(buildFullAddress(address))
+                .fullAddress(address.buildFullAddress())
                 .build())
             .coordinate(AccommodationResponse.Coordinate.builder()
                 .latitude(address.getLatitude())
@@ -347,7 +347,7 @@ public class AccommodationService {
                 .street(address.getStreet())
                 .detail(address.getDetail())
                 .postalCode(address.getPostalCode())
-                .fullAddress(buildFullAddress(address))
+                .fullAddress(address.buildFullAddress())
                 .build() :
             AccommodationResponse.AddressInfo.builder().build();
 
@@ -538,11 +538,6 @@ public class AccommodationService {
         return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(memberId, accommodationId);
     }
 
-    private String buildFullAddress(Address address) {
-        return Stream.of(address.getCountry(), address.getCity(), address.getDistrict(), address.getStreet(), address.getDetail())
-            .filter(s -> s != null && !s.isBlank())
-            .collect(Collectors.joining(" "));
-    }
 
     private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
         Map<AmenityType, Integer> amenityCountMap = getAmenityCountMap(request);

@@ -319,7 +319,7 @@ public class ReservationTransactionService {
 			.street(address.getStreet())
 			.detail(address.getDetail())
 			.postalCode(address.getPostalCode())
-			.fullAddress(buildFullAddress(address))
+			.fullAddress(address.buildFullAddress())
 			.latitude(address.getLatitude())
 			.longitude(address.getLongitude())
 			.build();
@@ -435,7 +435,7 @@ public class ReservationTransactionService {
 			.accommodationId(accommodation.getId())
 			.accommodationName(accommodation.getName())
 			.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
-			.accommodationAddress(buildFullAddress(address))
+			.accommodationAddress(address.buildFullAddress())
 			.guestInfo(guestInfo)
 			.paymentInfo(paymentInfo)
 			.build();
@@ -454,11 +454,6 @@ public class ReservationTransactionService {
 		return RandomStringUtils.randomAlphanumeric(6).toUpperCase();
 	}
 
-	private String buildFullAddress(Address address) {
-		return Stream.of(address.getCountry(), address.getCity(), address.getDistrict(), address.getStreet(), address.getDetail())
-			.filter(s -> s != null && !s.isBlank())
-			.collect(Collectors.joining(" "));
-	}
 
 	public Reservation findByReservationUidNullable(String reservationUid) {
 

@@ -19,6 +19,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @Configuration
 @EnableElasticsearchRepositories
 public class ElasticsearchConfig {
@@ -33,7 +35,7 @@ public class ElasticsearchConfig {
 	private String password;
 
 	@Bean
-	public ElasticsearchClient elasticsearchClient() {
+	public ElasticsearchClient elasticsearchClient(ObjectMapper objectMapper) {
 		CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
 		credentialsProvider.setCredentials(AuthScope.ANY,
 			new UsernamePasswordCredentials(username, password));
@@ -50,7 +52,7 @@ public class ElasticsearchConfig {
 			.build();
 
 		ElasticsearchTransport transport = new RestClientTransport(
-			restClient, new JacksonJsonpMapper());
+			restClient, new JacksonJsonpMapper(objectMapper));
 
 		return new ElasticsearchClient(transport);
 	}
