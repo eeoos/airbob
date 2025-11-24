@@ -62,7 +62,7 @@ public class AccommodationRequest {
         String country,
 
         @NotBlank(message = "행정구역(시/도/주)는 필수입니다.")
-        String province,
+        String state,
         @NotBlank(message = "도시는 필수입니다.")
         String city,
 

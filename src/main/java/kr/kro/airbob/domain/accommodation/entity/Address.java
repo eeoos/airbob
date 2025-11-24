@@ -29,7 +29,7 @@ public class Address extends BaseEntity {
 	private Long id;
 
 	private String country;
-	private String province;
+	private String state;
 	private String city;
 	private String district;
 	private String street;
@@ -43,7 +43,7 @@ public class Address extends BaseEntity {
 
 		return Address.builder()
 			.country(addressInfo.country())
-			.province(addressInfo.province())
+			.state(addressInfo.state())
 			.city(addressInfo.city())
 			.district(addressInfo.district())
 			.street(addressInfo.street())
@@ -56,7 +56,7 @@ public class Address extends BaseEntity {
 
 	public boolean isChanged(AccommodationRequest.AddressInfo newAddressInfo) {
 		return !Objects.equals(this.country, newAddressInfo.country()) ||
-			!Objects.equals(this.province, newAddressInfo.province()) ||
+			!Objects.equals(this.state, newAddressInfo.state()) ||
 			!Objects.equals(this.city, newAddressInfo.city()) ||
 			!Objects.equals(this.district, newAddressInfo.district()) ||
 			!Objects.equals(this.street, newAddressInfo.street()) ||
@@ -66,7 +66,7 @@ public class Address extends BaseEntity {
 
 	public String buildFullAddress() {
 
-		return Stream.of(this.getCountry(), this.getProvince(), this.getCity(), this.getDistrict(), this.getStreet(), this.getDetail())
+		return Stream.of(this.getCountry(), this.getState(), this.getCity(), this.getDistrict(), this.getStreet(), this.getDetail())
 			.filter(s -> s != null && !s.isBlank())
 			.collect(Collectors.joining(" "));
 	}
