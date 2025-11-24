@@ -13,6 +13,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.GeoPointField;
 import org.springframework.data.elasticsearch.annotations.InnerField;
 import org.springframework.data.elasticsearch.annotations.MultiField;
+import org.springframework.data.elasticsearch.annotations.Setting;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -21,6 +22,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import lombok.Builder;
 
 @Document(indexName = "accommodations")
+@Setting(settingPath = "/elastic/es-settings.json")
 @Builder
 @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
 public record AccommodationDocument(
@@ -66,18 +68,23 @@ public record AccommodationDocument(
 	@GeoPointField
 	Location location,
 
+	@Field(type = FieldType.Keyword)
+	String country,
+
 	@MultiField(
 		mainField = @Field(type = FieldType.Keyword),
 		otherFields = {
 			@InnerField(suffix = "lower", type = FieldType.Keyword, normalizer = "lowercase_normalizer")
 		}
 	)
-	String country,
+	String state,
 
 	@MultiField(
 		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
 		otherFields = {
-			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard"),
+			@InnerField(suffix = "keyword", type = FieldType.Keyword),
+			@InnerField(suffix = "lower", type = FieldType.Keyword, normalizer = "lowercase_normalizer")
 		}
 	)
 	String city,
@@ -98,8 +105,8 @@ public record AccommodationDocument(
 	)
 	String street,
 
-	@Field(type = FieldType.Keyword)
-	String addressDetail,
+	/*@Field(type = FieldType.Keyword)
+	String addressDetail,*/
 
 	@Field(type = FieldType.Keyword)
 	String postalCode,
@@ -131,14 +138,14 @@ public record AccommodationDocument(
 	Double averageRating,
 
 	@Field(type = FieldType.Long)
-	Integer reviewCount,
+	Integer reviewCount
 
 	// 호스트
-	@Field(type = FieldType.Long)
+	/*@Field(type = FieldType.Long)
 	Long hostId,
 
 	@Field(type = FieldType.Keyword)
-	String hostNickname
+	String hostNickname*/
 ) {
 
 	@Builder

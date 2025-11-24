@@ -12,6 +12,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
+import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.ViewportAdjuster;
 import kr.kro.airbob.geo.dto.Coordinate;
@@ -47,7 +49,7 @@ public class GoogleGeocodingService implements GeocodingService {
 			URI baseUri = URI.create(GEOCODING_API_URL);
 
 			String url = UriComponentsBuilder.fromUri(baseUri)
-				.queryParam("address", address)
+				.queryParam("addressInfo", address)
 				.queryParam("key", googleApiKey)
 				.queryParam("language", "ko")
 				.build()
@@ -87,7 +89,7 @@ public class GoogleGeocodingService implements GeocodingService {
 	}
 
 	@Override
-	public String buildAddressString(AccommodationRequest.AddressInfo addressInfo) {
+	public String buildAddressString(AddressRequest.AddressInfo addressInfo) {
 
 		return String.format("%s %s %s %s %s",
 				addressInfo.country(),

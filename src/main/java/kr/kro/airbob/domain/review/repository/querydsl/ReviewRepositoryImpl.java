@@ -38,7 +38,7 @@ public class ReviewRepositoryImpl implements ReviewRepositoryCustom{
 				review.rating,
 				review.content,
 				review.createdAt,
-				Projections.constructor(MemberResponse.ReviewerInfo.class,
+				Projections.constructor(MemberResponse.MemberInfo.class,
 					member.id,
 					member.nickname,
 					member.thumbnailImageUrl)

@@ -1,7 +1,6 @@
 package kr.kro.airbob.domain.reservation.api;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,18 +46,18 @@ public class ReservationController {
 	}
 
 	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.DetailInfo>> getMyReservationDetail(@PathVariable String reservationUid) {
+	public ResponseEntity<ApiResponse<ReservationResponse.GuestDetail>> getMyReservationDetail(@PathVariable String reservationUid) {
 		Long memberId = UserContext.get().id();
-		ReservationResponse.DetailInfo response = reservationService.findMyReservationDetail(reservationUid, memberId);
+		ReservationResponse.GuestDetail response = reservationService.findMyReservationDetail(reservationUid, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@GetMapping("/v1/profile/guest/reservations")
-	public ResponseEntity<ApiResponse<ReservationResponse.MyReservationInfos>> getMyReservations(
+	public ResponseEntity<ApiResponse<ReservationResponse.GuestReservationInfos>> getMyReservations(
 		@CursorParam CursorRequest.CursorPageRequest request,
 		@RequestParam(required = false) ReservationFilterType filterType) {
 		Long memberId = UserContext.get().id();
-		ReservationResponse.MyReservationInfos response = reservationService.findMyReservations(memberId,
+		ReservationResponse.GuestReservationInfos response = reservationService.findMyReservations(memberId,
 			request, filterType);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -75,10 +74,10 @@ public class ReservationController {
 	}
 
 	@GetMapping("/v1/profile/host/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.HostDetailInfo>> getHostReservationDetail(@PathVariable String reservationUid) {
+	public ResponseEntity<ApiResponse<ReservationResponse.HostDetail>> getHostReservationDetail(@PathVariable String reservationUid) {
 
 		Long hostId = UserContext.get().id();
-		ReservationResponse.HostDetailInfo response = reservationService.findHostReservationDetail(reservationUid, hostId);
+		ReservationResponse.HostDetail response = reservationService.findHostReservationDetail(reservationUid, hostId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

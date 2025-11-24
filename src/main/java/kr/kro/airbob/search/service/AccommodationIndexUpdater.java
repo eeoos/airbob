@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AccommodationIndexUpdater {
 
-	private static final String ACCOMMODATIONS = "accommodations";
+	private static final String ACCOMMODATIONS = "accommodationInfos";
 	private final ElasticsearchOperations elasticsearchOperations;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final ReservationRepository reservationRepository;

@@ -68,11 +68,11 @@ public class ReservationService {
 		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
 	}
 
-	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
+	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 		return transactionService.findMyReservations(memberId, cursorRequest, filterType);
 	}
 
-	public ReservationResponse.DetailInfo findMyReservationDetail(String reservationUidStr, Long memberId) {
+	public ReservationResponse.GuestDetail findMyReservationDetail(String reservationUidStr, Long memberId) {
 		return transactionService.findMyReservationDetail(reservationUidStr, memberId);
 	}
 
@@ -80,7 +80,7 @@ public class ReservationService {
 		return transactionService.findHostReservations(hostId, cursorRequest, filterType);
 	}
 
-	public ReservationResponse.HostDetailInfo findHostReservationDetail(String reservationUid, Long hostId) {
+	public ReservationResponse.HostDetail findHostReservationDetail(String reservationUid, Long hostId) {
 		return transactionService.findHostReservationDetail(reservationUid, hostId);
 	}
 }

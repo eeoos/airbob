@@ -20,6 +20,7 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
@@ -63,12 +64,12 @@ public class ReviewController {
 	}
 
 	@PostMapping("/v1/reviews/{reviewId}/images")
-	public ResponseEntity<ApiResponse<ReviewResponse.UploadReviewImages>> uploadReviewImages(
+	public ResponseEntity<ApiResponse<ImageResponse.ImageInfos>> uploadReviewImages(
 		@PathVariable Long reviewId,
 		@RequestParam("images") List<MultipartFile> images) {
 
 		Long memberId = UserContext.get().id();
-		ReviewResponse.UploadReviewImages response = reviewService.uploadReviewImages(reviewId, images,
+		ImageResponse.ImageInfos response = reviewService.uploadReviewImages(reviewId, images,
 			memberId);
 
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));

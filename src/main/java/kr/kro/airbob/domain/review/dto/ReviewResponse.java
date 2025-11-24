@@ -8,6 +8,7 @@ import java.util.List;
 import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import lombok.AccessLevel;
@@ -39,8 +40,8 @@ public class ReviewResponse {
 		int rating,
 		String content,
 		LocalDateTime reviewedAt,
-		MemberResponse.ReviewerInfo reviewer,
-		List<ImageInfo> images
+		MemberResponse.MemberInfo reviewer,
+		List<ImageResponse.ImageInfo> images
 	) {
 
 		@QueryProjection
@@ -48,7 +49,7 @@ public class ReviewResponse {
 			int rating,
 			String content,
 			LocalDateTime reviewedAt,
-			MemberResponse.ReviewerInfo reviewer) {
+			MemberResponse.MemberInfo reviewer) {
 
 			this(
 				id,
@@ -75,18 +76,5 @@ public class ReviewResponse {
 				summary.getAverageRating()
 			);
 		}
-	}
-
-	@Builder
-	public record ImageInfo(
-		Long id,
-		String imageUrl
-	) {
-	}
-
-	@Builder
-	public record UploadReviewImages(
-		List<ImageInfo> uploadedImages
-	) {
 	}
 }

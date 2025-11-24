@@ -7,8 +7,12 @@ import java.util.List;
 import com.querydsl.core.annotations.QueryProjection;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -33,13 +37,10 @@ public class WishlistAccommodationResponse {
 	public record WishlistAccommodationInfo(
 		long wishlistAccommodationId,
 		String memo,
-		long accommodationId,
-		String accommodationName,
-		String thumbnailUrl,
-		String locationSummary,
-		BigDecimal averageRating,
-		int reviewCount,
 		LocalDateTime createdAt,
+		AccommodationResponse.AccommodationBasicInfo accommodationInfo,
+		AddressResponse.AddressSummaryInfo addressInfo,
+		ReviewResponse.ReviewSummary reviewSummary,
 		Boolean isInWishlist
 	) {
 		@QueryProjection
@@ -54,13 +55,13 @@ public class WishlistAccommodationResponse {
 			this(
 				wishlistAccommodationId,
 				memo,
-				accommodation.getId(),
-				accommodation.getName(),
-				accommodation.getThumbnailUrl(),
-				String.format("%s %s", accommodation.getAddress().getDistrict(),accommodation.getAddress().getStreet()),
-				averageRating,
-				reviewCount,
 				createdAt,
+				AccommodationResponse.AccommodationBasicInfo.from(accommodation),
+				AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()),
+				ReviewResponse.ReviewSummary.builder()
+					.averageRating(averageRating)
+					.totalCount(reviewCount)
+					.build(),
 				true // wishlist_accommodation 테이블에서 조회한 것이므로 true
 			);
 		}

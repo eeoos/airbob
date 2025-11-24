@@ -17,10 +17,9 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -70,7 +69,7 @@ public class RecentlyViewedService {
 
 		if (recentlyViewedWithScores == null || recentlyViewedWithScores.isEmpty()) {
 			return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
-				.accommodations(new ArrayList<>())
+				.accommodationInfos(new ArrayList<>())
 				.totalCount(0)
 				.build();
 		}
@@ -109,31 +108,19 @@ public class RecentlyViewedService {
 					return null;
 				}
 
-				LocalDateTime viewAt = Instant.ofEpochMilli(tuple.getScore().longValue())
+				LocalDateTime viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue())
 					.atZone(ZoneId.systemDefault())
 					.toLocalDateTime();
 
 				ReviewResponse.ReviewSummary reviewSummary = reviewSummaryMap.get(accommodationId);
 
-				return AccommodationResponse.RecentlyViewedAccommodationInfo.builder()
-					.viewedAt(viewAt)
-					.accommodationId(accommodationId)
-					.accommodationName(accommodation.getName())
-					.thumbnailUrl(accommodation.getThumbnailUrl())
-					// .amenities(amenityMap.getOrDefault(accommodationId, List.of()))
-					.locationSummary(String.format("%s %s", accommodation.getAddress().getDistrict(),accommodation.getAddress().getStreet()))
-					.averageRating(reviewSummary != null ? reviewSummary.averageRating() : BigDecimal.ZERO)
-					.reviewCount(reviewSummary != null ? reviewSummary.totalCount() : 0)
-					.isInWishlist(wishlistMap.getOrDefault(accommodationId, false))
-					.build();
+				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(viewedAt, accommodation,
+					reviewSummary, wishlistMap.getOrDefault(accommodationId, false));
 			})
 			.filter(Objects::nonNull)
 			.toList();
 
-		return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
-			.accommodations(recentlyViewedAccommodationInfos)
-			.totalCount(recentlyViewedAccommodationInfos.size())
-			.build();
+		return AccommodationResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedAccommodationInfos);
 	}
 
 	private Map<Long, Boolean> getWishlistMap(Long memberId, List<Long> accommodationIds) {

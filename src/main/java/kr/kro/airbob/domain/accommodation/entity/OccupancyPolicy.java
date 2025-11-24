@@ -6,6 +6,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
+import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,7 +28,7 @@ public class OccupancyPolicy extends BaseEntity {
 	private Integer infantOccupancy;
 	private Integer petOccupancy;
 
-	public static OccupancyPolicy createOccupancyPolicy(AccommodationRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
+	public static OccupancyPolicy createOccupancyPolicy(PolicyRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
 		return OccupancyPolicy.builder()
 				.maxOccupancy(occupancyPolicyInfo.maxOccupancy())
 				.infantOccupancy(occupancyPolicyInfo.infantOccupancy())

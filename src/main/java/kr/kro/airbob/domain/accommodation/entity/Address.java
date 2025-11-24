@@ -9,7 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
+import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -39,7 +39,7 @@ public class Address extends BaseEntity {
 	private Double latitude;
 	private Double longitude;
 
-	public static Address createAddress(AccommodationRequest.AddressInfo addressInfo, GeocodeResult geocodeResult) {
+	public static Address createAddress(AddressRequest.AddressInfo addressInfo, GeocodeResult geocodeResult) {
 
 		return Address.builder()
 			.country(addressInfo.country())
@@ -54,7 +54,7 @@ public class Address extends BaseEntity {
 			.build();
 	}
 
-	public boolean isChanged(AccommodationRequest.AddressInfo newAddressInfo) {
+	public boolean isChanged(AddressRequest.AddressInfo newAddressInfo) {
 		return !Objects.equals(this.country, newAddressInfo.country()) ||
 			!Objects.equals(this.state, newAddressInfo.state()) ||
 			!Objects.equals(this.city, newAddressInfo.city()) ||
@@ -65,8 +65,13 @@ public class Address extends BaseEntity {
 	}
 
 	public String buildFullAddress() {
-
 		return Stream.of(this.getCountry(), this.getState(), this.getCity(), this.getDistrict(), this.getStreet(), this.getDetail())
+			.filter(s -> s != null && !s.isBlank())
+			.collect(Collectors.joining(" "));
+	}
+
+	public String buildAddressSummary() {
+		return Stream.of(this.getDistrict(), this.getStreet(), this.getDetail())
 			.filter(s -> s != null && !s.isBlank())
 			.collect(Collectors.joining(" "));
 	}

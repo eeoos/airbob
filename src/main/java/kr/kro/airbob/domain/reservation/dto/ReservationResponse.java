@@ -6,9 +6,14 @@ import java.time.LocalTime;
 import java.util.List;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.Address;
+import kr.kro.airbob.domain.member.dto.MemberResponse;
+import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
@@ -17,32 +22,6 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReservationResponse {
-
-	@Builder
-	public record Create(
-		long reservationId,
-		long accommodationId,
-		String accommodationName,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Long totalPrice,
-		String currency,
-
-		ReservationStatus status
-	){
-		public static Create from(Reservation reservation) {
-			return Create.builder()
-				.reservationId(reservation.getId())
-				.accommodationId(reservation.getAccommodation().getId())
-				.accommodationName(reservation.getAccommodation().getName())
-				.checkInDate(reservation.getCheckIn().toLocalDate())
-				.checkOutDate(reservation.getCheckOut().toLocalDate())
-				.totalPrice(reservation.getTotalPrice())
-				.currency(reservation.getCurrency())
-				.status(reservation.getStatus())
-				.build();
-		}
-	}
 
 	@Builder
 	public record Ready(
@@ -64,141 +43,176 @@ public class ReservationResponse {
 	}
 
 	@Builder
-	public record MyReservationInfo(
+	public record GuestReservationInfo(
 		long reservationId,
 		String reservationUid,
-
-		String accommodationName,
-		String accommodationThumbnailUrl,
-		String accommodationLocation,
-
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
-
 		// Integer totalPrice,
+		LocalDateTime createdAt,
 
-		LocalDateTime createdAt
+		AccommodationResponse.AccommodationBasicInfo accommodationInfo
 	){
-		public static MyReservationInfo from(Reservation reservation) {
-			Accommodation accommodation = reservation.getAccommodation();
-			Address address = accommodation.getAddress();
+		public static GuestReservationInfo from(Reservation reservation) {
 
-			String location = (address.getCity() != null ? address.getCity() : "") +
-				(address.getDistrict() != null ? " " + address.getDistrict() : "");
-
-			return MyReservationInfo.builder()
+			return GuestReservationInfo.builder()
 				.reservationId(reservation.getId())
 				.reservationUid(reservation.getReservationUid().toString())
-				.accommodationName(accommodation.getName())
-				.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
-				.accommodationLocation(location.trim())
 				.checkInDate(reservation.getCheckIn().toLocalDate())
 				.checkOutDate(reservation.getCheckOut().toLocalDate())
 				// .totalPrice(reservation.getTotalPrice())
 				.createdAt(reservation.getCreatedAt())
+				.accommodationInfo(
+					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
 				.build();
 		}
 	}
 
 	@Builder
-	public record MyReservationInfos(
-		List<MyReservationInfo> reservations,
+	public record GuestReservationInfos(
+		List<GuestReservationInfo> reservationInfos,
 		CursorResponse.PageInfo pageInfo
 	) {
+		public static GuestReservationInfos from(
+			List<GuestReservationInfo> reservationInfos,
+			CursorResponse.PageInfo pageInfo) {
+			return GuestReservationInfos.builder()
+				.reservationInfos(reservationInfos)
+				.pageInfo(pageInfo)
+				.build();
+		}
 	}
 
 	@Builder
-	public record DetailInfo(
+	public record GuestDetail(
 		String reservationUid,
 		String reservationCode,
 		ReservationStatus status,
 		LocalDateTime createdAt,
 		Integer guestCount,
-		String message,
-
-		Long accommodationId,
-		String accommodationName,
-		String accommodationThumbnailUrl,
-		AccommodationAddressInfo accommodationAddress,
-		MemberInfo accommodationHost,
-
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
+		Boolean canWriteReview,
+		AccommodationResponse.AccommodationBasicInfo accommodationInfo,
+		AddressResponse.AddressInfo addressInfo,
+		AddressResponse.Coordinate coordinate,
+		MemberResponse.MemberInfo hostInfo,
 
-		PaymentResponse.PaymentInfo paymentInfo,
-
-		Boolean canWriteReview
+		PaymentResponse.PaymentInfo paymentInfo
 	) {
+		public static GuestDetail from(Reservation reservation,
+			PaymentResponse.PaymentInfo paymentInfo,
+			boolean canWriteReview) {
+			Accommodation accommodation = reservation.getAccommodation();
+			Address address = accommodation.getAddress();
+			Member host = accommodation.getMember();
+
+			return GuestDetail.builder()
+				.reservationUid(reservation.getReservationUid().toString())
+				.reservationCode(reservation.getReservationCode())
+				.status(reservation.getStatus())
+				.createdAt(reservation.getCreatedAt())
+				.guestCount(reservation.getGuestCount())
+				.checkInDateTime(reservation.getCheckIn())
+				.checkOutDateTime(reservation.getCheckOut())
+				.checkInTime(reservation.getCheckIn().toLocalTime())
+				.checkOutTime(reservation.getCheckOut().toLocalTime())
+				.canWriteReview(canWriteReview)
+				.accommodationInfo(AccommodationResponse.AccommodationBasicInfo.from(accommodation))
+				.addressInfo(AddressResponse.AddressInfo.from(address))
+				.coordinate(AddressResponse.Coordinate.from(address))
+				.hostInfo(MemberResponse.MemberInfo.from(host))
+				.paymentInfo(paymentInfo)
+				.build();
+		}
 	}
 
-	@Builder
-	public record AccommodationAddressInfo(
-		String country,
-		String city,
-		String district,
-		String street,
-		String detail,
-		String postalCode,
-		String fullAddress,
-		Double latitude,
-		Double longitude
-	) {
-	}
-
-	@Builder
-	public record MemberInfo(
-		Long id,
-		String nickname,
-		String profileImageUrl
-	) {
-	}
 
 	@Builder
 	public record HostReservationInfo(
 		String reservationUid,
-		ReservationStatus status,
-		MemberInfo guestInfo,
+		String reservationCode,
+		Long totalPrice,
+		String currency,
 		int guestCount,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
+		ReservationStatus status,
 		LocalDateTime createdAt,
-		Long accommodationId,
-		String accommodationName,
-		// String thumbnailUrl,
-		String reservationCode,
-		Long totalPrice,
-		String currency
+
+		MemberResponse.MemberInfo guestInfo,
+		AccommodationResponse.AccommodationBasicInfo accommodationInfo
 	){
+		public static HostReservationInfo from(Reservation reservation) {
+			return HostReservationInfo.builder()
+				.reservationUid(reservation.getReservationUid().toString())
+				.reservationCode(reservation.getReservationCode())
+				.totalPrice(reservation.getTotalPrice())
+				.currency(reservation.getCurrency())
+				.guestCount(reservation.getGuestCount())
+				.checkInDate(reservation.getCheckIn().toLocalDate())
+				.checkOutDate(reservation.getCheckOut().toLocalDate())
+				.status(reservation.getStatus())
+				.createdAt(reservation.getCreatedAt())
+				.guestInfo(MemberResponse.MemberInfo.from(reservation.getGuest()))
+				.accommodationInfo(
+					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
+				.build();
+		}
 	}
 
 	@Builder
 	public record HostReservationInfos(
-		List<HostReservationInfo> reservations,
+		List<HostReservationInfo> reservationInfos,
 		CursorResponse.PageInfo pageInfo
 	) {
+		public static HostReservationInfos from(
+			List<HostReservationInfo> reservationInfos,
+			CursorResponse.PageInfo pageInfo) {
+
+			return HostReservationInfos.builder()
+				.reservationInfos(reservationInfos)
+				.pageInfo(pageInfo)
+				.build();
+		}
 	}
 
 	@Builder
-	public record HostDetailInfo(
+	public record HostDetail(
 		String reservationUid,
 		String reservationCode,
 		ReservationStatus status,
 		LocalDateTime createdAt,
 		Integer guestCount,
-
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
 
-		Long accommodationId,
-		String accommodationName,
-		String accommodationThumbnailUrl,
-		String accommodationAddress,
+		AccommodationResponse.AccommodationBasicInfo accommodationInfo,
+		AddressResponse.AddressInfo addressInfo,
 
-		MemberInfo guestInfo,
+		MemberResponse.MemberInfo guestInfo,
 
 		PaymentResponse.PaymentInfo paymentInfo
 	) {
+		public static HostDetail from(Reservation reservation, PaymentResponse.PaymentInfo paymentInfo) {
+			Accommodation accommodation = reservation.getAccommodation();
+			Address address = accommodation.getAddress();
+			return HostDetail.builder()
+				.reservationUid(reservation.getReservationUid().toString())
+				.reservationCode(reservation.getReservationCode())
+				.status(reservation.getStatus())
+				.createdAt(reservation.getCreatedAt())
+				.guestCount(reservation.getGuestCount())
+				.checkInDateTime(reservation.getCheckIn())
+				.checkOutDateTime(reservation.getCheckOut())
+				.accommodationInfo(
+					AccommodationResponse.AccommodationBasicInfo.from(accommodation))
+				.addressInfo(AddressResponse.AddressInfo.from(address))
+				.guestInfo(MemberResponse.MemberInfo.from(reservation.getGuest()))
+				.paymentInfo(paymentInfo)
+				.build();
+		}
 	}
 }

@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -56,16 +56,14 @@ public class AccommodationDocumentBuilder {
 				.lon(accommodation.getAddress().getLongitude())
 				.build())
 			.country(accommodation.getAddress().getCountry())
+			.state(accommodation.getAddress().getState())
 			.city(accommodation.getAddress().getCity())
 			.district(accommodation.getAddress().getDistrict())
 			.street(accommodation.getAddress().getStreet())
-			.addressDetail(accommodation.getAddress().getDetail())
 			.postalCode(accommodation.getAddress().getPostalCode())
 			.maxGuests(accommodation.getOccupancyPolicy().getMaxOccupancy())
 			.maxInfants(accommodation.getOccupancyPolicy().getInfantOccupancy())
 			.maxPets(accommodation.getOccupancyPolicy().getPetOccupancy())
-			.hostId(accommodation.getMember().getId())
-			.hostNickname(accommodation.getMember().getNickname())
 			.amenityTypes(amenityTypes)
 			.thumbnailUrl(accommodation.getThumbnailUrl())
 			.reservationRanges(reservationRanges)
@@ -121,22 +119,18 @@ public class AccommodationDocumentBuilder {
 			.status(accommodation.getStatus().name())
 			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
 
-		Member host = accommodation.getMember();
-		if (host != null) {
-			builder.hostId(host.getId())
-				.hostNickname(host.getNickname());
-		}
+		Address address = accommodation.getAddress();
+		if (address != null) {
 
-		if (accommodation.getAddress() != null) {
-			builder.country(accommodation.getAddress().getCountry())
-				.city(accommodation.getAddress().getCity())
-				.district(accommodation.getAddress().getDistrict())
-				.street(accommodation.getAddress().getStreet())
-				.addressDetail(accommodation.getAddress().buildFullAddress())
-				.postalCode(accommodation.getAddress().getPostalCode())
+			builder.country(address.getCountry())
+				.state(address.getState())
+				.city(address.getCity())
+				.district(address.getDistrict())
+				.street(address.getStreet())
+				.postalCode(address.getPostalCode())
 				.location(AccommodationDocument.Location.builder()
-					.lat(accommodation.getAddress().getLatitude())
-					.lon(accommodation.getAddress().getLongitude())
+					.lat(address.getLatitude())
+					.lon(address.getLongitude())
 					.build());
 		}
 

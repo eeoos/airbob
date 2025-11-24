@@ -13,7 +13,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -29,8 +28,11 @@ import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.common.AmenityType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.AmenityInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
+import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
+import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
+import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -46,6 +48,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.AmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
 import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
@@ -143,15 +146,11 @@ public class AccommodationService {
         Accommodation accommodation = accommodationRepository.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
             .orElseThrow(AccommodationNotFoundException::new);
 
-        Address address = accommodation.getAddress();
-        OccupancyPolicy policy = accommodation.getOccupancyPolicy();
-        Member host = accommodation.getMember();
-
         // 편의 시설
-        List<AccommodationResponse.AmenityInfo> amenities = getAmenities(accommodationId);
+        List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
 
         // 이미지
-        List<String> imageUrls = getImageUrls(accommodation.getAccommodationUid());
+        List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodation.getAccommodationUid());
 
         // 리뷰
         ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
@@ -162,44 +161,8 @@ public class AccommodationService {
         // 위시리스트 포함 여부 - 로그인 사용자만
         Boolean isInWishlist = checkWishlistStatus(accommodationId);
 
-        return AccommodationResponse.DetailInfo.builder()
-            .id(accommodation.getId())
-            .name(accommodation.getName())
-            .description(accommodation.getDescription())
-            .type(accommodation.getType())
-            .basePrice(accommodation.getBasePrice())
-            .currency(accommodation.getCurrency())
-            .checkInTime(accommodation.getCheckInTime())
-            .checkOutTime(accommodation.getCheckOutTime())
-            .address(AccommodationResponse.AddressInfo.builder()
-                .country(address.getCountry())
-                .city(address.getCity())
-                .district(address.getDistrict())
-                .street(address.getStreet())
-                .detail(address.getDetail())
-                .postalCode(address.getPostalCode())
-                .fullAddress(address.buildFullAddress())
-                .build())
-            .coordinate(AccommodationResponse.Coordinate.builder()
-                .latitude(address.getLatitude())
-                .longitude(address.getLongitude())
-                .build())
-            .host(AccommodationResponse.HostInfo.builder()
-                .id(host.getId())
-                .nickname(host.getNickname())
-                .profileImageUrl(host.getThumbnailImageUrl())
-                .build())
-            .policyInfo(AccommodationResponse.PolicyInfo.builder()
-                .maxOccupancy(policy.getMaxOccupancy())
-                .infantOccupancy(policy.getInfantOccupancy())
-                .petOccupancy(policy.getPetOccupancy())
-                .build())
-            .amenities(amenities)
-            .imageUrls(imageUrls)
-            .reviewSummary(reviewSummary)
-            .unavailableDates(unavailableDates)
-            .isInWishlist(isInWishlist)
-            .build();
+        return AccommodationResponse.DetailInfo.from(accommodation, unavailableDates, isInWishlist, amenityInfos,
+            imageInfos, reviewSummary);
     }
 
     @Transactional(readOnly = true)
@@ -218,34 +181,15 @@ public class AccommodationService {
                 Collections.emptyList(), false, acc -> 0L, acc -> null
             );
             return AccommodationResponse.HostAccommodationInfos.builder()
-                .accommodations(Collections.emptyList())
+                .accommodationInfos(Collections.emptyList())
                 .pageInfo(pageInfo)
                 .build();
         }
 
-        List<AccommodationResponse.HostAccommodationInfo> accommodationInfos = accommodations.stream()
-            .map(acc -> {
-                Address address = acc.getAddress();
-
-                String location = null;
-                if (address != null) {
-                    String city = (address.getCity() != null ? address.getCity() : "");
-                    String district = (address.getDistrict() != null ? " " + address.getDistrict() : "");
-
-                    location = (city + district).trim();
-                }
-
-                return AccommodationResponse.HostAccommodationInfo.builder()
-                    .id(acc.getId())
-                    .name(acc.getName())
-                    .thumbnailUrl(acc.getThumbnailUrl())
-                    .status(acc.getStatus())
-                    .type(acc.getType())
-                    .location(location)
-                    .createdAt(acc.getCreatedAt())
-                    .build();
-
-            }).toList();
+        List<AccommodationResponse.HostAccommodationInfo> accommodationInfos =
+            accommodations.stream()
+                .map(AccommodationResponse.HostAccommodationInfo::from)
+                .toList();
 
         CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
             accommodations,
@@ -254,21 +198,17 @@ public class AccommodationService {
             Accommodation::getCreatedAt
         );
 
-        return AccommodationResponse.HostAccommodationInfos.builder()
-            .accommodations(accommodationInfos)
-            .pageInfo(pageInfo)
-            .build();
-
+        return AccommodationResponse.HostAccommodationInfos.from(accommodationInfos, pageInfo);
     }
 
     @Transactional
-    public AccommodationResponse.UploadImages uploadImages(Long accommodationId, List<MultipartFile> images,
+    public ImageResponse.ImageInfos uploadImages(Long accommodationId, List<MultipartFile> images,
         Long memberId) {
 
         // todo: 숙소 + 호스트 조회 -> 호스트인지 여부 검증으로 변경 필요
         Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
-        List<AccommodationResponse.ImageInfo> uploadedImages = new ArrayList<>();
+        List<ImageResponse.ImageInfo> imageInfos = new ArrayList<>();
         List<AccommodationImage> savedImages = new ArrayList<>();
 
         for (MultipartFile image : images) {
@@ -276,7 +216,7 @@ public class AccommodationService {
 
             String imageUrl;
             try {
-                String dirName = "accommodations/" + accommodationId;
+                String dirName = "accommodationInfos/" + accommodationId;
                 imageUrl = s3ImageUploader.upload(image, dirName);
             } catch (IOException e) {
                 log.error("이미지 업로드 실패: accommodationId={}, fileName={}", accommodation.getId(),
@@ -294,7 +234,7 @@ public class AccommodationService {
         List<AccommodationImage> actuallySavedImages = accommodationImageRepository.saveAll(savedImages);
 
         for (AccommodationImage savedImage : actuallySavedImages) {
-            uploadedImages.add(AccommodationResponse.ImageInfo.builder()
+            imageInfos.add(ImageResponse.ImageInfo.builder()
                 .id(savedImage.getId())
                 .imageUrl(savedImage.getImageUrl())
                 .build());
@@ -302,9 +242,7 @@ public class AccommodationService {
 
         findAndUpdateThumbnail(accommodation);
 
-        return AccommodationResponse.UploadImages.builder()
-            .uploadedImages(uploadedImages)
-            .build();
+        return ImageResponse.ImageInfos.from(imageInfos);
     }
 
     //todo: query 2번
@@ -331,65 +269,20 @@ public class AccommodationService {
     }
 
     @Transactional(readOnly = true)
-    public AccommodationResponse.HostDetailInfo findHostAccommodationDetail(Long accommodationId, Long hostId) {
+    public AccommodationResponse.HostDetail findHostAccommodationDetail(Long accommodationId, Long hostId) {
         Accommodation accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
             .orElseThrow(AccommodationNotFoundException::new);
 
-        Address address = accommodation.getAddress();
-        OccupancyPolicy policy = accommodation.getOccupancyPolicy();
-        Member host = accommodation.getMember();
-
-        AccommodationResponse.AddressInfo addressInfo = (address != null) ?
-            AccommodationResponse.AddressInfo.builder()
-                .country(address.getCountry())
-                .city(address.getCity())
-                .district(address.getDistrict())
-                .street(address.getStreet())
-                .detail(address.getDetail())
-                .postalCode(address.getPostalCode())
-                .fullAddress(address.buildFullAddress())
-                .build() :
-            AccommodationResponse.AddressInfo.builder().build();
-
-        AccommodationResponse.PolicyInfo policyInfo = (policy != null) ?
-            AccommodationResponse.PolicyInfo.builder()
-                .maxOccupancy(policy.getMaxOccupancy())
-                .infantOccupancy(policy.getInfantOccupancy())
-                .petOccupancy(policy.getPetOccupancy())
-                .build() :
-            AccommodationResponse.PolicyInfo.builder().build();
-
-        List<AccommodationResponse.AmenityInfo> amenities = getAmenities(accommodationId);
-        List<String> imageUrls = getImageUrls(accommodation.getAccommodationUid());
+        List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
+        List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodation.getAccommodationUid());
         ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
-        List<LocalDate> unavailableDates = getUnavailableDates(accommodation.getAccommodationUid());
 
-        return AccommodationResponse.HostDetailInfo.builder()
-            .id(accommodation.getId())
-            .name(accommodation.getName())
-            .description(accommodation.getDescription())
-            .type(accommodation.getType())
-            .basePrice(accommodation.getBasePrice())
-            .currency(accommodation.getCurrency())
-            .checkInTime(accommodation.getCheckInTime())
-            .checkOutTime(accommodation.getCheckOutTime())
-            .address(addressInfo)
-            .coordinate(AccommodationResponse.Coordinate.builder()
-                .latitude(address != null ? address.getLatitude() : null)
-                .longitude(address != null ? address.getLongitude() : null)
-                .build())
-            .host(AccommodationResponse.HostInfo.builder()
-                .id(host.getId())
-                .nickname(host.getNickname())
-                .profileImageUrl(host.getThumbnailImageUrl())
-                .build())
-            .policyInfo(policyInfo)
-            .amenities(amenities)
-            .imageUrls(imageUrls)
-            .reviewSummary(reviewSummary)
-            .unavailableDates(unavailableDates)
-            .isInWishlist(null)
-            .build();
+        return AccommodationResponse.HostDetail.from(
+            accommodation,
+            amenityInfos,
+            imageInfos,
+            reviewSummary
+        );
     }
 
     @Transactional
@@ -489,20 +382,18 @@ public class AccommodationService {
         }
     }
 
-    private List<AccommodationResponse.AmenityInfo> getAmenities(Long accommodationId) {
+    private List<AmenityResponse.AmenityInfo> getAmenities(Long accommodationId) {
         return accommodationAmenityRepository.findAllByAccommodationId(accommodationId)
             .stream()
-            .map(aa -> AccommodationResponse.AmenityInfo.builder()
-                .type(aa.getAmenity().getName())
-                .count(aa.getCount())
-                .build())
+            .map(AmenityResponse.AmenityInfo::from)
             .toList();
     }
 
-    private List<String> getImageUrls(UUID accommodationUid) {
-        return accommodationImageRepository.findByAccommodation_AccommodationUidOrderByIdAsc(accommodationUid)
+    private List<ImageResponse.ImageInfo> getImageUrls(UUID accommodationUid) {
+     return accommodationImageRepository.findByAccommodation_AccommodationUidOrderByIdAsc(
+                accommodationUid)
             .stream()
-            .map(AccommodationImage::getImageUrl)
+            .map(ImageResponse.ImageInfo::from)
             .toList();
     }
 
@@ -539,7 +430,7 @@ public class AccommodationService {
     }
 
 
-    private void saveValidAmenities(List<AmenityInfo> request, Accommodation savedAccommodation) {
+    private void saveValidAmenities(List<AmenityRequest.AmenityInfo> request, Accommodation savedAccommodation) {
         Map<AmenityType, Integer> amenityCountMap = getAmenityCountMap(request);
 
         if(amenityCountMap.isEmpty()) return;
@@ -563,7 +454,7 @@ public class AccommodationService {
         accommodationAmenityRepository.saveAll(accommodationAmenityList);
     }
 
-    private Map<AmenityType, Integer> getAmenityCountMap(List<AmenityInfo> request) {
+    private Map<AmenityType, Integer> getAmenityCountMap(List<AmenityRequest.AmenityInfo> request) {
         return request.stream()
             .filter(info -> AmenityType.isValid(info.name()))
             .filter(info -> info.count() > 0)
@@ -576,7 +467,7 @@ public class AccommodationService {
             ));
     }
 
-    private void updateOccupancyPolicy(Accommodation accommodation, AccommodationRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
+    private void updateOccupancyPolicy(Accommodation accommodation, PolicyRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
         if (occupancyPolicyInfo == null) {
             return;
         }
@@ -589,7 +480,7 @@ public class AccommodationService {
         }
     }
 
-    private void updateAddress(Accommodation accommodation, AccommodationRequest.AddressInfo addressInfo) {
+    private void updateAddress(Accommodation accommodation, AddressRequest.AddressInfo addressInfo) {
         if (addressInfo == null) {
             return;
         }
@@ -605,7 +496,7 @@ public class AccommodationService {
         }
     }
 
-    private void updateAmenities(Accommodation accommodation, List<AmenityInfo> amenityInfos) {
+    private void updateAmenities(Accommodation accommodation, List<AmenityRequest.AmenityInfo> amenityInfos) {
         if (amenityInfos == null) {
             return;
         }

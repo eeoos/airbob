@@ -23,6 +23,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.ReviewImage;
 import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
 import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
@@ -147,18 +148,18 @@ public class ReviewService {
 
 			List<ReviewImage> images = reviewImageRepository.findAllByReview_IdIn(reviewIds);
 
-			Map<Long, List<ReviewResponse.ImageInfo>> imagesByReviewId = images.stream()
+			Map<Long, List<ImageResponse.ImageInfo>> imagesByReviewId = images.stream()
 				.collect(Collectors.groupingBy(
 					reviewImage -> reviewImage.getReview().getId(),
 					Collectors.mapping(
-						img -> new ReviewResponse.ImageInfo(img.getId(), img.getImageUrl()),
+						ImageResponse.ImageInfo::from,
 						Collectors.toList()
 					)
 				));
 
 			reviewInfos = reviewInfos.stream()
 				.map(reviewInfo -> {
-					List<ReviewResponse.ImageInfo> imageList = imagesByReviewId.get(reviewInfo.id());
+					List<ImageResponse.ImageInfo> imageList = imagesByReviewId.get(reviewInfo.id());
 					if (imageList == null) {
 						return reviewInfo;
 					}
@@ -196,12 +197,12 @@ public class ReviewService {
 	}
 
 	@Transactional
-	public ReviewResponse.UploadReviewImages uploadReviewImages(Long reviewId, List<MultipartFile> images,
+	public ImageResponse.ImageInfos uploadReviewImages(Long reviewId, List<MultipartFile> images,
 		Long memberId) {
 
 		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
 
-		List<ReviewResponse.ImageInfo> uploadedImages = new ArrayList<>();
+		List<ImageResponse.ImageInfo> imageInfos = new ArrayList<>();
 		List<ReviewImage> savedImages = new ArrayList<>();
 
 		for (MultipartFile image : images) {
@@ -227,15 +228,10 @@ public class ReviewService {
 		List<ReviewImage> actuallySavedImages = reviewImageRepository.saveAll(savedImages);
 
 		for (ReviewImage savedImage : actuallySavedImages) {
-			uploadedImages.add(ReviewResponse.ImageInfo.builder()
-				.id(savedImage.getId())
-				.imageUrl(savedImage.getImageUrl())
-				.build());
+			imageInfos.add(ImageResponse.ImageInfo.from(savedImage));
 		}
 
-		return ReviewResponse.UploadReviewImages.builder()
-			.uploadedImages(uploadedImages)
-			.build();
+		return ImageResponse.ImageInfos.from(imageInfos);
 	}
 
 	@Transactional

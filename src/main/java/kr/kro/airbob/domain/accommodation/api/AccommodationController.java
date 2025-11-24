@@ -24,6 +24,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,12 +78,12 @@ public class AccommodationController {
     }
 
     @PostMapping("/v1/accommodations/{accommodationId}/images")
-    public ResponseEntity<ApiResponse<AccommodationResponse.UploadImages>> uploadAccommodationImages(
+    public ResponseEntity<ApiResponse<ImageResponse.ImageInfos>> uploadAccommodationImages(
         @PathVariable Long accommodationId,
         @RequestParam("images") List<MultipartFile> images) {
 
         Long memberId = UserContext.get().id();
-        AccommodationResponse.UploadImages response = accommodationService.uploadImages(accommodationId, images,
+        ImageResponse.ImageInfos response = accommodationService.uploadImages(accommodationId, images,
             memberId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
@@ -117,11 +118,11 @@ public class AccommodationController {
     }
 
     @GetMapping("/v1/profile/host/accommodations/{accommodationId}")
-    public ResponseEntity<ApiResponse<AccommodationResponse.HostDetailInfo>> getHostAccommodationDetail(
+    public ResponseEntity<ApiResponse<AccommodationResponse.HostDetail>> getHostAccommodationDetail(
         @PathVariable Long accommodationId) {
 
         Long hostId = UserContext.get().id();
-        AccommodationResponse.HostDetailInfo response = accommodationService.findHostAccommodationDetail(accommodationId, hostId);
+        AccommodationResponse.HostDetail response = accommodationService.findHostAccommodationDetail(accommodationId, hostId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

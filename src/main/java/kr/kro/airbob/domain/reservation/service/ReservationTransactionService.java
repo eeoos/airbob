@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.data.domain.PageRequest;
@@ -15,11 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
@@ -246,7 +247,7 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional(readOnly = true)
-	public ReservationResponse.MyReservationInfos findMyReservations(Long memberId,
+	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId,
 		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 
 		Slice<Reservation> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
@@ -257,8 +258,8 @@ public class ReservationTransactionService {
 			PageRequest.of(0, cursorRequest.size())
 		);
 
-		List<ReservationResponse.MyReservationInfo> reservationInfos = reservationSlice.getContent().stream()
-			.map(ReservationResponse.MyReservationInfo::from)
+		List<ReservationResponse.GuestReservationInfo> reservationInfos = reservationSlice.getContent().stream()
+			.map(ReservationResponse.GuestReservationInfo::from)
 			.collect(Collectors.toList());
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
@@ -268,87 +269,24 @@ public class ReservationTransactionService {
 			Reservation::getCreatedAt
 		);
 
-		return ReservationResponse.MyReservationInfos.builder()
-			.reservations(reservationInfos)
-			.pageInfo(pageInfo)
-			.build();
+		return ReservationResponse.GuestReservationInfos.from(reservationInfos, pageInfo);
 	}
 
 	@Transactional(readOnly = true)
-	public ReservationResponse.DetailInfo findMyReservationDetail(String reservationUidStr, Long memberId) {
+	public ReservationResponse.GuestDetail findMyReservationDetail(String reservationUidStr, Long memberId) {
 		UUID reservationUid = UUID.fromString(reservationUidStr);
 
 		Reservation reservation = reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId)
 			.orElseThrow(ReservationNotFoundException::new);
 
 		Payment payment = findPaymentByReservationUidNullable(reservationUid);
-		PaymentResponse.PaymentInfo paymentInfo = null;
+		PaymentResponse.PaymentInfo paymentInfo = getPaymentInfo(reservationUidStr, payment,
+			reservation);
 
-		if (payment != null) { // 결제 완료된 예약
-			paymentInfo = PaymentResponse.PaymentInfo.from(payment);
-		} else if (reservation.getStatus() == ReservationStatus.PAYMENT_PENDING) { // 결제 대기중인 예약(가상계좌)
-			paymentInfo = paymentAttemptRepository
-				.findByOrderIdOrderByCreatedAtDesc(reservationUidStr)
-				.stream()
-				.filter(pa -> pa.getMethod() == PaymentMethod.VIRTUAL_ACCOUNT)
-				.findFirst()
-				.map(PaymentResponse.PaymentInfo::from)
-				.orElse(null);
-		}
-
-		Accommodation accommodation = reservation.getAccommodation();
-		Address address = accommodation.getAddress();
-		Member host = accommodation.getMember();
-
-		boolean canWriteReview = false;
-		if (reservation.getStatus() == ReservationStatus.CONFIRMED &&
-			reservation.getCheckOut().isBefore(LocalDateTime.now())) {
-
-			// 아직 작성한 리뷰가 없는지 확인
-			canWriteReview = !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
-				accommodation.getId(),
-				memberId,
-				ReviewStatus.PUBLISHED
-			);
-		}
-
-		ReservationResponse.AccommodationAddressInfo addressInfo = ReservationResponse.AccommodationAddressInfo.builder()
-			.country(address.getCountry())
-			.city(address.getCity())
-			.district(address.getDistrict())
-			.street(address.getStreet())
-			.detail(address.getDetail())
-			.postalCode(address.getPostalCode())
-			.fullAddress(address.buildFullAddress())
-			.latitude(address.getLatitude())
-			.longitude(address.getLongitude())
-			.build();
-
-		ReservationResponse.MemberInfo hostInfo = ReservationResponse.MemberInfo.builder()
-			.id(host.getId())
-			.nickname(host.getNickname())
-			.profileImageUrl(host.getThumbnailImageUrl())
-			.build();
+		boolean canWriteReview = isCanWriteReview(memberId, reservation);
 
 		// mapstruct 적용
-		return ReservationResponse.DetailInfo.builder()
-			.reservationUid(reservation.getReservationUid().toString())
-			.reservationCode(reservation.getReservationCode())
-			.status(reservation.getStatus())
-			.createdAt(reservation.getCreatedAt())
-			.guestCount(reservation.getGuestCount())
-			.accommodationId(accommodation.getId())
-			.accommodationName(accommodation.getName())
-			.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
-			.accommodationAddress(addressInfo)
-			.accommodationHost(hostInfo)
-			.checkInDateTime(reservation.getCheckIn())
-			.checkOutDateTime(reservation.getCheckOut())
-			.checkInTime(reservation.getCheckIn().toLocalTime())
-			.checkOutTime(reservation.getCheckOut().toLocalTime())
-			.paymentInfo(paymentInfo)
-			.canWriteReview(canWriteReview)
-			.build();
+		return ReservationResponse.GuestDetail.from(reservation, paymentInfo, canWriteReview);
 	}
 
 	@Transactional(readOnly = true)
@@ -364,30 +302,7 @@ public class ReservationTransactionService {
 		List<Reservation> reservations = reservationSlice.getContent();
 
 		List<ReservationResponse.HostReservationInfo> reservationInfos = reservations.stream()
-			.map(r -> {
-				Accommodation accommodation = r.getAccommodation();
-				Member guest = r.getGuest();
-
-				return ReservationResponse.HostReservationInfo.builder()
-					.reservationUid(r.getReservationUid().toString())
-					.status(r.getStatus())
-					.guestInfo(ReservationResponse.MemberInfo.builder()
-						.id(guest.getId())
-						.nickname(guest.getNickname())
-						.profileImageUrl(guest.getThumbnailImageUrl())
-						.build())
-					.guestCount(r.getGuestCount())
-					.checkInDate(r.getCheckIn().toLocalDate())
-					.checkOutDate(r.getCheckOut().toLocalDate())
-					.createdAt(r.getCreatedAt())
-					.accommodationId(accommodation.getId())
-					.accommodationName(accommodation.getName())
-					// .thumbnailUrl(accommodation.getThumbnailUrl())
-					.reservationCode(r.getReservationCode())
-					.totalPrice(r.getTotalPrice())
-					.currency(r.getCurrency())
-					.build();
-			}).collect(Collectors.toList());
+			.map(ReservationResponse.HostReservationInfo::from).collect(Collectors.toList());
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			reservations,
@@ -396,14 +311,11 @@ public class ReservationTransactionService {
 			Reservation::getCreatedAt
 		);
 
-		return ReservationResponse.HostReservationInfos.builder()
-			.reservations(reservationInfos)
-			.pageInfo(pageInfo)
-			.build();
+		return ReservationResponse.HostReservationInfos.from(reservationInfos, pageInfo);
 	}
 
 	@Transactional(readOnly = true)
-	public ReservationResponse.HostDetailInfo findHostReservationDetail(String reservationUidStr, Long hostId) {
+	public ReservationResponse.HostDetail findHostReservationDetail(String reservationUidStr, Long hostId) {
 
 		UUID reservationUid = UUID.fromString(reservationUidStr);
 
@@ -411,34 +323,42 @@ public class ReservationTransactionService {
 			.orElseThrow(ReservationNotFoundException::new);
 
 		Payment payment = findPaymentByReservationUidNullable(reservationUid);
-
-		Accommodation accommodation = reservation.getAccommodation();
-		Address address = accommodation.getAddress();
-		Member guest = reservation.getGuest();
-
-		ReservationResponse.MemberInfo guestInfo = ReservationResponse.MemberInfo.builder()
-			.id(guest.getId())
-			.nickname(guest.getNickname())
-			.profileImageUrl(guest.getThumbnailImageUrl())
-			.build();
-
 		PaymentResponse.PaymentInfo paymentInfo = (payment != null) ? PaymentResponse.PaymentInfo.from(payment) : null;
 
-		return ReservationResponse.HostDetailInfo.builder()
-			.reservationUid(reservation.getReservationUid().toString())
-			.reservationCode(reservation.getReservationCode())
-			.status(reservation.getStatus())
-			.createdAt(reservation.getCreatedAt())
-			.guestCount(reservation.getGuestCount())
-			.checkInDateTime(reservation.getCheckIn())
-			.checkOutDateTime(reservation.getCheckOut())
-			.accommodationId(accommodation.getId())
-			.accommodationName(accommodation.getName())
-			.accommodationThumbnailUrl(accommodation.getThumbnailUrl())
-			.accommodationAddress(address.buildFullAddress())
-			.guestInfo(guestInfo)
-			.paymentInfo(paymentInfo)
-			.build();
+		return ReservationResponse.HostDetail.from(reservation, paymentInfo);
+	}
+
+	private PaymentResponse.PaymentInfo getPaymentInfo(String reservationUidStr, Payment payment,
+		Reservation reservation) {
+		PaymentResponse.PaymentInfo paymentInfo = null;
+
+		if (payment != null) { // 결제 완료된 예약
+			paymentInfo = PaymentResponse.PaymentInfo.from(payment);
+		} else if (reservation.getStatus() == ReservationStatus.PAYMENT_PENDING) { // 결제 대기중인 예약(가상계좌)
+			paymentInfo = paymentAttemptRepository
+				.findByOrderIdOrderByCreatedAtDesc(reservationUidStr)
+				.stream()
+				.filter(pa -> pa.getMethod() == PaymentMethod.VIRTUAL_ACCOUNT)
+				.findFirst()
+				.map(PaymentResponse.PaymentInfo::from)
+				.orElse(null);
+		}
+		return paymentInfo;
+	}
+
+	private boolean isCanWriteReview(Long memberId, Reservation reservation) {
+		boolean canWriteReview = false;
+		if (reservation.getStatus() == ReservationStatus.CONFIRMED &&
+			reservation.getCheckOut().isBefore(LocalDateTime.now())) {
+
+			// 아직 작성한 리뷰가 없는지 확인
+			canWriteReview = !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
+				reservation.getAccommodation().getId(),
+				memberId,
+				ReviewStatus.PUBLISHED
+			);
+		}
+		return canWriteReview;
 	}
 
 	private String createReservationCode() {
