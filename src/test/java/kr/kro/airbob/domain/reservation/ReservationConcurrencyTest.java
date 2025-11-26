@@ -116,7 +116,7 @@ class ReservationConcurrencyTest {
 
 		accommodation = accommodationRepository.save(Accommodation.builder()
 			.name("Test Accommodation")
-			.basePrice(100000)
+			.basePrice(100000L)
 			.address(address)
 			.occupancyPolicy(policy)
 			.member(host)

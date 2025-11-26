@@ -51,7 +51,7 @@ public class ReservationResponse {
 		// Integer totalPrice,
 		LocalDateTime createdAt,
 
-		AccommodationResponse.AccommodationBasicInfo accommodationInfo
+		AccommodationResponse.AccommodationBasicInfo accommodation
 	){
 		public static GuestReservationInfo from(Reservation reservation) {
 
@@ -62,7 +62,7 @@ public class ReservationResponse {
 				.checkOutDate(reservation.getCheckOut().toLocalDate())
 				// .totalPrice(reservation.getTotalPrice())
 				.createdAt(reservation.getCreatedAt())
-				.accommodationInfo(
+				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
 				.build();
 		}
@@ -70,14 +70,14 @@ public class ReservationResponse {
 
 	@Builder
 	public record GuestReservationInfos(
-		List<GuestReservationInfo> reservationInfos,
+		List<GuestReservationInfo> reservations,
 		CursorResponse.PageInfo pageInfo
 	) {
 		public static GuestReservationInfos from(
 			List<GuestReservationInfo> reservationInfos,
 			CursorResponse.PageInfo pageInfo) {
 			return GuestReservationInfos.builder()
-				.reservationInfos(reservationInfos)
+				.reservations(reservationInfos)
 				.pageInfo(pageInfo)
 				.build();
 		}
@@ -95,12 +95,12 @@ public class ReservationResponse {
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 		Boolean canWriteReview,
-		AccommodationResponse.AccommodationBasicInfo accommodationInfo,
-		AddressResponse.AddressInfo addressInfo,
+		AccommodationResponse.AccommodationBasicInfo accommodation,
+		AddressResponse.AddressInfo address,
 		AddressResponse.Coordinate coordinate,
-		MemberResponse.MemberInfo hostInfo,
+		MemberResponse.MemberInfo host,
 
-		PaymentResponse.PaymentInfo paymentInfo
+		PaymentResponse.PaymentInfo payment
 	) {
 		public static GuestDetail from(Reservation reservation,
 			PaymentResponse.PaymentInfo paymentInfo,
@@ -120,11 +120,11 @@ public class ReservationResponse {
 				.checkInTime(reservation.getCheckIn().toLocalTime())
 				.checkOutTime(reservation.getCheckOut().toLocalTime())
 				.canWriteReview(canWriteReview)
-				.accommodationInfo(AccommodationResponse.AccommodationBasicInfo.from(accommodation))
-				.addressInfo(AddressResponse.AddressInfo.from(address))
+				.accommodation(AccommodationResponse.AccommodationBasicInfo.from(accommodation))
+				.address(AddressResponse.AddressInfo.from(address))
 				.coordinate(AddressResponse.Coordinate.from(address))
-				.hostInfo(MemberResponse.MemberInfo.from(host))
-				.paymentInfo(paymentInfo)
+				.host(MemberResponse.MemberInfo.from(host))
+				.payment(paymentInfo)
 				.build();
 		}
 	}
@@ -142,8 +142,8 @@ public class ReservationResponse {
 		ReservationStatus status,
 		LocalDateTime createdAt,
 
-		MemberResponse.MemberInfo guestInfo,
-		AccommodationResponse.AccommodationBasicInfo accommodationInfo
+		MemberResponse.MemberInfo guest,
+		AccommodationResponse.AccommodationBasicInfo accommodation
 	){
 		public static HostReservationInfo from(Reservation reservation) {
 			return HostReservationInfo.builder()
@@ -156,8 +156,8 @@ public class ReservationResponse {
 				.checkOutDate(reservation.getCheckOut().toLocalDate())
 				.status(reservation.getStatus())
 				.createdAt(reservation.getCreatedAt())
-				.guestInfo(MemberResponse.MemberInfo.from(reservation.getGuest()))
-				.accommodationInfo(
+				.guest(MemberResponse.MemberInfo.from(reservation.getGuest()))
+				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
 				.build();
 		}
@@ -165,7 +165,7 @@ public class ReservationResponse {
 
 	@Builder
 	public record HostReservationInfos(
-		List<HostReservationInfo> reservationInfos,
+		List<HostReservationInfo> reservations,
 		CursorResponse.PageInfo pageInfo
 	) {
 		public static HostReservationInfos from(
@@ -173,7 +173,7 @@ public class ReservationResponse {
 			CursorResponse.PageInfo pageInfo) {
 
 			return HostReservationInfos.builder()
-				.reservationInfos(reservationInfos)
+				.reservations(reservationInfos)
 				.pageInfo(pageInfo)
 				.build();
 		}
@@ -189,12 +189,12 @@ public class ReservationResponse {
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
 
-		AccommodationResponse.AccommodationBasicInfo accommodationInfo,
-		AddressResponse.AddressInfo addressInfo,
+		AccommodationResponse.AccommodationBasicInfo accommodation,
+		AddressResponse.AddressInfo address,
 
-		MemberResponse.MemberInfo guestInfo,
+		MemberResponse.MemberInfo guest,
 
-		PaymentResponse.PaymentInfo paymentInfo
+		PaymentResponse.PaymentInfo payment
 	) {
 		public static HostDetail from(Reservation reservation, PaymentResponse.PaymentInfo paymentInfo) {
 			Accommodation accommodation = reservation.getAccommodation();
@@ -207,11 +207,11 @@ public class ReservationResponse {
 				.guestCount(reservation.getGuestCount())
 				.checkInDateTime(reservation.getCheckIn())
 				.checkOutDateTime(reservation.getCheckOut())
-				.accommodationInfo(
+				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(accommodation))
-				.addressInfo(AddressResponse.AddressInfo.from(address))
-				.guestInfo(MemberResponse.MemberInfo.from(reservation.getGuest()))
-				.paymentInfo(paymentInfo)
+				.address(AddressResponse.AddressInfo.from(address))
+				.guest(MemberResponse.MemberInfo.from(reservation.getGuest()))
+				.payment(paymentInfo)
 				.build();
 		}
 	}

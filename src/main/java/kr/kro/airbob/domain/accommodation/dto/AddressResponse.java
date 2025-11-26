@@ -52,7 +52,7 @@ public class AddressResponse {
 		public static AddressSummaryInfo from(AccommodationDocument document) {
 			return AddressSummaryInfo.builder()
 				.country(document.country())
-				.state(document.status())
+				.state(document.state())
 				.city(document.city())
 				.district(document.district())
 				.build();

@@ -27,9 +27,7 @@ public class ReservationRequest {
 
 		@NotNull
 		@Positive
-		Integer guestCount,
-
-		String message
+		Integer guestCount
 		) {
 	}
 }

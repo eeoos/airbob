@@ -19,7 +19,7 @@ public enum ErrorCode {
 	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
 	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
-
+	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
 	// auth & member
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "존재하지 않거나 활성 상태가 아닌 사용자입니다."),
 	EMAIL_DUPLICATION(HttpStatus.CONFLICT, "M002", "이미 존재하는 이메일입니다."),

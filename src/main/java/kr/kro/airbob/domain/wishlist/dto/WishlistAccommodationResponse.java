@@ -38,8 +38,8 @@ public class WishlistAccommodationResponse {
 		long wishlistAccommodationId,
 		String memo,
 		LocalDateTime createdAt,
-		AccommodationResponse.AccommodationBasicInfo accommodationInfo,
-		AddressResponse.AddressSummaryInfo addressInfo,
+		AccommodationResponse.AccommodationBasicInfo accommodation,
+		AddressResponse.AddressSummaryInfo addressSummary,
 		ReviewResponse.ReviewSummary reviewSummary,
 		Boolean isInWishlist
 	) {

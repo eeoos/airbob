@@ -78,12 +78,12 @@ public class AccommodationController {
     }
 
     @PostMapping("/v1/accommodations/{accommodationId}/images")
-    public ResponseEntity<ApiResponse<ImageResponse.ImageInfos>> uploadAccommodationImages(
+    public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadAccommodationImages(
         @PathVariable Long accommodationId,
         @RequestParam("images") List<MultipartFile> images) {
 
         Long memberId = UserContext.get().id();
-        ImageResponse.ImageInfos response = accommodationService.uploadImages(accommodationId, images,
+        ImageResponse.ImageUploadResult response = accommodationService.uploadImages(accommodationId, images,
             memberId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));

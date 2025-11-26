@@ -24,15 +24,4 @@ public class AmenityResponse {
 		}
 
 	}
-
-	@Builder
-	public record AmenityInfos(
-		List<AmenityInfo> amenityInfos
-	) {
-		public static AmenityInfos from(List<AmenityInfo> amenityInfos) {
-			return AmenityInfos.builder()
-				.amenityInfos(amenityInfos)
-				.build();
-		}
-	}
 }

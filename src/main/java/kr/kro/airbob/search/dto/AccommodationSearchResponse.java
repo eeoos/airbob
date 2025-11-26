@@ -20,9 +20,9 @@ public class AccommodationSearchResponse {
 		String accommodationThumbnailUrl,
 		Long basePrice,
 		String currency,
-		AddressResponse.AddressSummaryInfo addressInfo,
+		AddressResponse.AddressSummaryInfo addressSummary,
 		AddressResponse.Coordinate coordinate,
-		ReviewResponse.ReviewSummary review,
+		ReviewResponse.ReviewSummary reviewSummary,
 		// String hostName, // todo: 넣을지 여부 결정 필요
 		Boolean isInWishlist
 	){
@@ -35,12 +35,12 @@ public class AccommodationSearchResponse {
 				.accommodationThumbnailUrl(doc.thumbnailUrl())
 				.basePrice(doc.basePrice())
 				.currency(doc.currency())
-				.addressInfo(AddressResponse.AddressSummaryInfo.from(doc))
+				.addressSummary(AddressResponse.AddressSummaryInfo.from(doc))
 				.coordinate(AddressResponse.Coordinate.builder()
 					.latitude(location != null ? location.lat() : null)
 					.longitude(location != null ? location.lon() : null)
 					.build())
-				.review(ReviewResponse.ReviewSummary.builder()
+				.reviewSummary(ReviewResponse.ReviewSummary.builder()
 					.averageRating(new BigDecimal(String.valueOf(doc.averageRating())))
 					.totalCount(doc.reviewCount())
 					.build())

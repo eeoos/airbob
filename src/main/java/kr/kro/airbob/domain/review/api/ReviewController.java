@@ -64,12 +64,12 @@ public class ReviewController {
 	}
 
 	@PostMapping("/v1/reviews/{reviewId}/images")
-	public ResponseEntity<ApiResponse<ImageResponse.ImageInfos>> uploadReviewImages(
+	public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadReviewImages(
 		@PathVariable Long reviewId,
 		@RequestParam("images") List<MultipartFile> images) {
 
 		Long memberId = UserContext.get().id();
-		ImageResponse.ImageInfos response = reviewService.uploadReviewImages(reviewId, images,
+		ImageResponse.ImageUploadResult response = reviewService.uploadReviewImages(reviewId, images,
 			memberId);
 
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));

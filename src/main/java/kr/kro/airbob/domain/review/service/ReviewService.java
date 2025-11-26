@@ -197,7 +197,7 @@ public class ReviewService {
 	}
 
 	@Transactional
-	public ImageResponse.ImageInfos uploadReviewImages(Long reviewId, List<MultipartFile> images,
+	public ImageResponse.ImageUploadResult uploadReviewImages(Long reviewId, List<MultipartFile> images,
 		Long memberId) {
 
 		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
@@ -231,7 +231,7 @@ public class ReviewService {
 			imageInfos.add(ImageResponse.ImageInfo.from(savedImage));
 		}
 
-		return ImageResponse.ImageInfos.from(imageInfos);
+		return ImageResponse.ImageUploadResult.from(imageInfos);
 	}
 
 	@Transactional

@@ -181,7 +181,7 @@ public class AccommodationService {
                 Collections.emptyList(), false, acc -> 0L, acc -> null
             );
             return AccommodationResponse.HostAccommodationInfos.builder()
-                .accommodationInfos(Collections.emptyList())
+                .accommodations(Collections.emptyList())
                 .pageInfo(pageInfo)
                 .build();
         }
@@ -202,7 +202,7 @@ public class AccommodationService {
     }
 
     @Transactional
-    public ImageResponse.ImageInfos uploadImages(Long accommodationId, List<MultipartFile> images,
+    public ImageResponse.ImageUploadResult uploadImages(Long accommodationId, List<MultipartFile> images,
         Long memberId) {
 
         // todo: 숙소 + 호스트 조회 -> 호스트인지 여부 검증으로 변경 필요
@@ -242,7 +242,7 @@ public class AccommodationService {
 
         findAndUpdateThumbnail(accommodation);
 
-        return ImageResponse.ImageInfos.from(imageInfos);
+        return ImageResponse.ImageUploadResult.from(imageInfos);
     }
 
     //todo: query 2번
@@ -324,9 +324,13 @@ public class AccommodationService {
         }
 
         Address address = accommodation.getAddress();
-        if (address == null || address.getCountry() == null || address.getCity() == null
-            || address.getDistrict() == null || address.getStreet() == null || address.getDetail() == null
-            || address.getPostalCode() == null || address.getLatitude() == null || address.getLongitude() == null) {
+        if (address == null
+            || address.getCountry() == null
+            || address.getCity() == null
+            || address.getStreet() == null
+            || address.getPostalCode() == null
+            || address.getLatitude() == null
+            || address.getLongitude() == null) {
 
             throw new PublishingFieldRequiredException("addressInfo", "주소 정보(세부 항목 포함)가 누락되었습니다.");
         }

@@ -6,6 +6,7 @@ import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.common.dto.ErrorResponse;
@@ -45,6 +46,21 @@ public class GlobalExceptionHandler {
 
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_TYPE_VALUE);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_TYPE_VALUE.getStatus());
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<ApiResponse<?>> handleNoResourceFoundException(NoResourceFoundException e) {
+		log.warn("No Resource Found: {}", e.getResourcePath());
+
+		// ErrorCode에 NOT_FOUND(404) 관련 코드가 없다면 만들어야 한다.
+		// 임시로 ErrorResponse를 직접 만들거나, ErrorCode.NOT_FOUND_RESOURCE 등을 정의해서 써라.
+		// 여기선 네가 가진 ErrorCode 구조를 존중해 예시를 든다.
+
+		// 만약 ErrorCode에 'RESOURCE_NOT_FOUND' 같은 게 없다면 ErrorCode.INVALID_INPUT_VALUE 등을 쓰되 상태만 404로 보내라.
+		// 하지만 정석은 ErrorCode.RESOURCE_NOT_FOUND(404, "R000", "리소스를 찾을 수 없습니다.")를 추가하는 것이다.
+		final ErrorResponse response = ErrorResponse.of(ErrorCode.RESOURCE_NOT_FOUND);
+
+		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.RESOURCE_NOT_FOUND.getStatus());
 	}
 
 	@ExceptionHandler(MissingRequestCookieException.class)

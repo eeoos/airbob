@@ -46,14 +46,14 @@ public class ReservationController {
 	}
 
 	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.GuestDetail>> getMyReservationDetail(@PathVariable String reservationUid) {
+	public ResponseEntity<ApiResponse<ReservationResponse.GuestDetail>> getGuestReservationDetail(@PathVariable String reservationUid) {
 		Long memberId = UserContext.get().id();
 		ReservationResponse.GuestDetail response = reservationService.findMyReservationDetail(reservationUid, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@GetMapping("/v1/profile/guest/reservations")
-	public ResponseEntity<ApiResponse<ReservationResponse.GuestReservationInfos>> getMyReservations(
+	public ResponseEntity<ApiResponse<ReservationResponse.GuestReservationInfos>> getGuestReservations(
 		@CursorParam CursorRequest.CursorPageRequest request,
 		@RequestParam(required = false) ReservationFilterType filterType) {
 		Long memberId = UserContext.get().id();

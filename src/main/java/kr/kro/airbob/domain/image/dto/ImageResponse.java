@@ -24,11 +24,11 @@ public class ImageResponse {
 	}
 
 	@Builder
-	public record ImageInfos(
+	public record ImageUploadResult(
 		List<ImageInfo> uploadedImages
 	) {
-		public static ImageInfos from(List<ImageInfo> imageInfos) {
-			return ImageInfos.builder()
+		public static ImageUploadResult from(List<ImageInfo> imageInfos) {
+			return ImageUploadResult.builder()
 				.uploadedImages(imageInfos)
 				.build();
 		}

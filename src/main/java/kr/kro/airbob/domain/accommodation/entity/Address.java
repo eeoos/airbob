@@ -63,16 +63,4 @@ public class Address extends BaseEntity {
 			!Objects.equals(this.detail, newAddressInfo.detail()) ||
 			!Objects.equals(this.postalCode, newAddressInfo.postalCode());
 	}
-
-	public String buildFullAddress() {
-		return Stream.of(this.getCountry(), this.getState(), this.getCity(), this.getDistrict(), this.getStreet(), this.getDetail())
-			.filter(s -> s != null && !s.isBlank())
-			.collect(Collectors.joining(" "));
-	}
-
-	public String buildAddressSummary() {
-		return Stream.of(this.getDistrict(), this.getStreet(), this.getDetail())
-			.filter(s -> s != null && !s.isBlank())
-			.collect(Collectors.joining(" "));
-	}
 }

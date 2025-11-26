@@ -32,7 +32,7 @@ public class AccommodationResponse {
 		String thumbnailUrl,
 		AccommodationStatus status,
 		AccommodationType type,
-		AddressResponse.AddressSummaryInfo addressInfo,
+		AddressResponse.AddressSummaryInfo addressSummary,
 		// Integer basePrice,
 		// ReviewResponse.ReviewSummary reviewSummary,
 		LocalDateTime createdAt
@@ -45,7 +45,7 @@ public class AccommodationResponse {
 				.thumbnailUrl(accommodation.getThumbnailUrl())
 				.status(accommodation.getStatus())
 				.type(accommodation.getType())
-				.addressInfo(AddressResponse.AddressSummaryInfo.from(address))
+				.addressSummary(AddressResponse.AddressSummaryInfo.from(address))
 				.createdAt(accommodation.getCreatedAt())
 				.build();
 		}
@@ -53,12 +53,12 @@ public class AccommodationResponse {
 
 	@Builder
 	public record HostAccommodationInfos(
-		List<HostAccommodationInfo> accommodationInfos,
+		List<HostAccommodationInfo> accommodations,
 		CursorResponse.PageInfo pageInfo
 	) {
-		public static HostAccommodationInfos from(List<HostAccommodationInfo> accommodationInfos, CursorResponse.PageInfo pageInfo) {
+		public static HostAccommodationInfos from(List<HostAccommodationInfo> accommodations, CursorResponse.PageInfo pageInfo) {
 			return HostAccommodationInfos.builder()
-				.accommodationInfos(accommodationInfos)
+				.accommodations(accommodations)
 				.pageInfo(pageInfo)
 				.build();
 		}
@@ -77,16 +77,16 @@ public class AccommodationResponse {
 
 		List<LocalDate> unavailableDates,
 		Boolean isInWishlist,
-		AddressResponse.AddressSummaryInfo addressInfo,
+		AddressResponse.AddressSummaryInfo addressSummary,
 		AddressResponse.Coordinate coordinate,
 
-		MemberResponse.MemberInfo hostInfo,
+		MemberResponse.MemberInfo host,
 
-		PolicyResponse.PolicyInfo policyInfo,
+		PolicyResponse.PolicyInfo policy,
 
-		AmenityResponse.AmenityInfos amenityInfos,
+		List<AmenityResponse.AmenityInfo> amenities,
 
-		ImageResponse.ImageInfos imageInfos,
+		List<ImageResponse.ImageInfo> images,
 
 		ReviewResponse.ReviewSummary reviewSummary
 
@@ -109,12 +109,12 @@ public class AccommodationResponse {
 				.checkOutTime(accommodation.getCheckOutTime())
 				.unavailableDates(unavailableDates)
 				.isInWishlist(isInWishlist)
-				.addressInfo(AddressResponse.AddressSummaryInfo.from(address))
+				.addressSummary(AddressResponse.AddressSummaryInfo.from(address))
 				.coordinate(AddressResponse.Coordinate.from(address))
-				.hostInfo(MemberResponse.MemberInfo.from(host))
-				.policyInfo(PolicyResponse.PolicyInfo.from(policy))
-				.amenityInfos(AmenityResponse.AmenityInfos.from(amenityInfos))
-				.imageInfos(ImageResponse.ImageInfos.from(imageInfo))
+				.host(MemberResponse.MemberInfo.from(host))
+				.policy(PolicyResponse.PolicyInfo.from(policy))
+				.amenities(amenityInfos)
+				.images(imageInfo)
 				.reviewSummary(reviewSummary)
 				.build();
 		}
@@ -131,16 +131,16 @@ public class AccommodationResponse {
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 
-		AddressResponse.AddressInfo addressInfo,
+		AddressResponse.AddressInfo address,
 		AddressResponse.Coordinate coordinate,
 
-		MemberResponse.MemberInfo hostInfo,
+		MemberResponse.MemberInfo host,
 
-		PolicyResponse.PolicyInfo policyInfo,
+		PolicyResponse.PolicyInfo policy,
 
-		AmenityResponse.AmenityInfos amenityInfos,
+		List<AmenityResponse.AmenityInfo> amenities,
 
-		ImageResponse.ImageInfos imageInfos,
+		List<ImageResponse.ImageInfo> images,
 
 		ReviewResponse.ReviewSummary reviewSummary
 	) {
@@ -162,12 +162,12 @@ public class AccommodationResponse {
 				.currency(accommodation.getCurrency())
 				.checkInTime(accommodation.getCheckInTime())
 				.checkOutTime(accommodation.getCheckOutTime())
-				.addressInfo(AddressResponse.AddressInfo.from(address))
+				.address(AddressResponse.AddressInfo.from(address))
 				.coordinate(AddressResponse.Coordinate.from(address))
-				.hostInfo(MemberResponse.MemberInfo.from(host))
-				.policyInfo(PolicyResponse.PolicyInfo.from(policy))
-				.amenityInfos(AmenityResponse.AmenityInfos.from(amenityInfos))
-				.imageInfos(ImageResponse.ImageInfos.from(imageInfos))
+				.host(MemberResponse.MemberInfo.from(host))
+				.policy(PolicyResponse.PolicyInfo.from(policy))
+				.amenities(amenityInfos)
+				.images(imageInfos)
 				.reviewSummary(reviewSummary)
 				.build();
 		}
@@ -192,7 +192,7 @@ public class AccommodationResponse {
 		Long accommodationId,
 		String accommodationName,
 		String thumbnailUrl,
-		AddressResponse.AddressSummaryInfo addressInfo,
+		AddressResponse.AddressSummaryInfo addressSummary,
 		ReviewResponse.ReviewSummary reviewSummary,
 		Boolean isInWishlist
 	) {
@@ -203,7 +203,7 @@ public class AccommodationResponse {
 				.accommodationId(accommodation.getId())
 				.accommodationName(accommodation.getName())
 				.thumbnailUrl(accommodation.getThumbnailUrl())
-				.addressInfo(AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()))
+				.addressSummary(AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()))
 				.reviewSummary(reviewSummary)
 				.isInWishlist(isInWishlist)
 				.build();
