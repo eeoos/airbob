@@ -492,7 +492,7 @@ public class AccommodationService {
         Address currentAddress = accommodation.getAddress();
 
         if (currentAddress == null || currentAddress.isChanged(addressInfo)) {
-            String addressStr = geocodingService.buildAddressString(addressInfo);
+            String addressStr = Address.buildAddressStringForGeocoding(addressInfo);
             GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
             Address newAddress = Address.createAddress(addressInfo, geocodeResult);
             Address savedAddress = addressRepository.save(newAddress);

@@ -175,12 +175,12 @@ public class AccommodationResponse {
 
 	@Builder
 	public record RecentlyViewedAccommodationInfos(
-		List<RecentlyViewedAccommodationInfo> accommodationInfos,
+		List<RecentlyViewedAccommodationInfo> accommodations,
 		int totalCount
 	) {
 		public static RecentlyViewedAccommodationInfos from(List<RecentlyViewedAccommodationInfo> accommodationInfos) {
 			return RecentlyViewedAccommodationInfos.builder()
-				.accommodationInfos(accommodationInfos)
+				.accommodations(accommodationInfos)
 				.totalCount(accommodationInfos.size())
 				.build();
 		}

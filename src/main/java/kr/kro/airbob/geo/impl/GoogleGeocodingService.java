@@ -49,7 +49,7 @@ public class GoogleGeocodingService implements GeocodingService {
 			URI baseUri = URI.create(GEOCODING_API_URL);
 
 			String url = UriComponentsBuilder.fromUri(baseUri)
-				.queryParam("addressInfo", address)
+				.queryParam("address", address)
 				.queryParam("key", googleApiKey)
 				.queryParam("language", "ko")
 				.build()

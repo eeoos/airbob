@@ -69,7 +69,7 @@ public class RecentlyViewedService {
 
 		if (recentlyViewedWithScores == null || recentlyViewedWithScores.isEmpty()) {
 			return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
-				.accommodationInfos(new ArrayList<>())
+				.accommodations(new ArrayList<>())
 				.totalCount(0)
 				.build();
 		}
@@ -119,7 +119,6 @@ public class RecentlyViewedService {
 			})
 			.filter(Objects::nonNull)
 			.toList();
-
 		return AccommodationResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedAccommodationInfos);
 	}
 

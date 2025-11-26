@@ -108,7 +108,7 @@ public class Reservation extends UpdatableEntity {
 			// 이후 국제화 도입 필요
 			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
-			.message(request.message())
+			// .message(request.message())
 			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
 			.reservationCode(reservationCode)
 			.build();

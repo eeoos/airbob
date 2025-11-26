@@ -38,7 +38,7 @@ public class AccommodationSearchService {
     private final ElasticsearchClient esClient;
     private final WishlistAccommodationRepository wishlistRepository;
 
-    private static final String INDEX = "accommodationInfos";
+    private static final String INDEX = "accommodations";
 
     public AccommodationSearchResponse.AccommodationSearchInfos searchAccommodations(
             AccommodationSearchRequest.AccommodationSearchRequestDto req,
