@@ -67,8 +67,12 @@ public class AccommodationDocumentBuilder {
 			.amenityTypes(amenityTypes)
 			.thumbnailUrl(accommodation.getThumbnailUrl())
 			.reservationRanges(reservationRanges)
-			.averageRating(reviewSummary != null ? reviewSummary.getAverageRating().doubleValue() : null)
-			.reviewCount(reviewSummary != null ? reviewSummary.getTotalReviewCount() : null)
+			.averageRating(reviewSummary != null && reviewSummary.getAverageRating() != null
+				? reviewSummary.getAverageRating().doubleValue()
+				: 0.0)
+			.reviewCount(reviewSummary != null && reviewSummary.getTotalReviewCount() != null
+				? reviewSummary.getTotalReviewCount()
+				: 0)
 			.build();
 	}
 

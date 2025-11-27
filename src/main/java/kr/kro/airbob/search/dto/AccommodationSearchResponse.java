@@ -3,6 +3,7 @@ package kr.kro.airbob.search.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
+import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.search.document.AccommodationDocument;
@@ -18,6 +19,7 @@ public class AccommodationSearchResponse {
 		long id,
 		String name,
 		String accommodationThumbnailUrl,
+		String type,
 		Long basePrice,
 		String currency,
 		AddressResponse.AddressSummaryInfo addressSummary,
@@ -33,6 +35,7 @@ public class AccommodationSearchResponse {
 				.id(doc.accommodationId())
 				.name(doc.name())
 				.accommodationThumbnailUrl(doc.thumbnailUrl())
+				.type(doc.type())
 				.basePrice(doc.basePrice())
 				.currency(doc.currency())
 				.addressSummary(AddressResponse.AddressSummaryInfo.from(doc))
@@ -41,8 +44,10 @@ public class AccommodationSearchResponse {
 					.longitude(location != null ? location.lon() : null)
 					.build())
 				.reviewSummary(ReviewResponse.ReviewSummary.builder()
-					.averageRating(new BigDecimal(String.valueOf(doc.averageRating())))
-					.totalCount(doc.reviewCount())
+					.averageRating(doc.averageRating() != null
+						? BigDecimal.valueOf(doc.averageRating())
+						: BigDecimal.ZERO)
+					.totalCount(doc.reviewCount() != null ? doc.reviewCount() : 0)
 					.build())
 				// .hostName(doc.hostNickname())
 				.isInWishlist(isInWishlist)

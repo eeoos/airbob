@@ -43,10 +43,11 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
     // GET 메서드일 때만 인증이 필요 없는 경로 목록
     private static final String[] PUBLIC_GET_PATHS = {
-        "/api/v1/accommodationInfos/*", // 숙소 상세
-        "/api/v1/accommodationInfos/*/reviews", // 리뷰 목록
-        "/api/v1/accommodationInfos/*/reviews/summary", // 리뷰 요약
-        "/api/v1/search/accommodationInfos" // 검색
+        "/api/v1/accommodations/*",          // 숙소 상세
+        "/api/v1/accommodations/*/reviews",  // 리뷰 목록
+        "/api/v1/accommodations/*/reviews/summary", // 리뷰 요약
+        "/api/v1/search/accommodations",     // 검색
+        // "/api/v1/search/recommendations"     // 인기 여행지 추천
     };
 
     public SessionAuthFilter(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
