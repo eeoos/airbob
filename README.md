@@ -1,4 +1,4 @@
-<h1 align="center">$\bf{\large{\color{#6580DD} 2025 마스터즈 백엔드 팀프로젝트 }}$</h1>
+<h1 align="center">$\bf{\large{\color{#6580DD} Codesquad / masters / 2025 / - / Airbob Backend Server}}$</h1>
 
 ## 개발 환경
 ### Language
