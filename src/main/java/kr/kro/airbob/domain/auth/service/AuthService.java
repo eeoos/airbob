@@ -41,6 +41,7 @@ public class AuthService {
         sessionRedisRepository.saveSession(sessionId, member.getId());
 
         return sessionId;
+
     }
 
     public void logout(String sessionId) {
