@@ -1,4 +1,4 @@
-<h1 align="center">$\bf{\large{\color{#6580DD} Codesquad \ masters \ 2025 \ - \ Airbob \ Backend \ Server}}$</h1>
+<h1 align="center">$\bf{\large{\color{#6580DD} Codesquad \ - \ Airbob \ Backend \ Server}}$</h1>
 
 ## 개발 환경
 ### Language
@@ -135,3 +135,7 @@ graph LR
     Kafka -->|Consume| Consumer
     Consumer -->|Upsert/Delete| ES[(Elasticsearch)]
 ```
+
+### ERD
+<img width="1134" height="700" alt="airbob-erd" src="https://github.com/user-attachments/assets/e479eff6-262c-4a32-9cd1-2fbd9f00708f" />
+
