@@ -49,3 +49,89 @@
 - **커서 기반 페이지네이션** 구현으로 대용량 데이터 조회 시 일정한 응답 성능(O(1)) 유지
 
 <hr>
+
+## 아키텍처
+### 시스템 아키텍처
+### 동시성 제어
+인기 숙소 예약 시 발생하는 Race Condition을 해결하기 위해 Redisson 분산 락을 적용했습니다.
+
+`RedissonMultiLock`을 사용하여 다중 락(날짜별)을 원자적으로 획득하며, Pub/Sub 방식으로 Redis 부하를 최소화했습니다.
+```mermaid
+sequenceDiagram
+    participant UserA as User A
+    participant UserB as User B
+    participant API as API Server
+    participant Redis as Redis (Redisson)
+    participant DB as MySQL
+
+    UserA->>API: 1. 예약 요청 (1/01 ~ 1/03)
+    UserB->>API: 2. 예약 요청 (1/01 ~ 1/03)
+    
+    Note over API, Redis: Lock Key: [accommodation:101:20260101, ...20260102]
+
+    API->>Redis: 3. User A: tryLock (Pub/Sub)
+    Redis-->>API: 4. Lock Acquired (Success)
+    
+    API->>Redis: 5. User B: tryLock (Pub/Sub)
+    Redis-->>API: 6. Lock Occupied -> Wait (Subscribe channel)
+
+    API->>DB: 7. [User A] 재고 확인 & 예약 데이터 생성
+    DB-->>API: 8. Commit
+    
+    API->>Redis: 9. [User A] unlock()
+    Redis-->>API: 10. Publish 'Lock Released' Message
+
+    Redis->>API: 11. [User B] Message Received (Wake up)
+    API->>Redis: 12. [User B] tryLock Retry
+    Redis-->>API: 13. Lock Acquired
+    
+    API->>DB: 14. [User B] 재고 확인 (Sold Out)
+    API-->>UserB: 15. 예약 실패 (예약 마감)
+```
+
+### Transactional Outbox Pattern & CDC
+서비스 간 데이터 정합성을 보장하기 위해 Outbox 패턴과 **Debezium(CDC)을** 도입했습니다.
+
+DB 트랜잭션 내에서 `Outbox` 테이블에 이벤트를 저장하고, Debezium이 이를 감지하여 Kafka로 발행함으로써 'At-least-once' 전달을 보장합니다.
+```mermaid
+sequenceDiagram
+    participant Svc as Reservation Service
+    participant DB as MySQL (Outbox Table)
+    participant CDC as Debezium Connector
+    participant Kafka as Apache Kafka
+    participant Consumer as Payment/Search Consumer
+
+    Svc->>DB: 1. 비즈니스 로직 수행 (INSERT/UPDATE)
+    Svc->>DB: 2. Outbox 이벤트 저장 (INSERT into 'outbox')
+    Svc->>DB: 3. Transaction Commit (Atomic)
+    
+    CDC->>DB: 4. Binlog 감지 (INSERT 'outbox')
+    CDC->>Kafka: 5. Kafka 메시지 발행 (Topic: *.events)
+    
+    Kafka->>Consumer: 6. 메시지 소비 (Consume)
+    
+    alt 처리 성공
+        Consumer->>Kafka: 7. Acknowledgment (Commit Offset)
+    else 처리 실패
+        Consumer->>Kafka: 7. DLQ로 이동 (Dead Letter Queue)
+    end
+```
+
+### 검색 데이터 동기화 (Search Indexing Pipeline)
+숙소 정보나 예약 상태 변경 시, 실시간으로 Elasticsearch 인덱스를 갱신하는 파이프라인입니다.
+
+Kafka Consumer가 변경 이벤트를 수신하여 ES에 반영함으로써, MySQL과 Elasticsearch 간의 **데이터 최종 일관성(Eventual Consistency)을** 유지합니다.
+```mermaid
+graph LR
+    User[Admin/User] -->|Update| API[API Server]
+    API -->|Commit| DB[(MySQL)]
+    DB -.->|CDC| Debezium[Debezium]
+    Debezium -->|Publish| Kafka{Kafka}
+    
+    subgraph "Indexing Consumer"
+        Consumer[AccommodationIndexingConsumer]
+    end
+    
+    Kafka -->|Consume| Consumer
+    Consumer -->|Upsert/Delete| ES[(Elasticsearch)]
+```
