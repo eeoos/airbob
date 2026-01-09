@@ -1,4 +1,4 @@
-<h1 align="center">$\bf{\large{\color{#6580DD} Codesquad / masters / 2025 / - / Airbob Backend Server}}$</h1>
+<h1 align="center">$\bf{\large{\color{#6580DD} Codesquad \ masters \ 2025 \ - \ Airbob \ Backend \ Server}}$</h1>
 
 ## 개발 환경
 ### Language
