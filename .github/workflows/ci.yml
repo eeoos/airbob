@@ -22,17 +22,29 @@ jobs:
       - name: Test with Gradle
         # application.yaml의 변수에 더미 값 추가
         env:
-          AWS_ACCESS_KEY_ID: dummy-access-key
-          AWS_SECRET_ACCESS_KEY: dummy-secret-key
-          AWS_REGION: ap-northeast-2
-
-          GOOGLE_API_KEY: dummy-google-key
-          IPINFO_API_TOKEN: dummy-ipinfo-token
+          # application.yaml 필수 변수
+          GOOGLE_API_KEY: dummy_google_key
+          IPINFO_API_TOKEN: dummy_ipinfo_token
           SLACK_WEBHOOK_URL: https://hooks.slack.com/services/dummy/url
-          TOSS_SECRET_KEY: dummy-toss-key
+          TOSS_SECRET_KEY: dummy_toss_key
 
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          SPRING_ELASTICSEARCH_URIS: http://localhost:9200
+          # application-dev.yaml 필수 변수
+          AWS_ACCESS_KEY_ID: dummy_access_key
+          AWS_SECRET_ACCESS_KEY: dummy_secret_key
+          AWS_REGION: ap-northeast-2
+          AWS_S3_BUCKET_NAME: dummy_bucket
+          CLOUDFRONT_DOMAIN: dummy_cloudfront_domain
+
+          # 데이터소스 및 인프라
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/dummy
+          SPRING_DATASOURCE_USERNAME: dummy_user
+          SPRING_DATASOURCE_PASSWORD: dummy_password
+          REDIS_HOST: localhost
+
+          # 4. ELK & Kafka
+          ELASTICSEARCH_URIS: http://localhost:9200
+          ELASTICSEARCH_USERNAME: dummy_es_user
+          ELASTIC_PASSWORD: dummy_es_password
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
 
         run: ./gradlew clean test
