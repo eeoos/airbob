@@ -36,6 +36,8 @@ cloud:
       bucket: dummy-bucket
     stack:
       auto: false
+  cloudfront:
+    domain: dummy_cloudfront.cloudfront.net
 
 # 더미 값
 google:
