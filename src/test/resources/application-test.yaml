@@ -19,6 +19,12 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
 
+  # [Elasticsearch]
+  elasticsearch:
+    uris: http://localhost:9200
+    username: dummy
+    password: dummy
+
 cloud:
   aws:
     credentials:
@@ -48,8 +54,4 @@ toss:
   client-key: dummy-client-key
   secret-key: dummy-toss-secret-key
 
-# [Elasticsearch]
-elasticsearch:
-  uris: http://localhost:9200
-  username: dummy
-  password: dummy
+
