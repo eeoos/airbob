@@ -1,22 +1,55 @@
 spring:
-  application:
-    name: airbob
+  config:
+    activate:
+      on-profile: test
 
   datasource:
+    url: jdbc:mysql://localhost:3306/testdb
+    username: test
+    password: test
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/testdb  # 테스트 코드에서 덮어씀
-    username: user
-    password: pass
 
+  # [Redis]
   data:
     redis:
-      host: localhost  # 테스트 코드에서 덮어씀
+      host: localhost
       port: 6379
 
-  flyway:
-    enabled: true               # Flyway 사용 활성화
-    locations: classpath:db/migration  # 마이그레이션 파일 위치(기본값)
+  # [Kafka]
+  kafka:
+    bootstrap-servers: localhost:9092
 
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+cloud:
+  aws:
+    credentials:
+      access-key: dummy-access-key
+      secret-key: dummy-secret-key
+    region:
+      static: ap-northeast-2
+    s3:
+      bucket: dummy-bucket
+    stack:
+      auto: false
+
+# 더미 값
+google:
+  api:
+    key: dummy-google-key
+
+ipinfo:
+  api:
+    token: dummy-token
+
+slack:
+  webhook:
+    url: https://hooks.slack.com/services/dummy/url
+
+toss:
+  client-key: dummy-client-key
+  secret-key: dummy-toss-secret-key
+
+# [Elasticsearch]
+elasticsearch:
+  uris: http://localhost:9200
+  username: dummy
+  password: dummy
