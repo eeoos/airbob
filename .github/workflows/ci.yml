@@ -65,5 +65,7 @@ jobs:
 
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           ELASTICSEARCH_URIS: http://localhost:9200
+          ELASTICSEARCH_USERNAME: dummy
+          ELASTIC_PASSWORD: dummy
 
         run: ./gradlew clean test
