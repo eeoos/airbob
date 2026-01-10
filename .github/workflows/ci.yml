@@ -69,4 +69,4 @@ jobs:
           ELASTICSEARCH_USERNAME: dummy
           ELASTIC_PASSWORD: dummy
 
-        run: ./gradlew clean test --stacktrace --info
+        run: ./gradlew clean test
