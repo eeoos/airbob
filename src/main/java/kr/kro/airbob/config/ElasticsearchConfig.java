@@ -28,10 +28,10 @@ public class ElasticsearchConfig {
 	@Value("${spring.elasticsearch.uris}")
 	private String elasticsearchUrl;
 
-	@Value("${spring.elasticsearch.username}")
+	@Value("${spring.elasticsearch.username:}")
 	private String username;
 
-	@Value("${spring.elasticsearch.password}")
+	@Value("${spring.elasticsearch.password:}")
 	private String password;
 
 	@Bean
