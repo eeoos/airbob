@@ -43,9 +43,25 @@ jobs:
 
       - name: Test with Gradle
         env:
+          SPRING_PROFILES_ACTIVE: test
+
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb?allowPublicKeyRetrieval=true&useSSL=false
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: pass
           REDIS_HOST: localhost
+
+          AWS_ACCESS_KEY_ID: dummy-access-key
+          AWS_SECRET_ACCESS_KEY: dummy-secret-key
+          AWS_REGION: ap-northeast-2
+          AWS_S3_BUCKET_NAME: dummy-bucket
+
+          GOOGLE_API_KEY: dummy_google_key
+          IPINFO_API_TOKEN: dummy_ipinfo_token
+          SLACK_WEBHOOK_URL: https://hooks.slack.com/services/dummy/url
+          TOSS_SECRET_KEY: dummy_toss_key
+
+          # Kafka & ES
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          ELASTICSEARCH_URIS: http://localhost:9200
 
         run: ./gradlew clean test
