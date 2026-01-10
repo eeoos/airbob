@@ -7,6 +7,28 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: testdb
+          MYSQL_USER: user
+          MYSQL_PASSWORD: pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,31 +42,22 @@ jobs:
         run: chmod +x gradlew
 
       - name: Test with Gradle
-        # application.yaml의 변수에 더미 값 추가
+
         env:
-          # application.yaml 필수 변수
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb?allowPublicKeyRetrieval=true&useSSL=false
+          SPRING_DATASOURCE_USERNAME: user
+          SPRING_DATASOURCE_PASSWORD: pass
+          REDIS_HOST: localhost
+
           GOOGLE_API_KEY: dummy_google_key
           IPINFO_API_TOKEN: dummy_ipinfo_token
           SLACK_WEBHOOK_URL: https://hooks.slack.com/services/dummy/url
           TOSS_SECRET_KEY: dummy_toss_key
 
-          # application-dev.yaml 필수 변수
           AWS_ACCESS_KEY_ID: dummy_access_key
           AWS_SECRET_ACCESS_KEY: dummy_secret_key
           AWS_REGION: ap-northeast-2
           AWS_S3_BUCKET_NAME: dummy_bucket
-          CLOUDFRONT_DOMAIN: dummy_cloudfront_domain
-
-          # 데이터소스 및 인프라
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/dummy
-          SPRING_DATASOURCE_USERNAME: dummy_user
-          SPRING_DATASOURCE_PASSWORD: dummy_password
-          REDIS_HOST: localhost
-
-          # 4. ELK & Kafka
-          ELASTICSEARCH_URIS: http://localhost:9200
-          ELASTICSEARCH_USERNAME: dummy_es_user
-          ELASTIC_PASSWORD: dummy_es_password
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
 
         run: ./gradlew clean test
