@@ -20,4 +20,20 @@ jobs:
         run: chmod +x gradlew
 
       - name: Test with Gradle
+
+        # 더미 값 주입
+        env:
+
+          AWS_ACCESS_KEY_ID: dummy-access-key
+          AWS_SECRET_ACCESS_KEY: dummy-secret-key
+          AWS_REGION: ap-northeast-2
+
+          GOOGLE_API_KEY: dummy-google-key
+          TOSS_CLIENT_KEY: dummy-toss-client-key
+          TOSS_SECRET_KEY: dummy-toss-secret-key
+
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          SPRING_ELASTICSEARCH_URIS: http://localhost:9200
+
         run: ./gradlew clean test
