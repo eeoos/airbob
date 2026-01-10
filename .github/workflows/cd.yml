@@ -11,7 +11,6 @@ concurrency:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: airbob-repo
-  IMAGE_TAG: latest
 
 jobs:
   build-and-push:
@@ -51,8 +50,8 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           IMAGE_SHA=${GITHUB_SHA::7}
-          docker build -f backend.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA .
-          docker push --all-tags $ECR_REGISTRY/$ECR_REPOSITORY
+          docker build -f backend.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA
 
   deploy:
     needs: build-and-push
@@ -78,6 +77,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           AWS_REGION: ${{ env.AWS_REGION }}
+          IMAGE_TAG: ${{ github.sha }}
         with:
           proxy_host: ${{ secrets.BASTION_HOST }}
           proxy_username: ec2-user
@@ -88,15 +88,16 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
 
-          envs: ECR_REGISTRY,AWS_REGION
+          envs: ECR_REGISTRY,AWS_REGION,IMAGE_TAG
 
           script: |
             set -e
             
-            # ECR 로그인 및 배포
+            IMAGE_SHA=${IMAGE_TAG::7}
+            
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             
             cd /home/ec2-user/airbob
-            docker compose -f docker-compose-app.yml pull
-            docker compose -f docker-compose-app.yml up -d
+            IMAGE_TAG=$IMAGE_SHA docker compose -f docker-compose-app.yml pull
+            IMAGE_TAG=$IMAGE_SHA docker compose -f docker-compose-app.yml up -d
             docker image prune -f
