@@ -5,19 +5,19 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  build-test:
     runs-on: ubuntu-latest
 
     services:
       mysql:
         image: mysql:8.0
-        ports:
-          - 3306:3306
         env:
+          MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: testdb
           MYSQL_USER: user
           MYSQL_PASSWORD: pass
-          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
           --health-interval=10s
@@ -34,34 +34,39 @@ jobs:
           --health-timeout=5s
           --health-retries=30
 
-      kafka:
-        image: bitnami/kafka:3.7.0
-        ports:
-          - 9092:9092
-        env:
-          KAFKA_CFG_NODE_ID: "1"
-          KAFKA_CFG_PROCESS_ROLES: "broker,controller"
-          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
-          KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
-          KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
-          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-          ALLOW_PLAINTEXT_LISTENER: "yes"
-
       elasticsearch:
         image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
-        ports:
-          - 9200:9200
         env:
           discovery.type: single-node
           xpack.security.enabled: "false"
           ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
         options: >-
-          --health-cmd="curl -s http://localhost:9200 >/dev/null || exit 1"
+          --health-cmd="bash -lc 'curl -s http://localhost:9200 >/dev/null || exit 1'"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=40
+          --health-retries=60
+
+      kafka:
+        image: apache/kafka:3.7.0
+        env:
+          KAFKA_NODE_ID: "1"
+          KAFKA_PROCESS_ROLES: "broker,controller"
+          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+          KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:29093"
+          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+          KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+          KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+        ports:
+          - 9092:9092
+        options: >-
+          --health-cmd="bash -lc 'kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1'"
+          --health-interval=10s
+          --health-timeout=10s
+          --health-retries=60
 
     steps:
       - uses: actions/checkout@v4
@@ -70,18 +75,10 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: gradle
+          cache: 'gradle'
 
-      - name: Wait for services
-        run: |
-          echo "Waiting MySQL..."
-          for i in {1..60}; do (echo > /dev/tcp/127.0.0.1/3306) >/dev/null 2>&1 && break; sleep 2; done
-          echo "Waiting Redis..."
-          for i in {1..60}; do (echo > /dev/tcp/127.0.0.1/6379) >/dev/null 2>&1 && break; sleep 2; done
-          echo "Waiting Kafka..."
-          for i in {1..60}; do (echo > /dev/tcp/127.0.0.1/9092) >/dev/null 2>&1 && break; sleep 2; done
-          echo "Waiting ES..."
-          for i in {1..60}; do curl -s http://127.0.0.1:9200 >/dev/null 2>&1 && break; sleep 2; done
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Test with Gradle
         env:
@@ -91,13 +88,14 @@ jobs:
           SPRING_DATASOURCE_USERNAME: user
           SPRING_DATASOURCE_PASSWORD: pass
 
-          REDIS_HOST: localhost
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
 
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
 
-          ELASTICSEARCH_URIS: http://localhost:9200
-          ELASTICSEARCH_USERNAME: dummy
-          ELASTIC_PASSWORD: dummy
+          SPRING_ELASTICSEARCH_URIS: http://localhost:9200
+          SPRING_ELASTICSEARCH_USERNAME: dummy
+          SPRING_ELASTICSEARCH_PASSWORD: dummy
 
           AWS_ACCESS_KEY_ID: dummy-access-key
           AWS_SECRET_ACCESS_KEY: dummy-secret-key
@@ -109,5 +107,5 @@ jobs:
           CLOUDFRONT_DOMAIN: dummy_cloudfront.cloudfront.net
           TOSS_CLIENT_KEY: dummy_toss_client_key
           TOSS_SECRET_KEY: dummy_toss_secret_key
-          JWT_SECRET: dummy_jwt_secret_must_be_long_enough_for_security
+          JWT_SECRET: dummy_jwt_secret_must_be_long_enough_for_security_checks_hs512
         run: ./gradlew clean test
