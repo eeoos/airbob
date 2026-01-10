@@ -57,36 +57,44 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        host: [ "${{ secrets.EC2_HOST_APP_1 }}", "${{ secrets.EC2_HOST_APP_2 }}" ]
-
+        target: [ APP_1, APP_2 ]
     steps:
-      - name: Deploy to Private EC2 via Bastion
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy via Bastion (ProxyJump)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_REGION: ${{ env.AWS_REGION }}
         with:
           proxy_host: ${{ secrets.BASTION_HOST }}
           proxy_username: ec2-user
           proxy_key: ${{ secrets.EC2_SSH_KEY }}
 
-          host: ${{ matrix.host }}
+          # matrix.target이 APP_1이면 -> secrets.EC2_HOST_APP_1 값을 가져옴
+          host: ${{ secrets[format('EC2_HOST_{0}', matrix.target)] }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
 
+          envs: ECR_REGISTRY,AWS_REGION
+
           script: |
             set -e
-
-            # ECR 로그인 (EC2 IAM Role 기반)
-            aws --version
-            docker --version
-
-            aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin 942632789808.dkr.ecr.ap-northeast-2.amazonaws.com
-
+            
+            # ECR 로그인 및 배포
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            
             cd /home/ec2-user/airbob
-
-            # 최신 이미지 pull & 재기동
             docker compose -f docker-compose-app.yml pull
             docker compose -f docker-compose-app.yml up -d
-
-            # 안 쓰는 이미지 정리
             docker image prune -f
