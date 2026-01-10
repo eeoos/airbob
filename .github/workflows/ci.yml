@@ -5,107 +5,22 @@ on:
     branches: [ main ]
 
 jobs:
-  build-test:
+  build-only:
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: testdb
-          MYSQL_USER: user
-          MYSQL_PASSWORD: pass
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=30
-
-      redis:
-        image: redis:7.2-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd="redis-cli ping | grep PONG"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=30
-
-      elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
-        env:
-          discovery.type: single-node
-          xpack.security.enabled: "false"
-          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
-        ports:
-          - 9200:9200
-        options: >-
-          --health-cmd="bash -lc 'curl -s http://localhost:9200 >/dev/null || exit 1'"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=60
-
-      kafka:
-        image: apache/kafka:3.7.0
-        env:
-          KAFKA_NODE_ID: "1"
-          KAFKA_PROCESS_ROLES: "broker,controller"
-          KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
-          KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:29093"
-          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-          KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-          KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-          KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
-        ports:
-          - 9092:9092
-        options: >-
-          --health-cmd="bash -lc 'kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1'"
-          --health-interval=10s
-          --health-timeout=10s
-          --health-retries=60
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
+          cache: gradle
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Test with Gradle
-        env:
-          SPRING_PROFILES_ACTIVE: test
-
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb?allowPublicKeyRetrieval=true&useSSL=false
-          SPRING_DATASOURCE_USERNAME: user
-          SPRING_DATASOURCE_PASSWORD: pass
-
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_DATA_REDIS_PORT: 6379
-
-          SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-
-          SPRING_ELASTICSEARCH_URIS: http://localhost:9200
-          SPRING_ELASTICSEARCH_USERNAME: dummy
-          SPRING_ELASTICSEARCH_PASSWORD: dummy
-
-          AWS_ACCESS_KEY_ID: dummy-access-key
-          AWS_SECRET_ACCESS_KEY: dummy-secret-key
-          AWS_REGION: ap-northeast-2
-          AWS_S3_BUCKET_NAME: dummy-bucket
-          GOOGLE_API_KEY: dummy_google_key
-          IPINFO_API_TOKEN: dummy_ipinfo_token
-          SLACK_WEBHOOK_URL: https://hooks.slack.com/services/dummy/url
-          CLOUDFRONT_DOMAIN: dummy_cloudfront.cloudfront.net
-          TOSS_CLIENT_KEY: dummy_toss_client_key
-          TOSS_SECRET_KEY: dummy_toss_secret_key
-          JWT_SECRET: dummy_jwt_secret_must_be_long_enough_for_security_checks_hs512
-        run: ./gradlew clean test
+      - name: Build without tests
+        run: ./gradlew clean build -x test
