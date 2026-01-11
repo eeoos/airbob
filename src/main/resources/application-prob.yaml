@@ -38,6 +38,9 @@ spring:
 
 cloud:
   aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY_ID}
+      secret-key: ${AWS_SECRET_ACCESS_KEY}
     s3:
       bucket: ${AWS_S3_BUCKET_NAME}
     region:

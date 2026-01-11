@@ -3,7 +3,7 @@ spring:
     name: airbob
 
   profiles:
-    active: dev
+    active: prob
 
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
