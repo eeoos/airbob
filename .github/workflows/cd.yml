@@ -92,7 +92,8 @@ jobs:
 
           script: |
             set -e
-            
+            IMAGE_SHA=${IMAGE_TAG::7}
+
             # ECR 로그인 및 배포
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             
