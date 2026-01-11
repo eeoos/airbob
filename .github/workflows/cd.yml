@@ -101,3 +101,4 @@ jobs:
             IMAGE_TAG=$IMAGE_SHA docker compose -f docker-compose-app.yml pull
             IMAGE_TAG=$IMAGE_SHA docker compose -f docker-compose-app.yml up -d
             docker image prune -f
+
