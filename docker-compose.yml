@@ -167,7 +167,9 @@ services:
   # Elasticsearch
   # --------------------------------------------------------
   elasticsearch:
-    build: .
+    build:
+      context: .
+      dockerfile: search.Dockerfile
     container_name: elasticsearch
     environment:
       - discovery.type=single-node

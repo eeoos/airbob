@@ -99,3 +99,6 @@ docker-volume/mysql/
 
 # Mock data
 src/main/resources/mock-data/
+
+# Elasticsearch snapshot
+es-snapshot/
