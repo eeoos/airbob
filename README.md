@@ -1,4 +1,9 @@
 <h1 align="center">$\bf{\large{\color{#6580DD} Codesquad \ - \ Airbob \ Backend \ Server}}$</h1>
+<br>
+<p align="center">
+  🌐 <a href="https://www.airbob.cloud/" target="_blank"><b>https://airbob.cloud</b></a>
+</p>
+<br>
 
 ## 개발 환경
 ### Language
@@ -52,6 +57,86 @@
 
 ## 아키텍처
 ### 시스템 아키텍처
+```mermaid
+graph TD
+    %% 사용자 및 외부 진입점
+    User[🙋‍♂️ User]
+    
+    subgraph External_Services [External Services]
+        Vercel["▲ Vercel (Frontend)"]
+        GH["GitHub Actions (CI/CD)"]
+    end
+
+    subgraph AWS_Cloud ["AWS Cloud (ap-northeast-2)"]
+        R53["AWS Route 53 (DNS)"]
+        ECR[Amazon ECR]
+
+        subgraph VPC [Airbob VPC]
+            
+            subgraph Public_Subnet [Public Subnet]
+                ALB[Application Load Balancer]
+                Bastion["Bastion / NAT Instance"]
+            end
+
+            subgraph Private_Subnet [Private Subnet]
+                subgraph App_Layer [Application Layer]
+                    App1[Spring Boot App 1]
+                    App2[Spring Boot App 2]
+                end
+
+                subgraph Data_Layer [Data & Infra Layer]
+                    RDS[("AWS RDS MySQL")]
+                    
+                    subgraph Infra_Server ["Infra Server (Docker Host)"]
+                        Redis[("Redis")]
+                        Kafka[Kafka & Zookeeper]
+                        ES["Elasticsearch (Nori)"]
+                        Connect[Debezium Connector]
+                        Kibana[Kibana]
+                    end
+                end
+            end
+        end
+    end
+
+    %% 트래픽 흐름
+    User -->|"https://www.airbob.cloud"| Vercel
+    User -->|"https://api.airbob.cloud"| R53
+    Vercel -->|API Request| R53
+    R53 -->|Alias Record| ALB
+    %% [수정된 부분] 소괄호가 포함된 텍스트에 따옴표 추가
+    ALB -->|"Round Robin (8080)"| App1 & App2
+
+    %% 내부 통신
+    App1 & App2 <-->|JDBC| RDS
+    App1 & App2 <-->|Cache/Session| Redis
+    App1 & App2 <-->|Produce/Consume| Kafka
+    App1 & App2 -->|Search Query| ES
+
+    %% CDC (Debezium) 흐름
+    Connect -->|BinLog Monitoring| RDS
+    Connect -->|Publish Change Events| Kafka
+    
+    %% 네트워크 흐름 (NAT)
+    App1 & App2 -.->|Outbound Internet| Bastion
+    Infra_Server -.->|Outbound Internet| Bastion
+
+    %% CI/CD 흐름
+    GH -->|Build & Push| ECR
+    GH -->|SSH Deploy via Bastion| App1 & App2
+    App1 & App2 -.->|Pull Image| ECR
+
+    %% 스타일링
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef db fill:#336791,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef app fill:#6DB33F,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef external fill:#000000,stroke:#333,stroke-width:2px,color:white;
+    
+    class R53,ECR,ALB,Bastion aws;
+    class RDS,Redis,ES,Kafka,Connect,Kibana db;
+    class App1,App2 app;
+    class Vercel,GH external;
+```
 <br>
 
 ### 동시성 제어
