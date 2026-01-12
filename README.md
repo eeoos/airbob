@@ -278,5 +278,6 @@ sequenceDiagram
 ### 시나리오 시연
 
 ## API Reference
-
-
+<p align="center">
+  🌐 <a href="https://fourth-surprise-78f.notion.site/20dde1bad162819b9b79fa6b322b00a6?v=20dde1bad1628104a934000c7f90b893" target="_blank"><b>Notion API 명세서</b></a>
+</p>
