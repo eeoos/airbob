@@ -93,6 +93,11 @@ dependencies {
 	// Json
 	implementation 'org.json:json:20250107'
 
+	// Actuator
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	// Prometheus
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
 	// 테스트
 	testImplementation 'org.springframework.kafka:spring-kafka-test'
 
