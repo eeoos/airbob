@@ -70,8 +70,8 @@ management:
     health:
       probes:
         enabled: true
-      show-details: always
-      show-components: always
+      show-details: never
+#      show-components: always
 
   health:
     elasticsearch:
