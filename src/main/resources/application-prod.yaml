@@ -58,3 +58,12 @@ logging:
   level:
     kr.kro.airbob: INFO
     org.hibernate.SQL: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  metrics:
+    tags:
+      application: airbob-api
