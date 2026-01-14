@@ -65,14 +65,18 @@ management:
       base-path: /actuator
       exposure:
         include: health, info, prometheus, metrics
+
   endpoint:
     health:
-      elasticsearch:
-        enabled: false
       probes:
         enabled: true
       show-details: always
       show-components: always
+
+  health:
+    elasticsearch:
+      enabled: false
+
   metrics:
     tags:
       application: airbob-api
