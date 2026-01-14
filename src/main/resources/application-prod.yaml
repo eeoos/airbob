@@ -69,7 +69,8 @@ management:
     health:
       probes:
         enabled: true
-      show-details: never
+      show-details: always
+      show-components: always
   metrics:
     tags:
       application: airbob-api
