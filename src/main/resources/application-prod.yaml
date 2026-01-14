@@ -67,6 +67,8 @@ management:
         include: health, info, prometheus, metrics
   endpoint:
     health:
+      elasticsearch:
+        enabled: false
       probes:
         enabled: true
       show-details: always
