@@ -38,7 +38,9 @@ public class SessionAuthFilter extends OncePerRequestFilter {
     // 인증이 필요 없는 경로 목록 (메서드 무관)
     private static final Set<String> PUBLIC_PATHS = Set.of(
         "/api/v1/auth/login",  // 로그인
-        "/api/v1/members"      // 회원가입
+        "/api/v1/members",      // 회원가입
+
+        "/api/v1/test/cpu-burn" // k6 테스트
     );
 
     // GET 메서드일 때만 인증이 필요 없는 경로 목록
