@@ -77,3 +77,8 @@ management:
   metrics:
     tags:
       application: airbob-api
+  distribution:
+    percentiles-histogram:
+      http:
+        server:
+          requests: true
