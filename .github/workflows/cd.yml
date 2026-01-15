@@ -11,12 +11,18 @@ concurrency:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: airbob-repo
+  SSM_IMAGE_TAG_PARAM: /airbob/prod/image/tag
+  ASG_NAME: airbob-api-asg
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
+    outputs:
+      image_sha7: ${{ steps.meta.outputs.image_sha7 }}
+      ecr_registry: ${{ steps.login-ecr.outputs.registry }}
 
     steps:
       - name: Checkout
@@ -45,21 +51,22 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Compute image tag
+        id: meta
+        run: |
+          echo "image_sha7=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
       - name: Build and Push Docker image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_SHA7: ${{ steps.meta.outputs.image_sha7 }}
         run: |
-          IMAGE_SHA=${GITHUB_SHA::7}
-          docker build -f backend.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA
+          docker build -f backend.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7 .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [ APP_1, APP_2 ]
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -68,37 +75,29 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Deploy via Bastion (ProxyJump)
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Update SSM image tag
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-          IMAGE_TAG: ${{ github.sha }}
-        with:
-          proxy_host: ${{ secrets.BASTION_HOST }}
-          proxy_username: ec2-user
-          proxy_key: ${{ secrets.EC2_SSH_KEY }}
+          IMAGE_SHA7: ${{ needs.build-and-push.outputs.image_sha7 }}
+          PARAM_NAME: ${{ env.SSM_IMAGE_TAG_PARAM }}
+        run: |
+          aws ssm put-parameter \
+            --name "$PARAM_NAME" \
+            --type "String" \
+            --value "$IMAGE_SHA7" \
+            --overwrite
 
-          # matrix.target이 APP_1이면 -> secrets.EC2_HOST_APP_1 값을 가져옴
-          host: ${{ secrets[format('EC2_HOST_{0}', matrix.target)] }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
+      - name: Start ASG Instance Refresh (rolling deploy)
+        env:
+          ASG_NAME: ${{ env.ASG_NAME }}
+        run: |
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "$ASG_NAME" \
+            --preferences MinHealthyPercentage=90,InstanceWarmup=120
 
-          envs: ECR_REGISTRY,AWS_REGION,IMAGE_TAG
-
-          script: |
-            set -e
-            IMAGE_SHA=${IMAGE_TAG::7}
-
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-
-            cd /home/ec2-user/airbob
-
-            IMAGE_TAG=$IMAGE_SHA docker compose -f docker-compose-app.yml pull
-            IMAGE_TAG=$IMAGE_SHA docker compose -f docker-compose-app.yml up -d
-
-            docker image prune -f
+      - name: Show Instance Refresh status (best effort)
+        env:
+          ASG_NAME: ${{ env.ASG_NAME }}
+        run: |
+          aws autoscaling describe-instance-refreshes \
+            --auto-scaling-group-name "$ASG_NAME" \
+            --max-items 1
