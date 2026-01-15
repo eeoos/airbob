@@ -86,19 +86,64 @@ jobs:
             --value "$IMAGE_SHA7" \
             --overwrite
 
-      - name: Start ASG Instance Refresh (rolling deploy)
+      - name: ASG Instance Refresh (wait if in progress, else start)
         env:
           ASG_NAME: ${{ env.ASG_NAME }}
         run: |
-          aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "$ASG_NAME" \
-            --preferences MinHealthyPercentage=90,InstanceWarmup=120
+          set -euo pipefail
 
-      - name: Show Instance Refresh status (best effort)
-        env:
-          ASG_NAME: ${{ env.ASG_NAME }}
-        run: |
-          aws autoscaling describe-instance-refreshes \
+          echo "ASG_NAME=$ASG_NAME"
+
+          # 1) If a refresh is already running, reuse it. Otherwise start a new one.
+          REFRESH_ID=$(aws autoscaling describe-instance-refreshes \
             --auto-scaling-group-name "$ASG_NAME" \
-            --query 'InstanceRefreshes[0].{Id:InstanceRefreshId,Status:Status,Reason:StatusReason,Percentage:PercentageComplete,Start:StartTime,End:EndTime}' \
-            --output json || true
+            --query "InstanceRefreshes[?Status=='InProgress'].InstanceRefreshId | [0]" \
+            --output text)
+
+          if [ "$REFRESH_ID" = "None" ] || [ -z "$REFRESH_ID" ]; then
+            echo "No in-progress refresh. Starting a new instance refresh..."
+            REFRESH_ID=$(aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --preferences MinHealthyPercentage=90,InstanceWarmup=120 \
+              --query "InstanceRefreshId" \
+              --output text)
+          else
+            echo "Instance Refresh already in progress: $REFRESH_ID"
+          fi
+
+          echo "Watching refresh: $REFRESH_ID"
+
+          # 2) Poll status until it finishes (max ~30 minutes: 180 * 10s)
+          for i in {1..180}; do
+            STATUS=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].Status | [0]" \
+              --output text)
+
+            PCT=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].PercentageComplete | [0]" \
+              --output text)
+
+            REASON=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].StatusReason | [0]" \
+              --output text)
+
+            echo "status=$STATUS percent=$PCT reason=$REASON"
+
+            if [ "$STATUS" = "Successful" ]; then
+              echo "✅ Instance Refresh successful"
+              exit 0
+            fi
+
+            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              echo "❌ Instance Refresh failed"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "❌ Timed out waiting for instance refresh"
+          exit 1
