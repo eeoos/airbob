@@ -68,7 +68,6 @@ management:
       probes:
         enabled: true
       show-details: never
-#      show-components: always
 
   health:
     elasticsearch:
@@ -77,8 +76,8 @@ management:
   metrics:
     tags:
       application: airbob-api
-  distribution:
-    percentiles-histogram:
-      http:
-        server:
-          requests: true
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
