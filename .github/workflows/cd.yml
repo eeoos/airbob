@@ -100,4 +100,5 @@ jobs:
         run: |
           aws autoscaling describe-instance-refreshes \
             --auto-scaling-group-name "$ASG_NAME" \
-            --max-items 1
+            --query 'InstanceRefreshes[0].{Id:InstanceRefreshId,Status:Status,Reason:StatusReason,Percentage:PercentageComplete,Start:StartTime,End:EndTime}' \
+            --output json || true
