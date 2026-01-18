@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TestController {
 
 	@GetMapping("/v1/test/cpu-burn")
-	public String burnCpu(@RequestParam(defaultValue = "300") long ms) {
+	public String burnCpu(@RequestParam(defaultValue = "1200") long ms) {
 		long end = System.nanoTime() + ms * 1_000_000;
 		double x = 0;
 		while (System.nanoTime() < end) {
