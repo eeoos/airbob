@@ -74,11 +74,7 @@ PW: 123123123
 ## 아키텍처
 ### 시스템 아키텍처
 
-<img width="1651" height="1009" alt="Airbob-System-Architecture-png drawio" src="https://github.com/user-attachments/assets/4c5e2ca0-f20f-4315-841f-84c0b11fb17e" />
-
-
-
-
+<img width="1651" height="1009" alt="Airbob-System-Architecture-png drawio (1)" src="https://github.com/user-attachments/assets/69e25cdb-f230-4a4e-9cbe-0eb006fe2ff7" />
 
 
 
