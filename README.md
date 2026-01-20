@@ -5,10 +5,6 @@
 </p>
 <br>
 
-### TEST 계정<br>
-ID: test@test.com <br>
-PW: 123123123
-
 ### 주요 도시 숙소 목록 링크
 - [로마](https://www.airbob.cloud/search?destination=%EC%9D%B4%ED%83%88%EB%A6%AC%EC%95%84+%EB%A1%9C%EB%A7%88&lat=41.8967068&lng=12.4822025&topLeftLat=42.05054624539585&topLeftLng=12.34170704408109&bottomRightLat=41.76959604595655&bottomRightLng=12.73028878823088&adultOccupancy=1&childOccupancy=0&infantOccupancy=0&petOccupancy=0)
 - [하와이](https://www.airbob.cloud/search?adultOccupancy=1&childOccupancy=0&infantOccupancy=0&petOccupancy=0&destination=%EB%AF%B8%EA%B5%AD+%ED%95%98%EC%99%80%EC%9D%B4&lat=19.8986819&lng=-155.6658568&topLeftLat=22.37&topLeftLng=-160.53&bottomRightLat=18.55&bottomRightLng=-154.48) <br>
@@ -71,7 +67,7 @@ PW: 123123123
 - **Kafka Consumer** 기반의 인덱싱 파이프라인을 구축하여, MySQL 데이터 변경 이벤트를 실시간으로 Elasticsearch에 동기화 🔗 [AccommodationIndexingConsumer.java](src/main/java/kr/kro/airbob/kafka/consumer/AccommodationIndexingConsumer.java)
 
 ### 5. 성능 최적화
-- **커서 기반 페이지네이션** 구현으로 대용량 데이터 조회 시 일정한 응답 성능(O(1)) 유지 🔗 [CursorParamArgumentResolver.java](src/main/java/kr/kro/airbob/cursor/resolver/CursorParamArgumentResolver.java)
+- **커서 기반 페이지네이션** 구현으로 대용량 데이터 조회 시 offset 기반 대비 deep pagination에서 성능 저하를 완화 🔗 [CursorParamArgumentResolver.java](src/main/java/kr/kro/airbob/cursor/resolver/CursorParamArgumentResolver.java)
 
 <hr>
 
@@ -178,7 +174,7 @@ graph LR
 Airbob의 핵심인 **숙소 예약 및 결제 프로세스**입니다. <br>
 **동시성 제어(Redisson)를** 통해 중복 예약을 방지하고, **Outbox 패턴**으로 결제 데이터의 정합성을 보장합니다.
 
-### 예약 및 결제 Sequnce diagram
+### 예약 및 결제 Sequence diagram
 ```mermaid
 sequenceDiagram
     actor User as 사용자
