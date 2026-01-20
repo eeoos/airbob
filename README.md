@@ -16,6 +16,10 @@ PW: 123123123
 - [싱가폴](https://www.airbob.cloud/search?adultOccupancy=1&childOccupancy=0&infantOccupancy=0&petOccupancy=0&destination=%EC%8B%B1%EA%B0%80%ED%8F%B4&lat=1.352083&lng=103.819836&topLeftLat=1.478400052327221&topLeftLng=103.5940000228498&bottomRightLat=1.149599959992529&bottomRightLng=104.0945000859547) <br>
 - [도쿄](https://www.airbob.cloud/search?adultOccupancy=1&childOccupancy=0&infantOccupancy=0&petOccupancy=0&destination=%EC%9D%BC%EB%B3%B8+%EB%8F%84%EC%BF%84%EB%8F%84&lat=35.6764225&lng=139.650027&topLeftLat=36.4408483&topLeftLng=138.2991098&bottomRightLat=34.5776326&bottomRightLng=141.2405144) <br>
 
+### 프로젝트 메인 시나리오 시연 영상
+- 예약/결제
+![Airbob-시연영상-gif2](https://github.com/user-attachments/assets/59449a2b-1588-4e90-8933-85bcd30bddae)
+
 ## 개발 환경
 ### Language
 ![Java](https://img.shields.io/badge/java-%23ED8B00.svg?style=for-the-badge&logo=openjdk&logoColor=white)
@@ -75,8 +79,6 @@ PW: 123123123
 ### 시스템 아키텍처
 
 <img width="1651" height="1009" alt="Airbob-System-Architecture-png drawio (1)" src="https://github.com/user-attachments/assets/69e25cdb-f230-4a4e-9cbe-0eb006fe2ff7" />
-
-
 
 
 
@@ -174,7 +176,7 @@ graph LR
 
 ## Core Features Scenario
 Airbob의 핵심인 **숙소 예약 및 결제 프로세스**입니다. <br>
-**동시성 제어(Redisson)**를 통해 중복 예약을 방지하고, **Outbox 패턴**으로 결제 데이터의 정합성을 보장합니다.
+**동시성 제어(Redisson)를** 통해 중복 예약을 방지하고, **Outbox 패턴**으로 결제 데이터의 정합성을 보장합니다.
 
 ### 예약 및 결제 Sequnce diagram
 ```mermaid
@@ -217,12 +219,6 @@ sequenceDiagram
     
     API-->>User: 19. 예약 확정 완료 화면
 ```
-
-### 시나리오 시연
-
-https://github.com/user-attachments/assets/ad7a16d9-e125-4f33-b223-32811c7d6a66
-
-
 
 ## API Reference
 <p align="center">
