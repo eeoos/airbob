@@ -136,6 +136,7 @@ tasks.register('copyDocument', Copy) {
 
 tasks.named('bootJar') {
 	dependsOn tasks.named('copyDocument')
+	archiveFileName = "airbob.jar"
 }
 
 tasks.named('jar') {
