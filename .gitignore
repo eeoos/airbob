@@ -91,11 +91,12 @@ src/main/resources/static/
 flyway_schema_history.lock
 
 ## 환경변수
-.env.*
 .env
+.env.*
+!.env.*.example
 
-# MySQL volume
-docker-volume/mysql/
+# Docker volumes (로컬 개발용)
+docker-volume/
 
 # Mock data
 src/main/resources/mock-data/
