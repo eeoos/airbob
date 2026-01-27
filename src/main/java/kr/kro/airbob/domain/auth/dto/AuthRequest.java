@@ -6,12 +6,12 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-public class AuthRequestDto {
+public class AuthRequest {
     @Getter
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
-    public static class LoginRequest {
+    public static class Login {
         @NotBlank
         private String email;
         @NotBlank

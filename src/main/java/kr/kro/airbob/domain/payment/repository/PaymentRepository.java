@@ -15,10 +15,4 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 	Optional<Payment> findByOrderId(String orderId);
 
 	Optional<Payment> findByPaymentKey(String paymentKey);
-
-	@Query("SELECT p.reservation.guest.id FROM Payment p WHERE p.paymentKey = :paymentKey")
-	Optional<Long> findGuestIdByPaymentKey(@Param("paymentKey") String paymentKey);
-
-	@Query("SELECT p.reservation.guest.id FROM Payment p WHERE p.orderId = :orderId")
-	Optional<Long> findGuestIdByOrderId(@Param("orderId") String orderId);
 }

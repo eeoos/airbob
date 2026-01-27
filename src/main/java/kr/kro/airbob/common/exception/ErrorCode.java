@@ -18,7 +18,8 @@ public enum ErrorCode {
 	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "커서 페이지 크기는 1 이상이어야 합니다."),
 	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
 	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
-
+	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
+	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
 	// auth & member
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "존재하지 않거나 활성 상태가 아닌 사용자입니다."),
 	EMAIL_DUPLICATION(HttpStatus.CONFLICT, "M002", "이미 존재하는 이메일입니다."),
@@ -30,6 +31,10 @@ public enum ErrorCode {
 	// accommodation
 	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않거나 삭제된 숙소입니다."),
 	ACCOMMODATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "숙소에 대한 접근 권한이 없습니다."),
+	ACCOMMODATION_NOT_PUBLISHED(HttpStatus.BAD_REQUEST, "A003", "게시된 상태의 숙소만 미게시할 수 있습니다."),
+	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
+	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
+	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A003", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
 
 
 	// reservation
@@ -41,6 +46,7 @@ public enum ErrorCode {
 	CANNOT_EXPIRE_RESERVATION(HttpStatus.CONFLICT, "R006", "결제 대기 상태의 예약만 만료시킬 수 있습니다."),
 	RESERVATION_STATE_CHANGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R007", "예약 상태를 변경하는 중 내부 서버 오류가 발생했습니다."),
 	RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "R008", "해당 예약에 대한 접근 권한이 없습니다."),
+	INVALID_RESERVATION_DATE(HttpStatus.BAD_REQUEST, "R009", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
 
 
 	// payment
@@ -48,11 +54,6 @@ public enum ErrorCode {
 	TOSS_PAYMENT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 예외"),
 	TOSS_PAYMENT_RESPONSE_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "토스페이먼츠 에러 응답 파싱 실패"),
 	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
-	// TOSS_PAYMENT_CONFIRM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 결제 승인에 실패했습니다."),
-	// TOSS_PAYMENT_CANCEL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "Toss Payments 결제 취소에 실패했습니다."),
-	// TOSS_PAYMENT_INQUIRY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P004", "Toss Payments 결제 조회에 실패했습니다."),
-	// TOSS_VIRTUAL_ACCOUNT_ISSUE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "P005", "Toss Payments 가상계좌 발급에 실패했습니다."),
-
 
 	// wishlist
 	WISHLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "W001", "존재하지 않는 위시리스트입니다."),
@@ -70,9 +71,18 @@ public enum ErrorCode {
 	REVIEW_UPDATE_FORBIDDEN(HttpStatus.FORBIDDEN, "V005", "게시된 리뷰만 수정할 수 있습니다."),
 	REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "V006", "해당 리뷰에 대한 권한이 없습니다."),
 
-	// discount
-	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다.");
 
+	// discount
+	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다."),
+
+	// image
+	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "이미지 업로드 중 오류가 발생했습니다."),
+	IMAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I002", "이미지 삭제 중 오류가 발생했습니다."),
+	INVALID_IMAGE_FORMAT(HttpStatus.BAD_REQUEST, "I003", "지원하지 않는 이미지 형식입니다. (JPG, PNG만 가능합니다)"),
+	IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "I004", "요청한 이미지를 찾을 수 없습니다."),
+	IMAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "I005", "해당 이미지에 대한 권한이 없습니다."),
+	EMPTY_IMAGE_FILE(HttpStatus.BAD_REQUEST, "I007", "이미지 파일이 비어 있습니다."),
+	IMAGE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "I008", "이미지 파일 크기는 10MB를 초과할 수 없습니다.");
 
 	private final HttpStatus status;
 	private final String code;

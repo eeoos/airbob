@@ -19,9 +19,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
+@SuperBuilder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AccommodationReviewSummary extends UpdatableEntity {
 
@@ -38,19 +40,16 @@ public class AccommodationReviewSummary extends UpdatableEntity {
 	private Accommodation accommodation;
 
 	@Column(nullable = false)
+	@Builder.Default
 	private Integer totalReviewCount = 0;
 
 	@Column(nullable = false)
+	@Builder.Default
 	private Long ratingSum = 0L;
 
 	@Column(precision = 3, scale = 2)
+	@Builder.Default
 	private BigDecimal averageRating = BigDecimal.ZERO;
-
-	@Builder
-	public AccommodationReviewSummary(Accommodation accommodation) {
-		this.accommodation = accommodation;
-		this.accommodationId = accommodation.getId();
-	}
 
 	public void addReview(int rating) {
 		this.totalReviewCount++;

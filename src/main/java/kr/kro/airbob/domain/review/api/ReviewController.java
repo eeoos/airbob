@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.review.api;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -10,14 +12,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
@@ -32,32 +35,55 @@ public class ReviewController {
 	private final ReviewService reviewService;
 
 	@PostMapping("/v1/accommodations/{accommodationId}/reviews")
-	public ResponseEntity<ApiResponse<ReviewResponse.CreateResponse>> createReview(
+	public ResponseEntity<ApiResponse<ReviewResponse.Create>> createReview(
 		@PathVariable Long accommodationId,
-		@Valid @RequestBody ReviewRequest.CreateRequest request) {
+		@Valid @RequestBody ReviewRequest.Create request) {
 		Long memberId = UserContext.get().id();
-		ReviewResponse.CreateResponse response =
+		ReviewResponse.Create response =
 			reviewService.createReview(accommodationId, request, memberId);
 
-		return ResponseEntity.ok(ApiResponse.success(response));
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
 	}
 
-	@PatchMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
-	public ResponseEntity<ApiResponse<ReviewResponse.UpdateResponse>> updateReview(
+	@PatchMapping("/v1/reviews/{reviewId}")
+	public ResponseEntity<ApiResponse<ReviewResponse.Update>> updateReview(
 		@PathVariable Long reviewId,
-		@Valid @RequestBody ReviewRequest.UpdateRequest request) {
+		@Valid @RequestBody ReviewRequest.Update request) {
 		Long memberId = UserContext.get().id();
-		ReviewResponse.UpdateResponse response =
+		ReviewResponse.Update response =
 			reviewService.updateReviewContent(reviewId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	@DeleteMapping("/v1/accommodations/{accommodationId}/reviews/{reviewId}")
+	@DeleteMapping("/v1/reviews/{reviewId}")
 	public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
 		Long memberId = UserContext.get().id();
 		reviewService.deleteReview(reviewId, memberId);
-		return ResponseEntity.status(HttpStatus.NO_CONTENT).body(ApiResponse.success());
+		return ResponseEntity.ok(ApiResponse.success());
+	}
+
+	@PostMapping("/v1/reviews/{reviewId}/images")
+	public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadReviewImages(
+		@PathVariable Long reviewId,
+		@RequestParam("images") List<MultipartFile> images) {
+
+		Long memberId = UserContext.get().id();
+		ImageResponse.ImageUploadResult response = reviewService.uploadReviewImages(reviewId, images,
+			memberId);
+
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+	}
+
+	@DeleteMapping("/v1/reviews/{reviewId}/images/{imageId}")
+	public ResponseEntity<ApiResponse<Void>> deleteReviewImage(
+		@PathVariable Long reviewId,
+		@PathVariable Long imageId) {
+
+		Long memberId = UserContext.get().id();
+		reviewService.deleteReviewImage(reviewId, imageId, memberId);
+
+		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews")
@@ -72,7 +98,6 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	// todo: 리뷰 이미지 업로드 해야함
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews/summary")
 	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(@PathVariable Long accommodationId) {
 

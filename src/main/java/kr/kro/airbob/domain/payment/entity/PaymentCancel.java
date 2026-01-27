@@ -17,10 +17,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
-@Builder
+@SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentCancel extends BaseEntity {
@@ -54,7 +55,7 @@ public class PaymentCancel extends BaseEntity {
 			.cancelAmount(cancelData.getCancelAmount())
 			.cancelReason(cancelData.getCancelReason())
 			.transactionKey(cancelData.getTransactionKey())
-			.canceledAt(cancelData.getCanceledAt())
+			.canceledAt(cancelData.getCanceledAt().toLocalDateTime())
 			.payment(payment)
 			.build();
 	}

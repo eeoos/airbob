@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.geo.ClientIpExtractor;
@@ -24,19 +25,18 @@ import lombok.RequiredArgsConstructor;
 public class AccommodationSearchController {
 
 	private final AccommodationSearchService accommodationSearchService;
-	private final ClientIpExtractor clientIpExtractor;
 
 	private static final int DEFAULT_PAGE_SIZE = 18;
 	private static final int MAX_PAGE_NUMBER = 14;
 
 	@GetMapping("/v1/search/accommodations")
 	public ResponseEntity<ApiResponse<AccommodationSearchResponse.AccommodationSearchInfos>> searchAccommodations(
-		@ModelAttribute AccommodationSearchRequest.MapBoundsDto mapBounds,
-		@ModelAttribute AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
-		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable,
-		HttpServletRequest request) {
+		@Valid @ModelAttribute AccommodationSearchRequest.MapBoundsDto mapBounds,
+		@Valid @ModelAttribute AccommodationSearchRequest.AccommodationSearchRequestDto searchRequest,
+		@PageableDefault(size = DEFAULT_PAGE_SIZE, page = 0) Pageable pageable) {
 
-		Long memberId = UserContext.get().id();
+		Long memberId = UserContext.get() == null ? null : UserContext.get().id();
+
 		if (pageable.getPageNumber() > MAX_PAGE_NUMBER) {
 			pageable = PageRequest.of(MAX_PAGE_NUMBER, DEFAULT_PAGE_SIZE);
 		}
@@ -45,10 +45,8 @@ public class AccommodationSearchController {
 			pageable = PageRequest.of(pageable.getPageNumber(), DEFAULT_PAGE_SIZE);
 		}
 
-		String clientIp = clientIpExtractor.extractClientIp(request);
-
 		AccommodationSearchResponse.AccommodationSearchInfos infos =
-			accommodationSearchService.searchAccommodations(searchRequest, clientIp, mapBounds, pageable, memberId);
+			accommodationSearchService.searchAccommodations(searchRequest, mapBounds, pageable, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(infos));
 	}

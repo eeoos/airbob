@@ -37,7 +37,6 @@ public class RecentlyViewedController {
 		recentlyViewedService.removeRecentlyViewed(accommodationId, memberId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
-
 	@GetMapping("/v1/members/recently-viewed")
 	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewed() {
 		Long memberId = UserContext.get().id();

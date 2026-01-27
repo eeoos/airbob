@@ -11,19 +11,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
-@Builder
+@SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Review extends UpdatableEntity {
@@ -64,6 +63,6 @@ public class Review extends UpdatableEntity {
 	}
 
 	public void deleteByUser() {
-		this.status = ReviewStatus.DELETED_BY_USER;
+		this.status = ReviewStatus.DELETE;
 	}
 }

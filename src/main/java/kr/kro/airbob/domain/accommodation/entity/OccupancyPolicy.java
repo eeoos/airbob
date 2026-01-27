@@ -6,15 +6,17 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
+import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
-@Builder
+@SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OccupancyPolicy extends BaseEntity {
@@ -23,18 +25,14 @@ public class OccupancyPolicy extends BaseEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 	private Integer maxOccupancy;
-	private Integer adultOccupancy;
-	private Integer childOccupancy;
 	private Integer infantOccupancy;
 	private Integer petOccupancy;
 
-	public static OccupancyPolicy createOccupancyPolicy(AccommodationRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
+	public static OccupancyPolicy createOccupancyPolicy(PolicyRequest.OccupancyPolicyInfo occupancyPolicyInfo) {
 		return OccupancyPolicy.builder()
-				.maxOccupancy(occupancyPolicyInfo.getMaxOccupancy())
-				.adultOccupancy(occupancyPolicyInfo.getAdultOccupancy())
-				.childOccupancy(occupancyPolicyInfo.getChildOccupancy())
-				.infantOccupancy(occupancyPolicyInfo.getInfantOccupancy())
-				.petOccupancy(occupancyPolicyInfo.getPetOccupancy())
+				.maxOccupancy(occupancyPolicyInfo.maxOccupancy())
+				.infantOccupancy(occupancyPolicyInfo.infantOccupancy())
+				.petOccupancy(occupancyPolicyInfo.petOccupancy())
 				.build();
 	}
 }

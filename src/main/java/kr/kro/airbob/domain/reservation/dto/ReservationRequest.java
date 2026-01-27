@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.dto;
 import java.time.LocalDate;
 
 import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AccessLevel;
@@ -17,7 +18,7 @@ public class ReservationRequest {
 		Long accommodationId,
 
 		@NotNull
-		@Future(message = "체크인 날짜는 오늘 이후여야 합니다.")
+		@FutureOrPresent(message = "체크인 날짜는 오늘 포함 이후여야 합니다.")
 		LocalDate checkInDate,
 
 		@NotNull
@@ -26,9 +27,7 @@ public class ReservationRequest {
 
 		@NotNull
 		@Positive
-		Integer guestCount,
-
-		String message
+		Integer guestCount
 		) {
 	}
 }

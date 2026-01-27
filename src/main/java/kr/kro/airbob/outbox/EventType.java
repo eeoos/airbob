@@ -34,7 +34,6 @@ public enum EventType {
 	PG_CANCEL_CALL_FAILED("PAYMENT", "payment-events"),      // PG 취소 API 호출 실패
 
 	// 숙소 색인 이벤트
-	ACCOMMODATION_CREATED("ACCOMMODATION", "accommodation-events"),
 	ACCOMMODATION_UPDATED("ACCOMMODATION", "accommodation-events"),
 	ACCOMMODATION_DELETED("ACCOMMODATION", "accommodation-events"),
 	REVIEW_SUMMARY_CHANGED("ACCOMMODATION", "accommodation-events"),

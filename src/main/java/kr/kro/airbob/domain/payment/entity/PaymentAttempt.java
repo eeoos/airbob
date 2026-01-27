@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.payment.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,10 +21,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
-@Builder
+@SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentAttempt extends BaseEntity {
@@ -53,12 +56,19 @@ public class PaymentAttempt extends BaseEntity {
 	@Column(length = 512)
 	private String failureMessage;
 
+	private String virtualBankCode;
+	private String virtualAccountNumber;
+	private String virtualCustomerName;
+	private LocalDateTime virtualDueDate;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "reservation_id", nullable = false)
 	private Reservation reservation;
 
 	public static PaymentAttempt create(TossPaymentResponse response, Reservation reservation) {
 		TossPaymentResponse.Failure failure = response.getFailure();
+		TossPaymentResponse.VirtualAccount virtualAccount = response.getVirtualAccount();
+
 		return PaymentAttempt.builder()
 			.paymentKey(response.getPaymentKey())
 			.orderId(response.getOrderId())
@@ -68,6 +78,10 @@ public class PaymentAttempt extends BaseEntity {
 			.failureCode(failure != null ? failure.getCode() : null)
 			.failureMessage(failure != null ? failure.getMessage() : null)
 			.reservation(reservation)
+			.virtualBankCode(virtualAccount != null ? virtualAccount.getBankCode() : null)
+			.virtualAccountNumber(virtualAccount != null ? virtualAccount.getAccountNumber() : null)
+			.virtualCustomerName(virtualAccount != null ? virtualAccount.getCustomerName() : null)
+			.virtualDueDate(virtualAccount != null ? virtualAccount.getDueDate().toLocalDateTime() : null)
 			.build();
 	}
 

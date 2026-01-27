@@ -1,21 +1,28 @@
 package kr.kro.airbob.search.document;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.GeoPointField;
 import org.springframework.data.elasticsearch.annotations.InnerField;
 import org.springframework.data.elasticsearch.annotations.MultiField;
+import org.springframework.data.elasticsearch.annotations.Setting;
+
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 import lombok.Builder;
 
 @Document(indexName = "accommodations")
+@Setting(settingPath = "/elastic/es-settings.json")
 @Builder
+@JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
 public record AccommodationDocument(
 
 	@Id
@@ -40,8 +47,11 @@ public record AccommodationDocument(
 	)
 	String description,
 
-	@Field(type = FieldType.Integer)
-	Integer basePrice,
+	@Field(type = FieldType.Long)
+	Long basePrice,
+
+	@Field(type = FieldType.Keyword)
+	String currency,
 
 	@Field(type = FieldType.Keyword)
 	String type,
@@ -49,8 +59,8 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	String status,
 
-	@Field(type = FieldType.Date)
-	LocalDateTime createdAt,
+	@Field(type = FieldType.Date, format = {DateFormat.date_time})
+	Instant createdAt,
 
 	// 위치 정보
 	@GeoPointField
@@ -59,66 +69,84 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	String country,
 
-	@Field(type = FieldType.Keyword)
+	@MultiField(
+		mainField = @Field(type = FieldType.Keyword),
+		otherFields = {
+			@InnerField(suffix = "lower", type = FieldType.Keyword, normalizer = "lowercase_normalizer")
+		}
+	)
+	String state,
+
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard"),
+			@InnerField(suffix = "keyword", type = FieldType.Keyword),
+			@InnerField(suffix = "lower", type = FieldType.Keyword, normalizer = "lowercase_normalizer")
+		}
+	)
 	String city,
 
-	@Field(type = FieldType.Keyword)
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+		}
+	)
 	String district,
 
-	@Field(type = FieldType.Text)
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard")
+		}
+	)
 	String street,
 
-	@Field(type = FieldType.Text)
-	String addressDetail,
+	/*@Field(type = FieldType.Keyword)
+	String addressDetail,*/
 
 	@Field(type = FieldType.Keyword)
 	String postalCode,
 
 	// 인원 정책
 	@Field(type = FieldType.Integer)
-	Integer maxOccupancy,
+	Integer maxGuests,
 
 	@Field(type = FieldType.Integer)
-	Integer adultOccupancy,
+	Integer maxInfants,
 
 	@Field(type = FieldType.Integer)
-	Integer childOccupancy,
-
-	@Field(type = FieldType.Integer)
-	Integer infantOccupancy,
-
-	@Field(type = FieldType.Integer)
-	Integer petOccupancy,
+	Integer maxPets,
 
 	// 편의시설
 	@Field(type = FieldType.Keyword)
 	List<String> amenityTypes,
 
-	// 숙소 이미지
+	// 숙소 썸네일
 	@Field(type = FieldType.Keyword)
-	List<String> imageUrls,
+	String thumbnailUrl,
 
 	// 예약
-	@Field(type = FieldType.Date)
-	List<LocalDate> reservedDates,
+	@Field(type = FieldType.Date_Range)
+	List<DateRange> reservationRanges,
 
 	// 리뷰
 	@Field(type= FieldType.Double)
 	Double averageRating,
 
-	@Field(type = FieldType.Integer)
-	Integer reviewCount,
+	@Field(type = FieldType.Long)
+	Integer reviewCount
 
 	// 호스트
-	@Field(type = FieldType.Long)
+	/*@Field(type = FieldType.Long)
 	Long hostId,
 
 	@Field(type = FieldType.Keyword)
-	String hostNickname
+	String hostNickname*/
 ) {
 
 	@Builder
-
 	public record Location(
 		@Field(type = FieldType.Double)
 		Double lat,
@@ -126,6 +154,15 @@ public record AccommodationDocument(
 		@Field(type = FieldType.Double)
 		Double lon
 	){}
+
+	@Builder
+	public record DateRange(
+		@Field(type = FieldType.Date)
+		LocalDate gte,
+
+		@Field(type = FieldType.Date)
+		LocalDate lt
+	) {}
 }
 
 

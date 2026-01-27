@@ -3,7 +3,6 @@ package kr.kro.airbob.search.service;
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -18,12 +17,6 @@ public class AccommodationIndexingService {
 	private final AccommodationSearchRepository searchRepository;
 	private final AccommodationDocumentBuilder documentBuilder;
 	private final AccommodationIndexUpdater indexUpdater;
-
-	public void indexNewAccommodation(AccommodationCreatedEvent event) {
-		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());
-		searchRepository.save(document);
-		log.info("[ES-INDEX] 숙소 생성: {}", event.accommodationUid());
-	}
 
 	public void updateAccommodationIndex(AccommodationUpdatedEvent event) {
 		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());

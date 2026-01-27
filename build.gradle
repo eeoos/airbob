@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.5.0'
+	id 'org.springframework.boot' version '3.5.8'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'org.asciidoctor.jvm.convert' version '3.3.2'
 }
@@ -27,6 +27,12 @@ repositories {
 
 ext {
 	snippetsDir = layout.buildDirectory.dir("generated-snippets").get().asFile
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "io.awspring.cloud:spring-cloud-aws-dependencies:3.1.1"
+	}
 }
 
 dependencies {
@@ -75,6 +81,23 @@ dependencies {
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 
+	// Spring Cloud AWS
+	implementation "io.awspring.cloud:spring-cloud-aws-starter-s3"
+
+	// Commons Lang
+	implementation 'org.apache.commons:commons-lang3:3.18.0'
+
+	// Jackson CSV
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
+
+	// Json
+	implementation 'org.json:json:20250107'
+
+	// Actuator
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	// Prometheus
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
 	// 테스트
 	testImplementation 'org.springframework.kafka:spring-kafka-test'
 
@@ -86,7 +109,7 @@ dependencies {
 
 	// 테스트
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+//	testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 	//test container

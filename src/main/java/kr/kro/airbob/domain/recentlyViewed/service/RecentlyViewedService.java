@@ -17,11 +17,11 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
@@ -36,8 +36,8 @@ public class RecentlyViewedService {
 	private final RedisTemplate<String, String> redisTemplate;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationReviewSummaryRepository summaryRepository;
-	private final AccommodationAmenityRepository accommodationAmenityRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
+
 
 	private static final String RECENTLY_VIEWED_KEY_PREFIX = "recently_viewed:";
 	private static final int MAX_COUNT = 100;
@@ -80,7 +80,7 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<Accommodation> accommodationsInDb = accommodationRepository.findByIdInAndStatus(new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
+		List<Accommodation> accommodationsInDb = accommodationRepository.findWithAddressByIdAndStatusIn(new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
 		Map<Long, Accommodation> accommodationMap = accommodationsInDb.stream()
 			.collect(Collectors.toMap(Accommodation::getId, accommodation -> accommodation));
 
@@ -96,8 +96,7 @@ public class RecentlyViewedService {
 		}
 
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
-		Map<Long, BigDecimal> reviewRatingMap = getReviewRatingMap(existingIdList);
-		Map<Long, List<AccommodationResponse.AmenityInfoResponse>> amenityMap = getAmenityMap(existingIdList);
+		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
@@ -109,27 +108,18 @@ public class RecentlyViewedService {
 					return null;
 				}
 
-				LocalDateTime viewAt = Instant.ofEpochMilli(tuple.getScore().longValue())
+				LocalDateTime viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue())
 					.atZone(ZoneId.systemDefault())
 					.toLocalDateTime();
 
-				return AccommodationResponse.RecentlyViewedAccommodationInfo.builder()
-					.viewedAt(viewAt)
-					.accommodationId(accommodationId)
-					.accommodationName(accommodation.getName())
-					.thumbnailUrl(accommodation.getThumbnailUrl())
-					.amenities(amenityMap.getOrDefault(accommodationId, List.of()))
-					.averageRating(reviewRatingMap.get(accommodationId))
-					.isInWishlist(wishlistMap.getOrDefault(accommodationId, false))
-					.build();
+				ReviewResponse.ReviewSummary reviewSummary = reviewSummaryMap.get(accommodationId);
+
+				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(viewedAt, accommodation,
+					reviewSummary, wishlistMap.getOrDefault(accommodationId, false));
 			})
 			.filter(Objects::nonNull)
 			.toList();
-
-		return AccommodationResponse.RecentlyViewedAccommodationInfos.builder()
-			.accommodations(recentlyViewedAccommodationInfos)
-			.totalCount(recentlyViewedAccommodationInfos.size())
-			.build();
+		return AccommodationResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedAccommodationInfos);
 	}
 
 	private Map<Long, Boolean> getWishlistMap(Long memberId, List<Long> accommodationIds) {
@@ -143,33 +133,14 @@ public class RecentlyViewedService {
 			));
 	}
 
-	private Map<Long, BigDecimal> getReviewRatingMap(List<Long> accommodationIds) {
+	private Map<Long, ReviewResponse.ReviewSummary> getReviewSummaryMap(List<Long> accommodationIds) {
 		List<AccommodationReviewSummary> summaries = summaryRepository.findByAccommodationIdIn(
 			accommodationIds);
 
 		return summaries.stream()
 			.collect(Collectors.toMap(
 				AccommodationReviewSummary::getAccommodationId,
-				AccommodationReviewSummary::getAverageRating
+				ReviewResponse.ReviewSummary::of
 			));
-	}
-
-
-	private Map<Long, List<AccommodationResponse.AmenityInfoResponse>> getAmenityMap(
-		List<Long> accommodationIds) {
-
-		List<AccommodationAmenity> results =
-			accommodationAmenityRepository.findAccommodationAmenitiesByAccommodationIds(accommodationIds);
-
-		return results.stream()
-			.collect(Collectors.groupingBy(
-				aa -> aa.getAccommodation().getId(),
-				Collectors.mapping(
-					result -> new AccommodationResponse.AmenityInfoResponse(
-						result.getAmenity().getName(),
-						result.getCount()
-					),
-					Collectors.toList()
-				)));
 	}
 }

@@ -1,18 +1,20 @@
 package kr.kro.airbob.search.service;
 
-import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.Address;
+import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.image.AccommodationImage;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -26,7 +28,6 @@ public class AccommodationDocumentBuilder {
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationAmenityRepository amenityRepository;
 	private final ReservationRepository reservationRepository;
-	private final AccommodationImageRepository imageRepository;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 
 	public AccommodationDocument buildAccommodationDocument(String accommodationUidStr) {
@@ -36,8 +37,8 @@ public class AccommodationDocumentBuilder {
 			.orElseThrow(AccommodationNotFoundException::new);
 
 		List<String> amenityTypes = getAccommodationAmenities(accommodationUid);
-		List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
-		List<LocalDate> reservedDates = getReservedDates(accommodationUid);
+		// List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
+		List<AccommodationDocument.DateRange> reservationRanges = getReservationRanges(accommodationUid);
 		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
 		return AccommodationDocument.builder()
@@ -46,31 +47,32 @@ public class AccommodationDocumentBuilder {
 			.name(accommodation.getName())
 			.description(accommodation.getDescription())
 			.basePrice(accommodation.getBasePrice())
+			.currency(accommodation.getCurrency())
 			.type(accommodation.getType().name())
 			.status(accommodation.getStatus().name())
-			.createdAt(accommodation.getCreatedAt())
+			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant())
 			.location(AccommodationDocument.Location.builder()
 				.lat(accommodation.getAddress().getLatitude())
 				.lon(accommodation.getAddress().getLongitude())
 				.build())
 			.country(accommodation.getAddress().getCountry())
+			.state(accommodation.getAddress().getState())
 			.city(accommodation.getAddress().getCity())
 			.district(accommodation.getAddress().getDistrict())
 			.street(accommodation.getAddress().getStreet())
-			.addressDetail(accommodation.getAddress().getDetail())
 			.postalCode(accommodation.getAddress().getPostalCode())
-			.maxOccupancy(accommodation.getOccupancyPolicy().getMaxOccupancy())
-			.adultOccupancy(accommodation.getOccupancyPolicy().getAdultOccupancy())
-			.childOccupancy(accommodation.getOccupancyPolicy().getChildOccupancy())
-			.infantOccupancy(accommodation.getOccupancyPolicy().getInfantOccupancy())
-			.petOccupancy(accommodation.getOccupancyPolicy().getPetOccupancy())
-			.hostId(accommodation.getMember().getId())
-			.hostNickname(accommodation.getMember().getNickname())
+			.maxGuests(accommodation.getOccupancyPolicy().getMaxOccupancy())
+			.maxInfants(accommodation.getOccupancyPolicy().getInfantOccupancy())
+			.maxPets(accommodation.getOccupancyPolicy().getPetOccupancy())
 			.amenityTypes(amenityTypes)
-			.imageUrls(imageUrls)
-			.reservedDates(reservedDates)
-			.averageRating(reviewSummary != null ? reviewSummary.getAverageRating().doubleValue() : null)
-			.reviewCount(reviewSummary != null ? reviewSummary.getTotalReviewCount() : null)
+			.thumbnailUrl(accommodation.getThumbnailUrl())
+			.reservationRanges(reservationRanges)
+			.averageRating(reviewSummary != null && reviewSummary.getAverageRating() != null
+				? reviewSummary.getAverageRating().doubleValue()
+				: 0.0)
+			.reviewCount(reviewSummary != null && reviewSummary.getTotalReviewCount() != null
+				? reviewSummary.getTotalReviewCount()
+				: 0)
 			.build();
 	}
 
@@ -79,32 +81,16 @@ public class AccommodationDocumentBuilder {
 			.orElse(null);
 	}
 
-	private List<LocalDate> getReservedDates(UUID accommodationUid) {
+	private List<AccommodationDocument.DateRange> getReservationRanges(UUID accommodationUid) {
 		return reservationRepository
 			.findFutureCompletedReservations(accommodationUid)
 			.stream()
-			.flatMap(reservation -> {
-				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();
-				LocalDate checkOutDate = reservation.getCheckOut().toLocalDate();
-				// checkOutDate는 숙박일에 포함되지 않으므로 datesUntil 사용
-				return checkInDate.datesUntil(checkOutDate);
-			})
-			.distinct()
-			.sorted()
+			.map(reservation -> AccommodationDocument.DateRange.builder()
+				.gte(reservation.getCheckIn().toLocalDate()) // Check-in (gte)
+				.lt(reservation.getCheckOut().toLocalDate()) // Check-out (lt)
+				.build()
+			)
 			.toList();
-	}
-
-	private List<String> getAccommodationImages(UUID accommodationUid, String thumbnailUrl) {
-		List<String> imageUrls = imageRepository.findImagesByAccommodationUid(accommodationUid)
-			.stream()
-			.map(AccommodationImage::getImageUrl)
-			.toList();
-
-		// 이미지가 없는 경우 썸네일 조회
-		if (imageUrls.isEmpty() && thumbnailUrl != null) {
-			imageUrls = List.of(thumbnailUrl);
-		}
-		return imageUrls;
 	}
 
 	private List<String> getAccommodationAmenities(UUID accommodationUid) {
@@ -114,5 +100,73 @@ public class AccommodationDocumentBuilder {
 			.map(amenity -> amenity.getName().name())
 			.distinct()
 			.toList();
+	}
+
+	public AccommodationDocument build(Accommodation accommodation,
+		AccommodationReviewSummary summary,
+		List<AccommodationAmenity> amenities) {
+		if (accommodation == null) {
+			return null;
+		}
+
+		AccommodationDocument.AccommodationDocumentBuilder builder = AccommodationDocument.builder();
+
+		builder.id(accommodation.getAccommodationUid().toString());
+
+		builder.accommodationId(accommodation.getId())
+			.name(accommodation.getName())
+			.description(accommodation.getDescription())
+			.basePrice(accommodation.getBasePrice())
+			.currency(accommodation.getCurrency())
+			.thumbnailUrl(accommodation.getThumbnailUrl())
+			.type(accommodation.getType().name())
+			.status(accommodation.getStatus().name())
+			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
+
+		Address address = accommodation.getAddress();
+		if (address != null) {
+
+			builder.country(address.getCountry())
+				.state(address.getState())
+				.city(address.getCity())
+				.district(address.getDistrict())
+				.street(address.getStreet())
+				.postalCode(address.getPostalCode())
+				.location(AccommodationDocument.Location.builder()
+					.lat(address.getLatitude())
+					.lon(address.getLongitude())
+					.build());
+		}
+
+		OccupancyPolicy policy = accommodation.getOccupancyPolicy();
+		if (policy != null) {
+			builder.maxGuests(policy.getMaxOccupancy())
+				.maxInfants(policy.getInfantOccupancy())
+				.maxPets(policy.getPetOccupancy());
+		} else {
+			// ES에서 null 필터링 문제를 피하기 위해 기본값 0 설정
+			builder.maxGuests(0).maxInfants(0).maxPets(0);
+		}
+
+		List<String> amenityNames;
+		if (amenities != null && !amenities.isEmpty()) {
+			amenityNames = amenities.stream()
+				.map(am -> am.getAmenity().getName().name())
+				.collect(Collectors.toList());
+		} else {
+			amenityNames = Collections.emptyList();
+		}
+		builder.amenityTypes(amenityNames);
+
+		if (summary != null) {
+			builder.averageRating(summary.getAverageRating() != null ? summary.getAverageRating().doubleValue() : 0.0)
+				.reviewCount(summary.getTotalReviewCount() != null ? summary.getTotalReviewCount() : 0);
+		} else {
+			// 리뷰가 없는 숙소(summary=null)는 0점으로 초기화
+			builder.averageRating(0.0)
+				.reviewCount(0);
+		}
+
+		return builder.build();
 	}
 }

@@ -37,10 +37,6 @@ public class AccommodationIndexingConsumer {
 			String eventType = debeziumEventParser.getEventType(message);
 
 			switch (EventType.from(eventType)) {
-				case ACCOMMODATION_CREATED -> {
-					EventEnvelope<AccommodationCreatedEvent> envelope = debeziumEventParser.parse(message, AccommodationCreatedEvent.class);
-					indexingService.indexNewAccommodation(envelope.payload());
-				}
 				case ACCOMMODATION_UPDATED -> {
 					EventEnvelope<AccommodationUpdatedEvent> envelope = debeziumEventParser.parse(message, AccommodationUpdatedEvent.class);
 					indexingService.updateAccommodationIndex(envelope.payload());

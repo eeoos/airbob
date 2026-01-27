@@ -1,24 +1,40 @@
 package kr.kro.airbob.domain.reservation.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
@@ -27,6 +43,8 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationStatusHistoryRepository;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
+import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.search.event.AccommodationIndexingEvents;
@@ -41,10 +59,14 @@ public class ReservationTransactionService {
 	private static final String KAFKA_CONSUMER = "SYSTEM:KAFKA_CONSUMER";
 
 	private final OutboxEventPublisher outboxEventPublisher;
+	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberRepository memberRepository;
+	private final ReviewRepository reviewRepository;
+	private final PaymentRepository paymentRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
+	private final PaymentAttemptRepository paymentAttemptRepository;
 	private final ReservationStatusHistoryRepository historyRepository;
 
 	@Transactional
@@ -62,7 +84,9 @@ public class ReservationTransactionService {
 			throw new ReservationConflictException();
 		}
 
-		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request);
+		String reservationCode = createReservationCode();
+
+		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request, reservationCode);
 		reservationRepository.save(pendingReservation);
 
 		historyRepository.save(ReservationStatusHistory.builder()
@@ -94,6 +118,7 @@ public class ReservationTransactionService {
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
+		// todo: 추가 쿼리 발생 -> member까지 같이 조회 필요
 		if (!reservation.getGuest().getId().equals(memberId)) {
 			throw new ReservationAccessDeniedException();
 		}
@@ -221,8 +246,143 @@ public class ReservationTransactionService {
 		log.info("[보상-SUCCESS] 예약 취소 실패 보상 처리 완료. 예약 상태 CANCELLATION_FAILED로 변경. UID: {}", reservationUid);
 	}
 
+	@Transactional(readOnly = true)
+	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId,
+		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
+
+		Slice<Reservation> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
+			memberId,
+			cursorRequest.lastId(),
+			cursorRequest.lastCreatedAt(),
+			filterType,
+			PageRequest.of(0, cursorRequest.size())
+		);
+
+		List<ReservationResponse.GuestReservationInfo> reservationInfos = reservationSlice.getContent().stream()
+			.map(ReservationResponse.GuestReservationInfo::from)
+			.collect(Collectors.toList());
+
+		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
+			reservationSlice.getContent(),
+			reservationSlice.hasNext(),
+			Reservation::getId,
+			Reservation::getCreatedAt
+		);
+
+		return ReservationResponse.GuestReservationInfos.from(reservationInfos, pageInfo);
+	}
+
+	@Transactional(readOnly = true)
+	public ReservationResponse.GuestDetail findMyReservationDetail(String reservationUidStr, Long memberId) {
+		UUID reservationUid = UUID.fromString(reservationUidStr);
+
+		Reservation reservation = reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId)
+			.orElseThrow(ReservationNotFoundException::new);
+
+		Payment payment = findPaymentByReservationUidNullable(reservationUid);
+		PaymentResponse.PaymentInfo paymentInfo = getPaymentInfo(reservationUidStr, payment,
+			reservation);
+
+		boolean canWriteReview = isCanWriteReview(memberId, reservation);
+
+		// mapstruct 적용
+		return ReservationResponse.GuestDetail.from(reservation, paymentInfo, canWriteReview);
+	}
+
+	@Transactional(readOnly = true)
+	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
+		Slice<Reservation> reservationSlice = reservationRepository.findHostReservationsByHostIdWithCursor(
+			hostId,
+			cursorRequest.lastId(),
+			cursorRequest.lastCreatedAt(),
+			filterType,
+			PageRequest.of(0, cursorRequest.size())
+		);
+
+		List<Reservation> reservations = reservationSlice.getContent();
+
+		List<ReservationResponse.HostReservationInfo> reservationInfos = reservations.stream()
+			.map(ReservationResponse.HostReservationInfo::from).collect(Collectors.toList());
+
+		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
+			reservations,
+			reservationSlice.hasNext(),
+			Reservation::getId,
+			Reservation::getCreatedAt
+		);
+
+		return ReservationResponse.HostReservationInfos.from(reservationInfos, pageInfo);
+	}
+
+	@Transactional(readOnly = true)
+	public ReservationResponse.HostDetail findHostReservationDetail(String reservationUidStr, Long hostId) {
+
+		UUID reservationUid = UUID.fromString(reservationUidStr);
+
+		Reservation reservation = reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
+			.orElseThrow(ReservationNotFoundException::new);
+
+		Payment payment = findPaymentByReservationUidNullable(reservationUid);
+		PaymentResponse.PaymentInfo paymentInfo = (payment != null) ? PaymentResponse.PaymentInfo.from(payment) : null;
+
+		return ReservationResponse.HostDetail.from(reservation, paymentInfo);
+	}
+
+	private PaymentResponse.PaymentInfo getPaymentInfo(String reservationUidStr, Payment payment,
+		Reservation reservation) {
+		PaymentResponse.PaymentInfo paymentInfo = null;
+
+		if (payment != null) { // 결제 완료된 예약
+			paymentInfo = PaymentResponse.PaymentInfo.from(payment);
+		} else if (reservation.getStatus() == ReservationStatus.PAYMENT_PENDING) { // 결제 대기중인 예약(가상계좌)
+			paymentInfo = paymentAttemptRepository
+				.findByOrderIdOrderByCreatedAtDesc(reservationUidStr)
+				.stream()
+				.filter(pa -> pa.getMethod() == PaymentMethod.VIRTUAL_ACCOUNT)
+				.findFirst()
+				.map(PaymentResponse.PaymentInfo::from)
+				.orElse(null);
+		}
+		return paymentInfo;
+	}
+
+	private boolean isCanWriteReview(Long memberId, Reservation reservation) {
+		boolean canWriteReview = false;
+		if (reservation.getStatus() == ReservationStatus.CONFIRMED &&
+			reservation.getCheckOut().isBefore(LocalDateTime.now())) {
+
+			// 아직 작성한 리뷰가 없는지 확인
+			canWriteReview = !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
+				reservation.getAccommodation().getId(),
+				memberId,
+				ReviewStatus.PUBLISHED
+			);
+		}
+		return canWriteReview;
+	}
+
+	private String createReservationCode() {
+		String reservationCode;
+		do {
+			reservationCode = generateReservationCode();
+		} while (reservationRepository.existsByReservationCode(reservationCode));
+
+		return reservationCode;
+	}
+
+	private String generateReservationCode() {
+		return RandomStringUtils.randomAlphanumeric(6).toUpperCase();
+	}
+
+
 	public Reservation findByReservationUidNullable(String reservationUid) {
+
 		return reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
+			.orElse(null);
+	}
+
+	private Payment findPaymentByReservationUidNullable(UUID reservationUid) {
+		return paymentRepository.findByReservationReservationUid(reservationUid)
 			.orElse(null);
 	}
 }

@@ -4,10 +4,11 @@ import lombok.Getter;
 
 @Getter
 public class BaseException extends RuntimeException {
+	public static final String COLON = ":";
 	private final ErrorCode errorCode;
 
 	public BaseException(String message, ErrorCode errorCode) {
-		super(message);
+		super(errorCode.getMessage() + COLON + message);
 		this.errorCode = errorCode;
 	}
 
@@ -20,5 +21,4 @@ public class BaseException extends RuntimeException {
 		super(cause);
 		this.errorCode = errorCode;
 	}
-
 }

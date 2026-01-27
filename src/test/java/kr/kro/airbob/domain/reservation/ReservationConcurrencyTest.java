@@ -116,7 +116,7 @@ class ReservationConcurrencyTest {
 
 		accommodation = accommodationRepository.save(Accommodation.builder()
 			.name("Test Accommodation")
-			.basePrice(100000)
+			.basePrice(100000L)
 			.address(address)
 			.occupancyPolicy(policy)
 			.member(host)
@@ -162,8 +162,7 @@ class ReservationConcurrencyTest {
 						accommodation.getId(),
 						checkInDate,
 						checkOutDate,
-						2,
-						"Message from user " + userId
+						2
 					);
 
 					reservationService.createPendingReservation(request, guest.getId());
@@ -214,7 +213,7 @@ class ReservationConcurrencyTest {
 			accommodation.getId(),
 			LocalDate.of(2025, 12, 25),
 			LocalDate.of(2025, 12, 27),
-			2, "Request A"
+			2
 		);
 
 		// 유저 B: 24일 ~ 26일 예약 시도 (락 대상: 24, 25일)
@@ -222,7 +221,7 @@ class ReservationConcurrencyTest {
 			accommodation.getId(),
 			LocalDate.of(2025, 12, 24),
 			LocalDate.of(2025, 12, 26),
-			2, "Request B"
+			2
 		);
 
 		Member guestA = memberRepository.save(Member.builder().email("guestA@test.com").nickname("guestA").build());

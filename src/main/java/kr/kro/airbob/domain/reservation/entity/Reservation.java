@@ -18,22 +18,22 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.domain.UpdatableEntity;
 import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Getter
-@Builder
+@SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reservation extends UpdatableEntity {
@@ -45,6 +45,9 @@ public class Reservation extends UpdatableEntity {
 	@JdbcTypeCode(SqlTypes.BINARY)
 	@Column(nullable = false, unique = true, columnDefinition = "BINARY(16)")
 	private UUID reservationUid;
+
+	@Column(length = 10, unique = true)
+	private String reservationCode;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "accommodation_id", nullable = false)
@@ -60,11 +63,16 @@ public class Reservation extends UpdatableEntity {
 	@Column(nullable = false)
 	private LocalDateTime checkOut;
 
+	// todo: 숙박하는 세부 정보를 넣어야 함.
+	// 성인, 어린이, 유아, 펫
 	@Column(nullable = false)
 	private Integer guestCount;
 
 	@Column(nullable = false)
-	private Integer totalPrice;
+	private Long totalPrice;
+
+	@Column(length = 3)
+	private String currency;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
@@ -83,11 +91,11 @@ public class Reservation extends UpdatableEntity {
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
-		ReservationRequest.Create request) {
+		ReservationRequest.Create request, String reservationCode) {
 
 		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
 		LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
-		int price = calculatePrice(accommodation.getBasePrice(), checkInDateTime, checkOutDateTime);
+		Long price = calculatePrice(accommodation.getBasePrice(), checkInDateTime, checkOutDateTime);
 
 		return Reservation.builder()
 			.accommodation(accommodation)
@@ -96,19 +104,23 @@ public class Reservation extends UpdatableEntity {
 			.checkOut(checkOutDateTime)
 			.guestCount(request.guestCount())
 			.totalPrice(price)
+			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
+			// 이후 국제화 도입 필요
+			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
-			.message(request.message())
+			// .message(request.message())
 			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
+			.reservationCode(reservationCode)
 			.build();
 	}
 
-	private static int calculatePrice(int basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
+	private static Long calculatePrice(Long basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
 		long nights = ChronoUnit.DAYS.between(checkIn.toLocalDate(), checkOut.toLocalDate());
 
 		if (nights <= 0) {
-			return 0;
+			throw new InvalidReservationDateException();
 		}
-		return (int) (basePrice * nights);
+		return (basePrice * nights);
 	}
 
 	public void confirm() {
