@@ -52,20 +52,17 @@ services:
     volumes:
       - ./build/libs/airbob.jar:/app/airbob.jar:ro
       - ./logs:/app/logs
+    env_file:
+      - .env.prod
     environment:
+      # 프로필 및 JVM (env_file보다 우선)
       - SPRING_PROFILES_ACTIVE=prod
       - JAVA_OPTS=-Xms512m -Xmx1536m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
-      # Database
+      # Docker 내부 서비스 주소 오버라이드
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - SPRING_DATASOURCE_USERNAME=airbob
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-airbob123}
-      # Redis
-      - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_DATA_REDIS_PORT=6379
-      # Elasticsearch
-      - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
-      # Kafka
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+      - ELASTICSEARCH_URIS=http://elasticsearch:9200
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["sh", "-c", "java $$JAVA_OPTS -jar airbob.jar"]
     depends_on:
       mysql:
@@ -96,11 +93,13 @@ services:
   mysql:
     image: mysql:8.0.33
     container_name: mysql
+    env_file:
+      - .env.prod
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: airbobdb
-      MYSQL_USER: airbob
-      MYSQL_PASSWORD: ${DB_PASSWORD:-airbob123}
+      MYSQL_USER: ${SPRING_DATASOURCE_USERNAME}
+      MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       TZ: UTC
     command:
       - --character-set-server=utf8mb4
@@ -115,7 +114,7 @@ services:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 10
