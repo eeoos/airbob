@@ -1,0 +1,37 @@
+{
+  "name": "airbob-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "mysql",
+    "database.port": "3306",
+    "database.user": "debezium",
+    "database.password": "dbz",
+
+    "database.server.id": "184054",
+
+    "database.include.list": "airbobdb",
+    "table.include.list": "airbobdb.outbox",
+    "topic.prefix": "airbob_server",
+
+    "snapshot.mode": "initial",
+
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:19092",
+    "schema.history.internal.kafka.topic": "schemahistory.airbob_server",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "header.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "header.converter.schemas.enable": "false",
+
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "aggregate_type",
+    "transforms.outbox.route.topic.replacement": "${routedByValue}.events",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.fields.additional.placement": "event_type:header:eventType"
+  }
+}

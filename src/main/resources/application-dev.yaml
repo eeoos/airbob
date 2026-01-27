@@ -1,12 +1,15 @@
+# --------------------------------------------------------
+# 로컬 개발용 (docker-compose.yml과 함께 사용)
+# --------------------------------------------------------
 spring:
   config:
     import: optional:file:.env[.properties]
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: jdbc:mysql://localhost:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: root
 
   jpa:
     properties:
@@ -16,47 +19,50 @@ spring:
         default_batch_fetch_size: 100
 
   flyway:
-    url: ${SPRING_DATASOURCE_URL}
-    user: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: jdbc:mysql://localhost:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    user: root
+    password: root
 
   data:
     redis:
-      host: ${REDIS_HOST}
+      host: localhost
       port: 6379
 
   elasticsearch:
-    uris: ${ELASTICSEARCH_URIS}
-    username: ${ELASTICSEARCH_USERNAME}
-    password: ${ELASTIC_PASSWORD}
+    uris: http://localhost:9200
+    username:
+    password:
     connection-timeout: 10s
     socket-timeout: 30s
 
   kafka:
     consumer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      bootstrap-servers: localhost:9092
       group-id: payment-service-group
     producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      bootstrap-servers: localhost:9092
 
+# 로컬에서는 .env 파일에서 AWS 자격증명 로드
 cloud:
   aws:
     credentials:
-      access-key: ${AWS_ACCESS_KEY_ID}
-      secret-key: ${AWS_SECRET_ACCESS_KEY}
+      access-key: ${AWS_ACCESS_KEY_ID:}
+      secret-key: ${AWS_SECRET_ACCESS_KEY:}
     s3:
-      bucket: ${AWS_S3_BUCKET_NAME}
+      bucket: ${AWS_S3_BUCKET_NAME:airbob-dev}
     region:
-      static: ${AWS_REGION}
+      static: ${AWS_REGION:ap-northeast-2}
     stack:
       auto: false
   cloudfront:
-    domain: ${CLOUDFRONT_DOMAIN}
+    domain: ${CLOUDFRONT_DOMAIN:}
+
+slack:
+  notification:
+    enabled: false  # 로컬에서는 Slack 알림 비활성화
 
 logging:
   level:
-#    kr.kro.airbob: INFO
-#    org.hibernate.SQL: INFO
     kr.kro.airbob: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql: TRACE
