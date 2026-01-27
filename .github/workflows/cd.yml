@@ -61,7 +61,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_SHA7: ${{ steps.meta.outputs.image_sha7 }}
         run: |
-          docker build -f backend.Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7 .
+          docker build -f docker/app/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7 .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7
 
   deploy:
