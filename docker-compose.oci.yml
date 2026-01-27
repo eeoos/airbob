@@ -53,10 +53,10 @@ services:
       - ./build/libs/airbob.jar:/app/airbob.jar:ro
       - ./logs:/app/logs
     env_file:
-      - .env.prod
+      - .env.oci
     environment:
       # 프로필 및 JVM (env_file보다 우선)
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=oci
       - JAVA_OPTS=-Xms512m -Xmx1536m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
       # Docker 내부 서비스 주소 오버라이드
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
@@ -94,7 +94,7 @@ services:
     image: mysql:8.0.33
     container_name: mysql
     env_file:
-      - .env.prod
+      - .env.oci
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: airbobdb

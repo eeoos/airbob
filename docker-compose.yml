@@ -1,5 +1,6 @@
 # --------------------------------------------------------
-# 로컬 개발용
+# 로컬 개발용 (가벼운 단일 노드 구성)
+# 사용법: docker compose up -d
 # --------------------------------------------------------
 services:
   # --------------------------------------------------------
@@ -19,10 +20,16 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
     volumes:
-      - ./docker-volume/mysql:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -30,141 +37,70 @@ services:
       - local-infra
 
   # --------------------------------------------------------
-  # Kafka
+  # Kafka (Single Node - KRaft Mode)
   # --------------------------------------------------------
-  kafka-00:
+  kafka:
     image: apache/kafka:3.7.0
+    container_name: kafka
     ports:
       - "9092:9092"
-    volumes:
-      - ./docker-volume/kafka/secrets:/etc/kafka/secrets
-      - ./docker-volume/kafka/config:/mnt/shared/config
     environment:
-      CLUSTER_ID: "event-broker"
       KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-00:29092,2@kafka-01:29093,3@kafka-02:29094"
-      KAFKA_LISTENERS: "PLAINTEXT://:19092,CONTROLLER://:29092,EXTERNAL://:9092"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-00:19092,EXTERNAL://localhost:9092"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-    networks:
-      - local-infra
-
-  kafka-01:
-    image: apache/kafka:3.7.0
-    ports:
-      - "9093:9093"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: airbob-local-cluster
     volumes:
-      - ./docker-volume/kafka/secrets:/etc/kafka/secrets
-      - ./docker-volume/kafka/config:/mnt/shared/config
-    environment:
-      CLUSTER_ID: "event-broker"
-      KAFKA_NODE_ID: 2
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-00:29092,2@kafka-01:29093,3@kafka-02:29094"
-      KAFKA_LISTENERS: "PLAINTEXT://:19093,CONTROLLER://:29093,EXTERNAL://:9093"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-01:19093,EXTERNAL://localhost:9093"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-    networks:
-      - local-infra
-
-  kafka-02:
-    image: apache/kafka:3.7.0
-    ports:
-      - "9094:9094"
-    volumes:
-      - ./docker-volume/kafka/secrets:/etc/kafka/secrets
-      - ./docker-volume/kafka/config:/mnt/shared/config
-    environment:
-      CLUSTER_ID: "event-broker"
-      KAFKA_NODE_ID: 3
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-00:29092,2@kafka-01:29093,3@kafka-02:29094"
-      KAFKA_LISTENERS: "PLAINTEXT://:19094,CONTROLLER://:29094,EXTERNAL://:9094"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-02:19094,EXTERNAL://localhost:9094"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_PROCESS_ROLES: 'broker,controller'
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - local-infra
 
   # --------------------------------------------------------
-  # Kafka UI
-  # --------------------------------------------------------
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    depends_on:
-      - kafka-00
-      - kafka-01
-      - kafka-02
-    ports:
-      - "9090:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-00:19092,kafka-01:19093,kafka-02:19094
-    networks:
-      - local-infra
-
-  # --------------------------------------------------------
-  # Debezium
+  # Debezium (x86_64 - 공식 이미지 사용)
   # --------------------------------------------------------
   debezium:
     image: debezium/connect:2.6
+    container_name: debezium
     ports:
       - "8083:8083"
     depends_on:
-      - mysql
-      - kafka-00
-      - kafka-01
-      - kafka-02
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
     environment:
-      - BOOTSTRAP_SERVERS=kafka-00:19092,kafka-01:19093,kafka-02:19094
-      - GROUP_ID=debezium-00
-      - CONFIG_STORAGE_TOPIC=DEBEZIUM_CONNECT_CONFIGS
-      - OFFSET_STORAGE_TOPIC=DEBEZIUM_CONNECT_OFFSETS
-      - STATUS_STORAGE_TOPIC=DEBEZIUM_CONNECT_STATUSES
+      BOOTSTRAP_SERVERS: kafka:19092
+      GROUP_ID: debezium-local
+      CONFIG_STORAGE_TOPIC: DEBEZIUM_CONNECT_CONFIGS
+      OFFSET_STORAGE_TOPIC: DEBEZIUM_CONNECT_OFFSETS
+      STATUS_STORAGE_TOPIC: DEBEZIUM_CONNECT_STATUSES
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - local-infra
 
-  #  connect:
-#    image: debezium/connect:2.4.2.Final
-#    container_name: connect
-#    ports:
-#      - "8083:8083"
-#    depends_on:
-#      kafka:
-#        condition: service_healthy
-#      mysql:
-#        condition: service_healthy
-#    environment:
-#      BOOTSTRAP_SERVERS: kafka:29092
-#      CONNECT_BOOTSTRAP_SERVERS: kafka:29092
-#      GROUP_ID: 1
-#      CONNECT_GROUP_ID: 1
-#      CONFIG_STORAGE_TOPIC: connect-configs
-#      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
-#      OFFSET_STORAGE_TOPIC: connect-offsets
-#      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
-#      STATUS_STORAGE_TOPIC: connect-status
-#      CONNECT_STATUS_STORAGE_TOPIC: connect-status
-#      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-#      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-#      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
-#      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-#      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-#      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-#      CONNECT_PLUGIN_PATH: /kafka/connect
-#      CONNECT_REST_ADVERTISED_HOST_NAME: connect
-#      CONNECT_REST_PORT: 8083
-#    healthcheck:
-#      test: [ "CMD", "curl", "-f", "http://localhost:8083/" ]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-
   # --------------------------------------------------------
-  # Elasticsearch
+  # Elasticsearch (with Nori Analyzer)
   # --------------------------------------------------------
   elasticsearch:
     build:
@@ -173,23 +109,19 @@ services:
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
-#      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - xpack.security.enabled=false
-#      - xpack.security.transport.ssl.enabled=true
-#      - xpack.security.http.ssl.enabled=true
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - path.repo=/usr/share/elasticsearch/backup
     ports:
       - "9200:9200"
-      - "9300:9300"
     volumes:
-      - esdata:/usr/share/elasticsearch/data
-      - ./es-snapshot:/usr/share/elasticsearch/backup # 백업
+      - es-data:/usr/share/elasticsearch/data
     healthcheck:
-      test: [ "CMD", "curl", "-s", "http://localhost:9200" ]
-      interval: 10s
+      test: ["CMD", "curl", "-s", "http://localhost:9200/_cluster/health"]
+      interval: 30s
       timeout: 10s
-      retries: 12
+      retries: 10
+      start_period: 60s
     networks:
       - local-infra
 
@@ -200,44 +132,43 @@ services:
     image: redis:7.2-alpine
     container_name: redis
     ports:
-      - "6379:6379" # redis 기본 포트 사용
+      - "6379:6379"
     volumes:
-      - redisdata:/data
-    command: redis-server --appendonly yes # AOF(Append Only File)
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - local-infra
-#  influxdb:
-#    image: influxdb:1.8
-#    container_name: influxdb
-#    ports:
-#      - "8086:8086"
-#    environment:
-#      - INFLUXDB_DB=k6
-#      - INFLUXDB_HTTP_AUTH_ENABLED=false
-#
-#  grafana:
-#    image: grafana/grafana:11.6.1
-#    container_name: grafana
-#    ports:
-#      - "3000:3000"
-#    environment:
-#      - GF_SECURITY_ADMIN_PASSWORD=admin
-#    depends_on:
-#      - influxdb
-#
-#  k6:
-#    image: grafana/k6
-#    container_name: k6
-#    entrypoint: ["sh", "-c", "tail -f /dev/null"]
-#    volumes:
-#      - ./scripts:/scripts
 
   # --------------------------------------------------------
-  # Kibana
+  # Kafka UI (Optional - 개발 편의용)
+  # --------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    profiles: ["ui"]  # docker compose --profile ui up -d
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "9090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+    networks:
+      - local-infra
+
+  # --------------------------------------------------------
+  # Kibana (Optional - 개발 편의용)
   # --------------------------------------------------------
   kibana:
     image: kibana:8.9.0
     container_name: kibana
+    profiles: ["ui"]  # docker compose --profile ui up -d
     ports:
       - "5601:5601"
     environment:
@@ -248,34 +179,11 @@ services:
     networks:
       - local-infra
 
-  # --------------------------------------------------------
-  # Logstash
-  # --------------------------------------------------------
-  logstash:
-    profiles: ["import"]
-    image: docker.elastic.co/logstash/logstash:8.9.0
-    container_name: logstash
-    depends_on:
-      mysql:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-    volumes:
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
-      - ./logstash/pipeline:/usr/share/logstash/pipeline
-      - ./logstash/config/jdbc:/usr/share/logstash/config/jdbc
-    environment:
-      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
-    ports:
-      - "5044:5044"
-    networks:
-      - local-infra
-
 volumes:
-  esdata:
-    driver: local
-  redisdata:
-    driver: local
+  mysql-data:
+  kafka-data:
+  es-data:
+  redis-data:
 
 networks:
   local-infra:
