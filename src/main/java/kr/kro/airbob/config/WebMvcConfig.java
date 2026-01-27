@@ -47,10 +47,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		config.setAllowCredentials(true);
 
 		// 허용할 도메인 명시
-		config.setAllowedOrigins(List.of(
+		config.setAllowedOriginPatterns(List.of(
 			"http://localhost:3000",          // 로컬 개발용
 			"https://www.airbob.cloud",       // 운영 메인
-			"https://airbob.cloud"            // 운영 루트
+			"https://airbob.cloud",           // 운영 루트
+			"https://*.vercel.app"            // Vercel preview deployments
 		));
 
 		// 허용할 HTTP 메서드
