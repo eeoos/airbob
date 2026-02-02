@@ -109,7 +109,9 @@ services:
       - --enforce-gtid-consistency=ON
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+      # init SQL은 최초 1회만 필요. 이미 초기화된 볼륨에서는 실행되지 않음
+      # 신규 배포 시: docker/mysql/init/ 내용을 수동 실행
+
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -161,27 +163,14 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
-  # Debezium (Kafka Connect) - ARM64 빌드 사용
+  # Debezium (Kafka Connect) - GHCR pre-built 이미지
+  # connect-distributed.properties가 이미지에 bake됨
   # --------------------------------------------------------
   debezium:
-    build:
-      context: ./docker/debezium
-      dockerfile: Dockerfile
+    image: ghcr.io/eeoos/airbob-debezium:latest
     container_name: debezium
     environment:
-      BOOTSTRAP_SERVERS: kafka:9092
-      GROUP_ID: debezium-connect
-      CONFIG_STORAGE_TOPIC: debezium_connect_configs
-      OFFSET_STORAGE_TOPIC: debezium_connect_offsets
-      STATUS_STORAGE_TOPIC: debezium_connect_statuses
-      CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      STATUS_STORAGE_REPLICATION_FACTOR: 1
-      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
-      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-      HEAP_OPTS: -Xms256m -Xmx512m
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
     depends_on:
       kafka:
         condition: service_healthy
@@ -202,12 +191,10 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
-  # Elasticsearch (with Nori Analyzer)
+  # Elasticsearch (with Nori Analyzer) - GHCR pre-built 이미지
   # --------------------------------------------------------
   elasticsearch:
-    build:
-      context: ./docker/elasticsearch
-      dockerfile: Dockerfile
+    image: ghcr.io/eeoos/airbob-elasticsearch:latest
     container_name: elasticsearch
     environment:
       - discovery.type=single-node

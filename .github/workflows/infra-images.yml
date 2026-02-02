@@ -1,0 +1,58 @@
+name: Build Infra Images
+
+# Elasticsearch/Debezium Dockerfile 변경 시 또는 수동 트리거
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docker/elasticsearch/**'
+      - 'docker/debezium/**'
+  workflow_dispatch:
+
+concurrency:
+  group: infra-images
+  cancel-in-progress: true
+
+jobs:
+  build-infra-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Elasticsearch (with Nori)
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/elasticsearch
+          file: docker/elasticsearch/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/airbob-elasticsearch:latest
+
+      - name: Build and Push Debezium (Kafka Connect)
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/debezium
+          file: docker/debezium/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/airbob-debezium:latest
