@@ -11,18 +11,16 @@ concurrency:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: airbob-repo
-  SSM_IMAGE_TAG_PARAM: /airbob/prod/image/tag
-  ASG_NAME: airbob-api-asg
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
 
     outputs:
       image_sha7: ${{ steps.meta.outputs.image_sha7 }}
-      ecr_registry: ${{ steps.login-ecr.outputs.registry }}
 
     steps:
       - name: Checkout
@@ -40,6 +38,12 @@ jobs:
           chmod +x gradlew
           ./gradlew clean build -x test
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -51,99 +55,123 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Compute image tag
         id: meta
         run: |
           echo "image_sha7=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Build and Push Docker image to ECR
+      - name: Build and Push multi-arch image
+        uses: docker/build-push-action@v6
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_SHA7: ${{ steps.meta.outputs.image_sha7 }}
-        run: |
-          docker build -f docker/app/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7 .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_SHA7
+        with:
+          context: .
+          file: docker/app/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_sha7 }}
+            ghcr.io/${{ github.repository_owner }}/airbob:${{ steps.meta.outputs.image_sha7 }}
+            ghcr.io/${{ github.repository_owner }}/airbob:latest
 
-  deploy:
+  deploy-oci:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Deploy to OCI via SSH
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          script: |
+            cd ~/airbob
+            docker compose -f docker-compose.oci.yml pull app
+            docker compose -f docker-compose.oci.yml up -d app
 
-      - name: Update SSM image tag
-        env:
-          IMAGE_SHA7: ${{ needs.build-and-push.outputs.image_sha7 }}
-          PARAM_NAME: ${{ env.SSM_IMAGE_TAG_PARAM }}
-        run: |
-          aws ssm put-parameter \
-            --name "$PARAM_NAME" \
-            --type "String" \
-            --value "$IMAGE_SHA7" \
-            --overwrite
-
-      - name: ASG Instance Refresh (wait if in progress, else start)
-        env:
-          ASG_NAME: ${{ env.ASG_NAME }}
-        run: |
-          set -euo pipefail
-
-          echo "ASG_NAME=$ASG_NAME"
-
-          # 1) If a refresh is already running, reuse it. Otherwise start a new one.
-          REFRESH_ID=$(aws autoscaling describe-instance-refreshes \
-            --auto-scaling-group-name "$ASG_NAME" \
-            --query "InstanceRefreshes[?Status=='InProgress'].InstanceRefreshId | [0]" \
-            --output text)
-
-          if [ "$REFRESH_ID" = "None" ] || [ -z "$REFRESH_ID" ]; then
-            echo "No in-progress refresh. Starting a new instance refresh..."
-            REFRESH_ID=$(aws autoscaling start-instance-refresh \
-              --auto-scaling-group-name "$ASG_NAME" \
-              --preferences MinHealthyPercentage=90,InstanceWarmup=120 \
-              --query "InstanceRefreshId" \
-              --output text)
-          else
-            echo "Instance Refresh already in progress: $REFRESH_ID"
-          fi
-
-          echo "Watching refresh: $REFRESH_ID"
-
-          # 2) Poll status until it finishes (max ~30 minutes: 180 * 10s)
-          for i in {1..180}; do
-            STATUS=$(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "$ASG_NAME" \
-              --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].Status | [0]" \
-              --output text)
-
-            PCT=$(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "$ASG_NAME" \
-              --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].PercentageComplete | [0]" \
-              --output text)
-
-            REASON=$(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "$ASG_NAME" \
-              --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].StatusReason | [0]" \
-              --output text)
-
-            echo "status=$STATUS percent=$PCT reason=$REASON"
-
-            if [ "$STATUS" = "Successful" ]; then
-              echo "✅ Instance Refresh successful"
-              exit 0
-            fi
-
-            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-              echo "❌ Instance Refresh failed"
-              exit 1
-            fi
-
-            sleep 10
-          done
-
-          echo "❌ Timed out waiting for instance refresh"
-          exit 1
+  # AWS 배포 시 주석 해제
+  # deploy-aws:
+  #   needs: build-and-push
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ap-northeast-2
+  #
+  #     - name: Update SSM image tag
+  #       env:
+  #         IMAGE_SHA7: ${{ needs.build-and-push.outputs.image_sha7 }}
+  #       run: |
+  #         aws ssm put-parameter \
+  #           --name "/airbob/prod/image/tag" \
+  #           --type "String" \
+  #           --value "$IMAGE_SHA7" \
+  #           --overwrite
+  #
+  #     - name: ASG Instance Refresh (wait if in progress, else start)
+  #       run: |
+  #         set -euo pipefail
+  #         ASG_NAME=airbob-api-asg
+  #
+  #         REFRESH_ID=$(aws autoscaling describe-instance-refreshes \
+  #           --auto-scaling-group-name "$ASG_NAME" \
+  #           --query "InstanceRefreshes[?Status=='InProgress'].InstanceRefreshId | [0]" \
+  #           --output text)
+  #
+  #         if [ "$REFRESH_ID" = "None" ] || [ -z "$REFRESH_ID" ]; then
+  #           echo "No in-progress refresh. Starting a new instance refresh..."
+  #           REFRESH_ID=$(aws autoscaling start-instance-refresh \
+  #             --auto-scaling-group-name "$ASG_NAME" \
+  #             --preferences MinHealthyPercentage=90,InstanceWarmup=120 \
+  #             --query "InstanceRefreshId" \
+  #             --output text)
+  #         else
+  #           echo "Instance Refresh already in progress: $REFRESH_ID"
+  #         fi
+  #
+  #         echo "Watching refresh: $REFRESH_ID"
+  #
+  #         for i in {1..180}; do
+  #           STATUS=$(aws autoscaling describe-instance-refreshes \
+  #             --auto-scaling-group-name "$ASG_NAME" \
+  #             --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].Status | [0]" \
+  #             --output text)
+  #
+  #           PCT=$(aws autoscaling describe-instance-refreshes \
+  #             --auto-scaling-group-name "$ASG_NAME" \
+  #             --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].PercentageComplete | [0]" \
+  #             --output text)
+  #
+  #           REASON=$(aws autoscaling describe-instance-refreshes \
+  #             --auto-scaling-group-name "$ASG_NAME" \
+  #             --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].StatusReason | [0]" \
+  #             --output text)
+  #
+  #           echo "status=$STATUS percent=$PCT reason=$REASON"
+  #
+  #           if [ "$STATUS" = "Successful" ]; then
+  #             echo "Instance Refresh successful"
+  #             exit 0
+  #           fi
+  #
+  #           if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+  #             echo "Instance Refresh failed"
+  #             exit 1
+  #           fi
+  #
+  #           sleep 10
+  #         done
+  #
+  #         echo "Timed out waiting for instance refresh"
+  #         exit 1

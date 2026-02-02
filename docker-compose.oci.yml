@@ -46,11 +46,9 @@ services:
   # Spring Boot Application
   # --------------------------------------------------------
   app:
-    image: eclipse-temurin:21-jre-alpine
+    image: ghcr.io/eeoos/airbob:latest
     container_name: airbob-app
-    working_dir: /app
     volumes:
-      - ./build/libs/airbob.jar:/app/airbob.jar:ro
       - ./logs:/app/logs
     env_file:
       - .env.oci
@@ -63,7 +61,6 @@ services:
       - REDIS_HOST=redis
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-    command: ["sh", "-c", "java $$JAVA_OPTS -jar airbob.jar"]
     depends_on:
       mysql:
         condition: service_healthy
