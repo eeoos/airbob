@@ -84,18 +84,16 @@ jobs:
 
   deploy-oci:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Deploy to OCI via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USER }}
-          key: ${{ secrets.OCI_SSH_KEY }}
-          script: |
-            cd ~/airbob
-            docker compose -f docker-compose.oci.yml pull app
-            docker compose -f docker-compose.oci.yml up -d app
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull and restart app
+        run: |
+          cd ~/airbob
+          docker compose -f docker-compose.oci.yml pull app
+          docker compose -f docker-compose.oci.yml up -d app
 
   # AWS 배포 시 주석 해제
   # deploy-aws:
