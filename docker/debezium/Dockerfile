@@ -28,3 +28,4 @@ USER appuser
 EXPOSE 8083
 
 CMD ["/opt/kafka/bin/connect-distributed.sh", "/opt/kafka/config/connect-distributed.properties"]
+
