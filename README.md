@@ -80,6 +80,8 @@ PW: 123123123
 
 <img width="1651" height="1009" alt="Airbob-System-Architecture-png drawio (1)" src="https://github.com/user-attachments/assets/69e25cdb-f230-4a4e-9cbe-0eb006fe2ff7" />
 
+> AWS Free Tier 크레딧 소진으로 인해  
+> 현재는 OCI 단일 서버에서 Docker Compose 기반으로 운영 중입니다.
 
 
 <br>
