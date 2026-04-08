@@ -73,16 +73,31 @@ class ReservationLockManagerTest {
 	class ReleaseLocksTest {
 
 		@Test
-		@DisplayName("락 해제 시 unlock이 호출된다")
+		@DisplayName("현재 스레드가 락을 보유 중이면 unlock이 호출된다")
 		void 락_해제_성공() {
 			// given
 			RLock mockLock = mock(RLock.class);
+			given(mockLock.isHeldByCurrentThread()).willReturn(true);
 
 			// when
 			lockManager.releaseLocks(mockLock);
 
 			// then
 			then(mockLock).should().unlock();
+		}
+
+		@Test
+		@DisplayName("현재 스레드가 락을 보유하지 않으면 unlock이 호출되지 않는다")
+		void 락_만료_후_해제_시도() {
+			// given
+			RLock mockLock = mock(RLock.class);
+			given(mockLock.isHeldByCurrentThread()).willReturn(false);
+
+			// when
+			lockManager.releaseLocks(mockLock);
+
+			// then
+			then(mockLock).should(never()).unlock();
 		}
 
 		@Test
