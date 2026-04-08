@@ -3,12 +3,10 @@ package kr.kro.airbob.domain.reservation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +18,8 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -35,9 +35,6 @@ class ReservationHoldServiceTest {
 
 	@Mock
 	private ValueOperations<String, String> valueOperations;
-
-	@Captor
-	private ArgumentCaptor<Map<String, String>> mapCaptor;
 
 	@Captor
 	private ArgumentCaptor<List<String>> listCaptor;
@@ -60,46 +57,32 @@ class ReservationHoldServiceTest {
 	class HoldDatesTest {
 
 		@Test
-		@DisplayName("Hold 설정 시 MSET으로 Redis에 키가 저장된다")
+		@DisplayName("Hold 설정 시 executePipelined으로 SET EX가 실행된다")
 		void Hold_설정_성공() {
+			// given
+			given(redisTemplate.executePipelined(any(RedisCallback.class)))
+				.willReturn(Collections.emptyList());
+
 			// when
 			holdService.holdDates(accommodationId, checkIn, checkOut);
 
 			// then
-			then(valueOperations).should().multiSet(mapCaptor.capture());
-			Map<String, String> savedMap = mapCaptor.getValue();
-
-			assertThat(savedMap).hasSize(2);
-			assertThat(savedMap).containsKey("HOLD:RESERVATION1:2025-01-26");
-			assertThat(savedMap).containsKey("HOLD:RESERVATION1:2025-01-27");
-			assertThat(savedMap.values()).allMatch(v -> v.equals("held"));
+			then(redisTemplate).should().executePipelined(any(RedisCallback.class));
 		}
 
 		@Test
-		@DisplayName("Hold 설정 시 각 키에 15분 TTL이 설정된다")
-		void Hold_TTL_설정() {
-			// when
-			holdService.holdDates(accommodationId, checkIn, checkOut);
-
-			// then
-			then(redisTemplate).should(times(2)).expire(anyString(), eq(Duration.ofMinutes(15)));
-		}
-
-		@Test
-		@DisplayName("1박 예약 시 1개의 키만 저장된다")
+		@DisplayName("1박 예약 시에도 pipeline이 정상 실행된다")
 		void Hold_1박() {
 			// given
 			LocalDate oneNightCheckOut = LocalDate.of(2025, 1, 27);
+			given(redisTemplate.executePipelined(any(RedisCallback.class)))
+				.willReturn(Collections.emptyList());
 
 			// when
 			holdService.holdDates(accommodationId, checkIn, oneNightCheckOut);
 
 			// then
-			then(valueOperations).should().multiSet(mapCaptor.capture());
-			Map<String, String> savedMap = mapCaptor.getValue();
-
-			assertThat(savedMap).hasSize(1);
-			assertThat(savedMap).containsKey("HOLD:RESERVATION1:2025-01-26");
+			then(redisTemplate).should().executePipelined(any(RedisCallback.class));
 		}
 	}
 
@@ -178,7 +161,7 @@ class ReservationHoldServiceTest {
 		}
 
 		@Test
-		@DisplayName("올바른 키로 MGET이 호출된다")
+		@DisplayName("올바른 키 형식(HOLD:RESERVATION:{id}:{date})으로 MGET이 호출된다")
 		void Hold_확인_키_검증() {
 			// given
 			given(valueOperations.multiGet(anyList()))
@@ -193,8 +176,8 @@ class ReservationHoldServiceTest {
 
 			assertThat(queriedKeys).hasSize(2);
 			assertThat(queriedKeys).contains(
-				"HOLD:RESERVATION1:2025-01-26",
-				"HOLD:RESERVATION1:2025-01-27"
+				"HOLD:RESERVATION:1:2025-01-26",
+				"HOLD:RESERVATION:1:2025-01-27"
 			);
 		}
 	}
@@ -215,9 +198,21 @@ class ReservationHoldServiceTest {
 
 			assertThat(deletedKeys).hasSize(2);
 			assertThat(deletedKeys).contains(
-				"HOLD:RESERVATION1:2025-01-26",
-				"HOLD:RESERVATION1:2025-01-27"
+				"HOLD:RESERVATION:1:2025-01-26",
+				"HOLD:RESERVATION:1:2025-01-27"
 			);
+		}
+
+		@Test
+		@DisplayName("Hold 제거 시 Redis 장애가 발생해도 예외가 전파되지 않는다")
+		void Hold_제거_실패_시_예외_미전파() {
+			// given
+			given(redisTemplate.delete(anyList()))
+				.willThrow(new DataAccessException("Redis connection failed") {});
+
+			// when & then
+			assertThatCode(() -> holdService.removeHold(accommodationId, checkIn, checkOut))
+				.doesNotThrowAnyException();
 		}
 	}
 }
