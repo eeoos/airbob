@@ -56,7 +56,7 @@ public class ReservationScheduler {
 				.reason("결제 시간 초과")
 				.build());
 
-			holdService.removeHold( // redis TTL 홀드 키 명시적 삭제
+			holdService.removeHold(
 				reservation.getAccommodation().getId(),
 				reservation.getCheckIn().toLocalDate(),
 				reservation.getCheckOut().toLocalDate()

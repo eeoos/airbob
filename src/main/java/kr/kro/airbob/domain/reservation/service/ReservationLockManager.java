@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.reservation.service;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import org.redisson.RedissonMultiLock;
 import org.redisson.api.RLock;
@@ -20,7 +19,6 @@ public class ReservationLockManager {
 
 	private final RedissonClient redissonClient;
 	private static final long LOCK_WAIT_TIME_SECONDS = 5;
-	private static final long LOCK_LEASE_TIME_SECONDS = 10;
 
 	public RLock acquireLocks(List<String> lockKeys) {
 		List<RLock> rLocks = lockKeys.stream()
@@ -30,8 +28,8 @@ public class ReservationLockManager {
 		RedissonMultiLock multiLock = new RedissonMultiLock(rLocks.toArray(new RLock[0]));
 
 		try {
-			boolean isLockAcquired = multiLock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS,
-				TimeUnit.SECONDS);
+			// leaseTime 제거 -> WatchDog 활성화 (락 자동 갱신)
+			boolean isLockAcquired = multiLock.tryLock(LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
 
 			if (!isLockAcquired) {
 				log.warn("다중 락 획득 실패. lockKeys={}", lockKeys);
@@ -47,9 +45,16 @@ public class ReservationLockManager {
 	}
 
 	public void releaseLocks(RLock lock) {
-		if (lock != null) {
-			lock.unlock();
-			log.info("다중 락 해제 성공.");
+		if (lock == null) {
+			return;
+		}
+		try {
+			if (lock.isHeldByCurrentThread()) {
+				lock.unlock();
+				log.info("다중 락 해제 성공.");
+			}
+		} catch (Exception e) {
+			log.warn("다중 락 해제 중 예외 발생. 이미 만료됐을 수 있음.", e);
 		}
 	}
 

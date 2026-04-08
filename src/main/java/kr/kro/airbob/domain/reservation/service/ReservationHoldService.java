@@ -1,33 +1,38 @@
 package kr.kro.airbob.domain.reservation.service;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReservationHoldService {
 
 	private final RedisTemplate<String, String> redisTemplate;
-	private static final String HOLD_KEY_PREFIX = "HOLD:RESERVATION";
-	private static final Duration HOLD_DURATION = Duration.ofMinutes(15); // 15분
+	private static final String HOLD_KEY_PREFIX = "HOLD:RESERVATION:";
+	private static final long HOLD_DURATION_SECONDS = 15 * 60L; // 15분
 
 	public void holdDates(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
 		List<String> holdKeys = generateHoldKeys(accommodationId, checkIn, checkOut);
 
-		// MSET 사용
-		redisTemplate.opsForValue().multiSet(
-			holdKeys.stream().collect(Collectors.toMap(key -> key,  key -> "held"))
-		);
-
-		// TTL 설정
-		holdKeys.forEach(key -> redisTemplate.expire(key, HOLD_DURATION));
+		// SET EX를 파이프라인으로 묶어 MSET+TTL의 non-atomic 문제 해결
+		redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+			for (String key : holdKeys) {
+				connection.stringCommands().set(
+					key.getBytes(),
+					"held".getBytes(),
+					org.springframework.data.redis.core.types.Expiration.seconds(HOLD_DURATION_SECONDS),
+					org.springframework.data.redis.connection.RedisStringCommands.SetOption.UPSERT
+				);
+			}
+			return null;
+		});
 	}
 
 	public boolean isAnyDateHeld(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
@@ -40,8 +45,13 @@ public class ReservationHoldService {
 	}
 
 	public void removeHold(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
-		List<String> holdKeys = generateHoldKeys(accommodationId, checkIn, checkOut);
-		redisTemplate.delete(holdKeys);
+		try {
+			List<String> holdKeys = generateHoldKeys(accommodationId, checkIn, checkOut);
+			redisTemplate.delete(holdKeys);
+		} catch (Exception e) {
+			log.warn("Redis hold 삭제 실패. TTL로 자동 만료 예정. accommodationId={}, checkIn={}, checkOut={}",
+				accommodationId, checkIn, checkOut, e);
+		}
 	}
 
 	private List<String> generateHoldKeys(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
