@@ -7,7 +7,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReservationHoldService {
@@ -43,8 +45,13 @@ public class ReservationHoldService {
 	}
 
 	public void removeHold(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
-		List<String> holdKeys = generateHoldKeys(accommodationId, checkIn, checkOut);
-		redisTemplate.delete(holdKeys);
+		try {
+			List<String> holdKeys = generateHoldKeys(accommodationId, checkIn, checkOut);
+			redisTemplate.delete(holdKeys);
+		} catch (Exception e) {
+			log.warn("Redis hold 삭제 실패. TTL로 자동 만료 예정. accommodationId={}, checkIn={}, checkOut={}",
+				accommodationId, checkIn, checkOut, e);
+		}
 	}
 
 	private List<String> generateHoldKeys(Long accommodationId, LocalDate checkIn, LocalDate checkOut) {
