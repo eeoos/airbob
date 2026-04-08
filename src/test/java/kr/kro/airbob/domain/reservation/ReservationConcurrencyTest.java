@@ -74,6 +74,8 @@ class ReservationConcurrencyTest {
 	private ElasticsearchOperations elasticsearchOperations;
 	@MockitoBean
 	private AccommodationSearchRepository accommodationSearchRepository;
+	@MockitoBean
+	private io.awspring.cloud.s3.S3Template s3Template;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
