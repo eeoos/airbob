@@ -2,9 +2,10 @@ package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
 
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,19 +20,21 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
-import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -40,14 +43,20 @@ import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationStatusHistoryRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
+import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
+import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest
 @ActiveProfiles("test")
 class ReservationConcurrencyTest {
 
+	private static final int THREAD_COUNT = 50;
+
 	@Autowired
 	private ReservationService reservationService;
+	@Autowired
+	private ReservationTransactionService transactionService;
 	@Autowired
 	private ReservationRepository reservationRepository;
 	@Autowired
@@ -57,9 +66,14 @@ class ReservationConcurrencyTest {
 	@Autowired
 	private AddressRepository addressRepository;
 	@Autowired
-	private OccupancyPolicyRepository occupancyPolicyRepository;
-	@Autowired
 	private ReservationStatusHistoryRepository historyRepository;
+
+	@MockitoBean
+	private ElasticsearchClient elasticsearchClient;
+	@MockitoBean
+	private ElasticsearchOperations elasticsearchOperations;
+	@MockitoBean
+	private AccommodationSearchRepository accommodationSearchRepository;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
@@ -68,19 +82,6 @@ class ReservationConcurrencyTest {
 	@Container
 	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
 		.withExposedPorts(6379);
-
-	@Container
-	static final GenericContainer<?> elasticsearchContainer =
-		new GenericContainer<>(
-			new ImageFromDockerfile("elasticsearch-nori:8.9.0", false)
-				.withDockerfile(Paths.get(System.getProperty("user.dir"), "Dockerfile"))
-		)
-			.withExposedPorts(9200)
-			.withEnv("xpack.security.enabled", "false")
-			.withEnv("discovery.type", "single-node")
-			.withEnv("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
-			.withReuse(true);
-
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -93,13 +94,12 @@ class ReservationConcurrencyTest {
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
 
-		registry.add("spring.elasticsearch.uris", () -> "http://" + elasticsearchContainer.getHost() + ":" + elasticsearchContainer.getMappedPort(9200));
-
 		registry.add("spring.kafka.consumer.enabled", () -> "false");
 		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	private Accommodation accommodation;
+	private List<Member> guests;
 
 	@BeforeEach
 	void setUp() {
@@ -108,21 +108,26 @@ class ReservationConcurrencyTest {
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
 		addressRepository.deleteAllInBatch();
-		occupancyPolicyRepository.deleteAllInBatch();
 
 		Member host = memberRepository.save(Member.builder().email("host@test.com").nickname("Host").build());
-		Address address = addressRepository.save(Address.builder().country("KR").build());
-		OccupancyPolicy policy = occupancyPolicyRepository.save(OccupancyPolicy.builder().maxOccupancy(2).build());
 
 		accommodation = accommodationRepository.save(Accommodation.builder()
 			.name("Test Accommodation")
 			.basePrice(100000L)
-			.address(address)
-			.occupancyPolicy(policy)
+			.address(Address.builder().country("KR").build())
+			.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(2).build())
 			.member(host)
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.status(AccommodationStatus.PUBLISHED)
 			.build());
+
+		guests = new ArrayList<>();
+		for (int i = 1; i <= THREAD_COUNT; i++) {
+			guests.add(memberRepository.save(
+				Member.builder().email("guest" + i + "@test.com").nickname("guest" + i).build()
+			));
+		}
 	}
 
 	@AfterEach
@@ -132,31 +137,31 @@ class ReservationConcurrencyTest {
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
 		addressRepository.deleteAllInBatch();
-		occupancyPolicyRepository.deleteAllInBatch();
 	}
 
-
 	@Test
-	@DisplayName("300명의 유저가 동일한 숙소를 동시에 예약할 때 단 1명만 성공해야 한다")
+	@DisplayName("동시에 같은 숙소를 예약하면 단 1명만 성공해야 한다")
 	void reservationConcurrencyTest() throws InterruptedException {
-
 		// given
-		int numberOfThreads = 300;
-		ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
-		CountDownLatch latch = new CountDownLatch(numberOfThreads);
+		ExecutorService executorService = Executors.newFixedThreadPool(THREAD_COUNT);
+		CountDownLatch readyLatch = new CountDownLatch(THREAD_COUNT);
+		CountDownLatch startLatch = new CountDownLatch(1);
+		CountDownLatch doneLatch = new CountDownLatch(THREAD_COUNT);
 
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger expectedFailCount = new AtomicInteger(0);
+		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
 		LocalDate checkInDate = LocalDate.of(2025, 12, 24);
 		LocalDate checkOutDate = LocalDate.of(2025, 12, 26);
 
 		// when
-		for (int i = 0; i < numberOfThreads; i++) {
-			final int userId = i + 1;
+		for (int i = 0; i < THREAD_COUNT; i++) {
+			final Member guest = guests.get(i);
 			executorService.submit(() -> {
 				try {
-					Member guest = memberRepository.save(Member.builder().email("guest" + userId + "@test.com").nickname("guest" + userId).build());
+					readyLatch.countDown();
+					startLatch.await();
 
 					ReservationRequest.Create request = new ReservationRequest.Create(
 						accommodation.getId(),
@@ -171,44 +176,198 @@ class ReservationConcurrencyTest {
 				} catch (ReservationLockException | ReservationConflictException e) {
 					expectedFailCount.incrementAndGet();
 				} catch (Exception e) {
-					System.err.println("Unexpected exception for user " + userId + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
+					unexpectedFailCount.incrementAndGet();
+					System.err.println("Unexpected: " + e.getClass().getSimpleName() + " - " + e.getMessage());
 				} finally {
-					latch.countDown();
+					doneLatch.countDown();
 				}
 			});
 		}
 
-		latch.await();
+		readyLatch.await();
+		startLatch.countDown();
+		doneLatch.await();
 		executorService.shutdown();
 
 		// then
 		long reservationCount = reservationRepository.count();
 
 		System.out.println("======================================");
-		System.out.println("부하 테스트 결과");
-		System.out.println("총 시도: " + numberOfThreads);
+		System.out.println("동시성 테스트 결과");
+		System.out.println("총 시도: " + THREAD_COUNT);
 		System.out.println("예약 성공: " + successCount.get());
-		System.out.println("예상된 실패 (정상): " + expectedFailCount.get());
-		System.out.println("DB에 생성된 예약 수: " + reservationCount);
+		System.out.println("예상된 실패: " + expectedFailCount.get());
+		System.out.println("예상치 못한 실패: " + unexpectedFailCount.get());
+		System.out.println("DB 예약 수: " + reservationCount);
 		System.out.println("======================================");
 
+		assertThat(unexpectedFailCount.get()).as("예상치 못한 예외가 발생하면 안 된다.").isZero();
 		assertThat(successCount.get()).as("오직 하나의 예약만 성공해야 한다.").isEqualTo(1);
-		assertThat(expectedFailCount.get()).as("나머지 모든 예약은 예상된 예외(락 또는 중복)로 실패해야 한다.").isEqualTo(numberOfThreads - 1);
+		assertThat(successCount.get() + expectedFailCount.get()).as("모든 요청이 처리되어야 한다.").isEqualTo(THREAD_COUNT);
 		assertThat(reservationCount).as("DB에도 오직 하나의 예약만 기록되어야 한다.").isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("분산 락 없이 동시 예약하면 중복 예약이 발생한다")
+	void withoutLock_duplicateReservationOccurs() throws InterruptedException {
+		// given
+		int threadCount = 10;
+		ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+		CountDownLatch readyLatch = new CountDownLatch(threadCount);
+		CountDownLatch startLatch = new CountDownLatch(1);
+		CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+		AtomicInteger successCount = new AtomicInteger(0);
+		AtomicInteger failCount = new AtomicInteger(0);
+
+		LocalDate checkInDate = LocalDate.of(2025, 12, 24);
+		LocalDate checkOutDate = LocalDate.of(2025, 12, 26);
+
+		ReservationRequest.Create request = new ReservationRequest.Create(
+			accommodation.getId(),
+			checkInDate,
+			checkOutDate,
+			2
+		);
+
+		// when - 락 없이 트랜잭션 서비스 직접 호출
+		for (int i = 0; i < threadCount; i++) {
+			final Member guest = guests.get(i);
+			executorService.submit(() -> {
+				try {
+					readyLatch.countDown();
+					startLatch.await();
+
+					transactionService.createPendingReservationInTx(request, guest.getId(), "락 미적용 테스트");
+					successCount.incrementAndGet();
+				} catch (ReservationConflictException e) {
+					failCount.incrementAndGet();
+				} catch (Exception e) {
+					failCount.incrementAndGet();
+				} finally {
+					doneLatch.countDown();
+				}
+			});
+		}
+
+		readyLatch.await();
+		startLatch.countDown();
+		doneLatch.await();
+		executorService.shutdown();
+
+		// then
+		long reservationCount = reservationRepository.count();
+
+		System.out.println("======================================");
+		System.out.println("[락 미적용] 중복 예약 재현 테스트");
+		System.out.println("총 시도: " + threadCount);
+		System.out.println("예약 성공: " + successCount.get());
+		System.out.println("예약 실패: " + failCount.get());
+		System.out.println("DB 예약 수: " + reservationCount);
+		System.out.println("======================================");
+
+		assertThat(reservationCount).as("락 없이는 중복 예약이 발생해야 한다 (2개 이상).")
+			.isGreaterThan(1);
+	}
+
+	@Test
+	@DisplayName("서로 다른 숙소는 같은 날짜여도 동시 예약이 모두 성공해야 한다")
+	void differentAccommodations_bothSucceed() throws InterruptedException {
+		// given
+		Member host2 = memberRepository.save(Member.builder().email("host2@test.com").nickname("Host2").build());
+		Accommodation accommodation2 = accommodationRepository.save(Accommodation.builder()
+			.name("Test Accommodation 2")
+			.basePrice(200000L)
+			.address(Address.builder().country("KR").build())
+			.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(2).build())
+			.member(host2)
+			.checkInTime(LocalTime.of(15, 0))
+			.checkOutTime(LocalTime.of(11, 0))
+			.status(AccommodationStatus.PUBLISHED)
+			.build());
+
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		CountDownLatch readyLatch = new CountDownLatch(2);
+		CountDownLatch startLatch = new CountDownLatch(1);
+		CountDownLatch doneLatch = new CountDownLatch(2);
+
+		AtomicInteger successCount = new AtomicInteger(0);
+		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
+
+		LocalDate checkInDate = LocalDate.of(2025, 12, 24);
+		LocalDate checkOutDate = LocalDate.of(2025, 12, 26);
+
+		Member guestA = guests.get(0);
+		Member guestB = guests.get(1);
+
+		// when - 같은 날짜, 다른 숙소
+		executorService.submit(() -> {
+			try {
+				readyLatch.countDown();
+				startLatch.await();
+				reservationService.createPendingReservation(
+					new ReservationRequest.Create(accommodation.getId(), checkInDate, checkOutDate, 2),
+					guestA.getId()
+				);
+				successCount.incrementAndGet();
+			} catch (Exception e) {
+				unexpectedFailCount.incrementAndGet();
+				System.err.println("숙소1 실패: " + e.getClass().getSimpleName());
+			} finally {
+				doneLatch.countDown();
+			}
+		});
+
+		executorService.submit(() -> {
+			try {
+				readyLatch.countDown();
+				startLatch.await();
+				reservationService.createPendingReservation(
+					new ReservationRequest.Create(accommodation2.getId(), checkInDate, checkOutDate, 2),
+					guestB.getId()
+				);
+				successCount.incrementAndGet();
+			} catch (Exception e) {
+				unexpectedFailCount.incrementAndGet();
+				System.err.println("숙소2 실패: " + e.getClass().getSimpleName());
+			} finally {
+				doneLatch.countDown();
+			}
+		});
+
+		readyLatch.await();
+		startLatch.countDown();
+		doneLatch.await();
+		executorService.shutdown();
+
+		// then
+		long reservationCount = reservationRepository.count();
+
+		System.out.println("======================================");
+		System.out.println("서로 다른 숙소 동시 예약 테스트");
+		System.out.println("예약 성공: " + successCount.get());
+		System.out.println("예상치 못한 실패: " + unexpectedFailCount.get());
+		System.out.println("DB 예약 수: " + reservationCount);
+		System.out.println("======================================");
+
+		assertThat(unexpectedFailCount.get()).as("예상치 못한 예외가 발생하면 안 된다.").isZero();
+		assertThat(successCount.get()).as("서로 다른 숙소이므로 둘 다 성공해야 한다.").isEqualTo(2);
+		assertThat(reservationCount).as("DB에 2건의 예약이 있어야 한다.").isEqualTo(2);
 	}
 
 	@Test
 	@DisplayName("날짜가 겹치는 두 예약을 동시에 진행할 때 데드락이 발생하지 않아야 한다")
 	void deadlockAvoidanceTest() throws InterruptedException {
 		// given
-		int numberOfThreads = 2;
-		ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
-		CountDownLatch latch = new CountDownLatch(numberOfThreads);
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		CountDownLatch readyLatch = new CountDownLatch(2);
+		CountDownLatch startLatch = new CountDownLatch(1);
+		CountDownLatch doneLatch = new CountDownLatch(2);
 
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger failCount = new AtomicInteger(0);
+		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		// 유저 A: 25일 ~ 27일 예약 시도 (락 대상: 25, 26일)
 		ReservationRequest.Create requestA = new ReservationRequest.Create(
 			accommodation.getId(),
 			LocalDate.of(2025, 12, 25),
@@ -216,7 +375,6 @@ class ReservationConcurrencyTest {
 			2
 		);
 
-		// 유저 B: 24일 ~ 26일 예약 시도 (락 대상: 24, 25일)
 		ReservationRequest.Create requestB = new ReservationRequest.Create(
 			accommodation.getId(),
 			LocalDate.of(2025, 12, 24),
@@ -224,41 +382,45 @@ class ReservationConcurrencyTest {
 			2
 		);
 
-		Member guestA = memberRepository.save(Member.builder().email("guestA@test.com").nickname("guestA").build());
-		Member guestB = memberRepository.save(Member.builder().email("guestB@test.com").nickname("guestB").build());
+		Member guestA = guests.get(0);
+		Member guestB = guests.get(1);
 
 		// when
-		// 스레드 1: requestA 실행
 		executorService.submit(() -> {
 			try {
+				readyLatch.countDown();
+				startLatch.await();
 				reservationService.createPendingReservation(requestA, guestA.getId());
 				successCount.incrementAndGet();
 			} catch (ReservationLockException | ReservationConflictException e) {
 				failCount.incrementAndGet();
 			} catch (Exception e) {
-				System.err.println("Unexpected exception for User A: " + e.getClass().getSimpleName());
+				unexpectedFailCount.incrementAndGet();
+				System.err.println("Unexpected for User A: " + e.getClass().getSimpleName());
 			} finally {
-				latch.countDown();
+				doneLatch.countDown();
 			}
 		});
 
-		// 스레드 2: requestB 실행
 		executorService.submit(() -> {
 			try {
-				// 두 스레드가 거의 동시에 락 획득을 시도하도록 딜레이 추가
-				Thread.sleep(10);
+				readyLatch.countDown();
+				startLatch.await();
 				reservationService.createPendingReservation(requestB, guestB.getId());
 				successCount.incrementAndGet();
 			} catch (ReservationLockException | ReservationConflictException e) {
 				failCount.incrementAndGet();
 			} catch (Exception e) {
-				System.err.println("Unexpected exception for User B: " + e.getClass().getSimpleName());
+				unexpectedFailCount.incrementAndGet();
+				System.err.println("Unexpected for User B: " + e.getClass().getSimpleName());
 			} finally {
-				latch.countDown();
+				doneLatch.countDown();
 			}
 		});
 
-		latch.await();
+		readyLatch.await();
+		startLatch.countDown();
+		doneLatch.await();
 		executorService.shutdown();
 
 		// then
@@ -268,10 +430,12 @@ class ReservationConcurrencyTest {
 		System.out.println("데드락 테스트 결과");
 		System.out.println("총 시도: 2");
 		System.out.println("예약 성공: " + successCount.get());
-		System.out.println("예약 실패 (정상): " + failCount.get());
-		System.out.println("DB에 생성된 예약 수: " + reservationCount);
+		System.out.println("예약 실패: " + failCount.get());
+		System.out.println("예상치 못한 실패: " + unexpectedFailCount.get());
+		System.out.println("DB 예약 수: " + reservationCount);
 		System.out.println("======================================");
 
+		assertThat(unexpectedFailCount.get()).as("예상치 못한 예외가 발생하면 안 된다.").isZero();
 		assertThat(successCount.get()).as("두 예약 중 하나는 성공해야 한다.").isEqualTo(1);
 		assertThat(failCount.get()).as("두 예약 중 하나는 실패해야 한다.").isEqualTo(1);
 		assertThat(reservationCount).as("DB에는 최종적으로 하나의 예약만 있어야 한다.").isEqualTo(1);

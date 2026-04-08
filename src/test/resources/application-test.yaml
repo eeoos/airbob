@@ -52,6 +52,11 @@ slack:
   webhook:
     url: https://hooks.slack.com/services/dummy/url
 
+payment:
+  toss:
+    secret-key: dummy-toss-secret-key
+    base-url: https://api.tosspayments.com
+
 toss:
   client-key: dummy-client-key
   secret-key: dummy-toss-secret-key
