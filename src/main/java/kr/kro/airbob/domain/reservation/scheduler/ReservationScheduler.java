@@ -56,11 +56,15 @@ public class ReservationScheduler {
 				.reason("결제 시간 초과")
 				.build());
 
-			holdService.removeHold( // redis TTL 홀드 키 명시적 삭제
-				reservation.getAccommodation().getId(),
-				reservation.getCheckIn().toLocalDate(),
-				reservation.getCheckOut().toLocalDate()
-			);
+			try {
+				holdService.removeHold(
+					reservation.getAccommodation().getId(),
+					reservation.getCheckIn().toLocalDate(),
+					reservation.getCheckOut().toLocalDate()
+				);
+			} catch (Exception e) {
+				log.warn("Redis hold 삭제 실패. TTL로 자동 만료 예정. reservationId={}", reservation.getId(), e);
+			}
 		});
 		log.info("{}건의 만료된 예약 정리 완료", expiredList.size());
 	}
