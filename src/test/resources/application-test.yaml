@@ -34,7 +34,6 @@ cloud:
       static: ap-northeast-2
     s3:
       bucket: dummy-bucket
-      enabled: false
     stack:
       auto: false
   cloudfront:

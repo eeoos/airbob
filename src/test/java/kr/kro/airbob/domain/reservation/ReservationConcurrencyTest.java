@@ -47,7 +47,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
-@SpringBootTest
+@SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
 @ActiveProfiles("test")
 class ReservationConcurrencyTest {
 
