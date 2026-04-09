@@ -49,13 +49,38 @@ PW: 123123123
 
 <hr>
 
-## Key Dependencies and Features
+## 핵심 설계와 기술 선택
 
-### 1. Redisson을 통한 동시성 제어
-- **Redis 분산 락**을 도입하여 인기 숙소의 동시 예약 요청(Race Condition)을 제어 🔗 [ReservationLockManager.java](src/main/java/kr/kro/airbob/domain/reservation/service/ReservationLockManager.java)
-- **Lock Key 오름차순 정렬** 전략을 적용하여, 다중 리소스 점유 시 발생할 수 있는 **교착 상태의 환형 대기 조건을 차단** 🔗 [ReservationLockManager.java](src/main/java/kr/kro/airbob/domain/reservation/service/ReservationLockManager.java)
-- 스핀 락 대신 **Pub/Sub 방식**을 적용해 Redis 부하 최소화 및 락 획득 대기 효율성 증대
-- '숙소 ID + 날짜' 단위의 세분화된 락 키 설계로 동시 처리량 유지하며 **중복 예약 0%** 달성 🔗 [ReservationConcurrencyTest.java](src/test/java/kr/kro/airbob/domain/reservation/ReservationConcurrencyTest.java)
+### 1. 3단계 동시성 제어 (Redis Hold → Redisson Lock → DB 검증)
+인기 숙소에 동시 예약 요청이 몰릴 때 발생하는 Race Condition을 **3단계 방어 구조**로 해결했습니다.
+
+| 단계 | 역할 | 기술 |
+|------|------|------|
+| **1. Redis Hold** | 결제 대기 중인 날짜에 대한 빠른 선차단 (최적화 레이어) | `MGET` 기반 다중 키 조회 |
+| **2. Redisson MultiLock** | 동일 자원에 대한 동시 진입 직렬화 (진입 제어 레이어) | Pub/Sub 기반 분산 락 |
+| **3. DB 중복 검증** | 최종 방어선 — DB를 진실의 원천으로 삼아 겹치는 예약 여부 재검증 | 트랜잭션 내 날짜 중복 조회 |
+
+🔗 전체 흐름:
+[ReservationService.java](src/main/java/kr/kro/airbob/domain/reservation/service/ReservationService.java)
+
+**설계 포인트**
+- **Pub/Sub 방식 락 대기**: 스핀 락 대신 Redis 채널 구독으로 락 해제 알림을 수신하여 불필요한 polling과 Redis
+  부하를 최소화
+- **Lock Key 오름차순 정렬**: 모든 요청이 동일한 순서로 락을 획득하도록 강제해 Circular Wait를 제거하고 데드락을
+  구조적으로 방지 🔗
+  [DateLockKeyGenerator.java](src/main/java/kr/kro/airbob/domain/reservation/service/DateLockKeyGenerator.java)
+- **WatchDog 활성화**: `leaseTime`을 명시하지 않아 Redisson WatchDog이 락 TTL을 자동 갱신하도록 구성 — 장시간
+  트랜잭션에서도 락 조기 만료 방지
+- **'숙소 ID + 날짜' 단위 세분화 락**: 서로 다른 숙소 또는 날짜 간 불필요한 락 경합 없이 동시 처리량 유지
+- **Redis 장애 격리**: Hold 설정/삭제 실패가 예약 트랜잭션에 전파되지 않도록 방어 처리 — Redis Hold 장애 시에도
+  Redisson Lock과 DB 재검증으로 최종 정합성 유지
+
+**테스트 검증** 🔗
+[ReservationConcurrencyTest.java](src/test/java/kr/kro/airbob/domain/reservation/ReservationConcurrencyTest.java)
+- 50개 동시 요청에서 1건만 성공하고 DB에도 1건만 저장됨을 검증
+- 분산 락 제거 시 동일 조건에서 중복 예약이 발생함을 대조 실험으로 검증
+- 날짜가 겹치는 두 예약의 동시 진행 시 데드락 없이 정상 처리됨을 검증
+- 서로 다른 숙소는 같은 날짜여도 동시 예약이 모두 성공함을 통해 락 세분화 검증
 
 ### 2. Event-Driven Architecture (Kafka)
 - 예약과 결제 시스템을 **Kafka** 기반의 비동기 이벤트로 분리하여 강한 결합도 해소 🔗 [ReservationEventTranslator.java](src/main/java/kr/kro/airbob/kafka/consumer/ReservationEventTranslator.java), [PaymentEventTranslator.java](src/main/java/kr/kro/airbob/kafka/consumer/PaymentEventTranslator.java)
@@ -87,9 +112,7 @@ PW: 123123123
 <br>
 
 ### 동시성 제어
-인기 숙소 예약 시 발생하는 Race Condition을 해결하기 위해 Redisson 분산 락을 적용했습니다.<br>
-
-`RedissonMultiLock`을 사용하여 다중 락(날짜별)을 원자적으로 획득하며, Pub/Sub 방식으로 Redis 부하를 최소화했습니다.
+인기 숙소 예약 시 발생하는 Race Condition을 해결하기 위해 날짜 단위 Redisson `MultiLock`을 적용했습니다. 아래는 동일 날짜 예약 요청이 경쟁할 때의 처리 흐름입니다.
 ```mermaid
 sequenceDiagram
     participant UserA as User A
