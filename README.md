@@ -49,6 +49,25 @@ PW: 123123123
 
 <hr>
 
+## 담당
+
+### 프로젝트 진행 중
+- **Elasticsearch 기반 위치 검색 전환** 및 Spring Event 기반 색인 파이프라인 구축
+- **커서 기반 페이지네이션 공통 모듈** 구현
+- **리뷰 생성/삭제** 및 별점 비정규화 집계 설계
+- **Redis Sorted Set 기반 최근 본 숙소** 기능 구현
+- 위시리스트 기능 구현
+
+### 프로젝트 이후
+- **Redisson 분산 락 기반 3단계 동시성 제어 설계**
+- **Kafka 이벤트 기반 예약-결제 비동기 연동 및 Saga 보상 트랜잭션 설계**
+- **Transactional Outbox + Debezium(CDC)로 이벤트 정합성 보장**
+- **DLQ 및 Slack 알림을 통한 실패 메시지 복구 체계 구축**
+- **ALB + ASG 기반 Auto Scaling 구조 전환 및 k6 부하 테스트 검증**
+- **Prometheus + Grafana 기반 모니터링 시스템 구축**
+- **Docker 기반 배포 전환 및 멀티 아키텍처 CI/CD 파이프라인 구축**
+- **S3 + CloudFront 기반 이미지 업로드 및 CDN 배포**
+
 ## 핵심 설계와 기술 선택
 
 ### 1. 3단계 동시성 제어 (Redis Hold → Redisson Lock → DB 검증)
