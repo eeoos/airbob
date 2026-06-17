@@ -4,6 +4,7 @@ import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
@@ -35,6 +38,7 @@ import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.Amenity;
@@ -43,6 +47,7 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
@@ -87,6 +92,7 @@ public class AccommodationService {
     private final WishlistAccommodationRepository wishlistAccommodationRepository;
     private final AccommodationAmenityRepository accommodationAmenityRepository;
     private final AccommodationImageRepository accommodationImageRepository;
+    private final AccommodationHistoryRepository accommodationHistoryRepository;
     private final OccupancyPolicyRepository occupancyPolicyRepository;
     private final AccommodationRepository accommodationRepository;
     private final ReservationRepository reservationRepository;
@@ -108,6 +114,8 @@ public class AccommodationService {
         Accommodation accommodation = Accommodation.createAccommodation(member);
         Accommodation savedAccommodation = accommodationRepository.save(accommodation);
 
+        recordHistory(savedAccommodation, ChangeType.CREATE, "숙소 생성");
+
         return new AccommodationResponse.Create(savedAccommodation.getId());
     }
 
@@ -120,6 +128,8 @@ public class AccommodationService {
         updateAddress(accommodation, request.addressInfo());
         updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
         updateAmenities(accommodation, request.amenityInfos());
+
+        recordHistory(accommodation, ChangeType.UPDATE, "숙소 정보 수정");
 
         if (accommodation.getStatus() == AccommodationStatus.PUBLISHED) { // 게시 상태인 경우 ES 색인 이벤트 발행
             outboxEventPublisher.save(
@@ -134,6 +144,8 @@ public class AccommodationService {
         Accommodation accommodation = findByIdAndMemberIdExceptDeleted(accommodationId, memberId);
 
         accommodation.delete();
+
+        recordHistory(accommodation, ChangeType.DELETE, "숙소 삭제");
 
         outboxEventPublisher.save(
             EventType.ACCOMMODATION_DELETED,
@@ -293,6 +305,8 @@ public class AccommodationService {
 
         accommodation.publish();
 
+        recordHistory(accommodation, ChangeType.STATUS_CHANGE, "숙소 게시");
+
         outboxEventPublisher.save(
             EventType.ACCOMMODATION_UPDATED,
             new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
@@ -309,10 +323,19 @@ public class AccommodationService {
 
         accommodation.unpublish();
 
+        recordHistory(accommodation, ChangeType.STATUS_CHANGE, "숙소 게시 중단");
+
         outboxEventPublisher.save(
             EventType.ACCOMMODATION_UPDATED,
             new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
         );
+    }
+
+    // 이력 기록(SCD2): 직전 현재 행을 닫고 현재 상태의 전체 스냅샷을 새로 연다
+    private void recordHistory(Accommodation accommodation, ChangeType changeType, String reason) {
+        accommodationHistoryRepository.findByAccommodationIdAndValidTo(accommodation.getId(), HistoryConstants.FOREVER)
+            .ifPresent(current -> current.close(LocalDateTime.now()));
+        accommodationHistoryRepository.save(AccommodationHistory.of(accommodation, changeType, reason));
     }
 
     private void validateAccommodationForPublishing(Accommodation accommodation) {

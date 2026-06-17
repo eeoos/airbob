@@ -416,6 +416,47 @@ CREATE TABLE wishlist_accommodation (
   CONSTRAINT FK_wishlist_accommodation_wishlist_id FOREIGN KEY (wishlist_id) REFERENCES wishlist (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 숙소 이력: 전체 행 스냅샷(Master, valid_from/valid_to). address·occupancy 펼침, description 포함. 원본 FK 없음.
+CREATE TABLE accommodation_history (
+  id bigint NOT NULL AUTO_INCREMENT,
+  accommodation_id bigint NOT NULL,
+  accommodation_uid varchar(36) DEFAULT NULL,
+  name varchar(255) DEFAULT NULL,
+  description text,
+  base_price bigint DEFAULT NULL,
+  currency varchar(3) DEFAULT NULL,
+  thumbnail_url varchar(255) DEFAULT NULL,
+  type varchar(50) DEFAULT NULL,
+  status varchar(20) NOT NULL,
+  check_in_time time DEFAULT NULL,
+  check_out_time time DEFAULT NULL,
+  member_id bigint DEFAULT NULL,
+  address_country varchar(255) DEFAULT NULL,
+  address_state varchar(255) DEFAULT NULL,
+  address_city varchar(255) DEFAULT NULL,
+  address_district varchar(255) DEFAULT NULL,
+  address_street varchar(255) DEFAULT NULL,
+  address_detail varchar(255) DEFAULT NULL,
+  address_postal_code varchar(12) DEFAULT NULL,
+  address_latitude double DEFAULT NULL,
+  address_longitude double DEFAULT NULL,
+  max_occupancy int DEFAULT NULL,
+  infant_occupancy int DEFAULT NULL,
+  pet_occupancy int DEFAULT NULL,
+  created_at datetime(6) DEFAULT NULL,
+  created_by bigint DEFAULT NULL,
+  history_created_at datetime(6) NOT NULL,
+  history_created_by bigint DEFAULT NULL,
+  change_type varchar(30) NOT NULL,
+  change_reason varchar(255) DEFAULT NULL,
+  source_system varchar(30) DEFAULT NULL,
+  client_ip varchar(45) DEFAULT NULL,
+  valid_from datetime(6) NOT NULL,
+  valid_to datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59',
+  PRIMARY KEY (id),
+  KEY idx_accommodation_history_accommodation_id (accommodation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 편의시설 마스터 데이터 (구 V27)
