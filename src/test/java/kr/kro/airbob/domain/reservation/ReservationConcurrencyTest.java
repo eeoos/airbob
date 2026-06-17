@@ -41,7 +41,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationStatusHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -66,7 +66,7 @@ class ReservationConcurrencyTest {
 	@Autowired
 	private AddressRepository addressRepository;
 	@Autowired
-	private ReservationStatusHistoryRepository historyRepository;
+	private ReservationHistoryRepository historyRepository;
 
 	@MockitoBean
 	private ElasticsearchClient elasticsearchClient;

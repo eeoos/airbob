@@ -35,13 +35,14 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
+import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationStatusHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
@@ -70,12 +71,12 @@ class ReservationTransactionServiceTest {
 	@Mock
 	private PaymentAttemptRepository paymentAttemptRepository;
 	@Mock
-	private ReservationStatusHistoryRepository historyRepository;
+	private ReservationHistoryRepository historyRepository;
 
 	@Captor
 	private ArgumentCaptor<Reservation> reservationCaptor;
 	@Captor
-	private ArgumentCaptor<ReservationStatusHistory> historyCaptor;
+	private ArgumentCaptor<ReservationHistory> historyCaptor;
 
 	private Member guest;
 	private Accommodation accommodation;
@@ -162,10 +163,10 @@ class ReservationTransactionServiceTest {
 
 			// verify history saved
 			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationStatusHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getPreviousStatus()).isNull();
-			assertThat(savedHistory.getNewStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
-			assertThat(savedHistory.getChangedBy()).isEqualTo("USER_ID:" + memberId);
+			ReservationHistory savedHistory = historyCaptor.getValue();
+			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.CREATE);
+			assertThat(savedHistory.getReservationId()).isEqualTo(result.getId());
 
 			// verify event published
 			then(outboxEventPublisher).should().save(eq(EventType.RESERVATION_PENDING), any(ReservationEvent.ReservationPendingEvent.class));
@@ -276,9 +277,10 @@ class ReservationTransactionServiceTest {
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 
 			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationStatusHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getPreviousStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
-			assertThat(savedHistory.getNewStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+			ReservationHistory savedHistory = historyCaptor.getValue();
+			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.STATUS_CHANGE);
+			assertThat(savedHistory.getSourceSystem()).isEqualTo("KAFKA");
 
 			then(outboxEventPublisher).should().save(eq(EventType.RESERVATION_CONFIRMED), any(ReservationEvent.ReservationConfirmedEvent.class));
 		}
@@ -337,9 +339,10 @@ class ReservationTransactionServiceTest {
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
 
 			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationStatusHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getPreviousStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
-			assertThat(savedHistory.getNewStatus()).isEqualTo(ReservationStatus.EXPIRED);
+			ReservationHistory savedHistory = historyCaptor.getValue();
+			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.STATUS_CHANGE);
+			assertThat(savedHistory.getSourceSystem()).isEqualTo("KAFKA");
 
 			then(outboxEventPublisher).should().save(eq(EventType.RESERVATION_EXPIRED), any(ReservationEvent.ReservationExpiredEvent.class));
 		}
@@ -399,10 +402,10 @@ class ReservationTransactionServiceTest {
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 
 			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationStatusHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getPreviousStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-			assertThat(savedHistory.getNewStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			assertThat(savedHistory.getReason()).isEqualTo("사용자 취소 요청");
+			ReservationHistory savedHistory = historyCaptor.getValue();
+			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.CANCEL);
+			assertThat(savedHistory.getChangeReason()).isEqualTo("사용자 취소 요청");
 
 			then(outboxEventPublisher).should().save(eq(EventType.RESERVATION_CANCELLED), any(ReservationEvent.ReservationCancelledEvent.class));
 		}
@@ -465,9 +468,10 @@ class ReservationTransactionServiceTest {
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
 
 			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationStatusHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getPreviousStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			assertThat(savedHistory.getNewStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
+			ReservationHistory savedHistory = historyCaptor.getValue();
+			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
+			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.STATUS_CHANGE);
+			assertThat(savedHistory.getSourceSystem()).isEqualTo("KAFKA");
 		}
 
 		@Test

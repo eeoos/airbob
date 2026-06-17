@@ -94,7 +94,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
         try {
             if (memberId != null) {
-                UserContext.set(new UserInfo(memberId));
+                UserContext.set(new UserInfo(memberId, resolveClientIp(request), resolveSourceSystem(request)));
                 log.info("[SessionAuthFilter] 인증된 요청 (User: {}): {} {}", memberId, method, path);
             } else {
                 log.info("[SessionAuthFilter] 비인증 요청 (Public): {} {}", method, path);
@@ -115,6 +115,21 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
         String jsonResponse = objectMapper.writeValueAsString(apiResponse);
         response.getWriter().write(jsonResponse);
+    }
+
+    // 이력 기록용: 프록시 뒤 실제 클라이언트 IP (X-Forwarded-For 첫 홉) 우선, 없으면 remoteAddr
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    // 이력 기록용: 요청 출처 시스템. 클라이언트가 헤더로 알려주면 사용, 없으면 API 기본
+    private String resolveSourceSystem(HttpServletRequest request) {
+        String source = request.getHeader("X-Source-System");
+        return (source != null && !source.isBlank()) ? source : "API";
     }
 
     private long checkMemberIdType(String sessionId) {

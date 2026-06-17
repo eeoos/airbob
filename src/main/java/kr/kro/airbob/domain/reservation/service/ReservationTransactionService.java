@@ -36,13 +36,14 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatusHistory;
+import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationStatusHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
@@ -56,8 +57,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ReservationTransactionService {
 
-	private static final String KAFKA_CONSUMER = "SYSTEM:KAFKA_CONSUMER";
-
 	private final OutboxEventPublisher outboxEventPublisher;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
@@ -67,12 +66,10 @@ public class ReservationTransactionService {
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final PaymentAttemptRepository paymentAttemptRepository;
-	private final ReservationStatusHistoryRepository historyRepository;
+	private final ReservationHistoryRepository historyRepository;
 
 	@Transactional
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
-		String changedBy = "USER_ID:" + memberId;
-
 		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
@@ -89,13 +86,7 @@ public class ReservationTransactionService {
 		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request, reservationCode);
 		reservationRepository.save(pendingReservation);
 
-		historyRepository.save(ReservationStatusHistory.builder()
-			.reservation(pendingReservation)
-			.previousStatus(null)
-			.newStatus(ReservationStatus.PAYMENT_PENDING)
-			.changedBy(changedBy)
-			.reason(reason)
-			.build());
+		historyRepository.save(ReservationHistory.of(pendingReservation, ChangeType.CREATE, reason));
 
 		// SAGA 시작 이벤트 발행
 		outboxEventPublisher.save(
@@ -113,8 +104,6 @@ public class ReservationTransactionService {
 
 	@Transactional
 	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
-		String changedBy = "USER_ID:" + memberId;
-
 		Reservation reservation = reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(ReservationNotFoundException::new);
 
@@ -123,16 +112,9 @@ public class ReservationTransactionService {
 			throw new ReservationAccessDeniedException();
 		}
 
-		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.cancel();
 
-		historyRepository.save(ReservationStatusHistory.builder()
-			.reservation(reservation)
-			.previousStatus(previousStatus)
-			.newStatus(ReservationStatus.CANCELLED)
-			.changedBy(changedBy)
-			.reason(request.cancelReason())
-			.build());
+		historyRepository.save(ReservationHistory.of(reservation, ChangeType.CANCEL, request.cancelReason()));
 
 		outboxEventPublisher.save(
 			EventType.RESERVATION_CANCELLED,
@@ -156,16 +138,9 @@ public class ReservationTransactionService {
 			return;
 		}
 
-		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.confirm();
 
-		historyRepository.save(ReservationStatusHistory.builder()
-			.reservation(reservation)
-			.previousStatus(previousStatus)
-			.newStatus(ReservationStatus.CONFIRMED)
-			.changedBy(KAFKA_CONSUMER)
-			.reason("결제 성공")
-			.build());
+		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, "결제 성공", "KAFKA"));
 
 		outboxEventPublisher.save(
 			EventType.RESERVATION_CONFIRMED,
@@ -197,16 +172,9 @@ public class ReservationTransactionService {
 			return;
 		}
 
-		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.expire();
 
-		historyRepository.save(ReservationStatusHistory.builder()
-			.reservation(reservation)
-			.previousStatus(previousStatus)
-			.newStatus(ReservationStatus.EXPIRED)
-			.changedBy(KAFKA_CONSUMER)
-			.reason(reason)
-			.build());
+		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, reason, "KAFKA"));
 
 		outboxEventPublisher.save(
 			EventType.RESERVATION_EXPIRED,
@@ -231,17 +199,10 @@ public class ReservationTransactionService {
 			return;
 		}
 
-		ReservationStatus previousStatus = reservation.getStatus();
 		reservation.failCancellation();
 
-		historyRepository.save(ReservationStatusHistory.builder()
-			.reservation(reservation)
-			.previousStatus(previousStatus)
-			.newStatus(ReservationStatus.CANCELLATION_FAILED)
-			.changedBy(KAFKA_CONSUMER)
-			.reason("결제 취소 실패 보상 트랜잭션: " + reason)
-			.build()
-		);
+		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE,
+			"결제 취소 실패 보상 트랜잭션: " + reason, "KAFKA"));
 
 		log.info("[보상-SUCCESS] 예약 취소 실패 보상 처리 완료. 예약 상태 CANCELLATION_FAILED로 변경. UID: {}", reservationUid);
 	}

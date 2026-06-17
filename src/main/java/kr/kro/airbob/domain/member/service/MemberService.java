@@ -1,13 +1,17 @@
 package kr.kro.airbob.domain.member.service;
 
+import java.time.LocalDateTime;
+
+import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
-import kr.kro.airbob.domain.member.entity.MemberStatusHistory;
+import kr.kro.airbob.domain.member.entity.MemberHistory;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.member.repository.MemberStatusHistoryRepository;
+import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -18,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberService {
 
     private final MemberRepository memberRepository;
-    private final MemberStatusHistoryRepository historyRepository;
+    private final MemberHistoryRepository historyRepository;
 
     @Transactional
     public void createMember(Signup request) {
@@ -32,35 +36,21 @@ public class MemberService {
         Member member = Member.createMember(request, request.getPassword());
         memberRepository.save(member);
 
-        MemberStatusHistory history = MemberStatusHistory.builder()
-            .member(member)
-            .previousStatus(null) // 생성 시점에는 이전 상태 X
-            .newStatus(MemberStatus.ACTIVE)
-            .changedBy("SYSTEM:SIGNUP")
-            .reason("신규 회원가입")
-            .build();
-
-        historyRepository.save(history);
+        // 첫 데이터(CREATE)부터 이력 기록 — 가입은 비인증 컨텍스트라 source_system 명시
+        historyRepository.save(MemberHistory.openSystem(member, ChangeType.CREATE, "신규 회원가입", "API"));
     }
 
     @Transactional
-    public void deleteMember(Long memberId, String changedBy, String reason) {
+    public void deleteMember(Long memberId, String reason) {
         Member member = memberRepository.findById(memberId)
             .orElseThrow(MemberNotFoundException::new);
 
-        MemberStatus previousStatus = member.getStatus();
         member.delete();
-
         memberRepository.save(member);
 
-        MemberStatusHistory history = MemberStatusHistory.builder()
-            .member(member)
-            .previousStatus(previousStatus)
-            .newStatus(MemberStatus.DELETED)
-            .changedBy(changedBy)
-            .reason(reason)
-            .build();
-
-        historyRepository.save(history);
+        // SCD2: 직전 현재 행을 닫고 새 스냅샷을 연다
+        historyRepository.findByMemberIdAndValidTo(member.getId(), HistoryConstants.FOREVER)
+            .ifPresent(current -> current.close(LocalDateTime.now()));
+        historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason));
     }
 }

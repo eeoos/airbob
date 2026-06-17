@@ -186,17 +186,27 @@ CREATE TABLE member (
   PRIMARY KEY (id),
   UNIQUE KEY uk_member_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-CREATE TABLE member_status_history (
+-- 회원 이력: 전체 행 스냅샷(Master, valid_from/valid_to). password 제외. 원본 FK 없음(이력 독립).
+CREATE TABLE member_history (
   id bigint NOT NULL AUTO_INCREMENT,
   member_id bigint NOT NULL,
-  previous_status varchar(20) DEFAULT NULL,
-  new_status varchar(20) NOT NULL,
-  changed_at datetime(6) NOT NULL,
-  changed_by varchar(50) DEFAULT NULL,
-  reason varchar(255) DEFAULT NULL,
+  email varchar(255) DEFAULT NULL,
+  nickname varchar(1000) DEFAULT NULL,
+  role varchar(50) DEFAULT NULL,
+  status varchar(20) NOT NULL,
+  thumbnail_image_url varchar(255) DEFAULT NULL,
+  created_at datetime(6) DEFAULT NULL,
+  created_by bigint DEFAULT NULL,
+  history_created_at datetime(6) NOT NULL,
+  history_created_by bigint DEFAULT NULL,
+  change_type varchar(30) NOT NULL,
+  change_reason varchar(255) DEFAULT NULL,
+  source_system varchar(30) DEFAULT NULL,
+  client_ip varchar(45) DEFAULT NULL,
+  valid_from datetime(6) NOT NULL,
+  valid_to datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59',
   PRIMARY KEY (id),
-  KEY fk_member_status_history_to_member (member_id),
-  CONSTRAINT fk_member_status_history_to_member FOREIGN KEY (member_id) REFERENCES member (id)
+  KEY idx_member_history_member_id (member_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE occupancy_policy (
   id bigint NOT NULL AUTO_INCREMENT,
@@ -321,17 +331,32 @@ CREATE TABLE reservation (
   CONSTRAINT FK_reservation_accommodation FOREIGN KEY (accommodation_id) REFERENCES accommodation (id),
   CONSTRAINT FK_reservation_member FOREIGN KEY (guest_id) REFERENCES member (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-CREATE TABLE reservation_status_history (
+-- 예약 이력: 전체 행 스냅샷(Transaction, INSERT-only). 원본 FK 없음(이력 독립).
+CREATE TABLE reservation_history (
   id bigint NOT NULL AUTO_INCREMENT,
   reservation_id bigint NOT NULL,
-  previous_status varchar(20) DEFAULT NULL,
-  new_status varchar(20) NOT NULL,
-  changed_at datetime(6) NOT NULL,
-  changed_by varchar(50) DEFAULT NULL,
-  reason varchar(255) DEFAULT NULL,
+  reservation_uid varchar(36) DEFAULT NULL,
+  reservation_code varchar(10) DEFAULT NULL,
+  accommodation_id bigint DEFAULT NULL,
+  guest_id bigint DEFAULT NULL,
+  check_in datetime(6) DEFAULT NULL,
+  check_out datetime(6) DEFAULT NULL,
+  guest_count int DEFAULT NULL,
+  total_price bigint DEFAULT NULL,
+  currency varchar(3) DEFAULT NULL,
+  status varchar(50) DEFAULT NULL,
+  message varchar(500) DEFAULT NULL,
+  expires_at datetime(6) DEFAULT NULL,
+  created_at datetime(6) DEFAULT NULL,
+  created_by bigint DEFAULT NULL,
+  history_created_at datetime(6) NOT NULL,
+  history_created_by bigint DEFAULT NULL,
+  change_type varchar(30) NOT NULL,
+  change_reason varchar(255) DEFAULT NULL,
+  source_system varchar(30) DEFAULT NULL,
+  client_ip varchar(45) DEFAULT NULL,
   PRIMARY KEY (id),
-  KEY fk_reservation_status_history_to_reservation (reservation_id),
-  CONSTRAINT fk_reservation_status_history_to_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id)
+  KEY idx_reservation_history_reservation_id (reservation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE review (
   id bigint NOT NULL AUTO_INCREMENT,
