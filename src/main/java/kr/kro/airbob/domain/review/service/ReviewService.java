@@ -45,7 +45,6 @@ import kr.kro.airbob.domain.review.exception.ReviewAccessDeniedException;
 import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
 import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.exception.ReviewNotFoundException;
-import kr.kro.airbob.domain.review.exception.ReviewSummaryNotFoundException;
 import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
@@ -108,6 +107,18 @@ public class ReviewService {
 		}
 
 		review.updateContent(request.content());
+
+		// 평점 수정 시 요약(rating_sum/average) 원자적 반영 + 색인 갱신 이벤트 (기존 누락 경로 연결)
+		if (request.rating() != null && !request.rating().equals(review.getRating())) {
+			int oldRating = review.getRating();
+			review.updateRating(request.rating());
+			summaryRepository.applyRatingChange(review.getAccommodation().getId(), oldRating, request.rating());
+			outboxEventPublisher.save(
+				EventType.REVIEW_SUMMARY_CHANGED,
+				new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
+			);
+		}
+
 		return new ReviewResponse.Update(review.getId());
 	}
 
@@ -291,31 +302,13 @@ public class ReviewService {
 		return reviewRepository.findByIdAndAuthorId(reviewId, memberId).orElseThrow(ReviewNotFoundException::new);
 	}
 
-	private AccommodationReviewSummary findSummaryByAccommodationId(Long accommodationId) {
-		return summaryRepository.findByAccommodationId(accommodationId).orElseThrow(ReviewSummaryNotFoundException::new);
-	}
-
 	private void updateReviewSummaryOnCreate(Accommodation accommodation, int rating) {
-		AccommodationReviewSummary summary = summaryRepository.findByAccommodationId(accommodation.getId())
-			.orElseGet(() -> createNewSummary(accommodation));
-
-		summary.addReview(rating);
-		summaryRepository.save(summary); // 명시적 save
+		// 원자적 upsert: 행이 없으면 INSERT, 있으면 증가. 동시성/첫 리뷰 PK 중복 모두 안전.
+		summaryRepository.applyNewReview(accommodation.getId(), rating);
 	}
 
 	private void updateReviewSummaryOnDelete(Long accommodationId, int rating) {
-		AccommodationReviewSummary summary = findSummaryByAccommodationId(accommodationId);
-
-		summary.removeReview(rating);
-
-		if (summary.getTotalReviewCount() == 0) {
-			summaryRepository.delete(summary);
-		}
-	}
-
-	private AccommodationReviewSummary createNewSummary(Accommodation accommodation) {
-		return AccommodationReviewSummary.builder()
-			.accommodation(accommodation)
-			.build();
+		summaryRepository.removeReview(accommodationId, rating);
+		summaryRepository.deleteIfEmpty(accommodationId);
 	}
 }
