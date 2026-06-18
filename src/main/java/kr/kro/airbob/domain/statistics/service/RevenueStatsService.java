@@ -6,7 +6,6 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.statistics.dto.DailyRevenueRow;
 import kr.kro.airbob.domain.statistics.dto.RevenueStatsResponse;
 import kr.kro.airbob.domain.statistics.repository.DailyRevenueStatsRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,15 +40,16 @@ public class RevenueStatsService {
 	// 일자별 매출 조회. source=raw 면 원장 직접 집계(before), 그 외엔 사전집계 테이블(after).
 	@Transactional(readOnly = true)
 	public RevenueStatsResponse.DailyRevenues getDailyRevenue(LocalDate from, LocalDate to, String source) {
-		List<DailyRevenueRow> rows = SOURCE_RAW.equalsIgnoreCase(source)
-			? repository.findDailyRevenueFromLedgerNaive(from, to)
-			: repository.findDailyRevenueFromStats(from, to);
+		if (SOURCE_RAW.equalsIgnoreCase(source)) {
+			// before: 원장 직접 집계(native, UNION)
+			List<RevenueStatsResponse.DailyRevenue> items = repository.findDailyRevenueFromLedgerNaive(from, to).stream()
+				.map(RevenueStatsResponse.DailyRevenue::from)
+				.toList();
+			return new RevenueStatsResponse.DailyRevenues(from, to, SOURCE_RAW, items);
+		}
 
-		List<RevenueStatsResponse.DailyRevenue> items = rows.stream()
-			.map(RevenueStatsResponse.DailyRevenue::from)
-			.toList();
-
-		String resolved = SOURCE_RAW.equalsIgnoreCase(source) ? SOURCE_RAW : SOURCE_STATS;
-		return new RevenueStatsResponse.DailyRevenues(from, to, resolved, items);
+		// after: 사전집계 테이블 일자별 롤업(QueryDSL)
+		List<RevenueStatsResponse.DailyRevenue> items = repository.findDailyRevenueFromStats(from, to);
+		return new RevenueStatsResponse.DailyRevenues(from, to, SOURCE_STATS, items);
 	}
 }

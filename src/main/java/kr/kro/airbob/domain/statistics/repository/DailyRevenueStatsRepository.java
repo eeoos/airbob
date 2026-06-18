@@ -11,9 +11,10 @@ import org.springframework.data.repository.query.Param;
 import kr.kro.airbob.domain.statistics.dto.DailyRevenueRow;
 import kr.kro.airbob.domain.statistics.entity.DailyRevenueStats;
 import kr.kro.airbob.domain.statistics.entity.DailyRevenueStatsId;
+import kr.kro.airbob.domain.statistics.repository.querydsl.DailyRevenueStatsRepositoryCustom;
 
 public interface DailyRevenueStatsRepository
-	extends JpaRepository<DailyRevenueStats, DailyRevenueStatsId> {
+	extends JpaRepository<DailyRevenueStats, DailyRevenueStatsId>, DailyRevenueStatsRepositoryCustom {
 
 	// ===== 배치 재집계 (날짜별 DELETE 후 INSERT...SELECT → 멱등) =====
 
@@ -51,23 +52,9 @@ public interface DailyRevenueStatsRepository
 		""", nativeQuery = true)
 	void aggregateForDate(@Param("d") LocalDate d);
 
-	// ===== 읽기 (after): 사전집계 테이블을 일자별로 롤업 =====
+	// ===== 읽기 (after): 사전집계 테이블 일자별 롤업은 QueryDSL(DailyRevenueStatsRepositoryCustom) 제공 =====
 
-	@Query(value = """
-		SELECT stat_date AS statDate,
-			SUM(gross_amount)  AS grossAmount,
-			SUM(refund_amount) AS refundAmount,
-			SUM(net_amount)    AS netAmount,
-			SUM(payment_count) AS paymentCount,
-			SUM(refund_count)  AS refundCount
-		FROM daily_revenue_stats
-		WHERE stat_date BETWEEN :from AND :to
-		GROUP BY stat_date
-		ORDER BY stat_date
-		""", nativeQuery = true)
-	List<DailyRevenueRow> findDailyRevenueFromStats(@Param("from") LocalDate from, @Param("to") LocalDate to);
-
-	// ===== 읽기 (before/naive): 원장에서 직접 집계 (사용자 성능 비교용, 보존) =====
+	// ===== 읽기 (before/naive): 원장에서 직접 집계 (UNION → native 필수, 사용자 성능 비교용 보존) =====
 
 	@Query(value = """
 		SELECT t.bucket_date AS statDate,

@@ -108,7 +108,7 @@ public class ReviewService {
 
 		review.updateContent(request.content());
 
-		// 평점 수정 시 요약(rating_sum/average) 원자적 반영 + 색인 갱신 이벤트 (기존 누락 경로 연결)
+		// 평점 수정 시 요약(rating_sum/average) 원자적 반영 + 색인 갱신 이벤트
 		if (request.rating() != null && !request.rating().equals(review.getRating())) {
 			int oldRating = review.getRating();
 			review.updateRating(request.rating());
