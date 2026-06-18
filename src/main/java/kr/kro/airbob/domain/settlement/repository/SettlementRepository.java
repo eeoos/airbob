@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
+import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
@@ -19,6 +20,12 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 		Long hostId, LocalDate from, LocalDate to);
 
 	List<Settlement> findBySettlementMonth(LocalDate settlementMonth);
+
+	// 관리자 조회: 월별 전체 / 상태 필터
+	List<Settlement> findBySettlementMonthOrderByHostIdAsc(LocalDate settlementMonth);
+
+	List<Settlement> findBySettlementMonthAndStatusOrderByHostIdAsc(
+		LocalDate settlementMonth, SettlementStatus status);
 
 	// 월별 호스트 매출 집계 (원장 직접): gross=CONFIRM.amount @DATE(created_at),
 	// refund=(CANCEL|PARTIAL_CANCEL).cancel_amount @DATE(COALESCE(canceled_at, created_at)).

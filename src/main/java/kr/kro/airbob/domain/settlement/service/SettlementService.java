@@ -15,7 +15,9 @@ import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementHistory;
+import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.exception.SettlementAlreadyPaidException;
+import kr.kro.airbob.domain.settlement.exception.SettlementMonthNotClosedException;
 import kr.kro.airbob.domain.settlement.exception.SettlementNotFoundException;
 import kr.kro.airbob.domain.settlement.repository.SettlementHistoryRepository;
 import kr.kro.airbob.domain.settlement.repository.SettlementRepository;
@@ -56,7 +58,7 @@ public class SettlementService {
 		}
 	}
 
-	// 정산 지급 처리: PENDING → PAID (이미 PAID면 거부)
+	// 정산 지급 처리: PENDING → PAID (이미 PAID거나 아직 마감 안 된 달이면 거부)
 	@Transactional
 	public void markPaid(Long settlementId) {
 		Settlement settlement = settlementRepository.findById(settlementId)
@@ -64,9 +66,29 @@ public class SettlementService {
 		if (settlement.isPaid()) {
 			throw new SettlementAlreadyPaidException();
 		}
+		if (!isMonthClosed(settlement.getSettlementMonth())) {
+			throw new SettlementMonthNotClosedException();
+		}
 		settlement.markPaid();
 		settlementHistoryRepository.save(
 			SettlementHistory.of(settlement, ChangeType.STATUS_CHANGE, "정산 지급 완료"));
+	}
+
+	// 관리자: 월별 정산 조회(상태 필터 optional)
+	@Transactional(readOnly = true)
+	public List<SettlementResponse.AdminSettlement> getSettlements(YearMonth month, SettlementStatus status) {
+		LocalDate monthStart = month.atDay(1);
+		List<Settlement> settlements = (status == null)
+			? settlementRepository.findBySettlementMonthOrderByHostIdAsc(monthStart)
+			: settlementRepository.findBySettlementMonthAndStatusOrderByHostIdAsc(monthStart, status);
+		return settlements.stream()
+			.map(SettlementResponse.AdminSettlement::from)
+			.toList();
+	}
+
+	// settlement_month(월초)가 속한 달이 이미 끝났는지(= 현재 월보다 이전)
+	private static boolean isMonthClosed(LocalDate settlementMonth) {
+		return YearMonth.from(settlementMonth).isBefore(YearMonth.now());
 	}
 
 	@Transactional(readOnly = true)

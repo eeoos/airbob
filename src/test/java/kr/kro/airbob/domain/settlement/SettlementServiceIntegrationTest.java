@@ -27,6 +27,9 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
+import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
+import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
+import kr.kro.airbob.domain.settlement.exception.SettlementMonthNotClosedException;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -147,6 +150,37 @@ class SettlementServiceIntegrationTest {
 		Integer rows = jdbc.queryForObject(
 			"SELECT COUNT(*) FROM settlement WHERE settlement_month = ?", Integer.class, MAY_1);
 		assertThat(rows).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("관리자 조회: 상태 필터로 PENDING/PAID/전체를 구분 조회")
+	void adminQueryFiltersByStatus() {
+		settlementService.generateMonth(MAY);
+		settlementService.markPaid(settlementId(host1)); // host1 PAID, host2 PENDING
+
+		assertThat(settlementService.getSettlements(MAY, null)).hasSize(2);
+		assertThat(settlementService.getSettlements(MAY, SettlementStatus.PENDING))
+			.extracting(SettlementResponse.AdminSettlement::hostId).containsExactly(host2);
+		assertThat(settlementService.getSettlements(MAY, SettlementStatus.PAID))
+			.extracting(SettlementResponse.AdminSettlement::hostId).containsExactly(host1);
+	}
+
+	@Test
+	@DisplayName("지급 가드: 아직 마감되지 않은 달(현재월) 정산은 지급 거부")
+	void markPaidRejectsOpenMonth() {
+		LocalDate currentMonthStart = YearMonth.now().atDay(1);
+		jdbc.update("""
+			INSERT INTO settlement
+				(host_id, settlement_month, gross_amount, refund_amount, net_amount,
+				 commission_rate, commission_amount, payout_amount, status, updated_at)
+			VALUES (?, ?, 100000, 0, 100000, 0.0300, 3000, 97000, 'PENDING', NOW(6))
+			""", host1, currentMonthStart);
+		long id = jdbc.queryForObject(
+			"SELECT id FROM settlement WHERE host_id = ? AND settlement_month = ?",
+			Long.class, host1, currentMonthStart);
+
+		assertThatThrownBy(() -> settlementService.markPaid(id))
+			.isInstanceOf(SettlementMonthNotClosedException.class);
 	}
 
 	// ===== helpers =====

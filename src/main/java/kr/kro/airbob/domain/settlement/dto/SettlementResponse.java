@@ -36,4 +36,35 @@ public class SettlementResponse {
 			);
 		}
 	}
+
+	// 관리자 조회용(호스트 식별 포함)
+	public record AdminSettlement(
+		Long settlementId,
+		Long hostId,
+		LocalDate settlementMonth,
+		long grossAmount,
+		long refundAmount,
+		long netAmount,
+		BigDecimal commissionRate,
+		long commissionAmount,
+		long payoutAmount,
+		SettlementStatus status,
+		LocalDateTime settledAt
+	) {
+		public static AdminSettlement from(Settlement s) {
+			return new AdminSettlement(
+				s.getId(),
+				s.getHostId(),
+				s.getSettlementMonth(),
+				s.getGrossAmount(),
+				s.getRefundAmount(),
+				s.getNetAmount(),
+				s.getCommissionRate(),
+				s.getCommissionAmount(),
+				s.getPayoutAmount(),
+				s.getStatus(),
+				s.getSettledAt()
+			);
+		}
+	}
 }

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
+import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +35,16 @@ public class SettlementController {
 
 		Long hostId = UserContext.get().id();
 		return ResponseEntity.ok(ApiResponse.success(settlementService.getHostSettlements(hostId, from, to)));
+	}
+
+	// 관리자: 월별 정산 조회 (status optional 필터)
+	@GetMapping("/v1/admin/settlements")
+	public ResponseEntity<ApiResponse<List<SettlementResponse.AdminSettlement>>> getSettlements(
+		@RequestParam String month,
+		@RequestParam(required = false) SettlementStatus status) {
+
+		return ResponseEntity.ok(ApiResponse.success(
+			settlementService.getSettlements(YearMonth.parse(month), status)));
 	}
 
 	// 관리자: 단월 정산 생성/재집계 (month = YYYY-MM)
