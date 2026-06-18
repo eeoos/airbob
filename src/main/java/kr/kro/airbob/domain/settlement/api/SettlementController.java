@@ -37,6 +37,16 @@ public class SettlementController {
 		return ResponseEntity.ok(ApiResponse.success(settlementService.getHostSettlements(hostId, from, to)));
 	}
 
+	// 호스트 본인 정산 상세(숙소별 내역)
+	@GetMapping("/v1/profile/host/settlements/{settlementId}")
+	public ResponseEntity<ApiResponse<SettlementResponse.SettlementDetail>> getHostSettlementDetail(
+		@PathVariable Long settlementId) {
+
+		Long hostId = UserContext.get().id();
+		return ResponseEntity.ok(ApiResponse.success(
+			settlementService.getSettlementDetail(settlementId, hostId)));
+	}
+
 	// 관리자: 월별 정산 조회 (status optional 필터)
 	@GetMapping("/v1/admin/settlements")
 	public ResponseEntity<ApiResponse<List<SettlementResponse.AdminSettlement>>> getSettlements(

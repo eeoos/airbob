@@ -16,6 +16,7 @@ import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementHistory;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
+import kr.kro.airbob.domain.settlement.exception.SettlementAccessDeniedException;
 import kr.kro.airbob.domain.settlement.exception.SettlementAlreadyPaidException;
 import kr.kro.airbob.domain.settlement.exception.SettlementMonthNotClosedException;
 import kr.kro.airbob.domain.settlement.exception.SettlementNotFoundException;
@@ -89,6 +90,23 @@ public class SettlementService {
 	// settlement_month(월초)가 속한 달이 이미 끝났는지(= 현재 월보다 이전)
 	private static boolean isMonthClosed(LocalDate settlementMonth) {
 		return YearMonth.from(settlementMonth).isBefore(YearMonth.now());
+	}
+
+	// 정산 상세(숙소별 내역). 호스트 본인 정산만 조회 가능.
+	@Transactional(readOnly = true)
+	public SettlementResponse.SettlementDetail getSettlementDetail(Long settlementId, Long requestingHostId) {
+		Settlement settlement = settlementRepository.findById(settlementId)
+			.orElseThrow(SettlementNotFoundException::new);
+		if (!settlement.getHostId().equals(requestingHostId)) {
+			throw new SettlementAccessDeniedException();
+		}
+		YearMonth month = YearMonth.from(settlement.getSettlementMonth());
+		List<SettlementResponse.LineItem> items = settlementRepository
+			.findLineItems(settlement.getHostId(), month.atDay(1), month.atEndOfMonth())
+			.stream()
+			.map(SettlementResponse.LineItem::from)
+			.toList();
+		return SettlementResponse.SettlementDetail.of(settlement, items);
 	}
 
 	@Transactional(readOnly = true)

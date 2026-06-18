@@ -29,6 +29,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
+import kr.kro.airbob.domain.settlement.exception.SettlementAccessDeniedException;
 import kr.kro.airbob.domain.settlement.exception.SettlementMonthNotClosedException;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -74,15 +75,18 @@ class SettlementServiceIntegrationTest {
 
 	private long host1;
 	private long host2;
+	private long acc1;
+	private long acc2;
+	private long acc3;
 
 	@BeforeEach
 	void setup() {
 		clean();
 		host1 = insertMember("host1");
 		host2 = insertMember("host2");
-		long acc1 = insertAccommodation(host1);
-		long acc2 = insertAccommodation(host1);
-		long acc3 = insertAccommodation(host2);
+		acc1 = insertAccommodation(host1);
+		acc2 = insertAccommodation(host1);
+		acc3 = insertAccommodation(host2);
 
 		// 5월: host1 = (acc1 100000 + acc2 50000) gross 150000, acc1 부분취소 20000 → net 130000
 		//      host2 = acc3 80000 → net 80000
@@ -181,6 +185,36 @@ class SettlementServiceIntegrationTest {
 
 		assertThatThrownBy(() -> settlementService.markPaid(id))
 			.isInstanceOf(SettlementMonthNotClosedException.class);
+	}
+
+	@Test
+	@DisplayName("정산 상세: 숙소별 내역으로 분해되고 라인 합이 정산 net과 일치")
+	void settlementDetailBreaksDownByAccommodation() {
+		settlementService.generateMonth(MAY);
+		long id = settlementId(host1);
+
+		SettlementResponse.SettlementDetail detail = settlementService.getSettlementDetail(id, host1);
+
+		assertThat(detail.netAmount()).isEqualTo(130000);
+		assertThat(detail.items()).hasSize(2);
+		// acc1: 100000 - 20000 = 80000, acc2: 50000
+		assertThat(detail.items())
+			.extracting(SettlementResponse.LineItem::accommodationId, SettlementResponse.LineItem::netAmount)
+			.containsExactlyInAnyOrder(tuple(acc1, 80000L), tuple(acc2, 50000L));
+		// 라인 net 합 == 정산 net
+		long lineNetSum = detail.items().stream()
+			.mapToLong(SettlementResponse.LineItem::netAmount).sum();
+		assertThat(lineNetSum).isEqualTo(detail.netAmount());
+	}
+
+	@Test
+	@DisplayName("정산 상세: 다른 호스트의 정산은 조회 거부")
+	void settlementDetailDeniesOtherHost() {
+		settlementService.generateMonth(MAY);
+		long host1SettlementId = settlementId(host1);
+
+		assertThatThrownBy(() -> settlementService.getSettlementDetail(host1SettlementId, host2))
+			.isInstanceOf(SettlementAccessDeniedException.class);
 	}
 
 	// ===== helpers =====

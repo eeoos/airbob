@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
+import kr.kro.airbob.domain.settlement.dto.SettlementLineItem;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 
@@ -54,4 +55,35 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 		""", nativeQuery = true)
 	List<HostMonthlyAggregate> aggregateByHostForMonth(@Param("monthStart") LocalDate monthStart,
 		@Param("monthEnd") LocalDate monthEnd);
+
+	// 정산 상세: 특정 호스트의 한 달 매출을 숙소별로 분해
+	@Query(value = """
+		SELECT t.accommodation_id AS accommodationId,
+			t.accommodation_name  AS accommodationName,
+			SUM(t.gross)  AS grossAmount,
+			SUM(t.refund) AS refundAmount,
+			SUM(t.gross) - SUM(t.refund) AS netAmount
+		FROM (
+			SELECT a.id AS accommodation_id, a.name AS accommodation_name,
+				COALESCE(pt.amount, 0) AS gross, 0 AS refund
+			FROM payment_transaction pt
+			JOIN reservation r ON r.id = pt.reservation_id
+			JOIN accommodation a ON a.id = r.accommodation_id
+			WHERE a.member_id = :hostId
+			  AND pt.transaction_type = 'CONFIRM'
+			  AND DATE(pt.created_at) BETWEEN :monthStart AND :monthEnd
+			UNION ALL
+			SELECT a.id, a.name, 0, COALESCE(pt.cancel_amount, 0)
+			FROM payment_transaction pt
+			JOIN reservation r ON r.id = pt.reservation_id
+			JOIN accommodation a ON a.id = r.accommodation_id
+			WHERE a.member_id = :hostId
+			  AND pt.transaction_type IN ('CANCEL', 'PARTIAL_CANCEL')
+			  AND DATE(COALESCE(pt.canceled_at, pt.created_at)) BETWEEN :monthStart AND :monthEnd
+		) t
+		GROUP BY t.accommodation_id, t.accommodation_name
+		ORDER BY t.accommodation_id
+		""", nativeQuery = true)
+	List<SettlementLineItem> findLineItems(@Param("hostId") Long hostId,
+		@Param("monthStart") LocalDate monthStart, @Param("monthEnd") LocalDate monthEnd);
 }

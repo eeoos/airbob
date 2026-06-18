@@ -87,7 +87,8 @@ public enum ErrorCode {
 	// settlement
 	SETTLEMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "존재하지 않는 정산 내역입니다."),
 	SETTLEMENT_ALREADY_PAID(HttpStatus.CONFLICT, "S002", "이미 지급 완료된 정산입니다."),
-	SETTLEMENT_MONTH_NOT_CLOSED(HttpStatus.CONFLICT, "S003", "아직 마감되지 않은 달의 정산은 지급할 수 없습니다.");
+	SETTLEMENT_MONTH_NOT_CLOSED(HttpStatus.CONFLICT, "S003", "아직 마감되지 않은 달의 정산은 지급할 수 없습니다."),
+	SETTLEMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "S004", "해당 정산 내역에 대한 접근 권한이 없습니다.");
 
 	private final HttpStatus status;
 	private final String code;
