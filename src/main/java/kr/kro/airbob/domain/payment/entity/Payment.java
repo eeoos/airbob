@@ -1,14 +1,11 @@
 package kr.kro.airbob.domain.payment.entity;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -18,7 +15,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
@@ -73,10 +69,6 @@ public class Payment extends BaseEntity {
 	@Column(nullable = false)
 	private Long balanceAmount; // 잔액
 
-	@Builder.Default
-	@OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<PaymentCancel> cancels = new ArrayList<>();
-
 	@PrePersist
 	protected void onCreate() {
 		if (this.paymentUid == null) {
@@ -97,20 +89,9 @@ public class Payment extends BaseEntity {
 			.build();
 	}
 
+	// 취소 시 현재 상태(상태/잔액)만 갱신. 취소 "사건"은 PaymentTransaction(CANCEL/PARTIAL_CANCEL)으로 서비스가 기록한다.
 	public void updateOnCancel(TossPaymentResponse response) {
 		this.status = PaymentStatus.from(response.getStatus());
 		this.balanceAmount = response.getBalanceAmount();
-
-		if (response.getCancels() != null && !response.getCancels().isEmpty()) {
-			TossPaymentResponse.Cancel cancelData = response.getCancels().getLast();
-			PaymentCancel paymentCancel = PaymentCancel.create(cancelData, this);
-			this.addCancel(paymentCancel);
-		}
-	}
-
-	public void addCancel(PaymentCancel cancel) {
-		// 양방향 관계
-		this.cancels.add(cancel);
-		cancel.assignPayment(this);
 	}
 }

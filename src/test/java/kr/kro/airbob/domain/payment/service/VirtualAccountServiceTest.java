@@ -22,10 +22,11 @@ import org.springframework.web.client.ResourceAccessException;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
-import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
+import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.VirtualAccountIssueErrorCode;
-import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -41,13 +42,13 @@ class VirtualAccountServiceTest {
 	private ReservationRepository reservationRepository;
 
 	@Mock
-	private PaymentAttemptRepository paymentAttemptRepository;
+	private PaymentTransactionRepository paymentTransactionRepository;
 
 	@Mock
 	private TossPaymentsAdapter tossPaymentsAdapter;
 
 	@Captor
-	private ArgumentCaptor<PaymentAttempt> attemptCaptor;
+	private ArgumentCaptor<PaymentTransaction> transactionCaptor;
 
 	private UUID reservationUid;
 	private Reservation reservation;
@@ -72,8 +73,8 @@ class VirtualAccountServiceTest {
 	class IssueVirtualAccountTest {
 
 		@Test
-		@DisplayName("정상 발급 시 PaymentAttempt가 저장된다")
-		void 정상_발급_PaymentAttempt_저장() {
+		@DisplayName("정상 발급 시 PaymentTransaction(VIRTUAL_ISSUED)이 저장된다")
+		void 정상_발급_거래원장_저장() {
 			// given
 			given(reservationRepository.findByReservationUid(reservationUid))
 				.willReturn(Optional.of(reservation));
@@ -103,12 +104,13 @@ class VirtualAccountServiceTest {
 			);
 
 			// then
-			then(paymentAttemptRepository).should().save(attemptCaptor.capture());
-			PaymentAttempt savedAttempt = attemptCaptor.getValue();
+			then(paymentTransactionRepository).should().save(transactionCaptor.capture());
+			PaymentTransaction savedTransaction = transactionCaptor.getValue();
 
-			assertThat(savedAttempt.getPaymentKey()).isEqualTo("pk_va_123");
-			assertThat(savedAttempt.getVirtualBankCode()).isEqualTo("088");
-			assertThat(savedAttempt.getVirtualAccountNumber()).isEqualTo("123456789");
+			assertThat(savedTransaction.getTransactionType()).isEqualTo(PaymentTransactionType.VIRTUAL_ISSUED);
+			assertThat(savedTransaction.getPaymentKey()).isEqualTo("pk_va_123");
+			assertThat(savedTransaction.getVirtualBankCode()).isEqualTo("088");
+			assertThat(savedTransaction.getVirtualAccountNumber()).isEqualTo("123456789");
 		}
 
 		@Test

@@ -2,9 +2,7 @@ package kr.kro.airbob.domain.payment.entity;
 
 import static org.assertj.core.api.Assertions.*;
 
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -160,94 +158,5 @@ class PaymentTest {
 			assertThat(payment.getBalanceAmount()).isEqualTo(0L);
 		}
 
-		@Test
-		@DisplayName("취소 시 PaymentCancel이 cancels 목록에 추가된다")
-		void 취소_목록_추가() {
-			// given
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			TossPaymentResponse.Cancel cancelData = TossPaymentResponse.Cancel.builder()
-				.cancelAmount(30_000L)
-				.cancelReason("부분 취소")
-				.transactionKey("cancel_tx_789")
-				.canceledAt(ZonedDateTime.now())
-				.build();
-
-			TossPaymentResponse cancelResponse = TossPaymentResponse.builder()
-				.status("PARTIAL_CANCELED")
-				.balanceAmount(70_000L)
-				.cancels(List.of(cancelData))
-				.build();
-
-			// when
-			payment.updateOnCancel(cancelResponse);
-
-			// then
-			assertThat(payment.getCancels()).hasSize(1);
-			assertThat(payment.getCancels().get(0).getCancelAmount()).isEqualTo(30_000L);
-		}
-
-		@Test
-		@DisplayName("cancels가 null이면 PaymentCancel이 추가되지 않는다")
-		void cancels_null_처리() {
-			// given
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			TossPaymentResponse cancelResponse = TossPaymentResponse.builder()
-				.status("CANCELED")
-				.balanceAmount(0L)
-				.cancels(null)
-				.build();
-
-			// when
-			payment.updateOnCancel(cancelResponse);
-
-			// then
-			assertThat(payment.getCancels()).isEmpty();
-		}
-
-		@Test
-		@DisplayName("cancels가 빈 리스트면 PaymentCancel이 추가되지 않는다")
-		void cancels_빈리스트_처리() {
-			// given
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			TossPaymentResponse cancelResponse = TossPaymentResponse.builder()
-				.status("CANCELED")
-				.balanceAmount(0L)
-				.cancels(new ArrayList<>())
-				.build();
-
-			// when
-			payment.updateOnCancel(cancelResponse);
-
-			// then
-			assertThat(payment.getCancels()).isEmpty();
-		}
-	}
-
-	@Nested
-	@DisplayName("addCancel 테스트")
-	class AddCancelTest {
-
-		@Test
-		@DisplayName("addCancel 호출 시 양방향 관계가 설정된다")
-		void 양방향_관계_설정() {
-			// given
-			Payment payment = Payment.create(tossResponse, reservation);
-			PaymentCancel cancel = PaymentCancel.builder()
-				.cancelAmount(50_000L)
-				.cancelReason("테스트 취소")
-				.transactionKey("tx_123")
-				.canceledAt(LocalDateTime.now())
-				.build();
-
-			// when
-			payment.addCancel(cancel);
-
-			// then
-			assertThat(payment.getCancels()).contains(cancel);
-			assertThat(cancel.getPayment()).isEqualTo(payment);
-		}
 	}
 }

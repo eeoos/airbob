@@ -28,9 +28,10 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentMethod;
-import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
+import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -65,7 +66,7 @@ public class ReservationTransactionService {
 	private final PaymentRepository paymentRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationRepository accommodationRepository;
-	private final PaymentAttemptRepository paymentAttemptRepository;
+	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final ReservationHistoryRepository historyRepository;
 
 	@Transactional
@@ -284,7 +285,8 @@ public class ReservationTransactionService {
 			.orElseThrow(ReservationNotFoundException::new);
 
 		Payment payment = findPaymentByReservationUidNullable(reservationUid);
-		PaymentResponse.PaymentInfo paymentInfo = (payment != null) ? PaymentResponse.PaymentInfo.from(payment) : null;
+		PaymentResponse.PaymentInfo paymentInfo = (payment != null)
+			? PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment)) : null;
 
 		return ReservationResponse.HostDetail.from(reservation, paymentInfo);
 	}
@@ -294,17 +296,22 @@ public class ReservationTransactionService {
 		PaymentResponse.PaymentInfo paymentInfo = null;
 
 		if (payment != null) { // 결제 완료된 예약
-			paymentInfo = PaymentResponse.PaymentInfo.from(payment);
+			paymentInfo = PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment));
 		} else if (reservation.getStatus() == ReservationStatus.PAYMENT_PENDING) { // 결제 대기중인 예약(가상계좌)
-			paymentInfo = paymentAttemptRepository
+			paymentInfo = paymentTransactionRepository
 				.findByOrderIdOrderByCreatedAtDesc(reservationUidStr)
 				.stream()
-				.filter(pa -> pa.getMethod() == PaymentMethod.VIRTUAL_ACCOUNT)
+				.filter(tx -> tx.getTransactionType() == PaymentTransactionType.VIRTUAL_ISSUED)
 				.findFirst()
 				.map(PaymentResponse.PaymentInfo::from)
 				.orElse(null);
 		}
 		return paymentInfo;
+	}
+
+	private java.util.List<PaymentTransaction> findCancelTransactions(Payment payment) {
+		return paymentTransactionRepository.findByPaymentIdAndTransactionTypeInOrderByCreatedAtAsc(
+			payment.getId(), java.util.List.of(PaymentTransactionType.CANCEL, PaymentTransactionType.PARTIAL_CANCEL));
 	}
 
 	private boolean isCanWriteReview(Long memberId, Reservation reservation) {

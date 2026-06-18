@@ -252,43 +252,35 @@ CREATE TABLE payment (
   UNIQUE KEY reservation_id (reservation_id),
   CONSTRAINT fk_payment_to_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-CREATE TABLE payment_attempt (
+-- 결제 거래 원장(append-only): 구 payment_attempt + payment_cancel 통합. 원본 FK 없음, 조회 인덱스만.
+CREATE TABLE payment_transaction (
   id bigint NOT NULL AUTO_INCREMENT,
-  payment_key varchar(200) NOT NULL,
-  order_id varchar(64) NOT NULL,
-  amount bigint NOT NULL,
+  reservation_id bigint NOT NULL,
+  payment_id bigint DEFAULT NULL,
+  transaction_type varchar(30) NOT NULL,
+  status varchar(50) DEFAULT NULL,
+  amount bigint DEFAULT NULL,
+  payment_key varchar(200) DEFAULT NULL,
+  order_id varchar(64) DEFAULT NULL,
   method varchar(50) DEFAULT NULL,
-  status varchar(50) NOT NULL,
   failure_code varchar(100) DEFAULT NULL,
   failure_message varchar(512) DEFAULT NULL,
-  reservation_id bigint NOT NULL,
-  created_at datetime(6) NOT NULL,
   virtual_bank_code varchar(20) DEFAULT NULL,
   virtual_account_number varchar(30) DEFAULT NULL,
   virtual_customer_name varchar(100) DEFAULT NULL,
   virtual_due_date datetime(6) DEFAULT NULL,
-  updated_at datetime(6) NOT NULL,
-  created_by bigint DEFAULT NULL,
-  updated_by bigint DEFAULT NULL,
-  PRIMARY KEY (id),
-  KEY fk_payment_attempt_to_reservation (reservation_id),
-  CONSTRAINT fk_payment_attempt_to_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-CREATE TABLE payment_cancel (
-  id bigint NOT NULL AUTO_INCREMENT,
-  payment_id bigint NOT NULL,
-  cancel_amount bigint NOT NULL,
+  cancel_amount bigint DEFAULT NULL,
   cancel_reason varchar(200) DEFAULT NULL,
-  transaction_key varchar(64) NOT NULL,
-  canceled_at datetime(6) NOT NULL,
+  transaction_key varchar(64) DEFAULT NULL,
+  canceled_at datetime(6) DEFAULT NULL,
   created_at datetime(6) NOT NULL,
   updated_at datetime(6) NOT NULL,
   created_by bigint DEFAULT NULL,
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY transaction_key (transaction_key),
-  KEY fk_payment_cancel_to_payment (payment_id),
-  CONSTRAINT fk_payment_cancel_to_payment FOREIGN KEY (payment_id) REFERENCES payment (id)
+  KEY idx_payment_transaction_reservation_id (reservation_id),
+  KEY idx_payment_transaction_payment_id (payment_id),
+  KEY idx_payment_transaction_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE price_policy (
   id bigint NOT NULL AUTO_INCREMENT,

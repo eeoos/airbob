@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.payment.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.ResourceAccessException;
@@ -7,10 +9,13 @@ import org.springframework.web.client.ResourceAccessException;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
+import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
@@ -19,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentQueryService {
 
 	private final PaymentRepository paymentRepository;
+	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final TossPaymentsAdapter tossPaymentsAdapter;
 
 	@Transactional(readOnly = true)
@@ -32,7 +38,7 @@ public class PaymentQueryService {
 
 			TossPaymentResponse response = tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey);
 
-			return PaymentResponse.PaymentInfo.from(payment);
+			return PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment));
 		} catch (TossPaymentException e) {
 			log.warn("[결제 조회 실패] API 조회 실패. PaymentKey: {}, Code: {}", paymentKey, e.getErrorCode().name());
 			throw e;
@@ -51,7 +57,7 @@ public class PaymentQueryService {
 
 			validateOwner(payment, memberId);
 			TossPaymentResponse response = tossPaymentsAdapter.getPaymentByOrderId(orderId);
-			return PaymentResponse.PaymentInfo.from(payment);
+			return PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment));
 		} catch (TossPaymentException e) {
 			log.warn("[결제 조회 실패] API 조회 실패. OrderId: {}, Code: {}", orderId, e.getErrorCode().name());
 			throw e;
@@ -59,6 +65,11 @@ public class PaymentQueryService {
 			log.error("[결제 조회 실패] 외 부 시스템 오류. OrderId: {}", orderId, e);
 			throw e;
 		}
+	}
+
+	private List<PaymentTransaction> findCancelTransactions(Payment payment) {
+		return paymentTransactionRepository.findByPaymentIdAndTransactionTypeInOrderByCreatedAtAsc(
+			payment.getId(), List.of(PaymentTransactionType.CANCEL, PaymentTransactionType.PARTIAL_CANCEL));
 	}
 
 	private void validateOwner(Payment payment, Long memberId) {
