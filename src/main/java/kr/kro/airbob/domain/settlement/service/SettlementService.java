@@ -5,10 +5,15 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
@@ -32,16 +37,41 @@ import lombok.extern.slf4j.Slf4j;
 public class SettlementService {
 
 	private static final String SOURCE_BATCH = "BATCH";
+	private static final String GENERATE_LOCK_PREFIX = "LOCK:SETTLEMENT:GENERATE:";
+	private static final long LOCK_WAIT_SECONDS = 5;
 
 	private final SettlementRepository settlementRepository;
 	private final SettlementHistoryRepository settlementHistoryRepository;
+	private final RedissonClient redissonClient;
+	private final PlatformTransactionManager transactionManager;
 
 	@Value("${settlement.commission-rate:0.03}")
 	private BigDecimal commissionRate;
 
-	// 한 달 정산 생성/재집계. 호스트별 원장 집계 → PENDING upsert(이미 PAID면 불변). 멱등.
-	@Transactional
+	// 한 달 정산 생성/재집계. 멀티 인스턴스 스케줄러/수동 동시 실행 시 UNIQUE(host_id, month) 충돌을
+	// 막기 위해 월 단위 분산 락으로 직렬화. 락은 트랜잭션 바깥에서 감싸 커밋까지 보호한다.
 	public void generateMonth(YearMonth month) {
+		RLock lock = redissonClient.getLock(GENERATE_LOCK_PREFIX + month);
+		boolean acquired = false;
+		try {
+			acquired = lock.tryLock(LOCK_WAIT_SECONDS, TimeUnit.SECONDS); // leaseTime 없음 = watchdog 자동 갱신
+			if (!acquired) {
+				log.warn("정산 생성 락 획득 실패(다른 노드 처리 중 추정) → skip: month={}", month);
+				return;
+			}
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> generateMonthInTx(month));
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			log.warn("정산 생성 락 대기 중 인터럽트: month={}", month);
+		} finally {
+			if (acquired && lock.isHeldByCurrentThread()) {
+				lock.unlock();
+			}
+		}
+	}
+
+	// 실제 집계/적재 (락 보유 상태에서 TransactionTemplate으로 트랜잭션 실행)
+	private void generateMonthInTx(YearMonth month) {
 		LocalDate monthStart = month.atDay(1);
 		LocalDate monthEnd = month.atEndOfMonth();
 
@@ -52,8 +82,7 @@ public class SettlementService {
 		log.info("정산 월 집계 완료: month={}, hosts={}", month, aggregates.size());
 	}
 
-	// [from, to] 월 구간 백필
-	@Transactional
+	// [from, to] 월 구간 백필 (월마다 독립 락 + 트랜잭션)
 	public void backfill(YearMonth from, YearMonth to) {
 		for (YearMonth month = from; !month.isAfter(to); month = month.plusMonths(1)) {
 			generateMonth(month);
