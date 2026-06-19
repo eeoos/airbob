@@ -126,6 +126,12 @@ public class ReviewService {
 	public void deleteReview(Long reviewId, Long memberId) {
 		Review review = findReviewByIdAndAuthorId(reviewId, memberId);
 
+		// 이미 삭제/숨김된 리뷰는 삭제 대상이 아니다.
+		// 가드가 없으면 재요청 시 removeReview 가 중복 호출되어 요약 집계가 어긋난다.
+		if (review.getStatus() != ReviewStatus.PUBLISHED) {
+			throw new ReviewNotFoundException();
+		}
+
 		review.deleteByUser();
 
 		updateReviewSummaryOnDelete(review.getAccommodation().getId(), review.getRating());
