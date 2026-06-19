@@ -76,5 +76,15 @@ public class ReviewResponse {
 				summary.getAverageRating()
 			);
 		}
+
+		// review 테이블 직접 집계(naive) 결과 매핑
+		public static ReviewSummary of(ReviewSummaryRow row) {
+			if (row == null) {
+				return new ReviewSummary(0, BigDecimal.ZERO);
+			}
+			int count = row.getTotalCount() == null ? 0 : row.getTotalCount().intValue();
+			BigDecimal avg = row.getAverageRating() == null ? BigDecimal.ZERO : row.getAverageRating();
+			return new ReviewSummary(count, avg);
+		}
 	}
 }

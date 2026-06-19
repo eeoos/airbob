@@ -198,12 +198,17 @@ public class ReviewService {
 		return new ReviewResponse.ReviewInfos(reviewInfos, pageInfo);
 	}
 
-	@Transactional(readOnly = true)
-	public ReviewResponse.ReviewSummary findReviewSummary(Long accommodationId) {
+	public static final String SOURCE_RAW = "raw";
+	public static final String SOURCE_SUMMARY = "summary";
 
+	// source=raw: review 테이블 직접 집계(before) / 그 외: 반정규화 테이블 조회(after). 성능 비교용으로 둘 다 보존.
+	@Transactional(readOnly = true)
+	public ReviewResponse.ReviewSummary findReviewSummary(Long accommodationId, String source) {
+		if (SOURCE_RAW.equalsIgnoreCase(source)) {
+			return ReviewResponse.ReviewSummary.of(reviewRepository.aggregateSummaryNaive(accommodationId));
+		}
 		AccommodationReviewSummary summary = summaryRepository.findByAccommodationId(accommodationId)
 			.orElse(null);
-
 		return ReviewResponse.ReviewSummary.of(summary);
 	}
 
