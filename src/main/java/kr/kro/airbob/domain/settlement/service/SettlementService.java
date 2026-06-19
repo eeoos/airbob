@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
+import kr.kro.airbob.domain.settlement.dto.SettlementStatusSum;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementHistory;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
@@ -107,6 +108,29 @@ public class SettlementService {
 			.map(SettlementResponse.LineItem::from)
 			.toList();
 		return SettlementResponse.SettlementDetail.of(settlement, items);
+	}
+
+	// 호스트 대시보드 요약(예정/누적 지급 총액·건수). settlement이 이미 (host,month) 사전집계라 on-the-fly 집계.
+	@Transactional(readOnly = true)
+	public SettlementResponse.HostSummary getHostSummary(Long hostId) {
+		long pendingPayout = 0;
+		long pendingCount = 0;
+		long paidPayout = 0;
+		long paidCount = 0;
+
+		for (SettlementStatusSum row : settlementRepository.aggregateByHostGroupedByStatus(hostId)) {
+			SettlementStatus status = SettlementStatus.valueOf(row.getStatus());
+			long payout = row.getPayoutSum() == null ? 0L : row.getPayoutSum();
+			long count = row.getCnt() == null ? 0L : row.getCnt();
+			if (status == SettlementStatus.PENDING) {
+				pendingPayout = payout;
+				pendingCount = count;
+			} else if (status == SettlementStatus.PAID) {
+				paidPayout = payout;
+				paidCount = count;
+			}
+		}
+		return new SettlementResponse.HostSummary(pendingPayout, pendingCount, paidPayout, paidCount);
 	}
 
 	@Transactional(readOnly = true)

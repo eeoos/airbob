@@ -217,6 +217,33 @@ class SettlementServiceIntegrationTest {
 			.isInstanceOf(SettlementAccessDeniedException.class);
 	}
 
+	@Test
+	@DisplayName("호스트 요약: status별 예정/누적 payout 합과 건수")
+	void hostSummaryAggregatesByStatus() {
+		settlementService.generateMonth(MAY);
+		settlementService.markPaid(settlementId(host1)); // host1 5월 → PAID(payout 126100)
+
+		// host1에 PENDING 한 건(4월) 추가 적재
+		jdbc.update("""
+			INSERT INTO settlement
+				(host_id, settlement_month, gross_amount, refund_amount, net_amount,
+				 commission_rate, commission_amount, payout_amount, status, updated_at)
+			VALUES (?, '2026-04-01', 60000, 0, 60000, 0.0300, 1800, 58200, 'PENDING', NOW(6))
+			""", host1);
+
+		SettlementResponse.HostSummary host1Summary = settlementService.getHostSummary(host1);
+		assertThat(host1Summary.paidPayoutTotal()).isEqualTo(126100);
+		assertThat(host1Summary.paidCount()).isEqualTo(1);
+		assertThat(host1Summary.pendingPayoutTotal()).isEqualTo(58200);
+		assertThat(host1Summary.pendingCount()).isEqualTo(1);
+
+		SettlementResponse.HostSummary host2Summary = settlementService.getHostSummary(host2);
+		assertThat(host2Summary.pendingPayoutTotal()).isEqualTo(77600);
+		assertThat(host2Summary.pendingCount()).isEqualTo(1);
+		assertThat(host2Summary.paidPayoutTotal()).isZero();
+		assertThat(host2Summary.paidCount()).isZero();
+	}
+
 	// ===== helpers =====
 
 	private void assertSettlement(long hostId, long gross, long refund, long net,

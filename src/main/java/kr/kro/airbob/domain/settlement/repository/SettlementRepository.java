@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.settlement.dto.HostMonthlyAggregate;
 import kr.kro.airbob.domain.settlement.dto.SettlementLineItem;
+import kr.kro.airbob.domain.settlement.dto.SettlementStatusSum;
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 
@@ -86,4 +87,16 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 		""", nativeQuery = true)
 	List<SettlementLineItem> findLineItems(@Param("hostId") Long hostId,
 		@Param("monthStart") LocalDate monthStart, @Param("monthEnd") LocalDate monthEnd);
+
+	// 호스트 요약: status별 payout 합/건수. settlement은 (host, month) 사전집계 테이블이라
+	// 호스트당 행이 적고 host_id 인덱스를 타므로 on-the-fly 집계로 충분(별도 통계 테이블 불필요).
+	@Query(value = """
+		SELECT status AS status,
+			COALESCE(SUM(payout_amount), 0) AS payoutSum,
+			COUNT(*) AS cnt
+		FROM settlement
+		WHERE host_id = :hostId
+		GROUP BY status
+		""", nativeQuery = true)
+	List<SettlementStatusSum> aggregateByHostGroupedByStatus(@Param("hostId") Long hostId);
 }

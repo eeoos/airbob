@@ -83,6 +83,14 @@ public class SettlementResponse {
 		}
 	}
 
+	// 호스트 대시보드 요약: 정산 예정/누적 지급 총액과 건수
+	public record HostSummary(
+		long pendingPayoutTotal,
+		long pendingCount,
+		long paidPayoutTotal,
+		long paidCount
+	) {}
+
 	// 관리자 조회용(호스트 식별 포함)
 	public record AdminSettlement(
 		Long settlementId,
