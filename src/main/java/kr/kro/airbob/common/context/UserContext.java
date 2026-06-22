@@ -16,6 +16,17 @@ public class UserContext {
 		return userThreadLocal.get();
 	}
 
+	// 이력 기록 편의: 현재 요청의 IP / 출처 시스템 (없으면 null)
+	public static String currentClientIp() {
+		UserInfo info = userThreadLocal.get();
+		return info == null ? null : info.clientIp();
+	}
+
+	public static String currentSourceSystem() {
+		UserInfo info = userThreadLocal.get();
+		return info == null ? null : info.sourceSystem();
+	}
+
 	public static void clear() {
 		userThreadLocal.remove();
 	}
