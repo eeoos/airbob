@@ -1,7 +1,6 @@
 package kr.kro.airbob.domain.review.entity;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,8 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
-import jakarta.persistence.Version;
-import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import lombok.AccessLevel;
@@ -31,9 +28,6 @@ public class AccommodationReviewSummary extends BaseEntity {
 	@Column(name = "accommodation_id")
 	private Long accommodationId;
 
-	@Version
-	private Long version;
-
 	@OneToOne(fetch = FetchType.LAZY)
 	@MapsId
 	@JoinColumn(name = "accommodation_id")
@@ -51,28 +45,7 @@ public class AccommodationReviewSummary extends BaseEntity {
 	@Builder.Default
 	private BigDecimal averageRating = BigDecimal.ZERO;
 
-	public void addReview(int rating) {
-		this.totalReviewCount++;
-		this.ratingSum += rating;
-		this.averageRating = calculateAverageRating();
-	}
-
-	public void removeReview(int rating) {
-		this.totalReviewCount--;
-		this.ratingSum -= rating;
-		this.averageRating = calculateAverageRating();
-	}
-
-	public void updateReview(int oldRating, int newRating) {
-		this.ratingSum = this.ratingSum - oldRating + newRating;
-		this.averageRating = calculateAverageRating();
-	}
-
-	private BigDecimal calculateAverageRating() {
-		if (totalReviewCount == 0) {
-			return BigDecimal.ZERO;
-		}
-		return BigDecimal.valueOf(ratingSum)
-			.divide(BigDecimal.valueOf(totalReviewCount), 2, RoundingMode.HALF_UP);
-	}
+	// 집계 갱신은 in-memory 변이 + 낙관적 락 대신 AccommodationReviewSummaryRepository의
+	// 원자적 SQL(INSERT ... ON DUPLICATE KEY UPDATE / 원자적 UPDATE)로 수행한다.
+	// 이 엔티티는 읽기/매핑 용도로만 사용.
 }

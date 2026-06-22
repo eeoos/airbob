@@ -30,7 +30,12 @@ public class ReviewRequest {
 
 		@NotBlank(message = "리뷰 본문은 공백일 수 없습니다.")
 		@Size(max = 1024, message = "리뷰 내용은 1024자를 초과할 수 없습니다.")
-		String content
+		String content,
+
+		// 선택: 제공 시 평점 수정(요약 rating_sum/average 원자적 반영)
+		@Min(1)
+		@Max(5)
+		Integer rating
 	) {
 	}
 

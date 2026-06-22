@@ -27,6 +27,7 @@ import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.PaymentInquiryErrorCode;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +39,9 @@ class PaymentQueryServiceTest {
 
 	@Mock
 	private PaymentRepository paymentRepository;
+
+	@Mock
+	private PaymentTransactionRepository paymentTransactionRepository;
 
 	@Mock
 	private TossPaymentsAdapter tossPaymentsAdapter;

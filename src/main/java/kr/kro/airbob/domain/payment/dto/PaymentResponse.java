@@ -6,9 +6,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
-import kr.kro.airbob.domain.payment.entity.PaymentCancel;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -30,8 +29,9 @@ public class PaymentResponse {
 		List<CancelInfo> cancels,
 		VirtualAccountInfo virtualAccount
 	){
-		public static PaymentInfo from(Payment payment) {
-			List<CancelInfo> cancelInfos = payment.getCancels().stream()
+		// 확정된 결제 + 취소 이력(거래 원장의 CANCEL/PARTIAL_CANCEL)
+		public static PaymentInfo from(Payment payment, List<PaymentTransaction> cancelTransactions) {
+			List<CancelInfo> cancelInfos = cancelTransactions.stream()
 				.map(CancelInfo::from)
 				.toList();
 
@@ -49,15 +49,16 @@ public class PaymentResponse {
 				.build();
 		}
 
-		public static PaymentInfo from(PaymentAttempt attempt) {
+		// 결제 확정 전(가상계좌 발급 등) — 거래 원장 기반
+		public static PaymentInfo from(PaymentTransaction transaction) {
 			return PaymentInfo.builder()
-				.orderId(attempt.getOrderId())
-				.paymentKey(attempt.getPaymentKey())
-				.method(attempt.getMethod().getDescription())
-				.totalAmount(attempt.getAmount())
-				.status(attempt.getStatus())
-				.requestedAt(attempt.getCreatedAt())
-				.virtualAccount(VirtualAccountInfo.from(attempt))
+				.orderId(transaction.getOrderId())
+				.paymentKey(transaction.getPaymentKey())
+				.method(transaction.getMethod() != null ? transaction.getMethod().getDescription() : null)
+				.totalAmount(transaction.getAmount())
+				.status(transaction.getStatus())
+				.requestedAt(transaction.getCreatedAt())
+				.virtualAccount(VirtualAccountInfo.from(transaction))
 				.build();
 		}
 	}
@@ -68,11 +69,11 @@ public class PaymentResponse {
 		String cancelReason,
 		LocalDateTime canceledAt
 	) {
-		public static CancelInfo from(PaymentCancel cancel) {
+		public static CancelInfo from(PaymentTransaction cancelTransaction) {
 			return CancelInfo.builder()
-				.cancelAmount(cancel.getCancelAmount())
-				.cancelReason(cancel.getCancelReason())
-				.canceledAt(cancel.getCanceledAt())
+				.cancelAmount(cancelTransaction.getCancelAmount())
+				.cancelReason(cancelTransaction.getCancelReason())
+				.canceledAt(cancelTransaction.getCanceledAt())
 				.build();
 		}
 	}
@@ -84,12 +85,12 @@ public class PaymentResponse {
 		String customerName,
 		LocalDateTime dueDate
 	) {
-		public static VirtualAccountInfo from(PaymentAttempt attempt) {
+		public static VirtualAccountInfo from(PaymentTransaction transaction) {
 			return VirtualAccountInfo.builder()
-				.accountNumber(attempt.getVirtualAccountNumber())
-				.bankCode(attempt.getVirtualBankCode())
-				.customerName(attempt.getVirtualCustomerName())
-				.dueDate(attempt.getVirtualDueDate())
+				.accountNumber(transaction.getVirtualAccountNumber())
+				.bankCode(transaction.getVirtualBankCode())
+				.customerName(transaction.getVirtualCustomerName())
+				.dueDate(transaction.getVirtualDueDate())
 				.build();
 		}
 	}

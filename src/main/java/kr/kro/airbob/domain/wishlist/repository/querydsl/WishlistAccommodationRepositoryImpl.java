@@ -132,6 +132,16 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			));
 	}
 
+	@Override
+	public Long findLatestAccommodationId(Long wishlistId) {
+		return queryFactory
+			.select(wishlistAccommodation.accommodation.id)
+			.from(wishlistAccommodation)
+			.where(wishlistAccommodation.wishlist.id.eq(wishlistId))
+			.orderBy(wishlistAccommodation.createdAt.desc(), wishlistAccommodation.id.desc())
+			.fetchFirst();
+	}
+
 	private BooleanExpression cursorCondition(Long lastId, LocalDateTime lastCreatedAt) {
 		if (lastId == null || lastCreatedAt == null) {
 			return null;

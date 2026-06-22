@@ -30,7 +30,7 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -69,7 +69,7 @@ class ReservationTransactionServiceTest {
 	@Mock
 	private AccommodationRepository accommodationRepository;
 	@Mock
-	private PaymentAttemptRepository paymentAttemptRepository;
+	private PaymentTransactionRepository paymentTransactionRepository;
 	@Mock
 	private ReservationHistoryRepository historyRepository;
 

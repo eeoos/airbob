@@ -69,3 +69,6 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+settlement:
+  commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨

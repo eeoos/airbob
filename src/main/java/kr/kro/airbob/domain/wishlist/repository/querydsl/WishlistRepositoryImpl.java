@@ -11,6 +11,7 @@ import org.springframework.data.domain.SliceImpl;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.querydsl.jpa.impl.JPAUpdateClause;
 
 import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
@@ -19,6 +20,39 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 	private final JPAQueryFactory queryFactory;
+
+	@Override
+	public void incrementCountAndSetRepresentative(Long wishlistId, Long accommodationId) {
+		queryFactory.update(wishlist)
+			.set(wishlist.accommodationCount, wishlist.accommodationCount.add(1))
+			.set(wishlist.representativeAccommodationId, accommodationId)
+			.set(wishlist.updatedAt, LocalDateTime.now())
+			.where(wishlist.id.eq(wishlistId))
+			.execute();
+	}
+
+	@Override
+	public void decrementCount(Long wishlistId) {
+		queryFactory.update(wishlist)
+			.set(wishlist.accommodationCount, wishlist.accommodationCount.subtract(1))
+			.set(wishlist.updatedAt, LocalDateTime.now())
+			.where(wishlist.id.eq(wishlistId))
+			.execute();
+	}
+
+	@Override
+	public void updateRepresentative(Long wishlistId, Long accommodationId) {
+		JPAUpdateClause clause = queryFactory.update(wishlist)
+			.set(wishlist.updatedAt, LocalDateTime.now())
+			.where(wishlist.id.eq(wishlistId));
+
+		if (accommodationId == null) {
+			clause.setNull(wishlist.representativeAccommodationId);
+		} else {
+			clause.set(wishlist.representativeAccommodationId, accommodationId);
+		}
+		clause.execute();
+	}
 
 	@Override
 	public Slice<Wishlist> findByMemberIdAndStatusWithCursor(Long memberId, WishlistStatus status, Long lastId,

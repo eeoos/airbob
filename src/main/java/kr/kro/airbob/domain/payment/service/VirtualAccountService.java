@@ -8,9 +8,9 @@ import org.springframework.web.client.ResourceAccessException;
 
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
-import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
-import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class VirtualAccountService {
 
 	private final ReservationRepository reservationRepository;
-	private final PaymentAttemptRepository paymentAttemptRepository;
+	private final PaymentTransactionRepository paymentTransactionRepository;
 
 	private final TossPaymentsAdapter tossPaymentsAdapter;
 	@Transactional
@@ -37,8 +37,7 @@ public class VirtualAccountService {
 		try {
 			TossPaymentResponse response = tossPaymentsAdapter.issueVirtualAccount(reservation, request.bankCode(),
 				request.customerName());
-			PaymentAttempt attempt = PaymentAttempt.create(response, reservation);
-			paymentAttemptRepository.save(attempt);
+			paymentTransactionRepository.save(PaymentTransaction.virtualIssued(response, reservation));
 			log.info("[가상계좌 발급 완료]: Reservation UID {}", reservationUid);
 			return response;
 		} catch (TossPaymentException e) {

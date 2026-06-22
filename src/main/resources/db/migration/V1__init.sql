@@ -252,43 +252,35 @@ CREATE TABLE payment (
   UNIQUE KEY reservation_id (reservation_id),
   CONSTRAINT fk_payment_to_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-CREATE TABLE payment_attempt (
+-- 결제 거래 원장(append-only): 구 payment_attempt + payment_cancel 통합. 원본 FK 없음, 조회 인덱스만.
+CREATE TABLE payment_transaction (
   id bigint NOT NULL AUTO_INCREMENT,
-  payment_key varchar(200) NOT NULL,
-  order_id varchar(64) NOT NULL,
-  amount bigint NOT NULL,
+  reservation_id bigint NOT NULL,
+  payment_id bigint DEFAULT NULL,
+  transaction_type varchar(30) NOT NULL,
+  status varchar(50) DEFAULT NULL,
+  amount bigint DEFAULT NULL,
+  payment_key varchar(200) DEFAULT NULL,
+  order_id varchar(64) DEFAULT NULL,
   method varchar(50) DEFAULT NULL,
-  status varchar(50) NOT NULL,
   failure_code varchar(100) DEFAULT NULL,
   failure_message varchar(512) DEFAULT NULL,
-  reservation_id bigint NOT NULL,
-  created_at datetime(6) NOT NULL,
   virtual_bank_code varchar(20) DEFAULT NULL,
   virtual_account_number varchar(30) DEFAULT NULL,
   virtual_customer_name varchar(100) DEFAULT NULL,
   virtual_due_date datetime(6) DEFAULT NULL,
-  updated_at datetime(6) NOT NULL,
-  created_by bigint DEFAULT NULL,
-  updated_by bigint DEFAULT NULL,
-  PRIMARY KEY (id),
-  KEY fk_payment_attempt_to_reservation (reservation_id),
-  CONSTRAINT fk_payment_attempt_to_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-CREATE TABLE payment_cancel (
-  id bigint NOT NULL AUTO_INCREMENT,
-  payment_id bigint NOT NULL,
-  cancel_amount bigint NOT NULL,
+  cancel_amount bigint DEFAULT NULL,
   cancel_reason varchar(200) DEFAULT NULL,
-  transaction_key varchar(64) NOT NULL,
-  canceled_at datetime(6) NOT NULL,
+  transaction_key varchar(64) DEFAULT NULL,
+  canceled_at datetime(6) DEFAULT NULL,
   created_at datetime(6) NOT NULL,
   updated_at datetime(6) NOT NULL,
   created_by bigint DEFAULT NULL,
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY transaction_key (transaction_key),
-  KEY fk_payment_cancel_to_payment (payment_id),
-  CONSTRAINT fk_payment_cancel_to_payment FOREIGN KEY (payment_id) REFERENCES payment (id)
+  KEY idx_payment_transaction_reservation_id (reservation_id),
+  KEY idx_payment_transaction_payment_id (payment_id),
+  KEY idx_payment_transaction_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE price_policy (
   id bigint NOT NULL AUTO_INCREMENT,
@@ -414,6 +406,47 @@ CREATE TABLE wishlist_accommodation (
   KEY FK_wishlist_accommodation_accommodation_id (accommodation_id),
   CONSTRAINT FK_wishlist_accommodation_accommodation_id FOREIGN KEY (accommodation_id) REFERENCES accommodation (id),
   CONSTRAINT FK_wishlist_accommodation_wishlist_id FOREIGN KEY (wishlist_id) REFERENCES wishlist (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 숙소 이력: 전체 행 스냅샷(Master, valid_from/valid_to). address·occupancy 펼침, description 포함. 원본 FK 없음.
+CREATE TABLE accommodation_history (
+  id bigint NOT NULL AUTO_INCREMENT,
+  accommodation_id bigint NOT NULL,
+  accommodation_uid varchar(36) DEFAULT NULL,
+  name varchar(255) DEFAULT NULL,
+  description text,
+  base_price bigint DEFAULT NULL,
+  currency varchar(3) DEFAULT NULL,
+  thumbnail_url varchar(255) DEFAULT NULL,
+  type varchar(50) DEFAULT NULL,
+  status varchar(20) NOT NULL,
+  check_in_time time DEFAULT NULL,
+  check_out_time time DEFAULT NULL,
+  member_id bigint DEFAULT NULL,
+  address_country varchar(255) DEFAULT NULL,
+  address_state varchar(255) DEFAULT NULL,
+  address_city varchar(255) DEFAULT NULL,
+  address_district varchar(255) DEFAULT NULL,
+  address_street varchar(255) DEFAULT NULL,
+  address_detail varchar(255) DEFAULT NULL,
+  address_postal_code varchar(12) DEFAULT NULL,
+  address_latitude double DEFAULT NULL,
+  address_longitude double DEFAULT NULL,
+  max_occupancy int DEFAULT NULL,
+  infant_occupancy int DEFAULT NULL,
+  pet_occupancy int DEFAULT NULL,
+  created_at datetime(6) DEFAULT NULL,
+  created_by bigint DEFAULT NULL,
+  history_created_at datetime(6) NOT NULL,
+  history_created_by bigint DEFAULT NULL,
+  change_type varchar(30) NOT NULL,
+  change_reason varchar(255) DEFAULT NULL,
+  source_system varchar(30) DEFAULT NULL,
+  client_ip varchar(45) DEFAULT NULL,
+  valid_from datetime(6) NOT NULL,
+  valid_to datetime(6) NOT NULL DEFAULT '9999-12-31 23:59:59',
+  PRIMARY KEY (id),
+  KEY idx_accommodation_history_accommodation_id (accommodation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

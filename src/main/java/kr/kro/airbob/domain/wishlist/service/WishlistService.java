@@ -115,22 +115,25 @@ public class WishlistService {
 				.build();
 		}
 
-		List<Long> wishlistIds = wishlistSlice.getContent().stream()
+		List<Long> wishlistIds = wishlists.stream()
 			.map(Wishlist::getId)
 			.toList();
 
-		// 위시리스트별 숙소 개수 조회
-		Map<Long, Long> wishlistItemCounts = wishlistAccommodationRepository.countByWishlistIds(wishlistIds);
+		// 반정규화: 대표(최신) 숙소 id 묶음 → 썸네일 URL 배치 조회 (기존 ROW_NUMBER 윈도우 함수 제거)
+		List<Long> representativeIds = wishlists.stream()
+			.map(Wishlist::getRepresentativeAccommodationId)
+			.filter(id -> id != null)
+			.distinct()
+			.toList();
 
-		// 위시리스트별 가장 최근에 추가된 숙소 썸네일 Url 조회
-		List<WishlistAccommodationRepository.WishlistThumbnailInfo> thumbnailInfos =
-			wishlistAccommodationRepository.findLatestThumbnailUrlsByWishlistIds(wishlistIds);
-
-		Map<Long, String> thumbnailUrls = thumbnailInfos.stream()
-			.collect(Collectors.toMap(
-				WishlistAccommodationRepository.WishlistThumbnailInfo::getWishlist_id,
-				WishlistAccommodationRepository.WishlistThumbnailInfo::getThumbnail_url
-			));
+		Map<Long, String> thumbnailUrls = representativeIds.isEmpty()
+			? Collections.emptyMap()
+			: accommodationRepository.findThumbnailUrlsByIds(representativeIds).stream()
+				.filter(p -> p.getThumbnailUrl() != null)
+				.collect(Collectors.toMap(
+					AccommodationRepository.ThumbnailUrlProjection::getId,
+					AccommodationRepository.ThumbnailUrlProjection::getThumbnailUrl
+				));
 
 		List<WishlistResponse.WishlistInfo> wishlistInfos;
 
@@ -148,8 +151,8 @@ public class WishlistService {
 						currentWishlistId,
 						wishlist.getName(),
 						wishlist.getCreatedAt(),
-						wishlistItemCounts.getOrDefault(currentWishlistId, 0L),
-						thumbnailUrls.get(currentWishlistId),
+						wishlist.getAccommodationCount().longValue(),
+						thumbnailUrls.get(wishlist.getRepresentativeAccommodationId()),
 						isContained,
 						wishlistAccommodationId
 					);
@@ -161,8 +164,8 @@ public class WishlistService {
 						wishlist.getId(),
 						wishlist.getName(),
 						wishlist.getCreatedAt(),
-						wishlistItemCounts.getOrDefault(wishlist.getId(), 0L),
-						thumbnailUrls.get(wishlist.getId()),
+						wishlist.getAccommodationCount().longValue(),
+						thumbnailUrls.get(wishlist.getRepresentativeAccommodationId()),
 						null,
 						null
 					)).toList();
@@ -198,6 +201,9 @@ public class WishlistService {
 		WishlistAccommodation savedWishlistAccommodation
 			= wishlistAccommodationRepository.save(wishlistAccommodation);
 
+		// 반정규화: 개수 +1, 대표를 방금 추가한 숙소(=최신)로 설정
+		wishlistRepository.incrementCountAndSetRepresentative(wishlist.getId(), accommodation.getId());
+
 		return new WishlistAccommodationResponse.Create(savedWishlistAccommodation.getId());
 	}
 
@@ -216,7 +222,20 @@ public class WishlistService {
 
 		WishlistAccommodation wishlistAccommodation = findWishlistAccommodationForMember(wishlistAccommodationId, memberId);
 
+		Long wishlistId = wishlistAccommodation.getWishlist().getId();
+		Long removedAccommodationId = wishlistAccommodation.getAccommodation().getId();
+		Long currentRepresentative = wishlistAccommodation.getWishlist().getRepresentativeAccommodationId();
+
 		wishlistAccommodationRepository.delete(wishlistAccommodation);
+		wishlistAccommodationRepository.flush(); // 대표 재선정 조회가 삭제 반영 후 실행되도록
+
+		wishlistRepository.decrementCount(wishlistId);
+
+		// 삭제된 숙소가 대표였을 때만 다음 최신 1건으로 재선정(없으면 null)
+		if (removedAccommodationId.equals(currentRepresentative)) {
+			Long newRepresentative = wishlistAccommodationRepository.findLatestAccommodationId(wishlistId);
+			wishlistRepository.updateRepresentative(wishlistId, newRepresentative);
+		}
 	}
 
 	@Transactional(readOnly = true)

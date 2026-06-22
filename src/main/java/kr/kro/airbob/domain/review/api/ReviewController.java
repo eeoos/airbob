@@ -98,11 +98,14 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
+	// source=summary(기본, 반정규화 테이블) | raw(review 테이블 직접 집계, 성능 비교용)
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews/summary")
-	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(@PathVariable Long accommodationId) {
+	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(
+		@PathVariable Long accommodationId,
+		@RequestParam(defaultValue = "summary") String source) {
 
 		ReviewResponse.ReviewSummary response =
-			reviewService.findReviewSummary(accommodationId);
+			reviewService.findReviewSummary(accommodationId, source);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

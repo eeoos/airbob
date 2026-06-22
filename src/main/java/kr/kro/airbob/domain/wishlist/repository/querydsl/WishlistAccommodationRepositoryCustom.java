@@ -19,4 +19,7 @@ public interface WishlistAccommodationRepositoryCustom {
 	Set<Long> findAccommodationIdsByMemberIdAndAccommodationIds(Long memberId, List<Long> accommodationIds);
 
 	Map<Long, Long> findWishlistAccIdsMapByWishlistIdsAndAccId(List<Long> wishlistIds, Long accommodationId);
+
+	// 대표 숙소 재선정용: 위시리스트 내 가장 최근에 추가된 숙소 id (없으면 null)
+	Long findLatestAccommodationId(Long wishlistId);
 }

@@ -82,7 +82,13 @@ public enum ErrorCode {
 	IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "I004", "요청한 이미지를 찾을 수 없습니다."),
 	IMAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "I005", "해당 이미지에 대한 권한이 없습니다."),
 	EMPTY_IMAGE_FILE(HttpStatus.BAD_REQUEST, "I007", "이미지 파일이 비어 있습니다."),
-	IMAGE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "I008", "이미지 파일 크기는 10MB를 초과할 수 없습니다.");
+	IMAGE_FILE_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "I008", "이미지 파일 크기는 10MB를 초과할 수 없습니다."),
+
+	// settlement
+	SETTLEMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "존재하지 않는 정산 내역입니다."),
+	SETTLEMENT_ALREADY_PAID(HttpStatus.CONFLICT, "S002", "이미 지급 완료된 정산입니다."),
+	SETTLEMENT_MONTH_NOT_CLOSED(HttpStatus.CONFLICT, "S003", "아직 마감되지 않은 달의 정산은 지급할 수 없습니다."),
+	SETTLEMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "S004", "해당 정산 내역에 대한 접근 권한이 없습니다.");
 
 	private final HttpStatus status;
 	private final String code;

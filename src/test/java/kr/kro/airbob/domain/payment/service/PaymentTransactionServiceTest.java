@@ -23,11 +23,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentAttempt;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
+import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
-import kr.kro.airbob.domain.payment.repository.PaymentAttemptRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
@@ -43,13 +44,13 @@ class PaymentTransactionServiceTest {
 	private PaymentRepository paymentRepository;
 
 	@Mock
-	private PaymentAttemptRepository paymentAttemptRepository;
+	private PaymentTransactionRepository paymentTransactionRepository;
 
 	@Mock
 	private OutboxEventPublisher outboxEventPublisher;
 
 	@Captor
-	private ArgumentCaptor<PaymentAttempt> attemptCaptor;
+	private ArgumentCaptor<PaymentTransaction> transactionCaptor;
 
 	@Captor
 	private ArgumentCaptor<Payment> paymentCaptor;
@@ -85,18 +86,19 @@ class PaymentTransactionServiceTest {
 	class ProcessSuccessfulPaymentTest {
 
 		@Test
-		@DisplayName("결제 성공 시 PaymentAttempt가 저장된다")
-		void PaymentAttempt_저장() {
+		@DisplayName("결제 성공 시 거래 원장에 CONFIRM이 기록된다")
+		void 거래원장_CONFIRM_기록() {
 			// when
 			paymentTransactionService.processSuccessfulPayment(tossResponse, reservation);
 
 			// then
-			then(paymentAttemptRepository).should().save(attemptCaptor.capture());
-			PaymentAttempt savedAttempt = attemptCaptor.getValue();
+			then(paymentTransactionRepository).should().save(transactionCaptor.capture());
+			PaymentTransaction savedTransaction = transactionCaptor.getValue();
 
-			assertThat(savedAttempt.getPaymentKey()).isEqualTo("pk_test_123");
-			assertThat(savedAttempt.getOrderId()).isEqualTo(reservationUid.toString());
-			assertThat(savedAttempt.getAmount()).isEqualTo(100_000L);
+			assertThat(savedTransaction.getTransactionType()).isEqualTo(PaymentTransactionType.CONFIRM);
+			assertThat(savedTransaction.getPaymentKey()).isEqualTo("pk_test_123");
+			assertThat(savedTransaction.getOrderId()).isEqualTo(reservationUid.toString());
+			assertThat(savedTransaction.getAmount()).isEqualTo(100_000L);
 		}
 
 		@Test
@@ -149,13 +151,14 @@ class PaymentTransactionServiceTest {
 			);
 
 			// then
-			then(paymentAttemptRepository).should().save(attemptCaptor.capture());
-			PaymentAttempt savedAttempt = attemptCaptor.getValue();
+			then(paymentTransactionRepository).should().save(transactionCaptor.capture());
+			PaymentTransaction savedTransaction = transactionCaptor.getValue();
 
-			assertThat(savedAttempt.getPaymentKey()).isEqualTo("pk_fail");
-			assertThat(savedAttempt.getFailureCode()).isEqualTo("REJECT_CARD_PAYMENT");
-			assertThat(savedAttempt.getFailureMessage()).isEqualTo("잔액 부족");
-			assertThat(savedAttempt.getStatus()).isEqualTo(PaymentStatus.ABORTED);
+			assertThat(savedTransaction.getTransactionType()).isEqualTo(PaymentTransactionType.FAIL);
+			assertThat(savedTransaction.getPaymentKey()).isEqualTo("pk_fail");
+			assertThat(savedTransaction.getFailureCode()).isEqualTo("REJECT_CARD_PAYMENT");
+			assertThat(savedTransaction.getFailureMessage()).isEqualTo("잔액 부족");
+			assertThat(savedTransaction.getStatus()).isEqualTo(PaymentStatus.ABORTED);
 		}
 
 		@Test
