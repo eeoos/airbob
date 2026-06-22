@@ -8,7 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import kr.kro.airbob.common.domain.UpdatableEntity;
+import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.event.common.EventStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -21,7 +21,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Event extends UpdatableEntity {
+public class Event extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

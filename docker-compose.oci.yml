@@ -20,6 +20,12 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    command: >
+      /bin/sh -c "while :; do
+        sleep 24h;
+        nginx -s reload;
+      done &
+      nginx -g 'daemon off;'"
     deploy:
       resources:
         limits:

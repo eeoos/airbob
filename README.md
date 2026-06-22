@@ -51,22 +51,59 @@ PW: 123123123
 
 ## 담당
 
-### 프로젝트 진행 중
-- **Elasticsearch 기반 위치 검색 전환** 및 Spring Event 기반 색인 파이프라인 구축
-- **커서 기반 페이지네이션 공통 모듈** 구현
-- **리뷰 생성/삭제** 및 별점 비정규화 집계 설계
-- **Redis Sorted Set 기반 최근 본 숙소** 기능 구현
-- 위시리스트 기능 구현
+## 담당
 
-### 프로젝트 이후
-- **Redisson 분산 락 기반 3단계 동시성 제어 설계**
-- **Kafka 이벤트 기반 예약-결제 비동기 연동 및 Saga 보상 트랜잭션 설계**
-- **Transactional Outbox + Debezium(CDC)로 이벤트 정합성 보장**
-- **DLQ 및 Slack 알림을 통한 실패 메시지 복구 체계 구축**
-- **ALB + ASG 기반 Auto Scaling 구조 전환 및 k6 부하 테스트 검증**
-- **Prometheus + Grafana 기반 모니터링 시스템 구축**
-- **Docker 기반 배포 전환 및 멀티 아키텍처 CI/CD 파이프라인 구축**
-- **S3 + CloudFront 기반 이미지 업로드 및 CDN 배포**
+### 프로젝트 기간 중
+
+- **[검색] `LIKE` 검색의 지연·정합성 한계** <br>
+  주소/숙소명을 `LIKE '%키워드%'`로 검색하면서 인덱스 미활용·풀 테이블 스캔 문제 발생
+  - **Elasticsearch(Nori 분석기) 기반 위치 검색으로 전환**하고, Spring Event + Kafka Consumer를 통한 **실시간 색인 파이프라인** 구축
+  
+- **[공통 모듈] offset 페이지네이션의 성능 저하**
+  깊은 페이지로 갈수록 `OFFSET N` 비용이 선형 증가, 신규 데이터 삽입 시 중복·누락 발생
+  → **커서 기반 페이지네이션 공통 모듈** 설계. `@CursorParam` 어노테이션 + ArgumentResolver로 도메인 무관하게 재사용
+  → 페이지 깊이와 무관한 **O(1) 응답 시간** 확보, 리뷰/위시리스트/검색 결과에 공통 적용
+
+- **[리뷰] 평균 별점 실시간 집계의 쓰기 부하**
+  숙소 목록·상세 화면이 노출될 때마다 수십만 건 리뷰를 집계 → 조회 지연
+  → 별점 합계/개수를 별도 테이블(`accommodation_review_summary`)에 **비정규화 저장**, 리뷰 생성/삭제 시점에 **낙관적 락(`@Version`)으로 증감 갱신**
+  → 조회 시 조인·집계 제거, 동시 리뷰 등록 시에도 집계값 정합성 보장
+
+- **[최근 본 숙소] TTL·순서가 필요한 조회 이력**
+  "최근 본 N개"를 MySQL로 구현할 경우 매 조회마다 `ORDER BY viewed_at DESC LIMIT N` + 주기적 삭제 배치 필요
+  → **Redis Sorted Set** 기반으로 전환, 스코어에 timestamp를 저장해 **삽입·조회·트림**을 모두 O(log N)로 처리
+
+- **[위시리스트]** 기본 CRUD + 커서 페이지네이션 연동
+
+### 프로젝트 종료 후
+
+> "돌아가는 서비스"를 **장애에 견디는 서비스**로 끌어올리는 데 집중했습니다.
+
+- **[동시성] 인기 숙소 중복 예약 Race Condition**
+  여러 사용자가 같은 날짜를 동시에 예약할 때 DB에 중복 row 발생, 단일 인스턴스 `synchronized`로는 스케일 아웃 불가
+  → **3단계 방어 설계** (Redis Hold → Redisson MultiLock(Pub/Sub) → DB 재검증), Lock Key 오름차순 정렬로 Circular Wait 제거
+  → **50 동시 요청 테스트에서 중복 0건**, 다른 숙소·날짜 간 락 경합 없이 동시 처리량 유지
+
+- **[결제 비동기화] PG 외부 IO가 DB 트랜잭션을 점유하는 문제**
+  Toss API 호출이 트랜잭션 안에 있으면 네트워크 지연 동안 커넥션·락 점유 → DB 풀 고갈 위험
+  → **PG 호출을 별도 워커(`PaymentGatewayWorker`)로 분리**, 요청/성공/실패를 각각 Outbox 이벤트 체인으로 연결
+  → DB 트랜잭션 길이를 PG 호출과 독립, 외부 장애가 예약 처리 경로로 전파되지 않음
+
+- **[정합성] DB 커밋과 Kafka 발행의 원자성**
+  `@TransactionalEventListener`는 롤백 시 이벤트 유실, 커밋 후 발행 실패 시 이벤트 누락
+  → **Transactional Outbox + Debezium CDC**로 "커밋된 변경"만 Kafka에 발행되도록 보장
+  → At-least-once 전달 확보, consumer는 `reservation_code`(V29) 기반 멱등 처리
+
+- **[복구] Saga 보상 트랜잭션 + 유령 결제 자동 환불**
+  결제는 성공했는데 예약 확정이 실패하는 "유령 결제" 케이스는 수동 개입 없이는 재현·복구 불가
+  → DLQ 컨슈머 + `PaymentCompensationService.compensateGhostPayment()`로 **자동 환불 + Slack FATAL 알림**
+  → 실패 이벤트가 운영자에게 즉시 통지되고, 복구 흐름이 코드로 문서화됨
+
+- **[운영] 수동 배포·단일 인스턴스 한계**
+  → **ALB + ASG 기반 Auto Scaling**으로 전환, **k6**로 스케일 아웃 임계/쿨다운 검증 `[수치 TBD]`
+  → **Prometheus + Grafana** 대시보드 구축 (`JVM`, Kafka lag, PG 호출 지연 모니터링)
+  → **Docker + 멀티 아키텍처(amd64/arm64) CI/CD** 파이프라인 구축
+  → **S3 + CloudFront** 이미지 업로드·CDN 배포
 
 ## 핵심 설계와 기술 선택
 

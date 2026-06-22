@@ -8,7 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.UpdatableEntity;
+import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import lombok.AccessLevel;
@@ -22,7 +22,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Member extends UpdatableEntity {
+public class Member extends BaseEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

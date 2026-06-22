@@ -21,7 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
-import kr.kro.airbob.common.domain.UpdatableEntity;
+import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
@@ -36,7 +36,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Payment extends UpdatableEntity {
+public class Payment extends BaseEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

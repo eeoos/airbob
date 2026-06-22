@@ -7,7 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import kr.kro.airbob.common.domain.UpdatableEntity;
+import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -21,7 +21,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WishlistAccommodation extends UpdatableEntity {
+public class WishlistAccommodation extends BaseEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
