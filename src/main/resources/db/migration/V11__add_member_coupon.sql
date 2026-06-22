@@ -5,7 +5,7 @@ CREATE TABLE member_coupon (
   id bigint NOT NULL AUTO_INCREMENT,
   member_id bigint NOT NULL,
   coupon_id bigint NOT NULL,
-  used bit(1) NOT NULL DEFAULT b'0',
+  used boolean NOT NULL DEFAULT false,
   created_at datetime(6) DEFAULT NULL,
   updated_at datetime(6) NOT NULL,
   created_by bigint DEFAULT NULL,

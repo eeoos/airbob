@@ -16,4 +16,4 @@ ALTER TABLE coupon
   MODIFY COLUMN discount_type varchar(50) NOT NULL,
   MODIFY COLUMN start_date datetime(6) NOT NULL,
   MODIFY COLUMN end_date datetime(6) NOT NULL,
-  MODIFY COLUMN is_active bit(1) NOT NULL;
+  MODIFY COLUMN is_active boolean NOT NULL;

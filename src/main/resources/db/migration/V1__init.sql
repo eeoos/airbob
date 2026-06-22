@@ -114,7 +114,7 @@ CREATE TABLE amenity (
 CREATE TABLE discount_policy (
   id bigint NOT NULL AUTO_INCREMENT,
   discount_rate double DEFAULT NULL,
-  is_active bit(1) DEFAULT NULL,
+  is_active boolean DEFAULT NULL,
   max_apply_price int DEFAULT NULL,
   min_payment_price int DEFAULT NULL,
   created_at datetime(6) DEFAULT NULL,
