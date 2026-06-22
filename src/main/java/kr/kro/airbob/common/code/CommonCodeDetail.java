@@ -14,7 +14,7 @@ import lombok.experimental.SuperBuilder;
 
 /**
  * 공통 코드 상세. PK = 복합키 (group_code, code).
- * code 는 애플리케이션 ENUM 상수명과 1:1 (하이브리드 전략의 동기화 기준).
+ * 편의시설/숙소유형의 단일 카탈로그 소스. 원본 테이블은 code 문자열만 느슨하게 참조한다.
  */
 @Entity
 @Table(name = "common_code_detail")
@@ -44,4 +44,20 @@ public class CommonCodeDetail extends BaseEntity {
 
 	@Column(name = "is_active", nullable = false)
 	private boolean active;
+
+	// 관리자 부분 수정(PATCH). null 인 필드는 변경하지 않는다. code(PK)는 불변.
+	public void updateDisplay(String name, String description, Integer sortOrder, Boolean active) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (description != null) {
+			this.description = description;
+		}
+		if (sortOrder != null) {
+			this.sortOrder = sortOrder;
+		}
+		if (active != null) {
+			this.active = active;
+		}
+	}
 }

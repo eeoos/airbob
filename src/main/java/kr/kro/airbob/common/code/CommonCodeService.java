@@ -76,4 +76,11 @@ public class CommonCodeService {
 		return getCodes(groupCode).stream()
 			.anyMatch(c -> c.code().equals(code));
 	}
+
+	/**
+	 * 그룹 캐시 무효화. 관리자 변경(생성/수정) 후 호출해 다음 조회 시 DB 최신값을 반영한다.
+	 */
+	public void evict(String groupCode) {
+		cache.invalidate(groupCode);
+	}
 }

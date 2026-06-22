@@ -12,4 +12,7 @@ public interface CommonCodeDetailRepository
 	 * (그룹 자체의 활성 여부는 서비스 캐시 로더에서 확인한다.)
 	 */
 	List<CommonCodeDetail> findByGroupCodeAndActiveTrueOrderBySortOrderAsc(String groupCode);
+
+	// 관리자용: 비활성 포함 전체 조회
+	List<CommonCodeDetail> findByGroupCodeOrderBySortOrderAsc(String groupCode);
 }
