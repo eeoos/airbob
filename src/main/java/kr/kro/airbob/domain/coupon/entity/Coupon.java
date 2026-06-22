@@ -103,4 +103,27 @@ public class Coupon extends BaseEntity {
 	public void activate() {
 		this.isActive = true;
 	}
+
+	// 발급 한도 소진 여부 (totalQuantity 가 null 이면 무제한)
+	public boolean isSoldOut() {
+		return totalQuantity != null && issuedQuantity >= totalQuantity;
+	}
+
+	public boolean isExpired(LocalDateTime now) {
+		return now.isBefore(startDate) || now.isAfter(endDate);
+	}
+
+	public boolean isIssuable(LocalDateTime now) {
+		return isActive && !isExpired(now) && !isSoldOut();
+	}
+
+	// 발급 수 증가 (락/무락 발급 경로에서 dirty checking 으로 반영)
+	public void increaseIssued() {
+		this.issuedQuantity++;
+	}
+
+	// 발급 가능 재고 (무제한이면 null)
+	public Integer remainingQuantity() {
+		return totalQuantity == null ? null : Math.max(0, totalQuantity - issuedQuantity);
+	}
 }
