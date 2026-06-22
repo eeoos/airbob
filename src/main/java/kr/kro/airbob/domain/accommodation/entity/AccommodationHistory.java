@@ -14,7 +14,6 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.common.history.MasterHistoryBase;
-import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -47,8 +46,7 @@ public class AccommodationHistory extends MasterHistoryBase {
 	@Column(length = 3)
 	private String currency;
 	private String thumbnailUrl;
-	@Enumerated(EnumType.STRING)
-	private AccommodationType type;
+	private String type;
 	@Enumerated(EnumType.STRING)
 	private AccommodationStatus status;
 	private LocalTime checkInTime;

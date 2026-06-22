@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.accommodation.dto;
 
 import java.util.List;
 
-import kr.kro.airbob.domain.accommodation.common.AmenityType;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -13,7 +12,7 @@ public class AmenityResponse {
 
 	@Builder
 	public record AmenityInfo(
-		AmenityType type,
+		String type,
 		Integer count
 	) {
 		public static AmenityInfo from(AccommodationAmenity amenity) {

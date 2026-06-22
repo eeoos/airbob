@@ -18,7 +18,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest.Update;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -54,8 +53,8 @@ public class Accommodation extends BaseEntity {
 
 	private String thumbnailUrl;
 
-	@Enumerated(EnumType.STRING)
-	private AccommodationType type;
+	// 공통 코드(ACCOMMODATION_TYPE)의 code 값. FK 없이 느슨하게 보관, 검증은 애플리케이션 레벨(CommonCodeService).
+	private String type;
 
 	@OneToOne(fetch = FetchType.LAZY, orphanRemoval = true, cascade = CascadeType.ALL)
 	private Address address;
@@ -114,7 +113,8 @@ public class Accommodation extends BaseEntity {
 		}
 
 		if (request.type() != null) {
-			this.type = AccommodationType.valueOf(request.type().toUpperCase());
+			// 유효성은 서비스 계층(CommonCodeService.isValidCode)에서 사전 검증됨
+			this.type = request.type().toUpperCase();
 		}
 
 		if (request.checkInTime() != null) {

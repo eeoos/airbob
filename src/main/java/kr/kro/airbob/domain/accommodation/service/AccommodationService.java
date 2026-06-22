@@ -29,7 +29,8 @@ import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.domain.accommodation.common.AmenityType;
+import kr.kro.airbob.common.code.CommonCodeGroups;
+import kr.kro.airbob.common.code.CommonCodeService;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
@@ -97,6 +98,7 @@ public class AccommodationService {
     private final AccommodationRepository accommodationRepository;
     private final ReservationRepository reservationRepository;
     private final AmenityRepository amenityRepository;
+    private final CommonCodeService commonCodeService;
     private final AddressRepository addressRepository;
     private final MemberRepository memberRepository;
 
@@ -124,6 +126,7 @@ public class AccommodationService {
 
         Accommodation accommodation = findByIdAndMemberIdAndStatusNot(accommodationId, memberId);
 
+        validateAccommodationType(request.type());
         accommodation.updateAccommodation(request);
         updateAddress(accommodation, request.addressInfo());
         updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
@@ -458,7 +461,7 @@ public class AccommodationService {
 
 
     private void saveValidAmenities(List<AmenityRequest.AmenityInfo> request, Accommodation savedAccommodation) {
-        Map<AmenityType, Integer> amenityCountMap = getAmenityCountMap(request);
+        Map<String, Integer> amenityCountMap = getAmenityCountMap(request);
 
         if(amenityCountMap.isEmpty()) return;
 
@@ -468,7 +471,7 @@ public class AccommodationService {
     }
 
     private void saveAccommodationAmenity(Accommodation savedAccommodation, List<Amenity> amenities,
-        Map<AmenityType, Integer> amenityCountMap) {
+        Map<String, Integer> amenityCountMap) {
 
         List<AccommodationAmenity> accommodationAmenityList = new ArrayList<>();
         for (Amenity amenity : amenities) {
@@ -481,17 +484,28 @@ public class AccommodationService {
         accommodationAmenityRepository.saveAll(accommodationAmenityList);
     }
 
-    private Map<AmenityType, Integer> getAmenityCountMap(List<AmenityRequest.AmenityInfo> request) {
+    // 편의시설 코드 정합성은 공통 코드(AMENITY_TYPE) 캐시로 검증 — enum 대신 애플리케이션 레벨 통제
+    private Map<String, Integer> getAmenityCountMap(List<AmenityRequest.AmenityInfo> request) {
         return request.stream()
-            .filter(info -> AmenityType.isValid(info.name()))
             .filter(info -> info.count() > 0)
-            .map(info -> new AbstractMap.SimpleEntry<>(AmenityType.valueOf(info.name().toUpperCase()), info.count()))
-            .filter(entry -> entry.getKey() != AmenityType.UNKNOWN)
+            .map(info -> new AbstractMap.SimpleEntry<>(
+                info.name() == null ? null : info.name().toUpperCase(), info.count()))
+            .filter(entry -> commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, entry.getKey()))
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
                 Map.Entry::getValue,
                 Integer::sum
             ));
+    }
+
+    // 숙소 유형 코드 정합성 검증(공통 코드 ACCOMMODATION_TYPE). 유효하지 않으면 거부.
+    private void validateAccommodationType(String type) {
+        if (type == null) {
+            return;
+        }
+        if (!commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase())) {
+            throw new IllegalArgumentException("유효하지 않은 숙소 유형 코드입니다: " + type);
+        }
     }
 
     private void updateOccupancyPolicy(Accommodation accommodation, PolicyRequest.OccupancyPolicyInfo occupancyPolicyInfo) {

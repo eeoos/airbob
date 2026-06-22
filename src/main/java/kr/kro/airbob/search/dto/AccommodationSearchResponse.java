@@ -3,7 +3,6 @@ package kr.kro.airbob.search.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
-import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.search.document.AccommodationDocument;
