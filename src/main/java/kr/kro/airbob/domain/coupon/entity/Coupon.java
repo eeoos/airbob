@@ -117,6 +117,35 @@ public class Coupon extends BaseEntity {
 		return isActive && !isExpired(now) && !isSoldOut();
 	}
 
+	// 발급된 쿠폰을 사용할 수 있는지 (활성·기간만 확인, 재고는 무관)
+	public boolean isUsable(LocalDateTime now) {
+		return isActive && !isExpired(now);
+	}
+
+	/**
+	 * 결제(원가) 금액에 대한 할인액을 계산한다.
+	 *  - 최소 결제 금액 미달 시 0
+	 *  - PERCENTAGE: 비율 적용 후 maxDiscountAmount 상한
+	 *  - FIXED_AMOUNT: 정액
+	 * 할인액이 원가를 넘지 않도록 보정한다.
+	 */
+	public long calculateDiscount(long amount) {
+		if (minPaymentPrice != null && amount < minPaymentPrice) {
+			return 0L;
+		}
+
+		long discount;
+		if (discountType == DiscountType.PERCENTAGE) {
+			discount = amount * discountValue / 100;
+			if (maxDiscountAmount != null && discount > maxDiscountAmount) {
+				discount = maxDiscountAmount;
+			}
+		} else {
+			discount = discountValue;
+		}
+		return Math.min(discount, amount);
+	}
+
 	// 발급 가능 재고 (무제한이면 null)
 	public Integer remainingQuantity() {
 		return totalQuantity == null ? null : Math.max(0, totalQuantity - issuedQuantity);

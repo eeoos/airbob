@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.coupon.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -46,6 +48,11 @@ public class MemberCoupon extends BaseEntity {
 
 	@Column(nullable = false)
 	private boolean used;
+
+	private LocalDateTime usedAt;
+
+	// 사용된 예약 (사용 시점에 연결, nullable)
+	private Long reservationId;
 
 	public static MemberCoupon issue(Member member, Coupon coupon) {
 		return MemberCoupon.builder()

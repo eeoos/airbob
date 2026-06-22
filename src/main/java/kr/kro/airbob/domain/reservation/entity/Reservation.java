@@ -27,6 +27,7 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateExceptio
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -71,6 +72,11 @@ public class Reservation extends BaseEntity {
 	@Column(nullable = false)
 	private Long totalPrice;
 
+	// 적용된 쿠폰 할인액 (없으면 0)
+	@Builder.Default
+	@Column(nullable = false)
+	private Long discountAmount = 0L;
+
 	@Column(length = 3)
 	private String currency;
 
@@ -112,6 +118,16 @@ public class Reservation extends BaseEntity {
 			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
 			.reservationCode(reservationCode)
 			.build();
+	}
+
+	// 쿠폰 할인 적용 — 할인액을 기록하고 결제 금액을 차감한다.
+	public void applyDiscount(long discount) {
+		if (discount <= 0) {
+			return;
+		}
+		long applied = Math.min(discount, this.totalPrice);
+		this.discountAmount = applied;
+		this.totalPrice -= applied;
 	}
 
 	private static Long calculatePrice(Long basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
