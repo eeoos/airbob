@@ -67,6 +67,9 @@ dependencies {
 	//Redisson
 	implementation 'org.redisson:redisson:3.28.0'
 
+	// Caffeine (공통 코드 로컬 캐시 + TTL)
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+
 	// Flyway
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-mysql'

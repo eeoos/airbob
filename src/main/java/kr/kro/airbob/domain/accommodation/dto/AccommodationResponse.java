@@ -6,7 +6,6 @@ import java.time.LocalTime;
 import java.util.List;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
-import kr.kro.airbob.domain.accommodation.common.AccommodationType;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
@@ -31,7 +30,7 @@ public class AccommodationResponse {
 		String name,
 		String thumbnailUrl,
 		AccommodationStatus status,
-		AccommodationType type,
+		String type,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		// Integer basePrice,
 		// ReviewResponse.ReviewSummary reviewSummary,
@@ -69,7 +68,7 @@ public class AccommodationResponse {
 		long id,
 		String name,
 		String description,
-		AccommodationType type,
+		String type,
 		Long basePrice,
 		String currency,
 		LocalTime checkInTime,
@@ -125,7 +124,7 @@ public class AccommodationResponse {
 		long id,
 		String name,
 		String description,
-		AccommodationType type,
+		String type,
 		Long basePrice,
 		String currency,
 		LocalTime checkInTime,

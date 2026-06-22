@@ -48,7 +48,7 @@ public class AccommodationDocumentBuilder {
 			.description(accommodation.getDescription())
 			.basePrice(accommodation.getBasePrice())
 			.currency(accommodation.getCurrency())
-			.type(accommodation.getType().name())
+			.type(accommodation.getType())
 			.status(accommodation.getStatus().name())
 			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant())
 			.location(AccommodationDocument.Location.builder()
@@ -96,8 +96,7 @@ public class AccommodationDocumentBuilder {
 	private List<String> getAccommodationAmenities(UUID accommodationUid) {
 		return amenityRepository.findAllByAccommodation_AccommodationUid(accommodationUid)
 			.stream()
-			.map(AccommodationAmenity::getAmenity)
-			.map(amenity -> amenity.getName().name())
+			.map(AccommodationAmenity::getAmenityCode)
 			.distinct()
 			.toList();
 	}
@@ -119,7 +118,7 @@ public class AccommodationDocumentBuilder {
 			.basePrice(accommodation.getBasePrice())
 			.currency(accommodation.getCurrency())
 			.thumbnailUrl(accommodation.getThumbnailUrl())
-			.type(accommodation.getType().name())
+			.type(accommodation.getType())
 			.status(accommodation.getStatus().name())
 			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
 
@@ -151,7 +150,7 @@ public class AccommodationDocumentBuilder {
 		List<String> amenityNames;
 		if (amenities != null && !amenities.isEmpty()) {
 			amenityNames = amenities.stream()
-				.map(am -> am.getAmenity().getName().name())
+				.map(AccommodationAmenity::getAmenityCode)
 				.collect(Collectors.toList());
 		} else {
 			amenityNames = Collections.emptyList();

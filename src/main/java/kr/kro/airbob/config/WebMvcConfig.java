@@ -10,10 +10,12 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
+import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 @Configuration
@@ -23,9 +25,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 	private final CursorParamArgumentResolver cursorParamArgumentResolver;
 	private final SessionAuthFilter sessionAuthFilter;
+	private final AdminAuthInterceptor adminAuthInterceptor;
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
 		resolvers.add(cursorParamArgumentResolver);
+	}
+
+	// 관리자 전용 경로 인가 가드 (인증은 SessionAuthFilter 가 선행)
+	@Override
+	public void addInterceptors(InterceptorRegistry registry) {
+		registry.addInterceptor(adminAuthInterceptor)
+			.addPathPatterns("/api/v1/admin/**");
 	}
 
 	@Bean

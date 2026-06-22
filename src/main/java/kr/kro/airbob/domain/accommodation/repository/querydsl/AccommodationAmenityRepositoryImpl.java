@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.accommodation.repository.querydsl;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodationAmenity.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
-import static kr.kro.airbob.domain.accommodation.entity.QAmenity.*;
 import static kr.kro.airbob.domain.accommodation.entity.QOccupancyPolicy.*;
 import static kr.kro.airbob.domain.member.entity.QMember.*;
 
@@ -40,9 +39,9 @@ public class AccommodationAmenityRepositoryImpl implements AccommodationAmenityR
             return Collections.emptyList();
         }
 
+        // amenity_code 를 직접 보관하므로 amenity 조인 불필요
         return jpaQueryFactory
             .selectFrom(accommodationAmenity)
-            .join(accommodationAmenity.amenity, amenity).fetchJoin()
             .where(accommodationAmenity.accommodation.id.in(accommodationIds))
             .fetch();
     }
