@@ -17,7 +17,7 @@ public class AmenityResponse {
 	) {
 		public static AmenityInfo from(AccommodationAmenity amenity) {
 			return AmenityInfo.builder()
-				.type(amenity.getAmenity().getName())
+				.type(amenity.getAmenityCode())
 				.count(amenity.getCount())
 				.build();
 		}

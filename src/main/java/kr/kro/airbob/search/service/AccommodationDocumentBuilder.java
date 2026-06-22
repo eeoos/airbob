@@ -96,8 +96,7 @@ public class AccommodationDocumentBuilder {
 	private List<String> getAccommodationAmenities(UUID accommodationUid) {
 		return amenityRepository.findAllByAccommodation_AccommodationUid(accommodationUid)
 			.stream()
-			.map(AccommodationAmenity::getAmenity)
-			.map(amenity -> amenity.getName())
+			.map(AccommodationAmenity::getAmenityCode)
 			.distinct()
 			.toList();
 	}
@@ -151,7 +150,7 @@ public class AccommodationDocumentBuilder {
 		List<String> amenityNames;
 		if (amenities != null && !amenities.isEmpty()) {
 			amenityNames = amenities.stream()
-				.map(am -> am.getAmenity().getName())
+				.map(AccommodationAmenity::getAmenityCode)
 				.collect(Collectors.toList());
 		} else {
 			amenityNames = Collections.emptyList();

@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.accommodation.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -32,14 +33,14 @@ public class AccommodationAmenity extends BaseEntity {
 	@JoinColumn(name = "accommodation_id")
 	private Accommodation accommodation;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "amenity_id")
-	private Amenity amenity;
+	// 공통 코드(AMENITY_TYPE)의 code 값. FK 없이 느슨하게 보관, 검증은 CommonCodeService.
+	@Column(name = "amenity_code", length = 50)
+	private String amenityCode;
 
-	public static AccommodationAmenity createAccommodationAmenity(Accommodation accommodation, Amenity amenity, int count) {
+	public static AccommodationAmenity createAccommodationAmenity(Accommodation accommodation, String amenityCode, int count) {
 		return AccommodationAmenity.builder()
 				.accommodation(accommodation)
-				.amenity(amenity)
+				.amenityCode(amenityCode)
 				.count(count)
 				.build();
 	}

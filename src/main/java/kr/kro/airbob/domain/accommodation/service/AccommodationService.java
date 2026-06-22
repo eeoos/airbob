@@ -42,7 +42,6 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
-import kr.kro.airbob.domain.accommodation.entity.Amenity;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
@@ -52,7 +51,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryReposit
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
-import kr.kro.airbob.domain.accommodation.repository.AmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
@@ -97,7 +95,6 @@ public class AccommodationService {
     private final OccupancyPolicyRepository occupancyPolicyRepository;
     private final AccommodationRepository accommodationRepository;
     private final ReservationRepository reservationRepository;
-    private final AmenityRepository amenityRepository;
     private final CommonCodeService commonCodeService;
     private final AddressRepository addressRepository;
     private final MemberRepository memberRepository;
@@ -465,22 +462,12 @@ public class AccommodationService {
 
         if(amenityCountMap.isEmpty()) return;
 
-        List<Amenity> amenities = amenityRepository.findByNameIn(amenityCountMap.keySet());
+        // 공통 코드(AMENITY_TYPE)로 이미 검증된 코드만 남으므로, 코드 문자열을 직접 저장(amenity 테이블 조회 불필요)
+        List<AccommodationAmenity> accommodationAmenityList = amenityCountMap.entrySet().stream()
+            .map(entry -> AccommodationAmenity.createAccommodationAmenity(
+                savedAccommodation, entry.getKey(), entry.getValue()))
+            .toList();
 
-        saveAccommodationAmenity(savedAccommodation, amenities, amenityCountMap);
-    }
-
-    private void saveAccommodationAmenity(Accommodation savedAccommodation, List<Amenity> amenities,
-        Map<String, Integer> amenityCountMap) {
-
-        List<AccommodationAmenity> accommodationAmenityList = new ArrayList<>();
-        for (Amenity amenity : amenities) {
-            int count = amenityCountMap.get(amenity.getName());
-
-            AccommodationAmenity accommodationAmenity = AccommodationAmenity.createAccommodationAmenity(
-                savedAccommodation, amenity, count);
-            accommodationAmenityList.add(accommodationAmenity);
-        }
         accommodationAmenityRepository.saveAll(accommodationAmenityList);
     }
 
