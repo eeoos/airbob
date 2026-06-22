@@ -47,7 +47,10 @@ public class CouponIssueTransactionService {
 			throw new CouponAlreadyIssuedException();
 		}
 
-		coupon.increaseIssued();
+		// 발급 수를 원자적 UPDATE 로 먼저 증가(X-lock) → 이후 발급분 INSERT(FK S-lock) 순서로
+		// 락 획득 순서를 X→S 로 고정해 동시 발급 시 데드락을 피한다.
+		// 단, 위의 sold-out 검사는 findById 스냅샷 기준이라 동시성 제어가 없으면 초과 발급이 발생한다.
+		couponRepository.incrementIssuedQuantity(couponId);
 		memberCouponRepository.save(MemberCoupon.issue(memberRepository.getReferenceById(memberId), coupon));
 	}
 

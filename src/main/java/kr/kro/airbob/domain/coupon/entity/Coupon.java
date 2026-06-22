@@ -117,11 +117,6 @@ public class Coupon extends BaseEntity {
 		return isActive && !isExpired(now) && !isSoldOut();
 	}
 
-	// 발급 수 증가 (락/무락 발급 경로에서 dirty checking 으로 반영)
-	public void increaseIssued() {
-		this.issuedQuantity++;
-	}
-
 	// 발급 가능 재고 (무제한이면 null)
 	public Integer remainingQuantity() {
 		return totalQuantity == null ? null : Math.max(0, totalQuantity - issuedQuantity);
