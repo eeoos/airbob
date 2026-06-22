@@ -26,6 +26,7 @@ public enum ErrorCode {
 	INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "M003", "비밀번호가 일치하지 않습니다."),
 	UNAUTHORIZED_ACCESS(HttpStatus.UNAUTHORIZED, "M004", "인증이 필요합니다."),
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
+	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
 
 
 	// accommodation
