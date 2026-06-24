@@ -38,6 +38,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
@@ -68,6 +69,7 @@ public class ReservationTransactionService {
 	private final AccommodationRepository accommodationRepository;
 	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final ReservationHistoryRepository historyRepository;
+	private final CouponUsageService couponUsageService;
 
 	@Transactional
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
@@ -86,6 +88,13 @@ public class ReservationTransactionService {
 
 		Reservation pendingReservation = Reservation.createPendingReservation(accommodation, guest, request, reservationCode);
 		reservationRepository.save(pendingReservation);
+
+		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
+		if (request.couponId() != null) {
+			long discount = couponUsageService.use(
+				memberId, request.couponId(), pendingReservation.getId(), pendingReservation.getTotalPrice());
+			pendingReservation.applyDiscount(discount);
+		}
 
 		historyRepository.save(ReservationHistory.of(pendingReservation, ChangeType.CREATE, reason));
 
@@ -114,6 +123,9 @@ public class ReservationTransactionService {
 		}
 
 		reservation.cancel();
+
+		// 예약에 사용된 쿠폰 복원 (취소 실패 보상 시 reuse 로 되돌림)
+		couponUsageService.restore(reservation.getId());
 
 		historyRepository.save(ReservationHistory.of(reservation, ChangeType.CANCEL, request.cancelReason()));
 
@@ -201,6 +213,9 @@ public class ReservationTransactionService {
 		}
 
 		reservation.failCancellation();
+
+		// 취소가 되돌려졌으므로(예약 유효), 복원했던 쿠폰을 다시 사용 처리
+		couponUsageService.reuse(reservation.getId());
 
 		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE,
 			"결제 취소 실패 보상 트랜잭션: " + reason, "KAFKA"));

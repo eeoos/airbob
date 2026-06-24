@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.discountPolicy.common;
+package kr.kro.airbob.domain.coupon.common;
 
 public enum DiscountType {
 	PERCENTAGE,

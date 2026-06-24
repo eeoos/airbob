@@ -78,8 +78,15 @@ public enum ErrorCode {
 	REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN, "V006", "해당 리뷰에 대한 권한이 없습니다."),
 
 
-	// discount
-	DISCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "D001", "존재하지 않는 할인정책입니다."),
+	// coupon
+	COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "존재하지 않는 쿠폰입니다."),
+	COUPON_SOLD_OUT(HttpStatus.CONFLICT, "CP002", "쿠폰이 모두 소진되었습니다."),
+	COUPON_ALREADY_ISSUED(HttpStatus.CONFLICT, "CP003", "이미 발급받은 쿠폰입니다."),
+	COUPON_ISSUE_FAILED(HttpStatus.CONFLICT, "CP004", "쿠폰 발급에 실패했습니다. 잠시 후 다시 시도해주세요."),
+	COUPON_NOT_ISSUABLE(HttpStatus.CONFLICT, "CP005", "발급할 수 없는 쿠폰입니다. (기간 만료 또는 비활성)"),
+	MEMBER_COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "CP006", "보유하지 않은 쿠폰입니다."),
+	COUPON_ALREADY_USED(HttpStatus.CONFLICT, "CP007", "이미 사용한 쿠폰입니다."),
+	COUPON_NOT_APPLICABLE(HttpStatus.CONFLICT, "CP008", "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"),
 
 	// image
 	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "이미지 업로드 중 오류가 발생했습니다."),

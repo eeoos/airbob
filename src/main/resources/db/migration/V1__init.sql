@@ -1,9 +1,5 @@
 -- V1__init.sql
--- 통합 baseline: 누적 마이그레이션을 단일 스키마로 압축.
---  * 모든 시간 컬럼 DATETIME(6) 통일
---  * 모든 엔티티 테이블이 생성 시점부터 created_at/updated_at/created_by/updated_by 보유
---    (created_by/updated_by = member.id, BIGINT, FK 없음, NULL 허용 — 배치/시스템 작업은 NULL)
--- 테이블이 FK 선후관계를 위해 외래키 검사를 일시 비활성화
+-- 테이블 FK 선후관계를 위해 외래키 검사를 일시 비활성화
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -118,7 +114,7 @@ CREATE TABLE amenity (
 CREATE TABLE discount_policy (
   id bigint NOT NULL AUTO_INCREMENT,
   discount_rate double DEFAULT NULL,
-  is_active bit(1) DEFAULT NULL,
+  is_active boolean DEFAULT NULL,
   max_apply_price int DEFAULT NULL,
   min_payment_price int DEFAULT NULL,
   created_at datetime(6) DEFAULT NULL,
