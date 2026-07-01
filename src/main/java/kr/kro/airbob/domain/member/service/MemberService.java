@@ -30,10 +30,8 @@ public class MemberService {
             throw new DuplicatedEmailException();
         }
 
-        // String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
-
-        // Member member = Member.createMember(request, hashedPassword);
-        Member member = Member.createMember(request, request.getPassword());
+        String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
+        Member member = Member.createMember(request, hashedPassword);
         memberRepository.save(member);
 
         // 첫 데이터(CREATE)부터 이력 기록 — 가입은 비인증 컨텍스트라 source_system 명시
