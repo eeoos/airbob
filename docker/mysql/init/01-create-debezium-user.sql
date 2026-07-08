@@ -7,4 +7,8 @@ GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *
 -- airbobdb 데이터베이스에 대한 전체 권한
 GRANT ALL PRIVILEGES ON airbobdb.* TO 'debezium'@'%';
 
+-- Logstash 재색인 전용 읽기 계정
+CREATE USER IF NOT EXISTS 'logstash'@'%' IDENTIFIED BY 'logstash';
+GRANT SELECT ON airbobdb.* TO 'logstash'@'%';
+
 FLUSH PRIVILEGES;

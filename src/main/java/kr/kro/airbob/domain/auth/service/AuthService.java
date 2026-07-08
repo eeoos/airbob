@@ -27,13 +27,7 @@ public class AuthService {
         Member member = memberRepository.findByEmailAndStatus(email, MemberStatus.ACTIVE)
             .orElseThrow(MemberNotFoundException::new);
 
-        // todo: etl 작업으로 넣은 데이터와 BCrypt가 일치하지 않아 주석처리
-        // todo: oauth 2.0으로 변환 필요
-        // if (!BCrypt.checkpw(password, member.getPassword())) {
-        //     throw new InvalidPasswordException();
-        // }
-
-        if (!password.equals(member.getPassword())) {
+        if (!matchesPassword(password, member.getPassword())) {
             throw new InvalidPasswordException();
         }
 
@@ -42,6 +36,17 @@ public class AuthService {
 
         return sessionId;
 
+    }
+
+    private boolean matchesPassword(String rawPassword, String storedPassword) {
+        if (rawPassword == null || storedPassword == null) {
+            return false;
+        }
+        try {
+            return BCrypt.checkpw(rawPassword, storedPassword);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public void logout(String sessionId) {

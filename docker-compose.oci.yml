@@ -225,6 +225,36 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
+  # Logstash (one-shot reindex)
+  # 사용법: docker compose -f docker-compose.oci.yml --profile reindex run --rm logstash
+  # --------------------------------------------------------
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.9.0
+    profiles: ["reindex"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - LOGSTASH_JDBC_URL=jdbc:mysql://mysql:3306/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - LOGSTASH_JDBC_USER=${LOGSTASH_JDBC_USER:-logstash}
+      - LOGSTASH_JDBC_PASSWORD=${LOGSTASH_JDBC_PASSWORD:-logstash}
+      - LOGSTASH_ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - LS_JAVA_OPTS=-Xms512m -Xmx768m
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/config/jdbc:/usr/share/logstash/config/jdbc:ro
+    command: ["logstash", "-f", "/usr/share/logstash/pipeline/airbob.conf"]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - airbob-network
+
+  # --------------------------------------------------------
   # Redis
   # --------------------------------------------------------
   redis:

@@ -103,8 +103,14 @@ public record AccommodationDocument(
 	)
 	String street,
 
-	/*@Field(type = FieldType.Keyword)
-	String addressDetail,*/
+	@MultiField(
+		mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+		otherFields = {
+			@InnerField(suffix = "english", type = FieldType.Text, analyzer = "standard"),
+			@InnerField(suffix = "keyword", type = FieldType.Keyword)
+		}
+	)
+	String addressDetail,
 
 	@Field(type = FieldType.Keyword)
 	String postalCode,
@@ -164,5 +170,4 @@ public record AccommodationDocument(
 		LocalDate lt
 	) {}
 }
-
 
