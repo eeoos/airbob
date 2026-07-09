@@ -53,7 +53,7 @@ public class Accommodation extends BaseEntity {
 
 	private String thumbnailUrl;
 
-	// 공통 코드(ACCOMMODATION_TYPE)의 code 값. FK 없이 느슨하게 보관, 검증은 애플리케이션 레벨(CommonCodeService).
+	// 공통 코드(ACCOMMODATION_TYPE)의 code 값. FK 없이 보관, 검증은 애플리케이션 레벨(CommonCodeService).
 	private String type;
 
 	@OneToOne(fetch = FetchType.LAZY, orphanRemoval = true, cascade = CascadeType.ALL)

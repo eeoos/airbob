@@ -13,6 +13,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
@@ -26,6 +27,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 	private final CursorParamArgumentResolver cursorParamArgumentResolver;
 	private final SessionAuthFilter sessionAuthFilter;
 	private final AdminAuthInterceptor adminAuthInterceptor;
+	private final QueryCountInterceptor queryCountInterceptor;
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
 		resolvers.add(cursorParamArgumentResolver);
@@ -34,6 +36,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
 	// 관리자 전용 경로 인가 가드 (인증은 SessionAuthFilter 가 선행)
 	@Override
 	public void addInterceptors(InterceptorRegistry registry) {
+		registry.addInterceptor(queryCountInterceptor)
+			.addPathPatterns("/**")
+			.excludePathPatterns(
+				"/actuator/**",
+				"/swagger-ui/**",
+				"/v3/api-docs/**",
+				"/error",
+				"/favicon.ico",
+				"/static/**",
+				"/css/**",
+				"/js/**",
+				"/images/**",
+				"/webjars/**"
+			);
+
 		registry.addInterceptor(adminAuthInterceptor)
 			.addPathPatterns("/api/v1/admin/**");
 	}
