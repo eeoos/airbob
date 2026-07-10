@@ -66,3 +66,14 @@ logging:
     kr.kro.airbob: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql: TRACE
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, prometheus
+
+  metrics:
+    tags:
+      application: airbob-api
