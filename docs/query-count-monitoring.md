@@ -10,7 +10,7 @@ Airbob는 HTTP 요청 단위로 Hibernate/JPA SQL 실행 횟수를 수집해 Pro
 
 Spring MVC async 요청은 최초 dispatch에서 센 쿼리와 종료 ASYNC redispatch에서 센 쿼리를 같은 request 상태로 합쳐 한 번만 기록한다. Handoff 때 컨테이너 스레드의 `ThreadLocal`은 즉시 제거하며 async worker로 전파하지 않으므로, worker 내부에서 실행한 SQL은 포함되지 않는다. Timeout/error가 Spring의 종료 redispatch로 이어지면 같은 상태를 복원하고, redispatch 없이 container가 바로 완료하면 `AsyncListener.onComplete`가 분리된 상태를 한 번 기록한다. `onTimeout`/`onError`에서는 이후 redispatch보다 먼저 표본을 확정하지 않고, 실제 terminal callback에서만 atomic하게 완료한다.
 
-아주 짧은 async 작업이 `afterConcurrentHandlingStarted`의 listener 등록보다 먼저 끝나 등록 자체가 `IllegalStateException`으로 경합하고, 동시에 container가 종료 redispatch도 제공하지 않는 경우에는 안전하게 호출할 terminal callback이 남지 않는다. 이때 dispatch 예정인지 완전 종료인지 Servlet API로 구분할 수 없으므로, 불완전한 표본을 성급히 기록해 이중 집계하는 대신 해당 표본을 누락한다. 일반 Spring MVC `Callable`/`DeferredResult`의 timeout/error는 종료 redispatch를 수행하고, 정상적인 no-redispatch `complete()`는 등록된 `onComplete` fallback으로 처리된다.
+Servlet 6.1에서는 최초 container dispatch가 반환되기 전에 다른 스레드가 호출한 `AsyncContext.complete()` 또는 `dispatch()`의 효과를 dispatch 반환 이후로 미루고, 그때까지 `addListener` 호출을 허용한다. 따라서 정상적인 Spring MVC async 요청은 작업이 매우 빨리 끝나더라도 `afterConcurrentHandlingStarted`에서 listener를 등록하는 보장 구간 안에 있다. 코드의 `IllegalStateException` 방어는 lifecycle 오용, 이미 재활용되었거나 유효하지 않은 `AsyncContext`, 또는 container/spec 위반을 위한 것이다. 이런 비정상 상태에서는 불완전한 표본을 성급히 기록해 이중 집계하는 대신 해당 표본을 누락한다. 일반 Spring MVC `Callable`/`DeferredResult`의 timeout/error는 종료 redispatch를 수행하고, 정상적인 no-redispatch `complete()`는 등록된 `onComplete` fallback으로 처리된다.
 
 ## Metric
 
