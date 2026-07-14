@@ -56,7 +56,7 @@ public enum SqlQueryType {
 				}
 				remaining = remaining.substring(endIndex + 2).stripLeading();
 				stripped = true;
-			} else if (remaining.startsWith("--")) {
+			} else if (isMySqlDashCommentStart(remaining, 0)) {
 				int endIndex = lineEndIndex(remaining);
 				remaining = endIndex < 0 ? "" : remaining.substring(endIndex + 1).stripLeading();
 				stripped = true;
@@ -90,6 +90,16 @@ public enum SqlQueryType {
 
 	private static boolean isIdentifierPart(char value) {
 		return Character.isLetterOrDigit(value) || value == '_' || value == '$';
+	}
+
+	private static boolean isMySqlDashCommentStart(String value, int position) {
+		int followingPosition = position + 2;
+		if (position < 0 || followingPosition >= value.length() || !value.startsWith("--", position)) {
+			return false;
+		}
+
+		char following = value.charAt(followingPosition);
+		return Character.isWhitespace(following) || Character.isISOControl(following);
 	}
 
 	private static final class CteParser {
@@ -217,7 +227,7 @@ public enum SqlQueryType {
 					cursor = commentEnd + 2;
 					continue;
 				}
-				if (startsAt(cursor, "--") || current == '#') {
+				if (isMySqlDashCommentStart(sql, cursor) || current == '#') {
 					cursor = skipLineComment(cursor);
 					continue;
 				}
@@ -272,7 +282,7 @@ public enum SqlQueryType {
 					cursor = commentEnd + 2;
 					continue;
 				}
-				if (startsAt(cursor, "--") || sql.charAt(cursor) == '#') {
+				if (isMySqlDashCommentStart(sql, cursor) || sql.charAt(cursor) == '#') {
 					cursor = skipLineComment(cursor);
 					continue;
 				}

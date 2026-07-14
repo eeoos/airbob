@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.times;
+
+import java.util.Collections;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +21,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
+
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.DispatcherType;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("쿼리 카운트 인터셉터 테스트")
@@ -123,5 +129,68 @@ class QueryCountInterceptorTest {
 
 		assertThat(QueryCountContextHolder.getContext()).isNull();
 		then(metricRecorder).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("비동기 재디스패치는 handoff 전 카운트를 복원해 종료 시 정확히 한 번 기록한다")
+	void asyncRedispatchRestoresOriginalContextAndRecordsExactlyOnce() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/stream");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		request.setAsyncSupported(true);
+		request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/stream");
+
+		interceptor.preHandle(request, response, new Object());
+		QueryCountContext originalContext = QueryCountContextHolder.getContext();
+		originalContext.incrementQueryCount("select * from accommodation");
+		AsyncContext asyncContext = request.startAsync(request, response);
+
+		interceptor.afterConcurrentHandlingStarted(request, response, new Object());
+
+		assertThat(QueryCountContextHolder.getContext()).isNull();
+		then(metricRecorder).shouldHaveNoInteractions();
+
+		request.setDispatcherType(DispatcherType.ASYNC);
+		interceptor.preHandle(request, response, new Object());
+
+		assertThat(QueryCountContextHolder.getContext()).isSameAs(originalContext);
+		QueryCountContextHolder.getContext().incrementQueryCount("update accommodation set name = ?");
+
+		interceptor.afterCompletion(request, response, new Object(), null);
+		interceptor.afterCompletion(request, response, new Object(), null);
+		asyncContext.complete();
+
+		ArgumentCaptor<QueryCountSnapshot> snapshotCaptor = ArgumentCaptor.forClass(QueryCountSnapshot.class);
+		then(metricRecorder).should(times(1)).record(snapshotCaptor.capture());
+		assertThat(snapshotCaptor.getValue().countOf(SqlQueryType.SELECT)).isEqualTo(1);
+		assertThat(snapshotCaptor.getValue().countOf(SqlQueryType.UPDATE)).isEqualTo(1);
+		assertThat(snapshotCaptor.getValue().countOf(SqlQueryType.TOTAL)).isEqualTo(2);
+		assertThat(QueryCountContextHolder.getContext()).isNull();
+		assertThat(Collections.list(request.getAttributeNames()))
+			.noneMatch(name -> name.startsWith(QueryCountInterceptor.class.getName()));
+	}
+
+	@Test
+	@DisplayName("재디스패치 없이 async complete되면 listener가 분리된 카운트를 정확히 한 번 기록한다")
+	void asyncCompletionWithoutRedispatchRecordsDetachedContextExactlyOnce() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/stream");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		request.setAsyncSupported(true);
+		request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/v1/stream");
+
+		interceptor.preHandle(request, response, new Object());
+		QueryCountContextHolder.getContext().incrementQueryCount("select * from accommodation");
+		AsyncContext asyncContext = request.startAsync(request, response);
+		interceptor.afterConcurrentHandlingStarted(request, response, new Object());
+
+		asyncContext.complete();
+		interceptor.afterCompletion(request, response, new Object(), null);
+
+		ArgumentCaptor<QueryCountSnapshot> snapshotCaptor = ArgumentCaptor.forClass(QueryCountSnapshot.class);
+		then(metricRecorder).should(times(1)).record(snapshotCaptor.capture());
+		assertThat(snapshotCaptor.getValue().countOf(SqlQueryType.SELECT)).isEqualTo(1);
+		assertThat(snapshotCaptor.getValue().countOf(SqlQueryType.TOTAL)).isEqualTo(1);
+		assertThat(QueryCountContextHolder.getContext()).isNull();
+		assertThat(Collections.list(request.getAttributeNames()))
+			.noneMatch(name -> name.startsWith(QueryCountInterceptor.class.getName()));
 	}
 }

@@ -60,6 +60,28 @@ class SqlQueryTypeTest {
 	}
 
 	@Test
+	@DisplayName("MySQL에서 공백 없는 이중 빼기는 주석이 아니므로 CTE 바깥 SELECT를 찾는다")
+	void treatsDoubleMinusArithmeticWithoutWhitespaceAsSql() {
+		String sql = "with balances as (select balance--1 as adjusted from account) select * from balances";
+
+		assertThat(SqlQueryType.from(sql)).isEqualTo(SqlQueryType.SELECT);
+	}
+
+	@Test
+	@DisplayName("MySQL에서 두 번째 dash 뒤 공백이 있는 경우에는 실제 줄 주석으로 처리한다")
+	void treatsDoubleDashFollowedByWhitespaceAsComment() {
+		String sql = """
+			with balances as (
+			  select balance -- subtract pending amount
+			  from account
+			)
+			select * from balances
+			""";
+
+		assertThat(SqlQueryType.from(sql)).isEqualTo(SqlQueryType.SELECT);
+	}
+
+	@Test
 	@DisplayName("최종 연산을 안전하게 찾을 수 없는 CTE는 OTHER로 분류한다")
 	void classifyUnresolvedOrMalformedCteAsOther() {
 		assertThat(SqlQueryType.from("with values_cte as (select id from accommodation) merge into archive"))
