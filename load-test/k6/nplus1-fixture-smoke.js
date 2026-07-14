@@ -65,8 +65,8 @@ export default function (data) {
       ...authenticatedParams(data.sessionId, {
         phase: 'measure',
         api: 'recently_viewed',
+        name: 'GET /api/v1/members/recently-viewed',
       }),
-      name: 'GET /api/v1/members/recently-viewed',
     },
   );
 

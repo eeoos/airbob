@@ -42,8 +42,10 @@ export function loginBenchmarkAccount({ baseUrl, email, password }) {
     JSON.stringify({ email, password }),
     {
       headers: { 'Content-Type': 'application/json' },
-      tags: { phase: 'setup' },
-      name: 'POST /api/v1/auth/login',
+      tags: {
+        phase: 'setup',
+        name: 'POST /api/v1/auth/login',
+      },
     },
   );
 
@@ -60,8 +62,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const detailResponse = http.get(
     `${baseUrl}/api/v1/accommodations/${manifest.hostAccommodations.detailAccommodationId}`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/accommodations/{accommodationId}',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/accommodations/{accommodationId}',
+      }),
     },
   );
   requireTarget(detailResponse, 'accommodation detail', (payload) => (
@@ -71,8 +75,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const reviewResponse = http.get(
     `${baseUrl}/api/v1/accommodations/${manifest.review.accommodationId}/reviews?size=1`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/accommodations/{accommodationId}/reviews',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/accommodations/{accommodationId}/reviews',
+      }),
     },
   );
   requireTarget(reviewResponse, 'reviews', (payload) => (
@@ -85,8 +91,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const hostAccommodationResponse = http.get(
     `${baseUrl}/api/v1/profile/host/accommodations?size=1&status=PUBLISHED`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/profile/host/accommodations',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/profile/host/accommodations',
+      }),
     },
   );
   requireTarget(hostAccommodationResponse, 'host accommodations', (payload) => (
@@ -99,8 +107,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const guestReservationResponse = http.get(
     `${baseUrl}/api/v1/profile/guest/reservations?size=1&filterType=PAST`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/profile/guest/reservations',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/profile/guest/reservations',
+      }),
     },
   );
   requireTarget(guestReservationResponse, 'guest reservations', (payload) => (
@@ -115,8 +125,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const hostReservationResponse = http.get(
     `${baseUrl}/api/v1/profile/host/reservations?size=1&filterType=PAST`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/profile/host/reservations',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/profile/host/reservations',
+      }),
     },
   );
   requireTarget(hostReservationResponse, 'host reservations', (payload) => (
@@ -131,8 +143,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const wishlistResponse = http.get(
     `${baseUrl}/api/v1/members/wishlists?size=1`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/members/wishlists',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/members/wishlists',
+      }),
     },
   );
   requireTarget(wishlistResponse, 'wishlists', (payload) => (
@@ -145,8 +159,10 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
   const wishlistAccommodationResponse = http.get(
     `${baseUrl}/api/v1/members/wishlists/accommodations/${manifest.wishlists.primaryWishlistId}?size=1`,
     {
-      ...authenticatedParams(sessionId, { phase: 'setup' }),
-      name: 'GET /api/v1/members/wishlists/accommodations/{wishlistId}',
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'GET /api/v1/members/wishlists/accommodations/{wishlistId}',
+      }),
     },
   );
   requireTarget(
@@ -172,8 +188,10 @@ export function resetRecentlyViewed({
       `${baseUrl}/api/v1/members/recently-viewed/${accommodationId}`,
       null,
       {
-        ...authenticatedParams(sessionId, { phase: 'setup' }),
-        name: 'DELETE /api/v1/members/recently-viewed/{accommodationId}',
+        ...authenticatedParams(sessionId, {
+          phase: 'setup',
+          name: 'DELETE /api/v1/members/recently-viewed/{accommodationId}',
+        }),
       },
     );
 
@@ -187,8 +205,10 @@ export function resetRecentlyViewed({
       `${baseUrl}/api/v1/members/recently-viewed/${accommodationId}`,
       null,
       {
-        ...authenticatedParams(sessionId, { phase: 'setup' }),
-        name: 'POST /api/v1/members/recently-viewed/{accommodationId}',
+        ...authenticatedParams(sessionId, {
+          phase: 'setup',
+          name: 'POST /api/v1/members/recently-viewed/{accommodationId}',
+        }),
       },
     );
 
