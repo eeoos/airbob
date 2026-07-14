@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * 발급된 쿠폰(1인 1매). {@code UNIQUE(member_id, coupon_id)} - 중복 발급의 최후 방어선
+ * 발급된 쿠폰(1인 1매). {@code UNIQUE(member_id, coupon_id)} 가 중복 발급의 최후 방어선이다.
  */
 @Entity
 @Getter
