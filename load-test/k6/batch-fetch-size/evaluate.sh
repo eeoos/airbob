@@ -12,7 +12,8 @@ BATCH_SIZE="${BATCH_SIZE:-100}"
 REPEAT_INDEX="${BATCH_REPEAT_INDEX:-1}"
 WARMUP_DURATION="${BATCH_WARMUP_DURATION:-60s}"
 MEASURE_DURATION="${BATCH_MEASURE_DURATION:-45s}"
-RATE="${BATCH_RATE:-1}"
+RATE="${BATCH_RATE:-3}"
+STAGGER_MS="${BATCH_STAGGER_MS:-100}"
 BASELINE_JSON="${BATCH_BASELINE_JSON:-}"
 JAR_PATH="${BATCH_JAR_PATH:-$ROOT_DIR/build/libs/airbob.jar}"
 STATE_DIR="$ROOT_DIR/.context/compound-engineering/ce-optimize/hibernate-batch-fetch-size"
@@ -350,6 +351,7 @@ run_k6() {
   MODE="$mode" \
   DURATION="$duration" \
   RATE="$RATE" \
+  STAGGER_MS="$STAGGER_MS" \
   K6_RESULT_PATH="$output" \
     "$TIMEOUT_COMMAND" "$remaining" \
       k6 run --quiet "$ROOT_DIR/load-test/k6/batch-fetch-size/core-get.js" >&2

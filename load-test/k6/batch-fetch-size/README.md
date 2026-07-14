@@ -9,6 +9,17 @@ The production candidates are `100`, `50`, and `20`. `0` is a diagnostic OFF
 control only. Every candidate must use a fresh JVM and the same fixture, load,
 warm-up, and duration.
 
+Each API uses a constant arrival rate of 3 requests per second. The seven API
+scenarios start 100 milliseconds apart, which reduces synchronized client-side
+bursts while preserving identical load for every candidate. A 45-second round
+therefore targets 135 response samples per API. The defaults can be overridden
+for harness validation with `BATCH_RATE` and `BATCH_STAGGER_MS`, but candidate
+comparisons must keep both values fixed.
+
+The reported `requests_per_second` is the logical offered rate calculated from
+each scenario's active duration. It intentionally excludes the final 600ms
+stagger span, and is therefore suitable for same-configuration comparisons.
+
 ```bash
 BATCH_SIZE=100 BATCH_REPEAT_INDEX=1 \
   bash load-test/k6/batch-fetch-size/evaluate.sh

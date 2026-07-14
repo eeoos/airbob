@@ -23,7 +23,8 @@ if (!__ENV.K6_RESULT_PATH || !__ENV.K6_RESULT_PATH.trim()) {
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 const MODE = __ENV.MODE || 'all';
 const DURATION = __ENV.DURATION || '45s';
-const RATE = Number(__ENV.RATE || 1);
+const RATE = Number(__ENV.RATE || 3);
+const STAGGER_MS = Number(__ENV.STAGGER_MS || 100);
 const manifest = parseBenchmarkManifest(open(__ENV.BENCHMARK_MANIFEST));
 const SIZE = parseRecentlyViewedSize(__ENV.SIZE, manifest);
 
@@ -35,6 +36,9 @@ if (MODE === 'all' && SIZE > 50) {
 }
 if (!Number.isInteger(RATE) || RATE <= 0) {
   throw new Error('RATE must be a positive integer');
+}
+if (!Number.isInteger(STAGGER_MS) || STAGGER_MS < 0) {
+  throw new Error('STAGGER_MS must be a non-negative integer');
 }
 
 const clientDuration = new Trend('batch_fetch_client_duration', true);
@@ -112,10 +116,11 @@ function taggedMetric(metric, api) {
   return `${metric}{api:${api},phase:measure,size:${SIZE}}`;
 }
 
-function scenarioOptions(api) {
+function scenarioOptions(api, scenarioIndex) {
   return {
     executor: 'constant-arrival-rate',
     exec: api,
+    startTime: `${scenarioIndex * STAGGER_MS}ms`,
     rate: RATE,
     timeUnit: '1s',
     duration: DURATION,
@@ -131,8 +136,8 @@ const thresholds = {
   'http_req_failed{phase:measure}': ['rate==0'],
 };
 
-ENABLED_APIS.forEach((api) => {
-  scenarios[api] = scenarioOptions(api);
+ENABLED_APIS.forEach((api, scenarioIndex) => {
+  scenarios[api] = scenarioOptions(api, scenarioIndex);
   thresholds[taggedMetric('batch_fetch_client_duration', api)] = ['p(95)>=0'];
   thresholds[taggedMetric('batch_fetch_request_success', api)] = ['rate>=0'];
   thresholds[`dropped_iterations{scenario:${api}}`] = ['count>=0'];
