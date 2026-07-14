@@ -102,6 +102,10 @@ class PrometheusSnapshot:
                 continue
             if predicate is not None and not predicate(series.labels):
                 continue
+            if math.isnan(series.value):
+                raise AnalysisError(
+                    f"NaN sample for required metric {metric}: {dict(series.labels)}"
+                )
             key = tuple(sorted(series.labels.items()))
             if key in selected:
                 raise AnalysisError(f"duplicate Prometheus series for {metric}: {dict(key)}")
@@ -115,8 +119,6 @@ def _prometheus_number(value: str, path: Path, line_number: int) -> float:
         parsed = float(normalized)
     except ValueError as exc:
         raise AnalysisError(f"invalid number at {path}:{line_number}: {value}") from exc
-    if math.isnan(parsed):
-        raise AnalysisError(f"NaN sample at {path}:{line_number}")
     return parsed
 
 

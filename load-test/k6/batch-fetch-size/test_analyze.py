@@ -113,6 +113,29 @@ class AnalyzeTest(unittest.TestCase):
         self.assertEqual(22, len(result["samples"]))
         self.assertTrue(all(sample["query_count_consistent"] == 1 for sample in result["samples"]))
 
+    def test_unrelated_nan_does_not_invalidate_measurement(self):
+        rounds = self._rounds()
+        snapshot = rounds[0].before
+        snapshot.write_text(
+            snapshot.read_text(encoding="utf-8")
+            + 'system_cpu_usage{application="airbob-api"} NaN\n',
+            encoding="utf-8",
+        )
+
+        result = analyze.analyze("20", 256.5, rounds)
+
+        self.assertEqual(1, result["fixture_valid"])
+
+    def test_nan_in_required_metric_invalidates_measurement(self):
+        rounds = self._rounds()
+        snapshot = rounds[0].before
+        lines = snapshot.read_text(encoding="utf-8").splitlines()
+        lines[0] = f"{lines[0].rsplit(' ', 1)[0]} NaN"
+        snapshot.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(analyze.AnalysisError, "NaN sample for required metric"):
+            analyze.analyze("20", 256.5, rounds)
+
     def test_baseline_comparison_fails_each_regression_gate(self):
         rounds = self._rounds()
         baseline = analyze.analyze("100", 256, rounds)
