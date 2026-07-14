@@ -13,7 +13,7 @@ public class MicrometerQueryCountMetricRecorder implements QueryCountMetricRecor
 	public static final String METRIC_NAME = "app.query.per_request";
 
 	private static final String UNKNOWN_TAG_VALUE = "UNKNOWN";
-	private static final double[] QUERY_COUNT_BUCKETS = {1, 3, 5, 10, 20, 50, 100, 200};
+	private static final double[] QUERY_COUNT_BUCKETS = {1, 3, 5, 10, 20, 50, 100, 200, 250, 500, 1000};
 
 	private final MeterRegistry meterRegistry;
 
@@ -34,7 +34,7 @@ public class MicrometerQueryCountMetricRecorder implements QueryCountMetricRecor
 			.publishPercentileHistogram()
 			.serviceLevelObjectives(QUERY_COUNT_BUCKETS)
 			.minimumExpectedValue(1.0)
-			.maximumExpectedValue(200.0)
+			.maximumExpectedValue(1000.0)
 			.register(meterRegistry);
 
 		summary.record(snapshot.countOf(queryType));

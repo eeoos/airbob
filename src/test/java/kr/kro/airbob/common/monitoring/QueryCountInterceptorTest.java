@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 @ExtendWith(MockitoExtension.class)
@@ -104,5 +105,23 @@ class QueryCountInterceptorTest {
 		)).isInstanceOf(IllegalStateException.class);
 
 		assertThat(QueryCountContextHolder.getContext()).isNull();
+	}
+
+	@Test
+	@DisplayName("비동기 처리로 전환할 때 컨테이너 스레드의 컨텍스트만 정리하고 미완료 요청은 기록하지 않는다")
+	void asyncHandoffClearsContextWithoutRecording() throws Exception {
+		QueryCountContext context = new QueryCountContext("GET", "/api/v1/stream");
+		context.incrementQueryCount("select * from accommodation");
+		QueryCountContextHolder.initContext(context);
+		AsyncHandlerInterceptor asyncInterceptor = interceptor;
+
+		asyncInterceptor.afterConcurrentHandlingStarted(
+			new MockHttpServletRequest(),
+			new MockHttpServletResponse(),
+			new Object()
+		);
+
+		assertThat(QueryCountContextHolder.getContext()).isNull();
+		then(metricRecorder).shouldHaveNoInteractions();
 	}
 }

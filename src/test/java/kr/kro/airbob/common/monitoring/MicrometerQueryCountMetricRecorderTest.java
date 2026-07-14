@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.distribution.CountAtBucket;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 @DisplayName("Micrometer 쿼리 카운트 메트릭 기록 테스트")
 class MicrometerQueryCountMetricRecorderTest {
@@ -65,7 +67,30 @@ class MicrometerQueryCountMetricRecorderTest {
 		assertThat(Arrays.stream(summary.takeSnapshot().histogramCounts())
 			.map(CountAtBucket::bucket)
 			.toList()
-		).contains(1.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0);
+		).contains(1.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 250.0, 500.0, 1000.0);
+	}
+
+	@Test
+	@DisplayName("201개 쿼리 표본을 +Inf가 아닌 유한한 Prometheus bucket에 기록한다")
+	void recordsBenchmarkBoundaryInFinitePrometheusBucket() {
+		PrometheusMeterRegistry prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+		MicrometerQueryCountMetricRecorder prometheusRecorder =
+			new MicrometerQueryCountMetricRecorder(prometheusRegistry);
+		QueryCountSnapshot snapshot = new QueryCountSnapshot(
+			"GET",
+			"/api/v1/members/recently-viewed",
+			queryCounts(Map.of(SqlQueryType.SELECT, 201, SqlQueryType.TOTAL, 201))
+		);
+
+		prometheusRecorder.record(snapshot);
+
+		String finiteBucket = prometheusRegistry.scrape().lines()
+			.filter(line -> line.startsWith("app_query_per_request_queries_bucket"))
+			.filter(line -> line.contains("query_type=\"SELECT\""))
+			.filter(line -> line.contains("le=\"250.0\""))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("finite bucket at 250 was not exported"));
+		assertThat(finiteBucket).endsWith(" 1");
 	}
 
 	private void assertSummary(SqlQueryType queryType, long count, double totalAmount) {

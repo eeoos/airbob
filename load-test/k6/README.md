@@ -14,6 +14,22 @@ Setup traffic is part of fixture validation, so setup `http_req_duration` is not
 
 Setup deliberately does not call the recently viewed collection GET. Therefore, Micrometer/Grafana query-count and response-time samples for `GET /api/v1/members/recently-viewed` come only from the single measured request in each isolated smoke run. k6 `phase` tags are client-side metric tags and are not transmitted to the server.
 
+### Accepted local database provenance
+
+The online gate may use either the retained Task 9 database together with the manifest emitted by that exact run, or a freshly regenerated deterministic ETL database/manifest pair when the retained database credentials were deliberately discarded. Never rerun a command against the retained database merely to recover or guess discarded credentials.
+
+A regenerated pair is acceptable only when all of the following safeguards are enforced:
+
+- use the public ETL CLI and the same `nplus1-v1` manifest contract and dataset parameters;
+- use isolated, non-production ports, containers, and temporary artifact paths;
+- generate credentials without logging them and remove them during cleanup;
+- run the application with a read-only datasource while Flyway only validates the already migrated schema;
+- prove a data-only database hash is identical before and after the full smoke matrix;
+- clean up every gate-owned resource; and
+- prove the retained Task 9 database/artifacts and the user's existing application process are unchanged.
+
+The database and `BENCHMARK_MANIFEST` must always come from the same ETL run under either route.
+
 ## Local smoke
 
 ```bash

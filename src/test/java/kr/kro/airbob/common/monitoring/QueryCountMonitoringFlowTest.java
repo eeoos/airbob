@@ -12,8 +12,8 @@ import org.springframework.web.servlet.HandlerMapping;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-@DisplayName("쿼리 카운트 모니터링 통합 흐름 테스트")
-class QueryCountMonitoringIntegrationTest {
+@DisplayName("쿼리 카운트 모니터링 구성 요소 흐름 테스트")
+class QueryCountMonitoringFlowTest {
 
 	@AfterEach
 	void tearDown() {
@@ -21,7 +21,7 @@ class QueryCountMonitoringIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("HTTP 요청 경계 안에서 Hibernate SQL을 route template 단위 메트릭으로 기록한다")
+	@DisplayName("인터셉터와 SQL inspector를 조합하면 route template 단위 메트릭을 기록한다")
 	void recordsInspectedSqlAsRouteTemplateMetric() throws Exception {
 		SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 		QueryCountInterceptor interceptor = new QueryCountInterceptor(

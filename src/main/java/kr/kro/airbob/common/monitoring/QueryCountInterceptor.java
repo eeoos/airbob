@@ -1,7 +1,7 @@
 package kr.kro.airbob.common.monitoring;
 
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-public class QueryCountInterceptor implements HandlerInterceptor {
+public class QueryCountInterceptor implements AsyncHandlerInterceptor {
 
 	public static final String UNKNOWN_PATH = "UNKNOWN_PATH";
 
@@ -43,5 +43,14 @@ public class QueryCountInterceptor implements HandlerInterceptor {
 		} finally {
 			QueryCountContextHolder.clear();
 		}
+	}
+
+	@Override
+	public void afterConcurrentHandlingStarted(
+		HttpServletRequest request,
+		HttpServletResponse response,
+		Object handler
+	) {
+		QueryCountContextHolder.clear();
 	}
 }

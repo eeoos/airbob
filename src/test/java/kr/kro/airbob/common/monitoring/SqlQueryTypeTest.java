@@ -25,11 +25,49 @@ class SqlQueryTypeTest {
 	}
 
 	@Test
-	@DisplayName("CTE로 시작하는 조회 쿼리는 SELECT로 분류한다")
-	void classifyCteSelectStatement() {
-		String sql = "with available as (select id from accommodation) select * from available";
+	@DisplayName("CTE 본문이 아니라 CTE 뒤의 최종 연산으로 쿼리 타입을 분류한다")
+	void classifyCteStatementsByOuterOperation() {
+		assertThat(SqlQueryType.from(
+			"with available as (select id from accommodation) select * from available"
+		)).isEqualTo(SqlQueryType.SELECT);
+		assertThat(SqlQueryType.from(
+			"with changed as (select id from accommodation) update accommodation set name = ? where id in (select id from changed)"
+		)).isEqualTo(SqlQueryType.UPDATE);
+		assertThat(SqlQueryType.from(
+			"with obsolete as (select id from accommodation) delete from accommodation where id in (select id from obsolete)"
+		)).isEqualTo(SqlQueryType.DELETE);
+		assertThat(SqlQueryType.from(
+			"with source as (select id from accommodation) insert into history(id) select id from source"
+		)).isEqualTo(SqlQueryType.INSERT);
+	}
 
-		assertThat(SqlQueryType.from(sql)).isEqualTo(SqlQueryType.SELECT);
+	@Test
+	@DisplayName("여러 CTE의 중첩 괄호, 주석, 문자열과 인용 식별자 속 키워드는 최종 연산으로 오인하지 않는다")
+	void ignoresNestedAndQuotedKeywordsInsideMultipleCtes() {
+		String sql = """
+			/* Hibernate */ with recursive `select`(`value`) as (
+			  select concat(') update ignored', "delete")
+			  from accommodation
+			  where id in (select id from accommodation /* ) insert */)
+			), second_cte as (
+			  select '(' as token -- ) delete ignored
+			  from `select`
+			)
+			update accommodation set name = 'with select' where id in (select id from second_cte)
+			""";
+
+		assertThat(SqlQueryType.from(sql)).isEqualTo(SqlQueryType.UPDATE);
+	}
+
+	@Test
+	@DisplayName("최종 연산을 안전하게 찾을 수 없는 CTE는 OTHER로 분류한다")
+	void classifyUnresolvedOrMalformedCteAsOther() {
+		assertThat(SqlQueryType.from("with values_cte as (select id from accommodation) merge into archive"))
+			.isEqualTo(SqlQueryType.OTHER);
+		assertThat(SqlQueryType.from("with broken as (select id from accommodation update accommodation set name = ?"))
+			.isEqualTo(SqlQueryType.OTHER);
+		assertThat(SqlQueryType.from("with missing_body as update accommodation set name = ?"))
+			.isEqualTo(SqlQueryType.OTHER);
 	}
 
 	@Test
