@@ -1,7 +1,5 @@
 package kr.kro.airbob.domain.coupon.service;
 
-import java.time.LocalDateTime;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponUsageService {
 
 	private final MemberCouponRepository memberCouponRepository;
+	private final CouponTimeProvider timeProvider;
 
 	/**
 	 * 회원이 보유한 쿠폰을 예약에 사용하고 적용된 할인액을 반환한다.
@@ -33,7 +32,7 @@ public class CouponUsageService {
 			.orElseThrow(MemberCouponNotFoundException::new);
 
 		Coupon coupon = memberCoupon.getCoupon();
-		LocalDateTime now = LocalDateTime.now();
+		var now = timeProvider.now();
 
 		if (!coupon.isUsable(now)) {
 			throw new CouponNotApplicableException();
@@ -66,6 +65,6 @@ public class CouponUsageService {
 	 */
 	@Transactional
 	public void reuse(Long reservationId) {
-		memberCouponRepository.reuseByReservationId(reservationId, LocalDateTime.now());
+		memberCouponRepository.reuseByReservationId(reservationId, timeProvider.now());
 	}
 }

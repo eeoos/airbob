@@ -11,7 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
-import kr.kro.airbob.domain.coupon.service.CouponIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +25,8 @@ import lombok.RequiredArgsConstructor;
 public class CouponController {
 
 	private final CouponService couponService;
-	private final CouponIssueService couponIssueService;
+	private final CouponLockIssueService lockIssueService;
+	private final CouponLuaIssueService luaIssueService;
 
 	@GetMapping
 	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findValidCoupons() {
@@ -32,12 +34,17 @@ public class CouponController {
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 
-	// 선착순 발급 — 운영 기본 경로는 분산락(별도 시딩 불필요, 항상 정확).
-	// 원자적 카운터 방식은 prepareStock 시딩이 선행되어야 하며 동시성 테스트에서 비교 검증한다.
-	@PostMapping("/{couponId}/issue")
-	public ResponseEntity<ApiResponse<Void>> issueCoupon(@PathVariable Long couponId) {
+	@PostMapping("/{couponId}/issue/lock")
+	public ResponseEntity<ApiResponse<Void>> issueCouponWithLock(@PathVariable Long couponId) {
 		Long memberId = UserContext.get().id();
-		couponIssueService.issueWithLock(couponId, memberId);
+		lockIssueService.issue(couponId, memberId);
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
+	}
+
+	@PostMapping("/{couponId}/issue/lua")
+	public ResponseEntity<ApiResponse<Void>> issueCouponWithLua(@PathVariable Long couponId) {
+		Long memberId = UserContext.get().id();
+		luaIssueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}
 }

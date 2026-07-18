@@ -1,0 +1,57 @@
+package kr.kro.airbob.domain.coupon.service;
+
+import org.springframework.stereotype.Service;
+
+import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
+import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
+import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
+import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CouponLuaIssueService {
+
+	private final CouponRedisStockManager stockManager;
+	private final CouponIssueTransactionService transactionService;
+
+	public void issue(Long couponId, Long memberId) {
+		CouponRedisIssueResult result = stockManager.issue(couponId, memberId);
+		if (!result.isApproved()) {
+			throw rejectionFor(result.status());
+		}
+
+		try {
+			transactionService.persistApprovedIssue(couponId, memberId);
+		} catch (RuntimeException databaseFailure) {
+			compensateWithoutMasking(couponId, memberId, databaseFailure);
+			throw databaseFailure;
+		}
+	}
+
+	private RuntimeException rejectionFor(CouponRedisIssueStatus status) {
+		return switch (status) {
+			case SOLD_OUT -> new CouponSoldOutException();
+			case DUPLICATE -> new CouponAlreadyIssuedException();
+			case NOT_STARTED, ENDED, INACTIVE -> new CouponNotIssuableException();
+			case UNPREPARED -> new CouponStockNotPreparedException();
+			case APPROVED -> throw new IllegalArgumentException("승인 결과는 거절 예외로 변환할 수 없습니다.");
+		};
+	}
+
+	private void compensateWithoutMasking(Long couponId, Long memberId, RuntimeException databaseFailure) {
+		try {
+			CouponRedisCompensationResult result = stockManager.compensate(couponId, memberId);
+			if (result != CouponRedisCompensationResult.COMPENSATED) {
+				log.error("쿠폰 Redis 보상이 완료되지 않음. result={}, couponId={}, memberId={}",
+					result, couponId, memberId);
+			}
+		} catch (RuntimeException compensationFailure) {
+			databaseFailure.addSuppressed(compensationFailure);
+			log.error("쿠폰 Redis 보상 중 예외. couponId={}, memberId={}",
+				couponId, memberId, compensationFailure);
+		}
+	}
+}
