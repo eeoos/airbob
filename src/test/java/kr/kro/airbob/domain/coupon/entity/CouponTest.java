@@ -11,6 +11,11 @@ import kr.kro.airbob.domain.coupon.common.DiscountType;
 
 class CouponTest {
 
+	private static final LocalDateTime ISSUE_START = LocalDateTime.of(2026, 7, 18, 10, 0);
+	private static final LocalDateTime ISSUE_END = ISSUE_START.plusMinutes(10);
+	private static final LocalDateTime USABLE_FROM = ISSUE_START;
+	private static final LocalDateTime USABLE_UNTIL = ISSUE_START.plusDays(30);
+
 	private Coupon coupon(DiscountType type, int value, Integer minPayment, Integer maxDiscount) {
 		return Coupon.builder()
 			.name("테스트 쿠폰")
@@ -18,9 +23,12 @@ class CouponTest {
 			.discountValue(value)
 			.minPaymentPrice(minPayment)
 			.maxDiscountAmount(maxDiscount)
-			.startDate(LocalDateTime.now().minusDays(1))
-			.endDate(LocalDateTime.now().plusDays(1))
+			.issueStartAt(ISSUE_START)
+			.issueEndAt(ISSUE_END)
+			.usableFrom(USABLE_FROM)
+			.usableUntil(USABLE_UNTIL)
 			.isActive(true)
+			.totalQuantity(100)
 			.issuedQuantity(0)
 			.build();
 	}
@@ -61,16 +69,55 @@ class CouponTest {
 	}
 
 	@Test
-	@DisplayName("비활성/만료 쿠폰은 사용할 수 없다")
-	void usability() {
-		Coupon active = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
-		assertThat(active.isUsable(LocalDateTime.now())).isTrue();
+	@DisplayName("발급 기간은 시작을 포함하고 종료를 포함하지 않는다")
+	void issuePeriodUsesStartInclusiveEndExclusiveBoundary() {
+		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
 
-		Coupon expired = Coupon.builder()
-			.name("만료 쿠폰").discountType(DiscountType.FIXED_AMOUNT).discountValue(5_000)
-			.startDate(LocalDateTime.now().minusDays(10))
-			.endDate(LocalDateTime.now().minusDays(1))
-			.isActive(true).issuedQuantity(0).build();
-		assertThat(expired.isUsable(LocalDateTime.now())).isFalse();
+		assertThat(coupon.isIssueOpen(ISSUE_START.minusNanos(1))).isFalse();
+		assertThat(coupon.isIssueOpen(ISSUE_START)).isTrue();
+		assertThat(coupon.isIssueOpen(ISSUE_END.minusNanos(1))).isTrue();
+		assertThat(coupon.isIssueOpen(ISSUE_END)).isFalse();
+	}
+
+	@Test
+	@DisplayName("사용 기간은 시작을 포함하고 종료를 포함하지 않는다")
+	void usagePeriodUsesStartInclusiveEndExclusiveBoundary() {
+		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
+
+		assertThat(coupon.isUsable(USABLE_FROM.minusNanos(1))).isFalse();
+		assertThat(coupon.isUsable(USABLE_FROM)).isTrue();
+		assertThat(coupon.isUsable(USABLE_UNTIL.minusNanos(1))).isTrue();
+		assertThat(coupon.isUsable(USABLE_UNTIL)).isFalse();
+	}
+
+	@Test
+	@DisplayName("발급 기간이 끝나도 사용 기간 안이면 쿠폰을 사용할 수 있다")
+	void issuanceAndUsagePeriodsAreIndependent() {
+		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
+		LocalDateTime afterIssuance = ISSUE_END.plusDays(1);
+
+		assertThat(coupon.isIssueOpen(afterIssuance)).isFalse();
+		assertThat(coupon.isIssuable(afterIssuance)).isFalse();
+		assertThat(coupon.isUsable(afterIssuance)).isTrue();
+	}
+
+	@Test
+	@DisplayName("비활성 쿠폰은 기간 안이어도 발급하거나 사용할 수 없다")
+	void inactiveCouponIsNeitherIssuableNorUsable() {
+		Coupon inactive = Coupon.builder()
+			.name("비활성 쿠폰")
+			.discountType(DiscountType.FIXED_AMOUNT)
+			.discountValue(5_000)
+			.issueStartAt(ISSUE_START)
+			.issueEndAt(ISSUE_END)
+			.usableFrom(USABLE_FROM)
+			.usableUntil(USABLE_UNTIL)
+			.isActive(false)
+			.totalQuantity(100)
+			.issuedQuantity(0)
+			.build();
+
+		assertThat(inactive.isIssuable(ISSUE_START)).isFalse();
+		assertThat(inactive.isUsable(USABLE_FROM)).isFalse();
 	}
 }
