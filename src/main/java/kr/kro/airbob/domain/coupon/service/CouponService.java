@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
+import kr.kro.airbob.domain.coupon.exception.CouponAlreadyPreparedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponService {
 
 	private final CouponRepository couponRepository;
+	private final CouponRedisStockManager stockManager;
 
 	@Transactional(readOnly = true)
 	public CouponResponse.CouponInfos findValidCoupons() {
@@ -35,17 +37,23 @@ public class CouponService {
 
 	@Transactional
 	public void updateCoupon(CouponRequest.Update dto, Long couponId) {
-		Coupon coupon = couponRepository.findById(couponId)
+		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
+		if (stockManager.isPrepared(couponId) && coupon.changesPreparedIssuanceConfiguration(dto)) {
+			throw new CouponAlreadyPreparedException();
+		}
 		coupon.updateWithDto(dto);
 	}
 
 	@Transactional
 	public void deleteCoupon(Long couponId) {
-		Coupon coupon = couponRepository.findById(couponId)
+		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
+		if (stockManager.isPrepared(couponId)) {
+			throw new CouponAlreadyPreparedException();
+		}
 		coupon.deactivate();
 	}
 }

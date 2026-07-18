@@ -87,6 +87,10 @@ public enum ErrorCode {
 	MEMBER_COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "CP006", "보유하지 않은 쿠폰입니다."),
 	COUPON_ALREADY_USED(HttpStatus.CONFLICT, "CP007", "이미 사용한 쿠폰입니다."),
 	COUPON_NOT_APPLICABLE(HttpStatus.CONFLICT, "CP008", "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"),
+	COUPON_ALREADY_PREPARED(HttpStatus.CONFLICT, "CP009", "이미 준비된 쿠폰은 다시 준비하거나 발급 설정을 변경할 수 없습니다."),
+	COUPON_STOCK_PREPARATION_NOT_ALLOWED(HttpStatus.CONFLICT, "CP010", "현재 상태에서는 쿠폰 재고를 준비할 수 없습니다."),
+	COUPON_STOCK_NOT_PREPARED(HttpStatus.SERVICE_UNAVAILABLE, "CP011", "쿠폰 재고가 준비되지 않았습니다."),
+	COUPON_LOCK_TIMEOUT(HttpStatus.SERVICE_UNAVAILABLE, "CP012", "쿠폰 발급 요청이 몰려 잠금 획득에 실패했습니다. 잠시 후 다시 시도해주세요."),
 
 	// image
 	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "이미지 업로드 중 오류가 발생했습니다."),

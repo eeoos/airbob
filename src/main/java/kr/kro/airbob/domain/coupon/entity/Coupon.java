@@ -114,6 +114,13 @@ public class Coupon extends BaseEntity {
 		this.isActive = true;
 	}
 
+	public boolean changesPreparedIssuanceConfiguration(CouponRequest.Update dto) {
+		return differs(dto.issueStartAt(), issueStartAt)
+			|| differs(dto.issueEndAt(), issueEndAt)
+			|| differs(dto.isActive(), isActive)
+			|| differs(dto.totalQuantity(), totalQuantity);
+	}
+
 	// 발급 한도 소진 여부 (totalQuantity 가 null 이면 무제한)
 	public boolean isSoldOut() {
 		return totalQuantity != null && issuedQuantity >= totalQuantity;
@@ -161,5 +168,9 @@ public class Coupon extends BaseEntity {
 	// 발급 가능 재고 (무제한이면 null)
 	public Integer remainingQuantity() {
 		return totalQuantity == null ? null : Math.max(0, totalQuantity - issuedQuantity);
+	}
+
+	private boolean differs(Object requested, Object current) {
+		return requested != null && !requested.equals(current);
 	}
 }

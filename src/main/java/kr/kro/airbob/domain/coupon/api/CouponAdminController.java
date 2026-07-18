@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import kr.kro.airbob.domain.coupon.service.CouponService;
+import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -20,27 +21,34 @@ import lombok.RequiredArgsConstructor;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/admin/coupons")
+@RequestMapping("/api")
 public class CouponAdminController {
 
 	private final CouponService couponService;
+	private final CouponStockPreparationService preparationService;
 
-	@PostMapping
+	@PostMapping("/v1/admin/coupons")
 	public ResponseEntity<ApiResponse<Void>> createCoupon(@RequestBody CouponRequest.Create request) {
 		couponService.createCoupon(request);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}
 
-	@PatchMapping("/{couponId}")
+	@PatchMapping("/v1/admin/coupons/{couponId}")
 	public ResponseEntity<ApiResponse<Void>> updateCoupon(
 		@RequestBody CouponRequest.Update request, @PathVariable Long couponId) {
 		couponService.updateCoupon(request, couponId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
-	@DeleteMapping("/{couponId}")
+	@DeleteMapping("/v1/admin/coupons/{couponId}")
 	public ResponseEntity<ApiResponse<Void>> deleteCoupon(@PathVariable Long couponId) {
 		couponService.deleteCoupon(couponId);
+		return ResponseEntity.ok(ApiResponse.success());
+	}
+
+	@PostMapping("/v1/admin/coupons/{couponId}/stock/prepare")
+	public ResponseEntity<ApiResponse<Void>> prepareStock(@PathVariable Long couponId) {
+		preparationService.prepare(couponId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 }
