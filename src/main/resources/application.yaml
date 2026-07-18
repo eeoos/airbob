@@ -72,3 +72,7 @@ springdoc:
 
 settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
+
+benchmark:
+  nplus1:
+    enabled: ${BENCHMARK_NPLUS1_ENABLED:false}

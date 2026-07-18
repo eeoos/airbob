@@ -57,3 +57,45 @@ k6 run load-test/k6/nplus1-fixture-smoke.js
 ```
 
 This runbook does not authorize or provide SSH, database import, or production load commands.
+
+## Recently viewed N+1 before/after comparison
+
+`recently-viewed-nplus1-performance.js` compares the intentionally reproduced per-item query baseline with the bulk-query implementation.
+
+- `VARIANT=before` calls `/api/v2/members/recently-viewed`.
+- `VARIANT=after` calls `/api/v1/members/recently-viewed`.
+- `BENCHMARK_MANIFEST` supplies the exact accommodation IDs and the script resets the benchmark account's Redis recently viewed key before each variant.
+- Run both variants against the same application, dataset, request rate, and duration.
+- The script validates every response row count and fails when requests are dropped or unsuccessful.
+- The before endpoint is disabled by default. Start the application under measurement with `BENCHMARK_NPLUS1_ENABLED=true`.
+
+```bash
+read -rsp 'Benchmark password: ' TEST_PASSWORD
+echo
+export TEST_PASSWORD
+mkdir -p build/k6
+
+BASE_URL=http://localhost:8080 \
+BENCHMARK_MANIFEST=/Users/jaehoonchoi/study/CodeSquad/etl/etl/build/benchmark-fixture.json \
+VARIANT=before \
+EXPECTED_ROWS=100 \
+RATE=2 \
+WARMUP_DURATION=30s \
+MEASURE_DURATION=1m \
+K6_RESULT_PATH=build/k6/recently-viewed-before.json \
+k6 run load-test/k6/recently-viewed-nplus1-performance.js
+
+BASE_URL=http://localhost:8080 \
+BENCHMARK_MANIFEST=/Users/jaehoonchoi/study/CodeSquad/etl/etl/build/benchmark-fixture.json \
+VARIANT=after \
+EXPECTED_ROWS=100 \
+RATE=2 \
+WARMUP_DURATION=30s \
+MEASURE_DURATION=1m \
+K6_RESULT_PATH=build/k6/recently-viewed-after.json \
+k6 run load-test/k6/recently-viewed-nplus1-performance.js
+
+unset TEST_PASSWORD
+```
+
+For AWS, replace `BASE_URL` only after importing the database that matches `BENCHMARK_MANIFEST` and enabling the benchmark endpoint. Keep the password out of shell history and repository files.
