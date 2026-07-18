@@ -32,6 +32,7 @@ public class RedisConfig {
     @Bean
     public RedissonClient redissonClient() {
         Config config = new Config();
+        config.setUseScriptCache(true);
         String redisAddress = "redis://" + redisHost + ":" + redisPort;
         config.useSingleServer()
             .setAddress(redisAddress);

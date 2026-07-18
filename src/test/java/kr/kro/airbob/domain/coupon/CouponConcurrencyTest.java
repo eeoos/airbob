@@ -1,6 +1,9 @@
 package kr.kro.airbob.domain.coupon;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -9,8 +12,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +30,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -36,6 +42,7 @@ import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponLockTimeoutException;
+import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
@@ -43,6 +50,8 @@ import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponRedisPreparationResult;
 import kr.kro.airbob.domain.coupon.service.CouponRedisStockManager;
+import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
+import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -60,6 +69,8 @@ class CouponConcurrencyTest {
 	@Autowired
 	private CouponLuaIssueService luaIssueService;
 	@Autowired
+	private CouponStockPreparationService stockPreparationService;
+	@MockitoSpyBean
 	private CouponRedisStockManager stockManager;
 	@Autowired
 	private CouponRepository couponRepository;
@@ -71,6 +82,8 @@ class CouponConcurrencyTest {
 	private RedissonClient redissonClient;
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+	@MockitoSpyBean
+	private CouponTimeProvider timeProvider;
 
 	@MockitoBean
 	private ElasticsearchClient elasticsearchClient;
@@ -115,9 +128,11 @@ class CouponConcurrencyTest {
 		memberRepository.deleteAllInBatch();
 		redissonClient.getKeys().deleteByPattern("coupon:*");
 
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = timeProvider.now();
 		lockCoupon = couponRepository.save(coupon("분산 락 쿠폰", now));
-		luaCoupon = couponRepository.save(coupon("Lua 쿠폰", now));
+		Coupon luaCampaign = coupon("Lua 쿠폰", now);
+		luaCampaign.markRedisStockPrepared(now.minusMinutes(1));
+		luaCoupon = couponRepository.save(luaCampaign);
 
 		long redisNow = System.currentTimeMillis();
 		CouponRedisPreparationResult preparation = stockManager.prepare(
@@ -191,6 +206,72 @@ class CouponConcurrencyTest {
 		assertThat(memberCouponRepository.countByCouponId(luaCoupon.getId())).isOne();
 		assertDatabaseInvariants(luaCoupon.getId());
 		assertThat(stockManager.remainingStock(luaCoupon.getId())).isEqualTo(COUPON_LIMIT - 1);
+	}
+
+	@Test
+	@DisplayName("Redis 준비와 락 발급이 경계 시각에 겹쳐도 같은 쿠폰의 경로를 혼용하지 않는다")
+	void preparationAndLockIssuanceCannotMixAtIssueStart() throws Exception {
+		LocalDateTime issueStart = timeProvider.now().plusHours(1).withNano(0);
+		Coupon transitioningCoupon = couponRepository.save(Coupon.builder()
+			.name("준비 전환 쿠폰")
+			.discountType(DiscountType.PERCENTAGE)
+			.discountValue(10)
+			.issueStartAt(issueStart)
+			.issueEndAt(issueStart.plusMinutes(10))
+			.usableFrom(issueStart)
+			.usableUntil(issueStart.plusDays(7))
+			.isActive(true)
+			.totalQuantity(COUPON_LIMIT)
+			.issuedQuantity(0)
+			.build());
+		AtomicReference<LocalDateTime> currentTime = new AtomicReference<>(issueStart.minusSeconds(1));
+		doAnswer(ignored -> currentTime.get()).when(timeProvider).now();
+
+		CountDownLatch preparationReachedRedis = new CountDownLatch(1);
+		CountDownLatch allowRedisPreparation = new CountDownLatch(1);
+		doAnswer(invocation -> {
+			preparationReachedRedis.countDown();
+			if (!allowRedisPreparation.await(5, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("Redis 준비 대기 시간이 초과되었습니다.");
+			}
+			return invocation.callRealMethod();
+		}).when(stockManager).prepare(
+			eq(transitioningCoupon.getId()),
+			eq((long)COUPON_LIMIT),
+			anyLong(),
+			anyLong(),
+			eq(true),
+			anyLong());
+
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		try {
+			Future<?> preparation = executor.submit(
+				() -> stockPreparationService.prepare(transitioningCoupon.getId()));
+			assertThat(preparationReachedRedis.await(5, TimeUnit.SECONDS)).isTrue();
+
+			currentTime.set(issueStart);
+			Future<Throwable> lockIssuance = executor.submit(() -> {
+				try {
+					lockIssueService.issue(transitioningCoupon.getId(), members.getFirst().getId());
+					return null;
+				} catch (Throwable throwable) {
+					return throwable;
+				}
+			});
+
+			Thread.sleep(200);
+			assertThat(lockIssuance).isNotDone();
+			allowRedisPreparation.countDown();
+
+			preparation.get(10, TimeUnit.SECONDS);
+			assertThat(lockIssuance.get(10, TimeUnit.SECONDS))
+				.isInstanceOf(CouponNotIssuableException.class);
+			assertThat(memberCouponRepository.countByCouponId(transitioningCoupon.getId())).isZero();
+			assertThat(stockManager.remainingStock(transitioningCoupon.getId())).isEqualTo(COUPON_LIMIT);
+		} finally {
+			allowRedisPreparation.countDown();
+			executor.shutdownNow();
+		}
 	}
 
 	private Coupon coupon(String name, LocalDateTime now) {

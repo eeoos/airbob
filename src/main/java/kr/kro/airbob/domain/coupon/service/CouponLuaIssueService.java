@@ -46,10 +46,6 @@ public class CouponLuaIssueService {
 		long databaseStartedAt = System.nanoTime();
 		try {
 			transactionService.persistApprovedIssue(couponId, memberId);
-			metricRecorder.recordDatabase(
-				CouponIssueMetricRecorder.Strategy.LUA,
-				CouponIssueMetricRecorder.DatabaseResult.SUCCESS,
-				System.nanoTime() - databaseStartedAt);
 		} catch (RuntimeException databaseFailure) {
 			metricRecorder.recordDatabase(
 				CouponIssueMetricRecorder.Strategy.LUA,
@@ -58,6 +54,10 @@ public class CouponLuaIssueService {
 			compensateWithoutMasking(couponId, memberId, databaseFailure);
 			throw databaseFailure;
 		}
+		metricRecorder.recordDatabase(
+			CouponIssueMetricRecorder.Strategy.LUA,
+			CouponIssueMetricRecorder.DatabaseResult.SUCCESS,
+			System.nanoTime() - databaseStartedAt);
 	}
 
 	private RuntimeException rejectionFor(CouponRedisIssueStatus status) {

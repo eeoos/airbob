@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.coupon.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,6 +60,22 @@ class CouponLuaIssueServiceTest {
 			eq(CouponIssueMetricRecorder.Strategy.LUA),
 			eq(CouponIssueMetricRecorder.IssueResult.SUCCESS),
 			anyLong());
+	}
+
+	@Test
+	@DisplayName("DB 저장 성공 뒤 계측 실패를 DB 실패로 오인해 Redis를 보상하지 않는다")
+	void neverCompensatesCommittedIssueForMetricFailure() {
+		IllegalStateException metricFailure = new IllegalStateException("metric failure");
+		when(stockManager.issue(1L, 10L)).thenReturn(CouponRedisIssueResult.approved(9));
+		doThrow(metricFailure).when(metricRecorder).recordDatabase(
+			eq(CouponIssueMetricRecorder.Strategy.LUA),
+			eq(CouponIssueMetricRecorder.DatabaseResult.SUCCESS),
+			anyLong());
+
+		assertThatThrownBy(() -> service.issue(1L, 10L)).isSameAs(metricFailure);
+
+		verify(transactionService).persistApprovedIssue(1L, 10L);
+		verify(stockManager, never()).compensate(1L, 10L);
 	}
 
 	@ParameterizedTest(name = "{0} 결과를 {1} 예외로 변환한다")

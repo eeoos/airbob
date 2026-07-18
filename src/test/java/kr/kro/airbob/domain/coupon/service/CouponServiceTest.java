@@ -89,6 +89,25 @@ class CouponServiceTest {
 	}
 
 	@Test
+	@DisplayName("Redis 키가 만료돼도 DB 준비 이력으로 발급 설정 변경을 막는다")
+	void rejectsIssuanceChangeAfterRedisKeyExpiration() {
+		coupon.markRedisStockPrepared(ISSUE_START.minusHours(1));
+		CouponRequest.Update update = update(null, ISSUE_START.plusMinutes(1), null, null, null);
+
+		assertThatThrownBy(() -> service.updateCoupon(update, 1L))
+			.isInstanceOf(CouponAlreadyPreparedException.class);
+	}
+
+	@Test
+	@DisplayName("Redis 키가 만료돼도 DB 준비 이력으로 비활성화를 막는다")
+	void rejectsDeactivationAfterRedisKeyExpiration() {
+		coupon.markRedisStockPrepared(ISSUE_START.minusHours(1));
+
+		assertThatThrownBy(() -> service.deleteCoupon(1L))
+			.isInstanceOf(CouponAlreadyPreparedException.class);
+	}
+
+	@Test
 	@DisplayName("준비되지 않은 쿠폰은 비활성화한다")
 	void deactivatesUnpreparedCoupon() {
 		when(stockManager.isPrepared(1L)).thenReturn(false);

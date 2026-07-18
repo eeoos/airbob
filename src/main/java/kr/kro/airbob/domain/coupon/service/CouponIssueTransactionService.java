@@ -9,6 +9,7 @@ import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
+import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
@@ -26,15 +27,19 @@ public class CouponIssueTransactionService {
 	private final MemberCouponRepository memberCouponRepository;
 	private final MemberRepository memberRepository;
 	private final CouponTimeProvider timeProvider;
+	private final CouponRedisStockManager stockManager;
 
 	/**
 	 * 분산 락 안에서 DB 상태를 검증하고 발급한다.
 	 */
 	@Transactional
 	public void issueUnderLock(Long couponId, Long memberId) {
-		Coupon coupon = couponRepository.findById(couponId)
+		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
+		if (coupon.isRedisStockPrepared() || stockManager.isPrepared(couponId)) {
+			throw new CouponNotIssuableException();
+		}
 		if (!Boolean.TRUE.equals(coupon.getIsActive()) || !coupon.isIssueOpen(timeProvider.now())) {
 			throw new CouponNotIssuableException();
 		}
@@ -60,6 +65,9 @@ public class CouponIssueTransactionService {
 		Coupon coupon = couponRepository.findById(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
+		if (!coupon.isRedisStockPrepared()) {
+			throw new CouponStockNotPreparedException();
+		}
 		couponRepository.incrementIssuedQuantity(couponId);
 		memberCouponRepository.save(MemberCoupon.issue(memberRepository.getReferenceById(memberId), coupon));
 	}

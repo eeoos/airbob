@@ -69,9 +69,12 @@ public class Coupon extends BaseEntity {
 	// 발급 한도 (null = 무제한)
 	private Integer totalQuantity;
 
-	// 현재 발급 수 (락/무락 발급 방식의 정합성 기준)
+	// 현재 발급 수 (락/Lua 발급 경로의 DB 정합성 기준)
 	@Column(nullable = false)
 	private Integer issuedQuantity;
+
+	// Lua 발급용 Redis 재고를 한 번이라도 준비한 시각. Redis 키보다 오래 유지되는 경로·불변성 기준이다.
+	private LocalDateTime redisStockPreparedAt;
 
 	public static Coupon of(CouponRequest.Create dto) {
 		return Coupon.builder()
@@ -119,6 +122,20 @@ public class Coupon extends BaseEntity {
 			|| differs(dto.issueEndAt(), issueEndAt)
 			|| differs(dto.isActive(), isActive)
 			|| differs(dto.totalQuantity(), totalQuantity);
+	}
+
+	public void markRedisStockPrepared(LocalDateTime preparedAt) {
+		if (preparedAt == null) {
+			throw new IllegalArgumentException("Redis 재고 준비 시각은 필수입니다.");
+		}
+		if (redisStockPreparedAt != null) {
+			throw new IllegalStateException("Redis 재고 준비 이력은 덮어쓸 수 없습니다.");
+		}
+		this.redisStockPreparedAt = preparedAt;
+	}
+
+	public boolean isRedisStockPrepared() {
+		return redisStockPreparedAt != null;
 	}
 
 	// 발급 한도 소진 여부 (totalQuantity 가 null 이면 무제한)

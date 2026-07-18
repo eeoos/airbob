@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.coupon.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -62,6 +63,7 @@ class CouponStockPreparationServiceTest {
 		service.prepare(1L);
 
 		verify(stockManager).prepare(1L, 100, 1_000L, 2_000L, true, 3_000L);
+		assertThat(coupon.getRedisStockPreparedAt()).isEqualTo(NOW);
 	}
 
 	@Test
@@ -108,6 +110,15 @@ class CouponStockPreparationServiceTest {
 
 		assertThatThrownBy(() -> service.prepare(1L))
 			.isInstanceOf(CouponAlreadyPreparedException.class);
+	}
+
+	@Test
+	@DisplayName("Redis 키가 사라져도 DB에 준비 이력이 있으면 다시 준비하지 않는다")
+	void rejectsPersistentlyPreparedCoupon() {
+		Coupon coupon = coupon(true, 100, 0, ISSUE_START);
+		coupon.markRedisStockPrepared(NOW.minusMinutes(1));
+
+		assertPreparationRejected(coupon, 0L);
 	}
 
 	private void assertPreparationRejected(Coupon coupon, long memberCouponCount) {

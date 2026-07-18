@@ -53,6 +53,7 @@
 **Files:**
 
 - Create: `src/main/java/kr/kro/airbob/domain/coupon/service/CouponStockPreparationService.java`
+- Create: `src/main/resources/db/migration/V15__persist_redis_coupon_preparation.sql`
 - Modify: `src/main/java/kr/kro/airbob/domain/coupon/service/CouponService.java`
 - Modify: `src/main/java/kr/kro/airbob/domain/coupon/api/CouponAdminController.java`
 - Modify: `src/main/java/kr/kro/airbob/common/exception/ErrorCode.java`
@@ -67,6 +68,8 @@
 5. Add specific errors: already prepared/configuration conflict as `409`, Redis unprepared as `503`, and lock timeout as `503`.
 6. Add `POST /api/v1/admin/coupons/{couponId}/stock/prepare`. Preserve the existing admin controller convention requested by the user: class mapping `/api`, method mappings beginning `/v1/admin/coupons`.
 7. Run focused service/controller tests and commit.
+8. Persist `redisStockPreparedAt` after preparation so Redis key loss cannot unfreeze the campaign, and use it to prevent lock/Lua URL mixing for one coupon ID.
+9. Serialize preparation and lock issuance with the same coupon-row write lock, and fail closed on an orphan Redis preparation when the DB marker commit did not complete.
 
 ## Task 4: Split the lock and Lua issuance flows
 
@@ -96,6 +99,7 @@
 
 - Create: `src/main/java/kr/kro/airbob/domain/coupon/monitoring/CouponIssueMetricRecorder.java`
 - Create: `src/main/java/kr/kro/airbob/domain/coupon/monitoring/MicrometerCouponIssueMetricRecorder.java`
+- Create: `src/main/java/kr/kro/airbob/domain/coupon/monitoring/FailSafeCouponIssueMetricRecorder.java`
 - Modify: lock/Lua services and Redis/lock components from Tasks 2–4
 - Create: `src/test/java/kr/kro/airbob/domain/coupon/monitoring/MicrometerCouponIssueMetricRecorderTest.java`
 
@@ -103,6 +107,7 @@
 2. Implement timers/counters with only bounded tags (`lock|lua` and fixed result names). Never tag coupon/member IDs.
 3. Record total issuance latency through DB commit and keep lock wait and Lua execution as separate measurements.
 4. Run focused metrics tests and commit.
+5. Keep recorder exceptions behind a no-throw boundary and keep success metric calls outside database-failure catch scopes.
 
 ## Task 6: Replace probabilistic concurrency tests with invariants
 
@@ -116,7 +121,8 @@
 3. For each path, assert `member_coupon count == coupon.issued_quantity <= total_quantity` and no member receives more than one copy.
 4. For Lua, prepare Redis first and also assert `Redis stock + DB issued count == total_quantity` after all requests finish.
 5. Add same-member concurrent-request coverage for both paths.
-6. Run the complete coupon test package and commit.
+6. Add a deterministic boundary race test that pauses preparation after its DB row lock, advances time to `issueStartAt`, and proves a concurrent lock request is rejected after preparation commits.
+7. Run the complete coupon test package and commit.
 
 ## Task 7: Add the AWS-ready k6 comparison harness
 
@@ -134,6 +140,7 @@
 5. Document preparation order, separate coupon campaigns, session fixture format, warm-up, alternating run order, consistency queries, and result-file commands for later AWS execution.
 6. Run k6 syntax/archive validation when k6 is installed; otherwise validate with the repository's available JavaScript tooling and record the limitation.
 7. Commit the load-test harness.
+8. Use a disposable warm-up coupon and a fresh measured coupon because issuance mutates stock and member state.
 
 ## Task 8: Full verification and handoff
 

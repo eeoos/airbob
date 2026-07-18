@@ -40,7 +40,7 @@ public class CouponService {
 		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
-		if (stockManager.isPrepared(couponId) && coupon.changesPreparedIssuanceConfiguration(dto)) {
+		if (isRedisStockPrepared(coupon, couponId) && coupon.changesPreparedIssuanceConfiguration(dto)) {
 			throw new CouponAlreadyPreparedException();
 		}
 		coupon.updateWithDto(dto);
@@ -51,9 +51,13 @@ public class CouponService {
 		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
-		if (stockManager.isPrepared(couponId)) {
+		if (isRedisStockPrepared(coupon, couponId)) {
 			throw new CouponAlreadyPreparedException();
 		}
 		coupon.deactivate();
+	}
+
+	private boolean isRedisStockPrepared(Coupon coupon, Long couponId) {
+		return coupon.isRedisStockPrepared() || stockManager.isPrepared(couponId);
 	}
 }

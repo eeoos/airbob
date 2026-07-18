@@ -21,6 +21,7 @@ import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
+import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -39,20 +40,22 @@ class CouponIssueTransactionServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private CouponTimeProvider timeProvider;
+	@Mock
+	private CouponRedisStockManager stockManager;
 
 	private CouponIssueTransactionService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new CouponIssueTransactionService(
-			couponRepository, memberCouponRepository, memberRepository, timeProvider);
+			couponRepository, memberCouponRepository, memberRepository, timeProvider, stockManager);
 	}
 
 	@Test
 	@DisplayName("락 경로는 발급 가능 상태, 회원 중복, 재고 순서로 검증한다")
 	void duplicateTakesPrecedenceOverSoldOut() {
 		Coupon soldOut = coupon(true, 10, 10);
-		when(couponRepository.findById(1L)).thenReturn(Optional.of(soldOut));
+		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(soldOut));
 		when(timeProvider.now()).thenReturn(NOW);
 		when(memberCouponRepository.existsByMemberIdAndCouponId(10L, 1L)).thenReturn(true);
 
@@ -65,7 +68,7 @@ class CouponIssueTransactionServiceTest {
 	@DisplayName("발급 불가 상태는 회원 중복이나 재고보다 먼저 거절한다")
 	void notIssuableTakesPrecedenceOverDuplicate() {
 		Coupon inactive = coupon(false, 10, 10);
-		when(couponRepository.findById(1L)).thenReturn(Optional.of(inactive));
+		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
 
 		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
 			.isInstanceOf(CouponNotIssuableException.class);
@@ -77,7 +80,7 @@ class CouponIssueTransactionServiceTest {
 	void issuesUnderLock() {
 		Coupon coupon = coupon(true, 10, 0);
 		Member member = org.mockito.Mockito.mock(Member.class);
-		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
+		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
 		when(timeProvider.now()).thenReturn(NOW);
 		when(memberRepository.getReferenceById(10L)).thenReturn(member);
 
@@ -85,12 +88,38 @@ class CouponIssueTransactionServiceTest {
 
 		verify(couponRepository).incrementIssuedQuantity(1L);
 		verify(memberCouponRepository).save(any(MemberCoupon.class));
+		verify(couponRepository).findByIdForUpdate(1L);
+	}
+
+	@Test
+	@DisplayName("Redis 재고를 준비한 쿠폰은 락 경로로 발급하지 않는다")
+	void rejectsRedisPreparedCampaignOnLockPath() {
+		Coupon coupon = coupon(true, 10, 0);
+		coupon.markRedisStockPrepared(NOW.minusHours(1));
+		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
+
+		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
+			.isInstanceOf(CouponNotIssuableException.class);
+		verify(couponRepository, never()).incrementIssuedQuantity(1L);
+	}
+
+	@Test
+	@DisplayName("DB 준비 이력이 롤백되어도 Redis 준비 키가 있으면 락 경로로 발급하지 않는다")
+	void rejectsOrphanedRedisPreparationOnLockPath() {
+		Coupon coupon = coupon(true, 10, 0);
+		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
+		when(stockManager.isPrepared(1L)).thenReturn(true);
+
+		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
+			.isInstanceOf(CouponNotIssuableException.class);
+		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	@Test
 	@DisplayName("Lua 승인 후에는 Redis가 검증한 재고를 다시 차감하지 않고 DB 결과만 저장한다")
 	void persistsApprovedIssue() {
 		Coupon coupon = coupon(true, 10, 10);
+		coupon.markRedisStockPrepared(NOW.minusHours(1));
 		Member member = org.mockito.Mockito.mock(Member.class);
 		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
 		when(memberRepository.getReferenceById(10L)).thenReturn(member);
@@ -99,6 +128,17 @@ class CouponIssueTransactionServiceTest {
 
 		verify(couponRepository).incrementIssuedQuantity(1L);
 		verify(memberCouponRepository).save(any(MemberCoupon.class));
+	}
+
+	@Test
+	@DisplayName("DB 준비 이력이 없는 쿠폰은 Lua 승인 결과도 저장하지 않는다")
+	void rejectsLuaPersistenceWithoutPreparationMarker() {
+		Coupon coupon = coupon(true, 10, 0);
+		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
+
+		assertThatThrownBy(() -> service.persistApprovedIssue(1L, 10L))
+			.isInstanceOf(CouponStockNotPreparedException.class);
+		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	private Coupon coupon(boolean active, int totalQuantity, int issuedQuantity) {

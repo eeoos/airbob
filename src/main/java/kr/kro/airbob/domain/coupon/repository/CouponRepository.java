@@ -24,7 +24,7 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
 	/**
 	 * 발급 수를 DB 레벨에서 원자적으로 증가시킨다.
-	 * 원자적 카운터(Redis) 방식에서 재고는 Redis 가 통제하므로, DB issuedQuantity 는
+	 * Lua 경로에서 재고는 Redis 가 통제하므로, DB issuedQuantity 는
 	 * read-modify-write 대신 이 단일 UPDATE 로 정확히 누적한다.
 	 */
 	@Modifying(clearAutomatically = true)
