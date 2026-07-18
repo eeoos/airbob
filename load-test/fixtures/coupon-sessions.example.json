@@ -1,0 +1,8 @@
+{
+  "datasetVersion": "coupon-issuance-v1",
+  "sessions": [
+    "replace-with-session-id-for-member-1",
+    "replace-with-session-id-for-member-2",
+    "replace-with-session-id-for-member-3"
+  ]
+}
