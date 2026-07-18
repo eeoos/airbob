@@ -1,0 +1,122 @@
+# Airbob N+1 API requests - IntelliJ IDEA HTTP Client (local)
+#
+# 사용 순서:
+# 1. Login 요청을 실행한다.
+# 2. 확인할 GET 요청을 실행한다.
+# 3. 15~30초 뒤 Grafana의 "Airbob - API Query Count" 대시보드에서 확인한다.
+#
+# Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
+# 로그인 성공 시 SESSION_ID cookie는 IntelliJ HTTP Client가 이후 요청에 자동 전송한다.
+
+### Login benchmark account
+# @name loginBenchmarkAccount
+# @no-log
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{benchmarkEmail}}",
+  "password": "{{benchmarkPassword}}"
+}
+
+### Recently viewed AFTER - bulk queries (N=100, expected SELECT=3)
+# @name recentlyViewedAfter
+GET {{baseUrl}}/api/v1/members/recently-viewed
+Accept: application/json
+
+### Recently viewed BEFORE - per-item queries (N=100, expected SELECT=400)
+# Requires starting the application with BENCHMARK_NPLUS1_ENABLED=true.
+# @name recentlyViewedBefore
+GET {{baseUrl}}/api/v2/members/recently-viewed
+Accept: application/json
+
+### Reviews - size 1
+# @name reviewsSize1
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews?size=1&sortType=LATEST
+Accept: application/json
+
+### Reviews - size 20
+# @name reviewsSize20
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews?size=20&sortType=LATEST
+Accept: application/json
+
+### Reviews - size 50
+# @name reviewsSize50
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews?size=50&sortType=LATEST
+Accept: application/json
+
+### Host accommodations - size 1
+# @name hostAccommodationsSize1
+GET {{baseUrl}}/api/v1/profile/host/accommodations?size=1&status=PUBLISHED
+Accept: application/json
+
+### Host accommodations - size 20
+# @name hostAccommodationsSize20
+GET {{baseUrl}}/api/v1/profile/host/accommodations?size=20&status=PUBLISHED
+Accept: application/json
+
+### Host accommodations - size 50
+# @name hostAccommodationsSize50
+GET {{baseUrl}}/api/v1/profile/host/accommodations?size=50&status=PUBLISHED
+Accept: application/json
+
+### Guest reservations - size 1
+# @name guestReservationsSize1
+GET {{baseUrl}}/api/v1/profile/guest/reservations?size=1&filterType=PAST
+Accept: application/json
+
+### Guest reservations - size 20
+# @name guestReservationsSize20
+GET {{baseUrl}}/api/v1/profile/guest/reservations?size=20&filterType=PAST
+Accept: application/json
+
+### Guest reservations - size 50
+# @name guestReservationsSize50
+GET {{baseUrl}}/api/v1/profile/guest/reservations?size=50&filterType=PAST
+Accept: application/json
+
+### Host reservations - size 1
+# @name hostReservationsSize1
+GET {{baseUrl}}/api/v1/profile/host/reservations?size=1&filterType=PAST
+Accept: application/json
+
+### Host reservations - size 20
+# @name hostReservationsSize20
+GET {{baseUrl}}/api/v1/profile/host/reservations?size=20&filterType=PAST
+Accept: application/json
+
+### Host reservations - size 50
+# @name hostReservationsSize50
+GET {{baseUrl}}/api/v1/profile/host/reservations?size=50&filterType=PAST
+Accept: application/json
+
+### Wishlists - size 1
+# @name wishlistsSize1
+GET {{baseUrl}}/api/v1/members/wishlists?size=1
+Accept: application/json
+
+### Wishlists - size 20
+# @name wishlistsSize20
+GET {{baseUrl}}/api/v1/members/wishlists?size=20
+Accept: application/json
+
+### Wishlists - size 50
+# @name wishlistsSize50
+GET {{baseUrl}}/api/v1/members/wishlists?size=50
+Accept: application/json
+
+### Wishlist accommodations - size 1
+# @name wishlistAccommodationsSize1
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{primaryWishlistId}}?size=1
+Accept: application/json
+
+### Wishlist accommodations - size 20
+# @name wishlistAccommodationsSize20
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{primaryWishlistId}}?size=20
+Accept: application/json
+
+### Wishlist accommodations - size 50
+# @name wishlistAccommodationsSize50
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{primaryWishlistId}}?size=50
+Accept: application/json

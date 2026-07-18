@@ -74,6 +74,10 @@ server {
         root /var/www/certbot;
     }
 
+    location ^~ /actuator {
+        return 404;
+    }
+
     location / {
         return 301 https://$host$request_uri;
     }
@@ -101,6 +105,10 @@ server {
         access_log off;
         return 200 "healthy\n";
         add_header Content-Type text/plain;
+    }
+
+    location ^~ /actuator {
+        return 404;
     }
 
     location / {

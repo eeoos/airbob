@@ -6,7 +6,7 @@ on:
 
 concurrency:
   group: cd-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   AWS_REGION: ap-northeast-2
@@ -89,11 +89,65 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Pull and restart app
+      - name: Deploy app and verify health
+        env:
+          IMAGE_SHA7: ${{ needs.build-and-push.outputs.image_sha7 }}
         run: |
-          cd ~/airbob
-          docker compose -f docker-compose.yml pull app
-          docker compose -f docker-compose.yml up -d app
+          set -Eeuo pipefail
+          cd "$HOME/airbob"
+
+          COMPOSE=(docker compose --env-file .env.oci -f docker-compose.yml)
+          IMAGE_REPO=ghcr.io/eeoos/airbob
+          OLD_IMAGE_ID=$(docker inspect --format='{{.Image}}' airbob-app)
+
+          wait_healthy() {
+            local phase="$1"
+            local status
+
+            for attempt in {1..42}; do
+              status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' airbob-app 2>/dev/null || echo missing)
+              echo "$phase app health status: $status ($attempt/42)"
+
+              case "$status" in
+                healthy)
+                  return 0
+                  ;;
+                unhealthy|exited|dead|missing)
+                  return 1
+                  ;;
+              esac
+
+              sleep 10
+            done
+
+            return 1
+          }
+
+          reload_nginx() {
+            docker exec nginx nginx -t \
+              && docker exec nginx nginx -s reload \
+              && docker exec nginx wget -q --spider http://app:8080/actuator/health
+          }
+
+          rollback() {
+            echo "Rolling back to image $OLD_IMAGE_ID" >&2
+            docker image tag "$OLD_IMAGE_ID" "$IMAGE_REPO:latest" || return 1
+            "${COMPOSE[@]}" up -d --no-deps --force-recreate --pull never app || return 1
+            wait_healthy rollback || return 1
+            reload_nginx
+          }
+
+          "${COMPOSE[@]}" config --quiet
+          docker pull "$IMAGE_REPO:$IMAGE_SHA7"
+          docker image tag "$IMAGE_REPO:$IMAGE_SHA7" "$IMAGE_REPO:latest"
+
+          if ! "${COMPOSE[@]}" up -d --no-deps --force-recreate --pull never app \
+            || ! wait_healthy deploy \
+            || ! reload_nginx; then
+            docker logs --tail 200 airbob-app || true
+            rollback || echo "Rollback failed; manual recovery required" >&2
+            exit 1
+          fi
 
   # AWS 배포 시 주석 해제
   # deploy-aws:

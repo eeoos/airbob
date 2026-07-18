@@ -15,6 +15,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
@@ -53,7 +55,7 @@ public class Accommodation extends BaseEntity {
 
 	private String thumbnailUrl;
 
-	// 공통 코드(ACCOMMODATION_TYPE)의 code 값. FK 없이 느슨하게 보관, 검증은 애플리케이션 레벨(CommonCodeService).
+	// 공통 코드(ACCOMMODATION_TYPE)의 code 값. FK 없이 보관, 검증은 애플리케이션 레벨(CommonCodeService).
 	private String type;
 
 	@OneToOne(fetch = FetchType.LAZY, orphanRemoval = true, cascade = CascadeType.ALL)
@@ -62,7 +64,8 @@ public class Accommodation extends BaseEntity {
 	@OneToOne(fetch = FetchType.LAZY, orphanRemoval = true, cascade = CascadeType.ALL)
 	private OccupancyPolicy occupancyPolicy;
 
-	@OneToOne(fetch = FetchType.LAZY)
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "member_id", nullable = false)
 	private Member member;
 
 	@Column(nullable = false)

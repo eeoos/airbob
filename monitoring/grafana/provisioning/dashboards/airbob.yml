@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: Airbob
+    orgId: 1
+    folder: Airbob
+    folderUid: airbob
+    type: file
+    disableDeletion: false
+    allowUiUpdates: $GRAFANA_DASHBOARD_ALLOW_UI_UPDATES
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

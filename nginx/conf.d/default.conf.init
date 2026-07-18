@@ -10,6 +10,10 @@ server {
         root /var/www/certbot;
     }
 
+    location ^~ /actuator {
+        return 404;
+    }
+
     # 임시로 API 직접 연결 (인증서 발급 전)
     location / {
         proxy_pass http://app:8080;

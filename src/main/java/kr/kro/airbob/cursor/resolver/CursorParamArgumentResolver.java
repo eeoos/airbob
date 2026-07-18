@@ -55,7 +55,7 @@ public class CursorParamArgumentResolver implements HandlerMethodArgumentResolve
 		String sizeParam = webRequest.getParameter(annotation.sizeParam());
 		int size = sizeParam != null ? Integer.parseInt(sizeParam) : annotation.defaultSize();
 
-		if (size < 1) {
+		if (size < 1 || size > annotation.maxSize()) {
 			throw new CursorPageSizeException();
 		}
 

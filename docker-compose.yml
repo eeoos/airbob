@@ -171,6 +171,68 @@ services:
       - local-infra
 
   # --------------------------------------------------------
+  # Prometheus (Optional - Monitoring)
+  # --------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v3.13.0
+    container_name: prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "127.0.0.1:9091:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./monitoring/prometheus/prometheus.local.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=5GB
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - local-infra
+
+  # --------------------------------------------------------
+  # Grafana (Optional - Monitoring)
+  # --------------------------------------------------------
+  grafana:
+    image: grafana/grafana:13.1.0
+    container_name: grafana
+    profiles: ["monitoring"]
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      GRAFANA_DASHBOARD_ALLOW_UI_UPDATES: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - local-infra
+
+  # --------------------------------------------------------
   # Kafka UI (Optional - 개발 편의용)
   # --------------------------------------------------------
   kafka-ui:
@@ -210,6 +272,8 @@ volumes:
   kafka-data:
   es-data:
   redis-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   local-infra:

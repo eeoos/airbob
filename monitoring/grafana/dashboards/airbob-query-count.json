@@ -1,0 +1,603 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Query-count and server response-time observability for Airbob API route templates, backed by Prometheus histogram metrics.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Average SQL query count per completed request, calculated from matching histogram sum and count rates. Use the measured-request panel to judge sparse samples.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Queries per request",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (http_method, path, query_type) (\n  rate(app_query_per_request_queries_sum{job=\"airbob\", http_method=~\"$http_method\", path=~\"$path\", query_type=~\"$query_type\"}[$__rate_interval])\n)\n/\nsum by (http_method, path, query_type) (\n  rate(app_query_per_request_queries_count{job=\"airbob\", http_method=~\"$http_method\", path=~\"$path\", query_type=~\"$query_type\"}[$__rate_interval])\n)",
+          "instant": false,
+          "legendFormat": "{{http_method}} · {{path}} · {{query_type}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Average queries per request",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "p50 and p95 are histogram estimates: Prometheus interpolates within the bucket containing each quantile. Compare them with the average and measured-request count before drawing conclusions from sparse samples.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Queries per request",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 1,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, http_method, path, query_type) (\n    rate(app_query_per_request_queries_bucket{job=\"airbob\", http_method=~\"$http_method\", path=~\"$path\", query_type=~\"$query_type\"}[$__rate_interval])\n  )\n)",
+          "instant": false,
+          "legendFormat": "P95 · {{http_method}} · {{path}} · {{query_type}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, http_method, path, query_type) (\n    rate(app_query_per_request_queries_bucket{job=\"airbob\", http_method=~\"$http_method\", path=~\"$path\", query_type=~\"$query_type\"}[$__rate_interval])\n  )\n)",
+          "instant": false,
+          "legendFormat": "P50 · {{http_method}} · {{path}} · {{query_type}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "p50 / p95 queries per request",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Ranks route templates by estimated p95 SELECT query count per request. Histogram quantiles interpolate between bucket boundaries, so confirm candidates with request volume and targeted measurements.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "text": {},
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "topk(\n  10,\n  histogram_quantile(\n    0.95,\n    sum by (le, http_method, path) (\n      rate(app_query_per_request_queries_bucket{job=\"airbob\", http_method=~\"$http_method\", path=~\"$path\", query_type=\"SELECT\"}[$__rate_interval])\n    )\n  )\n)",
+          "instant": true,
+          "legendFormat": "P95 · {{http_method}} · {{path}} · SELECT",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 N+1 candidates (p95 SELECT)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Completed TOTAL request samples observed over the selected dashboard range. This count provides sample context for the average and estimated p50/p95; Prometheus increase() can extrapolate slightly at range boundaries.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 4,
+      "options": {
+        "displayMode": "basic",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "text": {},
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (http_method, path) (\n  increase(app_query_per_request_queries_count{job=\"airbob\", http_method=~\"$http_method\", path=~\"$path\", query_type=\"TOTAL\"}[$__range])\n)",
+          "instant": true,
+          "legendFormat": "{{http_method}} · {{path}} · TOTAL",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Measured requests in range",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Server-side p95 for successful Spring MVC requests. This excludes client-side network timing and is estimated from the http.server.requests Prometheus histogram.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Response time",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 3,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, method, uri) (\n    rate(http_server_requests_seconds_bucket{job=\"airbob\", application=\"airbob-api\", method=~\"$http_method\", uri=~\"$path\", status=~\"2..\"}[$__rate_interval])\n  )\n)",
+          "instant": false,
+          "legendFormat": "P95 · {{method}} · {{uri}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "API response time p95",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "airbob",
+    "latency",
+    "prometheus",
+    "query-count"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(app_query_per_request_queries_count{job=\"airbob\"}, http_method)",
+        "description": "HTTP methods observed for the Airbob scrape job.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "HTTP method",
+        "multi": true,
+        "name": "http_method",
+        "options": [],
+        "query": {
+          "query": "label_values(app_query_per_request_queries_count{job=\"airbob\"}, http_method)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(app_query_per_request_queries_count{job=\"airbob\", http_method=~\"$http_method\"}, path)",
+        "description": "Spring MVC route-template paths observed for the selected HTTP method.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Path",
+        "multi": true,
+        "name": "path",
+        "options": [],
+        "query": {
+          "query": "label_values(app_query_per_request_queries_count{job=\"airbob\", http_method=~\"$http_method\"}, path)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": [
+            "SELECT"
+          ],
+          "value": [
+            "SELECT"
+          ]
+        },
+        "description": "SQL statement category recorded for each completed request.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Query type",
+        "multi": true,
+        "name": "query_type",
+        "options": [
+          {
+            "selected": true,
+            "text": "SELECT",
+            "value": "SELECT"
+          },
+          {
+            "selected": false,
+            "text": "TOTAL",
+            "value": "TOTAL"
+          },
+          {
+            "selected": false,
+            "text": "INSERT",
+            "value": "INSERT"
+          },
+          {
+            "selected": false,
+            "text": "UPDATE",
+            "value": "UPDATE"
+          },
+          {
+            "selected": false,
+            "text": "DELETE",
+            "value": "DELETE"
+          },
+          {
+            "selected": false,
+            "text": "OTHER",
+            "value": "OTHER"
+          }
+        ],
+        "query": "SELECT,TOTAL,INSERT,UPDATE,DELETE,OTHER",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Airbob - API Query Count",
+  "uid": "airbob-query-count",
+  "version": 1,
+  "weekStart": ""
+}
