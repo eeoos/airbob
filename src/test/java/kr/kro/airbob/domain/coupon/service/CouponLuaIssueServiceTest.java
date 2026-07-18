@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.stream.Stream;
 
@@ -22,6 +24,7 @@ import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
 import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
+import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 
 @ExtendWith(MockitoExtension.class)
 class CouponLuaIssueServiceTest {
@@ -30,12 +33,14 @@ class CouponLuaIssueServiceTest {
 	private CouponRedisStockManager stockManager;
 	@Mock
 	private CouponIssueTransactionService transactionService;
+	@Mock
+	private CouponIssueMetricRecorder metricRecorder;
 
 	private CouponLuaIssueService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new CouponLuaIssueService(stockManager, transactionService);
+		service = new CouponLuaIssueService(stockManager, transactionService, metricRecorder);
 	}
 
 	@Test
@@ -46,19 +51,30 @@ class CouponLuaIssueServiceTest {
 		service.issue(1L, 10L);
 
 		verify(transactionService).persistApprovedIssue(1L, 10L);
+		verify(metricRecorder).recordDatabase(
+			eq(CouponIssueMetricRecorder.Strategy.LUA),
+			eq(CouponIssueMetricRecorder.DatabaseResult.SUCCESS),
+			anyLong());
+		verify(metricRecorder).recordIssue(
+			eq(CouponIssueMetricRecorder.Strategy.LUA),
+			eq(CouponIssueMetricRecorder.IssueResult.SUCCESS),
+			anyLong());
 	}
 
 	@ParameterizedTest(name = "{0} 결과를 {1} 예외로 변환한다")
 	@MethodSource("rejectedResults")
 	void mapsRejectedLuaResult(
 		CouponRedisIssueStatus status,
-		Class<? extends RuntimeException> exceptionType
+		Class<? extends RuntimeException> exceptionType,
+		CouponIssueMetricRecorder.IssueResult metricResult
 	) {
 		when(stockManager.issue(1L, 10L))
 			.thenReturn(CouponRedisIssueResult.rejected(status));
 
 		assertThatThrownBy(() -> service.issue(1L, 10L)).isInstanceOf(exceptionType);
 		verify(transactionService, never()).persistApprovedIssue(1L, 10L);
+		verify(metricRecorder).recordIssue(
+			eq(CouponIssueMetricRecorder.Strategy.LUA), eq(metricResult), anyLong());
 	}
 
 	@Test
@@ -73,6 +89,16 @@ class CouponLuaIssueServiceTest {
 
 		assertThatThrownBy(() -> service.issue(1L, 10L)).isSameAs(databaseFailure);
 		verify(stockManager).compensate(1L, 10L);
+		verify(metricRecorder).recordDatabase(
+			eq(CouponIssueMetricRecorder.Strategy.LUA),
+			eq(CouponIssueMetricRecorder.DatabaseResult.ERROR),
+			anyLong());
+		verify(metricRecorder).recordCompensation(
+			CouponIssueMetricRecorder.CompensationResult.COMPENSATED);
+		verify(metricRecorder).recordIssue(
+			eq(CouponIssueMetricRecorder.Strategy.LUA),
+			eq(CouponIssueMetricRecorder.IssueResult.ERROR),
+			anyLong());
 	}
 
 	@Test
@@ -88,15 +114,23 @@ class CouponLuaIssueServiceTest {
 		assertThatThrownBy(() -> service.issue(1L, 10L))
 			.isSameAs(databaseFailure)
 			.satisfies(error -> assertThat(error.getSuppressed()).containsExactly(compensationFailure));
+		verify(metricRecorder).recordCompensation(
+			CouponIssueMetricRecorder.CompensationResult.ERROR);
 	}
 
 	private static Stream<Arguments> rejectedResults() {
 		return Stream.of(
-			Arguments.of(CouponRedisIssueStatus.SOLD_OUT, CouponSoldOutException.class),
-			Arguments.of(CouponRedisIssueStatus.DUPLICATE, CouponAlreadyIssuedException.class),
-			Arguments.of(CouponRedisIssueStatus.NOT_STARTED, CouponNotIssuableException.class),
-			Arguments.of(CouponRedisIssueStatus.ENDED, CouponNotIssuableException.class),
-			Arguments.of(CouponRedisIssueStatus.INACTIVE, CouponNotIssuableException.class),
-			Arguments.of(CouponRedisIssueStatus.UNPREPARED, CouponStockNotPreparedException.class));
+			Arguments.of(CouponRedisIssueStatus.SOLD_OUT, CouponSoldOutException.class,
+				CouponIssueMetricRecorder.IssueResult.SOLD_OUT),
+			Arguments.of(CouponRedisIssueStatus.DUPLICATE, CouponAlreadyIssuedException.class,
+				CouponIssueMetricRecorder.IssueResult.DUPLICATE),
+			Arguments.of(CouponRedisIssueStatus.NOT_STARTED, CouponNotIssuableException.class,
+				CouponIssueMetricRecorder.IssueResult.NOT_ISSUABLE),
+			Arguments.of(CouponRedisIssueStatus.ENDED, CouponNotIssuableException.class,
+				CouponIssueMetricRecorder.IssueResult.NOT_ISSUABLE),
+			Arguments.of(CouponRedisIssueStatus.INACTIVE, CouponNotIssuableException.class,
+				CouponIssueMetricRecorder.IssueResult.NOT_ISSUABLE),
+			Arguments.of(CouponRedisIssueStatus.UNPREPARED, CouponStockNotPreparedException.class,
+				CouponIssueMetricRecorder.IssueResult.UNPREPARED));
 	}
 }

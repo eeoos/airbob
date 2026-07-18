@@ -7,6 +7,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.coupon.exception.CouponLockTimeoutException;
+import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,22 +21,30 @@ import lombok.extern.slf4j.Slf4j;
 public class CouponLockManager {
 
 	private final RedissonClient redissonClient;
+	private final CouponIssueMetricRecorder metricRecorder;
 	private static final long LOCK_WAIT_TIME_SECONDS = 5;
 
 	public RLock acquireLock(Long couponId) {
+		long waitStartedAt = System.nanoTime();
+		CouponIssueMetricRecorder.LockResult result = CouponIssueMetricRecorder.LockResult.ERROR;
 		String lockKey = lockKey(couponId);
-		RLock lock = redissonClient.getLock(lockKey);
 		try {
+			RLock lock = redissonClient.getLock(lockKey);
 			// leaseTime 미지정 → WatchDog 자동 갱신
 			boolean acquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
 			if (!acquired) {
+				result = CouponIssueMetricRecorder.LockResult.TIMEOUT;
 				log.warn("쿠폰 락 획득 실패. lockKey={}", lockKey);
 				throw new CouponLockTimeoutException();
 			}
+			result = CouponIssueMetricRecorder.LockResult.ACQUIRED;
 			return lock;
 		} catch (InterruptedException e) {
+			result = CouponIssueMetricRecorder.LockResult.INTERRUPTED;
 			Thread.currentThread().interrupt();
 			throw new CouponLockTimeoutException();
+		} finally {
+			metricRecorder.recordLockWait(result, System.nanoTime() - waitStartedAt);
 		}
 	}
 

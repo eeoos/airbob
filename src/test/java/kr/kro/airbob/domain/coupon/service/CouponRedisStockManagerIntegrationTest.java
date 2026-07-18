@@ -1,6 +1,10 @@
 package kr.kro.airbob.domain.coupon.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,6 +21,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
+
 @Testcontainers
 class CouponRedisStockManagerIntegrationTest {
 
@@ -29,6 +35,7 @@ class CouponRedisStockManagerIntegrationTest {
 
 	private static RedissonClient redissonClient;
 	private static CouponRedisStockManager stockManager;
+	private static CouponIssueMetricRecorder metricRecorder;
 
 	@BeforeAll
 	static void setUpClient() {
@@ -36,7 +43,8 @@ class CouponRedisStockManagerIntegrationTest {
 		config.useSingleServer()
 			.setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
 		redissonClient = Redisson.create(config);
-		stockManager = new CouponRedisStockManager(redissonClient);
+		metricRecorder = org.mockito.Mockito.mock(CouponIssueMetricRecorder.class);
+		stockManager = new CouponRedisStockManager(redissonClient, metricRecorder);
 		stockManager.loadScripts();
 	}
 
@@ -50,6 +58,7 @@ class CouponRedisStockManagerIntegrationTest {
 	@BeforeEach
 	void clearCouponKeys() {
 		redissonClient.getKeys().deleteByPattern("coupon:*");
+		reset(metricRecorder);
 	}
 
 	@Test
@@ -137,5 +146,27 @@ class CouponRedisStockManagerIntegrationTest {
 		assertThat(metaTtl).isBetween(MINUTE, 2 * MINUTE);
 		assertThat(issuedTtl).isBetween(MINUTE, 2 * MINUTE);
 		assertThat(Math.abs(metaTtl - issuedTtl)).isLessThan(1_000L);
+	}
+
+	@Test
+	@DisplayName("준비·발급·보상 Lua의 실행 시간과 고정 결과를 기록한다")
+	void recordsEveryLuaOperation() {
+		long now = System.currentTimeMillis();
+		stockManager.prepare(40L, 1, now - MINUTE, now + MINUTE, true, now + 2 * MINUTE);
+		stockManager.issue(40L, 1L);
+		stockManager.compensate(40L, 1L);
+
+		verify(metricRecorder).recordLua(
+			eq(CouponIssueMetricRecorder.LuaOperation.PREPARE),
+			eq(CouponIssueMetricRecorder.LuaResult.PREPARED),
+			anyLong());
+		verify(metricRecorder).recordLua(
+			eq(CouponIssueMetricRecorder.LuaOperation.ISSUE),
+			eq(CouponIssueMetricRecorder.LuaResult.APPROVED),
+			anyLong());
+		verify(metricRecorder).recordLua(
+			eq(CouponIssueMetricRecorder.LuaOperation.COMPENSATE),
+			eq(CouponIssueMetricRecorder.LuaResult.COMPENSATED),
+			anyLong());
 	}
 }

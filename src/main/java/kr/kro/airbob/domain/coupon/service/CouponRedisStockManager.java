@@ -15,17 +15,23 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 
 import jakarta.annotation.PostConstruct;
+import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 
 @Component
 public class CouponRedisStockManager {
 
 	private final RedissonClient redissonClient;
+	private final CouponIssueMetricRecorder metricRecorder;
 	private String prepareScript;
 	private String issueScript;
 	private String compensateScript;
 
-	public CouponRedisStockManager(RedissonClient redissonClient) {
+	public CouponRedisStockManager(
+		RedissonClient redissonClient,
+		CouponIssueMetricRecorder metricRecorder
+	) {
 		this.redissonClient = redissonClient;
+		this.metricRecorder = metricRecorder;
 	}
 
 	@PostConstruct
@@ -43,47 +49,86 @@ public class CouponRedisStockManager {
 		boolean active,
 		long expiresAt
 	) {
-		long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
-			RScript.Mode.READ_WRITE,
-			prepareScript,
-			RScript.ReturnType.INTEGER,
-			List.of(metaKey(couponId), issuedKey(couponId)),
-			String.valueOf(stock),
-			String.valueOf(issueStartAt),
-			String.valueOf(issueEndAt),
-			active ? "1" : "0",
-			String.valueOf(expiresAt));
+		long startedAt = System.nanoTime();
+		CouponIssueMetricRecorder.LuaResult metricResult = CouponIssueMetricRecorder.LuaResult.ERROR;
+		try {
+			long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
+				RScript.Mode.READ_WRITE,
+				prepareScript,
+				RScript.ReturnType.INTEGER,
+				List.of(metaKey(couponId), issuedKey(couponId)),
+				String.valueOf(stock),
+				String.valueOf(issueStartAt),
+				String.valueOf(issueEndAt),
+				active ? "1" : "0",
+				String.valueOf(expiresAt));
 
-		return result == 1
-			? CouponRedisPreparationResult.PREPARED
-			: CouponRedisPreparationResult.ALREADY_PREPARED;
+			CouponRedisPreparationResult preparationResult = result == 1
+				? CouponRedisPreparationResult.PREPARED
+				: CouponRedisPreparationResult.ALREADY_PREPARED;
+			metricResult = preparationResult == CouponRedisPreparationResult.PREPARED
+				? CouponIssueMetricRecorder.LuaResult.PREPARED
+				: CouponIssueMetricRecorder.LuaResult.ALREADY_PREPARED;
+			return preparationResult;
+		} finally {
+			metricRecorder.recordLua(
+				CouponIssueMetricRecorder.LuaOperation.PREPARE,
+				metricResult,
+				System.nanoTime() - startedAt);
+		}
 	}
 
 	public CouponRedisIssueResult issue(Long couponId, Long memberId) {
-		long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
-			RScript.Mode.READ_WRITE,
-			issueScript,
-			RScript.ReturnType.INTEGER,
-			List.of(metaKey(couponId), issuedKey(couponId)),
-			String.valueOf(memberId));
+		long startedAt = System.nanoTime();
+		CouponIssueMetricRecorder.LuaResult metricResult = CouponIssueMetricRecorder.LuaResult.ERROR;
+		try {
+			long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
+				RScript.Mode.READ_WRITE,
+				issueScript,
+				RScript.ReturnType.INTEGER,
+				List.of(metaKey(couponId), issuedKey(couponId)),
+				String.valueOf(memberId));
 
-		return CouponRedisIssueResult.fromRawResult(result);
+			CouponRedisIssueResult issueResult = CouponRedisIssueResult.fromRawResult(result);
+			metricResult = luaMetricResult(issueResult.status());
+			return issueResult;
+		} finally {
+			metricRecorder.recordLua(
+				CouponIssueMetricRecorder.LuaOperation.ISSUE,
+				metricResult,
+				System.nanoTime() - startedAt);
+		}
 	}
 
 	public CouponRedisCompensationResult compensate(Long couponId, Long memberId) {
-		long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
-			RScript.Mode.READ_WRITE,
-			compensateScript,
-			RScript.ReturnType.INTEGER,
-			List.of(metaKey(couponId), issuedKey(couponId)),
-			String.valueOf(memberId));
+		long startedAt = System.nanoTime();
+		CouponIssueMetricRecorder.LuaResult metricResult = CouponIssueMetricRecorder.LuaResult.ERROR;
+		try {
+			long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
+				RScript.Mode.READ_WRITE,
+				compensateScript,
+				RScript.ReturnType.INTEGER,
+				List.of(metaKey(couponId), issuedKey(couponId)),
+				String.valueOf(memberId));
 
-		return switch ((int)result) {
-			case 1 -> CouponRedisCompensationResult.COMPENSATED;
-			case 0 -> CouponRedisCompensationResult.NO_OP;
-			case -1 -> CouponRedisCompensationResult.META_MISSING;
-			default -> throw new IllegalArgumentException("알 수 없는 쿠폰 보상 Lua 결과: " + result);
-		};
+			CouponRedisCompensationResult compensationResult = switch ((int)result) {
+				case 1 -> CouponRedisCompensationResult.COMPENSATED;
+				case 0 -> CouponRedisCompensationResult.NO_OP;
+				case -1 -> CouponRedisCompensationResult.META_MISSING;
+				default -> throw new IllegalArgumentException("알 수 없는 쿠폰 보상 Lua 결과: " + result);
+			};
+			metricResult = switch (compensationResult) {
+				case COMPENSATED -> CouponIssueMetricRecorder.LuaResult.COMPENSATED;
+				case NO_OP -> CouponIssueMetricRecorder.LuaResult.NO_OP;
+				case META_MISSING -> CouponIssueMetricRecorder.LuaResult.META_MISSING;
+			};
+			return compensationResult;
+		} finally {
+			metricRecorder.recordLua(
+				CouponIssueMetricRecorder.LuaOperation.COMPENSATE,
+				metricResult,
+				System.nanoTime() - startedAt);
+		}
 	}
 
 	public boolean isPrepared(Long couponId) {
@@ -113,5 +158,17 @@ public class CouponRedisStockManager {
 		} catch (IOException e) {
 			throw new UncheckedIOException("쿠폰 Lua 스크립트 로드 실패: " + path, e);
 		}
+	}
+
+	private CouponIssueMetricRecorder.LuaResult luaMetricResult(CouponRedisIssueStatus status) {
+		return switch (status) {
+			case APPROVED -> CouponIssueMetricRecorder.LuaResult.APPROVED;
+			case SOLD_OUT -> CouponIssueMetricRecorder.LuaResult.SOLD_OUT;
+			case DUPLICATE -> CouponIssueMetricRecorder.LuaResult.DUPLICATE;
+			case NOT_STARTED -> CouponIssueMetricRecorder.LuaResult.NOT_STARTED;
+			case ENDED -> CouponIssueMetricRecorder.LuaResult.ENDED;
+			case UNPREPARED -> CouponIssueMetricRecorder.LuaResult.UNPREPARED;
+			case INACTIVE -> CouponIssueMetricRecorder.LuaResult.INACTIVE;
+		};
 	}
 }

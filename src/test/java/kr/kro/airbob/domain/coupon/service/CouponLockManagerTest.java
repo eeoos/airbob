@@ -16,6 +16,7 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
 import kr.kro.airbob.domain.coupon.exception.CouponLockTimeoutException;
+import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 
 @ExtendWith(MockitoExtension.class)
 class CouponLockManagerTest {
@@ -24,6 +25,8 @@ class CouponLockManagerTest {
 	private RedissonClient redissonClient;
 	@Mock
 	private RLock lock;
+	@Mock
+	private CouponIssueMetricRecorder metricRecorder;
 
 	@InjectMocks
 	private CouponLockManager lockManager;
@@ -37,5 +40,8 @@ class CouponLockManagerTest {
 		assertThatThrownBy(() -> lockManager.acquireLock(1L))
 			.isInstanceOf(CouponLockTimeoutException.class);
 		verify(lock).tryLock(5, TimeUnit.SECONDS);
+		verify(metricRecorder).recordLockWait(
+			org.mockito.ArgumentMatchers.eq(CouponIssueMetricRecorder.LockResult.TIMEOUT),
+			org.mockito.ArgumentMatchers.anyLong());
 	}
 }
