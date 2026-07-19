@@ -18,9 +18,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-/**
- * 쿠폰 정의(캠페인). 할인 규칙과 발급 한도를 보유하며, 발급된 인스턴스는 {@code MemberCoupon} 이 표현한다.
- */
 @Entity
 @Getter
 @SuperBuilder
@@ -41,7 +38,8 @@ public class Coupon extends BaseEntity {
 	@Column(nullable = false)
 	private DiscountType discountType;
 
-	// PERCENTAGE 면 할인율(%), FIXED_AMOUNT 면 할인 금액(원)
+	// PERCENTAGE 면 할인율(%),
+	// FIXED_AMOUNT 면 할인 금액(원)
 	@Column(nullable = false)
 	private Integer discountValue;
 
@@ -73,7 +71,8 @@ public class Coupon extends BaseEntity {
 	@Column(nullable = false)
 	private Integer issuedQuantity;
 
-	// Lua 발급용 Redis 재고를 한 번이라도 준비한 시각. Redis 키보다 오래 유지되는 경로·불변성 기준이다.
+	// Lua 발급용 Redis 재고를 한 번이라도 준비한 시각
+	// Redis 키보다 오래 유지되는 경로·불변성 기준
 	private LocalDateTime redisStockPreparedAt;
 
 	public static Coupon of(CouponRequest.Create dto) {

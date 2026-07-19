@@ -89,6 +89,10 @@ jacoco.exec
 # Generated AsciiDoc files
 src/docs/asciidoc/
 
+# Local implementation planning artifacts
+/docs/plans/
+/docs/superpowers/
+
 # Static build output
 src/main/resources/static/
 

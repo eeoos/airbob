@@ -21,27 +21,27 @@ import lombok.RequiredArgsConstructor;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/coupons")
+@RequestMapping("/api")
 public class CouponController {
 
 	private final CouponService couponService;
 	private final CouponLockIssueService lockIssueService;
 	private final CouponLuaIssueService luaIssueService;
 
-	@GetMapping
+	@GetMapping("/v1/coupons")
 	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findValidCoupons() {
 		CouponResponse.CouponInfos coupons = couponService.findValidCoupons();
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 
-	@PostMapping("/{couponId}/issue/lock")
+	@PostMapping("/v1/coupons/{couponId}/issue/lock")
 	public ResponseEntity<ApiResponse<Void>> issueCouponWithLock(@PathVariable Long couponId) {
 		Long memberId = UserContext.get().id();
 		lockIssueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}
 
-	@PostMapping("/{couponId}/issue/lua")
+	@PostMapping("/v1/coupons/{couponId}/issue/lua")
 	public ResponseEntity<ApiResponse<Void>> issueCouponWithLua(@PathVariable Long couponId) {
 		Long memberId = UserContext.get().id();
 		luaIssueService.issue(couponId, memberId);
