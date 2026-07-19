@@ -12,7 +12,7 @@ import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 최근 본 숙소의 naive 항목별 조회로 4N 쿼리 기준선을 재현하는 벤치마크 전용 API다.
+ * 최근 본 숙소의 주소 지연 로딩 N+1 기준선을 재현하는 벤치마크 전용 API다.
  */
 @RestController
 @RequiredArgsConstructor

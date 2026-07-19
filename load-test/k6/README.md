@@ -45,29 +45,21 @@ k6 run load-test/k6/nplus1-fixture-smoke.js
 unset TEST_PASSWORD
 ```
 
-## OCI URL substitution
-
-Only after the matching dump has been separately approved and imported, substitute the approved API URL while keeping the same manifest and test contract:
-
-```bash
-BASE_URL=https://api.airbob.cloud \
-BENCHMARK_MANIFEST=/Users/jaehoonchoi/study/CodeSquad/etl/etl/build/benchmark-fixture.json \
-DATASET_SIZE=20 \
-k6 run load-test/k6/nplus1-fixture-smoke.js
-```
-
-This runbook does not authorize or provide SSH, database import, or production load commands.
-
 ## Recently viewed N+1 before/after comparison
 
-`recently-viewed-nplus1-performance.js` compares the intentionally reproduced per-item query baseline with the bulk-query implementation.
+`recently-viewed-nplus1-performance.js` compares the address lazy-loading N+1 baseline with the address fetch-join implementation.
 
 - `VARIANT=before` calls `/api/v2/members/recently-viewed`.
 - `VARIANT=after` calls `/api/v1/members/recently-viewed`.
 - `BENCHMARK_MANIFEST` supplies the exact accommodation IDs and the script resets the benchmark account's Redis recently viewed key before each variant.
 - Run both variants against the same application, dataset, request rate, and duration.
 - The script validates every response row count and fails when requests are dropped or unsuccessful.
-- The before endpoint is disabled by default. Start the application under measurement with `BENCHMARK_NPLUS1_ENABLED=true`.
+- With `N=100`, the before endpoint executes `N+3` SELECTs (accommodations 1 + addresses N + review summaries 1 + wishlists 1), while the after endpoint executes 3.
+- Start the local application with the measurement-only profile below. It enables the before endpoint and disables Hibernate batch fetching so that the address N+1 is not masked.
+
+```bash
+SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark ./gradlew bootRun
+```
 
 ```bash
 read -rsp 'Benchmark password: ' TEST_PASSWORD
@@ -97,5 +89,3 @@ k6 run load-test/k6/recently-viewed-nplus1-performance.js
 
 unset TEST_PASSWORD
 ```
-
-For AWS, replace `BASE_URL` only after importing the database that matches `BENCHMARK_MANIFEST` and enabling the benchmark endpoint. Keep the password out of shell history and repository files.

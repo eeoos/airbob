@@ -1,12 +1,14 @@
 # Airbob N+1 API requests - IntelliJ IDEA HTTP Client (local)
 #
 # 사용 순서:
-# 1. Login 요청을 실행한다.
-# 2. 확인할 GET 요청을 실행한다.
-# 3. 15~30초 뒤 Grafana의 "Airbob - API Query Count" 대시보드에서 확인한다.
+# 1. BEFORE 측정 시 애플리케이션을 dev,nplus1-benchmark 프로필로 실행한다.
+# 2. Login 요청을 실행한다.
+# 3. 확인할 GET 요청을 실행한다.
+# 4. 15~30초 뒤 Grafana의 "Airbob - API Query Count" 대시보드에서 확인한다.
 #
 # Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
 # 로그인 성공 시 SESSION_ID cookie는 IntelliJ HTTP Client가 이후 요청에 자동 전송한다.
+# BEFORE 측정 실행 예: SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark ./gradlew bootRun
 
 ### Login benchmark account
 # @name loginBenchmarkAccount
@@ -25,8 +27,9 @@ Accept: application/json
 GET {{baseUrl}}/api/v1/members/recently-viewed
 Accept: application/json
 
-### Recently viewed BEFORE - per-item queries (N=100, expected SELECT=400)
-# Requires starting the application with BENCHMARK_NPLUS1_ENABLED=true.
+### Recently viewed BEFORE - address lazy-loading N+1 (N=100, expected SELECT=103)
+# 숙소 1 + 주소 N + 리뷰 요약 1 + 위시리스트 1 = N+3
+# Requires the nplus1-benchmark profile so batch fetch does not hide the N+1.
 # @name recentlyViewedBefore
 GET {{baseUrl}}/api/v2/members/recently-viewed
 Accept: application/json
