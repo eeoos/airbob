@@ -673,14 +673,14 @@ env BASE_URL=http://localhost:8080 \
   VARIANT=lua COUPON_ID=1 COUPON_STOCK=1 APP_VERSION=test \
   APP_INSTANCE_COUNT=1 ROUND=1 RUN_ORDER=1 RUN_LABEL=inspect-lua \
   RATE=1 DURATION=1s \
-  k6 inspect load-test/k6/coupon-issuance-comparison.js
+  k6 inspect --include-system-env-vars load-test/k6/coupon-issuance-comparison.js
 
 env BASE_URL=http://localhost:8080 \
   SESSION_FIXTURE="$PWD/load-test/fixtures/coupon-sessions.example.json" \
   VARIANT=lock BENCHMARK_READ_MODEL_TOKEN=test-token \
   COUPON_ID=1 COUPON_STOCK=1 APP_VERSION=test APP_INSTANCE_COUNT=1 \
   ROUND=1 RUN_ORDER=1 RUN_LABEL=inspect-lock RATE=1 DURATION=1s \
-  k6 inspect load-test/k6/coupon-issuance-comparison.js
+  k6 inspect --include-system-env-vars load-test/k6/coupon-issuance-comparison.js
 ```
 
 Expected: both commands exit `0`; `k6 inspect` does not make HTTP requests.
