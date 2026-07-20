@@ -25,11 +25,11 @@ Lua 운영 경로는 일반 운영 프로필에서 그대로 사용한다. Redis
 ```bash
 read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
 export BENCHMARK_READ_MODEL_TOKEN
-export SPRING_PROFILES_ACTIVE=dev,coupon-benchmark
-./gradlew bootRun
+SPRING_PROFILES_ACTIVE=dev,coupon-benchmark ./gradlew bootRun
 ```
 
 AWS에서도 lock variant를 호출할 인스턴스에 `coupon-benchmark`와 같은 토큰을 설정해야 한다. 일반 사용자 트래픽과 분리된 벤치마크 인스턴스에서만 이 프로필을 활성화한다.
+`SPRING_PROFILES_ACTIVE`는 `bootRun` 명령에만 적용하여 같은 셸의 후속 재시작에 `coupon-benchmark`가 남지 않게 한다. 토큰은 lock k6 요청에도 필요하므로 측정 중에는 export 상태를 유지한다.
 
 ### 운영 Lua 전환 시작 가드
 
@@ -98,7 +98,9 @@ curl -sS -X POST \
   "${BASE_URL}/api/v1/admin/coupons/${LUA_COUPON_ID}/stock/prepare"
 ```
 
-준비 API는 DB의 유한 재고·활성 상태·발급 기간을 Redis로 복제하고, DB에 `redis_stock_prepared_at`을 남긴다. 이미 시작됐거나 발급 이력이 있거나 준비된 쿠폰은 거부한다. 락 쿠폰에는 이 API를 호출하지 않는다.
+준비 API는 DB의 유한·무제한 발급 한도와 활성 상태·발급 기간을 Redis로 복제하고, DB에 `redis_stock_prepared_at`을 남긴다. 발급이 이미 시작됐어도 종료 전이고 `issued_quantity` 및 실제 `member_coupon` 행이 모두 0이면 준비할 수 있다. 비활성·종료·발급 이력·이전 준비 상태는 거부한다. 락 쿠폰에는 이 API를 호출하지 않는다.
+
+운영 API는 무제한 쿠폰도 준비하지만, lock/Lua의 재고 정합성과 처리량을 동일하게 비교하기 위해 이 벤치마크의 네 캠페인은 같은 양수 유한 수량으로 생성한다.
 
 권장 순서는 `캠페인 생성 → Lua 캠페인 prepare → SESSION_ID 생성 → issueStartAt 도달 → k6 실행`이다. 발급 기간 경계 바로 위에서는 측정하지 않는다.
 
@@ -276,7 +278,7 @@ curl -fsS -X DELETE \
 
 ### 로컬
 
-`coupon-benchmark` 프로필로 실행한 JVM을 먼저 `Ctrl-C`로 중지한다. 애플리케이션 실행 셸에서 benchmark 프로필과 서버 측 토큰 바인딩을 제거하고 정상 프로필로 다시 시작한다.
+`coupon-benchmark` 프로필로 실행한 JVM을 먼저 `Ctrl-C`로 중지한다. 위 실행 예의 benchmark 프로필은 명령 범위이므로 셸에 남지 않는다. 서버 측 토큰 바인딩을 제거하고 정상 프로필로 다시 시작한다.
 
 ```bash
 # coupon-benchmark JVM을 중지한 뒤 애플리케이션 실행 셸에서 실행

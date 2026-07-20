@@ -53,7 +53,7 @@ Lua 운영에 필요한 다음 구성요소는 모든 정상 프로필에서 계
 - `CouponIssueTransactionService`
 - `POST /api/v1/admin/coupons/{couponId}/stock/prepare`
 
-관리자는 쿠폰 발급 시작 전에 Redis 재고를 준비해야 한다. 준비되지 않은 쿠폰의 운영 발급은 기존처럼 `CP011`로 실패한다.
+관리자는 원칙적으로 쿠폰 발급 시작 전에 Redis 재고를 준비한다. 다만 아직 종료되지 않았고 `issued_quantity`와 실제 `member_coupon` 행이 모두 0인 활성 쿠폰은 시작 후에도 안전하게 준비할 수 있다. 준비되지 않은 쿠폰의 운영 발급은 기존처럼 `CP011`로 실패한다.
 `coupon-benchmark` 프로필에서도 이 운영 경로와 Lua 구성요소는 그대로 활성화해, 같은 애플리케이션 설정에서 v1 Lua와 v2 Redisson을 각각 측정할 수 있게 한다.
 
 ### 벤치마크 경로

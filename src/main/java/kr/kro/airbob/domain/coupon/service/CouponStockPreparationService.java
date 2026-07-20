@@ -52,11 +52,10 @@ public class CouponStockPreparationService {
 
 	private boolean canPrepare(Coupon coupon, long actualIssuedCount, LocalDateTime now) {
 		Integer totalQuantity = coupon.getTotalQuantity();
-		return totalQuantity != null
-			&& totalQuantity > 0
+		return (totalQuantity == null || totalQuantity > 0)
 			&& !coupon.isRedisStockPrepared()
 			&& Boolean.TRUE.equals(coupon.getIsActive())
-			&& now.isBefore(coupon.getIssueStartAt())
+			&& now.isBefore(coupon.getIssueEndAt())
 			&& coupon.getIssueEndAt().isAfter(coupon.getIssueStartAt())
 			&& coupon.getIssuedQuantity() == 0
 			&& actualIssuedCount == 0;

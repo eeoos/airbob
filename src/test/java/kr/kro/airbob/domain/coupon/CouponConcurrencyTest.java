@@ -241,7 +241,7 @@ class CouponConcurrencyTest {
 			return invocation.callRealMethod();
 		}).when(stockManager).prepare(
 			eq(transitioningCoupon.getId()),
-			eq((long)COUPON_LIMIT),
+			eq(COUPON_LIMIT),
 			anyLong(),
 			anyLong(),
 			eq(true),

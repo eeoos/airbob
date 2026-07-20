@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
+import java.time.Instant;
+import java.util.Map;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,6 +77,87 @@ class CouponRedisStockManagerIntegrationTest {
 		assertThat(stockManager.issue(1L, 10L))
 			.isEqualTo(CouponRedisIssueResult.approved(1));
 		assertThat(stockManager.remainingStock(1L)).isEqualTo(1);
+		assertThat(redissonClient.getMap(
+			CouponRedisStockManager.metaKey(1L), StringCodec.INSTANCE).get("unlimited"))
+			.isEqualTo("0");
+	}
+
+	@Test
+	@DisplayName("무제한 쿠폰은 고유 회원을 계속 승인하고 보상해도 재고 센티넬을 변경하지 않는다")
+	void supportsUnlimitedIssueAndCompensationWithoutChangingStockSentinel() {
+		long now = System.currentTimeMillis();
+		long expiresAt = now + 2 * MINUTE;
+
+		assertThat(stockManager.prepare(
+			50L, null, now - MINUTE, now + MINUTE, true, expiresAt))
+			.isEqualTo(CouponRedisPreparationResult.PREPARED);
+		assertThat(stockManager.prepare(
+			50L, 10, now - MINUTE, now + MINUTE, true, expiresAt))
+			.isEqualTo(CouponRedisPreparationResult.ALREADY_PREPARED);
+
+		RMap<String, String> meta = redissonClient.getMap(
+			CouponRedisStockManager.metaKey(50L), StringCodec.INSTANCE);
+		assertThat(meta.get("unlimited")).isEqualTo("1");
+		assertThat(meta.get("stock")).isEqualTo("0");
+
+		assertThat(stockManager.issue(50L, 1L)).isEqualTo(CouponRedisIssueResult.approved(0));
+		assertThat(stockManager.issue(50L, 2L)).isEqualTo(CouponRedisIssueResult.approved(0));
+		assertThat(stockManager.issue(50L, 1L).status()).isEqualTo(CouponRedisIssueStatus.DUPLICATE);
+		assertThat(meta.get("stock")).isEqualTo("0");
+
+		assertThat(stockManager.compensate(50L, 1L))
+			.isEqualTo(CouponRedisCompensationResult.COMPENSATED);
+		assertThat(meta.get("stock")).isEqualTo("0");
+		assertThat(stockManager.compensate(50L, 1L))
+			.isEqualTo(CouponRedisCompensationResult.NO_OP);
+		assertThat(stockManager.issue(50L, 1L)).isEqualTo(CouponRedisIssueResult.approved(0));
+		assertThat(meta.get("stock")).isEqualTo("0");
+
+		long metaTtl = meta.remainTimeToLive();
+		long issuedTtl = redissonClient.getSet(
+			CouponRedisStockManager.issuedKey(50L), StringCodec.INSTANCE).remainTimeToLive();
+		assertThat(metaTtl).isBetween(MINUTE, 2 * MINUTE);
+		assertThat(issuedTtl).isBetween(MINUTE, 2 * MINUTE);
+		assertThat(Math.abs(metaTtl - issuedTtl)).isLessThan(1_000L);
+	}
+
+	@Test
+	@DisplayName("무제한 쿠폰도 비활성·시작 전·종료 상태에서는 발급하지 않는다")
+	void enforcesActiveAndIssueWindowForUnlimitedCoupons() {
+		long now = System.currentTimeMillis();
+
+		stockManager.prepare(52L, null, now - MINUTE, now + MINUTE, false, now + 2 * MINUTE);
+		assertThat(stockManager.issue(52L, 1L).status()).isEqualTo(CouponRedisIssueStatus.INACTIVE);
+
+		stockManager.prepare(53L, null, now + MINUTE, now + 2 * MINUTE, true, now + 3 * MINUTE);
+		assertThat(stockManager.issue(53L, 1L).status()).isEqualTo(CouponRedisIssueStatus.NOT_STARTED);
+
+		stockManager.prepare(54L, null, now - 2 * MINUTE, now - MINUTE, true, now + MINUTE);
+		assertThat(stockManager.issue(54L, 1L).status()).isEqualTo(CouponRedisIssueStatus.ENDED);
+	}
+
+	@Test
+	@DisplayName("무제한 마커가 없는 기존 Redis 메타데이터는 유한 재고로 발급·보상한다")
+	void treatsLegacyMetadataWithoutUnlimitedMarkerAsFinite() {
+		long now = System.currentTimeMillis();
+		long expiresAt = now + 2 * MINUTE;
+		RMap<String, String> meta = redissonClient.getMap(
+			CouponRedisStockManager.metaKey(51L), StringCodec.INSTANCE);
+		meta.putAll(Map.of(
+			"stock", "1",
+			"issueStartAt", String.valueOf(now - MINUTE),
+			"issueEndAt", String.valueOf(now + MINUTE),
+			"active", "1",
+			"expiresAt", String.valueOf(expiresAt)));
+		meta.expire(Instant.ofEpochMilli(expiresAt));
+
+		assertThat(meta.get("unlimited")).isNull();
+		assertThat(stockManager.issue(51L, 1L)).isEqualTo(CouponRedisIssueResult.approved(0));
+		assertThat(stockManager.issue(51L, 2L).status()).isEqualTo(CouponRedisIssueStatus.SOLD_OUT);
+		assertThat(stockManager.compensate(51L, 1L))
+			.isEqualTo(CouponRedisCompensationResult.COMPENSATED);
+		assertThat(stockManager.remainingStock(51L)).isEqualTo(1);
+		assertThat(stockManager.issue(51L, 2L)).isEqualTo(CouponRedisIssueResult.approved(0));
 	}
 
 	@Test
