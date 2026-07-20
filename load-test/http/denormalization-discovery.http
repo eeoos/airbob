@@ -1,0 +1,72 @@
+# Airbob denormalized read-model comparison - IntelliJ IDEA HTTP Client
+#
+# 실행 전:
+# 1. HTTP Client 환경에서 local 또는 aws를 선택한다.
+# 2. local은 dev,read-model-benchmark 프로필로 실행한다.
+#    aws의 before(v2)는 배포 앱에도 read-model-benchmark 프로필이 활성화돼 있어야 한다.
+# 3. BENCHMARK_READ_MODEL_TOKEN과 선택한 private env의 benchmarkToken을 같은 값으로 설정한다.
+# 4. reviewAccommodationId와 revenueFrom/revenueTo가 해당 환경의 fixture 데이터를 가리키는지 확인한다.
+# 5. 각 AFTER/BEFORE 요청을 같은 조건에서 번갈아 실행한다.
+# 6. 15~30초 뒤 해당 환경의 Grafana 대시보드에서 확인한다.
+#
+# Local Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
+# 실행 예: SPRING_PROFILES_ACTIVE=dev,read-model-benchmark ./gradlew bootRun
+# 비밀값과 환경별 fixture 변수는 http-client.private.env.json에 둔다.
+
+### Review summary AFTER - accommodation_review_summary 사전집계 조회
+# @name reviewSummaryAfter
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews/summary
+Accept: application/json
+
+### Review summary BEFORE - review 원본 실시간 집계
+# @name reviewSummaryBefore
+GET {{baseUrl}}/api/v2/accommodations/{{reviewAccommodationId}}/reviews/summary
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
+### Login benchmark member for wishlist comparison
+# @name loginBenchmarkMember
+# @no-log
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{benchmarkEmail}}",
+  "password": "{{benchmarkPassword}}"
+}
+
+### Wishlists AFTER - accommodation_count 및 representative_accommodation_id 조회
+# @name wishlistsAfter
+GET {{baseUrl}}/api/v1/members/wishlists?size=50
+Accept: application/json
+
+### Wishlists BEFORE - membership count 및 최신 대표 이미지 실시간 조회
+# @name wishlistsBefore
+GET {{baseUrl}}/api/v2/members/wishlists?size=50
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
+### Login admin for revenue comparison
+# 이 요청을 실행하면 같은 호스트의 SESSION_ID가 관리자 세션으로 교체된다.
+# @name loginAdmin
+# @no-log
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Daily revenue AFTER - daily_revenue_stats 사전집계 조회
+# @name dailyRevenueAfter
+GET {{baseUrl}}/api/v1/admin/stats/revenue?from={{revenueFrom}}&to={{revenueTo}}
+Accept: application/json
+
+### Daily revenue BEFORE - settlement ledger 원본 실시간 집계
+# @name dailyRevenueBefore
+GET {{baseUrl}}/api/v2/admin/stats/revenue?from={{revenueFrom}}&to={{revenueTo}}
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}

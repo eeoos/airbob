@@ -18,6 +18,9 @@ if (!__ENV.BENCHMARK_MANIFEST) {
 if (!__ENV.TEST_PASSWORD || !__ENV.TEST_PASSWORD.trim()) {
   throw new Error('TEST_PASSWORD is required');
 }
+if (!__ENV.BENCHMARK_READ_MODEL_TOKEN || !__ENV.BENCHMARK_READ_MODEL_TOKEN.trim()) {
+  throw new Error('BENCHMARK_READ_MODEL_TOKEN is required');
+}
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 const manifest = parseBenchmarkManifest(open(__ENV.BENCHMARK_MANIFEST));
@@ -53,6 +56,7 @@ export function setup() {
     sessionId,
     accommodationIds: manifest.recentlyViewed.accommodationIds,
     datasetSize,
+    benchmarkToken: __ENV.BENCHMARK_READ_MODEL_TOKEN,
   });
 
   return { sessionId, expectedRows: datasetSize };

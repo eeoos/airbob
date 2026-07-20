@@ -1,15 +1,20 @@
-# Airbob N+1 API requests - IntelliJ IDEA HTTP Client (local)
+# Airbob N+1 API requests - IntelliJ IDEA HTTP Client
 #
 # 사용 순서:
-# 1. BEFORE 측정 시 애플리케이션을 dev,nplus1-benchmark 프로필로 실행한다.
-# 2. Login 요청을 실행한다.
-# 3. Prepare recently viewed fixture 요청을 실행한다.
-# 4. 확인할 GET 요청을 실행한다.
-# 5. 15~30초 뒤 Grafana의 "Airbob - API Query Count" 대시보드에서 확인한다.
+# 1. HTTP Client 환경에서 local 또는 aws를 선택한다.
+# 2. BEFORE 측정 시 local은 dev,nplus1-benchmark로 실행한다.
+#    aws는 일반 트래픽을 받지 않는 별도 벤치마크 인스턴스에서만
+#    nplus1-benchmark 프로필을 활성화한다.
+# 3. Login 요청을 실행한다.
+# 4. Prepare recently viewed fixture 요청을 실행한다.
+# 5. 확인할 GET 요청을 실행한다.
+# 6. 15~30초 뒤 해당 환경의 Grafana 대시보드에서 확인한다.
 #
-# Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
+# Local Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
 # 로그인 성공 시 SESSION_ID cookie는 IntelliJ HTTP Client가 이후 요청에 자동 전송한다.
 # BEFORE 측정 실행 예: SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark ./gradlew bootRun
+# nplus1-benchmark는 Hibernate batch fetch를 JVM 전체에서 끄므로 운영 트래픽 인스턴스에 활성화하지 않는다.
+# benchmarkToken은 애플리케이션의 BENCHMARK_READ_MODEL_TOKEN과 같은 값이어야 한다.
 
 ### Login benchmark account
 # @name loginBenchmarkAccount
@@ -29,6 +34,7 @@ Accept: application/json
 PUT {{baseUrl}}/api/v2/members/recently-viewed/fixture
 Content-Type: application/json
 Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
 
 {
   "accommodation_ids": [
@@ -56,6 +62,7 @@ Accept: application/json
 # @name recentlyViewedBefore
 GET {{baseUrl}}/api/v2/members/recently-viewed
 Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
 
 ### Reviews - size 1
 # @name reviewsSize1

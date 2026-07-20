@@ -4,6 +4,7 @@ import { Rate, Trend } from 'k6/metrics';
 import { parseBenchmarkManifest } from './lib/benchmark-manifest.js';
 import {
   authenticatedParams,
+  benchmarkHeaders,
   loginBenchmarkAccount,
   resetRecentlyViewed,
 } from './lib/benchmark-fixture.js';
@@ -14,6 +15,9 @@ if (!__ENV.BENCHMARK_MANIFEST) {
 if (!__ENV.TEST_PASSWORD || !__ENV.TEST_PASSWORD.trim()) {
   throw new Error('TEST_PASSWORD is required');
 }
+if (!__ENV.BENCHMARK_READ_MODEL_TOKEN || !__ENV.BENCHMARK_READ_MODEL_TOKEN.trim()) {
+  throw new Error('BENCHMARK_READ_MODEL_TOKEN is required');
+}
 
 const TARGETS = {
   before: '/api/v2/members/recently-viewed',
@@ -23,6 +27,7 @@ const TARGETS = {
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
 const manifest = parseBenchmarkManifest(open(__ENV.BENCHMARK_MANIFEST));
 const BENCHMARK_EMAIL = __ENV.BENCHMARK_EMAIL || manifest.account.email;
+const BENCHMARK_TOKEN = __ENV.BENCHMARK_READ_MODEL_TOKEN.trim();
 const VARIANT = __ENV.VARIANT || 'before';
 const EXPECTED_ROWS = Number(__ENV.EXPECTED_ROWS || 100);
 const RATE = Number(__ENV.RATE || 2);
@@ -125,6 +130,7 @@ export function setup() {
     sessionId,
     accommodationIds: manifest.recentlyViewed.accommodationIds,
     datasetSize: EXPECTED_ROWS,
+    benchmarkToken: BENCHMARK_TOKEN,
   });
   return { sessionId };
 }
@@ -139,10 +145,14 @@ function parsePayload(response) {
 
 function requestTarget(data, phase) {
   const tags = { phase, variant: VARIANT, expected_rows: String(EXPECTED_ROWS) };
-  const response = http.get(
-    `${BASE_URL}${targetPath}`,
-    authenticatedParams(data.sessionId, { ...tags, name: `GET ${targetPath}` }),
+  const params = authenticatedParams(
+    data.sessionId,
+    { ...tags, name: `GET ${targetPath}` },
   );
+  if (VARIANT === 'before') {
+    params.headers = benchmarkHeaders(BENCHMARK_TOKEN);
+  }
+  const response = http.get(`${BASE_URL}${targetPath}`, params);
   const payload = parsePayload(response);
   const rows = payload && payload.data && payload.data.accommodations;
   const hasExpectedRows = Array.isArray(rows)
