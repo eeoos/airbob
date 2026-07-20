@@ -1,5 +1,6 @@
 import { check } from 'k6';
 import {
+  buildCouponIssueTarget,
   classifyCouponIssueResponse,
   parseCouponSessionFixture,
   parseDurationSeconds,
@@ -45,8 +46,29 @@ export default function () {
       dropped_iterations: { values: { count: 0 } },
     },
   });
+  const luaTarget = buildCouponIssueTarget('lua', 1);
+  const lockTarget = buildCouponIssueTarget('lock', 1, ' secret-token ');
 
   check(sessions, {
+    'lua uses the production v1 endpoint': () => (
+      luaTarget.path === '/api/v1/coupons/1/issue'
+      && luaTarget.metricName === 'POST /api/v1/coupons/{couponId}/issue'
+      && Object.keys(luaTarget.headers).length === 0
+    ),
+    'lock uses the benchmark v2 endpoint and trimmed token': () => (
+      lockTarget.path === '/api/v2/coupons/1/issue'
+      && lockTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
+      && lockTarget.headers['X-Benchmark-Token'] === 'secret-token'
+    ),
+    'lock rejects a missing benchmark token': () => rejects(() => (
+      buildCouponIssueTarget('lock', 1)
+    )),
+    'lock rejects a blank benchmark token': () => rejects(() => (
+      buildCouponIssueTarget('lock', 1, ' ')
+    )),
+    'lua does not require a benchmark token': () => (
+      buildCouponIssueTarget('lua', 1).path === '/api/v1/coupons/1/issue'
+    ),
     'valid fixture returns sessions': (value) => value.length === 3,
     'malformed fixture is rejected': () => rejects(() => parseCouponSessionFixture('{')),
     'wrong dataset version is rejected': () => rejects(() => parseCouponSessionFixture(JSON.stringify({

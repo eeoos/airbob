@@ -66,6 +66,26 @@ export function parsePositiveInteger(raw, name) {
   return value;
 }
 
+export function buildCouponIssueTarget(variant, couponId, benchmarkToken) {
+  const parsedVariant = parseVariant(variant);
+  const parsedCouponId = parsePositiveInteger(couponId, 'COUPON_ID');
+
+  if (parsedVariant === 'lua') {
+    return {
+      path: `/api/v1/coupons/${parsedCouponId}/issue`,
+      metricName: 'POST /api/v1/coupons/{couponId}/issue',
+      headers: {},
+    };
+  }
+
+  const token = parseRequiredText(benchmarkToken, 'BENCHMARK_READ_MODEL_TOKEN');
+  return {
+    path: `/api/v2/coupons/${parsedCouponId}/issue`,
+    metricName: 'POST /api/v2/coupons/{couponId}/issue',
+    headers: { 'X-Benchmark-Token': token },
+  };
+}
+
 export function parseDurationSeconds(raw) {
   const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(raw || '');
   requireCondition(Boolean(match), 'DURATION must use one unit, for example 30s or 2m');

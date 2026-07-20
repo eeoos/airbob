@@ -4,6 +4,7 @@ import { SharedArray } from 'k6/data';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
 import {
+  buildCouponIssueTarget,
   classifyCouponIssueResponse,
   parseCouponSessionFixture,
   parseDurationSeconds,
@@ -32,6 +33,11 @@ const SESSION_FIXTURE = requiredEnvironment('SESSION_FIXTURE');
 const VARIANT = parseVariant(requiredEnvironment('VARIANT'));
 const PHASE = parsePhase(__ENV.PHASE || 'measure');
 const COUPON_ID = parsePositiveInteger(requiredEnvironment('COUPON_ID'), 'COUPON_ID');
+const ISSUE_TARGET = buildCouponIssueTarget(
+  VARIANT,
+  COUPON_ID,
+  __ENV.BENCHMARK_READ_MODEL_TOKEN,
+);
 const COUPON_STOCK = parsePositiveInteger(requiredEnvironment('COUPON_STOCK'), 'COUPON_STOCK');
 const APP_VERSION = requiredEnvironment('APP_VERSION');
 const APP_INSTANCE_COUNT = parsePositiveInteger(
@@ -133,14 +139,15 @@ export default function () {
 
   const metricTags = { phase: PHASE, variant: VARIANT };
   const response = http.post(
-    `${BASE_URL}/api/v1/coupons/${COUPON_ID}/issue/${VARIANT}`,
+    `${BASE_URL}${ISSUE_TARGET.path}`,
     null,
     {
       cookies: { SESSION_ID: sessionId },
+      headers: ISSUE_TARGET.headers,
       timeout: REQUEST_TIMEOUT,
       tags: {
         ...metricTags,
-        name: `POST /api/v1/coupons/{couponId}/issue/${VARIANT}`,
+        name: ISSUE_TARGET.metricName,
       },
     },
   );
