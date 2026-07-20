@@ -272,7 +272,7 @@ start_app() {
       IPINFO_API_TOKEN=benchmark-dummy \
       SLACK_WEBHOOK_URL=http://127.0.0.1:1/disabled \
       TOSS_SECRET_KEY=benchmark-dummy \
-      SPRING_PROFILES_ACTIVE=dev \
+      SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark \
       SPRING_DATASOURCE_URL="jdbc:mysql://127.0.0.1:13307/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
       SPRING_DATASOURCE_USERNAME="$RO_USER" \
       SPRING_DATASOURCE_PASSWORD="$RO_PASSWORD" \

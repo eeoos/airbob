@@ -5,12 +5,14 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.redis.core.DefaultTypedTuple;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -58,6 +60,26 @@ public class RecentlyViewedService {
 	public void removeRecentlyViewed(Long accommodationId, Long memberId) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 		redisTemplate.opsForZSet().remove(key, accommodationId.toString());
+	}
+
+	/**
+	 * 요청 목록의 첫 항목이 가장 최근 조회가 되도록 전체 fixture를 교체한다.
+	 */
+	void replaceRecentlyViewed(Long memberId, List<Long> accommodationIds) {
+		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
+		long latestViewedAt = System.currentTimeMillis();
+		Set<ZSetOperations.TypedTuple<String>> tuples = new LinkedHashSet<>();
+
+		for (int index = 0; index < accommodationIds.size(); index++) {
+			tuples.add(new DefaultTypedTuple<>(
+				accommodationIds.get(index).toString(),
+				(double)(latestViewedAt - index)
+			));
+		}
+
+		redisTemplate.delete(key);
+		redisTemplate.opsForZSet().add(key, tuples);
+		redisTemplate.expire(key, Duration.ofDays(TTL_DAYS));
 	}
 
 	@Transactional(readOnly = true)
