@@ -1,6 +1,7 @@
 import { loginBenchmarkAccount } from '../lib/benchmark-fixture.js';
 import {
   buildReadModelPath,
+  buildReadModelRequestName,
   parseIsoDate,
   parsePositiveInteger,
   parseRequiredText,
@@ -36,7 +37,7 @@ const benchmark = createReadModelBenchmark({
   domain: DOMAIN,
   beforePath: BEFORE_PATH,
   afterPath: AFTER_PATH,
-  requestName: `GET /api/${RUN.variant === 'before' ? 'v2' : 'v1'}/admin/stats/revenue`,
+  requestName: buildReadModelRequestName(DOMAIN, RUN.variant),
   expectedCount: EXPECTED_COUNT,
   contract: { from: REVENUE_FROM, to: REVENUE_TO },
   setup: () => ({

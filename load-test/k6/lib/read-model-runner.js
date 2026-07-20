@@ -4,6 +4,7 @@ import { Rate, Trend } from 'k6/metrics';
 
 import {
   buildReadModelOptions,
+  buildReadModelRequestName,
   buildReadModelRequestParams,
   canonicalizeReadModelData,
   matchesReadModelContract,
@@ -44,7 +45,7 @@ export function createReadModelBenchmark(config) {
           phase: 'setup',
           purpose: 'parity',
           variant,
-          name: `PARITY GET ${path}`,
+          name: `PARITY ${buildReadModelRequestName(config.domain, variant)}`,
         },
         timeout: config.requestTimeout,
       }),

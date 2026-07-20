@@ -214,6 +214,20 @@ export function buildReadModelPath({
   throw new Error('domain must be review, wishlist, or revenue');
 }
 
+export function buildReadModelRequestName(domain, variant) {
+  const version = parseVariant(variant) === 'before' ? 'v2' : 'v1';
+  if (domain === 'review') {
+    return `GET /api/${version}/accommodations/{accommodationId}/reviews/summary`;
+  }
+  if (domain === 'wishlist') {
+    return `GET /api/${version}/members/wishlists`;
+  }
+  if (domain === 'revenue') {
+    return `GET /api/${version}/admin/stats/revenue`;
+  }
+  throw new Error('domain must be review, wishlist, or revenue');
+}
+
 export function buildReadModelRequestParams({
   variant,
   benchmarkToken,

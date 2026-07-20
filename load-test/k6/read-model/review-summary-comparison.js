@@ -1,5 +1,6 @@
 import {
   buildReadModelPath,
+  buildReadModelRequestName,
   parsePositiveInteger,
   parseRequiredText,
   parseReadModelRunConfig,
@@ -32,7 +33,7 @@ const benchmark = createReadModelBenchmark({
   domain: DOMAIN,
   beforePath: BEFORE_PATH,
   afterPath: AFTER_PATH,
-  requestName: `GET /api/${RUN.variant === 'before' ? 'v2' : 'v1'}/accommodations/{accommodationId}/reviews/summary`,
+  requestName: buildReadModelRequestName(DOMAIN, RUN.variant),
   expectedCount: EXPECTED_COUNT,
   metadata: {
     ...RUN.metadata,
