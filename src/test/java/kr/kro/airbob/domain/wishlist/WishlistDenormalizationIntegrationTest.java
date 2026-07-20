@@ -28,16 +28,22 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.service.WishlistBenchmarkService;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
-@SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
-@ActiveProfiles("test")
+@SpringBootTest(properties = {
+	"spring.cloud.aws.s3.enabled=false",
+	"benchmark.read-model.enabled=true",
+	"benchmark.read-model.token=test-token"
+})
+@ActiveProfiles({"test", "read-model-benchmark"})
 @DisplayName("위시리스트 반정규화(개수/대표 썸네일) 통합 테스트")
 class WishlistDenormalizationIntegrationTest {
 
 	@Autowired private WishlistService wishlistService;
+	@Autowired private WishlistBenchmarkService benchmarkService;
 	@Autowired private JdbcTemplate jdbc;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
@@ -112,6 +118,23 @@ class WishlistDenormalizationIntegrationTest {
 		WishlistResponse.WishlistInfo info = result.wishlists().get(0);
 		assertThat(info.wishlistItemCount()).isEqualTo(3L);
 		assertThat(info.thumbnailImageUrl()).isEqualTo("url-3"); // 대표 = 최신(acc3)
+	}
+
+	@Test
+	@DisplayName("before 원시 집계와 after 반정규화 목록은 동일한 결과를 반환한다")
+	void beforeAndAfterReturnSameWishlistInfos() {
+		add(acc1);
+		add(acc2);
+		add(acc3);
+		CursorRequest.CursorPageRequest request =
+			CursorRequest.CursorPageRequest.builder().size(20).build();
+
+		WishlistResponse.WishlistInfos before =
+			benchmarkService.findWishlistsBefore(request, host, acc2);
+		WishlistResponse.WishlistInfos after =
+			wishlistService.findWishlists(request, host, acc2);
+
+		assertThat(before).isEqualTo(after);
 	}
 
 	@Test

@@ -6,9 +6,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
@@ -23,23 +25,29 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @Profile("nplus1-benchmark")
-@ConditionalOnProperty(prefix = "benchmark.nplus1", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "benchmark.read-model", name = "enabled", havingValue = "true")
 public class RecentlyViewedBenchmarkController {
 
 	private final RecentlyViewedService recentlyViewedService;
 	private final RecentlyViewedBenchmarkFixtureService fixtureService;
+	private final BenchmarkAccessGuard accessGuard;
 
 	@PutMapping("/api/v2/members/recently-viewed/fixture")
 	public ResponseEntity<ApiResponse<Void>> replaceRecentlyViewedFixture(
-		@Valid @RequestBody RecentlyViewedBenchmarkRequest.Replace request
+		@Valid @RequestBody RecentlyViewedBenchmarkRequest.Replace request,
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
 	) {
+		accessGuard.verify(benchmarkToken);
 		Long memberId = UserContext.get().id();
 		fixtureService.replaceFixture(memberId, request.accommodationIds());
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@GetMapping("/api/v2/members/recently-viewed")
-	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewedBefore() {
+	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewedBefore(
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
+	) {
+		accessGuard.verify(benchmarkToken);
 		Long memberId = UserContext.get().id();
 		AccommodationResponse.RecentlyViewedAccommodationInfos response =
 			recentlyViewedService.getRecentlyViewedBefore(memberId);

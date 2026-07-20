@@ -16,8 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class RevenueStatsService {
 
-	public static final String SOURCE_RAW = "raw";
-	public static final String SOURCE_STATS = "stats";
+	private static final String SOURCE_STATS = "stats";
 
 	private final DailyRevenueStatsRepository repository;
 
@@ -37,18 +36,9 @@ public class RevenueStatsService {
 		}
 	}
 
-	// 일자별 매출 조회. source=raw 면 원장 직접 집계(before), 그 외엔 사전집계 테이블(after).
+	// 운영 읽기 경로(after): 사전집계 테이블만 조회한다.
 	@Transactional(readOnly = true)
-	public RevenueStatsResponse.DailyRevenues getDailyRevenue(LocalDate from, LocalDate to, String source) {
-		if (SOURCE_RAW.equalsIgnoreCase(source)) {
-			// before: 원장 직접 집계(native, UNION)
-			List<RevenueStatsResponse.DailyRevenue> items = repository.findDailyRevenueFromLedgerNaive(from, to).stream()
-				.map(RevenueStatsResponse.DailyRevenue::from)
-				.toList();
-			return new RevenueStatsResponse.DailyRevenues(from, to, SOURCE_RAW, items);
-		}
-
-		// after: 사전집계 테이블 일자별 롤업(QueryDSL)
+	public RevenueStatsResponse.DailyRevenues getDailyRevenue(LocalDate from, LocalDate to) {
 		List<RevenueStatsResponse.DailyRevenue> items = repository.findDailyRevenueFromStats(from, to);
 		return new RevenueStatsResponse.DailyRevenues(from, to, SOURCE_STATS, items);
 	}

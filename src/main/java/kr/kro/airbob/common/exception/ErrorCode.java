@@ -32,7 +32,7 @@ public enum ErrorCode {
 	UNAUTHORIZED_ACCESS(HttpStatus.UNAUTHORIZED, "M004", "인증이 필요합니다."),
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
-	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 계정만 사용할 수 있습니다."),
+	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
 
 
 	// accommodation

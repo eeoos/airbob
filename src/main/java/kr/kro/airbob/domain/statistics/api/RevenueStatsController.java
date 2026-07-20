@@ -22,14 +22,13 @@ public class RevenueStatsController {
 
 	private final RevenueStatsService revenueStatsService;
 
-	// 일자별 매출 조회. source=stats(기본, 사전집계) | raw(원장 직접 집계, 성능 비교용)
+	// 운영 읽기 경로(after): 일일 사전집계 테이블을 조회한다.
 	@GetMapping("/revenue")
 	public ResponseEntity<ApiResponse<RevenueStatsResponse.DailyRevenues>> getDailyRevenue(
 		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-		@RequestParam(defaultValue = "stats") String source) {
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
 
-		RevenueStatsResponse.DailyRevenues response = revenueStatsService.getDailyRevenue(from, to, source);
+		RevenueStatsResponse.DailyRevenues response = revenueStatsService.getDailyRevenue(from, to);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
