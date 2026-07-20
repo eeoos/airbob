@@ -2,8 +2,8 @@
 
 `coupon-issuance-comparison.js`는 아래 두 동기 API를 같은 부하 모델로 한 번에 하나씩 측정한다.
 
-- `VARIANT=lock`: `POST /api/v1/coupons/{couponId}/issue/lock`
-- `VARIANT=lua`: `POST /api/v1/coupons/{couponId}/issue/lua`
+- `VARIANT=lua`: `POST /api/v1/coupons/{couponId}/issue` — 운영 Lua 경로
+- `VARIANT=lock`: `POST /api/v2/coupons/{couponId}/issue` — Redisson 벤치마크 경로
 
 두 API 모두 MySQL 발급 트랜잭션 커밋 뒤 `201 Created`를 반환한다. 이 테스트는 처리량과 p50/p95/p99뿐 아니라 매진, 중복, 설정 오류, 락 타임아웃을 분리해서 기록한다.
 
@@ -17,6 +17,19 @@
 6. 애플리케이션 빌드, 인스턴스 수, DB/Redis 위치, RATE/DURATION, 쿠폰 수량을 두 전략에서 동일하게 유지한다.
 
 이 브랜치는 과거 V1~V33을 하나의 V1로 압축한 Flyway baseline 계보를 사용한다. 측정 DB는 현재 브랜치의 schema history와 일치해야 한다. 압축 전 `flyway_schema_history`가 남은 RDS에 별도 이전 계획 없이 연결하지 않는다.
+
+## 애플리케이션 실행 조건
+
+Lua 운영 경로는 일반 운영 프로필에서 그대로 사용한다. Redisson 비교 경로까지 같은 인스턴스에서 측정하려면 `coupon-benchmark` 프로필과 서버의 `BENCHMARK_READ_MODEL_TOKEN`을 함께 설정한다.
+
+```bash
+read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
+export BENCHMARK_READ_MODEL_TOKEN
+export SPRING_PROFILES_ACTIVE=dev,coupon-benchmark
+./gradlew bootRun
+```
+
+AWS에서도 lock variant를 호출할 인스턴스에 `coupon-benchmark`와 같은 토큰을 설정해야 한다. 일반 사용자 트래픽과 분리된 벤치마크 인스턴스에서만 이 프로필을 활성화한다.
 
 ## 1. 고유 회원 세션 fixture 준비
 
@@ -80,6 +93,11 @@ export APP_INSTANCE_COUNT=1
 mkdir -p build/k6
 ```
 
+```bash
+read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
+export BENCHMARK_READ_MODEL_TOKEN
+```
+
 워밍업은 폐기용 쿠폰으로 짧게 실행한다.
 
 ```bash
@@ -124,6 +142,7 @@ Lua도 `VARIANT=lua`, 별도 쿠폰 ID, 고유 `RUN_LABEL`, 실제 순서에 맞
 | 변수 | 의미 | 기본값 |
 |---|---|---:|
 | `VARIANT` | `lock` 또는 `lua` | 필수 |
+| `BENCHMARK_READ_MODEL_TOKEN` | lock v2 요청의 `X-Benchmark-Token`; lua에서는 사용하지 않음 | lock에서 필수 |
 | `PHASE` | `warmup` 또는 `measure` | `measure` |
 | `COUPON_ID` | 이번 실행 전용 쿠폰 ID | 필수 |
 | `COUPON_STOCK` | 실행 시작 전 쿠폰 총재고 | 필수 |
@@ -168,6 +187,8 @@ Lua도 `VARIANT=lua`, 별도 쿠폰 ID, 고유 `RUN_LABEL`, 실제 순서에 맞
 - `coupon.database.issue.duration`
 - `coupon.compensation`
 - HikariCP 사용량과 DB 쿼리 지표
+
+API 경로 변경으로 Spring HTTP 메트릭의 `uri` 태그는 기존 suffix 경로와 이어지지 않는다. 전후 비교는 `coupon.issue.duration`, `coupon.lock.*`, `coupon.lua.duration`, `coupon.database.issue.duration`과 k6 결과 JSON을 기준으로 한다.
 
 ## 5. 실행 후 정합성 확인
 
