@@ -7,6 +7,8 @@ This smoke test verifies the benchmark fixture and the recently viewed endpoint 
 - The Airbob database must already contain the dump that matches `BENCHMARK_MANIFEST`.
 - Backend MySQL, Redis, and the Airbob application must all be healthy before the test starts.
 - Start the application with `dev,nplus1-benchmark`; the fixture API does not exist in normal local or production profiles.
+- On AWS, use an isolated benchmark instance or target group that receives no normal traffic. The `nplus1-benchmark` profile disables Hibernate batch fetching for the entire JVM and must not be enabled on a serving production instance.
+- Set `BENCHMARK_READ_MODEL_TOKEN` on both the application and k6. The fixture and v2 before endpoints reject requests without the matching `X-Benchmark-Token`.
 - Setup mutates only the benchmark account's recently viewed Redis key.
 - Do not run this test concurrently with the same benchmark account. Concurrent runs would reset and repopulate the same Redis key.
 - Enter `TEST_PASSWORD` through the hidden shell prompt below. Do not place the password in the command, manifest, or repository.
@@ -37,6 +39,9 @@ The database and `BENCHMARK_MANIFEST` must always come from the same ETL run und
 Start the application in a separate terminal:
 
 ```bash
+read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
+echo
+export BENCHMARK_READ_MODEL_TOKEN
 SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark ./gradlew bootRun
 ```
 
@@ -44,13 +49,16 @@ SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark ./gradlew bootRun
 read -rsp 'Benchmark password: ' TEST_PASSWORD
 echo
 export TEST_PASSWORD
+read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
+echo
+export BENCHMARK_READ_MODEL_TOKEN
 
 BASE_URL=http://localhost:8080 \
 BENCHMARK_MANIFEST=/Users/jaehoonchoi/study/CodeSquad/etl/etl/build/benchmark-fixture.json \
 DATASET_SIZE=20 \
 k6 run load-test/k6/nplus1-fixture-smoke.js
 
-unset TEST_PASSWORD
+unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
 ```
 
 ## Recently viewed N+1 before/after comparison
@@ -70,6 +78,9 @@ unset TEST_PASSWORD
 read -rsp 'Benchmark password: ' TEST_PASSWORD
 echo
 export TEST_PASSWORD
+read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
+echo
+export BENCHMARK_READ_MODEL_TOKEN
 mkdir -p build/k6
 
 BASE_URL=http://localhost:8080 \
@@ -92,5 +103,9 @@ MEASURE_DURATION=1m \
 K6_RESULT_PATH=build/k6/recently-viewed-after.json \
 k6 run load-test/k6/recently-viewed-nplus1-performance.js
 
-unset TEST_PASSWORD
+unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
 ```
+
+The token entered in the k6 terminal must be the same value used to start the application. The after GET itself does not require the token, but this script resets the deterministic v2 fixture before both variants, so the token is required for both runs.
+
+The three denormalized read-model comparisons have separate scripts and a Korean execution guide at [read-model/README.md](read-model/README.md).

@@ -23,16 +23,22 @@ import org.testcontainers.utility.DockerImageName;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.service.ReviewSummaryBenchmarkService;
 import kr.kro.airbob.domain.review.service.ReviewService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
-@SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
-@ActiveProfiles("test")
-@DisplayName("리뷰 요약 조회 source(raw 집계 vs summary 반정규화) 일치 테스트")
+@SpringBootTest(properties = {
+	"spring.cloud.aws.s3.enabled=false",
+	"benchmark.read-model.enabled=true",
+	"benchmark.read-model.token=test-token"
+})
+@ActiveProfiles({"test", "read-model-benchmark"})
+@DisplayName("리뷰 요약 조회 before 직접 집계와 after 반정규화 결과 일치 테스트")
 class ReviewSummaryReadSourceTest {
 
 	@Autowired private ReviewService reviewService;
+	@Autowired private ReviewSummaryBenchmarkService benchmarkService;
 	@Autowired private JdbcTemplate jdbc;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
@@ -90,18 +96,18 @@ class ReviewSummaryReadSourceTest {
 	}
 
 	@Test
-	@DisplayName("raw(review 직접 집계)와 summary(반정규화)가 동일한 결과를 낸다")
+	@DisplayName("before(review 직접 집계)와 after(반정규화)가 동일한 결과를 낸다")
 	void rawEqualsSummary() {
-		ReviewResponse.ReviewSummary raw = reviewService.findReviewSummary(accId, ReviewService.SOURCE_RAW);
-		ReviewResponse.ReviewSummary summary = reviewService.findReviewSummary(accId, ReviewService.SOURCE_SUMMARY);
+		ReviewResponse.ReviewSummary before = benchmarkService.findReviewSummaryBefore(accId);
+		ReviewResponse.ReviewSummary after = reviewService.findReviewSummary(accId);
 
-		// raw: 삭제 리뷰 제외, 게시 3건 평균 4.00
-		assertThat(raw.totalCount()).isEqualTo(3);
-		assertThat(raw.averageRating()).isEqualByComparingTo("4.00");
+		// before: 삭제 리뷰 제외, 게시 3건 평균 4.00
+		assertThat(before.totalCount()).isEqualTo(3);
+		assertThat(before.averageRating()).isEqualByComparingTo("4.00");
 
 		// 두 경로 결과 일치
-		assertThat(raw.totalCount()).isEqualTo(summary.totalCount());
-		assertThat(raw.averageRating()).isEqualByComparingTo(summary.averageRating());
+		assertThat(before.totalCount()).isEqualTo(after.totalCount());
+		assertThat(before.averageRating()).isEqualByComparingTo(after.averageRating());
 	}
 
 	// ===== helpers =====

@@ -25,6 +25,7 @@ REDIS_CONTAINER="airbob-batch-redis-$RUN_ID"
 RO_USER="batch_ro_$(printf '%s' "$RUN_ID" | shasum -a 256 | cut -c1-12)"
 RO_PASSWORD="$(openssl rand -hex 24)"
 TEST_PASSWORD="$(openssl rand -hex 24)"
+BENCHMARK_READ_MODEL_TOKEN="$(openssl rand -hex 32)"
 MEASUREMENT_DEADLINE_SECONDS=270
 
 APP_PID=""
@@ -272,6 +273,7 @@ start_app() {
       IPINFO_API_TOKEN=benchmark-dummy \
       SLACK_WEBHOOK_URL=http://127.0.0.1:1/disabled \
       TOSS_SECRET_KEY=benchmark-dummy \
+      BENCHMARK_READ_MODEL_TOKEN="$BENCHMARK_READ_MODEL_TOKEN" \
       SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark \
       SPRING_DATASOURCE_URL="jdbc:mysql://127.0.0.1:13307/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
       SPRING_DATASOURCE_USERNAME="$RO_USER" \
@@ -346,6 +348,7 @@ run_k6() {
 
   BASE_URL="http://127.0.0.1:${APP_PORT}" \
   BENCHMARK_MANIFEST="$MANIFEST" \
+  BENCHMARK_READ_MODEL_TOKEN="$BENCHMARK_READ_MODEL_TOKEN" \
   TEST_PASSWORD="$TEST_PASSWORD" \
   SIZE="$size" \
   MODE="$mode" \
@@ -480,6 +483,7 @@ log "validating fixture contracts before measurement"
 start_app preflight
 BASE_URL="http://127.0.0.1:${APP_PORT}" \
 BENCHMARK_MANIFEST="$MANIFEST" \
+BENCHMARK_READ_MODEL_TOKEN="$BENCHMARK_READ_MODEL_TOKEN" \
 TEST_PASSWORD="$TEST_PASSWORD" \
 DATASET_SIZE=100 \
   k6 run --quiet "$ROOT_DIR/load-test/k6/nplus1-fixture-smoke.js" >&2

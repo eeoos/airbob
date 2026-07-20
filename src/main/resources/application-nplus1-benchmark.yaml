@@ -6,6 +6,6 @@ spring:
         default_batch_fetch_size: 0
 
 benchmark:
-  nplus1:
+  read-model:
     enabled: true
-    account-email: benchmark-nplus1@airbob.cloud
+    token: ${BENCHMARK_READ_MODEL_TOKEN}

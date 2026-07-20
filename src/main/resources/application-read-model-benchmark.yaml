@@ -1,0 +1,4 @@
+benchmark:
+  read-model:
+    enabled: true
+    token: ${BENCHMARK_READ_MODEL_TOKEN}

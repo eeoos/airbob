@@ -36,6 +36,16 @@ export function authenticatedParams(sessionId, tags = {}) {
   };
 }
 
+export function benchmarkHeaders(token, headers = {}) {
+  if (typeof token !== 'string' || !token.trim()) {
+    throw new Error('BENCHMARK_READ_MODEL_TOKEN is required');
+  }
+  return {
+    ...headers,
+    'X-Benchmark-Token': token.trim(),
+  };
+}
+
 export function loginBenchmarkAccount({ baseUrl, email, password }) {
   const response = http.post(
     `${baseUrl}/api/v1/auth/login`,
@@ -182,6 +192,7 @@ export function resetRecentlyViewed({
   sessionId,
   accommodationIds,
   datasetSize,
+  benchmarkToken,
 }) {
   const response = http.put(
     `${baseUrl}/api/v2/members/recently-viewed/fixture`,
@@ -191,7 +202,7 @@ export function resetRecentlyViewed({
         phase: 'setup',
         name: 'PUT /api/v2/members/recently-viewed/fixture',
       }),
-      headers: { 'Content-Type': 'application/json' },
+      headers: benchmarkHeaders(benchmarkToken, { 'Content-Type': 'application/json' }),
     },
   );
 

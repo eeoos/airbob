@@ -16,6 +16,9 @@ if (!__ENV.BENCHMARK_MANIFEST) {
 if (!__ENV.TEST_PASSWORD || !__ENV.TEST_PASSWORD.trim()) {
   throw new Error('TEST_PASSWORD is required');
 }
+if (!__ENV.BENCHMARK_READ_MODEL_TOKEN || !__ENV.BENCHMARK_READ_MODEL_TOKEN.trim()) {
+  throw new Error('BENCHMARK_READ_MODEL_TOKEN is required');
+}
 if (!__ENV.K6_RESULT_PATH || !__ENV.K6_RESULT_PATH.trim()) {
   throw new Error('K6_RESULT_PATH is required');
 }
@@ -165,6 +168,7 @@ export function setup() {
     sessionId,
     accommodationIds: manifest.recentlyViewed.accommodationIds,
     datasetSize: SIZE,
+    benchmarkToken: __ENV.BENCHMARK_READ_MODEL_TOKEN,
   });
 
   return { sessionId, expectedRecentlyViewedIds };

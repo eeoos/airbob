@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.domain.recentlyViewed.dto.RecentlyViewedBenchmarkRequest;
@@ -42,7 +43,7 @@ class RecentlyViewedBenchmarkControllerTest {
 	@DisplayName("프로필 없이 설정만 활성화해도 벤치마크 API를 노출하지 않는다")
 	void benchmarkApiCannotBeEnabledWithoutBenchmarkProfile() {
 		contextRunner
-			.withPropertyValues("benchmark.nplus1.enabled=true")
+			.withPropertyValues("benchmark.read-model.enabled=true")
 			.run(context -> assertThat(context)
 				.doesNotHaveBean(RecentlyViewedBenchmarkController.class));
 	}
@@ -52,7 +53,7 @@ class RecentlyViewedBenchmarkControllerTest {
 	void benchmarkApiRequiresProfileAndProperty() {
 		contextRunner
 			.withInitializer(context -> context.getEnvironment().setActiveProfiles("nplus1-benchmark"))
-			.withPropertyValues("benchmark.nplus1.enabled=true")
+			.withPropertyValues("benchmark.read-model.enabled=true")
 			.run(context -> assertThat(context)
 				.hasSingleBean(RecentlyViewedBenchmarkController.class));
 	}
@@ -68,13 +69,11 @@ class RecentlyViewedBenchmarkControllerTest {
 		sources.forEach(propertySources::addLast);
 		PropertySourcesPropertyResolver resolver = new PropertySourcesPropertyResolver(propertySources);
 
-		assertThat(resolver.getProperty("benchmark.nplus1.enabled", Boolean.class)).isTrue();
+		assertThat(resolver.getProperty("benchmark.read-model.enabled", Boolean.class)).isTrue();
 		assertThat(resolver.getProperty(
 			"spring.jpa.properties.hibernate.default_batch_fetch_size",
 			Integer.class
 		)).isZero();
-		assertThat(resolver.getProperty("benchmark.nplus1.account-email"))
-			.isEqualTo("benchmark-nplus1@airbob.cloud");
 	}
 
 	@Test
@@ -82,15 +81,38 @@ class RecentlyViewedBenchmarkControllerTest {
 	void replaceFixtureUsesAuthenticatedMember() {
 		RecentlyViewedService recentlyViewedService = mock(RecentlyViewedService.class);
 		RecentlyViewedBenchmarkFixtureService fixtureService = mock(RecentlyViewedBenchmarkFixtureService.class);
+		BenchmarkAccessGuard accessGuard = mock(BenchmarkAccessGuard.class);
 		RecentlyViewedBenchmarkController controller =
-			new RecentlyViewedBenchmarkController(recentlyViewedService, fixtureService);
+			new RecentlyViewedBenchmarkController(recentlyViewedService, fixtureService, accessGuard);
 		RecentlyViewedBenchmarkRequest.Replace request =
 			new RecentlyViewedBenchmarkRequest.Replace(List.of(251L, 252L));
 		UserContext.set(new UserInfo(7L, "127.0.0.1", "test"));
 
 		try {
-			assertThat(controller.replaceRecentlyViewedFixture(request).getStatusCode().is2xxSuccessful()).isTrue();
+			assertThat(controller.replaceRecentlyViewedFixture(request, "secret-token")
+				.getStatusCode().is2xxSuccessful()).isTrue();
+			verify(accessGuard).verify("secret-token");
 			verify(fixtureService).replaceFixture(7L, request.accommodationIds());
+		} finally {
+			UserContext.clear();
+		}
+	}
+
+	@Test
+	@DisplayName("N+1 before 조회 요청은 공통 벤치마크 토큰을 확인한다")
+	void getBeforeVerifiesCommonBenchmarkToken() {
+		RecentlyViewedService recentlyViewedService = mock(RecentlyViewedService.class);
+		RecentlyViewedBenchmarkFixtureService fixtureService = mock(RecentlyViewedBenchmarkFixtureService.class);
+		BenchmarkAccessGuard accessGuard = mock(BenchmarkAccessGuard.class);
+		RecentlyViewedBenchmarkController controller =
+			new RecentlyViewedBenchmarkController(recentlyViewedService, fixtureService, accessGuard);
+		UserContext.set(new UserInfo(7L, "127.0.0.1", "test"));
+
+		try {
+			assertThat(controller.getRecentlyViewedBefore("secret-token")
+				.getStatusCode().is2xxSuccessful()).isTrue();
+			verify(accessGuard).verify("secret-token");
+			verify(recentlyViewedService).getRecentlyViewedBefore(7L);
 		} finally {
 			UserContext.clear();
 		}
@@ -108,6 +130,11 @@ class RecentlyViewedBenchmarkControllerTest {
 		@Bean
 		RecentlyViewedBenchmarkFixtureService recentlyViewedBenchmarkFixtureService() {
 			return mock(RecentlyViewedBenchmarkFixtureService.class);
+		}
+
+		@Bean
+		BenchmarkAccessGuard benchmarkAccessGuard() {
+			return mock(BenchmarkAccessGuard.class);
 		}
 	}
 }
