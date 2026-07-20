@@ -132,3 +132,36 @@ unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
 The token entered in the k6 terminal must be the same value used to start the application. The after GET itself does not require the token, but this script resets the deterministic v2 fixture before both variants, so the token is required for both runs.
 
 The three denormalized read-model comparisons have separate scripts and a Korean execution guide at [read-model/README.md](read-model/README.md).
+
+## N+1 측정 후 서버 teardown
+
+앞선 `unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN`은 k6 클라이언트 셸의 자격 증명만 지운다. JVM에 활성화된 `nplus1-benchmark` 프로필과 서버 측 토큰은 별도로 제거해야 한다.
+
+### 로컬
+
+benchmark JVM을 먼저 `Ctrl-C`로 중지한다. 애플리케이션 실행 셸에서 `nplus1-benchmark`와 서버 측 `BENCHMARK_READ_MODEL_TOKEN` 바인딩을 제거하고 정상 프로필로 다시 시작한다.
+
+```bash
+# nplus1-benchmark JVM을 중지한 뒤 애플리케이션 실행 셸에서 실행
+unset BENCHMARK_READ_MODEL_TOKEN
+SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
+```
+
+### AWS
+
+격리된 benchmark JVM/인스턴스를 중지하거나 target group에서 drain한다. 배포 설정에서 `nplus1-benchmark`를 제거하고 token secret 및 서버의 `BENCHMARK_READ_MODEL_TOKEN` 바인딩도 제거한 뒤 정상 프로필로 다시 배포한다. 이 단계가 Hibernate batch fetching을 정상 설정으로 되돌린다.
+
+재배포 후 유효한 일반 회원 세션으로 대표 v2 경로가 `404`인지 확인한다. `X-Benchmark-Token`은 의도적으로 생략하므로 프로필이 남아 있으면 `403`으로 구분되고, `401`이면 세션부터 갱신해야 한다.
+
+```bash
+curl -i \
+  -b "SESSION_ID=${VERIFY_SESSION_ID}" \
+  "${BASE_URL}/api/v2/members/recently-viewed"
+# 기대 결과: HTTP/1.1 404
+```
+
+서버 teardown을 확인한 뒤, 필요하면 클라이언트 셸 자격 증명도 다시 정리한다.
+
+```bash
+unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
+```

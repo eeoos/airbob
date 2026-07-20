@@ -18,6 +18,26 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
 	List<Coupon> findByIsActiveTrue();
 
+	/**
+	 * Lua 운영 경로로 전환할 수 없는 기존 Redisson 발급 쿠폰 수를 조회한다.
+	 * 준비 서비스와 같은 기준으로 발급 수와 실제 회원 쿠폰 행을 모두 확인한다.
+	 */
+	@Query("""
+		select count(c)
+		from Coupon c
+		where c.isActive = true
+		  and c.redisStockPreparedAt is null
+		  and (
+		    c.issuedQuantity > 0
+		    or exists (
+		      select mc.id
+		      from MemberCoupon mc
+		      where mc.coupon = c
+		    )
+		  )
+		""")
+	long countActiveUnpreparedCouponsWithLegacyIssuances();
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select c from Coupon c where c.id = :id")
 	Optional<Coupon> findByIdForUpdate(@Param("id") Long id);

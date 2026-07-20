@@ -31,7 +31,7 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 				wa.wishlist_id,
 				a.thumbnail_url,
 				ROW_NUMBER() OVER (
-					PARTITION BY wa.wishlist_id ORDER BY wa.created_at DESC
+					PARTITION BY wa.wishlist_id ORDER BY wa.created_at DESC, wa.id DESC
 				) as rn
 			FROM wishlist_accommodation wa
 			JOIN accommodation a ON wa.accommodation_id = a.id
@@ -47,4 +47,3 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
 	boolean existsByWishlist_Member_IdAndAccommodation_Id(Long memberId, Long accommodationId);
 }
-

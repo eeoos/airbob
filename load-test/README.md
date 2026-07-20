@@ -31,6 +31,27 @@ export SPRING_PROFILES_ACTIVE=dev,coupon-benchmark
 
 AWS에서도 lock variant를 호출할 인스턴스에 `coupon-benchmark`와 같은 토큰을 설정해야 한다. 일반 사용자 트래픽과 분리된 벤치마크 인스턴스에서만 이 프로필을 활성화한다.
 
+### 운영 Lua 전환 시작 가드
+
+정상 AWS/OCI 프로필은 준비 이력이 없는데 기존 DB 발급 이력이 남은 활성 쿠폰을 발견하면 ready 상태가 되기 전에 시작을 실패시킨다. `issued_quantity > 0`과 실제 `member_coupon` 행을 모두 확인하며, 애플리케이션은 쿠폰을 비활성화하거나 데이터를 자동 변경하지 않는다. rolling deploy 전에는 구버전 발급 트래픽을 먼저 중지하고 다음 조회 결과가 0건인지 확인한다.
+
+```sql
+SELECT c.id, c.issued_quantity, c.redis_stock_prepared_at
+FROM coupon c
+WHERE c.is_active = TRUE
+  AND c.redis_stock_prepared_at IS NULL
+  AND (
+    c.issued_quantity > 0
+    OR EXISTS (
+      SELECT 1
+      FROM member_coupon mc
+      WHERE mc.coupon_id = c.id
+    )
+  );
+```
+
+행이 나오면 배포를 진행하지 않는다. 기존 회원 발급 집합과 남은 재고를 보존하는 검증된 Lua 마이그레이션을 수행하거나, 담당자가 해당 레거시 캠페인을 운영 절차에 따라 명시적으로 해결한 뒤 다시 조회하고 재배포한다. 단순히 가드를 우회하거나 애플리케이션이 쿠폰 상태를 자동 변경하게 하지 않는다.
+
 ## 1. 고유 회원 세션 fixture 준비
 
 예제 파일을 복사한 뒤 실제 세션으로 교체한다.
@@ -232,5 +253,54 @@ Redis stock + Redis SCARD(issued) == total_quantity
 Lua 승인 직후 프로세스가 강제 종료되면 Redis 재고만 차감되고 DB 행이 없는 슬롯 누수가 남을 수 있다. 이번 동기 비교는 애플리케이션이 포착한 DB 실패는 보상하지만 Redis와 MySQL 사이의 분산 트랜잭션이나 강제 종료 복구까지 보장하지 않는다.
 
 prepare 도중 Redis 쓰기 뒤 DB 준비 이력 커밋이 실패하면 Redis 키만 남아 해당 쿠폰이 fail-closed 상태가 될 수 있다. 이 경우 락 URL로 우회하지 말고 캠페인을 새로 만들거나 별도의 검증된 운영 복구 절차를 사용한다. 락 경로의 측정값에는 이 상태를 차단하기 위한 Redis 키 존재 확인 1회가 포함된다.
+
+## 6. 측정 후 서버 teardown
+
+k6 클라이언트 셸에서 토큰을 지우는 것만으로는 v2 Redisson API가 비활성화되지 않는다. 측정 후에는 서버 프로세스와 배포 설정을 별도로 정리한다.
+
+### lock 쿠폰 종료 처리
+
+Redisson으로 발급한 lock 워밍업·측정 쿠폰은 활성·Redis 미준비·DB 발급 이력 상태이므로 정상 AWS/OCI 시작 가드의 차단 대상이다. 결과와 정합성 증거를 먼저 저장한 뒤, benchmark JVM을 중지하기 전에 이번 실행의 **모든** lock 워밍업·측정 쿠폰에 ADMIN DELETE API를 호출해 명시적으로 비활성화한다. 라운드가 여러 개면 각 라운드의 ID에 모두 반복한다.
+
+```bash
+curl -fsS -X DELETE \
+  -b "SESSION_ID=${ADMIN_SESSION_ID}" \
+  "${BASE_URL}/api/v1/admin/coupons/${LOCK_WARMUP_COUPON_ID}"
+
+curl -fsS -X DELETE \
+  -b "SESSION_ID=${ADMIN_SESSION_ID}" \
+  "${BASE_URL}/api/v1/admin/coupons/${LOCK_MEASURE_COUPON_ID}"
+```
+
+완전히 격리된 일회성 benchmark DB라면 이 API 처리 대신 DB 자체를 폐기해도 된다. 공유하거나 재사용할 DB에서는 쿠폰을 빠뜨리거나 가드를 우회하지 않는다. 처리 후 [운영 Lua 전환 시작 가드](#운영-lua-전환-시작-가드)의 SQL을 다시 실행해 결과가 0건인지 확인한 다음에만 정상 프로필을 재배포한다.
+
+### 로컬
+
+`coupon-benchmark` 프로필로 실행한 JVM을 먼저 `Ctrl-C`로 중지한다. 애플리케이션 실행 셸에서 benchmark 프로필과 서버 측 토큰 바인딩을 제거하고 정상 프로필로 다시 시작한다.
+
+```bash
+# coupon-benchmark JVM을 중지한 뒤 애플리케이션 실행 셸에서 실행
+unset BENCHMARK_READ_MODEL_TOKEN
+SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
+```
+
+### AWS
+
+격리된 benchmark JVM/인스턴스를 중지하거나 target group에서 drain한다. 배포 설정에서 `coupon-benchmark`를 제거하고 token secret 및 서버의 `BENCHMARK_READ_MODEL_TOKEN` 바인딩도 제거한 뒤 정상 프로필로 다시 배포한다.
+
+재배포 후 유효한 일반 회원 세션으로 대표 v2 경로가 `404`인지 확인한다. 아래 요청은 `X-Benchmark-Token`을 의도적으로 보내지 않으므로, 프로필이 실수로 남아 있어도 쿠폰을 발급하지 않고 `403`으로 드러난다. `401`이면 세션부터 갱신한다.
+
+```bash
+curl -i -X POST \
+  -b "SESSION_ID=${VERIFY_SESSION_ID}" \
+  "${BASE_URL}/api/v2/coupons/${LOCK_MEASURE_COUPON_ID}/issue"
+# 기대 결과: HTTP/1.1 404
+```
+
+마지막 명령은 위 서버 teardown과 별개로 부하 발생기 또는 k6 클라이언트 셸의 자격 증명만 지운다.
+
+```bash
+unset BENCHMARK_READ_MODEL_TOKEN
+```
 
 기존 N+1 측정 도구의 별도 사용법은 [k6/README.md](k6/README.md)에 있고, 반정규화 read model 비교는 [k6/read-model/README.md](k6/read-model/README.md)에 있다.
