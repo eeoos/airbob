@@ -1,4 +1,27 @@
-# N+1 benchmark fixture smoke test
+# Airbob k6 벤치마크
+
+이 디렉터리에는 서로 독립적인 세 가지 성능 실험이 함께 있다. 먼저 측정 목적을 고른 뒤 해당 진입점과 README만 보면 된다.
+
+| 측정 목적 | 직접 실행할 진입점 | 상세 가이드 |
+|---|---|---|
+| 반정규화 before/after | `read-model/*-comparison.js` 3개 | [read-model/README.md](read-model/README.md) |
+| 최근 본 숙소 N+1 before/after | `nplus1-fixture-smoke.js`, `recently-viewed-nplus1-performance.js` | 이 문서의 N+1 절 |
+| 쿠폰 Redisson(before)/Lua(after) 발급 | `coupon-issuance-comparison.js` | [상위 load-test README](../README.md) |
+
+직접 실행하지 않는 파일도 있다.
+
+- `lib/`: 로그인, fixture 준비, 응답 검증, 결과 요약처럼 여러 진입점이 호출하는 코드
+- `test/`: `lib/`의 파싱과 응답 계약을 검증하는 짧은 k6 테스트. 실제 API 부하 테스트가 아니다.
+
+read-model 스크립트는 모두 같은 순서로 동작한다.
+
+1. `options`가 요청률, warm-up, 측정 시간과 실패 기준을 정한다.
+2. `setup()`이 로그인하고 before/after 응답이 같은지 한 번 검증한다.
+3. `warmup()`이 선택한 variant만 예열한다.
+4. `measure()`가 같은 variant에 고정 RPS를 보낸다.
+5. `handleSummary()`가 p50/p95/p99와 성공률을 JSON으로 저장한다.
+
+## N+1 benchmark fixture smoke test
 
 This smoke test verifies the benchmark fixture and the recently viewed endpoint against a matching Airbob database.
 
