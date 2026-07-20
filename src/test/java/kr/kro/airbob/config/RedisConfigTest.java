@@ -4,23 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class RedisConfigTest {
 
 	@Test
-	@DisplayName("반복 실행하는 Lua는 Redisson 스크립트 캐시를 사용한다")
-	void enablesScriptCache() {
+	@DisplayName("반복 실행하는 Lua의 스크립트 캐시 설정은 Redis 연결 없이 검증한다")
+	void createsScriptCacheEnabledConfigWithoutRedisConnection() {
 		RedisConfig redisConfig = new RedisConfig();
-		ReflectionTestUtils.setField(redisConfig, "redisHost", "127.0.0.1");
-		ReflectionTestUtils.setField(redisConfig, "redisPort", 6379);
+		ReflectionTestUtils.setField(redisConfig, "redisHost", "unreachable.invalid");
+		ReflectionTestUtils.setField(redisConfig, "redisPort", 1);
 
-		RedissonClient redissonClient = redisConfig.redissonClient();
-		try {
-			assertThat(redissonClient.getConfig().isUseScriptCache()).isTrue();
-		} finally {
-			redissonClient.shutdown();
-		}
+		Config config = redisConfig.redissonConfig();
+
+		assertThat(config.isUseScriptCache()).isTrue();
 	}
 }
