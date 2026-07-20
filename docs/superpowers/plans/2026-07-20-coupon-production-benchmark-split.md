@@ -794,13 +794,19 @@ Expected: both commands exit `0`. If an external container dependency prevents t
 - [ ] **Step 5: Audit the live contract and final diff**
 
 ```bash
-rg -n "/issue/(lock|lua)" src/main src/test load-test --glob '!docs/superpowers/**'
+if rg -n "/issue/(lock|lua)" src/main load-test; then
+  exit 1
+fi
+test_matches="$(rg -l "/issue/(lock|lua)" src/test || true)"
+test_match_count="$(rg -n "/issue/(lock|lua)" src/test | wc -l | tr -d ' ')"
+test "$test_matches" = "src/test/java/kr/kro/airbob/domain/coupon/api/CouponControllerTest.java"
+test "$test_match_count" -eq 2
 git diff --check
 git status --short
 git diff --stat
 ```
 
-Expected: the route search returns no live runtime/test/runbook references, whitespace check exits `0`, and the diff contains only the approved feature plus pre-existing worktree edits.
+Expected: `/issue/(lock|lua)` has zero matches in `src/main` and `load-test`. Under `src/test`, only `src/test/java/kr/kro/airbob/domain/coupon/api/CouponControllerTest.java` matches and it has exactly two matches (the negative `404` assertions). The whitespace check exits `0`, and the diff contains only the approved feature plus pre-existing worktree edits.
 
 - [ ] **Step 6: Commit the runbook**
 
