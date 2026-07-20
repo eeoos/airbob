@@ -192,9 +192,7 @@ export default function () {
       domain: 'review',
       variant: 'after',
       expectedCount: 12,
-      expectedDataJson: JSON.stringify(
-        canonicalizeReadModelData('review', reviewAfterPayload.data),
-      ),
+      expectedData: canonicalizeReadModelData('review', reviewAfterPayload.data),
       payload: reviewAfterPayload,
     }),
     'review contract rejects a different average': () => !matchesReadModelContract({

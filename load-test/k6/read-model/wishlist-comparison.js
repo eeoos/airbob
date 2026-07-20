@@ -16,9 +16,6 @@ const EXPECTED_COUNT = parsePositiveInteger(
   parseRequiredText(__ENV.EXPECTED_ROWS, 'EXPECTED_ROWS'),
   'EXPECTED_ROWS',
 );
-if (PAGE_SIZE > 50) {
-  throw new Error('PAGE_SIZE must not exceed 50');
-}
 if (EXPECTED_COUNT > PAGE_SIZE) {
   throw new Error('EXPECTED_ROWS must not exceed PAGE_SIZE');
 }
@@ -33,14 +30,12 @@ const AFTER_PATH = buildReadModelPath({
   variant: 'after',
   size: PAGE_SIZE,
 });
-const TARGET_PATH = RUN.variant === 'before' ? BEFORE_PATH : AFTER_PATH;
 
 const benchmark = createReadModelBenchmark({
   ...RUN,
   domain: DOMAIN,
   beforePath: BEFORE_PATH,
   afterPath: AFTER_PATH,
-  targetPath: TARGET_PATH,
   requestName: `GET /api/${RUN.variant === 'before' ? 'v2' : 'v1'}/members/wishlists`,
   expectedCount: EXPECTED_COUNT,
   setup: () => ({
