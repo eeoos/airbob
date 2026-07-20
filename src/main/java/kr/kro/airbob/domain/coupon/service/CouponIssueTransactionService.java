@@ -16,8 +16,8 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 쿠폰 발급의 DB 트랜잭션 경계. 분산 락 또는 Lua 동시성 제어는 호출 서비스가
- * 트랜잭션 바깥에서 담당한다.
+ * 쿠폰 발급의 DB 트랜잭션 경계.
+ * 분산 락 또는 Lua 동시성 제어는 호출 서비스가 트랜잭션 바깥에서 담당
  */
 @Service
 @RequiredArgsConstructor
@@ -30,7 +30,7 @@ public class CouponIssueTransactionService {
 	private final CouponRedisStockManager stockManager;
 
 	/**
-	 * 분산 락 안에서 DB 상태를 검증하고 발급한다.
+	 * 분산 락 안에서 DB 상태를 검증하고 발급
 	 */
 	@Transactional
 	public void issueUnderLock(Long couponId, Long memberId) {
@@ -50,15 +50,15 @@ public class CouponIssueTransactionService {
 			throw new CouponSoldOutException();
 		}
 
-		// 발급 수를 원자적 UPDATE 로 먼저 증가(X-lock) → 이후 발급분 INSERT(FK S-lock) 순서로
-		// 락 획득 순서를 X→S 로 고정해 동시 발급 시 데드락을 피한다.
+		// 발급 수를 원자적 UPDATE 로 먼저 증가(X-lock) -> 이후 발급분 INSERT(FK S-lock) 순서로
+		// 락 획득 순서를 X→S 로 고정해 동시 발급 시 데드락 회피
 		couponRepository.incrementIssuedQuantity(couponId);
 		memberCouponRepository.save(MemberCoupon.issue(memberRepository.getReferenceById(memberId), coupon));
 	}
 
 	/**
 	 * Redis Lua가 이미 재고/중복을 통제한 뒤 호출되는 영속화 전용 경로.
-	 * 재고 검사 없이 DB issuedQuantity 를 원자적 UPDATE 로 누적하고 발급분을 기록한다.
+	 * 재고 검사 없이 DB issuedQuantity 를 원자적 UPDATE 로 누적하고 발급분을 기록
 	 */
 	@Transactional
 	public void persistApprovedIssue(Long couponId, Long memberId) {

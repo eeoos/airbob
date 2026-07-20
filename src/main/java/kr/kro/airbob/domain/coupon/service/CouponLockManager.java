@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 쿠폰 발급용 단일 분산 락. 예약의 {@code ReservationLockManager} 와 동일하게
- * Pub/Sub 기반 Redisson 락을 쓰되, 쿠폰은 단일 키({@code coupon:{id}:lock}) 만 잠근다.
+ * Pub/Sub 기반 Redisson 락을 쓰되, 쿠폰은 단일 키({@code coupon:{id}:lock}) 만 잠금.
  */
 @Slf4j
 @Component
@@ -30,7 +30,7 @@ public class CouponLockManager {
 		String lockKey = lockKey(couponId);
 		try {
 			RLock lock = redissonClient.getLock(lockKey);
-			// leaseTime 미지정 → WatchDog 자동 갱신
+			// leaseTime 미지정 -> WatchDog 자동 갱신
 			boolean acquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
 			if (!acquired) {
 				result = CouponIssueMetricRecorder.LockResult.TIMEOUT;
