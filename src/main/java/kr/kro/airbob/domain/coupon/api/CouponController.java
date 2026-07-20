@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
-import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ import lombok.RequiredArgsConstructor;
 public class CouponController {
 
 	private final CouponService couponService;
-	private final CouponLockIssueService lockIssueService;
 	private final CouponLuaIssueService luaIssueService;
 
 	@GetMapping("/v1/coupons")
@@ -34,15 +32,8 @@ public class CouponController {
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 
-	@PostMapping("/v1/coupons/{couponId}/issue/lock")
-	public ResponseEntity<ApiResponse<Void>> issueCouponWithLock(@PathVariable Long couponId) {
-		Long memberId = UserContext.get().id();
-		lockIssueService.issue(couponId, memberId);
-		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
-	}
-
-	@PostMapping("/v1/coupons/{couponId}/issue/lua")
-	public ResponseEntity<ApiResponse<Void>> issueCouponWithLua(@PathVariable Long couponId) {
+	@PostMapping("/v1/coupons/{couponId}/issue")
+	public ResponseEntity<ApiResponse<Void>> issueCoupon(@PathVariable Long couponId) {
 		Long memberId = UserContext.get().id();
 		luaIssueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
