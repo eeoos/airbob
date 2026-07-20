@@ -144,7 +144,7 @@ v2 쿠폰 경로도 회원 식별이 필요하므로 세션 필터 등록 패턴
 4. `coupon-benchmark` 프로필 설정이 공통 enabled/token 계약을 제공하는지 검증한다.
 5. k6 helper 테스트에 Lua v1 경로, lock v2 경로, lock token 필수와 헤더 생성 계약을 추가한다.
 6. 최소 구현 후 관련 Spring 테스트와 k6 helper 테스트를 모두 통과시킨다.
-7. 쿠폰 동시성 테스트는 `test,coupon-benchmark` 프로필과 테스트 컨텍스트에 명시한 `BENCHMARK_READ_MODEL_TOKEN=test-token`을 사용해 lock과 Lua 서비스를 계속 직접 비교한다.
+7. 쿠폰 동시성 테스트는 `test,coupon-benchmark` 프로필과 테스트 컨텍스트에 명시한 `benchmark.read-model.token=test-token`을 사용해 lock과 Lua 서비스를 계속 직접 비교한다.
 8. 정상 프로필의 MVC 테스트에서 기존 `/issue/lua`, `/issue/lock`과 v2 경로가 노출되지 않는지 확인한다.
 
 ## 완료 조건
