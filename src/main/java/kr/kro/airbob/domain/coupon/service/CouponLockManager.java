@@ -4,6 +4,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.coupon.exception.CouponLockTimeoutException;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
+@Profile("coupon-benchmark")
 @RequiredArgsConstructor
 public class CouponLockManager {
 

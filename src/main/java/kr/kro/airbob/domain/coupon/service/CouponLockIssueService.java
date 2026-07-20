@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.coupon.service;
 
 import org.redisson.api.RLock;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
@@ -8,6 +9,7 @@ import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricResultResolver;
 import lombok.RequiredArgsConstructor;
 
 @Service
+@Profile("coupon-benchmark")
 @RequiredArgsConstructor
 public class CouponLockIssueService {
 

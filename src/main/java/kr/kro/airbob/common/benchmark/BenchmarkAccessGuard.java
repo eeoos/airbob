@@ -11,7 +11,7 @@ import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.common.exception.ErrorCode;
 
 @Component
-@Profile({"nplus1-benchmark", "read-model-benchmark"})
+@Profile({"nplus1-benchmark", "read-model-benchmark", "coupon-benchmark"})
 public class BenchmarkAccessGuard {
 
 	public static final String HEADER_NAME = "X-Benchmark-Token";
