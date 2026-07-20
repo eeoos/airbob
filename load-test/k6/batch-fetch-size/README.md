@@ -42,6 +42,10 @@ it temporarily replaces only the isolated benchmark account's BCrypt hash. A
 mode-0600 recovery marker is written first, the exact hash is restored in a
 trap, and a deterministic data-only database hash is verified after cleanup.
 
+The harness starts the application with `dev,nplus1-benchmark` so the fixture
+PUT exists. Its explicit JVM `default_batch_fetch_size` property still overrides
+the benchmark profile's diagnostic value, so each requested candidate is measured.
+
 The application declares scheduling directly, so it cannot be disabled by a
 Spring Boot task property. The SELECT-only connection blocks scheduler writes,
 the startup attempt finishes before warm-up, and the measurement JVM has a

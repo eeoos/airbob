@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import { fail, sleep } from 'k6';
+import { fail } from 'k6';
 
 function failTarget(response, label) {
   fail(`${label} failed with HTTP ${response.status}`);
@@ -183,38 +183,25 @@ export function resetRecentlyViewed({
   accommodationIds,
   datasetSize,
 }) {
-  accommodationIds.forEach((accommodationId) => {
-    const response = http.del(
-      `${baseUrl}/api/v1/members/recently-viewed/${accommodationId}`,
-      null,
-      {
-        ...authenticatedParams(sessionId, {
-          phase: 'setup',
-          name: 'DELETE /api/v1/members/recently-viewed/{accommodationId}',
-        }),
-      },
-    );
+  const response = http.put(
+    `${baseUrl}/api/v2/members/recently-viewed/fixture`,
+    buildRecentlyViewedFixtureBody({ accommodationIds, datasetSize }),
+    {
+      ...authenticatedParams(sessionId, {
+        phase: 'setup',
+        name: 'PUT /api/v2/members/recently-viewed/fixture',
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 
-    if (response.status !== 200) {
-      fail(`recently viewed delete failed with HTTP ${response.status}`);
-    }
-  });
+  if (response.status !== 200) {
+    fail(`recently viewed fixture replacement failed with HTTP ${response.status}`);
+  }
+}
 
-  accommodationIds.slice(0, datasetSize).forEach((accommodationId) => {
-    const response = http.post(
-      `${baseUrl}/api/v1/members/recently-viewed/${accommodationId}`,
-      null,
-      {
-        ...authenticatedParams(sessionId, {
-          phase: 'setup',
-          name: 'POST /api/v1/members/recently-viewed/{accommodationId}',
-        }),
-      },
-    );
-
-    if (response.status !== 200) {
-      fail(`recently viewed post failed with HTTP ${response.status}`);
-    }
-    sleep(0.02);
+export function buildRecentlyViewedFixtureBody({ accommodationIds, datasetSize }) {
+  return JSON.stringify({
+    accommodation_ids: accommodationIds.slice(0, datasetSize),
   });
 }

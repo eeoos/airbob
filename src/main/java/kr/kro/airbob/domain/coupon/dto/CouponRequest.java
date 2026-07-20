@@ -16,8 +16,10 @@ public class CouponRequest {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime startDate,
-		LocalDateTime endDate,
+		LocalDateTime issueStartAt,
+		LocalDateTime issueEndAt,
+		LocalDateTime usableFrom,
+		LocalDateTime usableUntil,
 		Boolean isActive,
 		Integer totalQuantity
 	) {
@@ -31,8 +33,10 @@ public class CouponRequest {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime startDate,
-		LocalDateTime endDate,
+		LocalDateTime issueStartAt,
+		LocalDateTime issueEndAt,
+		LocalDateTime usableFrom,
+		LocalDateTime usableUntil,
 		Boolean isActive,
 		Integer totalQuantity
 	) {

@@ -79,11 +79,19 @@ jacoco.exec
 *.pem
 **/http-client.private.env.json
 
+# Coupon load-test secrets and generated artifacts
+/load-test/fixtures/coupon-sessions.json
+/load-test/results/
+
 # Gradle build info (추가)
 .gradle/
 
 # Generated AsciiDoc files
 src/docs/asciidoc/
+
+# Local implementation planning artifacts
+/docs/plans/
+/docs/superpowers/
 
 # Static build output
 src/main/resources/static/

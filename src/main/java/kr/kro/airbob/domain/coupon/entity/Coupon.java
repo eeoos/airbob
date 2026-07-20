@@ -18,9 +18,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-/**
- * 쿠폰 정의(캠페인). 할인 규칙과 발급 한도를 보유하며, 발급된 인스턴스는 {@code MemberCoupon} 이 표현한다.
- */
 @Entity
 @Getter
 @SuperBuilder
@@ -41,7 +38,8 @@ public class Coupon extends BaseEntity {
 	@Column(nullable = false)
 	private DiscountType discountType;
 
-	// PERCENTAGE 면 할인율(%), FIXED_AMOUNT 면 할인 금액(원)
+	// PERCENTAGE 면 할인율(%),
+	// FIXED_AMOUNT 면 할인 금액(원)
 	@Column(nullable = false)
 	private Integer discountValue;
 
@@ -52,10 +50,16 @@ public class Coupon extends BaseEntity {
 	private Integer maxDiscountAmount;
 
 	@Column(nullable = false)
-	private LocalDateTime startDate;
+	private LocalDateTime issueStartAt;
 
 	@Column(nullable = false)
-	private LocalDateTime endDate;
+	private LocalDateTime issueEndAt;
+
+	@Column(nullable = false)
+	private LocalDateTime usableFrom;
+
+	@Column(nullable = false)
+	private LocalDateTime usableUntil;
 
 	@Column(nullable = false)
 	private Boolean isActive;
@@ -63,9 +67,13 @@ public class Coupon extends BaseEntity {
 	// 발급 한도 (null = 무제한)
 	private Integer totalQuantity;
 
-	// 현재 발급 수 (락/무락 발급 방식의 정합성 기준)
+	// 현재 발급 수 (락/Lua 발급 경로의 DB 정합성 기준)
 	@Column(nullable = false)
 	private Integer issuedQuantity;
+
+	// Lua 발급용 Redis 재고를 한 번이라도 준비한 시각
+	// Redis 키보다 오래 유지되는 경로·불변성 기준
+	private LocalDateTime redisStockPreparedAt;
 
 	public static Coupon of(CouponRequest.Create dto) {
 		return Coupon.builder()
@@ -75,8 +83,10 @@ public class Coupon extends BaseEntity {
 			.discountValue(dto.discountValue())
 			.minPaymentPrice(dto.minPaymentPrice())
 			.maxDiscountAmount(dto.maxDiscountAmount())
-			.startDate(dto.startDate())
-			.endDate(dto.endDate())
+			.issueStartAt(dto.issueStartAt())
+			.issueEndAt(dto.issueEndAt())
+			.usableFrom(dto.usableFrom())
+			.usableUntil(dto.usableUntil())
 			.isActive(dto.isActive())
 			.totalQuantity(dto.totalQuantity())
 			.issuedQuantity(0)
@@ -90,8 +100,10 @@ public class Coupon extends BaseEntity {
 		if (dto.discountValue() != null) this.discountValue = dto.discountValue();
 		if (dto.minPaymentPrice() != null) this.minPaymentPrice = dto.minPaymentPrice();
 		if (dto.maxDiscountAmount() != null) this.maxDiscountAmount = dto.maxDiscountAmount();
-		if (dto.startDate() != null) this.startDate = dto.startDate();
-		if (dto.endDate() != null) this.endDate = dto.endDate();
+		if (dto.issueStartAt() != null) this.issueStartAt = dto.issueStartAt();
+		if (dto.issueEndAt() != null) this.issueEndAt = dto.issueEndAt();
+		if (dto.usableFrom() != null) this.usableFrom = dto.usableFrom();
+		if (dto.usableUntil() != null) this.usableUntil = dto.usableUntil();
 		if (dto.isActive() != null) this.isActive = dto.isActive();
 		if (dto.totalQuantity() != null) this.totalQuantity = dto.totalQuantity();
 	}
@@ -104,22 +116,45 @@ public class Coupon extends BaseEntity {
 		this.isActive = true;
 	}
 
+	public boolean changesPreparedIssuanceConfiguration(CouponRequest.Update dto) {
+		return differs(dto.issueStartAt(), issueStartAt)
+			|| differs(dto.issueEndAt(), issueEndAt)
+			|| differs(dto.isActive(), isActive)
+			|| differs(dto.totalQuantity(), totalQuantity);
+	}
+
+	public void markRedisStockPrepared(LocalDateTime preparedAt) {
+		if (preparedAt == null) {
+			throw new IllegalArgumentException("Redis 재고 준비 시각은 필수입니다.");
+		}
+		if (redisStockPreparedAt != null) {
+			throw new IllegalStateException("Redis 재고 준비 이력은 덮어쓸 수 없습니다.");
+		}
+		this.redisStockPreparedAt = preparedAt;
+	}
+
+	public boolean isRedisStockPrepared() {
+		return redisStockPreparedAt != null;
+	}
+
 	// 발급 한도 소진 여부 (totalQuantity 가 null 이면 무제한)
 	public boolean isSoldOut() {
 		return totalQuantity != null && issuedQuantity >= totalQuantity;
 	}
 
-	public boolean isExpired(LocalDateTime now) {
-		return now.isBefore(startDate) || now.isAfter(endDate);
+	public boolean isIssueOpen(LocalDateTime now) {
+		return !now.isBefore(issueStartAt) && now.isBefore(issueEndAt);
 	}
 
 	public boolean isIssuable(LocalDateTime now) {
-		return isActive && !isExpired(now) && !isSoldOut();
+		return Boolean.TRUE.equals(isActive) && isIssueOpen(now) && !isSoldOut();
 	}
 
 	// 발급된 쿠폰을 사용할 수 있는지 (활성·기간만 확인, 재고는 무관)
 	public boolean isUsable(LocalDateTime now) {
-		return isActive && !isExpired(now);
+		return Boolean.TRUE.equals(isActive)
+			&& !now.isBefore(usableFrom)
+			&& now.isBefore(usableUntil);
 	}
 
 	/**
@@ -149,5 +184,9 @@ public class Coupon extends BaseEntity {
 	// 발급 가능 재고 (무제한이면 null)
 	public Integer remainingQuantity() {
 		return totalQuantity == null ? null : Math.max(0, totalQuantity - issuedQuantity);
+	}
+
+	private boolean differs(Object requested, Object current) {
+		return requested != null && !requested.equals(current);
 	}
 }

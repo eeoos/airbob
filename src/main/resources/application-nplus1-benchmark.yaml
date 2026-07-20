@@ -1,0 +1,11 @@
+spring:
+  jpa:
+    properties:
+      hibernate:
+        # 주소 지연 로딩 N+1을 배치 조회가 가리지 않도록 측정할 때만 비활성화
+        default_batch_fetch_size: 0
+
+benchmark:
+  nplus1:
+    enabled: true
+    account-email: benchmark-nplus1@airbob.cloud

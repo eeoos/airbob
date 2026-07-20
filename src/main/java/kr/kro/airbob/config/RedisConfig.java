@@ -31,10 +31,15 @@ public class RedisConfig {
 
     @Bean
     public RedissonClient redissonClient() {
+        return Redisson.create(redissonConfig());
+    }
+
+    Config redissonConfig() {
         Config config = new Config();
+        config.setUseScriptCache(true);
         String redisAddress = "redis://" + redisHost + ":" + redisPort;
         config.useSingleServer()
             .setAddress(redisAddress);
-        return Redisson.create(config);
+        return config;
     }
 }

@@ -104,8 +104,10 @@ class CouponUsageConcurrencyTest {
 			.name("10% 할인")
 			.discountType(DiscountType.PERCENTAGE)
 			.discountValue(10)
-			.startDate(LocalDateTime.now().minusDays(1))
-			.endDate(LocalDateTime.now().plusDays(7))
+			.issueStartAt(LocalDateTime.now().minusDays(1))
+			.issueEndAt(LocalDateTime.now().plusDays(7))
+			.usableFrom(LocalDateTime.now().minusDays(1))
+			.usableUntil(LocalDateTime.now().plusDays(7))
 			.isActive(true)
 			.issuedQuantity(1)
 			.build());

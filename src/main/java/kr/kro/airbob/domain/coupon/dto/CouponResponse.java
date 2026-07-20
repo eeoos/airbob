@@ -19,8 +19,10 @@ public class CouponResponse {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime startDate,
-		LocalDateTime endDate,
+		LocalDateTime issueStartAt,
+		LocalDateTime issueEndAt,
+		LocalDateTime usableFrom,
+		LocalDateTime usableUntil,
 		Integer totalQuantity,
 		Integer issuedQuantity
 	) {
@@ -33,8 +35,10 @@ public class CouponResponse {
 				coupon.getDiscountValue(),
 				coupon.getMinPaymentPrice(),
 				coupon.getMaxDiscountAmount(),
-				coupon.getStartDate(),
-				coupon.getEndDate(),
+				coupon.getIssueStartAt(),
+				coupon.getIssueEndAt(),
+				coupon.getUsableFrom(),
+				coupon.getUsableUntil(),
 				coupon.getTotalQuantity(),
 				coupon.getIssuedQuantity());
 		}

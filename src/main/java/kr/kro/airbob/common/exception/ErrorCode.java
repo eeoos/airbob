@@ -32,6 +32,7 @@ public enum ErrorCode {
 	UNAUTHORIZED_ACCESS(HttpStatus.UNAUTHORIZED, "M004", "인증이 필요합니다."),
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
+	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 계정만 사용할 수 있습니다."),
 
 
 	// accommodation
@@ -82,11 +83,14 @@ public enum ErrorCode {
 	COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "CP001", "존재하지 않는 쿠폰입니다."),
 	COUPON_SOLD_OUT(HttpStatus.CONFLICT, "CP002", "쿠폰이 모두 소진되었습니다."),
 	COUPON_ALREADY_ISSUED(HttpStatus.CONFLICT, "CP003", "이미 발급받은 쿠폰입니다."),
-	COUPON_ISSUE_FAILED(HttpStatus.CONFLICT, "CP004", "쿠폰 발급에 실패했습니다. 잠시 후 다시 시도해주세요."),
 	COUPON_NOT_ISSUABLE(HttpStatus.CONFLICT, "CP005", "발급할 수 없는 쿠폰입니다. (기간 만료 또는 비활성)"),
 	MEMBER_COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "CP006", "보유하지 않은 쿠폰입니다."),
 	COUPON_ALREADY_USED(HttpStatus.CONFLICT, "CP007", "이미 사용한 쿠폰입니다."),
 	COUPON_NOT_APPLICABLE(HttpStatus.CONFLICT, "CP008", "사용할 수 없는 쿠폰입니다. (기간 만료/비활성 또는 최소 결제 금액 미달)"),
+	COUPON_ALREADY_PREPARED(HttpStatus.CONFLICT, "CP009", "이미 준비된 쿠폰은 다시 준비하거나 발급 설정을 변경할 수 없습니다."),
+	COUPON_STOCK_PREPARATION_NOT_ALLOWED(HttpStatus.CONFLICT, "CP010", "현재 상태에서는 쿠폰 재고를 준비할 수 없습니다."),
+	COUPON_STOCK_NOT_PREPARED(HttpStatus.SERVICE_UNAVAILABLE, "CP011", "쿠폰 재고가 준비되지 않았습니다."),
+	COUPON_LOCK_TIMEOUT(HttpStatus.SERVICE_UNAVAILABLE, "CP012", "쿠폰 발급 요청이 몰려 잠금 획득에 실패했습니다. 잠시 후 다시 시도해주세요."),
 
 	// image
 	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "이미지 업로드 중 오류가 발생했습니다."),

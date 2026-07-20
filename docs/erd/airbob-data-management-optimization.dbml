@@ -1,0 +1,356 @@
+Project airbob_data_management_optimization {
+  database_type: 'MySQL'
+  Note: '''
+    Airbob Data Management & Optimization ERD (Simplified).
+    Source-of-truth tables are reduced to the keys needed to explain supporting data.
+    Business-domain relationships are intentionally omitted; see the separate Business Domain ERD.
+    History and ledger tables intentionally keep logical references without physical FK constraints.
+    Snapshot payloads and common audit columns are partially omitted for portfolio readability.
+  '''
+}
+
+// ============================================================
+// Source-of-truth anchors
+// ============================================================
+
+Table member [headercolor: #667085] {
+  id bigint [pk, increment]
+  email varchar(255) [unique]
+  status varchar(20) [not null]
+
+  Note: 'Current member state. Only anchor columns are shown.'
+}
+
+Table accommodation [headercolor: #667085] {
+  id bigint [pk, increment]
+  accommodation_uid binary(16) [not null, unique]
+  member_id bigint [not null]
+  type varchar(50) [note: 'Validated against common_code_detail(ACCOMMODATION_TYPE) by the application']
+  status varchar(20) [not null]
+
+  Note: 'Current accommodation state. Only anchor columns are shown.'
+}
+
+Table reservation [headercolor: #667085] {
+  id bigint [pk, increment]
+  reservation_uid binary(16) [not null, unique]
+  accommodation_id bigint [not null]
+  guest_id bigint [not null]
+  status varchar(50) [not null]
+
+  Note: 'Current reservation state. Only anchor columns are shown.'
+}
+
+Table payment [headercolor: #667085] {
+  id bigint [pk, increment]
+  payment_uid binary(16) [not null, unique]
+  reservation_id bigint [not null, unique]
+  status varchar(50) [not null]
+
+  Note: 'Current payment state. One row per reservation.'
+}
+
+Table settlement [headercolor: #667085] {
+  id bigint [pk, increment]
+  host_id bigint [not null]
+  settlement_month date [not null]
+  status varchar(20) [not null]
+
+  indexes {
+    (host_id, settlement_month) [unique, name: 'uk_settlement_host_month']
+  }
+
+  Note: 'Current monthly settlement state.'
+}
+
+// ============================================================
+// Change history: full-row snapshots
+// ============================================================
+
+Table member_history [headercolor: #4F6FD8] {
+  id bigint [pk, increment]
+  member_id bigint [not null, note: 'Logical source id; no physical FK']
+  email varchar(255)
+  status varchar(20) [not null]
+  change_type varchar(30) [not null]
+  change_reason varchar(255)
+  source_system varchar(30)
+  client_ip varchar(45)
+  history_created_at datetime(6) [not null]
+  history_created_by bigint
+  valid_from datetime(6) [not null]
+  valid_to datetime(6) [not null, default: '9999-12-31 23:59:59']
+
+  indexes {
+    member_id [name: 'idx_member_history_member_id']
+  }
+
+  Note: 'SCD Type 2 full-row snapshot. Password is intentionally excluded.'
+}
+
+Table accommodation_history [headercolor: #4F6FD8] {
+  id bigint [pk, increment]
+  accommodation_id bigint [not null, note: 'Logical source id; no physical FK']
+  accommodation_uid varchar(36)
+  member_id bigint
+  name varchar(255)
+  base_price bigint
+  status varchar(20) [not null]
+  address_country varchar(255)
+  address_city varchar(255)
+  max_occupancy int
+  change_type varchar(30) [not null]
+  change_reason varchar(255)
+  history_created_at datetime(6) [not null]
+  history_created_by bigint
+  valid_from datetime(6) [not null]
+  valid_to datetime(6) [not null, default: '9999-12-31 23:59:59']
+
+  indexes {
+    accommodation_id [name: 'idx_accommodation_history_accommodation_id']
+  }
+
+  Note: 'SCD Type 2 snapshot. Address and occupancy value objects are flattened.'
+}
+
+Table reservation_history [headercolor: #4F6FD8] {
+  id bigint [pk, increment]
+  reservation_id bigint [not null, note: 'Logical source id; no physical FK']
+  reservation_uid varchar(36)
+  accommodation_id bigint
+  guest_id bigint
+  total_price bigint
+  status varchar(50)
+  change_type varchar(30) [not null]
+  change_reason varchar(255)
+  source_system varchar(30)
+  client_ip varchar(45)
+  history_created_at datetime(6) [not null]
+  history_created_by bigint
+
+  indexes {
+    reservation_id [name: 'idx_reservation_history_reservation_id']
+  }
+
+  Note: 'INSERT-only transaction snapshot. Previous state is the preceding history row.'
+}
+
+Table settlement_history [headercolor: #4F6FD8] {
+  id bigint [pk, increment]
+  settlement_id bigint [not null, note: 'Logical source id; no physical FK']
+  host_id bigint
+  settlement_month date
+  net_amount bigint
+  commission_amount bigint
+  payout_amount bigint
+  status varchar(20)
+  change_type varchar(30) [not null]
+  change_reason varchar(255)
+  source_system varchar(30)
+  history_created_at datetime(6) [not null]
+  history_created_by bigint
+
+  indexes {
+    settlement_id [name: 'idx_settlement_history_settlement_id']
+  }
+
+  Note: 'INSERT-only settlement snapshot. No valid_from/valid_to interval.'
+}
+
+// ============================================================
+// Payment ledger: append-only transaction facts
+// ============================================================
+
+Table payment_transaction [headercolor: #E57A32] {
+  id bigint [pk, increment]
+  reservation_id bigint [not null, note: 'Logical source id; no physical FK']
+  payment_id bigint [note: 'Null before payment confirmation; no physical FK']
+  transaction_type varchar(30) [not null, note: 'CONFIRM, FAIL, VIRTUAL_ISSUED, CANCEL, PARTIAL_CANCEL']
+  status varchar(50)
+  amount bigint
+  cancel_amount bigint
+  payment_key varchar(200)
+  order_id varchar(64)
+  method varchar(50)
+  failure_code varchar(100)
+  failure_message varchar(512)
+  canceled_at datetime(6)
+  created_at datetime(6) [not null]
+
+  indexes {
+    reservation_id [name: 'idx_payment_transaction_reservation_id']
+    payment_id [name: 'idx_payment_transaction_payment_id']
+    order_id [name: 'idx_payment_transaction_order_id']
+  }
+
+  Note: 'Append-only PG transaction ledger. Source for revenue rollups and payment audit.'
+}
+
+// ============================================================
+// Read optimization and pre-aggregation
+// ============================================================
+
+Table accommodation_review_summary [headercolor: #2F9E74] {
+  accommodation_id bigint [pk]
+  total_review_count int [not null, default: 0]
+  rating_sum bigint [not null, default: 0]
+  average_rating decimal(3,2) [not null, default: 0.00]
+  updated_at datetime(6) [not null]
+
+  Note: 'One-to-one read model updated with atomic UPSERT/UPDATE.'
+}
+
+Table daily_revenue_stats [headercolor: #2F9E74] {
+  stat_date date [pk]
+  accommodation_id bigint [pk, note: 'Logical accommodation id; no physical FK']
+  gross_amount bigint [not null, default: 0]
+  refund_amount bigint [not null, default: 0]
+  net_amount bigint [not null, default: 0]
+  payment_count int [not null, default: 0]
+  refund_count int [not null, default: 0]
+  updated_at datetime(6) [not null]
+
+  Note: 'Idempotent daily batch rollup from payment_transaction. Grain: (stat_date, accommodation_id).'
+}
+
+Table wishlist [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  member_id bigint
+  accommodation_count int [not null, default: 0, note: 'Denormalized count maintained by atomic UPDATE']
+  representative_accommodation_id bigint [note: 'Denormalized latest accommodation id; no physical FK']
+
+  Note: 'Hot-path denormalization removes COUNT/GROUP BY and ROW_NUMBER queries.'
+}
+
+Table wishlist_accommodation [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  wishlist_id bigint
+  accommodation_id bigint
+  created_at datetime(6)
+
+  indexes {
+    (wishlist_id, accommodation_id) [unique, name: 'uk_wishlist_accommodation_unique']
+  }
+
+  Note: 'Source membership rows for accommodation_count and representative selection.'
+}
+
+// ============================================================
+// Event publishing and recovery
+// ============================================================
+
+Table outbox [headercolor: #C75C5C] {
+  id bigint [pk, increment]
+  aggregate_type varchar(255) [not null]
+  aggregate_id varchar(255) [not null, note: 'Polymorphic logical id; no physical FK']
+  event_type varchar(255) [not null]
+  payload text [not null]
+  created_at datetime(6) [not null]
+
+  Note: 'Transactional Outbox row captured in the same DB transaction and published through CDC.'
+}
+
+Table failed_indexing_events [headercolor: #C75C5C] {
+  id bigint [pk, increment]
+  event_type varchar(100) [not null]
+  event_data text [not null]
+  error_message text
+  status varchar(20) [not null, default: 'FAILED']
+  retry_count int [not null, default: 0]
+  failed_at datetime(6) [not null]
+  next_retry_at datetime(6) [not null]
+  last_retry_at datetime(6)
+  created_at datetime(6) [not null]
+
+  Note: 'Persistent retry queue for failed Elasticsearch indexing events.'
+}
+
+// ============================================================
+// Common code catalog
+// ============================================================
+
+Table common_code_group [headercolor: #8C67C7] {
+  group_code varchar(50) [pk]
+  group_name varchar(100) [not null]
+  description varchar(255)
+  is_active boolean [not null, default: true]
+}
+
+Table common_code_detail [headercolor: #8C67C7] {
+  group_code varchar(50) [pk]
+  code varchar(50) [pk]
+  name varchar(100) [not null]
+  description varchar(255)
+  sort_order int [not null, default: 0]
+  is_active boolean [not null, default: true]
+
+  indexes {
+    (group_code, is_active, sort_order) [name: 'idx_common_code_detail_lookup']
+  }
+}
+
+// ============================================================
+// Physical relationships
+// ============================================================
+
+Ref: accommodation_review_summary.accommodation_id - accommodation.id [delete: cascade, color: #2F9E74]
+Ref: wishlist_accommodation.wishlist_id > wishlist.id [color: #2F9E74]
+Ref: wishlist_accommodation.accommodation_id > accommodation.id [color: #2F9E74]
+
+Ref: common_code_detail.group_code > common_code_group.group_code [color: #8C67C7]
+
+// ============================================================
+// Logical relationships without physical FK constraints
+// Dotted lines are intentional and explain data independence.
+// ============================================================
+
+Ref: member_history.member_id > member.id [inactive, color: #4F6FD8]
+Ref: accommodation_history.accommodation_id > accommodation.id [inactive, color: #4F6FD8]
+Ref: reservation_history.reservation_id > reservation.id [inactive, color: #4F6FD8]
+Ref: settlement_history.settlement_id > settlement.id [inactive, color: #4F6FD8]
+
+Ref: payment_transaction.reservation_id > reservation.id [inactive, color: #E57A32]
+Ref: payment_transaction.payment_id > payment.id [inactive, color: #E57A32]
+
+Ref: daily_revenue_stats.accommodation_id > accommodation.id [inactive, color: #2F9E74]
+Ref: wishlist.representative_accommodation_id > accommodation.id [inactive, color: #2F9E74]
+
+// ============================================================
+// Visual grouping in dbdiagram.io
+// ============================================================
+
+TableGroup source_of_truth [color: #667085] {
+  member
+  accommodation
+  reservation
+  payment
+  settlement
+}
+
+TableGroup change_history [color: #4F6FD8] {
+  member_history
+  accommodation_history
+  reservation_history
+  settlement_history
+}
+
+TableGroup payment_ledger [color: #E57A32] {
+  payment_transaction
+}
+
+TableGroup read_optimization [color: #2F9E74] {
+  accommodation_review_summary
+  daily_revenue_stats
+  wishlist
+  wishlist_accommodation
+}
+
+TableGroup event_recovery [color: #C75C5C] {
+  outbox
+  failed_indexing_events
+}
+
+TableGroup common_code_catalog [color: #8C67C7] {
+  common_code_group
+  common_code_detail
+}

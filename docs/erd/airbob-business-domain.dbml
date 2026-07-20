@@ -1,0 +1,333 @@
+Project airbob_business_domain {
+  database_type: 'MySQL'
+  Note: '''
+    Airbob Business Domain ERD.
+    History, ledger, aggregation, outbox, and recovery tables are shown in a separate supporting-data diagram.
+    Inactive dotted refs are logical references without physical FK constraints.
+    This file is for documentation and must not be used as a migration source without reviewing those refs.
+  '''
+}
+
+// ============================================================
+// Member
+// ============================================================
+
+Table member [headercolor: #4F6FD8] {
+  id bigint [pk, increment]
+  email varchar(255) [unique]
+  password varchar(255)
+  nickname varchar(1000)
+  role varchar(50)
+  status varchar(20) [not null]
+  thumbnail_image_url varchar(255)
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+// ============================================================
+// Accommodation
+// ============================================================
+
+Table accommodation [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  accommodation_uid binary(16) [not null, unique]
+  member_id bigint [not null]
+  address_id bigint
+  occupancy_policy_id bigint
+  name varchar(255)
+  description text
+  base_price bigint
+  currency varchar(3)
+  thumbnail_url varchar(255)
+  type varchar(50) [note: 'Logical code from common_code_detail(ACCOMMODATION_TYPE); no physical FK']
+  check_in_time time [not null]
+  check_out_time time [not null]
+  status varchar(20) [not null]
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table address [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  country varchar(255)
+  state varchar(255)
+  city varchar(255)
+  district varchar(255)
+  street varchar(255)
+  detail varchar(255)
+  postal_code varchar(12)
+  latitude double
+  longitude double
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table occupancy_policy [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  max_occupancy int
+  infant_occupancy int
+  pet_occupancy int
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table accommodation_amenity [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  accommodation_id bigint
+  amenity_code varchar(50) [note: 'Logical code from common_code_detail(AMENITY_TYPE); no physical FK']
+  count int
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table accommodation_image [headercolor: #2F9E74] {
+  id bigint [pk, increment]
+  accommodation_id bigint
+  image_url varchar(255)
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+// ============================================================
+// Reservation, Payment, Settlement
+// ============================================================
+
+Table reservation [headercolor: #E57A32] {
+  id bigint [pk, increment]
+  reservation_uid binary(16) [not null, unique]
+  reservation_code varchar(10) [unique]
+  accommodation_id bigint [not null]
+  guest_id bigint [not null]
+  check_in datetime(6) [not null]
+  check_out datetime(6) [not null]
+  guest_count int [not null]
+  total_price bigint [not null]
+  discount_amount bigint [not null, default: 0, note: 'Applied coupon discount amount']
+  currency varchar(3) [not null]
+  status varchar(50) [not null]
+  message varchar(500)
+  expires_at datetime(6) [not null]
+  created_at datetime(6) [not null, default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table payment [headercolor: #E57A32] {
+  id bigint [pk, increment]
+  payment_uid binary(16) [not null, unique]
+  payment_key varchar(200) [not null, unique]
+  order_id varchar(64) [not null]
+  reservation_id bigint [not null, unique]
+  amount bigint [not null]
+  balance_amount bigint [not null]
+  method varchar(50) [not null]
+  status varchar(50) [not null]
+  approved_at datetime(6) [not null]
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table settlement [headercolor: #E57A32] {
+  id bigint [pk, increment]
+  host_id bigint [not null]
+  settlement_month date [not null, note: 'First day of settlement month']
+  gross_amount bigint [not null, default: 0]
+  refund_amount bigint [not null, default: 0]
+  net_amount bigint [not null, default: 0]
+  commission_rate decimal(5,4) [not null, default: 0]
+  commission_amount bigint [not null, default: 0]
+  payout_amount bigint [not null, default: 0]
+  status varchar(20) [not null]
+  settled_at datetime(6)
+  created_at datetime(6) [default: `CURRENT_TIMESTAMP(6)`]
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+
+  indexes {
+    (host_id, settlement_month) [unique, name: 'uk_settlement_host_month']
+  }
+}
+
+// ============================================================
+// Review
+// ============================================================
+
+Table review [headercolor: #8C67C7] {
+  id bigint [pk, increment]
+  accommodation_id bigint
+  member_id bigint [note: 'Review author']
+  content text
+  rating int
+  status varchar(20) [not null]
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table review_image [headercolor: #8C67C7] {
+  id bigint [pk, increment]
+  review_id bigint
+  image_url varchar(255)
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+// ============================================================
+// Wishlist
+// ============================================================
+
+Table wishlist [headercolor: #B66A9A] {
+  id bigint [pk, increment]
+  member_id bigint
+  name varchar(255) [not null]
+  status varchar(20) [not null]
+  accommodation_count int [not null, default: 0, note: 'Denormalized membership count']
+  representative_accommodation_id bigint [note: 'Denormalized latest accommodation id; no physical FK']
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table wishlist_accommodation [headercolor: #B66A9A] {
+  id bigint [pk, increment]
+  wishlist_id bigint
+  accommodation_id bigint
+  memo varchar(1024)
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+
+  indexes {
+    (wishlist_id, accommodation_id) [unique, name: 'uk_wishlist_accommodation_unique']
+  }
+}
+
+// ============================================================
+// Coupon
+// ============================================================
+
+Table coupon [headercolor: #D39B2A] {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  description varchar(255)
+  discount_type varchar(50) [not null, note: 'PERCENTAGE or FIXED_AMOUNT']
+  discount_value int [not null]
+  min_payment_price int
+  max_discount_amount int
+  start_date datetime(6) [not null]
+  end_date datetime(6) [not null]
+  is_active boolean [not null]
+  total_quantity int [note: 'Null means unlimited']
+  issued_quantity int [not null, default: 0]
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+}
+
+Table member_coupon [headercolor: #D39B2A] {
+  id bigint [pk, increment]
+  member_id bigint [not null]
+  coupon_id bigint [not null]
+  reservation_id bigint [note: 'Reservation where the coupon was used; logical reference without physical FK']
+  used boolean [not null, default: false]
+  used_at datetime(6)
+  created_at datetime(6)
+  updated_at datetime(6) [not null]
+  created_by bigint [note: 'Audit actor member id; no physical FK']
+  updated_by bigint [note: 'Audit actor member id; no physical FK']
+
+  indexes {
+    (member_id, coupon_id) [unique, name: 'uk_member_coupon']
+  }
+}
+
+// ============================================================
+// Domain relationships
+// - Solid lines: physical FK exists.
+// - Inactive/dotted lines: logical reference without a physical FK.
+// - address and occupancy_policy use the JPA 1:1 cardinality. Their current
+//   physical FK columns do not have UNIQUE constraints in the Flyway DDL.
+// ============================================================
+
+Ref: accommodation.member_id > member.id [color: #4F6FD8]
+Ref: address.id - accommodation.address_id [color: #2F9E74]
+Ref: occupancy_policy.id - accommodation.occupancy_policy_id [color: #2F9E74]
+Ref: accommodation_amenity.accommodation_id > accommodation.id [color: #2F9E74]
+Ref: accommodation_image.accommodation_id > accommodation.id [color: #2F9E74]
+
+Ref: reservation.accommodation_id > accommodation.id [color: #E57A32]
+Ref: reservation.guest_id > member.id [color: #E57A32]
+Ref: reservation.id - payment.reservation_id [color: #E57A32]
+Ref: settlement.host_id > member.id [color: #E57A32]
+
+Ref: review.accommodation_id > accommodation.id [color: #8C67C7]
+Ref: review.member_id > member.id [color: #8C67C7]
+Ref: review_image.review_id > review.id [color: #8C67C7]
+
+Ref: wishlist.member_id > member.id [color: #B66A9A]
+Ref: wishlist_accommodation.wishlist_id > wishlist.id [color: #B66A9A]
+Ref: wishlist_accommodation.accommodation_id > accommodation.id [color: #B66A9A]
+Ref: wishlist.representative_accommodation_id > accommodation.id [inactive, color: #B66A9A]
+
+Ref: member_coupon.member_id > member.id [color: #D39B2A]
+Ref: member_coupon.coupon_id > coupon.id [color: #D39B2A]
+Ref: member_coupon.reservation_id > reservation.id [inactive, color: #D39B2A]
+
+// ============================================================
+// Visual grouping in dbdiagram.io
+// ============================================================
+
+TableGroup member_domain [color: #4F6FD8] {
+  member
+}
+
+TableGroup accommodation_domain [color: #2F9E74] {
+  accommodation
+  address
+  occupancy_policy
+  accommodation_amenity
+  accommodation_image
+}
+
+TableGroup reservation_payment_domain [color: #E57A32] {
+  reservation
+  payment
+  settlement
+}
+
+TableGroup review_domain [color: #8C67C7] {
+  review
+  review_image
+}
+
+TableGroup wishlist_domain [color: #B66A9A] {
+  wishlist
+  wishlist_accommodation
+}
+
+TableGroup coupon_domain [color: #D39B2A] {
+  coupon
+  member_coupon
+}
