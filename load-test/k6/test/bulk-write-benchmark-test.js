@@ -586,5 +586,8 @@ export default function () {
       jdbcArtifact.database_observation.jdbc.batch_calls === 2
         && jdbcArtifact.database_observation.jdbc.submitted_rows === 25
     ),
+    'Wishlist artifact does not claim Reservation external effects': () => (
+      artifact.database_observation.external_effects === undefined
+    ),
   });
 }

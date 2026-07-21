@@ -1,12 +1,7 @@
 export const ARTIFACT_SCHEMA_VERSION = 'bulk-write-benchmark-v1';
-export const BULK_WRITE_ENDPOINT = '/api/v2/admin/benchmarks/bulk-write/wishlist-delete';
-export const BULK_WRITE_REQUEST_NAME = (
-  'POST /api/v2/admin/benchmarks/bulk-write/wishlist-delete'
-);
-export const BULK_WRITE_CANDIDATE = 'WISHLIST_DELETE';
 
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
-const DATA_FIELDS = [
+const WISHLIST_DATA_FIELDS = [
   'candidate',
   'variant',
   'dataset_size',
@@ -32,7 +27,7 @@ const OPERATION_FIELDS = [
   'jdbc_configured_batch_size',
   'jdbc_affected_rows',
 ];
-const VERIFICATION_FIELDS = [
+const WISHLIST_VERIFICATION_FIELDS = [
   'verification_succeeded',
   'target_wishlist_deleted',
   'target_memberships_deleted',
@@ -41,6 +36,82 @@ const VERIFICATION_FIELDS = [
   'control_membership_preserved',
   'accommodations_preserved',
 ];
+const RESERVATION_HISTORY_DATA_FIELDS = [
+  'candidate',
+  'variant',
+  'dataset_size',
+  'expected_rows',
+  'verified_rows',
+  'verification_succeeded',
+  'target_reservations_expired',
+  'target_histories_inserted',
+  'future_pending_preserved',
+  'non_pending_expired_preserved',
+  'history_snapshots_preserved',
+  'history_audit_context_preserved',
+  'hold_removals_matched',
+  'hold_removal_calls',
+  'redis_network_excluded',
+  'operation',
+];
+const RESERVATION_HISTORY_VERIFICATION_FIELDS = [
+  'verification_succeeded',
+  'target_reservations_expired',
+  'target_histories_inserted',
+  'future_pending_preserved',
+  'non_pending_expired_preserved',
+  'history_snapshots_preserved',
+  'history_audit_context_preserved',
+  'hold_removals_matched',
+];
+
+export const WISHLIST_DELETE_BENCHMARK = Object.freeze({
+  candidate: 'WISHLIST_DELETE',
+  endpoint: '/api/v2/admin/benchmarks/bulk-write/wishlist-delete',
+  requestName: 'POST /api/v2/admin/benchmarks/bulk-write/wishlist-delete',
+  operationPrefix: 'wishlist-delete',
+  maximumDatasetSize: 1000,
+  supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
+  dataFields: Object.freeze(WISHLIST_DATA_FIELDS),
+  matchesData: (data, datasetSize) => (
+    data.expected_rows === datasetSize
+      && data.verified_rows === datasetSize
+      && WISHLIST_VERIFICATION_FIELDS.every((field) => data[field] === true)
+  ),
+});
+
+export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
+  candidate: 'RESERVATION_HISTORY_INSERT',
+  endpoint: '/api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
+  requestName: 'POST /api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
+  operationPrefix: 'expired-reservation-cleanup',
+  maximumDatasetSize: 2000,
+  supportedVariants: Object.freeze(['BEFORE']),
+  dataFields: Object.freeze(RESERVATION_HISTORY_DATA_FIELDS),
+  externalEffects: Object.freeze({
+    holdRemovalMetric: 'bulk_write_hold_removal_calls',
+    holdRemovalMode: 'RECORDED_NO_IO',
+    redisNetworkExcluded: true,
+  }),
+  matchesData: (data, datasetSize) => {
+    const counts = data.operation.hibernate_statements_by_type;
+    return data.expected_rows === datasetSize
+      && data.verified_rows === datasetSize
+      && RESERVATION_HISTORY_VERIFICATION_FIELDS.every((field) => data[field] === true)
+      && data.hold_removal_calls === datasetSize
+      && data.redis_network_excluded === true
+      && counts.SELECT === 1
+      && counts.INSERT === datasetSize
+      && counts.UPDATE === datasetSize
+      && counts.DELETE === 0
+      && counts.OTHER === 0
+      && counts.TOTAL === 1 + (datasetSize * 2);
+  },
+});
+
+export const BULK_WRITE_ENDPOINT = WISHLIST_DELETE_BENCHMARK.endpoint;
+export const BULK_WRITE_REQUEST_NAME = WISHLIST_DELETE_BENCHMARK.requestName;
+export const BULK_WRITE_CANDIDATE = WISHLIST_DELETE_BENCHMARK.candidate;
 export const BULK_WRITE_HIBERNATE_METRICS = {
   SELECT: 'bulk_write_hibernate_select_statements',
   INSERT: 'bulk_write_hibernate_insert_statements',
@@ -68,6 +139,50 @@ function hasExactKeys(value, expectedKeys) {
   const expected = [...expectedKeys].sort();
   return actual.length === expected.length
     && actual.every((key, index) => key === expected[index]);
+}
+
+function requireBenchmarkDefinition(benchmark) {
+  requireCondition(isObject(benchmark), 'bulk-write benchmark definition must be an object');
+  requireCondition(
+    typeof benchmark.candidate === 'string' && benchmark.candidate.length > 0,
+    'bulk-write benchmark candidate is required',
+  );
+  requireCondition(
+    typeof benchmark.endpoint === 'string' && benchmark.endpoint.startsWith('/'),
+    'bulk-write benchmark endpoint is required',
+  );
+  requireCondition(
+    typeof benchmark.requestName === 'string' && benchmark.requestName.length > 0,
+    'bulk-write benchmark request name is required',
+  );
+  requireCondition(
+    typeof benchmark.operationPrefix === 'string' && benchmark.operationPrefix.length > 0,
+    'bulk-write benchmark operation prefix is required',
+  );
+  requireCondition(
+    Number.isSafeInteger(benchmark.maximumDatasetSize)
+      && benchmark.maximumDatasetSize >= 0,
+    'bulk-write benchmark maximum dataset size is invalid',
+  );
+  requireCondition(
+    Array.isArray(benchmark.supportedVariants)
+      && benchmark.supportedVariants.length > 0,
+    'bulk-write benchmark variants are required',
+  );
+  requireCondition(
+    Array.isArray(benchmark.dataFields) && typeof benchmark.matchesData === 'function',
+    'bulk-write benchmark response contract is required',
+  );
+  if (benchmark.externalEffects !== undefined) {
+    requireCondition(
+      isObject(benchmark.externalEffects)
+        && typeof benchmark.externalEffects.holdRemovalMetric === 'string'
+        && typeof benchmark.externalEffects.holdRemovalMode === 'string'
+        && typeof benchmark.externalEffects.redisNetworkExcluded === 'boolean',
+      'bulk-write benchmark external-effect contract is invalid',
+    );
+  }
+  return benchmark;
 }
 
 function parseCanonicalInteger(raw, name, minimum, maximum) {
@@ -144,8 +259,9 @@ export function parseSafeBaseUrl(raw) {
   return `${scheme}://${hostname}${normalizedPort}`;
 }
 
-export function parseDatasetSize(raw) {
-  return parseCanonicalInteger(raw, 'DATASET_SIZE', 0, 1000);
+export function parseDatasetSize(raw, benchmark = WISHLIST_DELETE_BENCHMARK) {
+  const definition = requireBenchmarkDefinition(benchmark);
+  return parseCanonicalInteger(raw, 'DATASET_SIZE', 0, definition.maximumDatasetSize);
 }
 
 export function parseSamples(raw) {
@@ -157,17 +273,19 @@ export function parsePhase(raw) {
   return raw;
 }
 
-export function parseBulkWriteVariant(raw) {
+export function parseBulkWriteVariant(raw, benchmark = WISHLIST_DELETE_BENCHMARK) {
+  const definition = requireBenchmarkDefinition(benchmark);
   requireCondition(
-    raw === 'BEFORE' || raw === 'AFTER',
-    'VARIANT must be BEFORE or AFTER',
+    definition.supportedVariants.includes(raw),
+    `VARIANT must be ${definition.supportedVariants.join(' or ')}`,
   );
   return raw;
 }
 
-export function bulkWriteOperationName(rawVariant) {
-  const variant = parseBulkWriteVariant(rawVariant);
-  return `wishlist-delete-${variant.toLowerCase()}`;
+export function bulkWriteOperationName(rawVariant, benchmark = WISHLIST_DELETE_BENCHMARK) {
+  const definition = requireBenchmarkDefinition(benchmark);
+  const variant = parseBulkWriteVariant(rawVariant, definition);
+  return `${definition.operationPrefix}-${variant.toLowerCase()}`;
 }
 
 export function parseBulkWriteToken(raw) {
@@ -200,11 +318,15 @@ export function parseBulkWriteResultPath(raw, fallback) {
   return value;
 }
 
-export function parseBulkWriteRunConfig(environment) {
-  const variant = parseBulkWriteVariant(environment.VARIANT || 'BEFORE');
-  const operationName = bulkWriteOperationName(variant);
+export function parseBulkWriteRunConfig(
+  environment,
+  benchmark = WISHLIST_DELETE_BENCHMARK,
+) {
+  const definition = requireBenchmarkDefinition(benchmark);
+  const variant = parseBulkWriteVariant(environment.VARIANT || 'BEFORE', definition);
+  const operationName = bulkWriteOperationName(variant, definition);
   const phase = parsePhase(environment.PHASE || 'measure');
-  const datasetSize = parseDatasetSize(environment.DATASET_SIZE);
+  const datasetSize = parseDatasetSize(environment.DATASET_SIZE, definition);
   const samples = parseSamples(environment.SAMPLES);
   const benchmarkToken = parseBulkWriteToken(environment.BENCHMARK_BULK_WRITE_TOKEN);
   const round = parseCanonicalInteger(environment.ROUND || '1', 'ROUND', 1, 1_000_000);
@@ -257,10 +379,14 @@ export function parseBulkWriteRunConfig(environment) {
   };
 }
 
-export function buildBulkWriteRequestBody({ variant, datasetSize }) {
+export function buildBulkWriteRequestBody(
+  { variant, datasetSize },
+  benchmark = WISHLIST_DELETE_BENCHMARK,
+) {
+  const definition = requireBenchmarkDefinition(benchmark);
   return JSON.stringify({
-    variant: parseBulkWriteVariant(variant),
-    dataset_size: parseDatasetSize(datasetSize),
+    variant: parseBulkWriteVariant(variant, definition),
+    dataset_size: parseDatasetSize(datasetSize, definition),
   });
 }
 
@@ -291,8 +417,12 @@ export function buildBulkWriteRequestParams({
   };
 }
 
-export function buildBulkWriteOptions({ variant, phase, samples }) {
-  const parsedVariant = parseBulkWriteVariant(variant);
+export function buildBulkWriteOptions(
+  { variant, phase, samples },
+  benchmark = WISHLIST_DELETE_BENCHMARK,
+) {
+  const definition = requireBenchmarkDefinition(benchmark);
+  const parsedVariant = parseBulkWriteVariant(variant, definition);
   const parsedPhase = parsePhase(phase);
   const parsedSamples = parseSamples(samples);
   const scenarioName = `bulk_write_${parsedPhase}`;
@@ -308,7 +438,7 @@ export function buildBulkWriteOptions({ variant, phase, samples }) {
         iterations: parsedSamples,
         maxDuration: '30m',
         tags: {
-          candidate: BULK_WRITE_CANDIDATE,
+          candidate: definition.candidate,
           phase: parsedPhase,
           variant: parsedVariant,
         },
@@ -333,10 +463,15 @@ function durationUnitsMatch(nanos, millis) {
   return Math.abs(millis - expected) <= tolerance;
 }
 
-export function matchesBulkWriteOperationContract(value, expectedVariant = 'BEFORE') {
+export function matchesBulkWriteOperationContract(
+  value,
+  expectedVariant = 'BEFORE',
+  benchmark = WISHLIST_DELETE_BENCHMARK,
+) {
+  const definition = requireBenchmarkDefinition(benchmark);
   let operationName;
   try {
-    operationName = bulkWriteOperationName(expectedVariant);
+    operationName = bulkWriteOperationName(expectedVariant, definition);
   } catch (_) {
     return false;
   }
@@ -368,12 +503,14 @@ export function matchesBulkWriteResponseContract(
   payload,
   expectedDatasetSize,
   expectedVariant = 'BEFORE',
+  benchmark = WISHLIST_DELETE_BENCHMARK,
 ) {
+  const definition = requireBenchmarkDefinition(benchmark);
   let datasetSize;
   let variant;
   try {
-    datasetSize = parseDatasetSize(expectedDatasetSize);
-    variant = parseBulkWriteVariant(expectedVariant);
+    datasetSize = parseDatasetSize(expectedDatasetSize, definition);
+    variant = parseBulkWriteVariant(expectedVariant, definition);
   } catch (_) {
     return false;
   }
@@ -384,18 +521,16 @@ export function matchesBulkWriteResponseContract(
       || !Object.keys(payload).every((key) => ['success', 'data', 'error'].includes(key))
       || payload.success !== true
       || (Object.prototype.hasOwnProperty.call(payload, 'error') && payload.error !== null)
-      || !hasExactKeys(payload.data, DATA_FIELDS)) {
+      || !hasExactKeys(payload.data, definition.dataFields)) {
     return false;
   }
 
   const data = payload.data;
-  return data.candidate === BULK_WRITE_CANDIDATE
+  return data.candidate === definition.candidate
     && data.variant === variant
     && data.dataset_size === datasetSize
-    && data.expected_rows === datasetSize
-    && data.verified_rows === datasetSize
-    && VERIFICATION_FIELDS.every((field) => data[field] === true)
-    && matchesBulkWriteOperationContract(data.operation, variant);
+    && matchesBulkWriteOperationContract(data.operation, variant, definition)
+    && definition.matchesData(data, datasetSize, variant);
 }
 
 function metricValues(data, name) {
@@ -519,7 +654,8 @@ export function buildBulkWriteArtifact({
   k6Summary,
   generatedAt = new Date().toISOString(),
   sensitiveValues = [],
-}) {
+}, benchmark = WISHLIST_DELETE_BENCHMARK) {
+  const definition = requireBenchmarkDefinition(benchmark);
   const performance = summarizeBulkWriteMetrics(k6Summary);
   const jdbc = summarizeJdbcMetrics(k6Summary);
   requireCondition(
@@ -536,13 +672,13 @@ export function buildBulkWriteArtifact({
   ];
   const metadata = {
     generated_at: generatedAt,
-    candidate: BULK_WRITE_CANDIDATE,
-    variant: parseBulkWriteVariant(config.variant),
+    candidate: definition.candidate,
+    variant: parseBulkWriteVariant(config.variant, definition),
     phase: parsePhase(config.phase),
-    dataset_size: parseDatasetSize(config.datasetSize),
+    dataset_size: parseDatasetSize(config.datasetSize, definition),
     samples: parseSamples(config.samples),
-    endpoint: BULK_WRITE_ENDPOINT,
-    operation_name: bulkWriteOperationName(config.variant),
+    endpoint: definition.endpoint,
+    operation_name: bulkWriteOperationName(config.variant, definition),
     run_label: parseRequiredPublicText(config.runLabel, 'RUN_LABEL'),
     round: parseCanonicalInteger(config.round, 'ROUND', 1, 1_000_000),
     run_order: parseCanonicalInteger(config.runOrder, 'RUN_ORDER', 1, 1_000_000),
@@ -559,6 +695,18 @@ export function buildBulkWriteArtifact({
     rewrite_batched_statements: config.rewriteBatchedStatements,
     request_timeout: parseRequiredPublicText(config.requestTimeout, 'REQUEST_TIMEOUT'),
   };
+  const externalEffects = definition.externalEffects === undefined
+    ? {}
+    : {
+      external_effects: {
+        hold_removal_calls: trendSummary(
+          k6Summary,
+          definition.externalEffects.holdRemovalMetric,
+        ).median,
+        hold_removal_mode: definition.externalEffects.holdRemovalMode,
+        redis_network_excluded: definition.externalEffects.redisNetworkExcluded,
+      },
+    };
 
   return {
     schema_version: ARTIFACT_SCHEMA_VERSION,
@@ -577,6 +725,7 @@ export function buildBulkWriteArtifact({
         configured_batch_size: null,
         affected_rows: null,
       },
+      ...externalEffects,
     },
     k6_summary: redactK6Summary(k6Summary, secrets),
   };

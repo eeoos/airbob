@@ -74,7 +74,7 @@ class BulkWriteBenchmarkProfileTest {
 	void profileAndPropertyCreateGuards() {
 		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(SCHEMA);
 		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(SCHEMA)))
-			.thenReturn(4);
+			.thenReturn(6);
 
 		contextRunner
 			.withInitializer(context -> context.getEnvironment().setActiveProfiles("bulk-write-benchmark"))
@@ -125,6 +125,12 @@ class BulkWriteBenchmarkProfileTest {
 		assertThat(sources)
 			.extracting(source -> source.getProperty("spring.flyway.enabled"))
 			.containsExactly(false);
+		assertThat(sources)
+			.extracting(source -> source.getProperty("spring.jpa.properties.hibernate.show_sql"))
+			.containsExactly(false);
+		assertThat(sources)
+			.extracting(source -> source.getProperty("logging.level.org.hibernate.SQL"))
+			.containsExactly("OFF");
 	}
 
 	private String[] validProperties() {

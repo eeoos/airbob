@@ -10,3 +10,15 @@ spring:
   kafka:
     listener:
       auto-startup: false
+  jpa:
+    properties:
+      hibernate:
+        show_sql: false
+        format_sql: false
+
+logging:
+  level:
+    kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler: ERROR
+    org.hibernate.SQL: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
