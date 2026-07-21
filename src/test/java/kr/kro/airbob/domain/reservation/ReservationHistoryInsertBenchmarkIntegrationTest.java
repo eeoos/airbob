@@ -15,7 +15,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -47,6 +49,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmar
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkService;
+import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
@@ -54,7 +57,8 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 	"spring.cloud.aws.s3.enabled=false",
 	"benchmark.bulk-write.enabled=true",
 	"benchmark.bulk-write.token=bulk-write-integration-token-123456789",
-	"benchmark.bulk-write.allowed-schema=airbob_bulk_write_benchmark"
+	"benchmark.bulk-write.allowed-schema=airbob_bulk_write_benchmark",
+	"reservation.expiration.history-batch-size=2"
 })
 @ActiveProfiles({"test", "bulk-write-benchmark"})
 @DisplayName("ReservationHistory IDENTITY INSERT Before 벌크 쓰기 통합 테스트")
@@ -91,10 +95,11 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	@Autowired private ReservationHistoryInsertBenchmarkFixtureService fixtureService;
 	@Autowired private ReservationHistoryInsertBenchmarkHoldService holdService;
 	@Autowired private ReservationHistoryInsertBeforeBenchmarkService beforeService;
-	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired private ExpiredReservationCleanupService cleanupService;
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private EntityManager entityManager;
 	@MockitoSpyBean private ReservationHistoryRepository historyRepository;
+	@MockitoSpyBean private JdbcTemplate jdbcTemplate;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
@@ -113,7 +118,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	void tearDown() {
 		UserContext.clear();
 		holdService.clearRecording();
-		reset(historyRepository);
+		reset(historyRepository, jdbcTemplate);
 		jdbcTemplate.update("DELETE FROM reservation_history");
 		jdbcTemplate.update("DELETE FROM reservation");
 		jdbcTemplate.update("DELETE FROM accommodation");
@@ -186,6 +191,55 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("AFTER N=3은 proxied 운영 cleanup의 JDBC history와 dirty-check update를 함께 측정한다")
+	void measuresActualAfterCleanup() {
+		var response = benchmarkService.run(
+			new ReservationHistoryInsertBenchmarkRequest(Variant.AFTER, 3)
+		);
+
+		assertThat(AopUtils.isAopProxy(cleanupService)).isTrue();
+		assertThat(UserContext.get()).isSameAs(requestAdmin);
+		assertThat(response.expectedRows()).isEqualTo(3);
+		assertThat(response.verifiedRows()).isEqualTo(3);
+		assertThat(response.operation().operationName())
+			.isEqualTo(ReservationHistoryInsertBenchmarkService.AFTER_OPERATION_NAME);
+		assertThat(response.operation().hibernateStatementsByType())
+			.containsEntry(SqlQueryType.SELECT, 1)
+			.containsEntry(SqlQueryType.INSERT, 0)
+			.containsEntry(SqlQueryType.UPDATE, 3)
+			.containsEntry(SqlQueryType.TOTAL, 4);
+		assertThat(response.operation().jdbcBatchCalls()).isEqualTo(2);
+		assertThat(response.operation().jdbcSubmittedRows()).isEqualTo(3);
+		assertThat(response.operation().jdbcConfiguredBatchSize()).isEqualTo(2);
+		assertThat(response.operation().jdbcAffectedRows())
+			.satisfies(value -> assertThat(value == null || value == 3L).isTrue());
+		assertThat(response.holdRemovalCalls()).isEqualTo(3);
+		assertThat(response.verificationSucceeded()).isTrue();
+	}
+
+	@Test
+	@DisplayName("AFTER N=0은 proxied 운영 cleanup SELECT 1회만 측정한다")
+	void supportsEmptyAfterDataset() {
+		var response = benchmarkService.run(
+			new ReservationHistoryInsertBenchmarkRequest(Variant.AFTER, 0)
+		);
+
+		assertThat(AopUtils.isAopProxy(cleanupService)).isTrue();
+		assertThat(response.verifiedRows()).isZero();
+		assertThat(response.verificationSucceeded()).isTrue();
+		assertThat(response.holdRemovalCalls()).isZero();
+		assertThat(response.operation().hibernateStatementsByType())
+			.containsEntry(SqlQueryType.SELECT, 1)
+			.containsEntry(SqlQueryType.INSERT, 0)
+			.containsEntry(SqlQueryType.UPDATE, 0)
+			.containsEntry(SqlQueryType.TOTAL, 1);
+		assertThat(response.operation().jdbcBatchCalls()).isZero();
+		assertThat(response.operation().jdbcSubmittedRows()).isZero();
+		assertThat(response.operation().jdbcConfiguredBatchSize()).isNull();
+		assertThat(response.operation().jdbcAffectedRows()).isNull();
+	}
+
+	@Test
 	@DisplayName("서로 다른 hold 대상은 Before 서비스 조회 순서와 무관하게 정확히 검증한다")
 	void verifiesDistinctHoldRemovalsWithoutDependingOnQueryOrder() {
 		Fixture fixture = fixtureService.createFixture(3);
@@ -236,6 +290,39 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(countRows("reservation")).isZero();
 		assertThat(countRows("accommodation")).isZero();
 		assertThat(countRows("member")).isZero();
+		UserContext.set(requestAdmin);
+	}
+
+	@Test
+	@DisplayName("AFTER 두 번째 JDBC chunk 실패는 첫 chunk와 dirty-check를 rollback하고 hold를 제거하지 않는다")
+	void rollsBackAfterSecondJdbcChunkFailureBeforeHoldRemoval() {
+		Fixture fixture = fixtureService.createFixture(3);
+		AtomicInteger historyBatches = new AtomicInteger();
+		doAnswer(invocation -> {
+			if (historyBatches.incrementAndGet() == 2) {
+				throw new DataIntegrityViolationException("intentional second chunk failure");
+			}
+			return invocation.callRealMethod();
+		}).when(jdbcTemplate).batchUpdate(
+			argThat(sql -> sql.contains("INSERT INTO reservation_history")),
+			any(BatchPreparedStatementSetter.class)
+		);
+
+		UserContext.clear();
+		holdService.startRecording();
+		assertThatThrownBy(cleanupService::cleanupExpiredPendingReservations)
+			.isInstanceOf(DataIntegrityViolationException.class);
+		HoldRemovalSnapshot holds = holdService.finishRecording();
+
+		assertThat(holds.callCount()).isZero();
+		verify(jdbcTemplate, times(2)).batchUpdate(
+			argThat(sql -> sql.contains("INSERT INTO reservation_history")),
+			any(BatchPreparedStatementSetter.class)
+		);
+		assertThat(countTargetStatus(fixture, "PAYMENT_PENDING")).isEqualTo(3);
+		assertThat(countHistories(fixture)).isZero();
+
+		fixtureService.cleanup(fixture);
 		UserContext.set(requestAdmin);
 	}
 

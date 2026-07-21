@@ -115,11 +115,13 @@ class ReservationHistoryInsertBenchmarkAccessTest {
 	}
 
 	@Test
-	@DisplayName("ADMIN 세션과 전용 token이 모두 맞아야 Before 요청을 허용한다")
-	void allowsAdminWithDedicatedToken() throws Exception {
+	@DisplayName("ADMIN 세션과 전용 token이 모두 맞아야 exact uppercase variant 요청을 허용한다")
+	void allowsAdminWithDedicatedTokenForExactUppercaseVariants() throws Exception {
 		authenticate(10L, MemberRole.ADMIN);
-		ReservationHistoryInsertBenchmarkRequest expected =
+		ReservationHistoryInsertBenchmarkRequest before =
 			new ReservationHistoryInsertBenchmarkRequest(Variant.BEFORE, 7);
+		ReservationHistoryInsertBenchmarkRequest after =
+			new ReservationHistoryInsertBenchmarkRequest(Variant.AFTER, 7);
 
 		mockMvc.perform(post(PATH)
 				.cookie(new Cookie("SESSION_ID", "valid-session"))
@@ -127,17 +129,25 @@ class ReservationHistoryInsertBenchmarkAccessTest {
 				.header(BulkWriteBenchmarkAccessGuard.HEADER_NAME, TOKEN)
 				.content(beforeRequest(7)))
 			.andExpect(status().isOk());
+		mockMvc.perform(post(PATH)
+				.cookie(new Cookie("SESSION_ID", "valid-session"))
+				.contentType("application/json")
+				.header(BulkWriteBenchmarkAccessGuard.HEADER_NAME, TOKEN)
+				.content(afterRequest(7)))
+			.andExpect(status().isOk());
 
-		then(benchmarkService).should().run(expected);
+		then(benchmarkService).should().run(before);
+		then(benchmarkService).should().run(after);
 	}
 
 	@Test
-	@DisplayName("After, 범위 밖 dataset, 정수 overflow, 소수와 문자열은 service 호출 전에 거부한다")
+	@DisplayName("lowercase, UNKNOWN, 숫자, 누락, invalid dataset은 service 호출 전에 거부한다")
 	void rejectsInvalidRequestBeforeService() throws Exception {
 		authenticate(10L, MemberRole.ADMIN);
 
-		assertRejected("{\"variant\":\"AFTER\",\"dataset_size\":1}");
 		assertRejected("{\"variant\":\"before\",\"dataset_size\":1}");
+		assertRejected("{\"variant\":\"after\",\"dataset_size\":1}");
+		assertRejected("{\"variant\":\"UNKNOWN\",\"dataset_size\":1}");
 		assertRejected("{\"variant\":0,\"dataset_size\":1}");
 		assertRejected("{\"dataset_size\":1}");
 		assertRejected("{\"variant\":\"BEFORE\",\"dataset_size\":2001}");
@@ -172,5 +182,9 @@ class ReservationHistoryInsertBenchmarkAccessTest {
 
 	private String beforeRequest(int datasetSize) {
 		return "{\"variant\":\"BEFORE\",\"dataset_size\":" + datasetSize + "}";
+	}
+
+	private String afterRequest(int datasetSize) {
+		return "{\"variant\":\"AFTER\",\"dataset_size\":" + datasetSize + "}";
 	}
 }

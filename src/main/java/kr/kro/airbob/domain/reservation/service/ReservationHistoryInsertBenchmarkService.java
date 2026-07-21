@@ -10,6 +10,7 @@ import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationMonitor;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationSnapshot;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest;
+import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest.Variant;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
@@ -21,8 +22,10 @@ import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmar
 public class ReservationHistoryInsertBenchmarkService {
 
 	public static final String BEFORE_OPERATION_NAME = "expired-reservation-cleanup-before";
+	public static final String AFTER_OPERATION_NAME = "expired-reservation-cleanup-after";
 
 	private final ReservationHistoryInsertBeforeBenchmarkService beforeService;
+	private final ExpiredReservationCleanupService cleanupService;
 	private final ReservationHistoryInsertBenchmarkFixtureService fixtureService;
 	private final ReservationHistoryInsertBenchmarkHoldService holdService;
 	private final BulkOperationMonitor bulkOperationMonitor;
@@ -30,12 +33,14 @@ public class ReservationHistoryInsertBenchmarkService {
 
 	public ReservationHistoryInsertBenchmarkService(
 		ReservationHistoryInsertBeforeBenchmarkService beforeService,
+		ExpiredReservationCleanupService cleanupService,
 		ReservationHistoryInsertBenchmarkFixtureService fixtureService,
 		ReservationHistoryInsertBenchmarkHoldService holdService,
 		BulkOperationMonitor bulkOperationMonitor,
 		BulkWriteBenchmarkDatabaseGuard databaseGuard
 	) {
 		this.beforeService = beforeService;
+		this.cleanupService = cleanupService;
 		this.fixtureService = fixtureService;
 		this.holdService = holdService;
 		this.bulkOperationMonitor = bulkOperationMonitor;
@@ -49,7 +54,7 @@ public class ReservationHistoryInsertBenchmarkService {
 		Throwable operationFailure = null;
 
 		try {
-			Measurement measurement = measureScheduler();
+			Measurement measurement = measureScheduler(request.variant());
 			ReservationHistoryInsertBenchmarkVerification verification = fixtureService.verify(
 				fixture,
 				measurement.holdSnapshot()
@@ -77,7 +82,7 @@ public class ReservationHistoryInsertBenchmarkService {
 		}
 	}
 
-	private Measurement measureScheduler() {
+	private Measurement measureScheduler(Variant variant) {
 		UserInfo previousUser = UserContext.get();
 		boolean recording = false;
 		try {
@@ -85,8 +90,8 @@ public class ReservationHistoryInsertBenchmarkService {
 			recording = true;
 			UserContext.clear();
 			BulkOperationSnapshot operation = bulkOperationMonitor.monitor(
-				BEFORE_OPERATION_NAME,
-				beforeService::cleanupExpiredPendingReservations
+				operationName(variant),
+				operation(variant)
 			);
 			HoldRemovalSnapshot holdSnapshot = holdService.finishRecording();
 			recording = false;
@@ -100,6 +105,20 @@ public class ReservationHistoryInsertBenchmarkService {
 				UserContext.set(previousUser);
 			}
 		}
+	}
+
+	private Runnable operation(Variant variant) {
+		return switch (variant) {
+			case BEFORE -> beforeService::cleanupExpiredPendingReservations;
+			case AFTER -> cleanupService::cleanupExpiredPendingReservations;
+		};
+	}
+
+	private String operationName(Variant variant) {
+		return switch (variant) {
+			case BEFORE -> BEFORE_OPERATION_NAME;
+			case AFTER -> AFTER_OPERATION_NAME;
+		};
 	}
 
 	private int validateRequest(ReservationHistoryInsertBenchmarkRequest request) {

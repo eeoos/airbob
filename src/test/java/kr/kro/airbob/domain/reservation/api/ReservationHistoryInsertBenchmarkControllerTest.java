@@ -68,6 +68,27 @@ class ReservationHistoryInsertBenchmarkControllerTest {
 		ordered.verify(service).run(request);
 	}
 
+	@Test
+	@DisplayName("전용 토큰을 먼저 검증하고 After 오케스트레이터를 호출한다")
+	void verifiesTokenAndDelegatesAfter() {
+		ReservationHistoryInsertBenchmarkService service = mock(ReservationHistoryInsertBenchmarkService.class);
+		BulkWriteBenchmarkAccessGuard guard = mock(BulkWriteBenchmarkAccessGuard.class);
+		ReservationHistoryInsertBenchmarkController controller =
+			new ReservationHistoryInsertBenchmarkController(service, guard);
+		ReservationHistoryInsertBenchmarkRequest request =
+			new ReservationHistoryInsertBenchmarkRequest(Variant.AFTER, 10);
+		ReservationHistoryInsertBenchmarkResponse expected = mock(ReservationHistoryInsertBenchmarkResponse.class);
+		given(service.run(request)).willReturn(expected);
+
+		var response = controller.run(request, "dedicated-token");
+
+		assertThat(response.getBody()).isNotNull();
+		assertThat(response.getBody().getData()).isSameAs(expected);
+		var ordered = inOrder(guard, service);
+		ordered.verify(guard).verify("dedicated-token");
+		ordered.verify(service).run(request);
+	}
+
 	@Configuration(proxyBeanMethods = false)
 	@Import(ReservationHistoryInsertBenchmarkController.class)
 	static class TestConfiguration {

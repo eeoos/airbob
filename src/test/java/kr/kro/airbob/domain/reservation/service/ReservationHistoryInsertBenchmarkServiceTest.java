@@ -31,6 +31,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmar
 class ReservationHistoryInsertBenchmarkServiceTest {
 
 	@Mock private ReservationHistoryInsertBeforeBenchmarkService beforeService;
+	@Mock private ExpiredReservationCleanupService cleanupService;
 	@Mock private ReservationHistoryInsertBenchmarkFixtureService fixtureService;
 	@Mock private ReservationHistoryInsertBenchmarkHoldService holdService;
 	@Mock private BulkOperationMonitor bulkOperationMonitor;
@@ -45,11 +46,32 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 	void setUp() {
 		benchmarkService = new ReservationHistoryInsertBenchmarkService(
 			beforeService,
+			cleanupService,
 			fixtureService,
 			holdService,
 			bulkOperationMonitor,
 			databaseGuard
 		);
+	}
+
+	@Test
+	@DisplayName("AFTER는 운영 cleanup service와 별도 operation name을 사용한다")
+	void delegatesAfterVariantToProductionCleanup() {
+		given(fixtureService.createFixture(3)).willReturn(fixture);
+		given(holdService.finishRecording()).willReturn(holdSnapshot);
+		given(fixtureService.verify(fixture, holdSnapshot)).willReturn(verification);
+		given(bulkOperationMonitor.monitor(
+			eq(ReservationHistoryInsertBenchmarkService.AFTER_OPERATION_NAME),
+			any(Runnable.class)
+		)).willAnswer(invocation -> {
+			invocation.<Runnable>getArgument(1).run();
+			return afterSnapshot(3, 2);
+		});
+
+		benchmarkService.run(new ReservationHistoryInsertBenchmarkRequest(Variant.AFTER, 3));
+
+		then(cleanupService).should().cleanupExpiredPendingReservations();
+		then(beforeService).shouldHaveNoInteractions();
 	}
 
 	@AfterEach
@@ -165,6 +187,27 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 			0,
 			null,
 			null
+		);
+	}
+
+	private BulkOperationSnapshot afterSnapshot(int rows, int batchSize) {
+		int batchCalls = rows == 0 ? 0 : (int)Math.ceil((double)rows / batchSize);
+		return new BulkOperationSnapshot(
+			ReservationHistoryInsertBenchmarkService.AFTER_OPERATION_NAME,
+			BulkOperationSnapshot.Outcome.SUCCESS,
+			2_000_000,
+			Map.of(
+				SqlQueryType.SELECT, 1,
+				SqlQueryType.INSERT, 0,
+				SqlQueryType.UPDATE, rows,
+				SqlQueryType.DELETE, 0,
+				SqlQueryType.OTHER, 0,
+				SqlQueryType.TOTAL, 1 + rows
+			),
+			batchCalls,
+			rows,
+			rows == 0 ? null : batchSize,
+			rows == 0 ? null : (long)rows
 		);
 	}
 }
