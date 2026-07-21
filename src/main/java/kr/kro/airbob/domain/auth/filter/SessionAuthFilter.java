@@ -38,9 +38,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
     // 인증이 필요 없는 경로 목록 (메서드 무관)
     private static final Set<String> PUBLIC_PATHS = Set.of(
         "/api/v1/auth/login",  // 로그인
-        "/api/v1/members",      // 회원가입
-
-        "/api/v1/test/cpu-burn" // k6 테스트
+        "/api/v1/members"      // 회원가입
     );
 
     // GET 메서드일 때만 인증이 필요 없는 경로 목록
@@ -48,6 +46,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         "/api/v1/accommodations/*",          // 숙소 상세
         "/api/v1/accommodations/*/reviews",  // 리뷰 목록
         "/api/v1/accommodations/*/reviews/summary", // 리뷰 요약
+        "/api/v2/accommodations/*/reviews/summary", // read model benchmark 리뷰 요약
         "/api/v1/search/accommodations",     // 검색
         "/api/v1/common-codes/*",            // 공통 코드 조회(공개 상세/검색의 라벨·셀렉트박스). 관리 API(/admin/**)는 별도 보호
         // "/api/v1/search/recommendations"     // 인기 여행지 추천

@@ -57,8 +57,12 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
-@SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
-@ActiveProfiles("test")
+@SpringBootTest(properties = {
+	"spring.cloud.aws.s3.enabled=false",
+	"benchmark.read-model.enabled=true",
+	"benchmark.read-model.token=test-token"
+})
+@ActiveProfiles({"test", "coupon-benchmark"})
 class CouponConcurrencyTest {
 
 	private static final int THREAD_COUNT = 100;
@@ -237,7 +241,7 @@ class CouponConcurrencyTest {
 			return invocation.callRealMethod();
 		}).when(stockManager).prepare(
 			eq(transitioningCoupon.getId()),
-			eq((long)COUPON_LIMIT),
+			eq(COUPON_LIMIT),
 			anyLong(),
 			anyLong(),
 			eq(true),

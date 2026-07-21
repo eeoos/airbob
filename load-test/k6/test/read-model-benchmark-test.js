@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import * as readModelBenchmark from '../lib/read-model-benchmark.js';
 import {
   buildReadModelOptions,
   buildReadModelPath,
@@ -31,6 +32,17 @@ function rejects(action) {
 }
 
 export default function () {
+  const buildRequestName = readModelBenchmark.buildReadModelRequestName;
+  const requestNames = typeof buildRequestName === 'function'
+    ? [
+      buildRequestName('review', 'before'),
+      buildRequestName('review', 'after'),
+      buildRequestName('wishlist', 'before'),
+      buildRequestName('wishlist', 'after'),
+      buildRequestName('revenue', 'before'),
+      buildRequestName('revenue', 'after'),
+    ]
+    : [];
   const runConfig = parseReadModelRunConfig({
     VARIANT: 'before',
     BENCHMARK_READ_MODEL_TOKEN: ' benchmark-token ',
@@ -114,6 +126,33 @@ export default function () {
   }, 5);
 
   check(null, {
+    'read model request-name builder is available': () => (
+      typeof buildRequestName === 'function'
+    ),
+    'review request names use stable before and after templates': () => (
+      requestNames[0] === 'GET /api/v2/accommodations/{accommodationId}/reviews/summary'
+        && requestNames[1] === 'GET /api/v1/accommodations/{accommodationId}/reviews/summary'
+    ),
+    'wishlist request names use stable before and after templates': () => (
+      requestNames[2] === 'GET /api/v2/members/wishlists'
+        && requestNames[3] === 'GET /api/v1/members/wishlists'
+    ),
+    'revenue request names use stable before and after templates': () => (
+      requestNames[4] === 'GET /api/v2/admin/stats/revenue'
+        && requestNames[5] === 'GET /api/v1/admin/stats/revenue'
+    ),
+    'request names exclude every fixture identifier': () => (
+      requestNames.length === 6
+        && requestNames.every((name) => ![
+          '42',
+          '50',
+          '2026-01-01',
+          '2026-01-31',
+          '9001',
+          'benchmark-nplus1@airbob.cloud',
+          'synthetic-v1',
+        ].some((identifier) => name.includes(identifier)))
+    ),
     'before variant is accepted': () => parseVariant('before') === 'before',
     'after variant is accepted': () => parseVariant('after') === 'after',
     'unknown variant is rejected': () => rejects(() => parseVariant('mixed')),
@@ -192,9 +231,7 @@ export default function () {
       domain: 'review',
       variant: 'after',
       expectedCount: 12,
-      expectedDataJson: JSON.stringify(
-        canonicalizeReadModelData('review', reviewAfterPayload.data),
-      ),
+      expectedData: canonicalizeReadModelData('review', reviewAfterPayload.data),
       payload: reviewAfterPayload,
     }),
     'review contract rejects a different average': () => !matchesReadModelContract({

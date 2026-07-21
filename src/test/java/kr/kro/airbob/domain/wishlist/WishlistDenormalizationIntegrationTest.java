@@ -138,6 +138,30 @@ class WishlistDenormalizationIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("추가 시각이 같으면 before 대표 썸네일도 더 큰 연결 ID를 선택한다")
+	void beforeSelectsHigherWishlistAccommodationIdWhenCreatedAtTies() {
+		long lowerId = add(acc1);
+		long higherId = add(acc2);
+		assertThat(jdbc.update(
+				"UPDATE wishlist_accommodation SET created_at = '2026-07-20 12:00:00.000000' WHERE id IN (?, ?)",
+				lowerId,
+				higherId
+			))
+			.isEqualTo(2);
+		CursorRequest.CursorPageRequest request =
+			CursorRequest.CursorPageRequest.builder().size(20).build();
+
+		WishlistResponse.WishlistInfos before =
+			benchmarkService.findWishlistsBefore(request, host, null);
+		WishlistResponse.WishlistInfos after =
+			wishlistService.findWishlists(request, host, null);
+
+		assertThat(higherId).isGreaterThan(lowerId);
+		assertThat(before).isEqualTo(after);
+		assertThat(before.wishlists().getFirst().thumbnailImageUrl()).isEqualTo("url-2");
+	}
+
+	@Test
 	@DisplayName("대표가 아닌 숙소 삭제: 개수만 감소하고 대표는 유지된다")
 	void removeNonRepresentativeKeepsRepresentative() {
 		long wa1 = add(acc1);

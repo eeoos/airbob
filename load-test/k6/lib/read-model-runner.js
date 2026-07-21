@@ -4,6 +4,7 @@ import { Rate, Trend } from 'k6/metrics';
 
 import {
   buildReadModelOptions,
+  buildReadModelRequestName,
   buildReadModelRequestParams,
   canonicalizeReadModelData,
   matchesReadModelContract,
@@ -28,6 +29,7 @@ export function createReadModelBenchmark(config) {
   const clientDuration = new Trend('read_model_client_duration', true);
   const requestSuccess = new Rate('read_model_request_success');
   const measureSeconds = parseDurationSeconds(config.measureDuration, 'MEASURE_DURATION');
+  const targetPath = config.variant === 'before' ? config.beforePath : config.afterPath;
   const options = buildReadModelOptions(config);
 
   function setup() {
@@ -43,7 +45,7 @@ export function createReadModelBenchmark(config) {
           phase: 'setup',
           purpose: 'parity',
           variant,
-          name: `PARITY GET ${path}`,
+          name: `PARITY ${buildReadModelRequestName(config.domain, variant)}`,
         },
         timeout: config.requestTimeout,
       }),
@@ -75,9 +77,7 @@ export function createReadModelBenchmark(config) {
 
     return {
       ...setupData,
-      expectedDataJson: JSON.stringify(
-        canonicalizeReadModelData(config.domain, afterPayload.data),
-      ),
+      expectedData: canonicalizeReadModelData(config.domain, afterPayload.data),
     };
   }
 
@@ -89,7 +89,7 @@ export function createReadModelBenchmark(config) {
       variant: config.variant,
     };
     const response = http.get(
-      `${config.baseUrl}${config.targetPath}`,
+      `${config.baseUrl}${targetPath}`,
       buildReadModelRequestParams({
         variant: config.variant,
         benchmarkToken: config.benchmarkToken,
@@ -103,7 +103,7 @@ export function createReadModelBenchmark(config) {
       variant: config.variant,
       payload: parsePayload(response),
       expectedCount: config.expectedCount,
-      expectedDataJson: data.expectedDataJson,
+      expectedData: data.expectedData,
       ...config.contract,
     });
     const success = response.status === 200 && contractMatches;
@@ -134,7 +134,7 @@ export function createReadModelBenchmark(config) {
         generated_at: new Date().toISOString(),
         domain: config.domain,
         variant: config.variant,
-        endpoint: config.targetPath,
+        endpoint: targetPath,
         expected_count: config.expectedCount,
         configured_rate_per_second: config.rate,
         warmup_duration: config.warmupDuration,

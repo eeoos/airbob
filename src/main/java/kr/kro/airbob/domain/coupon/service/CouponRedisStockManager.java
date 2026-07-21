@@ -20,6 +20,8 @@ import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder;
 @Component
 public class CouponRedisStockManager {
 
+	private static final long UNLIMITED_STOCK_SENTINEL = 0L;
+
 	private final RedissonClient redissonClient;
 	private final CouponIssueMetricRecorder metricRecorder;
 	private String prepareScript;
@@ -43,12 +45,14 @@ public class CouponRedisStockManager {
 
 	public CouponRedisPreparationResult prepare(
 		Long couponId,
-		long stock,
+		Integer totalQuantity,
 		long issueStartAt,
 		long issueEndAt,
 		boolean active,
 		long expiresAt
 	) {
+		boolean unlimited = totalQuantity == null;
+		long stock = unlimited ? UNLIMITED_STOCK_SENTINEL : totalQuantity;
 		long startedAt = System.nanoTime();
 		CouponIssueMetricRecorder.LuaResult metricResult = CouponIssueMetricRecorder.LuaResult.ERROR;
 		try {
@@ -61,7 +65,8 @@ public class CouponRedisStockManager {
 				String.valueOf(issueStartAt),
 				String.valueOf(issueEndAt),
 				active ? "1" : "0",
-				String.valueOf(expiresAt));
+				String.valueOf(expiresAt),
+				unlimited ? "1" : "0");
 
 			CouponRedisPreparationResult preparationResult = result == 1
 				? CouponRedisPreparationResult.PREPARED

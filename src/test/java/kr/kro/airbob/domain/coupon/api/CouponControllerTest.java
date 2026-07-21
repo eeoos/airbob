@@ -17,7 +17,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 
@@ -27,8 +26,6 @@ class CouponControllerTest {
 	@Mock
 	private CouponService couponService;
 	@Mock
-	private CouponLockIssueService lockIssueService;
-	@Mock
 	private CouponLuaIssueService luaIssueService;
 
 	private MockMvc mockMvc;
@@ -37,7 +34,7 @@ class CouponControllerTest {
 	void setUp() {
 		UserContext.set(new UserInfo(10L));
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new CouponController(couponService, lockIssueService, luaIssueService)).build();
+			new CouponController(couponService, luaIssueService)).build();
 	}
 
 	@AfterEach
@@ -46,22 +43,21 @@ class CouponControllerTest {
 	}
 
 	@Test
-	@DisplayName("분산 락 발급 URL은 락 전용 서비스를 호출하고 DB 완료 후 201을 반환한다")
-	void issuesWithLockEndpoint() throws Exception {
-		mockMvc.perform(post("/api/v1/coupons/1/issue/lock"))
-			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.success").value(true));
-
-		verify(lockIssueService).issue(1L, 10L);
-	}
-
-	@Test
-	@DisplayName("Lua 발급 URL은 Lua 전용 서비스를 호출하고 DB 완료 후 201을 반환한다")
-	void issuesWithLuaEndpoint() throws Exception {
-		mockMvc.perform(post("/api/v1/coupons/1/issue/lua"))
+	@DisplayName("운영 발급 URL은 Lua 서비스로 발급하고 201을 반환한다")
+	void issuesCouponWithLua() throws Exception {
+		mockMvc.perform(post("/api/v1/coupons/1/issue"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true));
 
 		verify(luaIssueService).issue(1L, 10L);
+	}
+
+	@Test
+	@DisplayName("운영 API는 동시성 전략 suffix를 노출하지 않는다")
+	void strategySuffixEndpointsAreNotMapped() throws Exception {
+		mockMvc.perform(post("/api/v1/coupons/1/issue/lua"))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v1/coupons/1/issue/lock"))
+			.andExpect(status().isNotFound());
 	}
 }

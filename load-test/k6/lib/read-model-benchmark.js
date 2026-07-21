@@ -214,6 +214,20 @@ export function buildReadModelPath({
   throw new Error('domain must be review, wishlist, or revenue');
 }
 
+export function buildReadModelRequestName(domain, variant) {
+  const version = parseVariant(variant) === 'before' ? 'v2' : 'v1';
+  if (domain === 'review') {
+    return `GET /api/${version}/accommodations/{accommodationId}/reviews/summary`;
+  }
+  if (domain === 'wishlist') {
+    return `GET /api/${version}/members/wishlists`;
+  }
+  if (domain === 'revenue') {
+    return `GET /api/${version}/admin/stats/revenue`;
+  }
+  throw new Error('domain must be review, wishlist, or revenue');
+}
+
 export function buildReadModelRequestParams({
   variant,
   benchmarkToken,
@@ -362,7 +376,6 @@ export function matchesReadModelContract({
   payload,
   expectedCount,
   expectedData,
-  expectedDataJson,
   from,
   to,
 }) {
@@ -386,15 +399,13 @@ export function matchesReadModelContract({
   if (!matchesStructure) {
     return false;
   }
-  if (expectedData === undefined && expectedDataJson === undefined) {
+  if (expectedData === undefined) {
     return true;
   }
 
   try {
-    const expected = expectedDataJson === undefined
-      ? JSON.stringify(expectedData)
-      : expectedDataJson;
-    return JSON.stringify(canonicalizeReadModelData(domain, payload.data)) === expected;
+    return JSON.stringify(canonicalizeReadModelData(domain, payload.data))
+      === JSON.stringify(expectedData);
   } catch (_) {
     return false;
   }
