@@ -5,6 +5,10 @@ benchmark:
     allowed-schema: ${BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA}
 
 spring:
+  datasource:
+    hikari:
+      data-source-properties:
+        rewriteBatchedStatements: ${JDBC_REWRITE_BATCHED_STATEMENTS:false}
   flyway:
     enabled: false
   kafka:
