@@ -34,4 +34,4 @@ boot_args='--spring.profiles.active=dev,bulk-write-benchmark --spring.jpa.proper
 
 cd -- "$repo_root"
 export BENCHMARK_BULK_WRITE_ENABLED=true
-exec "$gradle_bin" bootRun "--args=$boot_args"
+exec "$gradle_bin" bootRun -x test "--args=$boot_args"

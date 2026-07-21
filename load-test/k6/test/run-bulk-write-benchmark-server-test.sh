@@ -117,6 +117,8 @@ safe_boot_args='--spring.profiles.active=dev,bulk-write-benchmark --spring.jpa.p
 expected="$(printf '%s\n' \
   'enabled=true' \
   'arg=bootRun' \
+  'arg=-x' \
+  'arg=test' \
   "arg=--args=$safe_boot_args")"
 
 if [[ "$output" != "$expected" ]]; then
