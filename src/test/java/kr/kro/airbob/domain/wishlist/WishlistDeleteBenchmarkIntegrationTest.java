@@ -45,6 +45,7 @@ import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBenchmarkFixtureService;
 import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBenchmarkFixtureService.Fixture;
+import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBeforeBenchmarkService;
 import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBenchmarkService;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -58,7 +59,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 })
 @ActiveProfiles({"test", "bulk-write-benchmark"})
 @Import(WishlistDeleteBenchmarkIntegrationTest.RollbackProbeConfiguration.class)
-@DisplayName("Wishlist 삭제 Before 벌크 쓰기 기준선 통합 테스트")
+@DisplayName("Wishlist 삭제 Before/After 벌크 쓰기 비교 통합 테스트")
 class WishlistDeleteBenchmarkIntegrationTest {
 
 	@Container
@@ -89,6 +90,7 @@ class WishlistDeleteBenchmarkIntegrationTest {
 	}
 
 	@Autowired private WishlistDeleteBenchmarkService benchmarkService;
+	@Autowired private WishlistDeleteBeforeBenchmarkService beforeService;
 	@Autowired private WishlistDeleteBenchmarkFixtureService fixtureService;
 	@Autowired private WishlistService wishlistService;
 	@Autowired private RollbackProbe rollbackProbe;
@@ -122,12 +124,12 @@ class WishlistDeleteBenchmarkIntegrationTest {
 	void measuresActualBeforeDeleteAndPreservesUnrelatedFixture() throws Exception {
 		Fixture unrelated = fixtureService.createFixture(ownerId, 1);
 
-		var response = benchmarkService.runBefore(
+		var response = benchmarkService.run(
 			ownerId,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 3)
 		);
 
-		assertThat(AopUtils.isAopProxy(wishlistService)).isTrue();
+		assertThat(AopUtils.isAopProxy(beforeService)).isTrue();
 		assertThat(response.expectedRows()).isEqualTo(3);
 		assertThat(response.verifiedRows()).isEqualTo(3);
 		assertThat(response.verificationSucceeded()).isTrue();
@@ -171,7 +173,7 @@ class WishlistDeleteBenchmarkIntegrationTest {
 	@Test
 	@DisplayName("0개 membership도 2 SELECT와 Wishlist soft delete UPDATE만으로 완료한다")
 	void supportsEmptyTargetWishlist() {
-		var response = benchmarkService.runBefore(
+		var response = benchmarkService.run(
 			ownerId,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 0)
 		);
@@ -186,8 +188,69 @@ class WishlistDeleteBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("flush 후 예외가 발생하면 membership 삭제와 Wishlist soft delete가 함께 rollback된다")
-	void rollsBackDerivedDeleteAndSoftDeleteTogether() {
+	@DisplayName("After 벤치마크는 N개 membership을 단일 bulk DELETE로 제거한다")
+	void measuresActualAfterDeleteWithSingleBulkDelete() {
+		var response = benchmarkService.run(
+			ownerId,
+			new WishlistDeleteBenchmarkRequest(Variant.AFTER, 3)
+		);
+
+		assertThat(AopUtils.isAopProxy(wishlistService)).isTrue();
+		assertThat(response.variant()).isEqualTo(Variant.AFTER);
+		assertThat(response.expectedRows()).isEqualTo(3);
+		assertThat(response.verifiedRows()).isEqualTo(3);
+		assertThat(response.verificationSucceeded()).isTrue();
+		assertThat(response.operation().operationName()).isEqualTo("wishlist-delete-after");
+		assertThat(response.operation().hibernateStatementsByType())
+			.containsEntry(SqlQueryType.SELECT, 2)
+			.containsEntry(SqlQueryType.INSERT, 0)
+			.containsEntry(SqlQueryType.UPDATE, 1)
+			.containsEntry(SqlQueryType.DELETE, 1)
+			.containsEntry(SqlQueryType.OTHER, 0)
+			.containsEntry(SqlQueryType.TOTAL, 4);
+		assertThat(response.operation().jdbcBatchCalls()).isZero();
+		assertThat(response.operation().jdbcSubmittedRows()).isZero();
+		assertThat(response.operation().jdbcConfiguredBatchSize()).isNull();
+		assertThat(response.operation().jdbcAffectedRows()).isNull();
+	}
+
+	@Test
+	@DisplayName("After의 0개 membership은 bulk DELETE 없이 완료한다")
+	void supportsEmptyTargetWishlistAfterImprovement() {
+		var response = benchmarkService.run(
+			ownerId,
+			new WishlistDeleteBenchmarkRequest(Variant.AFTER, 0)
+		);
+
+		assertThat(response.verifiedRows()).isZero();
+		assertThat(response.verificationSucceeded()).isTrue();
+		assertThat(response.operation().hibernateStatementsByType())
+			.containsEntry(SqlQueryType.SELECT, 2)
+			.containsEntry(SqlQueryType.UPDATE, 1)
+			.containsEntry(SqlQueryType.DELETE, 0)
+			.containsEntry(SqlQueryType.TOTAL, 3);
+	}
+
+	@Test
+	@DisplayName("After는 최대 허용 크기 1000개도 단일 bulk DELETE로 처리한다")
+	void supportsMaximumDatasetWithSingleBulkDelete() {
+		var response = benchmarkService.run(
+			ownerId,
+			new WishlistDeleteBenchmarkRequest(Variant.AFTER, 1000)
+		);
+
+		assertThat(response.verifiedRows()).isEqualTo(1000);
+		assertThat(response.verificationSucceeded()).isTrue();
+		assertThat(response.operation().hibernateStatementsByType())
+			.containsEntry(SqlQueryType.SELECT, 2)
+			.containsEntry(SqlQueryType.UPDATE, 1)
+			.containsEntry(SqlQueryType.DELETE, 1)
+			.containsEntry(SqlQueryType.TOTAL, 4);
+	}
+
+	@Test
+	@DisplayName("flush 후 예외가 발생하면 bulk DELETE와 Wishlist soft delete가 함께 rollback된다")
+	void rollsBackBulkDeleteAndSoftDeleteTogether() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 2);
 
 		assertThatThrownBy(() -> rollbackProbe.deleteFlushAndFail(

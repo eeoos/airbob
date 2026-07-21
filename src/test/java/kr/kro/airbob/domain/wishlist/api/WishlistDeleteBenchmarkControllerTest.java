@@ -63,16 +63,16 @@ class WishlistDeleteBenchmarkControllerTest {
 		WishlistDeleteBenchmarkController controller = new WishlistDeleteBenchmarkController(service, guard);
 		WishlistDeleteBenchmarkRequest request = new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 10);
 		WishlistDeleteBenchmarkResponse expected = mock(WishlistDeleteBenchmarkResponse.class);
-		given(service.runBefore(7L, request)).willReturn(expected);
+		given(service.run(7L, request)).willReturn(expected);
 		UserContext.set(new UserInfo(7L));
 
-		var response = controller.runBefore(request, "dedicated-token");
+		var response = controller.run(request, "dedicated-token");
 
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().getData()).isSameAs(expected);
 		var ordered = inOrder(guard, service);
 		ordered.verify(guard).verify("dedicated-token");
-		ordered.verify(service).runBefore(7L, request);
+		ordered.verify(service).run(7L, request);
 	}
 
 	@Configuration(proxyBeanMethods = false)

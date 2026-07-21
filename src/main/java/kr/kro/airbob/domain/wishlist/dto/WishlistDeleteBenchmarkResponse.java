@@ -17,14 +17,15 @@ public record WishlistDeleteBenchmarkResponse(
 	boolean accommodationsPreserved,
 	BulkWriteBenchmarkResult operation
 ) {
-	public static WishlistDeleteBenchmarkResponse before(
+	public static WishlistDeleteBenchmarkResponse of(
+		WishlistDeleteBenchmarkRequest.Variant variant,
 		int datasetSize,
 		WishlistDeleteBenchmarkVerification verification,
 		BulkWriteBenchmarkResult operation
 	) {
 		return new WishlistDeleteBenchmarkResponse(
 			Candidate.WISHLIST_DELETE,
-			WishlistDeleteBenchmarkRequest.Variant.BEFORE,
+			variant,
 			datasetSize,
 			datasetSize,
 			verification.verifiedRows(),

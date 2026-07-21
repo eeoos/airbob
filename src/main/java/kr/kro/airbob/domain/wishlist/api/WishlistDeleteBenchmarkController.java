@@ -35,13 +35,13 @@ public class WishlistDeleteBenchmarkController {
 	}
 
 	@PostMapping
-	public ResponseEntity<ApiResponse<WishlistDeleteBenchmarkResponse>> runBefore(
+	public ResponseEntity<ApiResponse<WishlistDeleteBenchmarkResponse>> run(
 		@Valid @RequestBody WishlistDeleteBenchmarkRequest request,
 		@RequestHeader(value = BulkWriteBenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
 	) {
 		accessGuard.verify(benchmarkToken);
 		long ownerId = UserContext.get().id();
-		WishlistDeleteBenchmarkResponse response = benchmarkService.runBefore(ownerId, request);
+		WishlistDeleteBenchmarkResponse response = benchmarkService.run(ownerId, request);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

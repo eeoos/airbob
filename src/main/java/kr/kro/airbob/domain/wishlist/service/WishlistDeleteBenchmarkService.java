@@ -19,38 +19,45 @@ import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBenchmarkFixtureServi
 public class WishlistDeleteBenchmarkService {
 
 	static final String BEFORE_OPERATION_NAME = "wishlist-delete-before";
+	static final String AFTER_OPERATION_NAME = "wishlist-delete-after";
 
+	private final WishlistDeleteBeforeBenchmarkService beforeService;
 	private final WishlistService wishlistService;
 	private final WishlistDeleteBenchmarkFixtureService fixtureService;
 	private final BulkOperationMonitor bulkOperationMonitor;
 	private final BulkWriteBenchmarkDatabaseGuard databaseGuard;
 
 	public WishlistDeleteBenchmarkService(
+		WishlistDeleteBeforeBenchmarkService beforeService,
 		WishlistService wishlistService,
 		WishlistDeleteBenchmarkFixtureService fixtureService,
 		BulkOperationMonitor bulkOperationMonitor,
 		BulkWriteBenchmarkDatabaseGuard databaseGuard
 	) {
+		this.beforeService = beforeService;
 		this.wishlistService = wishlistService;
 		this.fixtureService = fixtureService;
 		this.bulkOperationMonitor = bulkOperationMonitor;
 		this.databaseGuard = databaseGuard;
 	}
 
-	public WishlistDeleteBenchmarkResponse runBefore(long ownerId, WishlistDeleteBenchmarkRequest request) {
-		int datasetSize = validateBeforeRequest(request);
+	public WishlistDeleteBenchmarkResponse run(long ownerId, WishlistDeleteBenchmarkRequest request) {
+		int datasetSize = validateRequest(request);
+		String operationName = operationName(request.variant());
 		databaseGuard.verifyReady();
 		Fixture fixture = fixtureService.createFixture(ownerId, datasetSize);
+		Runnable deleteOperation = deleteOperation(request.variant(), fixture.targetWishlistId(), ownerId);
 		Throwable operationFailure = null;
 
 		try {
 			BulkOperationSnapshot snapshot = bulkOperationMonitor.monitor(
-				BEFORE_OPERATION_NAME,
-				() -> wishlistService.deleteWishlist(fixture.targetWishlistId(), ownerId)
+				operationName,
+				deleteOperation
 			);
 			WishlistDeleteBenchmarkVerification verification = fixtureService.verify(fixture);
 
-			return WishlistDeleteBenchmarkResponse.before(
+			return WishlistDeleteBenchmarkResponse.of(
+				request.variant(),
 				datasetSize,
 				verification,
 				BulkWriteBenchmarkResult.from(snapshot)
@@ -71,12 +78,12 @@ public class WishlistDeleteBenchmarkService {
 		}
 	}
 
-	private int validateBeforeRequest(WishlistDeleteBenchmarkRequest request) {
+	private int validateRequest(WishlistDeleteBenchmarkRequest request) {
 		if (request == null) {
 			throw new IllegalArgumentException("request must not be null");
 		}
-		if (request.variant() != WishlistDeleteBenchmarkRequest.Variant.BEFORE) {
-			throw new IllegalArgumentException("U2 supports only the BEFORE variant");
+		if (request.variant() == null) {
+			throw new IllegalArgumentException("variant must not be null");
 		}
 		if (request.datasetSize() == null
 			|| request.datasetSize() < 0
@@ -85,5 +92,23 @@ public class WishlistDeleteBenchmarkService {
 				+ WishlistDeleteBenchmarkRequest.MAX_DATASET_SIZE);
 		}
 		return request.datasetSize();
+	}
+
+	private String operationName(WishlistDeleteBenchmarkRequest.Variant variant) {
+		return switch (variant) {
+			case BEFORE -> BEFORE_OPERATION_NAME;
+			case AFTER -> AFTER_OPERATION_NAME;
+		};
+	}
+
+	private Runnable deleteOperation(
+		WishlistDeleteBenchmarkRequest.Variant variant,
+		long wishlistId,
+		long ownerId
+	) {
+		return switch (variant) {
+			case BEFORE -> () -> beforeService.deleteWishlist(wishlistId, ownerId);
+			case AFTER -> () -> wishlistService.deleteWishlist(wishlistId, ownerId);
+		};
 	}
 }

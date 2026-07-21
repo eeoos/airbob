@@ -24,9 +24,10 @@ import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkVerification;
 import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBenchmarkFixtureService.Fixture;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Wishlist 삭제 Before 벤치마크 오케스트레이터 테스트")
+@DisplayName("Wishlist 삭제 Before/After 벤치마크 오케스트레이터 테스트")
 class WishlistDeleteBenchmarkServiceTest {
 
+	@Mock private WishlistDeleteBeforeBenchmarkService beforeService;
 	@Mock private WishlistService wishlistService;
 	@Mock private WishlistDeleteBenchmarkFixtureService fixtureService;
 	@Mock private BulkOperationMonitor bulkOperationMonitor;
@@ -37,6 +38,7 @@ class WishlistDeleteBenchmarkServiceTest {
 	@BeforeEach
 	void setUp() {
 		benchmarkService = new WishlistDeleteBenchmarkService(
+			beforeService,
 			wishlistService,
 			fixtureService,
 			bulkOperationMonitor,
@@ -45,8 +47,8 @@ class WishlistDeleteBenchmarkServiceTest {
 	}
 
 	@Test
-	@DisplayName("실제 운영 서비스를 측정하고 검증한 뒤 fixture를 정리한다")
-	void measuresProductionServiceAndCleansFixture() {
+	@DisplayName("보존한 Before 서비스를 측정하고 검증한 뒤 fixture를 정리한다")
+	void measuresBeforeServiceAndCleansFixture() {
 		Fixture fixture = fixture(3);
 		BulkOperationSnapshot snapshot = snapshot(3);
 		WishlistDeleteBenchmarkVerification verification = successfulVerification(3);
@@ -58,14 +60,15 @@ class WishlistDeleteBenchmarkServiceTest {
 			});
 		given(fixtureService.verify(fixture)).willReturn(verification);
 
-		var response = benchmarkService.runBefore(
+		var response = benchmarkService.run(
 			7L,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 3)
 		);
 
-		verify(wishlistService).deleteWishlist(101L, 7L);
+		verify(beforeService).deleteWishlist(101L, 7L);
 		verify(fixtureService).verify(fixture);
 		verify(fixtureService).cleanup(fixture);
+		then(wishlistService).shouldHaveNoInteractions();
 		assertThat(response.expectedRows()).isEqualTo(3);
 		assertThat(response.verifiedRows()).isEqualTo(3);
 		assertThat(response.verificationSucceeded()).isTrue();
@@ -74,17 +77,58 @@ class WishlistDeleteBenchmarkServiceTest {
 	}
 
 	@Test
+	@DisplayName("After는 개선된 운영 삭제를 측정하고 variant와 operation 이름을 구분한다")
+	void measuresAfterOperationAndCleansFixture() {
+		Fixture fixture = fixture(3);
+		BulkOperationSnapshot snapshot = new BulkOperationSnapshot(
+			"wishlist-delete-after",
+			BulkOperationSnapshot.Outcome.SUCCESS,
+			1_000_000,
+			Map.of(
+				SqlQueryType.SELECT, 2,
+				SqlQueryType.UPDATE, 1,
+				SqlQueryType.DELETE, 1,
+				SqlQueryType.TOTAL, 4
+			),
+			0,
+			0,
+			null,
+			null
+		);
+		given(fixtureService.createFixture(7L, 3)).willReturn(fixture);
+		given(bulkOperationMonitor.monitor(eq("wishlist-delete-after"), any(Runnable.class)))
+			.willAnswer(invocation -> {
+				invocation.<Runnable>getArgument(1).run();
+				return snapshot;
+			});
+		given(fixtureService.verify(fixture)).willReturn(successfulVerification(3));
+
+		var response = benchmarkService.run(
+			7L,
+			new WishlistDeleteBenchmarkRequest(Variant.AFTER, 3)
+		);
+
+		assertThat(response.variant()).isEqualTo(Variant.AFTER);
+		assertThat(response.operation().operationName()).isEqualTo("wishlist-delete-after");
+		assertThat(response.operation().hibernateStatementsByType())
+			.containsEntry(SqlQueryType.DELETE, 1);
+		verify(fixtureService).cleanup(fixture);
+		verify(wishlistService).deleteWishlist(101L, 7L);
+		then(beforeService).shouldHaveNoInteractions();
+	}
+
+	@Test
 	@DisplayName("지원하지 않는 variant와 범위 밖 dataset은 fixture 생성 전에 거부한다")
 	void rejectsInvalidInputBeforeFixtureCreation() {
-		assertThatIllegalArgumentException().isThrownBy(() -> benchmarkService.runBefore(
+		assertThatIllegalArgumentException().isThrownBy(() -> benchmarkService.run(
 			7L,
 			new WishlistDeleteBenchmarkRequest(null, 3)
 		));
-		assertThatIllegalArgumentException().isThrownBy(() -> benchmarkService.runBefore(
+		assertThatIllegalArgumentException().isThrownBy(() -> benchmarkService.run(
 			7L,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 1001)
 		));
-		assertThatIllegalArgumentException().isThrownBy(() -> benchmarkService.runBefore(
+		assertThatIllegalArgumentException().isThrownBy(() -> benchmarkService.run(
 			7L,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, -1)
 		));
@@ -105,10 +149,10 @@ class WishlistDeleteBenchmarkServiceTest {
 				invocation.<Runnable>getArgument(1).run();
 				return snapshot(1);
 			});
-		willThrow(operationFailure).given(wishlistService).deleteWishlist(101L, 7L);
+		willThrow(operationFailure).given(beforeService).deleteWishlist(101L, 7L);
 		willThrow(cleanupFailure).given(fixtureService).cleanup(fixture);
 
-		Throwable thrown = catchThrowable(() -> benchmarkService.runBefore(
+		Throwable thrown = catchThrowable(() -> benchmarkService.run(
 			7L,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 1)
 		));
@@ -129,7 +173,7 @@ class WishlistDeleteBenchmarkServiceTest {
 		given(fixtureService.verify(fixture)).willReturn(successfulVerification(1));
 		willThrow(cleanupFailure).given(fixtureService).cleanup(fixture);
 
-		assertThatThrownBy(() -> benchmarkService.runBefore(
+		assertThatThrownBy(() -> benchmarkService.run(
 			7L,
 			new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 1)
 		)).isSameAs(cleanupFailure);

@@ -4,7 +4,6 @@ export const BULK_WRITE_REQUEST_NAME = (
   'POST /api/v2/admin/benchmarks/bulk-write/wishlist-delete'
 );
 export const BULK_WRITE_CANDIDATE = 'WISHLIST_DELETE';
-export const BULK_WRITE_OPERATION_NAME = 'wishlist-delete-before';
 
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
 const DATA_FIELDS = [
@@ -159,8 +158,16 @@ export function parsePhase(raw) {
 }
 
 export function parseBulkWriteVariant(raw) {
-  requireCondition(raw === 'BEFORE', 'VARIANT must be BEFORE for the U2 baseline');
+  requireCondition(
+    raw === 'BEFORE' || raw === 'AFTER',
+    'VARIANT must be BEFORE or AFTER',
+  );
   return raw;
+}
+
+export function bulkWriteOperationName(rawVariant) {
+  const variant = parseBulkWriteVariant(rawVariant);
+  return `wishlist-delete-${variant.toLowerCase()}`;
 }
 
 export function parseBulkWriteToken(raw) {
@@ -195,6 +202,7 @@ export function parseBulkWriteResultPath(raw, fallback) {
 
 export function parseBulkWriteRunConfig(environment) {
   const variant = parseBulkWriteVariant(environment.VARIANT || 'BEFORE');
+  const operationName = bulkWriteOperationName(variant);
   const phase = parsePhase(environment.PHASE || 'measure');
   const datasetSize = parseDatasetSize(environment.DATASET_SIZE);
   const samples = parseSamples(environment.SAMPLES);
@@ -214,7 +222,7 @@ export function parseBulkWriteRunConfig(environment) {
   );
   const resultPath = parseBulkWriteResultPath(
     environment.K6_RESULT_PATH,
-    `build/k6/bulk-write/wishlist-delete-before-n${datasetSize}-${phase}-r${round}-o${runOrder}.json`,
+    `build/k6/bulk-write/${operationName}-n${datasetSize}-${phase}-r${round}-o${runOrder}.json`,
   );
 
   return {
@@ -233,7 +241,7 @@ export function parseBulkWriteRunConfig(environment) {
     runLabel: parseRequiredPublicText(
       environment.RUN_LABEL,
       'RUN_LABEL',
-      `wishlist-delete-before-n${datasetSize}-${phase}-r${round}`,
+      `${operationName}-n${datasetSize}-${phase}-r${round}`,
     ),
     round,
     runOrder,
@@ -283,7 +291,8 @@ export function buildBulkWriteRequestParams({
   };
 }
 
-export function buildBulkWriteOptions({ phase, samples }) {
+export function buildBulkWriteOptions({ variant, phase, samples }) {
+  const parsedVariant = parseBulkWriteVariant(variant);
   const parsedPhase = parsePhase(phase);
   const parsedSamples = parseSamples(samples);
   const scenarioName = `bulk_write_${parsedPhase}`;
@@ -301,7 +310,7 @@ export function buildBulkWriteOptions({ phase, samples }) {
         tags: {
           candidate: BULK_WRITE_CANDIDATE,
           phase: parsedPhase,
-          variant: 'BEFORE',
+          variant: parsedVariant,
         },
       },
     },
@@ -324,9 +333,16 @@ function durationUnitsMatch(nanos, millis) {
   return Math.abs(millis - expected) <= tolerance;
 }
 
-export function matchesBulkWriteOperationContract(value) {
+export function matchesBulkWriteOperationContract(value, expectedVariant = 'BEFORE') {
+  let operationName;
+  try {
+    operationName = bulkWriteOperationName(expectedVariant);
+  } catch (_) {
+    return false;
+  }
+
   if (!hasExactKeys(value, OPERATION_FIELDS)
-      || value.operation_name !== BULK_WRITE_OPERATION_NAME
+      || value.operation_name !== operationName
       || value.outcome !== 'SUCCESS'
       || !isNonNegativeInteger(value.server_operation_nanos)
       || typeof value.server_operation_ms !== 'number'
@@ -348,10 +364,16 @@ export function matchesBulkWriteOperationContract(value) {
   return counts.TOTAL === counts.SELECT + counts.INSERT + counts.UPDATE + counts.DELETE + counts.OTHER;
 }
 
-export function matchesBulkWriteResponseContract(payload, expectedDatasetSize) {
+export function matchesBulkWriteResponseContract(
+  payload,
+  expectedDatasetSize,
+  expectedVariant = 'BEFORE',
+) {
   let datasetSize;
+  let variant;
   try {
     datasetSize = parseDatasetSize(expectedDatasetSize);
+    variant = parseBulkWriteVariant(expectedVariant);
   } catch (_) {
     return false;
   }
@@ -368,12 +390,12 @@ export function matchesBulkWriteResponseContract(payload, expectedDatasetSize) {
 
   const data = payload.data;
   return data.candidate === BULK_WRITE_CANDIDATE
-    && data.variant === 'BEFORE'
+    && data.variant === variant
     && data.dataset_size === datasetSize
     && data.expected_rows === datasetSize
     && data.verified_rows === datasetSize
     && VERIFICATION_FIELDS.every((field) => data[field] === true)
-    && matchesBulkWriteOperationContract(data.operation);
+    && matchesBulkWriteOperationContract(data.operation, variant);
 }
 
 function metricValues(data, name) {
@@ -520,7 +542,7 @@ export function buildBulkWriteArtifact({
     dataset_size: parseDatasetSize(config.datasetSize),
     samples: parseSamples(config.samples),
     endpoint: BULK_WRITE_ENDPOINT,
-    operation_name: BULK_WRITE_OPERATION_NAME,
+    operation_name: bulkWriteOperationName(config.variant),
     run_label: parseRequiredPublicText(config.runLabel, 'RUN_LABEL'),
     round: parseCanonicalInteger(config.round, 'ROUND', 1, 1_000_000),
     run_order: parseCanonicalInteger(config.runOrder, 'RUN_ORDER', 1, 1_000_000),

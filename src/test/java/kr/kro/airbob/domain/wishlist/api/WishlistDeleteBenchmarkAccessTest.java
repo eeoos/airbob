@@ -131,7 +131,24 @@ class WishlistDeleteBenchmarkAccessTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 
-		then(benchmarkService).should().runBefore(10L, request);
+		then(benchmarkService).should().run(10L, request);
+	}
+
+	@Test
+	@DisplayName("정확한 대문자 AFTER variant를 요청 계약으로 허용한다")
+	void allowsExactAfterVariant() throws Exception {
+		authenticate(10L, MemberRole.ADMIN);
+		WishlistDeleteBenchmarkRequest request = new WishlistDeleteBenchmarkRequest(Variant.AFTER, 7);
+
+		mockMvc.perform(post(PATH)
+				.cookie(new Cookie("SESSION_ID", "valid-session"))
+				.contentType("application/json")
+				.header(BulkWriteBenchmarkAccessGuard.HEADER_NAME, TOKEN)
+				.content("{\"variant\":\"AFTER\",\"dataset_size\":7}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+
+		then(benchmarkService).should().run(10L, request);
 	}
 
 	@Test
@@ -144,7 +161,8 @@ class WishlistDeleteBenchmarkAccessTest {
 		assertRejectedBeforeService("{\"variant\":\"BEFORE\",\"dataset_size\":2147483648}");
 		assertRejectedBeforeService("{\"variant\":\"BEFORE\",\"dataset_size\":1.5}");
 		assertRejectedBeforeService("{\"variant\":\"BEFORE\",\"dataset_size\":\"0; DELETE FROM wishlist\"}");
-		assertRejectedBeforeService("{\"variant\":\"AFTER\",\"dataset_size\":1}");
+		assertRejectedBeforeService("{\"variant\":\"UNKNOWN\",\"dataset_size\":1}");
+		assertRejectedBeforeService("{\"variant\":\"after\",\"dataset_size\":1}");
 		assertRejectedBeforeService("{\"variant\":0,\"dataset_size\":1}");
 
 		then(benchmarkService).shouldHaveNoInteractions();

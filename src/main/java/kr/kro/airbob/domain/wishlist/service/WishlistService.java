@@ -79,8 +79,9 @@ public class WishlistService {
 		// 위시리스트 존재, 작성자 id 검증을 위한 조회
 		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
-		// 위시리스트에 속한 숙소 삭제
-		wishlistAccommodationRepository.deleteAllByWishlistId(wishlist.getId());
+		List<WishlistAccommodation> wishlistAccommodations =
+			wishlistAccommodationRepository.findAllByWishlistId(wishlist.getId());
+		wishlistAccommodationRepository.deleteAllInBatch(wishlistAccommodations);
 		wishlist.delete();
 	}
 

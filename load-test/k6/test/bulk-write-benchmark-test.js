@@ -3,6 +3,7 @@ import { check } from 'k6';
 import {
   ARTIFACT_SCHEMA_VERSION,
   BULK_WRITE_ENDPOINT,
+  bulkWriteOperationName,
   buildBulkWriteArtifact,
   buildBulkWriteHeaders,
   buildBulkWriteOptions,
@@ -46,9 +47,9 @@ function rejects(action) {
   }
 }
 
-function operation(overrides = {}) {
+function operation(overrides = {}, variant = 'BEFORE') {
   return {
-    operation_name: 'wishlist-delete-before',
+    operation_name: `wishlist-delete-${variant.toLowerCase()}`,
     outcome: 'SUCCESS',
     server_operation_nanos: 12_500_000,
     server_operation_ms: 12.5,
@@ -61,12 +62,12 @@ function operation(overrides = {}) {
   };
 }
 
-function payload(overrides = {}) {
+function payload(overrides = {}, variant = 'BEFORE') {
   return {
     success: true,
     data: {
       candidate: 'WISHLIST_DELETE',
-      variant: 'BEFORE',
+      variant,
       dataset_size: 25,
       expected_rows: 25,
       verified_rows: 25,
@@ -77,7 +78,7 @@ function payload(overrides = {}) {
       control_wishlist_preserved: true,
       control_membership_preserved: true,
       accommodations_preserved: true,
-      operation: operation(),
+      operation: operation({}, variant),
       ...overrides,
     },
   };
@@ -168,9 +169,42 @@ export default function () {
     MYSQL_VERSION: '8.0.42',
     REWRITE_BATCHED_STATEMENTS: 'false',
   });
-  const warmupOptions = buildBulkWriteOptions({ phase: 'warmup', samples: 1 });
-  const measureOptions = buildBulkWriteOptions({ phase: 'measure', samples: 3 });
+  const afterConfig = parseBulkWriteRunConfig({
+    BASE_URL: 'http://localhost:8080/',
+    VARIANT: 'AFTER',
+    PHASE: 'measure',
+    DATASET_SIZE: '25',
+    SAMPLES: '3',
+    BENCHMARK_BULK_WRITE_TOKEN: TOKEN,
+    ROUND: '1',
+    RUN_ORDER: '2',
+    APP_COMMIT: 'abc123',
+    APP_INSTANCE_COUNT: '1',
+    SCHEMA_LABEL: 'airbob-bulk-write-v1',
+    JVM_VERSION: '21.0.7',
+    MYSQL_VERSION: '8.0.42',
+    REWRITE_BATCHED_STATEMENTS: 'false',
+  });
+  const warmupOptions = buildBulkWriteOptions({
+    variant: 'BEFORE',
+    phase: 'warmup',
+    samples: 1,
+  });
+  const measureOptions = buildBulkWriteOptions({
+    variant: 'AFTER',
+    phase: 'measure',
+    samples: 3,
+  });
   const validPayload = payload();
+  const validAfterPayload = payload({
+    operation: operation({
+      hibernate_statements_by_type: {
+        ...SQL_COUNTS,
+        DELETE: 1,
+        TOTAL: 4,
+      },
+    }, 'AFTER'),
+  }, 'AFTER');
   const zeroPayload = payload({
     dataset_size: 0,
     expected_rows: 0,
@@ -205,6 +239,11 @@ export default function () {
       'benchmark-admin@example.com',
       'password-sentinel',
     ],
+  });
+  const afterArtifact = buildBulkWriteArtifact({
+    config: afterConfig,
+    k6Summary: summary,
+    generatedAt: '2026-07-21T00:00:00.000Z',
   });
   const metadataRedactionArtifact = buildBulkWriteArtifact({
     config: {
@@ -282,8 +321,13 @@ export default function () {
     'leading-zero dataset is rejected': () => rejects(() => parseDatasetSize('025')),
     'blank dataset is rejected': () => rejects(() => parseDatasetSize('')),
     'BEFORE variant is accepted': () => parseBulkWriteVariant('BEFORE') === 'BEFORE',
-    'AFTER variant is rejected in U2': () => rejects(() => parseBulkWriteVariant('AFTER')),
+    'AFTER variant is accepted': () => parseBulkWriteVariant('AFTER') === 'AFTER',
     'lowercase variant is rejected': () => rejects(() => parseBulkWriteVariant('before')),
+    'unknown variant is rejected': () => rejects(() => parseBulkWriteVariant('UNKNOWN')),
+    'operation name is derived from the exact variant': () => (
+      bulkWriteOperationName('BEFORE') === 'wishlist-delete-before'
+        && bulkWriteOperationName('AFTER') === 'wishlist-delete-after'
+    ),
     'warmup phase is accepted': () => parsePhase('warmup') === 'warmup',
     'measure phase is accepted': () => parsePhase('measure') === 'measure',
     'unknown phase is rejected': () => rejects(() => parsePhase('mixed')),
@@ -313,11 +357,12 @@ export default function () {
         && config.resultPath
           === 'build/k6/bulk-write/wishlist-delete-before-n25-measure-r1-o2.json'
     ),
-    'run config rejects AFTER': () => rejects(() => parseBulkWriteRunConfig({
-      VARIANT: 'AFTER',
-      DATASET_SIZE: '25',
-      BENCHMARK_BULK_WRITE_TOKEN: TOKEN,
-    })),
+    'AFTER run config derives an isolated path and label': () => (
+      afterConfig.variant === 'AFTER'
+        && afterConfig.resultPath
+          === 'build/k6/bulk-write/wishlist-delete-after-n25-measure-r1-o2.json'
+        && afterConfig.runLabel === 'wishlist-delete-after-n25-measure-r1'
+    ),
     'run config requires explicit reproducibility metadata': () => rejects(() => (
       parseBulkWriteRunConfig({
         DATASET_SIZE: '25',
@@ -358,6 +403,10 @@ export default function () {
         && body.variant === 'BEFORE'
         && body.dataset_size === 25;
     },
+    'request body preserves the AFTER variant': () => (
+      JSON.parse(buildBulkWriteRequestBody({ variant: 'AFTER', datasetSize: 25 })).variant
+        === 'AFTER'
+    ),
     'request headers use only JSON and the dedicated bulk-write token': () => {
       const headers = buildBulkWriteHeaders(TOKEN);
       return JSON.stringify(Object.keys(headers).sort()) === JSON.stringify([
@@ -387,7 +436,8 @@ export default function () {
         && scenario.executor === 'shared-iterations'
         && scenario.vus === 1
         && scenario.iterations === 1
-        && scenario.tags.phase === 'warmup';
+        && scenario.tags.phase === 'warmup'
+        && scenario.tags.variant === 'BEFORE';
     },
     'measure uses one shared VU': () => {
       const scenario = measureOptions.scenarios.bulk_write_measure;
@@ -396,13 +446,23 @@ export default function () {
         && scenario.vus === 1
         && scenario.iterations === 3
         && scenario.tags.phase === 'measure'
+        && scenario.tags.variant === 'AFTER'
         && measureOptions.maxRedirects === 0;
     },
     'valid snake-case response contract is accepted': () => (
-      matchesBulkWriteResponseContract(validPayload, 25)
+      matchesBulkWriteResponseContract(validPayload, 25, 'BEFORE')
+    ),
+    'valid AFTER response and operation contracts are accepted': () => (
+      matchesBulkWriteResponseContract(validAfterPayload, 25, 'AFTER')
+        && matchesBulkWriteOperationContract(validAfterPayload.data.operation, 'AFTER')
+    ),
+    'variant and operation name cannot be mixed': () => !matchesBulkWriteResponseContract(
+      payload({ variant: 'AFTER' }),
+      25,
+      'AFTER',
     ),
     'zero-row response contract is accepted': () => (
-      matchesBulkWriteResponseContract(zeroPayload, 0)
+      matchesBulkWriteResponseContract(zeroPayload, 0, 'BEFORE')
     ),
     'camel-case response data is rejected': () => !matchesBulkWriteResponseContract({
       success: true,
@@ -437,13 +497,13 @@ export default function () {
     'operation requires SQL total to match typed counts': () => !matchesBulkWriteOperationContract(
       operation({ hibernate_statements_by_type: { ...SQL_COUNTS, TOTAL: 29 } }),
     ),
-    'operation rejects JDBC activity in U2': () => !matchesBulkWriteOperationContract(
+    'operation rejects unexpected JDBC activity': () => !matchesBulkWriteOperationContract(
       operation({ jdbc_batch_calls: 1, jdbc_submitted_rows: 25 }),
     ),
-    'operation rejects configured JDBC batch size in U2': () => !matchesBulkWriteOperationContract(
+    'operation rejects unexpected JDBC batch size': () => !matchesBulkWriteOperationContract(
       operation({ jdbc_configured_batch_size: 100 }),
     ),
-    'operation rejects affected JDBC rows in U2': () => !matchesBulkWriteOperationContract(
+    'operation rejects unexpected JDBC affected rows': () => !matchesBulkWriteOperationContract(
       operation({ jdbc_affected_rows: 25 }),
     ),
     'operation rejects inconsistent server duration units': () => !matchesBulkWriteOperationContract(
@@ -489,6 +549,10 @@ export default function () {
         && artifact.metadata.endpoint === BULK_WRITE_ENDPOINT
         && artifact.metadata.schema_label === 'airbob-bulk-write-v1'
     ),
+    'AFTER artifact records the matching operation name': () => (
+      afterArtifact.metadata.variant === 'AFTER'
+        && afterArtifact.metadata.operation_name === 'wishlist-delete-after'
+    ),
     'artifact keeps the complete non-sensitive k6 summary': () => (
       artifact.k6_summary.metrics.http_reqs.values.count === 3
         && artifact.k6_summary.root_group.checks[0].name === 'response contract'
@@ -512,7 +576,7 @@ export default function () {
         && !serializedArtifact.includes('user_id')
         && !serializedArtifact.includes('session_id')
     ),
-    'artifact reports U2 JDBC values without pretending null sizes are zero': () => (
+    'artifact reports JDBC values without pretending null sizes are zero': () => (
       artifact.database_observation.jdbc.batch_calls === 0
         && artifact.database_observation.jdbc.submitted_rows === 0
         && artifact.database_observation.jdbc.configured_batch_size === null

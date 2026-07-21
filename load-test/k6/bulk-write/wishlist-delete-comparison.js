@@ -97,7 +97,11 @@ export default function (setupData) {
     }),
   );
   const payload = parsePayload(response);
-  const contractMatches = matchesBulkWriteResponseContract(payload, RUN.datasetSize);
+  const contractMatches = matchesBulkWriteResponseContract(
+    payload,
+    RUN.datasetSize,
+    RUN.variant,
+  );
   const succeeded = response.status === 200 && contractMatches;
 
   httpOrchestrationMs.add(response.timings.duration, TAGS);
@@ -113,7 +117,7 @@ export default function (setupData) {
     'wishlist delete benchmark verifies exact rows and control fixtures': () => (
       contractMatches && payload.data.verification_succeeded === true
     ),
-    'wishlist delete U2 baseline reports no JDBC batch activity': () => (
+    'wishlist delete reports no JDBC batch activity': () => (
       contractMatches
         && payload.data.operation.jdbc_batch_calls === 0
         && payload.data.operation.jdbc_submitted_rows === 0
@@ -139,7 +143,7 @@ export function handleSummary(data) {
   });
   const { performance } = artifact;
   const output = [
-    `bulk write: WISHLIST_DELETE/BEFORE phase=${RUN.phase} dataset=${RUN.datasetSize} run=${RUN.runLabel}`,
+    `bulk write: WISHLIST_DELETE/${RUN.variant} phase=${RUN.phase} dataset=${RUN.datasetSize} run=${RUN.runLabel}`,
     [
       `samples=${performance.samples.attempted}`,
       `successful=${performance.samples.successful}`,
