@@ -105,13 +105,9 @@ function sourceArtifact({
   });
   if (configuredBatchSize !== null) {
     metrics.bulk_write_jdbc_configured_batch_size = metric(configuredBatchSize);
-  } else {
-    metrics.bulk_write_jdbc_configured_batch_size = { values: { count: 0 } };
   }
   if (exactAffectedRows !== null) {
     metrics.bulk_write_jdbc_affected_rows = metric(exactAffectedRows);
-  } else {
-    metrics.bulk_write_jdbc_affected_rows = { values: { count: 0 } };
   }
 
   const successfulRate = {
@@ -347,6 +343,81 @@ test('preserves BEFORE null JDBC values and AFTER exact or unknown affected rows
   }
 });
 
+test('accepts omitted optional zero-count metrics for real empty and unknown JDBC cases', () => {
+  const cases = [
+    {
+      parentLabel: 'reservation-before-empty-r1',
+      variant: 'BEFORE',
+      datasetSize: 0,
+      omittedMetrics: [
+        'bulk_write_jdbc_configured_batch_size',
+        'bulk_write_jdbc_affected_rows',
+      ],
+    },
+    {
+      parentLabel: 'reservation-after-empty-r1',
+      variant: 'AFTER',
+      datasetSize: 0,
+      omittedMetrics: [
+        'bulk_write_jdbc_configured_batch_size',
+        'bulk_write_jdbc_affected_rows',
+      ],
+    },
+    {
+      parentLabel: 'reservation-after-unknown-r1',
+      variant: 'AFTER',
+      datasetSize: 25,
+      affectedRows: null,
+      omittedMetrics: ['bulk_write_jdbc_affected_rows'],
+    },
+  ];
+
+  for (const specification of cases) {
+    const directory = createCase(`omitted-${specification.variant.toLowerCase()}`);
+    try {
+      const artifact = sourceArtifact({
+        index: 1,
+        parentLabel: specification.parentLabel,
+        variant: specification.variant,
+        datasetSize: specification.datasetSize,
+        affectedRows: specification.affectedRows,
+      });
+      specification.omittedMetrics.forEach((name) => {
+        assert.equal(Object.hasOwn(artifact.k6_summary.metrics, name), false);
+      });
+      const source = writeSource(
+        directory,
+        specification.parentLabel,
+        1,
+        artifact,
+      );
+      const result = runAggregator(directory, specification.parentLabel, [source]);
+      assert.equal(result.status, 0, result.stderr);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
+
+test('accepts a present well-formed zero-count representation for optional metrics', () => {
+  const directory = createCase('explicit-zero-count');
+  try {
+    const parentLabel = 'reservation-before-explicit-zero-r1';
+    const artifact = sourceArtifact({ index: 1, parentLabel, variant: 'BEFORE' });
+    artifact.k6_summary.metrics.bulk_write_jdbc_configured_batch_size = {
+      values: { count: 0 },
+    };
+    artifact.k6_summary.metrics.bulk_write_jdbc_affected_rows = {
+      values: { count: 0 },
+    };
+    const source = writeSource(directory, parentLabel, 1, artifact);
+    const result = runAggregator(directory, parentLabel, [source]);
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 const invalidCases = [
   {
     name: 'multi-sample source',
@@ -414,6 +485,26 @@ const invalidCases = [
       artifact.k6_summary.metrics.bulk_write_jdbc_submitted_rows.values['p(95)'] += 1;
     },
   },
+  {
+    name: 'present malformed optional zero-count affected-row metric',
+    mutate: (artifact) => {
+      artifact.database_observation.jdbc.affected_rows = null;
+      artifact.database_observation.jdbc.affected_rows_known_samples = 0;
+      artifact.database_observation.jdbc.affected_rows_unknown_samples = 1;
+      artifact.k6_summary.metrics.bulk_write_jdbc_affected_rows = {
+        values: { count: 0, avg: 0 },
+      };
+    },
+  },
+  {
+    name: 'present nonzero optional metric when database value is null',
+    mutate: (artifact) => {
+      artifact.database_observation.jdbc.affected_rows = null;
+      artifact.database_observation.jdbc.affected_rows_known_samples = 0;
+      artifact.database_observation.jdbc.affected_rows_unknown_samples = 1;
+      artifact.k6_summary.metrics.bulk_write_jdbc_affected_rows = metric(25);
+    },
+  },
 ];
 
 for (const invalidCase of invalidCases) {
@@ -430,6 +521,30 @@ for (const invalidCase of invalidCases) {
     }
   });
 }
+
+test('rejects malformed or nonzero configured-batch metrics when the database value is null', () => {
+  const representations = [
+    { name: 'malformed-zero', metric: { values: { count: 0, med: 0 } } },
+    { name: 'nonzero', metric: metric(25) },
+  ];
+  for (const representation of representations) {
+    const directory = createCase(`configured-${representation.name}`);
+    try {
+      const parentLabel = `reservation-before-configured-${representation.name}-r1`;
+      const artifact = sourceArtifact({ index: 1, parentLabel, variant: 'BEFORE' });
+      artifact.k6_summary.metrics.bulk_write_jdbc_affected_rows = {
+        values: { count: 0 },
+      };
+      artifact.k6_summary.metrics.bulk_write_jdbc_configured_batch_size = (
+        representation.metric
+      );
+      const source = writeSource(directory, parentLabel, 1, artifact);
+      assertRejected(runAggregator(directory, parentLabel, [source]), directory);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
 
 test('rejects mismatched public experiment metadata', () => {
   const directory = createCase('mismatch');

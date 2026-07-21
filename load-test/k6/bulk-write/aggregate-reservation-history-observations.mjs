@@ -248,6 +248,21 @@ function validateMetricCount(source, name, expectedCount) {
   );
 }
 
+function validateOptionalZeroCountMetric(source, name) {
+  const metrics = source.k6_summary.metrics;
+  requireCondition(isObject(metrics), 'k6 metrics contract is invalid');
+  if (!Object.prototype.hasOwnProperty.call(metrics, name)) {
+    return;
+  }
+  const metric = metrics[name];
+  requireCondition(
+    isObject(metric)
+      && hasExactKeys(metric.values, ['count'])
+      && metric.values.count === 0,
+    'optional k6 metric zero-count contract is invalid',
+  );
+}
+
 function validateMetricValue(source, name, expectedValue) {
   const values = metricValues(source, name);
   const aggregateValues = Object.entries(values).filter(([key]) => key !== 'count');
@@ -444,8 +459,8 @@ function validateDatabaseObservation(source) {
         && jdbc.affected_rows_unknown_samples === 1,
       'source non-batch JDBC observation is invalid',
     );
-    validateMetricCount(source, 'bulk_write_jdbc_configured_batch_size', 0);
-    validateMetricCount(source, 'bulk_write_jdbc_affected_rows', 0);
+    validateOptionalZeroCountMetric(source, 'bulk_write_jdbc_configured_batch_size');
+    validateOptionalZeroCountMetric(source, 'bulk_write_jdbc_affected_rows');
   } else {
     requireCondition(
       isPositiveInteger(jdbc.configured_batch_size)
@@ -465,7 +480,7 @@ function validateDatabaseObservation(source) {
           && jdbc.affected_rows_unknown_samples === 1,
         'source unknown affected-row coverage is invalid',
       );
-      validateMetricCount(source, 'bulk_write_jdbc_affected_rows', 0);
+      validateOptionalZeroCountMetric(source, 'bulk_write_jdbc_affected_rows');
     } else {
       requireCondition(
         jdbc.affected_rows === datasetSize
