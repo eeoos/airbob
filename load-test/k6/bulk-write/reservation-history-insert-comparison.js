@@ -135,7 +135,7 @@ export default function (setupData) {
     ),
   }, TAGS);
 
-  if (contractMatches) {
+  if (succeeded) {
     recordOperation(payload.data);
   }
 }

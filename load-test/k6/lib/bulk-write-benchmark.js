@@ -700,14 +700,23 @@ export function buildBulkWriteArtifact({
   const definition = requireBenchmarkDefinition(benchmark);
   const performance = summarizeBulkWriteMetrics(k6Summary);
   const jdbc = summarizeJdbcMetrics(k6Summary);
-  const affectedRowsKnownSamples = Number.isSafeInteger(jdbc.affected_rows.count)
-    && jdbc.affected_rows.count >= 0
-    ? jdbc.affected_rows.count
-    : 0;
-  const affectedRowsUnknownSamples = Math.max(
-    performance.samples.successful - affectedRowsKnownSamples,
-    0,
+  const affectedRowsMetricValues = metricValues(
+    k6Summary,
+    'bulk_write_jdbc_affected_rows',
   );
+  const affectedRowsKnownSamples = affectedRowsMetricValues.count === undefined
+    ? 0
+    : affectedRowsMetricValues.count;
+  requireCondition(
+    Number.isSafeInteger(performance.samples.successful)
+      && performance.samples.successful >= 0
+      && Number.isSafeInteger(affectedRowsKnownSamples)
+      && affectedRowsKnownSamples >= 0
+      && affectedRowsKnownSamples <= performance.samples.successful,
+    'affected-row metric count must not exceed successful samples',
+  );
+  const affectedRowsUnknownSamples = performance.samples.successful
+    - affectedRowsKnownSamples;
   const everySuccessfulAffectedRowKnown = performance.samples.successful > 0
     && affectedRowsKnownSamples === performance.samples.successful
     && jdbc.affected_rows.median !== null;

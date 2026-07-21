@@ -322,6 +322,31 @@ export default function () {
       },
     },
   });
+  const rejectsAffectedRowsBeyondSuccessfulSamples = rejects(() => buildBulkWriteArtifact({
+    config: afterConfig,
+    k6Summary: {
+      ...summary,
+      metrics: {
+        ...summary.metrics,
+        bulk_write_jdbc_affected_rows: {
+          values: { count: 4, avg: 25, min: 25, med: 25, max: 25 },
+        },
+      },
+    },
+  }));
+  const rejectsAffectedRowsRecordedForFailedSample = rejects(() => buildBulkWriteArtifact({
+    config: afterConfig,
+    k6Summary: {
+      ...summary,
+      metrics: {
+        ...summary.metrics,
+        bulk_write_sample_success: { values: { passes: 2, fails: 1, rate: 2 / 3 } },
+        bulk_write_jdbc_affected_rows: {
+          values: { count: 3, avg: 25, min: 25, med: 25, max: 25 },
+        },
+      },
+    },
+  }));
   const serializedArtifact = JSON.stringify(artifact);
   const metadataKeys = Object.keys(artifact.metadata).sort();
 
@@ -667,6 +692,12 @@ export default function () {
       zeroSampleArtifact.database_observation.jdbc.affected_rows === null
         && zeroSampleArtifact.database_observation.jdbc.affected_rows_known_samples === 0
         && zeroSampleArtifact.database_observation.jdbc.affected_rows_unknown_samples === 0
+    ),
+    'artifact rejects affected-row metrics beyond successful sample coverage': () => (
+      rejectsAffectedRowsBeyondSuccessfulSamples
+    ),
+    'artifact rejects an affected-row metric emitted for a failed sample': () => (
+      rejectsAffectedRowsRecordedForFailedSample
     ),
     'Wishlist artifact does not claim Reservation external effects': () => (
       artifact.database_observation.external_effects === undefined

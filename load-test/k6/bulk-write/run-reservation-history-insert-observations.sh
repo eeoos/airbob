@@ -9,8 +9,7 @@ if [[ "${PHASE:-}" != 'measure' ]]; then
   printf 'PHASE must be measure\n' >&2
   exit 2
 fi
-if [[ ! "${RAW_OBSERVATION_SAMPLES:-}" =~ ^[1-9][0-9]*$ ]] \
-  || (( RAW_OBSERVATION_SAMPLES > 100 )); then
+if [[ ! "${RAW_OBSERVATION_SAMPLES:-}" =~ ^([1-9]|[1-9][0-9]|100)$ ]]; then
   printf 'RAW_OBSERVATION_SAMPLES must be an integer between 1 and 100\n' >&2
   exit 2
 fi
@@ -29,27 +28,84 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd -- "$script_dir/../../.." && pwd -P)"
-child_runner="${RESERVATION_HISTORY_RUNNER:-$script_dir/run-reservation-history-insert.sh}"
 aggregator="$script_dir/aggregate-reservation-history-observations.mjs"
-node_bin="${NODE_BIN:-node}"
+test_mode="${BULK_WRITE_BENCHMARK_TEST_MODE:-0}"
+if [[ "$test_mode" != '0' && "$test_mode" != '1' ]]; then
+  printf 'BULK_WRITE_BENCHMARK_TEST_MODE must be 0 or 1\n' >&2
+  exit 2
+fi
+if [[ "$test_mode" == '1' ]]; then
+  child_runner="${RESERVATION_HISTORY_RUNNER:-$script_dir/run-reservation-history-insert.sh}"
+  node_bin="${NODE_BIN:-node}"
+else
+  if [[ -n "${RESERVATION_HISTORY_RUNNER+x}" || -n "${NODE_BIN+x}" ]]; then
+    printf 'executable overrides require explicit test mode\n' >&2
+    exit 2
+  fi
+  child_runner="$script_dir/run-reservation-history-insert.sh"
+  node_bin='node'
+fi
+if [[ ! -f "$aggregator" || -L "$aggregator" ]]; then
+  printf 'trusted observation aggregator is unavailable\n' >&2
+  exit 2
+fi
+if [[ "$test_mode" == '0' \
+  && ( ! -f "$child_runner" || -L "$child_runner" || ! -x "$child_runner" ) ]]; then
+  printf 'trusted reservation runner is unavailable\n' >&2
+  exit 2
+fi
 
 cd -- "$repo_root"
-mkdir -p -- build/k6/bulk-write
-if [[ -e "$RAW_OBSERVATION_RESULT_PATH" ]]; then
+for artifact_directory in build build/k6 build/k6/bulk-write; do
+  if [[ -L "$artifact_directory" \
+    || ( -e "$artifact_directory" && ! -d "$artifact_directory" ) ]]; then
+    printf 'artifact directory contains an unsafe path component\n' >&2
+    exit 2
+  fi
+  if [[ ! -d "$artifact_directory" ]]; then
+    mkdir -- "$artifact_directory"
+  fi
+done
+if [[ "$(cd -- build/k6/bulk-write && pwd -P)" != "$repo_root/build/k6/bulk-write" ]]; then
+  printf 'artifact directory is outside the repository boundary\n' >&2
+  exit 2
+fi
+if [[ -e "$RAW_OBSERVATION_RESULT_PATH" || -L "$RAW_OBSERVATION_RESULT_PATH" ]]; then
   printf 'RAW_OBSERVATION_RESULT_PATH already exists\n' >&2
   exit 2
 fi
+
+created_paths=()
+current_child_path=''
+cleanup_created_artifacts_on_failure() {
+  local status=$?
+  if (( status != 0 )); then
+    local path
+    if [[ -n "$current_child_path" \
+      && ( -e "$current_child_path" || -L "$current_child_path" ) ]]; then
+      rm -f -- "$current_child_path" || true
+    fi
+    for path in "${created_paths[@]}"; do
+      if [[ -e "$path" || -L "$path" ]]; then
+        rm -f -- "$path" || true
+      fi
+    done
+  fi
+}
+trap cleanup_created_artifacts_on_failure EXIT
 
 source_paths=()
 for (( sample_index = 1; sample_index <= RAW_OBSERVATION_SAMPLES; sample_index++ )); do
   printf -v sample_suffix '%03d' "$sample_index"
   child_label="$RUN_LABEL-sample-$sample_suffix"
   child_path="build/k6/bulk-write/$child_label.json"
-  if [[ "$child_path" == "$RAW_OBSERVATION_RESULT_PATH" || -e "$child_path" ]]; then
+  if [[ "$child_path" == "$RAW_OBSERVATION_RESULT_PATH" \
+    || -e "$child_path" || -L "$child_path" ]]; then
     printf 'child observation artifact path is not fresh\n' >&2
     exit 2
   fi
 
+  current_child_path="$child_path"
   PHASE=measure \
   SAMPLES=1 \
   RUN_LABEL="$child_label" \
@@ -57,14 +113,16 @@ for (( sample_index = 1; sample_index <= RAW_OBSERVATION_SAMPLES; sample_index++
   K6_RESULT_PATH="$child_path" \
     "$child_runner"
 
-  if [[ ! -f "$child_path" ]]; then
+  if [[ ! -f "$child_path" || -L "$child_path" ]]; then
     printf 'successful child run did not emit its artifact\n' >&2
     exit 1
   fi
+  created_paths+=("$child_path")
+  current_child_path=''
   source_paths+=("$child_path")
 done
 
-"$node_bin" "$aggregator" \
+env -u NODE_OPTIONS -u NODE_PATH "$node_bin" "$aggregator" \
   --output "$RAW_OBSERVATION_RESULT_PATH" \
   --run-label "$RUN_LABEL" \
   "${source_paths[@]}"

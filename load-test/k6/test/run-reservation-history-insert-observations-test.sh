@@ -7,10 +7,14 @@ runner="$repo_root/load-test/k6/bulk-write/run-reservation-history-insert-observ
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/reservation-observation-runner-test.XXXXXX")"
 label="observation-contract-$$"
 failure_label="observation-failure-$$"
+override_label="observation-override-$$"
+huge_label="observation-huge-$$"
 result="build/k6/bulk-write/$label-observations.json"
 failure_result="build/k6/bulk-write/$failure_label-observations.json"
+override_result="build/k6/bulk-write/$override_label-observations.json"
+huge_result="build/k6/bulk-write/$huge_label-observations.json"
 token='token-sentinel-0123456789abcdef0123456789'
-trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"*' EXIT
+trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"* "$repo_root/build/k6/bulk-write/$override_label"* "$repo_root/build/k6/bulk-write/$huge_label"*' EXIT
 
 assert_rejected() {
   local description="$1"
@@ -56,6 +60,9 @@ cat >"$temp_dir/capture-node" <<'NODE'
 #!/usr/bin/env bash
 set -euo pipefail
 
+[[ -z "${NODE_OPTIONS+x}" ]]
+[[ -z "${NODE_PATH+x}" ]]
+[[ -n "${BENCHMARK_BULK_WRITE_TOKEN:-}" ]]
 printf 'node' >>"$CAPTURE_LOG"
 for argument in "$@"; do
   printf ' arg=%s' "$argument" >>"$CAPTURE_LOG"
@@ -79,13 +86,34 @@ cat >"$temp_dir/fail-second-child" <<'FAIL_CHILD'
 set -euo pipefail
 
 printf 'child label=%s\n' "$RUN_LABEL" >>"$CAPTURE_LOG"
+mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
+printf '{}\n' >"$K6_RESULT_PATH"
 if [[ "$RUN_LABEL" == *'-sample-002' ]]; then
   exit 23
 fi
-mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
-printf '{}\n' >"$K6_RESULT_PATH"
 FAIL_CHILD
 chmod +x "$temp_dir/capture-child" "$temp_dir/capture-node" "$temp_dir/fail-second-child"
+
+assert_rejected 'an overflowing sample count' env \
+  PHASE=measure RAW_OBSERVATION_SAMPLES=18446744073709551617 RUN_LABEL="$huge_label" \
+  RAW_OBSERVATION_RESULT_PATH="$huge_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  CAPTURE_LOG="$temp_dir/huge-calls" \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+  "$runner"
+
+assert_rejected 'executable overrides outside explicit test mode' env \
+  PHASE=measure RAW_OBSERVATION_SAMPLES=1 RUN_LABEL="$override_label" \
+  RAW_OBSERVATION_RESULT_PATH="$override_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  CAPTURE_LOG="$temp_dir/override-calls" \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+  "$runner"
+if [[ -e "$repo_root/$override_result" ]]; then
+  printf 'runner created an artifact through an unscoped executable override\n' >&2
+  exit 1
+fi
 
 : >"$temp_dir/calls"
 output="$({
@@ -96,6 +124,9 @@ output="$({
   RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" \
   BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  NODE_OPTIONS=--trace-warnings \
+  NODE_PATH="$temp_dir/untrusted-node-modules" \
   RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
   NODE_BIN="$temp_dir/capture-node" \
     "$runner"
@@ -135,6 +166,7 @@ if failure_output="$({
   RUN_LABEL="$failure_label" \
   RAW_OBSERVATION_RESULT_PATH="$failure_result" \
   BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
   RESERVATION_HISTORY_RUNNER="$temp_dir/fail-second-child" \
   NODE_BIN="$temp_dir/capture-node" \
     "$runner"
@@ -156,5 +188,36 @@ if grep -q '^node' "$temp_dir/failure-calls"; then
 fi
 if [[ -e "$repo_root/$failure_result" ]]; then
   printf 'observation runner emitted a partial companion artifact\n' >&2
+  exit 1
+fi
+for failed_child in \
+  "$repo_root/build/k6/bulk-write/$failure_label-sample-001.json" \
+  "$repo_root/build/k6/bulk-write/$failure_label-sample-002.json"; do
+  if [[ -e "$failed_child" || -L "$failed_child" ]]; then
+    printf 'observation runner retained a child artifact after failure: %s\n' "$failed_child" >&2
+    exit 1
+  fi
+done
+
+: >"$temp_dir/retry-calls"
+retry_output="$({
+  cd -- "${TMPDIR:-/tmp}"
+  CAPTURE_LOG="$temp_dir/retry-calls" \
+  PHASE=measure \
+  RAW_OBSERVATION_SAMPLES=3 \
+  RUN_LABEL="$failure_label" \
+  RAW_OBSERVATION_RESULT_PATH="$failure_result" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+    "$runner"
+} 2>&1)"
+if [[ -n "$retry_output" ]]; then
+  printf 'observation runner retry produced unexpected output: %s\n' "$retry_output" >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/$failure_result" ]]; then
+  printf 'observation runner could not retry after child cleanup\n' >&2
   exit 1
 fi

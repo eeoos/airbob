@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 
 import {
-  existsSync,
+  closeSync,
+  constants,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
   readFileSync,
+  realpathSync,
   renameSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const SOURCE_SCHEMA_VERSION = 'bulk-write-benchmark-v1';
 const OBSERVATION_SCHEMA_VERSION = 'bulk-write-observations-v1';
@@ -62,6 +68,13 @@ const SOURCE_KEYS = [
   'database_observation',
   'k6_summary',
 ];
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const REPO_ROOT = resolve(dirname(SCRIPT_PATH), '../../..');
+const ARTIFACT_ROOT = resolve(REPO_ROOT, 'build/k6/bulk-write');
+const MAX_SOURCE_BYTES = 512 * 1024;
+const MAX_TOTAL_SOURCE_BYTES = 4 * 1024 * 1024;
+const MAX_SCAN_DEPTH = 64;
+const MAX_SCAN_NODES = 100_000;
 
 function sensitiveEnvironmentKey(key) {
   const normalized = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -119,46 +132,84 @@ function isFiniteNonNegative(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function boundedContains(value, { keyPredicate = () => false, stringPredicate = () => false }) {
+  const stack = [{ value, depth: 0 }];
+  let visitedNodes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop();
+    visitedNodes += 1;
+    requireCondition(
+      visitedNodes <= MAX_SCAN_NODES && current.depth <= MAX_SCAN_DEPTH,
+      'input exceeds security scan limits',
+    );
+    if (Array.isArray(current.value)) {
+      requireCondition(
+        visitedNodes + stack.length + current.value.length <= MAX_SCAN_NODES
+          && (current.value.length === 0 || current.depth < MAX_SCAN_DEPTH),
+        'input exceeds security scan limits',
+      );
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        stack.push({ value: current.value[index], depth: current.depth + 1 });
+      }
+      continue;
+    }
+    if (isObject(current.value)) {
+      const entries = Object.entries(current.value);
+      requireCondition(
+        visitedNodes + stack.length + entries.length <= MAX_SCAN_NODES
+          && (entries.length === 0 || current.depth < MAX_SCAN_DEPTH),
+        'input exceeds security scan limits',
+      );
+      for (let index = entries.length - 1; index >= 0; index -= 1) {
+        const [key, item] = entries[index];
+        if (keyPredicate(key)) {
+          return true;
+        }
+        stack.push({ value: item, depth: current.depth + 1 });
+      }
+      continue;
+    }
+    if (typeof current.value === 'string' && stringPredicate(current.value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function sensitiveDataKey(key) {
+  const normalized = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  return [
+    'token',
+    'secret',
+    'password',
+    'authorization',
+    'cookie',
+    'sessionid',
+    'userid',
+    'memberid',
+    'accountid',
+    'email',
+    'credential',
+  ].some((fragment) => normalized.includes(fragment));
+}
+
 function containsSensitiveData(value) {
-  if (Array.isArray(value)) {
-    return value.some(containsSensitiveData);
-  }
-  if (isObject(value)) {
-    return Object.entries(value).some(([key, item]) => {
-      const normalized = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-      const sensitiveKey = [
-        'token',
-        'secret',
-        'password',
-        'authorization',
-        'cookie',
-        'sessionid',
-        'userid',
-        'memberid',
-        'accountid',
-        'email',
-        'credential',
-      ].some((fragment) => normalized.includes(fragment));
-      return sensitiveKey || containsSensitiveData(item);
-    });
-  }
-  if (typeof value !== 'string') {
-    return false;
-  }
-  return /[^\s@]+@[^\s@]+\.[^\s@]+/.test(value)
-    || /(?:bearer\s|password|secret|\btoken\b|session[_ -]?id|member[_ -]?id|user[_ -]?id|authorization|cookie|credential)/i
-      .test(value);
+  return boundedContains(value, {
+    keyPredicate: sensitiveDataKey,
+    stringPredicate: (candidate) => (
+      /[^\s@]+@[^\s@]+\.[^\s@]+/.test(candidate)
+        || /(?:bearer\s|password|secret|\btoken\b|session[_ -]?id|member[_ -]?id|user[_ -]?id|authorization|cookie|credential)/i
+          .test(candidate)
+    ),
+  });
 }
 
 function containsKnownSecret(value) {
-  if (Array.isArray(value)) {
-    return value.some(containsKnownSecret);
-  }
-  if (isObject(value)) {
-    return Object.values(value).some(containsKnownSecret);
-  }
-  return typeof value === 'string'
-    && KNOWN_SECRET_VALUES.some((secret) => value.includes(secret));
+  return boundedContains(value, {
+    stringPredicate: (candidate) => KNOWN_SECRET_VALUES.some(
+      (secret) => candidate.includes(secret),
+    ),
+  });
 }
 
 function validateRate(value, name) {
@@ -177,6 +228,7 @@ function validateTrend(value, name, expectedMedian = undefined) {
   requireCondition(value.count === 1, `${name} trend count must be one`);
   TREND_KEYS.filter((key) => key !== 'count').forEach((key) => {
     requireCondition(isFiniteNonNegative(value[key]), `${name} trend contains an invalid value`);
+    requireCondition(value[key] === value.median, `${name} one-sample trend is inconsistent`);
   });
   if (expectedMedian !== undefined) {
     requireCondition(value.median === expectedMedian, `${name} median is inconsistent`);
@@ -198,11 +250,16 @@ function validateMetricCount(source, name, expectedCount) {
 
 function validateMetricValue(source, name, expectedValue) {
   const values = metricValues(source, name);
+  const aggregateValues = Object.entries(values).filter(([key]) => key !== 'count');
   requireCondition(
     values.count === 1
-      && typeof values.med === 'number'
-      && Number.isFinite(values.med)
-      && values.med === expectedValue,
+      && Object.prototype.hasOwnProperty.call(values, 'med')
+      && aggregateValues.length > 0
+      && aggregateValues.every(([, value]) => (
+        typeof value === 'number'
+          && Number.isFinite(value)
+          && value === expectedValue
+      )),
     'required k6 metric value is inconsistent',
   );
 }
@@ -263,6 +320,16 @@ function validateSuccessfulSummary(source) {
   validateTrend(performance.server_operation_ms, 'server operation');
   validateTrend(performance.http_orchestration_ms, 'HTTP orchestration');
   validateTrend(performance.verified_rows, 'verified rows', source.metadata.dataset_size);
+  requireCondition(
+    hasExactKeys(performance.hibernate_statements_by_type, SQL_TYPES),
+    'source performance Hibernate observation contract is invalid',
+  );
+  SQL_TYPES.forEach((type) => {
+    validateTrend(
+      performance.hibernate_statements_by_type[type],
+      `performance Hibernate ${type}`,
+    );
+  });
 
   requireCondition(
     hasExactKeys(verification, ['expected_rows', 'verified_rows', 'succeeded']),
@@ -323,7 +390,9 @@ function validateDatabaseObservation(source) {
     const value = observation.hibernate_statements_by_type[type];
     validateTrend(value, `Hibernate ${type}`);
     requireCondition(
-      value.median === source.performance.hibernate_statements_by_type[type].median,
+      TREND_KEYS.every(
+        (key) => value[key] === source.performance.hibernate_statements_by_type[type][key],
+      ),
       `Hibernate ${type} observation is inconsistent`,
     );
     sql[type] = value.median;
@@ -458,15 +527,108 @@ function validateSource(source, parentLabel, sampleIndex) {
   validateDatabaseObservation(source);
 }
 
-function readSource(path, parentLabel, sampleIndex) {
+function artifactRootIsTrusted() {
+  try {
+    if (realpathSync(REPO_ROOT) !== REPO_ROOT) {
+      return false;
+    }
+    const components = [
+      REPO_ROOT,
+      resolve(REPO_ROOT, 'build'),
+      resolve(REPO_ROOT, 'build/k6'),
+      ARTIFACT_ROOT,
+    ];
+    if (!components.every((component) => {
+      const stat = lstatSync(component);
+      return stat.isDirectory() && !stat.isSymbolicLink();
+    })) {
+      return false;
+    }
+    return realpathSync(ARTIFACT_ROOT) === ARTIFACT_ROOT;
+  } catch (_) {
+    return false;
+  }
+}
+
+function requireTrustedArtifactRoot() {
+  requireCondition(artifactRootIsTrusted(), 'artifact root is not a trusted canonical directory');
+}
+
+function absoluteArtifactPath(relativePath) {
+  const absolutePath = resolve(REPO_ROOT, relativePath);
+  requireCondition(
+    dirname(absolutePath) === ARTIFACT_ROOT,
+    'artifact path is outside the fixed repository boundary',
+  );
+  return absolutePath;
+}
+
+function pathEntryExists(path) {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return false;
+    }
+    throw new Error('artifact path cannot be inspected safely');
+  }
+}
+
+function readSource(path, parentLabel, sampleIndex, byteBudget) {
+  requireTrustedArtifactRoot();
+  const absolutePath = absoluteArtifactPath(path);
+  let entry;
+  try {
+    entry = lstatSync(absolutePath);
+  } catch (_) {
+    throw new Error('source artifact cannot be opened safely');
+  }
+  requireCondition(
+    entry.isFile() && !entry.isSymbolicLink(),
+    'source artifact must be a regular non-symbolic-link file',
+  );
+  requireCondition(
+    Number.isInteger(constants.O_NOFOLLOW),
+    'runtime does not support no-follow artifact reads',
+  );
+
+  let descriptor;
+  try {
+    descriptor = openSync(absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (_) {
+    throw new Error('source artifact cannot be opened safely');
+  }
+
+  let contents;
+  try {
+    const before = fstatSync(descriptor);
+    requireCondition(before.isFile(), 'source artifact must remain a regular file');
+    requireCondition(before.size <= MAX_SOURCE_BYTES, 'source artifact is too large');
+    contents = readFileSync(descriptor, 'utf8');
+    const after = fstatSync(descriptor);
+    const encodedBytes = Buffer.byteLength(contents, 'utf8');
+    requireCondition(
+      before.dev === after.dev
+        && before.ino === after.ino
+        && before.size === after.size
+        && encodedBytes === after.size,
+      'source artifact changed while it was read',
+    );
+    byteBudget.total += encodedBytes;
+    requireCondition(
+      byteBudget.total <= MAX_TOTAL_SOURCE_BYTES,
+      'source artifacts exceed the cumulative size limit',
+    );
+  } finally {
+    closeSync(descriptor);
+  }
+  requireTrustedArtifactRoot();
+
   let parsed;
   try {
-    requireCondition(statSync(path).size <= 10 * 1024 * 1024, 'source artifact is too large');
-    parsed = JSON.parse(readFileSync(path, 'utf8'));
-  } catch (error) {
-    if (error instanceof Error && error.message === 'source artifact is too large') {
-      throw error;
-    }
+    parsed = JSON.parse(contents);
+  } catch (_) {
     throw new Error('source artifact cannot be read as JSON');
   }
   validateSource(parsed, parentLabel, sampleIndex);
@@ -508,44 +670,54 @@ function nearestRank(sortedValues, percentile) {
   return sortedValues[rank - 1];
 }
 
-function buildCompanion(parentLabel, sources, sourcePaths) {
-  const reference = sources[0].metadata;
-  sources.slice(1).forEach((source) => requireMatchingMetadata(reference, source.metadata));
-  const observations = sources.map((source, index) => ({
-    sample_index: index + 1,
-    source_path: sourcePaths[index],
-    variant: source.metadata.variant,
-    dataset_size: source.metadata.dataset_size,
-    round: source.metadata.round,
-    run_order: source.metadata.run_order,
-    server_operation_ms: source.performance.server_operation_ms.median,
-    verification: {
-      succeeded: true,
-      verified_rows: source.verification.verified_rows.median,
+function normalizeSource(source, sourcePath, sampleIndex) {
+  return {
+    metadata: Object.fromEntries(METADATA_KEYS.map((key) => [key, source.metadata[key]])),
+    observation: {
+      sample_index: sampleIndex,
+      source_path: sourcePath,
+      variant: source.metadata.variant,
+      dataset_size: source.metadata.dataset_size,
+      round: source.metadata.round,
+      run_order: source.metadata.run_order,
+      server_operation_ms: source.performance.server_operation_ms.median,
+      verification: {
+        succeeded: true,
+        verified_rows: source.verification.verified_rows.median,
+      },
+      hibernate_statements_by_type: Object.fromEntries(SQL_TYPES.map((type) => [
+        type,
+        source.database_observation.hibernate_statements_by_type[type].median,
+      ])),
+      jdbc: {
+        batch_calls: source.database_observation.jdbc.batch_calls,
+        submitted_rows: source.database_observation.jdbc.submitted_rows,
+        configured_batch_size: source.database_observation.jdbc.configured_batch_size,
+        affected_rows: source.database_observation.jdbc.affected_rows,
+      },
+      external_effects: {
+        hold_removal_calls: source.database_observation.external_effects.hold_removal_calls,
+        hold_removal_mode: source.database_observation.external_effects.hold_removal_mode,
+        redis_network_excluded: source.database_observation.external_effects.redis_network_excluded,
+      },
     },
-    hibernate_statements_by_type: Object.fromEntries(SQL_TYPES.map((type) => [
-      type,
-      source.database_observation.hibernate_statements_by_type[type].median,
-    ])),
-    jdbc: {
-      batch_calls: source.database_observation.jdbc.batch_calls,
-      submitted_rows: source.database_observation.jdbc.submitted_rows,
-      configured_batch_size: source.database_observation.jdbc.configured_batch_size,
-      affected_rows: source.database_observation.jdbc.affected_rows,
-    },
-    external_effects: {
-      hold_removal_calls: source.database_observation.external_effects.hold_removal_calls,
-      hold_removal_mode: source.database_observation.external_effects.hold_removal_mode,
-      redis_network_excluded: source.database_observation.external_effects.redis_network_excluded,
-    },
-  }));
+  };
+}
+
+function buildCompanion(parentLabel, normalizedSources) {
+  const reference = normalizedSources[0].metadata;
+  normalizedSources.slice(1).forEach((source) => (
+    requireMatchingMetadata(reference, source.metadata)
+  ));
+  const observations = normalizedSources.map(({ observation }) => observation);
+  /* Parsed k6 summaries are intentionally not retained beyond normalizeSource(). */
   const sortedServerOperationMs = observations
     .map((observation) => observation.server_operation_ms)
     .sort((left, right) => left - right);
 
   return {
     schema_version: OBSERVATION_SCHEMA_VERSION,
-    metadata: sharedMetadata(reference, parentLabel, sources.length),
+    metadata: sharedMetadata(reference, parentLabel, normalizedSources.length),
     statistics: {
       percentile_algorithm: 'nearest-rank',
       percentile_definition: 'sort ascending; rank = max(1, ceil(p * n)); value = sorted[rank - 1]',
@@ -592,25 +764,67 @@ function parseArguments(args) {
     );
   });
   requireCondition(!sourcePaths.includes(outputPath), 'output path must differ from every source');
-  requireCondition(!existsSync(outputPath), 'output path already exists');
+  requireTrustedArtifactRoot();
+  requireCondition(
+    !pathEntryExists(absoluteArtifactPath(outputPath)),
+    'output path already exists',
+  );
   return { outputPath, parentLabel, sourcePaths };
 }
 
 function writeCompanion(outputPath, companion) {
-  const absoluteOutput = resolve(outputPath);
+  requireTrustedArtifactRoot();
+  const absoluteOutput = absoluteArtifactPath(outputPath);
   const temporary = resolve(
-    dirname(absoluteOutput),
+    ARTIFACT_ROOT,
     `.${basename(absoluteOutput)}.${process.pid}.tmp`,
   );
+  requireCondition(
+    Number.isInteger(constants.O_NOFOLLOW),
+    'runtime does not support no-follow artifact writes',
+  );
+  requireCondition(!pathEntryExists(absoluteOutput), 'output path already exists');
+
+  let descriptor;
+  let temporaryCreated = false;
   try {
-    writeFileSync(temporary, `${JSON.stringify(companion, null, 2)}\n`, {
-      encoding: 'utf8',
-      flag: 'wx',
-      mode: 0o600,
-    });
+    try {
+      descriptor = openSync(
+        temporary,
+        constants.O_WRONLY
+          | constants.O_CREAT
+          | constants.O_EXCL
+          | constants.O_NOFOLLOW,
+        0o600,
+      );
+    } catch (_) {
+      throw new Error('temporary companion artifact cannot be opened safely');
+    }
+    temporaryCreated = true;
+    writeFileSync(descriptor, `${JSON.stringify(companion, null, 2)}\n`, 'utf8');
+    fsyncSync(descriptor);
+    const written = fstatSync(descriptor);
+    requireCondition(
+      written.isFile() && (written.mode & 0o777) === 0o600,
+      'temporary companion artifact permissions are invalid',
+    );
+    closeSync(descriptor);
+    descriptor = undefined;
+
+    requireTrustedArtifactRoot();
+    const temporaryEntry = lstatSync(temporary);
+    requireCondition(
+      temporaryEntry.isFile() && !temporaryEntry.isSymbolicLink(),
+      'temporary companion artifact is not a regular file',
+    );
+    requireCondition(!pathEntryExists(absoluteOutput), 'output path already exists');
     renameSync(temporary, absoluteOutput);
+    temporaryCreated = false;
   } finally {
-    if (existsSync(temporary)) {
+    if (descriptor !== undefined) {
+      closeSync(descriptor);
+    }
+    if (temporaryCreated && pathEntryExists(temporary)) {
       unlinkSync(temporary);
     }
   }
@@ -618,8 +832,13 @@ function writeCompanion(outputPath, companion) {
 
 try {
   const { outputPath, parentLabel, sourcePaths } = parseArguments(process.argv.slice(2));
-  const sources = sourcePaths.map((path, index) => readSource(path, parentLabel, index + 1));
-  const companion = buildCompanion(parentLabel, sources, sourcePaths);
+  const byteBudget = { total: 0 };
+  const normalizedSources = [];
+  sourcePaths.forEach((path, index) => {
+    const source = readSource(path, parentLabel, index + 1, byteBudget);
+    normalizedSources.push(normalizeSource(source, path, index + 1));
+  });
+  const companion = buildCompanion(parentLabel, normalizedSources);
   writeCompanion(outputPath, companion);
 } catch (error) {
   process.stderr.write(`reservation observation aggregation failed: ${error.message}\n`);

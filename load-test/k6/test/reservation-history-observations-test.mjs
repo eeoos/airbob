@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
+  copyFileSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -39,9 +43,16 @@ function metric(value, count = 1) {
       avg: value,
       min: value,
       med: value,
+      'p(90)': value,
+      'p(95)': value,
+      'p(99)': value,
       max: value,
     },
   };
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function sourceArtifact({
@@ -137,7 +148,7 @@ function sourceArtifact({
       server_operation_ms: trend(serverOperationMs),
       http_orchestration_ms: trend(serverOperationMs + 5),
       verified_rows: trend(datasetSize),
-      hibernate_statements_by_type: hibernate,
+      hibernate_statements_by_type: clone(hibernate),
     },
     verification: {
       expected_rows: datasetSize,
@@ -145,7 +156,7 @@ function sourceArtifact({
       succeeded: successfulRate,
     },
     database_observation: {
-      hibernate_statements_by_type: hibernate,
+      hibernate_statements_by_type: clone(hibernate),
       jdbc: {
         batch_calls: batchCalls,
         submitted_rows: submittedRows,
@@ -171,6 +182,12 @@ function sourceArtifact({
 
 function createCase(name = 'case') {
   const directory = mkdtempSync(resolve(tmpdir(), `reservation-observations-${name}-`));
+  const copiedAggregator = resolve(
+    directory,
+    'load-test/k6/bulk-write/aggregate-reservation-history-observations.mjs',
+  );
+  mkdirSync(dirname(copiedAggregator), { recursive: true });
+  copyFileSync(aggregator, copiedAggregator);
   mkdirSync(resolve(directory, 'build/k6/bulk-write'), { recursive: true });
   return directory;
 }
@@ -191,17 +208,18 @@ function runAggregator(
   sources,
   outputName = `${parentLabel}-observations.json`,
   environment = process.env,
+  workingDirectory = directory,
 ) {
   const output = `build/k6/bulk-write/${outputName}`;
   const result = spawnSync(process.execPath, [
-    aggregator,
+    resolve(directory, 'load-test/k6/bulk-write/aggregate-reservation-history-observations.mjs'),
     '--output',
     output,
     '--run-label',
     parentLabel,
     ...sources,
   ], {
-    cwd: directory,
+    cwd: workingDirectory,
     encoding: 'utf8',
     env: environment,
   });
@@ -215,6 +233,31 @@ function assertRejected(result, directory, secret = undefined) {
     assert.equal(`${result.stdout}${result.stderr}`.includes(secret), false);
   }
 }
+
+test('resolves the fixed repository artifact root independently of the caller working directory', () => {
+  const directory = createCase('fixed-root');
+  try {
+    const parentLabel = 'reservation-after-fixed-root-r1';
+    const source = writeSource(
+      directory,
+      parentLabel,
+      1,
+      sourceArtifact({ index: 1, parentLabel }),
+    );
+    const result = runAggregator(
+      directory,
+      parentLabel,
+      [source],
+      `${parentLabel}-observations.json`,
+      process.env,
+      tmpdir(),
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotThrow(() => readFileSync(resolve(directory, result.output)));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test('aggregates ten ordered observations and recomputes nearest-rank p50/p95', () => {
   const directory = createCase('ordered');
@@ -231,6 +274,7 @@ test('aggregates ten ordered observations and recomputes nearest-rank p50/p95', 
     const result = runAggregator(directory, parentLabel, sources);
     assert.equal(result.status, 0, result.stderr);
     const companion = JSON.parse(readFileSync(resolve(directory, result.output), 'utf8'));
+    assert.equal(statSync(resolve(directory, result.output)).mode & 0o777, 0o600);
 
     assert.deepEqual(Object.keys(companion).sort(), [
       'metadata', 'observations', 'schema_version', 'statistics',
@@ -335,9 +379,39 @@ const invalidCases = [
     },
   },
   {
+    name: 'one-sample aggregate trend with a mismatched maximum',
+    mutate: (artifact) => {
+      artifact.performance.server_operation_ms.max += 1;
+    },
+  },
+  {
+    name: 'one-sample performance Hibernate trend with a mismatched minimum',
+    mutate: (artifact) => {
+      artifact.performance.hibernate_statements_by_type.SELECT.min += 1;
+    },
+  },
+  {
+    name: 'one-sample database Hibernate trend with a mismatched percentile',
+    mutate: (artifact) => {
+      artifact.database_observation.hibernate_statements_by_type.SELECT.p95 += 1;
+    },
+  },
+  {
     name: 'mismatched raw metric value',
     mutate: (artifact) => {
       artifact.k6_summary.metrics.bulk_write_jdbc_submitted_rows.values.med = 24;
+    },
+  },
+  {
+    name: 'one-sample raw metric with a mismatched maximum',
+    mutate: (artifact) => {
+      artifact.k6_summary.metrics.bulk_write_jdbc_submitted_rows.values.max += 1;
+    },
+  },
+  {
+    name: 'one-sample raw metric with a mismatched percentile',
+    mutate: (artifact) => {
+      artifact.k6_summary.metrics.bulk_write_jdbc_submitted_rows.values['p(95)'] += 1;
     },
   },
 ];
@@ -450,6 +524,100 @@ test('rejects a known environment credential hidden in public labels and paths',
       { ...process.env, BENCHMARK_BULK_WRITE_TOKEN: secret },
     );
     assertRejected(result, directory, secret);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects a canonical source filename that is a symbolic link', () => {
+  const directory = createCase('source-symlink');
+  try {
+    const parentLabel = 'reservation-after-source-symlink-r1';
+    const target = resolve(directory, 'real-source.json');
+    writeFileSync(target, JSON.stringify(sourceArtifact({ index: 1, parentLabel })));
+    const source = sourcePath(parentLabel, 1);
+    symlinkSync(target, resolve(directory, source));
+    assertRejected(runAggregator(directory, parentLabel, [source]), directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects a symbolic-link component in the fixed artifact root', () => {
+  const directory = createCase('component-symlink');
+  try {
+    const parentLabel = 'reservation-after-component-symlink-r1';
+    const artifactRoot = resolve(directory, 'build/k6/bulk-write');
+    const linkedRoot = resolve(directory, 'linked-artifact-root');
+    rmSync(artifactRoot, { recursive: true, force: true });
+    mkdirSync(linkedRoot, { recursive: true });
+    symlinkSync(linkedRoot, artifactRoot);
+    const source = writeSource(
+      directory,
+      parentLabel,
+      1,
+      sourceArtifact({ index: 1, parentLabel }),
+    );
+    assertRejected(runAggregator(directory, parentLabel, [source]), directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects a dangling symbolic-link companion destination', () => {
+  const directory = createCase('output-symlink');
+  try {
+    const parentLabel = 'reservation-after-output-symlink-r1';
+    const source = writeSource(
+      directory,
+      parentLabel,
+      1,
+      sourceArtifact({ index: 1, parentLabel }),
+    );
+    const outputName = `${parentLabel}-observations.json`;
+    symlinkSync(
+      resolve(directory, 'missing-output-target.json'),
+      resolve(directory, 'build/k6/bulk-write', outputName),
+    );
+    assertRejected(runAggregator(directory, parentLabel, [source], outputName), directory);
+    assert.equal(
+      lstatSync(resolve(directory, 'build/k6/bulk-write', outputName)).isSymbolicLink(),
+      true,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects sources whose cumulative encoded size exceeds the workflow limit', () => {
+  const directory = createCase('cumulative-size');
+  try {
+    const parentLabel = 'reservation-after-cumulative-size-r1';
+    const sources = [];
+    for (let index = 1; index <= 17; index += 1) {
+      const source = sourcePath(parentLabel, index);
+      const serialized = JSON.stringify(sourceArtifact({ index, parentLabel }));
+      writeFileSync(resolve(directory, source), `${serialized}${' '.repeat(250 * 1024)}`);
+      sources.push(source);
+    }
+    assertRejected(runAggregator(directory, parentLabel, sources), directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects source JSON that exceeds the bounded secret-scan depth', () => {
+  const directory = createCase('depth');
+  try {
+    const parentLabel = 'reservation-after-depth-r1';
+    const artifact = sourceArtifact({ index: 1, parentLabel });
+    let nested = { safe: true };
+    for (let depth = 0; depth < 70; depth += 1) {
+      nested = { nested };
+    }
+    artifact.k6_summary.root_group.deep_public_data = nested;
+    const source = writeSource(directory, parentLabel, 1, artifact);
+    assertRejected(runAggregator(directory, parentLabel, [source]), directory);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

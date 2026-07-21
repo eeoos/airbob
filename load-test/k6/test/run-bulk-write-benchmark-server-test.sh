@@ -53,11 +53,38 @@ done
 CAPTURE
 chmod +x "$temp_dir/capture-gradle"
 
+cat >"$temp_dir/untrusted-gradle" <<'UNTRUSTED'
+#!/usr/bin/env bash
+set -euo pipefail
+
+touch "$UNTRUSTED_MARKER"
+UNTRUSTED
+chmod +x "$temp_dir/untrusted-gradle"
+
+if UNTRUSTED_MARKER="$temp_dir/untrusted-invoked" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA="$schema" \
+  GRADLE_BIN="$temp_dir/untrusted-gradle" \
+  "$launcher" >"$temp_dir/untrusted-output" 2>&1; then
+  printf 'launcher accepted GRADLE_BIN outside explicit test mode\n' >&2
+  exit 1
+fi
+if [[ -e "$temp_dir/untrusted-invoked" ]]; then
+  printf 'launcher invoked an environment-selected Gradle executable in normal mode\n' >&2
+  exit 1
+fi
+if [[ "$(cat "$temp_dir/untrusted-output")" == *"$token"* \
+  || "$(cat "$temp_dir/untrusted-output")" == *"$schema"* ]]; then
+  printf 'launcher disclosed a credential while rejecting GRADLE_BIN\n' >&2
+  exit 1
+fi
+
 output_path="$temp_dir/output"
 CAPTURE_PID_PATH="$temp_dir/capture.pid" \
 CAPTURE_RELEASE_PATH="$temp_dir/release" \
 BENCHMARK_BULK_WRITE_TOKEN="$token" \
 BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA="$schema" \
+BULK_WRITE_BENCHMARK_TEST_MODE=1 \
 GRADLE_BIN="$temp_dir/capture-gradle" \
   "$launcher" >"$output_path" 2>&1 &
 launcher_pid=$!
@@ -104,6 +131,7 @@ fi
 
 if BENCHMARK_BULK_WRITE_TOKEN="$token" \
   BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA="$schema" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
   GRADLE_BIN="$temp_dir/not-invoked" \
   "$launcher" --stacktrace >"$temp_dir/extra-output" 2>&1; then
   printf 'launcher accepted unscoped caller Gradle arguments\n' >&2
