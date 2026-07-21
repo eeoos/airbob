@@ -131,6 +131,11 @@ class BulkWriteBenchmarkProfileTest {
 		assertThat(sources)
 			.extracting(source -> source.getProperty("logging.level.org.hibernate.SQL"))
 			.containsExactly("OFF");
+		assertThat(sources)
+			.extracting(source -> source.getProperty(
+				"logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService"
+			))
+			.containsExactly("OFF");
 	}
 
 	private String[] validProperties() {

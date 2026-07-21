@@ -23,6 +23,7 @@ spring:
 logging:
   level:
     kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler: ERROR
+    kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService: "OFF"
     org.hibernate.SQL: "OFF"
     org.hibernate.type.descriptor.sql: "OFF"
     org.hibernate.orm.jdbc.bind: "OFF"
