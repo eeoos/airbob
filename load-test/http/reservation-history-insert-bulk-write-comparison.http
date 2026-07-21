@@ -27,8 +27,8 @@
 # - AFTER N=1000, batch size=100: SELECT=1, INSERT=0, UPDATE=1000, DELETE=0,
 #   TOTAL=1001, JDBC batch calls=10, submitted rows=1000
 #
-# server_operation_ms는 순수 INSERT 시간이 아니라 만료 대상 SELECT, history INSERT,
-# reservation status UPDATE와 transaction commit을 포함한 scheduler 전체 처리 시간이다.
+# server_operation_ms는 순수 INSERT 시간이 아니라 만료 대상 SELECT, history write,
+# reservation status UPDATE, flush, transaction commit을 포함한 scheduler 전체 처리 시간이다.
 # fixture 준비·결과 검증·정리는 server_operation_ms에 포함되지 않는다.
 # hold 제거는 호출 대상과 횟수만 기록하며 Redis 네트워크 I/O는 측정에서 제외한다.
 # 각 요청은 자신이 만든 fixture만 정리한다.
