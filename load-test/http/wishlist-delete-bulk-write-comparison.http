@@ -1,0 +1,68 @@
+# Airbob Wishlist bulk DELETE comparison - IntelliJ IDEA HTTP Client
+#
+# 목적:
+# - 보존된 BEFORE와 개선된 AFTER를 같은 API/fixture 조건에서 직접 실행한다.
+# - 응답의 data.operation에서 서버 연산 시간과 Hibernate SQL 개수를 확인한다.
+#
+# 실행 전:
+# 1. 운영 DB가 아닌 전용 airbob_bulk_write_benchmark 스키마를 사용한다.
+# 2. dev,bulk-write-benchmark 프로필과 benchmark.bulk-write.enabled=true로 앱을 실행한다.
+# 3. BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA=airbob_bulk_write_benchmark로 설정한다.
+# 4. HTTP Client에서 local 환경을 선택한다.
+# 5. http-client.private.env.json의 adminEmail/adminPassword는 전용 DB의 ADMIN 계정으로 설정한다.
+# 6. http-client.private.env.json에 bulkWriteBenchmarkToken을 추가한다.
+#    값은 공백 없이 32자 이상이어야 하며 앱의 BENCHMARK_BULK_WRITE_TOKEN과 같아야 한다.
+#
+# 측정 순서:
+# 1. 아래 datasetSize를 0, 100, 1000 중 하나로 바꾼다.
+# 2. Login 요청을 한 번 실행한다. IntelliJ HTTP Client가 SESSION_ID cookie를 자동 보관한다.
+# 3. BEFORE와 AFTER를 각각 한 번 실행해 워밍업한다.
+# 4. 순서 영향을 줄이기 위해 BEFORE/AFTER를 번갈아 각각 10회 실행한다.
+# 5. HTTP Client 전체 시간이 아니라 data.operation.server_operation_ms를 비교한다.
+# 6. verification_succeeded=true, verified_rows=datasetSize인지 함께 확인한다.
+#
+# 요청 1회당 예상 SQL 수:
+# - N=0    : BEFORE/AFTER 모두 SELECT=2, UPDATE=1, DELETE=0, TOTAL=3
+# - N>0 BEFORE: SELECT=2, UPDATE=1, DELETE=N, TOTAL=N+3
+# - N>0 AFTER : SELECT=2, UPDATE=1, DELETE=1, TOTAL=4
+#
+# 각 요청은 fixture 생성과 결과 검증 후 자신이 만든 데이터만 정리한다.
+# 이 파일은 수동 확인용이다. 재현 가능한 통계와 artifact가 필요하면 k6 스크립트를 사용한다.
+
+@datasetSize = 1000
+
+### Login dedicated benchmark ADMIN
+# @name loginWishlistDeleteBenchmarkAdmin
+# @no-log
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Wishlist delete BEFORE - JPA derived delete (DELETE=N when N>0)
+# @name wishlistDeleteBefore
+POST {{baseUrl}}/api/v2/admin/benchmarks/bulk-write/wishlist-delete
+Content-Type: application/json
+Accept: application/json
+X-Bulk-Write-Benchmark-Token: {{bulkWriteBenchmarkToken}}
+
+{
+  "variant": "BEFORE",
+  "dataset_size": {{datasetSize}}
+}
+
+### Wishlist delete AFTER - deleteAllInBatch(Iterable) (DELETE=1 when N>0)
+# @name wishlistDeleteAfter
+POST {{baseUrl}}/api/v2/admin/benchmarks/bulk-write/wishlist-delete
+Content-Type: application/json
+Accept: application/json
+X-Bulk-Write-Benchmark-Token: {{bulkWriteBenchmarkToken}}
+
+{
+  "variant": "AFTER",
+  "dataset_size": {{datasetSize}}
+}
