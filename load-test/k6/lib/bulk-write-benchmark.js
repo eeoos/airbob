@@ -700,6 +700,17 @@ export function buildBulkWriteArtifact({
   const definition = requireBenchmarkDefinition(benchmark);
   const performance = summarizeBulkWriteMetrics(k6Summary);
   const jdbc = summarizeJdbcMetrics(k6Summary);
+  const affectedRowsKnownSamples = Number.isSafeInteger(jdbc.affected_rows.count)
+    && jdbc.affected_rows.count >= 0
+    ? jdbc.affected_rows.count
+    : 0;
+  const affectedRowsUnknownSamples = Math.max(
+    performance.samples.successful - affectedRowsKnownSamples,
+    0,
+  );
+  const everySuccessfulAffectedRowKnown = performance.samples.successful > 0
+    && affectedRowsKnownSamples === performance.samples.successful
+    && jdbc.affected_rows.median !== null;
   requireCondition(
     typeof config.rewriteBatchedStatements === 'boolean',
     'REWRITE_BATCHED_STATEMENTS must be a boolean',
@@ -765,7 +776,9 @@ export function buildBulkWriteArtifact({
         batch_calls: jdbc.batch_calls.median,
         submitted_rows: jdbc.submitted_rows.median,
         configured_batch_size: jdbc.configured_batch_size.median,
-        affected_rows: jdbc.affected_rows.median,
+        affected_rows: everySuccessfulAffectedRowKnown ? jdbc.affected_rows.median : null,
+        affected_rows_known_samples: affectedRowsKnownSamples,
+        affected_rows_unknown_samples: affectedRowsUnknownSamples,
       },
       ...externalEffects,
     },

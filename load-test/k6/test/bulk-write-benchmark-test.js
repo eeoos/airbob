@@ -289,6 +289,39 @@ export default function () {
       },
     },
   });
+  const partialAffectedRowsArtifact = buildBulkWriteArtifact({
+    config: afterConfig,
+    k6Summary: {
+      ...summary,
+      metrics: {
+        ...summary.metrics,
+        bulk_write_jdbc_batch_calls: {
+          values: { count: 3, avg: 2, min: 2, med: 2, max: 2 },
+        },
+        bulk_write_jdbc_submitted_rows: {
+          values: { count: 3, avg: 25, min: 25, med: 25, max: 25 },
+        },
+        bulk_write_jdbc_configured_batch_size: {
+          values: { count: 3, avg: 2, min: 2, med: 2, max: 2 },
+        },
+        bulk_write_jdbc_affected_rows: {
+          values: { count: 2, avg: 25, min: 25, med: 25, max: 25 },
+        },
+      },
+    },
+  });
+  const zeroSampleArtifact = buildBulkWriteArtifact({
+    config: { ...afterConfig, samples: 1 },
+    k6Summary: {
+      ...summary,
+      metrics: {
+        ...summary.metrics,
+        bulk_write_sample_success: { values: { passes: 0, fails: 0, rate: 0 } },
+        bulk_write_verification_success: { values: { passes: 0, fails: 0, rate: 0 } },
+        bulk_write_jdbc_affected_rows: { values: { count: 0 } },
+      },
+    },
+  });
   const serializedArtifact = JSON.stringify(artifact);
   const metadataKeys = Object.keys(artifact.metadata).sort();
 
@@ -614,12 +647,26 @@ export default function () {
         && artifact.database_observation.jdbc.submitted_rows === 0
         && artifact.database_observation.jdbc.configured_batch_size === null
         && artifact.database_observation.jdbc.affected_rows === null
+        && artifact.database_observation.jdbc.affected_rows_known_samples === 0
+        && artifact.database_observation.jdbc.affected_rows_unknown_samples === 3
     ),
-    'artifact derives JDBC calls and submitted rows from k6 trends': () => (
+    'artifact exposes affected rows only when every successful sample is known': () => (
       jdbcArtifact.database_observation.jdbc.batch_calls === 2
         && jdbcArtifact.database_observation.jdbc.submitted_rows === 25
         && jdbcArtifact.database_observation.jdbc.configured_batch_size === 2
         && jdbcArtifact.database_observation.jdbc.affected_rows === 25
+        && jdbcArtifact.database_observation.jdbc.affected_rows_known_samples === 3
+        && jdbcArtifact.database_observation.jdbc.affected_rows_unknown_samples === 0
+    ),
+    'artifact suppresses a partial affected-row median and reports coverage': () => (
+      partialAffectedRowsArtifact.database_observation.jdbc.affected_rows === null
+        && partialAffectedRowsArtifact.database_observation.jdbc.affected_rows_known_samples === 2
+        && partialAffectedRowsArtifact.database_observation.jdbc.affected_rows_unknown_samples === 1
+    ),
+    'zero-sample artifact keeps affected rows null with zero coverage': () => (
+      zeroSampleArtifact.database_observation.jdbc.affected_rows === null
+        && zeroSampleArtifact.database_observation.jdbc.affected_rows_known_samples === 0
+        && zeroSampleArtifact.database_observation.jdbc.affected_rows_unknown_samples === 0
     ),
     'Wishlist artifact does not claim Reservation external effects': () => (
       artifact.database_observation.external_effects === undefined
