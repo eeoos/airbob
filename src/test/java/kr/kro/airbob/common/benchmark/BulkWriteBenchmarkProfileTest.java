@@ -3,19 +3,13 @@ package kr.kro.airbob.common.benchmark;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import java.io.IOException;
-import java.util.List;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.core.env.PropertySource;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkAccessGuard;
@@ -103,39 +97,42 @@ class BulkWriteBenchmarkProfileTest {
 	}
 
 	@Test
-	@DisplayName("전용 profile 설정은 기본값 없는 token과 허용 schema 환경 변수를 요구한다")
-	void profileYamlUsesRequiredEnvironmentPlaceholders() throws IOException {
-		List<PropertySource<?>> sources = new YamlPropertySourceLoader().load(
-			"application-bulk-write-benchmark.yaml",
-			new ClassPathResource("application-bulk-write-benchmark.yaml")
-		);
+	@DisplayName("dev 다음 전용 profile을 활성화하면 실제 병합 설정은 SQL 출력을 모두 끈다")
+	void resolvedBenchmarkConfigDisablesSqlOutputWithExactProfileOrder() {
+		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(SCHEMA);
+		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(SCHEMA)))
+			.thenReturn(6);
 
-		assertThat(sources)
-			.extracting(source -> source.getProperty("benchmark.bulk-write.enabled"))
-			.contains("${BENCHMARK_BULK_WRITE_ENABLED:false}");
-		assertThat(sources)
-			.extracting(source -> source.getProperty("benchmark.bulk-write.token"))
-			.containsExactly("${BENCHMARK_BULK_WRITE_TOKEN}");
-		assertThat(sources)
-			.extracting(source -> source.getProperty("benchmark.bulk-write.allowed-schema"))
-			.containsExactly("${BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA}");
-		assertThat(sources)
-			.extracting(source -> source.getProperty("spring.kafka.listener.auto-startup"))
-			.containsExactly(false);
-		assertThat(sources)
-			.extracting(source -> source.getProperty("spring.flyway.enabled"))
-			.containsExactly(false);
-		assertThat(sources)
-			.extracting(source -> source.getProperty("spring.jpa.properties.hibernate.show_sql"))
-			.containsExactly(false);
-		assertThat(sources)
-			.extracting(source -> source.getProperty("logging.level.org.hibernate.SQL"))
-			.containsExactly("OFF");
-		assertThat(sources)
-			.extracting(source -> source.getProperty(
-				"logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService"
-			))
-			.containsExactly("OFF");
+		configDataRunner
+			.withPropertyValues(
+				"spring.profiles.active=dev,bulk-write-benchmark",
+				"BENCHMARK_BULK_WRITE_ENABLED=true",
+				"BENCHMARK_BULK_WRITE_TOKEN=" + TOKEN,
+				"BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA=" + SCHEMA
+			)
+			.run(context -> {
+				assertThat(context.getEnvironment().getActiveProfiles())
+					.containsExactly("dev", "bulk-write-benchmark");
+				assertThat(context.getEnvironment().getProperty(
+					"spring.jpa.properties.hibernate.show_sql", Boolean.class
+				)).isFalse();
+				assertThat(context.getEnvironment().getProperty(
+					"spring.jpa.properties.hibernate.format_sql", Boolean.class
+				)).isFalse();
+				assertThat(context.getEnvironment().getProperty("logging.level.org.hibernate.SQL"))
+					.isEqualTo("OFF");
+				assertThat(context.getEnvironment().getProperty(
+					"logging.level.org.hibernate.orm.jdbc.bind"
+				)).isEqualTo("OFF");
+				assertThat(context.getEnvironment().getProperty(
+					"logging.level.org.hibernate.type.descriptor.sql"
+				)).isEqualTo("OFF");
+				assertThat(context.getEnvironment().getProperty(
+					"logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService"
+				)).isEqualTo("OFF");
+				assertThat(context).hasSingleBean(BulkWriteBenchmarkAccessGuard.class);
+				assertThat(context).hasSingleBean(BulkWriteBenchmarkDatabaseGuard.class);
+			});
 	}
 
 	private String[] validProperties() {

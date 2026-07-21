@@ -121,6 +121,7 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 		then(holdService).should().finishRecording();
 		then(fixtureService).should().verify(fixture, holdSnapshot);
 		then(fixtureService).should().cleanup(fixture);
+		then(cleanupService).shouldHaveNoInteractions();
 	}
 
 	@Test

@@ -306,3 +306,16 @@ unset BENCHMARK_READ_MODEL_TOKEN
 ```
 
 기존 N+1 측정 도구의 별도 사용법은 [k6/README.md](k6/README.md)에 있고, 반정규화 read model 비교는 [k6/read-model/README.md](k6/read-model/README.md)에 있다.
+
+## Bulk write 벤치마크 서버 실행
+
+Wishlist DELETE와 ReservationHistory INSERT 비교는 운영 DB와 분리된 전용 스키마에서만 실행한다. 서버는 느슨한 profile 환경 변수나 직접 `bootRun`으로 시작하지 않고 전용 launcher를 사용한다.
+
+```bash
+read -rsp 'Bulk write benchmark token: ' BENCHMARK_BULK_WRITE_TOKEN
+export BENCHMARK_BULK_WRITE_TOKEN
+export BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA=airbob_bulk_write_benchmark
+load-test/k6/bulk-write/run-bulk-write-benchmark-server.sh
+```
+
+launcher는 자격 증명을 명령 인자나 출력에 넣지 않고 자식 환경으로만 전달한다. 또한 `BENCHMARK_BULK_WRITE_ENABLED=true`, profile 순서 `dev,bulk-write-benchmark`, Hibernate `show_sql`/`format_sql`과 SQL/bind/동결 BEFORE logger의 `OFF`를 강제한다. 설정 우회를 막기 위해 추가 Gradle 인자를 받지 않는다. 측정 뒤 서버를 중지하고 실행 셸에서 두 `BENCHMARK_BULK_WRITE_*` 값을 해제한다.

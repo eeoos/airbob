@@ -6,8 +6,10 @@
 #
 # 실행 전:
 # 1. 운영 DB가 아닌 전용 airbob_bulk_write_benchmark 스키마를 사용한다.
-# 2. dev,bulk-write-benchmark 프로필과 benchmark.bulk-write.enabled=true로 앱을 실행한다.
-# 3. BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA=airbob_bulk_write_benchmark로 설정한다.
+# 2. BENCHMARK_BULK_WRITE_TOKEN과 BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA를 export한 뒤
+#    load-test/k6/bulk-write/run-bulk-write-benchmark-server.sh로 앱을 실행한다.
+#    전용 launcher가 dev,bulk-write-benchmark 순서와 SQL/logger OFF 설정을 고정한다.
+# 3. BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA는 전용 airbob_bulk_write_benchmark 스키마로 설정한다.
 # 4. HTTP Client에서 local 환경을 선택한다.
 # 5. http-client.private.env.json의 adminEmail/adminPassword는 전용 DB의 ADMIN 계정으로 설정한다.
 # 6. http-client.private.env.json에 bulkWriteBenchmarkToken을 추가한다.
