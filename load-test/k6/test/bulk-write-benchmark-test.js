@@ -3,6 +3,7 @@ import { check } from 'k6';
 import {
   ARTIFACT_SCHEMA_VERSION,
   BULK_WRITE_ENDPOINT,
+  RESERVATION_HISTORY_INSERT_BENCHMARK,
   bulkWriteOperationName,
   buildBulkWriteArtifact,
   buildBulkWriteHeaders,
@@ -205,6 +206,19 @@ export default function () {
       },
     }, 'AFTER'),
   }, 'AFTER');
+  const validJdbcAfter = {
+    operation_name: 'expired-reservation-cleanup-after',
+    outcome: 'SUCCESS',
+    server_operation_nanos: 12_500_000,
+    server_operation_ms: 12.5,
+    hibernate_statements_by_type: {
+      SELECT: 1, INSERT: 0, UPDATE: 3, DELETE: 0, OTHER: 0, TOTAL: 4,
+    },
+    jdbc_batch_calls: 2,
+    jdbc_submitted_rows: 3,
+    jdbc_configured_batch_size: 2,
+    jdbc_affected_rows: 3,
+  };
   const zeroPayload = payload({
     dataset_size: 0,
     expected_rows: 0,
@@ -264,6 +278,12 @@ export default function () {
           values: { count: 3, avg: 2, min: 2, med: 2, max: 2 },
         },
         bulk_write_jdbc_submitted_rows: {
+          values: { count: 3, avg: 25, min: 25, med: 25, max: 25 },
+        },
+        bulk_write_jdbc_configured_batch_size: {
+          values: { count: 3, avg: 2, min: 2, med: 2, max: 2 },
+        },
+        bulk_write_jdbc_affected_rows: {
           values: { count: 3, avg: 25, min: 25, med: 25, max: 25 },
         },
       },
@@ -497,14 +517,27 @@ export default function () {
     'operation requires SQL total to match typed counts': () => !matchesBulkWriteOperationContract(
       operation({ hibernate_statements_by_type: { ...SQL_COUNTS, TOTAL: 29 } }),
     ),
-    'operation rejects unexpected JDBC activity': () => !matchesBulkWriteOperationContract(
-      operation({ jdbc_batch_calls: 1, jdbc_submitted_rows: 25 }),
+    'common operation accepts internally consistent JDBC activity': () => (
+      matchesBulkWriteOperationContract(
+        validJdbcAfter,
+        'AFTER',
+        RESERVATION_HISTORY_INSERT_BENCHMARK,
+      )
     ),
-    'operation rejects unexpected JDBC batch size': () => !matchesBulkWriteOperationContract(
-      operation({ jdbc_configured_batch_size: 100 }),
+    'zero batch calls cannot report submitted rows': () => !matchesBulkWriteOperationContract(
+      operation({ jdbc_submitted_rows: 1 }),
     ),
-    'operation rejects unexpected JDBC affected rows': () => !matchesBulkWriteOperationContract(
-      operation({ jdbc_affected_rows: 25 }),
+    'Wishlist candidate rejects internally consistent JDBC activity': () => !matchesBulkWriteResponseContract(
+      payload({
+        operation: operation({
+          jdbc_batch_calls: 1,
+          jdbc_submitted_rows: 25,
+          jdbc_configured_batch_size: 25,
+          jdbc_affected_rows: 25,
+        }),
+      }),
+      25,
+      'BEFORE',
     ),
     'operation rejects inconsistent server duration units': () => !matchesBulkWriteOperationContract(
       operation({ server_operation_ms: 13 }),
@@ -585,6 +618,8 @@ export default function () {
     'artifact derives JDBC calls and submitted rows from k6 trends': () => (
       jdbcArtifact.database_observation.jdbc.batch_calls === 2
         && jdbcArtifact.database_observation.jdbc.submitted_rows === 25
+        && jdbcArtifact.database_observation.jdbc.configured_batch_size === 2
+        && jdbcArtifact.database_observation.jdbc.affected_rows === 25
     ),
     'Wishlist artifact does not claim Reservation external effects': () => (
       artifact.database_observation.external_effects === undefined

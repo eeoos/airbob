@@ -1,7 +1,7 @@
-# Airbob ReservationHistory bulk INSERT Before - IntelliJ IDEA HTTP Client
+# Airbob ReservationHistory bulk INSERT Before/After - IntelliJ IDEA HTTP Client
 #
 # 목적:
-# - 실제 ReservationScheduler가 JPA IDENTITY 방식으로 history를 N건 저장하는 현재 기준선을 확인한다.
+# - 동일한 fixture와 dataset으로 Before JPA IDENTITY와 After JDBC batch를 비교한다.
 # - 응답의 data.operation에서 서버 연산 시간과 Hibernate SQL 개수를 확인한다.
 #
 # 실행 전:
@@ -16,7 +16,7 @@
 # 측정 순서:
 # 1. 아래 datasetSize를 0, 100, 1000, 2000 중 하나로 바꾼다.
 # 2. Login 요청을 한 번 실행한다. IntelliJ HTTP Client가 SESSION_ID cookie를 자동 보관한다.
-# 3. Before 요청을 한 번 실행해 워밍업한 뒤 같은 크기로 여러 번 실행한다.
+# 3. 각 variant 요청을 한 번 실행해 워밍업한 뒤 같은 크기로 여러 번 실행한다.
 # 4. HTTP Client 전체 시간이 아니라 data.operation.server_operation_ms를 확인한다.
 # 5. verification_succeeded=true, verified_rows=datasetSize인지 함께 확인한다.
 # 6. redis_network_excluded=true, hold_removal_calls=datasetSize인지 확인한다.
@@ -24,6 +24,8 @@
 # 요청 1회당 예상 Hibernate SQL 수:
 # - N=0: SELECT=1, INSERT=0, UPDATE=0, DELETE=0, TOTAL=1
 # - N>0: SELECT=1, INSERT=N, UPDATE=N, DELETE=0, TOTAL=2N+1
+# - AFTER N=1000, batch size=100: SELECT=1, INSERT=0, UPDATE=1000, DELETE=0,
+#   TOTAL=1001, JDBC batch calls=10, submitted rows=1000
 #
 # server_operation_ms는 순수 INSERT 시간이 아니라 만료 대상 SELECT, history INSERT,
 # reservation status UPDATE와 transaction commit을 포함한 scheduler 전체 처리 시간이다.
@@ -55,5 +57,17 @@ X-Bulk-Write-Benchmark-Token: {{bulkWriteBenchmarkToken}}
 
 {
   "variant": "BEFORE",
+  "dataset_size": {{datasetSize}}
+}
+
+### ReservationHistory INSERT AFTER - JDBC batch (batch size 100)
+# @name reservationHistoryInsertAfter
+POST {{baseUrl}}/api/v2/admin/benchmarks/bulk-write/reservation-history-insert
+Content-Type: application/json
+Accept: application/json
+X-Bulk-Write-Benchmark-Token: {{bulkWriteBenchmarkToken}}
+
+{
+  "variant": "AFTER",
   "dataset_size": {{datasetSize}}
 }

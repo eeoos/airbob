@@ -39,6 +39,8 @@ const httpOrchestrationMs = new Trend('bulk_write_http_orchestration_ms', true);
 const verifiedRows = new Trend('bulk_write_verified_rows');
 const jdbcBatchCalls = new Trend('bulk_write_jdbc_batch_calls');
 const jdbcSubmittedRows = new Trend('bulk_write_jdbc_submitted_rows');
+const jdbcConfiguredBatchSize = new Trend('bulk_write_jdbc_configured_batch_size');
+const jdbcAffectedRows = new Trend('bulk_write_jdbc_affected_rows');
 const holdRemovalCalls = new Trend('bulk_write_hold_removal_calls');
 const hibernateStatements = {};
 Object.entries(BULK_WRITE_HIBERNATE_METRICS).forEach(([type, metricName]) => {
@@ -67,6 +69,12 @@ function recordOperation(data) {
   });
   jdbcBatchCalls.add(operation.jdbc_batch_calls, TAGS);
   jdbcSubmittedRows.add(operation.jdbc_submitted_rows, TAGS);
+  if (operation.jdbc_configured_batch_size !== null) {
+    jdbcConfiguredBatchSize.add(operation.jdbc_configured_batch_size, TAGS);
+  }
+  if (operation.jdbc_affected_rows !== null) {
+    jdbcAffectedRows.add(operation.jdbc_affected_rows, TAGS);
+  }
 }
 
 export function setup() {
@@ -119,13 +127,7 @@ export default function (setupData) {
     'reservation history insert benchmark verifies snapshots and controls': () => (
       contractMatches && payload.data.verification_succeeded === true
     ),
-    'reservation history insert Before reports no JDBC batch activity': () => (
-      contractMatches
-        && payload.data.operation.jdbc_batch_calls === 0
-        && payload.data.operation.jdbc_submitted_rows === 0
-        && payload.data.operation.jdbc_configured_batch_size === null
-        && payload.data.operation.jdbc_affected_rows === null
-    ),
+    'reservation history insert reports contract-supported JDBC measurements': () => contractMatches,
     'reservation history insert excludes Redis network and records logical hold removals': () => (
       contractMatches
         && payload.data.redis_network_excluded === true

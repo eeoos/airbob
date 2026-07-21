@@ -77,6 +77,10 @@ export const WISHLIST_DELETE_BENCHMARK = Object.freeze({
     data.expected_rows === datasetSize
       && data.verified_rows === datasetSize
       && WISHLIST_VERIFICATION_FIELDS.every((field) => data[field] === true)
+      && data.operation.jdbc_batch_calls === 0
+      && data.operation.jdbc_submitted_rows === 0
+      && data.operation.jdbc_configured_batch_size === null
+      && data.operation.jdbc_affected_rows === null
   ),
 });
 
@@ -86,26 +90,48 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   requestName: 'POST /api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
   operationPrefix: 'expired-reservation-cleanup',
   maximumDatasetSize: 2000,
-  supportedVariants: Object.freeze(['BEFORE']),
+  supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
   dataFields: Object.freeze(RESERVATION_HISTORY_DATA_FIELDS),
   externalEffects: Object.freeze({
     holdRemovalMetric: 'bulk_write_hold_removal_calls',
     holdRemovalMode: 'RECORDED_NO_IO',
     redisNetworkExcluded: true,
   }),
-  matchesData: (data, datasetSize) => {
+  matchesData: (data, datasetSize, variant) => {
     const counts = data.operation.hibernate_statements_by_type;
+    const operation = data.operation;
+    const isBefore = variant === 'BEFORE'
+      && counts.SELECT === 1
+      && counts.INSERT === datasetSize
+      && counts.UPDATE === datasetSize
+      && counts.TOTAL === 1 + (datasetSize * 2)
+      && operation.jdbc_batch_calls === 0;
+    const isAfterEmpty = variant === 'AFTER'
+      && datasetSize === 0
+      && counts.SELECT === 1
+      && counts.INSERT === 0
+      && counts.UPDATE === 0
+      && counts.TOTAL === 1
+      && operation.jdbc_batch_calls === 0;
+    const isAfterNonEmpty = variant === 'AFTER'
+      && datasetSize > 0
+      && counts.SELECT === 1
+      && counts.INSERT === 0
+      && counts.UPDATE === datasetSize
+      && counts.TOTAL === datasetSize + 1
+      && operation.jdbc_submitted_rows === datasetSize
+      && operation.jdbc_batch_calls
+        === Math.ceil(datasetSize / operation.jdbc_configured_batch_size)
+      && (operation.jdbc_affected_rows === null
+        || operation.jdbc_affected_rows === datasetSize);
     return data.expected_rows === datasetSize
       && data.verified_rows === datasetSize
       && RESERVATION_HISTORY_VERIFICATION_FIELDS.every((field) => data[field] === true)
       && data.hold_removal_calls === datasetSize
       && data.redis_network_excluded === true
-      && counts.SELECT === 1
-      && counts.INSERT === datasetSize
-      && counts.UPDATE === datasetSize
       && counts.DELETE === 0
       && counts.OTHER === 0
-      && counts.TOTAL === 1 + (datasetSize * 2);
+      && (isBefore || isAfterEmpty || isAfterNonEmpty);
   },
 });
 
@@ -457,6 +483,23 @@ function isNonNegativeInteger(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
+function matchesJdbcOperation(value) {
+  if (!isNonNegativeInteger(value.jdbc_batch_calls)
+      || !isNonNegativeInteger(value.jdbc_submitted_rows)) {
+    return false;
+  }
+  if (value.jdbc_batch_calls === 0) {
+    return value.jdbc_submitted_rows === 0
+      && value.jdbc_configured_batch_size === null
+      && value.jdbc_affected_rows === null;
+  }
+  return value.jdbc_submitted_rows > 0
+    && Number.isSafeInteger(value.jdbc_configured_batch_size)
+    && value.jdbc_configured_batch_size > 0
+    && (value.jdbc_affected_rows === null
+      || isNonNegativeInteger(value.jdbc_affected_rows));
+}
+
 function durationUnitsMatch(nanos, millis) {
   const expected = nanos / 1_000_000;
   const tolerance = Math.max(1e-9, Math.abs(expected) * Number.EPSILON * 4);
@@ -485,10 +528,7 @@ export function matchesBulkWriteOperationContract(
       || value.server_operation_ms < 0
       || !durationUnitsMatch(value.server_operation_nanos, value.server_operation_ms)
       || !hasExactKeys(value.hibernate_statements_by_type, SQL_TYPES)
-      || value.jdbc_batch_calls !== 0
-      || value.jdbc_submitted_rows !== 0
-      || value.jdbc_configured_batch_size !== null
-      || value.jdbc_affected_rows !== null) {
+      || !matchesJdbcOperation(value)) {
     return false;
   }
 
@@ -591,6 +631,8 @@ function summarizeJdbcMetrics(data) {
   return {
     batch_calls: trendSummary(data, 'bulk_write_jdbc_batch_calls'),
     submitted_rows: trendSummary(data, 'bulk_write_jdbc_submitted_rows'),
+    configured_batch_size: trendSummary(data, 'bulk_write_jdbc_configured_batch_size'),
+    affected_rows: trendSummary(data, 'bulk_write_jdbc_affected_rows'),
   };
 }
 
@@ -722,8 +764,8 @@ export function buildBulkWriteArtifact({
       jdbc: {
         batch_calls: jdbc.batch_calls.median,
         submitted_rows: jdbc.submitted_rows.median,
-        configured_batch_size: null,
-        affected_rows: null,
+        configured_batch_size: jdbc.configured_batch_size.median,
+        affected_rows: jdbc.affected_rows.median,
       },
       ...externalEffects,
     },
