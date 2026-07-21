@@ -74,6 +74,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 	@Bean
 	public FilterRegistrationBean<CorsFilter> corsFilter() {
+		CorsConfiguration bulkWriteBenchmarkConfig = new CorsConfiguration();
 		CorsConfiguration config = new CorsConfiguration();
 
 		// 자격 증명 허용
@@ -97,6 +98,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		config.setMaxAge(3600L);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration(
+			"/api/v2/admin/benchmarks/bulk-write/**",
+			bulkWriteBenchmarkConfig
+		);
 		source.registerCorsConfiguration("/**", config);
 
 		FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));

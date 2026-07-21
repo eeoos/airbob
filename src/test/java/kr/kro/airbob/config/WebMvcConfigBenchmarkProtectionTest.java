@@ -73,6 +73,33 @@ class WebMvcConfigBenchmarkProtectionTest {
 			.contains("/api/v2/admin/**");
 	}
 
+	@Test
+	@DisplayName("v2 대량 쓰기 benchmark namespace에 세션 인증과 ADMIN 인가를 모두 적용한다")
+	void v2BulkWriteBenchmarkPathIsProtected() {
+		AdminAuthInterceptor adminAuthInterceptor = mock(AdminAuthInterceptor.class);
+		WebMvcConfig config = new WebMvcConfig(
+			mock(CursorParamArgumentResolver.class),
+			mock(SessionAuthFilter.class),
+			adminAuthInterceptor,
+			mock(QueryCountInterceptor.class)
+		);
+
+		assertThat(config.sessionFilter().getUrlPatterns())
+			.contains("/api/v2/admin/*");
+
+		InspectableInterceptorRegistry registry = new InspectableInterceptorRegistry();
+		config.addInterceptors(registry);
+		MappedInterceptor adminMapping = registry.entries().stream()
+			.filter(MappedInterceptor.class::isInstance)
+			.map(MappedInterceptor.class::cast)
+			.filter(mapped -> mapped.getInterceptor() == adminAuthInterceptor)
+			.findFirst()
+			.orElseThrow();
+
+		assertThat(adminMapping.getIncludePathPatterns())
+			.contains("/api/v2/admin/**");
+	}
+
 	private static class InspectableInterceptorRegistry extends InterceptorRegistry {
 		List<Object> entries() {
 			return getInterceptors();

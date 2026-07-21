@@ -1,0 +1,12 @@
+benchmark:
+  bulk-write:
+    enabled: ${BENCHMARK_BULK_WRITE_ENABLED:false}
+    token: ${BENCHMARK_BULK_WRITE_TOKEN}
+    allowed-schema: ${BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA}
+
+spring:
+  flyway:
+    enabled: false
+  kafka:
+    listener:
+      auto-startup: false
