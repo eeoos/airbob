@@ -41,7 +41,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkReq
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest.Variant;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
-import kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler;
+import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService;
@@ -90,7 +90,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	@Autowired private ReservationHistoryInsertBenchmarkService benchmarkService;
 	@Autowired private ReservationHistoryInsertBenchmarkFixtureService fixtureService;
 	@Autowired private ReservationHistoryInsertBenchmarkHoldService holdService;
-	@Autowired private ReservationScheduler reservationScheduler;
+	@Autowired private ReservationHistoryInsertBeforeBenchmarkService beforeService;
 	@Autowired private JdbcTemplate jdbcTemplate;
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private EntityManager entityManager;
@@ -127,7 +127,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 			new ReservationHistoryInsertBenchmarkRequest(Variant.BEFORE, 3)
 		);
 
-		assertThat(AopUtils.isAopProxy(reservationScheduler)).isTrue();
+		assertThat(AopUtils.isAopProxy(beforeService)).isTrue();
 		assertThat(UserContext.get()).isSameAs(requestAdmin);
 		assertThat(response.expectedRows()).isEqualTo(3);
 		assertThat(response.verifiedRows()).isEqualTo(3);
@@ -168,7 +168,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("대상 0건은 scheduler SELECT 1회만 실행하고 history나 hold 제거를 만들지 않는다")
+	@DisplayName("대상 0건은 Before 서비스 SELECT 1회만 실행하고 history나 hold 제거를 만들지 않는다")
 	void supportsEmptyDataset() {
 		var response = benchmarkService.run(
 			new ReservationHistoryInsertBenchmarkRequest(Variant.BEFORE, 0)
@@ -186,7 +186,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("서로 다른 hold 대상은 scheduler 조회 순서와 무관하게 정확히 검증한다")
+	@DisplayName("서로 다른 hold 대상은 Before 서비스 조회 순서와 무관하게 정확히 검증한다")
 	void verifiesDistinctHoldRemovalsWithoutDependingOnQueryOrder() {
 		Fixture fixture = fixtureService.createFixture(3);
 		assertThat(fixture.targets())
@@ -194,7 +194,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 			.doesNotHaveDuplicates();
 		UserContext.clear();
 		holdService.startRecording();
-		reservationScheduler.cleanupExpiredPendingReservation();
+		beforeService.cleanupExpiredPendingReservations();
 		var recorded = holdService.finishRecording();
 		var reversed = new java.util.ArrayList<>(recorded.removals());
 		Collections.reverse(reversed);
@@ -222,7 +222,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		UserContext.clear();
 		holdService.startRecording();
 
-		assertThatThrownBy(reservationScheduler::cleanupExpiredPendingReservation)
+		assertThatThrownBy(beforeService::cleanupExpiredPendingReservations)
 			.isInstanceOf(IntentionalHistoryFailure.class);
 		var holdSnapshot = holdService.finishRecording();
 

@@ -23,7 +23,6 @@ import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationSnapshot;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest.Variant;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
-import kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 
@@ -31,7 +30,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmar
 @DisplayName("ReservationHistory IDENTITY INSERT Before 벤치마크 서비스 테스트")
 class ReservationHistoryInsertBenchmarkServiceTest {
 
-	@Mock private ReservationScheduler reservationScheduler;
+	@Mock private ReservationHistoryInsertBeforeBenchmarkService beforeService;
 	@Mock private ReservationHistoryInsertBenchmarkFixtureService fixtureService;
 	@Mock private ReservationHistoryInsertBenchmarkHoldService holdService;
 	@Mock private BulkOperationMonitor bulkOperationMonitor;
@@ -45,7 +44,7 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 	@BeforeEach
 	void setUp() {
 		benchmarkService = new ReservationHistoryInsertBenchmarkService(
-			reservationScheduler,
+			beforeService,
 			fixtureService,
 			holdService,
 			bulkOperationMonitor,
@@ -59,8 +58,8 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 	}
 
 	@Test
-	@DisplayName("fixture 밖의 실제 scheduler 호출만 측정하고 관리자 context를 복원한다")
-	void measuresSchedulerTransactionAndRestoresRequestContext() {
+	@DisplayName("BEFORE는 동결된 JPA 만료 처리를 측정하고 관리자 context를 복원한다")
+	void delegatesBeforeVariantToFrozenJpaService() {
 		UserInfo requestAdmin = new UserInfo(7L, "127.0.0.1", "HTTP");
 		UserContext.set(requestAdmin);
 		BulkOperationSnapshot snapshot = beforeSnapshot(3);
@@ -96,7 +95,7 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 		then(databaseGuard).should().verifyReady();
 		then(fixtureService).should().createFixture(3);
 		then(holdService).should().startRecording();
-		then(reservationScheduler).should().cleanupExpiredPendingReservation();
+		then(beforeService).should().cleanupExpiredPendingReservations();
 		then(holdService).should().finishRecording();
 		then(fixtureService).should().verify(fixture, holdSnapshot);
 		then(fixtureService).should().cleanup(fixture);
@@ -121,11 +120,11 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 	}
 
 	@Test
-	@DisplayName("scheduler와 cleanup이 함께 실패하면 원래 실패를 보존하고 context를 복원한다")
+	@DisplayName("Before 서비스와 cleanup이 함께 실패하면 원래 실패를 보존하고 context를 복원한다")
 	void preservesOperationFailureWhenCleanupAlsoFails() {
 		UserInfo requestAdmin = new UserInfo(7L, "127.0.0.1", "HTTP");
 		UserContext.set(requestAdmin);
-		RuntimeException operationFailure = new RuntimeException("scheduler failed");
+		RuntimeException operationFailure = new RuntimeException("before service failed");
 		RuntimeException cleanupFailure = new RuntimeException("cleanup failed");
 		given(fixtureService.createFixture(2)).willReturn(fixture);
 		given(bulkOperationMonitor.monitor(
@@ -135,7 +134,7 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 			invocation.<Runnable>getArgument(1).run();
 			return beforeSnapshot(2);
 		});
-		willThrow(operationFailure).given(reservationScheduler).cleanupExpiredPendingReservation();
+		willThrow(operationFailure).given(beforeService).cleanupExpiredPendingReservations();
 		willThrow(cleanupFailure).given(fixtureService).cleanup(fixture);
 
 		Throwable thrown = catchThrowable(() -> benchmarkService.run(

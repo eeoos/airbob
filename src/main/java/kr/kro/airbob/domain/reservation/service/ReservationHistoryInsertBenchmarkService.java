@@ -12,7 +12,6 @@ import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationSnapshot;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
-import kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 
@@ -23,20 +22,20 @@ public class ReservationHistoryInsertBenchmarkService {
 
 	public static final String BEFORE_OPERATION_NAME = "expired-reservation-cleanup-before";
 
-	private final ReservationScheduler reservationScheduler;
+	private final ReservationHistoryInsertBeforeBenchmarkService beforeService;
 	private final ReservationHistoryInsertBenchmarkFixtureService fixtureService;
 	private final ReservationHistoryInsertBenchmarkHoldService holdService;
 	private final BulkOperationMonitor bulkOperationMonitor;
 	private final BulkWriteBenchmarkDatabaseGuard databaseGuard;
 
 	public ReservationHistoryInsertBenchmarkService(
-		ReservationScheduler reservationScheduler,
+		ReservationHistoryInsertBeforeBenchmarkService beforeService,
 		ReservationHistoryInsertBenchmarkFixtureService fixtureService,
 		ReservationHistoryInsertBenchmarkHoldService holdService,
 		BulkOperationMonitor bulkOperationMonitor,
 		BulkWriteBenchmarkDatabaseGuard databaseGuard
 	) {
-		this.reservationScheduler = reservationScheduler;
+		this.beforeService = beforeService;
 		this.fixtureService = fixtureService;
 		this.holdService = holdService;
 		this.bulkOperationMonitor = bulkOperationMonitor;
@@ -87,7 +86,7 @@ public class ReservationHistoryInsertBenchmarkService {
 			UserContext.clear();
 			BulkOperationSnapshot operation = bulkOperationMonitor.monitor(
 				BEFORE_OPERATION_NAME,
-				reservationScheduler::cleanupExpiredPendingReservation
+				beforeService::cleanupExpiredPendingReservations
 			);
 			HoldRemovalSnapshot holdSnapshot = holdService.finishRecording();
 			recording = false;
