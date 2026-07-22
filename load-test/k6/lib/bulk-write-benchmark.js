@@ -64,6 +64,27 @@ const RESERVATION_HISTORY_VERIFICATION_FIELDS = [
   'history_audit_context_preserved',
   'hold_removals_matched',
 ];
+const ACCOMMODATION_AMENITY_DATA_FIELDS = [
+  'candidate',
+  'variant',
+  'measurement',
+  'workload_class',
+  'active_amenity_code_count',
+  'dataset_size',
+  'old_target_rows_expected',
+  'old_target_rows_deleted',
+  'old_target_rows_verified',
+  'replacement_rows_expected',
+  'replacement_rows_verified',
+  'replacement_map_expected',
+  'replacement_map_verified',
+  'target_parent_preserved',
+  'history_effect_matched',
+  'control_accommodation_preserved',
+  'control_amenities_preserved',
+  'verification_succeeded',
+  'operation',
+];
 
 export const WISHLIST_DELETE_BENCHMARK = Object.freeze({
   candidate: 'WISHLIST_DELETE',
@@ -135,6 +156,94 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   },
 });
 
+function mapsMatch(left, right) {
+  if (!isObject(left) || !isObject(right)) {
+    return false;
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key, index) => (
+      key === rightKeys[index]
+      && Number.isSafeInteger(left[key])
+      && left[key] > 0
+      && left[key] === right[key]
+    ));
+}
+
+export const ACCOMMODATION_AMENITY_DELETE_BENCHMARK = Object.freeze({
+  candidate: 'ACCOMMODATION_AMENITY_DELETE',
+  endpoint: '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete',
+  requestName: 'POST /api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete',
+  operationPrefix: 'accommodation-amenity',
+  operationName: (variant, measurement) => (
+    measurement === 'FULL_REPLACEMENT'
+      ? `accommodation-amenity-full-replacement-${variant.toLowerCase()}`
+      : `accommodation-amenity-delete-only-${variant.toLowerCase()}`
+  ),
+  maximumDatasetSize: 100,
+  supportedVariants: Object.freeze(['BEFORE']),
+  supportedMeasurements: Object.freeze(['FULL_REPLACEMENT', 'DELETE_ONLY']),
+  activeCodeMetric: 'bulk_write_active_amenity_code_count',
+  dataFields: Object.freeze(ACCOMMODATION_AMENITY_DATA_FIELDS),
+  matchesData: (data, datasetSize, variant, measurement) => {
+    const activeCodeCount = data.active_amenity_code_count;
+    const replacementRows = data.replacement_rows_expected;
+    const fullReplacement = measurement === 'FULL_REPLACEMENT';
+    const counts = data.operation.hibernate_statements_by_type;
+    const expectedWorkload = datasetSize <= activeCodeCount ? 'REALISTIC' : 'STRESS';
+    const sqlMatches = fullReplacement
+      ? counts.SELECT === 3
+        && counts.DELETE === datasetSize
+        && counts.INSERT === replacementRows + 1
+        && counts.UPDATE === 1
+        && counts.OTHER === 0
+        && counts.TOTAL === datasetSize + replacementRows + 5
+      : counts.SELECT === 1
+        && counts.DELETE === datasetSize
+        && counts.INSERT === 0
+        && counts.UPDATE === 0
+        && counts.OTHER === 0
+        && counts.TOTAL === datasetSize + 1;
+    return variant === 'BEFORE'
+      && data.measurement === measurement
+      && Number.isSafeInteger(activeCodeCount)
+      && activeCodeCount > 0
+      && data.workload_class === expectedWorkload
+      && data.old_target_rows_expected === datasetSize
+      && data.old_target_rows_deleted === datasetSize
+      && data.old_target_rows_verified === datasetSize
+      && Number.isSafeInteger(replacementRows)
+      && replacementRows >= 0
+      && replacementRows === data.replacement_rows_verified
+      && replacementRows === Object.keys(data.replacement_map_expected || {}).length
+      && mapsMatch(data.replacement_map_expected, data.replacement_map_verified)
+      && (fullReplacement
+        ? replacementRows === Math.min(datasetSize, activeCodeCount)
+        : replacementRows === 0)
+      && data.target_parent_preserved === true
+      && data.history_effect_matched === true
+      && data.control_accommodation_preserved === true
+      && data.control_amenities_preserved === true
+      && data.verification_succeeded === true
+      && data.operation.jdbc_batch_calls === 0
+      && data.operation.jdbc_submitted_rows === 0
+      && data.operation.jdbc_configured_batch_size === null
+      && data.operation.jdbc_affected_rows === null
+      && sqlMatches;
+  },
+});
+
+export function accommodationAmenityServerOperationMetricName(measurement) {
+  const parsed = parseBulkWriteMeasurement(
+    measurement,
+    ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
+  );
+  return parsed === 'FULL_REPLACEMENT'
+    ? 'bulk_write_accommodation_amenity_full_replacement_server_operation_ms'
+    : 'bulk_write_accommodation_amenity_delete_only_server_operation_ms';
+}
+
 export const BULK_WRITE_ENDPOINT = WISHLIST_DELETE_BENCHMARK.endpoint;
 export const BULK_WRITE_REQUEST_NAME = WISHLIST_DELETE_BENCHMARK.requestName;
 export const BULK_WRITE_CANDIDATE = WISHLIST_DELETE_BENCHMARK.candidate;
@@ -185,6 +294,12 @@ function requireBenchmarkDefinition(benchmark) {
     typeof benchmark.operationPrefix === 'string' && benchmark.operationPrefix.length > 0,
     'bulk-write benchmark operation prefix is required',
   );
+  if (benchmark.operationName !== undefined) {
+    requireCondition(
+      typeof benchmark.operationName === 'function',
+      'bulk-write benchmark operation-name resolver is invalid',
+    );
+  }
   requireCondition(
     Number.isSafeInteger(benchmark.maximumDatasetSize)
       && benchmark.maximumDatasetSize >= 0,
@@ -199,6 +314,13 @@ function requireBenchmarkDefinition(benchmark) {
     Array.isArray(benchmark.dataFields) && typeof benchmark.matchesData === 'function',
     'bulk-write benchmark response contract is required',
   );
+  if (benchmark.supportedMeasurements !== undefined) {
+    requireCondition(
+      Array.isArray(benchmark.supportedMeasurements)
+        && benchmark.supportedMeasurements.length > 0,
+      'bulk-write benchmark measurements are required',
+    );
+  }
   if (benchmark.externalEffects !== undefined) {
     requireCondition(
       isObject(benchmark.externalEffects)
@@ -308,9 +430,27 @@ export function parseBulkWriteVariant(raw, benchmark = WISHLIST_DELETE_BENCHMARK
   return raw;
 }
 
-export function bulkWriteOperationName(rawVariant, benchmark = WISHLIST_DELETE_BENCHMARK) {
+export function parseBulkWriteMeasurement(raw, benchmark) {
+  const definition = requireBenchmarkDefinition(benchmark);
+  requireCondition(
+    definition.supportedMeasurements !== undefined
+      && definition.supportedMeasurements.includes(raw),
+    `MEASUREMENT must be ${definition.supportedMeasurements?.join(' or ')}`,
+  );
+  return raw;
+}
+
+export function bulkWriteOperationName(
+  rawVariant,
+  benchmark = WISHLIST_DELETE_BENCHMARK,
+  rawMeasurement = undefined,
+) {
   const definition = requireBenchmarkDefinition(benchmark);
   const variant = parseBulkWriteVariant(rawVariant, definition);
+  if (definition.supportedMeasurements !== undefined) {
+    const measurement = parseBulkWriteMeasurement(rawMeasurement, definition);
+    return definition.operationName(variant, measurement);
+  }
   return `${definition.operationPrefix}-${variant.toLowerCase()}`;
 }
 
@@ -350,7 +490,13 @@ export function parseBulkWriteRunConfig(
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const variant = parseBulkWriteVariant(environment.VARIANT || 'BEFORE', definition);
-  const operationName = bulkWriteOperationName(variant, definition);
+  const measurement = definition.supportedMeasurements === undefined
+    ? undefined
+    : parseBulkWriteMeasurement(
+      environment.MEASUREMENT || definition.supportedMeasurements[0],
+      definition,
+    );
+  const operationName = bulkWriteOperationName(variant, definition, measurement);
   const phase = parsePhase(environment.PHASE || 'measure');
   const datasetSize = parseDatasetSize(environment.DATASET_SIZE, definition);
   const samples = parseSamples(environment.SAMPLES);
@@ -377,6 +523,7 @@ export function parseBulkWriteRunConfig(
     baseUrl: parseSafeBaseUrl(environment.BASE_URL || 'http://localhost:8080'),
     benchmarkToken,
     variant,
+    ...(measurement === undefined ? {} : { measurement }),
     phase,
     datasetSize,
     samples,
@@ -406,14 +553,18 @@ export function parseBulkWriteRunConfig(
 }
 
 export function buildBulkWriteRequestBody(
-  { variant, datasetSize },
+  { variant, measurement, datasetSize },
   benchmark = WISHLIST_DELETE_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
-  return JSON.stringify({
+  const body = {
     variant: parseBulkWriteVariant(variant, definition),
-    dataset_size: parseDatasetSize(datasetSize, definition),
-  });
+  };
+  if (definition.supportedMeasurements !== undefined) {
+    body.measurement = parseBulkWriteMeasurement(measurement, definition);
+  }
+  body.dataset_size = parseDatasetSize(datasetSize, definition);
+  return JSON.stringify(body);
 }
 
 export function buildBulkWriteHeaders(benchmarkToken) {
@@ -444,13 +595,16 @@ export function buildBulkWriteRequestParams({
 }
 
 export function buildBulkWriteOptions(
-  { variant, phase, samples },
+  { variant, measurement, phase, samples },
   benchmark = WISHLIST_DELETE_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const parsedVariant = parseBulkWriteVariant(variant, definition);
   const parsedPhase = parsePhase(phase);
   const parsedSamples = parseSamples(samples);
+  const parsedMeasurement = definition.supportedMeasurements === undefined
+    ? undefined
+    : parseBulkWriteMeasurement(measurement, definition);
   const scenarioName = `bulk_write_${parsedPhase}`;
 
   return {
@@ -467,6 +621,7 @@ export function buildBulkWriteOptions(
           candidate: definition.candidate,
           phase: parsedPhase,
           variant: parsedVariant,
+          ...(parsedMeasurement === undefined ? {} : { measurement: parsedMeasurement }),
         },
       },
     },
@@ -510,11 +665,12 @@ export function matchesBulkWriteOperationContract(
   value,
   expectedVariant = 'BEFORE',
   benchmark = WISHLIST_DELETE_BENCHMARK,
+  expectedMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   let operationName;
   try {
-    operationName = bulkWriteOperationName(expectedVariant, definition);
+    operationName = bulkWriteOperationName(expectedVariant, definition, expectedMeasurement);
   } catch (_) {
     return false;
   }
@@ -544,13 +700,18 @@ export function matchesBulkWriteResponseContract(
   expectedDatasetSize,
   expectedVariant = 'BEFORE',
   benchmark = WISHLIST_DELETE_BENCHMARK,
+  expectedMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   let datasetSize;
   let variant;
+  let measurement;
   try {
     datasetSize = parseDatasetSize(expectedDatasetSize, definition);
     variant = parseBulkWriteVariant(expectedVariant, definition);
+    measurement = definition.supportedMeasurements === undefined
+      ? undefined
+      : parseBulkWriteMeasurement(expectedMeasurement, definition);
   } catch (_) {
     return false;
   }
@@ -569,8 +730,8 @@ export function matchesBulkWriteResponseContract(
   return data.candidate === definition.candidate
     && data.variant === variant
     && data.dataset_size === datasetSize
-    && matchesBulkWriteOperationContract(data.operation, variant, definition)
-    && definition.matchesData(data, datasetSize, variant);
+    && matchesBulkWriteOperationContract(data.operation, variant, definition, measurement)
+    && definition.matchesData(data, datasetSize, variant, measurement);
 }
 
 function metricValues(data, name) {
@@ -736,11 +897,20 @@ export function buildBulkWriteArtifact({
     generated_at: generatedAt,
     candidate: definition.candidate,
     variant: parseBulkWriteVariant(config.variant, definition),
+    ...(definition.supportedMeasurements === undefined
+      ? {}
+      : {
+        measurement: parseBulkWriteMeasurement(config.measurement, definition),
+        active_amenity_code_count: trendSummary(
+          k6Summary,
+          definition.activeCodeMetric,
+        ).median,
+      }),
     phase: parsePhase(config.phase),
     dataset_size: parseDatasetSize(config.datasetSize, definition),
     samples: parseSamples(config.samples),
     endpoint: definition.endpoint,
-    operation_name: bulkWriteOperationName(config.variant, definition),
+    operation_name: bulkWriteOperationName(config.variant, definition, config.measurement),
     run_label: parseRequiredPublicText(config.runLabel, 'RUN_LABEL'),
     round: parseCanonicalInteger(config.round, 'ROUND', 1, 1_000_000),
     run_order: parseCanonicalInteger(config.runOrder, 'RUN_ORDER', 1, 1_000_000),
@@ -757,6 +927,16 @@ export function buildBulkWriteArtifact({
     rewrite_batched_statements: config.rewriteBatchedStatements,
     request_timeout: parseRequiredPublicText(config.requestTimeout, 'REQUEST_TIMEOUT'),
   };
+  if (definition.supportedMeasurements !== undefined) {
+    requireCondition(
+      Number.isSafeInteger(metadata.active_amenity_code_count)
+        && metadata.active_amenity_code_count > 0,
+      'active amenity code count must be a positive integer',
+    );
+    metadata.workload_class = metadata.dataset_size <= metadata.active_amenity_code_count
+      ? 'REALISTIC'
+      : 'STRESS';
+  }
   const externalEffects = definition.externalEffects === undefined
     ? {}
     : {

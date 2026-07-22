@@ -68,7 +68,7 @@ class BulkWriteBenchmarkProfileTest {
 	void profileAndPropertyCreateGuards() {
 		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(SCHEMA);
 		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(SCHEMA)))
-			.thenReturn(6);
+			.thenReturn(8);
 
 		contextRunner
 			.withInitializer(context -> context.getEnvironment().setActiveProfiles("bulk-write-benchmark"))
@@ -101,7 +101,7 @@ class BulkWriteBenchmarkProfileTest {
 	void resolvedBenchmarkConfigDisablesSqlOutputWithExactProfileOrder() {
 		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(SCHEMA);
 		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(SCHEMA)))
-			.thenReturn(6);
+			.thenReturn(8);
 
 		configDataRunner
 			.withPropertyValues(

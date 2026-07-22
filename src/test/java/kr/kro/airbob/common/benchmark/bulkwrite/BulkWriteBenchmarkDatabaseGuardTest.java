@@ -20,7 +20,7 @@ class BulkWriteBenchmarkDatabaseGuardTest {
 		JdbcOperations jdbcOperations = mock(JdbcOperations.class);
 		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(ALLOWED_SCHEMA);
 		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(ALLOWED_SCHEMA)))
-			.thenReturn(6);
+			.thenReturn(8);
 		BulkWriteBenchmarkDatabaseGuard guard = guard(jdbcOperations, new MockEnvironment(), ALLOWED_SCHEMA);
 
 		assertThatCode(guard::afterPropertiesSet).doesNotThrowAnyException();
@@ -29,7 +29,14 @@ class BulkWriteBenchmarkDatabaseGuardTest {
 		var queryCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
 		verify(jdbcOperations).queryForObject(queryCaptor.capture(), eq(Integer.class), eq(ALLOWED_SCHEMA));
 		assertThat(queryCaptor.getValue())
-			.contains("'wishlist'", "'wishlist_accommodation'", "'reservation'", "'reservation_history'");
+			.contains(
+				"'wishlist'",
+				"'wishlist_accommodation'",
+				"'accommodation_amenity'",
+				"'accommodation_history'",
+				"'reservation'",
+				"'reservation_history'"
+			);
 	}
 
 	@Test

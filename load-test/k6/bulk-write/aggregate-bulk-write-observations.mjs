@@ -34,6 +34,14 @@ const BENCHMARKS = Object.freeze({
     maximumDatasetSize: 1000,
     externalEffects: false,
   }),
+  ACCOMMODATION_AMENITY_DELETE: Object.freeze({
+    candidate: 'ACCOMMODATION_AMENITY_DELETE',
+    endpoint: '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete',
+    operationPrefix: 'accommodation-amenity',
+    maximumDatasetSize: 100,
+    externalEffects: false,
+    measurements: true,
+  }),
 });
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
 const METADATA_KEYS = [
@@ -72,6 +80,11 @@ const SHARED_METADATA_KEYS = [
   'mysql_version',
   'rewrite_batched_statements',
   'request_timeout',
+];
+const AMENITY_METADATA_KEYS = [
+  'measurement',
+  'workload_class',
+  'active_amenity_code_count',
 ];
 const TREND_KEYS = ['count', 'avg', 'min', 'median', 'p90', 'p95', 'p99', 'max'];
 const RATE_KEYS = ['attempted', 'successful', 'failed', 'success_rate'];
@@ -151,6 +164,18 @@ function benchmarkDefinition(candidate) {
   const definition = BENCHMARKS[candidate];
   requireCondition(definition !== undefined, 'candidate is not allowlisted');
   return definition;
+}
+
+function metadataKeys(definition) {
+  return definition.measurements
+    ? [...METADATA_KEYS, ...AMENITY_METADATA_KEYS]
+    : METADATA_KEYS;
+}
+
+function sharedMetadataKeys(definition) {
+  return definition.measurements
+    ? [...SHARED_METADATA_KEYS, ...AMENITY_METADATA_KEYS]
+    : SHARED_METADATA_KEYS;
 }
 
 function boundedContains(value, { keyPredicate = () => false, stringPredicate = () => false }) {
@@ -301,14 +326,22 @@ function validateMetricValue(source, name, expectedValue) {
 }
 
 function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
-  requireCondition(hasExactKeys(metadata, METADATA_KEYS), 'source metadata contract is invalid');
+  requireCondition(
+    hasExactKeys(metadata, metadataKeys(definition)),
+    'source metadata contract is invalid',
+  );
   requireCondition(
     typeof metadata.generated_at === 'string'
       && Number.isFinite(Date.parse(metadata.generated_at)),
     'source generation timestamp is invalid',
   );
   requireCondition(metadata.candidate === definition.candidate, 'source candidate is invalid');
-  requireCondition(metadata.variant === 'BEFORE' || metadata.variant === 'AFTER', 'source variant is invalid');
+  requireCondition(
+    definition.measurements
+      ? metadata.variant === 'BEFORE'
+      : metadata.variant === 'BEFORE' || metadata.variant === 'AFTER',
+    'source variant is invalid',
+  );
   requireCondition(metadata.phase === 'measure', 'source phase must be measure');
   requireCondition(
     isNonNegativeInteger(metadata.dataset_size)
@@ -317,11 +350,36 @@ function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
   );
   requireCondition(metadata.samples === 1, 'source must contain exactly one sample');
   requireCondition(metadata.endpoint === definition.endpoint, 'source endpoint is invalid');
-  requireCondition(
-    metadata.operation_name
-      === `${definition.operationPrefix}-${metadata.variant.toLowerCase()}`,
-    'source operation name is invalid',
-  );
+  if (definition.measurements) {
+    requireCondition(
+      metadata.measurement === 'FULL_REPLACEMENT' || metadata.measurement === 'DELETE_ONLY',
+      'source measurement is invalid',
+    );
+    requireCondition(
+      isPositiveInteger(metadata.active_amenity_code_count),
+      'source active amenity code count is invalid',
+    );
+    requireCondition(
+      metadata.workload_class
+        === (metadata.dataset_size <= metadata.active_amenity_code_count
+          ? 'REALISTIC'
+          : 'STRESS'),
+      'source workload class is invalid',
+    );
+    const measurementName = metadata.measurement === 'FULL_REPLACEMENT'
+      ? 'full-replacement'
+      : 'delete-only';
+    requireCondition(
+      metadata.operation_name === `accommodation-amenity-${measurementName}-before`,
+      'source operation name is invalid',
+    );
+  } else {
+    requireCondition(
+      metadata.operation_name
+        === `${definition.operationPrefix}-${metadata.variant.toLowerCase()}`,
+      'source operation name is invalid',
+    );
+  }
   requireCondition(
     metadata.run_label === `${parentLabel}-sample-${String(sampleIndex).padStart(3, '0')}`,
     'source child label is invalid',
@@ -416,6 +474,21 @@ function validateSuccessfulSummary(source, definition) {
       'source contains an unexpected external-effect metric',
     );
   }
+  if (definition.measurements) {
+    validateMetricValue(
+      source,
+      'bulk_write_active_amenity_code_count',
+      source.metadata.active_amenity_code_count,
+    );
+    const metricSuffix = source.metadata.measurement === 'FULL_REPLACEMENT'
+      ? 'full_replacement'
+      : 'delete_only';
+    validateMetricValue(
+      source,
+      `bulk_write_accommodation_amenity_${metricSuffix}_server_operation_ms`,
+      source.performance.server_operation_ms.median,
+    );
+  }
   SQL_TYPES.forEach((type) => {
     validateMetricCount(source, `bulk_write_hibernate_${type.toLowerCase()}_statements`, 1);
   });
@@ -489,6 +562,7 @@ function validateDatabaseObservation(source, definition) {
 
   const { variant, dataset_size: datasetSize } = source.metadata;
   const noJdbcActivity = definition.candidate === 'WISHLIST_DELETE'
+    || definition.candidate === 'ACCOMMODATION_AMENITY_DELETE'
     || variant === 'BEFORE'
     || datasetSize === 0;
   if (noJdbcActivity) {
@@ -557,7 +631,7 @@ function validateDatabaseObservation(source, definition) {
         'source AFTER Hibernate observation is invalid',
       );
     }
-  } else {
+  } else if (definition.candidate === 'WISHLIST_DELETE') {
     const expectedDeleteCount = datasetSize === 0
       ? 0
       : (variant === 'BEFORE' ? datasetSize : 1);
@@ -570,6 +644,29 @@ function validateDatabaseObservation(source, definition) {
         && sql.TOTAL === 3 + expectedDeleteCount,
       'source Wishlist Hibernate observation is invalid',
     );
+  } else {
+    const replacementRows = Math.min(datasetSize, source.metadata.active_amenity_code_count);
+    if (source.metadata.measurement === 'FULL_REPLACEMENT') {
+      requireCondition(
+        sql.SELECT === 3
+          && sql.INSERT === replacementRows + 1
+          && sql.UPDATE === 1
+          && sql.DELETE === datasetSize
+          && sql.OTHER === 0
+          && sql.TOTAL === datasetSize + replacementRows + 5,
+        'source AccommodationAmenity full-replacement observation is invalid',
+      );
+    } else {
+      requireCondition(
+        sql.SELECT === 1
+          && sql.INSERT === 0
+          && sql.UPDATE === 0
+          && sql.DELETE === datasetSize
+          && sql.OTHER === 0
+          && sql.TOTAL === datasetSize + 1,
+        'source AccommodationAmenity delete-only observation is invalid',
+      );
+    }
   }
 
   if (definition.externalEffects) {
@@ -709,7 +806,7 @@ function readSource(path, parentLabel, sampleIndex, byteBudget, definition) {
   return parsed;
 }
 
-function sharedMetadata(metadata, parentLabel, sampleCount) {
+function sharedMetadata(metadata, parentLabel, sampleCount, definition) {
   return {
     candidate: metadata.candidate,
     variant: metadata.variant,
@@ -727,11 +824,18 @@ function sharedMetadata(metadata, parentLabel, sampleCount) {
     mysql_version: metadata.mysql_version,
     rewrite_batched_statements: metadata.rewrite_batched_statements,
     request_timeout: metadata.request_timeout,
+    ...(definition.measurements
+      ? {
+        measurement: metadata.measurement,
+        workload_class: metadata.workload_class,
+        active_amenity_code_count: metadata.active_amenity_code_count,
+      }
+      : {}),
   };
 }
 
-function requireMatchingMetadata(reference, candidate) {
-  SHARED_METADATA_KEYS.forEach((key) => {
+function requireMatchingMetadata(reference, candidate, definition) {
+  sharedMetadataKeys(definition).forEach((key) => {
     requireCondition(
       candidate[key] === reference[key],
       'source public experiment metadata does not match',
@@ -755,11 +859,20 @@ function normalizeSource(source, sourcePath, sampleIndex, definition) {
     }
     : {};
   return {
-    metadata: Object.fromEntries(METADATA_KEYS.map((key) => [key, source.metadata[key]])),
+    metadata: Object.fromEntries(
+      metadataKeys(definition).map((key) => [key, source.metadata[key]]),
+    ),
     observation: {
       sample_index: sampleIndex,
       source_path: sourcePath,
       variant: source.metadata.variant,
+      ...(definition.measurements
+        ? {
+          measurement: source.metadata.measurement,
+          workload_class: source.metadata.workload_class,
+          active_amenity_code_count: source.metadata.active_amenity_code_count,
+        }
+        : {}),
       dataset_size: source.metadata.dataset_size,
       round: source.metadata.round,
       run_order: source.metadata.run_order,
@@ -783,10 +896,10 @@ function normalizeSource(source, sourcePath, sampleIndex, definition) {
   };
 }
 
-function buildCompanion(parentLabel, normalizedSources) {
+function buildCompanion(parentLabel, normalizedSources, definition) {
   const reference = normalizedSources[0].metadata;
   normalizedSources.slice(1).forEach((source) => (
-    requireMatchingMetadata(reference, source.metadata)
+    requireMatchingMetadata(reference, source.metadata, definition)
   ));
   const observations = normalizedSources.map(({ observation }) => observation);
   /* Parsed k6 summaries are intentionally not retained beyond normalizeSource(). */
@@ -796,7 +909,7 @@ function buildCompanion(parentLabel, normalizedSources) {
 
   return {
     schema_version: OBSERVATION_SCHEMA_VERSION,
-    metadata: sharedMetadata(reference, parentLabel, normalizedSources.length),
+    metadata: sharedMetadata(reference, parentLabel, normalizedSources.length, definition),
     statistics: {
       percentile_algorithm: 'nearest-rank',
       percentile_definition: 'sort ascending; rank = max(1, ceil(p * n)); value = sorted[rank - 1]',
@@ -932,7 +1045,7 @@ try {
     const source = readSource(path, parentLabel, index + 1, byteBudget, definition);
     normalizedSources.push(normalizeSource(source, path, index + 1, definition));
   });
-  const companion = buildCompanion(parentLabel, normalizedSources);
+  const companion = buildCompanion(parentLabel, normalizedSources, definition);
   writeCompanion(outputPath, companion);
 } catch (error) {
   process.stderr.write(`bulk-write observation aggregation failed: ${error.message}\n`);

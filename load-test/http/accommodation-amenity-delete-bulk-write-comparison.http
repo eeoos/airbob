@@ -1,0 +1,32 @@
+### Login as the disposable benchmark ADMIN first. Keep credentials local.
+POST {{base_url}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{benchmark_email}}",
+  "password": "{{benchmark_password}}"
+}
+
+### Full production replacement Before baseline (server creates and cleans its fixture)
+POST {{base_url}}/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete
+Content-Type: application/json
+Cookie: SESSION_ID={{session_id}}
+X-Bulk-Write-Benchmark-Token: {{bulk_write_benchmark_token}}
+
+{
+  "variant": "BEFORE",
+  "measurement": "FULL_REPLACEMENT",
+  "dataset_size": 30
+}
+
+### Repository-derived-delete-only diagnostic (never pool with full replacement)
+POST {{base_url}}/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete
+Content-Type: application/json
+Cookie: SESSION_ID={{session_id}}
+X-Bulk-Write-Benchmark-Token: {{bulk_write_benchmark_token}}
+
+{
+  "variant": "BEFORE",
+  "measurement": "DELETE_ONLY",
+  "dataset_size": 30
+}

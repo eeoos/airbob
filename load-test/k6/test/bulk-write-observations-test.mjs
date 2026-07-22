@@ -231,6 +231,68 @@ function wishlistSourceArtifact({
   return artifact;
 }
 
+function accommodationAmenitySourceArtifact({
+  index,
+  parentLabel = 'amenity-full-before-n31-r1',
+  measurement = 'FULL_REPLACEMENT',
+  datasetSize = 31,
+  activeCodeCount = 30,
+  serverOperationMs = index,
+} = {}) {
+  const artifact = wishlistSourceArtifact({
+    index,
+    parentLabel,
+    variant: 'BEFORE',
+    datasetSize,
+    serverOperationMs,
+  });
+  const replacementRows = measurement === 'FULL_REPLACEMENT'
+    ? Math.min(datasetSize, activeCodeCount)
+    : 0;
+  const sql = measurement === 'FULL_REPLACEMENT'
+    ? {
+      SELECT: 3,
+      INSERT: replacementRows + 1,
+      UPDATE: 1,
+      DELETE: datasetSize,
+      OTHER: 0,
+      TOTAL: datasetSize + replacementRows + 5,
+    }
+    : {
+      SELECT: 1,
+      INSERT: 0,
+      UPDATE: 0,
+      DELETE: datasetSize,
+      OTHER: 0,
+      TOTAL: datasetSize + 1,
+    };
+  const hibernate = Object.fromEntries(SQL_TYPES.map((type) => [type, trend(sql[type])]));
+  const metricSuffix = measurement === 'FULL_REPLACEMENT'
+    ? 'full_replacement'
+    : 'delete_only';
+
+  artifact.metadata.candidate = 'ACCOMMODATION_AMENITY_DELETE';
+  artifact.metadata.measurement = measurement;
+  artifact.metadata.workload_class = datasetSize <= activeCodeCount ? 'REALISTIC' : 'STRESS';
+  artifact.metadata.active_amenity_code_count = activeCodeCount;
+  artifact.metadata.endpoint =
+    '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete';
+  artifact.metadata.operation_name = measurement === 'FULL_REPLACEMENT'
+    ? 'accommodation-amenity-full-replacement-before'
+    : 'accommodation-amenity-delete-only-before';
+  artifact.performance.hibernate_statements_by_type = clone(hibernate);
+  artifact.database_observation.hibernate_statements_by_type = clone(hibernate);
+  artifact.k6_summary.metrics.bulk_write_active_amenity_code_count = metric(activeCodeCount);
+  artifact.k6_summary.metrics[
+    `bulk_write_accommodation_amenity_${metricSuffix}_server_operation_ms`
+  ] = metric(serverOperationMs);
+  SQL_TYPES.forEach((type) => {
+    artifact.k6_summary.metrics[`bulk_write_hibernate_${type.toLowerCase()}_statements`]
+      = metric(sql[type]);
+  });
+  return artifact;
+}
+
 function createCase(name = 'case') {
   const directory = mkdtempSync(resolve(tmpdir(), `reservation-observations-${name}-`));
   const copiedAggregator = resolve(
@@ -443,6 +505,71 @@ test('aggregates allowlisted Wishlist observations with its SQL and JDBC contrac
         p95: 9,
         max: 9,
       });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
+
+test('aggregates AccommodationAmenity measurements without pooling workload classes', () => {
+  const cases = [
+    {
+      parentLabel: 'amenity-full-realistic-n30-r1',
+      measurement: 'FULL_REPLACEMENT',
+      datasetSize: 30,
+      activeCodeCount: 30,
+      workloadClass: 'REALISTIC',
+      expectedSql: { SELECT: 3, INSERT: 31, UPDATE: 1, DELETE: 30, OTHER: 0, TOTAL: 65 },
+    },
+    {
+      parentLabel: 'amenity-delete-stress-n31-r1',
+      measurement: 'DELETE_ONLY',
+      datasetSize: 31,
+      activeCodeCount: 30,
+      workloadClass: 'STRESS',
+      expectedSql: { SELECT: 1, INSERT: 0, UPDATE: 0, DELETE: 31, OTHER: 0, TOTAL: 32 },
+    },
+  ];
+
+  for (const specification of cases) {
+    const directory = createCase(specification.parentLabel);
+    try {
+      const sources = [4, 2, 6].map((serverOperationMs, offset) => writeSource(
+        directory,
+        specification.parentLabel,
+        offset + 1,
+        accommodationAmenitySourceArtifact({
+          index: offset + 1,
+          parentLabel: specification.parentLabel,
+          measurement: specification.measurement,
+          datasetSize: specification.datasetSize,
+          activeCodeCount: specification.activeCodeCount,
+          serverOperationMs,
+        }),
+      ));
+      const result = runAggregator(
+        directory,
+        specification.parentLabel,
+        sources,
+        `${specification.parentLabel}-observations.json`,
+        process.env,
+        directory,
+        'ACCOMMODATION_AMENITY_DELETE',
+      );
+      assert.equal(result.status, 0, result.stderr);
+      const companion = JSON.parse(readFileSync(resolve(directory, result.output), 'utf8'));
+      assert.equal(companion.metadata.measurement, specification.measurement);
+      assert.equal(companion.metadata.workload_class, specification.workloadClass);
+      assert.equal(
+        companion.metadata.active_amenity_code_count,
+        specification.activeCodeCount,
+      );
+      assert.deepEqual(
+        companion.observations[0].hibernate_statements_by_type,
+        specification.expectedSql,
+      );
+      assert.equal(companion.observations[0].measurement, specification.measurement);
+      assert.equal(companion.observations[0].workload_class, specification.workloadClass);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

@@ -24,10 +24,11 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 		WHERE table_schema = ?
 		  AND table_name IN (
 		    'member', 'accommodation', 'wishlist', 'wishlist_accommodation',
+		    'accommodation_amenity', 'accommodation_history',
 		    'reservation', 'reservation_history'
 		  )
 		""";
-	private static final int REQUIRED_TABLE_COUNT = 6;
+	private static final int REQUIRED_TABLE_COUNT = 8;
 	private static final String REQUIRED_SCHEMA_SUFFIX = "_bulk_write_benchmark";
 	private static final String VALIDATION_ERROR_MESSAGE =
 		"Bulk-write benchmark database validation failed";
