@@ -576,6 +576,57 @@ test('aggregates AccommodationAmenity measurements without pooling workload clas
   }
 });
 
+const mixedAccommodationAmenityCases = [
+  {
+    name: 'measurement',
+    first: { measurement: 'FULL_REPLACEMENT', datasetSize: 30, activeCodeCount: 30 },
+    second: { measurement: 'DELETE_ONLY', datasetSize: 30, activeCodeCount: 30 },
+  },
+  {
+    name: 'workload class',
+    first: { measurement: 'DELETE_ONLY', datasetSize: 30, activeCodeCount: 30 },
+    second: { measurement: 'DELETE_ONLY', datasetSize: 30, activeCodeCount: 29 },
+  },
+  {
+    name: 'active amenity code count',
+    first: { measurement: 'DELETE_ONLY', datasetSize: 31, activeCodeCount: 30 },
+    second: { measurement: 'DELETE_ONLY', datasetSize: 31, activeCodeCount: 29 },
+  },
+];
+
+for (const specification of mixedAccommodationAmenityCases) {
+  test(`rejects pooling valid AccommodationAmenity sources with different ${specification.name}`, () => {
+    const directory = createCase(`amenity-mixed-${specification.name.replaceAll(' ', '-')}`);
+    try {
+      const parentLabel = 'amenity-mixed-source-r1';
+      const sources = [specification.first, specification.second].map((source, offset) => (
+        writeSource(
+          directory,
+          parentLabel,
+          offset + 1,
+          accommodationAmenitySourceArtifact({
+            index: offset + 1,
+            parentLabel,
+            ...source,
+          }),
+        )
+      ));
+
+      assertRejected(runAggregator(
+        directory,
+        parentLabel,
+        sources,
+        `${parentLabel}-observations.json`,
+        process.env,
+        directory,
+        'ACCOMMODATION_AMENITY_DELETE',
+      ), directory);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 test('rejects Wishlist sources outside the allowlisted SQL, JDBC, and metadata contract', () => {
   const invalidWishlistCases = [
     {

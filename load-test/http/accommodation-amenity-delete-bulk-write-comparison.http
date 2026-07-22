@@ -1,32 +1,72 @@
-### Login as the disposable benchmark ADMIN first. Keep credentials local.
-POST {{base_url}}/api/v1/auth/login
+# Airbob AccommodationAmenity DELETE Before measurements - IntelliJ IDEA HTTP Client
+#
+# 목적:
+# - 실제 운영 full replacement 경로와 그 안의 derived delete-only 진단을 같은 fixture 조건에서 관찰한다.
+# - 두 measurement는 의미와 SQL 계약이 다르므로 결과를 서로 합쳐 비교하지 않는다.
+#
+# 실행 전:
+# 1. 운영 DB가 아닌 전용 airbob_bulk_write_benchmark 스키마를 사용한다.
+# 2. BENCHMARK_BULK_WRITE_TOKEN과 BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA를 export한 뒤
+#    load-test/k6/bulk-write/run-bulk-write-benchmark-server.sh로 앱을 실행한다.
+#    전용 launcher가 dev,bulk-write-benchmark 순서와 SQL/logger OFF 설정을 고정한다.
+# 3. BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA는 전용 airbob_bulk_write_benchmark 스키마로 설정한다.
+# 4. HTTP Client에서 local 환경을 선택한다.
+# 5. http-client.private.env.json의 adminEmail/adminPassword는 전용 DB의 ADMIN 계정으로 설정한다.
+# 6. http-client.private.env.json에 bulkWriteBenchmarkToken을 추가한다.
+#    값은 공백 없이 32자 이상이어야 하며 앱의 BENCHMARK_BULK_WRITE_TOKEN과 같아야 한다.
+#
+# 측정 순서:
+# 1. 아래 datasetSize를 0, 활성 코드 수, 활성 코드 수+1 중 하나로 바꾼다(최대 100).
+# 2. Login 요청을 한 번 실행한다. IntelliJ HTTP Client가 SESSION_ID cookie를 자동 보관한다.
+# 3. 각 measurement를 한 번 실행해 워밍업한 뒤 같은 조건으로 여러 번 실행한다.
+# 4. HTTP Client 전체 시간이 아니라 data.operation.server_operation_ms를 확인한다.
+# 5. verification_succeeded=true와 expected/verified row 및 map 일치를 함께 확인한다.
+# 6. FULL_REPLACEMENT와 DELETE_ONLY artifact는 measurement, workload_class,
+#    active_amenity_code_count가 모두 같은 실행끼리만 집계한다.
+#
+# 요청 1회당 예상 Hibernate SQL 수(N=기존 row, R=병합 후 서로 다른 활성 코드 row):
+# - FULL_REPLACEMENT: SELECT=3, DELETE=N, INSERT=R+1, UPDATE=1, TOTAL=N+R+5
+# - DELETE_ONLY: SELECT=1, DELETE=N, INSERT=0, UPDATE=0, TOTAL=N+1
+#
+# 각 요청은 fixture 생성과 결과 검증 후 자신이 만든 데이터만 정리한다.
+# 이 파일은 수동 확인용이다. 재현 가능한 통계와 JSON artifact가 필요하면 k6 스크립트를 사용한다.
+
+@datasetSize = 30
+
+### Login dedicated benchmark ADMIN
+# @name loginAccommodationAmenityDeleteBenchmarkAdmin
+# @no-log
+POST {{baseUrl}}/api/v1/auth/login
 Content-Type: application/json
+Accept: application/json
 
 {
-  "email": "{{benchmark_email}}",
-  "password": "{{benchmark_password}}"
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
 }
 
-### Full production replacement Before baseline (server creates and cleans its fixture)
-POST {{base_url}}/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete
+### Production full replacement Before baseline
+# @name accommodationAmenityFullReplacementBefore
+POST {{baseUrl}}/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete
 Content-Type: application/json
-Cookie: SESSION_ID={{session_id}}
-X-Bulk-Write-Benchmark-Token: {{bulk_write_benchmark_token}}
+Accept: application/json
+X-Bulk-Write-Benchmark-Token: {{bulkWriteBenchmarkToken}}
 
 {
   "variant": "BEFORE",
   "measurement": "FULL_REPLACEMENT",
-  "dataset_size": 30
+  "dataset_size": {{datasetSize}}
 }
 
-### Repository-derived-delete-only diagnostic (never pool with full replacement)
-POST {{base_url}}/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete
+### Derived delete-only diagnostic - never pool with full replacement
+# @name accommodationAmenityDeleteOnlyBefore
+POST {{baseUrl}}/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete
 Content-Type: application/json
-Cookie: SESSION_ID={{session_id}}
-X-Bulk-Write-Benchmark-Token: {{bulk_write_benchmark_token}}
+Accept: application/json
+X-Bulk-Write-Benchmark-Token: {{bulkWriteBenchmarkToken}}
 
 {
   "variant": "BEFORE",
   "measurement": "DELETE_ONLY",
-  "dataset_size": 30
+  "dataset_size": {{datasetSize}}
 }

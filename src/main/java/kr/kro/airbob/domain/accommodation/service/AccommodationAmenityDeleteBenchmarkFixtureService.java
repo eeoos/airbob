@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.common.code.CommonCodeGroups;
 import kr.kro.airbob.common.code.CommonCodeResponse;
 import kr.kro.airbob.common.code.CommonCodeService;
+import kr.kro.airbob.common.context.UserContext;
+import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Measurement;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification;
@@ -37,7 +39,7 @@ import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
 @ConditionalOnProperty(prefix = "benchmark.bulk-write", name = "enabled", havingValue = "true")
 public class AccommodationAmenityDeleteBenchmarkFixtureService {
 
-	private static final String FOREVER = "9999-12-31 23:59:59";
+	private static final LocalDateTime FOREVER = HistoryConstants.FOREVER;
 
 	private final JdbcTemplate jdbcTemplate;
 	private final CommonCodeService commonCodeService;
@@ -60,6 +62,8 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		if (activeCodes.isEmpty()) {
 			throw new IllegalStateException("활성 AMENITY_TYPE 코드가 필요합니다.");
 		}
+		String expectedSourceSystem = UserContext.currentSourceSystem();
+		String expectedClientIp = UserContext.currentClientIp();
 
 		long targetAccommodationId = insertAccommodation(ownerId, "bulk-write-amenity-target");
 		long controlAccommodationId = insertAccommodation(ownerId, "bulk-write-amenity-control");
@@ -85,6 +89,8 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 
 		return new Fixture(
 			ownerId,
+			expectedSourceSystem,
+			expectedClientIp,
 			datasetSize,
 			activeCodes.size(),
 			datasetSize <= activeCodes.size() ? WorkloadClass.REALISTIC : WorkloadClass.STRESS,
@@ -112,13 +118,10 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		Objects.requireNonNull(fixture, "fixture must not be null");
 		Objects.requireNonNull(measurement, "measurement must not be null");
 
-		long remainingOldRows = countExactIds("accommodation_amenity", fixture.oldTargetAmenityIds());
+		long remainingOldRows = countAmenitiesByIds(fixture.oldTargetAmenityIds());
 		long deletedOldRows = fixture.oldTargetAmenityIds().size() - remainingOldRows;
 		Map<String, Integer> replacementMap = amenityMap(fixture.targetAccommodationId());
-		long replacementRows = countByAccommodationId(
-			"accommodation_amenity",
-			fixture.targetAccommodationId()
-		);
+		long replacementRows = countAmenitiesByAccommodationId(fixture.targetAccommodationId());
 		Map<String, Integer> expectedMap = measurement == Measurement.FULL_REPLACEMENT
 			? fixture.replacementMap()
 			: Map.of();
@@ -235,7 +238,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 			WHERE id = ?
 			""", statement -> {
 			statement.setLong(1, ownerId);
-			statement.setString(2, FOREVER);
+			statement.setTimestamp(2, Timestamp.valueOf(FOREVER));
 			statement.setLong(3, accommodationId);
 		});
 	}
@@ -266,6 +269,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 	private ParentSnapshot parentSnapshotOrNull(long accommodationId) {
 		return jdbcTemplate.query("""
 			SELECT id, BIN_TO_UUID(accommodation_uid) AS accommodation_uid, member_id, name,
+			       description, base_price, currency, thumbnail_url, type,
 			       status, check_in_time, check_out_time, address_id, occupancy_policy_id,
 			       created_at, updated_at, created_by, updated_by
 			FROM accommodation
@@ -276,6 +280,11 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 				values.put("accommodation_uid", resultSet.getString("accommodation_uid"));
 				values.put("member_id", resultSet.getLong("member_id"));
 				values.put("name", resultSet.getString("name"));
+				values.put("description", resultSet.getString("description"));
+				values.put("base_price", nullableLong(resultSet, "base_price"));
+				values.put("currency", resultSet.getString("currency"));
+				values.put("thumbnail_url", resultSet.getString("thumbnail_url"));
+				values.put("type", resultSet.getString("type"));
 				values.put("status", resultSet.getString("status"));
 				values.put("check_in_time", resultSet.getTime("check_in_time").toLocalTime());
 				values.put("check_out_time", resultSet.getTime("check_out_time").toLocalTime());
@@ -291,23 +300,55 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 
 	private List<HistorySnapshot> historySnapshots(long accommodationId) {
 		return jdbcTemplate.query("""
-			SELECT id, accommodation_id, status, member_id, change_type, change_reason,
-			       valid_from, valid_to, history_created_at, history_created_by
+			SELECT id, accommodation_id, accommodation_uid, name, description, base_price,
+			       currency, thumbnail_url, type, status, check_in_time, check_out_time, member_id,
+			       address_country, address_state, address_city, address_district, address_street,
+			       address_detail, address_postal_code, address_latitude, address_longitude,
+			       max_occupancy, infant_occupancy, pet_occupancy, created_at, created_by,
+			       history_created_at, history_created_by, change_type, change_reason,
+			       source_system, client_ip, valid_from, valid_to
 			FROM accommodation_history
 			WHERE accommodation_id = ?
 			ORDER BY id
-			""", (resultSet, rowNumber) -> new HistorySnapshot(
-			resultSet.getLong("id"),
-			resultSet.getLong("accommodation_id"),
-			resultSet.getString("status"),
-			nullableLong(resultSet, "member_id"),
-			resultSet.getString("change_type"),
-			resultSet.getString("change_reason"),
-			toLocalDateTime(resultSet.getTimestamp("valid_from")),
-			toLocalDateTime(resultSet.getTimestamp("valid_to")),
-			toLocalDateTime(resultSet.getTimestamp("history_created_at")),
-			nullableLong(resultSet, "history_created_by")
-		), accommodationId);
+			""", (resultSet, rowNumber) -> {
+				Map<String, Object> values = new LinkedHashMap<>();
+				values.put("id", resultSet.getLong("id"));
+				values.put("accommodation_id", resultSet.getLong("accommodation_id"));
+				values.put("accommodation_uid", resultSet.getString("accommodation_uid"));
+				values.put("name", resultSet.getString("name"));
+				values.put("description", resultSet.getString("description"));
+				values.put("base_price", nullableLong(resultSet, "base_price"));
+				values.put("currency", resultSet.getString("currency"));
+				values.put("thumbnail_url", resultSet.getString("thumbnail_url"));
+				values.put("type", resultSet.getString("type"));
+				values.put("status", resultSet.getString("status"));
+				values.put("check_in_time", resultSet.getTime("check_in_time").toLocalTime());
+				values.put("check_out_time", resultSet.getTime("check_out_time").toLocalTime());
+				values.put("member_id", nullableLong(resultSet, "member_id"));
+				values.put("address_country", resultSet.getString("address_country"));
+				values.put("address_state", resultSet.getString("address_state"));
+				values.put("address_city", resultSet.getString("address_city"));
+				values.put("address_district", resultSet.getString("address_district"));
+				values.put("address_street", resultSet.getString("address_street"));
+				values.put("address_detail", resultSet.getString("address_detail"));
+				values.put("address_postal_code", resultSet.getString("address_postal_code"));
+				values.put("address_latitude", resultSet.getObject("address_latitude", Double.class));
+				values.put("address_longitude", resultSet.getObject("address_longitude", Double.class));
+				values.put("max_occupancy", resultSet.getObject("max_occupancy", Integer.class));
+				values.put("infant_occupancy", resultSet.getObject("infant_occupancy", Integer.class));
+				values.put("pet_occupancy", resultSet.getObject("pet_occupancy", Integer.class));
+				values.put("created_at", toLocalDateTime(resultSet.getTimestamp("created_at")));
+				values.put("created_by", nullableLong(resultSet, "created_by"));
+				values.put("history_created_at", toLocalDateTime(resultSet.getTimestamp("history_created_at")));
+				values.put("history_created_by", nullableLong(resultSet, "history_created_by"));
+				values.put("change_type", resultSet.getString("change_type"));
+				values.put("change_reason", resultSet.getString("change_reason"));
+				values.put("source_system", resultSet.getString("source_system"));
+				values.put("client_ip", resultSet.getString("client_ip"));
+				values.put("valid_from", toLocalDateTime(resultSet.getTimestamp("valid_from")));
+				values.put("valid_to", toLocalDateTime(resultSet.getTimestamp("valid_to")));
+				return new HistorySnapshot(values);
+			}, accommodationId);
 	}
 
 	private boolean historyEffectMatched(Fixture fixture, Measurement measurement) {
@@ -326,13 +367,29 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 			.filter(history -> history.id() != fixture.targetHistoryId())
 			.findFirst()
 			.orElse(null);
+		HistorySnapshot before = fixture.targetHistoryBefore().stream()
+			.filter(history -> history.id() == fixture.targetHistoryId())
+			.findFirst()
+			.orElse(null);
 		return original != null
-			&& original.validTo().isBefore(LocalDateTime.of(9999, 12, 31, 23, 59, 59))
+			&& before != null
+			&& original.equalsExceptValidTo(before)
+			&& original.validTo() != null
+			&& original.validTo().isBefore(FOREVER)
+			&& !original.validTo().isBefore(before.validFrom())
 			&& current != null
-			&& current.validTo().equals(LocalDateTime.of(9999, 12, 31, 23, 59, 59))
-			&& "UPDATE".equals(current.changeType())
-			&& "DRAFT".equals(current.status())
-			&& Objects.equals(current.memberId(), fixture.ownerId());
+			&& current.id() > 0
+			&& current.id() != original.id()
+			&& current.mirrors(fixture.targetParentBefore())
+			&& current.validFrom() != null
+			&& !current.validFrom().isBefore(original.validTo())
+			&& FOREVER.equals(current.validTo())
+			&& current.historyCreatedAt() != null
+			&& Objects.equals(current.historyCreatedBy(), fixture.ownerId())
+			&& "UPDATE".equals(current.stringValue("change_type"))
+			&& "숙소 정보 수정".equals(current.stringValue("change_reason"))
+			&& Objects.equals(current.stringValue("source_system"), fixture.expectedSourceSystem())
+			&& Objects.equals(current.stringValue("client_ip"), fixture.expectedClientIp());
 	}
 
 	private boolean controlAmenityPreserved(Fixture fixture) {
@@ -364,22 +421,22 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		return Collections.unmodifiableMap(result);
 	}
 
-	private long countByAccommodationId(String tableName, long accommodationId) {
+	private long countAmenitiesByAccommodationId(long accommodationId) {
 		Long count = jdbcTemplate.queryForObject(
-			"SELECT COUNT(*) FROM " + tableName + " WHERE accommodation_id = ?",
+			"SELECT COUNT(*) FROM accommodation_amenity WHERE accommodation_id = ?",
 			Long.class,
 			accommodationId
 		);
 		return Objects.requireNonNull(count);
 	}
 
-	private long countExactIds(String tableName, List<Long> ids) {
+	private long countAmenitiesByIds(List<Long> ids) {
 		if (ids.isEmpty()) {
 			return 0;
 		}
 		String placeholders = String.join(", ", Collections.nCopies(ids.size(), "?"));
 		Long count = jdbcTemplate.queryForObject(
-			"SELECT COUNT(*) FROM " + tableName + " WHERE id IN (" + placeholders + ")",
+			"SELECT COUNT(*) FROM accommodation_amenity WHERE id IN (" + placeholders + ")",
 			Long.class,
 			ids.toArray()
 		);
@@ -428,22 +485,78 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		}
 	}
 
-	public record HistorySnapshot(
-		long id,
-		long accommodationId,
-		String status,
-		Long memberId,
-		String changeType,
-		String changeReason,
-		LocalDateTime validFrom,
-		LocalDateTime validTo,
-		LocalDateTime historyCreatedAt,
-		Long historyCreatedBy
-	) {
+	public record HistorySnapshot(Map<String, Object> values) {
+		public HistorySnapshot {
+			values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
+		}
+
+		long id() {
+			return (long)values.get("id");
+		}
+
+		LocalDateTime validFrom() {
+			return (LocalDateTime)values.get("valid_from");
+		}
+
+		LocalDateTime validTo() {
+			return (LocalDateTime)values.get("valid_to");
+		}
+
+		LocalDateTime historyCreatedAt() {
+			return (LocalDateTime)values.get("history_created_at");
+		}
+
+		Long historyCreatedBy() {
+			return (Long)values.get("history_created_by");
+		}
+
+		String stringValue(String key) {
+			return (String)values.get(key);
+		}
+
+		boolean equalsExceptValidTo(HistorySnapshot other) {
+			Map<String, Object> expected = new LinkedHashMap<>(other.values);
+			expected.put("valid_to", validTo());
+			return values.equals(expected);
+		}
+
+		boolean mirrors(ParentSnapshot parent) {
+			Map<String, Object> parentValues = parent.values();
+			return Objects.equals(values.get("accommodation_id"), parentValues.get("id"))
+				&& Objects.equals(values.get("accommodation_uid"), parentValues.get("accommodation_uid"))
+				&& Objects.equals(values.get("name"), parentValues.get("name"))
+				&& Objects.equals(values.get("description"), parentValues.get("description"))
+				&& Objects.equals(values.get("base_price"), parentValues.get("base_price"))
+				&& Objects.equals(values.get("currency"), parentValues.get("currency"))
+				&& Objects.equals(values.get("thumbnail_url"), parentValues.get("thumbnail_url"))
+				&& Objects.equals(values.get("type"), parentValues.get("type"))
+				&& Objects.equals(values.get("status"), parentValues.get("status"))
+				&& Objects.equals(values.get("check_in_time"), parentValues.get("check_in_time"))
+				&& Objects.equals(values.get("check_out_time"), parentValues.get("check_out_time"))
+				&& Objects.equals(values.get("member_id"), parentValues.get("member_id"))
+				&& Objects.equals(values.get("created_at"), parentValues.get("created_at"))
+				&& Objects.equals(values.get("created_by"), parentValues.get("created_by"))
+				&& ownedSnapshotMatchesFixtureParent(parentValues);
+		}
+
+		private boolean ownedSnapshotMatchesFixtureParent(Map<String, Object> parentValues) {
+			boolean addressMatches = parentValues.get("address_id") == null
+				&& List.of(
+					"address_country", "address_state", "address_city", "address_district",
+					"address_street", "address_detail", "address_postal_code",
+					"address_latitude", "address_longitude"
+				).stream().allMatch(key -> values.get(key) == null);
+			boolean occupancyMatches = parentValues.get("occupancy_policy_id") == null
+				&& List.of("max_occupancy", "infant_occupancy", "pet_occupancy")
+				.stream().allMatch(key -> values.get(key) == null);
+			return addressMatches && occupancyMatches;
+		}
 	}
 
 	public record Fixture(
 		long ownerId,
+		String expectedSourceSystem,
+		String expectedClientIp,
 		int datasetSize,
 		int activeAmenityCodeCount,
 		WorkloadClass workloadClass,

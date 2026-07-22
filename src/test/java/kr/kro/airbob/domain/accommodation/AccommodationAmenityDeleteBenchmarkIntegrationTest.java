@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,6 +34,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityManager;
@@ -47,6 +51,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmar
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBeforeBenchmarkService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkFixtureService;
@@ -227,6 +232,120 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("full replacement는 대상 숙소가 없으면 SELECT 1 후 예외로 끝나고 어떤 상태도 변경하지 않는다")
+	void fullReplacementRejectsAbsentTargetWithoutSideEffects() {
+		long absentAccommodationId = Long.MAX_VALUE;
+		long accommodationCountBefore = accommodationCount();
+		long amenityCountBefore = accommodationAmenityCount();
+		long historyCountBefore = accommodationHistoryCount();
+		Logger monitorLogger = (Logger)LoggerFactory.getLogger(BulkOperationMonitor.class);
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		monitorLogger.addAppender(appender);
+
+		try {
+			assertThatThrownBy(() -> bulkOperationMonitor.monitor(
+				"accommodation-amenity-full-replacement-absent-characterization",
+				() -> accommodationService.updateAccommodation(
+					absentAccommodationId,
+					update(List.of()),
+					ownerId
+				)
+			)).isInstanceOf(AccommodationNotFoundException.class);
+		} finally {
+			monitorLogger.detachAppender(appender);
+			appender.stop();
+		}
+
+		assertThat(accommodationCount()).isEqualTo(accommodationCountBefore);
+		assertThat(accommodationAmenityCount()).isEqualTo(amenityCountBefore);
+		assertThat(accommodationHistoryCount()).isEqualTo(historyCountBefore);
+		assertThat(appender.list)
+			.extracting(ILoggingEvent::getFormattedMessage)
+			.anySatisfy(message -> assertThat(message)
+				.contains("outcome=FAILURE")
+				.contains("hibernate_statements={")
+				.contains("SELECT=1")
+				.contains("TOTAL=1"));
+	}
+
+	@Test
+	@DisplayName("delete-only 진단은 대상 숙소가 없어도 SELECT 1만 수행하고 정상 종료한다")
+	void deleteOnlyTreatsAbsentTargetAsNoOp() {
+		var snapshot = bulkOperationMonitor.monitor(
+			"accommodation-amenity-delete-only-absent-characterization",
+			() -> beforeService.deleteByAccommodationId(Long.MAX_VALUE)
+		);
+
+		assertThat(snapshot.hibernateStatementsByType())
+			.containsEntry(SqlQueryType.SELECT, 1)
+			.containsEntry(SqlQueryType.TOTAL, 1);
+		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.INSERT, 0)).isZero();
+		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.UPDATE, 0)).isZero();
+		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.DELETE, 0)).isZero();
+		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.OTHER, 0)).isZero();
+	}
+
+	@Test
+	@DisplayName("delete-only 검증은 부모와 현재 이력의 모든 영속 필드 변경을 탐지한다")
+	void deleteOnlyVerificationDetectsCompleteParentAndHistoryChanges() {
+		Fixture parentFixture = fixtureService.createFixture(ownerId, 1);
+		beforeService.deleteByAccommodationId(parentFixture.targetAccommodationId());
+		jdbcTemplate.update(
+			"UPDATE accommodation SET description = 'unexpected mutation' WHERE id = ?",
+			parentFixture.targetAccommodationId()
+		);
+
+		assertThat(fixtureService.verify(parentFixture, Measurement.DELETE_ONLY).succeeded()).isFalse();
+		fixtureService.cleanup(parentFixture);
+
+		Fixture historyFixture = fixtureService.createFixture(ownerId, 1);
+		beforeService.deleteByAccommodationId(historyFixture.targetAccommodationId());
+		jdbcTemplate.update(
+			"UPDATE accommodation_history SET source_system = 'MUTATED' WHERE id = ?",
+			historyFixture.targetHistoryId()
+		);
+
+		assertThat(fixtureService.verify(historyFixture, Measurement.DELETE_ONLY).succeeded()).isFalse();
+		fixtureService.cleanup(historyFixture);
+	}
+
+	@Test
+	@DisplayName("full replacement 검증은 새 UPDATE 이력의 전체 숙소 스냅샷 훼손을 탐지한다")
+	void fullReplacementVerificationDetectsIncompleteCurrentHistory() {
+		Fixture fixture = fixtureService.createFixture(ownerId, 1);
+		accommodationService.updateAccommodation(
+			fixture.targetAccommodationId(),
+			fixture.replacementRequest(),
+			ownerId
+		);
+		jdbcTemplate.update("""
+			UPDATE accommodation_history
+			SET description = 'unexpected mutation'
+			WHERE accommodation_id = ? AND id <> ?
+			""", fixture.targetAccommodationId(), fixture.targetHistoryId());
+
+		assertThat(fixtureService.verify(fixture, Measurement.FULL_REPLACEMENT).succeeded()).isFalse();
+		fixtureService.cleanup(fixture);
+	}
+
+	@Test
+	@DisplayName("full replacement 이력은 fixture 생성 요청의 동적 source system과 client IP를 보존한다")
+	void fullReplacementUsesCapturedRequestAuditContext() {
+		UserContext.set(new UserInfo(ownerId, "203.0.113.77", "API"));
+		Fixture fixture = fixtureService.createFixture(ownerId, 1);
+
+		accommodationService.updateAccommodation(
+			fixture.targetAccommodationId(),
+			fixture.replacementRequest(),
+			ownerId
+		);
+
+		assertThat(fixtureService.verify(fixture, Measurement.FULL_REPLACEMENT).succeeded()).isTrue();
+		fixtureService.cleanup(fixture);
+	}
+
+	@Test
 	@DisplayName("replacement INSERT가 DB에서 실패하면 이미 수행한 derived delete와 parent/history/control을 모두 rollback한다")
 	void rollsBackReplacementAfterDatabaseInsertFailure() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 4);
@@ -384,6 +503,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	private Map<String, Object> parentSnapshot(long accommodationId) {
 		return jdbcTemplate.queryForMap("""
 			SELECT id, BIN_TO_UUID(accommodation_uid) AS accommodation_uid, member_id, name,
+			       description, base_price, currency, thumbnail_url, type,
 			       status, check_in_time, check_out_time, address_id, occupancy_policy_id,
 			       created_at, updated_at, created_by, updated_by
 			FROM accommodation
@@ -393,12 +513,35 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 
 	private List<Map<String, Object>> historySnapshots(long accommodationId) {
 		return new ArrayList<>(jdbcTemplate.queryForList("""
-			SELECT id, accommodation_id, status, member_id, change_type, change_reason,
-			       valid_from, valid_to, history_created_at, history_created_by
+			SELECT id, accommodation_id, accommodation_uid, name, description, base_price,
+			       currency, thumbnail_url, type, status, check_in_time, check_out_time, member_id,
+			       address_country, address_state, address_city, address_district, address_street,
+			       address_detail, address_postal_code, address_latitude, address_longitude,
+			       max_occupancy, infant_occupancy, pet_occupancy, created_at, created_by,
+			       history_created_at, history_created_by, change_type, change_reason,
+			       source_system, client_ip, valid_from, valid_to
 			FROM accommodation_history
 			WHERE accommodation_id = ?
 			ORDER BY id
 			""", accommodationId));
+	}
+
+	private long accommodationCount() {
+		return count("SELECT COUNT(*) FROM accommodation");
+	}
+
+	private long accommodationAmenityCount() {
+		return count("SELECT COUNT(*) FROM accommodation_amenity");
+	}
+
+	private long accommodationHistoryCount() {
+		return count("SELECT COUNT(*) FROM accommodation_history");
+	}
+
+	private long count(String sql) {
+		Long count = jdbcTemplate.queryForObject(sql, Long.class);
+		assertThat(count).isNotNull();
+		return count;
 	}
 
 	private long insertAdminMember() {
