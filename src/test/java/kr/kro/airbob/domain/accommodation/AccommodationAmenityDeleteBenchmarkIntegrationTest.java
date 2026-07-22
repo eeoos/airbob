@@ -346,7 +346,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("replacement INSERT가 DB에서 실패하면 이미 수행한 derived delete와 parent/history/control을 모두 rollback한다")
+	@DisplayName("replacement INSERT flush 뒤 실패하면 derived delete와 INSERT를 rollback하고 parent/history/control을 보존한다")
 	void rollsBackReplacementAfterDatabaseInsertFailure() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 4);
 		Map<String, Integer> oldTarget = amenityMap(fixture.targetAccommodationId());
