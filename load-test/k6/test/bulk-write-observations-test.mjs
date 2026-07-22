@@ -585,7 +585,8 @@ const mixedAccommodationAmenityCases = [
   {
     name: 'workload class',
     first: { measurement: 'DELETE_ONLY', datasetSize: 30, activeCodeCount: 30 },
-    second: { measurement: 'DELETE_ONLY', datasetSize: 30, activeCodeCount: 29 },
+    second: { measurement: 'DELETE_ONLY', datasetSize: 30, activeCodeCount: 30 },
+    mutateSecond: (artifact) => { artifact.metadata.workload_class = 'STRESS'; },
   },
   {
     name: 'active amenity code count',
@@ -595,22 +596,26 @@ const mixedAccommodationAmenityCases = [
 ];
 
 for (const specification of mixedAccommodationAmenityCases) {
-  test(`rejects pooling valid AccommodationAmenity sources with different ${specification.name}`, () => {
+  test(`rejects AccommodationAmenity sources with different ${specification.name}`, () => {
     const directory = createCase(`amenity-mixed-${specification.name.replaceAll(' ', '-')}`);
     try {
       const parentLabel = 'amenity-mixed-source-r1';
-      const sources = [specification.first, specification.second].map((source, offset) => (
-        writeSource(
+      const sources = [specification.first, specification.second].map((source, offset) => {
+        const artifact = accommodationAmenitySourceArtifact({
+          index: offset + 1,
+          parentLabel,
+          ...source,
+        });
+        if (offset === 1 && specification.mutateSecond !== undefined) {
+          specification.mutateSecond(artifact);
+        }
+        return writeSource(
           directory,
           parentLabel,
           offset + 1,
-          accommodationAmenitySourceArtifact({
-            index: offset + 1,
-            parentLabel,
-            ...source,
-          }),
-        )
-      ));
+          artifact,
+        );
+      });
 
       assertRejected(runAggregator(
         directory,
