@@ -18,8 +18,23 @@ import { fileURLToPath } from 'node:url';
 
 const SOURCE_SCHEMA_VERSION = 'bulk-write-benchmark-v1';
 const OBSERVATION_SCHEMA_VERSION = 'bulk-write-observations-v1';
-const CANDIDATE = 'RESERVATION_HISTORY_INSERT';
-const ENDPOINT = '/api/v2/admin/benchmarks/bulk-write/reservation-history-insert';
+// Keep this closed allowlist aligned with the benchmark API contracts.
+const BENCHMARKS = Object.freeze({
+  RESERVATION_HISTORY_INSERT: Object.freeze({
+    candidate: 'RESERVATION_HISTORY_INSERT',
+    endpoint: '/api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
+    operationPrefix: 'expired-reservation-cleanup',
+    maximumDatasetSize: 2000,
+    externalEffects: true,
+  }),
+  WISHLIST_DELETE: Object.freeze({
+    candidate: 'WISHLIST_DELETE',
+    endpoint: '/api/v2/admin/benchmarks/bulk-write/wishlist-delete',
+    operationPrefix: 'wishlist-delete',
+    maximumDatasetSize: 1000,
+    externalEffects: false,
+  }),
+});
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
 const METADATA_KEYS = [
   'generated_at',
@@ -130,6 +145,12 @@ function isPositiveInteger(value) {
 
 function isFiniteNonNegative(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function benchmarkDefinition(candidate) {
+  const definition = BENCHMARKS[candidate];
+  requireCondition(definition !== undefined, 'candidate is not allowlisted');
+  return definition;
 }
 
 function boundedContains(value, { keyPredicate = () => false, stringPredicate = () => false }) {
@@ -279,22 +300,26 @@ function validateMetricValue(source, name, expectedValue) {
   );
 }
 
-function validateMetadata(metadata, parentLabel, sampleIndex) {
+function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
   requireCondition(hasExactKeys(metadata, METADATA_KEYS), 'source metadata contract is invalid');
   requireCondition(
     typeof metadata.generated_at === 'string'
       && Number.isFinite(Date.parse(metadata.generated_at)),
     'source generation timestamp is invalid',
   );
-  requireCondition(metadata.candidate === CANDIDATE, 'source candidate is invalid');
+  requireCondition(metadata.candidate === definition.candidate, 'source candidate is invalid');
   requireCondition(metadata.variant === 'BEFORE' || metadata.variant === 'AFTER', 'source variant is invalid');
   requireCondition(metadata.phase === 'measure', 'source phase must be measure');
-  requireCondition(isNonNegativeInteger(metadata.dataset_size), 'source dataset size is invalid');
+  requireCondition(
+    isNonNegativeInteger(metadata.dataset_size)
+      && metadata.dataset_size <= definition.maximumDatasetSize,
+    'source dataset size is invalid',
+  );
   requireCondition(metadata.samples === 1, 'source must contain exactly one sample');
-  requireCondition(metadata.endpoint === ENDPOINT, 'source endpoint is invalid');
+  requireCondition(metadata.endpoint === definition.endpoint, 'source endpoint is invalid');
   requireCondition(
     metadata.operation_name
-      === `expired-reservation-cleanup-${metadata.variant.toLowerCase()}`,
+      === `${definition.operationPrefix}-${metadata.variant.toLowerCase()}`,
     'source operation name is invalid',
   );
   requireCondition(
@@ -320,7 +345,7 @@ function validateMetadata(metadata, parentLabel, sampleIndex) {
   );
 }
 
-function validateSuccessfulSummary(source) {
+function validateSuccessfulSummary(source, definition) {
   const { performance, verification } = source;
   requireCondition(hasExactKeys(performance, [
     'samples',
@@ -381,20 +406,34 @@ function validateSuccessfulSummary(source) {
     performance.http_orchestration_ms.median,
   );
   validateMetricValue(source, 'bulk_write_verified_rows', source.metadata.dataset_size);
-  ['bulk_write_jdbc_batch_calls', 'bulk_write_jdbc_submitted_rows', 'bulk_write_hold_removal_calls']
+  ['bulk_write_jdbc_batch_calls', 'bulk_write_jdbc_submitted_rows']
     .forEach((name) => validateMetricCount(source, name, 1));
+  if (definition.externalEffects) {
+    validateMetricCount(source, 'bulk_write_hold_removal_calls', 1);
+  } else {
+    requireCondition(
+      source.k6_summary.metrics?.bulk_write_hold_removal_calls === undefined,
+      'source contains an unexpected external-effect metric',
+    );
+  }
   SQL_TYPES.forEach((type) => {
     validateMetricCount(source, `bulk_write_hibernate_${type.toLowerCase()}_statements`, 1);
   });
 }
 
-function validateDatabaseObservation(source) {
+function validateDatabaseObservation(source, definition) {
   const observation = source.database_observation;
-  requireCondition(hasExactKeys(observation, [
+  const observationKeys = [
     'hibernate_statements_by_type',
     'jdbc',
-    'external_effects',
-  ]), 'source database observation contract is invalid');
+  ];
+  if (definition.externalEffects) {
+    observationKeys.push('external_effects');
+  }
+  requireCondition(
+    hasExactKeys(observation, observationKeys),
+    'source database observation contract is invalid',
+  );
   requireCondition(
     hasExactKeys(observation.hibernate_statements_by_type, SQL_TYPES),
     'source Hibernate observation contract is invalid',
@@ -449,7 +488,10 @@ function validateDatabaseObservation(source) {
   );
 
   const { variant, dataset_size: datasetSize } = source.metadata;
-  if (variant === 'BEFORE' || datasetSize === 0) {
+  const noJdbcActivity = definition.candidate === 'WISHLIST_DELETE'
+    || variant === 'BEFORE'
+    || datasetSize === 0;
+  if (noJdbcActivity) {
     requireCondition(
       jdbc.batch_calls === 0
         && jdbc.submitted_rows === 0
@@ -493,53 +535,70 @@ function validateDatabaseObservation(source) {
     }
   }
 
-  if (variant === 'BEFORE') {
-    requireCondition(
-      sql.SELECT === 1
-        && sql.INSERT === datasetSize
-        && sql.UPDATE === datasetSize
-        && sql.DELETE === 0
-        && sql.OTHER === 0
-        && sql.TOTAL === 1 + (datasetSize * 2),
-      'source BEFORE Hibernate observation is invalid',
-    );
+  if (definition.candidate === 'RESERVATION_HISTORY_INSERT') {
+    if (variant === 'BEFORE') {
+      requireCondition(
+        sql.SELECT === 1
+          && sql.INSERT === datasetSize
+          && sql.UPDATE === datasetSize
+          && sql.DELETE === 0
+          && sql.OTHER === 0
+          && sql.TOTAL === 1 + (datasetSize * 2),
+        'source BEFORE Hibernate observation is invalid',
+      );
+    } else {
+      requireCondition(
+        sql.SELECT === 1
+          && sql.INSERT === 0
+          && sql.UPDATE === datasetSize
+          && sql.DELETE === 0
+          && sql.OTHER === 0
+          && sql.TOTAL === 1 + datasetSize,
+        'source AFTER Hibernate observation is invalid',
+      );
+    }
   } else {
+    const expectedDeleteCount = datasetSize === 0
+      ? 0
+      : (variant === 'BEFORE' ? datasetSize : 1);
     requireCondition(
-      sql.SELECT === 1
+      sql.SELECT === 2
         && sql.INSERT === 0
-        && sql.UPDATE === datasetSize
-        && sql.DELETE === 0
+        && sql.UPDATE === 1
+        && sql.DELETE === expectedDeleteCount
         && sql.OTHER === 0
-        && sql.TOTAL === 1 + datasetSize,
-      'source AFTER Hibernate observation is invalid',
+        && sql.TOTAL === 3 + expectedDeleteCount,
+      'source Wishlist Hibernate observation is invalid',
     );
   }
 
-  const effects = observation.external_effects;
-  requireCondition(hasExactKeys(effects, [
-    'hold_removal_calls',
-    'hold_removal_mode',
-    'redis_network_excluded',
-  ]), 'source external-effect contract is invalid');
-  requireCondition(
-    effects.hold_removal_calls === datasetSize
-      && effects.hold_removal_mode === 'RECORDED_NO_IO'
-      && effects.redis_network_excluded === true,
-    'source external-effect observation is invalid',
-  );
-  validateMetricValue(source, 'bulk_write_hold_removal_calls', effects.hold_removal_calls);
+  if (definition.externalEffects) {
+    const effects = observation.external_effects;
+    requireCondition(hasExactKeys(effects, [
+      'hold_removal_calls',
+      'hold_removal_mode',
+      'redis_network_excluded',
+    ]), 'source external-effect contract is invalid');
+    requireCondition(
+      effects.hold_removal_calls === datasetSize
+        && effects.hold_removal_mode === 'RECORDED_NO_IO'
+        && effects.redis_network_excluded === true,
+      'source external-effect observation is invalid',
+    );
+    validateMetricValue(source, 'bulk_write_hold_removal_calls', effects.hold_removal_calls);
+  }
 }
 
-function validateSource(source, parentLabel, sampleIndex) {
+function validateSource(source, parentLabel, sampleIndex, definition) {
   requireCondition(isObject(source), 'source artifact must be an object');
   requireCondition(!containsKnownSecret(source), 'source artifact contains a known credential');
   requireCondition(!containsSensitiveData(source), 'source artifact contains sensitive data');
   requireCondition(hasExactKeys(source, SOURCE_KEYS), 'source artifact contract is invalid');
   requireCondition(source.schema_version === SOURCE_SCHEMA_VERSION, 'source schema version is invalid');
   requireCondition(isObject(source.k6_summary), 'source k6 summary is invalid');
-  validateMetadata(source.metadata, parentLabel, sampleIndex);
-  validateSuccessfulSummary(source);
-  validateDatabaseObservation(source);
+  validateMetadata(source.metadata, parentLabel, sampleIndex, definition);
+  validateSuccessfulSummary(source, definition);
+  validateDatabaseObservation(source, definition);
 }
 
 function artifactRootIsTrusted() {
@@ -590,7 +649,7 @@ function pathEntryExists(path) {
   }
 }
 
-function readSource(path, parentLabel, sampleIndex, byteBudget) {
+function readSource(path, parentLabel, sampleIndex, byteBudget, definition) {
   requireTrustedArtifactRoot();
   const absolutePath = absoluteArtifactPath(path);
   let entry;
@@ -646,7 +705,7 @@ function readSource(path, parentLabel, sampleIndex, byteBudget) {
   } catch (_) {
     throw new Error('source artifact cannot be read as JSON');
   }
-  validateSource(parsed, parentLabel, sampleIndex);
+  validateSource(parsed, parentLabel, sampleIndex, definition);
   return parsed;
 }
 
@@ -685,7 +744,16 @@ function nearestRank(sortedValues, percentile) {
   return sortedValues[rank - 1];
 }
 
-function normalizeSource(source, sourcePath, sampleIndex) {
+function normalizeSource(source, sourcePath, sampleIndex, definition) {
+  const externalEffects = definition.externalEffects
+    ? {
+      external_effects: {
+        hold_removal_calls: source.database_observation.external_effects.hold_removal_calls,
+        hold_removal_mode: source.database_observation.external_effects.hold_removal_mode,
+        redis_network_excluded: source.database_observation.external_effects.redis_network_excluded,
+      },
+    }
+    : {};
   return {
     metadata: Object.fromEntries(METADATA_KEYS.map((key) => [key, source.metadata[key]])),
     observation: {
@@ -710,11 +778,7 @@ function normalizeSource(source, sourcePath, sampleIndex) {
         configured_batch_size: source.database_observation.jdbc.configured_batch_size,
         affected_rows: source.database_observation.jdbc.affected_rows,
       },
-      external_effects: {
-        hold_removal_calls: source.database_observation.external_effects.hold_removal_calls,
-        hold_removal_mode: source.database_observation.external_effects.hold_removal_mode,
-        redis_network_excluded: source.database_observation.external_effects.redis_network_excluded,
-      },
+      ...externalEffects,
     },
   };
 }
@@ -749,13 +813,23 @@ function buildCompanion(parentLabel, normalizedSources) {
 }
 
 function parseArguments(args) {
-  requireCondition(args.length >= 5, 'output, parent label, and source artifacts are required');
-  requireCondition(args[0] === '--output' && args[2] === '--run-label', 'arguments are invalid');
-  const outputPath = args[1];
-  const parentLabel = args[3];
-  const sourcePaths = args.slice(4);
   requireCondition(
-    !containsKnownSecret([outputPath, parentLabel, ...sourcePaths]),
+    args.length >= 7,
+    'candidate, output, parent label, and source artifacts are required',
+  );
+  requireCondition(
+    args[0] === '--candidate'
+      && args[2] === '--output'
+      && args[4] === '--run-label',
+    'arguments are invalid',
+  );
+  const candidate = args[1];
+  const definition = benchmarkDefinition(candidate);
+  const outputPath = args[3];
+  const parentLabel = args[5];
+  const sourcePaths = args.slice(6);
+  requireCondition(
+    !containsKnownSecret([candidate, outputPath, parentLabel, ...sourcePaths]),
     'public arguments contain a known credential',
   );
   requireCondition(
@@ -784,7 +858,7 @@ function parseArguments(args) {
     !pathEntryExists(absoluteArtifactPath(outputPath)),
     'output path already exists',
   );
-  return { outputPath, parentLabel, sourcePaths };
+  return { outputPath, parentLabel, sourcePaths, definition };
 }
 
 function writeCompanion(outputPath, companion) {
@@ -846,16 +920,21 @@ function writeCompanion(outputPath, companion) {
 }
 
 try {
-  const { outputPath, parentLabel, sourcePaths } = parseArguments(process.argv.slice(2));
+  const {
+    outputPath,
+    parentLabel,
+    sourcePaths,
+    definition,
+  } = parseArguments(process.argv.slice(2));
   const byteBudget = { total: 0 };
   const normalizedSources = [];
   sourcePaths.forEach((path, index) => {
-    const source = readSource(path, parentLabel, index + 1, byteBudget);
-    normalizedSources.push(normalizeSource(source, path, index + 1));
+    const source = readSource(path, parentLabel, index + 1, byteBudget, definition);
+    normalizedSources.push(normalizeSource(source, path, index + 1, definition));
   });
   const companion = buildCompanion(parentLabel, normalizedSources);
   writeCompanion(outputPath, companion);
 } catch (error) {
-  process.stderr.write(`reservation observation aggregation failed: ${error.message}\n`);
+  process.stderr.write(`bulk-write observation aggregation failed: ${error.message}\n`);
   process.exitCode = 1;
 }

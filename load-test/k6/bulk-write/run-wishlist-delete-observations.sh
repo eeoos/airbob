@@ -2,4 +2,4 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-exec "$script_dir/run-bulk-write-observations.sh" RESERVATION_HISTORY_INSERT "$@"
+exec "$script_dir/run-bulk-write-observations.sh" WISHLIST_DELETE "$@"

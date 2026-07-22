@@ -19,7 +19,7 @@ import test from 'node:test';
 const testDir = dirname(fileURLToPath(import.meta.url));
 const aggregator = resolve(
   testDir,
-  '../bulk-write/aggregate-reservation-history-observations.mjs',
+  '../bulk-write/aggregate-bulk-write-observations.mjs',
 );
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
 
@@ -176,11 +176,66 @@ function sourceArtifact({
   };
 }
 
+function wishlistSourceArtifact({
+  index,
+  parentLabel = 'wishlist-after-n25-r1',
+  variant = 'AFTER',
+  datasetSize = 25,
+  serverOperationMs = index,
+} = {}) {
+  const artifact = sourceArtifact({
+    index,
+    parentLabel,
+    variant: 'BEFORE',
+    datasetSize,
+    serverOperationMs,
+  });
+  const deleteCount = datasetSize === 0
+    ? 0
+    : (variant === 'BEFORE' ? datasetSize : 1);
+  const sql = {
+    SELECT: 2,
+    INSERT: 0,
+    UPDATE: 1,
+    DELETE: deleteCount,
+    OTHER: 0,
+    TOTAL: 3 + deleteCount,
+  };
+  const hibernate = Object.fromEntries(SQL_TYPES.map((type) => [type, trend(sql[type])]));
+
+  artifact.metadata.candidate = 'WISHLIST_DELETE';
+  artifact.metadata.variant = variant;
+  artifact.metadata.endpoint = '/api/v2/admin/benchmarks/bulk-write/wishlist-delete';
+  artifact.metadata.operation_name = `wishlist-delete-${variant.toLowerCase()}`;
+  artifact.performance.hibernate_statements_by_type = clone(hibernate);
+  artifact.database_observation.hibernate_statements_by_type = clone(hibernate);
+  artifact.database_observation.jdbc = {
+    batch_calls: 0,
+    submitted_rows: 0,
+    configured_batch_size: null,
+    affected_rows: null,
+    affected_rows_known_samples: 0,
+    affected_rows_unknown_samples: 1,
+  };
+  delete artifact.database_observation.external_effects;
+
+  artifact.k6_summary.metrics.bulk_write_jdbc_batch_calls = metric(0);
+  artifact.k6_summary.metrics.bulk_write_jdbc_submitted_rows = metric(0);
+  delete artifact.k6_summary.metrics.bulk_write_jdbc_configured_batch_size;
+  delete artifact.k6_summary.metrics.bulk_write_jdbc_affected_rows;
+  delete artifact.k6_summary.metrics.bulk_write_hold_removal_calls;
+  SQL_TYPES.forEach((type) => {
+    artifact.k6_summary.metrics[`bulk_write_hibernate_${type.toLowerCase()}_statements`]
+      = metric(sql[type]);
+  });
+  return artifact;
+}
+
 function createCase(name = 'case') {
   const directory = mkdtempSync(resolve(tmpdir(), `reservation-observations-${name}-`));
   const copiedAggregator = resolve(
     directory,
-    'load-test/k6/bulk-write/aggregate-reservation-history-observations.mjs',
+    'load-test/k6/bulk-write/aggregate-bulk-write-observations.mjs',
   );
   mkdirSync(dirname(copiedAggregator), { recursive: true });
   copyFileSync(aggregator, copiedAggregator);
@@ -205,16 +260,22 @@ function runAggregator(
   outputName = `${parentLabel}-observations.json`,
   environment = process.env,
   workingDirectory = directory,
+  candidate = 'RESERVATION_HISTORY_INSERT',
 ) {
   const output = `build/k6/bulk-write/${outputName}`;
-  const result = spawnSync(process.execPath, [
-    resolve(directory, 'load-test/k6/bulk-write/aggregate-reservation-history-observations.mjs'),
+  const argumentsList = [
+    resolve(directory, 'load-test/k6/bulk-write/aggregate-bulk-write-observations.mjs'),
+    '--candidate',
+    candidate,
+  ];
+  argumentsList.push(
     '--output',
     output,
     '--run-label',
     parentLabel,
     ...sources,
-  ], {
+  );
+  const result = spawnSync(process.execPath, argumentsList, {
     cwd: workingDirectory,
     encoding: 'utf8',
     env: environment,
@@ -301,6 +362,178 @@ test('aggregates ten ordered observations and recomputes nearest-rank p50/p95', 
     assert.match(companion.statistics.percentile_definition, /ceil\(p \* n\)/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('aggregates allowlisted Wishlist observations with its SQL and JDBC contract', () => {
+  const cases = [
+    {
+      parentLabel: 'wishlist-before-empty-r1',
+      variant: 'BEFORE',
+      datasetSize: 0,
+      expectedSql: { SELECT: 2, INSERT: 0, UPDATE: 1, DELETE: 0, OTHER: 0, TOTAL: 3 },
+    },
+    {
+      parentLabel: 'wishlist-before-n25-r1',
+      variant: 'BEFORE',
+      datasetSize: 25,
+      expectedSql: { SELECT: 2, INSERT: 0, UPDATE: 1, DELETE: 25, OTHER: 0, TOTAL: 28 },
+    },
+    {
+      parentLabel: 'wishlist-after-empty-r1',
+      variant: 'AFTER',
+      datasetSize: 0,
+      expectedSql: { SELECT: 2, INSERT: 0, UPDATE: 1, DELETE: 0, OTHER: 0, TOTAL: 3 },
+    },
+    {
+      parentLabel: 'wishlist-after-n25-r1',
+      variant: 'AFTER',
+      datasetSize: 25,
+      expectedSql: { SELECT: 2, INSERT: 0, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 4 },
+    },
+  ];
+
+  for (const specification of cases) {
+    const directory = createCase(specification.parentLabel);
+    try {
+      const rawValues = [9, 3, 7];
+      const sources = rawValues.map((serverOperationMs, offset) => writeSource(
+        directory,
+        specification.parentLabel,
+        offset + 1,
+        wishlistSourceArtifact({
+          index: offset + 1,
+          parentLabel: specification.parentLabel,
+          variant: specification.variant,
+          datasetSize: specification.datasetSize,
+          serverOperationMs,
+        }),
+      ));
+      const result = runAggregator(
+        directory,
+        specification.parentLabel,
+        sources,
+        `${specification.parentLabel}-observations.json`,
+        process.env,
+        directory,
+        'WISHLIST_DELETE',
+      );
+      assert.equal(result.status, 0, result.stderr);
+      const companion = JSON.parse(readFileSync(resolve(directory, result.output), 'utf8'));
+      assert.equal(companion.metadata.candidate, 'WISHLIST_DELETE');
+      assert.deepEqual(
+        companion.observations.map((observation) => observation.server_operation_ms),
+        rawValues,
+      );
+      assert.deepEqual(
+        companion.observations[0].hibernate_statements_by_type,
+        specification.expectedSql,
+      );
+      assert.deepEqual(companion.observations[0].jdbc, {
+        batch_calls: 0,
+        submitted_rows: 0,
+        configured_batch_size: null,
+        affected_rows: null,
+      });
+      assert.equal(companion.observations[0].external_effects, undefined);
+      assert.deepEqual(companion.statistics.server_operation_ms, {
+        count: 3,
+        min: 3,
+        p50: 7,
+        p95: 9,
+        max: 9,
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
+
+test('rejects Wishlist sources outside the allowlisted SQL, JDBC, and metadata contract', () => {
+  const invalidWishlistCases = [
+    {
+      name: 'endpoint',
+      mutate: (artifact) => { artifact.metadata.endpoint = '/wrong'; },
+    },
+    {
+      name: 'operation name',
+      mutate: (artifact) => { artifact.metadata.operation_name = 'wrong'; },
+    },
+    {
+      name: 'maximum dataset size',
+      mutate: (artifact) => { artifact.metadata.dataset_size = 1001; },
+    },
+    {
+      name: 'DELETE formula',
+      mutate: (artifact) => {
+        artifact.performance.hibernate_statements_by_type.DELETE = trend(2);
+        artifact.performance.hibernate_statements_by_type.TOTAL = trend(5);
+        artifact.database_observation.hibernate_statements_by_type.DELETE = trend(2);
+        artifact.database_observation.hibernate_statements_by_type.TOTAL = trend(5);
+        artifact.k6_summary.metrics.bulk_write_hibernate_delete_statements = metric(2);
+        artifact.k6_summary.metrics.bulk_write_hibernate_total_statements = metric(5);
+      },
+    },
+    {
+      name: 'JDBC activity',
+      mutate: (artifact) => {
+        artifact.database_observation.jdbc = {
+          batch_calls: 1,
+          submitted_rows: 25,
+          configured_batch_size: 25,
+          affected_rows: 25,
+          affected_rows_known_samples: 1,
+          affected_rows_unknown_samples: 0,
+        };
+        artifact.k6_summary.metrics.bulk_write_jdbc_batch_calls = metric(1);
+        artifact.k6_summary.metrics.bulk_write_jdbc_submitted_rows = metric(25);
+        artifact.k6_summary.metrics.bulk_write_jdbc_configured_batch_size = metric(25);
+        artifact.k6_summary.metrics.bulk_write_jdbc_affected_rows = metric(25);
+      },
+    },
+    {
+      name: 'external effects',
+      mutate: (artifact) => {
+        artifact.database_observation.external_effects = {
+          hold_removal_calls: 25,
+          hold_removal_mode: 'RECORDED_NO_IO',
+          redis_network_excluded: true,
+        };
+        artifact.k6_summary.metrics.bulk_write_hold_removal_calls = metric(25);
+      },
+    },
+    {
+      name: 'external effect metric only',
+      mutate: (artifact) => {
+        artifact.k6_summary.metrics.bulk_write_hold_removal_calls = metric(25);
+      },
+    },
+  ];
+
+  for (const invalidCase of invalidWishlistCases) {
+    const directory = createCase(`wishlist-invalid-${invalidCase.name.replaceAll(' ', '-')}`);
+    try {
+      const parentLabel = 'wishlist-after-invalid-r1';
+      const artifact = wishlistSourceArtifact({
+        index: 1,
+        parentLabel,
+        variant: 'AFTER',
+        datasetSize: 25,
+      });
+      invalidCase.mutate(artifact);
+      const source = writeSource(directory, parentLabel, 1, artifact);
+      assertRejected(runAggregator(
+        directory,
+        parentLabel,
+        [source],
+        `${parentLabel}-observations.json`,
+        process.env,
+        directory,
+        'WISHLIST_DELETE',
+      ), directory);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   }
 });
 
@@ -437,7 +670,7 @@ const invalidCases = [
   },
   {
     name: 'wrong candidate',
-    mutate: (artifact) => { artifact.metadata.candidate = 'WISHLIST_DELETE'; },
+    mutate: (artifact) => { artifact.metadata.candidate = 'UNKNOWN_BULK_WRITE'; },
   },
   {
     name: 'invalid JDBC contract',

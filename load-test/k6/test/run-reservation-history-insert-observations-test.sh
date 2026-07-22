@@ -70,6 +70,9 @@ done
 printf '\n' >>"$CAPTURE_LOG"
 
 shift
+[[ "$1" == '--candidate' ]]
+[[ "$2" == 'RESERVATION_HISTORY_INSERT' ]]
+shift 2
 [[ "$1" == '--output' ]]
 output="$2"
 shift 2
@@ -145,7 +148,7 @@ expected_calls="$(printf '%s\n' \
   "child samples=1 phase=measure label=$label-sample-001 order=1 path=build/k6/bulk-write/$label-sample-001.json" \
   "child samples=1 phase=measure label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
   "child samples=1 phase=measure label=$label-sample-003 order=3 path=build/k6/bulk-write/$label-sample-003.json" \
-  "node arg=$repo_root/load-test/k6/bulk-write/aggregate-reservation-history-observations.mjs arg=--output arg=$result arg=--run-label arg=$label arg=build/k6/bulk-write/$label-sample-001.json arg=build/k6/bulk-write/$label-sample-002.json arg=build/k6/bulk-write/$label-sample-003.json")"
+  "node arg=$repo_root/load-test/k6/bulk-write/aggregate-bulk-write-observations.mjs arg=--candidate arg=RESERVATION_HISTORY_INSERT arg=--output arg=$result arg=--run-label arg=$label arg=build/k6/bulk-write/$label-sample-001.json arg=build/k6/bulk-write/$label-sample-002.json arg=build/k6/bulk-write/$label-sample-003.json")"
 actual_calls="$(cat "$temp_dir/calls")"
 if [[ "$actual_calls" != "$expected_calls" ]]; then
   printf 'unexpected observation child/aggregator order\nexpected:\n%s\nactual:\n%s\n' \
