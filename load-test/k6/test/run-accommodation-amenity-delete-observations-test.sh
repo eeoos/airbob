@@ -20,8 +20,9 @@ cat >"$temp_dir/capture-child" <<'CHILD'
 set -euo pipefail
 
 [[ "$MEASUREMENT" == 'FULL_REPLACEMENT' ]]
-printf 'child samples=%s phase=%s measurement=%s label=%s order=%s path=%s\n' \
-  "$SAMPLES" "$PHASE" "$MEASUREMENT" "$RUN_LABEL" "$RUN_ORDER" "$K6_RESULT_PATH" \
+[[ "$VARIANT" == 'AFTER' ]]
+printf 'child samples=%s phase=%s variant=%s measurement=%s label=%s order=%s path=%s\n' \
+  "$SAMPLES" "$PHASE" "$VARIANT" "$MEASUREMENT" "$RUN_LABEL" "$RUN_ORDER" "$K6_RESULT_PATH" \
   >>"$CAPTURE_LOG"
 mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
 printf '{}\n' >"$K6_RESULT_PATH"
@@ -53,6 +54,7 @@ output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/calls" \
   PHASE=measure \
+  VARIANT=AFTER \
   MEASUREMENT=FULL_REPLACEMENT \
   RAW_OBSERVATION_SAMPLES=2 \
   RUN_LABEL="$label" \

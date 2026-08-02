@@ -490,6 +490,39 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(fixture);
 	}
 
+	@Test
+	@DisplayName("frozen Before full replacement INSERT flush 뒤 실패하면 derived delete와 INSERT를 rollback한다")
+	void rollsBackFrozenBeforeFullReplacementAfterDatabaseInsertFailure() {
+		Fixture fixture = fixtureService.createFixture(ownerId, 4);
+		Map<String, Integer> oldTarget = amenityMap(fixture.targetAccommodationId());
+		Map<String, Object> parentBefore = parentSnapshot(fixture.targetAccommodationId());
+		List<Map<String, Object>> historyBefore = historySnapshots(fixture.targetAccommodationId());
+		Map<String, Integer> controlBefore = amenityMap(fixture.controlAccommodationId());
+
+		List<AmenityRequest.AmenityInfo> replacement = fixture.activeAmenityCodes().subList(0, 4)
+			.stream()
+			.map(code -> new AmenityRequest.AmenityInfo(code, 1))
+			.toList();
+		doAnswer(invocation -> {
+			Iterable<AccommodationAmenity> amenities = invocation.getArgument(0);
+			amenities.forEach(entityManager::persist);
+			entityManager.flush();
+			throw new IntentionalAmenitySaveFailure();
+		}).when(accommodationAmenityRepository).saveAll(any());
+
+		assertThatThrownBy(() -> beforeService.fullReplacement(
+			fixture.targetAccommodationId(),
+			update(replacement),
+			ownerId
+		)).isInstanceOf(IntentionalAmenitySaveFailure.class);
+
+		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(oldTarget);
+		assertThat(parentSnapshot(fixture.targetAccommodationId())).isEqualTo(parentBefore);
+		assertThat(historySnapshots(fixture.targetAccommodationId())).isEqualTo(historyBefore);
+		assertThat(amenityMap(fixture.controlAccommodationId())).isEqualTo(controlBefore);
+		fixtureService.cleanup(fixture);
+	}
+
 	private void assertFullReplacement(int datasetSize, int activeCodeCount) {
 		var response = benchmarkService.run(
 			ownerId,

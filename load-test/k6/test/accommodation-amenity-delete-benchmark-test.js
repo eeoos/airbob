@@ -18,27 +18,29 @@ export const options = {
 
 const TOKEN = '0123456789abcdef0123456789abcdef';
 
-function operation(measurement, datasetSize, activeCodeCount) {
-  const replacementRows = measurement === 'FULL_REPLACEMENT'
-    ? Math.min(datasetSize, activeCodeCount)
-    : 0;
-  const fullReplacement = measurement === 'FULL_REPLACEMENT';
-  return {
-    operation_name: fullReplacement
-      ? 'accommodation-amenity-full-replacement-before'
-      : 'accommodation-amenity-delete-only-before',
+function operation(variant, measurement, datasetSize, activeCodeCount) {
+	const replacementRows = measurement === 'FULL_REPLACEMENT'
+		? Math.min(datasetSize, activeCodeCount)
+		: 0;
+	const fullReplacement = measurement === 'FULL_REPLACEMENT';
+	const before = variant === 'BEFORE';
+	return {
+		operation_name: ACCOMMODATION_AMENITY_DELETE_BENCHMARK.operationName(
+			variant,
+			measurement,
+		),
     outcome: 'SUCCESS',
     server_operation_nanos: 1_000_000,
     server_operation_ms: 1,
     hibernate_statements_by_type: {
-      SELECT: fullReplacement ? 3 : 1,
-      INSERT: fullReplacement ? replacementRows + 1 : 0,
-      UPDATE: fullReplacement ? 1 : 0,
-      DELETE: datasetSize,
-      OTHER: 0,
-      TOTAL: fullReplacement
-        ? datasetSize + replacementRows + 5
-        : datasetSize + 1,
+			SELECT: fullReplacement ? (before ? 3 : 2) : (before ? 1 : 0),
+			INSERT: fullReplacement ? replacementRows + 1 : 0,
+			UPDATE: fullReplacement ? 1 : 0,
+			DELETE: before ? datasetSize : 1,
+			OTHER: 0,
+			TOTAL: fullReplacement
+				? (before ? datasetSize + replacementRows + 5 : replacementRows + 5)
+				: (before ? datasetSize + 1 : 1),
     },
     jdbc_batch_calls: 0,
     jdbc_submitted_rows: 0,
@@ -47,7 +49,7 @@ function operation(measurement, datasetSize, activeCodeCount) {
   };
 }
 
-function payload(measurement, datasetSize, activeCodeCount) {
+function payload(variant, measurement, datasetSize, activeCodeCount) {
   const replacementRows = measurement === 'FULL_REPLACEMENT'
     ? Math.min(datasetSize, activeCodeCount)
     : 0;
@@ -59,7 +61,7 @@ function payload(measurement, datasetSize, activeCodeCount) {
     success: true,
     data: {
       candidate: 'ACCOMMODATION_AMENITY_DELETE',
-      variant: 'BEFORE',
+		variant,
       measurement,
       workload_class: datasetSize <= activeCodeCount ? 'REALISTIC' : 'STRESS',
       active_amenity_code_count: activeCodeCount,
@@ -76,7 +78,7 @@ function payload(measurement, datasetSize, activeCodeCount) {
       control_accommodation_preserved: true,
       control_amenities_preserved: true,
       verification_succeeded: true,
-      operation: operation(measurement, datasetSize, activeCodeCount),
+		operation: operation(variant, measurement, datasetSize, activeCodeCount),
     },
   };
 }
@@ -114,11 +116,11 @@ function summary(activeCodeCount) {
   };
 }
 
-function config(measurement) {
-  return parseBulkWriteRunConfig({
-    VARIANT: 'BEFORE',
-    MEASUREMENT: measurement,
-    DATASET_SIZE: '31',
+function config(variant, measurement, datasetSize) {
+	return parseBulkWriteRunConfig({
+		VARIANT: variant,
+		MEASUREMENT: measurement,
+		DATASET_SIZE: String(datasetSize),
     SAMPLES: '1',
     PHASE: 'measure',
     BENCHMARK_BULK_WRITE_TOKEN: TOKEN,
@@ -133,10 +135,12 @@ function config(measurement) {
 }
 
 export default function () {
-  const full = config('FULL_REPLACEMENT');
-  const deleteOnly = config('DELETE_ONLY');
-  const artifact = buildBulkWriteArtifact({
-    config: full,
+	const fullBefore = config('BEFORE', 'FULL_REPLACEMENT', 31);
+	const deleteBefore = config('BEFORE', 'DELETE_ONLY', 31);
+	const fullAfterEmpty = config('AFTER', 'FULL_REPLACEMENT', 0);
+	const deleteAfterEmpty = config('AFTER', 'DELETE_ONLY', 0);
+	const artifact = buildBulkWriteArtifact({
+		config: fullBefore,
     k6Summary: summary(30),
   }, ACCOMMODATION_AMENITY_DELETE_BENCHMARK);
 
@@ -144,44 +148,69 @@ export default function () {
     'candidate uses the protected accommodation amenity endpoint': () => (
       ACCOMMODATION_AMENITY_DELETE_BENCHMARK.endpoint
         === '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete'
-      && ACCOMMODATION_AMENITY_DELETE_BENCHMARK.supportedVariants.length === 1
-      && ACCOMMODATION_AMENITY_DELETE_BENCHMARK.supportedVariants[0] === 'BEFORE'
-    ),
-    'measurement is canonical and changes operation/result names': () => (
-      full.measurement === 'FULL_REPLACEMENT'
-      && deleteOnly.measurement === 'DELETE_ONLY'
-      && full.resultPath.includes('accommodation-amenity-full-replacement-before')
-      && deleteOnly.resultPath.includes('accommodation-amenity-delete-only-before')
+			&& ACCOMMODATION_AMENITY_DELETE_BENCHMARK.supportedVariants.length === 2
+			&& ACCOMMODATION_AMENITY_DELETE_BENCHMARK.supportedVariants[0] === 'BEFORE'
+			&& ACCOMMODATION_AMENITY_DELETE_BENCHMARK.supportedVariants[1] === 'AFTER'
+	),
+		'measurement and variant are canonical and isolate operation/result names': () => (
+			fullBefore.measurement === 'FULL_REPLACEMENT'
+			&& deleteBefore.measurement === 'DELETE_ONLY'
+			&& fullAfterEmpty.variant === 'AFTER'
+			&& deleteAfterEmpty.variant === 'AFTER'
+			&& fullBefore.resultPath.includes('accommodation-amenity-full-replacement-before')
+			&& deleteBefore.resultPath.includes('accommodation-amenity-delete-only-before')
+			&& fullAfterEmpty.resultPath.includes('accommodation-amenity-full-replacement-after')
+			&& deleteAfterEmpty.resultPath.includes('accommodation-amenity-delete-only-after')
       && bulkWriteOperationName(
         'BEFORE',
         ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
         'FULL_REPLACEMENT',
       ) === 'accommodation-amenity-full-replacement-before'
     ),
-    'request includes measurement without accepting AFTER': () => (
-      buildBulkWriteRequestBody(full, ACCOMMODATION_AMENITY_DELETE_BENCHMARK)
-        === '{"variant":"BEFORE","measurement":"FULL_REPLACEMENT","dataset_size":31}'
-    ),
-    'full replacement validates the observed N+R+5 formula': () => (
-      matchesBulkWriteResponseContract(
-        payload('FULL_REPLACEMENT', 31, 30),
+		'request includes exact Before and After variants with measurement': () => (
+			buildBulkWriteRequestBody(fullBefore, ACCOMMODATION_AMENITY_DELETE_BENCHMARK)
+				=== '{"variant":"BEFORE","measurement":"FULL_REPLACEMENT","dataset_size":31}'
+			&& buildBulkWriteRequestBody(deleteAfterEmpty, ACCOMMODATION_AMENITY_DELETE_BENCHMARK)
+				=== '{"variant":"AFTER","measurement":"DELETE_ONLY","dataset_size":0}'
+	),
+		'Before full replacement validates the observed N+R+5 formula': () => (
+			matchesBulkWriteResponseContract(
+				payload('BEFORE', 'FULL_REPLACEMENT', 31, 30),
         31,
         'BEFORE',
         ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
         'FULL_REPLACEMENT',
       )
     ),
-    'delete-only validates SELECT 1 plus DELETE N separately': () => (
-      matchesBulkWriteResponseContract(
-        payload('DELETE_ONLY', 31, 30),
+		'Before delete-only validates SELECT 1 plus DELETE N separately': () => (
+			matchesBulkWriteResponseContract(
+				payload('BEFORE', 'DELETE_ONLY', 31, 30),
         31,
         'BEFORE',
         ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
         'DELETE_ONLY',
       )
-    ),
-    'workload classification cannot be mislabeled': () => {
-      const mislabeled = payload('DELETE_ONLY', 31, 30);
+		),
+		'After full replacement N=0 validates one predicate DELETE': () => (
+			matchesBulkWriteResponseContract(
+				payload('AFTER', 'FULL_REPLACEMENT', 0, 30),
+				0,
+				'AFTER',
+				ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
+				'FULL_REPLACEMENT',
+			)
+		),
+		'After delete-only N=0 validates one predicate DELETE': () => (
+			matchesBulkWriteResponseContract(
+				payload('AFTER', 'DELETE_ONLY', 0, 30),
+				0,
+				'AFTER',
+				ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
+				'DELETE_ONLY',
+			)
+		),
+		'workload classification cannot be mislabeled': () => {
+			const mislabeled = payload('BEFORE', 'DELETE_ONLY', 31, 30);
       mislabeled.data.workload_class = 'REALISTIC';
       return !matchesBulkWriteResponseContract(
         mislabeled,
