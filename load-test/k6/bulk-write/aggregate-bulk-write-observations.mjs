@@ -337,9 +337,7 @@ function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
   );
   requireCondition(metadata.candidate === definition.candidate, 'source candidate is invalid');
   requireCondition(
-    definition.measurements
-      ? metadata.variant === 'BEFORE'
-      : metadata.variant === 'BEFORE' || metadata.variant === 'AFTER',
+    metadata.variant === 'BEFORE' || metadata.variant === 'AFTER',
     'source variant is invalid',
   );
   requireCondition(metadata.phase === 'measure', 'source phase must be measure');
@@ -370,7 +368,8 @@ function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
       ? 'full-replacement'
       : 'delete-only';
     requireCondition(
-      metadata.operation_name === `accommodation-amenity-${measurementName}-before`,
+      metadata.operation_name
+        === `accommodation-amenity-${measurementName}-${metadata.variant.toLowerCase()}`,
       'source operation name is invalid',
     );
   } else {
@@ -646,7 +645,7 @@ function validateDatabaseObservation(source, definition) {
     );
   } else {
     const replacementRows = Math.min(datasetSize, source.metadata.active_amenity_code_count);
-    if (source.metadata.measurement === 'FULL_REPLACEMENT') {
+    if (source.metadata.measurement === 'FULL_REPLACEMENT' && variant === 'BEFORE') {
       requireCondition(
         sql.SELECT === 3
           && sql.INSERT === replacementRows + 1
@@ -656,7 +655,7 @@ function validateDatabaseObservation(source, definition) {
           && sql.TOTAL === datasetSize + replacementRows + 5,
         'source AccommodationAmenity full-replacement observation is invalid',
       );
-    } else {
+    } else if (source.metadata.measurement === 'DELETE_ONLY' && variant === 'BEFORE') {
       requireCondition(
         sql.SELECT === 1
           && sql.INSERT === 0
@@ -665,6 +664,26 @@ function validateDatabaseObservation(source, definition) {
           && sql.OTHER === 0
           && sql.TOTAL === datasetSize + 1,
         'source AccommodationAmenity delete-only observation is invalid',
+      );
+    } else if (source.metadata.measurement === 'FULL_REPLACEMENT') {
+      requireCondition(
+        sql.SELECT === 2
+          && sql.INSERT === replacementRows + 1
+          && sql.UPDATE === 1
+          && sql.DELETE === 1
+          && sql.OTHER === 0
+          && sql.TOTAL === replacementRows + 5,
+        'source AccommodationAmenity After full-replacement observation is invalid',
+      );
+    } else {
+      requireCondition(
+        sql.SELECT === 0
+          && sql.INSERT === 0
+          && sql.UPDATE === 0
+          && sql.DELETE === 1
+          && sql.OTHER === 0
+          && sql.TOTAL === 1,
+        'source AccommodationAmenity After delete-only observation is invalid',
       );
     }
   }

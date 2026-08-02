@@ -26,7 +26,8 @@ public record AccommodationAmenityDeleteBenchmarkRequest(
 	public static final int MAX_DATASET_SIZE = 100;
 
 	public enum Variant {
-		BEFORE
+		BEFORE,
+		AFTER
 	}
 
 	public enum Measurement {
@@ -42,14 +43,14 @@ public record AccommodationAmenityDeleteBenchmarkRequest(
 				return (Variant)context.handleUnexpectedToken(Variant.class, parser);
 			}
 			String value = parser.getText();
-			if (!Variant.BEFORE.name().equals(value)) {
+			if (!Variant.BEFORE.name().equals(value) && !Variant.AFTER.name().equals(value)) {
 				return (Variant)context.handleWeirdStringValue(
 					Variant.class,
 					value,
-					"variant must be BEFORE"
+					"variant must be BEFORE or AFTER"
 				);
 			}
-			return Variant.BEFORE;
+			return Variant.valueOf(value);
 		}
 	}
 

@@ -182,7 +182,7 @@ export const ACCOMMODATION_AMENITY_DELETE_BENCHMARK = Object.freeze({
       : `accommodation-amenity-delete-only-${variant.toLowerCase()}`
   ),
   maximumDatasetSize: 100,
-  supportedVariants: Object.freeze(['BEFORE']),
+  supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
   supportedMeasurements: Object.freeze(['FULL_REPLACEMENT', 'DELETE_ONLY']),
   activeCodeMetric: 'bulk_write_active_amenity_code_count',
   dataFields: Object.freeze(ACCOMMODATION_AMENITY_DATA_FIELDS),
@@ -192,20 +192,34 @@ export const ACCOMMODATION_AMENITY_DELETE_BENCHMARK = Object.freeze({
     const fullReplacement = measurement === 'FULL_REPLACEMENT';
     const counts = data.operation.hibernate_statements_by_type;
     const expectedWorkload = datasetSize <= activeCodeCount ? 'REALISTIC' : 'STRESS';
-    const sqlMatches = fullReplacement
-      ? counts.SELECT === 3
-        && counts.DELETE === datasetSize
-        && counts.INSERT === replacementRows + 1
-        && counts.UPDATE === 1
-        && counts.OTHER === 0
-        && counts.TOTAL === datasetSize + replacementRows + 5
-      : counts.SELECT === 1
-        && counts.DELETE === datasetSize
-        && counts.INSERT === 0
-        && counts.UPDATE === 0
-        && counts.OTHER === 0
-        && counts.TOTAL === datasetSize + 1;
-    return variant === 'BEFORE'
+    const sqlMatches = variant === 'BEFORE'
+      ? (fullReplacement
+        ? counts.SELECT === 3
+          && counts.DELETE === datasetSize
+          && counts.INSERT === replacementRows + 1
+          && counts.UPDATE === 1
+          && counts.OTHER === 0
+          && counts.TOTAL === datasetSize + replacementRows + 5
+        : counts.SELECT === 1
+          && counts.DELETE === datasetSize
+          && counts.INSERT === 0
+          && counts.UPDATE === 0
+          && counts.OTHER === 0
+          && counts.TOTAL === datasetSize + 1)
+      : (fullReplacement
+        ? counts.SELECT === 2
+          && counts.DELETE === 1
+          && counts.INSERT === replacementRows + 1
+          && counts.UPDATE === 1
+          && counts.OTHER === 0
+          && counts.TOTAL === replacementRows + 5
+        : counts.SELECT === 0
+          && counts.DELETE === 1
+          && counts.INSERT === 0
+          && counts.UPDATE === 0
+          && counts.OTHER === 0
+          && counts.TOTAL === 1);
+    return (variant === 'BEFORE' || variant === 'AFTER')
       && data.measurement === measurement
       && Number.isSafeInteger(activeCodeCount)
       && activeCodeCount > 0

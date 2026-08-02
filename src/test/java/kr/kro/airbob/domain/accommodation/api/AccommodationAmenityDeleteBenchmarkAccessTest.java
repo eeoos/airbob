@@ -110,22 +110,24 @@ class AccommodationAmenityDeleteBenchmarkAccessTest {
 	}
 
 	@Test
-	@DisplayName("ADMIN 세션과 token이 맞으면 domain ID 없이 두 measurement를 허용한다")
-	void allowsAdminForBothMeasurements() throws Exception {
+	@DisplayName("ADMIN 세션과 token이 맞으면 domain ID 없이 Before와 After의 두 measurement를 허용한다")
+	void allowsAdminForBothVariantsAndMeasurements() throws Exception {
 		authenticate(10L, MemberRole.ADMIN);
 
-		for (Measurement measurement : Measurement.values()) {
+		for (Variant variant : Variant.values()) {
+			for (Measurement measurement : Measurement.values()) {
 			mockMvc.perform(post(PATH)
 					.cookie(new Cookie("SESSION_ID", "valid-session"))
 					.contentType("application/json")
 					.header(BulkWriteBenchmarkAccessGuard.HEADER_NAME, TOKEN)
-					.content(request(measurement.name(), "30")))
+					.content(request(variant.name(), measurement.name(), "30")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true));
 			then(benchmarkService).should().run(
 				10L,
-				new AccommodationAmenityDeleteBenchmarkRequest(Variant.BEFORE, measurement, 30)
+				new AccommodationAmenityDeleteBenchmarkRequest(variant, measurement, 30)
 			);
+			}
 		}
 	}
 
@@ -144,7 +146,7 @@ class AccommodationAmenityDeleteBenchmarkAccessTest {
 			request("full_replacement", "1"),
 			request("UNKNOWN", "1"),
 			"{\"variant\":\"before\",\"measurement\":\"DELETE_ONLY\",\"dataset_size\":1}",
-			"{\"variant\":\"AFTER\",\"measurement\":\"DELETE_ONLY\",\"dataset_size\":1}",
+			"{\"variant\":\"after\",\"measurement\":\"DELETE_ONLY\",\"dataset_size\":1}",
 			"{\"variant\":null,\"measurement\":\"DELETE_ONLY\",\"dataset_size\":1}",
 			"{\"variant\":\"BEFORE\",\"measurement\":null,\"dataset_size\":1}"
 		};
@@ -173,7 +175,11 @@ class AccommodationAmenityDeleteBenchmarkAccessTest {
 	}
 
 	private String request(String measurement, String datasetSize) {
-		return "{\"variant\":\"BEFORE\",\"measurement\":\"" + measurement
+		return request("BEFORE", measurement, datasetSize);
+	}
+
+	private String request(String variant, String measurement, String datasetSize) {
+		return "{\"variant\":\"" + variant + "\",\"measurement\":\"" + measurement
 			+ "\",\"dataset_size\":" + datasetSize + "}";
 	}
 }

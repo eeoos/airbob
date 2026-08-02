@@ -1,6 +1,7 @@
 import { check } from 'k6';
 
 import {
+	ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
   ARTIFACT_SCHEMA_VERSION,
   BULK_WRITE_ENDPOINT,
   RESERVATION_HISTORY_INSERT_BENCHMARK,
@@ -83,6 +84,56 @@ function payload(overrides = {}, variant = 'BEFORE') {
       ...overrides,
     },
   };
+}
+
+function accommodationAmenityPayload(variant, measurement, datasetSize = 0) {
+	const fullReplacement = measurement === 'FULL_REPLACEMENT';
+	const replacementRows = fullReplacement ? 0 : 0;
+	const after = variant === 'AFTER';
+	const statements = fullReplacement
+		? (after
+			? { SELECT: 2, INSERT: 1, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 5 }
+			: { SELECT: 3, INSERT: 1, UPDATE: 1, DELETE: 0, OTHER: 0, TOTAL: 5 })
+		: (after
+			? { SELECT: 0, INSERT: 0, UPDATE: 0, DELETE: 1, OTHER: 0, TOTAL: 1 }
+			: { SELECT: 1, INSERT: 0, UPDATE: 0, DELETE: 0, OTHER: 0, TOTAL: 1 });
+	return {
+		success: true,
+		data: {
+			candidate: 'ACCOMMODATION_AMENITY_DELETE',
+			variant,
+			measurement,
+			workload_class: 'REALISTIC',
+			active_amenity_code_count: 30,
+			dataset_size: datasetSize,
+			old_target_rows_expected: datasetSize,
+			old_target_rows_deleted: datasetSize,
+			old_target_rows_verified: datasetSize,
+			replacement_rows_expected: replacementRows,
+			replacement_rows_verified: replacementRows,
+			replacement_map_expected: {},
+			replacement_map_verified: {},
+			target_parent_preserved: true,
+			history_effect_matched: true,
+			control_accommodation_preserved: true,
+			control_amenities_preserved: true,
+			verification_succeeded: true,
+			operation: {
+				operation_name: ACCOMMODATION_AMENITY_DELETE_BENCHMARK.operationName(
+					variant,
+					measurement,
+				),
+				outcome: 'SUCCESS',
+				server_operation_nanos: 12_500_000,
+				server_operation_ms: 12.5,
+				hibernate_statements_by_type: statements,
+				jdbc_batch_calls: 0,
+				jdbc_submitted_rows: 0,
+				jdbc_configured_batch_size: null,
+				jdbc_affected_rows: null,
+			},
+		},
+	};
 }
 
 function k6Summary() {
@@ -534,6 +585,36 @@ export default function () {
       matchesBulkWriteResponseContract(validAfterPayload, 25, 'AFTER')
         && matchesBulkWriteOperationContract(validAfterPayload.data.operation, 'AFTER')
     ),
+		'accommodation amenity accepts AFTER full replacement N=0 predicate contract': () => (
+			matchesBulkWriteResponseContract(
+				accommodationAmenityPayload('AFTER', 'FULL_REPLACEMENT'),
+				0,
+				'AFTER',
+				ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
+				'FULL_REPLACEMENT',
+			)
+		),
+		'accommodation amenity accepts AFTER delete-only N=0 predicate contract': () => (
+			matchesBulkWriteResponseContract(
+				accommodationAmenityPayload('AFTER', 'DELETE_ONLY'),
+				0,
+				'AFTER',
+				ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
+				'DELETE_ONLY',
+			)
+		),
+		'accommodation amenity rejects an AFTER N=0 response that skips predicate DELETE': () => {
+			const payload = accommodationAmenityPayload('AFTER', 'DELETE_ONLY');
+			payload.data.operation.hibernate_statements_by_type.DELETE = 0;
+			payload.data.operation.hibernate_statements_by_type.TOTAL = 0;
+			return !matchesBulkWriteResponseContract(
+				payload,
+				0,
+				'AFTER',
+				ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
+				'DELETE_ONLY',
+			);
+		},
     'variant and operation name cannot be mixed': () => !matchesBulkWriteResponseContract(
       payload({ variant: 'AFTER' }),
       25,

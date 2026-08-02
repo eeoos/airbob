@@ -14,6 +14,8 @@ import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkDatabaseGuard;
 import kr.kro.airbob.common.code.CommonCodeService;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationMonitor;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 
 class AccommodationAmenityDeleteBenchmarkProfileTest {
 
@@ -21,10 +23,10 @@ class AccommodationAmenityDeleteBenchmarkProfileTest {
 		.withUserConfiguration(TestConfiguration.class);
 
 	@Test
-	void everyU4BeanRequiresBothProfileAndEnabledProperty() {
-		assertU4BeansAbsent(contextRunner);
-		assertU4BeansAbsent(contextRunner.withPropertyValues("benchmark.bulk-write.enabled=true"));
-		assertU4BeansAbsent(contextRunner.withInitializer(context ->
+	void everyBenchmarkBeanRequiresBothProfileAndEnabledProperty() {
+		assertBenchmarkBeansAbsent(contextRunner);
+		assertBenchmarkBeansAbsent(contextRunner.withPropertyValues("benchmark.bulk-write.enabled=true"));
+		assertBenchmarkBeansAbsent(contextRunner.withInitializer(context ->
 			context.getEnvironment().setActiveProfiles("bulk-write-benchmark")));
 		contextRunner
 			.withInitializer(context -> context.getEnvironment().setActiveProfiles("bulk-write-benchmark"))
@@ -33,14 +35,16 @@ class AccommodationAmenityDeleteBenchmarkProfileTest {
 				assertThat(context).hasSingleBean(AccommodationAmenityDeleteBenchmarkService.class);
 				assertThat(context).hasSingleBean(AccommodationAmenityDeleteBenchmarkFixtureService.class);
 				assertThat(context).hasSingleBean(AccommodationAmenityDeleteBeforeBenchmarkService.class);
+				assertThat(context).hasSingleBean(AccommodationAmenityDeleteAfterBenchmarkService.class);
 			});
 	}
 
-	private void assertU4BeansAbsent(ApplicationContextRunner runner) {
+	private void assertBenchmarkBeansAbsent(ApplicationContextRunner runner) {
 		runner.run(context -> {
 			assertThat(context).doesNotHaveBean(AccommodationAmenityDeleteBenchmarkService.class);
 			assertThat(context).doesNotHaveBean(AccommodationAmenityDeleteBenchmarkFixtureService.class);
 			assertThat(context).doesNotHaveBean(AccommodationAmenityDeleteBeforeBenchmarkService.class);
+			assertThat(context).doesNotHaveBean(AccommodationAmenityDeleteAfterBenchmarkService.class);
 		});
 	}
 
@@ -48,13 +52,18 @@ class AccommodationAmenityDeleteBenchmarkProfileTest {
 	@Import({
 		AccommodationAmenityDeleteBenchmarkService.class,
 		AccommodationAmenityDeleteBenchmarkFixtureService.class,
-		AccommodationAmenityDeleteBeforeBenchmarkService.class
+		AccommodationAmenityDeleteBeforeBenchmarkService.class,
+		AccommodationAmenityDeleteAfterBenchmarkService.class
 	})
 	static class TestConfiguration {
 
 		@Bean AccommodationService accommodationService() { return mock(AccommodationService.class); }
 		@Bean AccommodationAmenityRepository accommodationAmenityRepository() {
 			return mock(AccommodationAmenityRepository.class);
+		}
+		@Bean AccommodationRepository accommodationRepository() { return mock(AccommodationRepository.class); }
+		@Bean AccommodationHistoryRepository accommodationHistoryRepository() {
+			return mock(AccommodationHistoryRepository.class);
 		}
 		@Bean JdbcTemplate jdbcTemplate() { return mock(JdbcTemplate.class); }
 		@Bean CommonCodeService commonCodeService() { return mock(CommonCodeService.class); }

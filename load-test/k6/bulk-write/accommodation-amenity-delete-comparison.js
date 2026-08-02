@@ -145,7 +145,7 @@ export default function (setupData) {
       && payload.data.control_accommodation_preserved === true
       && payload.data.control_amenities_preserved === true
     ),
-    'accommodation amenity Before reports no JDBC batch activity': () => (
+    'accommodation amenity candidate reports no JDBC batch activity': () => (
       contractMatches
       && payload.data.operation.jdbc_batch_calls === 0
       && payload.data.operation.jdbc_submitted_rows === 0

@@ -22,11 +22,16 @@ public class AccommodationAmenityDeleteBenchmarkService {
 
 	public static final String FULL_REPLACEMENT_BEFORE_OPERATION_NAME =
 		"accommodation-amenity-full-replacement-before";
+	public static final String FULL_REPLACEMENT_AFTER_OPERATION_NAME =
+		"accommodation-amenity-full-replacement-after";
 	public static final String DELETE_ONLY_BEFORE_OPERATION_NAME =
 		"accommodation-amenity-delete-only-before";
+	public static final String DELETE_ONLY_AFTER_OPERATION_NAME =
+		"accommodation-amenity-delete-only-after";
 
 	private final AccommodationService accommodationService;
 	private final AccommodationAmenityDeleteBeforeBenchmarkService beforeService;
+	private final AccommodationAmenityDeleteAfterBenchmarkService afterService;
 	private final AccommodationAmenityDeleteBenchmarkFixtureService fixtureService;
 	private final BulkOperationMonitor bulkOperationMonitor;
 	private final BulkWriteBenchmarkDatabaseGuard databaseGuard;
@@ -34,12 +39,14 @@ public class AccommodationAmenityDeleteBenchmarkService {
 	public AccommodationAmenityDeleteBenchmarkService(
 		AccommodationService accommodationService,
 		AccommodationAmenityDeleteBeforeBenchmarkService beforeService,
+		AccommodationAmenityDeleteAfterBenchmarkService afterService,
 		AccommodationAmenityDeleteBenchmarkFixtureService fixtureService,
 		BulkOperationMonitor bulkOperationMonitor,
 		BulkWriteBenchmarkDatabaseGuard databaseGuard
 	) {
 		this.accommodationService = accommodationService;
 		this.beforeService = beforeService;
+		this.afterService = afterService;
 		this.fixtureService = fixtureService;
 		this.bulkOperationMonitor = bulkOperationMonitor;
 		this.databaseGuard = databaseGuard;
@@ -56,8 +63,8 @@ public class AccommodationAmenityDeleteBenchmarkService {
 
 		try {
 			BulkOperationSnapshot snapshot = bulkOperationMonitor.monitor(
-				operationName(request.measurement()),
-				operation(request.measurement(), fixture, ownerId)
+				operationName(request.variant(), request.measurement()),
+				operation(request.variant(), request.measurement(), fixture, ownerId)
 			);
 			AccommodationAmenityDeleteBenchmarkVerification verification =
 				fixtureService.verify(fixture, request.measurement());
@@ -91,8 +98,8 @@ public class AccommodationAmenityDeleteBenchmarkService {
 		if (request == null) {
 			throw new IllegalArgumentException("request must not be null");
 		}
-		if (request.variant() != Variant.BEFORE) {
-			throw new IllegalArgumentException("variant must be BEFORE");
+		if (request.variant() == null) {
+			throw new IllegalArgumentException("variant must not be null");
 		}
 		if (request.measurement() == null) {
 			throw new IllegalArgumentException("measurement must not be null");
@@ -106,23 +113,33 @@ public class AccommodationAmenityDeleteBenchmarkService {
 		return request.datasetSize();
 	}
 
-	private String operationName(Measurement measurement) {
-		return switch (measurement) {
-			case FULL_REPLACEMENT -> FULL_REPLACEMENT_BEFORE_OPERATION_NAME;
-			case DELETE_ONLY -> DELETE_ONLY_BEFORE_OPERATION_NAME;
+	private String operationName(Variant variant, Measurement measurement) {
+		return switch (variant) {
+			case BEFORE -> switch (measurement) {
+				case FULL_REPLACEMENT -> FULL_REPLACEMENT_BEFORE_OPERATION_NAME;
+				case DELETE_ONLY -> DELETE_ONLY_BEFORE_OPERATION_NAME;
+			};
+			case AFTER -> switch (measurement) {
+				case FULL_REPLACEMENT -> FULL_REPLACEMENT_AFTER_OPERATION_NAME;
+				case DELETE_ONLY -> DELETE_ONLY_AFTER_OPERATION_NAME;
+			};
 		};
 	}
 
-	private Runnable operation(Measurement measurement, Fixture fixture, long ownerId) {
-		return switch (measurement) {
-			case FULL_REPLACEMENT -> () -> accommodationService.updateAccommodation(
-				fixture.targetAccommodationId(),
-				fixture.replacementRequest(),
-				ownerId
-			);
-			case DELETE_ONLY -> () -> beforeService.deleteByAccommodationId(
-				fixture.targetAccommodationId()
-			);
+	private Runnable operation(Variant variant, Measurement measurement, Fixture fixture, long ownerId) {
+		return switch (variant) {
+			case BEFORE -> switch (measurement) {
+				case FULL_REPLACEMENT -> () -> beforeService.fullReplacement(
+					fixture.targetAccommodationId(), fixture.replacementRequest(), ownerId
+				);
+				case DELETE_ONLY -> () -> beforeService.deleteByAccommodationId(fixture.targetAccommodationId());
+			};
+			case AFTER -> switch (measurement) {
+				case FULL_REPLACEMENT -> () -> accommodationService.updateAccommodation(
+					fixture.targetAccommodationId(), fixture.replacementRequest(), ownerId
+				);
+				case DELETE_ONLY -> () -> afterService.deleteByAccommodationId(fixture.targetAccommodationId());
+			};
 		};
 	}
 }

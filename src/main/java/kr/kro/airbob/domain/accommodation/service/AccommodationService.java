@@ -529,7 +529,7 @@ public class AccommodationService {
             return;
         }
 
-        accommodationAmenityRepository.deleteByAccommodationId(accommodation.getId());
+        accommodationAmenityRepository.deleteByAccommodationIdInBulk(accommodation.getId());
 
         if (!amenityInfos.isEmpty()) {
             saveValidAmenities(amenityInfos, accommodation);

@@ -232,25 +232,26 @@ function wishlistSourceArtifact({
 }
 
 function accommodationAmenitySourceArtifact({
-  index,
-  parentLabel = 'amenity-full-before-n31-r1',
-  measurement = 'FULL_REPLACEMENT',
+	index,
+	parentLabel = 'amenity-full-before-n31-r1',
+	variant = 'BEFORE',
+	measurement = 'FULL_REPLACEMENT',
   datasetSize = 31,
   activeCodeCount = 30,
   serverOperationMs = index,
 } = {}) {
-  const artifact = wishlistSourceArtifact({
-    index,
-    parentLabel,
-    variant: 'BEFORE',
+	const artifact = wishlistSourceArtifact({
+		index,
+		parentLabel,
+		variant,
     datasetSize,
     serverOperationMs,
   });
   const replacementRows = measurement === 'FULL_REPLACEMENT'
     ? Math.min(datasetSize, activeCodeCount)
     : 0;
-  const sql = measurement === 'FULL_REPLACEMENT'
-    ? {
+	const sql = measurement === 'FULL_REPLACEMENT' && variant === 'BEFORE'
+		? {
       SELECT: 3,
       INSERT: replacementRows + 1,
       UPDATE: 1,
@@ -258,28 +259,47 @@ function accommodationAmenitySourceArtifact({
       OTHER: 0,
       TOTAL: datasetSize + replacementRows + 5,
     }
-    : {
-      SELECT: 1,
+		: measurement === 'DELETE_ONLY' && variant === 'BEFORE'
+			? {
+		SELECT: 1,
       INSERT: 0,
       UPDATE: 0,
       DELETE: datasetSize,
       OTHER: 0,
-      TOTAL: datasetSize + 1,
-    };
+		TOTAL: datasetSize + 1,
+		}
+			: measurement === 'FULL_REPLACEMENT'
+				? {
+				SELECT: 2,
+				INSERT: replacementRows + 1,
+				UPDATE: 1,
+				DELETE: 1,
+				OTHER: 0,
+				TOTAL: replacementRows + 5,
+				}
+				: {
+				SELECT: 0,
+				INSERT: 0,
+				UPDATE: 0,
+				DELETE: 1,
+				OTHER: 0,
+				TOTAL: 1,
+				};
   const hibernate = Object.fromEntries(SQL_TYPES.map((type) => [type, trend(sql[type])]));
   const metricSuffix = measurement === 'FULL_REPLACEMENT'
     ? 'full_replacement'
     : 'delete_only';
 
-  artifact.metadata.candidate = 'ACCOMMODATION_AMENITY_DELETE';
+	artifact.metadata.candidate = 'ACCOMMODATION_AMENITY_DELETE';
+	artifact.metadata.variant = variant;
   artifact.metadata.measurement = measurement;
   artifact.metadata.workload_class = datasetSize <= activeCodeCount ? 'REALISTIC' : 'STRESS';
   artifact.metadata.active_amenity_code_count = activeCodeCount;
   artifact.metadata.endpoint =
     '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete';
-  artifact.metadata.operation_name = measurement === 'FULL_REPLACEMENT'
-    ? 'accommodation-amenity-full-replacement-before'
-    : 'accommodation-amenity-delete-only-before';
+	artifact.metadata.operation_name = measurement === 'FULL_REPLACEMENT'
+		? `accommodation-amenity-full-replacement-${variant.toLowerCase()}`
+		: `accommodation-amenity-delete-only-${variant.toLowerCase()}`;
   artifact.performance.hibernate_statements_by_type = clone(hibernate);
   artifact.database_observation.hibernate_statements_by_type = clone(hibernate);
   artifact.k6_summary.metrics.bulk_write_active_amenity_code_count = metric(activeCodeCount);
@@ -466,7 +486,7 @@ test('aggregates allowlisted Wishlist observations with its SQL and JDBC contrac
         wishlistSourceArtifact({
           index: offset + 1,
           parentLabel: specification.parentLabel,
-          variant: specification.variant,
+			variant: specification.variant,
           datasetSize: specification.datasetSize,
           serverOperationMs,
         }),
@@ -521,6 +541,24 @@ test('aggregates AccommodationAmenity measurements without pooling workload clas
       workloadClass: 'REALISTIC',
       expectedSql: { SELECT: 3, INSERT: 31, UPDATE: 1, DELETE: 30, OTHER: 0, TOTAL: 65 },
     },
+		{
+			parentLabel: 'amenity-full-after-n30-r1',
+			variant: 'AFTER',
+			measurement: 'FULL_REPLACEMENT',
+			datasetSize: 30,
+			activeCodeCount: 30,
+			workloadClass: 'REALISTIC',
+			expectedSql: { SELECT: 2, INSERT: 31, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 35 },
+		},
+		{
+			parentLabel: 'amenity-delete-after-n0-r1',
+			variant: 'AFTER',
+			measurement: 'DELETE_ONLY',
+			datasetSize: 0,
+			activeCodeCount: 30,
+			workloadClass: 'REALISTIC',
+			expectedSql: { SELECT: 0, INSERT: 0, UPDATE: 0, DELETE: 1, OTHER: 0, TOTAL: 1 },
+		},
     {
       parentLabel: 'amenity-delete-stress-n31-r1',
       measurement: 'DELETE_ONLY',
@@ -541,6 +579,7 @@ test('aggregates AccommodationAmenity measurements without pooling workload clas
         accommodationAmenitySourceArtifact({
           index: offset + 1,
           parentLabel: specification.parentLabel,
+			variant: specification.variant,
           measurement: specification.measurement,
           datasetSize: specification.datasetSize,
           activeCodeCount: specification.activeCodeCount,
@@ -577,6 +616,15 @@ test('aggregates AccommodationAmenity measurements without pooling workload clas
 });
 
 const mixedAccommodationAmenityCases = [
+	{
+		name: 'variant',
+		first: {
+			variant: 'BEFORE', measurement: 'FULL_REPLACEMENT', datasetSize: 30, activeCodeCount: 30,
+		},
+		second: {
+			variant: 'AFTER', measurement: 'FULL_REPLACEMENT', datasetSize: 30, activeCodeCount: 30,
+		},
+	},
   {
     name: 'measurement',
     first: { measurement: 'FULL_REPLACEMENT', datasetSize: 30, activeCodeCount: 30 },

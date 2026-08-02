@@ -30,6 +30,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 
 	@Mock private AccommodationService accommodationService;
 	@Mock private AccommodationAmenityDeleteBeforeBenchmarkService beforeService;
+	@Mock private AccommodationAmenityDeleteAfterBenchmarkService afterService;
 	@Mock private AccommodationAmenityDeleteBenchmarkFixtureService fixtureService;
 	@Mock private BulkOperationMonitor bulkOperationMonitor;
 	@Mock private BulkWriteBenchmarkDatabaseGuard databaseGuard;
@@ -42,6 +43,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		benchmarkService = new AccommodationAmenityDeleteBenchmarkService(
 			accommodationService,
 			beforeService,
+			afterService,
 			fixtureService,
 			bulkOperationMonitor,
 			databaseGuard
@@ -49,8 +51,8 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 	}
 
 	@Test
-	@DisplayName("DB 가드와 fixture 준비 뒤 실제 운영 proxy의 full replacement를 별도 이름으로 측정한다")
-	void measuresProductionFullReplacementThroughDistinctOperation() {
+	@DisplayName("Before full replacement는 수정된 운영 서비스를 호출하지 않고 동결된 derived 경로를 측정한다")
+	void measuresFrozenBeforeFullReplacementThroughDistinctOperation() {
 		AccommodationRequest.Update replacementRequest = mock(AccommodationRequest.Update.class);
 		given(fixtureService.createFixture(7L, 31)).willReturn(fixture);
 		given(fixture.targetAccommodationId()).willReturn(101L);
@@ -86,10 +88,11 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 			eq("accommodation-amenity-full-replacement-before"),
 			any(Runnable.class)
 		);
-		verify(accommodationService).updateAccommodation(101L, replacementRequest, 7L);
+		verify(beforeService).fullReplacement(101L, replacementRequest, 7L);
 		verify(fixtureService).verify(fixture, Measurement.FULL_REPLACEMENT);
 		verify(fixtureService).cleanup(fixture);
-		then(beforeService).shouldHaveNoInteractions();
+		then(accommodationService).shouldHaveNoInteractions();
+		then(afterService).shouldHaveNoInteractions();
 		assertThat(response.measurement()).isEqualTo(Measurement.FULL_REPLACEMENT);
 		assertThat(response.workloadClass())
 			.isEqualTo(AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass.STRESS);
@@ -97,6 +100,44 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		assertThat(response.replacementRowsExpected()).isOne();
 		assertThat(response.operation().operationName())
 			.isEqualTo("accommodation-amenity-full-replacement-before");
+	}
+
+	@Test
+	@DisplayName("After full replacement는 실제 운영 proxy를 After operation name으로 측정한다")
+	void measuresProductionFullReplacementAfterThroughDistinctOperation() {
+		AccommodationRequest.Update replacementRequest = mock(AccommodationRequest.Update.class);
+		given(fixtureService.createFixture(7L, 2)).willReturn(fixture);
+		given(fixture.targetAccommodationId()).willReturn(101L);
+		given(fixture.replacementRequest()).willReturn(replacementRequest);
+		given(fixture.activeAmenityCodeCount()).willReturn(30);
+		given(fixture.workloadClass()).willReturn(
+			AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass.REALISTIC
+		);
+		given(fixture.replacementMap()).willReturn(Map.of("WIFI", 2));
+		given(bulkOperationMonitor.monitor(
+			eq("accommodation-amenity-full-replacement-after"),
+			any(Runnable.class)
+		)).willAnswer(invocation -> {
+			invocation.<Runnable>getArgument(1).run();
+			return snapshot("accommodation-amenity-full-replacement-after", 1, 1);
+		});
+		given(fixtureService.verify(fixture, Measurement.FULL_REPLACEMENT))
+			.willReturn(verification(2, 1));
+
+		var response = benchmarkService.run(
+			7L,
+			new AccommodationAmenityDeleteBenchmarkRequest(
+				Variant.AFTER,
+				Measurement.FULL_REPLACEMENT,
+				2
+			)
+		);
+
+		verify(accommodationService).updateAccommodation(101L, replacementRequest, 7L);
+		then(beforeService).shouldHaveNoInteractions();
+		then(afterService).shouldHaveNoInteractions();
+		assertThat(response.operation().operationName())
+			.isEqualTo("accommodation-amenity-full-replacement-after");
 	}
 
 	@Test
@@ -134,6 +175,38 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		assertThat(response.replacementRowsExpected()).isZero();
 		assertThat(response.operation().operationName())
 			.isEqualTo("accommodation-amenity-delete-only-before");
+	}
+
+	@Test
+	@DisplayName("After delete-only는 별도 transactional proxy의 predicate DELETE를 측정한다")
+	void measuresPredicateDeleteOnlyAfterThroughDistinctProxy() {
+		given(fixtureService.createFixture(7L, 0)).willReturn(fixture);
+		given(fixture.targetAccommodationId()).willReturn(101L);
+		given(fixture.activeAmenityCodeCount()).willReturn(30);
+		given(fixture.workloadClass()).willReturn(
+			AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass.REALISTIC
+		);
+		given(fixture.replacementMap()).willReturn(Map.of());
+		given(bulkOperationMonitor.monitor(
+			eq("accommodation-amenity-delete-only-after"),
+			any(Runnable.class)
+		)).willAnswer(invocation -> {
+			invocation.<Runnable>getArgument(1).run();
+			return snapshot("accommodation-amenity-delete-only-after", 1, 0);
+		});
+		given(fixtureService.verify(fixture, Measurement.DELETE_ONLY))
+			.willReturn(verification(0, 0));
+
+		var response = benchmarkService.run(
+			7L,
+			new AccommodationAmenityDeleteBenchmarkRequest(Variant.AFTER, Measurement.DELETE_ONLY, 0)
+		);
+
+		verify(afterService).deleteByAccommodationId(101L);
+		then(accommodationService).shouldHaveNoInteractions();
+		then(beforeService).shouldHaveNoInteractions();
+		assertThat(response.operation().operationName())
+			.isEqualTo("accommodation-amenity-delete-only-after");
 	}
 
 	@Test
@@ -175,7 +248,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		Throwable thrown = catchThrowable(() -> benchmarkService.run(
 			7L,
 			new AccommodationAmenityDeleteBenchmarkRequest(
-				Variant.BEFORE,
+				Variant.AFTER,
 				Measurement.FULL_REPLACEMENT,
 				1
 			)
