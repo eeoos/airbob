@@ -73,6 +73,7 @@ const SHARED_METADATA_KEYS = [
   'endpoint',
   'operation_name',
   'round',
+  'run_order',
   'app_commit',
   'app_instance_count',
   'schema_label',
@@ -384,7 +385,10 @@ function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
     'source child label is invalid',
   );
   requireCondition(isPositiveInteger(metadata.round), 'source round is invalid');
-  requireCondition(metadata.run_order === sampleIndex, 'source sample index or run order is invalid');
+  requireCondition(
+    isPositiveInteger(metadata.run_order) && metadata.run_order <= 1_000_000,
+    'source run order is invalid',
+  );
   requireCondition(
     typeof metadata.app_commit === 'string' && metadata.app_commit.length > 0,
     'source app commit is invalid',
@@ -836,6 +840,7 @@ function sharedMetadata(metadata, parentLabel, sampleCount, definition) {
     operation_name: metadata.operation_name,
     run_label: parentLabel,
     round: metadata.round,
+    run_order: metadata.run_order,
     app_commit: metadata.app_commit,
     app_instance_count: metadata.app_instance_count,
     schema_label: metadata.schema_label,

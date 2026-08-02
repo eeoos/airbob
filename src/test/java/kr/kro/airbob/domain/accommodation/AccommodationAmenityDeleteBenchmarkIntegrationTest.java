@@ -172,7 +172,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertFullReplacement(activeCodeCount, activeCodeCount);
 		assertFullReplacement(activeCodeCount + 1, activeCodeCount);
 
-		assertThat(AopUtils.isAopProxy(accommodationService)).isTrue();
+		assertThat(AopUtils.isAopProxy(beforeService)).isTrue();
 	}
 
 	@Test

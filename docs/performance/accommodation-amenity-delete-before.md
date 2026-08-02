@@ -121,6 +121,8 @@ Benchmark endpoint는 일반 세션 인증에 더해 ADMIN 권한, 별도 `X-Bul
 
 `A=BEFORE`, `B=AFTER`로 두고, 각 measurement/`N` 셀에서 R1은 `A→B`, R2는 `B→A` 순서로 실행했다. 각 라운드·variant는 워밍업 3회 뒤 `SAMPLES=1`인 독립 child artifact 10개를 수집했다. 2개 라운드 × 2개 measurement × 2개 `N` × 2개 variant × 10개로 총 160개 measure 표본이며, 16개 `u5-local-20260802-26d6f42-v2-*-observations.json` companion에 variant당 10개씩 집계했다.
 
+측정 커밋의 raw runner는 child의 `run_order`에 block 순서가 아니라 block 내부 표본 번호 1~10을 기록했다. 따라서 R1 `A→B`, R2 `B→A`는 실제 실행 명령 순서와 source `generated_at`으로 재검증했지만, companion의 `run_order` 하나만으로는 독립 확인할 수 없다. 최종 리뷰 후 runner는 caller가 명시한 block `RUN_ORDER`를 모든 child에 보존하고, 표본 순서는 별도 `sample_index`로 남기도록 수정했다. AWS 재측정에는 수정된 계약을 사용한다.
+
 초기 `v1` 라벨(`u5-local-20260802-26d6f42`) 시도는 첫 셀의 워밍업 3회 직후 측정 명령 인자 오류로 중단됐다. Measure 표본은 0개였고, 해당 워밍업 3회도 U5 통계에서 제외했다. 인자를 바로잡은 `v2`만 아래 결과에 사용했다.
 
 모든 16개 companion과 160개 독립 표본은 별도 검증에서 다음을 만족했다.
@@ -252,7 +254,7 @@ DELETE_ONLY N=100 STRESS [26.061333, 31.927, 30.117166, 29.422125, 28.909042, 30
 
 1. AWS 격리 환경에서 실제 숙소별 편의시설 cardinality의 p50·p95·max를 먼저 확인하고 대표 `N`을 정한다.
 2. 같은 app commit과 전용 schema, 동일 인스턴스 수·JVM·MySQL·timeout·로깅 조건을 고정한다.
-3. 실제 범위의 대표값과 상한 `N=30`을 라운드당 최소 30개, 가능하면 50개의 독립 표본으로 `A→B`, `B→A` 교차 측정한다.
+3. 실제 범위의 대표값과 상한 `N=30`을 라운드당 최소 30개, 가능하면 50개의 독립 표본으로 `A→B`, `B→A` 교차 측정하고, 각 variant block에 명시적 `RUN_ORDER`를 부여한다.
 4. `N=100` stress는 필요할 때만 구조 재확인용으로 실행하고 실제 트래픽 결과와 분리한다.
 5. 모든 표본의 성공·상태 검증·SQL 계약·메타데이터가 일치할 때만 라운드별 및 pooled nearest-rank 통계를 계산한다.
 
@@ -282,6 +284,8 @@ DELETE_ONLY N=100 STRESS [26.061333, 31.927, 30.117166, 29.422125, 28.909042, 30
 ## 한계
 
 - U5는 라운드당 variant 10개, pooled 20개의 작은 표본이며 AB/BA 한 쌍뿐이다. 일부 max가 p95보다 크게 튀어 추가 라운드에서 분포 안정성을 확인해야 한다.
+- 측정 커밋의 child `run_order`는 block 순서가 아니라 표본 번호였다. AB/BA 순서는 실행 명령과 source 생성 시각으로 재검증했으며, 후속 runner에서는 명시적 block order와 `sample_index`를 분리했다.
+- `build/k6/**` companion은 Git에서 제외되므로 새 clone에는 이 로컬 실행의 전체 메타데이터·SQL 검증·생성 시각 provenance가 남지 않고 문서의 원시 시간 배열만 남는다. AWS 최종 결과는 sanitized companion을 별도 영구 evidence 위치에도 보존해야 한다.
 - 초기 `v1` 시도는 워밍업 3회 뒤 인자 오류로 중단됐고 measure 0개라 전부 제외했다. 아래 결과는 수정한 `v2` 실행만 사용한다.
 - `REALISTIC N=30`은 카탈로그 상한 기준이며 실제 운영 데이터 분포가 아니다.
 - `N=100`은 현재 정상 저장 경로의 서로 다른 코드 수를 넘는 synthetic stress fixture다.

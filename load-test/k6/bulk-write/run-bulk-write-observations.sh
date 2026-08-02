@@ -13,6 +13,10 @@ if [[ "$candidate" != 'RESERVATION_HISTORY_INSERT' \
   printf 'bulk-write observation candidate is not allowlisted\n' >&2
   exit 2
 fi
+if [[ "${VARIANT:-}" != 'BEFORE' && "${VARIANT:-}" != 'AFTER' ]]; then
+  printf 'VARIANT must be BEFORE or AFTER\n' >&2
+  exit 2
+fi
 if [[ "$candidate" == 'ACCOMMODATION_AMENITY_DELETE' \
   && "${MEASUREMENT:-}" != 'FULL_REPLACEMENT' \
   && "${MEASUREMENT:-}" != 'DELETE_ONLY' ]]; then
@@ -25,6 +29,11 @@ if [[ "${PHASE:-}" != 'measure' ]]; then
 fi
 if [[ ! "${RAW_OBSERVATION_SAMPLES:-}" =~ ^([1-9]|[1-9][0-9]|100)$ ]]; then
   printf 'RAW_OBSERVATION_SAMPLES must be an integer between 1 and 100\n' >&2
+  exit 2
+fi
+if [[ ! "${RUN_ORDER:-}" =~ ^[1-9][0-9]{0,6}$ ]] \
+  || (( RUN_ORDER > 1000000 )); then
+  printf 'RUN_ORDER must be a canonical integer between 1 and 1000000\n' >&2
   exit 2
 fi
 if [[ ! "${RUN_LABEL:-}" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] \
@@ -151,9 +160,10 @@ for (( sample_index = 1; sample_index <= RAW_OBSERVATION_SAMPLES; sample_index++
 
   current_child_path="$child_path"
   PHASE=measure \
+  VARIANT="$VARIANT" \
   SAMPLES=1 \
   RUN_LABEL="$child_label" \
-  RUN_ORDER="$sample_index" \
+  RUN_ORDER="$RUN_ORDER" \
   K6_RESULT_PATH="$child_path" \
     "$child_runner"
 

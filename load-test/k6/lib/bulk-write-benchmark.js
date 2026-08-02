@@ -503,7 +503,7 @@ export function parseBulkWriteRunConfig(
   benchmark = WISHLIST_DELETE_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
-  const variant = parseBulkWriteVariant(environment.VARIANT || 'BEFORE', definition);
+  const variant = parseBulkWriteVariant(environment.VARIANT, definition);
   const measurement = definition.supportedMeasurements === undefined
     ? undefined
     : parseBulkWriteMeasurement(

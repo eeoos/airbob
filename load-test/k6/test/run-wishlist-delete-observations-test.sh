@@ -9,12 +9,14 @@ label="wishlist-observation-contract-$$"
 failure_label="wishlist-observation-failure-$$"
 first_failure_label="wishlist-observation-first-failure-$$"
 aggregator_failure_label="wishlist-observation-aggregator-failure-$$"
+validation_label="wishlist-observation-validation-$$"
 result="build/k6/bulk-write/$label-observations.json"
 failure_result="build/k6/bulk-write/$failure_label-observations.json"
 first_failure_result="build/k6/bulk-write/$first_failure_label-observations.json"
 aggregator_failure_result="build/k6/bulk-write/$aggregator_failure_label-observations.json"
+validation_result="build/k6/bulk-write/$validation_label-observations.json"
 token='token-sentinel-0123456789abcdef0123456789'
-trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"* "$repo_root/build/k6/bulk-write/$first_failure_label"* "$repo_root/build/k6/bulk-write/$aggregator_failure_label"*' EXIT
+trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"* "$repo_root/build/k6/bulk-write/$first_failure_label"* "$repo_root/build/k6/bulk-write/$aggregator_failure_label"* "$repo_root/build/k6/bulk-write/$validation_label"*' EXIT
 
 if [[ ! -x "$runner" ]]; then
   printf 'Wishlist observation runner is missing or not executable\n' >&2
@@ -35,11 +37,11 @@ assert_rejected() {
 }
 
 assert_rejected 'a positional argument' env \
-  PHASE=measure RAW_OBSERVATION_SAMPLES=2 RUN_LABEL="$label" \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=2 RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   "$runner" unexpected
 assert_rejected 'a warmup phase' env \
-  PHASE=warmup RAW_OBSERVATION_SAMPLES=2 RUN_LABEL="$label" \
+  PHASE=warmup VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=2 RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   "$runner"
 
@@ -47,8 +49,9 @@ cat >"$temp_dir/capture-child" <<'CHILD'
 #!/usr/bin/env bash
 set -euo pipefail
 
-printf 'child samples=%s phase=%s label=%s order=%s path=%s\n' \
-  "$SAMPLES" "$PHASE" "$RUN_LABEL" "$RUN_ORDER" "$K6_RESULT_PATH" >>"$CAPTURE_LOG"
+printf 'child samples=%s phase=%s variant=%s label=%s order=%s path=%s\n' \
+  "$SAMPLES" "$PHASE" "${VARIANT:-UNSET}" "$RUN_LABEL" "$RUN_ORDER" "$K6_RESULT_PATH" \
+  >>"$CAPTURE_LOG"
 mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
 printf '{}\n' >"$K6_RESULT_PATH"
 CHILD
@@ -118,11 +121,39 @@ chmod +x "$temp_dir/capture-child" "$temp_dir/capture-node" \
 	"$temp_dir/fail-second-child" "$temp_dir/fail-first-child" \
 	"$temp_dir/fail-after-companion"
 
+: >"$temp_dir/validation-calls"
+assert_rejected 'a missing variant' env -u VARIANT \
+  PHASE=measure RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=2 RUN_LABEL="$validation_label" \
+  RAW_OBSERVATION_RESULT_PATH="$validation_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  CAPTURE_LOG="$temp_dir/validation-calls" \
+  WISHLIST_DELETE_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+  "$runner"
+if [[ -s "$temp_dir/validation-calls" ]]; then
+  printf 'Wishlist observation runner launched a child while rejecting VARIANT\n' >&2
+  exit 1
+fi
+assert_rejected 'a non-canonical variant' env \
+  PHASE=measure VARIANT=before RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=2 \
+  RUN_LABEL="$validation_label" RAW_OBSERVATION_RESULT_PATH="$validation_result" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  CAPTURE_LOG="$temp_dir/validation-calls" \
+  WISHLIST_DELETE_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+  "$runner"
+if [[ -s "$temp_dir/validation-calls" ]]; then
+  printf 'Wishlist observation runner launched a child while rejecting VARIANT\n' >&2
+  exit 1
+fi
+
 : >"$temp_dir/calls"
 output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/calls" \
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=2 \
   RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" \
@@ -141,8 +172,8 @@ if [[ -n "$output" || "$output" == *"$token"* ]]; then
 fi
 
 expected_calls="$(printf '%s\n' \
-  "child samples=1 phase=measure label=$label-sample-001 order=1 path=build/k6/bulk-write/$label-sample-001.json" \
-  "child samples=1 phase=measure label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-001 order=2 path=build/k6/bulk-write/$label-sample-001.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
   "node arg=$repo_root/load-test/k6/bulk-write/aggregate-bulk-write-observations.mjs arg=--candidate arg=WISHLIST_DELETE arg=--output arg=$result arg=--run-label arg=$label arg=build/k6/bulk-write/$label-sample-001.json arg=build/k6/bulk-write/$label-sample-002.json")"
 if [[ "$(cat "$temp_dir/calls")" != "$expected_calls" ]]; then
   printf 'unexpected Wishlist observation child/aggregator order\n' >&2
@@ -156,6 +187,8 @@ fi
 if first_failure_output="$({
   cd -- "${TMPDIR:-/tmp}"
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=2 \
   RUN_LABEL="$first_failure_label" \
   RAW_OBSERVATION_RESULT_PATH="$first_failure_result" \
@@ -184,6 +217,8 @@ if failure_output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/failure-calls" \
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=2 \
   RUN_LABEL="$failure_label" \
   RAW_OBSERVATION_RESULT_PATH="$failure_result" \
@@ -218,6 +253,8 @@ if aggregator_failure_output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/aggregator-failure-calls" \
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=2 \
   RUN_LABEL="$aggregator_failure_label" \
   RAW_OBSERVATION_RESULT_PATH="$aggregator_failure_result" \

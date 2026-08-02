@@ -9,12 +9,14 @@ label="observation-contract-$$"
 failure_label="observation-failure-$$"
 override_label="observation-override-$$"
 huge_label="observation-huge-$$"
+validation_label="observation-validation-$$"
 result="build/k6/bulk-write/$label-observations.json"
 failure_result="build/k6/bulk-write/$failure_label-observations.json"
 override_result="build/k6/bulk-write/$override_label-observations.json"
 huge_result="build/k6/bulk-write/$huge_label-observations.json"
+validation_result="build/k6/bulk-write/$validation_label-observations.json"
 token='token-sentinel-0123456789abcdef0123456789'
-trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"* "$repo_root/build/k6/bulk-write/$override_label"* "$repo_root/build/k6/bulk-write/$huge_label"*' EXIT
+trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"* "$repo_root/build/k6/bulk-write/$override_label"* "$repo_root/build/k6/bulk-write/$huge_label"* "$repo_root/build/k6/bulk-write/$validation_label"*' EXIT
 
 assert_rejected() {
   local description="$1"
@@ -30,19 +32,19 @@ assert_rejected() {
 }
 
 assert_rejected 'a warmup phase' env \
-  PHASE=warmup RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$label" \
+  PHASE=warmup VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   "$runner"
 assert_rejected 'a zero sample count' env \
-  PHASE=measure RAW_OBSERVATION_SAMPLES=0 RUN_LABEL="$label" \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=0 RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   "$runner"
 assert_rejected 'a missing parent run label' env \
-  PHASE=measure RAW_OBSERVATION_SAMPLES=3 \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=3 \
   RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   "$runner"
 assert_rejected 'a missing companion result path' env \
-  PHASE=measure RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$label" \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$label" \
   BENCHMARK_BULK_WRITE_TOKEN="$token" \
   "$runner"
 
@@ -50,8 +52,9 @@ cat >"$temp_dir/capture-child" <<'CHILD'
 #!/usr/bin/env bash
 set -euo pipefail
 
-printf 'child samples=%s phase=%s label=%s order=%s path=%s\n' \
-  "$SAMPLES" "$PHASE" "$RUN_LABEL" "$RUN_ORDER" "$K6_RESULT_PATH" >>"$CAPTURE_LOG"
+printf 'child samples=%s phase=%s variant=%s label=%s order=%s path=%s\n' \
+  "$SAMPLES" "$PHASE" "${VARIANT:-UNSET}" "$RUN_LABEL" "${RUN_ORDER:-UNSET}" \
+  "$K6_RESULT_PATH" >>"$CAPTURE_LOG"
 mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
 printf '{}\n' >"$K6_RESULT_PATH"
 CHILD
@@ -98,7 +101,8 @@ FAIL_CHILD
 chmod +x "$temp_dir/capture-child" "$temp_dir/capture-node" "$temp_dir/fail-second-child"
 
 assert_rejected 'an overflowing sample count' env \
-  PHASE=measure RAW_OBSERVATION_SAMPLES=18446744073709551617 RUN_LABEL="$huge_label" \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 \
+  RAW_OBSERVATION_SAMPLES=18446744073709551617 RUN_LABEL="$huge_label" \
   RAW_OBSERVATION_RESULT_PATH="$huge_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   BULK_WRITE_BENCHMARK_TEST_MODE=1 \
   CAPTURE_LOG="$temp_dir/huge-calls" \
@@ -107,7 +111,8 @@ assert_rejected 'an overflowing sample count' env \
   "$runner"
 
 assert_rejected 'executable overrides outside explicit test mode' env \
-  PHASE=measure RAW_OBSERVATION_SAMPLES=1 RUN_LABEL="$override_label" \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=1 \
+  RUN_LABEL="$override_label" \
   RAW_OBSERVATION_RESULT_PATH="$override_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
   CAPTURE_LOG="$temp_dir/override-calls" \
   RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
@@ -118,11 +123,40 @@ if [[ -e "$repo_root/$override_result" ]]; then
   exit 1
 fi
 
+: >"$temp_dir/validation-calls"
+for invalid_run_order in missing 0 02 1000001; do
+  if [[ "$invalid_run_order" == 'missing' ]]; then
+    assert_rejected 'a missing block run order' env -u RUN_ORDER \
+      PHASE=measure VARIANT=AFTER RAW_OBSERVATION_SAMPLES=3 \
+      RUN_LABEL="$validation_label" RAW_OBSERVATION_RESULT_PATH="$validation_result" \
+      BENCHMARK_BULK_WRITE_TOKEN="$token" BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+      CAPTURE_LOG="$temp_dir/validation-calls" \
+      RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+      NODE_BIN="$temp_dir/capture-node" \
+      "$runner"
+  else
+    assert_rejected "block run order $invalid_run_order" env \
+      PHASE=measure VARIANT=AFTER RUN_ORDER="$invalid_run_order" \
+      RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$validation_label" \
+      RAW_OBSERVATION_RESULT_PATH="$validation_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+      BULK_WRITE_BENCHMARK_TEST_MODE=1 CAPTURE_LOG="$temp_dir/validation-calls" \
+      RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+      NODE_BIN="$temp_dir/capture-node" \
+      "$runner"
+  fi
+done
+if [[ -s "$temp_dir/validation-calls" ]]; then
+  printf 'observation runner launched a child while rejecting RUN_ORDER\n' >&2
+  exit 1
+fi
+
 : >"$temp_dir/calls"
 output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/calls" \
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=3 \
   RUN_LABEL="$label" \
   RAW_OBSERVATION_RESULT_PATH="$result" \
@@ -145,9 +179,9 @@ if [[ "$output" == *"$token"* ]]; then
 fi
 
 expected_calls="$(printf '%s\n' \
-  "child samples=1 phase=measure label=$label-sample-001 order=1 path=build/k6/bulk-write/$label-sample-001.json" \
-  "child samples=1 phase=measure label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
-  "child samples=1 phase=measure label=$label-sample-003 order=3 path=build/k6/bulk-write/$label-sample-003.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-001 order=2 path=build/k6/bulk-write/$label-sample-001.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-003 order=2 path=build/k6/bulk-write/$label-sample-003.json" \
   "node arg=$repo_root/load-test/k6/bulk-write/aggregate-bulk-write-observations.mjs arg=--candidate arg=RESERVATION_HISTORY_INSERT arg=--output arg=$result arg=--run-label arg=$label arg=build/k6/bulk-write/$label-sample-001.json arg=build/k6/bulk-write/$label-sample-002.json arg=build/k6/bulk-write/$label-sample-003.json")"
 actual_calls="$(cat "$temp_dir/calls")"
 if [[ "$actual_calls" != "$expected_calls" ]]; then
@@ -165,6 +199,8 @@ if failure_output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/failure-calls" \
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=3 \
   RUN_LABEL="$failure_label" \
   RAW_OBSERVATION_RESULT_PATH="$failure_result" \
@@ -207,6 +243,8 @@ retry_output="$({
   cd -- "${TMPDIR:-/tmp}"
   CAPTURE_LOG="$temp_dir/retry-calls" \
   PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
   RAW_OBSERVATION_SAMPLES=3 \
   RUN_LABEL="$failure_label" \
   RAW_OBSERVATION_RESULT_PATH="$failure_result" \

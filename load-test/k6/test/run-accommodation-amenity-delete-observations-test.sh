@@ -55,6 +55,7 @@ output="$({
   CAPTURE_LOG="$temp_dir/calls" \
   PHASE=measure \
   VARIANT=AFTER \
+  RUN_ORDER=2 \
   MEASUREMENT=FULL_REPLACEMENT \
   RAW_OBSERVATION_SAMPLES=2 \
   RUN_LABEL="$label" \
@@ -70,8 +71,11 @@ if [[ -n "$output" || "$output" == *"$token"* ]]; then
   printf 'AccommodationAmenity observation runner produced unsafe output\n' >&2
   exit 1
 fi
-if [[ "$(grep -c '^child ' "$temp_dir/calls")" != '2' ]] \
-  || ! grep -Fxq 'node candidate=ACCOMMODATION_AMENITY_DELETE' "$temp_dir/calls"; then
+expected_calls="$(printf '%s\n' \
+  "child samples=1 phase=measure variant=AFTER measurement=FULL_REPLACEMENT label=$label-sample-001 order=2 path=build/k6/bulk-write/$label-sample-001.json" \
+  "child samples=1 phase=measure variant=AFTER measurement=FULL_REPLACEMENT label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
+  'node candidate=ACCOMMODATION_AMENITY_DELETE')"
+if [[ "$(cat "$temp_dir/calls")" != "$expected_calls" ]]; then
   printf 'AccommodationAmenity observation runner did not preserve child/aggregator contract\n' >&2
   exit 1
 fi

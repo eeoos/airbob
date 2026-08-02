@@ -62,6 +62,7 @@ function sourceArtifact({
   datasetSize = 25,
   serverOperationMs = index,
   affectedRows = datasetSize,
+  runOrder = 2,
 } = {}) {
   const isBefore = variant === 'BEFORE';
   const isAfterEmpty = variant === 'AFTER' && datasetSize === 0;
@@ -129,7 +130,7 @@ function sourceArtifact({
       operation_name: operationName,
       run_label: childLabel,
       round: 1,
-      run_order: index,
+      run_order: runOrder,
       app_commit: 'abc123',
       app_instance_count: 1,
       schema_label: 'airbob-bulk-write-v1',
@@ -420,11 +421,16 @@ test('aggregates ten ordered observations and recomputes nearest-rank p50/p95', 
     ]);
     assert.equal(companion.schema_version, 'bulk-write-observations-v1');
     assert.equal(companion.metadata.run_label, parentLabel);
+    assert.equal(companion.metadata.run_order, 2);
     assert.equal(companion.metadata.samples, 10);
     assert.equal(companion.observations.length, 10);
     assert.deepEqual(
       companion.observations.map((observation) => observation.sample_index),
       [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    );
+    assert.deepEqual(
+      companion.observations.map((observation) => observation.run_order),
+      [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     );
     assert.deepEqual(
       companion.observations.map((observation) => observation.server_operation_ms),
@@ -1027,7 +1033,31 @@ test('rejects mismatched public experiment metadata', () => {
   }
 });
 
-test('rejects duplicate source paths and duplicate sample indexes', () => {
+test('rejects sources from different block run orders', () => {
+  const directory = createCase('mixed-run-order');
+  try {
+    const parentLabel = 'reservation-after-mixed-run-order-r1';
+    const sources = [
+      writeSource(
+        directory,
+        parentLabel,
+        1,
+        sourceArtifact({ index: 1, parentLabel, runOrder: 1 }),
+      ),
+      writeSource(
+        directory,
+        parentLabel,
+        2,
+        sourceArtifact({ index: 2, parentLabel, runOrder: 2 }),
+      ),
+    ];
+    assertRejected(runAggregator(directory, parentLabel, sources), directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects duplicate source paths', () => {
   const directory = createCase('duplicates');
   try {
     const parentLabel = 'reservation-after-duplicates-r1';
@@ -1038,16 +1068,6 @@ test('rejects duplicate source paths and duplicate sample indexes', () => {
       sourceArtifact({ index: 1, parentLabel }),
     );
     assertRejected(runAggregator(directory, parentLabel, [firstPath, firstPath]), directory);
-
-    const duplicateIndex = sourceArtifact({ index: 1, parentLabel });
-    duplicateIndex.metadata.run_label = `${parentLabel}-sample-002`;
-    const secondPath = writeSource(directory, parentLabel, 2, duplicateIndex);
-    assertRejected(runAggregator(
-      directory,
-      parentLabel,
-      [firstPath, secondPath],
-      `${parentLabel}-duplicate-index-observations.json`,
-    ), directory);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

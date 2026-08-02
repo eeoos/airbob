@@ -492,6 +492,26 @@ export default function () {
           === 'build/k6/bulk-write/wishlist-delete-after-n25-measure-r1-o2.json'
         && afterConfig.runLabel === 'wishlist-delete-after-n25-measure-r1'
     ),
+    'run config rejects a missing variant with every other required field present': () => (
+      rejects(() => parseBulkWriteRunConfig({
+        BASE_URL: 'http://localhost:8080/',
+        PHASE: 'measure',
+        DATASET_SIZE: '25',
+        SAMPLES: '3',
+        BENCHMARK_BULK_WRITE_TOKEN: TOKEN,
+        REQUEST_TIMEOUT: '30s',
+        K6_RESULT_PATH: 'build/k6/bulk-write/missing-variant.json',
+        RUN_LABEL: 'wishlist-missing-variant-n25-r1',
+        ROUND: '1',
+        RUN_ORDER: '2',
+        APP_COMMIT: 'abc123',
+        APP_INSTANCE_COUNT: '1',
+        SCHEMA_LABEL: 'airbob-bulk-write-v1',
+        JVM_VERSION: '21.0.7',
+        MYSQL_VERSION: '8.0.42',
+        REWRITE_BATCHED_STATEMENTS: 'false',
+      }))
+    ),
     'run config requires explicit reproducibility metadata': () => rejects(() => (
       parseBulkWriteRunConfig({
         DATASET_SIZE: '25',
