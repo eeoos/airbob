@@ -70,7 +70,7 @@ Each domain follows layered structure: `api/` (controllers) → `service/` → `
 - DLQ (`*.DLT`) with Slack notifications for failed messages
 
 **Search**
-- Elasticsearch 8.9 with Nori analyzer (Korean) + standard analyzer
+- Elasticsearch 8.18.8 with Nori analyzer (Korean) + standard analyzer
 - Dual endpoints: `/api/v1/search/accommodations` (ES) and `/api/v2/search/accommodations` (MySQL fallback)
 - Event-driven index updates via `AccommodationIndexingConsumer`
 

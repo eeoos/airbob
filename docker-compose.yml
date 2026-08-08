@@ -28,6 +28,7 @@ services:
       - --enforce-gtid-consistency=ON
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -130,7 +131,7 @@ services:
   # 사용법: docker compose --profile reindex run --rm logstash
   # --------------------------------------------------------
   logstash:
-    image: docker.elastic.co/logstash/logstash:8.9.0
+    image: logstash:8.18.8
     profiles: ["reindex"]
     depends_on:
       mysql:
@@ -254,7 +255,7 @@ services:
   # Kibana (Optional - 개발 편의용)
   # --------------------------------------------------------
   kibana:
-    image: kibana:8.9.0
+    image: kibana:8.18.8
     container_name: kibana
     profiles: ["ui"]  # docker compose --profile ui up -d
     ports:
