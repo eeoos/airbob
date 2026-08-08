@@ -34,4 +34,16 @@ public class CommonCodeGroup extends BaseEntity {
 
 	@Column(name = "is_active", nullable = false)
 	private boolean active;
+
+	public void updateDisplay(String groupName, String description, Boolean active) {
+		if (groupName != null) {
+			this.groupName = groupName;
+		}
+		if (description != null) {
+			this.description = description;
+		}
+		if (active != null) {
+			this.active = active;
+		}
+	}
 }

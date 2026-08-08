@@ -2,14 +2,16 @@ package kr.kro.airbob.domain.commoncode.service;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Ticker;
 
-import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
 import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
@@ -29,28 +31,49 @@ public class CommonCodeService {
 
 	private static final Duration CACHE_TTL = Duration.ofMinutes(1);
 
-	private final LoadingCache<String, List<CommonCodeResponse>> cache;
+	private final LoadingCache<String, CachedGroupCodes> cache;
 
+	@Autowired
 	public CommonCodeService(
 		CommonCodeGroupRepository groupRepository,
 		CommonCodeRepository commonCodeRepository
 	) {
-		CacheLoader<String, List<CommonCodeResponse>> loader = groupCode -> {
-			boolean groupActive = groupRepository.findById(groupCode)
-				.map(CommonCodeGroup::isActive)
-				.orElse(false);
-			if (!groupActive) {
-				return List.of();
+		this(groupRepository, commonCodeRepository, Ticker.systemTicker());
+	}
+
+	static CommonCodeService withTicker(
+		CommonCodeGroupRepository groupRepository,
+		CommonCodeRepository commonCodeRepository,
+		Ticker ticker
+	) {
+		return new CommonCodeService(groupRepository, commonCodeRepository, ticker);
+	}
+
+	private CommonCodeService(
+		CommonCodeGroupRepository groupRepository,
+		CommonCodeRepository commonCodeRepository,
+		Ticker ticker
+	) {
+		CacheLoader<String, CachedGroupCodes> loader = groupCode -> {
+			Optional<CommonCodeGroup> group = groupRepository.findById(groupCode);
+			if (group.isEmpty()) {
+				return CachedGroupCodes.notFound();
 			}
-			return commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAsc(groupCode)
+			if (!group.get().isActive()) {
+				return CachedGroupCodes.found(List.of());
+			}
+			List<CommonCodeResponse> codes = commonCodeRepository
+				.findByGroupCodeAndActiveTrueOrderBySortOrderAsc(groupCode)
 				.stream()
 				.map(CommonCodeResponse::from)
 				.toList();
+			return CachedGroupCodes.found(codes);
 		};
 
 		this.cache = Caffeine.newBuilder()
 			.maximumSize(100)
 			.expireAfterWrite(CACHE_TTL)
+			.ticker(ticker)
 			.build(loader);
 	}
 
@@ -59,10 +82,14 @@ public class CommonCodeService {
 	 * 캐시 미스 시 DB 로더가 적재
 	 */
 	public List<CommonCodeResponse> getCodes(String groupCode) {
-		if (!CommonCodeGroups.isSupported(groupCode)) {
+		if (groupCode == null) {
 			throw new CommonCodeGroupNotFoundException();
 		}
-		return cache.get(groupCode);
+		CachedGroupCodes cached = cache.get(groupCode);
+		if (!cached.exists()) {
+			throw new CommonCodeGroupNotFoundException();
+		}
+		return cached.codes();
 	}
 
 	/**
@@ -87,5 +114,16 @@ public class CommonCodeService {
 		}
 		return getCodes(groupCode).stream()
 			.anyMatch(c -> c.code().equals(code));
+	}
+
+	private record CachedGroupCodes(boolean exists, List<CommonCodeResponse> codes) {
+
+		private static CachedGroupCodes notFound() {
+			return new CachedGroupCodes(false, List.of());
+		}
+
+		private static CachedGroupCodes found(List<CommonCodeResponse> codes) {
+			return new CachedGroupCodes(true, List.copyOf(codes));
+		}
 	}
 }

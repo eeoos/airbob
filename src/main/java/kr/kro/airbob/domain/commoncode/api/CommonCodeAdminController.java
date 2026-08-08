@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupRequest;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeAdminService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,29 @@ import lombok.RequiredArgsConstructor;
 public class CommonCodeAdminController {
 
 	private final CommonCodeAdminService commonCodeAdminService;
+
+	@GetMapping("/v1/admin/common-code-groups")
+	public ResponseEntity<ApiResponse<List<CommonCodeGroupResponse>>> getGroups() {
+		return ResponseEntity.ok(ApiResponse.success(commonCodeAdminService.getGroups()));
+	}
+
+	@PostMapping("/v1/admin/common-code-groups")
+	public ResponseEntity<ApiResponse<CommonCodeGroupResponse>> createGroup(
+		@RequestBody @Valid CommonCodeGroupRequest.Create request) {
+
+		CommonCodeGroupResponse created = commonCodeAdminService.createGroup(request);
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created));
+	}
+
+	@PatchMapping("/v1/admin/common-code-groups/{groupCode}")
+	public ResponseEntity<ApiResponse<CommonCodeGroupResponse>> updateGroup(
+		@PathVariable String groupCode,
+		@RequestBody @Valid CommonCodeGroupRequest.Update request) {
+
+		CommonCodeGroupResponse updated = commonCodeAdminService.updateGroup(
+			groupCode.toUpperCase(Locale.ROOT), request);
+		return ResponseEntity.ok(ApiResponse.success(updated));
+	}
 
 	// 비활성 포함 전체 조회(관리 화면용)
 	@GetMapping("/v1/admin/common-codes/{group}")

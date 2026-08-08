@@ -2,10 +2,13 @@ package kr.kro.airbob.domain.commoncode.service;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -20,10 +23,16 @@ import org.testcontainers.utility.DockerImageName;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupRequest;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeDuplicateException;
+import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupDuplicateException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeNotFoundException;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 /**
@@ -38,6 +47,7 @@ class CommonCodeAdminServiceIntegrationTest {
 
 	@Autowired private CommonCodeAdminService adminService;
 	@Autowired private CommonCodeService commonCodeService;
+	@Autowired private CommonCodeGroupRepository groupRepository;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
@@ -132,5 +142,135 @@ class CommonCodeAdminServiceIntegrationTest {
 		assertThatThrownBy(() -> adminService.update(CommonCodeGroups.AMENITY_TYPE, "NOPE",
 			new CommonCodeRequest.Update("x", null, null, null)))
 			.isInstanceOf(CommonCodeNotFoundException.class);
+	}
+
+	@Test
+	@DisplayName("그룹 목록은 비활성을 포함해 그룹 코드 순으로 반환한다")
+	void listGroupsInCodeOrder() {
+		adminService.createGroup(new CommonCodeGroupRequest.Create(
+			"ZZ_LIST_GROUP", "목록 그룹", null, false));
+
+		List<CommonCodeGroupResponse> groups = adminService.getGroups();
+
+		assertThat(groups)
+			.extracting(CommonCodeGroupResponse::groupCode)
+			.isSorted()
+			.contains("AMENITY_TYPE", "ACCOMMODATION_TYPE", "ZZ_LIST_GROUP");
+		assertThat(groups)
+			.anyMatch(group -> group.groupCode().equals("ZZ_LIST_GROUP") && !group.active());
+	}
+
+	@Test
+	@DisplayName("그룹 생성은 코드를 정규화하고 활성 기본값을 적용한다")
+	void createGroup() {
+		CommonCodeGroupResponse created = adminService.createGroup(
+			new CommonCodeGroupRequest.Create(" payment_method ", "결제 수단", null, null));
+
+		assertThat(created.groupCode()).isEqualTo("PAYMENT_METHOD");
+		assertThat(created.groupName()).isEqualTo("결제 수단");
+		assertThat(created.active()).isTrue();
+
+		CommonCodeGroup saved = groupRepository.findById("PAYMENT_METHOD").orElseThrow();
+		assertThat(saved.getGroupName()).isEqualTo("결제 수단");
+		assertThat(saved.isActive()).isTrue();
+	}
+
+	@Test
+	@DisplayName("이미 존재하는 그룹 코드는 생성할 수 없다")
+	void rejectDuplicateGroup() {
+		assertThatThrownBy(() -> adminService.createGroup(
+			new CommonCodeGroupRequest.Create("amenity_type", "중복 그룹", null, true)))
+			.isInstanceOf(CommonCodeGroupDuplicateException.class);
+	}
+
+	@Test
+	@DisplayName("중복 그룹 INSERT는 기존 그룹을 덮어쓰지 않는다")
+	void duplicateGroupInsertDoesNotOverwriteExistingGroup() {
+		adminService.createGroup(new CommonCodeGroupRequest.Create(
+			"INSERT_ONLY_GROUP", "최초 이름", "최초 설명", true));
+
+		CommonCodeGroup duplicate = CommonCodeGroup.builder()
+			.groupCode("INSERT_ONLY_GROUP")
+			.groupName("덮어쓴 이름")
+			.description("덮어쓴 설명")
+			.active(false)
+			.build();
+
+		assertThatThrownBy(() -> groupRepository.insert(duplicate))
+			.isInstanceOf(DataIntegrityViolationException.class);
+
+		CommonCodeGroup saved = groupRepository.findById("INSERT_ONLY_GROUP").orElseThrow();
+		assertThat(saved.getGroupName()).isEqualTo("최초 이름");
+		assertThat(saved.getDescription()).isEqualTo("최초 설명");
+		assertThat(saved.isActive()).isTrue();
+	}
+
+	@Test
+	@DisplayName("그룹 수정은 전달된 필드만 변경한다")
+	void updateGroup() {
+		adminService.createGroup(new CommonCodeGroupRequest.Create(
+			"GROUP_UPDATE", "기존 이름", "기존 설명", true));
+
+		CommonCodeGroupResponse updated = adminService.updateGroup(
+			"group_update", new CommonCodeGroupRequest.Update("새 이름", null, false));
+
+		assertThat(updated.groupCode()).isEqualTo("GROUP_UPDATE");
+		assertThat(updated.groupName()).isEqualTo("새 이름");
+		assertThat(updated.description()).isEqualTo("기존 설명");
+		assertThat(updated.active()).isFalse();
+
+		CommonCodeGroup saved = groupRepository.findById("GROUP_UPDATE").orElseThrow();
+		assertThat(saved.getGroupName()).isEqualTo("새 이름");
+		assertThat(saved.getDescription()).isEqualTo("기존 설명");
+		assertThat(saved.isActive()).isFalse();
+	}
+
+	@Test
+	@DisplayName("빈 설명으로 그룹 설명을 제거할 수 있다")
+	void clearGroupDescription() {
+		adminService.createGroup(new CommonCodeGroupRequest.Create(
+			"GROUP_CLEAR_DESCRIPTION", "설명 제거 그룹", "기존 설명", true));
+
+		CommonCodeGroupResponse updated = adminService.updateGroup(
+			"GROUP_CLEAR_DESCRIPTION", new CommonCodeGroupRequest.Update(null, "", null));
+
+		assertThat(updated.groupName()).isEqualTo("설명 제거 그룹");
+		assertThat(updated.description()).isEmpty();
+		assertThat(updated.active()).isTrue();
+
+		CommonCodeGroup saved = groupRepository.findById("GROUP_CLEAR_DESCRIPTION").orElseThrow();
+		assertThat(saved.getDescription()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("존재하지 않는 그룹은 수정할 수 없다")
+	void rejectMissingGroupUpdate() {
+		assertThatThrownBy(() -> adminService.updateGroup(
+			"MISSING_GROUP", new CommonCodeGroupRequest.Update("새 이름", null, null)))
+			.isInstanceOf(CommonCodeGroupNotFoundException.class);
+	}
+
+	@Test
+	@DisplayName("새 활성 그룹에 등록한 코드는 공개 조회에서 사용할 수 있다")
+	void useNewGroupFromPublicCache() {
+		adminService.createGroup(new CommonCodeGroupRequest.Create(
+			"DELIVERY_METHOD", "배송 방식", null, true));
+		adminService.create("DELIVERY_METHOD",
+			new CommonCodeRequest.Create("QUICK", "퀵 배송", null, 1, true));
+
+		assertThat(commonCodeService.getCodes("DELIVERY_METHOD"))
+			.extracting(CommonCodeResponse::code)
+			.containsExactly("QUICK");
+	}
+
+	@Test
+	@DisplayName("비활성 그룹에 등록한 코드는 공개 조회에서 사용하지 않는다")
+	void hideCodesOfInactiveGroup() {
+		adminService.createGroup(new CommonCodeGroupRequest.Create(
+			"INACTIVE_DYNAMIC_GROUP", "비활성 동적 그룹", null, false));
+		adminService.create("INACTIVE_DYNAMIC_GROUP",
+			new CommonCodeRequest.Create("HIDDEN", "숨김 코드", null, 1, true));
+
+		assertThat(commonCodeService.getCodes("INACTIVE_DYNAMIC_GROUP")).isEmpty();
 	}
 }
