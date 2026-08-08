@@ -1,7 +1,7 @@
 -- V6__add_common_code.sql
--- 공통 코드(순수 공통 코드 테이블). 편의시설/숙소유형은 ENUM을 제거하고 DB가 정합성의 단일 소스가 된다.
+-- 공통 코드(순수 공통 코드 테이블). 편의시설/숙소유형은 ENUM을 제거하고 DB가 정합성의 단일 소스
 --  * common_code_group  = 코드 그룹 정의 (PK = 자연키 group_code)
---  * common_code_detail = 그룹별 상세 코드 (PK = 복합키 (group_code, code))
+--  * common_code       = 그룹별 코드 (PK = 복합키 (group_code, code))
 --  * 원본 테이블(accommodation.type, amenity.name)은 code 문자열만 FK 없이 느슨하게 보관
 --  * 정합성은 DB FK 대신 애플리케이션(CommonCodeService 캐시)에서 쓰기 시 검증
 --  * UNKNOWN 등 파싱 폴백 센티넬은 카탈로그에서 제외(사용자 노출 대상 아님)
@@ -18,7 +18,7 @@ CREATE TABLE common_code_group (
   PRIMARY KEY (group_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE common_code_detail (
+CREATE TABLE common_code (
   group_code varchar(50) NOT NULL,
   code varchar(50) NOT NULL,
   name varchar(100) NOT NULL,
@@ -30,8 +30,8 @@ CREATE TABLE common_code_detail (
   created_by bigint DEFAULT NULL,
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (group_code, code),
-  KEY idx_common_code_detail_lookup (group_code, is_active, sort_order),
-  CONSTRAINT fk_common_code_detail_group FOREIGN KEY (group_code) REFERENCES common_code_group (group_code)
+  KEY idx_common_code_lookup (group_code, is_active, sort_order),
+  CONSTRAINT fk_common_code_group FOREIGN KEY (group_code) REFERENCES common_code_group (group_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 그룹 시드
@@ -39,8 +39,8 @@ INSERT INTO common_code_group (group_code, group_name, description, is_active, u
   ('AMENITY_TYPE', '편의시설', '숙소 편의시설 종류', 1, CURRENT_TIMESTAMP(6)),
   ('ACCOMMODATION_TYPE', '숙소유형', '숙소 유형 분류', 1, CURRENT_TIMESTAMP(6));
 
--- 편의시설 상세 시드 (AmenityType, UNKNOWN 제외)
-INSERT INTO common_code_detail (group_code, code, name, sort_order, is_active, updated_at) VALUES
+-- 편의시설 코드 시드 (AmenityType, UNKNOWN 제외)
+INSERT INTO common_code (group_code, code, name, sort_order, is_active, updated_at) VALUES
   ('AMENITY_TYPE', 'WIFI', '무선 인터넷', 1, 1, CURRENT_TIMESTAMP(6)),
   ('AMENITY_TYPE', 'AIR_CONDITIONER', '에어컨', 2, 1, CURRENT_TIMESTAMP(6)),
   ('AMENITY_TYPE', 'HEATING', '난방', 3, 1, CURRENT_TIMESTAMP(6)),
@@ -72,8 +72,8 @@ INSERT INTO common_code_detail (group_code, code, name, sort_order, is_active, u
   ('AMENITY_TYPE', 'BBQ_GRILL', '바베큐 그릴', 29, 1, CURRENT_TIMESTAMP(6)),
   ('AMENITY_TYPE', 'BALCONY', '발코니', 30, 1, CURRENT_TIMESTAMP(6));
 
--- 숙소유형 상세 시드 (AccommodationType)
-INSERT INTO common_code_detail (group_code, code, name, sort_order, is_active, updated_at) VALUES
+-- 숙소유형 코드 시드 (AccommodationType)
+INSERT INTO common_code (group_code, code, name, sort_order, is_active, updated_at) VALUES
   ('ACCOMMODATION_TYPE', 'ENTIRE_PLACE', '전체 숙소', 1, 1, CURRENT_TIMESTAMP(6)),
   ('ACCOMMODATION_TYPE', 'PRIVATE_ROOM', '개인실', 2, 1, CURRENT_TIMESTAMP(6)),
   ('ACCOMMODATION_TYPE', 'SHARED_ROOM', '다인실', 3, 1, CURRENT_TIMESTAMP(6)),

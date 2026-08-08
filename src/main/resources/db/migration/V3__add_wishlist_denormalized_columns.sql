@@ -2,7 +2,7 @@
 -- 위시리스트 목록 조회 핫패스(COUNT GROUP BY + ROW_NUMBER 썸네일)를 제거하기 위한 반정규화 컬럼.
 --  * accommodation_count            : 저장한 숙소 개수(멤버십 수, 게시 여부 무관)
 --  * representative_accommodation_id: 대표(가장 최근에 추가된) 숙소 id. 썸네일은 PK 배치 조인으로 조회.
--- 추가/삭제 시 WishlistService 가 원자적 UPDATE 로 유지한다.
+-- 추가/삭제 시 WishlistService 가 원자적 UPDATE 로 유지
 
 ALTER TABLE wishlist
   ADD COLUMN accommodation_count int NOT NULL DEFAULT 0,

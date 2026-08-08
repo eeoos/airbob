@@ -1,9 +1,9 @@
 -- V7__amenity_to_common_code.sql
--- 편의시설 카탈로그 단일화. 기존 amenity 테이블(편의시설 코드 목록)이 common_code_detail(AMENITY_TYPE)과
--- 중복이라, amenity 테이블을 제거하고 accommodation_amenity 가 코드 문자열을 직접 보관하도록 전환한다.
+-- 편의시설 카탈로그 단일화. 기존 amenity 테이블(편의시설 코드 목록)이 common_code(AMENITY_TYPE)과
+-- 중복이라, amenity 테이블을 제거하고 accommodation_amenity 가 코드 문자열을 직접 보관하도록 전환
 --  * accommodation_amenity.amenity_id (FK→amenity.id) → amenity_code varchar (FK 없는 느슨한 코드)
 --  * 정합성은 공통 코드(CommonCodeService 캐시)가 쓰기 시 검증 → DB FK 불필요
---  * common_code_detail(AMENITY_TYPE)이 편의시설의 유일한 카탈로그(단일 source of truth)가 됨
+--  * common_code(AMENITY_TYPE)이 편의시설의 유일한 카탈로그(단일 source of truth)가 됨
 
 -- 1) 코드 컬럼 추가
 ALTER TABLE accommodation_amenity
