@@ -686,7 +686,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	private List<String> activeAmenityCodes() {
 		return jdbcTemplate.queryForList("""
 			SELECT code
-			FROM common_code_detail
+			FROM common_code
 			WHERE group_code = 'AMENITY_TYPE' AND is_active = 1
 			ORDER BY sort_order, code
 			""", String.class);

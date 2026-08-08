@@ -13,14 +13,14 @@ import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
 import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
-import kr.kro.airbob.domain.commoncode.repository.CommonCodeDetailRepository;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeRepository;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 공통 코드 조회 서비스
  *
- * 로컬 캐시 + TTL(1분): group_code 단위로 활성 상세 코드 목록을 Caffeine 에 적재
+ * 로컬 캐시 + TTL(1분): group_code 단위로 활성 공통 코드 목록을 Caffeine 에 적재
  * DB 에서 라벨/정렬/활성여부를 바꾸면 최대 1분 내 반영
  */
 @Slf4j
@@ -33,7 +33,7 @@ public class CommonCodeService {
 
 	public CommonCodeService(
 		CommonCodeGroupRepository groupRepository,
-		CommonCodeDetailRepository detailRepository
+		CommonCodeRepository commonCodeRepository
 	) {
 		CacheLoader<String, List<CommonCodeResponse>> loader = groupCode -> {
 			boolean groupActive = groupRepository.findById(groupCode)
@@ -42,7 +42,7 @@ public class CommonCodeService {
 			if (!groupActive) {
 				return List.of();
 			}
-			return detailRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAsc(groupCode)
+			return commonCodeRepository.findByGroupCodeAndActiveTrueOrderBySortOrderAsc(groupCode)
 				.stream()
 				.map(CommonCodeResponse::from)
 				.toList();

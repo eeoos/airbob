@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.commoncode.dto;
 
-import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetail;
+import kr.kro.airbob.domain.commoncode.entity.CommonCode;
 import lombok.Builder;
 
 /**
@@ -14,13 +14,13 @@ public record CommonCodeAdminResponse(
 	int sortOrder,
 	boolean active
 ) {
-	public static CommonCodeAdminResponse from(CommonCodeDetail detail) {
+	public static CommonCodeAdminResponse from(CommonCode commonCode) {
 		return CommonCodeAdminResponse.builder()
-			.code(detail.getCode())
-			.name(detail.getName())
-			.description(detail.getDescription())
-			.sortOrder(detail.getSortOrder())
-			.active(detail.isActive())
+			.code(commonCode.getCode())
+			.name(commonCode.getName())
+			.description(commonCode.getDescription())
+			.sortOrder(commonCode.getSortOrder())
+			.active(commonCode.isActive())
 			.build();
 	}
 }

@@ -7,13 +7,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
-import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetail;
-import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetailId;
+import kr.kro.airbob.domain.commoncode.entity.CommonCode;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeId;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeDuplicateException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeNotFoundException;
-import kr.kro.airbob.domain.commoncode.repository.CommonCodeDetailRepository;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -25,12 +25,12 @@ import lombok.RequiredArgsConstructor;
 public class CommonCodeAdminService {
 
 	private final CommonCodeGroupRepository groupRepository;
-	private final CommonCodeDetailRepository detailRepository;
+	private final CommonCodeRepository commonCodeRepository;
 
 	@Transactional(readOnly = true)
 	public List<CommonCodeAdminResponse> getAll(String groupCode) {
 		requireGroup(groupCode);
-		return detailRepository.findByGroupCodeOrderBySortOrderAsc(groupCode).stream()
+		return commonCodeRepository.findByGroupCodeOrderBySortOrderAsc(groupCode).stream()
 			.map(CommonCodeAdminResponse::from)
 			.toList();
 	}
@@ -40,11 +40,11 @@ public class CommonCodeAdminService {
 		requireGroup(groupCode);
 
 		String code = request.code().toUpperCase();
-		if (detailRepository.existsById(new CommonCodeDetailId(groupCode, code))) {
+		if (commonCodeRepository.existsById(new CommonCodeId(groupCode, code))) {
 			throw new CommonCodeDuplicateException();
 		}
 
-		CommonCodeDetail detail = CommonCodeDetail.builder()
+		CommonCode commonCode = CommonCode.builder()
 			.groupCode(groupCode)
 			.code(code)
 			.name(request.name())
@@ -52,19 +52,19 @@ public class CommonCodeAdminService {
 			.sortOrder(request.sortOrder() == null ? 0 : request.sortOrder())
 			.active(request.isActive() == null || request.isActive())
 			.build();
-		detailRepository.save(detail);
+		commonCodeRepository.save(commonCode);
 
-		return CommonCodeAdminResponse.from(detail);
+		return CommonCodeAdminResponse.from(commonCode);
 	}
 
 	@Transactional
 	public CommonCodeAdminResponse update(String groupCode, String code, CommonCodeRequest.Update request) {
-		CommonCodeDetail detail = detailRepository.findById(new CommonCodeDetailId(groupCode, code.toUpperCase()))
+		CommonCode commonCode = commonCodeRepository.findById(new CommonCodeId(groupCode, code.toUpperCase()))
 			.orElseThrow(CommonCodeNotFoundException::new);
 
-		detail.updateDisplay(request.name(), request.description(), request.sortOrder(), request.isActive());
+		commonCode.updateDisplay(request.name(), request.description(), request.sortOrder(), request.isActive());
 
-		return CommonCodeAdminResponse.from(detail);
+		return CommonCodeAdminResponse.from(commonCode);
 	}
 
 	private void requireGroup(String groupCode) {

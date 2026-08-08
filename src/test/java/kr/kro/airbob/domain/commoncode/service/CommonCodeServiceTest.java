@@ -11,8 +11,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
-import kr.kro.airbob.domain.commoncode.repository.CommonCodeDetailRepository;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("공통 코드 서비스 단위 테스트")
@@ -22,7 +22,7 @@ class CommonCodeServiceTest {
 	private CommonCodeGroupRepository groupRepository;
 
 	@Mock
-	private CommonCodeDetailRepository detailRepository;
+	private CommonCodeRepository commonCodeRepository;
 
 	@InjectMocks
 	private CommonCodeService commonCodeService;
@@ -33,6 +33,6 @@ class CommonCodeServiceTest {
 		assertThatThrownBy(() -> commonCodeService.getCodes("NOT_A_GROUP"))
 			.isInstanceOf(CommonCodeGroupNotFoundException.class);
 
-		verifyNoInteractions(groupRepository, detailRepository);
+		verifyNoInteractions(groupRepository, commonCodeRepository);
 	}
 }

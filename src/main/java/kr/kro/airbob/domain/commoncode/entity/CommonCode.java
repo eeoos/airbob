@@ -13,16 +13,16 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * 공통 코드 상세. PK = 복합키 (group_code, code)
+ * 공통 코드. PK = 복합키 (group_code, code)
  */
 @Entity
-@Table(name = "common_code_detail")
-@IdClass(CommonCodeDetailId.class)
+@Table(name = "common_code")
+@IdClass(CommonCodeId.class)
 @Getter
 @SuperBuilder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CommonCodeDetail extends BaseEntity {
+public class CommonCode extends BaseEntity {
 
 	@Id
 	@Column(name = "group_code", length = 50)
