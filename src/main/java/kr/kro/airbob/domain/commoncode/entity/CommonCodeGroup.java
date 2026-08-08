@@ -12,8 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * 공통 코드 그룹 정의. PK = 자연키 group_code.
- * 그룹 단위 일괄 비활성화(is_active)를 지원한다.
+ * 공통 코드 그룹 정의. PK = 자연키 group_code
  */
 @Entity
 @Table(name = "common_code_group")

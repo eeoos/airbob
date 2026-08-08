@@ -4,7 +4,7 @@ import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetail;
 import lombok.Builder;
 
 /**
- * 관리자 화면용 공통 코드 응답. 비활성 여부·설명까지 노출(운영 관리용).
+ * 관리자 화면용 공통 코드 응답
  */
 @Builder
 public record CommonCodeAdminResponse(

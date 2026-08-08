@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 공통 코드 관리(쓰기) 서비스. 운영자가 배포 없이 코드를 추가/수정한다.
- * 모든 쓰기 후 해당 그룹 캐시를 무효화해 조회/검증 경로에 즉시 반영한다.
+ * 조회 캐시는 인스턴스별 TTL 만료 후 DB 변경을 반영한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,7 +26,6 @@ public class CommonCodeAdminService {
 
 	private final CommonCodeGroupRepository groupRepository;
 	private final CommonCodeDetailRepository detailRepository;
-	private final CommonCodeService commonCodeService;
 
 	@Transactional(readOnly = true)
 	public List<CommonCodeAdminResponse> getAll(String groupCode) {
@@ -55,7 +54,6 @@ public class CommonCodeAdminService {
 			.build();
 		detailRepository.save(detail);
 
-		commonCodeService.evict(groupCode);
 		return CommonCodeAdminResponse.from(detail);
 	}
 
@@ -66,7 +64,6 @@ public class CommonCodeAdminService {
 
 		detail.updateDisplay(request.name(), request.description(), request.sortOrder(), request.isActive());
 
-		commonCodeService.evict(groupCode);
 		return CommonCodeAdminResponse.from(detail);
 	}
 

@@ -4,7 +4,8 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * 공통 코드 그룹 코드 상수. 매직 스트링 방지 + 사용처 추적용.
+ * 공통 코드 그룹 코드 상수
+ * 매직 스트링 방지 + 사용처 추적용
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CommonCodeGroups {

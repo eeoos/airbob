@@ -27,7 +27,8 @@ import kr.kro.airbob.domain.commoncode.exception.CommonCodeNotFoundException;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 /**
- * 공통 코드 관리 서비스 통합 테스트. 생성/수정 + 캐시 무효화가 조회/검증 경로에 즉시 반영되는지 검증한다.
+ * 공통 코드 관리 서비스 통합 테스트.
+ * 관리자 쓰기는 DB에 즉시 반영하고, 이미 적재된 조회 캐시는 즉시 무효화하지 않는지 검증한다.
  */
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
@@ -66,40 +67,46 @@ class CommonCodeAdminServiceIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("새 코드를 생성하면 캐시 무효화로 조회·검증에 즉시 반영된다")
-	void createReflectsAfterEviction() {
+	@DisplayName("새 코드를 생성해도 이미 적재된 조회 캐시는 즉시 무효화되지 않는다")
+	void createDoesNotInvalidateCachedSnapshot() {
 		// 캐시 워밍업(생성 전 상태 적재)
 		assertThat(commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isFalse();
 
 		adminService.create(CommonCodeGroups.AMENITY_TYPE,
 			new CommonCodeRequest.Create("SAUNA", "사우나", null, 99, true));
 
-		assertThat(commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isTrue();
-		assertThat(commonCodeService.getLabel(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isEqualTo("사우나");
+		assertThat(adminService.getAll(CommonCodeGroups.AMENITY_TYPE))
+			.anyMatch(code -> code.code().equals("SAUNA") && code.name().equals("사우나"));
+		assertThat(commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isFalse();
+		assertThat(commonCodeService.getLabel(CommonCodeGroups.AMENITY_TYPE, "SAUNA")).isEqualTo("SAUNA");
 	}
 
 	@Test
-	@DisplayName("라벨 수정이 캐시 무효화로 조회에 즉시 반영된다")
-	void updateLabelReflects() {
+	@DisplayName("라벨을 수정해도 이미 적재된 조회 캐시는 즉시 무효화되지 않는다")
+	void updateLabelDoesNotInvalidateCachedSnapshot() {
 		assertThat(commonCodeService.getLabel(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM"))
 			.isEqualTo("호텔 객실");
 
 		adminService.update(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM",
 			new CommonCodeRequest.Update("호텔룸", null, null, null));
 
+		assertThat(adminService.getAll(CommonCodeGroups.ACCOMMODATION_TYPE))
+			.anyMatch(code -> code.code().equals("HOTEL_ROOM") && code.name().equals("호텔룸"));
 		assertThat(commonCodeService.getLabel(CommonCodeGroups.ACCOMMODATION_TYPE, "HOTEL_ROOM"))
-			.isEqualTo("호텔룸");
+			.isEqualTo("호텔 객실");
 	}
 
 	@Test
-	@DisplayName("비활성(is_active=false)으로 바꾸면 조회 목록에서 빠진다")
-	void deactivateHidesFromList() {
+	@DisplayName("코드를 비활성화해도 이미 적재된 조회 캐시는 즉시 무효화되지 않는다")
+	void deactivateDoesNotInvalidateCachedSnapshot() {
 		assertThat(commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE")).isTrue();
 
 		adminService.update(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE",
 			new CommonCodeRequest.Update(null, null, null, false));
 
-		assertThat(commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE")).isFalse();
+		assertThat(adminService.getAll(CommonCodeGroups.ACCOMMODATION_TYPE))
+			.anyMatch(code -> code.code().equals("CASTLE") && !code.active());
+		assertThat(commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, "CASTLE")).isTrue();
 	}
 
 	@Test

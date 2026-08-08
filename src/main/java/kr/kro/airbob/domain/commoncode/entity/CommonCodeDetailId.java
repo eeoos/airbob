@@ -9,7 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * common_code_detail 복합키 (group_code, code).
+ * common_code_detail 복합키 (group_code, code)
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

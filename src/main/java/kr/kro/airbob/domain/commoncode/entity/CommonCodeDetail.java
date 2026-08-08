@@ -44,7 +44,8 @@ public class CommonCodeDetail extends BaseEntity {
 	@Column(name = "is_active", nullable = false)
 	private boolean active;
 
-	// 관리자 부분 수정(PATCH). null 인 필드는 변경하지 않는다. code(PK)는 불변.
+	// 관리자 부분 수정(PATCH)
+	// null인 필드는 변경 X
 	public void updateDisplay(String name, String description, Integer sortOrder, Boolean active) {
 		if (name != null) {
 			this.name = name;

@@ -11,8 +11,8 @@ public interface CommonCodeDetailRepository
 	extends JpaRepository<CommonCodeDetail, CommonCodeDetailId> {
 
 	/**
-	 * 활성 그룹 전제하에, 활성 상세 코드를 정렬 순서대로 조회.
-	 * (그룹 자체의 활성 여부는 서비스 캐시 로더에서 확인한다.)
+	 * 활성 그룹 전제하에, 활성 상세 코드를 정렬 순서대로 조회
+	 * (그룹 자체의 활성 여부는 서비스 캐시 로더에서 확인)
 	 */
 	List<CommonCodeDetail> findByGroupCodeAndActiveTrueOrderBySortOrderAsc(String groupCode);
 
