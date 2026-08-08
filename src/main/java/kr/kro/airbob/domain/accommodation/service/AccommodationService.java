@@ -45,6 +45,7 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
+import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationTypeException;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
@@ -491,7 +492,7 @@ public class AccommodationService {
             return;
         }
         if (!commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase())) {
-            throw new IllegalArgumentException("유효하지 않은 숙소 유형 코드입니다: " + type);
+            throw new InvalidAccommodationTypeException();
         }
     }
 
