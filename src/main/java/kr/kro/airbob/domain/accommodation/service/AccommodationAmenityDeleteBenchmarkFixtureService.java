@@ -22,9 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.code.CommonCodeGroups;
-import kr.kro.airbob.common.code.CommonCodeResponse;
-import kr.kro.airbob.common.code.CommonCodeService;
+import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
+import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;

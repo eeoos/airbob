@@ -1,4 +1,4 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.entity;
 
 import java.io.Serializable;
 import java.util.Objects;

@@ -1,4 +1,4 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.service;
 
 import java.time.Duration;
 import java.util.List;
@@ -9,6 +9,10 @@ import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeDetailRepository;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
 import lombok.extern.slf4j.Slf4j;
 
 /**

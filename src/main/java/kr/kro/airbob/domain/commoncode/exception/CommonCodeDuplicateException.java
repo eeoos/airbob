@@ -1,4 +1,4 @@
-package kr.kro.airbob.common.code.exception;
+package kr.kro.airbob.domain.commoncode.exception;
 
 import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.common.exception.ErrorCode;

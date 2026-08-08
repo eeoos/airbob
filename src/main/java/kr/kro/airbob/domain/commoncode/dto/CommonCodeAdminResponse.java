@@ -1,5 +1,6 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.dto;
 
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetail;
 import lombok.Builder;
 
 /**

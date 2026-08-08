@@ -11,8 +11,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.code.CommonCodeGroups;
-import kr.kro.airbob.common.code.CommonCodeService;
+import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
+import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;

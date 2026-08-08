@@ -1,4 +1,4 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.common;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

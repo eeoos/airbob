@@ -1,8 +1,11 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.repository;
 
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetail;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetailId;
 
 public interface CommonCodeDetailRepository
 	extends JpaRepository<CommonCodeDetail, CommonCodeDetailId> {

@@ -1,4 +1,4 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.service;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -21,6 +21,8 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
+import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 /**

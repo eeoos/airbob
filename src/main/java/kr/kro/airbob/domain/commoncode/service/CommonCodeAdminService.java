@@ -1,13 +1,19 @@
-package kr.kro.airbob.common.code;
+package kr.kro.airbob.domain.commoncode.service;
 
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.common.code.exception.CommonCodeDuplicateException;
-import kr.kro.airbob.common.code.exception.CommonCodeGroupNotFoundException;
-import kr.kro.airbob.common.code.exception.CommonCodeNotFoundException;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetail;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeDetailId;
+import kr.kro.airbob.domain.commoncode.exception.CommonCodeDuplicateException;
+import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
+import kr.kro.airbob.domain.commoncode.exception.CommonCodeNotFoundException;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeDetailRepository;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
 import lombok.RequiredArgsConstructor;
 
 /**

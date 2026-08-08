@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkDatabaseGuard;
-import kr.kro.airbob.common.code.CommonCodeService;
+import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationMonitor;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
