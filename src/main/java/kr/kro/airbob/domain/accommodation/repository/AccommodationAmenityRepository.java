@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,4 +18,8 @@ public interface AccommodationAmenityRepository extends JpaRepository<Accommodat
     List<AccommodationAmenity> findAllByAccommodation_AccommodationUid(UUID accommodationUid);
 
     void deleteByAccommodationId(Long accommodationId);
+
+    @Modifying
+    @Query("DELETE FROM AccommodationAmenity amenity WHERE amenity.accommodation.id = :accommodationId")
+    int deleteByAccommodationIdInBulk(@Param("accommodationId") Long accommodationId);
 }

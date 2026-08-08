@@ -46,17 +46,28 @@ export function benchmarkHeaders(token, headers = {}) {
   };
 }
 
-export function loginBenchmarkAccount({ baseUrl, email, password }) {
+export function benchmarkLoginRequestParams({ redirects } = {}) {
+  if (redirects !== undefined && (!Number.isInteger(redirects) || redirects < 0)) {
+    throw new Error('login redirects must be a non-negative integer');
+  }
+  const params = {
+    headers: { 'Content-Type': 'application/json' },
+    tags: {
+      phase: 'setup',
+      name: 'POST /api/v1/auth/login',
+    },
+  };
+  if (redirects !== undefined) {
+    params.redirects = redirects;
+  }
+  return params;
+}
+
+export function loginBenchmarkAccount({ baseUrl, email, password, redirects }) {
   const response = http.post(
     `${baseUrl}/api/v1/auth/login`,
     JSON.stringify({ email, password }),
-    {
-      headers: { 'Content-Type': 'application/json' },
-      tags: {
-        phase: 'setup',
-        name: 'POST /api/v1/auth/login',
-      },
-    },
+    benchmarkLoginRequestParams({ redirects }),
   );
 
   const sessionId = response.cookies.SESSION_ID?.[0]?.value;

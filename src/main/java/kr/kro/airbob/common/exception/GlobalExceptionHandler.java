@@ -1,6 +1,7 @@
 package kr.kro.airbob.common.exception;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,13 @@ public class GlobalExceptionHandler {
 	protected ResponseEntity<ApiResponse<?>> handleBindException(BindException e) {
 		log.warn("handleBindException (Validation Failed): {}", e.getMessage());
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, e.getBindingResult());
+		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	protected ResponseEntity<ApiResponse<?>> handleHttpMessageNotReadableException() {
+		log.warn("handleHttpMessageNotReadableException: malformed request body");
+		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
 	}
 

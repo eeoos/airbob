@@ -29,8 +29,8 @@ import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.common.code.CommonCodeGroups;
-import kr.kro.airbob.common.code.CommonCodeService;
+import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
+import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
@@ -529,7 +529,7 @@ public class AccommodationService {
             return;
         }
 
-        accommodationAmenityRepository.deleteByAccommodationId(accommodation.getId());
+        accommodationAmenityRepository.deleteByAccommodationIdInBulk(accommodation.getId());
 
         if (!amenityInfos.isEmpty()) {
             saveValidAmenities(amenityInfos, accommodation);

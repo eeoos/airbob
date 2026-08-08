@@ -1,0 +1,29 @@
+benchmark:
+  bulk-write:
+    enabled: ${BENCHMARK_BULK_WRITE_ENABLED:false}
+    token: ${BENCHMARK_BULK_WRITE_TOKEN}
+    allowed-schema: ${BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA}
+
+spring:
+  datasource:
+    hikari:
+      data-source-properties:
+        rewriteBatchedStatements: ${JDBC_REWRITE_BATCHED_STATEMENTS:false}
+  flyway:
+    enabled: false
+  kafka:
+    listener:
+      auto-startup: false
+  jpa:
+    properties:
+      hibernate:
+        show_sql: false
+        format_sql: false
+
+logging:
+  level:
+    kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler: ERROR
+    kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService: "OFF"
+    org.hibernate.SQL: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"

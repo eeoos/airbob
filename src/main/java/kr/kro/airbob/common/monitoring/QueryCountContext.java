@@ -15,7 +15,10 @@ public class QueryCountContext {
 	}
 
 	public void incrementQueryCount(String sql) {
-		SqlQueryType queryType = SqlQueryType.from(sql);
+		incrementQueryCount(SqlQueryType.from(sql));
+	}
+
+	public void incrementQueryCount(SqlQueryType queryType) {
 		queryCountByType.merge(queryType, 1, Integer::sum);
 		queryCountByType.merge(SqlQueryType.TOTAL, 1, Integer::sum);
 	}

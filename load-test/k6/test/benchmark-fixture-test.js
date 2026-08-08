@@ -1,5 +1,6 @@
 import { check } from 'k6';
 import {
+  benchmarkLoginRequestParams,
   benchmarkHeaders,
   buildRecentlyViewedFixtureBody,
 } from '../lib/benchmark-fixture.js';
@@ -18,6 +19,8 @@ export default function () {
   const headers = benchmarkHeaders(' benchmark-token ', {
     'Content-Type': 'application/json',
   });
+  const defaultLoginParams = benchmarkLoginRequestParams();
+  const noRedirectLoginParams = benchmarkLoginRequestParams({ redirects: 0 });
 
   check(payload, {
     'fixture body uses snake case': (value) => (
@@ -33,6 +36,24 @@ export default function () {
     'blank benchmark token is rejected': () => {
       try {
         benchmarkHeaders(' ');
+        return false;
+      } catch (_) {
+        return true;
+      }
+    },
+    'default login params preserve existing redirect behavior': () => (
+      !Object.prototype.hasOwnProperty.call(defaultLoginParams, 'redirects')
+        && defaultLoginParams.headers['Content-Type'] === 'application/json'
+        && defaultLoginParams.tags.phase === 'setup'
+    ),
+    'bulk login params disable redirects per request': () => (
+      noRedirectLoginParams.redirects === 0
+        && noRedirectLoginParams.headers['Content-Type'] === 'application/json'
+        && noRedirectLoginParams.tags.name === 'POST /api/v1/auth/login'
+    ),
+    'negative login redirect limits are rejected': () => {
+      try {
+        benchmarkLoginRequestParams({ redirects: -1 });
         return false;
       } catch (_) {
         return true;

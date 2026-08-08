@@ -1,0 +1,264 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+test_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+repo_root="$(cd -- "$test_dir/../../.." && pwd -P)"
+runner="$repo_root/load-test/k6/bulk-write/run-reservation-history-insert-observations.sh"
+temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/reservation-observation-runner-test.XXXXXX")"
+label="observation-contract-$$"
+failure_label="observation-failure-$$"
+override_label="observation-override-$$"
+huge_label="observation-huge-$$"
+validation_label="observation-validation-$$"
+result="build/k6/bulk-write/$label-observations.json"
+failure_result="build/k6/bulk-write/$failure_label-observations.json"
+override_result="build/k6/bulk-write/$override_label-observations.json"
+huge_result="build/k6/bulk-write/$huge_label-observations.json"
+validation_result="build/k6/bulk-write/$validation_label-observations.json"
+token='token-sentinel-0123456789abcdef0123456789'
+trap 'rm -rf -- "$temp_dir" "$repo_root/build/k6/bulk-write/$label"* "$repo_root/build/k6/bulk-write/$failure_label"* "$repo_root/build/k6/bulk-write/$override_label"* "$repo_root/build/k6/bulk-write/$huge_label"* "$repo_root/build/k6/bulk-write/$validation_label"*' EXIT
+
+assert_rejected() {
+  local description="$1"
+  shift
+  if "$@" >"$temp_dir/rejected-output" 2>&1; then
+    printf 'runner accepted %s\n' "$description" >&2
+    exit 1
+  fi
+  if grep -Fq -- "$token" "$temp_dir/rejected-output"; then
+    printf 'runner disclosed the token while rejecting %s\n' "$description" >&2
+    exit 1
+  fi
+}
+
+assert_rejected 'a warmup phase' env \
+  PHASE=warmup VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$label" \
+  RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  "$runner"
+assert_rejected 'a zero sample count' env \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=0 RUN_LABEL="$label" \
+  RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  "$runner"
+assert_rejected 'a missing parent run label' env \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=3 \
+  RAW_OBSERVATION_RESULT_PATH="$result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  "$runner"
+assert_rejected 'a missing companion result path' env \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$label" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  "$runner"
+
+cat >"$temp_dir/capture-child" <<'CHILD'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'child samples=%s phase=%s variant=%s label=%s order=%s path=%s\n' \
+  "$SAMPLES" "$PHASE" "${VARIANT:-UNSET}" "$RUN_LABEL" "${RUN_ORDER:-UNSET}" \
+  "$K6_RESULT_PATH" >>"$CAPTURE_LOG"
+mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
+printf '{}\n' >"$K6_RESULT_PATH"
+CHILD
+
+cat >"$temp_dir/capture-node" <<'NODE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ -z "${NODE_OPTIONS+x}" ]]
+[[ -z "${NODE_PATH+x}" ]]
+[[ -n "${BENCHMARK_BULK_WRITE_TOKEN:-}" ]]
+printf 'node' >>"$CAPTURE_LOG"
+for argument in "$@"; do
+  printf ' arg=%s' "$argument" >>"$CAPTURE_LOG"
+done
+printf '\n' >>"$CAPTURE_LOG"
+
+shift
+[[ "$1" == '--candidate' ]]
+[[ "$2" == 'RESERVATION_HISTORY_INSERT' ]]
+shift 2
+[[ "$1" == '--output' ]]
+output="$2"
+shift 2
+[[ "$1" == '--run-label' ]]
+shift 2
+for source in "$@"; do
+  [[ -f "$source" ]]
+done
+printf '{"complete":true}\n' >"$output"
+NODE
+
+cat >"$temp_dir/fail-second-child" <<'FAIL_CHILD'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'child label=%s\n' "$RUN_LABEL" >>"$CAPTURE_LOG"
+mkdir -p -- "$(dirname -- "$K6_RESULT_PATH")"
+printf '{}\n' >"$K6_RESULT_PATH"
+if [[ "$RUN_LABEL" == *'-sample-002' ]]; then
+  exit 23
+fi
+FAIL_CHILD
+chmod +x "$temp_dir/capture-child" "$temp_dir/capture-node" "$temp_dir/fail-second-child"
+
+assert_rejected 'an overflowing sample count' env \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 \
+  RAW_OBSERVATION_SAMPLES=18446744073709551617 RUN_LABEL="$huge_label" \
+  RAW_OBSERVATION_RESULT_PATH="$huge_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  CAPTURE_LOG="$temp_dir/huge-calls" \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+  "$runner"
+
+assert_rejected 'executable overrides outside explicit test mode' env \
+  PHASE=measure VARIANT=AFTER RUN_ORDER=2 RAW_OBSERVATION_SAMPLES=1 \
+  RUN_LABEL="$override_label" \
+  RAW_OBSERVATION_RESULT_PATH="$override_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  CAPTURE_LOG="$temp_dir/override-calls" \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+  "$runner"
+if [[ -e "$repo_root/$override_result" ]]; then
+  printf 'runner created an artifact through an unscoped executable override\n' >&2
+  exit 1
+fi
+
+: >"$temp_dir/validation-calls"
+for invalid_run_order in missing 0 02 1000001; do
+  if [[ "$invalid_run_order" == 'missing' ]]; then
+    assert_rejected 'a missing block run order' env -u RUN_ORDER \
+      PHASE=measure VARIANT=AFTER RAW_OBSERVATION_SAMPLES=3 \
+      RUN_LABEL="$validation_label" RAW_OBSERVATION_RESULT_PATH="$validation_result" \
+      BENCHMARK_BULK_WRITE_TOKEN="$token" BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+      CAPTURE_LOG="$temp_dir/validation-calls" \
+      RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+      NODE_BIN="$temp_dir/capture-node" \
+      "$runner"
+  else
+    assert_rejected "block run order $invalid_run_order" env \
+      PHASE=measure VARIANT=AFTER RUN_ORDER="$invalid_run_order" \
+      RAW_OBSERVATION_SAMPLES=3 RUN_LABEL="$validation_label" \
+      RAW_OBSERVATION_RESULT_PATH="$validation_result" BENCHMARK_BULK_WRITE_TOKEN="$token" \
+      BULK_WRITE_BENCHMARK_TEST_MODE=1 CAPTURE_LOG="$temp_dir/validation-calls" \
+      RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+      NODE_BIN="$temp_dir/capture-node" \
+      "$runner"
+  fi
+done
+if [[ -s "$temp_dir/validation-calls" ]]; then
+  printf 'observation runner launched a child while rejecting RUN_ORDER\n' >&2
+  exit 1
+fi
+
+: >"$temp_dir/calls"
+output="$({
+  cd -- "${TMPDIR:-/tmp}"
+  CAPTURE_LOG="$temp_dir/calls" \
+  PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
+  RAW_OBSERVATION_SAMPLES=3 \
+  RUN_LABEL="$label" \
+  RAW_OBSERVATION_RESULT_PATH="$result" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  NODE_OPTIONS=--trace-warnings \
+  NODE_PATH="$temp_dir/untrusted-node-modules" \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+    "$runner"
+} 2>&1)"
+
+if [[ -n "$output" ]]; then
+  printf 'observation runner produced unexpected output: %s\n' "$output" >&2
+  exit 1
+fi
+if [[ "$output" == *"$token"* ]]; then
+  printf 'observation runner disclosed the token\n' >&2
+  exit 1
+fi
+
+expected_calls="$(printf '%s\n' \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-001 order=2 path=build/k6/bulk-write/$label-sample-001.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-002 order=2 path=build/k6/bulk-write/$label-sample-002.json" \
+  "child samples=1 phase=measure variant=AFTER label=$label-sample-003 order=2 path=build/k6/bulk-write/$label-sample-003.json" \
+  "node arg=$repo_root/load-test/k6/bulk-write/aggregate-bulk-write-observations.mjs arg=--candidate arg=RESERVATION_HISTORY_INSERT arg=--output arg=$result arg=--run-label arg=$label arg=build/k6/bulk-write/$label-sample-001.json arg=build/k6/bulk-write/$label-sample-002.json arg=build/k6/bulk-write/$label-sample-003.json")"
+actual_calls="$(cat "$temp_dir/calls")"
+if [[ "$actual_calls" != "$expected_calls" ]]; then
+  printf 'unexpected observation child/aggregator order\nexpected:\n%s\nactual:\n%s\n' \
+    "$expected_calls" "$actual_calls" >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/$result" ]]; then
+  printf 'aggregator did not create the companion artifact\n' >&2
+  exit 1
+fi
+
+: >"$temp_dir/failure-calls"
+if failure_output="$({
+  cd -- "${TMPDIR:-/tmp}"
+  CAPTURE_LOG="$temp_dir/failure-calls" \
+  PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
+  RAW_OBSERVATION_SAMPLES=3 \
+  RUN_LABEL="$failure_label" \
+  RAW_OBSERVATION_RESULT_PATH="$failure_result" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/fail-second-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+    "$runner"
+} 2>&1)"; then
+  printf 'observation runner did not fail when the second child failed\n' >&2
+  exit 1
+fi
+if [[ "$failure_output" == *"$token"* ]]; then
+  printf 'observation runner disclosed the token on child failure\n' >&2
+  exit 1
+fi
+if [[ "$(wc -l <"$temp_dir/failure-calls" | tr -d ' ')" != '2' ]]; then
+  printf 'observation runner did not stop immediately after the second child failure\n' >&2
+  exit 1
+fi
+if grep -q '^node' "$temp_dir/failure-calls"; then
+  printf 'observation runner called the aggregator after a child failure\n' >&2
+  exit 1
+fi
+if [[ -e "$repo_root/$failure_result" ]]; then
+  printf 'observation runner emitted a partial companion artifact\n' >&2
+  exit 1
+fi
+for failed_child in \
+  "$repo_root/build/k6/bulk-write/$failure_label-sample-001.json" \
+  "$repo_root/build/k6/bulk-write/$failure_label-sample-002.json"; do
+  if [[ -e "$failed_child" || -L "$failed_child" ]]; then
+    printf 'observation runner retained a child artifact after failure: %s\n' "$failed_child" >&2
+    exit 1
+  fi
+done
+
+: >"$temp_dir/retry-calls"
+retry_output="$({
+  cd -- "${TMPDIR:-/tmp}"
+  CAPTURE_LOG="$temp_dir/retry-calls" \
+  PHASE=measure \
+  VARIANT=AFTER \
+  RUN_ORDER=2 \
+  RAW_OBSERVATION_SAMPLES=3 \
+  RUN_LABEL="$failure_label" \
+  RAW_OBSERVATION_RESULT_PATH="$failure_result" \
+  BENCHMARK_BULK_WRITE_TOKEN="$token" \
+  BULK_WRITE_BENCHMARK_TEST_MODE=1 \
+  RESERVATION_HISTORY_RUNNER="$temp_dir/capture-child" \
+  NODE_BIN="$temp_dir/capture-node" \
+    "$runner"
+} 2>&1)"
+if [[ -n "$retry_output" ]]; then
+  printf 'observation runner retry produced unexpected output: %s\n' "$retry_output" >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/$failure_result" ]]; then
+  printf 'observation runner could not retry after child cleanup\n' >&2
+  exit 1
+fi
