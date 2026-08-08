@@ -9,8 +9,10 @@ import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
+import kr.kro.airbob.domain.commoncode.common.CommonCodeGroups;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
 import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
+import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeDetailRepository;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,7 @@ public class CommonCodeService {
 		};
 
 		this.cache = Caffeine.newBuilder()
+			.maximumSize(100)
 			.expireAfterWrite(CACHE_TTL)
 			.build(loader);
 	}
@@ -56,6 +59,9 @@ public class CommonCodeService {
 	 * 캐시 미스 시 DB 로더가 적재
 	 */
 	public List<CommonCodeResponse> getCodes(String groupCode) {
+		if (!CommonCodeGroups.isSupported(groupCode)) {
+			throw new CommonCodeGroupNotFoundException();
+		}
 		return cache.get(groupCode);
 	}
 
