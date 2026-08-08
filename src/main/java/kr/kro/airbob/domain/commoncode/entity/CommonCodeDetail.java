@@ -13,8 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * 공통 코드 상세. PK = 복합키 (group_code, code).
- * 편의시설/숙소유형의 단일 카탈로그 소스. 원본 테이블은 code 문자열만 느슨하게 참조한다.
+ * 공통 코드 상세. PK = 복합키 (group_code, code)
  */
 @Entity
 @Table(name = "common_code_detail")
