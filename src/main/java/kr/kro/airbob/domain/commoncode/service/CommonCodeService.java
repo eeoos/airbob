@@ -16,10 +16,10 @@ import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 공통 코드 조회 서비스 (하이브리드 전략의 읽기 경로).
+ * 공통 코드 조회 서비스
  *
- * <p>로컬 캐시 + TTL(1분): group_code 단위로 활성 상세 코드 목록을 Caffeine 에 적재한다.
- * DB 에서 라벨/정렬/활성여부를 바꾸면 최대 1분 내 반영된다.
+ * 로컬 캐시 + TTL(1분): group_code 단위로 활성 상세 코드 목록을 Caffeine 에 적재
+ * DB 에서 라벨/정렬/활성여부를 바꾸면 최대 1분 내 반영
  */
 @Slf4j
 @Service
