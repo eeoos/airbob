@@ -1,5 +1,5 @@
--- V11__add_member_coupon.sql
--- 발급된 쿠폰(1인 1매) 테이블. UNIQUE(member_id, coupon_id) 가 중복 발급의 최후 방어선이다.
+-- V10__add_member_coupon.sql
+-- 발급된 쿠폰(1인 1매) 테이블. UNIQUE(member_id, coupon_id) 가 중복 발급의 최후 방어선
 
 CREATE TABLE member_coupon (
   id bigint NOT NULL AUTO_INCREMENT,

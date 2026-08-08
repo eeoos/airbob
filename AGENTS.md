@@ -77,7 +77,7 @@ Each domain follows layered structure: `api/` (controllers) → `service/` → `
 ### Database
 
 - MySQL 8.0 with Flyway migrations in `src/main/resources/db/migration/`
-- 33 migration versions (V1-V33)
+- 14 migration versions (V1-V14)
 - QueryDSL for type-safe queries (Q-classes generated at compile time)
 
 ### Testing
