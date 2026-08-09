@@ -40,7 +40,7 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
-import kr.kro.airbob.domain.auth.exception.AdminAccessDeniedException;
+import kr.kro.airbob.common.exception.AdminAccessDeniedException;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.common.MemberRole;

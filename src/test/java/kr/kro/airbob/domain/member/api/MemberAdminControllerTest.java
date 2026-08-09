@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.common.exception.AdminAccessDeniedException;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.dto.MemberAdminRequest;
@@ -71,6 +72,23 @@ class MemberAdminControllerTest {
 			.andExpect(jsonPath("$.data.role").value("ADMIN"));
 
 		then(memberAdminService).should().changeRole(1L, 10L, request);
+	}
+
+	@Test
+	@DisplayName("관리자 권한이 없으면 M006 403을 반환한다")
+	void rejectNonAdminActor() throws Exception {
+		MemberAdminRequest.ChangeRole request = new MemberAdminRequest.ChangeRole(
+			MemberRole.ADMIN, "운영 관리자 지정");
+		given(memberAdminService.changeRole(1L, 10L, request))
+			.willThrow(new AdminAccessDeniedException());
+
+		mockMvc.perform(patch("/api/v1/admin/members/10/role")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"role":"ADMIN","reason":"운영 관리자 지정"}
+					"""))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.error.code").value("M006"));
 	}
 
 	@Test

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.domain.auth.exception.AdminAccessDeniedException;
+import kr.kro.airbob.common.exception.AdminAccessDeniedException;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
