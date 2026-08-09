@@ -22,7 +22,7 @@ public class RevenueStatsController {
 
 	private final RevenueStatsService revenueStatsService;
 
-	// 운영 읽기 경로(after): 일일 사전집계 테이블을 조회한다.
+	// 일일 사전집계 테이블을 조회
 	@GetMapping("/revenue")
 	public ResponseEntity<ApiResponse<RevenueStatsResponse.DailyRevenues>> getDailyRevenue(
 		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -32,7 +32,8 @@ public class RevenueStatsController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	// [from, to] 구간 사전집계 백필(수동 트리거). 측정 전 데이터 적재용.
+	// [from, to] 구간 사전집계 백필(수동 트리거)
+	// 측정 전 데이터 적재용
 	@PostMapping("/revenue/recompute")
 	public ResponseEntity<ApiResponse<Void>> recompute(
 		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

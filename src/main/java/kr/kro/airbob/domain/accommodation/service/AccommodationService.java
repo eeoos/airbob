@@ -9,6 +9,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -478,7 +479,7 @@ public class AccommodationService {
         Map<String, Integer> amenityCountMap = request.stream()
             .filter(info -> info.count() > 0)
             .map(info -> new AbstractMap.SimpleEntry<>(
-                info.name() == null ? null : info.name().toUpperCase(), info.count()))
+                info.name() == null ? null : info.name().toUpperCase(Locale.ROOT), info.count()))
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
                 Map.Entry::getValue,
@@ -499,7 +500,8 @@ public class AccommodationService {
         if (type == null) {
             return;
         }
-        if (!commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase())) {
+        if (!commonCodeService.isValidCode(
+            CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase(Locale.ROOT))) {
             throw new InvalidAccommodationTypeException();
         }
     }

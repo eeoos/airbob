@@ -124,11 +124,35 @@ class CommonCodeAdminControllerTest {
 	}
 
 	@Test
+	@DisplayName("유니코드 공백으로만 된 그룹 이름 생성은 C001 400을 반환한다")
+	void rejectUnicodeBlankCreateGroupName() throws Exception {
+		mockMvc.perform(post("/api/v1/admin/common-code-groups")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"group_code\":\"PAYMENT_METHOD\",\"group_name\":\"\\u3000\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+
+		then(adminService).shouldHaveNoInteractions();
+	}
+
+	@Test
 	@DisplayName("공백으로만 된 그룹 이름 수정은 C001 400을 반환한다")
 	void rejectBlankUpdateName() throws Exception {
 		mockMvc.perform(patch("/api/v1/admin/common-code-groups/PAYMENT_METHOD")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"group_name\":\"   \"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+
+		then(adminService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("유니코드 공백으로만 된 그룹 이름 수정은 C001 400을 반환한다")
+	void rejectUnicodeBlankUpdateGroupName() throws Exception {
+		mockMvc.perform(patch("/api/v1/admin/common-code-groups/PAYMENT_METHOD")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"group_name\":\"\\u3000\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("C001"));
 

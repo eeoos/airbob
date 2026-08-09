@@ -23,7 +23,7 @@ public interface AccommodationReviewSummaryRepository extends JpaRepository<Acco
 
 	// ===== 원자적 집계 갱신 (낙관적 락 대체) =====
 	// MySQL ON DUPLICATE KEY UPDATE / UPDATE 는 SET 절을 좌→우로 평가하므로,
-	// average_rating 을 먼저 둬서 증감 이전(옛) rating_sum/total_review_count 로 계산한다.
+	// average_rating 을 먼저 둬서 증감 이전(옛) rating_sum/total_review_count 로 계산
 
 	// 리뷰 생성: 행이 없으면 INSERT, 있으면 원자적 증가. 첫 리뷰 동시 작성의 PK 중복을 upsert로 병합.
 	@Modifying

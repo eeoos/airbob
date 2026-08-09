@@ -20,7 +20,7 @@ public class RevenueStatsService {
 
 	private final DailyRevenueStatsRepository repository;
 
-	// 단일 일자 재집계 (DELETE 후 INSERT...SELECT → 멱등)
+	// 단일 일자 재집계 (DELETE 후 INSERT...SELECT -> 멱등)
 	@Transactional
 	public void recompute(LocalDate date) {
 		repository.deleteByStatDate(date);
@@ -36,7 +36,7 @@ public class RevenueStatsService {
 		}
 	}
 
-	// 운영 읽기 경로(after): 사전집계 테이블만 조회한다.
+	// 사전집계 테이블만 조회
 	@Transactional(readOnly = true)
 	public RevenueStatsResponse.DailyRevenues getDailyRevenue(LocalDate from, LocalDate to) {
 		List<RevenueStatsResponse.DailyRevenue> items = repository.findDailyRevenueFromStats(from, to);

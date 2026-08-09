@@ -9,11 +9,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
-import kr.kro.airbob.geo.ClientIpExtractor;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
 import kr.kro.airbob.search.service.AccommodationSearchService;

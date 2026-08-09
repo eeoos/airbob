@@ -145,8 +145,8 @@ public class RecentlyViewedService {
 	}
 
 	/**
-	 * 주소 fetch join을 제외해 DTO 변환 과정의 주소 지연 로딩 N+1을 재현한다.
-	 * 실제 N회 조회는 nplus1-benchmark 프로필에서 batch fetch를 끈 상태로 측정한다.
+	 * 주소 fetch join을 제외해 DTO 변환 과정의 주소 지연 로딩 N+1을 재현
+	 * 실제 N회 조회는 nplus1-benchmark 프로필에서 batch fetch를 끈 상태로 측정
 	 */
 	@Transactional(readOnly = true)
 	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewedBefore(Long memberId) {

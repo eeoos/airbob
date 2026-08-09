@@ -84,7 +84,7 @@ public class CommonCodeAdminService {
 	public CommonCodeAdminResponse create(String groupCode, CommonCodeRequest.Create request) {
 		requireGroup(groupCode);
 
-		String code = request.code().toUpperCase();
+		String code = request.code().toUpperCase(Locale.ROOT);
 		if (commonCodeRepository.existsById(new CommonCodeId(groupCode, code))) {
 			throw new CommonCodeDuplicateException();
 		}
@@ -108,7 +108,8 @@ public class CommonCodeAdminService {
 
 	@Transactional
 	public CommonCodeAdminResponse update(String groupCode, String code, CommonCodeRequest.Update request) {
-		CommonCode commonCode = commonCodeRepository.findById(new CommonCodeId(groupCode, code.toUpperCase()))
+		CommonCode commonCode = commonCodeRepository.findById(
+				new CommonCodeId(groupCode, code.toUpperCase(Locale.ROOT)))
 			.orElseThrow(CommonCodeNotFoundException::new);
 
 		commonCode.updateDisplay(request.name(), request.description(), request.sortOrder(), request.isActive());

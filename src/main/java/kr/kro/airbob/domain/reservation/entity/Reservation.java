@@ -120,7 +120,7 @@ public class Reservation extends BaseEntity {
 			.build();
 	}
 
-	// 쿠폰 할인 적용 — 할인액을 기록하고 결제 금액을 차감한다.
+	// 쿠폰 할인 적용 — 할인액을 기록하고 결제 금액을 차감
 	public void applyDiscount(long discount) {
 		if (discount <= 0) {
 			return;

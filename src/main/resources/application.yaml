@@ -49,10 +49,6 @@ google:
   api:
     key: ${GOOGLE_API_KEY}
 
-ipinfo:
-  api:
-    token: ${IPINFO_API_TOKEN}
-
 slack:
   webhook:
     url: ${SLACK_WEBHOOK_URL}

@@ -39,7 +39,7 @@ kr.kro.airbob/
 ├── config/          # Spring configs: Redis, Elasticsearch, Kafka, QueryDSL, WebMvc
 ├── cursor/          # Cursor-based pagination (CursorParam annotation + resolver)
 ├── domain/          # Domain modules (see below)
-├── geo/             # Geolocation utilities (Google Maps, IPInfo integration)
+├── geo/             # Geolocation utilities (Google Maps geocoding)
 ├── kafka/           # Kafka consumers and event translators
 ├── outbox/          # Transactional Outbox pattern for event publishing
 └── search/          # Elasticsearch search service with dual-backend (ES + MySQL fallback)

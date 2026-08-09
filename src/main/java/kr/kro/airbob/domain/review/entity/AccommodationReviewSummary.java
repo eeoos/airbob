@@ -46,6 +46,6 @@ public class AccommodationReviewSummary extends BaseEntity {
 	private BigDecimal averageRating = BigDecimal.ZERO;
 
 	// 집계 갱신은 in-memory 변이 + 낙관적 락 대신 AccommodationReviewSummaryRepository의
-	// 원자적 SQL(INSERT ... ON DUPLICATE KEY UPDATE / 원자적 UPDATE)로 수행한다.
+	// 원자적 SQL(INSERT ... ON DUPLICATE KEY UPDATE / 원자적 UPDATE)로 수행
 	// 이 엔티티는 읽기/매핑 용도로만 사용.
 }

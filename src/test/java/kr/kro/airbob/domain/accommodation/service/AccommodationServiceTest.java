@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,8 +24,10 @@ import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
 import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
@@ -44,6 +47,9 @@ class AccommodationServiceTest {
 
 	@Mock
 	private AccommodationAmenityRepository accommodationAmenityRepository;
+
+	@Mock
+	private AccommodationHistoryRepository accommodationHistoryRepository;
 
 	@Mock
 	private AccommodationImageRepository accommodationImageRepository;
@@ -122,6 +128,41 @@ class AccommodationServiceTest {
 		verify(accommodationAmenityRepository, never()).deleteByAccommodationIdInBulk(anyLong());
 		verify(accommodationAmenityRepository, never()).saveAll(any());
 		verifyNoInteractions(geocodingService, addressRepository, occupancyPolicyRepository);
+	}
+
+	@Test
+	@DisplayName("숙소 공통 코드 식별자는 JVM Locale과 무관하게 ASCII 대문자로 정규화한다")
+	void normalizeCommonCodeIdentifiersWithRootLocale() {
+		Locale previousLocale = Locale.getDefault();
+		try {
+			Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+			Accommodation accommodation = Accommodation.builder()
+				.id(1L)
+				.status(AccommodationStatus.DRAFT)
+				.build();
+			AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+				.type("private_room")
+				.amenityInfos(List.of(new AmenityRequest.AmenityInfo("wifi", 1)))
+				.build();
+
+			when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+				1L, 2L, AccommodationStatus.DELETED))
+				.thenReturn(Optional.of(accommodation));
+			when(commonCodeService.isValidCode(ACCOMMODATION_TYPE, "PRIVATE_ROOM"))
+				.thenReturn(true);
+			when(commonCodeService.isValidCode(AMENITY_TYPE, "WIFI"))
+				.thenReturn(true);
+
+			accommodationService.updateAccommodation(1L, request, 2L);
+
+			assertThat(accommodation.getType()).isEqualTo("PRIVATE_ROOM");
+			verify(accommodationAmenityRepository).saveAll(argThat(amenities -> {
+				AccommodationAmenity amenity = amenities.iterator().next();
+				return amenity.getAmenityCode().equals("WIFI");
+			}));
+		} finally {
+			Locale.setDefault(previousLocale);
+		}
 	}
 
 	@Test

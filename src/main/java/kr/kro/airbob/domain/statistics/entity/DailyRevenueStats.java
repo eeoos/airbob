@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 // 일일 매출 사전집계 (stat_date, accommodation_id). 쓰기는 배치의 네이티브 INSERT...SELECT로 수행되고,
-// JPA는 주로 읽기/매핑 용도로 사용한다.
+// JPA는 주로 읽기/매핑 용도로 사용
 @Entity
 @Table(name = "daily_revenue_stats")
 @IdClass(DailyRevenueStatsId.class)

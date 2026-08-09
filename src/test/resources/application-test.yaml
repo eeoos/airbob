@@ -44,10 +44,6 @@ google:
   api:
     key: dummy-google-key
 
-ipinfo:
-  api:
-    token: dummy-token
-
 slack:
   webhook:
     url: https://hooks.slack.com/services/dummy/url

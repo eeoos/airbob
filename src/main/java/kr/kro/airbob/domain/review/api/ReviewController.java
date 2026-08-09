@@ -99,7 +99,7 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	// 운영 읽기 경로(after): 반정규화 리뷰 요약을 조회한다.
+	// 반정규화 리뷰 요약을 조회
 	@GetMapping("/v1/accommodations/{accommodationId}/reviews/summary")
 	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(
 		@PathVariable Long accommodationId) {

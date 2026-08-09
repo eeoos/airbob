@@ -16,6 +16,7 @@ public class CommonCodeGroupRequest {
 		String groupCode,
 		@NotBlank
 		@Size(max = 100)
+		@Pattern(regexp = "(?sU).*\\S.*")
 		String groupName,
 		@Size(max = 255)
 		String description,
@@ -30,7 +31,7 @@ public class CommonCodeGroupRequest {
 
 	public record Update(
 		@Size(max = 100)
-		@Pattern(regexp = ".*\\S.*")
+		@Pattern(regexp = "(?sU).*\\S.*")
 		String groupName,
 		@Size(max = 255)
 		String description,
