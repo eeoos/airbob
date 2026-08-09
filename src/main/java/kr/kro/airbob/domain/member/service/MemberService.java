@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
+import kr.kro.airbob.domain.member.port.SessionInvalidator;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
@@ -25,7 +25,7 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final MemberHistoryRepository historyRepository;
-    private final SessionRedisRepository sessionRedisRepository;
+    private final SessionInvalidator sessionInvalidator;
 
     @Transactional
     public void createMember(Signup request) {
@@ -54,7 +54,7 @@ public class MemberService {
             .ifPresent(current -> current.close(LocalDateTime.now()));
         historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason));
 
-        sessionRedisRepository.deleteAllSessions(memberId);
+        sessionInvalidator.invalidateAll(memberId);
     }
 
     @Transactional(readOnly = true)

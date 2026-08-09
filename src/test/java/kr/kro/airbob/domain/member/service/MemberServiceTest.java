@@ -11,7 +11,7 @@ import static org.mockito.BDDMockito.then;
 import java.util.Optional;
 
 import kr.kro.airbob.common.history.HistoryConstants;
-import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
+import kr.kro.airbob.domain.member.port.SessionInvalidator;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.dto.MemberRequest;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
@@ -36,13 +36,13 @@ class MemberServiceTest {
     @Mock
     private MemberHistoryRepository historyRepository;
     @Mock
-    private SessionRedisRepository sessionRedisRepository;
+    private SessionInvalidator sessionInvalidator;
     @Captor
     private ArgumentCaptor<Member> memberCaptor;
 
     @Test
     void createMemberStoresBCryptPasswordHash() {
-        MemberService memberService = new MemberService(memberRepository, historyRepository, sessionRedisRepository);
+        MemberService memberService = new MemberService(memberRepository, historyRepository, sessionInvalidator);
         MemberRequest.Signup request = MemberRequest.Signup.builder()
             .email("guest@airbob.test")
             .nickname("guest")
@@ -62,7 +62,7 @@ class MemberServiceTest {
 
     @Test
     void deleteMemberRevokesAllSessions() {
-        MemberService memberService = new MemberService(memberRepository, historyRepository, sessionRedisRepository);
+        MemberService memberService = new MemberService(memberRepository, historyRepository, sessionInvalidator);
         Member member = Member.builder()
             .id(10L)
             .email("guest@airbob.test")
@@ -77,12 +77,12 @@ class MemberServiceTest {
 
         memberService.deleteMember(10L, "사용자 탈퇴");
 
-        then(sessionRedisRepository).should().deleteAllSessions(10L);
+        then(sessionInvalidator).should().invalidateAll(10L);
     }
 
     @Test
     void getMemberInfoReturnsActiveMemberProfile() {
-        MemberService service = new MemberService(memberRepository, historyRepository, sessionRedisRepository);
+        MemberService service = new MemberService(memberRepository, historyRepository, sessionInvalidator);
         Member member = Member.builder()
             .id(10L)
             .email("guest@airbob.test")
@@ -103,7 +103,7 @@ class MemberServiceTest {
 
     @Test
     void getMemberInfoRejectsMissingOrInactiveMember() {
-        MemberService service = new MemberService(memberRepository, historyRepository, sessionRedisRepository);
+        MemberService service = new MemberService(memberRepository, historyRepository, sessionInvalidator);
         given(memberRepository.findByIdAndStatus(10L, MemberStatus.ACTIVE))
             .willReturn(Optional.empty());
 

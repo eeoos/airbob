@@ -159,7 +159,7 @@ class HistorySnapshotIntegrationTest {
 		assertThat(redisTemplate.opsForZSet().range("MEMBER_SESSIONS:999", 0, -1))
 			.containsExactly("other-session");
 
-		sessionRedisRepository.deleteAllSessions(999L);
+		sessionRedisRepository.invalidateAll(999L);
 	}
 
 	@Test

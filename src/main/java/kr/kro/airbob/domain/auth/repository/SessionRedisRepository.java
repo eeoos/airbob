@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import kr.kro.airbob.domain.member.port.SessionInvalidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Slf4j
 @RequiredArgsConstructor
-public class SessionRedisRepository {
+public class SessionRedisRepository implements SessionInvalidator {
     private static final Duration TTL = Duration.ofHours(1);
     private static final String SESSION = "SESSION:";
     private static final String MEMBER_SESSIONS = "MEMBER_SESSIONS:";
@@ -47,7 +48,8 @@ public class SessionRedisRepository {
         memberId.ifPresent(id -> redisTemplate.opsForZSet().remove(MEMBER_SESSIONS + id, sessionId));
     }
 
-    public void deleteAllSessions(Long memberId) {
+    @Override
+    public void invalidateAll(Long memberId) {
         String memberSessionsKey = MEMBER_SESSIONS + memberId;
         redisTemplate.delete(MEMBER_SESSION_ACTIVE + memberId);
         Set<Object> sessionIds = redisTemplate.opsForZSet().range(memberSessionsKey, 0, -1);

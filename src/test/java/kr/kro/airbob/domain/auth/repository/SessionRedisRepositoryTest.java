@@ -88,12 +88,12 @@ class SessionRedisRepositoryTest {
 
 	@Test
 	@DisplayName("회원의 모든 정방향 세션과 회원별 세션 인덱스를 제거한다")
-	void deleteAllSessionsRemovesEverySessionForMember() {
+	void invalidateAllRemovesEverySessionForMember() {
 		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
 		when(zSetOperations.range("MEMBER_SESSIONS:10", 0, -1))
 			.thenReturn(Set.of("session-1", "session-2"));
 
-		sessionRedisRepository.deleteAllSessions(10L);
+		sessionRedisRepository.invalidateAll(10L);
 
 		then(redisTemplate).should().delete(Set.of(
 			"SESSION:session-1",
@@ -104,12 +104,12 @@ class SessionRedisRepositoryTest {
 
 	@Test
 	@DisplayName("역인덱스가 축출돼도 회원별 세션 활성 상태를 먼저 제거한다")
-	void deleteAllSessionsRevokesMemberWhenReverseIndexIsMissing() {
+	void invalidateAllRevokesMemberWhenReverseIndexIsMissing() {
 		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
 		when(zSetOperations.range("MEMBER_SESSIONS:10", 0, -1))
 			.thenReturn(Set.of());
 
-		sessionRedisRepository.deleteAllSessions(10L);
+		sessionRedisRepository.invalidateAll(10L);
 
 		then(redisTemplate).should().delete("MEMBER_SESSION_ACTIVE:10");
 		then(redisTemplate).should().delete("MEMBER_SESSIONS:10");
