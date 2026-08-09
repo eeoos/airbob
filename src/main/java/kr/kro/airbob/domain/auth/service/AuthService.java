@@ -2,11 +2,9 @@ package kr.kro.airbob.domain.auth.service;
 
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
-import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
@@ -47,16 +45,4 @@ public class AuthService {
         sessionRedisRepository.deleteSession(sessionId);
     }
 
-    @Transactional(readOnly = true)
-    public MemberResponse.MeInfo getMemberInfo(Long memberId) {
-        Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
-            .orElseThrow(MemberNotFoundException::new);
-
-        return new MemberResponse.MeInfo(
-            member.getId(),
-            member.getEmail(),
-            member.getNickname(),
-            member.getThumbnailImageUrl()
-        );
-    }
 }

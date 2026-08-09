@@ -7,6 +7,7 @@ import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
+import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.entity.MemberHistory;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
@@ -54,5 +55,13 @@ public class MemberService {
         historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason));
 
         sessionRedisRepository.deleteAllSessions(memberId);
+    }
+
+    @Transactional(readOnly = true)
+    public MemberResponse.MeInfo getMemberInfo(Long memberId) {
+        Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
+            .orElseThrow(MemberNotFoundException::new);
+        return new MemberResponse.MeInfo(
+            member.getId(), member.getEmail(), member.getNickname(), member.getThumbnailImageUrl());
     }
 }
