@@ -21,8 +21,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeAdminResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupRequest;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupResponse;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupDuplicateException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeAdminService;
@@ -159,5 +161,98 @@ class CommonCodeAdminControllerTest {
 				.content(objectMapper.writeValueAsString(request)))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.error.code").value("CC001"));
+	}
+
+	@Test
+	@DisplayName("공통 코드 생성 시 코드의 앞뒤 공백을 제거한다")
+	void trimCodeOnCreate() throws Exception {
+		CommonCodeRequest.Create normalizedRequest = new CommonCodeRequest.Create(
+			"wifi", "무선 인터넷", null, null, null);
+		given(adminService.create("AMENITY_TYPE", normalizedRequest)).willReturn(
+			new CommonCodeAdminResponse("WIFI", "무선 인터넷", null, 0, true));
+
+		mockMvc.perform(post("/api/v1/admin/common-codes/amenity_type")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"code\":\"　wifi　\",\"name\":\"무선 인터넷\"}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.code").value("WIFI"));
+
+		then(adminService).should().create("AMENITY_TYPE", normalizedRequest);
+	}
+
+	@Test
+	@DisplayName("허용되지 않는 공통 코드 형식은 C001 400을 반환한다")
+	void rejectMalformedCode() throws Exception {
+		mockMvc.perform(post("/api/v1/admin/common-codes/AMENITY_TYPE")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"code\":\"WI-FI\",\"name\":\"무선 인터넷\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+
+		then(adminService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("공백으로만 된 공통 코드 이름 생성은 C001 400을 반환한다")
+	void rejectBlankCommonCodeCreateName() throws Exception {
+		mockMvc.perform(post("/api/v1/admin/common-codes/AMENITY_TYPE")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"code\":\"WIFI\",\"name\":\"　\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+
+		then(adminService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("공통 코드 생성 필드의 최대 길이를 초과하면 C001 400을 반환한다")
+	void rejectOversizedCreateFields() throws Exception {
+		List<String> invalidRequests = List.of(
+			"{\"code\":\"%s\",\"name\":\"이름\"}".formatted("A".repeat(51)),
+			"{\"code\":\"VALID_CODE\",\"name\":\"%s\"}".formatted("이".repeat(101)),
+			"{\"code\":\"VALID_CODE\",\"name\":\"이름\",\"description\":\"%s\"}"
+				.formatted("설".repeat(256))
+		);
+
+		for (String invalidRequest : invalidRequests) {
+			mockMvc.perform(post("/api/v1/admin/common-codes/AMENITY_TYPE")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(invalidRequest))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("C001"));
+		}
+
+		then(adminService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("공백으로만 된 공통 코드 이름 수정은 C001 400을 반환한다")
+	void rejectBlankCommonCodeUpdateName() throws Exception {
+		mockMvc.perform(patch("/api/v1/admin/common-codes/AMENITY_TYPE/WIFI")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"　\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("C001"));
+
+		then(adminService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("공통 코드 수정 필드의 최대 길이를 초과하면 C001 400을 반환한다")
+	void rejectOversizedUpdateFields() throws Exception {
+		List<String> invalidRequests = List.of(
+			"{\"name\":\"%s\"}".formatted("이".repeat(101)),
+			"{\"description\":\"%s\"}".formatted("설".repeat(256))
+		);
+
+		for (String invalidRequest : invalidRequests) {
+			mockMvc.perform(patch("/api/v1/admin/common-codes/AMENITY_TYPE/WIFI")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(invalidRequest))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("C001"));
+		}
+
+		then(adminService).shouldHaveNoInteractions();
 	}
 }

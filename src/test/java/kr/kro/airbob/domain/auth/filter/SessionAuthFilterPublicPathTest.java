@@ -3,9 +3,11 @@ package kr.kro.airbob.domain.auth.filter;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -44,6 +46,28 @@ class SessionAuthFilterPublicPathTest {
 
 		assertThat(chain.getRequest()).isNull();
 		assertThat(response.getStatus()).isEqualTo(401);
+	}
+
+	@Test
+	@DisplayName("정방향 세션만 남고 회원별 활성 키가 없으면 인증을 거부한다")
+	@SuppressWarnings("unchecked")
+	void sessionWithoutActiveMemberKeyIsRejected() throws Exception {
+		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+		ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
+		when(redisTemplate.hasKey("SESSION:valid-session")).thenReturn(true);
+		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
+		SessionAuthFilter filter = new SessionAuthFilter(redisTemplate, new ObjectMapper());
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
+		request.setCookies(new Cookie("SESSION_ID", "valid-session"));
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		filter.doFilter(request, response, chain);
+
+		assertThat(chain.getRequest()).isNull();
+		assertThat(response.getStatus()).isEqualTo(401);
+		verify(redisTemplate).hasKey("MEMBER_SESSION_ACTIVE:10");
 	}
 
 	@SuppressWarnings("unchecked")

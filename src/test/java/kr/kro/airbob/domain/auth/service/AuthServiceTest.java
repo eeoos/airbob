@@ -1,11 +1,13 @@
 package kr.kro.airbob.domain.auth.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.util.Optional;
+
 import kr.kro.airbob.domain.auth.exception.InvalidPasswordException;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -23,29 +25,33 @@ class AuthServiceTest {
     private MemberRepository memberRepository;
     @Mock
     private SessionRedisRepository sessionRedisRepository;
+    @Mock
+    private SessionIssuanceService sessionIssuanceService;
 
     @Test
     void loginAcceptsBCryptPasswordHash() {
-        AuthService authService = new AuthService(memberRepository, sessionRedisRepository);
+        AuthService authService = new AuthService(memberRepository, sessionRedisRepository, sessionIssuanceService);
         Member member = activeMember(1L, "guest@airbob.test", BCrypt.hashpw("password1", BCrypt.gensalt()));
         given(memberRepository.findByEmailAndStatus("guest@airbob.test", MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));
+        given(sessionIssuanceService.issue(1L, member.getPassword())).willReturn("session-1");
 
         String sessionId = authService.login("guest@airbob.test", "password1");
 
         assertFalse(sessionId.isBlank());
-        then(sessionRedisRepository).should().saveSession(sessionId, 1L);
+        assertEquals("session-1", sessionId);
+        then(sessionIssuanceService).should().issue(1L, member.getPassword());
     }
 
     @Test
     void loginRejectsPlaintextStoredPasswordWithoutFallback() {
-        AuthService authService = new AuthService(memberRepository, sessionRedisRepository);
+        AuthService authService = new AuthService(memberRepository, sessionRedisRepository, sessionIssuanceService);
         Member member = activeMember(1L, "guest@airbob.test", "password1");
         given(memberRepository.findByEmailAndStatus("guest@airbob.test", MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));
 
         assertThrows(InvalidPasswordException.class, () -> authService.login("guest@airbob.test", "password1"));
-        then(sessionRedisRepository).shouldHaveNoInteractions();
+        then(sessionIssuanceService).shouldHaveNoInteractions();
     }
 
     private Member activeMember(Long id, String email, String password) {

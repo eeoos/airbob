@@ -33,6 +33,7 @@ public enum ErrorCode {
 	UNAUTHORIZED_ACCESS(HttpStatus.UNAUTHORIZED, "M004", "인증이 필요합니다."),
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
+	MEMBER_ROLE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "M007", "자신의 관리자 권한은 회수할 수 없습니다."),
 	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
 
 
@@ -43,6 +44,7 @@ public enum ErrorCode {
 	ACCOMMODATION_INVALID_TYPE(HttpStatus.BAD_REQUEST, "A004", "숙소 유형 코드가 유효하지 않습니다."),
 	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
 	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
+	ACCOMMODATION_INVALID_AMENITY(HttpStatus.BAD_REQUEST, "A007", "편의시설 코드가 유효하지 않습니다."),
 	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A003", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
 
 

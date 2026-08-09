@@ -5,6 +5,7 @@ public enum ChangeType {
 	CREATE,         // 최초 생성
 	UPDATE,         // 일반 필드 변경
 	STATUS_CHANGE,  // 상태 전이
+	ROLE_CHANGE,    // 회원 역할 변경
 	CANCEL,         // 취소
 	DELETE          // 삭제(soft delete 포함)
 }

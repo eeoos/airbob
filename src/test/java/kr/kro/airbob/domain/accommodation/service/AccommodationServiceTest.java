@@ -19,15 +19,21 @@ import org.springframework.http.HttpStatus;
 import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
+import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
+import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
+import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
+import kr.kro.airbob.geo.GeocodingService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 서비스 단위 테스트")
@@ -43,6 +49,12 @@ class AccommodationServiceTest {
 	private AccommodationImageRepository accommodationImageRepository;
 
 	@Mock
+	private AddressRepository addressRepository;
+
+	@Mock
+	private OccupancyPolicyRepository occupancyPolicyRepository;
+
+	@Mock
 	private AccommodationReviewSummaryRepository reviewSummaryRepository;
 
 	@Mock
@@ -53,6 +65,9 @@ class AccommodationServiceTest {
 
 	@Mock
 	private CommonCodeService commonCodeService;
+
+	@Mock
+	private GeocodingService geocodingService;
 
 	@InjectMocks
 	private AccommodationService accommodationService;
@@ -75,6 +90,38 @@ class AccommodationServiceTest {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A004");
 			});
+	}
+
+	@Test
+	@DisplayName("유효하지 않은 편의시설 코드가 하나라도 있으면 A007 400으로 전체 수정을 거부한다")
+	void rejectInvalidAmenityBeforeMutation() {
+		Accommodation accommodation = mock(Accommodation.class);
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.addressInfo(new AddressRequest.AddressInfo(
+				"04524", "KR", "Seoul", "Seoul", "Jung", "Sejong-daero", "110"
+			))
+			.amenityInfos(List.of(
+				new AmenityRequest.AmenityInfo("wifi", 1),
+				new AmenityRequest.AmenityInfo("not_a_real_amenity", 1)
+			))
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(4, 1, 0))
+			.build();
+
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(commonCodeService.isValidCode(eq(AMENITY_TYPE), anyString()))
+			.thenAnswer(invocation -> "WIFI".equals(invocation.getArgument(1)));
+
+		assertThatThrownBy(() -> accommodationService.updateAccommodation(1L, request, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A007");
+			});
+
+		verify(accommodation, never()).updateAccommodation(any());
+		verify(accommodationAmenityRepository, never()).deleteByAccommodationIdInBulk(anyLong());
+		verify(accommodationAmenityRepository, never()).saveAll(any());
+		verifyNoInteractions(geocodingService, addressRepository, occupancyPolicyRepository);
 	}
 
 	@Test

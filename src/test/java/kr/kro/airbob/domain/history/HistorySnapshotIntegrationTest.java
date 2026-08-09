@@ -3,6 +3,12 @@ package kr.kro.airbob.domain.history;
 import static org.assertj.core.api.Assertions.*;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,10 +17,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -31,6 +40,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
+import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.dto.MemberRequest;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberHistory;
@@ -49,6 +59,9 @@ class HistorySnapshotIntegrationTest {
 	@Autowired private MemberService memberService;
 	@Autowired private MemberRepository memberRepository;
 	@Autowired private MemberHistoryRepository memberHistoryRepository;
+	@Autowired private RedisTemplate<String, Object> redisTemplate;
+	@Autowired private SessionRedisRepository sessionRedisRepository;
+	@Autowired private PlatformTransactionManager transactionManager;
 	@Autowired private AccommodationService accommodationService;
 	@Autowired private AccommodationRepository accommodationRepository;
 	@Autowired private AccommodationHistoryRepository accommodationHistoryRepository;
@@ -123,6 +136,80 @@ class HistorySnapshotIntegrationTest {
 		assertThat(closed.getChangeType()).isEqualTo(ChangeType.CREATE);
 		assertThat(closed.getStatus()).isEqualTo(MemberStatus.ACTIVE);
 		assertThat(closed.getValidTo()).isBefore(HistoryConstants.FOREVER); // 닫힘
+	}
+
+	@Test
+	@DisplayName("회원 탈퇴 시 해당 회원의 모든 세션만 Redis에서 제거한다")
+	void memberDeletionRevokesOnlyTargetMemberSessions() {
+		memberService.createMember(MemberRequest.Signup.builder()
+			.nickname("kim").email("session@test.com").password("password1").build());
+		Member member = memberRepository.findAll().getFirst();
+		sessionRedisRepository.saveSession("target-session-1", member.getId());
+		sessionRedisRepository.saveSession("target-session-2", member.getId());
+		sessionRedisRepository.saveSession("other-session", 999L);
+
+		memberService.deleteMember(member.getId(), "사용자 탈퇴");
+
+		assertThat(sessionRedisRepository.getMemberIdBySession("target-session-1")).isEmpty();
+		assertThat(sessionRedisRepository.getMemberIdBySession("target-session-2")).isEmpty();
+		assertThat(redisTemplate.hasKey("MEMBER_SESSIONS:" + member.getId())).isFalse();
+		assertThat(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:" + member.getId())).isFalse();
+		assertThat(sessionRedisRepository.getMemberIdBySession("other-session")).contains(999L);
+		assertThat(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:999")).isTrue();
+		assertThat(redisTemplate.opsForZSet().range("MEMBER_SESSIONS:999", 0, -1))
+			.containsExactly("other-session");
+
+		sessionRedisRepository.deleteAllSessions(999L);
+	}
+
+	@Test
+	@DisplayName("로그인과 탈퇴가 사용하는 회원 쓰기 잠금은 같은 회원에서 직렬화된다")
+	void memberWriteLocksSerializeLoginAndDeletion() throws Exception {
+		memberService.createMember(MemberRequest.Signup.builder()
+			.nickname("kim").email("concurrent-session@test.com").password("password1").build());
+		Member member = memberRepository.findAll().getFirst();
+
+		CountDownLatch deletionLockAcquired = new CountDownLatch(1);
+		CountDownLatch releaseDeletionLock = new CountDownLatch(1);
+		CountDownLatch loginLockAttempted = new CountDownLatch(1);
+		TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		CompletableFuture<Void> deletionLockFuture = CompletableFuture.runAsync(() ->
+			transactionTemplate.executeWithoutResult(status -> {
+				memberRepository.findByIdForUpdate(member.getId()).orElseThrow();
+				deletionLockAcquired.countDown();
+				try {
+					if (!releaseDeletionLock.await(5, TimeUnit.SECONDS)) {
+						throw new IllegalStateException("회원 탈퇴 잠금 해제 대기 시간 초과");
+					}
+				} catch (InterruptedException exception) {
+					Thread.currentThread().interrupt();
+					throw new IllegalStateException("회원 탈퇴 잠금 대기 중 인터럽트", exception);
+				}
+			}), executor);
+
+		try {
+			assertThat(deletionLockAcquired.await(5, TimeUnit.SECONDS)).isTrue();
+			CompletableFuture<Member> loginLockFuture = CompletableFuture.supplyAsync(() ->
+				transactionTemplate.execute(status -> {
+					loginLockAttempted.countDown();
+					return memberRepository.findByIdAndStatusForUpdate(
+						member.getId(), MemberStatus.ACTIVE
+					).orElseThrow();
+				}), executor);
+
+			assertThat(loginLockAttempted.await(5, TimeUnit.SECONDS)).isTrue();
+			assertThatThrownBy(() -> loginLockFuture.get(1, TimeUnit.SECONDS))
+				.isInstanceOf(TimeoutException.class);
+
+			releaseDeletionLock.countDown();
+			deletionLockFuture.get(5, TimeUnit.SECONDS);
+			assertThat(loginLockFuture.get(5, TimeUnit.SECONDS).getId()).isEqualTo(member.getId());
+		} finally {
+			releaseDeletionLock.countDown();
+			executor.shutdownNow();
+		}
 	}
 
 	@Test

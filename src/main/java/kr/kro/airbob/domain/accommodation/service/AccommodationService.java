@@ -43,6 +43,7 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
+import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationAmenityException;
 import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationTypeException;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
@@ -123,10 +124,11 @@ public class AccommodationService {
         Accommodation accommodation = findByIdAndMemberIdAndStatusNot(accommodationId, memberId);
 
         validateAccommodationType(request.type());
+        Map<String, Integer> amenityCountMap = getAmenityCountMap(request.amenityInfos());
         accommodation.updateAccommodation(request);
         updateAddress(accommodation, request.addressInfo());
         updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
-        updateAmenities(accommodation, request.amenityInfos());
+        updateAmenities(accommodation, amenityCountMap);
 
         recordHistory(accommodation, ChangeType.UPDATE, "숙소 정보 수정");
 
@@ -455,9 +457,7 @@ public class AccommodationService {
     }
 
 
-    private void saveValidAmenities(List<AmenityRequest.AmenityInfo> request, Accommodation savedAccommodation) {
-        Map<String, Integer> amenityCountMap = getAmenityCountMap(request);
-
+    private void saveValidAmenities(Map<String, Integer> amenityCountMap, Accommodation savedAccommodation) {
         if(amenityCountMap.isEmpty()) return;
 
         // 공통 코드(AMENITY_TYPE)로 이미 검증된 코드만 남으므로, 코드 문자열을 직접 저장(amenity 테이블 조회 불필요)
@@ -471,16 +471,27 @@ public class AccommodationService {
 
     // 편의시설 코드 정합성은 공통 코드(AMENITY_TYPE) 캐시로 검증 — enum 대신 애플리케이션 레벨 통제
     private Map<String, Integer> getAmenityCountMap(List<AmenityRequest.AmenityInfo> request) {
-        return request.stream()
+        if (request == null) {
+            return null;
+        }
+
+        Map<String, Integer> amenityCountMap = request.stream()
             .filter(info -> info.count() > 0)
             .map(info -> new AbstractMap.SimpleEntry<>(
                 info.name() == null ? null : info.name().toUpperCase(), info.count()))
-            .filter(entry -> commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, entry.getKey()))
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
                 Map.Entry::getValue,
                 Integer::sum
             ));
+
+        boolean hasInvalidCode = amenityCountMap.keySet().stream()
+            .anyMatch(code -> !commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, code));
+        if (hasInvalidCode) {
+            throw new InvalidAccommodationAmenityException();
+        }
+
+        return amenityCountMap;
     }
 
     // 숙소 유형 코드 정합성 검증(공통 코드 ACCOMMODATION_TYPE). 유효하지 않으면 거부.
@@ -522,15 +533,15 @@ public class AccommodationService {
         }
     }
 
-    private void updateAmenities(Accommodation accommodation, List<AmenityRequest.AmenityInfo> amenityInfos) {
-        if (amenityInfos == null) {
+    private void updateAmenities(Accommodation accommodation, Map<String, Integer> amenityCountMap) {
+        if (amenityCountMap == null) {
             return;
         }
 
         accommodationAmenityRepository.deleteByAccommodationIdInBulk(accommodation.getId());
 
-        if (!amenityInfos.isEmpty()) {
-            saveValidAmenities(amenityInfos, accommodation);
+        if (!amenityCountMap.isEmpty()) {
+            saveValidAmenities(amenityCountMap, accommodation);
         }
     }
 

@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Component
 @Slf4j
 public class SessionAuthFilter extends OncePerRequestFilter {
+    private static final String MEMBER_SESSION_ACTIVE = "MEMBER_SESSION_ACTIVE:";
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
@@ -82,6 +83,11 @@ public class SessionAuthFilter extends OncePerRequestFilter {
             } catch (Exception e) {
                 log.warn("[SessionAuthFilter] 유효하지 않은 세션값 (무시): SESSION:{}", sessionId, e);
             }
+        }
+
+        if (memberId != null && !Boolean.TRUE.equals(redisTemplate.hasKey(MEMBER_SESSION_ACTIVE + memberId))) {
+            log.warn("[SessionAuthFilter] 회원별 세션 활성 키 누락 (무시): memberId={}", memberId);
+            memberId = null;
         }
 
         // 인증 검사 로직

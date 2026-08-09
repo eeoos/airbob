@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
+import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
@@ -23,6 +24,7 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final MemberHistoryRepository historyRepository;
+    private final SessionRedisRepository sessionRedisRepository;
 
     @Transactional
     public void createMember(Signup request) {
@@ -40,15 +42,17 @@ public class MemberService {
 
     @Transactional
     public void deleteMember(Long memberId, String reason) {
-        Member member = memberRepository.findById(memberId)
+        Member member = memberRepository.findByIdForUpdate(memberId)
             .orElseThrow(MemberNotFoundException::new);
 
         member.delete();
         memberRepository.save(member);
 
-        // SCD2: 직전 현재 행을 닫고 새 스냅샷을 연다
+        // SCD2: 직전 현재 행을 닫고 새 스냅샷 열기
         historyRepository.findByMemberIdAndValidTo(member.getId(), HistoryConstants.FOREVER)
             .ifPresent(current -> current.close(LocalDateTime.now()));
         historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason));
+
+        sessionRedisRepository.deleteAllSessions(memberId);
     }
 }
