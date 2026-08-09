@@ -1,8 +1,8 @@
 package kr.kro.airbob.domain.commoncode.repository;
 
-import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
+import kr.kro.airbob.domain.commoncode.entity.CommonCode;
 
-public interface CommonCodeGroupRepositoryCustom {
+public interface CommonCodeRepositoryCustom {
 
-	void insert(CommonCodeGroup group);
+	void insert(CommonCode code);
 }

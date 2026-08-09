@@ -8,7 +8,7 @@ import kr.kro.airbob.domain.commoncode.entity.CommonCode;
 import kr.kro.airbob.domain.commoncode.entity.CommonCodeId;
 
 public interface CommonCodeRepository
-	extends JpaRepository<CommonCode, CommonCodeId> {
+	extends JpaRepository<CommonCode, CommonCodeId>, CommonCodeRepositoryCustom {
 
 	/**
 	 * 활성 그룹 전제하에, 활성 공통 코드를 정렬 순서대로 조회

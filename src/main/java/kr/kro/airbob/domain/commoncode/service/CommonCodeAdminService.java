@@ -97,7 +97,11 @@ public class CommonCodeAdminService {
 			.sortOrder(request.sortOrder() == null ? 0 : request.sortOrder())
 			.active(request.isActive() == null || request.isActive())
 			.build();
-		commonCodeRepository.save(commonCode);
+		try {
+			commonCodeRepository.insert(commonCode);
+		} catch (DataIntegrityViolationException exception) {
+			throw new CommonCodeDuplicateException(exception);
+		}
 
 		return CommonCodeAdminResponse.from(commonCode);
 	}

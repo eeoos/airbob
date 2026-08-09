@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupRequest;
+import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
+import kr.kro.airbob.domain.commoncode.exception.CommonCodeDuplicateException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupDuplicateException;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeRepository;
@@ -35,5 +37,21 @@ class CommonCodeAdminServiceTest {
 		assertThatThrownBy(() -> adminService.createGroup(
 			new CommonCodeGroupRequest.Create("race_group", "경쟁 그룹", null, true)))
 			.isInstanceOf(CommonCodeGroupDuplicateException.class);
+	}
+
+	@Test
+	@DisplayName("코드 INSERT 중 중복 키가 발생하면 CC003 예외로 변환한다")
+	void translateDuplicateKeyOnCreateCode() {
+		given(groupRepository.existsById("AMENITY_TYPE")).willReturn(true);
+		given(commonCodeRepository.existsById(any())).willReturn(false);
+		DataIntegrityViolationException duplicateKey =
+			new DataIntegrityViolationException("duplicate key");
+		willThrow(duplicateKey)
+			.given(commonCodeRepository).insert(any());
+
+		assertThatThrownBy(() -> adminService.create("AMENITY_TYPE",
+			new CommonCodeRequest.Create("WIFI", "무선 인터넷", null, 1, true)))
+			.isInstanceOf(CommonCodeDuplicateException.class)
+			.hasCause(duplicateKey);
 	}
 }

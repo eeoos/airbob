@@ -27,12 +27,15 @@ import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupRequest;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeGroupResponse;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeRequest;
 import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
+import kr.kro.airbob.domain.commoncode.entity.CommonCode;
 import kr.kro.airbob.domain.commoncode.entity.CommonCodeGroup;
+import kr.kro.airbob.domain.commoncode.entity.CommonCodeId;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeDuplicateException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupDuplicateException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeGroupNotFoundException;
 import kr.kro.airbob.domain.commoncode.exception.CommonCodeNotFoundException;
 import kr.kro.airbob.domain.commoncode.repository.CommonCodeGroupRepository;
+import kr.kro.airbob.domain.commoncode.repository.CommonCodeRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 /**
@@ -48,6 +51,7 @@ class CommonCodeAdminServiceIntegrationTest {
 	@Autowired private CommonCodeAdminService adminService;
 	@Autowired private CommonCodeService commonCodeService;
 	@Autowired private CommonCodeGroupRepository groupRepository;
+	@Autowired private CommonCodeRepository commonCodeRepository;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
@@ -202,6 +206,29 @@ class CommonCodeAdminServiceIntegrationTest {
 		CommonCodeGroup saved = groupRepository.findById("INSERT_ONLY_GROUP").orElseThrow();
 		assertThat(saved.getGroupName()).isEqualTo("최초 이름");
 		assertThat(saved.getDescription()).isEqualTo("최초 설명");
+		assertThat(saved.isActive()).isTrue();
+	}
+
+	@Test
+	@DisplayName("중복 코드 INSERT는 기존 공통 코드를 덮어쓰지 않는다")
+	void duplicateCodeInsertDoesNotOverwriteExistingCode() {
+		CommonCode duplicate = CommonCode.builder()
+			.groupCode(CommonCodeGroups.AMENITY_TYPE)
+			.code("WIFI")
+			.name("덮어쓴 이름")
+			.description("덮어쓴 설명")
+			.sortOrder(999)
+			.active(false)
+			.build();
+
+		assertThatThrownBy(() -> commonCodeRepository.insert(duplicate))
+			.isInstanceOf(DataIntegrityViolationException.class);
+
+		CommonCode saved = commonCodeRepository.findById(
+			new CommonCodeId(CommonCodeGroups.AMENITY_TYPE, "WIFI")).orElseThrow();
+		assertThat(saved.getName()).isEqualTo("무선 인터넷");
+		assertThat(saved.getDescription()).isNull();
+		assertThat(saved.getSortOrder()).isEqualTo(1);
 		assertThat(saved.isActive()).isTrue();
 	}
 
