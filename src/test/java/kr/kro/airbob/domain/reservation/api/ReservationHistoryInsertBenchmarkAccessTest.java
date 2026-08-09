@@ -166,7 +166,6 @@ class ReservationHistoryInsertBenchmarkAccessTest {
 	}
 
 	private void authenticate(long memberId, MemberRole role) {
-		given(redisTemplate.hasKey("SESSION:valid-session")).willReturn(true);
 		given(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:" + memberId)).willReturn(true);
 		given(redisTemplate.opsForValue()).willReturn(valueOperations);
 		given(valueOperations.get("SESSION:valid-session")).willReturn(memberId);

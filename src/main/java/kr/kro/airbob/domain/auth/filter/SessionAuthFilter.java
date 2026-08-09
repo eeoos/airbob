@@ -77,9 +77,9 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         String sessionId = SessionUtil.getSessionIdByCookie(request);
         Long memberId = null;
 
-        if (sessionId != null && Boolean.TRUE.equals(redisTemplate.hasKey("SESSION:" + sessionId))) {
+        if (sessionId != null) {
             try {
-                memberId = checkMemberIdType(sessionId);
+                memberId = getMemberId(sessionId);
             } catch (Exception e) {
                 log.warn("[SessionAuthFilter] 유효하지 않은 세션값 (무시): SESSION:{}", sessionId, e);
             }
@@ -138,7 +138,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         return (source != null && !source.isBlank()) ? source : "API";
     }
 
-    private long checkMemberIdType(String sessionId) {
+    private Long getMemberId(String sessionId) {
         Object value = redisTemplate.opsForValue().get("SESSION:" + sessionId);
 
         if (value instanceof Number number) {
@@ -146,9 +146,8 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         } else if (value != null) {
             log.error("세션 값 타입 오류: SESSION:{} 값 = {}, 타입 = {}", sessionId, value, value.getClass().getName());
             throw new IllegalStateException("Unexpected session type: " + value.getClass());
-        } else {
-            log.error("세션 값 누락: SESSION:{}", sessionId);
-            throw new IllegalStateException("Session value not found in Redis for key: SESSION:" + sessionId);
         }
+
+        return null;
     }
 }

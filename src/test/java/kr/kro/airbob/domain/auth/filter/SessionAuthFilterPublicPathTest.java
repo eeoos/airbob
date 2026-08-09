@@ -54,7 +54,6 @@ class SessionAuthFilterPublicPathTest {
 	void sessionWithoutActiveMemberKeyIsRejected() throws Exception {
 		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
 		ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
-		when(redisTemplate.hasKey("SESSION:valid-session")).thenReturn(true);
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
 		SessionAuthFilter filter = new SessionAuthFilter(redisTemplate, new ObjectMapper());
@@ -68,6 +67,29 @@ class SessionAuthFilterPublicPathTest {
 		assertThat(chain.getRequest()).isNull();
 		assertThat(response.getStatus()).isEqualTo(401);
 		verify(redisTemplate).hasKey("MEMBER_SESSION_ACTIVE:10");
+	}
+
+	@Test
+	@DisplayName("유효한 세션은 존재 여부 조회 없이 단일 GET으로 인증한다")
+	@SuppressWarnings("unchecked")
+	void validSessionIsAuthenticatedWithSingleGet() throws Exception {
+		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+		ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
+		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+		when(valueOperations.get("SESSION:valid-session")).thenReturn(10L);
+		when(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:10")).thenReturn(true);
+		SessionAuthFilter filter = new SessionAuthFilter(redisTemplate, new ObjectMapper());
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
+		request.setCookies(new Cookie("SESSION_ID", "valid-session"));
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		filter.doFilter(request, response, chain);
+
+		assertThat(chain.getRequest()).isSameAs(request);
+		assertThat(response.getStatus()).isEqualTo(200);
+		verify(valueOperations).get("SESSION:valid-session");
+		verify(redisTemplate, never()).hasKey("SESSION:valid-session");
 	}
 
 	@SuppressWarnings("unchecked")
