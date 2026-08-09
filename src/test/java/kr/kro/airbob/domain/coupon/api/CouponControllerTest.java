@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
 
@@ -34,7 +35,9 @@ class CouponControllerTest {
 	void setUp() {
 		UserContext.set(new UserInfo(10L));
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new CouponController(couponService, luaIssueService)).build();
+			new CouponController(couponService, luaIssueService))
+			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
+			.build();
 	}
 
 	@AfterEach

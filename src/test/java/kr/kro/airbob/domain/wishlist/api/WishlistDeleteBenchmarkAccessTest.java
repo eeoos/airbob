@@ -26,6 +26,7 @@ import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkAccessGuard;
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
@@ -60,6 +61,7 @@ class WishlistDeleteBenchmarkAccessTest {
 		);
 		mockMvc = MockMvcBuilders.standaloneSetup(controller)
 			.setControllerAdvice(new GlobalExceptionHandler())
+			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.addFilters(sessionAuthFilter)
 			.addInterceptors(adminAuthInterceptor)

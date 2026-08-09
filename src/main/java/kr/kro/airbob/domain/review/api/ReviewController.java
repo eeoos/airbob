@@ -16,10 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -37,8 +37,8 @@ public class ReviewController {
 	@PostMapping("/v1/accommodations/{accommodationId}/reviews")
 	public ResponseEntity<ApiResponse<ReviewResponse.Create>> createReview(
 		@PathVariable Long accommodationId,
-		@Valid @RequestBody ReviewRequest.Create request) {
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody ReviewRequest.Create request,
+		@CurrentMemberId Long memberId) {
 		ReviewResponse.Create response =
 			reviewService.createReview(accommodationId, request, memberId);
 
@@ -48,8 +48,8 @@ public class ReviewController {
 	@PatchMapping("/v1/reviews/{reviewId}")
 	public ResponseEntity<ApiResponse<ReviewResponse.Update>> updateReview(
 		@PathVariable Long reviewId,
-		@Valid @RequestBody ReviewRequest.Update request) {
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody ReviewRequest.Update request,
+		@CurrentMemberId Long memberId) {
 		ReviewResponse.Update response =
 			reviewService.updateReviewContent(reviewId, request, memberId);
 
@@ -57,8 +57,9 @@ public class ReviewController {
 	}
 
 	@DeleteMapping("/v1/reviews/{reviewId}")
-	public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
-		Long memberId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<Void>> deleteReview(
+		@PathVariable Long reviewId,
+		@CurrentMemberId Long memberId) {
 		reviewService.deleteReview(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
@@ -66,9 +67,9 @@ public class ReviewController {
 	@PostMapping("/v1/reviews/{reviewId}/images")
 	public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadReviewImages(
 		@PathVariable Long reviewId,
-		@RequestParam("images") List<MultipartFile> images) {
+		@RequestParam("images") List<MultipartFile> images,
+		@CurrentMemberId Long memberId) {
 
-		Long memberId = UserContext.get().id();
 		ImageResponse.ImageUploadResult response = reviewService.uploadReviewImages(reviewId, images,
 			memberId);
 
@@ -78,9 +79,9 @@ public class ReviewController {
 	@DeleteMapping("/v1/reviews/{reviewId}/images/{imageId}")
 	public ResponseEntity<ApiResponse<Void>> deleteReviewImage(
 		@PathVariable Long reviewId,
-		@PathVariable Long imageId) {
+		@PathVariable Long imageId,
+		@CurrentMemberId Long memberId) {
 
-		Long memberId = UserContext.get().id();
 		reviewService.deleteReviewImage(reviewId, imageId, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success());

@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistDeleteBenchmarkService;
@@ -37,10 +37,10 @@ public class WishlistDeleteBenchmarkController {
 	@PostMapping
 	public ResponseEntity<ApiResponse<WishlistDeleteBenchmarkResponse>> run(
 		@Valid @RequestBody WishlistDeleteBenchmarkRequest request,
-		@RequestHeader(value = BulkWriteBenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
+		@RequestHeader(value = BulkWriteBenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long ownerId
 	) {
 		accessGuard.verify(benchmarkToken);
-		long ownerId = UserContext.get().id();
 		WishlistDeleteBenchmarkResponse response = benchmarkService.run(ownerId, request);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

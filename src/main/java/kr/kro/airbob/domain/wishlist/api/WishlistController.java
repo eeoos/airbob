@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
@@ -35,8 +35,8 @@ public class WishlistController {
 
 	@PostMapping("/v1/members/wishlists")
 	public ResponseEntity<ApiResponse<WishlistResponse.Create>> createWishlist(
-		@Valid @RequestBody WishlistRequest.Create request){
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody WishlistRequest.Create request,
+		@CurrentMemberId Long memberId) {
 		WishlistResponse.Create response = wishlistService.createWishlist(request, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
 	}
@@ -44,16 +44,17 @@ public class WishlistController {
 	@PatchMapping("/v1/members/wishlists/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistResponse.Update>> updateWishlist(
 		@PathVariable Long wishlistId,
-		@Valid @RequestBody WishlistRequest.Update request) {
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody WishlistRequest.Update request,
+		@CurrentMemberId Long memberId) {
 		WishlistResponse.Update response = wishlistService.updateWishlist(wishlistId, request, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@DeleteMapping("/v1/members/wishlists/{wishlistId}")
-	public ResponseEntity<ApiResponse<Void>> deleteWishlist(@PathVariable Long wishlistId) {
-		Long memberId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<Void>> deleteWishlist(
+		@PathVariable Long wishlistId,
+		@CurrentMemberId Long memberId) {
 		wishlistService.deleteWishlist(wishlistId, memberId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
@@ -61,8 +62,8 @@ public class WishlistController {
 	@GetMapping("/v1/members/wishlists")
 	public ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> findWishlists(
 		@CursorParam CursorRequest.CursorPageRequest request,
-		@RequestParam(required = false) Long accommodationId) {
-		Long memberId = UserContext.get().id();
+		@RequestParam(required = false) Long accommodationId,
+		@CurrentMemberId Long memberId) {
 		WishlistResponse.WishlistInfos response = wishlistService.findWishlists(request, memberId, accommodationId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -70,8 +71,8 @@ public class WishlistController {
 	@PostMapping("/v1/members/wishlists/accommodations/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Create>> createWishlistAccommodation(
 		@PathVariable Long wishlistId,
-		@Valid @RequestBody WishlistAccommodationRequest.Create request) {
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody WishlistAccommodationRequest.Create request,
+		@CurrentMemberId Long memberId) {
 		WishlistAccommodationResponse.Create response =
 			wishlistService.createWishlistAccommodation(wishlistId, request, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
@@ -80,9 +81,8 @@ public class WishlistController {
 	@PatchMapping("/v1/members/wishlists/accommodations/{wishlistAccommodationId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Update>> updateWishlistAccommodation(
 		@PathVariable Long wishlistAccommodationId,
-		@Valid @RequestBody WishlistAccommodationRequest.Update request) {
-
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody WishlistAccommodationRequest.Update request,
+		@CurrentMemberId Long memberId) {
 		WishlistAccommodationResponse.Update response =
 			wishlistService.updateWishlistAccommodation(wishlistAccommodationId, request, memberId);
 
@@ -91,9 +91,8 @@ public class WishlistController {
 
 	@DeleteMapping("/v1/members/wishlists/accommodations/{wishlistAccommodationId}")
 	public ResponseEntity<ApiResponse<Void>> deleteWishlistAccommodation(
-		@PathVariable Long wishlistAccommodationId) {
-		Long memberId = UserContext.get().id();
-
+		@PathVariable Long wishlistAccommodationId,
+		@CurrentMemberId Long memberId) {
 		wishlistService.deleteWishlistAccommodation(wishlistAccommodationId, memberId);
 
 		return ResponseEntity.ok(ApiResponse.success());
@@ -102,10 +101,9 @@ public class WishlistController {
 	@GetMapping("/v1/members/wishlists/accommodations/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodations(
 		@CursorParam CursorRequest.CursorPageRequest request,
-		@PathVariable Long wishlistId
+		@PathVariable Long wishlistId,
+		@CurrentMemberId Long memberId
 	) {
-		Long memberId = UserContext.get().id();
-
 		WishlistAccommodationResponse.WishlistAccommodationInfos response
 			= wishlistService.findWishlistAccommodations(wishlistId, request, memberId);
 

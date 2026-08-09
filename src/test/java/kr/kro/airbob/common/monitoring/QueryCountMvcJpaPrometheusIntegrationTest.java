@@ -42,6 +42,7 @@ import kr.kro.airbob.config.WebMvcConfig;
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 
@@ -92,6 +93,9 @@ class QueryCountMvcJpaPrometheusIntegrationTest {
 
 	@MockitoBean
 	private CursorParamArgumentResolver cursorParamArgumentResolver;
+
+	@MockitoBean
+	private CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver;
 
 	@MockitoBean
 	private SessionAuthFilter sessionAuthFilter;

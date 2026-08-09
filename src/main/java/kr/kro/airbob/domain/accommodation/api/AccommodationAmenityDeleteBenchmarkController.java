@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkResponse;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkService;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 
 @RestController
 @Profile("bulk-write-benchmark")
@@ -38,10 +38,10 @@ public class AccommodationAmenityDeleteBenchmarkController {
 	public ResponseEntity<ApiResponse<AccommodationAmenityDeleteBenchmarkResponse>> run(
 		@Valid @RequestBody AccommodationAmenityDeleteBenchmarkRequest request,
 		@RequestHeader(value = BulkWriteBenchmarkAccessGuard.HEADER_NAME, required = false)
-		String benchmarkToken
+		String benchmarkToken,
+		@CurrentMemberId Long ownerId
 	) {
 		accessGuard.verify(benchmarkToken);
-		long ownerId = UserContext.get().id();
 		return ResponseEntity.ok(ApiResponse.success(benchmarkService.run(ownerId, request)));
 	}
 }

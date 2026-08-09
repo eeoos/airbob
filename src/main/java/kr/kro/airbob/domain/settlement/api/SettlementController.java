@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.settlement.dto.SettlementResponse;
 import kr.kro.airbob.domain.settlement.entity.SettlementStatus;
 import kr.kro.airbob.domain.settlement.service.SettlementService;
@@ -31,25 +31,25 @@ public class SettlementController {
 	@GetMapping("/v1/profile/host/settlements")
 	public ResponseEntity<ApiResponse<List<SettlementResponse.HostSettlement>>> getHostSettlements(
 		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+		@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+		@CurrentMemberId Long hostId) {
 
-		Long hostId = UserContext.get().id();
 		return ResponseEntity.ok(ApiResponse.success(settlementService.getHostSettlements(hostId, from, to)));
 	}
 
 	// 호스트 대시보드 요약(정산 예정/누적 지급 총액·건수)
 	@GetMapping("/v1/profile/host/settlements/summary")
-	public ResponseEntity<ApiResponse<SettlementResponse.HostSummary>> getHostSummary() {
-		Long hostId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<SettlementResponse.HostSummary>> getHostSummary(
+		@CurrentMemberId Long hostId) {
 		return ResponseEntity.ok(ApiResponse.success(settlementService.getHostSummary(hostId)));
 	}
 
 	// 호스트 본인 정산 상세(숙소별 내역)
 	@GetMapping("/v1/profile/host/settlements/{settlementId}")
 	public ResponseEntity<ApiResponse<SettlementResponse.SettlementDetail>> getHostSettlementDetail(
-		@PathVariable Long settlementId) {
+		@PathVariable Long settlementId,
+		@CurrentMemberId Long hostId) {
 
-		Long hostId = UserContext.get().id();
 		return ResponseEntity.ok(ApiResponse.success(
 			settlementService.getSettlementDetail(settlementId, hostId)));
 	}

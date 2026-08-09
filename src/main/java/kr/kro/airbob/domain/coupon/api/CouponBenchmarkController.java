@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
 import lombok.RequiredArgsConstructor;
 
@@ -29,10 +29,10 @@ public class CouponBenchmarkController {
 	@PostMapping("/{couponId}/issue")
 	public ResponseEntity<ApiResponse<Void>> issueCouponWithLock(
 		@PathVariable Long couponId,
-		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long memberId
 	) {
 		accessGuard.verify(benchmarkToken);
-		Long memberId = UserContext.get().id();
 		lockIssueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}

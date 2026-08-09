@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponService;
@@ -33,8 +33,9 @@ public class CouponController {
 	}
 
 	@PostMapping("/v1/coupons/{couponId}/issue")
-	public ResponseEntity<ApiResponse<Void>> issueCoupon(@PathVariable Long couponId) {
-		Long memberId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<Void>> issueCoupon(
+		@PathVariable Long couponId,
+		@CurrentMemberId Long memberId) {
 		luaIssueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}

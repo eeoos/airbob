@@ -2,10 +2,10 @@ package kr.kro.airbob.domain.auth.api;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
-import kr.kro.airbob.domain.auth.service.AuthService;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
+import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import lombok.RequiredArgsConstructor;
 
@@ -44,8 +44,7 @@ public class AuthController {
     }
 
     @GetMapping("/v1/auth/me")
-    public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo() {
-        Long memberId = UserContext.get().id();
+    public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo(@CurrentMemberId Long memberId) {
         MemberResponse.MeInfo response = authService.getMemberInfo(memberId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }

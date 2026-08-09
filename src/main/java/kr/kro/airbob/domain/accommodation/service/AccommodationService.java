@@ -21,8 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
@@ -155,7 +153,7 @@ public class AccommodationService {
     }
 
     @Transactional(readOnly = true)
-    public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId) {
+    public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
         Accommodation accommodation = accommodationRepository.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
             .orElseThrow(AccommodationNotFoundException::new);
 
@@ -172,7 +170,7 @@ public class AccommodationService {
         List<LocalDate> unavailableDates = getUnavailableDates(accommodation.getAccommodationUid());
 
         // 위시리스트 포함 여부 - 로그인 사용자만
-        Boolean isInWishlist = checkWishlistStatus(accommodationId);
+        Boolean isInWishlist = checkWishlistStatus(accommodationId, viewerId);
 
         return AccommodationResponse.DetailInfo.from(accommodation, unavailableDates, isInWishlist, amenityInfos,
             imageInfos, reviewSummary);
@@ -447,14 +445,13 @@ public class AccommodationService {
             .toList();
     }
 
-    private Boolean checkWishlistStatus(Long accommodationId) {
-        UserInfo userInfo = UserContext.get();
-        if (userInfo == null || userInfo.id() == null) {
+    private Boolean checkWishlistStatus(Long accommodationId, Long viewerId) {
+        if (viewerId == null) {
             return false; // 비로그인은 false
         }
 
-        Long memberId = userInfo.id();
-        return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(memberId, accommodationId);
+        return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(viewerId,
+            accommodationId);
     }
 
 

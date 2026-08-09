@@ -20,8 +20,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.domain.recentlyViewed.dto.RecentlyViewedBenchmarkRequest;
 import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedBenchmarkFixtureService;
 import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
@@ -86,16 +84,11 @@ class RecentlyViewedBenchmarkControllerTest {
 			new RecentlyViewedBenchmarkController(recentlyViewedService, fixtureService, accessGuard);
 		RecentlyViewedBenchmarkRequest.Replace request =
 			new RecentlyViewedBenchmarkRequest.Replace(List.of(251L, 252L));
-		UserContext.set(new UserInfo(7L, "127.0.0.1", "test"));
 
-		try {
-			assertThat(controller.replaceRecentlyViewedFixture(request, "secret-token")
-				.getStatusCode().is2xxSuccessful()).isTrue();
-			verify(accessGuard).verify("secret-token");
-			verify(fixtureService).replaceFixture(7L, request.accommodationIds());
-		} finally {
-			UserContext.clear();
-		}
+		assertThat(controller.replaceRecentlyViewedFixture(request, "secret-token", 7L)
+			.getStatusCode().is2xxSuccessful()).isTrue();
+		verify(accessGuard).verify("secret-token");
+		verify(fixtureService).replaceFixture(7L, request.accommodationIds());
 	}
 
 	@Test
@@ -106,16 +99,11 @@ class RecentlyViewedBenchmarkControllerTest {
 		BenchmarkAccessGuard accessGuard = mock(BenchmarkAccessGuard.class);
 		RecentlyViewedBenchmarkController controller =
 			new RecentlyViewedBenchmarkController(recentlyViewedService, fixtureService, accessGuard);
-		UserContext.set(new UserInfo(7L, "127.0.0.1", "test"));
 
-		try {
-			assertThat(controller.getRecentlyViewedBefore("secret-token")
-				.getStatusCode().is2xxSuccessful()).isTrue();
-			verify(accessGuard).verify("secret-token");
-			verify(recentlyViewedService).getRecentlyViewedBefore(7L);
-		} finally {
-			UserContext.clear();
-		}
+		assertThat(controller.getRecentlyViewedBefore("secret-token", 7L)
+			.getStatusCode().is2xxSuccessful()).isTrue();
+		verify(accessGuard).verify("secret-token");
+		verify(recentlyViewedService).getRecentlyViewedBefore(7L);
 	}
 
 	@Configuration(proxyBeanMethods = false)

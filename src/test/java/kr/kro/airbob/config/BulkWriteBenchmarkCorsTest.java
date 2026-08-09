@@ -20,6 +20,7 @@ import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 
 @DisplayName("대량 쓰기 벤치마크 cross-origin 차단 테스트")
 class BulkWriteBenchmarkCorsTest {
@@ -92,6 +93,7 @@ class BulkWriteBenchmarkCorsTest {
 
 	private WebMvcConfig createWebMvcConfig() {
 		return new WebMvcConfig(
+			mock(CurrentMemberIdArgumentResolver.class),
 			mock(CursorParamArgumentResolver.class),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
