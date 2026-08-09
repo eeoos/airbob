@@ -31,6 +31,7 @@ CREATE TABLE accommodation (
   CONSTRAINT FK_accommodation_member_id FOREIGN KEY (member_id) REFERENCES member (id),
   CONSTRAINT FK_accommodation_occupancy_policy_id FOREIGN KEY (occupancy_policy_id) REFERENCES occupancy_policy (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE accommodation_amenity (
   id bigint NOT NULL AUTO_INCREMENT,
   accommodation_id bigint DEFAULT NULL,
@@ -46,6 +47,7 @@ CREATE TABLE accommodation_amenity (
   CONSTRAINT FK_accommodation_amenity_accommodation_id FOREIGN KEY (accommodation_id) REFERENCES accommodation (id),
   CONSTRAINT FK_accommodation_amenity_amenity_id FOREIGN KEY (amenity_id) REFERENCES amenity (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE accommodation_discount_policy (
   id bigint NOT NULL AUTO_INCREMENT,
   accommodation_id bigint DEFAULT NULL,
@@ -60,6 +62,7 @@ CREATE TABLE accommodation_discount_policy (
   CONSTRAINT FK_accommodation_discount_policy_accommodation_id FOREIGN KEY (accommodation_id) REFERENCES accommodation (id),
   CONSTRAINT FK_accommodation_discount_policy_discount_policy_id FOREIGN KEY (discount_policy_id) REFERENCES discount_policy (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE accommodation_image (
   id bigint NOT NULL AUTO_INCREMENT,
   accommodation_id bigint DEFAULT NULL,
@@ -72,6 +75,7 @@ CREATE TABLE accommodation_image (
   KEY FK_accommodation_image_accommodation_id (accommodation_id),
   CONSTRAINT FK_accommodation_image_accommodation_id FOREIGN KEY (accommodation_id) REFERENCES accommodation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE accommodation_review_summary (
   accommodation_id bigint NOT NULL,
   total_review_count int NOT NULL DEFAULT '0',
@@ -85,6 +89,7 @@ CREATE TABLE accommodation_review_summary (
   PRIMARY KEY (accommodation_id),
   CONSTRAINT fk_accommodation_review_summary_accommodation FOREIGN KEY (accommodation_id) REFERENCES accommodation (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE address (
   id bigint NOT NULL AUTO_INCREMENT,
   latitude double DEFAULT NULL,
@@ -102,6 +107,7 @@ CREATE TABLE address (
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE amenity (
   id bigint NOT NULL AUTO_INCREMENT,
   created_at datetime(6) DEFAULT NULL,
@@ -111,6 +117,7 @@ CREATE TABLE amenity (
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE discount_policy (
   id bigint NOT NULL AUTO_INCREMENT,
   discount_rate double DEFAULT NULL,
@@ -129,6 +136,7 @@ CREATE TABLE discount_policy (
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE event (
   id bigint NOT NULL AUTO_INCREMENT,
   name varchar(255) NOT NULL,
@@ -142,6 +150,7 @@ CREATE TABLE event (
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE event_participant (
   id bigint NOT NULL AUTO_INCREMENT,
   member_id bigint NOT NULL,
@@ -154,6 +163,7 @@ CREATE TABLE event_participant (
   KEY fk_event_participant_event (event_id),
   CONSTRAINT fk_event_participant_event FOREIGN KEY (event_id) REFERENCES event (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE failed_indexing_events (
   id bigint NOT NULL AUTO_INCREMENT,
   event_type varchar(100) NOT NULL,
@@ -167,6 +177,7 @@ CREATE TABLE failed_indexing_events (
   created_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE member (
   id bigint NOT NULL AUTO_INCREMENT,
   created_at datetime(6) DEFAULT NULL,
@@ -182,6 +193,7 @@ CREATE TABLE member (
   PRIMARY KEY (id),
   UNIQUE KEY uk_member_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- 회원 이력: 전체 행 스냅샷(Master, valid_from/valid_to). password 제외. 원본 FK 없음(이력 독립).
 CREATE TABLE member_history (
   id bigint NOT NULL AUTO_INCREMENT,
@@ -204,6 +216,7 @@ CREATE TABLE member_history (
   PRIMARY KEY (id),
   KEY idx_member_history_member_id (member_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE occupancy_policy (
   id bigint NOT NULL AUTO_INCREMENT,
   infant_occupancy int DEFAULT NULL,
@@ -215,6 +228,7 @@ CREATE TABLE occupancy_policy (
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE outbox (
   id bigint NOT NULL AUTO_INCREMENT,
   aggregate_type varchar(255) NOT NULL,
@@ -227,6 +241,7 @@ CREATE TABLE outbox (
   updated_by bigint DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE payment (
   id bigint NOT NULL AUTO_INCREMENT,
   payment_uid binary(16) NOT NULL,
@@ -248,6 +263,7 @@ CREATE TABLE payment (
   UNIQUE KEY reservation_id (reservation_id),
   CONSTRAINT fk_payment_to_reservation FOREIGN KEY (reservation_id) REFERENCES reservation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- 결제 거래 원장(append-only): 구 payment_attempt + payment_cancel 통합. 원본 FK 없음, 조회 인덱스만.
 CREATE TABLE payment_transaction (
   id bigint NOT NULL AUTO_INCREMENT,
@@ -278,6 +294,7 @@ CREATE TABLE payment_transaction (
   KEY idx_payment_transaction_payment_id (payment_id),
   KEY idx_payment_transaction_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE price_policy (
   id bigint NOT NULL AUTO_INCREMENT,
   end_date date DEFAULT NULL,
@@ -293,6 +310,7 @@ CREATE TABLE price_policy (
   KEY FK_price_policy_accommodation_id (accommodation_id),
   CONSTRAINT FK_price_policy_accommodation_id FOREIGN KEY (accommodation_id) REFERENCES accommodation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE reservation (
   id bigint NOT NULL AUTO_INCREMENT,
   reservation_uid binary(16) NOT NULL,
@@ -319,6 +337,7 @@ CREATE TABLE reservation (
   CONSTRAINT FK_reservation_accommodation FOREIGN KEY (accommodation_id) REFERENCES accommodation (id),
   CONSTRAINT FK_reservation_member FOREIGN KEY (guest_id) REFERENCES member (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- 예약 이력: 전체 행 스냅샷(Transaction, INSERT-only). 원본 FK 없음(이력 독립).
 CREATE TABLE reservation_history (
   id bigint NOT NULL AUTO_INCREMENT,
@@ -346,6 +365,7 @@ CREATE TABLE reservation_history (
   PRIMARY KEY (id),
   KEY idx_reservation_history_reservation_id (reservation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE review (
   id bigint NOT NULL AUTO_INCREMENT,
   rating int DEFAULT NULL,
@@ -363,6 +383,7 @@ CREATE TABLE review (
   CONSTRAINT FK_review_accommodation_id FOREIGN KEY (accommodation_id) REFERENCES accommodation (id),
   CONSTRAINT FK_review_member_id FOREIGN KEY (member_id) REFERENCES member (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE review_image (
   id bigint NOT NULL AUTO_INCREMENT,
   created_at datetime(6) DEFAULT NULL,
@@ -375,6 +396,7 @@ CREATE TABLE review_image (
   KEY FK_review_image_review_id (review_id),
   CONSTRAINT FK_review_image_review_id FOREIGN KEY (review_id) REFERENCES review (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE wishlist (
   id bigint NOT NULL AUTO_INCREMENT,
   name varchar(255) NOT NULL,
@@ -388,6 +410,7 @@ CREATE TABLE wishlist (
   KEY FK_wishlist_member_id (member_id),
   CONSTRAINT FK_wishlist_member_id FOREIGN KEY (member_id) REFERENCES member (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE wishlist_accommodation (
   id bigint NOT NULL AUTO_INCREMENT,
   memo varchar(1024) DEFAULT NULL,
@@ -447,7 +470,7 @@ CREATE TABLE accommodation_history (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
--- 편의시설 마스터 데이터 (구 V27)
+-- 편의시설 마스터 데이터
 INSERT INTO amenity (id, name, created_at, updated_at) VALUES
 (1, 'WIFI', NOW(6), NOW(6)),
 (2, 'AIR_CONDITIONER', NOW(6), NOW(6)),
@@ -481,6 +504,6 @@ INSERT INTO amenity (id, name, created_at, updated_at) VALUES
 (30, 'BALCONY', NOW(6), NOW(6)),
 (31, 'UNKNOWN', NOW(6), NOW(6));
 
--- 데모 이벤트 (구 V10, 등록/수정일시는 마이그레이션 시점)
+-- 데모 이벤트 (등록/수정일시는 마이그레이션 시점)
 INSERT INTO event (name, max_participants, start_at, end_at, status, created_at, updated_at)
 VALUES ('선착순 1000명 이벤트', 1000, '2025-07-01 00:00:00', '2025-07-10 23:59:59', 'OPEN', NOW(6), NOW(6));

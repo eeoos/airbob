@@ -13,8 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
 
 @DisplayName("Redisson 쿠폰 벤치마크 API 테스트")
@@ -63,17 +61,12 @@ class CouponBenchmarkControllerTest {
 		CouponLockIssueService service = mock(CouponLockIssueService.class);
 		BenchmarkAccessGuard guard = mock(BenchmarkAccessGuard.class);
 		CouponBenchmarkController controller = new CouponBenchmarkController(service, guard);
-		UserContext.set(new UserInfo(7L));
 
-		try {
-			var response = controller.issueCouponWithLock(1L, "secret-token");
-			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-			InOrder order = inOrder(guard, service);
-			order.verify(guard).verify("secret-token");
-			order.verify(service).issue(1L, 7L);
-		} finally {
-			UserContext.clear();
-		}
+		var response = controller.issueCouponWithLock(1L, "secret-token", 7L);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+		InOrder order = inOrder(guard, service);
+		order.verify(guard).verify("secret-token");
+		order.verify(service).issue(1L, 7L);
 	}
 
 	@Configuration(proxyBeanMethods = false)

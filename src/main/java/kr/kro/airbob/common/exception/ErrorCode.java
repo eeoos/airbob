@@ -25,6 +25,7 @@ public enum ErrorCode {
 	COMMON_CODE_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "CC001", "존재하지 않는 공통 코드 그룹입니다."),
 	COMMON_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "CC002", "존재하지 않는 공통 코드입니다."),
 	COMMON_CODE_DUPLICATE(HttpStatus.CONFLICT, "CC003", "이미 존재하는 공통 코드입니다."),
+	COMMON_CODE_GROUP_DUPLICATE(HttpStatus.CONFLICT, "CC004", "이미 존재하는 공통 코드 그룹입니다."),
 	// auth & member
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "M001", "존재하지 않거나 활성 상태가 아닌 사용자입니다."),
 	EMAIL_DUPLICATION(HttpStatus.CONFLICT, "M002", "이미 존재하는 이메일입니다."),
@@ -32,6 +33,7 @@ public enum ErrorCode {
 	UNAUTHORIZED_ACCESS(HttpStatus.UNAUTHORIZED, "M004", "인증이 필요합니다."),
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
+	MEMBER_ROLE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "M007", "자신의 관리자 권한은 회수할 수 없습니다."),
 	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
 
 
@@ -39,8 +41,10 @@ public enum ErrorCode {
 	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않거나 삭제된 숙소입니다."),
 	ACCOMMODATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "A002", "숙소에 대한 접근 권한이 없습니다."),
 	ACCOMMODATION_NOT_PUBLISHED(HttpStatus.BAD_REQUEST, "A003", "게시된 상태의 숙소만 미게시할 수 있습니다."),
+	ACCOMMODATION_INVALID_TYPE(HttpStatus.BAD_REQUEST, "A004", "숙소 유형 코드가 유효하지 않습니다."),
 	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
 	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
+	ACCOMMODATION_INVALID_AMENITY(HttpStatus.BAD_REQUEST, "A007", "편의시설 코드가 유효하지 않습니다."),
 	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A003", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
 
 

@@ -13,8 +13,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
@@ -63,17 +61,12 @@ class WishlistBenchmarkControllerTest {
 		WishlistResponse.WishlistInfos expected = new WishlistResponse.WishlistInfos(
 			List.of(), new CursorResponse.PageInfo(false, null, 0));
 		given(service.findWishlistsBefore(request, 7L, 25L)).willReturn(expected);
-		UserContext.set(new UserInfo(7L));
 
-		try {
-			var response = controller.findWishlistsBefore(request, 25L, "secret-token");
+		var response = controller.findWishlistsBefore(request, 25L, "secret-token", 7L);
 
-			assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-			verify(guard).verify("secret-token");
-			verify(service).findWishlistsBefore(request, 7L, 25L);
-		} finally {
-			UserContext.clear();
-		}
+		assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+		verify(guard).verify("secret-token");
+		verify(service).findWishlistsBefore(request, 7L, 25L);
 	}
 
 	@Configuration(proxyBeanMethods = false)

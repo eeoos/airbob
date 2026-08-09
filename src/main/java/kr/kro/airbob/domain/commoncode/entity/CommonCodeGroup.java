@@ -12,8 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * 공통 코드 그룹 정의. PK = 자연키 group_code.
- * 그룹 단위 일괄 비활성화(is_active)를 지원한다.
+ * 공통 코드 그룹 정의. PK = 자연키 group_code
  */
 @Entity
 @Table(name = "common_code_group")
@@ -35,4 +34,16 @@ public class CommonCodeGroup extends BaseEntity {
 
 	@Column(name = "is_active", nullable = false)
 	private boolean active;
+
+	public void updateDisplay(String groupName, String description, Boolean active) {
+		if (groupName != null) {
+			this.groupName = groupName;
+		}
+		if (description != null) {
+			this.description = description;
+		}
+		if (active != null) {
+			this.active = active;
+		}
+	}
 }

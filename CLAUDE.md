@@ -39,7 +39,7 @@ kr.kro.airbob/
 ├── config/          # Spring configs: Redis, Elasticsearch, Kafka, QueryDSL, WebMvc
 ├── cursor/          # Cursor-based pagination (CursorParam annotation + resolver)
 ├── domain/          # Domain modules (see below)
-├── geo/             # Geolocation utilities (Google Maps, IPInfo integration)
+├── geo/             # Geolocation utilities (Google Maps geocoding)
 ├── kafka/           # Kafka consumers and event translators
 ├── outbox/          # Transactional Outbox pattern for event publishing
 └── search/          # Elasticsearch search service with dual-backend (ES + MySQL fallback)
@@ -70,14 +70,14 @@ Each domain follows layered structure: `api/` (controllers) → `service/` → `
 - DLQ (`*.DLT`) with Slack notifications for failed messages
 
 **Search**
-- Elasticsearch 8.9 with Nori analyzer (Korean) + standard analyzer
+- Elasticsearch 8.18.8 with Nori analyzer (Korean) + standard analyzer
 - Dual endpoints: `/api/v1/search/accommodations` (ES) and `/api/v2/search/accommodations` (MySQL fallback)
 - Event-driven index updates via `AccommodationIndexingConsumer`
 
 ### Database
 
 - MySQL 8.0 with Flyway migrations in `src/main/resources/db/migration/`
-- 33 migration versions (V1-V33)
+- 14 migration versions (V1-V14)
 - QueryDSL for type-safe queries (Q-classes generated at compile time)
 
 ### Testing

@@ -9,12 +9,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * common_code_detail 복합키 (group_code, code).
+ * common_code 복합키 (group_code, code)
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-public class CommonCodeDetailId implements Serializable {
+public class CommonCodeId implements Serializable {
 
 	private String groupCode;
 	private String code;
@@ -24,7 +24,7 @@ public class CommonCodeDetailId implements Serializable {
 		if (this == o) {
 			return true;
 		}
-		if (!(o instanceof CommonCodeDetailId that)) {
+		if (!(o instanceof CommonCodeId that)) {
 			return false;
 		}
 		return Objects.equals(groupCode, that.groupCode) && Objects.equals(code, that.code);

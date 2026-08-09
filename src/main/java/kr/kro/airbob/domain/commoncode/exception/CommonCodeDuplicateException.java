@@ -8,4 +8,8 @@ public class CommonCodeDuplicateException extends BaseException {
 	public CommonCodeDuplicateException() {
 		super(ErrorCode.COMMON_CODE_DUPLICATE);
 	}
+
+	public CommonCodeDuplicateException(Throwable cause) {
+		super(cause, ErrorCode.COMMON_CODE_DUPLICATE);
+	}
 }

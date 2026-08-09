@@ -21,6 +21,7 @@ import jakarta.servlet.http.Cookie;
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +46,7 @@ class CouponBenchmarkAccessTest {
 		);
 		mockMvc = MockMvcBuilders.standaloneSetup(controller)
 			.setControllerAdvice(new GlobalExceptionHandler())
+			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.addFilters(sessionAuthFilter)
 			.build();
 	}
@@ -101,7 +103,7 @@ class CouponBenchmarkAccessTest {
 	}
 
 	private void authenticate() {
-		given(redisTemplate.hasKey("SESSION:valid-session")).willReturn(true);
+		given(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:10")).willReturn(true);
 		given(redisTemplate.opsForValue()).willReturn(valueOperations);
 		given(valueOperations.get("SESSION:valid-session")).willReturn(10L);
 	}

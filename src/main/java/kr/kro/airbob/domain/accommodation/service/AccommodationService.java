@@ -9,6 +9,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -21,8 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
@@ -45,6 +44,8 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
+import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationAmenityException;
+import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationTypeException;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
@@ -124,10 +125,11 @@ public class AccommodationService {
         Accommodation accommodation = findByIdAndMemberIdAndStatusNot(accommodationId, memberId);
 
         validateAccommodationType(request.type());
+        Map<String, Integer> amenityCountMap = getAmenityCountMap(request.amenityInfos());
         accommodation.updateAccommodation(request);
         updateAddress(accommodation, request.addressInfo());
         updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
-        updateAmenities(accommodation, request.amenityInfos());
+        updateAmenities(accommodation, amenityCountMap);
 
         recordHistory(accommodation, ChangeType.UPDATE, "숙소 정보 수정");
 
@@ -154,7 +156,7 @@ public class AccommodationService {
     }
 
     @Transactional(readOnly = true)
-    public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId) {
+    public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
         Accommodation accommodation = accommodationRepository.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
             .orElseThrow(AccommodationNotFoundException::new);
 
@@ -171,7 +173,7 @@ public class AccommodationService {
         List<LocalDate> unavailableDates = getUnavailableDates(accommodation.getAccommodationUid());
 
         // 위시리스트 포함 여부 - 로그인 사용자만
-        Boolean isInWishlist = checkWishlistStatus(accommodationId);
+        Boolean isInWishlist = checkWishlistStatus(accommodationId, viewerId);
 
         return AccommodationResponse.DetailInfo.from(accommodation, unavailableDates, isInWishlist, amenityInfos,
             imageInfos, reviewSummary);
@@ -446,20 +448,17 @@ public class AccommodationService {
             .toList();
     }
 
-    private Boolean checkWishlistStatus(Long accommodationId) {
-        UserInfo userInfo = UserContext.get();
-        if (userInfo == null || userInfo.id() == null) {
+    private Boolean checkWishlistStatus(Long accommodationId, Long viewerId) {
+        if (viewerId == null) {
             return false; // 비로그인은 false
         }
 
-        Long memberId = userInfo.id();
-        return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(memberId, accommodationId);
+        return wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(viewerId,
+            accommodationId);
     }
 
 
-    private void saveValidAmenities(List<AmenityRequest.AmenityInfo> request, Accommodation savedAccommodation) {
-        Map<String, Integer> amenityCountMap = getAmenityCountMap(request);
-
+    private void saveValidAmenities(Map<String, Integer> amenityCountMap, Accommodation savedAccommodation) {
         if(amenityCountMap.isEmpty()) return;
 
         // 공통 코드(AMENITY_TYPE)로 이미 검증된 코드만 남으므로, 코드 문자열을 직접 저장(amenity 테이블 조회 불필요)
@@ -473,16 +472,27 @@ public class AccommodationService {
 
     // 편의시설 코드 정합성은 공통 코드(AMENITY_TYPE) 캐시로 검증 — enum 대신 애플리케이션 레벨 통제
     private Map<String, Integer> getAmenityCountMap(List<AmenityRequest.AmenityInfo> request) {
-        return request.stream()
+        if (request == null) {
+            return null;
+        }
+
+        Map<String, Integer> amenityCountMap = request.stream()
             .filter(info -> info.count() > 0)
             .map(info -> new AbstractMap.SimpleEntry<>(
-                info.name() == null ? null : info.name().toUpperCase(), info.count()))
-            .filter(entry -> commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, entry.getKey()))
+                info.name() == null ? null : info.name().toUpperCase(Locale.ROOT), info.count()))
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
                 Map.Entry::getValue,
                 Integer::sum
             ));
+
+        boolean hasInvalidCode = amenityCountMap.keySet().stream()
+            .anyMatch(code -> !commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, code));
+        if (hasInvalidCode) {
+            throw new InvalidAccommodationAmenityException();
+        }
+
+        return amenityCountMap;
     }
 
     // 숙소 유형 코드 정합성 검증(공통 코드 ACCOMMODATION_TYPE). 유효하지 않으면 거부.
@@ -490,8 +500,9 @@ public class AccommodationService {
         if (type == null) {
             return;
         }
-        if (!commonCodeService.isValidCode(CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase())) {
-            throw new IllegalArgumentException("유효하지 않은 숙소 유형 코드입니다: " + type);
+        if (!commonCodeService.isValidCode(
+            CommonCodeGroups.ACCOMMODATION_TYPE, type.toUpperCase(Locale.ROOT))) {
+            throw new InvalidAccommodationTypeException();
         }
     }
 
@@ -524,15 +535,15 @@ public class AccommodationService {
         }
     }
 
-    private void updateAmenities(Accommodation accommodation, List<AmenityRequest.AmenityInfo> amenityInfos) {
-        if (amenityInfos == null) {
+    private void updateAmenities(Accommodation accommodation, Map<String, Integer> amenityCountMap) {
+        if (amenityCountMap == null) {
             return;
         }
 
         accommodationAmenityRepository.deleteByAccommodationIdInBulk(accommodation.getId());
 
-        if (!amenityInfos.isEmpty()) {
-            saveValidAmenities(amenityInfos, accommodation);
+        if (!amenityCountMap.isEmpty()) {
+            saveValidAmenities(amenityCountMap, accommodation);
         }
     }
 

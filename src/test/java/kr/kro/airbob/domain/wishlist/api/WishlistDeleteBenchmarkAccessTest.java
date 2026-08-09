@@ -4,8 +4,6 @@ import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,8 +24,8 @@ import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkAccessGuard;
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.member.common.MemberRole;
-import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkRequest;
@@ -60,6 +58,7 @@ class WishlistDeleteBenchmarkAccessTest {
 		);
 		mockMvc = MockMvcBuilders.standaloneSetup(controller)
 			.setControllerAdvice(new GlobalExceptionHandler())
+			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.addFilters(sessionAuthFilter)
 			.addInterceptors(adminAuthInterceptor)
@@ -178,15 +177,12 @@ class WishlistDeleteBenchmarkAccessTest {
 	}
 
 	private void authenticate(long memberId, MemberRole role) {
-		given(redisTemplate.hasKey("SESSION:valid-session")).willReturn(true);
+		given(redisTemplate.hasKey("MEMBER_SESSION_ACTIVE:" + memberId)).willReturn(true);
 		given(redisTemplate.opsForValue()).willReturn(valueOperations);
 		given(valueOperations.get("SESSION:valid-session")).willReturn(memberId);
-		Member member = Member.builder()
-			.id(memberId)
-			.role(role)
-			.status(MemberStatus.ACTIVE)
-			.build();
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberRepository.existsByIdAndStatusAndRole(
+			memberId, MemberStatus.ACTIVE, MemberRole.ADMIN))
+			.willReturn(role == MemberRole.ADMIN);
 	}
 
 	private String beforeRequest(int datasetSize) {

@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistBenchmarkService;
 import lombok.RequiredArgsConstructor;
@@ -32,10 +32,10 @@ public class WishlistBenchmarkController {
 	public ResponseEntity<ApiResponse<WishlistResponse.WishlistInfos>> findWishlistsBefore(
 		@CursorParam CursorRequest.CursorPageRequest request,
 		@RequestParam(required = false) Long accommodationId,
-		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long memberId
 	) {
 		accessGuard.verify(benchmarkToken);
-		Long memberId = UserContext.get().id();
 		WishlistResponse.WishlistInfos response =
 			benchmarkService.findWishlistsBefore(request, memberId, accommodationId);
 		return ResponseEntity.ok(ApiResponse.success(response));

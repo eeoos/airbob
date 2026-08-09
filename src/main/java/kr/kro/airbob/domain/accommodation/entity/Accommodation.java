@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.accommodation.entity;
 
 import java.time.LocalTime;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -117,7 +118,7 @@ public class Accommodation extends BaseEntity {
 
 		if (request.type() != null) {
 			// 유효성은 서비스 계층(CommonCodeService.isValidCode)에서 사전 검증됨
-			this.type = request.type().toUpperCase();
+			this.type = request.type().toUpperCase(Locale.ROOT);
 		}
 
 		if (request.checkInTime() != null) {

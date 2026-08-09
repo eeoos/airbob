@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.recentlyViewed.dto.RecentlyViewedBenchmarkRequest;
 import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedBenchmarkFixtureService;
 import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
@@ -35,20 +35,20 @@ public class RecentlyViewedBenchmarkController {
 	@PutMapping("/api/v2/members/recently-viewed/fixture")
 	public ResponseEntity<ApiResponse<Void>> replaceRecentlyViewedFixture(
 		@Valid @RequestBody RecentlyViewedBenchmarkRequest.Replace request,
-		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long memberId
 	) {
 		accessGuard.verify(benchmarkToken);
-		Long memberId = UserContext.get().id();
 		fixtureService.replaceFixture(memberId, request.accommodationIds());
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
 	@GetMapping("/api/v2/members/recently-viewed")
 	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewedBefore(
-		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long memberId
 	) {
 		accessGuard.verify(benchmarkToken);
-		Long memberId = UserContext.get().id();
 		AccommodationResponse.RecentlyViewedAccommodationInfos response =
 			recentlyViewedService.getRecentlyViewedBefore(memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));

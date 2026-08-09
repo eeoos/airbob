@@ -69,4 +69,8 @@ public class Member extends BaseEntity {
 	public void activate() {
 		this.status = MemberStatus.ACTIVE;
 	}
+
+	public void changeRole(MemberRole role) {
+		this.role = role;
+	}
 }

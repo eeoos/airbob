@@ -2,11 +2,12 @@ package kr.kro.airbob.domain.auth.api;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
-import kr.kro.airbob.domain.auth.service.AuthService;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.auth.dto.AuthRequest.Login;
+import kr.kro.airbob.domain.auth.service.AuthService;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
+import kr.kro.airbob.domain.member.service.MemberService;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final MemberService memberService;
 
     @PostMapping("/v1/auth/login")
     public ResponseEntity<ApiResponse<Void>> login(@RequestBody Login request, HttpServletResponse response) {
@@ -44,9 +46,8 @@ public class AuthController {
     }
 
     @GetMapping("/v1/auth/me")
-    public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo() {
-        Long memberId = UserContext.get().id();
-        MemberResponse.MeInfo response = authService.getMemberInfo(memberId);
+    public ResponseEntity<ApiResponse<MemberResponse.MeInfo>> getMyInfo(@CurrentMemberId Long memberId) {
+        MemberResponse.MeInfo response = memberService.getMemberInfo(memberId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

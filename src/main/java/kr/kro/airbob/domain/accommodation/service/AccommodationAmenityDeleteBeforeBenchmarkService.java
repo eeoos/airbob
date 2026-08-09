@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.accommodation.service;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -77,7 +78,7 @@ public class AccommodationAmenityDeleteBeforeBenchmarkService {
 		Map<String, Integer> amenityCountMap = amenityInfos.stream()
 			.filter(info -> info.count() > 0)
 			.map(info -> new AbstractMap.SimpleEntry<>(
-				info.name() == null ? null : info.name().toUpperCase(), info.count()))
+				info.name() == null ? null : info.name().toUpperCase(Locale.ROOT), info.count()))
 			.filter(entry -> commonCodeService.isValidCode(CommonCodeGroups.AMENITY_TYPE, entry.getKey()))
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Integer::sum));
 		if (amenityCountMap.isEmpty()) {

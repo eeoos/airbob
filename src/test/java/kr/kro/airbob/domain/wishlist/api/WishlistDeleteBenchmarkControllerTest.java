@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.wishlist.api;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -12,8 +11,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkAccessGuard;
-import kr.kro.airbob.common.context.UserContext;
-import kr.kro.airbob.common.context.UserInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkRequest.Variant;
 import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkResponse;
@@ -24,11 +21,6 @@ class WishlistDeleteBenchmarkControllerTest {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(TestConfiguration.class);
-
-	@AfterEach
-	void clearUserContext() {
-		UserContext.clear();
-	}
 
 	@Test
 	@DisplayName("profile과 enabled property 중 하나라도 없으면 API가 노출되지 않는다")
@@ -64,9 +56,7 @@ class WishlistDeleteBenchmarkControllerTest {
 		WishlistDeleteBenchmarkRequest request = new WishlistDeleteBenchmarkRequest(Variant.BEFORE, 10);
 		WishlistDeleteBenchmarkResponse expected = mock(WishlistDeleteBenchmarkResponse.class);
 		given(service.run(7L, request)).willReturn(expected);
-		UserContext.set(new UserInfo(7L));
-
-		var response = controller.run(request, "dedicated-token");
+		var response = controller.run(request, "dedicated-token", 7L);
 
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().getData()).isSameAs(expected);

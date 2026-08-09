@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 // 정산 이력 — 전체 행 스냅샷(Transaction 성격, INSERT-only, 유효기간 없음).
-// 직전 상태는 직전 이력 행으로 표현되며, change_type이 이번 변경의 성격을 나타낸다.
+// 직전 상태는 직전 이력 행으로 표현되며, change_type이 이번 변경의 성격을 나타냄
 @Entity
 @Getter
 @SuperBuilder

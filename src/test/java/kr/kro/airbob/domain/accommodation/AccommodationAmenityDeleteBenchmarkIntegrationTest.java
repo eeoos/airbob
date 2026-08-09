@@ -55,6 +55,7 @@ import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
 import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationAmenityException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBeforeBenchmarkService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteAfterBenchmarkService;
@@ -76,6 +77,7 @@ import kr.kro.airbob.geo.dto.GeocodeResult;
 @ActiveProfiles({"test", "bulk-write-benchmark"})
 @DisplayName("AccommodationAmenity 삭제 Before 벤치마크 MySQL 통합 테스트")
 class AccommodationAmenityDeleteBenchmarkIntegrationTest {
+	private static final String INACTIVE_AMENITY_CODE = "INACTIVE_TEST_AMENITY";
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
@@ -139,6 +141,10 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		jdbcTemplate.update("DELETE FROM accommodation_history");
 		jdbcTemplate.update("DELETE FROM accommodation");
 		jdbcTemplate.update("DELETE FROM member");
+		jdbcTemplate.update(
+			"DELETE FROM common_code WHERE group_code = 'AMENITY_TYPE' AND code = ?",
+			INACTIVE_AMENITY_CODE
+		);
 	}
 
 	@Test
@@ -212,7 +218,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("null은 amenity를 유지하고 empty는 전부 삭제하며 populated는 대소문자·중복·무효·0을 정확히 병합한다")
+	@DisplayName("null은 amenity를 유지하고 empty는 전부 삭제하며 populated는 대소문자·중복·0을 정확히 병합한다")
 	void preservesCurrentAmenityReplacementSemantics() {
 		Fixture nullFixture = fixtureService.createFixture(ownerId, 3);
 		Map<String, Integer> oldMap = amenityMap(nullFixture.targetAccommodationId());
@@ -242,8 +248,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		List<AmenityRequest.AmenityInfo> request = List.of(
 			new AmenityRequest.AmenityInfo(first.toLowerCase(), 1),
 			new AmenityRequest.AmenityInfo(first, 2),
-			new AmenityRequest.AmenityInfo("NOT_A_REAL_AMENITY", 9),
-			new AmenityRequest.AmenityInfo(second, 0),
+			new AmenityRequest.AmenityInfo("NOT_A_REAL_AMENITY", 0),
 			new AmenityRequest.AmenityInfo(second, -1),
 			new AmenityRequest.AmenityInfo(second.toLowerCase(), 5)
 		);
@@ -258,6 +263,49 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			.containsExactlyInAnyOrderEntriesOf(Map.of(first, 3, second, 5));
 		assertControlPreserved(populatedFixture);
 		fixtureService.cleanup(populatedFixture);
+	}
+
+	@Test
+	@DisplayName("DB에 존재하지만 비활성인 편의시설이 섞이면 전체 수정을 거부한다")
+	void rejectsInactiveAmenityAndPreservesExistingState() {
+		jdbcTemplate.update(
+			"DELETE FROM common_code WHERE group_code = 'AMENITY_TYPE' AND code = ?",
+			INACTIVE_AMENITY_CODE
+		);
+		jdbcTemplate.update("""
+			INSERT INTO common_code (
+				group_code, code, name, sort_order, is_active, updated_at
+			) VALUES ('AMENITY_TYPE', ?, '비활성 테스트 편의시설', 999, false, CURRENT_TIMESTAMP(6))
+			""", INACTIVE_AMENITY_CODE);
+		Integer activeCount = jdbcTemplate.queryForObject("""
+			SELECT COUNT(*)
+			FROM common_code
+			WHERE group_code = 'AMENITY_TYPE' AND code = ? AND is_active = true
+			""", Integer.class, INACTIVE_AMENITY_CODE);
+		assertThat(activeCount).isZero();
+
+		Fixture fixture = fixtureService.createFixture(ownerId, 3);
+		Map<String, Integer> targetBefore = amenityMap(fixture.targetAccommodationId());
+		Map<String, Object> parentBefore = parentSnapshot(fixture.targetAccommodationId());
+		List<Map<String, Object>> historyBefore = historySnapshots(fixture.targetAccommodationId());
+		Map<String, Integer> controlBefore = amenityMap(fixture.controlAccommodationId());
+		AccommodationRequest.Update request = AccommodationRequest.Update.builder()
+			.name("변경되면 안 되는 이름")
+			.amenityInfos(List.of(
+				new AmenityRequest.AmenityInfo(fixture.activeAmenityCodes().getFirst(), 1),
+				new AmenityRequest.AmenityInfo(INACTIVE_AMENITY_CODE, 1)
+			))
+			.build();
+
+		assertThatThrownBy(() -> accommodationService.updateAccommodation(
+			fixture.targetAccommodationId(), request, ownerId
+		)).isInstanceOf(InvalidAccommodationAmenityException.class);
+
+		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(targetBefore);
+		assertThat(parentSnapshot(fixture.targetAccommodationId())).isEqualTo(parentBefore);
+		assertThat(historySnapshots(fixture.targetAccommodationId())).isEqualTo(historyBefore);
+		assertThat(amenityMap(fixture.controlAccommodationId())).isEqualTo(controlBefore);
+		fixtureService.cleanup(fixture);
 	}
 
 	@Test
@@ -686,7 +734,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	private List<String> activeAmenityCodes() {
 		return jdbcTemplate.queryForList("""
 			SELECT code
-			FROM common_code_detail
+			FROM common_code
 			WHERE group_code = 'AMENITY_TYPE' AND is_active = 1
 			ORDER BY sort_order, code
 			""", String.class);

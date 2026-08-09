@@ -37,7 +37,7 @@ class CouponPeriodMigrationIntegrationTest {
 		Flyway.configure()
 			.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
 			.locations("classpath:db/migration")
-			.target(MigrationVersion.fromVersion("13"))
+			.target(MigrationVersion.fromVersion("12"))
 			.load()
 			.migrate();
 

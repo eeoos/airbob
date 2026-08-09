@@ -6,20 +6,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
-import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
-import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.ViewportAdjuster;
-import kr.kro.airbob.geo.dto.Coordinate;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 import kr.kro.airbob.geo.dto.GoogleGeocodeResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -88,16 +80,4 @@ public class GoogleGeocodingService implements GeocodingService {
 		);
 	}
 
-	@Override
-	public String buildAddressString(AddressRequest.AddressInfo addressInfo) {
-
-		return String.format("%s %s %s %s %s",
-				addressInfo.country(),
-				addressInfo.city(),
-				addressInfo.district(),
-				addressInfo.street(),
-				addressInfo.detail())
-			.replaceAll("\\s", " ")
-			.trim();
-	}
 }

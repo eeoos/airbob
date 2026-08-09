@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -30,8 +30,8 @@ public class ReservationController {
 
 	@PostMapping("/v1/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> createReservation(
-		@Valid @RequestBody ReservationRequest.Create request) {
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody ReservationRequest.Create request,
+		@CurrentMemberId Long memberId) {
 		ReservationResponse.Ready response = reservationService.createPendingReservation(request, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -39,15 +39,16 @@ public class ReservationController {
 	@PostMapping("/v1/reservations/{reservationUid}")
 	public ResponseEntity<ApiResponse<Void>> cancelReservation(
 		@PathVariable String reservationUid,
-		@Valid @RequestBody PaymentRequest.Cancel request) {
-		Long memberId = UserContext.get().id();
+		@Valid @RequestBody PaymentRequest.Cancel request,
+		@CurrentMemberId Long memberId) {
 		reservationService.cancelReservation(reservationUid, request, memberId);
 		return ResponseEntity.accepted().body(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.GuestDetail>> getGuestReservationDetail(@PathVariable String reservationUid) {
-		Long memberId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<ReservationResponse.GuestDetail>> getGuestReservationDetail(
+		@PathVariable String reservationUid,
+		@CurrentMemberId Long memberId) {
 		ReservationResponse.GuestDetail response = reservationService.findMyReservationDetail(reservationUid, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
@@ -55,8 +56,8 @@ public class ReservationController {
 	@GetMapping("/v1/profile/guest/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.GuestReservationInfos>> getGuestReservations(
 		@CursorParam CursorRequest.CursorPageRequest request,
-		@RequestParam(required = false) ReservationFilterType filterType) {
-		Long memberId = UserContext.get().id();
+		@RequestParam(required = false) ReservationFilterType filterType,
+		@CurrentMemberId Long memberId) {
 		ReservationResponse.GuestReservationInfos response = reservationService.findMyReservations(memberId,
 			request, filterType);
 		return ResponseEntity.ok(ApiResponse.success(response));
@@ -65,18 +66,19 @@ public class ReservationController {
 	@GetMapping("/v1/profile/host/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.HostReservationInfos>> getHostReservations(
 		@CursorParam CursorRequest.CursorPageRequest cursorRequest,
-		@RequestParam(required = false) ReservationFilterType filterType) {
+		@RequestParam(required = false) ReservationFilterType filterType,
+		@CurrentMemberId Long hostId) {
 
-		Long hostId = UserContext.get().id();
 		ReservationResponse.HostReservationInfos response = reservationService.findHostReservations(hostId, cursorRequest, filterType);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
 	@GetMapping("/v1/profile/host/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<ReservationResponse.HostDetail>> getHostReservationDetail(@PathVariable String reservationUid) {
+	public ResponseEntity<ApiResponse<ReservationResponse.HostDetail>> getHostReservationDetail(
+		@PathVariable String reservationUid,
+		@CurrentMemberId Long hostId) {
 
-		Long hostId = UserContext.get().id();
 		ReservationResponse.HostDetail response = reservationService.findHostReservationDetail(reservationUid, hostId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));

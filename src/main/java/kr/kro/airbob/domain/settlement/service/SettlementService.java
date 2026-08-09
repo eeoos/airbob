@@ -49,7 +49,7 @@ public class SettlementService {
 	private BigDecimal commissionRate;
 
 	// 한 달 정산 생성/재집계. 멀티 인스턴스 스케줄러/수동 동시 실행 시 UNIQUE(host_id, month) 충돌을
-	// 막기 위해 월 단위 분산 락으로 직렬화. 락은 트랜잭션 바깥에서 감싸 커밋까지 보호한다.
+	// 막기 위해 월 단위 분산 락으로 직렬화. 락은 트랜잭션 바깥에서 감싸 커밋까지 보호
 	public void generateMonth(YearMonth month) {
 		RLock lock = redissonClient.getLock(GENERATE_LOCK_PREFIX + month);
 		boolean acquired = false;
@@ -89,7 +89,7 @@ public class SettlementService {
 		}
 	}
 
-	// 정산 지급 처리: PENDING → PAID (이미 PAID거나 아직 마감 안 된 달이면 거부)
+	// 정산 지급 처리: PENDING -> PAID (이미 PAID거나 아직 마감 안 된 달이면 거부)
 	@Transactional
 	public void markPaid(Long settlementId) {
 		Settlement settlement = settlementRepository.findById(settlementId)

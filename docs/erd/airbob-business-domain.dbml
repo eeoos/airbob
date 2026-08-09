@@ -41,7 +41,7 @@ Table accommodation [headercolor: #2F9E74] {
   base_price bigint
   currency varchar(3)
   thumbnail_url varchar(255)
-  type varchar(50) [note: 'Logical code from common_code_detail(ACCOMMODATION_TYPE); no physical FK']
+  type varchar(50) [note: 'Logical code from common_code(ACCOMMODATION_TYPE); no physical FK']
   check_in_time time [not null]
   check_out_time time [not null]
   status varchar(20) [not null]
@@ -82,7 +82,7 @@ Table occupancy_policy [headercolor: #2F9E74] {
 Table accommodation_amenity [headercolor: #2F9E74] {
   id bigint [pk, increment]
   accommodation_id bigint
-  amenity_code varchar(50) [note: 'Logical code from common_code_detail(AMENITY_TYPE); no physical FK']
+  amenity_code varchar(50) [note: 'Logical code from common_code(AMENITY_TYPE); no physical FK']
   count int
   created_at datetime(6)
   updated_at datetime(6) [not null]

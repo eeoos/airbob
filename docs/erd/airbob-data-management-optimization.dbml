@@ -25,7 +25,7 @@ Table accommodation [headercolor: #667085] {
   id bigint [pk, increment]
   accommodation_uid binary(16) [not null, unique]
   member_id bigint [not null]
-  type varchar(50) [note: 'Validated against common_code_detail(ACCOMMODATION_TYPE) by the application']
+  type varchar(50) [note: 'Validated against common_code(ACCOMMODATION_TYPE) by the application']
   status varchar(20) [not null]
 
   Note: 'Current accommodation state. Only anchor columns are shown.'
@@ -276,7 +276,7 @@ Table common_code_group [headercolor: #8C67C7] {
   is_active boolean [not null, default: true]
 }
 
-Table common_code_detail [headercolor: #8C67C7] {
+Table common_code [headercolor: #8C67C7] {
   group_code varchar(50) [pk]
   code varchar(50) [pk]
   name varchar(100) [not null]
@@ -285,7 +285,7 @@ Table common_code_detail [headercolor: #8C67C7] {
   is_active boolean [not null, default: true]
 
   indexes {
-    (group_code, is_active, sort_order) [name: 'idx_common_code_detail_lookup']
+    (group_code, is_active, sort_order) [name: 'idx_common_code_lookup']
   }
 }
 
@@ -297,7 +297,7 @@ Ref: accommodation_review_summary.accommodation_id - accommodation.id [delete: c
 Ref: wishlist_accommodation.wishlist_id > wishlist.id [color: #2F9E74]
 Ref: wishlist_accommodation.accommodation_id > accommodation.id [color: #2F9E74]
 
-Ref: common_code_detail.group_code > common_code_group.group_code [color: #8C67C7]
+Ref: common_code.group_code > common_code_group.group_code [color: #8C67C7]
 
 // ============================================================
 // Logical relationships without physical FK constraints
@@ -352,5 +352,5 @@ TableGroup event_recovery [color: #C75C5C] {
 
 TableGroup common_code_catalog [color: #8C67C7] {
   common_code_group
-  common_code_detail
+  common_code
 }

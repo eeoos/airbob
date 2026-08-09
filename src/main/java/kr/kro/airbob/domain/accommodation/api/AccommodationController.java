@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
@@ -24,6 +23,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.service.AccommodationService;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,10 +37,8 @@ public class AccommodationController {
     private final AccommodationService accommodationService;
 
     @PostMapping("/v1/accommodations")
-    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation() {
-
-        Long memberId = UserContext.get().id();
-
+    public ResponseEntity<ApiResponse<AccommodationResponse.Create>> registerAccommodation(
+        @CurrentMemberId Long memberId) {
         AccommodationResponse.Create response = accommodationService.createAccommodation(memberId);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success(response));
@@ -48,31 +46,31 @@ public class AccommodationController {
 
     @PatchMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<Void>> updateAccommodation(@PathVariable Long accommodationId,
-        @RequestBody @Valid AccommodationRequest.Update request) {
-        Long memberId = UserContext.get().id();
+        @RequestBody @Valid AccommodationRequest.Update request,
+        @CurrentMemberId Long memberId) {
         accommodationService.updateAccommodation(accommodationId, request, memberId);
         return ResponseEntity.ok(ApiResponse.success());
     }
 
     @PatchMapping("/v1/accommodations/{accommodationId}/publish")
-    public ResponseEntity<ApiResponse<Void>> publishAccommodation(@PathVariable Long accommodationId) {
-        Long memberId = UserContext.get().id();
+    public ResponseEntity<ApiResponse<Void>> publishAccommodation(@PathVariable Long accommodationId,
+        @CurrentMemberId Long memberId) {
         accommodationService.publishAccommodation(accommodationId, memberId);
 
         return ResponseEntity.ok(ApiResponse.success());
     }
 
     @PatchMapping("/v1/accommodations/{accommodationId}/unpublish")
-    public ResponseEntity<ApiResponse<Void>> unpublishAccommodation(@PathVariable Long accommodationId) {
-        Long memberId = UserContext.get().id();
+    public ResponseEntity<ApiResponse<Void>> unpublishAccommodation(@PathVariable Long accommodationId,
+        @CurrentMemberId Long memberId) {
         accommodationService.unpublishAccommodation(accommodationId, memberId);
 
         return ResponseEntity.ok(ApiResponse.success());
     }
 
     @DeleteMapping("/v1/accommodations/{accommodationId}")
-    public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId) {
-        Long memberId = UserContext.get().id();
+    public ResponseEntity<ApiResponse<Void>> deleteAccommodation(@PathVariable Long accommodationId,
+        @CurrentMemberId Long memberId) {
         accommodationService.deleteAccommodation(accommodationId, memberId);
         return ResponseEntity.ok(ApiResponse.success());
     }
@@ -80,9 +78,8 @@ public class AccommodationController {
     @PostMapping("/v1/accommodations/{accommodationId}/images")
     public ResponseEntity<ApiResponse<ImageResponse.ImageUploadResult>> uploadAccommodationImages(
         @PathVariable Long accommodationId,
-        @RequestParam("images") List<MultipartFile> images) {
-
-        Long memberId = UserContext.get().id();
+        @RequestParam("images") List<MultipartFile> images,
+        @CurrentMemberId Long memberId) {
         ImageResponse.ImageUploadResult response = accommodationService.uploadImages(accommodationId, images,
             memberId);
 
@@ -92,9 +89,8 @@ public class AccommodationController {
     @DeleteMapping("/v1/accommodations/{accommodationId}/images/{imageId}")
     public ResponseEntity<ApiResponse<Void>> deleteAccommodationImage(
         @PathVariable Long accommodationId,
-        @PathVariable Long imageId) {
-
-        Long memberId = UserContext.get().id();
+        @PathVariable Long imageId,
+        @CurrentMemberId Long memberId) {
         accommodationService.deleteImage(accommodationId, imageId, memberId);
 
         return ResponseEntity.ok(ApiResponse.success());
@@ -102,16 +98,18 @@ public class AccommodationController {
 
     @GetMapping("/v1/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> getAccommodation(
-        @PathVariable Long accommodationId) {
-        AccommodationResponse.DetailInfo response = accommodationService.findAccommodation(accommodationId);
+        @PathVariable Long accommodationId,
+        @CurrentMemberId(required = false) Long viewerId) {
+        AccommodationResponse.DetailInfo response = accommodationService.findAccommodation(accommodationId,
+            viewerId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/v1/profile/host/accommodations")
     public ResponseEntity<ApiResponse<AccommodationResponse.HostAccommodationInfos>> getHostAccommodations(
         @CursorParam CursorRequest.CursorPageRequest request,
-        @RequestParam(required = false) AccommodationStatus status) {
-        Long memberId = UserContext.get().id();
+        @RequestParam(required = false) AccommodationStatus status,
+        @CurrentMemberId Long memberId) {
         AccommodationResponse.HostAccommodationInfos response = accommodationService.findMyAccommodations(
             memberId, request, status);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -119,12 +117,10 @@ public class AccommodationController {
 
     @GetMapping("/v1/profile/host/accommodations/{accommodationId}")
     public ResponseEntity<ApiResponse<AccommodationResponse.HostDetail>> getHostAccommodationDetail(
-        @PathVariable Long accommodationId) {
-
-        Long hostId = UserContext.get().id();
+        @PathVariable Long accommodationId,
+        @CurrentMemberId Long hostId) {
         AccommodationResponse.HostDetail response = accommodationService.findHostAccommodationDetail(accommodationId, hostId);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
-

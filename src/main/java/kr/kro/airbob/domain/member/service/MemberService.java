@@ -4,8 +4,10 @@ import java.time.LocalDateTime;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
+import kr.kro.airbob.domain.member.port.SessionInvalidator;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.dto.MemberRequest.Signup;
+import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.entity.MemberHistory;
 import kr.kro.airbob.domain.member.exception.DuplicatedEmailException;
@@ -23,6 +25,7 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final MemberHistoryRepository historyRepository;
+    private final SessionInvalidator sessionInvalidator;
 
     @Transactional
     public void createMember(Signup request) {
@@ -40,15 +43,25 @@ public class MemberService {
 
     @Transactional
     public void deleteMember(Long memberId, String reason) {
-        Member member = memberRepository.findById(memberId)
+        Member member = memberRepository.findByIdForUpdate(memberId)
             .orElseThrow(MemberNotFoundException::new);
 
         member.delete();
         memberRepository.save(member);
 
-        // SCD2: 직전 현재 행을 닫고 새 스냅샷을 연다
+        // SCD2: 직전 현재 행을 닫고 새 스냅샷 열기
         historyRepository.findByMemberIdAndValidTo(member.getId(), HistoryConstants.FOREVER)
             .ifPresent(current -> current.close(LocalDateTime.now()));
         historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason));
+
+        sessionInvalidator.invalidateAll(memberId);
+    }
+
+    @Transactional(readOnly = true)
+    public MemberResponse.MeInfo getMemberInfo(Long memberId) {
+        Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
+            .orElseThrow(MemberNotFoundException::new);
+        return new MemberResponse.MeInfo(
+            member.getId(), member.getEmail(), member.getNickname(), member.getThumbnailImageUrl());
     }
 }

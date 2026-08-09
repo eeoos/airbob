@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.dto.ApiResponse;
+import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
@@ -36,14 +36,16 @@ public class PaymentController {
 	}
 
 	@GetMapping("/v1/payments/{paymentKey}")
-	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByPaymentKey(@PathVariable String paymentKey) {
-		Long memberId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByPaymentKey(
+		@PathVariable String paymentKey,
+		@CurrentMemberId Long memberId) {
 		PaymentResponse.PaymentInfo response = paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 	@GetMapping("/v1/payments/orders/{orderId}")
-	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByOrderId(@PathVariable String orderId) {
-		Long memberId = UserContext.get().id();
+	public ResponseEntity<ApiResponse<PaymentResponse.PaymentInfo>> getPaymentByOrderId(
+		@PathVariable String orderId,
+		@CurrentMemberId Long memberId) {
 		PaymentResponse.PaymentInfo response = paymentQueryService.findPaymentByOrderId(orderId, memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}

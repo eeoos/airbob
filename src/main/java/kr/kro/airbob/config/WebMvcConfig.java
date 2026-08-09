@@ -17,6 +17,7 @@ import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
 import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
+import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 @Configuration
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
 
+	private final CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver;
 	private final CursorParamArgumentResolver cursorParamArgumentResolver;
 	private final SessionAuthFilter sessionAuthFilter;
 	private final AdminAuthInterceptor adminAuthInterceptor;
@@ -31,6 +33,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
 		resolvers.add(cursorParamArgumentResolver);
+		resolvers.add(currentMemberIdArgumentResolver);
 	}
 
 	// 관리자 전용 경로 인가 가드 (인증은 SessionAuthFilter 가 선행)

@@ -306,7 +306,7 @@ services:
   # 사용법: docker compose -f docker-compose.oci.yml --profile reindex run --rm logstash
   # --------------------------------------------------------
   logstash:
-    image: docker.elastic.co/logstash/logstash:8.9.0
+    image: logstash:8.18.8
     profiles: ["reindex"]
     depends_on:
       mysql:

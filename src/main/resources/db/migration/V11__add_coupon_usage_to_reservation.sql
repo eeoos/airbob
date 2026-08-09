@@ -1,4 +1,4 @@
--- V12__add_coupon_usage_to_reservation.sql
+-- V11__add_coupon_usage_to_reservation.sql
 -- 예약 시 쿠폰 사용/할인 반영.
 --  * member_coupon 에 사용 시점/사용된 예약 추적 컬럼 추가
 --  * reservation 에 적용된 할인액(discount_amount) 추가 (없으면 0)

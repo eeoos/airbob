@@ -24,7 +24,7 @@ public class DailyRevenueStatsRepositoryImpl implements DailyRevenueStatsReposit
 				dailyRevenueStats.grossAmount.sum(),
 				dailyRevenueStats.refundAmount.sum(),
 				dailyRevenueStats.netAmount.sum(),
-				// paymentCount/refundCount 는 Integer → SUM 결과는 BIGINT(Long) 이므로 longValue()로 캐스팅
+				// paymentCount/refundCount 는 Integer -> SUM 결과는 BIGINT(Long) 이므로 longValue()로 캐스팅
 				dailyRevenueStats.paymentCount.sum().longValue(),
 				dailyRevenueStats.refundCount.sum().longValue()))
 			.from(dailyRevenueStats)
