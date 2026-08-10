@@ -65,7 +65,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -431,13 +431,13 @@ public class AccommodationService {
     }
 
     private List<LocalDate> getUnavailableDates(Long accommodationId) {
-        List<Reservation> futureReservations =
-            reservationRepository.findFutureCompletedReservationsByAccommodationId(accommodationId);
+        List<ReservationDateRange> reservationRanges = reservationRepository
+            .findFutureConfirmedReservationRangesByAccommodationId(accommodationId);
 
-        return futureReservations.stream()
-            .flatMap(reservation -> {
-                LocalDate checkIn = reservation.getCheckIn().toLocalDate();
-                LocalDate checkOut = reservation.getCheckOut().toLocalDate();
+        return reservationRanges.stream()
+            .flatMap(dateRange -> {
+                LocalDate checkIn = dateRange.checkIn().toLocalDate();
+                LocalDate checkOut = dateRange.checkOut().toLocalDate();
 
                 return checkIn.datesUntil(checkOut);
             })

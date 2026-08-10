@@ -4,6 +4,8 @@ import static kr.kro.airbob.domain.commoncode.common.CommonCodeGroups.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -33,6 +35,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
+import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
@@ -200,9 +203,37 @@ class AccommodationServiceTest {
 		verify(accommodationImageRepository)
 			.findByAccommodationIdOrderByIdAsc(1L);
 		verify(reservationRepository)
-			.findFutureCompletedReservationsByAccommodationId(1L);
+			.findFutureConfirmedReservationRangesByAccommodationId(1L);
 		verify(reservationRepository, never())
-			.findFutureCompletedReservations(any(UUID.class));
+			.findFutureConfirmedReservationRangesByAccommodationUid(any(UUID.class));
+	}
+
+	@Test
+	@DisplayName("숙소 상세 예약 불가 날짜는 checkout을 제외하고 중복 제거 후 정렬한다")
+	void accommodationDetailPreservesUnavailableDateRangeSemantics() {
+		Long accommodationId = 1L;
+		givenPublishedAccommodation(accommodationId);
+		when(reservationRepository
+			.findFutureConfirmedReservationRangesByAccommodationId(accommodationId))
+			.thenReturn(List.of(
+				new ReservationDateRange(
+					LocalDateTime.of(2026, 8, 12, 15, 0),
+					LocalDateTime.of(2026, 8, 15, 11, 0)),
+				new ReservationDateRange(
+					LocalDateTime.of(2026, 8, 10, 15, 0),
+					LocalDateTime.of(2026, 8, 13, 11, 0))
+			));
+
+		AccommodationResponse.DetailInfo response =
+			accommodationService.findAccommodation(accommodationId, null);
+
+		assertThat(response.unavailableDates()).containsExactly(
+			LocalDate.of(2026, 8, 10),
+			LocalDate.of(2026, 8, 11),
+			LocalDate.of(2026, 8, 12),
+			LocalDate.of(2026, 8, 13),
+			LocalDate.of(2026, 8, 14)
+		);
 	}
 
 	@Test
@@ -238,7 +269,8 @@ class AccommodationServiceTest {
 			.thenReturn(List.of());
 		when(reviewSummaryRepository.findByAccommodationId(accommodationId))
 			.thenReturn(Optional.empty());
-		when(reservationRepository.findFutureCompletedReservationsByAccommodationId(accommodationId))
+		when(reservationRepository
+			.findFutureConfirmedReservationRangesByAccommodationId(accommodationId))
 			.thenReturn(List.of());
 	}
 }
