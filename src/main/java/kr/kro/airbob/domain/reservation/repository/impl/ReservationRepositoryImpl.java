@@ -78,13 +78,26 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
+	public List<Reservation> findFutureCompletedReservationsByAccommodationId(Long accommodationId) {
+		return findFutureCompletedReservationsByCondition(
+			reservation.accommodation.id.eq(accommodationId));
+	}
+
+	@Override
 	public List<Reservation> findFutureCompletedReservations(UUID accommodationUid) {
+		return findFutureCompletedReservationsByCondition(
+			reservation.accommodation.accommodationUid.eq(accommodationUid));
+	}
+
+	private List<Reservation> findFutureCompletedReservationsByCondition(
+		BooleanExpression accommodationCondition
+	) {
 		return queryFactory
 			.selectFrom(reservation)
 			.where(
-				reservation.accommodation.accommodationUid.eq(accommodationUid),
+				accommodationCondition,
 				reservation.status.eq(ReservationStatus.CONFIRMED),
-				reservation.checkOut.goe(LocalDateTime.now()) // 체크아웃 날짜가 오늘 이후인 것
+				reservation.checkOut.goe(LocalDateTime.now())
 			)
 			.fetch();
 	}
@@ -222,5 +235,4 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		}
 	}
 }
-
 
