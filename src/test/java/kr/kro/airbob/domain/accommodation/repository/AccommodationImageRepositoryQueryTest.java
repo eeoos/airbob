@@ -1,8 +1,7 @@
-package kr.kro.airbob.domain.reservation.repository;
+package kr.kro.airbob.domain.accommodation.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,11 +29,9 @@ import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
-import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 @DataJpaTest
 @Testcontainers
@@ -43,14 +40,14 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 @Import({
     JpaAuditingConfig.class,
     QueryDslConfig.class,
-    ReservationRepositoryQueryTest.SqlCaptureConfig.class
+    AccommodationImageRepositoryQueryTest.SqlCaptureConfig.class
 })
-@DisplayName("예약 QueryDSL 저장소 테스트")
-class ReservationRepositoryQueryTest {
+@DisplayName("숙소 이미지 저장소 쿼리 테스트")
+class AccommodationImageRepositoryQueryTest {
 
     @Container
     private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
-        .withDatabaseName("airbobdb_reservation_query");
+        .withDatabaseName("airbobdb_accommodation_image_query");
 
     @DynamicPropertySource
     static void setProperties(DynamicPropertyRegistry registry) {
@@ -63,7 +60,7 @@ class ReservationRepositoryQueryTest {
     }
 
     @Autowired
-    private ReservationRepository reservationRepository;
+    private AccommodationImageRepository accommodationImageRepository;
 
     @Autowired
     private AccommodationRepository accommodationRepository;
@@ -75,49 +72,38 @@ class ReservationRepositoryQueryTest {
     private CapturingStatementInspector sqlInspector;
 
     @Test
-    @DisplayName("ID와 UUID 조회는 대상 숙소의 미래 확정 예약만 동일하게 반환하고 ID 조회는 숙소를 조인하지 않는다")
-    void idAndUidQueriesReturnSameEligibleReservationsWithoutIdPathJoin() {
+    @DisplayName("숙소 ID로 이미지를 ID 오름차순 조회하고 숙소 조인 없이 빈 결과도 반환한다")
+    void findsImagesByAccommodationIdWithoutAccommodationJoin() {
         Member member = memberRepository.save(Member.builder()
-            .email("reservation-query@test.com")
-            .nickname("reservation-query")
+            .email("accommodation-image-query@test.com")
+            .nickname("accommodation-image-query")
             .build());
         Accommodation target = saveAccommodation(member, "target");
-        Accommodation other = saveAccommodation(member, "other");
-        LocalDateTime now = LocalDateTime.now();
-
-        Reservation expected = saveReservation(
-            target, member, ReservationStatus.CONFIRMED,
-            now.plusDays(1), now.plusDays(3));
-        saveReservation(
-            target, member, ReservationStatus.CONFIRMED,
-            now.minusDays(3), now.minusDays(1));
-        saveReservation(
-            target, member, ReservationStatus.PAYMENT_PENDING,
-            now.plusDays(1), now.plusDays(3));
-        saveReservation(
-            other, member, ReservationStatus.CONFIRMED,
-            now.plusDays(1), now.plusDays(3));
-        reservationRepository.flush();
+        Accommodation withoutImages = saveAccommodation(member, "without-images");
+        AccommodationImage first = accommodationImageRepository.save(AccommodationImage.builder()
+            .accommodation(target)
+            .imageUrl("https://example.com/first.jpg")
+            .build());
+        AccommodationImage second = accommodationImageRepository.save(AccommodationImage.builder()
+            .accommodation(target)
+            .imageUrl("https://example.com/second.jpg")
+            .build());
+        accommodationImageRepository.flush();
 
         sqlInspector.clear();
-        List<Reservation> byId =
-            reservationRepository.findFutureCompletedReservationsByAccommodationId(target.getId());
+        List<AccommodationImage> images =
+            accommodationImageRepository.findByAccommodationIdOrderByIdAsc(target.getId());
 
-        assertThat(byId)
-            .extracting(Reservation::getId)
-            .containsExactly(expected.getId());
+        assertThat(images)
+            .extracting(AccommodationImage::getId)
+            .containsExactly(first.getId(), second.getId());
         assertThat(sqlInspector.singleSelect())
             .contains(".accommodation_id=?")
-            .contains(".check_out>=?")
-            .doesNotContain(" join accommodation ")
-            .doesNotContain(" order by ");
+            .contains(" order by ")
+            .doesNotContain(" join accommodation ");
 
-        List<Reservation> byUid =
-            reservationRepository.findFutureCompletedReservations(target.getAccommodationUid());
-
-        assertThat(byUid)
-            .extracting(Reservation::getId)
-            .containsExactly(expected.getId());
+        assertThat(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(withoutImages.getId()))
+            .isEmpty();
     }
 
     private Accommodation saveAccommodation(Member member, String name) {
@@ -127,26 +113,6 @@ class ReservationRepositoryQueryTest {
             .checkInTime(LocalTime.of(15, 0))
             .checkOutTime(LocalTime.of(11, 0))
             .status(AccommodationStatus.PUBLISHED)
-            .build());
-    }
-
-    private Reservation saveReservation(
-        Accommodation accommodation,
-        Member guest,
-        ReservationStatus status,
-        LocalDateTime checkIn,
-        LocalDateTime checkOut
-    ) {
-        return reservationRepository.save(Reservation.builder()
-            .accommodation(accommodation)
-            .guest(guest)
-            .checkIn(checkIn)
-            .checkOut(checkOut)
-            .guestCount(1)
-            .totalPrice(100_000L)
-            .currency("KRW")
-            .status(status)
-            .expiresAt(LocalDateTime.now().plusMinutes(15))
             .build());
     }
 

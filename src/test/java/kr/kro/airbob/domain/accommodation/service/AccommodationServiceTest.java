@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -200,6 +201,8 @@ class AccommodationServiceTest {
 			.findByAccommodationIdOrderByIdAsc(1L);
 		verify(reservationRepository)
 			.findFutureCompletedReservationsByAccommodationId(1L);
+		verify(reservationRepository, never())
+			.findFutureCompletedReservations(any(UUID.class));
 	}
 
 	@Test
