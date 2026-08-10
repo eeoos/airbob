@@ -19,6 +19,8 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.member.entity.QMember;
+import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
+import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -94,6 +96,39 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	) {
 		return queryFactory
 			.selectFrom(reservation)
+			.where(
+				accommodationCondition,
+				reservation.status.eq(ReservationStatus.CONFIRMED),
+				reservation.checkOut.goe(LocalDateTime.now())
+			)
+			.fetch();
+	}
+
+	@Override
+	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationId(
+		Long accommodationId
+	) {
+		return findFutureConfirmedReservationRangesByCondition(
+			reservation.accommodation.id.eq(accommodationId));
+	}
+
+	@Override
+	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
+		UUID accommodationUid
+	) {
+		return findFutureConfirmedReservationRangesByCondition(
+			reservation.accommodation.accommodationUid.eq(accommodationUid));
+	}
+
+	private List<ReservationDateRange> findFutureConfirmedReservationRangesByCondition(
+		BooleanExpression accommodationCondition
+	) {
+		return queryFactory
+			.select(new QReservationDateRange(
+				reservation.checkIn,
+				reservation.checkOut
+			))
+			.from(reservation)
 			.where(
 				accommodationCondition,
 				reservation.status.eq(ReservationStatus.CONFIRMED),
@@ -235,4 +270,3 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		}
 	}
 }
-

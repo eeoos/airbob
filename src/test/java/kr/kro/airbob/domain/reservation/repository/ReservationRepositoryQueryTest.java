@@ -33,6 +33,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
@@ -75,49 +76,72 @@ class ReservationRepositoryQueryTest {
     private CapturingStatementInspector sqlInspector;
 
     @Test
-    @DisplayName("ID와 UUID 조회는 대상 숙소의 미래 확정 예약만 동일하게 반환하고 ID 조회는 숙소를 조인하지 않는다")
-    void idAndUidQueriesReturnSameEligibleReservationsWithoutIdPathJoin() {
+    @DisplayName("ID와 UUID 조회는 날짜 두 컬럼만 projection하고 대상 숙소의 미래 확정 예약만 반환한다")
+    void idAndUidQueriesProjectSameEligibleReservationRanges() {
         Member member = memberRepository.save(Member.builder()
             .email("reservation-query@test.com")
             .nickname("reservation-query")
             .build());
         Accommodation target = saveAccommodation(member, "target");
         Accommodation other = saveAccommodation(member, "other");
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime base = LocalDateTime.now().withNano(0);
 
-        Reservation expected = saveReservation(
-            target, member, ReservationStatus.CONFIRMED,
-            now.plusDays(1), now.plusDays(3));
+        ReservationDateRange first = new ReservationDateRange(
+            base.plusDays(1), base.plusDays(3));
+        ReservationDateRange second = new ReservationDateRange(
+            base.plusDays(4), base.plusDays(6));
+
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            first.checkIn(), first.checkOut());
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            second.checkIn(), second.checkOut());
         saveReservation(
             target, member, ReservationStatus.CONFIRMED,
-            now.minusDays(3), now.minusDays(1));
+            base.minusDays(3), base.minusDays(1));
         saveReservation(
             target, member, ReservationStatus.PAYMENT_PENDING,
-            now.plusDays(1), now.plusDays(3));
+            base.plusDays(1), base.plusDays(3));
         saveReservation(
             other, member, ReservationStatus.CONFIRMED,
-            now.plusDays(1), now.plusDays(3));
+            base.plusDays(1), base.plusDays(3));
         reservationRepository.flush();
 
         sqlInspector.clear();
-        List<Reservation> byId =
-            reservationRepository.findFutureCompletedReservationsByAccommodationId(target.getId());
+        List<ReservationDateRange> byId = reservationRepository
+            .findFutureConfirmedReservationRangesByAccommodationId(target.getId());
+        String idSql = sqlInspector.singleSelect();
 
-        assertThat(byId)
-            .extracting(Reservation::getId)
-            .containsExactly(expected.getId());
-        assertThat(sqlInspector.singleSelect())
+        assertThat(byId).containsExactlyInAnyOrder(first, second);
+        assertDateRangeProjection(idSql);
+        assertThat(idSql)
             .contains(".accommodation_id=?")
             .contains(".check_out>=?")
             .doesNotContain(" join accommodation ")
             .doesNotContain(" order by ");
 
-        List<Reservation> byUid =
-            reservationRepository.findFutureCompletedReservations(target.getAccommodationUid());
+        sqlInspector.clear();
+        List<ReservationDateRange> byUid = reservationRepository
+            .findFutureConfirmedReservationRangesByAccommodationUid(
+                target.getAccommodationUid());
+        String uidSql = sqlInspector.singleSelect();
 
-        assertThat(byUid)
-            .extracting(Reservation::getId)
-            .containsExactly(expected.getId());
+        assertThat(byUid).containsExactlyInAnyOrder(first, second);
+        assertDateRangeProjection(uidSql);
+        assertThat(uidSql)
+            .contains(".check_out>=?")
+            .doesNotContain(" order by ");
+    }
+
+    private void assertDateRangeProjection(String sql) {
+        int fromIndex = sql.indexOf(" from ");
+        assertThat(fromIndex).isPositive();
+
+        List<String> selectedColumns = List.of(
+            sql.substring("select ".length(), fromIndex).split(","));
+
+        assertThat(selectedColumns).hasSize(2);
+        assertThat(selectedColumns.get(0)).contains(".check_in");
+        assertThat(selectedColumns.get(1)).contains(".check_out");
     }
 
     private Accommodation saveAccommodation(Member member, String name) {

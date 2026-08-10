@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
+import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 
@@ -21,6 +22,12 @@ public interface ReservationRepositoryCustom {
 	List<Reservation> findFutureCompletedReservationsByAccommodationId(Long accommodationId);
 
 	List<Reservation> findFutureCompletedReservations(UUID accommodationUid);
+
+	List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationId(
+		Long accommodationId);
+
+	List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
+		UUID accommodationUid);
 
 	Slice<Reservation> findMyReservationsByGuestIdWithCursor(
 		Long guestId,
