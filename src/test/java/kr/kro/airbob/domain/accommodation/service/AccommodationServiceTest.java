@@ -7,7 +7,6 @@ import static org.mockito.Mockito.*;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -190,22 +189,53 @@ class AccommodationServiceTest {
 			.existsByWishlist_Member_IdAndAccommodation_Id(7L, 1L);
 	}
 
+	@Test
+	@DisplayName("숙소 상세 조회는 이미지와 미래 예약을 숙소 ID로 조회한다")
+	void accommodationDetailUsesAccommodationIdForImagesAndReservations() {
+		givenPublishedAccommodation(1L);
+
+		accommodationService.findAccommodation(1L, null);
+
+		verify(accommodationImageRepository)
+			.findByAccommodationIdOrderByIdAsc(1L);
+		verify(reservationRepository)
+			.findFutureCompletedReservationsByAccommodationId(1L);
+	}
+
+	@Test
+	@DisplayName("호스트 숙소 상세 조회는 이미지를 숙소 ID로 조회한다")
+	void hostAccommodationDetailUsesAccommodationIdForImages() {
+		Accommodation accommodation = mock(Accommodation.class);
+		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
+			.thenReturn(Optional.of(accommodation));
+		when(accommodation.getId()).thenReturn(1L);
+		when(accommodationAmenityRepository.findAllByAccommodationId(1L))
+			.thenReturn(List.of());
+		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L))
+			.thenReturn(List.of());
+		when(reviewSummaryRepository.findByAccommodationId(1L))
+			.thenReturn(Optional.empty());
+
+		accommodationService.findHostAccommodationDetail(1L, 7L);
+
+		verify(accommodationImageRepository)
+			.findByAccommodationIdOrderByIdAsc(1L);
+	}
+
 	private void givenPublishedAccommodation(Long accommodationId) {
 		Accommodation accommodation = mock(Accommodation.class);
-		UUID accommodationUid = UUID.randomUUID();
 
 		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
 			accommodationId, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(accommodation));
 		when(accommodation.getId()).thenReturn(accommodationId);
-		when(accommodation.getAccommodationUid()).thenReturn(accommodationUid);
 		when(accommodationAmenityRepository.findAllByAccommodationId(accommodationId))
 			.thenReturn(List.of());
-		when(accommodationImageRepository.findByAccommodation_AccommodationUidOrderByIdAsc(accommodationUid))
+		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodationId))
 			.thenReturn(List.of());
 		when(reviewSummaryRepository.findByAccommodationId(accommodationId))
 			.thenReturn(Optional.empty());
-		when(reservationRepository.findFutureCompletedReservations(accommodationUid))
+		when(reservationRepository.findFutureCompletedReservationsByAccommodationId(accommodationId))
 			.thenReturn(List.of());
 	}
 }

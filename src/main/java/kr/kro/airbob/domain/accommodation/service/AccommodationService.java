@@ -13,7 +13,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
@@ -164,13 +163,13 @@ public class AccommodationService {
         List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
 
         // 이미지
-        List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodation.getAccommodationUid());
+        List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodationId);
 
         // 리뷰
         ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
 
         // 예약 불가 날짜
-        List<LocalDate> unavailableDates = getUnavailableDates(accommodation.getAccommodationUid());
+        List<LocalDate> unavailableDates = getUnavailableDates(accommodationId);
 
         // 위시리스트 포함 여부 - 로그인 사용자만
         Boolean isInWishlist = checkWishlistStatus(accommodationId, viewerId);
@@ -288,7 +287,7 @@ public class AccommodationService {
             .orElseThrow(AccommodationNotFoundException::new);
 
         List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
-        List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodation.getAccommodationUid());
+        List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodationId);
         ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
 
         return AccommodationResponse.HostDetail.from(
@@ -418,9 +417,8 @@ public class AccommodationService {
             .toList();
     }
 
-    private List<ImageResponse.ImageInfo> getImageUrls(UUID accommodationUid) {
-     return accommodationImageRepository.findByAccommodation_AccommodationUidOrderByIdAsc(
-                accommodationUid)
+    private List<ImageResponse.ImageInfo> getImageUrls(Long accommodationId) {
+        return accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodationId)
             .stream()
             .map(ImageResponse.ImageInfo::from)
             .toList();
@@ -432,9 +430,9 @@ public class AccommodationService {
         return ReviewResponse.ReviewSummary.of(summaryOpt.orElse(null));
     }
 
-    private List<LocalDate> getUnavailableDates(UUID accommodationUid) {
-        List<Reservation> futureReservations = reservationRepository.findFutureCompletedReservations(
-            accommodationUid);
+    private List<LocalDate> getUnavailableDates(Long accommodationId) {
+        List<Reservation> futureReservations =
+            reservationRepository.findFutureCompletedReservationsByAccommodationId(accommodationId);
 
         return futureReservations.stream()
             .flatMap(reservation -> {
