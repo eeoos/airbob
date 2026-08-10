@@ -80,31 +80,6 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public List<Reservation> findFutureCompletedReservationsByAccommodationId(Long accommodationId) {
-		return findFutureCompletedReservationsByCondition(
-			reservation.accommodation.id.eq(accommodationId));
-	}
-
-	@Override
-	public List<Reservation> findFutureCompletedReservations(UUID accommodationUid) {
-		return findFutureCompletedReservationsByCondition(
-			reservation.accommodation.accommodationUid.eq(accommodationUid));
-	}
-
-	private List<Reservation> findFutureCompletedReservationsByCondition(
-		BooleanExpression accommodationCondition
-	) {
-		return queryFactory
-			.selectFrom(reservation)
-			.where(
-				accommodationCondition,
-				reservation.status.eq(ReservationStatus.CONFIRMED),
-				reservation.checkOut.goe(LocalDateTime.now())
-			)
-			.fetch();
-	}
-
-	@Override
 	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationId(
 		Long accommodationId
 	) {

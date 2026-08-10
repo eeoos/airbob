@@ -19,10 +19,6 @@ public interface ReservationRepositoryCustom {
 
 	boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId);
 
-	List<Reservation> findFutureCompletedReservationsByAccommodationId(Long accommodationId);
-
-	List<Reservation> findFutureCompletedReservations(UUID accommodationUid);
-
 	List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationId(
 		Long accommodationId);
 
