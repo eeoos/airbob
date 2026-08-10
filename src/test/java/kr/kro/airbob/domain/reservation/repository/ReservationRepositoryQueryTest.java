@@ -76,8 +76,59 @@ class ReservationRepositoryQueryTest {
     private CapturingStatementInspector sqlInspector;
 
     @Test
-    @DisplayName("ID와 UUID 조회는 날짜 두 컬럼만 projection하고 대상 숙소의 미래 확정 예약만 반환한다")
-    void idAndUidQueriesProjectSameEligibleReservationRanges() {
+    @DisplayName("ID 조회는 지정 기간과 겹치는 확정 예약만 날짜 구간으로 반환한다")
+    void idQueryReturnsConfirmedReservationRangesOverlappingWindow() {
+        Member member = memberRepository.save(Member.builder()
+            .email("reservation-window-query@test.com")
+            .nickname("reservation-window-query")
+            .build());
+        Accommodation target = saveAccommodation(member, "window-target");
+        Accommodation other = saveAccommodation(member, "window-other");
+        LocalDateTime windowStart = LocalDateTime.of(2030, 1, 1, 0, 0);
+        LocalDateTime windowEndExclusive = LocalDateTime.of(2030, 4, 1, 0, 0);
+
+        ReservationDateRange overlapsStart = new ReservationDateRange(
+            windowStart.minusDays(2), windowStart.plusDays(1));
+        ReservationDateRange inside = new ReservationDateRange(
+            windowStart.plusDays(10), windowStart.plusDays(12));
+        ReservationDateRange overlapsEnd = new ReservationDateRange(
+            windowEndExclusive.minusDays(1), windowEndExclusive.plusDays(2));
+
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            overlapsStart.checkIn(), overlapsStart.checkOut());
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            windowStart.minusDays(2), windowStart);
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            inside.checkIn(), inside.checkOut());
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            overlapsEnd.checkIn(), overlapsEnd.checkOut());
+        saveReservation(target, member, ReservationStatus.CONFIRMED,
+            windowEndExclusive, windowEndExclusive.plusDays(2));
+        saveReservation(target, member, ReservationStatus.PAYMENT_PENDING,
+            inside.checkIn(), inside.checkOut());
+        saveReservation(other, member, ReservationStatus.CONFIRMED,
+            inside.checkIn(), inside.checkOut());
+        reservationRepository.flush();
+
+        sqlInspector.clear();
+        List<ReservationDateRange> result = reservationRepository
+            .findConfirmedReservationRangesByAccommodationId(
+                target.getId(), windowStart, windowEndExclusive);
+        String sql = sqlInspector.singleSelect();
+
+		assertThat(result).containsExactlyInAnyOrder(overlapsStart, inside, overlapsEnd);
+        assertDateRangeProjection(sql);
+        assertThat(sql)
+            .contains(".accommodation_id=?")
+            .contains(".check_in<?")
+            .contains(".check_out>?")
+			.doesNotContain(" join accommodation ")
+			.doesNotContain(" order by ");
+    }
+
+    @Test
+    @DisplayName("UUID 조회는 날짜 두 컬럼만 projection하고 대상 숙소의 모든 미래 확정 예약을 반환한다")
+    void uidQueryProjectsAllFutureConfirmedReservationRanges() {
         Member member = memberRepository.save(Member.builder()
             .email("reservation-query@test.com")
             .nickname("reservation-query")
@@ -105,19 +156,6 @@ class ReservationRepositoryQueryTest {
             other, member, ReservationStatus.CONFIRMED,
             base.plusDays(1), base.plusDays(3));
         reservationRepository.flush();
-
-        sqlInspector.clear();
-        List<ReservationDateRange> byId = reservationRepository
-            .findFutureConfirmedReservationRangesByAccommodationId(target.getId());
-        String idSql = sqlInspector.singleSelect();
-
-        assertThat(byId).containsExactlyInAnyOrder(first, second);
-        assertDateRangeProjection(idSql);
-        assertThat(idSql)
-            .contains(".accommodation_id=?")
-            .contains(".check_out>=?")
-            .doesNotContain(" join accommodation ")
-            .doesNotContain(" order by ");
 
         sqlInspector.clear();
         List<ReservationDateRange> byUid = reservationRepository

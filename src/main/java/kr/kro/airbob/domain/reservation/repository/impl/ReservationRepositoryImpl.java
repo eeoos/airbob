@@ -80,23 +80,10 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationId(
-		Long accommodationId
-	) {
-		return findFutureConfirmedReservationRangesByCondition(
-			reservation.accommodation.id.eq(accommodationId));
-	}
-
-	@Override
-	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
-		UUID accommodationUid
-	) {
-		return findFutureConfirmedReservationRangesByCondition(
-			reservation.accommodation.accommodationUid.eq(accommodationUid));
-	}
-
-	private List<ReservationDateRange> findFutureConfirmedReservationRangesByCondition(
-		BooleanExpression accommodationCondition
+	public List<ReservationDateRange> findConfirmedReservationRangesByAccommodationId(
+		Long accommodationId,
+		LocalDateTime windowStartInclusive,
+		LocalDateTime windowEndExclusive
 	) {
 		return queryFactory
 			.select(new QReservationDateRange(
@@ -105,7 +92,26 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			))
 			.from(reservation)
 			.where(
-				accommodationCondition,
+				reservation.accommodation.id.eq(accommodationId),
+				reservation.status.eq(ReservationStatus.CONFIRMED),
+				reservation.checkIn.lt(windowEndExclusive),
+				reservation.checkOut.gt(windowStartInclusive)
+			)
+			.fetch();
+	}
+
+	@Override
+	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
+		UUID accommodationUid
+	) {
+		return queryFactory
+			.select(new QReservationDateRange(
+				reservation.checkIn,
+				reservation.checkOut
+			))
+			.from(reservation)
+			.where(
+				reservation.accommodation.accommodationUid.eq(accommodationUid),
 				reservation.status.eq(ReservationStatus.CONFIRMED),
 				reservation.checkOut.goe(LocalDateTime.now())
 			)

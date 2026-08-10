@@ -13,7 +13,10 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +31,14 @@ public class ReservationService {
 	private final ReservationTransactionService transactionService;
 
 	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
+		if (!request.checkOutDate().isAfter(request.checkInDate())) {
+			throw new InvalidReservationDateException();
+		}
+
+		BookingWindow bookingWindow = BookingWindow.current();
+		if (!bookingWindow.containsStay(request.checkInDate(), request.checkOutDate())) {
+			throw new ReservationOutsideBookingWindowException();
+		}
 
 		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
 			throw new ReservationLockException();

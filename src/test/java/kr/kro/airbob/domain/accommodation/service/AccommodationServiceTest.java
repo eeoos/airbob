@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +37,7 @@ import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
@@ -194,45 +196,96 @@ class AccommodationServiceTest {
 	}
 
 	@Test
-	@DisplayName("숙소 상세 조회는 이미지와 미래 예약을 숙소 ID로 조회한다")
+	@DisplayName("숙소 상세 조회는 이미지와 3개월 예약 구간을 숙소 ID로 조회한다")
 	void accommodationDetailUsesAccommodationIdForImagesAndReservations() {
 		givenPublishedAccommodation(1L);
 
-		accommodationService.findAccommodation(1L, null);
+		AccommodationResponse.DetailInfo response = accommodationService.findAccommodation(1L, null);
+		ArgumentCaptor<LocalDateTime> windowStartCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+		ArgumentCaptor<LocalDateTime> windowEndCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
 
 		verify(accommodationImageRepository)
 			.findByAccommodationIdOrderByIdAsc(1L);
 		verify(reservationRepository)
-			.findFutureConfirmedReservationRangesByAccommodationId(1L);
+			.findConfirmedReservationRangesByAccommodationId(
+				eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture());
+		assertThat(windowEndCaptor.getValue())
+			.isEqualTo(windowStartCaptor.getValue().plusMonths(3));
+		assertThat(response.bookingWindowStartInclusive())
+			.isEqualTo(windowStartCaptor.getValue().toLocalDate());
+		assertThat(response.bookingWindowEndExclusive())
+			.isEqualTo(windowEndCaptor.getValue().toLocalDate());
 		verify(reservationRepository, never())
 			.findFutureConfirmedReservationRangesByAccommodationUid(any(UUID.class));
 	}
 
 	@Test
-	@DisplayName("숙소 상세 예약 불가 날짜는 checkout을 제외하고 중복 제거 후 정렬한다")
-	void accommodationDetailPreservesUnavailableDateRangeSemantics() {
+	@DisplayName("숙소 상세 예약은 숙박일을 펼치지 않고 checkout 제외 구간으로 반환한다")
+	void accommodationDetailReturnsUnavailableRangeWithoutExpandingDates() {
 		Long accommodationId = 1L;
+		LocalDate today = BookingWindow.current().startInclusive();
 		givenPublishedAccommodation(accommodationId);
 		when(reservationRepository
-			.findFutureConfirmedReservationRangesByAccommodationId(accommodationId))
+			.findConfirmedReservationRangesByAccommodationId(
+				eq(accommodationId), any(LocalDateTime.class), any(LocalDateTime.class)))
 			.thenReturn(List.of(
 				new ReservationDateRange(
-					LocalDateTime.of(2026, 8, 12, 15, 0),
-					LocalDateTime.of(2026, 8, 15, 11, 0)),
-				new ReservationDateRange(
-					LocalDateTime.of(2026, 8, 10, 15, 0),
-					LocalDateTime.of(2026, 8, 13, 11, 0))
+					today.plusDays(1).atTime(15, 0),
+					today.plusDays(4).atTime(11, 0))
 			));
 
 		AccommodationResponse.DetailInfo response =
 			accommodationService.findAccommodation(accommodationId, null);
 
-		assertThat(response.unavailableDates()).containsExactly(
-			LocalDate.of(2026, 8, 10),
-			LocalDate.of(2026, 8, 11),
-			LocalDate.of(2026, 8, 12),
-			LocalDate.of(2026, 8, 13),
-			LocalDate.of(2026, 8, 14)
+		assertThat(response.bookingWindowEndExclusive()).isEqualTo(today.plusMonths(3));
+		assertThat(response.unavailableRanges()).containsExactly(
+			new AccommodationResponse.UnavailableDateRange(
+				today.plusDays(1),
+				today.plusDays(4))
+		);
+	}
+
+	@Test
+	@DisplayName("숙소 상세 예약 불가 구간은 3개월 범위로 자르고 정렬해 합친다")
+	void accommodationDetailNormalizesUnavailableRangesWithinBookingWindow() {
+		Long accommodationId = 1L;
+		LocalDate windowStart = BookingWindow.current().startInclusive();
+		LocalDate windowEndExclusive = windowStart.plusMonths(3);
+		givenPublishedAccommodation(accommodationId);
+		when(reservationRepository
+			.findConfirmedReservationRangesByAccommodationId(
+				eq(accommodationId), any(LocalDateTime.class), any(LocalDateTime.class)))
+			.thenReturn(List.of(
+				new ReservationDateRange(
+					windowEndExclusive.minusDays(1).atTime(15, 0),
+					windowEndExclusive.plusDays(5).atTime(11, 0)),
+				new ReservationDateRange(
+					windowStart.plusDays(2).atTime(15, 0),
+					windowStart.plusDays(5).atTime(11, 0)),
+				new ReservationDateRange(
+					windowStart.minusDays(2).atTime(15, 0),
+					windowStart.plusDays(3).atTime(11, 0)),
+				new ReservationDateRange(
+					windowStart.plusDays(5).atTime(15, 0),
+					windowStart.plusDays(6).atTime(11, 0)),
+				new ReservationDateRange(
+					windowStart.minusDays(2).atTime(15, 0),
+					windowStart.atTime(11, 0)),
+				new ReservationDateRange(
+					windowEndExclusive.atTime(15, 0),
+					windowEndExclusive.plusDays(2).atTime(11, 0))
+			));
+
+		AccommodationResponse.DetailInfo response =
+			accommodationService.findAccommodation(accommodationId, null);
+
+		assertThat(response.unavailableRanges()).containsExactly(
+			new AccommodationResponse.UnavailableDateRange(
+				windowStart,
+				windowStart.plusDays(6)),
+			new AccommodationResponse.UnavailableDateRange(
+				windowEndExclusive.minusDays(1),
+				windowEndExclusive)
 		);
 	}
 
@@ -269,8 +322,5 @@ class AccommodationServiceTest {
 			.thenReturn(List.of());
 		when(reviewSummaryRepository.findByAccommodationId(accommodationId))
 			.thenReturn(Optional.empty());
-		when(reservationRepository
-			.findFutureConfirmedReservationRangesByAccommodationId(accommodationId))
-			.thenReturn(List.of());
 	}
 }
