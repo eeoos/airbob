@@ -62,7 +62,7 @@ import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteAfte
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkFixtureService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkFixtureService.Fixture;
 import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkService;
-import kr.kro.airbob.domain.accommodation.service.AccommodationService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.dto.GeocodeResult;
@@ -111,7 +111,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	@Autowired private AccommodationAmenityDeleteBenchmarkFixtureService fixtureService;
 	@Autowired private AccommodationAmenityDeleteBeforeBenchmarkService beforeService;
 	@Autowired private AccommodationAmenityDeleteAfterBenchmarkService afterService;
-	@Autowired private AccommodationService accommodationService;
+	@Autowired private AccommodationCommandService accommodationCommandService;
 	@Autowired private JdbcTemplate jdbcTemplate;
 	@Autowired private TransactionTemplate transactionTemplate;
 	@Autowired private EntityManager entityManager;
@@ -190,7 +190,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertFullReplacementAfter(activeCodeCount, activeCodeCount);
 		assertFullReplacementAfter(activeCodeCount + 1, activeCodeCount);
 
-		assertThat(AopUtils.isAopProxy(accommodationService)).isTrue();
+		assertThat(AopUtils.isAopProxy(accommodationCommandService)).isTrue();
 	}
 
 	@Test
@@ -223,7 +223,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		Fixture nullFixture = fixtureService.createFixture(ownerId, 3);
 		Map<String, Integer> oldMap = amenityMap(nullFixture.targetAccommodationId());
 
-		accommodationService.updateAccommodation(
+		accommodationCommandService.updateAccommodation(
 			nullFixture.targetAccommodationId(),
 			update(null),
 			ownerId
@@ -233,7 +233,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(nullFixture);
 
 		Fixture emptyFixture = fixtureService.createFixture(ownerId, 3);
-		accommodationService.updateAccommodation(
+		accommodationCommandService.updateAccommodation(
 			emptyFixture.targetAccommodationId(),
 			update(List.of()),
 			ownerId
@@ -253,7 +253,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			new AmenityRequest.AmenityInfo(second.toLowerCase(), 5)
 		);
 
-		accommodationService.updateAccommodation(
+		accommodationCommandService.updateAccommodation(
 			populatedFixture.targetAccommodationId(),
 			update(request),
 			ownerId
@@ -297,7 +297,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			))
 			.build();
 
-		assertThatThrownBy(() -> accommodationService.updateAccommodation(
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(), request, ownerId
 		)).isInstanceOf(InvalidAccommodationAmenityException.class);
 
@@ -329,7 +329,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			null
 		);
 
-		accommodationService.updateAccommodation(fixture.targetAccommodationId(), request, ownerId);
+		accommodationCommandService.updateAccommodation(fixture.targetAccommodationId(), request, ownerId);
 
 		Map<String, Object> parent = parentSnapshot(fixture.targetAccommodationId());
 		assertThat(parent.get("name")).isEqualTo("managed parent after bulk delete");
@@ -359,7 +359,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 
 		var snapshot = bulkOperationMonitor.monitor(
 			"accommodation-amenity-null-characterization",
-			() -> accommodationService.updateAccommodation(
+			() -> accommodationCommandService.updateAccommodation(
 				fixture.targetAccommodationId(),
 				update(null),
 				ownerId
@@ -392,7 +392,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		try {
 			assertThatThrownBy(() -> bulkOperationMonitor.monitor(
 				"accommodation-amenity-full-replacement-absent-characterization",
-				() -> accommodationService.updateAccommodation(
+				() -> accommodationCommandService.updateAccommodation(
 					absentAccommodationId,
 					update(List.of()),
 					ownerId
@@ -474,7 +474,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	@DisplayName("full replacement 검증은 새 UPDATE 이력의 전체 숙소 스냅샷 훼손을 탐지한다")
 	void fullReplacementVerificationDetectsIncompleteCurrentHistory() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 1);
-		accommodationService.updateAccommodation(
+		accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(),
 			fixture.replacementRequest(),
 			ownerId
@@ -495,7 +495,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		UserContext.set(new UserInfo(ownerId, "203.0.113.77", "API"));
 		Fixture fixture = fixtureService.createFixture(ownerId, 1);
 
-		accommodationService.updateAccommodation(
+		accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(),
 			fixture.replacementRequest(),
 			ownerId
@@ -525,7 +525,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			throw new IntentionalAmenitySaveFailure();
 		}).when(accommodationAmenityRepository).saveAll(any());
 
-		assertThatThrownBy(() -> accommodationService.updateAccommodation(
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(),
 			update(replacement),
 			ownerId

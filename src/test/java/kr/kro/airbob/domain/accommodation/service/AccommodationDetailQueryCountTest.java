@@ -48,7 +48,7 @@ import kr.kro.airbob.outbox.OutboxEventPublisher;
 @Import({
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
-	AccommodationService.class
+	AccommodationQueryService.class
 })
 @DisplayName("숙소 상세 조회 쿼리 테스트")
 class AccommodationDetailQueryCountTest {
@@ -68,7 +68,7 @@ class AccommodationDetailQueryCountTest {
 	}
 
 	@Autowired
-	private AccommodationService accommodationService;
+	private AccommodationQueryService accommodationQueryService;
 
 	@Autowired
 	private AccommodationRepository accommodationRepository;
@@ -109,7 +109,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response =
-			accommodationService.findAccommodation(accommodation.getId(), null);
+			accommodationQueryService.findAccommodation(accommodation.getId(), null);
 
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
@@ -126,7 +126,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response =
-			accommodationService.findAccommodation(accommodation.getId(), null);
+			accommodationQueryService.findAccommodation(accommodation.getId(), null);
 
 		assertThat(response.reviewSummary().totalCount()).isZero();
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -142,7 +142,7 @@ class AccommodationDetailQueryCountTest {
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.DetailInfo response =
-			accommodationService.findAccommodation(accommodation.getId(), host.getId());
+			accommodationQueryService.findAccommodation(accommodation.getId(), host.getId());
 
 		assertThat(response.isInWishlist()).isFalse();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(5);

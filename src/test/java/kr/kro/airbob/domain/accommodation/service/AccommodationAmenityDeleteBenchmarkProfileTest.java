@@ -57,7 +57,9 @@ class AccommodationAmenityDeleteBenchmarkProfileTest {
 	})
 	static class TestConfiguration {
 
-		@Bean AccommodationService accommodationService() { return mock(AccommodationService.class); }
+		@Bean AccommodationCommandService accommodationCommandService() {
+			return mock(AccommodationCommandService.class);
+		}
 		@Bean AccommodationAmenityRepository accommodationAmenityRepository() {
 			return mock(AccommodationAmenityRepository.class);
 		}
