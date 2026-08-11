@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.accommodation.service;
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
@@ -53,6 +54,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
@@ -157,8 +159,12 @@ public class AccommodationService {
 
     @Transactional(readOnly = true)
     public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
-        Accommodation accommodation = accommodationRepository.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
+
+        // 숙소 본문 + 리뷰 요약
+        AccommodationDetailProjection detailProjection = accommodationRepository
+            .findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
             .orElseThrow(AccommodationNotFoundException::new);
+        Accommodation accommodation = detailProjection.accommodation();
 
         // 편의 시설
         List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
@@ -166,9 +172,7 @@ public class AccommodationService {
         // 이미지
         List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodationId);
 
-        // 리뷰
-        ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
-
+        // 예약 불가 날짜 (3개월)
         BookingWindow bookingWindow = BookingWindow.current();
         LocalDate bookingWindowStart = bookingWindow.startInclusive();
         LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
@@ -177,6 +181,10 @@ public class AccommodationService {
 
         // 위시리스트 포함 여부 - 로그인 사용자만
         Boolean isInWishlist = checkWishlistStatus(accommodationId, viewerId);
+        ReviewResponse.ReviewSummary reviewSummary = new ReviewResponse.ReviewSummary(
+            Objects.requireNonNullElse(detailProjection.totalReviewCount(), 0),
+            Objects.requireNonNullElse(detailProjection.averageRating(), BigDecimal.ZERO)
+        );
 
         return AccommodationResponse.DetailInfo.from(
             accommodation, bookingWindowStart, bookingWindowEndExclusive, unavailableRanges, isInWishlist,

@@ -4,6 +4,7 @@ import static kr.kro.airbob.domain.commoncode.common.CommonCodeGroups.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +36,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
@@ -314,13 +316,15 @@ class AccommodationServiceTest {
 
 		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
 			accommodationId, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(accommodation));
+			.thenReturn(Optional.of(new AccommodationDetailProjection(
+				accommodation,
+				0,
+				BigDecimal.ZERO
+			)));
 		when(accommodation.getId()).thenReturn(accommodationId);
 		when(accommodationAmenityRepository.findAllByAccommodationId(accommodationId))
 			.thenReturn(List.of());
 		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodationId))
 			.thenReturn(List.of());
-		when(reviewSummaryRepository.findByAccommodationId(accommodationId))
-			.thenReturn(Optional.empty());
 	}
 }
