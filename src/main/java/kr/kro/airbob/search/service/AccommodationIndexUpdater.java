@@ -70,11 +70,11 @@ public class AccommodationIndexUpdater {
 
 	private List<LocalDate> getReservedDates(String accommodationUid) {
 		return reservationRepository
-			.findFutureCompletedReservations(UUID.fromString(accommodationUid))
+			.findFutureConfirmedReservationRangesByAccommodationUid(UUID.fromString(accommodationUid))
 			.stream()
-			.flatMap(reservation -> {
-				LocalDate checkInDate = reservation.getCheckIn().toLocalDate();
-				LocalDate checkOutDate = reservation.getCheckOut().toLocalDate();
+			.flatMap(dateRange -> {
+				LocalDate checkInDate = dateRange.checkIn().toLocalDate();
+				LocalDate checkOutDate = dateRange.checkOut().toLocalDate();
 				// checkOutDate는 숙박일에 포함되지 않으므로 datesUntil 사용
 				return checkInDate.datesUntil(checkOutDate);
 			})

@@ -40,6 +40,7 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
@@ -154,8 +155,8 @@ class ReservationConcurrencyTest {
 		AtomicInteger expectedFailCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = LocalDate.of(2025, 12, 24);
-		LocalDate checkOutDate = LocalDate.of(2025, 12, 26);
+		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		// when
 		for (int i = 0; i < THREAD_COUNT; i++) {
@@ -222,8 +223,8 @@ class ReservationConcurrencyTest {
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger failCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = LocalDate.of(2025, 12, 24);
-		LocalDate checkOutDate = LocalDate.of(2025, 12, 26);
+		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		ReservationRequest.Create request = new ReservationRequest.Create(
 			accommodation.getId(),
@@ -296,8 +297,8 @@ class ReservationConcurrencyTest {
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = LocalDate.of(2025, 12, 24);
-		LocalDate checkOutDate = LocalDate.of(2025, 12, 26);
+		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		Member guestA = guests.get(0);
 		Member guestB = guests.get(1);
@@ -370,17 +371,18 @@ class ReservationConcurrencyTest {
 		AtomicInteger failCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
+		LocalDate baseDate = BookingWindow.current().startInclusive().plusDays(30);
 		ReservationRequest.Create requestA = new ReservationRequest.Create(
 			accommodation.getId(),
-			LocalDate.of(2025, 12, 25),
-			LocalDate.of(2025, 12, 27),
+			baseDate.plusDays(1),
+			baseDate.plusDays(3),
 			2
 		);
 
 		ReservationRequest.Create requestB = new ReservationRequest.Create(
 			accommodation.getId(),
-			LocalDate.of(2025, 12, 24),
-			LocalDate.of(2025, 12, 26),
+			baseDate,
+			baseDate.plusDays(2),
 			2
 		);
 

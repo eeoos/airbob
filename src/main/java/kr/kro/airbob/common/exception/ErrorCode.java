@@ -58,6 +58,7 @@ public enum ErrorCode {
 	RESERVATION_STATE_CHANGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "R007", "예약 상태를 변경하는 중 내부 서버 오류가 발생했습니다."),
 	RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "R008", "해당 예약에 대한 접근 권한이 없습니다."),
 	INVALID_RESERVATION_DATE(HttpStatus.BAD_REQUEST, "R009", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
+	RESERVATION_OUTSIDE_BOOKING_WINDOW(HttpStatus.BAD_REQUEST, "R010", "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."),
 
 
 	// payment

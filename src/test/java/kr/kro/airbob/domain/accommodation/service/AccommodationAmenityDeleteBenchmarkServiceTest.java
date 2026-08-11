@@ -28,7 +28,7 @@ import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenc
 @DisplayName("AccommodationAmenity 삭제 Before 벤치마크 오케스트레이터 테스트")
 class AccommodationAmenityDeleteBenchmarkServiceTest {
 
-	@Mock private AccommodationService accommodationService;
+	@Mock private AccommodationCommandService accommodationCommandService;
 	@Mock private AccommodationAmenityDeleteBeforeBenchmarkService beforeService;
 	@Mock private AccommodationAmenityDeleteAfterBenchmarkService afterService;
 	@Mock private AccommodationAmenityDeleteBenchmarkFixtureService fixtureService;
@@ -41,7 +41,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 	@BeforeEach
 	void setUp() {
 		benchmarkService = new AccommodationAmenityDeleteBenchmarkService(
-			accommodationService,
+			accommodationCommandService,
 			beforeService,
 			afterService,
 			fixtureService,
@@ -81,7 +81,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 			)
 		);
 
-		var ordered = inOrder(databaseGuard, fixtureService, bulkOperationMonitor, accommodationService);
+		var ordered = inOrder(databaseGuard, fixtureService, bulkOperationMonitor, accommodationCommandService);
 		ordered.verify(databaseGuard).verifyReady();
 		ordered.verify(fixtureService).createFixture(7L, 31);
 		ordered.verify(bulkOperationMonitor).monitor(
@@ -91,7 +91,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		verify(beforeService).fullReplacement(101L, replacementRequest, 7L);
 		verify(fixtureService).verify(fixture, Measurement.FULL_REPLACEMENT);
 		verify(fixtureService).cleanup(fixture);
-		then(accommodationService).shouldHaveNoInteractions();
+		then(accommodationCommandService).shouldHaveNoInteractions();
 		then(afterService).shouldHaveNoInteractions();
 		assertThat(response.measurement()).isEqualTo(Measurement.FULL_REPLACEMENT);
 		assertThat(response.workloadClass())
@@ -133,7 +133,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 			)
 		);
 
-		verify(accommodationService).updateAccommodation(101L, replacementRequest, 7L);
+		verify(accommodationCommandService).updateAccommodation(101L, replacementRequest, 7L);
 		then(beforeService).shouldHaveNoInteractions();
 		then(afterService).shouldHaveNoInteractions();
 		assertThat(response.operation().operationName())
@@ -170,7 +170,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		);
 
 		verify(beforeService).deleteByAccommodationId(101L);
-		then(accommodationService).shouldHaveNoInteractions();
+		then(accommodationCommandService).shouldHaveNoInteractions();
 		assertThat(response.measurement()).isEqualTo(Measurement.DELETE_ONLY);
 		assertThat(response.replacementRowsExpected()).isZero();
 		assertThat(response.operation().operationName())
@@ -203,7 +203,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 		);
 
 		verify(afterService).deleteByAccommodationId(101L);
-		then(accommodationService).shouldHaveNoInteractions();
+		then(accommodationCommandService).shouldHaveNoInteractions();
 		then(beforeService).shouldHaveNoInteractions();
 		assertThat(response.operation().operationName())
 			.isEqualTo("accommodation-amenity-delete-only-after");
@@ -241,7 +241,7 @@ class AccommodationAmenityDeleteBenchmarkServiceTest {
 				invocation.<Runnable>getArgument(1).run();
 				return snapshot("unused", 1, 1);
 			});
-		willThrow(operationFailure).given(accommodationService)
+		willThrow(operationFailure).given(accommodationCommandService)
 			.updateAccommodation(eq(101L), any(), eq(7L));
 		willThrow(cleanupFailure).given(fixtureService).cleanup(fixture);
 

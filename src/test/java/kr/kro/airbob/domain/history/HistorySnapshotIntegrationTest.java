@@ -39,7 +39,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.service.AccommodationService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.domain.auth.repository.SessionRedisRepository;
 import kr.kro.airbob.domain.member.dto.MemberRequest;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -62,7 +62,7 @@ class HistorySnapshotIntegrationTest {
 	@Autowired private RedisTemplate<String, Object> redisTemplate;
 	@Autowired private SessionRedisRepository sessionRedisRepository;
 	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private AccommodationService accommodationService;
+	@Autowired private AccommodationCommandService accommodationCommandService;
 	@Autowired private AccommodationRepository accommodationRepository;
 	@Autowired private AccommodationHistoryRepository accommodationHistoryRepository;
 
@@ -217,7 +217,7 @@ class HistorySnapshotIntegrationTest {
 	void accommodationHistoryScd2() {
 		Member host = memberRepository.save(Member.builder().email("host@test.com").nickname("host").build());
 
-		AccommodationResponse.Create created = accommodationService.createAccommodation(host.getId());
+		AccommodationResponse.Create created = accommodationCommandService.createAccommodation(host.getId());
 		Long accommodationId = created.id();
 
 		List<AccommodationHistory> afterCreate = accommodationHistoryRepository.findAll();
@@ -228,7 +228,7 @@ class HistorySnapshotIntegrationTest {
 		assertThat(createdHistory.getAccommodationId()).isEqualTo(accommodationId);
 		assertThat(createdHistory.getValidTo()).isEqualTo(HistoryConstants.FOREVER);
 
-		accommodationService.deleteAccommodation(accommodationId, host.getId());
+		accommodationCommandService.deleteAccommodation(accommodationId, host.getId());
 
 		List<AccommodationHistory> afterDelete = accommodationHistoryRepository.findAll();
 		assertThat(afterDelete).hasSize(2);

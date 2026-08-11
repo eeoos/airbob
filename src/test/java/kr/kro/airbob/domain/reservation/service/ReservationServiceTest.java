@@ -27,7 +27,10 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationService 테스트")
@@ -55,10 +58,11 @@ class ReservationServiceTest {
 	@BeforeEach
 	void setUp() {
 		memberId = 1L;
+		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(1);
 		validRequest = new ReservationRequest.Create(
 			1L,
-			LocalDate.of(2025, 1, 26),
-			LocalDate.of(2025, 1, 28),
+			checkInDate,
+			checkInDate.plusDays(2),
 			2
 		);
 
@@ -143,6 +147,44 @@ class ReservationServiceTest {
 		}
 
 		@Test
+		@DisplayName("3개월 예약 가능 기간을 벗어나면 Redis와 DB 처리 전에 거부한다")
+		void 예외_예약_가능_기간_초과() {
+			LocalDate windowEndExclusive = BookingWindow.current().endExclusive();
+			ReservationRequest.Create request = new ReservationRequest.Create(
+				1L,
+				windowEndExclusive,
+				windowEndExclusive.plusDays(1),
+				2
+			);
+
+			assertThatThrownBy(() -> reservationService.createPendingReservation(request, memberId))
+				.isInstanceOf(ReservationOutsideBookingWindowException.class);
+
+			then(holdService).shouldHaveNoInteractions();
+			then(lockManager).shouldHaveNoInteractions();
+			then(transactionService).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("체크아웃이 체크인보다 이후가 아니면 Redis와 DB 처리 전에 거부한다")
+		void 예외_잘못된_숙박_기간() {
+			LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(1);
+			ReservationRequest.Create request = new ReservationRequest.Create(
+				1L,
+				checkInDate,
+				checkInDate,
+				2
+			);
+
+			assertThatThrownBy(() -> reservationService.createPendingReservation(request, memberId))
+				.isInstanceOf(InvalidReservationDateException.class);
+
+			then(holdService).shouldHaveNoInteractions();
+			then(lockManager).shouldHaveNoInteractions();
+			then(transactionService).shouldHaveNoInteractions();
+		}
+
+		@Test
 		@DisplayName("락 획득 실패 시 ReservationLockException이 발생한다")
 		void 예외_락_획득_타임아웃() {
 			// given
@@ -217,8 +259,8 @@ class ReservationServiceTest {
 			then(lockManager).should().acquireLocks(argThat(lockKeys -> {
 				List<String> keys = (List<String>)lockKeys;
 				return keys.size() == 2 &&
-					keys.contains("LOCK:RESERVATION:1:2025-01-26") &&
-					keys.contains("LOCK:RESERVATION:1:2025-01-27");
+					keys.contains("LOCK:RESERVATION:1:" + validRequest.checkInDate()) &&
+					keys.contains("LOCK:RESERVATION:1:" + validRequest.checkInDate().plusDays(1));
 			}));
 		}
 	}

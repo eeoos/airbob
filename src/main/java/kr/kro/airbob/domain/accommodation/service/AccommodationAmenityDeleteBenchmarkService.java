@@ -29,7 +29,7 @@ public class AccommodationAmenityDeleteBenchmarkService {
 	public static final String DELETE_ONLY_AFTER_OPERATION_NAME =
 		"accommodation-amenity-delete-only-after";
 
-	private final AccommodationService accommodationService;
+	private final AccommodationCommandService accommodationCommandService;
 	private final AccommodationAmenityDeleteBeforeBenchmarkService beforeService;
 	private final AccommodationAmenityDeleteAfterBenchmarkService afterService;
 	private final AccommodationAmenityDeleteBenchmarkFixtureService fixtureService;
@@ -37,14 +37,14 @@ public class AccommodationAmenityDeleteBenchmarkService {
 	private final BulkWriteBenchmarkDatabaseGuard databaseGuard;
 
 	public AccommodationAmenityDeleteBenchmarkService(
-		AccommodationService accommodationService,
+		AccommodationCommandService accommodationCommandService,
 		AccommodationAmenityDeleteBeforeBenchmarkService beforeService,
 		AccommodationAmenityDeleteAfterBenchmarkService afterService,
 		AccommodationAmenityDeleteBenchmarkFixtureService fixtureService,
 		BulkOperationMonitor bulkOperationMonitor,
 		BulkWriteBenchmarkDatabaseGuard databaseGuard
 	) {
-		this.accommodationService = accommodationService;
+		this.accommodationCommandService = accommodationCommandService;
 		this.beforeService = beforeService;
 		this.afterService = afterService;
 		this.fixtureService = fixtureService;
@@ -135,7 +135,7 @@ public class AccommodationAmenityDeleteBenchmarkService {
 				case DELETE_ONLY -> () -> beforeService.deleteByAccommodationId(fixture.targetAccommodationId());
 			};
 			case AFTER -> switch (measurement) {
-				case FULL_REPLACEMENT -> () -> accommodationService.updateAccommodation(
+				case FULL_REPLACEMENT -> () -> accommodationCommandService.updateAccommodation(
 					fixture.targetAccommodationId(), fixture.replacementRequest(), ownerId
 				);
 				case DELETE_ONLY -> () -> afterService.deleteByAccommodationId(fixture.targetAccommodationId());

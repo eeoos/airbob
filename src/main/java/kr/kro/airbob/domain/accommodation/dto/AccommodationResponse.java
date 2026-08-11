@@ -64,6 +64,13 @@ public class AccommodationResponse {
 	}
 
 	@Builder
+	public record UnavailableDateRange(
+		LocalDate startDate,
+		LocalDate endDateExclusive
+	) {
+	}
+
+	@Builder
 	public record DetailInfo(
 		long id,
 		String name,
@@ -74,7 +81,9 @@ public class AccommodationResponse {
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 
-		List<LocalDate> unavailableDates,
+		LocalDate bookingWindowStartInclusive,
+		LocalDate bookingWindowEndExclusive,
+		List<UnavailableDateRange> unavailableRanges,
 		Boolean isInWishlist,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		AddressResponse.Coordinate coordinate,
@@ -90,7 +99,9 @@ public class AccommodationResponse {
 		ReviewResponse.ReviewSummary reviewSummary
 
 	) {
-		public static DetailInfo from(Accommodation accommodation, List<LocalDate> unavailableDates,
+		public static DetailInfo from(Accommodation accommodation,
+			LocalDate bookingWindowStartInclusive, LocalDate bookingWindowEndExclusive,
+			List<UnavailableDateRange> unavailableRanges,
 			Boolean isInWishlist, List<AmenityResponse.AmenityInfo> amenityInfos, List<ImageResponse.ImageInfo> imageInfo,
 			ReviewResponse.ReviewSummary reviewSummary) {
 
@@ -106,7 +117,9 @@ public class AccommodationResponse {
 				.currency(accommodation.getCurrency())
 				.checkInTime(accommodation.getCheckInTime())
 				.checkOutTime(accommodation.getCheckOutTime())
-				.unavailableDates(unavailableDates)
+				.bookingWindowStartInclusive(bookingWindowStartInclusive)
+				.bookingWindowEndExclusive(bookingWindowEndExclusive)
+				.unavailableRanges(unavailableRanges)
 				.isInWishlist(isInWishlist)
 				.addressSummary(AddressResponse.AddressSummaryInfo.from(address))
 				.coordinate(AddressResponse.Coordinate.from(address))

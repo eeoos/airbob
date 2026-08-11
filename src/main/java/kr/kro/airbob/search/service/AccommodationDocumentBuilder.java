@@ -84,11 +84,11 @@ public class AccommodationDocumentBuilder {
 
 	private List<AccommodationDocument.DateRange> getReservationRanges(UUID accommodationUid) {
 		return reservationRepository
-			.findFutureCompletedReservations(accommodationUid)
+			.findFutureConfirmedReservationRangesByAccommodationUid(accommodationUid)
 			.stream()
-			.map(reservation -> AccommodationDocument.DateRange.builder()
-				.gte(reservation.getCheckIn().toLocalDate()) // Check-in (gte)
-				.lt(reservation.getCheckOut().toLocalDate()) // Check-out (lt)
+			.map(dateRange -> AccommodationDocument.DateRange.builder()
+				.gte(dateRange.checkIn().toLocalDate()) // Check-in (gte)
+				.lt(dateRange.checkOut().toLocalDate()) // Check-out (lt)
 				.build()
 			)
 			.toList();

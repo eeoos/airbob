@@ -19,6 +19,8 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.member.entity.QMember;
+import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
+import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -78,13 +80,40 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public List<Reservation> findFutureCompletedReservations(UUID accommodationUid) {
+	public List<ReservationDateRange> findConfirmedReservationRangesByAccommodationId(
+		Long accommodationId,
+		LocalDateTime windowStartInclusive,
+		LocalDateTime windowEndExclusive
+	) {
 		return queryFactory
-			.selectFrom(reservation)
+			.select(new QReservationDateRange(
+				reservation.checkIn,
+				reservation.checkOut
+			))
+			.from(reservation)
+			.where(
+				reservation.accommodation.id.eq(accommodationId),
+				reservation.status.eq(ReservationStatus.CONFIRMED),
+				reservation.checkIn.lt(windowEndExclusive),
+				reservation.checkOut.gt(windowStartInclusive)
+			)
+			.fetch();
+	}
+
+	@Override
+	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
+		UUID accommodationUid
+	) {
+		return queryFactory
+			.select(new QReservationDateRange(
+				reservation.checkIn,
+				reservation.checkOut
+			))
+			.from(reservation)
 			.where(
 				reservation.accommodation.accommodationUid.eq(accommodationUid),
 				reservation.status.eq(ReservationStatus.CONFIRMED),
-				reservation.checkOut.goe(LocalDateTime.now()) // 체크아웃 날짜가 오늘 이후인 것
+				reservation.checkOut.goe(LocalDateTime.now())
 			)
 			.fetch();
 	}
@@ -222,5 +251,3 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		}
 	}
 }
-
-

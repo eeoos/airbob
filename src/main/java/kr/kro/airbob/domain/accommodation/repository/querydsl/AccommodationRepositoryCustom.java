@@ -11,10 +11,14 @@ import org.springframework.data.domain.Slice;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 
 public interface AccommodationRepositoryCustom {
     Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
-    Optional<Accommodation> findWithDetailsByAccommodationIdAndStatus(Long accommodationId, AccommodationStatus status);
+    Optional<AccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+        Long accommodationId,
+        AccommodationStatus status
+    );
 
     Slice<Accommodation> findMyAccommodationsByHostIdWithCursor(
         Long hostId,

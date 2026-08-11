@@ -24,6 +24,8 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QAccommodationDetailProjection;
 import kr.kro.airbob.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 
@@ -46,12 +48,22 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Optional<Accommodation> findWithDetailsByAccommodationIdAndStatus(Long accommodationId, AccommodationStatus status) {
-        Accommodation result = jpaQueryFactory.
-            selectFrom(accommodation)
+    public Optional<AccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+        Long accommodationId,
+        AccommodationStatus status
+    ) {
+        AccommodationDetailProjection result = jpaQueryFactory
+            .select(new QAccommodationDetailProjection(
+                accommodation,
+                accommodationReviewSummary.totalReviewCount,
+                accommodationReviewSummary.averageRating
+            ))
+            .from(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
             .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
             .leftJoin(accommodation.member, member).fetchJoin()
+            .leftJoin(accommodationReviewSummary)
+            .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
             .where(accommodation.id.eq(accommodationId)
                 .and(accommodation.status.eq(status)))
             .fetchOne();
