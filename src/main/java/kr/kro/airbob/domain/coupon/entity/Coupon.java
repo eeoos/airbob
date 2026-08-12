@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import lombok.AccessLevel;
@@ -148,6 +149,16 @@ public class Coupon extends BaseEntity {
 
 	public boolean isIssuable(LocalDateTime now) {
 		return Boolean.TRUE.equals(isActive) && isIssueOpen(now) && !isSoldOut();
+	}
+
+	public CouponIssuanceStatus issuanceStatus(LocalDateTime now) {
+		if (now.isBefore(issueStartAt)) {
+			return CouponIssuanceStatus.UPCOMING;
+		}
+		if (isSoldOut()) {
+			return CouponIssuanceStatus.SOLD_OUT;
+		}
+		return CouponIssuanceStatus.OPEN;
 	}
 
 	// 발급된 쿠폰을 사용할 수 있는지 (활성·기간만 확인, 재고는 무관)

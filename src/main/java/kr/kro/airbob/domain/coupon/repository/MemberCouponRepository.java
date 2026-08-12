@@ -1,8 +1,10 @@
 package kr.kro.airbob.domain.coupon.repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +15,9 @@ import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 
 @Repository
 public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long> {
+
+	@EntityGraph(attributePaths = "coupon")
+	List<MemberCoupon> findByMemberIdOrderByCreatedAtDescIdDesc(Long memberId);
 
 	boolean existsByMemberIdAndCouponId(Long memberId, Long couponId);
 
