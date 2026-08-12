@@ -29,6 +29,7 @@ import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDet
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -47,6 +48,7 @@ public class AccommodationQueryService {
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationRepository reservationRepository;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
+	private final BookingWindowProvider bookingWindowProvider;
 
 	@Transactional(readOnly = true)
 	public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
@@ -58,7 +60,7 @@ public class AccommodationQueryService {
 		List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
 		List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodationId);
 
-		BookingWindow bookingWindow = BookingWindow.current();
+		BookingWindow bookingWindow = bookingWindowProvider.currentFor(accommodation.getTimeZoneId());
 		LocalDate bookingWindowStart = bookingWindow.startInclusive();
 		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
 		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(

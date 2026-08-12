@@ -80,6 +80,7 @@ public class AccommodationResponse {
 		String currency,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
+		String timeZoneId,
 
 		LocalDate bookingWindowStartInclusive,
 		LocalDate bookingWindowEndExclusive,
@@ -117,6 +118,7 @@ public class AccommodationResponse {
 				.currency(accommodation.getCurrency())
 				.checkInTime(accommodation.getCheckInTime())
 				.checkOutTime(accommodation.getCheckOutTime())
+				.timeZoneId(accommodation.getTimeZoneId())
 				.bookingWindowStartInclusive(bookingWindowStartInclusive)
 				.bookingWindowEndExclusive(bookingWindowEndExclusive)
 				.unavailableRanges(unavailableRanges)

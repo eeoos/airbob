@@ -1,12 +1,15 @@
 package kr.kro.airbob.domain.accommodation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +39,8 @@ import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.geo.GeocodingService;
@@ -100,6 +105,15 @@ class AccommodationDetailQueryCountTest {
 	@MockitoBean
 	private S3ImageUploader s3ImageUploader;
 
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
+
+	@BeforeEach
+	void setUpBookingWindow() {
+		when(bookingWindowProvider.currentFor("Asia/Seoul"))
+			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 12)));
+	}
+
 	@Test
 	@DisplayName("공개 숙소 상세는 리뷰 요약을 포함해 SELECT 네 번으로 조회한다")
 	void findsPublicAccommodationDetailWithReviewSummaryInFourSelects() {
@@ -113,6 +127,7 @@ class AccommodationDetailQueryCountTest {
 
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
+		assertThat(response.timeZoneId()).isEqualTo("Asia/Seoul");
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
 	}
 
@@ -170,6 +185,7 @@ class AccommodationDetailQueryCountTest {
 				.build())
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
 	}

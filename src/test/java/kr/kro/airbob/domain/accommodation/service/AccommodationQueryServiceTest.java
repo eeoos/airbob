@@ -28,6 +28,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
@@ -35,6 +36,9 @@ import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 조회 서비스 단위 테스트")
 class AccommodationQueryServiceTest {
+	private static final String DEFAULT_TIME_ZONE_ID = "Asia/Seoul";
+	private static final LocalDate BOOKING_WINDOW_START = LocalDate.of(2026, 8, 12);
+	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
@@ -43,6 +47,7 @@ class AccommodationQueryServiceTest {
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private WishlistAccommodationRepository wishlistAccommodationRepository;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
+	@Mock private BookingWindowProvider bookingWindowProvider;
 
 	@InjectMocks
 	private AccommodationQueryService accommodationQueryService;
@@ -73,6 +78,19 @@ class AccommodationQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("숙소 상세 조회는 숙소 현지 시간대의 예약 가능 기간을 반환한다")
+	void accommodationDetailUsesBookingWindowForAccommodationTimeZone() {
+		BookingWindow newYorkWindow = BookingWindow.startingOn(LocalDate.of(2026, 8, 11));
+		givenPublishedAccommodation(1L, "America/New_York", newYorkWindow);
+
+		AccommodationResponse.DetailInfo response = accommodationQueryService.findAccommodation(1L, null);
+
+		assertThat(response.bookingWindowStartInclusive()).isEqualTo(LocalDate.of(2026, 8, 11));
+		assertThat(response.bookingWindowEndExclusive()).isEqualTo(LocalDate.of(2026, 11, 11));
+		verify(bookingWindowProvider).currentFor("America/New_York");
+	}
+
+	@Test
 	@DisplayName("숙소 상세 조회는 이미지와 3개월 예약 구간을 숙소 ID로 조회한다")
 	void accommodationDetailUsesAccommodationIdForImagesAndReservations() {
 		givenPublishedAccommodation(1L);
@@ -97,7 +115,7 @@ class AccommodationQueryServiceTest {
 	@DisplayName("숙소 상세 예약은 숙박일을 펼치지 않고 checkout 제외 구간으로 반환한다")
 	void accommodationDetailReturnsUnavailableRangeWithoutExpandingDates() {
 		Long accommodationId = 1L;
-		LocalDate today = BookingWindow.current().startInclusive();
+		LocalDate today = BOOKING_WINDOW_START;
 		givenPublishedAccommodation(accommodationId);
 		when(reservationRepository.findConfirmedReservationRangesByAccommodationId(
 			eq(accommodationId), any(LocalDateTime.class), any(LocalDateTime.class)))
@@ -119,7 +137,7 @@ class AccommodationQueryServiceTest {
 	@DisplayName("숙소 상세 예약 불가 구간은 3개월 범위로 자르고 정렬해 합친다")
 	void accommodationDetailNormalizesUnavailableRangesWithinBookingWindow() {
 		Long accommodationId = 1L;
-		LocalDate windowStart = BookingWindow.current().startInclusive();
+		LocalDate windowStart = BOOKING_WINDOW_START;
 		LocalDate windowEndExclusive = windowStart.plusMonths(3);
 		givenPublishedAccommodation(accommodationId);
 		when(reservationRepository.findConfirmedReservationRangesByAccommodationId(
@@ -170,7 +188,15 @@ class AccommodationQueryServiceTest {
 		verify(accommodationImageRepository).findByAccommodationIdOrderByIdAsc(1L);
 	}
 
-	private void givenPublishedAccommodation(Long accommodationId) {
+	private Accommodation givenPublishedAccommodation(Long accommodationId) {
+		return givenPublishedAccommodation(accommodationId, DEFAULT_TIME_ZONE_ID, BOOKING_WINDOW);
+	}
+
+	private Accommodation givenPublishedAccommodation(
+		Long accommodationId,
+		String timeZoneId,
+		BookingWindow bookingWindow
+	) {
 		Accommodation accommodation = mock(Accommodation.class);
 
 		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
@@ -183,5 +209,8 @@ class AccommodationQueryServiceTest {
 		when(accommodationAmenityRepository.findAllByAccommodationId(accommodationId)).thenReturn(List.of());
 		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodationId))
 			.thenReturn(List.of());
+		when(accommodation.getTimeZoneId()).thenReturn(timeZoneId);
+		when(bookingWindowProvider.currentFor(timeZoneId)).thenReturn(bookingWindow);
+		return accommodation;
 	}
 }
