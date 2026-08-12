@@ -3,13 +3,11 @@ package kr.kro.airbob.geo.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.time.ZoneId;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 
 import net.iakovlev.timeshape.TimeZoneEngine;
 
@@ -45,14 +43,10 @@ class TimeShapeTimeZoneResolverTest {
 		TimeZoneEngine engine = mock(TimeZoneEngine.class);
 		when(engine.query(anyDouble(), anyDouble()))
 			.thenThrow(new AssertionError("유효하지 않은 좌표로 엔진을 호출하면 안 된다"));
+		TimeShapeTimeZoneResolver guardedResolver = new TimeShapeTimeZoneResolver(engine);
 
-		try (MockedStatic<TimeZoneEngine> mockedEngine = mockStatic(TimeZoneEngine.class)) {
-			mockedEngine.when(TimeZoneEngine::initialize).thenReturn(engine);
-			TimeShapeTimeZoneResolver guardedResolver = new TimeShapeTimeZoneResolver();
-
-			assertThat(guardedResolver.resolve(Double.NaN, 126.9780)).isEmpty();
-			assertThat(guardedResolver.resolve(37.5665, Double.NaN)).isEmpty();
-		}
+		assertThat(guardedResolver.resolve(Double.NaN, 126.9780)).isEmpty();
+		assertThat(guardedResolver.resolve(37.5665, Double.NaN)).isEmpty();
 	}
 
 	@Test
