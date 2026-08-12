@@ -1,7 +1,9 @@
 package kr.kro.airbob.domain.accommodation.entity;
 
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -61,6 +63,9 @@ public class Accommodation extends BaseEntity {
 
 	@OneToOne(fetch = FetchType.LAZY, orphanRemoval = true, cascade = CascadeType.ALL)
 	private Address address;
+
+	@Column(length = 64)
+	private String timeZoneId;
 
 	@OneToOne(fetch = FetchType.LAZY, orphanRemoval = true, cascade = CascadeType.ALL)
 	private OccupancyPolicy occupancyPolicy;
@@ -130,8 +135,9 @@ public class Accommodation extends BaseEntity {
 		}
 	}
 
-	public void updateAddress(Address address) {
-		this.address = address;
+	public void updateLocation(Address address, ZoneId timeZone) {
+		this.address = Objects.requireNonNull(address);
+		this.timeZoneId = Objects.requireNonNull(timeZone).getId();
 	}
 
 	public void updateOccupancyPolicy(OccupancyPolicy occupancyPolicy) {

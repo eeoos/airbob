@@ -2,7 +2,9 @@ package kr.kro.airbob.domain.accommodation.service;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Locale;
@@ -25,6 +27,7 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationLocationResolutionException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationStateException;
 import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationAmenityException;
@@ -44,6 +47,7 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.geo.GeocodingService;
+import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
@@ -63,6 +67,7 @@ public class AccommodationCommandService {
 	private final MemberRepository memberRepository;
 	private final OutboxEventPublisher outboxEventPublisher;
 	private final GeocodingService geocodingService;
+	private final TimeZoneResolver timeZoneResolver;
 
 	@Transactional
 	public AccommodationResponse.Create createAccommodation(Long memberId) {
@@ -83,8 +88,9 @@ public class AccommodationCommandService {
 
 		validateAccommodationType(request.type());
 		Map<String, Integer> amenityCountMap = getAmenityCountMap(request.amenityInfos());
+		ResolvedLocation resolvedLocation = resolveLocation(accommodation, request.addressInfo());
 		accommodation.updateAccommodation(request);
-		updateAddress(accommodation, request.addressInfo());
+		updateLocation(accommodation, resolvedLocation);
 		updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
 		updateAmenities(accommodation, amenityCountMap);
 
@@ -175,6 +181,16 @@ public class AccommodationCommandService {
 			throw new PublishingFieldRequiredException("type");
 		}
 
+		String timeZoneId = accommodation.getTimeZoneId();
+		if (timeZoneId == null || timeZoneId.isBlank()) {
+			throw new PublishingFieldRequiredException("timeZoneId");
+		}
+		try {
+			ZoneId.of(timeZoneId);
+		} catch (DateTimeException exception) {
+			throw new PublishingFieldRequiredException("timeZoneId", "유효한 IANA 시간대 식별자가 필요합니다.");
+		}
+
 		OccupancyPolicy policy = accommodation.getOccupancyPolicy();
 		if (policy == null || policy.getMaxOccupancy() == null
 			|| policy.getInfantOccupancy() == null
@@ -262,19 +278,45 @@ public class AccommodationCommandService {
 		}
 	}
 
-	private void updateAddress(Accommodation accommodation, AddressRequest.AddressInfo addressInfo) {
+	private ResolvedLocation resolveLocation(
+		Accommodation accommodation,
+		AddressRequest.AddressInfo addressInfo
+	) {
 		if (addressInfo == null) {
-			return;
+			return null;
 		}
 
 		Address currentAddress = accommodation.getAddress();
-		if (currentAddress == null || currentAddress.isChanged(addressInfo)) {
-			String addressStr = Address.buildAddressStringForGeocoding(addressInfo);
-			GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
-			Address newAddress = Address.createAddress(addressInfo, geocodeResult);
-			Address savedAddress = addressRepository.save(newAddress);
-			accommodation.updateAddress(savedAddress);
+		if (currentAddress != null
+			&& !currentAddress.isChanged(addressInfo)
+			&& accommodation.getTimeZoneId() != null) {
+			return null;
 		}
+
+		String addressStr = Address.buildAddressStringForGeocoding(addressInfo);
+		GeocodeResult geocodeResult = geocodingService.getCoordinates(addressStr);
+		if (geocodeResult == null
+			|| !geocodeResult.success()
+			|| geocodeResult.latitude() == null
+			|| geocodeResult.longitude() == null) {
+			throw new AccommodationLocationResolutionException();
+		}
+
+		ZoneId timeZone = timeZoneResolver.resolve(geocodeResult.latitude(), geocodeResult.longitude())
+			.orElseThrow(AccommodationLocationResolutionException::new);
+		return new ResolvedLocation(Address.createAddress(addressInfo, geocodeResult), timeZone);
+	}
+
+	private void updateLocation(Accommodation accommodation, ResolvedLocation resolvedLocation) {
+		if (resolvedLocation == null) {
+			return;
+		}
+
+		Address savedAddress = addressRepository.save(resolvedLocation.address());
+		accommodation.updateLocation(savedAddress, resolvedLocation.timeZone());
+	}
+
+	private record ResolvedLocation(Address address, ZoneId timeZone) {
 	}
 
 	private void updateAmenities(Accommodation accommodation, Map<String, Integer> amenityCountMap) {

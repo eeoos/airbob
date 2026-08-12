@@ -52,6 +52,8 @@ public class AccommodationHistory extends MasterHistoryBase {
 	private LocalTime checkInTime;
 	private LocalTime checkOutTime;
 	private Long memberId;
+	@Column(length = 64)
+	private String timeZoneId;
 
 	// --- address(owned 1:1) 스냅샷 ---
 	private String addressCountry;
@@ -90,6 +92,7 @@ public class AccommodationHistory extends MasterHistoryBase {
 			.checkInTime(a.getCheckInTime())
 			.checkOutTime(a.getCheckOutTime())
 			.memberId(a.getMember() == null ? null : a.getMember().getId())
+			.timeZoneId(a.getTimeZoneId())
 			.addressCountry(addr == null ? null : addr.getCountry())
 			.addressState(addr == null ? null : addr.getState())
 			.addressCity(addr == null ? null : addr.getCity())

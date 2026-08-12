@@ -36,6 +36,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -100,6 +101,22 @@ class HistorySnapshotIntegrationTest {
 		memberHistoryRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
+	}
+
+	@Test
+	@DisplayName("숙소 이력 스냅샷은 원본 숙소의 시간대 식별자를 복사한다")
+	void accommodationHistoryCopiesTimeZoneId() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.timeZoneId("America/New_York")
+			.status(AccommodationStatus.DRAFT)
+			.build();
+
+		AccommodationHistory history = AccommodationHistory.of(
+			accommodation, ChangeType.UPDATE, "시간대 변경"
+		);
+
+		assertThat(history.getTimeZoneId()).isEqualTo("America/New_York");
 	}
 
 	@Test
