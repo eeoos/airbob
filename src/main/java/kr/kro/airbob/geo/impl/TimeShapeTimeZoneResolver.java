@@ -15,7 +15,8 @@ public final class TimeShapeTimeZoneResolver implements TimeZoneResolver {
 
 	@Override
 	public Optional<ZoneId> resolve(double latitude, double longitude) {
-		if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+		if (!Double.isFinite(latitude) || !Double.isFinite(longitude)
+			|| latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
 			return Optional.empty();
 		}
 
