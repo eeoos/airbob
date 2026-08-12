@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.accommodation.service;
 
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
-import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.AbstractMap;
@@ -185,9 +184,7 @@ public class AccommodationCommandService {
 		if (timeZoneId == null || timeZoneId.isBlank()) {
 			throw new PublishingFieldRequiredException("timeZoneId");
 		}
-		try {
-			ZoneId.of(timeZoneId);
-		} catch (DateTimeException exception) {
+		if (!ZoneId.getAvailableZoneIds().contains(timeZoneId)) {
 			throw new PublishingFieldRequiredException("timeZoneId", "유효한 IANA 시간대 식별자가 필요합니다.");
 		}
 

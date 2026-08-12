@@ -9,10 +9,13 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -236,6 +239,42 @@ class AccommodationCommandServiceTest {
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 	}
 
+	@ParameterizedTest(name = "{0} 고정 offset 식별자는 게시할 수 없다")
+	@ValueSource(strings = {"+09:00", "GMT+09:00"})
+	@DisplayName("IANA region ID가 아닌 고정 offset 시간대면 숙소 게시를 거부한다")
+	void rejectPublishingWithFixedOffsetTimeZoneId(String timeZoneId) {
+		Accommodation accommodation = publishableAccommodation(timeZoneId);
+
+		when(accommodationRepository.findWithDetailsExceptHostAndDeletedById(1L, 2L))
+			.thenReturn(Optional.of(accommodation));
+		lenient().when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
+			});
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+		verifyNoInteractions(outboxEventPublisher);
+	}
+
+	@Test
+	@DisplayName("공백 시간대 식별자면 숙소 게시를 거부한다")
+	void rejectPublishingWithBlankTimeZoneId() {
+		Accommodation accommodation = publishableAccommodation("   ");
+
+		when(accommodationRepository.findWithDetailsExceptHostAndDeletedById(1L, 2L))
+			.thenReturn(Optional.of(accommodation));
+
+		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
+			.isInstanceOfSatisfying(BaseException.class, exception -> {
+				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
+			});
+		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
+		verifyNoInteractions(outboxEventPublisher);
+	}
+
 	@Test
 	@DisplayName("유효하지 않은 숙소 유형은 A004와 400 응답용 예외로 거부한다")
 	void rejectInvalidAccommodationTypeAsBadRequest() {
@@ -336,6 +375,7 @@ class AccommodationCommandServiceTest {
 	private Accommodation publishableAccommodation(String timeZoneId) {
 		return Accommodation.builder()
 			.id(1L)
+			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
 			.name("게시 가능한 숙소")
 			.description("설명")
 			.basePrice(100_000L)
