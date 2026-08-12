@@ -90,6 +90,9 @@ dependencies {
 	// Commons Lang
 	implementation 'org.apache.commons:commons-lang3:3.18.0'
 
+	// Coordinate-based IANA time zone resolution
+	implementation 'net.iakovlev:timeshape:2026b.29'
+
 	// Jackson CSV
 	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
 
