@@ -43,7 +43,11 @@ import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
@@ -70,12 +74,20 @@ public class ReservationTransactionService {
 	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final ReservationHistoryRepository historyRepository;
 	private final CouponUsageService couponUsageService;
+	private final BookingWindowProvider bookingWindowProvider;
 
 	@Transactional
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
 		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
+		if (!request.checkOutDate().isAfter(request.checkInDate())) {
+			throw new InvalidReservationDateException();
+		}
+		BookingWindow bookingWindow = bookingWindowProvider.currentFor(accommodation.getTimeZoneId());
+		if (!bookingWindow.containsStay(request.checkInDate(), request.checkOutDate())) {
+			throw new ReservationOutsideBookingWindowException();
+		}
 
 		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
 		LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());

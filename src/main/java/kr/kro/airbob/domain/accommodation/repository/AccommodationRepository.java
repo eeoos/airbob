@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationRepositoryCustom;
 
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
@@ -24,6 +25,17 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 	List<ThumbnailUrlProjection> findThumbnailUrlsByIds(@Param("ids") Collection<Long> ids);
 
 	Optional<Accommodation> findByIdAndStatus(Long id, AccommodationStatus status);
+
+	@Query("""
+		SELECT new kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection(a.timeZoneId)
+		FROM Accommodation a
+		WHERE a.id = :id AND a.status = :status
+		""")
+	Optional<AccommodationBookingProjection> findBookingProjectionByIdAndStatus(
+		@Param("id") Long id,
+		@Param("status") AccommodationStatus status
+	);
+
 	Optional<Accommodation> findByIdAndMemberIdAndStatus(Long id, Long memberId, AccommodationStatus status);
 
 	List<Accommodation> findByIdInAndStatus(List<Long> accommodationIds, AccommodationStatus status);

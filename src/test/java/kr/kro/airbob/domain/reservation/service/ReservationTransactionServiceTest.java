@@ -41,7 +41,11 @@ import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
@@ -51,6 +55,8 @@ import kr.kro.airbob.outbox.OutboxEventPublisher;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationTransactionService 테스트")
 class ReservationTransactionServiceTest {
+	private static final String TIME_ZONE_ID = "America/New_York";
+	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 11);
 
 	@InjectMocks
 	private ReservationTransactionService transactionService;
@@ -75,6 +81,8 @@ class ReservationTransactionServiceTest {
 	private ReservationHistoryRepository historyRepository;
 	@Mock
 	private CouponUsageService couponUsageService;
+	@Mock
+	private BookingWindowProvider bookingWindowProvider;
 
 	@Captor
 	private ArgumentCaptor<Reservation> reservationCaptor;
@@ -111,16 +119,20 @@ class ReservationTransactionServiceTest {
 			.basePrice(100_000L)
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.member(host)
 			.build();
 
 		validRequest = new ReservationRequest.Create(
 			1L,
-			LocalDate.of(2025, 1, 26),
-			LocalDate.of(2025, 1, 28),
+			LocalDate.of(2026, 8, 12),
+			LocalDate.of(2026, 8, 14),
 			2
 		);
+
+		lenient().when(bookingWindowProvider.currentFor(TIME_ZONE_ID))
+			.thenReturn(BookingWindow.startingOn(WINDOW_START));
 	}
 
 	@Nested
@@ -203,6 +215,56 @@ class ReservationTransactionServiceTest {
 				.isInstanceOf(AccommodationNotFoundException.class);
 
 			then(reservationRepository).should(never()).save(any());
+		}
+
+		@Test
+		@DisplayName("체크아웃이 체크인보다 이후가 아니면 범위와 충돌 검사 전에 거부한다")
+		void 예외_잘못된_숙박_기간() {
+			ReservationRequest.Create invalidRequest = new ReservationRequest.Create(
+				1L,
+				LocalDate.of(2026, 8, 12),
+				LocalDate.of(2026, 8, 12),
+				2
+			);
+			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
+				.willReturn(Optional.of(guest));
+			given(accommodationRepository.findByIdAndStatus(
+				invalidRequest.accommodationId(), AccommodationStatus.PUBLISHED))
+				.willReturn(Optional.of(accommodation));
+
+			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(
+				invalidRequest, memberId, "사용자 예약 생성"))
+				.isInstanceOf(InvalidReservationDateException.class);
+
+			then(bookingWindowProvider).shouldHaveNoInteractions();
+			then(reservationRepository).shouldHaveNoInteractions();
+			then(historyRepository).shouldHaveNoInteractions();
+			then(outboxEventPublisher).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("숙소 현지 예약 가능 기간을 벗어나면 충돌과 쓰기 전에 거부한다")
+		void 예외_예약_가능_기간_초과() {
+			ReservationRequest.Create outsideRequest = new ReservationRequest.Create(
+				1L,
+				WINDOW_START.plusMonths(3),
+				WINDOW_START.plusMonths(3).plusDays(1),
+				2
+			);
+			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
+				.willReturn(Optional.of(guest));
+			given(accommodationRepository.findByIdAndStatus(
+				outsideRequest.accommodationId(), AccommodationStatus.PUBLISHED))
+				.willReturn(Optional.of(accommodation));
+
+			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(
+				outsideRequest, memberId, "사용자 예약 생성"))
+				.isInstanceOf(ReservationOutsideBookingWindowException.class);
+
+			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID);
+			then(reservationRepository).shouldHaveNoInteractions();
+			then(historyRepository).shouldHaveNoInteractions();
+			then(outboxEventPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test

@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.redisson.api.RLock;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
@@ -31,10 +36,14 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateExceptio
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationService 테스트")
 class ReservationServiceTest {
+	private static final String TIME_ZONE_ID = "Asia/Seoul";
+	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 12);
+	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(WINDOW_START);
 
 	@InjectMocks
 	private ReservationService reservationService;
@@ -49,6 +58,12 @@ class ReservationServiceTest {
 	private ReservationTransactionService transactionService;
 
 	@Mock
+	private AccommodationRepository accommodationRepository;
+
+	@Mock
+	private BookingWindowProvider bookingWindowProvider;
+
+	@Mock
 	private RLock mockLock;
 
 	private ReservationRequest.Create validRequest;
@@ -58,7 +73,7 @@ class ReservationServiceTest {
 	@BeforeEach
 	void setUp() {
 		memberId = 1L;
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(1);
+		LocalDate checkInDate = WINDOW_START.plusDays(1);
 		validRequest = new ReservationRequest.Create(
 			1L,
 			checkInDate,
@@ -99,6 +114,7 @@ class ReservationServiceTest {
 		@DisplayName("정상적인 예약 생성 시 Ready 응답이 반환된다")
 		void 정상_예약_생성_성공() {
 			// given
+			givenPublishedBookingWindow();
 			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
 				.willReturn(false);
 			given(lockManager.acquireLocks(anyList()))
@@ -127,6 +143,9 @@ class ReservationServiceTest {
 				validRequest.checkInDate(),
 				validRequest.checkOutDate()
 			);
+			then(accommodationRepository).should()
+				.findBookingProjectionByIdAndStatus(1L, AccommodationStatus.PUBLISHED);
+			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID);
 			then(lockManager).should().releaseLocks(mockLock);
 		}
 
@@ -134,6 +153,7 @@ class ReservationServiceTest {
 		@DisplayName("Redis Hold가 존재하면 ReservationLockException이 발생한다")
 		void 예외_Redis_Hold_존재() {
 			// given
+			givenPublishedBookingWindow();
 			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
 				.willReturn(true);
 
@@ -149,13 +169,14 @@ class ReservationServiceTest {
 		@Test
 		@DisplayName("3개월 예약 가능 기간을 벗어나면 Redis와 DB 처리 전에 거부한다")
 		void 예외_예약_가능_기간_초과() {
-			LocalDate windowEndExclusive = BookingWindow.current().endExclusive();
+			LocalDate windowEndExclusive = BOOKING_WINDOW.endExclusive();
 			ReservationRequest.Create request = new ReservationRequest.Create(
 				1L,
 				windowEndExclusive,
 				windowEndExclusive.plusDays(1),
 				2
 			);
+			givenPublishedBookingWindow(request.accommodationId(), TIME_ZONE_ID, BOOKING_WINDOW);
 
 			assertThatThrownBy(() -> reservationService.createPendingReservation(request, memberId))
 				.isInstanceOf(ReservationOutsideBookingWindowException.class);
@@ -166,9 +187,46 @@ class ReservationServiceTest {
 		}
 
 		@Test
+		@DisplayName("경량 조회한 숙소 시간대를 예약 가능 기간 계산에 그대로 사용한다")
+		void 숙소_시간대_전달() {
+			String newYorkTimeZoneId = "America/New_York";
+			BookingWindow newYorkWindow = BookingWindow.startingOn(LocalDate.of(2026, 8, 11));
+			ReservationRequest.Create request = new ReservationRequest.Create(
+				1L,
+				LocalDate.of(2026, 8, 12),
+				LocalDate.of(2026, 8, 14),
+				2
+			);
+			givenPublishedBookingWindow(request.accommodationId(), newYorkTimeZoneId, newYorkWindow);
+			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
+				.willReturn(true);
+
+			assertThatThrownBy(() -> reservationService.createPendingReservation(request, memberId))
+				.isInstanceOf(ReservationLockException.class);
+
+			then(bookingWindowProvider).should().currentFor(newYorkTimeZoneId);
+		}
+
+		@Test
+		@DisplayName("숙소가 없거나 게시 상태가 아니면 Redis 처리 전에 거부한다")
+		void 예외_예약_가능_숙소_미존재() {
+			given(accommodationRepository.findBookingProjectionByIdAndStatus(
+				validRequest.accommodationId(), AccommodationStatus.PUBLISHED))
+				.willReturn(Optional.empty());
+
+			assertThatThrownBy(() -> reservationService.createPendingReservation(validRequest, memberId))
+				.isInstanceOf(AccommodationNotFoundException.class);
+
+			then(bookingWindowProvider).shouldHaveNoInteractions();
+			then(holdService).shouldHaveNoInteractions();
+			then(lockManager).shouldHaveNoInteractions();
+			then(transactionService).shouldHaveNoInteractions();
+		}
+
+		@Test
 		@DisplayName("체크아웃이 체크인보다 이후가 아니면 Redis와 DB 처리 전에 거부한다")
 		void 예외_잘못된_숙박_기간() {
-			LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(1);
+			LocalDate checkInDate = WINDOW_START.plusDays(1);
 			ReservationRequest.Create request = new ReservationRequest.Create(
 				1L,
 				checkInDate,
@@ -182,12 +240,15 @@ class ReservationServiceTest {
 			then(holdService).shouldHaveNoInteractions();
 			then(lockManager).shouldHaveNoInteractions();
 			then(transactionService).shouldHaveNoInteractions();
+			then(accommodationRepository).shouldHaveNoInteractions();
+			then(bookingWindowProvider).shouldHaveNoInteractions();
 		}
 
 		@Test
 		@DisplayName("락 획득 실패 시 ReservationLockException이 발생한다")
 		void 예외_락_획득_타임아웃() {
 			// given
+			givenPublishedBookingWindow();
 			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
 				.willReturn(false);
 			given(lockManager.acquireLocks(anyList()))
@@ -204,6 +265,7 @@ class ReservationServiceTest {
 		@DisplayName("예외 발생 시에도 락 해제가 보장된다")
 		void 락_해제_보장() {
 			// given
+			givenPublishedBookingWindow();
 			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
 				.willReturn(false);
 			given(lockManager.acquireLocks(anyList()))
@@ -221,9 +283,10 @@ class ReservationServiceTest {
 		}
 
 		@Test
-		@DisplayName("Hold 설정은 락 해제 후에 호출된다")
+		@DisplayName("락 해제 전에 Hold를 설정한다")
 		void Hold_설정_시점() {
 			// given
+			givenPublishedBookingWindow();
 			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
 				.willReturn(false);
 			given(lockManager.acquireLocks(anyList()))
@@ -245,6 +308,7 @@ class ReservationServiceTest {
 		@DisplayName("락 키가 올바르게 생성되어 전달된다")
 		void 락_키_생성_확인() {
 			// given
+			givenPublishedBookingWindow();
 			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
 				.willReturn(false);
 			given(lockManager.acquireLocks(anyList()))
@@ -263,6 +327,21 @@ class ReservationServiceTest {
 					keys.contains("LOCK:RESERVATION:1:" + validRequest.checkInDate().plusDays(1));
 			}));
 		}
+	}
+
+	private void givenPublishedBookingWindow() {
+		givenPublishedBookingWindow(validRequest.accommodationId(), TIME_ZONE_ID, BOOKING_WINDOW);
+	}
+
+	private void givenPublishedBookingWindow(
+		Long accommodationId,
+		String timeZoneId,
+		BookingWindow bookingWindow
+	) {
+		given(accommodationRepository.findBookingProjectionByIdAndStatus(
+			accommodationId, AccommodationStatus.PUBLISHED))
+			.willReturn(Optional.of(new AccommodationBookingProjection(timeZoneId)));
+		given(bookingWindowProvider.currentFor(timeZoneId)).willReturn(bookingWindow);
 	}
 
 	@Nested

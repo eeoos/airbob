@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -41,6 +42,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
@@ -53,6 +55,9 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 class ReservationConcurrencyTest {
 
 	private static final int THREAD_COUNT = 50;
+	private static final String TIME_ZONE_ID = "Asia/Seoul";
+	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 12);
+	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(WINDOW_START);
 
 	@Autowired
 	private ReservationService reservationService;
@@ -77,6 +82,8 @@ class ReservationConcurrencyTest {
 	private AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean
 	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
@@ -106,6 +113,7 @@ class ReservationConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
+		given(bookingWindowProvider.currentFor(TIME_ZONE_ID)).willReturn(BOOKING_WINDOW);
 		historyRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
@@ -122,6 +130,7 @@ class ReservationConcurrencyTest {
 			.member(host)
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
 
@@ -155,7 +164,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger expectedFailCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		// when
@@ -223,7 +232,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger failCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		ReservationRequest.Create request = new ReservationRequest.Create(
@@ -286,6 +295,7 @@ class ReservationConcurrencyTest {
 			.member(host2)
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
 
@@ -297,7 +307,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		Member guestA = guests.get(0);
@@ -371,7 +381,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger failCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate baseDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate baseDate = WINDOW_START.plusDays(30);
 		ReservationRequest.Create requestA = new ReservationRequest.Create(
 			accommodation.getId(),
 			baseDate.plusDays(1),
