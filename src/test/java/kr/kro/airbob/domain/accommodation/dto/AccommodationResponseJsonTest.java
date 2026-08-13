@@ -27,7 +27,7 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("예약 가능 기간과 예약 불가 구간을 snake case로 반환한다")
 	void serializesBookingWindowAndUnavailableRanges() {
-		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.builder()
+		AccommodationResponse.Availability response = AccommodationResponse.Availability.builder()
 			.bookingWindowStartInclusive(LocalDate.of(2026, 8, 1))
 			.bookingWindowEndExclusive(LocalDate.of(2026, 11, 1))
 			.unavailableRanges(List.of(
@@ -50,15 +50,25 @@ class AccommodationResponseJsonTest {
 	}
 
 	@Test
+	@DisplayName("숙소 상세 응답에는 예약 가능 정보가 포함되지 않는다")
+	void accommodationDetailExcludesAvailability() {
+		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.builder()
+			.build();
+
+		JsonNode json = objectMapper.valueToTree(response);
+
+		assertThat(json.has("booking_window_start_inclusive")).isFalse();
+		assertThat(json.has("booking_window_end_exclusive")).isFalse();
+		assertThat(json.has("unavailable_ranges")).isFalse();
+	}
+
+	@Test
 	@DisplayName("숙소 현지 시간대 식별자를 snake case로 반환한다")
 	void serializesAccommodationTimeZoneIdInSnakeCase() {
 		Accommodation accommodation = mock(Accommodation.class);
 		when(accommodation.getTimeZoneId()).thenReturn("America/New_York");
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
 			accommodation,
-			LocalDate.of(2026, 8, 11),
-			LocalDate.of(2026, 11, 11),
-			List.of(),
 			false,
 			List.of(),
 			List.of(),

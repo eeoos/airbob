@@ -60,12 +60,6 @@ public class AccommodationQueryService {
 		List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
 		List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodationId);
 
-		BookingWindow bookingWindow = bookingWindowProvider.currentFor(accommodation.getTimeZoneId());
-		LocalDate bookingWindowStart = bookingWindow.startInclusive();
-		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
-		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(
-			accommodationId, bookingWindowStart, bookingWindowEndExclusive);
-
 		Boolean isInWishlist = checkWishlistStatus(accommodationId, viewerId);
 		ReviewResponse.ReviewSummary reviewSummary = new ReviewResponse.ReviewSummary(
 			Objects.requireNonNullElse(detailProjection.totalReviewCount(), 0),
@@ -73,8 +67,27 @@ public class AccommodationQueryService {
 		);
 
 		return AccommodationResponse.DetailInfo.from(
-			accommodation, bookingWindowStart, bookingWindowEndExclusive, unavailableRanges, isInWishlist,
+			accommodation, isInWishlist,
 			amenityInfos, imageInfos, reviewSummary);
+	}
+
+	@Transactional(readOnly = true)
+	public AccommodationResponse.Availability findAccommodationAvailability(Long accommodationId) {
+		String timeZoneId = accommodationRepository
+			.findBookingProjectionByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
+			.orElseThrow(AccommodationNotFoundException::new)
+			.timeZoneId();
+		BookingWindow bookingWindow = bookingWindowProvider.currentFor(timeZoneId);
+		LocalDate bookingWindowStart = bookingWindow.startInclusive();
+		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
+		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(
+			accommodationId, bookingWindowStart, bookingWindowEndExclusive);
+
+		return new AccommodationResponse.Availability(
+			bookingWindowStart,
+			bookingWindowEndExclusive,
+			unavailableRanges
+		);
 	}
 
 	@Transactional(readOnly = true)

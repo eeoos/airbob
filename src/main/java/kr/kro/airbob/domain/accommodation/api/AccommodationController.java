@@ -109,6 +109,14 @@ public class AccommodationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/v1/accommodations/{accommodationId}/availability")
+    public ResponseEntity<ApiResponse<AccommodationResponse.Availability>> getAccommodationAvailability(
+        @PathVariable Long accommodationId) {
+        AccommodationResponse.Availability response =
+            accommodationQueryService.findAccommodationAvailability(accommodationId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @GetMapping("/v1/profile/host/accommodations")
     public ResponseEntity<ApiResponse<AccommodationResponse.HostAccommodationInfos>> getHostAccommodations(
         @CursorParam CursorRequest.CursorPageRequest request,
