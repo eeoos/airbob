@@ -2,8 +2,8 @@ package kr.kro.airbob.domain.settlement.entity;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -58,7 +58,7 @@ public class Settlement extends BaseEntity {
 	@Column(nullable = false)
 	private SettlementStatus status;
 
-	private LocalDateTime settledAt;
+	private Instant settledAt;
 
 	// net/rate로 commission·payout을 계산해 PENDING 정산을 생성
 	public static Settlement createPending(Long hostId, LocalDate settlementMonth,
@@ -90,9 +90,9 @@ public class Settlement extends BaseEntity {
 		this.payoutAmount = net - commission;
 	}
 
-	public void markPaid() {
+	public void markPaid(Instant settledAt) {
 		this.status = SettlementStatus.PAID;
-		this.settledAt = LocalDateTime.now();
+		this.settledAt = settledAt;
 	}
 
 	public boolean isPaid() {

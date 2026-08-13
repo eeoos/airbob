@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.wishlist.service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -151,7 +153,7 @@ public class WishlistService {
 					return new WishlistResponse.WishlistInfo(
 						currentWishlistId,
 						wishlist.getName(),
-						wishlist.getCreatedAt(),
+						toUtcInstant(wishlist.getCreatedAt()),
 						wishlist.getAccommodationCount().longValue(),
 						thumbnailUrls.get(wishlist.getRepresentativeAccommodationId()),
 						isContained,
@@ -164,7 +166,7 @@ public class WishlistService {
 					new WishlistResponse.WishlistInfo(
 						wishlist.getId(),
 						wishlist.getName(),
-						wishlist.getCreatedAt(),
+						toUtcInstant(wishlist.getCreatedAt()),
 						wishlist.getAccommodationCount().longValue(),
 						thumbnailUrls.get(wishlist.getRepresentativeAccommodationId()),
 						null,
@@ -260,7 +262,7 @@ public class WishlistService {
 				infos,
 				slice.hasNext(),
 				WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
-				WishlistAccommodationResponse.WishlistAccommodationInfo::createdAt
+				info -> toUtcDateTime(info.createdAt())
 			);
 			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo);
 		}
@@ -269,7 +271,7 @@ public class WishlistService {
 			infos,
 			slice.hasNext(),
 			WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
-			WishlistAccommodationResponse.WishlistAccommodationInfo::createdAt
+			info -> toUtcDateTime(info.createdAt())
 		);
 
 		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo);
@@ -302,5 +304,13 @@ public class WishlistService {
 	private WishlistAccommodation findWishlistAccommodationForMember(Long wishlistAccommodationId, Long memberId) {
 		return wishlistAccommodationRepository.findByIdAndWishlistMemberId(wishlistAccommodationId, memberId)
 			.orElseThrow(WishlistAccommodationAccessDeniedException::new);
+	}
+
+	private static Instant toUtcInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
+	}
+
+	private static LocalDateTime toUtcDateTime(Instant instant) {
+		return instant == null ? null : LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
 	}
 }

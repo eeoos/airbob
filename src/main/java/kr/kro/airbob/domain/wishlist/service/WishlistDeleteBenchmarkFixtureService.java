@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.wishlist.service;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -245,7 +244,7 @@ public class WishlistDeleteBenchmarkFixtureService {
 			WishlistStatus.valueOf(resultSet.getString("status")),
 			resultSet.getInt("accommodation_count"),
 			resultSet.getObject("representative_accommodation_id", Long.class),
-			toLocalDateTime(resultSet.getTimestamp("updated_at")),
+			resultSet.getObject("updated_at", LocalDateTime.class),
 			resultSet.getObject("updated_by", Long.class)
 		), wishlistId).stream().findFirst().orElse(null);
 	}
@@ -280,10 +279,6 @@ public class WishlistDeleteBenchmarkFixtureService {
 
 	private String placeholders(int size) {
 		return String.join(", ", Collections.nCopies(size, "?"));
-	}
-
-	private LocalDateTime toLocalDateTime(Timestamp timestamp) {
-		return timestamp == null ? null : timestamp.toLocalDateTime();
 	}
 
 	private void validateDatasetSize(int datasetSize) {

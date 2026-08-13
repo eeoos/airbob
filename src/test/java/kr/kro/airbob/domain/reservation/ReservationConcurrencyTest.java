@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -37,22 +39,33 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.service.PaymentApprovalService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
+import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.outbox.repository.OutboxRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ReservationConcurrencyTest {
 
 	private static final int THREAD_COUNT = 50;
+	private static final String TIME_ZONE_ID = "Asia/Seoul";
+	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 12);
+	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(WINDOW_START);
 
 	@Autowired
 	private ReservationService reservationService;
@@ -68,6 +81,10 @@ class ReservationConcurrencyTest {
 	private AddressRepository addressRepository;
 	@Autowired
 	private ReservationHistoryRepository historyRepository;
+	@Autowired
+	private PaymentApprovalService paymentApprovalService;
+	@Autowired
+	private OutboxRepository outboxRepository;
 
 	@MockitoBean
 	private ElasticsearchClient elasticsearchClient;
@@ -77,6 +94,8 @@ class ReservationConcurrencyTest {
 	private AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean
 	private io.awspring.cloud.s3.S3Template s3Template;
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
@@ -96,9 +115,6 @@ class ReservationConcurrencyTest {
 		registry.add("spring.flyway.password", mySQLContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
-
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	private Accommodation accommodation;
@@ -106,6 +122,8 @@ class ReservationConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
+		given(bookingWindowProvider.currentFor(TIME_ZONE_ID)).willReturn(BOOKING_WINDOW);
+		outboxRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
@@ -122,6 +140,7 @@ class ReservationConcurrencyTest {
 			.member(host)
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
 
@@ -135,11 +154,70 @@ class ReservationConcurrencyTest {
 
 	@AfterEach
 	void tearDown() {
+		outboxRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
 		addressRepository.deleteAllInBatch();
+	}
+
+	@Test
+	@DisplayName("같은 결제 승인 요청이 동시에 도착해도 PG 호출 이벤트는 한 건만 만든다")
+	void concurrentPaymentApprovalClaimsOnce() throws InterruptedException {
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
+		Reservation pendingReservation = transactionService.createPendingReservationInTx(
+			new ReservationRequest.Create(
+				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
+			guests.getFirst().getId(),
+			"결제 승인 선점 동시성 테스트"
+		);
+		outboxRepository.deleteAllInBatch();
+
+		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
+			"payment-key",
+			pendingReservation.getReservationUid().toString(),
+			pendingReservation.getTotalPrice().intValue()
+		);
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		CountDownLatch readyLatch = new CountDownLatch(2);
+		CountDownLatch startLatch = new CountDownLatch(1);
+		CountDownLatch doneLatch = new CountDownLatch(2);
+		AtomicInteger claimedCount = new AtomicInteger();
+		AtomicInteger unexpectedFailCount = new AtomicInteger();
+
+		for (int i = 0; i < 2; i++) {
+			executorService.submit(() -> {
+				try {
+					readyLatch.countDown();
+					startLatch.await();
+					if (paymentApprovalService.preparePgCall(request)) {
+						claimedCount.incrementAndGet();
+					}
+				} catch (Exception e) {
+					unexpectedFailCount.incrementAndGet();
+				} finally {
+					doneLatch.countDown();
+				}
+			});
+		}
+
+		readyLatch.await();
+		startLatch.countDown();
+		doneLatch.await();
+		executorService.shutdown();
+
+		Reservation claimedReservation = reservationRepository
+			.findByReservationUid(pendingReservation.getReservationUid())
+			.orElseThrow();
+		long pgCallEventCount = outboxRepository.findAll().stream()
+			.filter(outbox -> EventType.PG_CALL_REQUESTED.name().equals(outbox.getEventType()))
+			.count();
+
+		assertThat(unexpectedFailCount.get()).isZero();
+		assertThat(claimedCount.get()).isEqualTo(1);
+		assertThat(claimedReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
+		assertThat(pgCallEventCount).isEqualTo(1);
 	}
 
 	@Test
@@ -155,7 +233,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger expectedFailCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		// when
@@ -223,7 +301,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger failCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		ReservationRequest.Create request = new ReservationRequest.Create(
@@ -286,6 +364,7 @@ class ReservationConcurrencyTest {
 			.member(host2)
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
 
@@ -297,7 +376,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger successCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate checkInDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
 		Member guestA = guests.get(0);
@@ -371,7 +450,7 @@ class ReservationConcurrencyTest {
 		AtomicInteger failCount = new AtomicInteger(0);
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
-		LocalDate baseDate = BookingWindow.current().startInclusive().plusDays(30);
+		LocalDate baseDate = WINDOW_START.plusDays(30);
 		ReservationRequest.Create requestA = new ReservationRequest.Create(
 			accommodation.getId(),
 			baseDate.plusDays(1),

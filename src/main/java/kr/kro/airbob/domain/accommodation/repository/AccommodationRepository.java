@@ -5,12 +5,15 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationRepositoryCustom;
+import jakarta.persistence.LockModeType;
 
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
 
@@ -23,12 +26,43 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 	@Query("SELECT a.id AS id, a.thumbnailUrl AS thumbnailUrl FROM Accommodation a WHERE a.id IN :ids")
 	List<ThumbnailUrlProjection> findThumbnailUrlsByIds(@Param("ids") Collection<Long> ids);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT a FROM Accommodation a WHERE a.id = :id AND a.status = :status")
+	Optional<Accommodation> findByIdAndStatusForUpdate(
+		@Param("id") Long id,
+		@Param("status") AccommodationStatus status
+	);
+
 	Optional<Accommodation> findByIdAndStatus(Long id, AccommodationStatus status);
+
+	@Query("""
+		SELECT new kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection(a.timeZoneId)
+		FROM Accommodation a
+		WHERE a.id = :id AND a.status = :status
+		""")
+	Optional<AccommodationBookingProjection> findBookingProjectionByIdAndStatus(
+		@Param("id") Long id,
+		@Param("status") AccommodationStatus status
+	);
+
 	Optional<Accommodation> findByIdAndMemberIdAndStatus(Long id, Long memberId, AccommodationStatus status);
 
 	List<Accommodation> findByIdInAndStatus(List<Long> accommodationIds, AccommodationStatus status);
 
 	Optional<Accommodation> findByIdAndMemberId(Long accommodationId, Long memberId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		SELECT a FROM Accommodation a
+		WHERE a.id = :accommodationId
+			AND a.member.id = :memberId
+			AND a.status <> :excludedStatus
+		""")
+	Optional<Accommodation> findByIdAndMemberIdAndStatusNotForUpdate(
+		@Param("accommodationId") Long accommodationId,
+		@Param("memberId") Long memberId,
+		@Param("excludedStatus") AccommodationStatus excludedStatus
+	);
 
 	Optional<Accommodation> findByIdAndMemberIdAndStatusNot(Long accommodationId, Long memberId, AccommodationStatus accommodationStatus);
 

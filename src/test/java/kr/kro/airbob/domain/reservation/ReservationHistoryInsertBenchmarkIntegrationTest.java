@@ -17,6 +17,7 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -61,6 +62,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 	"reservation.expiration.history-batch-size=2"
 })
 @ActiveProfiles({"test", "bulk-write-benchmark"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("ReservationHistory IDENTITY INSERT Before 벌크 쓰기 통합 테스트")
 class ReservationHistoryInsertBenchmarkIntegrationTest {
 
@@ -87,8 +89,6 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		registry.add("spring.datasource.password", MYSQL::getPassword);
 		registry.add("spring.data.redis.host", REDIS::getHost);
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	@Autowired private ReservationHistoryInsertBenchmarkService benchmarkService;

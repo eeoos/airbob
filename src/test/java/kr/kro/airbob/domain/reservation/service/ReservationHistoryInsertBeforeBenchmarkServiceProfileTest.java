@@ -3,6 +3,8 @@ package kr.kro.airbob.domain.reservation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -55,6 +57,11 @@ class ReservationHistoryInsertBeforeBenchmarkServiceProfileTest {
 		@Bean
 		ReservationHistoryRepository reservationHistoryRepository() {
 			return mock(ReservationHistoryRepository.class);
+		}
+
+		@Bean
+		Clock clock() {
+			return Clock.systemUTC();
 		}
 	}
 }

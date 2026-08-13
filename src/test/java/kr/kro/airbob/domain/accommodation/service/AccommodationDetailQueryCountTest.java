@@ -1,12 +1,15 @@
 package kr.kro.airbob.domain.accommodation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +19,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -24,6 +28,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
+import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
@@ -36,6 +41,8 @@ import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.geo.GeocodingService;
@@ -46,10 +53,12 @@ import kr.kro.airbob.outbox.OutboxEventPublisher;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
+	ClockConfig.class,
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
 	AccommodationQueryService.class
 })
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 상세 조회 쿼리 테스트")
 class AccommodationDetailQueryCountTest {
 
@@ -100,9 +109,18 @@ class AccommodationDetailQueryCountTest {
 	@MockitoBean
 	private S3ImageUploader s3ImageUploader;
 
+	@MockitoBean
+	private BookingWindowProvider bookingWindowProvider;
+
+	@BeforeEach
+	void setUpBookingWindow() {
+		when(bookingWindowProvider.currentFor("Asia/Seoul"))
+			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 12)));
+	}
+
 	@Test
-	@DisplayName("공개 숙소 상세는 리뷰 요약을 포함해 SELECT 네 번으로 조회한다")
-	void findsPublicAccommodationDetailWithReviewSummaryInFourSelects() {
+	@DisplayName("공개 숙소 상세는 리뷰 요약을 포함해 SELECT 세 번으로 조회한다")
+	void findsPublicAccommodationDetailWithReviewSummaryInThreeSelects() {
 		Member host = saveHost("accommodation-detail-query");
 		Accommodation accommodation = savePublishedAccommodation(host, "query-count-accommodation");
 		saveReviewSummary(accommodation, 4, 18L, "4.50");
@@ -113,7 +131,8 @@ class AccommodationDetailQueryCountTest {
 
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+		assertThat(response.timeZoneId()).isEqualTo("Asia/Seoul");
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
 	}
 
 	@Test
@@ -130,12 +149,12 @@ class AccommodationDetailQueryCountTest {
 
 		assertThat(response.reviewSummary().totalCount()).isZero();
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo(BigDecimal.ZERO);
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
 	}
 
 	@Test
-	@DisplayName("로그인한 공개 숙소 상세는 찜 조회를 포함해 SELECT 다섯 번으로 조회한다")
-	void findsAuthenticatedAccommodationDetailInFiveSelects() {
+	@DisplayName("로그인한 공개 숙소 상세는 찜 조회를 포함해 SELECT 네 번으로 조회한다")
+	void findsAuthenticatedAccommodationDetailInFourSelects() {
 		Member host = saveHost("authenticated-accommodation-detail-query");
 		Accommodation accommodation = savePublishedAccommodation(host, "authenticated-query-count-accommodation");
 		saveReviewSummary(accommodation, 2, 9L, "4.50");
@@ -145,7 +164,23 @@ class AccommodationDetailQueryCountTest {
 			accommodationQueryService.findAccommodation(accommodation.getId(), host.getId());
 
 		assertThat(response.isInWishlist()).isFalse();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(5);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+	}
+
+	@Test
+	@DisplayName("숙소 예약 가능 정보는 숙소 시간대와 예약 구간을 SELECT 두 번으로 조회한다")
+	void findsAccommodationAvailabilityInTwoSelects() {
+		Member host = saveHost("accommodation-availability-query");
+		Accommodation accommodation = savePublishedAccommodation(host, "availability-query-accommodation");
+		Statistics statistics = prepareQueryMeasurement();
+
+		AccommodationResponse.Availability response =
+			accommodationQueryService.findAccommodationAvailability(accommodation.getId());
+
+		assertThat(response.bookingWindowStartInclusive()).isEqualTo(LocalDate.of(2026, 8, 12));
+		assertThat(response.bookingWindowEndExclusive()).isEqualTo(LocalDate.of(2026, 11, 12));
+		assertThat(response.unavailableRanges()).isEmpty();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 	}
 
 	private Member saveHost(String nickname) {
@@ -170,6 +205,7 @@ class AccommodationDetailQueryCountTest {
 				.build())
 			.checkInTime(LocalTime.of(15, 0))
 			.checkOutTime(LocalTime.of(11, 0))
+			.timeZoneId("Asia/Seoul")
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
 	}

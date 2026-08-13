@@ -1,8 +1,11 @@
 package kr.kro.airbob.domain.reservation.dto;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
@@ -48,20 +51,24 @@ public class ReservationResponse {
 		String reservationUid,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
+		String timeZoneId,
+		ReservationStatus status,
 		// Integer totalPrice,
-		LocalDateTime createdAt,
+		Instant createdAt,
 
 		AccommodationResponse.AccommodationBasicInfo accommodation
-	){
+	) {
 		public static GuestReservationInfo from(Reservation reservation) {
 
 			return GuestReservationInfo.builder()
 				.reservationId(reservation.getId())
 				.reservationUid(reservation.getReservationUid().toString())
-				.checkInDate(reservation.getCheckIn().toLocalDate())
-				.checkOutDate(reservation.getCheckOut().toLocalDate())
+				.checkInDate(reservation.getCheckInDate())
+				.checkOutDate(reservation.getCheckOutDate())
+				.timeZoneId(reservation.getTimeZoneId())
+				.status(reservation.getStatus())
 				// .totalPrice(reservation.getTotalPrice())
-				.createdAt(reservation.getCreatedAt())
+				.createdAt(toUtcInstant(reservation.getCreatedAt()))
 				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
 				.build();
@@ -88,10 +95,11 @@ public class ReservationResponse {
 		String reservationUid,
 		String reservationCode,
 		ReservationStatus status,
-		LocalDateTime createdAt,
+		Instant createdAt,
 		Integer guestCount,
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
+		String timeZoneId,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
 		Boolean canWriteReview,
@@ -108,17 +116,21 @@ public class ReservationResponse {
 			Accommodation accommodation = reservation.getAccommodation();
 			Address address = accommodation.getAddress();
 			Member host = accommodation.getMember();
+			ZoneId timeZone = ZoneId.of(reservation.getTimeZoneId());
+			LocalDateTime checkInDateTime = LocalDateTime.ofInstant(reservation.getCheckInAt(), timeZone);
+			LocalDateTime checkOutDateTime = LocalDateTime.ofInstant(reservation.getCheckOutAt(), timeZone);
 
 			return GuestDetail.builder()
 				.reservationUid(reservation.getReservationUid().toString())
 				.reservationCode(reservation.getReservationCode())
 				.status(reservation.getStatus())
-				.createdAt(reservation.getCreatedAt())
+				.createdAt(toUtcInstant(reservation.getCreatedAt()))
 				.guestCount(reservation.getGuestCount())
-				.checkInDateTime(reservation.getCheckIn())
-				.checkOutDateTime(reservation.getCheckOut())
-				.checkInTime(reservation.getCheckIn().toLocalTime())
-				.checkOutTime(reservation.getCheckOut().toLocalTime())
+				.checkInDateTime(checkInDateTime)
+				.checkOutDateTime(checkOutDateTime)
+				.timeZoneId(reservation.getTimeZoneId())
+				.checkInTime(checkInDateTime.toLocalTime())
+				.checkOutTime(checkOutDateTime.toLocalTime())
 				.canWriteReview(canWriteReview)
 				.accommodation(AccommodationResponse.AccommodationBasicInfo.from(accommodation))
 				.address(AddressResponse.AddressInfo.from(address))
@@ -139,12 +151,13 @@ public class ReservationResponse {
 		int guestCount,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
+		String timeZoneId,
 		ReservationStatus status,
-		LocalDateTime createdAt,
+		Instant createdAt,
 
 		MemberResponse.MemberInfo guest,
 		AccommodationResponse.AccommodationBasicInfo accommodation
-	){
+	) {
 		public static HostReservationInfo from(Reservation reservation) {
 			return HostReservationInfo.builder()
 				.reservationUid(reservation.getReservationUid().toString())
@@ -152,10 +165,11 @@ public class ReservationResponse {
 				.totalPrice(reservation.getTotalPrice())
 				.currency(reservation.getCurrency())
 				.guestCount(reservation.getGuestCount())
-				.checkInDate(reservation.getCheckIn().toLocalDate())
-				.checkOutDate(reservation.getCheckOut().toLocalDate())
+				.checkInDate(reservation.getCheckInDate())
+				.checkOutDate(reservation.getCheckOutDate())
+				.timeZoneId(reservation.getTimeZoneId())
 				.status(reservation.getStatus())
-				.createdAt(reservation.getCreatedAt())
+				.createdAt(toUtcInstant(reservation.getCreatedAt()))
 				.guest(MemberResponse.MemberInfo.from(reservation.getGuest()))
 				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
@@ -184,10 +198,11 @@ public class ReservationResponse {
 		String reservationUid,
 		String reservationCode,
 		ReservationStatus status,
-		LocalDateTime createdAt,
+		Instant createdAt,
 		Integer guestCount,
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
+		String timeZoneId,
 
 		AccommodationResponse.AccommodationBasicInfo accommodation,
 		AddressResponse.AddressInfo address,
@@ -199,14 +214,16 @@ public class ReservationResponse {
 		public static HostDetail from(Reservation reservation, PaymentResponse.PaymentInfo paymentInfo) {
 			Accommodation accommodation = reservation.getAccommodation();
 			Address address = accommodation.getAddress();
+			ZoneId timeZone = ZoneId.of(reservation.getTimeZoneId());
 			return HostDetail.builder()
 				.reservationUid(reservation.getReservationUid().toString())
 				.reservationCode(reservation.getReservationCode())
 				.status(reservation.getStatus())
-				.createdAt(reservation.getCreatedAt())
+				.createdAt(toUtcInstant(reservation.getCreatedAt()))
 				.guestCount(reservation.getGuestCount())
-				.checkInDateTime(reservation.getCheckIn())
-				.checkOutDateTime(reservation.getCheckOut())
+				.checkInDateTime(LocalDateTime.ofInstant(reservation.getCheckInAt(), timeZone))
+				.checkOutDateTime(LocalDateTime.ofInstant(reservation.getCheckOutAt(), timeZone))
+				.timeZoneId(reservation.getTimeZoneId())
 				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(accommodation))
 				.address(AddressResponse.AddressInfo.from(address))
@@ -214,5 +231,9 @@ public class ReservationResponse {
 				.payment(paymentInfo)
 				.build();
 		}
+	}
+
+	private static Instant toUtcInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
 	}
 }

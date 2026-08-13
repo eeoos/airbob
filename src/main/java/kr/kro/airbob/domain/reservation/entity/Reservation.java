@@ -1,7 +1,13 @@
 package kr.kro.airbob.domain.reservation.entity;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -24,6 +30,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -59,10 +66,19 @@ public class Reservation extends BaseEntity {
 	private Member guest;
 
 	@Column(nullable = false)
-	private LocalDateTime checkIn;
+	private LocalDate checkInDate;
 
 	@Column(nullable = false)
-	private LocalDateTime checkOut;
+	private LocalDate checkOutDate;
+
+	@Column(nullable = false)
+	private Instant checkInAt;
+
+	@Column(nullable = false)
+	private Instant checkOutAt;
+
+	@Column(nullable = false, length = 64)
+	private String timeZoneId;
 
 	// todo: 숙박하는 세부 정보를 넣어야 함.
 	// 성인, 어린이, 유아, 펫
@@ -87,7 +103,7 @@ public class Reservation extends BaseEntity {
 	private String message;
 
 	@Column(nullable = false)
-	private LocalDateTime expiresAt;
+	private Instant expiresAt;
 
 	@PrePersist
 	protected void onCreate() {
@@ -97,17 +113,23 @@ public class Reservation extends BaseEntity {
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
-		ReservationRequest.Create request, String reservationCode) {
+		ReservationRequest.Create request, String reservationCode, Instant now) {
 
-		LocalDateTime checkInDateTime = request.checkInDate().atTime(accommodation.getCheckInTime());
-		LocalDateTime checkOutDateTime = request.checkOutDate().atTime(accommodation.getCheckOutTime());
-		Long price = calculatePrice(accommodation.getBasePrice(), checkInDateTime, checkOutDateTime);
+		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
+		Instant checkInAt = resolveStayInstant(
+			request.checkInDate(), accommodation.getCheckInTime(), timeZone);
+		Instant checkOutAt = resolveStayInstant(
+			request.checkOutDate(), accommodation.getCheckOutTime(), timeZone);
+		Long price = calculatePrice(accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
 
 		return Reservation.builder()
 			.accommodation(accommodation)
 			.guest(guest)
-			.checkIn(checkInDateTime)
-			.checkOut(checkOutDateTime)
+			.checkInDate(request.checkInDate())
+			.checkOutDate(request.checkOutDate())
+			.checkInAt(checkInAt)
+			.checkOutAt(checkOutAt)
+			.timeZoneId(timeZone.getId())
 			.guestCount(request.guestCount())
 			.totalPrice(price)
 			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
@@ -115,9 +137,18 @@ public class Reservation extends BaseEntity {
 			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
 			// .message(request.message())
-			.expiresAt(LocalDateTime.now().plusMinutes(15)) // 15분 후 만료
+			.expiresAt(now.plus(15, ChronoUnit.MINUTES))
 			.reservationCode(reservationCode)
 			.build();
+	}
+
+	private static Instant resolveStayInstant(LocalDate date, java.time.LocalTime time, ZoneId timeZone) {
+		LocalDateTime localDateTime = date.atTime(time);
+		List<ZoneOffset> validOffsets = timeZone.getRules().getValidOffsets(localDateTime);
+		if (validOffsets.isEmpty()) {
+			throw new InvalidReservationLocalTimeException();
+		}
+		return localDateTime.toInstant(validOffsets.getFirst());
 	}
 
 	// 쿠폰 할인 적용 — 할인액을 기록하고 결제 금액을 차감
@@ -130,8 +161,8 @@ public class Reservation extends BaseEntity {
 		this.totalPrice -= applied;
 	}
 
-	private static Long calculatePrice(Long basePrice, LocalDateTime checkIn, LocalDateTime checkOut) {
-		long nights = ChronoUnit.DAYS.between(checkIn.toLocalDate(), checkOut.toLocalDate());
+	private static Long calculatePrice(Long basePrice, LocalDate checkIn, LocalDate checkOut) {
+		long nights = ChronoUnit.DAYS.between(checkIn, checkOut);
 
 		if (nights <= 0) {
 			throw new InvalidReservationDateException();
@@ -140,29 +171,74 @@ public class Reservation extends BaseEntity {
 	}
 
 	public void confirm() {
-		if (this.status != ReservationStatus.PAYMENT_PENDING) {
+		if (this.status != ReservationStatus.PAYMENT_PROCESSING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CONFIRM_RESERVATION);
 		}
 		this.status = ReservationStatus.CONFIRMED;
 	}
 
+	public boolean startPayment(Instant now) {
+		if (this.status != ReservationStatus.PAYMENT_PENDING || isExpiredAt(now)) {
+			return false;
+		}
+		this.status = ReservationStatus.PAYMENT_PROCESSING;
+		return true;
+	}
+
+	public boolean isExpiredAt(Instant now) {
+		return !this.expiresAt.isAfter(now);
+	}
+
+	public boolean matchesPaymentRequest(String orderId, long amount) {
+		return Objects.equals(this.reservationUid.toString(), orderId)
+			&& Objects.equals(this.totalPrice, amount);
+	}
+
 	public void expire() {
-		if (this.status != ReservationStatus.PAYMENT_PENDING) {
+		if (this.status != ReservationStatus.PAYMENT_PENDING
+			&& this.status != ReservationStatus.PAYMENT_PROCESSING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_EXPIRE_RESERVATION);
 		}
 		this.status = ReservationStatus.EXPIRED;
 	}
 
-	public void cancel() {
+	public boolean requestCancellation() {
+		if (this.status == ReservationStatus.CANCELLATION_PENDING) {
+			return false;
+		}
 		if (this.status != ReservationStatus.CONFIRMED) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
-		this.status = ReservationStatus.CANCELLED;
+		this.status = ReservationStatus.CANCELLATION_PENDING;
+		return true;
 	}
 
-	public void failCancellation() {
+	public boolean completeCancellation() {
+		if (this.status == ReservationStatus.CANCELLED) {
+			return false;
+		}
+		if (this.status != ReservationStatus.CANCELLATION_PENDING
+			&& this.status != ReservationStatus.CANCELLATION_FAILED) {
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
+		}
+		this.status = ReservationStatus.CANCELLED;
+		return true;
+	}
+
+	public boolean failCancellation() {
+		if (this.status == ReservationStatus.CANCELLATION_FAILED) {
+			return false;
+		}
+		if (this.status != ReservationStatus.CANCELLATION_PENDING) {
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
+		}
+		this.status = ReservationStatus.CANCELLATION_FAILED;
+		return true;
+	}
+
+	public void recoverLegacyCancellationFailure() {
 		if (this.status != ReservationStatus.CANCELLED) {
-			return;
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLATION_FAILED;
 	}

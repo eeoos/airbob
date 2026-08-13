@@ -18,6 +18,8 @@ spring:
   # [Kafka]
   kafka:
     bootstrap-servers: localhost:9092
+    listener:
+      auto-startup: false
 
   # [Elasticsearch]
   elasticsearch:
@@ -56,5 +58,4 @@ payment:
 toss:
   client-key: dummy-client-key
   secret-key: dummy-toss-secret-key
-
 

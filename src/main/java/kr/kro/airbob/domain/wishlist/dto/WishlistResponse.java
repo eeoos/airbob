@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.wishlist.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
@@ -33,7 +33,7 @@ public class WishlistResponse {
 	public record WishlistInfo(
 		long id,
 		String name,
-		LocalDateTime createdAt,
+		Instant createdAt,
 		Long wishlistItemCount,
 		String thumbnailImageUrl,
 		Boolean isContained,

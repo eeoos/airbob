@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.repository;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -13,26 +15,37 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 
 public interface ReservationRepositoryCustom {
-	boolean existsConflictingReservation(Long accommodationId, LocalDateTime checkIn, LocalDateTime checkOut);
+	boolean existsConflictingReservation(
+		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	);
+
+	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
 
 	boolean existsCompletedReservationByGuest(Long accommodationId, Long memberId);
 
-	boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId);
+	boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId, Instant now);
 
-	List<ReservationDateRange> findConfirmedReservationRangesByAccommodationId(
+	List<ReservationDateRange> findActiveReservationRangesByAccommodationId(
 		Long accommodationId,
-		LocalDateTime windowStartInclusive,
-		LocalDateTime windowEndExclusive
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive
 	);
 
-	List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
-		UUID accommodationUid);
+	List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
+		UUID accommodationUid,
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive
+	);
 
 	Slice<Reservation> findMyReservationsByGuestIdWithCursor(
 		Long guestId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
 		ReservationFilterType filterType,
+		Instant now,
 		Pageable pageable
 	);
 
@@ -41,6 +54,7 @@ public interface ReservationRepositoryCustom {
 		Long lastId,
 		LocalDateTime lastCreatedAt,
 		ReservationFilterType filterType,
+		Instant now,
 		Pageable pageable
 	);
 

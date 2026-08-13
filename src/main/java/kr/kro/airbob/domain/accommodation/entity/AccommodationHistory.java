@@ -52,6 +52,8 @@ public class AccommodationHistory extends MasterHistoryBase {
 	private LocalTime checkInTime;
 	private LocalTime checkOutTime;
 	private Long memberId;
+	@Column(length = 64)
+	private String timeZoneId;
 
 	// --- address(owned 1:1) 스냅샷 ---
 	private String addressCountry;
@@ -74,7 +76,8 @@ public class AccommodationHistory extends MasterHistoryBase {
 	private Long createdBy;
 
 	// 숙소 변경은 모두 인증된 호스트 요청 → source_system/client_ip를 요청 컨텍스트에서 채움
-	public static AccommodationHistory of(Accommodation a, ChangeType changeType, String changeReason) {
+	public static AccommodationHistory of(Accommodation a, ChangeType changeType, String changeReason,
+		LocalDateTime validFrom) {
 		Address addr = a.getAddress();
 		OccupancyPolicy occ = a.getOccupancyPolicy();
 		return AccommodationHistory.builder()
@@ -90,6 +93,7 @@ public class AccommodationHistory extends MasterHistoryBase {
 			.checkInTime(a.getCheckInTime())
 			.checkOutTime(a.getCheckOutTime())
 			.memberId(a.getMember() == null ? null : a.getMember().getId())
+			.timeZoneId(a.getTimeZoneId())
 			.addressCountry(addr == null ? null : addr.getCountry())
 			.addressState(addr == null ? null : addr.getState())
 			.addressCity(addr == null ? null : addr.getCity())
@@ -108,7 +112,7 @@ public class AccommodationHistory extends MasterHistoryBase {
 			.changeReason(changeReason)
 			.sourceSystem(UserContext.currentSourceSystem())
 			.clientIp(UserContext.currentClientIp())
-			.validFrom(LocalDateTime.now())
+			.validFrom(validFrom)
 			.validTo(HistoryConstants.FOREVER)
 			.build();
 	}

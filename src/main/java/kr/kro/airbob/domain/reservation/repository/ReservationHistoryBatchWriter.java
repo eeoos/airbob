@@ -3,9 +3,10 @@ package kr.kro.airbob.domain.reservation.repository;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,10 +26,11 @@ public class ReservationHistoryBatchWriter {
 	private static final String INSERT_SQL = """
 		INSERT INTO reservation_history (
 			reservation_id, reservation_uid, reservation_code, accommodation_id, guest_id,
-			check_in, check_out, guest_count, total_price, currency, status, message,
-			expires_at, created_at, created_by, history_created_at, history_created_by,
-			change_type, change_reason, source_system, client_ip
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+				guest_count, total_price, currency, status, message,
+				expires_at, created_at, created_by, history_created_at, history_created_by,
+				change_type, change_reason, source_system, client_ip
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		""";
 
 	private final JdbcTemplate jdbcTemplate;
@@ -45,7 +47,7 @@ public class ReservationHistoryBatchWriter {
 		this.batchSize = batchSize;
 	}
 
-	public void writeAll(List<ReservationHistory> histories, LocalDateTime historyCreatedAt) {
+	public void writeAll(List<ReservationHistory> histories, Instant historyCreatedAt) {
 		Objects.requireNonNull(histories, "histories must not be null");
 		Objects.requireNonNull(historyCreatedAt, "historyCreatedAt must not be null");
 
@@ -61,7 +63,7 @@ public class ReservationHistoryBatchWriter {
 
 	private BatchPreparedStatementSetter batchSetter(
 		List<ReservationHistory> histories,
-		LocalDateTime historyCreatedAt
+		Instant historyCreatedAt
 	) {
 		return new BatchPreparedStatementSetter() {
 			@Override
@@ -79,29 +81,48 @@ public class ReservationHistoryBatchWriter {
 	private void bind(
 		PreparedStatement statement,
 		ReservationHistory history,
-		LocalDateTime historyCreatedAt
+		Instant historyCreatedAt
 	) throws SQLException {
 		statement.setLong(1, history.getReservationId());
 		statement.setString(2, history.getReservationUid());
 		statement.setString(3, history.getReservationCode());
 		setNullableLong(statement, 4, history.getAccommodationId());
 		setNullableLong(statement, 5, history.getGuestId());
-		setNullableTimestamp(statement, 6, history.getCheckIn());
-		setNullableTimestamp(statement, 7, history.getCheckOut());
-		setNullableInteger(statement, 8, history.getGuestCount());
-		setNullableLong(statement, 9, history.getTotalPrice());
-		statement.setString(10, history.getCurrency());
-		statement.setString(11, history.getStatus() == null ? null : history.getStatus().name());
-		statement.setString(12, history.getMessage());
-		setNullableTimestamp(statement, 13, history.getExpiresAt());
-		setNullableTimestamp(statement, 14, history.getCreatedAt());
-		setNullableLong(statement, 15, history.getCreatedBy());
-		statement.setTimestamp(16, Timestamp.valueOf(historyCreatedAt));
-		statement.setNull(17, Types.BIGINT);
-		statement.setString(18, history.getChangeType().name());
-		statement.setString(19, history.getChangeReason());
-		statement.setString(20, history.getSourceSystem());
-		statement.setString(21, history.getClientIp());
+		setNullableDate(statement, 6, history.getCheckInDate());
+		setNullableDate(statement, 7, history.getCheckOutDate());
+		setNullableInstant(statement, 8, history.getCheckInAt());
+		setNullableInstant(statement, 9, history.getCheckOutAt());
+		statement.setString(10, history.getTimeZoneId());
+		setNullableInteger(statement, 11, history.getGuestCount());
+		setNullableLong(statement, 12, history.getTotalPrice());
+		statement.setString(13, history.getCurrency());
+		statement.setString(14, history.getStatus() == null ? null : history.getStatus().name());
+		statement.setString(15, history.getMessage());
+		setNullableInstant(statement, 16, history.getExpiresAt());
+		setNullableTimestamp(statement, 17, history.getCreatedAt());
+		setNullableLong(statement, 18, history.getCreatedBy());
+		statement.setObject(19, toUtcDateTime(historyCreatedAt), Types.TIMESTAMP);
+		statement.setNull(20, Types.BIGINT);
+		statement.setString(21, history.getChangeType().name());
+		statement.setString(22, history.getChangeReason());
+		statement.setString(23, history.getSourceSystem());
+		statement.setString(24, history.getClientIp());
+	}
+
+	private void setNullableDate(PreparedStatement statement, int index, java.time.LocalDate value) throws SQLException {
+		if (value == null) {
+			statement.setNull(index, Types.DATE);
+		} else {
+			statement.setObject(index, value, Types.DATE);
+		}
+	}
+
+	private void setNullableInstant(PreparedStatement statement, int index, Instant value) throws SQLException {
+		if (value == null) {
+			statement.setNull(index, Types.TIMESTAMP);
+		} else {
+			statement.setObject(index, toUtcDateTime(value), Types.TIMESTAMP);
+		}
 	}
 
 	private void setNullableLong(PreparedStatement statement, int index, Long value) throws SQLException {
@@ -124,8 +145,12 @@ public class ReservationHistoryBatchWriter {
 		if (value == null) {
 			statement.setNull(index, Types.TIMESTAMP);
 		} else {
-			statement.setTimestamp(index, Timestamp.valueOf(value));
+			statement.setObject(index, value, Types.TIMESTAMP);
 		}
+	}
+
+	private LocalDateTime toUtcDateTime(Instant value) {
+		return LocalDateTime.ofInstant(value, ZoneOffset.UTC);
 	}
 
 	private Long affectedRows(int[] updateCounts, int submittedRows) {

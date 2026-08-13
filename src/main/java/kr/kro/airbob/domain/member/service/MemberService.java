@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.member.service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
@@ -26,6 +28,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final MemberHistoryRepository historyRepository;
     private final SessionInvalidator sessionInvalidator;
+    private final Clock clock;
 
     @Transactional
     public void createMember(Signup request) {
@@ -38,7 +41,8 @@ public class MemberService {
         memberRepository.save(member);
 
         // 첫 데이터(CREATE)부터 이력 기록 — 가입은 비인증 컨텍스트라 source_system 명시
-        historyRepository.save(MemberHistory.openSystem(member, ChangeType.CREATE, "신규 회원가입", "API"));
+        historyRepository.save(MemberHistory.openSystem(
+            member, ChangeType.CREATE, "신규 회원가입", "API", utcNow()));
     }
 
     @Transactional
@@ -50,9 +54,10 @@ public class MemberService {
         memberRepository.save(member);
 
         // SCD2: 직전 현재 행을 닫고 새 스냅샷 열기
+        LocalDateTime changedAt = utcNow();
         historyRepository.findByMemberIdAndValidTo(member.getId(), HistoryConstants.FOREVER)
-            .ifPresent(current -> current.close(LocalDateTime.now()));
-        historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason));
+            .ifPresent(current -> current.close(changedAt));
+        historyRepository.save(MemberHistory.open(member, ChangeType.DELETE, reason, changedAt));
 
         sessionInvalidator.invalidateAll(memberId);
     }
@@ -63,5 +68,9 @@ public class MemberService {
             .orElseThrow(MemberNotFoundException::new);
         return new MemberResponse.MeInfo(
             member.getId(), member.getEmail(), member.getNickname(), member.getThumbnailImageUrl());
+    }
+
+    private LocalDateTime utcNow() {
+        return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 }

@@ -2,6 +2,8 @@ package kr.kro.airbob.domain.payment.entity;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -69,6 +71,21 @@ class PaymentTest {
 			// then
 			assertThat(payment.getBalanceAmount()).isEqualTo(100_000L);
 			assertThat(payment.getBalanceAmount()).isEqualTo(payment.getAmount());
+		}
+
+		@Test
+		@DisplayName("Toss 승인 시각은 offset을 보존한 절대 시각으로 변환된다")
+		void 승인_시각_offset_보존() {
+			ZonedDateTime approvedAt = ZonedDateTime.of(
+				2026, 8, 12, 14, 30, 0, 123_456_000,
+				ZoneId.of("Asia/Seoul")
+			);
+			tossResponse.setApprovedAt(approvedAt);
+
+			Payment payment = Payment.create(tossResponse, reservation);
+
+			assertThat(payment.getApprovedAt())
+				.isEqualTo(Instant.parse("2026-08-12T05:30:00.123456Z"));
 		}
 
 		@Test

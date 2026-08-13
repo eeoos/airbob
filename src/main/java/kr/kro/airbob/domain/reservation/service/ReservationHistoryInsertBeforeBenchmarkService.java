@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.reservation.service;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
 import java.util.List;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -27,14 +27,15 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 	private final ReservationHoldService holdService;
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryRepository historyRepository;
+	private final Clock clock;
 
 	@Transactional
 	public void cleanupExpiredPendingReservations() {
 		log.info("만료된 결제 대기 예약 정리 작업 시작");
 
-		List<Reservation> expiredList = reservationRepository.findAllByStatusAndExpiresAtBefore(
+		List<Reservation> expiredList = reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
 			ReservationStatus.PAYMENT_PENDING,
-			LocalDateTime.now()
+			clock.instant()
 		);
 
 		if (expiredList.isEmpty()) {
@@ -51,8 +52,8 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 
 			holdService.removeHold(
 				reservation.getAccommodation().getId(),
-				reservation.getCheckIn().toLocalDate(),
-				reservation.getCheckOut().toLocalDate()
+				reservation.getCheckInDate(),
+				reservation.getCheckOutDate()
 			);
 		});
 		log.info("{}건의 만료된 예약 정리 완료", expiredList.size());

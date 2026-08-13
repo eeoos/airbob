@@ -29,6 +29,7 @@ import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDet
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -47,6 +48,7 @@ public class AccommodationQueryService {
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationRepository reservationRepository;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
+	private final BookingWindowProvider bookingWindowProvider;
 
 	@Transactional(readOnly = true)
 	public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
@@ -58,12 +60,6 @@ public class AccommodationQueryService {
 		List<AmenityResponse.AmenityInfo> amenityInfos = getAmenities(accommodationId);
 		List<ImageResponse.ImageInfo> imageInfos = getImageUrls(accommodationId);
 
-		BookingWindow bookingWindow = BookingWindow.current();
-		LocalDate bookingWindowStart = bookingWindow.startInclusive();
-		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
-		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(
-			accommodationId, bookingWindowStart, bookingWindowEndExclusive);
-
 		Boolean isInWishlist = checkWishlistStatus(accommodationId, viewerId);
 		ReviewResponse.ReviewSummary reviewSummary = new ReviewResponse.ReviewSummary(
 			Objects.requireNonNullElse(detailProjection.totalReviewCount(), 0),
@@ -71,8 +67,27 @@ public class AccommodationQueryService {
 		);
 
 		return AccommodationResponse.DetailInfo.from(
-			accommodation, bookingWindowStart, bookingWindowEndExclusive, unavailableRanges, isInWishlist,
+			accommodation, isInWishlist,
 			amenityInfos, imageInfos, reviewSummary);
+	}
+
+	@Transactional(readOnly = true)
+	public AccommodationResponse.Availability findAccommodationAvailability(Long accommodationId) {
+		String timeZoneId = accommodationRepository
+			.findBookingProjectionByIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
+			.orElseThrow(AccommodationNotFoundException::new)
+			.timeZoneId();
+		BookingWindow bookingWindow = bookingWindowProvider.currentFor(timeZoneId);
+		LocalDate bookingWindowStart = bookingWindow.startInclusive();
+		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
+		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(
+			accommodationId, bookingWindowStart, bookingWindowEndExclusive);
+
+		return new AccommodationResponse.Availability(
+			bookingWindowStart,
+			bookingWindowEndExclusive,
+			unavailableRanges
+		);
 	}
 
 	@Transactional(readOnly = true)
@@ -157,10 +172,10 @@ public class AccommodationQueryService {
 		LocalDate windowEndExclusive
 	) {
 		List<ReservationDateRange> reservationRanges = reservationRepository
-			.findConfirmedReservationRangesByAccommodationId(
+			.findActiveReservationRangesByAccommodationId(
 				accommodationId,
-				windowStart.atStartOfDay(),
-				windowEndExclusive.atStartOfDay());
+				windowStart,
+				windowEndExclusive);
 
 		List<AccommodationResponse.UnavailableDateRange> clippedRanges = reservationRanges.stream()
 			.map(range -> clipUnavailableRange(range, windowStart, windowEndExclusive))
@@ -178,8 +193,8 @@ public class AccommodationQueryService {
 		LocalDate windowStart,
 		LocalDate windowEndExclusive
 	) {
-		LocalDate startDate = range.checkIn().toLocalDate();
-		LocalDate endDateExclusive = range.checkOut().toLocalDate();
+		LocalDate startDate = range.checkIn();
+		LocalDate endDateExclusive = range.checkOut();
 
 		if (startDate.isBefore(windowStart)) {
 			startDate = windowStart;

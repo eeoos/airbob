@@ -1,5 +1,7 @@
 package kr.kro.airbob.outbox;
 
+import java.time.Clock;
+
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,10 +19,11 @@ public class OutboxEventPublisher {
 
 	private final OutboxRepository outboxRepository;
 	private final ObjectMapper objectMapper;
+	private final Clock clock;
 
 	public void save(EventType eventType, EventPayload payload) {
 		try {
-			EventEnvelope<?> envelope = EventEnvelope.of(eventType, payload);
+			EventEnvelope<?> envelope = EventEnvelope.of(eventType, payload, clock.instant());
 			String serializedEnvelope = objectMapper.writeValueAsString(envelope);
 
 			Outbox outboxEvent = Outbox.create(

@@ -1,8 +1,8 @@
 package kr.kro.airbob.domain.settlement.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import kr.kro.airbob.domain.settlement.entity.Settlement;
@@ -20,7 +20,7 @@ public class SettlementResponse {
 		long commissionAmount,
 		long payoutAmount,
 		SettlementStatus status,
-		LocalDateTime settledAt
+		Instant settledAt
 	) {
 		public static HostSettlement from(Settlement s) {
 			return new HostSettlement(
@@ -50,7 +50,7 @@ public class SettlementResponse {
 		long commissionAmount,
 		long payoutAmount,
 		SettlementStatus status,
-		LocalDateTime settledAt,
+		Instant settledAt,
 		List<LineItem> items
 	) {
 		public static SettlementDetail of(Settlement s, List<LineItem> items) {
@@ -103,7 +103,7 @@ public class SettlementResponse {
 		long commissionAmount,
 		long payoutAmount,
 		SettlementStatus status,
-		LocalDateTime settledAt
+		Instant settledAt
 	) {
 		public static AdminSettlement from(Settlement s) {
 			return new AdminSettlement(

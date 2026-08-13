@@ -3,6 +3,8 @@ package kr.kro.airbob.domain.accommodation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -69,6 +71,7 @@ class AccommodationAmenityDeleteBenchmarkProfileTest {
 		}
 		@Bean JdbcTemplate jdbcTemplate() { return mock(JdbcTemplate.class); }
 		@Bean CommonCodeService commonCodeService() { return mock(CommonCodeService.class); }
+		@Bean Clock clock() { return Clock.systemUTC(); }
 		@Bean BulkOperationMonitor bulkOperationMonitor() { return mock(BulkOperationMonitor.class); }
 		@Bean BulkWriteBenchmarkDatabaseGuard databaseGuard() {
 			return mock(BulkWriteBenchmarkDatabaseGuard.class);

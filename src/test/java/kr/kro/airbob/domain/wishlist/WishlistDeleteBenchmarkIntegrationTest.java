@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -58,6 +59,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 	"benchmark.bulk-write.allowed-schema=airbob_bulk_write_benchmark"
 })
 @ActiveProfiles({"test", "bulk-write-benchmark"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Import(WishlistDeleteBenchmarkIntegrationTest.RollbackProbeConfiguration.class)
 @DisplayName("Wishlist 삭제 Before/After 벌크 쓰기 비교 통합 테스트")
 class WishlistDeleteBenchmarkIntegrationTest {
@@ -85,8 +87,6 @@ class WishlistDeleteBenchmarkIntegrationTest {
 		registry.add("spring.datasource.password", MYSQL::getPassword);
 		registry.add("spring.data.redis.host", REDIS::getHost);
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	@Autowired private WishlistDeleteBenchmarkService benchmarkService;

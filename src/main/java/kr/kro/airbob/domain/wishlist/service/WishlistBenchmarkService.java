@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.wishlist.service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -110,11 +112,15 @@ public class WishlistBenchmarkService {
 		return new WishlistResponse.WishlistInfo(
 			wishlistId,
 			wishlist.getName(),
-			wishlist.getCreatedAt(),
+			toUtcInstant(wishlist.getCreatedAt()),
 			wishlistItemCounts.getOrDefault(wishlistId, 0L),
 			thumbnailUrls.get(wishlistId),
 			includeAccommodationStatus ? wishlistAccommodationId != null : null,
 			includeAccommodationStatus ? wishlistAccommodationId : null
 		);
+	}
+
+	private static Instant toUtcInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
 	}
 }

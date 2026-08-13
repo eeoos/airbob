@@ -9,7 +9,10 @@ import static org.mockito.Mockito.mock;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import kr.kro.airbob.common.history.ChangeType;
@@ -36,6 +39,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class MemberAdminServiceTest {
 
+	private static final Instant NOW = Instant.parse("2026-08-12T05:30:00Z");
+	private static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
 	@Mock
 	private MemberRepository memberRepository;
 	@Mock
@@ -46,7 +52,7 @@ class MemberAdminServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new MemberAdminService(memberRepository, memberHistoryRepository, entityManager);
+		service = new MemberAdminService(memberRepository, memberHistoryRepository, entityManager, FIXED_CLOCK);
 	}
 
 	@Test
@@ -245,6 +251,9 @@ class MemberAdminServiceTest {
 		assertThat(savedHistory.getRole()).isEqualTo(MemberRole.ADMIN);
 		assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.ROLE_CHANGE);
 		assertThat(savedHistory.getChangeReason()).isEqualTo("운영 관리자 지정");
+		LocalDateTime expected = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
+		assertThat(currentHistory.getValidTo()).isEqualTo(expected);
+		assertThat(savedHistory.getValidFrom()).isEqualTo(expected);
 		assertThat(savedHistory.getValidTo()).isEqualTo(HistoryConstants.FOREVER);
 	}
 

@@ -4,8 +4,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,15 +39,18 @@ import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmar
 public class ReservationHistoryInsertBenchmarkFixtureService {
 
 	private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 1, 1, 0, 0);
-	private static final LocalDateTime CHECK_IN = LocalDateTime.of(2030, 1, 1, 15, 0);
-	private static final LocalDateTime CHECK_OUT = LocalDateTime.of(2030, 1, 3, 11, 0);
-	private static final LocalDateTime EXPIRED_AT = LocalDateTime.of(2000, 1, 1, 0, 0);
-	private static final LocalDateTime FUTURE_EXPIRES_AT = LocalDateTime.of(2099, 1, 1, 0, 0);
+	private static final LocalDate CHECK_IN = LocalDate.of(2030, 1, 1);
+	private static final LocalDate CHECK_OUT = LocalDate.of(2030, 1, 3);
+	private static final Instant EXPIRED_AT = Instant.parse("2000-01-01T00:00:00Z");
+	private static final Instant FUTURE_EXPIRES_AT = Instant.parse("2099-01-01T00:00:00Z");
+	private static final ZoneId ACCOMMODATION_ZONE = ZoneId.of("Asia/Seoul");
 
 	private final JdbcTemplate jdbcTemplate;
+	private final Clock clock;
 
-	public ReservationHistoryInsertBenchmarkFixtureService(JdbcTemplate jdbcTemplate) {
+	public ReservationHistoryInsertBenchmarkFixtureService(JdbcTemplate jdbcTemplate, Clock clock) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.clock = clock;
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -54,8 +62,8 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		long accommodationId = insertAccommodation(memberId);
 		List<ReservationExpectation> targets = new ArrayList<>(datasetSize);
 		for (int index = 0; index < datasetSize; index++) {
-			LocalDateTime targetCheckIn = CHECK_IN.plusDays(index * 3L);
-			LocalDateTime targetCheckOut = CHECK_OUT.plusDays(index * 3L);
+			LocalDate targetCheckIn = CHECK_IN.plusDays(index * 3L);
+			LocalDate targetCheckOut = CHECK_OUT.plusDays(index * 3L);
 			targets.add(insertReservation(
 				accommodationId,
 				memberId,
@@ -186,8 +194,8 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		return insertAndReturnKey(sql, statement -> {
 			statement.setString(1, "bulk-write-" + unique + "@benchmark.local");
 			statement.setString(2, "bulk-write-reservation-member");
-			statement.setTimestamp(3, Timestamp.valueOf(CREATED_AT));
-			statement.setTimestamp(4, Timestamp.valueOf(CREATED_AT));
+			statement.setObject(3, CREATED_AT);
+			statement.setObject(4, CREATED_AT);
 		});
 	}
 
@@ -195,30 +203,34 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		String sql = """
 			INSERT INTO accommodation (
 				member_id, check_in_time, check_out_time, accommodation_uid, status,
-				name, base_price, currency, created_at, updated_at, created_by, updated_by
+				name, base_price, currency, time_zone_id,
+				created_at, updated_at, created_by, updated_by
 			) VALUES (?, '15:00:00', '11:00:00', UUID_TO_BIN(?), 'PUBLISHED',
-				?, 100000, 'KRW', ?, ?, ?, ?)
+				?, 100000, 'KRW', ?, ?, ?, ?, ?)
 			""";
 		return insertAndReturnKey(sql, statement -> {
 			statement.setLong(1, memberId);
 			statement.setString(2, UUID.randomUUID().toString());
 			statement.setString(3, "bulk-write-reservation-accommodation");
-			statement.setTimestamp(4, Timestamp.valueOf(CREATED_AT));
-			statement.setTimestamp(5, Timestamp.valueOf(CREATED_AT));
-			statement.setLong(6, memberId);
+			statement.setString(4, ACCOMMODATION_ZONE.getId());
+			statement.setObject(5, CREATED_AT);
+			statement.setObject(6, CREATED_AT);
 			statement.setLong(7, memberId);
+			statement.setLong(8, memberId);
 		});
 	}
 
 	private ReservationExpectation insertReservation(
 		long accommodationId,
 		long memberId,
-		LocalDateTime checkIn,
-		LocalDateTime checkOut,
+		LocalDate checkIn,
+		LocalDate checkOut,
 		String status,
 		String message,
-		LocalDateTime expiresAt
+		Instant expiresAt
 	) {
+		Instant checkInAt = checkIn.atTime(15, 0).atZone(ACCOMMODATION_ZONE).toInstant();
+		Instant checkOutAt = checkOut.atTime(11, 0).atZone(ACCOMMODATION_ZONE).toInstant();
 		String reservationUid = UUID.randomUUID().toString();
 		String reservationCode = UUID.randomUUID().toString()
 			.replace("-", "")
@@ -227,10 +239,11 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		String sql = """
 			INSERT INTO reservation (
 				reservation_uid, reservation_code, accommodation_id, guest_id,
-				check_in, check_out, guest_count, total_price, discount_amount,
+				check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+				guest_count, total_price, discount_amount,
 				currency, status, message, expires_at, created_at, updated_at, created_by, updated_by
 			) VALUES (
-				UUID_TO_BIN(?), ?, ?, ?, ?, ?, 2, 200000, 0,
+				UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, 2, 200000, 0,
 				'KRW', ?, ?, ?, ?, ?, ?, ?
 			)
 			""";
@@ -239,15 +252,18 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			statement.setString(2, reservationCode);
 			statement.setLong(3, accommodationId);
 			statement.setLong(4, memberId);
-			statement.setTimestamp(5, Timestamp.valueOf(checkIn));
-			statement.setTimestamp(6, Timestamp.valueOf(checkOut));
-			statement.setString(7, status);
-			statement.setString(8, message);
-			statement.setTimestamp(9, Timestamp.valueOf(expiresAt));
-			statement.setTimestamp(10, Timestamp.valueOf(CREATED_AT));
-			statement.setTimestamp(11, Timestamp.valueOf(CREATED_AT));
-			statement.setLong(12, memberId);
-			statement.setLong(13, memberId);
+			statement.setObject(5, checkIn, Types.DATE);
+			statement.setObject(6, checkOut, Types.DATE);
+			statement.setObject(7, toUtcDateTime(checkInAt), Types.TIMESTAMP);
+			statement.setObject(8, toUtcDateTime(checkOutAt), Types.TIMESTAMP);
+			statement.setString(9, ACCOMMODATION_ZONE.getId());
+			statement.setString(10, status);
+			statement.setString(11, message);
+			statement.setObject(12, toUtcDateTime(expiresAt), Types.TIMESTAMP);
+			statement.setObject(13, CREATED_AT);
+			statement.setObject(14, CREATED_AT);
+			statement.setLong(15, memberId);
+			statement.setLong(16, memberId);
 		});
 
 		return new ReservationExpectation(
@@ -258,6 +274,9 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			memberId,
 			checkIn,
 			checkOut,
+			checkInAt,
+			checkOutAt,
+			ACCOMMODATION_ZONE.getId(),
 			2,
 			200_000L,
 			"KRW",
@@ -294,7 +313,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			ReservationRow row = new ReservationRow(
 				resultSet.getLong("id"),
 				resultSet.getString("status"),
-				toLocalDateTime(resultSet.getTimestamp("updated_at"))
+				resultSet.getObject("updated_at", LocalDateTime.class)
 			);
 			rows.put(row.id(), row);
 		}, reservationIds.toArray());
@@ -307,7 +326,8 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		}
 		String sql = """
 			SELECT id, reservation_id, reservation_uid, reservation_code, accommodation_id, guest_id,
-			       check_in, check_out, guest_count, total_price, currency, status, message, expires_at,
+			       check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+			       guest_count, total_price, currency, status, message, expires_at,
 			       created_at, created_by, history_created_at, history_created_by,
 			       change_type, change_reason, source_system, client_ip
 			FROM reservation_history
@@ -325,17 +345,20 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			resultSet.getString("reservation_code"),
 			resultSet.getObject("accommodation_id", Long.class),
 			resultSet.getObject("guest_id", Long.class),
-			toLocalDateTime(resultSet.getTimestamp("check_in")),
-			toLocalDateTime(resultSet.getTimestamp("check_out")),
+			resultSet.getObject("check_in_date", LocalDate.class),
+			resultSet.getObject("check_out_date", LocalDate.class),
+			toInstant(resultSet.getObject("check_in_at", LocalDateTime.class)),
+			toInstant(resultSet.getObject("check_out_at", LocalDateTime.class)),
+			resultSet.getString("time_zone_id"),
 			resultSet.getObject("guest_count", Integer.class),
 			resultSet.getObject("total_price", Long.class),
 			resultSet.getString("currency"),
 			resultSet.getString("status"),
 			resultSet.getString("message"),
-			toLocalDateTime(resultSet.getTimestamp("expires_at")),
-			toLocalDateTime(resultSet.getTimestamp("created_at")),
+			toInstant(resultSet.getObject("expires_at", LocalDateTime.class)),
+			resultSet.getObject("created_at", LocalDateTime.class),
 			resultSet.getObject("created_by", Long.class),
-			toLocalDateTime(resultSet.getTimestamp("history_created_at")),
+			toInstant(resultSet.getObject("history_created_at", LocalDateTime.class)),
 			resultSet.getObject("history_created_by", Long.class),
 			resultSet.getString("change_type"),
 			resultSet.getString("change_reason"),
@@ -365,6 +388,9 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			&& Objects.equals(history.guestId(), expected.guestId())
 			&& Objects.equals(history.checkIn(), expected.checkIn())
 			&& Objects.equals(history.checkOut(), expected.checkOut())
+			&& Objects.equals(history.checkInAt(), expected.checkInAt())
+			&& Objects.equals(history.checkOutAt(), expected.checkOutAt())
+			&& Objects.equals(history.timeZoneId(), expected.timeZoneId())
 			&& Objects.equals(history.guestCount(), expected.guestCount())
 			&& Objects.equals(history.totalPrice(), expected.totalPrice())
 			&& Objects.equals(history.currency(), expected.currency())
@@ -392,8 +418,8 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		return fixture.targets().stream()
 			.map(target -> new HoldRemoval(
 				target.accommodationId(),
-				target.checkIn().toLocalDate(),
-				target.checkOut().toLocalDate()
+				target.checkIn(),
+				target.checkOut()
 			))
 			.toList();
 	}
@@ -424,8 +450,9 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 
 	private void assertNoExistingEligibleReservation() {
 		Long eligible = jdbcTemplate.queryForObject(
-			"SELECT COUNT(*) FROM reservation WHERE status = 'PAYMENT_PENDING' AND expires_at < NOW(6)",
-			Long.class
+			"SELECT COUNT(*) FROM reservation WHERE status = 'PAYMENT_PENDING' AND expires_at <= ?",
+			Long.class,
+			toUtcDateTime(clock.instant())
 		);
 		if (!Objects.equals(eligible, 0L)) {
 			throw new IllegalStateException("전용 벤치마크 DB에 기존 만료 대상 예약이 있습니다.");
@@ -434,8 +461,9 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 
 	private void assertOnlyFixtureTargetsAreEligible(Fixture fixture) {
 		List<Long> eligibleIds = jdbcTemplate.queryForList(
-			"SELECT id FROM reservation WHERE status = 'PAYMENT_PENDING' AND expires_at < NOW(6) ORDER BY id",
-			Long.class
+			"SELECT id FROM reservation WHERE status = 'PAYMENT_PENDING' AND expires_at <= ? ORDER BY id",
+			Long.class,
+			toUtcDateTime(clock.instant())
 		);
 		List<Long> targetIds = fixture.targets().stream().map(ReservationExpectation::id).sorted().toList();
 		if (!eligibleIds.equals(targetIds)) {
@@ -464,8 +492,12 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		return String.join(", ", Collections.nCopies(size, "?"));
 	}
 
-	private LocalDateTime toLocalDateTime(Timestamp timestamp) {
-		return timestamp == null ? null : timestamp.toLocalDateTime();
+	private LocalDateTime toUtcDateTime(Instant instant) {
+		return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+	}
+
+	private Instant toInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
 	}
 
 	private void validateDatasetSize(int datasetSize) {
@@ -490,17 +522,20 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		String reservationCode,
 		Long accommodationId,
 		Long guestId,
-		LocalDateTime checkIn,
-		LocalDateTime checkOut,
+		LocalDate checkIn,
+		LocalDate checkOut,
+		Instant checkInAt,
+		Instant checkOutAt,
+		String timeZoneId,
 		Integer guestCount,
 		Long totalPrice,
 		String currency,
 		String status,
 		String message,
-		LocalDateTime expiresAt,
+		Instant expiresAt,
 		LocalDateTime createdAt,
 		Long createdBy,
-		LocalDateTime historyCreatedAt,
+		Instant historyCreatedAt,
 		Long historyCreatedBy,
 		String changeType,
 		String changeReason,
@@ -515,13 +550,16 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		String reservationCode,
 		long accommodationId,
 		long guestId,
-		LocalDateTime checkIn,
-		LocalDateTime checkOut,
+		LocalDate checkIn,
+		LocalDate checkOut,
+		Instant checkInAt,
+		Instant checkOutAt,
+		String timeZoneId,
 		int guestCount,
 		long totalPrice,
 		String currency,
 		String message,
-		LocalDateTime expiresAt,
+		Instant expiresAt,
 		LocalDateTime createdAt,
 		long createdBy
 	) {

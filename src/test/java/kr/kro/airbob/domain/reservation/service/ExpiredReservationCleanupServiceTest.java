@@ -12,6 +12,10 @@ import static org.mockito.Mockito.inOrder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,6 +40,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ExpiredReservationCleanupService 테스트")
 class ExpiredReservationCleanupServiceTest {
+	private static final Instant NOW = Instant.parse("2026-07-21T10:00:00Z");
 
 	@Mock
 	private ReservationRepository reservationRepository;
@@ -50,24 +55,46 @@ class ExpiredReservationCleanupServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new ExpiredReservationCleanupService(reservationRepository, batchWriter, holdService);
+		service = new ExpiredReservationCleanupService(
+			reservationRepository,
+			batchWriter,
+			holdService,
+			Clock.fixed(NOW, ZoneOffset.UTC)
+		);
 		first = pendingReservation(1L, 11L, LocalDate.of(2026, 8, 1));
 		second = pendingReservation(2L, 12L, LocalDate.of(2026, 8, 3));
 	}
 
 	@Test
+	@DisplayName("만료 시각과 현재 시각이 같으면 만료 대상으로 조회한다")
+	void expiresReservationAtExactBoundary() {
+		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
+			ReservationStatus.PAYMENT_PENDING,
+			NOW
+		)).willReturn(List.of(first));
+
+		int cleaned = service.cleanupExpiredPendingReservations();
+
+		assertThat(cleaned).isEqualTo(1);
+		then(reservationRepository).should().findAllByStatusAndExpiresAtLessThanEqual(
+			ReservationStatus.PAYMENT_PENDING,
+			NOW
+		);
+	}
+
+	@Test
 	@DisplayName("모든 history batch가 성공한 뒤 hold를 제거한다")
 	void removesHoldsOnlyAfterHistoryBatchSucceeds() {
-		given(reservationRepository.findAllByStatusAndExpiresAtBefore(
+		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
 			eq(ReservationStatus.PAYMENT_PENDING),
-			any(LocalDateTime.class)
+			any(Instant.class)
 		)).willReturn(List.of(first, second));
 
 		int cleaned = service.cleanupExpiredPendingReservations();
 
 		assertThat(cleaned).isEqualTo(2);
 		ArgumentCaptor<List<ReservationHistory>> histories = ArgumentCaptor.forClass(List.class);
-		ArgumentCaptor<LocalDateTime> historyCreatedAt = ArgumentCaptor.forClass(LocalDateTime.class);
+		ArgumentCaptor<Instant> historyCreatedAt = ArgumentCaptor.forClass(Instant.class);
 		InOrder order = inOrder(batchWriter, holdService);
 		order.verify(batchWriter).writeAll(histories.capture(), historyCreatedAt.capture());
 		order.verify(holdService).removeHold(
@@ -78,8 +105,8 @@ class ExpiredReservationCleanupServiceTest {
 		);
 		assertThat(histories.getValue()).extracting(ReservationHistory::getStatus)
 			.containsOnly(ReservationStatus.EXPIRED);
-		ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
-		then(reservationRepository).should().findAllByStatusAndExpiresAtBefore(
+		ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
+		then(reservationRepository).should().findAllByStatusAndExpiresAtLessThanEqual(
 			eq(ReservationStatus.PAYMENT_PENDING),
 			cutoff.capture()
 		);
@@ -89,10 +116,10 @@ class ExpiredReservationCleanupServiceTest {
 	@Test
 	@DisplayName("history batch 실패 시 hold를 제거하지 않는다")
 	void doesNotRemoveHoldsWhenHistoryBatchFails() {
-		given(reservationRepository.findAllByStatusAndExpiresAtBefore(any(), any()))
+		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(any(), any()))
 			.willReturn(List.of(first, second));
 		willThrow(new DataIntegrityViolationException("intentional"))
-			.given(batchWriter).writeAll(anyList(), any(LocalDateTime.class));
+			.given(batchWriter).writeAll(anyList(), any(Instant.class));
 
 		assertThatThrownBy(service::cleanupExpiredPendingReservations)
 			.isInstanceOf(DataIntegrityViolationException.class);
@@ -103,7 +130,7 @@ class ExpiredReservationCleanupServiceTest {
 	@Test
 	@DisplayName("만료된 예약이 없으면 history를 저장하거나 hold를 제거하지 않는다")
 	void doesNothingWhenNoExpiredReservationsExist() {
-		given(reservationRepository.findAllByStatusAndExpiresAtBefore(any(), any()))
+		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(any(), any()))
 			.willReturn(List.of());
 
 		int cleaned = service.cleanupExpiredPendingReservations();
@@ -126,13 +153,16 @@ class ExpiredReservationCleanupServiceTest {
 			.reservationCode("R" + reservationId)
 			.accommodation(accommodation)
 			.guest(guest)
-			.checkIn(checkIn.atTime(15, 0))
-			.checkOut(checkIn.plusDays(1).atTime(11, 0))
+			.checkInDate(checkIn)
+			.checkOutDate(checkIn.plusDays(1))
+			.checkInAt(checkIn.atTime(15, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant())
+			.checkOutAt(checkIn.plusDays(1).atTime(11, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant())
+			.timeZoneId("Asia/Seoul")
 			.guestCount(2)
 			.totalPrice(100_000L)
 			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
-			.expiresAt(LocalDateTime.of(2026, 7, 21, 10, 0))
+			.expiresAt(NOW)
 			.createdAt(LocalDateTime.of(2026, 7, 1, 9, 0))
 			.updatedAt(LocalDateTime.of(2026, 7, 1, 9, 0))
 			.build();

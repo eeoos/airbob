@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.orm.jpa.EntityManagerHolder;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -56,6 +58,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("회원 역할 관리 통합 테스트")
 class MemberRoleManagementIntegrationTest {
 
@@ -93,8 +96,6 @@ class MemberRoleManagementIntegrationTest {
 		registry.add("spring.flyway.password", mySQLContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	@BeforeEach
@@ -318,7 +319,7 @@ class MemberRoleManagementIntegrationTest {
 
 	private void createCurrentHistory(Member member, String reason) {
 		memberHistoryRepository.saveAndFlush(MemberHistory.openSystem(
-			member, ChangeType.CREATE, reason, "TEST"));
+			member, ChangeType.CREATE, reason, "TEST", LocalDateTime.now()));
 	}
 
 	private void changeRoleAs(Long actorId, Long targetId, MemberRole role, String reason) {

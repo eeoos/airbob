@@ -6,6 +6,10 @@ import org.redisson.api.RLock;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -17,6 +21,7 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateExceptio
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,13 +34,18 @@ public class ReservationService {
 	private final ReservationLockManager lockManager;
 
 	private final ReservationTransactionService transactionService;
+	private final AccommodationRepository accommodationRepository;
+	private final BookingWindowProvider bookingWindowProvider;
 
 	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new InvalidReservationDateException();
 		}
 
-		BookingWindow bookingWindow = BookingWindow.current();
+		AccommodationBookingProjection accommodation = accommodationRepository
+			.findBookingProjectionByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
+			.orElseThrow(AccommodationNotFoundException::new);
+		BookingWindow bookingWindow = bookingWindowProvider.currentFor(accommodation.timeZoneId());
 		if (!bookingWindow.containsStay(request.checkInDate(), request.checkOutDate())) {
 			throw new ReservationOutsideBookingWindowException();
 		}
@@ -82,6 +92,10 @@ public class ReservationService {
 
 	public void revertCancellation(ReservationEvent.ReservationCancellationRevertRequestedEvent event) {
 		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
+	}
+
+	public void completeCancellation(ReservationEvent.ReservationCancellationCompleteRequestedEvent event) {
+		transactionService.completeCancellationInTx(event.reservationUid());
 	}
 
 	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {

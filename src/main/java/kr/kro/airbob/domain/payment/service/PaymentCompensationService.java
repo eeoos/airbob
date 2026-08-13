@@ -11,8 +11,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.service.PaymentTransactionService;
-import kr.kro.airbob.domain.payment.service.TossPaymentsAdapter;
+import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.outbox.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,11 +23,17 @@ public class PaymentCompensationService {
 	private final PaymentRepository paymentRepository;
 	private final TossPaymentsAdapter tossPaymentsAdapter;
 	private final PaymentTransactionService paymentTransactionService;
+	private final ReservationTransactionService reservationTransactionService;
 
 	private final SlackNotificationService slackNotificationService;
 
 	public void compensate(String reservationUid) {
 		log.warn("[DLQ 보상 트랜잭션 시작]: Reservation UID {}", reservationUid);
+		if (!reservationTransactionService.preparePaymentCompensationInTx(
+			reservationUid, "예약 확정 최종 실패")) {
+			log.warn("[DLQ 보상-SKIP] 예약이 이미 확정되어 정상 결제를 유지합니다. Reservation UID: {}", reservationUid);
+			return;
+		}
 
 		Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
 			.orElseThrow(() -> {
@@ -36,7 +41,8 @@ public class PaymentCompensationService {
 				return new PaymentNotFoundException();
 			});
 
-		if (payment.getStatus() == PaymentStatus.CANCELED || payment.getStatus() == PaymentStatus.PARTIAL_CANCELED) {
+		if (payment.getStatus() == PaymentStatus.CANCELED
+			&& Long.valueOf(0L).equals(payment.getBalanceAmount())) {
 			log.warn("[DLQ 보상 트랜잭션] 이미 취소된 결제. PaymentKey: {}", payment.getPaymentKey());
 			return;
 		}
@@ -48,7 +54,8 @@ public class PaymentCompensationService {
 				null
 			);
 
-			paymentTransactionService.processCompensationInTx(payment, response);
+			ensureFullyCanceled(response);
+			paymentTransactionService.processCompensationInTx(reservationUid, response);
 
 		} catch (TossPaymentException e) {
 			log.error("[DLQ-FATAL] 보상 트랜잭션(결제 취소) 중 Toss API 오류 발생. Reservation UID: {}, Code: {}. 수동 개입 필요.",
@@ -70,7 +77,9 @@ public class PaymentCompensationService {
 
 		try {
 			// 전액 환불
-			tossPaymentsAdapter.cancelPayment(paymentKey, "시스템 오류: 예약 정보 불일치", null);
+			TossPaymentResponse response = tossPaymentsAdapter.cancelPayment(
+				paymentKey, "시스템 오류: 예약 정보 불일치", null);
+			ensureFullyCanceled(response);
 
 			String successMessage = String.format(
 				"[COMPENSATION] 유령 결제 자동 환불 성공. Payment Key: %s", paymentKey
@@ -85,6 +94,14 @@ public class PaymentCompensationService {
 			);
 			log.error(failureMessage, e);
 			slackNotificationService.sendAlert(failureMessage);
+		}
+	}
+
+	private void ensureFullyCanceled(TossPaymentResponse response) {
+		if (response == null
+			|| PaymentStatus.from(response.getStatus()) != PaymentStatus.CANCELED
+			|| !Long.valueOf(0L).equals(response.getBalanceAmount())) {
+			throw new IllegalStateException("PG 보상 결과가 전액 취소 상태가 아닙니다.");
 		}
 	}
 }

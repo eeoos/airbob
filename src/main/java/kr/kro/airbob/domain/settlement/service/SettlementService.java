@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.settlement.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -44,6 +45,7 @@ public class SettlementService {
 	private final SettlementHistoryRepository settlementHistoryRepository;
 	private final RedissonClient redissonClient;
 	private final PlatformTransactionManager transactionManager;
+	private final Clock clock;
 
 	@Value("${settlement.commission-rate:0.03}")
 	private BigDecimal commissionRate;
@@ -100,7 +102,7 @@ public class SettlementService {
 		if (!isMonthClosed(settlement.getSettlementMonth())) {
 			throw new SettlementMonthNotClosedException();
 		}
-		settlement.markPaid();
+		settlement.markPaid(clock.instant());
 		settlementHistoryRepository.save(
 			SettlementHistory.of(settlement, ChangeType.STATUS_CHANGE, "정산 지급 완료"));
 	}
@@ -118,8 +120,8 @@ public class SettlementService {
 	}
 
 	// settlement_month(월초)가 속한 달이 이미 끝났는지(= 현재 월보다 이전)
-	private static boolean isMonthClosed(LocalDate settlementMonth) {
-		return YearMonth.from(settlementMonth).isBefore(YearMonth.now());
+	private boolean isMonthClosed(LocalDate settlementMonth) {
+		return YearMonth.from(settlementMonth).isBefore(YearMonth.now(clock));
 	}
 
 	// 정산 상세(숙소별 내역). 호스트 본인 정산만 조회 가능.

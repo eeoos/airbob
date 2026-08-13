@@ -9,10 +9,6 @@ public record BookingWindow(
 
 	private static final long BOOKING_WINDOW_MONTHS = 3L;
 
-	public static BookingWindow current() {
-		return startingOn(LocalDate.now());
-	}
-
 	public static BookingWindow startingOn(LocalDate startInclusive) {
 		return new BookingWindow(
 			startInclusive,

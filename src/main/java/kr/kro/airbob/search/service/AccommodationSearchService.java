@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.GeoLocation;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
@@ -21,6 +22,7 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonGeneratorFactory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
@@ -37,6 +39,7 @@ public class AccommodationSearchService {
 
     private final ElasticsearchClient esClient;
     private final WishlistAccommodationRepository wishlistRepository;
+    private final BookingWindowProvider bookingWindowProvider;
 
     private static final String INDEX = "accommodations";
 
@@ -56,7 +59,12 @@ public class AccommodationSearchService {
             return createEmpty(pageable);
         }
 
-        Query query = buildQuery(req, viewport);
+        Set<String> eligibleTimeZones = eligibleTimeZones(req);
+        if (hasDateRange(req) && eligibleTimeZones.isEmpty()) {
+            return createEmpty(pageable);
+        }
+
+        Query query = buildQuery(req, viewport, eligibleTimeZones);
 
         /*//
         JsonGeneratorFactory factory = esClient._transport()
@@ -118,9 +126,10 @@ public class AccommodationSearchService {
                 .build();
     }
 
-    private Query buildQuery(
+    Query buildQuery(
             AccommodationSearchRequest.AccommodationSearchRequestDto req,
-            Viewport viewport
+            Viewport viewport,
+            Set<String> eligibleTimeZones
     ) {
 
         BoolQuery.Builder b = new BoolQuery.Builder();
@@ -206,6 +215,14 @@ public class AccommodationSearchService {
         }
 
         if (req.getCheckIn() != null && req.getCheckOut() != null) {
+            List<FieldValue> timeZoneValues = eligibleTimeZones.stream()
+                .sorted()
+                .map(FieldValue::of)
+                .toList();
+            b.filter(f -> f.terms(t -> t
+                .field("timeZoneId")
+                .terms(values -> values.value(timeZoneValues))
+            ));
             b.mustNot(mn -> mn.range(r -> r
                 .date(d -> d
                     .field("reservationRanges")
@@ -220,6 +237,20 @@ public class AccommodationSearchService {
         return new Query.Builder()
             .bool(b.build())
             .build();
+    }
+
+    private Set<String> eligibleTimeZones(
+            AccommodationSearchRequest.AccommodationSearchRequestDto request
+    ) {
+        if (!hasDateRange(request)) {
+            return Set.of();
+        }
+        return bookingWindowProvider.eligibleTimeZonesForStay(
+            request.getCheckIn(), request.getCheckOut());
+    }
+
+    private boolean hasDateRange(AccommodationSearchRequest.AccommodationSearchRequestDto request) {
+        return request.getCheckIn() != null && request.getCheckOut() != null;
     }
 
     private Viewport determineViewport(AccommodationSearchRequest.MapBoundsDto bounds) {

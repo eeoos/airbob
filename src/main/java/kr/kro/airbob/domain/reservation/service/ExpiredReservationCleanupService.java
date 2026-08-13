@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.reservation.service;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -24,11 +25,12 @@ public class ExpiredReservationCleanupService {
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryBatchWriter historyBatchWriter;
 	private final ReservationHoldService holdService;
+	private final Clock clock;
 
 	@Transactional
 	public int cleanupExpiredPendingReservations() {
-		LocalDateTime cutoff = LocalDateTime.now();
-		List<Reservation> expired = reservationRepository.findAllByStatusAndExpiresAtBefore(
+		Instant cutoff = clock.instant();
+		List<Reservation> expired = reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
 			ReservationStatus.PAYMENT_PENDING,
 			cutoff
 		);
@@ -51,8 +53,8 @@ public class ExpiredReservationCleanupService {
 		historyBatchWriter.writeAll(histories, cutoff);
 		expired.forEach(reservation -> holdService.removeHold(
 			reservation.getAccommodation().getId(),
-			reservation.getCheckIn().toLocalDate(),
-			reservation.getCheckOut().toLocalDate()
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate()
 		));
 		return expired.size();
 	}

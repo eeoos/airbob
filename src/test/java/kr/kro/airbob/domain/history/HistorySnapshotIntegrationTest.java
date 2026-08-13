@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.history;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -36,6 +38,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationHistory;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -53,6 +56,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("이력 테이블 SCD2 동작 통합 테스트")
 class HistorySnapshotIntegrationTest {
 
@@ -89,8 +93,6 @@ class HistorySnapshotIntegrationTest {
 		registry.add("spring.flyway.password", mySQLContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	@BeforeEach
@@ -100,6 +102,22 @@ class HistorySnapshotIntegrationTest {
 		memberHistoryRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
+	}
+
+	@Test
+	@DisplayName("숙소 이력 스냅샷은 원본 숙소의 시간대 식별자를 복사한다")
+	void accommodationHistoryCopiesTimeZoneId() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.timeZoneId("America/New_York")
+			.status(AccommodationStatus.DRAFT)
+			.build();
+
+		AccommodationHistory history = AccommodationHistory.of(
+			accommodation, ChangeType.UPDATE, "시간대 변경", LocalDateTime.of(2026, 8, 12, 0, 0)
+		);
+
+		assertThat(history.getTimeZoneId()).isEqualTo("America/New_York");
 	}
 
 	@Test

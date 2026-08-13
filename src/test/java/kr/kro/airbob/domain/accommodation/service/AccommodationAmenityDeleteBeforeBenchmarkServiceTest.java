@@ -5,6 +5,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -34,11 +36,13 @@ class AccommodationAmenityDeleteBeforeBenchmarkServiceTest {
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private AccommodationHistoryRepository accommodationHistoryRepository;
 	@Mock private CommonCodeService commonCodeService;
+	@Mock private Clock clock;
 	@InjectMocks private AccommodationAmenityDeleteBeforeBenchmarkService service;
 
 	@Test
 	@DisplayName("편의시설 코드는 JVM Locale과 무관하게 ASCII 대문자로 정규화한다")
 	void normalizeAmenityCodeWithRootLocale() {
+		given(clock.instant()).willReturn(Instant.parse("2026-08-12T05:30:00Z"));
 		Locale previousLocale = Locale.getDefault();
 		try {
 			Locale.setDefault(Locale.forLanguageTag("tr-TR"));

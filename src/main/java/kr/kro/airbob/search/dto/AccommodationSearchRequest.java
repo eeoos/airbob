@@ -4,8 +4,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
@@ -30,9 +28,7 @@ public class AccommodationSearchRequest {
 		private Integer maxPrice;
 
 		// 날짜
-		@FutureOrPresent
 		private LocalDate checkIn;
-		@Future
 		private LocalDate checkOut;
 
 		// 인원 수
@@ -51,12 +47,10 @@ public class AccommodationSearchRequest {
 		// 숙소 타입
 		private List<String> accommodationTypes;
 
-		@AssertTrue(message = "체크아웃 날짜는 체크인 날짜 다음날 이상이어야 합니다.")
+		@AssertTrue(message = "체크인과 체크아웃 날짜는 함께 입력해야 하며, 체크아웃은 체크인보다 뒤여야 합니다.")
 		public boolean isValidDateRange() {
-			if (checkIn != null && checkOut != null) {
-				return checkOut.isAfter(checkIn);
-			}
-			return true;
+			return (checkIn == null && checkOut == null)
+				|| (checkIn != null && checkOut != null && checkOut.isAfter(checkIn));
 		}
 
 		@AssertTrue(message = "최대 가격은 최소 가격보다 크거나 같아야 합니다.")

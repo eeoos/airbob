@@ -2,8 +2,6 @@ package kr.kro.airbob.domain.recentlyViewed.service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -130,9 +128,7 @@ public class RecentlyViewedService {
 					return null;
 				}
 
-				LocalDateTime viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue())
-					.atZone(ZoneId.systemDefault())
-					.toLocalDateTime();
+				Instant viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue());
 
 				ReviewResponse.ReviewSummary reviewSummary = reviewSummaryMap.get(accommodationId);
 
@@ -188,9 +184,7 @@ public class RecentlyViewedService {
 					return null;
 				}
 
-				LocalDateTime viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue())
-					.atZone(ZoneId.systemDefault())
-					.toLocalDateTime();
+				Instant viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue());
 				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(
 					viewedAt,
 					accommodation,

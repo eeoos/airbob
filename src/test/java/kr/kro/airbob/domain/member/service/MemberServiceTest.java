@@ -8,6 +8,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import kr.kro.airbob.common.history.HistoryConstants;
@@ -31,6 +35,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class MemberServiceTest {
+    private static final Instant NOW = Instant.parse("2026-08-12T05:30:00Z");
+    private static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+
     @Mock
     private MemberRepository memberRepository;
     @Mock
@@ -42,7 +49,8 @@ class MemberServiceTest {
 
     @Test
     void createMemberStoresBCryptPasswordHash() {
-        MemberService memberService = new MemberService(memberRepository, historyRepository, sessionInvalidator);
+        MemberService memberService = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
         MemberRequest.Signup request = MemberRequest.Signup.builder()
             .email("guest@airbob.test")
             .nickname("guest")
@@ -62,7 +70,8 @@ class MemberServiceTest {
 
     @Test
     void deleteMemberRevokesAllSessions() {
-        MemberService memberService = new MemberService(memberRepository, historyRepository, sessionInvalidator);
+        MemberService memberService = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
         Member member = Member.builder()
             .id(10L)
             .email("guest@airbob.test")
@@ -81,8 +90,37 @@ class MemberServiceTest {
     }
 
     @Test
+    void deleteMemberClosesAndOpensHistoryAtSameUtcTime() {
+        MemberService memberService = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
+        Member member = Member.builder()
+            .id(10L)
+            .status(MemberStatus.ACTIVE)
+            .build();
+        MemberHistory currentHistory = MemberHistory.builder()
+            .memberId(10L)
+            .status(MemberStatus.ACTIVE)
+            .changeType(kr.kro.airbob.common.history.ChangeType.CREATE)
+            .validFrom(LocalDateTime.of(2026, 8, 1, 0, 0))
+            .validTo(HistoryConstants.FOREVER)
+            .build();
+        given(memberRepository.findByIdForUpdate(10L)).willReturn(Optional.of(member));
+        given(historyRepository.findByMemberIdAndValidTo(10L, HistoryConstants.FOREVER))
+            .willReturn(Optional.of(currentHistory));
+        ArgumentCaptor<MemberHistory> historyCaptor = ArgumentCaptor.forClass(MemberHistory.class);
+
+        memberService.deleteMember(10L, "사용자 탈퇴");
+
+        LocalDateTime expected = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
+        assertThat(currentHistory.getValidTo()).isEqualTo(expected);
+        then(historyRepository).should().save(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getValidFrom()).isEqualTo(expected);
+    }
+
+    @Test
     void getMemberInfoReturnsActiveMemberProfile() {
-        MemberService service = new MemberService(memberRepository, historyRepository, sessionInvalidator);
+        MemberService service = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
         Member member = Member.builder()
             .id(10L)
             .email("guest@airbob.test")
@@ -103,7 +141,8 @@ class MemberServiceTest {
 
     @Test
     void getMemberInfoRejectsMissingOrInactiveMember() {
-        MemberService service = new MemberService(memberRepository, historyRepository, sessionInvalidator);
+        MemberService service = new MemberService(
+            memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
         given(memberRepository.findByIdAndStatus(10L, MemberStatus.ACTIVE))
             .willReturn(Optional.empty());
 

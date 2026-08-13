@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.statistics.scheduler;
 
+import java.time.Clock;
 import java.time.LocalDate;
 
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,10 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 public class StatisticsScheduler {
 
 	private final RevenueStatsService revenueStatsService;
+	private final Clock clock;
 
-	@Scheduled(cron = "0 0 4 * * *")
+	@Scheduled(cron = "0 0 4 * * *", zone = "UTC")
 	public void aggregateDailyRevenue() {
-		LocalDate target = LocalDate.now().minusDays(1);
+		LocalDate target = LocalDate.now(clock).minusDays(1);
 		log.info("일일 매출 사전집계 시작: stat_date={}", target);
 		revenueStatsService.recompute(target);
 		log.info("일일 매출 사전집계 완료: stat_date={}", target);

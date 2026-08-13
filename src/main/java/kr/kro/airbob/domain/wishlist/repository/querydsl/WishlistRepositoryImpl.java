@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.wishlist.repository.querydsl;
 import static kr.kro.airbob.domain.wishlist.entity.QWishlist.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.springframework.data.domain.Pageable;
@@ -26,7 +27,7 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 		queryFactory.update(wishlist)
 			.set(wishlist.accommodationCount, wishlist.accommodationCount.add(1))
 			.set(wishlist.representativeAccommodationId, accommodationId)
-			.set(wishlist.updatedAt, LocalDateTime.now())
+			.set(wishlist.updatedAt, LocalDateTime.now(ZoneOffset.UTC))
 			.where(wishlist.id.eq(wishlistId))
 			.execute();
 	}
@@ -35,7 +36,7 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 	public void decrementCount(Long wishlistId) {
 		queryFactory.update(wishlist)
 			.set(wishlist.accommodationCount, wishlist.accommodationCount.subtract(1))
-			.set(wishlist.updatedAt, LocalDateTime.now())
+			.set(wishlist.updatedAt, LocalDateTime.now(ZoneOffset.UTC))
 			.where(wishlist.id.eq(wishlistId))
 			.execute();
 	}
@@ -43,7 +44,7 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 	@Override
 	public void updateRepresentative(Long wishlistId, Long accommodationId) {
 		JPAUpdateClause clause = queryFactory.update(wishlist)
-			.set(wishlist.updatedAt, LocalDateTime.now())
+			.set(wishlist.updatedAt, LocalDateTime.now(ZoneOffset.UTC))
 			.where(wishlist.id.eq(wishlistId));
 
 		if (accommodationId == null) {

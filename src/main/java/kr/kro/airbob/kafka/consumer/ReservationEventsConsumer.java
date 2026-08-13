@@ -61,6 +61,12 @@ public class ReservationEventsConsumer {
 					ReservationEvent.ReservationCancellationRevertRequestedEvent event = envelope.payload();
 					reservationService.revertCancellation(event);
 				}
+				case RESERVATION_CANCELLATION_COMPLETE_REQUESTED -> {
+					EventEnvelope<ReservationEvent.ReservationCancellationCompleteRequestedEvent> envelope =
+						debeziumEventParser.parse(
+							message, ReservationEvent.ReservationCancellationCompleteRequestedEvent.class);
+					reservationService.completeCancellation(envelope.payload());
+				}
 				/*case RESERVATION_PENDING -> {
 					// 추후 알림과 같은 기능 생기면 로직 추가
 				}*/

@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.payment.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import kr.kro.airbob.outbox.EventPayload;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -11,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class PaymentRequest {
 
 	public record Confirm(
-		@NotBlank String paymentKey,
+		@NotBlank @Size(max = 200) String paymentKey,
 		@NotBlank String orderId,
 		@NotNull @Positive Integer amount
 	)implements EventPayload {

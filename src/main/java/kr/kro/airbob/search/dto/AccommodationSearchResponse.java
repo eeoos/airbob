@@ -78,10 +78,10 @@ public class AccommodationSearchResponse {
 				.currentPage(pageNumber)
 				.totalPages(0)
 				.totalElements(0)
-				.isFirst(true)
+				.isFirst(pageNumber == 0)
 				.isLast(true)
 				.hasNext(false)
-				.hasPrevious(false)
+				.hasPrevious(pageNumber > 0)
 				.build();
 		}
 	}

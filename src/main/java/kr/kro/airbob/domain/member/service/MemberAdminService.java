@@ -5,7 +5,9 @@ import static java.util.stream.Collectors.toMap;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ public class MemberAdminService {
 	private final MemberRepository memberRepository;
 	private final MemberHistoryRepository memberHistoryRepository;
 	private final EntityManager entityManager;
+	private final Clock clock;
 
 	@Transactional
 	public RoleChanged changeRole(Long actorId, Long targetId, ChangeRole request) {
@@ -58,10 +61,11 @@ public class MemberAdminService {
 		}
 
 		target.changeRole(request.role());
+		LocalDateTime changedAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		memberHistoryRepository.findByMemberIdAndValidTo(targetId, HistoryConstants.FOREVER)
-			.ifPresent(history -> history.close(LocalDateTime.now()));
+			.ifPresent(history -> history.close(changedAt));
 		memberHistoryRepository.save(
-			MemberHistory.open(target, ChangeType.ROLE_CHANGE, request.reason()));
+			MemberHistory.open(target, ChangeType.ROLE_CHANGE, request.reason(), changedAt));
 
 		return new RoleChanged(targetId, target.getRole());
 	}

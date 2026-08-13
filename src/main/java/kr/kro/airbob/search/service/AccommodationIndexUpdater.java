@@ -1,6 +1,5 @@
 package kr.kro.airbob.search.service;
 
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +12,8 @@ import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class AccommodationIndexUpdater {
 	private final ElasticsearchOperations elasticsearchOperations;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final ReservationRepository reservationRepository;
+	private final BookingWindowProvider bookingWindowProvider;
 	public void updateReviewSummaryInIndex(String accommodationUid) {
 		AccommodationReviewSummary reviewSummary = reviewSummaryRepository.findByAccommodation_AccommodationUid(UUID.fromString(accommodationUid))
 			.orElse(null);
@@ -49,37 +51,34 @@ public class AccommodationIndexUpdater {
 		elasticsearchOperations.update(updateQuery, IndexCoordinates.of(ACCOMMODATIONS));
 	}
 
-	public void updateReservedDatesInIndex(String accommodationUid) {
-		List<LocalDate> reservedDates = getReservedDates(accommodationUid);
-
-		List<String> reservedDateStrings = reservedDates.stream()
-			.map(LocalDate::toString)
-			.toList();
+	public void updateReservationRangesInIndex(String accommodationUid) {
+		List<Map<String, String>> reservationRanges = getReservationRanges(accommodationUid);
 
 		Map<String, Object> params = new HashMap<>();
-		params.put("reservedDates", reservedDateStrings);
+		params.put("reservationRanges", reservationRanges);
 
 		UpdateQuery updateQuery = UpdateQuery.builder(accommodationUid)
 			.withScriptType(ScriptType.INLINE)
-			.withScript("ctx._source.reservedDates = params.reservedDates")
+			.withScript("ctx._source.reservationRanges = params.reservationRanges")
 			.withParams(params)
 			.build();
 
 		elasticsearchOperations.update(updateQuery, IndexCoordinates.of(ACCOMMODATIONS));
 	}
 
-	private List<LocalDate> getReservedDates(String accommodationUid) {
+	private List<Map<String, String>> getReservationRanges(String accommodationUid) {
+		ReservationIndexingWindow window = bookingWindowProvider.currentIndexingWindow();
 		return reservationRepository
-			.findFutureConfirmedReservationRangesByAccommodationUid(UUID.fromString(accommodationUid))
+			.findActiveReservationRangesByAccommodationUid(
+				UUID.fromString(accommodationUid),
+				window.startInclusive(),
+				window.endExclusive()
+			)
 			.stream()
-			.flatMap(dateRange -> {
-				LocalDate checkInDate = dateRange.checkIn().toLocalDate();
-				LocalDate checkOutDate = dateRange.checkOut().toLocalDate();
-				// checkOutDate는 숙박일에 포함되지 않으므로 datesUntil 사용
-				return checkInDate.datesUntil(checkOutDate);
-			})
-			.distinct()
-			.sorted()
+			.map(dateRange -> Map.of(
+				"gte", dateRange.checkIn().toString(),
+				"lt", dateRange.checkOut().toString()
+			))
 			.toList();
 	}
 }

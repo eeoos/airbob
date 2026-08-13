@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -75,6 +76,7 @@ import kr.kro.airbob.geo.dto.GeocodeResult;
 	"benchmark.bulk-write.allowed-schema=airbob_bulk_write_benchmark"
 })
 @ActiveProfiles({"test", "bulk-write-benchmark"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("AccommodationAmenity 삭제 Before 벤치마크 MySQL 통합 테스트")
 class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	private static final String INACTIVE_AMENITY_CODE = "INACTIVE_TEST_AMENITY";
@@ -103,8 +105,6 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		registry.add("spring.datasource.password", MYSQL::getPassword);
 		registry.add("spring.data.redis.host", REDIS::getHost);
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	@Autowired private AccommodationAmenityDeleteBenchmarkService benchmarkService;
@@ -765,7 +765,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		return jdbcTemplate.queryForMap("""
 			SELECT id, BIN_TO_UUID(accommodation_uid) AS accommodation_uid, member_id, name,
 			       description, base_price, currency, thumbnail_url, type,
-			       status, check_in_time, check_out_time, address_id, occupancy_policy_id,
+		       status, check_in_time, check_out_time, time_zone_id, address_id, occupancy_policy_id,
 			       created_at, updated_at, created_by, updated_by
 			FROM accommodation
 			WHERE id = ?
@@ -775,7 +775,8 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	private List<Map<String, Object>> historySnapshots(long accommodationId) {
 		return new ArrayList<>(jdbcTemplate.queryForList("""
 			SELECT id, accommodation_id, accommodation_uid, name, description, base_price,
-			       currency, thumbnail_url, type, status, check_in_time, check_out_time, member_id,
+		       currency, thumbnail_url, type, status, check_in_time, check_out_time, member_id,
+		       time_zone_id,
 			       address_country, address_state, address_city, address_district, address_street,
 			       address_detail, address_postal_code, address_latitude, address_longitude,
 			       max_occupancy, infant_occupancy, pet_occupancy, created_at, created_by,

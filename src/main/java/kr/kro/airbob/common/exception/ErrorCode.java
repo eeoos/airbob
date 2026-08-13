@@ -45,6 +45,7 @@ public enum ErrorCode {
 	ACCOMMODATION_INVALID_PRICE(HttpStatus.BAD_REQUEST, "A005", "숙소 가격이 유효하지 않습니다."),
 	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
 	ACCOMMODATION_INVALID_AMENITY(HttpStatus.BAD_REQUEST, "A007", "편의시설 코드가 유효하지 않습니다."),
+	ACCOMMODATION_LOCATION_RESOLUTION_FAILED(HttpStatus.BAD_REQUEST, "A008", "숙소 위치의 좌표 또는 시간대를 확인할 수 없습니다."),
 	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A003", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
 
 
@@ -59,6 +60,8 @@ public enum ErrorCode {
 	RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "R008", "해당 예약에 대한 접근 권한이 없습니다."),
 	INVALID_RESERVATION_DATE(HttpStatus.BAD_REQUEST, "R009", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
 	RESERVATION_OUTSIDE_BOOKING_WINDOW(HttpStatus.BAD_REQUEST, "R010", "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."),
+	CANNOT_CONFIRM_EXPIRED_RESERVATION(HttpStatus.CONFLICT, "R011", "결제 유효 시간이 지난 예약은 확정할 수 없습니다."),
+	RESERVATION_LOCAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "R012", "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."),
 
 
 	// payment
