@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!bulk-write-benchmark")
+@Profile("!bulk-write-benchmark & !test")
 @EnableScheduling
 public class SchedulingConfig {
 }
