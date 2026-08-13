@@ -65,14 +65,11 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("숙소 현지 시간대 식별자를 snake case로 반환한다")
 	void serializesAccommodationTimeZoneIdInSnakeCase() {
-		Accommodation accommodation = mock(Accommodation.class);
-		when(accommodation.getTimeZoneId()).thenReturn("America/New_York");
+		AccommodationDetailSnapshot snapshot = new AccommodationDetailSnapshot(
+			1L, "숙소", null, null, null, null, null, null,
+			"America/New_York", null, null, null, null, List.of(), List.of(), null);
 		AccommodationResponse.DetailInfo response = AccommodationResponse.DetailInfo.from(
-			accommodation,
-			false,
-			List.of(),
-			List.of(),
-			null
+			snapshot, false
 		);
 
 		JsonNode json = objectMapper.valueToTree(response);

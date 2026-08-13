@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import kr.kro.airbob.domain.accommodation.api.AccommodationAmenityDeleteBenchmarkController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
+import kr.kro.airbob.domain.accommodation.api.AccommodationDetailBenchmarkController;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.api.CouponBenchmarkController;
 import kr.kro.airbob.domain.coupon.api.CouponController;
@@ -52,6 +53,7 @@ class CurrentMemberIdControllerContractTest {
 	private static Stream<HandlerContract> currentMemberHandlers() {
 		return Stream.of(
 			required(AccommodationAmenityDeleteBenchmarkController.class, "run"),
+			optional(AccommodationDetailBenchmarkController.class, "findAccommodationBefore"),
 			required(AccommodationController.class, "registerAccommodation"),
 			required(AccommodationController.class, "updateAccommodation"),
 			required(AccommodationController.class, "publishAccommodation"),

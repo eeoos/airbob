@@ -69,11 +69,18 @@ public class ReviewResponse {
 		Integer totalCount,
 		BigDecimal averageRating
 	) {
+		public static ReviewSummary of(Integer totalCount, BigDecimal averageRating) {
+			return new ReviewSummary(
+				totalCount == null ? 0 : totalCount,
+				averageRating == null ? BigDecimal.ZERO : averageRating
+			);
+		}
+
 		public static ReviewSummary of(AccommodationReviewSummary summary) {
 			if (summary == null) {
-				return new ReviewSummary(0, BigDecimal.ZERO);
+				return of(null, null);
 			}
-			return new ReviewSummary(
+			return of(
 				summary.getTotalReviewCount(),
 				summary.getAverageRating()
 			);
@@ -82,11 +89,10 @@ public class ReviewResponse {
 		// review 테이블 직접 집계(naive) 결과 매핑
 		public static ReviewSummary of(ReviewSummaryRow row) {
 			if (row == null) {
-				return new ReviewSummary(0, BigDecimal.ZERO);
+				return of(null, null);
 			}
-			int count = row.getTotalCount() == null ? 0 : row.getTotalCount().intValue();
-			BigDecimal avg = row.getAverageRating() == null ? BigDecimal.ZERO : row.getAverageRating();
-			return new ReviewSummary(count, avg);
+			Integer totalCount = row.getTotalCount() == null ? null : row.getTotalCount().intValue();
+			return of(totalCount, row.getAverageRating());
 		}
 	}
 }

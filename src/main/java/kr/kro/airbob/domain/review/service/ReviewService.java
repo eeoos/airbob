@@ -21,6 +21,8 @@ import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -74,6 +76,7 @@ public class ReviewService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 	private final OutboxEventPublisher outboxEventPublisher;
 	private final S3ImageUploader s3ImageUploader;
+	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	private final Clock clock;
 
 	@Transactional
@@ -97,6 +100,8 @@ public class ReviewService {
 			EventType.REVIEW_SUMMARY_CHANGED,
 			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
 		);
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.REVIEW);
 
 		return new ReviewResponse.Create(savedReview.getId());
 	}
@@ -120,6 +125,8 @@ public class ReviewService {
 				EventType.REVIEW_SUMMARY_CHANGED,
 				new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
 			);
+			cacheInvalidationPublisher.publish(
+				review.getAccommodation().getId(), AccommodationDetailCacheInvalidationReason.REVIEW);
 		}
 
 		return new ReviewResponse.Update(review.getId());
@@ -143,6 +150,8 @@ public class ReviewService {
 			EventType.REVIEW_SUMMARY_CHANGED,
 			new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
 		);
+		cacheInvalidationPublisher.publish(
+			review.getAccommodation().getId(), AccommodationDetailCacheInvalidationReason.REVIEW);
 	}
 
 	@Transactional(readOnly = true)

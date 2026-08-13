@@ -46,6 +46,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
     private static final String[] PUBLIC_GET_PATHS = {
         "/api/v1/accommodations/*",          // 숙소 상세
         "/api/v1/accommodations/*/availability", // 숙소 예약 가능 정보
+        "/api/v2/accommodations/*",          // 숙소 상세 read model benchmark
         "/api/v1/accommodations/*/reviews",  // 리뷰 목록
         "/api/v1/accommodations/*/reviews/summary", // 리뷰 요약
         "/api/v2/accommodations/*/reviews/summary", // read model benchmark 리뷰 요약
