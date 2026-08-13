@@ -1,6 +1,6 @@
 package kr.kro.airbob.search.service;
 
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +16,8 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.domain.reservation.policy.ReservationIndexingWindow;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
@@ -29,6 +31,7 @@ public class AccommodationDocumentBuilder {
 	private final AccommodationAmenityRepository amenityRepository;
 	private final ReservationRepository reservationRepository;
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
+	private final BookingWindowProvider bookingWindowProvider;
 
 	public AccommodationDocument buildAccommodationDocument(String accommodationUidStr) {
 		UUID accommodationUid = UUID.fromString(accommodationUidStr);
@@ -38,7 +41,7 @@ public class AccommodationDocumentBuilder {
 
 		List<String> amenityTypes = getAccommodationAmenities(accommodationUid);
 		// List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
-		List<AccommodationDocument.DateRange> reservationRanges = getReservationRanges(accommodationUid);
+		List<AccommodationDocument.DateRange> reservationRanges = getReservationRanges(accommodation.getId());
 		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
 		return AccommodationDocument.builder()
@@ -50,7 +53,8 @@ public class AccommodationDocumentBuilder {
 			.currency(accommodation.getCurrency())
 			.type(accommodation.getType())
 			.status(accommodation.getStatus().name())
-			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant())
+			.timeZoneId(accommodation.getTimeZoneId())
+			.createdAt(accommodation.getCreatedAt().toInstant(ZoneOffset.UTC))
 			.location(AccommodationDocument.Location.builder()
 				.lat(accommodation.getAddress().getLatitude())
 				.lon(accommodation.getAddress().getLongitude())
@@ -82,13 +86,18 @@ public class AccommodationDocumentBuilder {
 			.orElse(null);
 	}
 
-	private List<AccommodationDocument.DateRange> getReservationRanges(UUID accommodationUid) {
+	private List<AccommodationDocument.DateRange> getReservationRanges(Long accommodationId) {
+		ReservationIndexingWindow window = bookingWindowProvider.currentIndexingWindow();
 		return reservationRepository
-			.findFutureConfirmedReservationRangesByAccommodationUid(accommodationUid)
+			.findActiveReservationRangesByAccommodationId(
+				accommodationId,
+				window.startInclusive(),
+				window.endExclusive()
+			)
 			.stream()
 			.map(dateRange -> AccommodationDocument.DateRange.builder()
-				.gte(dateRange.checkIn().toLocalDate()) // Check-in (gte)
-				.lt(dateRange.checkOut().toLocalDate()) // Check-out (lt)
+				.gte(dateRange.checkIn()) // Check-in (gte)
+				.lt(dateRange.checkOut()) // Check-out (lt)
 				.build()
 			)
 			.toList();
@@ -121,7 +130,8 @@ public class AccommodationDocumentBuilder {
 			.thumbnailUrl(accommodation.getThumbnailUrl())
 			.type(accommodation.getType())
 			.status(accommodation.getStatus().name())
-			.createdAt(accommodation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant());
+			.timeZoneId(accommodation.getTimeZoneId())
+			.createdAt(accommodation.getCreatedAt().toInstant(ZoneOffset.UTC));
 
 		Address address = accommodation.getAddress();
 		if (address != null) {

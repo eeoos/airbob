@@ -1,7 +1,9 @@
 package kr.kro.airbob.domain.wishlist.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import com.querydsl.core.annotations.QueryProjection;
@@ -37,7 +39,7 @@ public class WishlistAccommodationResponse {
 	public record WishlistAccommodationInfo(
 		long wishlistAccommodationId,
 		String memo,
-		LocalDateTime createdAt,
+		Instant createdAt,
 		AccommodationResponse.AccommodationBasicInfo accommodation,
 		AddressResponse.AddressSummaryInfo addressSummary,
 		ReviewResponse.ReviewSummary reviewSummary,
@@ -55,7 +57,7 @@ public class WishlistAccommodationResponse {
 			this(
 				wishlistAccommodationId,
 				memo,
-				createdAt,
+				createdAt == null ? null : createdAt.toInstant(ZoneOffset.UTC),
 				AccommodationResponse.AccommodationBasicInfo.from(accommodation),
 				AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()),
 				ReviewResponse.ReviewSummary.builder()

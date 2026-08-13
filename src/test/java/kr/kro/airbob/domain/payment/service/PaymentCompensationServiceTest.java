@@ -28,6 +28,8 @@ import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.PaymentCancelErrorCode;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.outbox.SlackNotificationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +47,9 @@ class PaymentCompensationServiceTest {
 
 	@Mock
 	private PaymentTransactionService paymentTransactionService;
+
+	@Mock
+	private ReservationTransactionService reservationTransactionService;
 
 	@Mock
 	private SlackNotificationService slackNotificationService;
@@ -88,6 +93,9 @@ class PaymentCompensationServiceTest {
 		@DisplayName("정상 보상 처리 시 cancelPayment가 호출된다")
 		void 정상_보상_처리() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(payment));
 
@@ -114,6 +122,9 @@ class PaymentCompensationServiceTest {
 		@DisplayName("보상 처리 시 processCompensationInTx가 호출된다")
 		void processCompensationInTx_호출() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(payment));
 
@@ -129,13 +140,17 @@ class PaymentCompensationServiceTest {
 			compensationService.compensate(reservationUid.toString());
 
 			// then
-			then(paymentTransactionService).should().processCompensationInTx(payment, cancelResponse);
+			then(paymentTransactionService).should()
+				.processCompensationInTx(reservationUid.toString(), cancelResponse);
 		}
 
 		@Test
 		@DisplayName("이미 CANCELED 상태면 보상을 스킵한다")
 		void 이미_CANCELED_스킵() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			TossPaymentResponse canceledResponse = TossPaymentResponse.builder()
 				.paymentKey("pk_test_123")
 				.orderId(reservationUid.toString())
@@ -147,6 +162,7 @@ class PaymentCompensationServiceTest {
 				.build();
 
 			Payment canceledPayment = Payment.create(canceledResponse, reservation);
+			canceledPayment.updateOnCancel(canceledResponse);
 
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(canceledPayment));
@@ -159,9 +175,12 @@ class PaymentCompensationServiceTest {
 		}
 
 		@Test
-		@DisplayName("이미 PARTIAL_CANCELED 상태면 보상을 스킵한다")
-		void 이미_PARTIAL_CANCELED_스킵() {
+		@DisplayName("PARTIAL_CANCELED 상태면 남은 금액의 보상을 다시 시도한다")
+		void PARTIAL_CANCELED_남은금액_보상재시도() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			TossPaymentResponse partialCanceledResponse = TossPaymentResponse.builder()
 				.paymentKey("pk_test_123")
 				.orderId(reservationUid.toString())
@@ -176,18 +195,58 @@ class PaymentCompensationServiceTest {
 
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(partialCanceledPayment));
+			TossPaymentResponse completedResponse = TossPaymentResponse.builder()
+				.paymentKey("pk_test_123")
+				.orderId(reservationUid.toString())
+				.totalAmount(100_000L)
+				.status("CANCELED")
+				.balanceAmount(0L)
+				.build();
+			given(tossPaymentsAdapter.cancelPayment(anyString(), anyString(), isNull()))
+				.willReturn(completedResponse);
 
 			// when
 			compensationService.compensate(reservationUid.toString());
 
 			// then
-			then(tossPaymentsAdapter).should(never()).cancelPayment(anyString(), anyString(), any());
+			then(tossPaymentsAdapter).should().cancelPayment(
+				eq("pk_test_123"), contains("Saga 보상"), isNull());
+			then(paymentTransactionService).should()
+				.processCompensationInTx(reservationUid.toString(), completedResponse);
+		}
+
+		@Test
+		@DisplayName("보상 응답이 전액 취소가 아니면 성공으로 간주하지 않는다")
+		void partialCompensationResponseFails() {
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
+			given(paymentRepository.findByReservationReservationUid(reservationUid))
+				.willReturn(Optional.of(payment));
+			TossPaymentResponse partialResponse = TossPaymentResponse.builder()
+				.paymentKey("pk_test_123")
+				.orderId(reservationUid.toString())
+				.totalAmount(100_000L)
+				.status("PARTIAL_CANCELED")
+				.balanceAmount(50_000L)
+				.build();
+			given(tossPaymentsAdapter.cancelPayment(anyString(), anyString(), isNull()))
+				.willReturn(partialResponse);
+
+			assertThatThrownBy(() -> compensationService.compensate(reservationUid.toString()))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("전액 취소");
+
+			then(paymentTransactionService).shouldHaveNoInteractions();
 		}
 
 		@Test
 		@DisplayName("결제 정보를 찾을 수 없으면 PaymentNotFoundException이 발생한다")
 		void 결제정보_없음_예외() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.empty());
 
@@ -200,6 +259,9 @@ class PaymentCompensationServiceTest {
 		@DisplayName("TossPaymentException 발생 시 예외가 재throw된다")
 		void TossPaymentException_재throw() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(payment));
 
@@ -218,6 +280,9 @@ class PaymentCompensationServiceTest {
 		@DisplayName("일반 Exception 발생 시 예외가 재throw된다")
 		void 일반_Exception_재throw() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(payment));
 
@@ -234,6 +299,9 @@ class PaymentCompensationServiceTest {
 		@DisplayName("cancelReason에 'Saga 보상' 문구가 포함된다")
 		void cancelReason_Saga_보상_포함() {
 			// given
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(true);
 			given(paymentRepository.findByReservationReservationUid(reservationUid))
 				.willReturn(Optional.of(payment));
 
@@ -254,6 +322,20 @@ class PaymentCompensationServiceTest {
 				argThat(reason -> reason.contains("Saga 보상")),
 				isNull()
 			);
+		}
+
+		@Test
+		@DisplayName("이미 확정된 예약이면 정상 결제를 보상 취소하지 않는다")
+		void confirmedReservationSkipsCompensation() {
+			given(reservationTransactionService.preparePaymentCompensationInTx(
+				reservationUid.toString(), "예약 확정 최종 실패"))
+				.willReturn(false);
+
+			compensationService.compensate(reservationUid.toString());
+
+			then(paymentRepository).shouldHaveNoInteractions();
+			then(tossPaymentsAdapter).shouldHaveNoInteractions();
+			then(paymentTransactionService).shouldHaveNoInteractions();
 		}
 	}
 
@@ -336,6 +418,25 @@ class PaymentCompensationServiceTest {
 			boolean hasSuccessMessage = alerts.stream()
 				.anyMatch(msg -> msg.contains("[COMPENSATION]") && msg.contains("성공"));
 			assertThat(hasSuccessMessage).isTrue();
+		}
+
+		@Test
+		@DisplayName("유령 결제 환불이 부분 취소에 그치면 성공 알림을 보내지 않는다")
+		void ghostPartialRefundDoesNotReportSuccess() {
+			String paymentKey = "pk_ghost_123";
+			TossPaymentResponse partialResponse = TossPaymentResponse.builder()
+				.status("PARTIAL_CANCELED")
+				.balanceAmount(50_000L)
+				.build();
+			given(tossPaymentsAdapter.cancelPayment(anyString(), anyString(), isNull()))
+				.willReturn(partialResponse);
+
+			compensationService.compensateGhostPayment(paymentKey);
+
+			then(slackNotificationService).should(atLeastOnce()).sendAlert(slackMessageCaptor.capture());
+			assertThat(slackMessageCaptor.getAllValues())
+				.noneMatch(message -> message.contains("[COMPENSATION]") && message.contains("성공"))
+				.anyMatch(message -> message.contains("[FATAL]") && message.contains("전액 취소"));
 		}
 
 		@Test

@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.settlement.scheduler;
 
+import java.time.Clock;
 import java.time.YearMonth;
 
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,10 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 public class SettlementScheduler {
 
 	private final SettlementService settlementService;
+	private final Clock clock;
 
-	@Scheduled(cron = "0 0 4 1 * *")
+	@Scheduled(cron = "0 0 4 1 * *", zone = "UTC")
 	public void generatePreviousMonthSettlement() {
-		YearMonth previousMonth = YearMonth.now().minusMonths(1);
+		YearMonth previousMonth = YearMonth.now(clock).minusMonths(1);
 		log.info("월 정산 배치 시작: month={}", previousMonth);
 		settlementService.generateMonth(previousMonth);
 		log.info("월 정산 배치 완료: month={}", previousMonth);

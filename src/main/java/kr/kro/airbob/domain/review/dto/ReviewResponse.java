@@ -1,7 +1,9 @@
 package kr.kro.airbob.domain.review.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +41,7 @@ public class ReviewResponse {
 		long id,
 		int rating,
 		String content,
-		LocalDateTime reviewedAt,
+		Instant reviewedAt,
 		MemberResponse.MemberInfo reviewer,
 		List<ImageResponse.ImageInfo> images
 	) {
@@ -55,7 +57,7 @@ public class ReviewResponse {
 				id,
 				rating,
 				content,
-				reviewedAt,
+				reviewedAt == null ? null : reviewedAt.toInstant(ZoneOffset.UTC),
 				reviewer,
 				new ArrayList<>()
 			);

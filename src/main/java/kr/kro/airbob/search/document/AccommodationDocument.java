@@ -59,6 +59,9 @@ public record AccommodationDocument(
 	@Field(type = FieldType.Keyword)
 	String status,
 
+	@Field(type = FieldType.Keyword)
+	String timeZoneId,
+
 	@Field(type = FieldType.Date, format = {DateFormat.date_time})
 	Instant createdAt,
 
@@ -170,4 +173,3 @@ public record AccommodationDocument(
 		LocalDate lt
 	) {}
 }
-

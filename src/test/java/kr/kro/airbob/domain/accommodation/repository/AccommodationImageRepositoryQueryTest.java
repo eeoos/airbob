@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -42,6 +43,7 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
     QueryDslConfig.class,
     AccommodationImageRepositoryQueryTest.SqlCaptureConfig.class
 })
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 이미지 저장소 쿼리 테스트")
 class AccommodationImageRepositoryQueryTest {
 

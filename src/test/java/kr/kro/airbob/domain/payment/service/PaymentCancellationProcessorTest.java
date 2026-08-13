@@ -86,38 +86,42 @@ class PaymentCancellationProcessorTest {
 	class ProcessSuccessTest {
 
 		@Test
-		@DisplayName("취소 성공 시 processSuccessfulCancellation이 호출된다")
+		@DisplayName("취소 성공 시 reservationUid와 응답으로 트랜잭션 처리를 위임한다")
 		void 취소_성공_처리() {
 			// given
 			PaymentEvent.PgCancelCallSucceededEvent event = new PaymentEvent.PgCancelCallSucceededEvent(
 				cancelResponse, reservationUid.toString()
 			);
 
-			given(paymentRepository.findByReservationReservationUid(reservationUid))
-				.willReturn(Optional.of(payment));
-
 			// when
 			cancellationProcessor.processSuccess(event);
 
 			// then
-			then(paymentTransactionService).should().processSuccessfulCancellation(payment, cancelResponse);
+			then(paymentTransactionService).should().processSuccessfulCancellation(
+				reservationUid.toString(), cancelResponse);
+			then(paymentRepository).shouldHaveNoInteractions();
 		}
 
 		@Test
-		@DisplayName("Payment 조회 실패 시 PaymentNotFoundException이 발생한다")
-		void Payment_조회_실패_예외() {
-			// given
-			PaymentEvent.PgCancelCallSucceededEvent event = new PaymentEvent.PgCancelCallSucceededEvent(
-				cancelResponse, reservationUid.toString()
-			);
+		@DisplayName("PG가 부분 환불 응답을 반환하면 수동 조정 알림을 보낸다")
+		void alertsOnPartialCancellationResponse() {
+			TossPaymentResponse partialResponse = TossPaymentResponse.builder()
+				.status("PARTIAL_CANCELED")
+				.balanceAmount(50_000L)
+				.build();
+			PaymentEvent.PgCancelCallSucceededEvent event =
+				new PaymentEvent.PgCancelCallSucceededEvent(
+					partialResponse, reservationUid.toString());
 
-			given(paymentRepository.findByReservationReservationUid(reservationUid))
-				.willReturn(Optional.empty());
+			cancellationProcessor.processSuccess(event);
 
-			// when & then
-			assertThatThrownBy(() -> cancellationProcessor.processSuccess(event))
-				.isInstanceOf(PaymentNotFoundException.class);
+			then(slackNotificationService).should().sendAlert(slackMessageCaptor.capture());
+			assertThat(slackMessageCaptor.getValue())
+				.contains("[FATAL]")
+				.contains("PARTIAL_CANCELED")
+				.contains("50000");
 		}
+
 	}
 
 	@Nested

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -37,6 +38,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 	"benchmark.read-model.token=test-token"
 })
 @ActiveProfiles({"test", "read-model-benchmark"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("일일 매출 사전집계(daily_revenue_stats) 통합 테스트")
 class DailyRevenueStatsIntegrationTest {
 
@@ -67,8 +69,6 @@ class DailyRevenueStatsIntegrationTest {
 		registry.add("spring.flyway.password", mySQLContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	private static final LocalDate D1 = LocalDate.of(2026, 6, 10);
@@ -194,9 +194,11 @@ class DailyRevenueStatsIntegrationTest {
 	private long insertReservation(String code, long accommodationId, long guestId) {
 		jdbc.update("""
 			INSERT INTO reservation
-				(reservation_uid, reservation_code, accommodation_id, guest_id, check_in, check_out,
+				(reservation_uid, reservation_code, accommodation_id, guest_id,
+				 check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
 				 guest_count, total_price, status, expires_at, currency, created_at, updated_at)
-			VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, '2026-07-01 15:00:00', '2026-07-03 11:00:00',
+			VALUES (UUID_TO_BIN(UUID()), ?, ?, ?,
+				 '2026-07-01', '2026-07-03', '2026-07-01 15:00:00', '2026-07-03 11:00:00', 'UTC',
 				 2, 200000, 'CONFIRMED', '2026-07-01 00:00:00', 'KRW', NOW(6), NOW(6))
 			""", code, accommodationId, guestId);
 		return jdbc.queryForObject("SELECT id FROM reservation WHERE reservation_code = ?", Long.class, code);

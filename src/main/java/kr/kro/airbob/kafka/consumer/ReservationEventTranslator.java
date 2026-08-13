@@ -28,10 +28,10 @@ public class ReservationEventTranslator {
 		try {
 			String eventType = debeziumEventParser.getEventType(message);
 
-			if (EventType.RESERVATION_CANCELLED.name().equals(eventType)) {
-				EventEnvelope<ReservationEvent.ReservationCancelledEvent> envelope =
-					debeziumEventParser.parse(message, ReservationEvent.ReservationCancelledEvent.class);
-				ReservationEvent.ReservationCancelledEvent payload = envelope.payload();
+			if (EventType.RESERVATION_CANCELLATION_REQUESTED.name().equals(eventType)) {
+				EventEnvelope<ReservationEvent.ReservationCancellationRequestedEvent> envelope =
+					debeziumEventParser.parse(message, ReservationEvent.ReservationCancellationRequestedEvent.class);
+				ReservationEvent.ReservationCancellationRequestedEvent payload = envelope.payload();
 
 				// PG 취소 API 호출 이벤트 발행
 				outboxEventPublisher.save(
@@ -42,7 +42,18 @@ public class ReservationEventTranslator {
 						payload.cancelAmount()
 					)
 				);
-				log.info("[TRANSLATOR] RESERVATION_CANCELLED -> PG_CANCEL_CALL_REQUESTED 발행. UID: {}", payload.reservationUid());
+				log.info("[TRANSLATOR] RESERVATION_CANCELLATION_REQUESTED -> PG_CANCEL_CALL_REQUESTED 발행. UID: {}", payload.reservationUid());
+			} else if (EventType.RESERVATION_CANCELLED.name().equals(eventType)) {
+				EventEnvelope<ReservationEvent.ReservationCancelledEvent> envelope =
+					debeziumEventParser.parse(message, ReservationEvent.ReservationCancelledEvent.class);
+				ReservationEvent.ReservationCancelledEvent payload = envelope.payload();
+				outboxEventPublisher.save(
+					EventType.PG_CANCEL_CALL_REQUESTED,
+					new PaymentEvent.PaymentCancellationRequestedEvent(
+						payload.reservationUid(), payload.cancelReason(), payload.cancelAmount())
+				);
+				log.info("[TRANSLATOR] legacy RESERVATION_CANCELLED -> PG_CANCEL_CALL_REQUESTED 발행. UID: {}",
+					payload.reservationUid());
 			}
 			ack.acknowledge();
 		} catch (DebeziumEventParsingException e) {

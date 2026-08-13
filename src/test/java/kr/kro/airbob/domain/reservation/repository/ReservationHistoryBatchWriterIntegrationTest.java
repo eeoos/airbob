@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,7 +73,7 @@ class ReservationHistoryBatchWriterIntegrationTest {
 	@ValueSource(ints = {0, 1, 2, 3, 5})
 	@DisplayName("제출한 모든 history를 정확히 저장한다")
 	void persistsEverySubmittedHistory(int size) {
-		LocalDateTime historyCreatedAt = LocalDateTime.of(2026, 7, 21, 12, 30);
+		Instant historyCreatedAt = Instant.parse("2026-07-21T12:30:00Z");
 
 		writer.writeAll(histories(size), historyCreatedAt);
 
@@ -81,9 +84,9 @@ class ReservationHistoryBatchWriterIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("21개 non-ID snapshot column을 정확히 저장한다")
+	@DisplayName("24개 non-ID snapshot column을 정확히 저장한다")
 	void persistsAllSnapshotColumns() {
-		LocalDateTime historyCreatedAt = LocalDateTime.of(2026, 7, 21, 12, 30);
+		Instant historyCreatedAt = Instant.parse("2026-07-21T12:30:00Z");
 		ReservationHistory history = history(1);
 
 		writer.writeAll(List.of(history), historyCreatedAt);
@@ -98,6 +101,7 @@ class ReservationHistoryBatchWriterIntegrationTest {
 			.containsEntry("reservation_code", history.getReservationCode())
 			.containsEntry("accommodation_id", history.getAccommodationId())
 			.containsEntry("guest_id", history.getGuestId())
+			.containsEntry("time_zone_id", history.getTimeZoneId())
 			.containsEntry("guest_count", history.getGuestCount())
 			.containsEntry("total_price", history.getTotalPrice())
 			.containsEntry("currency", history.getCurrency())
@@ -109,11 +113,14 @@ class ReservationHistoryBatchWriterIntegrationTest {
 			.containsEntry("change_reason", history.getChangeReason())
 			.containsEntry("source_system", history.getSourceSystem())
 			.containsEntry("client_ip", null);
-		assertThat(asLocalDateTime(row.get("check_in"))).isEqualTo(history.getCheckIn());
-		assertThat(asLocalDateTime(row.get("check_out"))).isEqualTo(history.getCheckOut());
-		assertThat(asLocalDateTime(row.get("expires_at"))).isEqualTo(history.getExpiresAt());
-		assertThat(asLocalDateTime(row.get("created_at"))).isEqualTo(history.getCreatedAt());
-		assertThat(asLocalDateTime(row.get("history_created_at"))).isEqualTo(historyCreatedAt);
+		assertThat(asLocalDate(row.get("check_in_date"))).isEqualTo(history.getCheckInDate());
+		assertThat(asLocalDate(row.get("check_out_date"))).isEqualTo(history.getCheckOutDate());
+		assertThat(asInstant(row.get("check_in_at"))).isEqualTo(history.getCheckInAt());
+		assertThat(asInstant(row.get("check_out_at"))).isEqualTo(history.getCheckOutAt());
+		assertThat(asInstant(row.get("expires_at"))).isEqualTo(history.getExpiresAt());
+		assertThat(asInstant(row.get("created_at")))
+			.isEqualTo(Timestamp.valueOf(history.getCreatedAt()).toInstant());
+		assertThat(asInstant(row.get("history_created_at"))).isEqualTo(historyCreatedAt);
 	}
 
 	@Test
@@ -121,7 +128,7 @@ class ReservationHistoryBatchWriterIntegrationTest {
 	@DisplayName("outer transaction에 참여하고 rollback한다")
 	void joinsAndRollsBackTheOuterTransaction() {
 		assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-			writer.writeAll(histories(5), LocalDateTime.of(2026, 7, 21, 12, 30));
+			writer.writeAll(histories(5), Instant.parse("2026-07-21T12:30:00Z"));
 			throw new IntentionalRollback();
 		})).isInstanceOf(IntentionalRollback.class);
 
@@ -146,14 +153,17 @@ class ReservationHistoryBatchWriterIntegrationTest {
 			.reservationCode("R" + index)
 			.accommodationId(100L + index)
 			.guestId(200L + index)
-			.checkIn(LocalDateTime.of(2026, 8, 1, 15, 0).plusDays(index))
-			.checkOut(LocalDateTime.of(2026, 8, 2, 11, 0).plusDays(index))
+			.checkInDate(LocalDate.of(2026, 8, 1).plusDays(index))
+			.checkOutDate(LocalDate.of(2026, 8, 2).plusDays(index))
+			.checkInAt(LocalDateTime.of(2026, 8, 1, 15, 0).plusDays(index).toInstant(ZoneOffset.UTC))
+			.checkOutAt(LocalDateTime.of(2026, 8, 2, 11, 0).plusDays(index).toInstant(ZoneOffset.UTC))
+			.timeZoneId("UTC")
 			.guestCount(2)
 			.totalPrice(100_000L + index)
 			.currency("KRW")
 			.status(ReservationStatus.EXPIRED)
 			.message("snapshot-" + index)
-			.expiresAt(LocalDateTime.of(2026, 7, 21, 11, 0))
+			.expiresAt(Instant.parse("2026-07-21T11:00:00Z"))
 			.createdAt(LocalDateTime.of(2026, 7, 1, 9, 0))
 			.createdBy(200L + index)
 			.changeType(ChangeType.STATUS_CHANGE)
@@ -168,6 +178,23 @@ class ReservationHistoryBatchWriterIntegrationTest {
 			return timestamp.toLocalDateTime();
 		}
 		return (LocalDateTime) value;
+	}
+
+	private LocalDate asLocalDate(Object value) {
+		if (value instanceof java.sql.Date date) {
+			return date.toLocalDate();
+		}
+		return (LocalDate) value;
+	}
+
+	private Instant asInstant(Object value) {
+		if (value instanceof Timestamp timestamp) {
+			return timestamp.toInstant();
+		}
+		if (value instanceof LocalDateTime localDateTime) {
+			return localDateTime.toInstant(ZoneOffset.UTC);
+		}
+		return (Instant) value;
 	}
 
 	private static class IntentionalRollback extends RuntimeException {

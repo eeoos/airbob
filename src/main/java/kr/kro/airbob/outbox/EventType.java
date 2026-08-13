@@ -15,13 +15,17 @@ public enum EventType {
 	RESERVATION_EXPIRE_REQUESTED("RESERVATION", "reservation-events"), // 예약 만료 요청
 	RESERVATION_EXPIRED("RESERVATION", "reservation-events"),   // 예약 만료 완료
 	RESERVATION_PENDING("RESERVATION", "reservation-events"), // 예약 보류
-	RESERVATION_CANCELLED("RESERVATION", "reservation-events"), // 예약 취소
+	@Deprecated
+	RESERVATION_CANCELLED("RESERVATION", "reservation-events"), // 구 취소 요청 이벤트 호환
+	RESERVATION_CANCELLATION_REQUESTED("RESERVATION", "reservation-events"), // 예약 취소 요청
+	RESERVATION_CANCELLATION_COMPLETE_REQUESTED("RESERVATION", "reservation-events"), // 예약 취소 완료 반영 요청
 	RESERVATION_CANCELLATION_REVERT_REQUESTED("RESERVATION", "reservation-events"), // 예약 취소 실패 보상 요청
 
 	// 결제 이벤트
 	PAYMENT_CONFIRM_REQUESTED("PAYMENT", "payment-events"), // 결제 승인 요청
 	PAYMENT_COMPLETED("PAYMENT", "payment-events"), // 결제 완료
 	PAYMENT_CANCELLATION_REQUESTED("PAYMENT", "payment-events"), // 결제 취소 요청
+	PAYMENT_CANCELLATION_COMPLETED("PAYMENT", "payment-events"), // 결제 취소 완료
 	PAYMENT_FAILED("PAYMENT", "payment-events"),
 	PAYMENT_CANCELLATION_FAILED("PAYMENT", "payment-events"),
 

@@ -30,6 +30,13 @@ public class PaymentEvent {
 		}
 	}
 
+	public record PaymentCancellationCompletedEvent(String reservationUid) implements EventPayload {
+		@Override
+		public String getId() {
+			return this.reservationUid;
+		}
+	}
+
 	public record PaymentCancellationRequestedEvent(
 		String reservationUid,
 		String cancelReason,

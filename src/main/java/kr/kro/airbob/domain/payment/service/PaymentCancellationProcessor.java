@@ -1,13 +1,9 @@
 package kr.kro.airbob.domain.payment.service;
 
-import java.util.UUID;
-
 import org.springframework.stereotype.Service;
 
-import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
-import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.outbox.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,15 +14,19 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentCancellationProcessor {
 
 	private final PaymentTransactionService paymentTransactionService;
-	private final PaymentRepository paymentRepository;
 	private final SlackNotificationService slackNotificationService;
 
 	public void processSuccess(PaymentEvent.PgCancelCallSucceededEvent event) {
 		String reservationUid = event.reservationUid();
-		Payment payment = paymentRepository.findByReservationReservationUid(UUID.fromString(reservationUid))
-			.orElseThrow(PaymentNotFoundException::new);
-
-		paymentTransactionService.processSuccessfulCancellation(payment, event.response());
+		paymentTransactionService.processSuccessfulCancellation(reservationUid, event.response());
+		if (PaymentStatus.from(event.response().getStatus()) != PaymentStatus.CANCELED
+			|| !Long.valueOf(0L).equals(event.response().getBalanceAmount())) {
+			String errorMessage = String.format(
+				"🚨 [FATAL] PG 취소 응답이 전액 환불 상태가 아닙니다. 수동 확인 필요! Reservation UID: %s, Status: %s, Balance: %s",
+				reservationUid, event.response().getStatus(), event.response().getBalanceAmount());
+			log.error(errorMessage);
+			slackNotificationService.sendAlert(errorMessage);
+		}
 		log.info("PG사 API 취소 성공 DB 처리 완료. Reservation UID={}", reservationUid);
 	}
 

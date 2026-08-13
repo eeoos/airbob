@@ -131,6 +131,7 @@ tasks.named('test') {
 	outputs.dir snippetsDir
 	useJUnitPlatform()
 	maxHeapSize = '1g'
+	systemProperty 'user.timezone', 'UTC'
 }
 
 

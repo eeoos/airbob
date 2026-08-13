@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -63,6 +64,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 	"benchmark.read-model.token=test-token"
 })
 @ActiveProfiles({"test", "coupon-benchmark"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CouponConcurrencyTest {
 
 	private static final int THREAD_COUNT = 100;
@@ -117,8 +119,6 @@ class CouponConcurrencyTest {
 		registry.add("spring.flyway.password", MYSQL::getPassword);
 		registry.add("spring.data.redis.host", REDIS::getHost);
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	private Coupon lockCoupon;

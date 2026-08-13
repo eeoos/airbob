@@ -51,7 +51,7 @@ public class AccommodationIndexingConsumer {
 				}
 				case RESERVATION_CHANGED -> {
 					EventEnvelope<ReservationChangedEvent> envelope = debeziumEventParser.parse(message, ReservationChangedEvent.class);
-					indexingService.updateReservedDatesInIndex(envelope.payload());
+					indexingService.updateReservationRangesInIndex(envelope.payload());
 				}
 				default -> log.warn("알 수 없는 색인 이벤트 타입입니다: {}", eventType);
 			}

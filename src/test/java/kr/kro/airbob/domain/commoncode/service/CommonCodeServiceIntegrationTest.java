@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -33,6 +34,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("공통 코드 서비스 통합 테스트")
 class CommonCodeServiceIntegrationTest {
 
@@ -62,8 +64,6 @@ class CommonCodeServiceIntegrationTest {
 		registry.add("spring.flyway.password", mySQLContainer::getPassword);
 		registry.add("spring.data.redis.host", redisContainer::getHost);
 		registry.add("spring.data.redis.port", () -> redisContainer.getMappedPort(6379).toString());
-		registry.add("spring.kafka.consumer.enabled", () -> "false");
-		registry.add("spring.kafka.producer.enabled", () -> "false");
 	}
 
 	@Test

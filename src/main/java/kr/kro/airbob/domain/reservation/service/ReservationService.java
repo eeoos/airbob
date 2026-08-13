@@ -94,6 +94,10 @@ public class ReservationService {
 		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
 	}
 
+	public void completeCancellation(ReservationEvent.ReservationCancellationCompleteRequestedEvent event) {
+		transactionService.completeCancellationInTx(event.reservationUid());
+	}
+
 	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 		return transactionService.findMyReservations(memberId, cursorRequest, filterType);
 	}

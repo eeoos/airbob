@@ -76,7 +76,8 @@ public class AccommodationHistory extends MasterHistoryBase {
 	private Long createdBy;
 
 	// 숙소 변경은 모두 인증된 호스트 요청 → source_system/client_ip를 요청 컨텍스트에서 채움
-	public static AccommodationHistory of(Accommodation a, ChangeType changeType, String changeReason) {
+	public static AccommodationHistory of(Accommodation a, ChangeType changeType, String changeReason,
+		LocalDateTime validFrom) {
 		Address addr = a.getAddress();
 		OccupancyPolicy occ = a.getOccupancyPolicy();
 		return AccommodationHistory.builder()
@@ -111,7 +112,7 @@ public class AccommodationHistory extends MasterHistoryBase {
 			.changeReason(changeReason)
 			.sourceSystem(UserContext.currentSourceSystem())
 			.clientIp(UserContext.currentClientIp())
-			.validFrom(LocalDateTime.now())
+			.validFrom(validFrom)
 			.validTo(HistoryConstants.FOREVER)
 			.build();
 	}

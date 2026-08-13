@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -96,19 +95,20 @@ class AccommodationQueryServiceTest {
 		givenPublishedAccommodation(1L);
 
 		AccommodationResponse.DetailInfo response = accommodationQueryService.findAccommodation(1L, null);
-		ArgumentCaptor<LocalDateTime> windowStartCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-		ArgumentCaptor<LocalDateTime> windowEndCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
+		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
 		verify(accommodationImageRepository).findByAccommodationIdOrderByIdAsc(1L);
-		verify(reservationRepository).findConfirmedReservationRangesByAccommodationId(
+		verify(reservationRepository).findActiveReservationRangesByAccommodationId(
 			eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture());
 		assertThat(windowEndCaptor.getValue()).isEqualTo(windowStartCaptor.getValue().plusMonths(3));
 		assertThat(response.bookingWindowStartInclusive())
-			.isEqualTo(windowStartCaptor.getValue().toLocalDate());
+			.isEqualTo(windowStartCaptor.getValue());
 		assertThat(response.bookingWindowEndExclusive())
-			.isEqualTo(windowEndCaptor.getValue().toLocalDate());
+			.isEqualTo(windowEndCaptor.getValue());
 		verify(reservationRepository, never())
-			.findFutureConfirmedReservationRangesByAccommodationUid(any(UUID.class));
+			.findActiveReservationRangesByAccommodationUid(
+				any(UUID.class), any(LocalDate.class), any(LocalDate.class));
 	}
 
 	@Test
@@ -117,11 +117,11 @@ class AccommodationQueryServiceTest {
 		Long accommodationId = 1L;
 		LocalDate today = BOOKING_WINDOW_START;
 		givenPublishedAccommodation(accommodationId);
-		when(reservationRepository.findConfirmedReservationRangesByAccommodationId(
-			eq(accommodationId), any(LocalDateTime.class), any(LocalDateTime.class)))
+		when(reservationRepository.findActiveReservationRangesByAccommodationId(
+			eq(accommodationId), any(LocalDate.class), any(LocalDate.class)))
 			.thenReturn(List.of(new ReservationDateRange(
-				today.plusDays(1).atTime(15, 0),
-				today.plusDays(4).atTime(11, 0)
+				today.plusDays(1),
+				today.plusDays(4)
 			)));
 
 		AccommodationResponse.DetailInfo response =
@@ -140,27 +140,27 @@ class AccommodationQueryServiceTest {
 		LocalDate windowStart = BOOKING_WINDOW_START;
 		LocalDate windowEndExclusive = windowStart.plusMonths(3);
 		givenPublishedAccommodation(accommodationId);
-		when(reservationRepository.findConfirmedReservationRangesByAccommodationId(
-			eq(accommodationId), any(LocalDateTime.class), any(LocalDateTime.class)))
+		when(reservationRepository.findActiveReservationRangesByAccommodationId(
+			eq(accommodationId), any(LocalDate.class), any(LocalDate.class)))
 			.thenReturn(List.of(
 				new ReservationDateRange(
-					windowEndExclusive.minusDays(1).atTime(15, 0),
-					windowEndExclusive.plusDays(5).atTime(11, 0)),
+					windowEndExclusive.minusDays(1),
+					windowEndExclusive.plusDays(5)),
 				new ReservationDateRange(
-					windowStart.plusDays(2).atTime(15, 0),
-					windowStart.plusDays(5).atTime(11, 0)),
+					windowStart.plusDays(2),
+					windowStart.plusDays(5)),
 				new ReservationDateRange(
-					windowStart.minusDays(2).atTime(15, 0),
-					windowStart.plusDays(3).atTime(11, 0)),
+					windowStart.minusDays(2),
+					windowStart.plusDays(3)),
 				new ReservationDateRange(
-					windowStart.plusDays(5).atTime(15, 0),
-					windowStart.plusDays(6).atTime(11, 0)),
+					windowStart.plusDays(5),
+					windowStart.plusDays(6)),
 				new ReservationDateRange(
-					windowStart.minusDays(2).atTime(15, 0),
-					windowStart.atTime(11, 0)),
+					windowStart.minusDays(2),
+					windowStart),
 				new ReservationDateRange(
-					windowEndExclusive.atTime(15, 0),
-					windowEndExclusive.plusDays(2).atTime(11, 0))
+					windowEndExclusive,
+					windowEndExclusive.plusDays(2))
 			));
 
 		AccommodationResponse.DetailInfo response =

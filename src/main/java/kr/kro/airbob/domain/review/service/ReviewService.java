@@ -3,7 +3,9 @@ package kr.kro.airbob.domain.review.service;
 import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,7 @@ public class ReviewService {
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 	private final OutboxEventPublisher outboxEventPublisher;
 	private final S3ImageUploader s3ImageUploader;
+	private final Clock clock;
 
 	@Transactional
 	public ReviewResponse.Create createReview(Long accommodationId, ReviewRequest.Create request, Long memberId) {
@@ -197,7 +200,7 @@ public class ReviewService {
 			reviewSlice.getContent(),
 			reviewSlice.hasNext(),
 			ReviewResponse.ReviewInfo::id,
-			ReviewResponse.ReviewInfo::reviewedAt,
+			reviewInfo -> LocalDateTime.ofInstant(reviewInfo.reviewedAt(), ZoneOffset.UTC),
 			ReviewResponse.ReviewInfo::rating
 		);
 
@@ -286,7 +289,8 @@ public class ReviewService {
 
 	private void validateReviewCreation(Long accommodationId, Long memberId) {
 		// 예약한 사용자인지와 체크아웃까지 완료했는지 확인
-		if (!reservationRepository.existsPastCompletedReservationByGuest(accommodationId, memberId)) {
+		if (!reservationRepository.existsPastCompletedReservationByGuest(
+			accommodationId, memberId, clock.instant())) {
 			throw new ReviewCreationForbiddenException();
 		}
 		// 이미 리뷰를 작성했는지 확인

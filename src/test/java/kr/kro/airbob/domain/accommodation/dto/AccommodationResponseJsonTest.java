@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.accommodation.dto;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -68,5 +69,36 @@ class AccommodationResponseJsonTest {
 
 		assertThat(json.path("time_zone_id").asText()).isEqualTo("America/New_York");
 		assertThat(json.has("timeZoneId")).isFalse();
+	}
+
+	@Test
+	@DisplayName("호스트 상세에도 숙소 현지 시간대 식별자를 반환한다")
+	void serializesHostAccommodationTimeZoneId() {
+		Accommodation accommodation = mock(Accommodation.class);
+		when(accommodation.getTimeZoneId()).thenReturn("Europe/Paris");
+		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
+			accommodation,
+			List.of(),
+			List.of(),
+			null
+		);
+
+		JsonNode json = objectMapper.valueToTree(response);
+
+		assertThat(json.path("time_zone_id").asText()).isEqualTo("Europe/Paris");
+		assertThat(json.has("timeZoneId")).isFalse();
+	}
+
+	@Test
+	@DisplayName("최근 조회 시각을 UTC Instant 형식으로 반환한다")
+	void serializesRecentlyViewedAtAsUtcInstant() {
+		AccommodationResponse.RecentlyViewedAccommodationInfo response =
+			AccommodationResponse.RecentlyViewedAccommodationInfo.builder()
+				.viewedAt(Instant.parse("2026-08-12T05:30:00Z"))
+				.build();
+
+		JsonNode json = objectMapper.valueToTree(response);
+
+		assertThat(json.path("viewed_at").asText()).isEqualTo("2026-08-12T05:30:00Z");
 	}
 }

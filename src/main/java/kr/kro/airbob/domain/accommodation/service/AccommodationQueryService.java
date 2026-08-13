@@ -159,10 +159,10 @@ public class AccommodationQueryService {
 		LocalDate windowEndExclusive
 	) {
 		List<ReservationDateRange> reservationRanges = reservationRepository
-			.findConfirmedReservationRangesByAccommodationId(
+			.findActiveReservationRangesByAccommodationId(
 				accommodationId,
-				windowStart.atStartOfDay(),
-				windowEndExclusive.atStartOfDay());
+				windowStart,
+				windowEndExclusive);
 
 		List<AccommodationResponse.UnavailableDateRange> clippedRanges = reservationRanges.stream()
 			.map(range -> clipUnavailableRange(range, windowStart, windowEndExclusive))
@@ -180,8 +180,8 @@ public class AccommodationQueryService {
 		LocalDate windowStart,
 		LocalDate windowEndExclusive
 	) {
-		LocalDate startDate = range.checkIn().toLocalDate();
-		LocalDate endDateExclusive = range.checkOut().toLocalDate();
+		LocalDate startDate = range.checkIn();
+		LocalDate endDateExclusive = range.checkOut();
 
 		if (startDate.isBefore(windowStart)) {
 			startDate = windowStart;

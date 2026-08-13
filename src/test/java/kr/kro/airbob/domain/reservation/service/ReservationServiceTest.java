@@ -426,4 +426,21 @@ class ReservationServiceTest {
 			then(transactionService).should().revertCancellationInTx(reservationUid, "환불 처리 실패");
 		}
 	}
+
+	@Nested
+	@DisplayName("예약 취소 완료 테스트")
+	class CompleteCancellationTest {
+
+		@Test
+		@DisplayName("결제 취소 완료 이벤트 수신 시 잠금 트랜잭션 처리에 위임한다")
+		void 정상_취소완료_위임() {
+			String reservationUid = UUID.randomUUID().toString();
+			ReservationEvent.ReservationCancellationCompleteRequestedEvent event =
+				new ReservationEvent.ReservationCancellationCompleteRequestedEvent(reservationUid);
+
+			reservationService.completeCancellation(event);
+
+			then(transactionService).should().completeCancellationInTx(reservationUid);
+		}
+	}
 }

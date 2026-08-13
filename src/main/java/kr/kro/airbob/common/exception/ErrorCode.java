@@ -15,10 +15,11 @@ public enum ErrorCode {
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C003", "서버 내부에서 처리할 수 없는 오류가 발생했습니다."),
 	INVALID_TYPE_VALUE(HttpStatus.BAD_REQUEST, "C004", "유효하지 않은 타입 값입니다."),
 	CURSOR_ENCODING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C005", "커서 인코딩 중 오류가 발생했습니다."),
-	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "커서 페이지 크기는 1 이상이어야 합니다."),
+	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "유효하지 않은 커서 페이지 크기입니다."),
 	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
 	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
+	CURSOR_DECODING_ERROR(HttpStatus.BAD_REQUEST, "C010", "유효하지 않은 커서입니다."),
 	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
 
 	// common code
@@ -60,6 +61,8 @@ public enum ErrorCode {
 	RESERVATION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "R008", "해당 예약에 대한 접근 권한이 없습니다."),
 	INVALID_RESERVATION_DATE(HttpStatus.BAD_REQUEST, "R009", "체크아웃 날짜는 체크인 날짜보다 이후여야 합니다."),
 	RESERVATION_OUTSIDE_BOOKING_WINDOW(HttpStatus.BAD_REQUEST, "R010", "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."),
+	CANNOT_CONFIRM_EXPIRED_RESERVATION(HttpStatus.CONFLICT, "R011", "결제 유효 시간이 지난 예약은 확정할 수 없습니다."),
+	RESERVATION_LOCAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "R012", "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."),
 
 
 	// payment

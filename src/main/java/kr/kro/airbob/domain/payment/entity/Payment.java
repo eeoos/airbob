@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.payment.entity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -56,7 +56,7 @@ public class Payment extends BaseEntity {
 	private PaymentMethod method;
 
 	@Column(nullable = false)
-	private LocalDateTime approvedAt;
+	private Instant approvedAt;
 
 	@OneToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "reservation_id", nullable = false)
@@ -84,7 +84,7 @@ public class Payment extends BaseEntity {
 			.balanceAmount(response.getTotalAmount())
 			.method(PaymentMethod.fromDescription(response.getMethod()))
 			.status(PaymentStatus.from(response.getStatus()))
-			.approvedAt(response.getApprovedAt().toLocalDateTime())
+			.approvedAt(response.getApprovedAt().toInstant())
 			.reservation(reservation)
 			.build();
 	}

@@ -34,8 +34,8 @@ public class AccommodationIndexingService {
 		log.info("[ES-INDEX] 리뷰 요약 업데이트: {}", event.accommodationUid());
 	}
 
-	public void updateReservedDatesInIndex(ReservationChangedEvent event) {
-		indexUpdater.updateReservedDatesInIndex(event.accommodationUid());
-		log.info("[ES-INDEX] 예약 날짜 업데이트: {}", event.accommodationUid());
+	public void updateReservationRangesInIndex(ReservationChangedEvent event) {
+		indexUpdater.updateReservationRangesInIndex(event.accommodationUid());
+		log.info("[ES-INDEX] 예약 범위 업데이트: {}", event.accommodationUid());
 	}
 }

@@ -50,19 +50,20 @@ public class MemberHistory extends MasterHistoryBase {
 	private Long createdBy;
 
 	// 사용자 요청에서 비롯된 변경
-	public static MemberHistory open(Member member, ChangeType changeType, String changeReason) {
+	public static MemberHistory open(Member member, ChangeType changeType, String changeReason,
+		LocalDateTime validFrom) {
 		return build(member, changeType, changeReason,
-			UserContext.currentSourceSystem(), UserContext.currentClientIp());
+			UserContext.currentSourceSystem(), UserContext.currentClientIp(), validFrom);
 	}
 
 	// 시스템/배치에서 비롯된 변경 (예: 가입은 비인증 컨텍스트)
 	public static MemberHistory openSystem(Member member, ChangeType changeType, String changeReason,
-		String sourceSystem) {
-		return build(member, changeType, changeReason, sourceSystem, null);
+		String sourceSystem, LocalDateTime validFrom) {
+		return build(member, changeType, changeReason, sourceSystem, null, validFrom);
 	}
 
 	private static MemberHistory build(Member m, ChangeType changeType, String changeReason,
-		String sourceSystem, String clientIp) {
+		String sourceSystem, String clientIp, LocalDateTime validFrom) {
 		return MemberHistory.builder()
 			.memberId(m.getId())
 			.email(m.getEmail())
@@ -76,7 +77,7 @@ public class MemberHistory extends MasterHistoryBase {
 			.changeReason(changeReason)
 			.sourceSystem(sourceSystem)
 			.clientIp(clientIp)
-			.validFrom(LocalDateTime.now())
+			.validFrom(validFrom)
 			.validTo(HistoryConstants.FOREVER)
 			.build();
 	}

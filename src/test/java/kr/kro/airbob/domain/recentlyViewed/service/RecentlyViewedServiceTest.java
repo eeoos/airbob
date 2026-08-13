@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -90,6 +91,9 @@ class RecentlyViewedServiceTest {
 		assertThat(result.accommodations())
 			.extracting(AccommodationResponse.RecentlyViewedAccommodationInfo::isInWishlist)
 			.containsExactly(true, false);
+		assertThat(result.accommodations())
+			.extracting(AccommodationResponse.RecentlyViewedAccommodationInfo::viewedAt)
+			.containsExactly(Instant.ofEpochMilli(2_000L), Instant.ofEpochMilli(1_000L));
 		verify(accommodationRepository).findByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED));
 		verify(summaryRepository).findByAccommodationIdIn(anyList());
 		verify(wishlistAccommodationRepository)

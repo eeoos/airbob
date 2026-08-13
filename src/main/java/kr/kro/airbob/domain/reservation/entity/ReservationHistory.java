@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.entity;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
@@ -41,8 +43,12 @@ public class ReservationHistory extends HistoryBase {
 	private String reservationCode;
 	private Long accommodationId;
 	private Long guestId;
-	private LocalDateTime checkIn;
-	private LocalDateTime checkOut;
+	private LocalDate checkInDate;
+	private LocalDate checkOutDate;
+	private Instant checkInAt;
+	private Instant checkOutAt;
+	@Column(length = 64)
+	private String timeZoneId;
 	private Integer guestCount;
 	private Long totalPrice;
 	@Column(length = 3)
@@ -50,7 +56,7 @@ public class ReservationHistory extends HistoryBase {
 	@Enumerated(EnumType.STRING)
 	private ReservationStatus status;
 	private String message;
-	private LocalDateTime expiresAt;
+	private Instant expiresAt;
 
 	// --- 원본 최초 생성 정보(스냅샷) ---
 	private LocalDateTime createdAt;
@@ -76,8 +82,11 @@ public class ReservationHistory extends HistoryBase {
 			.reservationCode(r.getReservationCode())
 			.accommodationId(r.getAccommodation() == null ? null : r.getAccommodation().getId())
 			.guestId(r.getGuest() == null ? null : r.getGuest().getId())
-			.checkIn(r.getCheckIn())
-			.checkOut(r.getCheckOut())
+			.checkInDate(r.getCheckInDate())
+			.checkOutDate(r.getCheckOutDate())
+			.checkInAt(r.getCheckInAt())
+			.checkOutAt(r.getCheckOutAt())
+			.timeZoneId(r.getTimeZoneId())
 			.guestCount(r.getGuestCount())
 			.totalPrice(r.getTotalPrice())
 			.currency(r.getCurrency())

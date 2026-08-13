@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.accommodation.service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Locale;
@@ -36,17 +38,20 @@ public class AccommodationAmenityDeleteBeforeBenchmarkService {
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationHistoryRepository accommodationHistoryRepository;
 	private final CommonCodeService commonCodeService;
+	private final Clock clock;
 
 	public AccommodationAmenityDeleteBeforeBenchmarkService(
 		AccommodationAmenityRepository accommodationAmenityRepository,
 		AccommodationRepository accommodationRepository,
 		AccommodationHistoryRepository accommodationHistoryRepository,
-		CommonCodeService commonCodeService
+		CommonCodeService commonCodeService,
+		Clock clock
 	) {
 		this.accommodationAmenityRepository = accommodationAmenityRepository;
 		this.accommodationRepository = accommodationRepository;
 		this.accommodationHistoryRepository = accommodationHistoryRepository;
 		this.commonCodeService = commonCodeService;
+		this.clock = clock;
 	}
 
 	@Transactional
@@ -92,11 +97,12 @@ public class AccommodationAmenityDeleteBeforeBenchmarkService {
 	}
 
 	private void recordHistory(Accommodation accommodation) {
+		LocalDateTime changedAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		accommodationHistoryRepository
 			.findByAccommodationIdAndValidTo(accommodation.getId(), HistoryConstants.FOREVER)
-			.ifPresent(current -> current.close(LocalDateTime.now()));
+			.ifPresent(current -> current.close(changedAt));
 		accommodationHistoryRepository.save(
-			AccommodationHistory.of(accommodation, ChangeType.UPDATE, "숙소 정보 수정")
+			AccommodationHistory.of(accommodation, ChangeType.UPDATE, "숙소 정보 수정", changedAt)
 		);
 	}
 }

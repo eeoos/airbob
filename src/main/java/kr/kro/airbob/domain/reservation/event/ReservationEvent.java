@@ -20,7 +20,7 @@ public class ReservationEvent {
 		}
 	}
 
-	public record ReservationCancelledEvent(
+	public record ReservationCancellationRequestedEvent(
 		String reservationUid,
 		String cancelReason,
 		Long cancelAmount // 전체 취소 시 null | 전체 금액
@@ -28,6 +28,18 @@ public class ReservationEvent {
 		@Override
 		public String getId() {
 			return this.reservationUid;
+		}
+	}
+
+	@Deprecated
+	public record ReservationCancelledEvent(
+		String reservationUid,
+		String cancelReason,
+		Long cancelAmount
+	) implements EventPayload {
+		@Override
+		public String getId() {
+			return reservationUid;
 		}
 	}
 
@@ -66,6 +78,15 @@ public class ReservationEvent {
 	public record ReservationCancellationRevertRequestedEvent(
 		String reservationUid,
 		String reason
+	) implements EventPayload {
+		@Override
+		public String getId() {
+			return this.reservationUid;
+		}
+	}
+
+	public record ReservationCancellationCompleteRequestedEvent(
+		String reservationUid
 	) implements EventPayload {
 		@Override
 		public String getId() {

@@ -6,6 +6,8 @@ import static kr.kro.airbob.domain.member.entity.QMember.*;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -35,15 +37,35 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	private final QMember guestMember = new QMember("guestMember");
 
 	@Override
-	public boolean existsConflictingReservation(Long accommodationId, LocalDateTime checkIn, LocalDateTime checkOut) {
+	public boolean existsConflictingReservation(
+		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	) {
 		Integer fetchFirst = queryFactory
 			.selectOne()
 			.from(reservation)
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
-				reservation.status.in(CONFIRMED, PAYMENT_PENDING),
-				reservation.checkIn.lt(checkOut),
-				reservation.checkOut.gt(checkIn)
+				inventoryOccupyingReservationStatus(now),
+				reservation.checkInDate.lt(checkOutDate),
+				reservation.checkOutDate.gt(checkInDate)
+			)
+			.fetchFirst();
+
+		return fetchFirst != null;
+	}
+
+	@Override
+	public boolean existsFutureInventoryReservation(Long accommodationId, Instant now) {
+		Integer fetchFirst = queryFactory
+			.selectOne()
+			.from(reservation)
+			.where(
+				reservation.accommodation.id.eq(accommodationId),
+				reservation.checkOutAt.gt(now),
+				inventoryOccupyingReservationStatus(now)
 			)
 			.fetchFirst();
 
@@ -58,69 +80,76 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
 				reservation.guest.id.eq(memberId),
-				reservation.status.eq(ReservationStatus.CONFIRMED)
+				reviewableReservationStatus()
 			)
 			.fetchFirst();
 		return fetchFirst != null;
 	}
 
 	@Override
-	public boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId) {
+	public boolean existsPastCompletedReservationByGuest(Long accommodationId, Long memberId, Instant now) {
 		Integer fetchFirst = queryFactory
 			.selectOne()
 			.from(reservation)
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
 				reservation.guest.id.eq(memberId),
-				reservation.status.eq(CONFIRMED),
-				reservation.checkOut.before(LocalDateTime.now())
+				reviewableReservationStatus(),
+				reservation.checkOutAt.loe(now)
 			)
 			.fetchFirst();
 		return fetchFirst != null;
 	}
 
 	@Override
-	public List<ReservationDateRange> findConfirmedReservationRangesByAccommodationId(
+	public List<ReservationDateRange> findActiveReservationRangesByAccommodationId(
 		Long accommodationId,
-		LocalDateTime windowStartInclusive,
-		LocalDateTime windowEndExclusive
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive
 	) {
-		return queryFactory
-			.select(new QReservationDateRange(
-				reservation.checkIn,
-				reservation.checkOut
-			))
-			.from(reservation)
-			.where(
-				reservation.accommodation.id.eq(accommodationId),
-				reservation.status.eq(ReservationStatus.CONFIRMED),
-				reservation.checkIn.lt(windowEndExclusive),
-				reservation.checkOut.gt(windowStartInclusive)
-			)
-			.fetch();
+		return findActiveReservationRanges(
+			reservation.accommodation.id.eq(accommodationId),
+			windowStartInclusive,
+			windowEndExclusive
+		);
 	}
 
 	@Override
-	public List<ReservationDateRange> findFutureConfirmedReservationRangesByAccommodationUid(
-		UUID accommodationUid
+	public List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
+		UUID accommodationUid,
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive
+	) {
+		return findActiveReservationRanges(
+			reservation.accommodation.accommodationUid.eq(accommodationUid),
+			windowStartInclusive,
+			windowEndExclusive
+		);
+	}
+
+	private List<ReservationDateRange> findActiveReservationRanges(
+		BooleanExpression accommodationCondition,
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive
 	) {
 		return queryFactory
 			.select(new QReservationDateRange(
-				reservation.checkIn,
-				reservation.checkOut
+				reservation.checkInDate,
+				reservation.checkOutDate
 			))
 			.from(reservation)
 			.where(
-				reservation.accommodation.accommodationUid.eq(accommodationUid),
-				reservation.status.eq(ReservationStatus.CONFIRMED),
-				reservation.checkOut.goe(LocalDateTime.now())
+				accommodationCondition,
+				activeReservationStatus(),
+				reservation.checkInDate.lt(windowEndExclusive),
+				reservation.checkOutDate.gt(windowStartInclusive)
 			)
 			.fetch();
 	}
 
 	@Override
 	public Slice<Reservation> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
-		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Pageable pageable) {
+		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
 		List<Reservation> content = queryFactory
 			.selectFrom(reservation)
@@ -128,7 +157,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.leftJoin(accommodation.address, address).fetchJoin()
 			.where(
 				reservation.guest.id.eq(guestId),
-				buildGuestReservationFilter(filterType),
+				buildGuestReservationFilter(filterType, now),
 				cursorCondition(lastId, lastCreatedAt)
 			)
 			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
@@ -172,7 +201,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
 	@Override
 	public Slice<Reservation> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
-		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Pageable pageable) {
+		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
 		List<Reservation> content = queryFactory
 			.selectFrom(reservation)
@@ -180,8 +209,8 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.innerJoin(reservation.guest, guestMember).fetchJoin()
 			.where(
 				accommodation.member.id.eq(hostId),
-				reservation.status.ne(PAYMENT_PENDING),
-				buildHostReservationFilter(filterType),
+				reservation.status.notIn(PAYMENT_PENDING, PAYMENT_PROCESSING),
+				buildHostReservationFilter(filterType, now),
 				cursorCondition(lastId, lastCreatedAt)
 			)
 			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
@@ -212,42 +241,54 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		return Optional.ofNullable(result);
 	}
 
-	private BooleanExpression buildGuestReservationFilter(ReservationFilterType filterType) {
-		LocalDateTime now = LocalDateTime.now();
-
+	private BooleanExpression buildGuestReservationFilter(ReservationFilterType filterType, Instant now) {
 		switch (filterType) {
 			case PAST:
-				// 이전 여행: CONFIRMED이면서 체크아웃이 과거
-				return reservation.status.eq(CONFIRMED)
-					.and(reservation.checkOut.before(now));
+				// 이전 여행: 유효 예약이면서 체크아웃이 과거
+				return activeReservationStatus()
+					.and(reservation.checkOutAt.loe(now));
 			case CANCELLED:
-				// 취소된: CANCELLED, CANCELLATION_FAILED, EXPIRED
-				return reservation.status.in(CANCELLED, CANCELLATION_FAILED, EXPIRED);
+				return reservation.status.in(CANCELLED, EXPIRED)
+					.or(reservation.status.eq(PAYMENT_PENDING)
+						.and(reservation.expiresAt.loe(now)));
 			case UPCOMING:
-				// 다가올 여행: PENDING이거나, CONFIRMED이면서 체크아웃이 미래
-				return reservation.status.in(PAYMENT_PENDING)
+				// 다가올 여행: 만료되지 않은 결제 대기 또는 체크아웃 전 유효 예약
+				return reservation.status.eq(PAYMENT_PENDING)
+					.and(reservation.expiresAt.gt(now))
+					.or(reservation.status.eq(PAYMENT_PROCESSING))
 					.or(
-						reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now))
+						activeReservationStatus().and(reservation.checkOutAt.gt(now))
 					);
 			default:
 				return null;
 		}
 	}
 
-	private BooleanExpression buildHostReservationFilter(ReservationFilterType filterType) {
-		LocalDateTime now = LocalDateTime.now();
+	private BooleanExpression buildHostReservationFilter(ReservationFilterType filterType, Instant now) {
 		switch (filterType) {
 			case CANCELLED:
-				// 취소된 예약: CANCELLED, CANCELLATION_FAILED, EXPIRED
-				return reservation.status.in(CANCELLED, CANCELLATION_FAILED, EXPIRED);
+				return reservation.status.in(CANCELLED, EXPIRED);
 			case PAST:
-				// 완료된: CONFIRMED이면서 체크아웃이 과거
-				return reservation.status.eq(CONFIRMED).and(reservation.checkOut.before(now));
+				return activeReservationStatus().and(reservation.checkOutAt.loe(now));
 			case UPCOMING:
-				// 다가오는 예약: CONFIRMED이면서 체크아웃이 미래
-				return reservation.status.eq(CONFIRMED).and(reservation.checkOut.after(now));
+				return activeReservationStatus().and(reservation.checkOutAt.gt(now));
 			default:
 				return null;
 		}
+	}
+
+	private BooleanExpression activeReservationStatus() {
+		return reservation.status.in(CONFIRMED, CANCELLATION_PENDING, CANCELLATION_FAILED);
+	}
+
+	private BooleanExpression inventoryOccupyingReservationStatus(Instant now) {
+		return activeReservationStatus()
+			.or(reservation.status.eq(PAYMENT_PROCESSING))
+			.or(reservation.status.eq(PAYMENT_PENDING)
+				.and(reservation.expiresAt.gt(now)));
+	}
+
+	private BooleanExpression reviewableReservationStatus() {
+		return reservation.status.in(ReservationStatus.reviewableStatuses());
 	}
 }

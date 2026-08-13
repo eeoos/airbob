@@ -12,6 +12,15 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
+        jdbc:
+          time_zone: UTC
+
+  datasource:
+    hikari:
+      connection-init-sql: SET time_zone = '+00:00'
+      data-source-properties:
+        connectionTimeZone: UTC
+        forceConnectionTimeZoneToSession: true
 
   servlet:
     multipart:

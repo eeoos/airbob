@@ -9,7 +9,10 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -36,6 +39,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationHistory JDBC batch writer unit test")
 class ReservationHistoryBatchWriterTest {
+	private static final Instant HISTORY_CREATED_AT = Instant.parse("2026-07-21T12:00:00Z");
 
 	@Mock private JdbcTemplate jdbcTemplate;
 	@Mock private PreparedStatement statement;
@@ -62,7 +66,7 @@ class ReservationHistoryBatchWriterTest {
 		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
 		BulkOperationContextHolder.initContext(context);
 
-		writer.writeAll(histories(5), LocalDateTime.of(2026, 7, 21, 12, 0));
+		writer.writeAll(histories(5), HISTORY_CREATED_AT);
 		BulkOperationSnapshot snapshot = context.snapshot(BulkOperationSnapshot.Outcome.SUCCESS, 1L);
 
 		assertThat(snapshot.jdbcBatchCalls()).isEqualTo(3);
@@ -80,7 +84,7 @@ class ReservationHistoryBatchWriterTest {
 		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
 		BulkOperationContextHolder.initContext(context);
 
-		writer.writeAll(histories(1), LocalDateTime.of(2026, 7, 21, 12, 0));
+		writer.writeAll(histories(1), HISTORY_CREATED_AT);
 
 		assertThat(context.snapshot(BulkOperationSnapshot.Outcome.SUCCESS, 1L).jdbcAffectedRows())
 			.isNull();
@@ -95,7 +99,7 @@ class ReservationHistoryBatchWriterTest {
 		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
 		BulkOperationContextHolder.initContext(context);
 
-		assertThatThrownBy(() -> writer.writeAll(histories(1), LocalDateTime.of(2026, 7, 21, 12, 0)))
+		assertThatThrownBy(() -> writer.writeAll(histories(1), HISTORY_CREATED_AT))
 			.isInstanceOf(DataIntegrityViolationException.class);
 		assertThat(context.snapshot(BulkOperationSnapshot.Outcome.FAILURE, 1L).jdbcBatchCalls()).isZero();
 	}
@@ -109,7 +113,7 @@ class ReservationHistoryBatchWriterTest {
 		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
 		BulkOperationContextHolder.initContext(context);
 
-		assertThatThrownBy(() -> writer.writeAll(histories(2), LocalDateTime.of(2026, 7, 21, 12, 0)))
+		assertThatThrownBy(() -> writer.writeAll(histories(2), HISTORY_CREATED_AT))
 			.isInstanceOf(DataIntegrityViolationException.class);
 		assertThat(context.snapshot(BulkOperationSnapshot.Outcome.FAILURE, 1L).jdbcBatchCalls()).isZero();
 	}
@@ -119,7 +123,7 @@ class ReservationHistoryBatchWriterTest {
 	void skipsEmptyInput() {
 		ReservationHistoryBatchWriter writer = new ReservationHistoryBatchWriter(jdbcTemplate, 2);
 
-		writer.writeAll(List.of(), LocalDateTime.of(2026, 7, 21, 12, 0));
+		writer.writeAll(List.of(), HISTORY_CREATED_AT);
 
 		then(jdbcTemplate).shouldHaveNoInteractions();
 	}
@@ -134,20 +138,22 @@ class ReservationHistoryBatchWriterTest {
 			.changeType(ChangeType.STATUS_CHANGE)
 			.build();
 
-		writer.writeAll(List.of(history), LocalDateTime.of(2026, 7, 21, 12, 0));
+		writer.writeAll(List.of(history), HISTORY_CREATED_AT);
 		batchSetterCaptor.getValue().setValues(statement, 0);
 
 		then(statement).should().setNull(4, Types.BIGINT);
 		then(statement).should().setNull(5, Types.BIGINT);
-		then(statement).should().setNull(6, Types.TIMESTAMP);
-		then(statement).should().setNull(7, Types.TIMESTAMP);
-		then(statement).should().setNull(8, Types.INTEGER);
-		then(statement).should().setNull(9, Types.BIGINT);
-		then(statement).should().setNull(13, Types.TIMESTAMP);
-		then(statement).should().setNull(14, Types.TIMESTAMP);
-		then(statement).should().setNull(15, Types.BIGINT);
-		then(statement).should().setNull(17, Types.BIGINT);
-		then(statement).should().setTimestamp(16, Timestamp.valueOf(LocalDateTime.of(2026, 7, 21, 12, 0)));
+		then(statement).should().setNull(6, Types.DATE);
+		then(statement).should().setNull(7, Types.DATE);
+		then(statement).should().setNull(8, Types.TIMESTAMP);
+		then(statement).should().setNull(9, Types.TIMESTAMP);
+		then(statement).should().setNull(11, Types.INTEGER);
+		then(statement).should().setNull(12, Types.BIGINT);
+		then(statement).should().setNull(16, Types.TIMESTAMP);
+		then(statement).should().setNull(17, Types.TIMESTAMP);
+		then(statement).should().setNull(18, Types.BIGINT);
+		then(statement).should().setNull(20, Types.BIGINT);
+		then(statement).should().setTimestamp(19, Timestamp.from(HISTORY_CREATED_AT));
 	}
 
 	private List<ReservationHistory> histories(int size) {
@@ -165,14 +171,17 @@ class ReservationHistoryBatchWriterTest {
 			.reservationCode("R" + index)
 			.accommodationId(100L + index)
 			.guestId(200L + index)
-			.checkIn(LocalDateTime.of(2026, 8, 1, 15, 0).plusDays(index))
-			.checkOut(LocalDateTime.of(2026, 8, 2, 11, 0).plusDays(index))
+			.checkInDate(LocalDate.of(2026, 8, 1).plusDays(index))
+			.checkOutDate(LocalDate.of(2026, 8, 2).plusDays(index))
+			.checkInAt(LocalDateTime.of(2026, 8, 1, 15, 0).plusDays(index).toInstant(ZoneOffset.UTC))
+			.checkOutAt(LocalDateTime.of(2026, 8, 2, 11, 0).plusDays(index).toInstant(ZoneOffset.UTC))
+			.timeZoneId("UTC")
 			.guestCount(2)
 			.totalPrice(100_000L + index)
 			.currency("KRW")
 			.status(ReservationStatus.EXPIRED)
 			.message("snapshot-" + index)
-			.expiresAt(LocalDateTime.of(2026, 7, 21, 11, 0))
+			.expiresAt(Instant.parse("2026-07-21T11:00:00Z"))
 			.createdAt(LocalDateTime.of(2026, 7, 1, 9, 0))
 			.createdBy(200L + index)
 			.changeType(ChangeType.STATUS_CHANGE)

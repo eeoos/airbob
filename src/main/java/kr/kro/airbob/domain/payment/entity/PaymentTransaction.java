@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.payment.entity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,6 +27,9 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentTransaction extends BaseEntity {
+	private static final int PAYMENT_KEY_MAX_LENGTH = 200;
+	private static final int FAILURE_CODE_MAX_LENGTH = 100;
+	private static final int FAILURE_MESSAGE_MAX_LENGTH = 512;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,28 +48,30 @@ public class PaymentTransaction extends BaseEntity {
 	private PaymentStatus status; // 그 시점 PG 상태
 
 	private Long amount;
+	@Column(length = PAYMENT_KEY_MAX_LENGTH)
 	private String paymentKey;
 	private String orderId;
 	@Enumerated(EnumType.STRING)
 	private PaymentMethod method;
 
 	// 실패 정보
+	@Column(length = FAILURE_CODE_MAX_LENGTH)
 	private String failureCode;
-	@Column(length = 512)
+	@Column(length = FAILURE_MESSAGE_MAX_LENGTH)
 	private String failureMessage;
 
 	// 가상계좌 정보
 	private String virtualBankCode;
 	private String virtualAccountNumber;
 	private String virtualCustomerName;
-	private LocalDateTime virtualDueDate;
+	private Instant virtualDueDate;
 
 	// 취소 정보
 	private Long cancelAmount;
 	@Column(length = 200)
 	private String cancelReason;
 	private String transactionKey;
-	private LocalDateTime canceledAt; // PG가 알려준 취소 시각
+	private Instant canceledAt; // PG가 알려준 취소 시각
 
 	// 결제 승인 성공 (Payment 생성 직후, payment_id 연결)
 	public static PaymentTransaction confirm(TossPaymentResponse response, Reservation reservation, Payment payment) {
@@ -78,7 +83,7 @@ public class PaymentTransaction extends BaseEntity {
 			.virtualAccountNumber(virtualAccount != null ? virtualAccount.getAccountNumber() : null)
 			.virtualCustomerName(virtualAccount != null ? virtualAccount.getCustomerName() : null)
 			.virtualDueDate(virtualAccount != null && virtualAccount.getDueDate() != null
-				? virtualAccount.getDueDate().toLocalDateTime() : null)
+				? virtualAccount.getDueDate().toInstant() : null)
 			.build();
 	}
 
@@ -90,11 +95,11 @@ public class PaymentTransaction extends BaseEntity {
 			.transactionType(PaymentTransactionType.FAIL)
 			.status(PaymentStatus.ABORTED)
 			.amount(Long.valueOf(event.amount()))
-			.paymentKey(event.paymentKey())
+			.paymentKey(limitLength(event.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
 			.orderId(event.orderId())
 			.method(PaymentMethod.UNKNOWN)
-			.failureCode(failureCode)
-			.failureMessage(failureMessage)
+			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
+			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))
 			.build();
 	}
 
@@ -107,7 +112,7 @@ public class PaymentTransaction extends BaseEntity {
 			.virtualAccountNumber(virtualAccount != null ? virtualAccount.getAccountNumber() : null)
 			.virtualCustomerName(virtualAccount != null ? virtualAccount.getCustomerName() : null)
 			.virtualDueDate(virtualAccount != null && virtualAccount.getDueDate() != null
-				? virtualAccount.getDueDate().toLocalDateTime() : null)
+				? virtualAccount.getDueDate().toInstant() : null)
 			.build();
 	}
 
@@ -127,7 +132,7 @@ public class PaymentTransaction extends BaseEntity {
 			.cancelAmount(cancelData.getCancelAmount())
 			.cancelReason(cancelData.getCancelReason())
 			.transactionKey(cancelData.getTransactionKey())
-			.canceledAt(cancelData.getCanceledAt() != null ? cancelData.getCanceledAt().toLocalDateTime() : null)
+			.canceledAt(cancelData.getCanceledAt() != null ? cancelData.getCanceledAt().toInstant() : null)
 			.build();
 	}
 
@@ -142,5 +147,12 @@ public class PaymentTransaction extends BaseEntity {
 			.method(PaymentMethod.fromDescription(response.getMethod()))
 			.failureCode(failure != null ? failure.getCode() : null)
 			.failureMessage(failure != null ? failure.getMessage() : null);
+	}
+
+	private static String limitLength(String value, int maxLength) {
+		if (value == null || value.length() <= maxLength) {
+			return value;
+		}
+		return value.substring(0, maxLength);
 	}
 }

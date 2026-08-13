@@ -1,12 +1,14 @@
 package kr.kro.airbob.domain.payment.service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
@@ -14,6 +16,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.common.exception.ErrorCode;
@@ -39,10 +42,14 @@ public class TossPaymentsAdapter {
 	public static final String CUSTOMER_NAME = "customerName";
 	public static final int VALID_HOURS_VALUE = 24;
 	public static final String UNKNOWN_ERROR = "UNKNOWN_ERROR";
+	public static final String IDEMPOTENT_REQUEST_PROCESSING = "IDEMPOTENT_REQUEST_PROCESSING";
 	public static final String PARSING_FAILED_CODE = "PARSING_FAILED";
 	public static final String CONFIRM_PATH = "/v1/payments/confirm";
 	public static final String CANCEL_PATH = "/v1/payments/{paymentKey}/cancel";
 	public static final String CANCEL_AMOUNT = "cancelAmount";
+	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+	public static final String CONFIRMATION_IDEMPOTENCY_KEY_PREFIX = "airbob-confirm-";
+	public static final String CANCELLATION_IDEMPOTENCY_KEY_PREFIX = "airbob-cancel-";
 	public static final String GET_PATH_BY_PAYMENT_KEY = "/v1/payments/{paymentKey}";
 	public static final String GET_PATH_BY_ORDER_ID = "/v1/payments/orders/{orderId}";
 	public static final String VALID_HOURS = "validHours";
@@ -71,24 +78,16 @@ public class TossPaymentsAdapter {
 		return Objects.requireNonNull(
 			tossPaymentsRestClient.post()
 				.uri(CONFIRM_PATH)
+				.header(IDEMPOTENCY_KEY_HEADER, CONFIRMATION_IDEMPOTENCY_KEY_PREFIX + orderId)
 				.body(payload)
 				.retrieve()
 				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
 					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					try {
-						String errorBody = new String(response.getBody().readAllBytes());
-						TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
-
-						String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
-							UNKNOWN_ERROR;
-						PaymentConfirmErrorCode confirmErrorCode = PaymentConfirmErrorCode.fromErrorCode(errorCode);
-
-						throw new TossPaymentException(confirmErrorCode);
-					} catch (IOException e) {
-						throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
-					}
+					String errorCode = readErrorCode(response);
+					throwIfIdempotentRequestIsProcessing(errorCode);
+					throw new TossPaymentException(PaymentConfirmErrorCode.fromErrorCode(errorCode));
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -111,25 +110,16 @@ public class TossPaymentsAdapter {
 		return Objects.requireNonNull(
 			tossPaymentsRestClient.post()
 				.uri(CANCEL_PATH, paymentKey)
+				.header(IDEMPOTENCY_KEY_HEADER, CANCELLATION_IDEMPOTENCY_KEY_PREFIX + paymentKey)
 				.body(payload)
 				.retrieve()
 				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
 					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					try {
-						String errorBody = new String(response.getBody().readAllBytes());
-						TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
-
-						String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
-							UNKNOWN_ERROR;
-						PaymentCancelErrorCode cancelErrorCode = PaymentCancelErrorCode.fromErrorCode(errorCode);
-
-						throw new TossPaymentException(cancelErrorCode);
-					} catch (IOException e) {
-						throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
-					}
-
+					String errorCode = readErrorCode(response);
+					throwIfIdempotentRequestIsProcessing(errorCode);
+					throw new TossPaymentException(PaymentCancelErrorCode.fromErrorCode(errorCode));
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -167,20 +157,8 @@ public class TossPaymentsAdapter {
 					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 				})
 				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					try {
-						String errorBody = new String(response.getBody().readAllBytes());
-						TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
-						String errorCode =
-							errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() : UNKNOWN_ERROR;
-
-						VirtualAccountIssueErrorCode virtualAccountIssueErrorCode = VirtualAccountIssueErrorCode.fromErrorCode(
-							errorCode);
-
-						throw new TossPaymentException(virtualAccountIssueErrorCode);
-					} catch (IOException e) {
-						throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
-					}
-
+					String errorCode = readErrorCode(response);
+					throw new TossPaymentException(VirtualAccountIssueErrorCode.fromErrorCode(errorCode));
 				})
 				.toEntity(TossPaymentResponse.class)
 				.getBody()
@@ -200,29 +178,38 @@ public class TossPaymentsAdapter {
 				throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
 			})
 			.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-				try {
-					String errorBody = new String(response.getBody().readAllBytes());
-					TossPaymentResponse errorResponse = parseErrorResponse(errorBody);
-
-					String errorCode = errorResponse.getFailure() != null ? errorResponse.getFailure().getCode() :
-						UNKNOWN_ERROR;
-					PaymentInquiryErrorCode inquiryErrorCode = PaymentInquiryErrorCode.fromErrorCode(errorCode);
-
-					throw new TossPaymentException(inquiryErrorCode);
-				} catch (IOException e) {
-					throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
-				}
-
+				String errorCode = readErrorCode(response);
+				throw new TossPaymentException(PaymentInquiryErrorCode.fromErrorCode(errorCode));
 			})
 			.body(TossPaymentResponse.class);
 	}
 
-	private TossPaymentResponse parseErrorResponse(String errorBody){
+	private String readErrorCode(ClientHttpResponse response) {
 		try {
-			return objectMapper.readValue(errorBody, TossPaymentResponse.class);
+			return parseErrorCode(new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8));
+		} catch (IOException e) {
+			throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+		}
+	}
+
+	private String parseErrorCode(String errorBody) {
+		try {
+			JsonNode root = objectMapper.readTree(errorBody);
+			String topLevelCode = root.path("code").asText(null);
+			if (topLevelCode != null) {
+				return topLevelCode;
+			}
+
+			return root.path("failure").path("code").asText(UNKNOWN_ERROR);
 		} catch (JsonProcessingException e) {
 			log.error("토스페이먼츠 에러 응답 파싱 실패", e);
 			throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+		}
+	}
+
+	private void throwIfIdempotentRequestIsProcessing(String errorCode) {
+		if (IDEMPOTENT_REQUEST_PROCESSING.equals(errorCode)) {
+			throw new ResourceAccessException(TOSS_API_SERVER_ERROR + errorCode);
 		}
 	}
 }

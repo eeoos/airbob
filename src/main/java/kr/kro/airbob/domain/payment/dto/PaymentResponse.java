@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.payment.dto;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -24,8 +26,8 @@ public class PaymentResponse {
 		Long totalAmount,
 		Long balanceAmount,
 		PaymentStatus status,
-		LocalDateTime requestedAt,
-		LocalDateTime approvedAt,
+		Instant requestedAt,
+		Instant approvedAt,
 		List<CancelInfo> cancels,
 		VirtualAccountInfo virtualAccount
 	){
@@ -42,7 +44,7 @@ public class PaymentResponse {
 				.totalAmount(payment.getAmount())
 				.balanceAmount(payment.getBalanceAmount())
 				.status(payment.getStatus())
-				.requestedAt(payment.getCreatedAt())
+				.requestedAt(toUtcInstant(payment.getCreatedAt()))
 				.approvedAt(payment.getApprovedAt())
 				.cancels(cancelInfos)
 				.virtualAccount(null)
@@ -57,7 +59,7 @@ public class PaymentResponse {
 				.method(transaction.getMethod() != null ? transaction.getMethod().getDescription() : null)
 				.totalAmount(transaction.getAmount())
 				.status(transaction.getStatus())
-				.requestedAt(transaction.getCreatedAt())
+				.requestedAt(toUtcInstant(transaction.getCreatedAt()))
 				.virtualAccount(VirtualAccountInfo.from(transaction))
 				.build();
 		}
@@ -67,7 +69,7 @@ public class PaymentResponse {
 	public record CancelInfo(
 		Long cancelAmount,
 		String cancelReason,
-		LocalDateTime canceledAt
+		Instant canceledAt
 	) {
 		public static CancelInfo from(PaymentTransaction cancelTransaction) {
 			return CancelInfo.builder()
@@ -83,7 +85,7 @@ public class PaymentResponse {
 		String accountNumber,
 		String bankCode,
 		String customerName,
-		LocalDateTime dueDate
+		Instant dueDate
 	) {
 		public static VirtualAccountInfo from(PaymentTransaction transaction) {
 			return VirtualAccountInfo.builder()
@@ -93,5 +95,9 @@ public class PaymentResponse {
 				.dueDate(transaction.getVirtualDueDate())
 				.build();
 		}
+	}
+
+	private static Instant toUtcInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
 	}
 }

@@ -2,8 +2,9 @@ package kr.kro.airbob.domain.accommodation.service;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -40,16 +41,20 @@ import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
 public class AccommodationAmenityDeleteBenchmarkFixtureService {
 
 	private static final LocalDateTime FOREVER = HistoryConstants.FOREVER;
+	private static final String FIXTURE_TIME_ZONE_ID = "UTC";
 
 	private final JdbcTemplate jdbcTemplate;
 	private final CommonCodeService commonCodeService;
+	private final Clock clock;
 
 	public AccommodationAmenityDeleteBenchmarkFixtureService(
 		JdbcTemplate jdbcTemplate,
-		CommonCodeService commonCodeService
+		CommonCodeService commonCodeService,
+		Clock clock
 	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.commonCodeService = commonCodeService;
+		this.clock = clock;
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -194,52 +199,62 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 	}
 
 	private long insertAccommodation(long ownerId, String name) {
+		LocalDateTime currentAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		return insertAndReturnKey("""
 			INSERT INTO accommodation (
 			  member_id, check_in_time, check_out_time, accommodation_uid, status,
-			  name, created_at, updated_at, created_by, updated_by
-			) VALUES (?, '15:00:00', '11:00:00', UUID_TO_BIN(?), 'DRAFT', ?,
-			  NOW(6), NOW(6), ?, ?)
+			  name, time_zone_id, created_at, updated_at, created_by, updated_by
+			) VALUES (?, '15:00:00', '11:00:00', UUID_TO_BIN(?), 'DRAFT', ?, ?,
+			  ?, ?, ?, ?)
 			""", statement -> {
 			statement.setLong(1, ownerId);
 			statement.setString(2, UUID.randomUUID().toString());
 			statement.setString(3, name);
-			statement.setLong(4, ownerId);
-			statement.setLong(5, ownerId);
+			statement.setString(4, FIXTURE_TIME_ZONE_ID);
+			statement.setObject(5, currentAt);
+			statement.setObject(6, currentAt);
+			statement.setLong(7, ownerId);
+			statement.setLong(8, ownerId);
 		});
 	}
 
 	private long insertAmenity(long accommodationId, String code, int count, long ownerId) {
+		LocalDateTime currentAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		return insertAndReturnKey("""
 			INSERT INTO accommodation_amenity (
 			  accommodation_id, amenity_code, count,
 			  created_at, updated_at, created_by, updated_by
-			) VALUES (?, ?, ?, NOW(6), NOW(6), ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?)
 			""", statement -> {
 			statement.setLong(1, accommodationId);
 			statement.setString(2, code);
 			statement.setInt(3, count);
-			statement.setLong(4, ownerId);
-			statement.setLong(5, ownerId);
+			statement.setObject(4, currentAt);
+			statement.setObject(5, currentAt);
+			statement.setLong(6, ownerId);
+			statement.setLong(7, ownerId);
 		});
 	}
 
 	private long insertCurrentHistory(long accommodationId, long ownerId) {
+		LocalDateTime currentAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		return insertAndReturnKey("""
 			INSERT INTO accommodation_history (
 			  accommodation_id, accommodation_uid, name, status, check_in_time, check_out_time,
-			  member_id, created_at, created_by, history_created_at, history_created_by,
+			  member_id, time_zone_id, created_at, created_by, history_created_at, history_created_by,
 			  change_type, change_reason, source_system, client_ip, valid_from, valid_to
 			)
 			SELECT id, BIN_TO_UUID(accommodation_uid), name, status, check_in_time, check_out_time,
-			       member_id, created_at, created_by, NOW(6), ?, 'CREATE',
-			       'benchmark current history', 'BENCHMARK', '127.0.0.1', NOW(6), ?
+			       member_id, time_zone_id, created_at, created_by, ?, ?, 'CREATE',
+			       'benchmark current history', 'BENCHMARK', '127.0.0.1', ?, ?
 			FROM accommodation
 			WHERE id = ?
 			""", statement -> {
-			statement.setLong(1, ownerId);
-			statement.setTimestamp(2, Timestamp.valueOf(FOREVER));
-			statement.setLong(3, accommodationId);
+			statement.setObject(1, currentAt);
+			statement.setLong(2, ownerId);
+			statement.setObject(3, currentAt);
+			statement.setObject(4, FOREVER);
+			statement.setLong(5, accommodationId);
 		});
 	}
 
@@ -270,7 +285,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		return jdbcTemplate.query("""
 			SELECT id, BIN_TO_UUID(accommodation_uid) AS accommodation_uid, member_id, name,
 			       description, base_price, currency, thumbnail_url, type,
-			       status, check_in_time, check_out_time, address_id, occupancy_policy_id,
+			       status, check_in_time, check_out_time, time_zone_id, address_id, occupancy_policy_id,
 			       created_at, updated_at, created_by, updated_by
 			FROM accommodation
 			WHERE id = ?
@@ -288,10 +303,11 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 				values.put("status", resultSet.getString("status"));
 				values.put("check_in_time", resultSet.getTime("check_in_time").toLocalTime());
 				values.put("check_out_time", resultSet.getTime("check_out_time").toLocalTime());
+				values.put("time_zone_id", resultSet.getString("time_zone_id"));
 				values.put("address_id", nullableLong(resultSet, "address_id"));
 				values.put("occupancy_policy_id", nullableLong(resultSet, "occupancy_policy_id"));
-				values.put("created_at", toLocalDateTime(resultSet.getTimestamp("created_at")));
-				values.put("updated_at", toLocalDateTime(resultSet.getTimestamp("updated_at")));
+				values.put("created_at", resultSet.getObject("created_at", LocalDateTime.class));
+				values.put("updated_at", resultSet.getObject("updated_at", LocalDateTime.class));
 				values.put("created_by", nullableLong(resultSet, "created_by"));
 				values.put("updated_by", nullableLong(resultSet, "updated_by"));
 				return new ParentSnapshot(values);
@@ -302,6 +318,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		return jdbcTemplate.query("""
 			SELECT id, accommodation_id, accommodation_uid, name, description, base_price,
 			       currency, thumbnail_url, type, status, check_in_time, check_out_time, member_id,
+			       time_zone_id,
 			       address_country, address_state, address_city, address_district, address_street,
 			       address_detail, address_postal_code, address_latitude, address_longitude,
 			       max_occupancy, infant_occupancy, pet_occupancy, created_at, created_by,
@@ -325,6 +342,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 				values.put("check_in_time", resultSet.getTime("check_in_time").toLocalTime());
 				values.put("check_out_time", resultSet.getTime("check_out_time").toLocalTime());
 				values.put("member_id", nullableLong(resultSet, "member_id"));
+				values.put("time_zone_id", resultSet.getString("time_zone_id"));
 				values.put("address_country", resultSet.getString("address_country"));
 				values.put("address_state", resultSet.getString("address_state"));
 				values.put("address_city", resultSet.getString("address_city"));
@@ -337,16 +355,16 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 				values.put("max_occupancy", resultSet.getObject("max_occupancy", Integer.class));
 				values.put("infant_occupancy", resultSet.getObject("infant_occupancy", Integer.class));
 				values.put("pet_occupancy", resultSet.getObject("pet_occupancy", Integer.class));
-				values.put("created_at", toLocalDateTime(resultSet.getTimestamp("created_at")));
+				values.put("created_at", resultSet.getObject("created_at", LocalDateTime.class));
 				values.put("created_by", nullableLong(resultSet, "created_by"));
-				values.put("history_created_at", toLocalDateTime(resultSet.getTimestamp("history_created_at")));
+				values.put("history_created_at", resultSet.getObject("history_created_at", LocalDateTime.class));
 				values.put("history_created_by", nullableLong(resultSet, "history_created_by"));
 				values.put("change_type", resultSet.getString("change_type"));
 				values.put("change_reason", resultSet.getString("change_reason"));
 				values.put("source_system", resultSet.getString("source_system"));
 				values.put("client_ip", resultSet.getString("client_ip"));
-				values.put("valid_from", toLocalDateTime(resultSet.getTimestamp("valid_from")));
-				values.put("valid_to", toLocalDateTime(resultSet.getTimestamp("valid_to")));
+				values.put("valid_from", resultSet.getObject("valid_from", LocalDateTime.class));
+				values.put("valid_to", resultSet.getObject("valid_to", LocalDateTime.class));
 				return new HistorySnapshot(values);
 			}, accommodationId);
 	}
@@ -461,10 +479,6 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		return resultSet.getObject(column, Long.class);
 	}
 
-	private LocalDateTime toLocalDateTime(Timestamp timestamp) {
-		return timestamp == null ? null : timestamp.toLocalDateTime();
-	}
-
 	@FunctionalInterface
 	private interface StatementBinder {
 		void bind(PreparedStatement statement) throws java.sql.SQLException;
@@ -534,6 +548,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 				&& Objects.equals(values.get("check_in_time"), parentValues.get("check_in_time"))
 				&& Objects.equals(values.get("check_out_time"), parentValues.get("check_out_time"))
 				&& Objects.equals(values.get("member_id"), parentValues.get("member_id"))
+				&& Objects.equals(values.get("time_zone_id"), parentValues.get("time_zone_id"))
 				&& Objects.equals(values.get("created_at"), parentValues.get("created_at"))
 				&& Objects.equals(values.get("created_by"), parentValues.get("created_by"))
 				&& ownedSnapshotMatchesFixtureParent(parentValues);

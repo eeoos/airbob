@@ -1,8 +1,10 @@
 package kr.kro.airbob.domain.accommodation.dto;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
@@ -34,7 +36,7 @@ public class AccommodationResponse {
 		AddressResponse.AddressSummaryInfo addressSummary,
 		// Integer basePrice,
 		// ReviewResponse.ReviewSummary reviewSummary,
-		LocalDateTime createdAt
+		Instant createdAt
 	) {
 		public static HostAccommodationInfo from(Accommodation accommodation) {
 			Address address = accommodation.getAddress();
@@ -45,7 +47,7 @@ public class AccommodationResponse {
 				.status(accommodation.getStatus())
 				.type(accommodation.getType())
 				.addressSummary(AddressResponse.AddressSummaryInfo.from(address))
-				.createdAt(accommodation.getCreatedAt())
+				.createdAt(toUtcInstant(accommodation.getCreatedAt()))
 				.build();
 		}
 	}
@@ -144,6 +146,7 @@ public class AccommodationResponse {
 		String currency,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
+		String timeZoneId,
 
 		AddressResponse.AddressInfo address,
 		AddressResponse.Coordinate coordinate,
@@ -176,6 +179,7 @@ public class AccommodationResponse {
 				.currency(accommodation.getCurrency())
 				.checkInTime(accommodation.getCheckInTime())
 				.checkOutTime(accommodation.getCheckOutTime())
+				.timeZoneId(accommodation.getTimeZoneId())
 				.address(AddressResponse.AddressInfo.from(address))
 				.coordinate(AddressResponse.Coordinate.from(address))
 				.host(MemberResponse.MemberInfo.from(host))
@@ -202,7 +206,7 @@ public class AccommodationResponse {
 
 	@Builder
 	public record RecentlyViewedAccommodationInfo(
-		LocalDateTime viewedAt,
+		Instant viewedAt,
 		Long accommodationId,
 		String accommodationName,
 		String thumbnailUrl,
@@ -210,7 +214,7 @@ public class AccommodationResponse {
 		ReviewResponse.ReviewSummary reviewSummary,
 		Boolean isInWishlist
 	) {
-		public static RecentlyViewedAccommodationInfo from(LocalDateTime viewedAt, Accommodation accommodation,
+		public static RecentlyViewedAccommodationInfo from(Instant viewedAt, Accommodation accommodation,
 			ReviewResponse.ReviewSummary reviewSummary, boolean isInWishlist) {
 			return RecentlyViewedAccommodationInfo.builder()
 				.viewedAt(viewedAt)
@@ -240,5 +244,9 @@ public class AccommodationResponse {
 				.thumbnailUrl(accommodation.getThumbnailUrl())
 				.build();
 		}
+	}
+
+	private static Instant toUtcInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
 	}
 }

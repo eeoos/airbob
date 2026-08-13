@@ -48,7 +48,16 @@ public class PaymentEventTranslator {
 					envelope.payload()
 				);
 				log.info("[TRANSLATOR] PAYMENT_FAILED -> RESERVATION_EXPIRE_REQUESTED 발행. UID: {}", envelope.payload().reservationUid());
-			}else if (type == EventType.PAYMENT_CANCELLATION_FAILED) {
+			} else if (type == EventType.PAYMENT_CANCELLATION_COMPLETED) {
+				EventEnvelope<PaymentEvent.PaymentCancellationCompletedEvent> envelope =
+					debeziumEventParser.parse(message, PaymentEvent.PaymentCancellationCompletedEvent.class);
+				PaymentEvent.PaymentCancellationCompletedEvent payload = envelope.payload();
+				outboxEventPublisher.save(
+					EventType.RESERVATION_CANCELLATION_COMPLETE_REQUESTED,
+					new ReservationEvent.ReservationCancellationCompleteRequestedEvent(payload.reservationUid())
+				);
+				log.info("[TRANSLATOR] PAYMENT_CANCELLATION_COMPLETED -> RESERVATION_CANCELLATION_COMPLETE_REQUESTED 발행. UID: {}", payload.reservationUid());
+			} else if (type == EventType.PAYMENT_CANCELLATION_FAILED) {
 				EventEnvelope<PaymentEvent.PaymentCancellationFailedEvent> envelope =
 					debeziumEventParser.parse(message, PaymentEvent.PaymentCancellationFailedEvent.class);
 				PaymentEvent.PaymentCancellationFailedEvent payload = envelope.payload();
