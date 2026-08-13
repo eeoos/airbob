@@ -58,6 +58,32 @@ class GrafanaDashboardConfigurationTest {
 		assertThat(dashboard.findValues("expr")).hasSizeGreaterThanOrEqualTo(40);
 	}
 
+	@Test
+	void redisExporterDashboardIsVendoredForFileProvisioning() throws IOException {
+		JsonNode dashboard = readDashboard("airbob-redis.json");
+
+		assertThat(dashboard.path("title").asText())
+			.isEqualTo("Redis Dashboard for Prometheus Redis Exporter 1.x");
+		assertThat(dashboard.path("gnetId").asInt()).isEqualTo(763);
+		assertThat(dashboard.path("description").asText())
+			.contains("grafana.com/grafana/dashboards/763");
+		assertThat(dashboard.has("__inputs")).isFalse();
+		assertPrometheusDatasourcesUseProvisionedUid(dashboard);
+
+		String expressions = dashboard.findValues("expr").toString();
+		assertThat(expressions)
+			.contains("redis_up")
+			.contains("redis_memory_used_bytes")
+			.contains("redis_commands_total")
+			.contains("redis_keyspace_hits_total")
+			.contains("redis_evicted_keys_total");
+
+		List<String> variableQueries = dashboard.path("templating").findValuesAsText("query");
+		assertThat(variableQueries)
+			.contains("label_values(redis_up, namespace)")
+			.contains("label_values(redis_up{namespace=~\"$namespace\"}, instance)");
+	}
+
 	private JsonNode readDashboard(String fileName) throws IOException {
 		Path dashboardPath = DASHBOARD_DIRECTORY.resolve(fileName);
 		assertThat(dashboardPath).isRegularFile();

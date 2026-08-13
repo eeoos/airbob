@@ -5,7 +5,7 @@ import java.time.Duration;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
-import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
+import org.redisson.config.SingleServerConfig;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +20,7 @@ import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheProperti
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailRedisClient;
 
 @Configuration
-@EnableConfigurationProperties(RedisProperties.class)
+@EnableConfigurationProperties(AccommodationDetailRedisProperties.class)
 public class AccommodationDetailRedisConfig {
 
 	private static final int CACHE_LOCK_CONNECTION_POOL_SIZE = 8;
@@ -29,30 +29,11 @@ public class AccommodationDetailRedisConfig {
 
 	@Bean(destroyMethod = "destroy")
 	AccommodationDetailRedisClient accommodationDetailRedisClient(
-		RedisProperties redisProperties,
+		AccommodationDetailRedisProperties redisProperties,
 		AccommodationDetailCacheProperties properties
 	) {
-		SocketOptions socketOptions = SocketOptions.builder()
-			.connectTimeout(properties.redisConnectTimeout())
-			.build();
-		ClientOptions clientOptions = ClientOptions.builder()
-			.socketOptions(socketOptions)
-			.build();
-		LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.builder()
-			.clientOptions(clientOptions)
-			.commandTimeout(properties.redisCommandTimeout())
-			.shutdownQuietPeriod(Duration.ZERO)
-			.shutdownTimeout(Duration.ZERO)
-			.build();
-		RedisStandaloneConfiguration standalone = new RedisStandaloneConfiguration(
-			redisProperties.getHost(), redisProperties.getPort());
-		standalone.setDatabase(redisProperties.getDatabase());
-		if (redisProperties.getUsername() != null && !redisProperties.getUsername().isBlank()) {
-			standalone.setUsername(redisProperties.getUsername());
-		}
-		if (redisProperties.getPassword() != null && !redisProperties.getPassword().isBlank()) {
-			standalone.setPassword(redisProperties.getPassword());
-		}
+		LettuceClientConfiguration clientConfiguration = lettuceClientConfiguration(properties);
+		RedisStandaloneConfiguration standalone = redisStandaloneConfiguration(redisProperties);
 		LettuceConnectionFactory factory = new LettuceConnectionFactory(standalone, clientConfiguration);
 		factory.afterPropertiesSet();
 
@@ -63,28 +44,77 @@ public class AccommodationDetailRedisConfig {
 
 	@Bean(name = "accommodationDetailRedissonClient", destroyMethod = "shutdown")
 	RedissonClient accommodationDetailRedissonClient(
-		RedisProperties redisProperties,
+		AccommodationDetailRedisProperties redisProperties,
+		AccommodationDetailCacheProperties properties
+	) {
+		return Redisson.create(accommodationDetailRedissonConfig(redisProperties, properties));
+	}
+
+	LettuceClientConfiguration lettuceClientConfiguration(
+		AccommodationDetailCacheProperties properties
+	) {
+		SocketOptions socketOptions = SocketOptions.builder()
+			.connectTimeout(properties.redisConnectTimeout())
+			.build();
+		ClientOptions clientOptions = ClientOptions.builder()
+			.socketOptions(socketOptions)
+			.build();
+		return LettuceClientConfiguration.builder()
+			.clientOptions(clientOptions)
+			.commandTimeout(properties.redisCommandTimeout())
+			.shutdownQuietPeriod(Duration.ZERO)
+			.shutdownTimeout(Duration.ZERO)
+			.build();
+	}
+
+	RedisStandaloneConfiguration redisStandaloneConfiguration(
+		AccommodationDetailRedisProperties redisProperties
+	) {
+		RedisStandaloneConfiguration standalone = new RedisStandaloneConfiguration(
+			redisProperties.host(), redisProperties.port());
+		standalone.setDatabase(redisProperties.database());
+		if (redisProperties.username() != null && !redisProperties.username().isBlank()) {
+			standalone.setUsername(redisProperties.username());
+		}
+		if (redisProperties.password() != null && !redisProperties.password().isBlank()) {
+			standalone.setPassword(redisProperties.password());
+		}
+		return standalone;
+	}
+
+	Config accommodationDetailRedissonConfig(
+		AccommodationDetailRedisProperties redisProperties,
 		AccommodationDetailCacheProperties properties
 	) {
 		Config config = new Config();
 		config.setUseScriptCache(true);
+		config.setLazyInitialization(true);
 		config.setThreads(CACHE_LOCK_THREADS);
 		config.setNettyThreads(CACHE_LOCK_THREADS);
+		configureSingleServer(config, redisProperties, properties);
+		return config;
+	}
+
+	SingleServerConfig configureSingleServer(
+		Config config,
+		AccommodationDetailRedisProperties redisProperties,
+		AccommodationDetailCacheProperties properties
+	) {
 		var server = config.useSingleServer()
-			.setAddress("redis://" + redisProperties.getHost() + ":" + redisProperties.getPort())
-			.setDatabase(redisProperties.getDatabase())
+			.setAddress("redis://" + redisProperties.host() + ":" + redisProperties.port())
+			.setDatabase(redisProperties.database())
 			.setConnectTimeout(toIntMillis(properties.redisConnectTimeout()))
 			.setTimeout(toIntMillis(properties.redisCommandTimeout()))
 			.setRetryAttempts(0)
 			.setConnectionMinimumIdleSize(CACHE_LOCK_CONNECTION_MINIMUM_IDLE_SIZE)
 			.setConnectionPoolSize(CACHE_LOCK_CONNECTION_POOL_SIZE);
-		if (redisProperties.getUsername() != null && !redisProperties.getUsername().isBlank()) {
-			server.setUsername(redisProperties.getUsername());
+		if (redisProperties.username() != null && !redisProperties.username().isBlank()) {
+			server.setUsername(redisProperties.username());
 		}
-		if (redisProperties.getPassword() != null && !redisProperties.getPassword().isBlank()) {
-			server.setPassword(redisProperties.getPassword());
+		if (redisProperties.password() != null && !redisProperties.password().isBlank()) {
+			server.setPassword(redisProperties.password());
 		}
-		return Redisson.create(config);
+		return server;
 	}
 
 	private int toIntMillis(Duration duration) {
