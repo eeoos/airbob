@@ -3,6 +3,7 @@ package kr.kro.airbob.config;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Bean;
@@ -21,8 +22,6 @@ import kr.kro.airbob.common.context.UserInfo;
 	dateTimeProviderRef = "utcDateTimeProvider"
 )
 public class JpaAuditingConfig {
-	private static final Clock UTC_CLOCK = Clock.systemUTC();
-
 	// created_by / updated_by 자동 채움: 인증된 요청이면 member.id, 아니면 비움(NULL).
 	@Bean
 	public AuditorAware<Long> auditorProvider() {
@@ -30,7 +29,7 @@ public class JpaAuditingConfig {
 	}
 
 	@Bean
-	public DateTimeProvider utcDateTimeProvider() {
-		return () -> Optional.of(LocalDateTime.now(UTC_CLOCK));
+	public DateTimeProvider utcDateTimeProvider(Clock clock) {
+		return () -> Optional.of(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
 	}
 }

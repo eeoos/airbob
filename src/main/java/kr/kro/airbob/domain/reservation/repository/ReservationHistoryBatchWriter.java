@@ -1,13 +1,12 @@
 package kr.kro.airbob.domain.reservation.repository;
 
-import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 
@@ -102,7 +101,7 @@ public class ReservationHistoryBatchWriter {
 		setNullableInstant(statement, 16, history.getExpiresAt());
 		setNullableTimestamp(statement, 17, history.getCreatedAt());
 		setNullableLong(statement, 18, history.getCreatedBy());
-		statement.setTimestamp(19, Timestamp.from(historyCreatedAt));
+		statement.setObject(19, toUtcDateTime(historyCreatedAt), Types.TIMESTAMP);
 		statement.setNull(20, Types.BIGINT);
 		statement.setString(21, history.getChangeType().name());
 		statement.setString(22, history.getChangeReason());
@@ -114,7 +113,7 @@ public class ReservationHistoryBatchWriter {
 		if (value == null) {
 			statement.setNull(index, Types.DATE);
 		} else {
-			statement.setDate(index, Date.valueOf(value));
+			statement.setObject(index, value, Types.DATE);
 		}
 	}
 
@@ -122,7 +121,7 @@ public class ReservationHistoryBatchWriter {
 		if (value == null) {
 			statement.setNull(index, Types.TIMESTAMP);
 		} else {
-			statement.setTimestamp(index, Timestamp.from(value));
+			statement.setObject(index, toUtcDateTime(value), Types.TIMESTAMP);
 		}
 	}
 
@@ -146,8 +145,12 @@ public class ReservationHistoryBatchWriter {
 		if (value == null) {
 			statement.setNull(index, Types.TIMESTAMP);
 		} else {
-			statement.setTimestamp(index, Timestamp.valueOf(value));
+			statement.setObject(index, value, Types.TIMESTAMP);
 		}
+	}
+
+	private LocalDateTime toUtcDateTime(Instant value) {
+		return LocalDateTime.ofInstant(value, ZoneOffset.UTC);
 	}
 
 	private Long affectedRows(int[] updateCounts, int submittedRows) {

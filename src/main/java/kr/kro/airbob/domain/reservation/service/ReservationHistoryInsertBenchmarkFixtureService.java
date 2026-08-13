@@ -4,12 +4,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -251,14 +252,14 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			statement.setString(2, reservationCode);
 			statement.setLong(3, accommodationId);
 			statement.setLong(4, memberId);
-			statement.setObject(5, checkIn);
-			statement.setObject(6, checkOut);
-			statement.setTimestamp(7, Timestamp.from(checkInAt));
-			statement.setTimestamp(8, Timestamp.from(checkOutAt));
+			statement.setObject(5, checkIn, Types.DATE);
+			statement.setObject(6, checkOut, Types.DATE);
+			statement.setObject(7, toUtcDateTime(checkInAt), Types.TIMESTAMP);
+			statement.setObject(8, toUtcDateTime(checkOutAt), Types.TIMESTAMP);
 			statement.setString(9, ACCOMMODATION_ZONE.getId());
 			statement.setString(10, status);
 			statement.setString(11, message);
-			statement.setTimestamp(12, Timestamp.from(expiresAt));
+			statement.setObject(12, toUtcDateTime(expiresAt), Types.TIMESTAMP);
 			statement.setObject(13, CREATED_AT);
 			statement.setObject(14, CREATED_AT);
 			statement.setLong(15, memberId);
@@ -346,18 +347,18 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			resultSet.getObject("guest_id", Long.class),
 			resultSet.getObject("check_in_date", LocalDate.class),
 			resultSet.getObject("check_out_date", LocalDate.class),
-			toInstant(resultSet.getTimestamp("check_in_at")),
-			toInstant(resultSet.getTimestamp("check_out_at")),
+			toInstant(resultSet.getObject("check_in_at", LocalDateTime.class)),
+			toInstant(resultSet.getObject("check_out_at", LocalDateTime.class)),
 			resultSet.getString("time_zone_id"),
 			resultSet.getObject("guest_count", Integer.class),
 			resultSet.getObject("total_price", Long.class),
 			resultSet.getString("currency"),
 			resultSet.getString("status"),
 			resultSet.getString("message"),
-			toInstant(resultSet.getTimestamp("expires_at")),
+			toInstant(resultSet.getObject("expires_at", LocalDateTime.class)),
 			resultSet.getObject("created_at", LocalDateTime.class),
 			resultSet.getObject("created_by", Long.class),
-			toInstant(resultSet.getTimestamp("history_created_at")),
+			toInstant(resultSet.getObject("history_created_at", LocalDateTime.class)),
 			resultSet.getObject("history_created_by", Long.class),
 			resultSet.getString("change_type"),
 			resultSet.getString("change_reason"),
@@ -451,7 +452,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		Long eligible = jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM reservation WHERE status = 'PAYMENT_PENDING' AND expires_at <= ?",
 			Long.class,
-			Timestamp.from(clock.instant())
+			toUtcDateTime(clock.instant())
 		);
 		if (!Objects.equals(eligible, 0L)) {
 			throw new IllegalStateException("전용 벤치마크 DB에 기존 만료 대상 예약이 있습니다.");
@@ -462,7 +463,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		List<Long> eligibleIds = jdbcTemplate.queryForList(
 			"SELECT id FROM reservation WHERE status = 'PAYMENT_PENDING' AND expires_at <= ? ORDER BY id",
 			Long.class,
-			Timestamp.from(clock.instant())
+			toUtcDateTime(clock.instant())
 		);
 		List<Long> targetIds = fixture.targets().stream().map(ReservationExpectation::id).sorted().toList();
 		if (!eligibleIds.equals(targetIds)) {
@@ -491,8 +492,12 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		return String.join(", ", Collections.nCopies(size, "?"));
 	}
 
-	private Instant toInstant(Timestamp timestamp) {
-		return timestamp == null ? null : timestamp.toInstant();
+	private LocalDateTime toUtcDateTime(Instant instant) {
+		return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+	}
+
+	private Instant toInstant(LocalDateTime dateTime) {
+		return dateTime == null ? null : dateTime.toInstant(ZoneOffset.UTC);
 	}
 
 	private void validateDatasetSize(int datasetSize) {

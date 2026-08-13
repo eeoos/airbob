@@ -10,12 +10,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(ReservationHistoryBatchWriter.class)
 @Testcontainers
+@ResourceLock("jvm-default-time-zone")
 @DisplayName("ReservationHistory JDBC batch writer MySQL integration test")
 class ReservationHistoryBatchWriterIntegrationTest {
 
@@ -84,12 +87,18 @@ class ReservationHistoryBatchWriterIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("24개 non-ID snapshot column을 정확히 저장한다")
+	@DisplayName("JVM 기본 시간대와 무관하게 24개 non-ID snapshot column을 UTC 기준으로 저장한다")
 	void persistsAllSnapshotColumns() {
 		Instant historyCreatedAt = Instant.parse("2026-07-21T12:30:00Z");
 		ReservationHistory history = history(1);
+		TimeZone originalTimeZone = TimeZone.getDefault();
 
-		writer.writeAll(List.of(history), historyCreatedAt);
+		try {
+			TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
+			writer.writeAll(List.of(history), historyCreatedAt);
+		} finally {
+			TimeZone.setDefault(originalTimeZone);
+		}
 
 		Map<String, Object> row = jdbcTemplate.queryForMap(
 			"SELECT * FROM reservation_history WHERE reservation_id = ?",
@@ -115,12 +124,16 @@ class ReservationHistoryBatchWriterIntegrationTest {
 			.containsEntry("client_ip", null);
 		assertThat(asLocalDate(row.get("check_in_date"))).isEqualTo(history.getCheckInDate());
 		assertThat(asLocalDate(row.get("check_out_date"))).isEqualTo(history.getCheckOutDate());
-		assertThat(asInstant(row.get("check_in_at"))).isEqualTo(history.getCheckInAt());
-		assertThat(asInstant(row.get("check_out_at"))).isEqualTo(history.getCheckOutAt());
-		assertThat(asInstant(row.get("expires_at"))).isEqualTo(history.getExpiresAt());
-		assertThat(asInstant(row.get("created_at")))
-			.isEqualTo(Timestamp.valueOf(history.getCreatedAt()).toInstant());
-		assertThat(asInstant(row.get("history_created_at"))).isEqualTo(historyCreatedAt);
+		assertThat(readDateTime(history.getReservationId(), "check_in_at"))
+			.isEqualTo(LocalDateTime.ofInstant(history.getCheckInAt(), ZoneOffset.UTC));
+		assertThat(readDateTime(history.getReservationId(), "check_out_at"))
+			.isEqualTo(LocalDateTime.ofInstant(history.getCheckOutAt(), ZoneOffset.UTC));
+		assertThat(readDateTime(history.getReservationId(), "expires_at"))
+			.isEqualTo(LocalDateTime.ofInstant(history.getExpiresAt(), ZoneOffset.UTC));
+		assertThat(readDateTime(history.getReservationId(), "created_at"))
+			.isEqualTo(history.getCreatedAt());
+		assertThat(readDateTime(history.getReservationId(), "history_created_at"))
+			.isEqualTo(LocalDateTime.ofInstant(historyCreatedAt, ZoneOffset.UTC));
 	}
 
 	@Test
@@ -173,13 +186,6 @@ class ReservationHistoryBatchWriterIntegrationTest {
 			.build();
 	}
 
-	private LocalDateTime asLocalDateTime(Object value) {
-		if (value instanceof Timestamp timestamp) {
-			return timestamp.toLocalDateTime();
-		}
-		return (LocalDateTime) value;
-	}
-
 	private LocalDate asLocalDate(Object value) {
 		if (value instanceof java.sql.Date date) {
 			return date.toLocalDate();
@@ -187,14 +193,12 @@ class ReservationHistoryBatchWriterIntegrationTest {
 		return (LocalDate) value;
 	}
 
-	private Instant asInstant(Object value) {
-		if (value instanceof Timestamp timestamp) {
-			return timestamp.toInstant();
-		}
-		if (value instanceof LocalDateTime localDateTime) {
-			return localDateTime.toInstant(ZoneOffset.UTC);
-		}
-		return (Instant) value;
+	private LocalDateTime readDateTime(long reservationId, String column) {
+		return jdbcTemplate.queryForObject(
+			"SELECT " + column + " FROM reservation_history WHERE reservation_id = ?",
+			(resultSet, rowNumber) -> resultSet.getObject(column, LocalDateTime.class),
+			reservationId
+		);
 	}
 
 	private static class IntentionalRollback extends RuntimeException {

@@ -63,7 +63,7 @@ services:
       - SPRING_PROFILES_ACTIVE=oci
       - JAVA_OPTS=-Xms512m -Xmx1536m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
       # Docker 내부 서비스 주소 오버라이드
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true
       - REDIS_HOST=redis
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092

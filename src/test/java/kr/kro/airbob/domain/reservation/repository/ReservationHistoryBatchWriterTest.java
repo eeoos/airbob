@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.*;
 import java.nio.charset.StandardCharsets;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -153,7 +152,11 @@ class ReservationHistoryBatchWriterTest {
 		then(statement).should().setNull(17, Types.TIMESTAMP);
 		then(statement).should().setNull(18, Types.BIGINT);
 		then(statement).should().setNull(20, Types.BIGINT);
-		then(statement).should().setTimestamp(19, Timestamp.from(HISTORY_CREATED_AT));
+		then(statement).should().setObject(
+			19,
+			LocalDateTime.ofInstant(HISTORY_CREATED_AT, ZoneOffset.UTC),
+			Types.TIMESTAMP
+		);
 	}
 
 	private List<ReservationHistory> histories(int size) {

@@ -33,6 +33,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import kr.kro.airbob.config.JpaAuditingConfig;
+import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -54,6 +55,7 @@ import jakarta.persistence.EntityManager;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
+	ClockConfig.class,
     JpaAuditingConfig.class,
     QueryDslConfig.class,
     ReservationRepositoryQueryTest.SqlCaptureConfig.class

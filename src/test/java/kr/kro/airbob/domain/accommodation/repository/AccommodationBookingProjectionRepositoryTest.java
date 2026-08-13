@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import kr.kro.airbob.config.JpaAuditingConfig;
+import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -29,7 +30,7 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaAuditingConfig.class, QueryDslConfig.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 예약용 경량 조회 테스트")
 class AccommodationBookingProjectionRepositoryTest {
