@@ -49,6 +49,15 @@ class PaymentOperationTest {
 	}
 
 	@Test
+	void boundsAnOversizedPaymentKeyBeforeCreatingTheDurableOperation() {
+		String oversizedPaymentKey = "p".repeat(201);
+
+		PaymentOperation operation = operation(oversizedPaymentKey, 100_000L);
+
+		assertThat(operation.getPaymentKey()).isEqualTo("p".repeat(200));
+	}
+
+	@Test
 	void identifiesOnlyTheMemberThatRequestedIt() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
 

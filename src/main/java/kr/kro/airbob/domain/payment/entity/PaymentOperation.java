@@ -109,7 +109,7 @@ public class PaymentOperation extends BaseEntity {
 			.requesterMemberId(requesterMemberId)
 			.operationType(PaymentOperationType.CONFIRM)
 			.status(PaymentOperationStatus.READY)
-			.paymentKey(paymentKey)
+			.paymentKey(limitLength(paymentKey, PAYMENT_KEY_MAX_LENGTH))
 			.expectedAmount(amount)
 			.providerIdempotencyKey("airbob-confirm-" + operationUid)
 			.deduplicationKey("CONFIRM:" + reservation.getReservationUid())
@@ -129,5 +129,12 @@ public class PaymentOperation extends BaseEntity {
 
 	public void recordEnqueued(Instant now) {
 		this.lastEnqueuedAt = now;
+	}
+
+	private static String limitLength(String value, int maxLength) {
+		if (value == null || value.length() <= maxLength) {
+			return value;
+		}
+		return value.substring(0, maxLength);
 	}
 }
