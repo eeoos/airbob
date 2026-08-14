@@ -135,7 +135,6 @@ git commit -m "feat: verify immutable AWS service bundles"
 **Files:**
 - Create: `infra/aws/bundles/redis/compose.yml`
 - Create: `src/test/java/kr/kro/airbob/common/monitoring/AwsRedisBundleConfigurationTest.java`
-- Modify: `src/test/java/kr/kro/airbob/common/monitoring/RedisMonitoringConfigurationTest.java`
 
 **Interfaces:**
 - Consumes: `REDIS_IMAGE`, `REDIS_EXPORTER_IMAGE`, and `NODE_EXPORTER_IMAGE` digest variables.
@@ -151,7 +150,7 @@ assertThat(services.keySet()).containsExactlyInAnyOrder(
     "redis-exporter-cache", "node-exporter");
 ```
 
-Assert the two Redis commands, ports, volumes, `mem_limit`, `memswap_limit`, exporter addresses/limits, restart policy, `platform=linux/amd64`, and node exporter host mounts. Extend the existing monitoring test so its AWS branch preserves `namespace=general|cache` and `instance=redis-general|redis-cache` expectations.
+Assert the two Redis commands, ports, volumes, `mem_limit`, `memswap_limit`, exporter addresses/limits, restart policy, `platform=linux/amd64`, and node exporter host mounts. Keep `RedisMonitoringConfigurationTest` in the focused regression command for the existing local/OCI contracts, but do not create or assert `prometheus.aws.yml` in this task. AWS Redis scrape labels belong to Task 6, which creates that file.
 
 - [ ] **Step 2: Confirm RED**
 
@@ -208,7 +207,7 @@ Expected: PASS with exactly two Redis containers and two Redis exporters.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add infra/aws/bundles/redis/compose.yml src/test/java/kr/kro/airbob/common/monitoring/AwsRedisBundleConfigurationTest.java src/test/java/kr/kro/airbob/common/monitoring/RedisMonitoringConfigurationTest.java
+git add infra/aws/bundles/redis/compose.yml src/test/java/kr/kro/airbob/common/monitoring/AwsRedisBundleConfigurationTest.java
 git commit -m "feat: add AWS two-Redis host bundle"
 ```
 
@@ -445,6 +444,7 @@ git commit -m "feat: define AWS Elasticsearch host bundle"
 - Create: `monitoring/prometheus/prometheus.aws.yml`
 - Create: `monitoring/grafana/provisioning/datasources/cloudwatch.aws.yml`
 - Create: `src/test/java/kr/kro/airbob/common/monitoring/AwsMonitoringBundleConfigurationTest.java`
+- Modify: `src/test/java/kr/kro/airbob/common/monitoring/RedisMonitoringConfigurationTest.java`
 
 **Interfaces:**
 - Consumes: `PROMETHEUS_IMAGE`, `GRAFANA_IMAGE`, `NODE_EXPORTER_IMAGE`, and `MONITORING_ENV_FILE`.
@@ -463,12 +463,12 @@ elasticsearch.lab.airbob.internal:9114
 monitoring.lab.airbob.internal:9100
 ```
 
-Assert Redis labels remain `general|cache`, Grafana has Prometheus UID `prometheus` and CloudWatch UID `cloudwatch`, and the Compose file publishes only `127.0.0.1:9090:9090`, `127.0.0.1:3000:3000`, and VPC node exporter `9100:9100`.
+Assert Redis labels remain `general|cache`, Grafana has Prometheus UID `prometheus` and CloudWatch UID `cloudwatch`, and the Compose file publishes only `127.0.0.1:9090:9090`, `127.0.0.1:3000:3000`, and VPC node exporter `9100:9100`. Extend `RedisMonitoringConfigurationTest` here so its AWS branch reads `prometheus.aws.yml` and requires `namespace=general|cache` plus `instance=redis-general|redis-cache` for the two AWS Redis targets.
 
 - [ ] **Step 2: Confirm RED**
 
 ```bash
-./gradlew test --tests "kr.kro.airbob.common.monitoring.AwsMonitoringBundleConfigurationTest" --tests "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest"
+./gradlew test --tests "kr.kro.airbob.common.monitoring.AwsMonitoringBundleConfigurationTest" --tests "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest" --tests "kr.kro.airbob.common.monitoring.RedisMonitoringConfigurationTest"
 ```
 
 Expected: failure because AWS monitoring config is absent.
@@ -499,14 +499,14 @@ Mount only the existing Prometheus datasource, the AWS CloudWatch datasource, da
 
 ```bash
 bash infra/aws/scripts/verify-service-bundle.sh infra/aws/bundles/monitoring/compose.yml infra/aws/tests/fixtures/images.env
-./gradlew test --tests "kr.kro.airbob.common.monitoring.AwsMonitoringBundleConfigurationTest" --tests "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest"
+./gradlew test --tests "kr.kro.airbob.common.monitoring.AwsMonitoringBundleConfigurationTest" --tests "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest" --tests "kr.kro.airbob.common.monitoring.RedisMonitoringConfigurationTest"
 git diff --check
 ```
 
 Commit:
 
 ```bash
-git add infra/aws/bundles/monitoring/compose.yml monitoring/prometheus/prometheus.aws.yml monitoring/grafana/provisioning/datasources/cloudwatch.aws.yml src/test/java/kr/kro/airbob/common/monitoring/AwsMonitoringBundleConfigurationTest.java
+git add infra/aws/bundles/monitoring/compose.yml monitoring/prometheus/prometheus.aws.yml monitoring/grafana/provisioning/datasources/cloudwatch.aws.yml src/test/java/kr/kro/airbob/common/monitoring/AwsMonitoringBundleConfigurationTest.java src/test/java/kr/kro/airbob/common/monitoring/RedisMonitoringConfigurationTest.java
 git commit -m "feat: add AWS monitoring service bundle"
 ```
 
