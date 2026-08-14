@@ -22,6 +22,7 @@ public enum EventType {
 	RESERVATION_CANCELLATION_REVERT_REQUESTED("RESERVATION", "reservation-events"), // 예약 취소 실패 보상 요청
 
 	// 결제 이벤트
+	PAYMENT_EXECUTION_REQUESTED_V1("PAYMENT_OPERATION", "payment-operation-events"),
 	PAYMENT_CONFIRM_REQUESTED("PAYMENT", "payment-events"), // 결제 승인 요청
 	PAYMENT_COMPLETED("PAYMENT", "payment-events"), // 결제 완료
 	PAYMENT_CANCELLATION_REQUESTED("PAYMENT", "payment-events"), // 결제 취소 요청

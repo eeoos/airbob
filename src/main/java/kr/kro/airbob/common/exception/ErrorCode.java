@@ -69,6 +69,8 @@ public enum ErrorCode {
 	TOSS_PAYMENT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 예외"),
 	TOSS_PAYMENT_RESPONSE_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "토스페이먼츠 에러 응답 파싱 실패"),
 	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
+	PAYMENT_OPERATION_NOT_FOUND(HttpStatus.NOT_FOUND, "P005", "존재하지 않는 결제 작업입니다."),
+	PAYMENT_OPERATION_CONFLICT(HttpStatus.CONFLICT, "P006", "기존 결제 작업과 요청 내용이 일치하지 않습니다."),
 
 	// wishlist
 	WISHLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "W001", "존재하지 않는 위시리스트입니다."),

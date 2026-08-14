@@ -18,6 +18,7 @@ import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.api.CouponBenchmarkController;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
+import kr.kro.airbob.domain.payment.api.PaymentOperationController;
 import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedBenchmarkController;
 import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedController;
 import kr.kro.airbob.domain.reservation.api.ReservationController;
@@ -67,8 +68,10 @@ class CurrentMemberIdControllerContractTest {
 			required(AuthController.class, "getMyInfo"),
 			required(CouponBenchmarkController.class, "issueCouponWithLock"),
 			required(CouponController.class, "issueCoupon"),
+			required(PaymentController.class, "confirmPayment"),
 			required(PaymentController.class, "getPaymentByPaymentKey"),
 			required(PaymentController.class, "getPaymentByOrderId"),
+			required(PaymentOperationController.class, "find"),
 			required(RecentlyViewedBenchmarkController.class, "replaceRecentlyViewedFixture"),
 			required(RecentlyViewedBenchmarkController.class, "getRecentlyViewedBefore"),
 			required(RecentlyViewedController.class, "addRecentlyViewed"),

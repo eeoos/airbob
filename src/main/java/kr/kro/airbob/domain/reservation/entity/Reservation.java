@@ -194,6 +194,10 @@ public class Reservation extends BaseEntity {
 			&& Objects.equals(this.totalPrice, amount);
 	}
 
+	public boolean belongsToGuest(Long memberId) {
+		return this.guest != null && Objects.equals(this.guest.getId(), memberId);
+	}
+
 	public void expire() {
 		if (this.status != ReservationStatus.PAYMENT_PENDING
 			&& this.status != ReservationStatus.PAYMENT_PROCESSING) {
