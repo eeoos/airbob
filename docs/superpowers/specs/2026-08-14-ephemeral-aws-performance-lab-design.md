@@ -350,12 +350,13 @@ Terraform의 `performance/scaling`은 인프라 용량 모드이고, 앱의 백�
 
 현재 스케줄러는 각 앱 인스턴스에서 실행되므로 ASG가 2대 이상이면 같은 작업이 중복 실행될 수 있다. v1의 scaling 실험은 scheduler가 꺼진 web request path만 대상으로 한다. 향후 ShedLock 또는 singleton worker ownership을 도입하기 전에는 “백그라운드 작업까지 포함한 운영형 다중화”를 주장하지 않는다.
 
-`isolated-read`의 `traffic-benchmark` application profile은 Phase 0에서 구현되었다. 이 profile은 group으로 `performance-lab`을 포함하고 다음을 명시적으로 비활성화한다. idle-control 구간에서 DB/Kafka 지표가 움직이지 않는지는 이후 AWS 실험에서 검증해야 한다.
+`isolated-read`의 `traffic-benchmark` application profile은 Phase 0에서 구현되었다. 이 profile은 group으로 `performance-lab`을 포함하고 다음 애플리케이션 동작을 명시적으로 비활성화한다.
 
 - Spring scheduled task
 - Kafka listener
-- Debezium connector
 - 외부 알림과 실제 결제/S3 쓰기
+
+Debezium connector pause는 Spring profile이 수행하지 않는다. `isolated-read`를 시작하기 전 AWS orchestration이 connector를 pause하고, idle-control 구간에서 DB/Kafka 지표가 움직이지 않는지 별도로 검증해야 한다.
 
 현재 AWS 설정에는 실제 Toss endpoint와 Slack 전송 설정이 있으므로 기존 `application-aws.yaml`만으로 lab을 시작하지 않는다. 모든 lab 정책은 실제 Toss 결제, Slack webhook, Google API와 일반 application S3 prefix에 대한 외부 부작용을 stub 또는 disable한다. 업로드 자체를 검증해야 하면 별도 lab prefix와 synthetic object allowlist만 사용하고 down에서 정리한다. `integrated-smoke`는 Kafka/Debezium 내부 흐름을 켠다는 뜻이지 실제 외부 결제·알림을 호출한다는 뜻이 아니다.
 
