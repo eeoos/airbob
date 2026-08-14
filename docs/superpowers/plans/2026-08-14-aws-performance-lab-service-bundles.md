@@ -458,6 +458,7 @@ git commit -m "feat: define AWS Elasticsearch host bundle"
 **Interfaces:**
 - Consumes: `PROMETHEUS_IMAGE`, `GRAFANA_IMAGE`, `NODE_EXPORTER_IMAGE`, and `MONITORING_ENV_FILE`.
 - Produces: loopback Grafana/Prometheus access, app/node EC2 discovery, static private dependency targets, and a CloudWatch datasource.
+- Requires Docker Compose `2.30.0` or later. Grafana consumes `MONITORING_ENV_FILE` through one long-form `env_file` entry with `required: true` and `format: raw`; older Compose must fail rather than fall back to default parsing.
 
 - [ ] **Step 1: Add failing monitoring tests**
 
@@ -472,7 +473,7 @@ elasticsearch.lab.airbob.internal:9114
 monitoring.lab.airbob.internal:9100
 ```
 
-Assert Redis labels remain `general|cache`, Grafana has Prometheus UID `prometheus` and CloudWatch UID `cloudwatch`, and the Compose file publishes only `127.0.0.1:9090:9090`, `127.0.0.1:3000:3000`, and VPC node exporter `9100:9100`. Extend `RedisMonitoringConfigurationTest` here so its AWS branch reads `prometheus.aws.yml` and requires `namespace=general|cache` plus `instance=redis-general|redis-cache` for the two AWS Redis targets.
+Assert Redis labels remain `general|cache`, Grafana has Prometheus UID `prometheus` and CloudWatch UID `cloudwatch`, and the Compose file publishes only `127.0.0.1:9090:9090`, `127.0.0.1:3000:3000`, and VPC node exporter `9100:9100`. Extend `RedisMonitoringConfigurationTest` here so its AWS branch reads `prometheus.aws.yml` and requires `namespace=general|cache` plus `instance=redis-general|redis-cache` for the two AWS Redis targets. Add a config-only synthetic-password regression containing literal `${...}`, quotes, leading/trailing spaces, and `#`; set a colliding ambient variable and prove the captured Compose Grafana environment preserves the raw value without printing it.
 
 - [ ] **Step 2: Confirm RED**
 
@@ -502,7 +503,16 @@ datasources:
       defaultRegion: ap-northeast-2
 ```
 
-Mount only the existing Prometheus datasource, the AWS CloudWatch datasource, dashboard provider, and vendored dashboards. Prometheus uses `512M`; Grafana uses `384M`; node exporter uses `128M`; memory/swap limits match. Require a non-empty Grafana admin password in the runtime env and disable signup, anonymous auth, plugin auto-update, and UI dashboard updates.
+Mount only the existing Prometheus datasource, the AWS CloudWatch datasource, dashboard provider, and vendored dashboards. Prometheus uses `512M`; Grafana uses `384M`; node exporter uses `128M`; memory/swap limits match. Require a non-empty Grafana admin password in the runtime env and disable signup, anonymous auth, plugin auto-update, and UI dashboard updates. Use exactly:
+
+```yaml
+env_file:
+  - path: ${MONITORING_ENV_FILE:?MONITORING_ENV_FILE is required}
+    required: true
+    format: raw
+```
+
+The entrypoint may map `GRAFANA_ADMIN_PASSWORD` to `GF_SECURITY_ADMIN_PASSWORD` only after the non-empty check and must preserve the value through quoted shell expansion. Do not log the password or rendered Compose environment. Do not add a restricted password character set or a fallback parser.
 
 - [ ] **Step 5: Verify and commit**
 
