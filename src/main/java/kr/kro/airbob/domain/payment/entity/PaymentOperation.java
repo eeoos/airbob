@@ -183,12 +183,38 @@ public class PaymentOperation extends BaseEntity {
 		if (attemptCount < maxAttempts || !isEligibleForLeaseAt(now)) {
 			return false;
 		}
+		moveToManualReview(now);
+		return true;
+	}
+
+	public boolean recoverExpiredExecution(Instant now) {
+		if (status != PaymentOperationStatus.EXECUTING
+			|| leaseExpiresAt == null || leaseExpiresAt.isAfter(now)) {
+			return false;
+		}
+		status = PaymentOperationStatus.OUTCOME_UNKNOWN;
+		leaseOwner = null;
+		leaseExpiresAt = null;
+		nextAttemptAt = now;
+		return true;
+	}
+
+	public boolean markManualReviewForRecoveryIfAttemptsExhausted(int maxAttempts, Instant now) {
+		boolean recoveryState = status == PaymentOperationStatus.RETRY_WAIT
+			|| status == PaymentOperationStatus.OUTCOME_UNKNOWN;
+		if (attemptCount < maxAttempts || !recoveryState || !isEligibleForLeaseAt(now)) {
+			return false;
+		}
+		moveToManualReview(now);
+		return true;
+	}
+
+	private void moveToManualReview(Instant now) {
 		status = PaymentOperationStatus.MANUAL_REVIEW;
 		leaseOwner = null;
 		leaseExpiresAt = null;
 		nextAttemptAt = null;
 		completedAt = now;
-		return true;
 	}
 
 	public boolean scheduleRetry(String owner, Instant retryAt, String code, String message) {

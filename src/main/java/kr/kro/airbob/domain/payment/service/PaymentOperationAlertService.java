@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.ManualReviewNotice;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,11 @@ public class PaymentOperationAlertService {
 		topic=%s
 		partition=%d
 		offset=%d
+		operationUid=%s
+		""";
+	private static final String MANUAL_REVIEW_ALERT_MESSAGE = """
+		[payment-operation-manual-review]
+		eventType=%s
 		operationUid=%s
 		""";
 
@@ -37,6 +43,14 @@ public class PaymentOperationAlertService {
 			partition,
 			offset,
 			operationUid != null ? operationUid : "unavailable"
+		);
+		slackNotificationService.sendAlert(alert);
+	}
+
+	public void alertManualReview(ManualReviewNotice notice) {
+		String alert = MANUAL_REVIEW_ALERT_MESSAGE.formatted(
+			EventType.PAYMENT_EXECUTION_REQUESTED_V1.name(),
+			notice.operationUid()
 		);
 		slackNotificationService.sendAlert(alert);
 	}
