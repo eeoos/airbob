@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.payment.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -49,12 +50,22 @@ class PaymentOperationTest {
 	}
 
 	@Test
-	void boundsAnOversizedPaymentKeyBeforeCreatingTheDurableOperation() {
+	void rejectsAnOversizedPaymentKeyBeforeCreatingTheDurableOperation() {
 		String oversizedPaymentKey = "p".repeat(201);
 
-		PaymentOperation operation = operation(oversizedPaymentKey, 100_000L);
+		assertThatThrownBy(() -> operation(oversizedPaymentKey, 100_000L))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("paymentKey must not exceed 200 characters");
+	}
 
-		assertThat(operation.getPaymentKey()).isEqualTo("p".repeat(200));
+	@Test
+	void preservesAnExactMaximumLengthPaymentKeyForConfirmationReplay() {
+		String paymentKey = "p".repeat(200);
+
+		PaymentOperation operation = operation(paymentKey, 100_000L);
+
+		assertThat(operation.getPaymentKey()).isEqualTo(paymentKey);
+		assertThat(operation.matchesConfirmation(paymentKey, 100_000L)).isTrue();
 	}
 
 	@Test

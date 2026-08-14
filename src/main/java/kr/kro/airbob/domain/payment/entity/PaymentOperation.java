@@ -102,6 +102,7 @@ public class PaymentOperation extends BaseEntity {
 	public static PaymentOperation createConfirmation(
 		Reservation reservation, Long requesterMemberId, String paymentKey, long amount, Instant now
 	) {
+		requireMaxLength(paymentKey, PAYMENT_KEY_MAX_LENGTH, "paymentKey");
 		UUID operationUid = UUID.randomUUID();
 		return PaymentOperation.builder()
 			.operationUid(operationUid)
@@ -109,7 +110,7 @@ public class PaymentOperation extends BaseEntity {
 			.requesterMemberId(requesterMemberId)
 			.operationType(PaymentOperationType.CONFIRM)
 			.status(PaymentOperationStatus.READY)
-			.paymentKey(limitLength(paymentKey, PAYMENT_KEY_MAX_LENGTH))
+			.paymentKey(paymentKey)
 			.expectedAmount(amount)
 			.providerIdempotencyKey("airbob-confirm-" + operationUid)
 			.deduplicationKey("CONFIRM:" + reservation.getReservationUid())
@@ -131,10 +132,9 @@ public class PaymentOperation extends BaseEntity {
 		this.lastEnqueuedAt = now;
 	}
 
-	private static String limitLength(String value, int maxLength) {
-		if (value == null || value.length() <= maxLength) {
-			return value;
+	private static void requireMaxLength(String value, int maxLength, String fieldName) {
+		if (value != null && value.length() > maxLength) {
+			throw new IllegalArgumentException(fieldName + " must not exceed " + maxLength + " characters");
 		}
-		return value.substring(0, maxLength);
 	}
 }
