@@ -454,6 +454,7 @@ parameter 적용과 reboot 완료, master credential 조회를 확인한 뒤에�
 EBS snapshot이 아니라 Elasticsearch native Snapshot API와 S3 repository를 사용한다.
 
 - 현재 앱과 동일한 ES `8.18.8` 및 Nori가 설치된 immutable image digest로 시작한다.
+- Elasticsearch Compose를 시작하기 전에 trusted SSM bootstrap이 호스트의 `vm.max_map_count=1048576`을 적용하고 같은 값을 다시 읽어 검증한다. 적용·검증 결과를 evidence에 남기며 실패하면 서비스를 시작하지 않는다. 이를 우회하려고 privileged helper container를 추가하거나 `node.store.allow_mmap=false`로 mmap을 끄지 않는다.
 - S3 repository를 read-only로 등록한다.
 - `accommodations` index만 복원하고 `include_global_state=false`를 사용한다.
 - 단일 node이므로 restore 시 `index.number_of_replicas=0`을 강제한다.

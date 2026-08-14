@@ -397,7 +397,7 @@ git commit -m "feat: add AWS Kafka and Debezium bundles"
 
 - [ ] **Step 1: Add the failing contract test**
 
-Require exactly `elasticsearch`, `elasticsearch-exporter`, and `node-exporter`; single-node mode; security disabled only on the private VPC boundary; heap `-Xms1g -Xmx1g`; `2G` memory/swap limit; data volume; `nofile=65535`; exporter URI `http://elasticsearch:9200`; and the exact host ports.
+Require exactly `elasticsearch`, `elasticsearch-exporter`, and `node-exporter`; single-node mode; security disabled only on the private VPC boundary; heap `-Xms1g -Xmx1g`; `2G` memory/swap limit; data volume; `nofile=65535`; exporter URI `http://elasticsearch:9200`; and the exact host ports. Require top-level bundle metadata `x-airbob-host-contracts.elasticsearch.vm.max_map_count: 1048576` so the host prerequisite travels with the packaged bundle.
 
 - [ ] **Step 2: Confirm RED**
 
@@ -426,6 +426,8 @@ ulimits:
 ```
 
 The custom ES image contract requires version `8.18.8`, Nori, and repository-s3 capability; image construction/publication is outside this plan. Configure exporter `--es.uri=http://elasticsearch:9200`, publish `9114:9114`, limit it to `128M`, and add node exporter.
+
+`vm.max_map_count` is a host kernel setting and must not be faked with a privileged helper container or `node.store.allow_mmap=false`. The later trusted SSM service bootstrap must run `sysctl -w vm.max_map_count=1048576`, verify `sysctl -n vm.max_map_count` equals `1048576`, record the non-secret command result as evidence, and fail before `docker compose up` if the setting cannot be applied. Task 5 records this prerequisite in bundle metadata; it does not add the later SSM bootstrap implementation.
 
 - [ ] **Step 4: Verify and commit**
 
