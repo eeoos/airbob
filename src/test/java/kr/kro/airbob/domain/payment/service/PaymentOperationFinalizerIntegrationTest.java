@@ -21,10 +21,18 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -116,6 +124,7 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private OutboxRepository outboxRepository;
+	@Autowired private HoldingFinalizerTransaction holdingFinalizerTransaction;
 	@MockitoSpyBean private OutboxEventPublisher outboxEventPublisher;
 
 	private long reservationId;
@@ -176,6 +185,115 @@ class PaymentOperationFinalizerIntegrationTest {
 
 		assertThat(localEffectCounts()).isEqualTo(countsAfterFirstApply);
 		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
+	}
+
+	@Test
+	void simultaneousApprovalsSerializeAndCommitExactlyOneApprovalEffect() throws Exception {
+		assertThat(AopUtils.isAopProxy(finalizer)).isTrue();
+		assertThat(AopUtils.isAopProxy(holdingFinalizerTransaction)).isTrue();
+		CountDownLatch firstApplied = new CountDownLatch(1);
+		CountDownLatch releaseFirstTransaction = new CountDownLatch(1);
+		CountDownLatch secondStarted = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+
+		try {
+			CompletableFuture<Void> first = CompletableFuture.runAsync(
+				() -> holdingFinalizerTransaction.applyApprovedAndHold(
+					execution(LEASE_OWNER), confirmedPayment(), firstApplied, releaseFirstTransaction),
+				executor);
+			assertThat(firstApplied.await(5, TimeUnit.SECONDS)).isTrue();
+
+			CompletableFuture<Void> second = CompletableFuture.runAsync(() -> {
+				secondStarted.countDown();
+				finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment());
+			}, executor);
+			assertThat(secondStarted.await(5, TimeUnit.SECONDS)).isTrue();
+			assertThatThrownBy(() -> second.get(500, TimeUnit.MILLISECONDS))
+				.isInstanceOf(TimeoutException.class);
+
+			releaseFirstTransaction.countDown();
+			first.get(5, TimeUnit.SECONDS);
+			second.get(5, TimeUnit.SECONDS);
+
+			assertSingleApprovedOutcome();
+		} finally {
+			releaseFirstTransaction.countDown();
+			executor.shutdownNow();
+			assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
+	}
+
+	@Test
+	void simultaneousApprovalAndDeclineCommitOnlyTheLockedApprovalOutcome() throws Exception {
+		CountDownLatch firstApplied = new CountDownLatch(1);
+		CountDownLatch releaseFirstTransaction = new CountDownLatch(1);
+		CountDownLatch declineStarted = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+
+		try {
+			CompletableFuture<Void> approval = CompletableFuture.runAsync(
+				() -> holdingFinalizerTransaction.applyApprovedAndHold(
+					execution(LEASE_OWNER), confirmedPayment(), firstApplied, releaseFirstTransaction),
+				executor);
+			assertThat(firstApplied.await(5, TimeUnit.SECONDS)).isTrue();
+
+			CompletableFuture<Void> decline = CompletableFuture.runAsync(() -> {
+				declineStarted.countDown();
+				finalizer.applyDeclined(
+					execution(LEASE_OWNER), "REJECT_CARD_PAYMENT", "card rejected");
+			}, executor);
+			assertThat(declineStarted.await(5, TimeUnit.SECONDS)).isTrue();
+			assertThatThrownBy(() -> decline.get(500, TimeUnit.MILLISECONDS))
+				.isInstanceOf(TimeoutException.class);
+
+			releaseFirstTransaction.countDown();
+			approval.get(5, TimeUnit.SECONDS);
+			assertThatThrownBy(() -> decline.get(5, TimeUnit.SECONDS))
+				.isInstanceOf(ExecutionException.class)
+				.hasRootCauseInstanceOf(PaymentOperationInvariantException.class);
+
+			assertSingleApprovedOutcome();
+		} finally {
+			releaseFirstTransaction.countDown();
+			executor.shutdownNow();
+			assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
+	}
+
+	@Test
+	void matchingExistingPaymentIsReusedWithoutCreatingAnotherDurablePayment() {
+		long existingPaymentId = insertExistingPayment(PAYMENT_KEY);
+
+		finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment());
+
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(paymentRepository.count()).isOne();
+		assertThat(payment.getId()).isEqualTo(existingPaymentId);
+		assertThat(payment.getPaymentKey()).isEqualTo(PAYMENT_KEY);
+		assertThat(ledger.getPaymentId()).isEqualTo(existingPaymentId);
+		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
+		assertSingleApprovedOutcome();
+	}
+
+	@Test
+	void conflictingExistingPaymentRejectsApprovalWithoutAnyNewLocalEffect() {
+		long existingPaymentId = insertExistingPayment("conflicting-payment-key");
+
+		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment()))
+			.isInstanceOf(PaymentOperationInvariantException.class);
+
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		assertThat(paymentRepository.count()).isOne();
+		assertThat(payment.getId()).isEqualTo(existingPaymentId);
+		assertThat(payment.getPaymentKey()).isEqualTo("conflicting-payment-key");
+		assertThat(reloadOperation().getStatus()).isEqualTo(EXECUTING);
+		assertThat(reloadOperation().getLeaseOwner()).isEqualTo(LEASE_OWNER);
+		assertThat(reloadReservation().getStatus()).isEqualTo(PAYMENT_PROCESSING);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
+		assertThat(isMemberCouponUsed()).isTrue();
+		assertThat(historyRepository.count()).isZero();
+		assertThat(outboxRepository.count()).isZero();
 	}
 
 	@Test
@@ -290,6 +408,20 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(outboxRepository.count()).isZero();
 	}
 
+	private void assertSingleApprovedOutcome() {
+		PaymentOperation operation = reloadOperation();
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(operation.getStatus()).isEqualTo(APPLIED);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CONFIRMED);
+		assertThat(paymentRepository.count()).isOne();
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
+		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CONFIRM);
+		assertThat(historyRepository.count()).isOne();
+		assertThat(isMemberCouponUsed()).isTrue();
+		assertThat(outboxEventTypes()).containsExactlyInAnyOrder(
+			RESERVATION_CONFIRMED.name(), RESERVATION_CHANGED.name());
+	}
+
 	private List<Long> localEffectCounts() {
 		return List.of(
 			paymentRepository.count(),
@@ -341,6 +473,20 @@ class PaymentOperationFinalizerIntegrationTest {
 			new ConfirmedPayment.VirtualAccountDetails(
 				"088", "sensitive-account", "sensitive-customer", NOW.plusSeconds(3600))
 		);
+	}
+
+	private long insertExistingPayment(String paymentKey) {
+		jdbc.update("""
+			INSERT INTO payment (
+			  payment_uid, payment_key, order_id, amount, method, approved_at, created_at,
+			  reservation_id, status, balance_amount, updated_at
+			) VALUES (
+			  UNHEX(REPLACE(?, '-', '')), ?, ?, ?, 'CARD', '2026-08-14 00:01:00', NOW(6),
+			  ?, 'DONE', ?, NOW(6)
+			)
+			""", UUID.randomUUID().toString(), paymentKey, RESERVATION_UID.toString(), AMOUNT,
+			reservationId, AMOUNT);
+		return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 	}
 
 	private void clearFixtureRows() {
@@ -430,6 +576,38 @@ class PaymentOperationFinalizerIntegrationTest {
 		@Bean
 		ObjectMapper finalizerTestObjectMapper() {
 			return new ObjectMapper().findAndRegisterModules();
+		}
+
+		@Bean
+		HoldingFinalizerTransaction holdingFinalizerTransaction(PaymentOperationFinalizer finalizer) {
+			return new HoldingFinalizerTransaction(finalizer);
+		}
+	}
+
+	static class HoldingFinalizerTransaction {
+		private final PaymentOperationFinalizer finalizer;
+
+		HoldingFinalizerTransaction(PaymentOperationFinalizer finalizer) {
+			this.finalizer = finalizer;
+		}
+
+		@Transactional
+		public void applyApprovedAndHold(
+			PaymentExecution execution,
+			ConfirmedPayment confirmed,
+			CountDownLatch applied,
+			CountDownLatch release
+		) {
+			finalizer.applyApproved(execution, confirmed);
+			applied.countDown();
+			try {
+				if (!release.await(5, TimeUnit.SECONDS)) {
+					throw new IllegalStateException("timed out holding the approved finalization transaction");
+				}
+			} catch (InterruptedException exception) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException("interrupted while holding finalization transaction", exception);
+			}
 		}
 	}
 }
