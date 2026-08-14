@@ -104,11 +104,11 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("다른 이벤트 타입은 poison message로 거부하고 ACK하지 않는다")
 	void rejectsUnsupportedEventWithoutAck() {
-		given(parser.getEventType(MESSAGE)).willReturn("PAYMENT_COMPLETED");
+		given(parser.getEventType(MESSAGE)).willReturn("RESERVATION_PENDING");
 
 		assertThatThrownBy(() -> consumer.handle(MESSAGE, acknowledgment))
 			.isInstanceOf(IllegalArgumentException.class)
-			.hasMessageContaining("PAYMENT_COMPLETED");
+			.hasMessageContaining("RESERVATION_PENDING");
 
 		then(executor).shouldHaveNoInteractions();
 		then(acknowledgment).shouldHaveNoInteractions();

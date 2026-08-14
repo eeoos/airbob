@@ -11,7 +11,6 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -80,14 +79,6 @@ public class ReservationService {
 
 	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
 		transactionService.cancelReservationInTx(reservationUid, request, memberId);
-	}
-
-	public void confirmReservation(PaymentEvent.PaymentCompletedEvent event) {
-		transactionService.confirmReservationInTx(event.reservationUid());
-	}
-
-	public void expireReservation(PaymentEvent.PaymentFailedEvent event) {
-		transactionService.expireReservationInTx(event.reservationUid(), event.reason());
 	}
 
 	public void revertCancellation(ReservationEvent.ReservationCancellationRevertRequestedEvent event) {

@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PaymentEventTranslator {
+public class PaymentCancellationEventTranslator {
 
 	private final DebeziumEventParser debeziumEventParser;
 	private final OutboxEventPublisher outboxEventPublisher;
@@ -29,26 +29,7 @@ public class PaymentEventTranslator {
 			String eventType = debeziumEventParser.getEventType(message);
 			EventType type = EventType.from(eventType);
 
-			if (type == EventType.PAYMENT_COMPLETED) {
-				EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope =
-					debeziumEventParser.parse(message, PaymentEvent.PaymentCompletedEvent.class);
-
-				outboxEventPublisher.save(
-					EventType.RESERVATION_CONFIRM_REQUESTED,
-					envelope.payload()
-				);
-				log.info("[TRANSLATOR] PAYMENT_COMPLETED -> RESERVATION_CONFIRM_REQUESTED 발행. UID: {}", envelope.payload().reservationUid());
-
-			} else if (type == EventType.PAYMENT_FAILED) {
-				EventEnvelope<PaymentEvent.PaymentFailedEvent> envelope =
-					debeziumEventParser.parse(message, PaymentEvent.PaymentFailedEvent.class);
-
-				outboxEventPublisher.save(
-					EventType.RESERVATION_EXPIRE_REQUESTED,
-					envelope.payload()
-				);
-				log.info("[TRANSLATOR] PAYMENT_FAILED -> RESERVATION_EXPIRE_REQUESTED 발행. UID: {}", envelope.payload().reservationUid());
-			} else if (type == EventType.PAYMENT_CANCELLATION_COMPLETED) {
+			if (type == EventType.PAYMENT_CANCELLATION_COMPLETED) {
 				EventEnvelope<PaymentEvent.PaymentCancellationCompletedEvent> envelope =
 					debeziumEventParser.parse(message, PaymentEvent.PaymentCancellationCompletedEvent.class);
 				PaymentEvent.PaymentCancellationCompletedEvent payload = envelope.payload();
@@ -77,8 +58,8 @@ public class PaymentEventTranslator {
 			log.error("[KAFKA-POISON] 메시지 파싱 실패 (Translator). 재시도 없이 ack 처리. message={}", message, e);
 			ack.acknowledge();
 		} catch (Exception e) {
-			log.error("[TRANSLATOR-NACK] 결제 이벤트 번역 중 오류 발생. 재시도 예정.", e);
-			throw e; // Kafka ErrorHandler 재시도 및 DLQ 전송
+			log.error("[TRANSLATOR-NACK] 결제 취소 이벤트 번역 중 오류 발생. 재시도 예정.", e);
+			throw e;
 		}
 	}
 }

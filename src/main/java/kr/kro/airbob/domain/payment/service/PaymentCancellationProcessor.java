@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PaymentCancellationProcessor {
 
-	private final PaymentTransactionService paymentTransactionService;
+	private final PaymentCancellationTransactionService paymentTransactionService;
 	private final SlackNotificationService slackNotificationService;
 
 	public void processSuccess(PaymentEvent.PgCancelCallSucceededEvent event) {
