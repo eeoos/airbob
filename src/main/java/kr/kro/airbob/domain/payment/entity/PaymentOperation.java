@@ -21,6 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Version;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
 import kr.kro.airbob.domain.payment.service.PaymentExecutionMode;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
@@ -131,6 +132,33 @@ public class PaymentOperation extends BaseEntity {
 		return Objects.equals(this.requesterMemberId, memberId);
 	}
 
+	public boolean isApplied() {
+		return status == PaymentOperationStatus.APPLIED;
+	}
+
+	public boolean isDeclined() {
+		return status == PaymentOperationStatus.DECLINED;
+	}
+
+	public void rejectOppositeTerminal(PaymentOperationStatus targetStatus) {
+		if (status.isTerminal() && status != targetStatus) {
+			throw new PaymentOperationInvariantException(
+				"terminal operation cannot change from " + status + " to " + targetStatus);
+		}
+	}
+
+	public boolean isOwnedBy(String owner) {
+		return status == PaymentOperationStatus.EXECUTING && Objects.equals(leaseOwner, owner);
+	}
+
+	public void markApplied(Instant now) {
+		complete(PaymentOperationStatus.APPLIED, now, null, null);
+	}
+
+	public void markDeclined(Instant now, String code, String message) {
+		complete(PaymentOperationStatus.DECLINED, now, code, message);
+	}
+
 	public void recordEnqueued(Instant now) {
 		this.lastEnqueuedAt = now;
 	}
@@ -197,6 +225,20 @@ public class PaymentOperation extends BaseEntity {
 		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
 		completedAt = terminalAt;
 		return true;
+	}
+
+	private void complete(PaymentOperationStatus terminalStatus, Instant now, String code, String message) {
+		if (status != PaymentOperationStatus.EXECUTING) {
+			throw new PaymentOperationInvariantException(
+				"only an executing payment operation can become " + terminalStatus);
+		}
+		status = terminalStatus;
+		leaseOwner = null;
+		leaseExpiresAt = null;
+		nextAttemptAt = null;
+		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
+		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
+		completedAt = now;
 	}
 
 	private boolean isEligibleForLeaseAt(Instant now) {

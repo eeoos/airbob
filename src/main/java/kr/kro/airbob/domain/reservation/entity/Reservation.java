@@ -206,6 +206,13 @@ public class Reservation extends BaseEntity {
 		this.status = ReservationStatus.EXPIRED;
 	}
 
+	public void expireAfterFinalPaymentDecline() {
+		if (this.status != ReservationStatus.PAYMENT_PROCESSING) {
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_EXPIRE_RESERVATION);
+		}
+		this.status = ReservationStatus.EXPIRED;
+	}
+
 	public boolean requestCancellation() {
 		if (this.status == ReservationStatus.CANCELLATION_PENDING) {
 			return false;

@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -90,6 +91,25 @@ public class PaymentTransaction extends BaseEntity {
 			.build();
 	}
 
+	public static PaymentTransaction confirm(
+		ConfirmedPayment confirmed,
+		Reservation reservation,
+		Payment payment,
+		Long paymentOperationId
+	) {
+		return PaymentTransaction.builder()
+			.reservationId(reservation.getId())
+			.paymentId(payment.getId())
+			.paymentOperationId(paymentOperationId)
+			.transactionType(PaymentTransactionType.CONFIRM)
+			.status(confirmed.status())
+			.amount(confirmed.totalAmount())
+			.paymentKey(limitLength(confirmed.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
+			.orderId(confirmed.orderId())
+			.method(confirmed.method())
+			.build();
+	}
+
 	// 결제 승인 실패
 	public static PaymentTransaction fail(PaymentRequest.Confirm event, Reservation reservation,
 		String failureCode, String failureMessage) {
@@ -100,6 +120,26 @@ public class PaymentTransaction extends BaseEntity {
 			.amount(Long.valueOf(event.amount()))
 			.paymentKey(limitLength(event.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
 			.orderId(event.orderId())
+			.method(PaymentMethod.UNKNOWN)
+			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
+			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))
+			.build();
+	}
+
+	public static PaymentTransaction fail(
+		PaymentOperation operation,
+		Reservation reservation,
+		String failureCode,
+		String failureMessage
+	) {
+		return PaymentTransaction.builder()
+			.reservationId(reservation.getId())
+			.paymentOperationId(operation.getId())
+			.transactionType(PaymentTransactionType.FAIL)
+			.status(PaymentStatus.ABORTED)
+			.amount(operation.getExpectedAmount())
+			.paymentKey(limitLength(operation.getPaymentKey(), PAYMENT_KEY_MAX_LENGTH))
+			.orderId(reservation.getReservationUid().toString())
 			.method(PaymentMethod.UNKNOWN)
 			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
 			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))

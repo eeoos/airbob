@@ -8,6 +8,9 @@ import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
+	boolean existsByPaymentOperationId(Long paymentOperationId);
+
+	long countByPaymentOperationId(Long paymentOperationId);
 
 	// 가상계좌 등 결제 확정 전 거래 조회 (구 PaymentAttemptRepository)
 	List<PaymentTransaction> findByOrderIdOrderByCreatedAtDesc(String orderId);
