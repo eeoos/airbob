@@ -27,6 +27,7 @@
 - Every Compose `image` value is supplied as `repository@sha256:<64 lowercase hex>`; tags and `latest` are rejected.
 - Runtime secrets are never committed, interpolated into Terraform state, included in bundle archives, or printed by verification scripts.
 - `docker compose config` validation must not start containers or pull images.
+- The app bundle requires Docker Compose `2.30.0` or later and uses long-form `env_file` with `required: true` and `format: raw`; never fall back to Compose's default interpolating env-file parser.
 - A topology, memory, port, persistence, image, or data-bootstrap contract that cannot be met is a blocker; preserve evidence and ask the user instead of resizing, merging services, adding fallbacks, or substituting components.
 
 ---
@@ -241,7 +242,7 @@ ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache.lab.airbob.internal
 ACCOMMODATION_DETAIL_CACHE_REDIS_PORT=6380
 ```
 
-The verifier must reject identical general/cache endpoint tuples and must never print datasource passwords. The runtime env key set is an exact allowlist: an otherwise-valid file containing any unlisted key must fail. Add explicit regressions for `PAYMENT_TOSS_ENABLED`, `CLOUD_AWS_S3_WRITEENABLED`, `SPRING_APPLICATION_JSON`, `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS`, `SPRING_CONFIG_ADDITIONAL_LOCATION`, `SPRING_CONFIG_LOCATION`, and `SPRING_CONFIG_IMPORT` so higher-precedence Spring/JVM inputs cannot re-enable external effects. The Java test must require app `8080`, node exporter `9100`, `cpus: 2.0`, `mem_limit: 3G`, `memswap_limit: 3G`, fixed JVM options, health check, and digest-only image variables.
+The verifier must reject identical general/cache endpoint tuples and must never print datasource passwords. The runtime env key set is an exact allowlist: an otherwise-valid file containing any unlisted key must fail. Add explicit regressions for `PAYMENT_TOSS_ENABLED`, `CLOUD_AWS_S3_WRITEENABLED`, `SPRING_APPLICATION_JSON`, `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS`, `SPRING_CONFIG_ADDITIONAL_LOCATION`, `SPRING_CONFIG_LOCATION`, and `SPRING_CONFIG_IMPORT` so higher-precedence Spring/JVM inputs cannot re-enable external effects. Add a synthetic secret containing `${...}`, quotes, spaces, and `#`; after verification, inspect captured `docker compose config` output and prove the effective app environment retains the literal value without printing it. The Java test must require app `8080`, node exporter `9100`, `cpus: 2.0`, `mem_limit: 3G`, `memswap_limit: 3G`, fixed JVM options, health check, digest-only image variables, and the exact long-form raw env-file contract.
 
 - [ ] **Step 2: Confirm RED**
 
@@ -264,7 +265,9 @@ services:
     image: ${APP_IMAGE:?APP_IMAGE is required}
     platform: linux/amd64
     env_file:
-      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+      - path: ${APP_ENV_FILE:?APP_ENV_FILE is required}
+        required: true
+        format: raw
     environment:
       JAVA_OPTS: -Xms1536m -Xmx1536m -XX:+UseG1GC
     ports: ["8080:8080"]
@@ -280,7 +283,7 @@ Add the existing actuator health check with a 90-second start period. Add one no
 
 `required-runtime-env.txt` is the exact 18-key allowlist: `SPRING_PROFILES_ACTIVE`, the four external guards, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, both Redis host/ports, `KAFKA_BOOTSTRAP_SERVERS`, `ELASTICSEARCH_URIS`, `ELASTICSEARCH_USERNAME`, `ELASTIC_PASSWORD`, `AWS_S3_BUCKET_NAME`, and `CLOUDFRONT_DOMAIN`. Parse the env file without sourcing it. Ignore blank lines and full-line `#` comments, but reject every parsed key not in the allowlist, duplicate keys, missing keys, whitespace around names, non-false guard values, a profile/policy mismatch, Redis endpoint equality after lowercasing/trimming hosts, Kafka values other than `kafka.lab.airbob.internal:9092`, and Elasticsearch values other than `http://elasticsearch.lab.airbob.internal:9200`. Permit empty values only for `ELASTICSEARCH_USERNAME` and `ELASTIC_PASSWORD` because the private lab ES node has security disabled. The exact allowlist therefore also rejects `TOSS_SECRET_KEY`, `GOOGLE_API_KEY`, `SLACK_WEBHOOK_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, canonical integration-property overrides, Spring config/property-source inputs, and JVM option inputs. Never print values from the runtime env file.
 
-This verifier attests the root-owned `APP_ENV_FILE`; it is not itself a trusted launcher. The later EC2 bootstrap/operator must invoke it immediately before `docker compose up` and must not add `-e`, alternate Spring config locations, JVM override variables, or command-line Spring properties after verification.
+The raw Compose env-file contract makes the container receive the literal values attested by the verifier, including `$`, quotes, spaces, and `#`. Compose older than `2.30.0` must fail configuration validation rather than silently use default parsing. This verifier attests the root-owned `APP_ENV_FILE`; it is not itself a trusted launcher. The later EC2 bootstrap/operator must invoke it immediately before `docker compose up` and must not add `-e`, alternate Spring config locations, JVM override variables, or command-line Spring properties after verification.
 
 - [ ] **Step 5: Verify and commit**
 
