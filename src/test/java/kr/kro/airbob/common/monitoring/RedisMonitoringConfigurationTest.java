@@ -121,8 +121,21 @@ class RedisMonitoringConfigurationTest {
 			"${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}",
 			"${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}");
 		assertProfileCacheEndpoint("application-aws.yaml",
-			"${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}",
-			"${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}");
+			"${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST}",
+			"${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT}");
+		assertThat(awsProperty("spring.data.redis.port"))
+			.isEqualTo("${REDIS_PORT}");
+	}
+
+	private Object awsProperty(String propertyName) throws IOException {
+		return new YamlPropertySourceLoader().load(
+			"application-aws.yaml",
+			new ClassPathResource("application-aws.yaml"))
+			.stream()
+			.map(source -> source.getProperty(propertyName))
+			.filter(java.util.Objects::nonNull)
+			.findFirst()
+			.orElseThrow();
 	}
 
 	private void assertProfileCacheEndpoint(String resourceName, Object host, Object port)
