@@ -67,6 +67,8 @@ payment:
   toss:
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com
+    connect-timeout: ${TOSS_CONNECT_TIMEOUT:2s}
+    read-timeout: ${TOSS_READ_TIMEOUT:10s}
 
 springdoc:
   api-docs:
