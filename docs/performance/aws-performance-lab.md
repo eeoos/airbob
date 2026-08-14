@@ -9,7 +9,7 @@
 | External Toss/Google/Slack/S3 side-effect block | Implemented |
 | Scheduler/Kafka isolated-read policy | Implemented |
 | Six service-host Compose/config contracts | Implemented (configuration only) |
-| Debezium worker and connector template | Implemented (unrendered, secret-free) |
+| Debezium worker and connector template | Implemented (unrendered, enumerated sensitive-marker gate) |
 | Prometheus AWS target definitions | Implemented (static/config validation only) |
 | Verified nineteen-file bundle package | Implemented (local artifact only) |
 | Immutable app/infra image construction and publication | Not implemented yet |
@@ -21,11 +21,15 @@
 
 The repository now supplies application guards and statically verified service
 bundle/config contracts. The bundle package contains only the reviewed nineteen
-configuration files; runtime env files and credentials are excluded. This work
-does not build or publish immutable images, upload the package, run container
-smoke tests, enforce host prerequisites through SSM, create AWS resources,
-apply Terraform, migrate authoritative DNS, change Route 53 traffic, or
-establish performance results.
+configuration files; runtime env files and the fixed forbidden secret-bearing
+path families are excluded. The content gate rejects the enumerated password,
+secret, token, credential, API/access/private-key, service-account, and private
+key marker families except for six exact reviewed placeholder/guard lines. It
+does not prove that arbitrary secret material hidden under a benign key is
+absent. This work does not build or publish immutable images, upload the
+package, run container smoke tests, enforce host prerequisites through SSM,
+create AWS resources, apply Terraform, migrate authoritative DNS, change Route
+53 traffic, or establish performance results.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`, then emits the archive, checksum, and release
@@ -39,13 +43,22 @@ unimplemented. The fixed-corpus sensitive-key gate complements, but does not
 replace, repository secret scanning and human review for benign-looking keys.
 Because none of the nineteen approved files requires hexadecimal character
 escapes, the gate rejects every `\xNN`, `\uXXXX`, and `\UXXXXXXXX` occurrence
-and every physical line ending in `\` before placeholder approval; encoded or
-line-spliced keys cannot hide sensitive names. Required non-hexadecimal content
-such as the JMX regex `\\w` remains allowed when it is not a line continuation. For
-each Compose bundle it also compares both the empty-profile default service
-view and the all-profile service view with the same exact allowlist. YAML
-anchors, aliases, or profiles therefore cannot add a hidden service or remove
-an approved service from the default deployment contract.
+and every physical line ending in `\` before placeholder approval. It rejects
+raw CR, NEL, LS, and PS line-break bytes anywhere in the corpus, while the
+Debezium Java Properties file rejects every backslash because its reviewed form
+requires none. Ordinary UTF-8 and required non-hexadecimal content such as the
+JMX regex `\\w` remain allowed outside that Properties file.
+
+For each Compose bundle, the canonical empty-profile and all-profile views must
+both match the exact service allowlist and the exact seventeen
+service-to-resolved-digest associations. The fixture is parsed without shell
+evaluation as exactly ten unique, non-colliding image variables plus the two
+approved runtime-env path variables. Canonical service-level `scale` and
+`deploy` declarations are forbidden, so the bundle-declared cardinality is one
+per service and application scale-out remains an ASG concern. These static
+checks do not prove actual container count, health, CLI overrides, or runtime
+behavior; repository scanning, human review, and later SSM runtime smoke remain
+required.
 
 ## Application profile matrix
 
@@ -58,9 +71,9 @@ isolated-read:    SPRING_PROFILES_ACTIVE=aws,traffic-benchmark
 
 ## Redis and cache experiment boundary
 
-The lab topology remains exactly two Redis containers/endpoints and exactly two
-Redis exporters on one Redis host: general Redis plus its exporter, and the
-dedicated accommodation-detail cache Redis plus its exporter. The
+The statically resolved Redis bundle declares exactly two Redis services and
+exactly two Redis exporters for one Redis host: general Redis plus its exporter,
+and the dedicated accommodation-detail cache Redis plus its exporter. The
 `performance-lab` profile fails startup if the two Redis endpoints resolve to
 the same normalized host and port.
 

@@ -36,9 +36,44 @@ fail() {
   return 1
 }
 
+verify_fixed_corpus_bytes() {
+  scan_file=$1
+  relative_path=$2
+  reject_backslash=0
+  if [[ "$relative_path" == 'infra/aws/bundles/debezium/connect-distributed.aws.properties' ]]; then
+    reject_backslash=1
+  fi
+  if ! forbidden_bytes=$(LC_ALL=C od -An -v -t x1 "$scan_file" | LC_ALL=C awk \
+    -v reject_backslash="$reject_backslash" '
+      {
+        for (field_index = 1; field_index <= NF; field_index++) {
+          byte = tolower($field_index)
+          if (byte == "0d" \
+            || (previous == "c2" && byte == "85") \
+            || (before_previous == "e2" && previous == "80" \
+              && (byte == "a8" || byte == "a9")) \
+            || (reject_backslash == 1 && byte == "5c")) {
+            forbidden = 1
+          }
+          before_previous = previous
+          previous = byte
+        }
+      }
+      END { print forbidden + 0 }
+    ')
+  then
+    return 1
+  fi
+  [[ "$forbidden_bytes" == 0 ]]
+}
+
 scan_sensitive_assignments() {
   scan_file=$1
   relative_path=$2
+  if ! verify_fixed_corpus_bytes "$scan_file" "$relative_path"; then
+    fail "bundle contains prohibited obfuscation syntax or unapproved sensitive material"
+    return 1
+  fi
   LC_ALL=C awk -v relative_path="$relative_path" '
     function trim(value) {
       sub(/^[[:space:]]+/, "", value)
@@ -131,20 +166,8 @@ image_mappings_for_bundle() {
   done < "$compose_file"
 }
 
-verify_image_contracts() {
-  actual_mappings=''
-  for bundle_name in "${bundle_names[@]}"; do
-    compose_file="$repo_root/infra/aws/bundles/$bundle_name/compose.yml"
-    mappings=$(image_mappings_for_bundle "$bundle_name" "$compose_file")
-    if [[ -n "$actual_mappings" ]]; then
-      actual_mappings="$actual_mappings
-$mappings"
-    else
-      actual_mappings=$mappings
-    fi
-  done
-
-  expected_mappings=$(cat <<'EOF'
+expected_image_variable_mappings() {
+  cat <<'EOF'
 app/app=APP_IMAGE
 app/node-exporter=NODE_EXPORTER_IMAGE
 redis/redis=REDIS_IMAGE
@@ -163,7 +186,107 @@ monitoring/prometheus=PROMETHEUS_IMAGE
 monitoring/grafana=GRAFANA_IMAGE
 monitoring/node-exporter=NODE_EXPORTER_IMAGE
 EOF
-)
+}
+
+read_canonical_image_env() {
+  env_file=$1
+  parsed_pairs=''
+  image_values=''
+  while IFS= read -r env_line || [[ -n "$env_line" ]]; do
+    [[ "$env_line" =~ ^([A-Z][A-Z0-9_]*)=([^[:space:]]+)$ ]] || return 1
+    env_key=${BASH_REMATCH[1]}
+    env_value=${BASH_REMATCH[2]}
+    case "$env_key" in
+      APP_IMAGE|REDIS_IMAGE|REDIS_EXPORTER_IMAGE|NODE_EXPORTER_IMAGE|KAFKA_IMAGE|DEBEZIUM_IMAGE|ELASTICSEARCH_IMAGE|ELASTICSEARCH_EXPORTER_IMAGE|PROMETHEUS_IMAGE|GRAFANA_IMAGE)
+        case "$env_value" in
+          *@sha256:*) ;;
+          *) return 1 ;;
+        esac
+        image_repository=${env_value%@sha256:*}
+        image_digest=${env_value##*@sha256:}
+        [[ -n "$image_repository" \
+          && "$image_repository" != *'@sha256:'* \
+          && "${#image_digest}" -eq 64 \
+          && "$image_digest" =~ ^[0-9a-f]+$ ]] || return 1
+        if [[ -n "$image_values" ]]; then
+          image_values="$image_values
+$env_value"
+        else
+          image_values=$env_value
+        fi
+        ;;
+      APP_ENV_FILE|MONITORING_ENV_FILE)
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+    if [[ -n "$parsed_pairs" ]]; then
+      parsed_pairs="$parsed_pairs
+$env_key=$env_value"
+    else
+      parsed_pairs="$env_key=$env_value"
+    fi
+  done < "$env_file"
+
+  actual_env_keys=$(printf '%s\n' "$parsed_pairs" | sed 's/=.*//' | LC_ALL=C sort)
+  expected_env_keys=$(printf '%s\n' \
+    APP_ENV_FILE \
+    APP_IMAGE \
+    DEBEZIUM_IMAGE \
+    ELASTICSEARCH_EXPORTER_IMAGE \
+    ELASTICSEARCH_IMAGE \
+    GRAFANA_IMAGE \
+    KAFKA_IMAGE \
+    MONITORING_ENV_FILE \
+    NODE_EXPORTER_IMAGE \
+    PROMETHEUS_IMAGE \
+    REDIS_EXPORTER_IMAGE \
+    REDIS_IMAGE | LC_ALL=C sort)
+  [[ "$actual_env_keys" == "$expected_env_keys" ]] || return 1
+
+  sorted_image_values=$(printf '%s\n' "$image_values" | LC_ALL=C sort)
+  unique_image_values=$(printf '%s\n' "$image_values" | LC_ALL=C sort -u)
+  [[ "$sorted_image_values" == "$unique_image_values" ]] || return 1
+  printf '%s\n' "$parsed_pairs"
+}
+
+image_value_for_variable() {
+  env_pairs=$1
+  wanted_variable=$2
+  while IFS='=' read -r current_key current_value || [[ -n "$current_key$current_value" ]]; do
+    if [[ "$current_key" == "$wanted_variable" ]]; then
+      printf '%s\n' "$current_value"
+      return 0
+    fi
+  done <<< "$env_pairs"
+  return 1
+}
+
+expected_resolved_image_mappings() {
+  env_pairs=$1
+  while IFS='=' read -r service_key image_variable || [[ -n "$service_key$image_variable" ]]; do
+    if ! resolved_value=$(image_value_for_variable "$env_pairs" "$image_variable"); then
+      return 1
+    fi
+    printf '%s=%s\n' "$service_key" "$resolved_value"
+  done <<< "$(expected_image_variable_mappings)"
+}
+
+verify_image_contracts() {
+  actual_mappings=''
+  for bundle_name in "${bundle_names[@]}"; do
+    compose_file="$repo_root/infra/aws/bundles/$bundle_name/compose.yml"
+    mappings=$(image_mappings_for_bundle "$bundle_name" "$compose_file")
+    if [[ -n "$actual_mappings" ]]; then
+      actual_mappings="$actual_mappings
+$mappings"
+    else
+      actual_mappings=$mappings
+    fi
+  done
+
+  expected_mappings=$(expected_image_variable_mappings)
   actual_sorted=$(printf '%s\n' "$actual_mappings" | LC_ALL=C sort)
   expected_sorted=$(printf '%s\n' "$expected_mappings" | LC_ALL=C sort)
   [[ "$actual_sorted" == "$expected_sorted" ]] || fail "bundle service-to-image-variable mapping does not match the approved contract"
@@ -181,6 +304,11 @@ EOF
     REDIS_EXPORTER_IMAGE \
     REDIS_IMAGE | LC_ALL=C sort)
   [[ "$actual_variables" == "$expected_variables" ]] || fail "bundle image-variable set does not match the canonical ten-variable contract"
+
+  if ! canonical_image_env_pairs=$(read_canonical_image_env "$image_env"); then
+    fail "digest image fixture does not match the strict canonical key/value contract"
+    return 1
+  fi
 }
 
 expected_services_for_bundle() {
@@ -210,25 +338,101 @@ expected_services_for_bundle() {
   esac
 }
 
+resolved_services_from_config() {
+  LC_ALL=C awk '
+    /^services:[[:space:]]*$/ { in_services = 1; next }
+    in_services && /^[^[:space:]]/ { exit }
+    in_services && /^  [^[:space:]].*:[[:space:]]*$/ {
+      service = $0
+      sub(/^  /, "", service)
+      sub(/:[[:space:]]*$/, "", service)
+      print service
+    }
+  '
+}
+
+resolved_images_from_config() {
+  bundle_name=$1
+  LC_ALL=C awk -v bundle_name="$bundle_name" '
+    /^services:[[:space:]]*$/ { in_services = 1; next }
+    in_services && /^[^[:space:]]/ { exit }
+    in_services && /^  [^[:space:]].*:[[:space:]]*$/ {
+      service = $0
+      sub(/^  /, "", service)
+      sub(/:[[:space:]]*$/, "", service)
+      next
+    }
+    in_services && service != "" && /^    image:[[:space:]]*/ {
+      image = $0
+      sub(/^    image:[[:space:]]*/, "", image)
+      print bundle_name "/" service "=" image
+    }
+  '
+}
+
+resolved_forbidden_cardinality_count() {
+  LC_ALL=C awk '
+    /^services:[[:space:]]*$/ { in_services = 1; next }
+    in_services && /^[^[:space:]]/ { exit }
+    in_services && /^  [^[:space:]].*:[[:space:]]*$/ { service_seen = 1; next }
+    in_services && service_seen && /^    (scale|deploy):/ { count++ }
+    END { print count + 0 }
+  '
+}
+
+verify_resolved_config_view() {
+  bundle_name=$1
+  canonical_config=$2
+  expected_services=$3
+  expected_images=$4
+  actual_services=$(printf '%s\n' "$canonical_config" \
+    | resolved_services_from_config | LC_ALL=C sort)
+  if [[ "$actual_services" != "$expected_services" ]]; then
+    fail "resolved service set does not match the exact bundle contract"
+    return 1
+  fi
+  actual_images=$(printf '%s\n' "$canonical_config" \
+    | resolved_images_from_config "$bundle_name" | LC_ALL=C sort)
+  if [[ "$actual_images" != "$expected_images" ]]; then
+    fail "resolved service-to-image association does not match the exact bundle contract"
+    return 1
+  fi
+  forbidden_cardinality=$(printf '%s\n' "$canonical_config" \
+    | resolved_forbidden_cardinality_count)
+  if [[ "$forbidden_cardinality" -ne 0 ]]; then
+    fail "resolved service model declares forbidden scale or deploy cardinality"
+    return 1
+  fi
+}
+
 verify_resolved_service_contracts() {
+  if ! all_expected_images=$(expected_resolved_image_mappings "$canonical_image_env_pairs"); then
+    fail "resolved image contract could not be derived from the canonical fixture"
+    return 1
+  fi
   for bundle_name in "${bundle_names[@]}"; do
     compose_file="$repo_root/infra/aws/bundles/$bundle_name/compose.yml"
     expected_services=$(expected_services_for_bundle "$bundle_name" | LC_ALL=C sort)
-    if ! default_services=$(COMPOSE_PROFILES= docker compose \
-      --env-file "$image_env" -f "$compose_file" \
-      config --services 2>/dev/null | LC_ALL=C sort)
+    expected_images=$(printf '%s\n' "$all_expected_images" | LC_ALL=C awk \
+      -v prefix="$bundle_name/" 'index($0, prefix) == 1 { print }' | LC_ALL=C sort)
+    if ! default_config=$(COMPOSE_PROFILES= docker compose \
+      --env-file "$image_env" -f "$compose_file" config 2>/dev/null)
     then
       fail "default-profile resolved service model could not be inspected"
+      return 1
     fi
-    if ! wildcard_services=$(COMPOSE_PROFILES= docker compose --profile '*' \
-      --env-file "$image_env" -f "$compose_file" \
-      config --services 2>/dev/null | LC_ALL=C sort)
+    if ! wildcard_config=$(COMPOSE_PROFILES= docker compose --profile '*' \
+      --env-file "$image_env" -f "$compose_file" config 2>/dev/null)
     then
       fail "all-profile resolved service model could not be inspected"
+      return 1
     fi
-    [[ "$default_services" == "$expected_services" \
-      && "$wildcard_services" == "$expected_services" ]] \
-      || fail "resolved service set does not match the exact bundle contract"
+    verify_resolved_config_view \
+      "$bundle_name" "$default_config" "$expected_services" "$expected_images" \
+      || return 1
+    verify_resolved_config_view \
+      "$bundle_name" "$wildcard_config" "$expected_services" "$expected_images" \
+      || return 1
   done
 }
 
@@ -327,6 +531,73 @@ copy_validation_root() {
   cp -R "$repo_root/infra/aws/tests/fixtures" "$destination/infra/aws/tests/"
   cp -R "$repo_root/monitoring/prometheus" "$destination/monitoring/"
   cp -R "$repo_root/monitoring/grafana" "$destination/monitoring/"
+}
+
+assert_java_properties_key() {
+  properties_file=$1
+  expected_key=$2
+  probe_source="$temp_dir/PropertiesKeyProbe.java"
+  if [[ ! -f "$probe_source" ]]; then
+    cat > "$probe_source" <<'EOF'
+import java.io.FileInputStream;
+import java.util.Properties;
+
+class PropertiesKeyProbe {
+  public static void main(String[] args) throws Exception {
+    Properties properties = new Properties();
+    try (FileInputStream input = new FileInputStream(args[0])) {
+      properties.load(input);
+    }
+    if (!properties.containsKey(args[1])) {
+      System.exit(1);
+    }
+  }
+}
+EOF
+  fi
+  java "$probe_source" "$properties_file" "$expected_key" >/dev/null 2>&1 \
+    || fail "Java Properties mutation did not reconstruct the expected key"
+}
+
+write_app_linebreak_password_mutation() {
+  compose_file=$1
+  linebreak_family=$2
+  mutated_file="$compose_file.tmp"
+  replaced=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$replaced" -eq 0 && "$line" == '      JAVA_OPTS:'* ]]; then
+      java_opts=${line#'      JAVA_OPTS: '}
+      printf '      - JAVA_OPTS=%s\n' "$java_opts"
+      printf '      - "PASSW\\'
+      case "$linebreak_family" in
+        cr) printf '\r' ;;
+        nel) printf '\302\205' ;;
+        ls) printf '\342\200\250' ;;
+        ps) printf '\342\200\251' ;;
+        *) fail "unknown non-LF line-break mutation" ;;
+      esac
+      printf 'ORD=hunter2"\n'
+      replaced=1
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$compose_file" > "$mutated_file"
+  [[ "$replaced" -eq 1 ]] || fail "non-LF line-break mutation target was not found"
+  mv "$mutated_file" "$compose_file"
+}
+
+assert_compose_password_key() {
+  compose_file=$1
+  canonical_config=$(COMPOSE_PROFILES= docker compose \
+    --env-file "$(dirname -- "$compose_file")/../../tests/fixtures/images.env" \
+    -f "$compose_file" config 2>/dev/null) \
+    || fail "non-LF line-break mutation canonical precondition failed"
+  canonical_password_count=$(printf '%s\n' "$canonical_config" | LC_ALL=C awk '
+    $1 == "PASSWORD:" { count++ }
+    END { print count + 0 }
+  ')
+  [[ "$canonical_password_count" -eq 1 ]] \
+    || fail "non-LF line-break mutation did not resolve one sensitive key"
 }
 
 expect_mutation_failure() {
@@ -444,6 +715,40 @@ EOF
       [[ "$canonical_password_count" -eq 1 ]] \
         || fail "backslash-continuation mutation did not resolve one sensitive key"
       ;;
+    properties-escaped-password)
+      printf '\nPASS\\WORD=hunter2\n' \
+        >> "$mutation_root/infra/aws/bundles/debezium/connect-distributed.aws.properties"
+      assert_java_properties_key \
+        "$mutation_root/infra/aws/bundles/debezium/connect-distributed.aws.properties" \
+        PASSWORD
+      ;;
+    properties-escaped-access-key)
+      printf '\nACCESS\\_KEY=hunter2\n' \
+        >> "$mutation_root/infra/aws/bundles/debezium/connect-distributed.aws.properties"
+      assert_java_properties_key \
+        "$mutation_root/infra/aws/bundles/debezium/connect-distributed.aws.properties" \
+        ACCESS_KEY
+      ;;
+    linebreak-cr-password)
+      write_app_linebreak_password_mutation \
+        "$mutation_root/infra/aws/bundles/app/compose.yml" cr
+      assert_compose_password_key "$mutation_root/infra/aws/bundles/app/compose.yml"
+      ;;
+    linebreak-nel-password)
+      write_app_linebreak_password_mutation \
+        "$mutation_root/infra/aws/bundles/app/compose.yml" nel
+      assert_compose_password_key "$mutation_root/infra/aws/bundles/app/compose.yml"
+      ;;
+    linebreak-ls-password)
+      write_app_linebreak_password_mutation \
+        "$mutation_root/infra/aws/bundles/app/compose.yml" ls
+      assert_compose_password_key "$mutation_root/infra/aws/bundles/app/compose.yml"
+      ;;
+    linebreak-ps-password)
+      write_app_linebreak_password_mutation \
+        "$mutation_root/infra/aws/bundles/app/compose.yml" ps
+      assert_compose_password_key "$mutation_root/infra/aws/bundles/app/compose.yml"
+      ;;
     approved-line-substitution)
       sed 's/^ELASTIC_PASSWORD$/SPRING_DATASOURCE_PASSWORD/' \
         "$mutation_root/infra/aws/bundles/app/required-runtime-env.txt" > "$mutation_root/required-runtime-env.tmp"
@@ -487,6 +792,117 @@ EOF
       printf '%s\n' \
         'UNAPPROVED_IMAGE=registry.example.invalid/airbob/unapproved@sha256:5555555555555555555555555555555555555555555555555555555555555555' \
         >> "$mutation_root/infra/aws/tests/fixtures/images.env"
+      ;;
+    duplicate-image-env-key)
+      printf '%s\n' \
+        'APP_IMAGE=registry.example.invalid/airbob/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+        >> "$mutation_root/infra/aws/tests/fixtures/images.env"
+      ;;
+    image-value-collision)
+      sed \
+        's|^GRAFANA_IMAGE=.*|GRAFANA_IMAGE=registry.example.invalid/airbob/prometheus@sha256:3333333333333333333333333333333333333333333333333333333333333333|' \
+        "$mutation_root/infra/aws/tests/fixtures/images.env" > "$mutation_root/images.tmp"
+      mv "$mutation_root/images.tmp" "$mutation_root/infra/aws/tests/fixtures/images.env"
+      ;;
+    resolved-image-anchor-override)
+      awk '
+        NR == 1 {
+          print "x-airbob-wrong-image: &airbob-wrong-image"
+          print "  image: ${REDIS_EXPORTER_IMAGE:?REDIS_EXPORTER_IMAGE is required}"
+          print ""
+        }
+        /^  redis:[[:space:]]*$/ {
+          print
+          print "    <<: *airbob-wrong-image"
+          print "    x-airbob-declared-image:"
+          in_redis = 1
+          next
+        }
+        in_redis && /image: \$\{REDIS_IMAGE:/ {
+          print "      image: ${REDIS_IMAGE:?REDIS_IMAGE is required}"
+          in_redis = 0
+          next
+        }
+        { print }
+      ' "$mutation_root/infra/aws/bundles/redis/compose.yml" > "$mutation_root/redis.tmp"
+      mv "$mutation_root/redis.tmp" "$mutation_root/infra/aws/bundles/redis/compose.yml"
+      canonical_redis_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/redis/compose.yml" \
+        config 2>/dev/null) \
+        || fail "resolved image override canonical precondition failed"
+      canonical_redis_image=$(printf '%s\n' "$canonical_redis_config" | LC_ALL=C awk '
+        /^services:[[:space:]]*$/ { in_services = 1; next }
+        in_services && /^[^[:space:]]/ { exit }
+        in_services && /^  redis:[[:space:]]*$/ { in_redis = 1; next }
+        in_redis && /^  [a-zA-Z0-9][a-zA-Z0-9_-]*:[[:space:]]*$/ { exit }
+        in_redis && /^    image:[[:space:]]*/ {
+          value = $0
+          sub(/^    image:[[:space:]]*/, "", value)
+          print value
+          exit
+        }
+      ')
+      [[ "$canonical_redis_image" == 'registry.example.invalid/airbob/redis-exporter@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' ]] \
+        || fail "resolved image override did not change the canonical service image"
+      ;;
+    scale-zero-exporter)
+      awk '
+        { print }
+        /^  redis-exporter-cache:[[:space:]]*$/ { print "    scale: 0" }
+      ' "$mutation_root/infra/aws/bundles/redis/compose.yml" > "$mutation_root/redis.tmp"
+      mv "$mutation_root/redis.tmp" "$mutation_root/infra/aws/bundles/redis/compose.yml"
+      canonical_redis_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/redis/compose.yml" \
+        config 2>/dev/null) \
+        || fail "scale-zero mutation canonical precondition failed"
+      printf '%s\n' "$canonical_redis_config" | LC_ALL=C awk '
+        /^  redis-exporter-cache:[[:space:]]*$/ { in_target = 1; next }
+        in_target && /^  [a-zA-Z0-9][a-zA-Z0-9_-]*:[[:space:]]*$/ { exit 1 }
+        in_target && /^    scale:[[:space:]]*0[[:space:]]*$/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' || fail "scale-zero mutation did not resolve the requested cardinality"
+      ;;
+    scale-two-core)
+      awk '
+        { print }
+        /^  redis:[[:space:]]*$/ { print "    scale: 2" }
+      ' "$mutation_root/infra/aws/bundles/redis/compose.yml" > "$mutation_root/redis.tmp"
+      mv "$mutation_root/redis.tmp" "$mutation_root/infra/aws/bundles/redis/compose.yml"
+      canonical_redis_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/redis/compose.yml" \
+        config 2>/dev/null) \
+        || fail "non-unit scale mutation canonical precondition failed"
+      printf '%s\n' "$canonical_redis_config" | LC_ALL=C awk '
+        /^  redis:[[:space:]]*$/ { in_target = 1; next }
+        in_target && /^  [a-zA-Z0-9][a-zA-Z0-9_-]*:[[:space:]]*$/ { exit 1 }
+        in_target && /^    scale:[[:space:]]*2[[:space:]]*$/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' || fail "non-unit scale mutation did not resolve the requested cardinality"
+      ;;
+    deploy-replicas)
+      awk '
+        { print }
+        /^  redis-cache:[[:space:]]*$/ {
+          print "    deploy:"
+          print "      replicas: 2"
+        }
+      ' "$mutation_root/infra/aws/bundles/redis/compose.yml" > "$mutation_root/redis.tmp"
+      mv "$mutation_root/redis.tmp" "$mutation_root/infra/aws/bundles/redis/compose.yml"
+      canonical_redis_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/redis/compose.yml" \
+        config 2>/dev/null) \
+        || fail "deploy replicas mutation canonical precondition failed"
+      printf '%s\n' "$canonical_redis_config" | LC_ALL=C awk '
+        /^  redis-cache:[[:space:]]*$/ { in_target = 1; next }
+        in_target && /^  [a-zA-Z0-9][a-zA-Z0-9_-]*:[[:space:]]*$/ { exit 1 }
+        in_target && /^    deploy:[[:space:]]*$/ { in_deploy = 1; next }
+        in_target && in_deploy && /^      replicas:[[:space:]]*2[[:space:]]*$/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' || fail "deploy replicas mutation did not resolve the requested cardinality"
       ;;
     redis-alias-extra)
       awk '
@@ -613,6 +1029,12 @@ expect_mutation_failure 'a Unicode-escaped duplicate password key' unicode-escap
 expect_mutation_failure 'a YAML hex-escaped password key' yaml-hex-escaped-password
 expect_mutation_failure 'a YAML long-Unicode-escaped password key' yaml-long-unicode-password
 expect_mutation_failure 'a backslash-continued password key' backslash-continued-password
+expect_mutation_failure 'a Java Properties escaped password key' properties-escaped-password
+expect_mutation_failure 'a Java Properties escaped access key' properties-escaped-access-key
+expect_mutation_failure 'a CR-spliced password key' linebreak-cr-password
+expect_mutation_failure 'a NEL-spliced password key' linebreak-nel-password
+expect_mutation_failure 'an LS-spliced password key' linebreak-ls-password
+expect_mutation_failure 'a PS-spliced password key' linebreak-ps-password
 expect_mutation_failure 'one approved sensitive line duplicated while another is missing' approved-line-substitution
 expect_mutation_failure 'an approved sensitive line copied to an unapproved path' approved-line-wrong-path
 expect_mutation_failure 'an approved sensitive line with a suffix' approved-line-suffix
@@ -620,6 +1042,12 @@ expect_mutation_failure 'a Redis exporter using the Redis server image variable'
 expect_mutation_failure 'a duplicated image variable that omits another required variable' image-duplication
 expect_mutation_failure 'an omitted service image entry' image-omission
 expect_mutation_failure 'an unapproved image variable with a valid digest' unapproved-image
+expect_mutation_failure 'a duplicate canonical image env key' duplicate-image-env-key
+expect_mutation_failure 'two canonical image variables sharing one digest' image-value-collision
+expect_mutation_failure 'a resolved service image changed through a YAML merge anchor' resolved-image-anchor-override
+expect_mutation_failure 'a required exporter scaled to zero' scale-zero-exporter
+expect_mutation_failure 'a core service scaled above one' scale-two-core
+expect_mutation_failure 'a service with deploy replicas declared' deploy-replicas
 expect_mutation_failure 'an approved App service hidden from the default profile' approved-app-profiled
 expect_mutation_failure 'a profile-hidden App service behind a YAML alias' app-profile-hidden-extra
 expect_mutation_failure 'an unprofiled Redis service hidden behind a YAML alias' redis-alias-extra
@@ -632,6 +1060,7 @@ cat >> "$safe_escape_root/infra/aws/bundles/app/compose.yml" <<'EOF'
 
 x-airbob-safe-escape:
   pattern: "\\w+"
+  label: "Airbob 성능"
 EOF
 COMPOSE_PROFILES= docker compose \
   --env-file "$safe_escape_root/infra/aws/tests/fixtures/images.env" \

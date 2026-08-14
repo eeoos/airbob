@@ -125,6 +125,64 @@ run_expect_signal_143() {
   fi
 }
 
+assert_java_properties_key() {
+  properties_file=$1
+  expected_key=$2
+  probe_source="$temp_dir/PropertiesKeyProbe.java"
+  if [[ ! -f "$probe_source" ]]; then
+    cat > "$probe_source" <<'EOF'
+import java.io.FileInputStream;
+import java.util.Properties;
+
+class PropertiesKeyProbe {
+  public static void main(String[] args) throws Exception {
+    Properties properties = new Properties();
+    try (FileInputStream input = new FileInputStream(args[0])) {
+      properties.load(input);
+    }
+    if (!properties.containsKey(args[1])) {
+      System.exit(1);
+    }
+  }
+}
+EOF
+  fi
+  java "$probe_source" "$properties_file" "$expected_key" >/dev/null 2>&1 \
+    || fail "Java Properties package mutation did not reconstruct the expected key"
+}
+
+write_app_ls_password_mutation() {
+  compose_file=$1
+  mutated_file="$compose_file.tmp"
+  replaced=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$replaced" -eq 0 && "$line" == '      JAVA_OPTS:'* ]]; then
+      java_opts=${line#'      JAVA_OPTS: '}
+      printf '      - JAVA_OPTS=%s\n' "$java_opts"
+      printf '      - "PASSW\\\342\200\250ORD=hunter2"\n'
+      replaced=1
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$compose_file" > "$mutated_file"
+  [[ "$replaced" -eq 1 ]] || fail "committed LS mutation target was not found"
+  mv "$mutated_file" "$compose_file"
+}
+
+assert_compose_password_key() {
+  compose_file=$1
+  canonical_config=$(COMPOSE_PROFILES= docker compose \
+    --env-file "$(dirname -- "$compose_file")/../../tests/fixtures/images.env" \
+    -f "$compose_file" config 2>/dev/null) \
+    || fail "committed LS mutation canonical precondition failed"
+  canonical_password_count=$(printf '%s\n' "$canonical_config" | LC_ALL=C awk '
+    $1 == "PASSWORD:" { count++ }
+    END { print count + 0 }
+  ')
+  [[ "$canonical_password_count" -eq 1 ]] \
+    || fail "committed LS mutation did not resolve one sensitive key"
+}
+
 base_repo="$temp_dir/repo"
 make_package_repo "$base_repo"
 existing_non_head_commit=$(git -C "$base_repo" rev-parse HEAD)
@@ -248,6 +306,19 @@ EOF
       [[ "$canonical_password_count" -eq 1 ]] \
         || fail "committed backslash continuation did not resolve one sensitive key"
       ;;
+    properties-key)
+      printf '\nPASS\\WORD=hunter2\n' \
+        >> "$committed_secret_repo/infra/aws/bundles/debezium/connect-distributed.aws.properties"
+      assert_java_properties_key \
+        "$committed_secret_repo/infra/aws/bundles/debezium/connect-distributed.aws.properties" \
+        PASSWORD
+      ;;
+    ls-key)
+      write_app_ls_password_mutation \
+        "$committed_secret_repo/infra/aws/bundles/app/compose.yml"
+      assert_compose_password_key \
+        "$committed_secret_repo/infra/aws/bundles/app/compose.yml"
+      ;;
     *)
       fail "unknown committed secret mutation"
       ;;
@@ -270,6 +341,8 @@ run_committed_secret_failure access-key 'a committed access-key assignment'
 run_committed_secret_failure private-key 'committed private-key material'
 run_committed_secret_failure unicode-key 'a committed Unicode-escaped duplicate password key'
 run_committed_secret_failure continued-key 'a committed backslash-continued password key'
+run_committed_secret_failure properties-key 'a committed Java Properties escaped password key'
+run_committed_secret_failure ls-key 'a committed LS-spliced password key'
 
 committed_alias_repo="$temp_dir/committed-profile-alias-repo"
 cp -R "$base_repo" "$committed_alias_repo"
@@ -320,6 +393,92 @@ run_expect_failure 'a committed profile-hidden alias service' \
   "$committed_alias_commit" "$committed_alias_output"
 assert_no_staging "$committed_alias_output"
 assert_no_release_artifacts "$committed_alias_output" "$committed_alias_commit"
+
+run_committed_resolved_contract_failure() {
+  mutation=$1
+  description=$2
+  committed_contract_repo="$temp_dir/committed-$mutation-contract-repo"
+  cp -R "$base_repo" "$committed_contract_repo"
+  redis_compose="$committed_contract_repo/infra/aws/bundles/redis/compose.yml"
+  case "$mutation" in
+    image-anchor)
+      awk '
+        NR == 1 {
+          print "x-airbob-wrong-image: &airbob-wrong-image"
+          print "  image: ${REDIS_EXPORTER_IMAGE:?REDIS_EXPORTER_IMAGE is required}"
+          print ""
+        }
+        /^  redis:[[:space:]]*$/ {
+          print
+          print "    <<: *airbob-wrong-image"
+          print "    x-airbob-declared-image:"
+          in_redis = 1
+          next
+        }
+        in_redis && /image: \$\{REDIS_IMAGE:/ {
+          print "      image: ${REDIS_IMAGE:?REDIS_IMAGE is required}"
+          in_redis = 0
+          next
+        }
+        { print }
+      ' "$redis_compose" > "$committed_contract_repo/redis.tmp"
+      mv "$committed_contract_repo/redis.tmp" "$redis_compose"
+      canonical_redis_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$committed_contract_repo/infra/aws/tests/fixtures/images.env" \
+        -f "$redis_compose" config 2>/dev/null) \
+        || fail "committed image override canonical precondition failed"
+      canonical_redis_image=$(printf '%s\n' "$canonical_redis_config" | LC_ALL=C awk '
+        /^services:[[:space:]]*$/ { in_services = 1; next }
+        in_services && /^[^[:space:]]/ { exit }
+        in_services && /^  redis:[[:space:]]*$/ { in_redis = 1; next }
+        in_redis && /^  [a-zA-Z0-9][a-zA-Z0-9_-]*:[[:space:]]*$/ { exit }
+        in_redis && /^    image:[[:space:]]*/ {
+          value = $0
+          sub(/^    image:[[:space:]]*/, "", value)
+          print value
+          exit
+        }
+      ')
+      [[ "$canonical_redis_image" == 'registry.example.invalid/airbob/redis-exporter@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' ]] \
+        || fail "committed image override did not change the canonical service image"
+      ;;
+    scale-zero)
+      awk '
+        { print }
+        /^  redis-exporter-cache:[[:space:]]*$/ { print "    scale: 0" }
+      ' "$redis_compose" > "$committed_contract_repo/redis.tmp"
+      mv "$committed_contract_repo/redis.tmp" "$redis_compose"
+      canonical_redis_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$committed_contract_repo/infra/aws/tests/fixtures/images.env" \
+        -f "$redis_compose" config 2>/dev/null) \
+        || fail "committed scale-zero canonical precondition failed"
+      printf '%s\n' "$canonical_redis_config" | LC_ALL=C awk '
+        /^  redis-exporter-cache:[[:space:]]*$/ { in_target = 1; next }
+        in_target && /^  [a-zA-Z0-9][a-zA-Z0-9_-]*:[[:space:]]*$/ { exit 1 }
+        in_target && /^    scale:[[:space:]]*0[[:space:]]*$/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' || fail "committed scale-zero mutation did not resolve the requested cardinality"
+      ;;
+    *)
+      fail "unknown committed resolved-contract mutation"
+      ;;
+  esac
+  git -C "$committed_contract_repo" add infra/aws/bundles/redis/compose.yml
+  git -C "$committed_contract_repo" commit -q -m "synthetic committed $mutation contract"
+  committed_contract_commit=$(git -C "$committed_contract_repo" rev-parse HEAD)
+  committed_contract_output="$temp_dir/committed-$mutation-contract-output"
+  mkdir "$committed_contract_output"
+  run_expect_failure "$description" "$temp_dir/committed-$mutation-contract.log" \
+    "$committed_contract_repo/infra/aws/scripts/package-service-bundles.sh" \
+    "$committed_contract_commit" "$committed_contract_output"
+  assert_no_staging "$committed_contract_output"
+  assert_no_release_artifacts "$committed_contract_output" "$committed_contract_commit"
+}
+
+run_committed_resolved_contract_failure \
+  image-anchor 'a committed service image changed through a YAML merge anchor'
+run_committed_resolved_contract_failure \
+  scale-zero 'a committed required exporter scaled to zero'
 
 concurrent_repo="$temp_dir/concurrent-source-repo"
 cp -R "$base_repo" "$concurrent_repo"

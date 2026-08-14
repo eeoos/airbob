@@ -482,9 +482,9 @@ EBS snapshot이 아니라 Elasticsearch native Snapshot API와 S3 repository를 
 - Compose/config bundle은 versioned S3 artifact로 올리고 EC2 user-data는 bundle SHA-256을 검증한 뒤 실행한다.
 - 현재 로컬 packager는 archive member의 regular-file type과 bytes를 지정된 현재 `HEAD` blob에 대조한다. caller-owned mode-0700 output과 신뢰할 수 있는 `PATH`/toolchain을 전제로 하며, SHA-256은 생성된 archive의 무결성 정보이지 서명된 진본성 증명이 아니다.
 - archive, checksum, release manifest의 세 파일은 하나의 filesystem transaction으로 동시에 공개되지 않는다. 소비자는 마지막 release manifest를 완료 marker로 삼고 commit, archive 이름, SHA-256과 정확한 파일 목록을 모두 검증한 뒤에만 archive를 사용한다.
-- 고정 corpus의 민감 키 검사는 승인된 placeholder/guard 외 표현을 보수적으로 거부하지만, 무해해 보이는 키에 숨긴 secret까지 증명하지는 못하므로 repository secret scan과 사람의 검토를 계속 요구한다.
-- 현재 19개 승인 파일에는 hexadecimal character escape나 physical line continuation이 필요하지 않으므로 `\xNN`, `\uXXXX`, `\UXXXXXXXX` 형태와 `\`로 끝나는 모든 physical line을 위치와 용도에 관계없이 거부한다. escape 또는 line splice로 민감 key를 감춘 뒤 승인 placeholder와 중복시키는 표현도 허용하지 않는다. line continuation이 아닌 기존 JMX regex의 `\\w`는 계속 허용한다.
-- 각 Compose bundle은 `COMPOSE_PROFILES`가 비어 있는 default view와 모든 profile을 활성화한 view의 resolved service set이 같은 exact allowlist인지 모두 검증한다. YAML anchor/alias 또는 profile로 extra service를 숨기거나 승인 service를 default 배포에서 제외할 수 없다.
+- 고정 19개 path에서 runtime env와 열거된 secret-bearing path family를 제외하고, password/passwd/secret/credential/token/API·access·private key/service account/private-key marker family는 경로와 전체 line이 고정된 여섯 placeholder/guard만 각각 정확히 한 번 허용한다. 이는 무해해 보이는 key 아래의 임의 secret 부재까지 증명하지 않으므로 repository secret scan과 사람의 검토를 계속 요구한다.
+- 현재 19개 승인 파일에는 hexadecimal character escape나 비-LF line break가 필요하지 않으므로 `\xNN`, `\uXXXX`, `\UXXXXXXXX`, physical line 끝의 `\`, raw CR/NEL/LS/PS byte를 위치와 용도에 관계없이 거부한다. Java Properties worker 파일은 승인 형태에 backslash가 전혀 필요 없으므로 모든 backslash byte를 추가로 거부한다. 정상 UTF-8과 Properties 밖의 기존 JMX regex `\\w`는 계속 허용한다.
+- 각 Compose bundle은 `COMPOSE_PROFILES`가 비어 있는 default view와 모든 profile을 활성화한 view에서 exact service allowlist와 17개 service→resolved image digest association을 모두 검증한다. image fixture는 shell source/eval 없이 정확히 열 개의 unique/non-colliding image 변수와 두 runtime-env 보조 변수로 해석한다. canonical service-level `scale`/`deploy` 선언은 금지하여 bundle-declared cardinality를 service당 1로 고정하고 앱 scale-out은 ASG가 담당한다. 이는 실제 container 개수·health, CLI override나 runtime 동작을 증명하지 않으며 이후 SSM smoke가 그 경계를 담당한다.
 - user-data는 Docker 설치, bundle/secret 조회와 SSM agent 준비까지만 담당한다.
 - Terraform `remote-exec`과 SSH provisioner는 사용하지 않는다.
 - 서비스 준비 상태와 connector 등록은 SSM Run Command를 통해 실행하고 command result를 artifact로 남긴다.
@@ -675,7 +675,7 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - [x] `traffic-benchmark` profile에서 scheduler와 Kafka listener를 끄는 계약을 구현한다.
 - [x] 동일 image의 cache A/B를 위한 명시적 enable toggle과 reset 계약을 추가한다. reset은 전용 cache Redis에만 `FLUSHDB`를 실행하며, HTTP reset endpoint는 만들지 않는다.
 - [x] 모든 lab profile에서 실제 Toss/Slack/Google/일반 S3 쓰기를 stub·disable하거나 전용 allowlist prefix로 제한한다.
-- [x] 앱, Redis, Kafka, Debezium, Elasticsearch, monitoring의 Compose/config bundle 계약과 secret 제외 packaging을 정의한다. 이는 정적/config 검증이며 image runtime smoke나 S3 배포 완료를 뜻하지 않는다.
+- [x] 앱, Redis, Kafka, Debezium, Elasticsearch, monitoring의 Compose/config bundle 계약과 고정 19개 runtime-secret path 제외 및 열거된 sensitive-marker gate packaging을 정의한다. 이는 정적/config 검증이며 임의 secret 부재, 실제 container 개수·health, CLI override, image runtime smoke나 S3 배포 완료를 뜻하지 않는다.
 - [x] AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
 - [ ] 앱과 infra image를 immutable digest로 발행한다.
 
