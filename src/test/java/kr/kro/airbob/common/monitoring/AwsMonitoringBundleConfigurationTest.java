@@ -3,11 +3,17 @@ package kr.kro.airbob.common.monitoring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
@@ -21,6 +27,10 @@ class AwsMonitoringBundleConfigurationTest {
 		"monitoring", "grafana", "provisioning", "datasources", "prometheus.yml");
 	private static final Path CLOUDWATCH_DATASOURCE = Path.of(
 		"monitoring", "grafana", "provisioning", "datasources", "cloudwatch.aws.yml");
+	private static final String SYNTHETIC_PASSWORD =
+		"  ${TASK6_COLLISION} \"double quoted\" 'single quoted' # literal suffix  ";
+	private static final String CANONICAL_SYNTHETIC_PASSWORD =
+		"  $${TASK6_COLLISION} \"double quoted\" 'single quoted' # literal suffix  ";
 	private static final List<String> STATIC_TARGETS = List.of(
 		"redis-general.lab.airbob.internal:9121",
 		"redis-cache.lab.airbob.internal:9122",
@@ -128,8 +138,10 @@ class AwsMonitoringBundleConfigurationTest {
 		Map<String, Object> grafana = map(services.get("grafana"));
 		assertService(grafana, "${GRAFANA_IMAGE:?GRAFANA_IMAGE is required}", "384M");
 		assertThat(list(grafana.get("ports"))).containsExactly("127.0.0.1:3000:3000");
-		assertThat(list(grafana.get("env_file")))
-			.containsExactly("${MONITORING_ENV_FILE:?MONITORING_ENV_FILE is required}");
+		assertThat(list(grafana.get("env_file"))).containsExactly(Map.of(
+			"path", "${MONITORING_ENV_FILE:?MONITORING_ENV_FILE is required}",
+			"required", true,
+			"format", "raw"));
 		List<String> entrypoint = list(grafana.get("entrypoint"));
 		assertThat(entrypoint).hasSize(3);
 		assertThat(entrypoint.subList(0, 2)).containsExactly("/bin/sh", "-ec");
@@ -170,10 +182,86 @@ class AwsMonitoringBundleConfigurationTest {
 				"0.0.0.0:9090", "0.0.0.0:3000");
 	}
 
+	@Test
+	void monitoringBundlePreservesRawGrafanaPasswordBytesDuringComposeResolution()
+		throws Exception {
+		Path tempDirectory = createProtectedTempDirectory();
+		try {
+			Path runtimeEnv = writeProtectedFile(tempDirectory.resolve("monitoring.env"),
+				"GRAFANA_ADMIN_PASSWORD=" + SYNTHETIC_PASSWORD + "\n");
+			Path composeOutput = writeProtectedFile(tempDirectory.resolve("compose.json"), "");
+			Path composeError = writeProtectedFile(tempDirectory.resolve("compose.stderr"), "");
+
+			ProcessBuilder processBuilder = new ProcessBuilder(
+				"docker", "compose", "-f", COMPOSE_FILE.toString(), "config", "--format", "json");
+			Map<String, String> environment = processBuilder.environment();
+			environment.put("PROMETHEUS_IMAGE", digestImage("prometheus", '3'));
+			environment.put("GRAFANA_IMAGE", digestImage("grafana", '4'));
+			environment.put("NODE_EXPORTER_IMAGE", digestImage("node-exporter", 'd'));
+			environment.put("MONITORING_ENV_FILE", runtimeEnv.toAbsolutePath().toString());
+			environment.put("TASK6_COLLISION", "ambient-value-must-not-replace-file-bytes");
+			processBuilder.redirectOutput(composeOutput.toFile());
+			processBuilder.redirectError(composeError.toFile());
+
+			int exitCode = processBuilder.start().waitFor();
+			assertThat(exitCode)
+				.withFailMessage("Docker Compose did not resolve the monitoring bundle")
+				.isZero();
+			String composeErrorText = Files.readString(composeError);
+			assertThat(List.of(
+				SYNTHETIC_PASSWORD,
+				CANONICAL_SYNTHETIC_PASSWORD,
+				"ambient-value-must-not-replace-file-bytes",
+				"double quoted",
+				"single quoted",
+				"literal suffix").stream().noneMatch(composeErrorText::contains))
+				.withFailMessage("Docker Compose disclosed the synthetic Grafana password")
+				.isTrue();
+
+			JsonNode resolved = new ObjectMapper().readTree(composeOutput.toFile());
+			String effectivePassword = resolved.path("services")
+				.path("grafana")
+				.path("environment")
+				.path("GRAFANA_ADMIN_PASSWORD")
+				.asText();
+			assertThat(effectivePassword.equals(CANONICAL_SYNTHETIC_PASSWORD))
+				.withFailMessage("Effective Grafana password did not preserve the runtime env bytes")
+				.isTrue();
+		}
+		finally {
+			deleteRecursively(tempDirectory);
+		}
+	}
+
 	private void assertEc2Discovery(Map<String, Object> job, int port) {
 		assertThat(list(job.get("ec2_sd_configs"))).containsExactly(Map.of(
 			"region", "ap-northeast-2",
 			"port", port));
+	}
+
+	private String digestImage(String name, char digestCharacter) {
+		return "registry.example.invalid/airbob/" + name + "@sha256:"
+			+ String.valueOf(digestCharacter).repeat(64);
+	}
+
+	private Path writeProtectedFile(Path path, String contents) throws IOException {
+		Files.createFile(path,
+			PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+		return Files.writeString(path, contents, StandardCharsets.UTF_8,
+			StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+	}
+
+	private Path createProtectedTempDirectory() throws IOException {
+		return Files.createTempDirectory("airbob-monitoring-env-",
+			PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+	}
+
+	private void deleteRecursively(Path directory) throws IOException {
+		try (var paths = Files.walk(directory)) {
+			for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+				Files.deleteIfExists(path);
+			}
+		}
 	}
 
 	private Map<String, Object> keep(String sourceLabel, String regex) {

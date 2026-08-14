@@ -24,7 +24,10 @@ services:
   grafana:
     image: ${GRAFANA_IMAGE:?GRAFANA_IMAGE is required}
     platform: linux/amd64
-    env_file: ["${MONITORING_ENV_FILE:?MONITORING_ENV_FILE is required}"]
+    env_file:
+      - path: ${MONITORING_ENV_FILE:?MONITORING_ENV_FILE is required}
+        required: true
+        format: raw
     entrypoint:
       - /bin/sh
       - -ec
