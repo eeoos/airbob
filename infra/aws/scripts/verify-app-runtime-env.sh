@@ -44,6 +44,7 @@ expected_keys=(
   SPRING_DATASOURCE_PASSWORD
   REDIS_HOST
   REDIS_PORT
+  ACCOMMODATION_DETAIL_CACHE_ENABLED
   ACCOMMODATION_DETAIL_CACHE_REDIS_HOST
   ACCOMMODATION_DETAIL_CACHE_REDIS_PORT
   KAFKA_BOOTSTRAP_SERVERS
@@ -65,7 +66,7 @@ while IFS= read -r key || [[ -n "$key" ]]; do
 done < "$allowlist_file"
 
 if [[ "${#allowed_keys[@]}" -ne "${#expected_keys[@]}" ]]; then
-  printf 'runtime env allowlist does not contain exactly 18 keys\n' >&2
+  printf 'runtime env allowlist does not contain exactly 19 keys\n' >&2
   exit 1
 fi
 
@@ -171,6 +172,15 @@ done
   printf 'runtime env profile does not match the selected policy\n' >&2
   exit 1
 }
+
+case "$(value_for ACCOMMODATION_DETAIL_CACHE_ENABLED)" in
+  true|false)
+    ;;
+  *)
+    printf 'runtime env cache toggle must be true or false\n' >&2
+    exit 1
+    ;;
+esac
 
 general_host=$(value_for REDIS_HOST)
 general_port=$(value_for REDIS_PORT)

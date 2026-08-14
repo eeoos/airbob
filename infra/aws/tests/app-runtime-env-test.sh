@@ -37,6 +37,7 @@ SPRING_DATASOURCE_USERNAME=airbob
 SPRING_DATASOURCE_PASSWORD=$secret
 REDIS_HOST=redis-general.lab.airbob.internal
 REDIS_PORT=6379
+ACCOMMODATION_DETAIL_CACHE_ENABLED=false
 ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache.lab.airbob.internal
 ACCOMMODATION_DETAIL_CACHE_REDIS_PORT=6380
 KAFKA_BOOTSTRAP_SERVERS=kafka.lab.airbob.internal:9092
@@ -107,11 +108,19 @@ expect_failure() {
 }
 
 write_valid_env 'aws,performance-lab' "$valid_env"
-expect_success 'integrated-smoke runtime env' "$valid_env" integrated-smoke
+expect_success 'integrated-smoke runtime env with cache disabled' "$valid_env" integrated-smoke
+
+integrated_cache_enabled_env="$temp_dir/integrated-cache-enabled.env"
+replace_key ACCOMMODATION_DETAIL_CACHE_ENABLED true "$valid_env" "$integrated_cache_enabled_env"
+expect_success 'integrated-smoke runtime env with cache enabled' "$integrated_cache_enabled_env" integrated-smoke
 
 isolated_env="$temp_dir/isolated.env"
 write_valid_env 'aws,traffic-benchmark' "$isolated_env"
-expect_success 'isolated-read runtime env' "$isolated_env" isolated-read
+expect_success 'isolated-read runtime env with cache disabled' "$isolated_env" isolated-read
+
+isolated_cache_enabled_env="$temp_dir/isolated-cache-enabled.env"
+replace_key ACCOMMODATION_DETAIL_CACHE_ENABLED true "$isolated_env" "$isolated_cache_enabled_env"
+expect_success 'isolated-read runtime env with cache enabled' "$isolated_cache_enabled_env" isolated-read
 expect_failure 'integrated profile under isolated-read policy' "$valid_env" isolated-read
 expect_failure 'isolated profile under integrated-smoke policy' "$isolated_env" integrated-smoke
 expect_failure 'unknown policy' "$valid_env" unknown-policy
@@ -155,6 +164,29 @@ duplicate="$temp_dir/duplicate.env"
 cp "$valid_env" "$duplicate"
 printf 'REDIS_PORT=6379\n' >> "$duplicate"
 expect_failure 'duplicate key' "$duplicate" integrated-smoke
+
+duplicate_cache_toggle="$temp_dir/duplicate-cache-toggle.env"
+cp "$valid_env" "$duplicate_cache_toggle"
+printf 'ACCOMMODATION_DETAIL_CACHE_ENABLED=true\n' >> "$duplicate_cache_toggle"
+expect_failure 'duplicate cache toggle' "$duplicate_cache_toggle" integrated-smoke
+
+missing_cache_toggle="$temp_dir/missing-cache-toggle.env"
+remove_key ACCOMMODATION_DETAIL_CACHE_ENABLED "$valid_env" "$missing_cache_toggle"
+expect_failure 'missing cache toggle' "$missing_cache_toggle" integrated-smoke
+
+for invalid_cache_toggle in \
+  '' \
+  TRUE \
+  False \
+  1 \
+  yes \
+  ' true' \
+  'false '
+do
+  fixture="$temp_dir/invalid-cache-toggle-$RANDOM.env"
+  replace_key ACCOMMODATION_DETAIL_CACHE_ENABLED "$invalid_cache_toggle" "$valid_env" "$fixture"
+  expect_failure 'invalid cache toggle' "$fixture" integrated-smoke
+done
 
 missing="$temp_dir/missing.env"
 remove_key CLOUDFRONT_DOMAIN "$valid_env" "$missing"
