@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약만 구현되었으며, Terraform, DNS 이전·전환, AWS 자원 생성과 성능 증거 수집은 아직 진행 전이다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging까지 구현되었다. Immutable image 생성·발행과 runtime smoke, bundle upload 및 repository-s3 검증, SSM bootstrap/sysctl 적용, Terraform, DNS 이전·전환, AWS 자원 생성과 성능 증거 수집은 아직 진행 전이다.
 
 ## 배경
 
@@ -670,7 +670,8 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - [x] `traffic-benchmark` profile에서 scheduler와 Kafka listener를 끄는 계약을 구현한다.
 - [x] 동일 image의 cache A/B를 위한 명시적 enable toggle과 reset 계약을 추가한다. reset은 전용 cache Redis에만 `FLUSHDB`를 실행하며, HTTP reset endpoint는 만들지 않는다.
 - [x] 모든 lab profile에서 실제 Toss/Slack/Google/일반 S3 쓰기를 stub·disable하거나 전용 allowlist prefix로 제한한다.
-- [ ] AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
+- [x] 앱, Redis, Kafka, Debezium, Elasticsearch, monitoring의 Compose/config bundle 계약과 secret 제외 packaging을 정의한다. 이는 정적/config 검증이며 image runtime smoke나 S3 배포 완료를 뜻하지 않는다.
+- [x] AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
 - [ ] 앱과 infra image를 immutable digest로 발행한다.
 
 이 단계가 끝나기 전에는 “Redis 2분리 검증”이나 “잡음 없는 성능 비교”를 완료했다고 보지 않는다.
