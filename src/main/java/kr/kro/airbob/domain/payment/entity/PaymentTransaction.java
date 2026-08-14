@@ -40,6 +40,9 @@ public class PaymentTransaction extends BaseEntity {
 
 	private Long paymentId; // 결제 확정 전(시도/실패/가상계좌)에는 null
 
+	@Column(unique = true)
+	private Long paymentOperationId;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private PaymentTransactionType transactionType;
