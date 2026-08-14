@@ -459,7 +459,7 @@ git commit -m "feat: define AWS Elasticsearch host bundle"
 
 - [ ] **Step 1: Add failing monitoring tests**
 
-Require app EC2 discovery in `ap-northeast-2` filtered by `Project=airbob`, `Environment=performance-lab`, `Service=app`, and running state. Require a second EC2 discovery job for node exporters tagged `Monitoring=node-exporter`. Require these static targets:
+Require app EC2 discovery in `ap-northeast-2` filtered by `Project=airbob`, `Environment=performance-lab`, `Service=app`, and running state. Require a second EC2 discovery job for node exporters tagged `Monitoring=node-exporter`. Every service host, including monitoring, keeps the common node-exporter tag; the discovery job must explicitly drop `Service=monitoring` because that host is scraped through the required static target below. This prevents duplicate monitoring-host samples without introducing a one-off tag exception. Require these static targets:
 
 ```text
 redis-general.lab.airbob.internal:9121
@@ -482,7 +482,7 @@ Expected: failure because AWS monitoring config is absent.
 
 - [ ] **Step 3: Implement Prometheus discovery**
 
-Use `ec2_sd_configs` with `region: ap-northeast-2`, `port: 8080` for app and `port: 9100` for node exporters. Add keep relabels for every required tag and set the app `metrics_path` to `/actuator/prometheus`. Static dependency jobs must use the exact DNS/port list from Step 1.
+Use `ec2_sd_configs` with `region: ap-northeast-2`, `port: 8080` for app and `port: 9100` for node exporters. Add keep relabels for every required tag, add `source_labels: [__meta_ec2_tag_Service]`, `regex: monitoring`, `action: drop` to the node-exporter job, and set the app `metrics_path` to `/actuator/prometheus`. Static dependency jobs must use the exact DNS/port list from Step 1.
 
 - [ ] **Step 4: Implement Grafana/Compose provisioning**
 
