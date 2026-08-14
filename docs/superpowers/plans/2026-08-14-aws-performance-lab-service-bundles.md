@@ -322,7 +322,7 @@ git commit -m "feat: define AWS app node bundle contract"
 
 - [ ] **Step 1: Write failing cross-host tests**
 
-Require Kafka to have `INTERNAL://:19092`, `VPC://:9092`, `CONTROLLER://:9093` and advertised listeners `INTERNAL://kafka:19092,VPC://kafka.lab.airbob.internal:9092`. Require every Debezium worker/producer/consumer/schema-history Kafka value to use `kafka.lab.airbob.internal:9092`. Reject `kafka:9092`, `mysql`, plaintext credentials, and `snapshot.mode=initial` in AWS files.
+Require Kafka to have `INTERNAL://:19092`, `VPC://:9092`, `CONTROLLER://:9093` and advertised listeners `INTERNAL://kafka:19092,VPC://kafka.lab.airbob.internal:9092`. Require every Debezium worker/producer/consumer/schema-history Kafka value to use `kafka.lab.airbob.internal:9092`. Reject `kafka:9092`, `mysql`, plaintext credentials, and `snapshot.mode=initial` in AWS files. Require the connector template to retain the EventRouter expression `${routedByValue}` literally so later secret rendering cannot corrupt topic routing.
 
 - [ ] **Step 2: Confirm RED**
 
@@ -364,6 +364,8 @@ The connector template retains the current `airbobdb.outbox` EventRouter mapping
 ```
 
 Bind REST to `127.0.0.1:8083`, publish JMX `9404`, use heap `-Xms512m -Xmx512m`, `768M` memory/swap limits, and add node exporter. Do not place credential values in Compose or the template.
+
+Task 4 creates only the unrendered, secret-free connector template. It does not add a renderer or register the connector. The later trusted SSM bootstrap on the Debezium EC2, after the database import, must replace only `RDS_ENDPOINT`, `DEBEZIUM_USERNAME`, and `DEBEZIUM_PASSWORD`; a generic `envsubst` is forbidden because it would also consume the literal `${routedByValue}` EventRouter expression. That bootstrap must render to a root-only temporary file, POST it only through `127.0.0.1:8083`, remove it afterward, and never log or archive the rendered JSON.
 
 - [ ] **Step 5: Verify and commit**
 
