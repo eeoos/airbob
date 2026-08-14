@@ -182,13 +182,13 @@ run_committed_secret_failure() {
     list)
       cat >> "$committed_secret_repo/infra/aws/bundles/app/compose.yml" <<'EOF'
 
-x-airbob-secret-probe:
+x-airbob-probe:
   environment:
     - PASSWORD=hunter2
 EOF
       ;;
     inline)
-      printf '\nx-airbob-secret-probe: {environment: {PASSWORD: hunter2}}\n' \
+      printf '\nx-airbob-probe: {environment: {PASSWORD: hunter2}}\n' \
         >> "$committed_secret_repo/infra/aws/bundles/app/compose.yml"
       ;;
     access-key)
@@ -203,6 +203,50 @@ PRIVATE_KEY=hunter2
 hunter2
 -----END PRIVATE KEY-----
 EOF
+      ;;
+    unicode-key)
+      awk '
+        { print }
+        index($0, "\"database.password\"") && index($0, "DEBEZIUM_PASSWORD") {
+          print "    \"database.pass\\u0077ord\": \"hunter2\","
+        }
+      ' "$committed_secret_repo/infra/aws/bundles/debezium/connector.aws.json.tmpl" \
+        > "$committed_secret_repo/connector.tmp"
+      mv "$committed_secret_repo/connector.tmp" \
+        "$committed_secret_repo/infra/aws/bundles/debezium/connector.aws.json.tmpl"
+      ;;
+    continued-key)
+      awk '
+        /^    environment:[[:space:]]*$/ {
+          in_app_environment = 1
+          print
+          next
+        }
+        in_app_environment && /^      JAVA_OPTS:/ {
+          value = $0
+          sub(/^      JAVA_OPTS:[[:space:]]*/, "", value)
+          print "      - JAVA_OPTS=" value
+          print "      - \"PASSW\\"
+          print "        ORD=hunter2\""
+          in_app_environment = 0
+          next
+        }
+        { print }
+      ' "$committed_secret_repo/infra/aws/bundles/app/compose.yml" \
+        > "$committed_secret_repo/app.tmp"
+      mv "$committed_secret_repo/app.tmp" \
+        "$committed_secret_repo/infra/aws/bundles/app/compose.yml"
+      canonical_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$committed_secret_repo/infra/aws/tests/fixtures/images.env" \
+        -f "$committed_secret_repo/infra/aws/bundles/app/compose.yml" \
+        config 2>/dev/null) \
+        || fail "committed backslash-continuation precondition failed"
+      canonical_password_count=$(printf '%s\n' "$canonical_config" | awk '
+        $1 == "PASSWORD:" { count++ }
+        END { print count + 0 }
+      ')
+      [[ "$canonical_password_count" -eq 1 ]] \
+        || fail "committed backslash continuation did not resolve one sensitive key"
       ;;
     *)
       fail "unknown committed secret mutation"
@@ -224,6 +268,58 @@ run_committed_secret_failure list 'a committed Compose list-form secret'
 run_committed_secret_failure inline 'a committed inline YAML secret'
 run_committed_secret_failure access-key 'a committed access-key assignment'
 run_committed_secret_failure private-key 'committed private-key material'
+run_committed_secret_failure unicode-key 'a committed Unicode-escaped duplicate password key'
+run_committed_secret_failure continued-key 'a committed backslash-continued password key'
+
+committed_alias_repo="$temp_dir/committed-profile-alias-repo"
+cp -R "$base_repo" "$committed_alias_repo"
+awk '
+  NR == 1 {
+    print "x-airbob-profile-extra: &airbob-profile-extra"
+    print "  image: ${APP_IMAGE:?APP_IMAGE is required}"
+    print "  profiles: [hidden]"
+    print ""
+  }
+  { print }
+  END {
+    print ""
+    print "  app-shadow: *airbob-profile-extra"
+  }
+' "$committed_alias_repo/infra/aws/bundles/app/compose.yml" \
+  > "$committed_alias_repo/app.tmp"
+mv "$committed_alias_repo/app.tmp" \
+  "$committed_alias_repo/infra/aws/bundles/app/compose.yml"
+default_alias_services=$(COMPOSE_PROFILES= docker compose \
+  --env-file "$committed_alias_repo/infra/aws/tests/fixtures/images.env" \
+  -f "$committed_alias_repo/infra/aws/bundles/app/compose.yml" \
+  config --services 2>/dev/null) \
+  || fail "committed profile alias default-view precondition failed"
+wildcard_alias_services=$(COMPOSE_PROFILES= docker compose --profile '*' \
+  --env-file "$committed_alias_repo/infra/aws/tests/fixtures/images.env" \
+  -f "$committed_alias_repo/infra/aws/bundles/app/compose.yml" \
+  config --services 2>/dev/null) \
+  || fail "committed profile alias wildcard-view precondition failed"
+default_alias_count=$(printf '%s\n' "$default_alias_services" | awk '
+  $0 == "app-shadow" { count++ }
+  END { print count + 0 }
+')
+wildcard_alias_count=$(printf '%s\n' "$wildcard_alias_services" | awk '
+  $0 == "app-shadow" { count++ }
+  END { print count + 0 }
+')
+[[ "$default_alias_count" -eq 0 && "$wildcard_alias_count" -eq 1 ]] \
+  || fail "committed profile alias did not exercise both canonical views"
+git -C "$committed_alias_repo" add infra/aws/bundles/app/compose.yml
+git -C "$committed_alias_repo" commit -q -m 'synthetic committed profile alias'
+committed_alias_commit=$(git -C "$committed_alias_repo" rev-parse HEAD)
+committed_alias_output="$temp_dir/committed-profile-alias-output"
+mkdir "$committed_alias_output"
+run_expect_failure 'a committed profile-hidden alias service' \
+  "$temp_dir/committed-profile-alias.log" \
+  "$committed_alias_repo/infra/aws/scripts/package-service-bundles.sh" \
+  "$committed_alias_commit" "$committed_alias_output"
+assert_no_staging "$committed_alias_output"
+assert_no_release_artifacts "$committed_alias_output" "$committed_alias_commit"
 
 concurrent_repo="$temp_dir/concurrent-source-repo"
 cp -R "$base_repo" "$concurrent_repo"

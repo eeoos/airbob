@@ -37,6 +37,15 @@ using the archive. The SHA-256 protects integrity of the produced archive; it is
 not an authenticity signature. Remote upload and repository/S3 trust remain
 unimplemented. The fixed-corpus sensitive-key gate complements, but does not
 replace, repository secret scanning and human review for benign-looking keys.
+Because none of the nineteen approved files requires hexadecimal character
+escapes, the gate rejects every `\xNN`, `\uXXXX`, and `\UXXXXXXXX` occurrence
+and every physical line ending in `\` before placeholder approval; encoded or
+line-spliced keys cannot hide sensitive names. Required non-hexadecimal content
+such as the JMX regex `\\w` remains allowed when it is not a line continuation. For
+each Compose bundle it also compares both the empty-profile default service
+view and the all-profile service view with the same exact allowlist. YAML
+anchors, aliases, or profiles therefore cannot add a hidden service or remove
+an approved service from the default deployment contract.
 
 ## Application profile matrix
 

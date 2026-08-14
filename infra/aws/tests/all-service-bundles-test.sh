@@ -63,6 +63,14 @@ scan_sensitive_assignments() {
     {
       candidate = trim($0)
       lower = tolower(candidate)
+      obfuscated_continuation = candidate ~ /\\$/
+      obfuscated_escape = candidate ~ /\\x[[:xdigit:]][[:xdigit:]]/ \
+        || candidate ~ /\\u[[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]]/ \
+        || candidate ~ /\\U[[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]][[:xdigit:]]/
+      if (obfuscated_continuation || obfuscated_escape) {
+        rejected = 1
+        exit 1
+      }
       sensitive_material = lower ~ /(password|passwd|secret|credential|token|api[ _.-]*key|access[ _.-]*key|private[ _.-]*key|service[ _.-]*account)/ \
         || lower ~ /-----begin[^-]*key-----/
       if (!sensitive_material) {
@@ -84,7 +92,7 @@ scan_sensitive_assignments() {
           approved_counts[5] + 0, approved_counts[6] + 0
       }
     }
-  ' "$scan_file" || fail "bundle contains literal or unapproved sensitive material"
+  ' "$scan_file" || fail "bundle contains prohibited obfuscation syntax or unapproved sensitive material"
 }
 
 image_mappings_for_bundle() {
@@ -175,6 +183,55 @@ EOF
   [[ "$actual_variables" == "$expected_variables" ]] || fail "bundle image-variable set does not match the canonical ten-variable contract"
 }
 
+expected_services_for_bundle() {
+  bundle_name=$1
+  case "$bundle_name" in
+    app)
+      printf '%s\n' app node-exporter
+      ;;
+    redis)
+      printf '%s\n' node-exporter redis redis-cache redis-exporter-cache redis-exporter-general
+      ;;
+    kafka)
+      printf '%s\n' kafka node-exporter
+      ;;
+    debezium)
+      printf '%s\n' debezium node-exporter
+      ;;
+    elasticsearch)
+      printf '%s\n' elasticsearch elasticsearch-exporter node-exporter
+      ;;
+    monitoring)
+      printf '%s\n' grafana node-exporter prometheus
+      ;;
+    *)
+      fail "unknown bundle in resolved service contract"
+      ;;
+  esac
+}
+
+verify_resolved_service_contracts() {
+  for bundle_name in "${bundle_names[@]}"; do
+    compose_file="$repo_root/infra/aws/bundles/$bundle_name/compose.yml"
+    expected_services=$(expected_services_for_bundle "$bundle_name" | LC_ALL=C sort)
+    if ! default_services=$(COMPOSE_PROFILES= docker compose \
+      --env-file "$image_env" -f "$compose_file" \
+      config --services 2>/dev/null | LC_ALL=C sort)
+    then
+      fail "default-profile resolved service model could not be inspected"
+    fi
+    if ! wildcard_services=$(COMPOSE_PROFILES= docker compose --profile '*' \
+      --env-file "$image_env" -f "$compose_file" \
+      config --services 2>/dev/null | LC_ALL=C sort)
+    then
+      fail "all-profile resolved service model could not be inspected"
+    fi
+    [[ "$default_services" == "$expected_services" \
+      && "$wildcard_services" == "$expected_services" ]] \
+      || fail "resolved service set does not match the exact bundle contract"
+  done
+}
+
 verify_redis_topology() {
   redis_compose=$1
   actual=$(awk '
@@ -211,7 +268,7 @@ validate_root() {
     scan_file="$repo_root/$relative_path"
     [[ -f "$scan_file" && -r "$scan_file" && ! -L "$scan_file" ]] || fail "required bundle file is missing or unsafe"
     approved_counts=$(scan_sensitive_assignments "$scan_file" "$relative_path") \
-      || fail "bundle contains literal or unapproved sensitive material"
+      || fail "bundle contains prohibited obfuscation syntax or unapproved sensitive material"
     IFS=' ' read -r current_spring current_elastic current_debezium \
       current_guard current_error current_export <<< "$approved_counts"
     approved_spring_password=$((approved_spring_password + current_spring))
@@ -231,6 +288,7 @@ validate_root() {
 
   verify_redis_topology "$repo_root/infra/aws/bundles/redis/compose.yml"
   verify_image_contracts
+  verify_resolved_service_contracts
 
   for bundle_name in "${bundle_names[@]}"; do
     compose_file="$repo_root/infra/aws/bundles/$bundle_name/compose.yml"
@@ -302,13 +360,13 @@ expect_mutation_failure() {
     list-password)
       cat >> "$mutation_root/infra/aws/bundles/app/compose.yml" <<'EOF'
 
-x-airbob-secret-probe:
+x-airbob-probe:
   environment:
     - PASSWORD=hunter2
 EOF
       ;;
     inline-password)
-      printf '\nx-airbob-secret-probe: {environment: {PASSWORD: hunter2}}\n' \
+      printf '\nx-airbob-probe: {environment: {PASSWORD: hunter2}}\n' \
         >> "$mutation_root/infra/aws/bundles/app/compose.yml"
       ;;
     access-key)
@@ -323,6 +381,68 @@ PRIVATE_KEY=hunter2
 hunter2
 -----END PRIVATE KEY-----
 EOF
+      ;;
+    unicode-escaped-password)
+      awk '
+        { print }
+        index($0, "\"database.password\"") && index($0, "DEBEZIUM_PASSWORD") {
+          print "    \"database.pass\\u0077ord\": \"hunter2\","
+        }
+      ' "$mutation_root/infra/aws/bundles/debezium/connector.aws.json.tmpl" \
+        > "$mutation_root/connector.tmp"
+      mv "$mutation_root/connector.tmp" \
+        "$mutation_root/infra/aws/bundles/debezium/connector.aws.json.tmpl"
+      ;;
+    yaml-hex-escaped-password)
+      cat >> "$mutation_root/infra/aws/bundles/app/compose.yml" <<'EOF'
+
+x-airbob-obfuscation-probe:
+  "\x50ASSWORD": hunter2
+EOF
+      docker compose --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" config --quiet \
+        >/dev/null 2>&1 || fail "YAML hex-escape mutation precondition failed"
+      ;;
+    yaml-long-unicode-password)
+      cat >> "$mutation_root/infra/aws/bundles/app/compose.yml" <<'EOF'
+
+x-airbob-obfuscation-probe:
+  "PASSW\U0000004fRD": hunter2
+EOF
+      docker compose --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" config --quiet \
+        >/dev/null 2>&1 || fail "YAML long-Unicode mutation precondition failed"
+      ;;
+    backslash-continued-password)
+      awk '
+        /^    environment:[[:space:]]*$/ {
+          in_app_environment = 1
+          print
+          next
+        }
+        in_app_environment && /^      JAVA_OPTS:/ {
+          value = $0
+          sub(/^      JAVA_OPTS:[[:space:]]*/, "", value)
+          print "      - JAVA_OPTS=" value
+          print "      - \"PASSW\\"
+          print "        ORD=hunter2\""
+          in_app_environment = 0
+          next
+        }
+        { print }
+      ' "$mutation_root/infra/aws/bundles/app/compose.yml" > "$mutation_root/app.tmp"
+      mv "$mutation_root/app.tmp" "$mutation_root/infra/aws/bundles/app/compose.yml"
+      canonical_config=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" \
+        config 2>/dev/null) \
+        || fail "backslash-continuation mutation canonical precondition failed"
+      canonical_password_count=$(printf '%s\n' "$canonical_config" | awk '
+        $1 == "PASSWORD:" { count++ }
+        END { print count + 0 }
+      ')
+      [[ "$canonical_password_count" -eq 1 ]] \
+        || fail "backslash-continuation mutation did not resolve one sensitive key"
       ;;
     approved-line-substitution)
       sed 's/^ELASTIC_PASSWORD$/SPRING_DATASOURCE_PASSWORD/' \
@@ -368,6 +488,100 @@ EOF
         'UNAPPROVED_IMAGE=registry.example.invalid/airbob/unapproved@sha256:5555555555555555555555555555555555555555555555555555555555555555' \
         >> "$mutation_root/infra/aws/tests/fixtures/images.env"
       ;;
+    redis-alias-extra)
+      awk '
+        NR == 1 {
+          print "x-airbob-extra-service: &airbob-extra-service"
+          print "  image: ${REDIS_IMAGE:?REDIS_IMAGE is required}"
+          print "  platform: linux/amd64"
+          print ""
+        }
+        /^volumes:/ {
+          print "  redis-third: *airbob-extra-service"
+          print ""
+        }
+        { print }
+      ' "$mutation_root/infra/aws/bundles/redis/compose.yml" > "$mutation_root/redis.tmp"
+      mv "$mutation_root/redis.tmp" "$mutation_root/infra/aws/bundles/redis/compose.yml"
+      resolved_services=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/redis/compose.yml" \
+        config --services 2>/dev/null) \
+        || fail "Redis alias mutation canonical precondition failed"
+      resolved_extra_count=$(printf '%s\n' "$resolved_services" | awk '
+        $0 == "redis-third" { count++ }
+        END { print count + 0 }
+      ')
+      [[ "$resolved_extra_count" -eq 1 ]] \
+        || fail "Redis alias mutation did not resolve exactly one extra service"
+      ;;
+    app-profile-hidden-extra)
+      awk '
+        NR == 1 {
+          print "x-airbob-profile-extra: &airbob-profile-extra"
+          print "  image: ${APP_IMAGE:?APP_IMAGE is required}"
+          print "  profiles: [hidden]"
+          print ""
+        }
+        { print }
+        END {
+          print ""
+          print "  app-shadow: *airbob-profile-extra"
+        }
+      ' "$mutation_root/infra/aws/bundles/app/compose.yml" > "$mutation_root/app.tmp"
+      mv "$mutation_root/app.tmp" "$mutation_root/infra/aws/bundles/app/compose.yml"
+      default_services=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" \
+        config --services 2>/dev/null) \
+        || fail "profile-hidden extra mutation default-view precondition failed"
+      wildcard_services=$(COMPOSE_PROFILES= docker compose --profile '*' \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" \
+        config --services 2>/dev/null) \
+        || fail "profile-hidden extra mutation wildcard-view precondition failed"
+      default_extra_count=$(printf '%s\n' "$default_services" | awk '
+        $0 == "app-shadow" { count++ }
+        END { print count + 0 }
+      ')
+      wildcard_extra_count=$(printf '%s\n' "$wildcard_services" | awk '
+        $0 == "app-shadow" { count++ }
+        END { print count + 0 }
+      ')
+      [[ "$default_extra_count" -eq 0 && "$wildcard_extra_count" -eq 1 ]] \
+        || fail "profile-hidden extra mutation did not exercise both canonical views"
+      ;;
+    approved-app-profiled)
+      awk '
+        /^  app:[[:space:]]*$/ {
+          print
+          print "    profiles: [hidden]"
+          next
+        }
+        { print }
+      ' "$mutation_root/infra/aws/bundles/app/compose.yml" > "$mutation_root/app.tmp"
+      mv "$mutation_root/app.tmp" "$mutation_root/infra/aws/bundles/app/compose.yml"
+      default_services=$(COMPOSE_PROFILES= docker compose \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" \
+        config --services 2>/dev/null) \
+        || fail "profiled approved service default-view precondition failed"
+      wildcard_services=$(COMPOSE_PROFILES= docker compose --profile '*' \
+        --env-file "$mutation_root/infra/aws/tests/fixtures/images.env" \
+        -f "$mutation_root/infra/aws/bundles/app/compose.yml" \
+        config --services 2>/dev/null) \
+        || fail "profiled approved service wildcard-view precondition failed"
+      default_app_count=$(printf '%s\n' "$default_services" | awk '
+        $0 == "app" { count++ }
+        END { print count + 0 }
+      ')
+      wildcard_app_count=$(printf '%s\n' "$wildcard_services" | awk '
+        $0 == "app" { count++ }
+        END { print count + 0 }
+      ')
+      [[ "$default_app_count" -eq 0 && "$wildcard_app_count" -eq 1 ]] \
+        || fail "profiled approved service mutation did not exercise both canonical views"
+      ;;
     redis-topology)
       sed 's/^  redis-cache:/  redis-third:/' \
         "$mutation_root/infra/aws/bundles/redis/compose.yml" > "$mutation_root/redis.tmp"
@@ -395,6 +609,10 @@ expect_mutation_failure 'a Compose list-form password' list-password
 expect_mutation_failure 'an inline YAML password' inline-password
 expect_mutation_failure 'an access-key assignment' access-key
 expect_mutation_failure 'private-key material' private-key
+expect_mutation_failure 'a Unicode-escaped duplicate password key' unicode-escaped-password
+expect_mutation_failure 'a YAML hex-escaped password key' yaml-hex-escaped-password
+expect_mutation_failure 'a YAML long-Unicode-escaped password key' yaml-long-unicode-password
+expect_mutation_failure 'a backslash-continued password key' backslash-continued-password
 expect_mutation_failure 'one approved sensitive line duplicated while another is missing' approved-line-substitution
 expect_mutation_failure 'an approved sensitive line copied to an unapproved path' approved-line-wrong-path
 expect_mutation_failure 'an approved sensitive line with a suffix' approved-line-suffix
@@ -402,6 +620,28 @@ expect_mutation_failure 'a Redis exporter using the Redis server image variable'
 expect_mutation_failure 'a duplicated image variable that omits another required variable' image-duplication
 expect_mutation_failure 'an omitted service image entry' image-omission
 expect_mutation_failure 'an unapproved image variable with a valid digest' unapproved-image
+expect_mutation_failure 'an approved App service hidden from the default profile' approved-app-profiled
+expect_mutation_failure 'a profile-hidden App service behind a YAML alias' app-profile-hidden-extra
+expect_mutation_failure 'an unprofiled Redis service hidden behind a YAML alias' redis-alias-extra
 expect_mutation_failure 'a changed Redis topology' redis-topology
+
+safe_escape_root="$temp_dir/safe-nonhex-escape"
+safe_escape_output="$temp_dir/safe-nonhex-escape-output"
+copy_validation_root "$safe_escape_root"
+cat >> "$safe_escape_root/infra/aws/bundles/app/compose.yml" <<'EOF'
+
+x-airbob-safe-escape:
+  pattern: "\\w+"
+EOF
+COMPOSE_PROFILES= docker compose \
+  --env-file "$safe_escape_root/infra/aws/tests/fixtures/images.env" \
+  -f "$safe_escape_root/infra/aws/bundles/app/compose.yml" \
+  config --quiet >/dev/null 2>&1 \
+  || fail "permitted non-hexadecimal escape precondition failed"
+if ! bash "$safe_escape_root/infra/aws/tests/all-service-bundles-test.sh" \
+  --validate-only >"$safe_escape_output" 2>&1
+then
+  fail "aggregate validation rejected a permitted non-hexadecimal escape"
+fi
 
 printf 'all AWS service bundle aggregate tests passed\n'
