@@ -1,7 +1,9 @@
 package kr.kro.airbob.domain.payment.entity;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -19,6 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Version;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.domain.payment.service.PaymentExecutionMode;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -132,9 +135,73 @@ public class PaymentOperation extends BaseEntity {
 		this.lastEnqueuedAt = now;
 	}
 
+	public Optional<PaymentExecutionMode> acquireLease(
+		String owner, Instant now, Duration leaseDuration
+	) {
+		if (status.isTerminal()) {
+			return Optional.empty();
+		}
+		if (status == PaymentOperationStatus.EXECUTING
+			&& leaseExpiresAt != null && leaseExpiresAt.isAfter(now)) {
+			return Optional.empty();
+		}
+		if ((status == PaymentOperationStatus.RETRY_WAIT || status == PaymentOperationStatus.OUTCOME_UNKNOWN)
+			&& nextAttemptAt != null && nextAttemptAt.isAfter(now)) {
+			return Optional.empty();
+		}
+		PaymentExecutionMode mode = status == PaymentOperationStatus.OUTCOME_UNKNOWN
+			|| status == PaymentOperationStatus.EXECUTING
+			? PaymentExecutionMode.INQUIRE : PaymentExecutionMode.CONFIRM;
+		status = PaymentOperationStatus.EXECUTING;
+		leaseOwner = owner;
+		leaseExpiresAt = now.plus(leaseDuration);
+		attemptCount++;
+		return Optional.of(mode);
+	}
+
+	public boolean scheduleRetry(String owner, Instant retryAt, String code, String message) {
+		return transitionFromExecution(
+			owner, PaymentOperationStatus.RETRY_WAIT, retryAt, code, message, null);
+	}
+
+	public boolean markOutcomeUnknown(String owner, Instant retryAt, String code, String message) {
+		return transitionFromExecution(
+			owner, PaymentOperationStatus.OUTCOME_UNKNOWN, retryAt, code, message, null);
+	}
+
+	public boolean markManualReview(String owner, Instant now, String code, String message) {
+		return transitionFromExecution(
+			owner, PaymentOperationStatus.MANUAL_REVIEW, null, code, message, now);
+	}
+
+	private boolean transitionFromExecution(
+		String owner,
+		PaymentOperationStatus nextStatus,
+		Instant retryAt,
+		String code,
+		String message,
+		Instant terminalAt
+	) {
+		if (status != PaymentOperationStatus.EXECUTING || !Objects.equals(leaseOwner, owner)) {
+			return false;
+		}
+		status = nextStatus;
+		leaseOwner = null;
+		leaseExpiresAt = null;
+		nextAttemptAt = retryAt;
+		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
+		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
+		completedAt = terminalAt;
+		return true;
+	}
+
 	private static void requireMaxLength(String value, int maxLength, String fieldName) {
 		if (value != null && value.length() > maxLength) {
 			throw new IllegalArgumentException(fieldName + " must not exceed " + maxLength + " characters");
 		}
+	}
+
+	private static String limitLength(String value, int maxLength) {
+		return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
 	}
 }
