@@ -83,6 +83,7 @@ reservation:
 
 accommodation:
   detail-cache:
+    enabled: ${ACCOMMODATION_DETAIL_CACHE_ENABLED:true}
     ttl: ${ACCOMMODATION_DETAIL_CACHE_TTL:10m}
     ttl-jitter: ${ACCOMMODATION_DETAIL_CACHE_TTL_JITTER:2m}
     negative-ttl: ${ACCOMMODATION_DETAIL_CACHE_NEGATIVE_TTL:45s}

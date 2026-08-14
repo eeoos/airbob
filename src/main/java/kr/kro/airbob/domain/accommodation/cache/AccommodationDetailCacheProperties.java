@@ -7,6 +7,7 @@ import org.springframework.util.Assert;
 
 @ConfigurationProperties(prefix = "accommodation.detail-cache")
 public record AccommodationDetailCacheProperties(
+	boolean enabled,
 	Duration ttl,
 	Duration ttlJitter,
 	Duration negativeTtl,

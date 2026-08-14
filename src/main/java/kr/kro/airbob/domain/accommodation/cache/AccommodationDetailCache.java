@@ -102,6 +102,9 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		Supplier<AccommodationDetailSnapshot> loader
 	) {
+		if (!properties.enabled()) {
+			return timedUncachedLoad(loader);
+		}
 		CompletableFuture<AccommodationDetailSnapshot> localLoad = localLoads.get(accommodationId);
 		if (localLoad != null) {
 			return awaitLocalLoad(accommodationId, localLoad, loader);
@@ -160,6 +163,9 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason
 	) {
+		if (!properties.enabled()) {
+			return;
+		}
 		try {
 			evictInternal(accommodationId, reason);
 		} catch (RuntimeException exception) {
