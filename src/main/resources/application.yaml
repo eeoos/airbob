@@ -81,6 +81,24 @@ reservation:
   expiration:
     history-batch-size: ${RESERVATION_HISTORY_BATCH_SIZE:100}
 
+accommodation:
+  detail-cache:
+    ttl: ${ACCOMMODATION_DETAIL_CACHE_TTL:10m}
+    ttl-jitter: ${ACCOMMODATION_DETAIL_CACHE_TTL_JITTER:2m}
+    negative-ttl: ${ACCOMMODATION_DETAIL_CACHE_NEGATIVE_TTL:45s}
+    negative-ttl-jitter: ${ACCOMMODATION_DETAIL_CACHE_NEGATIVE_TTL_JITTER:15s}
+    lock-wait: ${ACCOMMODATION_DETAIL_CACHE_LOCK_WAIT:2s}
+    local-load-wait: ${ACCOMMODATION_DETAIL_CACHE_LOCAL_LOAD_WAIT:5s}
+    load-permit-ttl: ${ACCOMMODATION_DETAIL_CACHE_LOAD_PERMIT_TTL:30s}
+    redis-connect-timeout: ${ACCOMMODATION_DETAIL_CACHE_REDIS_CONNECT_TIMEOUT:1s}
+    redis-command-timeout: ${ACCOMMODATION_DETAIL_CACHE_REDIS_COMMAND_TIMEOUT:1s}
+    redis:
+      host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:localhost}
+      port: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6380}
+      database: ${ACCOMMODATION_DETAIL_CACHE_REDIS_DATABASE:0}
+      username: ${ACCOMMODATION_DETAIL_CACHE_REDIS_USERNAME:}
+      password: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PASSWORD:}
+
 benchmark:
   read-model:
     enabled: ${BENCHMARK_READ_MODEL_ENABLED:false}

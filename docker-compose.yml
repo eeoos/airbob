@@ -162,12 +162,51 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - local-infra
+
+  # --------------------------------------------------------
+  # Redis (Accommodation Detail Cache)
+  # --------------------------------------------------------
+  redis-cache:
+    image: redis:7.2-alpine
+    container_name: redis-cache
+    ports:
+      - "127.0.0.1:6380:6379"
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - local-infra
+
+  redis-exporter-general:
+    image: oliver006/redis_exporter:v1.89.0
+    container_name: redis-exporter-general
+    profiles: ["monitoring"]
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "127.0.0.1:9121:9121"
+    networks:
+      - local-infra
+
+  redis-exporter-cache:
+    image: oliver006/redis_exporter:v1.89.0
+    container_name: redis-exporter-cache
+    profiles: ["monitoring"]
+    environment:
+      REDIS_ADDR: redis://redis-cache:6379
+    ports:
+      - "127.0.0.1:9122:9121"
     networks:
       - local-infra
 
@@ -178,6 +217,11 @@ services:
     image: prom/prometheus:v3.13.0
     container_name: prometheus
     profiles: ["monitoring"]
+    depends_on:
+      redis-exporter-general:
+        condition: service_started
+      redis-exporter-cache:
+        condition: service_started
     ports:
       - "127.0.0.1:9091:9090"
     extra_hosts:

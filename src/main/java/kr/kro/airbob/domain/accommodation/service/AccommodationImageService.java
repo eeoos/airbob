@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -38,6 +40,7 @@ public class AccommodationImageService {
 	private final AccommodationImageRepository accommodationImageRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final S3ImageUploader s3ImageUploader;
+	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 
 	@Transactional
 	public ImageResponse.ImageUploadResult uploadImages(
@@ -80,6 +83,8 @@ public class AccommodationImageService {
 		}
 
 		findAndUpdateThumbnail(accommodation);
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.IMAGE);
 
 		return ImageResponse.ImageUploadResult.from(imageInfos);
 	}
@@ -101,6 +106,9 @@ public class AccommodationImageService {
 		if (image.getImageUrl().equals(accommodation.getThumbnailUrl())) {
 			findAndUpdateThumbnail(accommodation);
 		}
+
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.IMAGE);
 	}
 
 	private void validateImageFile(MultipartFile file) {

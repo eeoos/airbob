@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
@@ -74,6 +76,7 @@ public class AccommodationCommandService {
 	private final OutboxEventPublisher outboxEventPublisher;
 	private final GeocodingService geocodingService;
 	private final TimeZoneResolver timeZoneResolver;
+	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	private final Clock clock;
 
 	@Transactional
@@ -111,6 +114,9 @@ public class AccommodationCommandService {
 				new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
 			);
 		}
+
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
 
 	@Transactional
@@ -124,6 +130,8 @@ public class AccommodationCommandService {
 			EventType.ACCOMMODATION_DELETED,
 			new AccommodationDeletedEvent(accommodation.getAccommodationUid().toString())
 		);
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
 
 	@Transactional
@@ -138,6 +146,8 @@ public class AccommodationCommandService {
 			EventType.ACCOMMODATION_UPDATED,
 			new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
 		);
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
 
 	@Transactional
@@ -155,6 +165,8 @@ public class AccommodationCommandService {
 			EventType.ACCOMMODATION_UPDATED,
 			new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
 		);
+		cacheInvalidationPublisher.publish(
+			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
 
 	private void recordHistory(Accommodation accommodation, ChangeType changeType, String reason) {

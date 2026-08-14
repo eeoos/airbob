@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.accommodation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -31,6 +33,8 @@ import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -56,7 +60,8 @@ import kr.kro.airbob.outbox.OutboxEventPublisher;
 	ClockConfig.class,
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
-	AccommodationQueryService.class
+	AccommodationQueryService.class,
+	AccommodationDetailReader.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 상세 조회 쿼리 테스트")
@@ -112,10 +117,19 @@ class AccommodationDetailQueryCountTest {
 	@MockitoBean
 	private BookingWindowProvider bookingWindowProvider;
 
+	@MockitoBean
+	private AccommodationDetailCache accommodationDetailCache;
+
 	@BeforeEach
 	void setUpBookingWindow() {
 		when(bookingWindowProvider.currentFor("Asia/Seoul"))
 			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 12)));
+		when(accommodationDetailCache.getOrLoad(anyLong(), any()))
+			.thenAnswer(invocation -> {
+				@SuppressWarnings("unchecked")
+				java.util.function.Supplier<AccommodationDetailSnapshot> loader = invocation.getArgument(1);
+				return loader.get();
+			});
 	}
 
 	@Test

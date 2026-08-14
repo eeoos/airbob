@@ -57,6 +57,12 @@ slack:
   notification:
     enabled: true # 알림 켜기
 
+accommodation:
+  detail-cache:
+    redis:
+      host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}
+      port: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}
+
 logging:
   level:
     kr.kro.airbob: INFO

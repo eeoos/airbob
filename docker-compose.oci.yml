@@ -65,6 +65,7 @@ services:
       # Docker 내부 서비스 주소 오버라이드
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true
       - REDIS_HOST=redis
+      - ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     depends_on:
@@ -96,6 +97,11 @@ services:
   prometheus:
     image: prom/prometheus:v3.13.0
     container_name: prometheus
+    depends_on:
+      redis-exporter-general:
+        condition: service_started
+      redis-exporter-cache:
+        condition: service_started
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
@@ -337,7 +343,7 @@ services:
   redis:
     image: redis:7.2-alpine
     container_name: redis
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     volumes:
       - redis-data:/data
     healthcheck:
@@ -349,6 +355,49 @@ services:
       resources:
         limits:
           memory: 640M
+    restart: unless-stopped
+    networks:
+      - airbob-network
+
+  redis-cache:
+    image: redis:7.2-alpine
+    container_name: redis-cache
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+    restart: unless-stopped
+    networks:
+      - airbob-network
+
+  redis-exporter-general:
+    image: oliver006/redis_exporter:v1.89.0
+    container_name: redis-exporter-general
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    restart: unless-stopped
+    networks:
+      - airbob-network
+
+  redis-exporter-cache:
+    image: oliver006/redis_exporter:v1.89.0
+    container_name: redis-exporter-cache
+    environment:
+      REDIS_ADDR: redis://redis-cache:6379
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     restart: unless-stopped
     networks:
       - airbob-network

@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.accommodation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -18,21 +17,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
-import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 조회 서비스 단위 테스트")
@@ -42,13 +39,12 @@ class AccommodationQueryServiceTest {
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private AccommodationAmenityRepository accommodationAmenityRepository;
-	@Mock private AccommodationImageRepository accommodationImageRepository;
 	@Mock private AccommodationReviewSummaryRepository reviewSummaryRepository;
 	@Mock private ReservationRepository reservationRepository;
-	@Mock private WishlistAccommodationRepository wishlistAccommodationRepository;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
+	@Mock private AccommodationDetailReader accommodationDetailReader;
+	@Mock private AccommodationDetailCache accommodationDetailCache;
 
 	@InjectMocks
 	private AccommodationQueryService accommodationQueryService;
@@ -56,26 +52,24 @@ class AccommodationQueryServiceTest {
 	@Test
 	@DisplayName("비로그인 숙소 상세 조회는 찜 여부를 조회하지 않고 false를 반환한다")
 	void anonymousAccommodationDetailSkipsWishlistLookup() {
-		givenPublishedAccommodation(1L);
+		givenCachedAccommodation(1L);
 
 		AccommodationResponse.DetailInfo response = accommodationQueryService.findAccommodation(1L, null);
 
 		assertThat(response.isInWishlist()).isFalse();
-		verifyNoInteractions(wishlistAccommodationRepository);
+		verify(accommodationDetailReader, never()).isInWishlist(anyLong(), anyLong());
 	}
 
 	@Test
 	@DisplayName("로그인 숙소 상세 조회는 현재 회원과 숙소 ID로 찜 여부를 조회한다")
 	void authenticatedAccommodationDetailUsesViewerIdForWishlistLookup() {
-		givenPublishedAccommodation(1L);
-		when(wishlistAccommodationRepository.existsByWishlist_Member_IdAndAccommodation_Id(7L, 1L))
-			.thenReturn(true);
+		givenCachedAccommodation(1L);
+		when(accommodationDetailReader.isInWishlist(1L, 7L)).thenReturn(true);
 
 		AccommodationResponse.DetailInfo response = accommodationQueryService.findAccommodation(1L, 7L);
 
 		assertThat(response.isInWishlist()).isTrue();
-		verify(wishlistAccommodationRepository)
-			.existsByWishlist_Member_IdAndAccommodation_Id(7L, 1L);
+		verify(accommodationDetailReader).isInWishlist(1L, 7L);
 	}
 
 	@Test
@@ -95,11 +89,11 @@ class AccommodationQueryServiceTest {
 	@Test
 	@DisplayName("숙소 상세 조회는 예약 정보를 조회하지 않는다")
 	void accommodationDetailSkipsAvailabilityLookup() {
-		givenPublishedAccommodation(1L);
+		givenCachedAccommodation(1L);
 
 		accommodationQueryService.findAccommodation(1L, null);
 
-		verify(accommodationImageRepository).findByAccommodationIdOrderByIdAsc(1L);
+		verify(accommodationDetailCache).getOrLoad(eq(1L), any());
 		verifyNoInteractions(bookingWindowProvider, reservationRepository);
 	}
 
@@ -204,29 +198,20 @@ class AccommodationQueryServiceTest {
 		Accommodation accommodation = mock(Accommodation.class);
 		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
 			.thenReturn(Optional.of(accommodation));
-		when(accommodationAmenityRepository.findAllByAccommodationId(1L)).thenReturn(List.of());
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L)).thenReturn(List.of());
+		when(accommodationDetailReader.loadAmenities(1L)).thenReturn(List.of());
+		when(accommodationDetailReader.loadImages(1L)).thenReturn(List.of());
 		when(reviewSummaryRepository.findByAccommodationId(1L)).thenReturn(Optional.empty());
 
 		accommodationQueryService.findHostAccommodationDetail(1L, 7L);
 
-		verify(accommodationImageRepository).findByAccommodationIdOrderByIdAsc(1L);
+		verify(accommodationDetailReader).loadImages(1L);
 	}
 
-	private Accommodation givenPublishedAccommodation(Long accommodationId) {
-		Accommodation accommodation = mock(Accommodation.class);
-
-		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
-			accommodationId, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(new AccommodationDetailProjection(
-				accommodation,
-				0,
-				BigDecimal.ZERO
-			)));
-		when(accommodationAmenityRepository.findAllByAccommodationId(accommodationId)).thenReturn(List.of());
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodationId))
-			.thenReturn(List.of());
-		return accommodation;
+	private void givenCachedAccommodation(Long accommodationId) {
+		AccommodationDetailSnapshot snapshot = new AccommodationDetailSnapshot(
+			accommodationId, "숙소", null, null, null, null, null, null,
+			DEFAULT_TIME_ZONE_ID, null, null, null, null, List.of(), List.of(), null);
+		when(accommodationDetailCache.getOrLoad(eq(accommodationId), any())).thenReturn(snapshot);
 	}
 
 	private void givenPublishedAccommodationAvailability(Long accommodationId) {

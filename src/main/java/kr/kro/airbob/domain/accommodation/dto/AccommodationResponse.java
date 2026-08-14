@@ -107,33 +107,28 @@ public class AccommodationResponse {
 		ReviewResponse.ReviewSummary reviewSummary
 
 	) {
-		public static DetailInfo from(Accommodation accommodation,
-			Boolean isInWishlist, List<AmenityResponse.AmenityInfo> amenityInfos, List<ImageResponse.ImageInfo> imageInfo,
-			ReviewResponse.ReviewSummary reviewSummary) {
-
-			Address address = accommodation.getAddress();
-			Member host = accommodation.getMember();
-			OccupancyPolicy policy = accommodation.getOccupancyPolicy();
+		public static DetailInfo from(AccommodationDetailSnapshot snapshot, Boolean isInWishlist) {
 			return DetailInfo.builder()
-				.id(accommodation.getId())
-				.name(accommodation.getName())
-				.description(accommodation.getDescription())
-				.type(accommodation.getType())
-				.basePrice(accommodation.getBasePrice())
-				.currency(accommodation.getCurrency())
-				.checkInTime(accommodation.getCheckInTime())
-				.checkOutTime(accommodation.getCheckOutTime())
-				.timeZoneId(accommodation.getTimeZoneId())
+				.id(snapshot.id())
+				.name(snapshot.name())
+				.description(snapshot.description())
+				.type(snapshot.type())
+				.basePrice(snapshot.basePrice())
+				.currency(snapshot.currency())
+				.checkInTime(snapshot.checkInTime())
+				.checkOutTime(snapshot.checkOutTime())
+				.timeZoneId(snapshot.timeZoneId())
 				.isInWishlist(isInWishlist)
-				.addressSummary(AddressResponse.AddressSummaryInfo.from(address))
-				.coordinate(AddressResponse.Coordinate.from(address))
-				.host(MemberResponse.MemberInfo.from(host))
-				.policy(PolicyResponse.PolicyInfo.from(policy))
-				.amenities(amenityInfos)
-				.images(imageInfo)
-				.reviewSummary(reviewSummary)
+				.addressSummary(snapshot.addressSummary())
+				.coordinate(snapshot.coordinate())
+				.host(snapshot.host())
+				.policy(snapshot.policy())
+				.amenities(snapshot.amenities())
+				.images(snapshot.images())
+				.reviewSummary(snapshot.reviewSummary())
 				.build();
 		}
+
 	}
 
 	@Builder

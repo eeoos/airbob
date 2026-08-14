@@ -18,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
@@ -33,6 +35,7 @@ class AccommodationImageServiceTest {
 	@Mock private AccommodationImageRepository accommodationImageRepository;
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private S3ImageUploader s3ImageUploader;
+	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	@Captor private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
 
 	@InjectMocks
@@ -79,6 +82,8 @@ class AccommodationImageServiceTest {
 			new ImageResponse.ImageInfo(11L, savedSecond.getImageUrl())
 		);
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(savedFirst.getImageUrl());
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 	}
 
 	@Test
@@ -99,6 +104,8 @@ class AccommodationImageServiceTest {
 		verify(s3ImageUploader).delete(currentThumbnail.getImageUrl());
 		verify(accommodationImageRepository).delete(currentThumbnail);
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(nextImage.getImageUrl());
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 	}
 
 	@Test

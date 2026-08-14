@@ -26,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
@@ -66,6 +68,7 @@ class AccommodationCommandServiceTest {
 	@Mock private TimeZoneResolver timeZoneResolver;
 	@Mock private MemberRepository memberRepository;
 	@Mock private OutboxEventPublisher outboxEventPublisher;
+	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	@Mock private Clock clock;
 
 	@InjectMocks
@@ -103,6 +106,8 @@ class AccommodationCommandServiceTest {
 		assertThat(accommodation.getAddress().getLatitude()).isEqualTo(37.5665);
 		assertThat(accommodation.getAddress().getLongitude()).isEqualTo(126.9780);
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 		InOrder resolutionOrder = inOrder(geocodingService, timeZoneResolver, addressRepository);
 		resolutionOrder.verify(geocodingService).getCoordinates(anyString());
 		resolutionOrder.verify(timeZoneResolver).resolve(37.5665, 126.9780);
@@ -598,6 +603,56 @@ class AccommodationCommandServiceTest {
 		accommodationCommandService.updateAccommodation(1L, request, 2L);
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(16, 0));
+	}
+
+	@Test
+	@DisplayName("숙소를 삭제하면 상세 캐시 무효화 이벤트를 발행한다")
+	void invalidateDetailCacheWhenAccommodationIsDeleted() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+			.status(AccommodationStatus.PUBLISHED)
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		accommodationCommandService.deleteAccommodation(1L, 2L);
+
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+	}
+
+	@Test
+	@DisplayName("숙소를 게시하면 상세 캐시 무효화 이벤트를 발행한다")
+	void invalidateDetailCacheWhenAccommodationIsPublished() {
+		Accommodation accommodation = publishableAccommodation("Asia/Seoul");
+		when(accommodationRepository.findWithDetailsExceptHostAndDeletedById(1L, 2L))
+			.thenReturn(Optional.of(accommodation));
+		when(accommodationImageRepository.countByAccommodationId(1L)).thenReturn(1L);
+
+		accommodationCommandService.publishAccommodation(1L, 2L);
+
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+	}
+
+	@Test
+	@DisplayName("숙소 게시를 중단하면 상세 캐시 무효화 이벤트를 발행한다")
+	void invalidateDetailCacheWhenAccommodationIsUnpublished() {
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L)
+			.accommodationUid(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+			.status(AccommodationStatus.PUBLISHED)
+			.build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		accommodationCommandService.unpublishAccommodation(1L, 2L);
+
+		verify(cacheInvalidationPublisher).publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
 
 	private AddressRequest.AddressInfo seoulAddressInfo() {

@@ -16,3 +16,21 @@ scrape_configs:
     static_configs:
       - targets:
           - localhost:9090
+
+  - job_name: redis-general
+    static_configs:
+      - targets:
+          - redis-exporter-general:9121
+        labels:
+          environment: local
+          namespace: general
+          instance: redis-general
+
+  - job_name: redis-cache
+    static_configs:
+      - targets:
+          - redis-exporter-cache:9121
+        labels:
+          environment: local
+          namespace: cache
+          instance: redis-cache

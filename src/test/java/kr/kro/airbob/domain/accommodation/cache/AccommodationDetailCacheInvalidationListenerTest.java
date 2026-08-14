@@ -1,0 +1,105 @@
+package kr.kro.airbob.domain.accommodation.cache;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
+
+
+@SpringJUnitConfig(AccommodationDetailCacheInvalidationListenerTest.TestConfiguration.class)
+@DisplayName("숙소 상세 캐시 무효화 트랜잭션 이벤트 테스트")
+class AccommodationDetailCacheInvalidationListenerTest {
+
+	@Autowired private AccommodationDetailCacheInvalidationPublisher publisher;
+	@Autowired private AccommodationDetailCache cache;
+	@Autowired private PlatformTransactionManager transactionManager;
+
+	@BeforeEach
+	void resetCacheMock() {
+		reset(cache);
+	}
+
+	@Test
+	@DisplayName("트랜잭션이 커밋된 뒤에만 상세 캐시를 무효화한다")
+	void evictAfterCommit() {
+		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+		transaction.executeWithoutResult(status -> {
+			publisher.publish(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
+
+			verify(cache, never()).evict(anyLong(), any());
+		});
+
+		verify(cache).evict(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
+	}
+
+	@Test
+	@DisplayName("트랜잭션이 롤백되면 상세 캐시를 유지한다")
+	void keepCacheAfterRollback() {
+		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+		transaction.executeWithoutResult(status -> {
+			publisher.publish(1L, AccommodationDetailCacheInvalidationReason.REVIEW);
+			status.setRollbackOnly();
+		});
+
+		verifyNoInteractions(cache);
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@EnableTransactionManagement
+	@Import({
+		AccommodationDetailCacheInvalidationPublisher.class,
+		AccommodationDetailCacheInvalidationListener.class
+	})
+	static class TestConfiguration {
+
+		@Bean
+		AccommodationDetailCache accommodationDetailCache() {
+			return mock(AccommodationDetailCache.class);
+		}
+
+		@Bean
+		PlatformTransactionManager transactionManager() {
+			return new TestTransactionManager();
+		}
+	}
+
+	private static class TestTransactionManager extends AbstractPlatformTransactionManager {
+
+		@Override
+		protected Object doGetTransaction() {
+			return new Object();
+		}
+
+		@Override
+		protected void doBegin(Object transaction, TransactionDefinition definition) {
+		}
+
+		@Override
+		protected void doCommit(DefaultTransactionStatus status) {
+		}
+
+		@Override
+		protected void doRollback(DefaultTransactionStatus status) {
+		}
+	}
+}
