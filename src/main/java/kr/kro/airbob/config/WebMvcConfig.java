@@ -14,7 +14,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import kr.kro.airbob.common.monitoring.QueryCountInterceptor;
-import kr.kro.airbob.cursor.resolver.CursorParamArgumentResolver;
+import kr.kro.airbob.cursor.resolver.AbstractCursorParamArgumentResolver;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
@@ -26,13 +26,13 @@ import lombok.extern.slf4j.Slf4j;
 public class WebMvcConfig implements WebMvcConfigurer {
 
 	private final CurrentMemberIdArgumentResolver currentMemberIdArgumentResolver;
-	private final CursorParamArgumentResolver cursorParamArgumentResolver;
+	private final List<AbstractCursorParamArgumentResolver<?, ?>> cursorParamArgumentResolvers;
 	private final SessionAuthFilter sessionAuthFilter;
 	private final AdminAuthInterceptor adminAuthInterceptor;
 	private final QueryCountInterceptor queryCountInterceptor;
 	@Override
 	public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-		resolvers.add(cursorParamArgumentResolver);
+		resolvers.addAll(cursorParamArgumentResolvers);
 		resolvers.add(currentMemberIdArgumentResolver);
 	}
 
