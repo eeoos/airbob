@@ -107,6 +107,24 @@ assert_no_release_artifacts() {
   done
 }
 
+run_expect_signal_143() {
+  description=$1
+  output=$2
+  pid_file=$3
+  shift 3
+  "$@" >"$output" 2>&1 &
+  package_pid=$!
+  printf '%s\n' "$package_pid" > "$pid_file"
+  set +e
+  wait "$package_pid"
+  signal_exit=$?
+  set -e
+  [[ "$signal_exit" -eq 143 ]] || fail "$description exited $signal_exit instead of 143"
+  if grep -Fq 'hunter2' "$output"; then
+    fail "$description replayed a secret value"
+  fi
+}
+
 base_repo="$temp_dir/repo"
 make_package_repo "$base_repo"
 existing_non_head_commit=$(git -C "$base_repo" rev-parse HEAD)
@@ -142,6 +160,101 @@ mkdir "$staged_output"
 run_expect_failure 'a staged packaged-source mismatch from HEAD' "$temp_dir/staged-source.log" \
   "$staged_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$staged_output"
 assert_no_staging "$staged_output"
+
+skip_worktree_repo="$temp_dir/skip-worktree-repo"
+cp -R "$base_repo" "$skip_worktree_repo"
+git -C "$skip_worktree_repo" update-index --skip-worktree infra/aws/bundles/kafka/jmx-exporter.yml
+printf '\n# PACKAGED_SKIP_WORKTREE_DRIFT=yes\n' \
+  >> "$skip_worktree_repo/infra/aws/bundles/kafka/jmx-exporter.yml"
+skip_worktree_output="$temp_dir/skip-worktree-output"
+mkdir "$skip_worktree_output"
+run_expect_failure 'skip-worktree packaged-source bytes that differ from HEAD' "$temp_dir/skip-worktree.log" \
+  "$skip_worktree_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$skip_worktree_output"
+assert_no_staging "$skip_worktree_output"
+assert_no_release_artifacts "$skip_worktree_output" "$valid_commit"
+
+run_committed_secret_failure() {
+  mutation=$1
+  description=$2
+  committed_secret_repo="$temp_dir/committed-$mutation-secret-repo"
+  cp -R "$base_repo" "$committed_secret_repo"
+  case "$mutation" in
+    list)
+      cat >> "$committed_secret_repo/infra/aws/bundles/app/compose.yml" <<'EOF'
+
+x-airbob-secret-probe:
+  environment:
+    - PASSWORD=hunter2
+EOF
+      ;;
+    inline)
+      printf '\nx-airbob-secret-probe: {environment: {PASSWORD: hunter2}}\n' \
+        >> "$committed_secret_repo/infra/aws/bundles/app/compose.yml"
+      ;;
+    access-key)
+      printf '\nAWS_ACCESS_KEY_ID=hunter2\n' \
+        >> "$committed_secret_repo/infra/aws/bundles/debezium/connect-distributed.aws.properties"
+      ;;
+    private-key)
+      cat >> "$committed_secret_repo/infra/aws/bundles/debezium/connect-distributed.aws.properties" <<'EOF'
+
+PRIVATE_KEY=hunter2
+-----BEGIN PRIVATE KEY-----
+hunter2
+-----END PRIVATE KEY-----
+EOF
+      ;;
+    *)
+      fail "unknown committed secret mutation"
+      ;;
+  esac
+  git -C "$committed_secret_repo" add infra/aws/bundles
+  git -C "$committed_secret_repo" commit -q -m "synthetic committed $mutation secret"
+  committed_secret_commit=$(git -C "$committed_secret_repo" rev-parse HEAD)
+  committed_secret_output="$temp_dir/committed-$mutation-secret-output"
+  mkdir "$committed_secret_output"
+  run_expect_failure "$description" "$temp_dir/committed-$mutation-secret.log" \
+    "$committed_secret_repo/infra/aws/scripts/package-service-bundles.sh" \
+    "$committed_secret_commit" "$committed_secret_output"
+  assert_no_staging "$committed_secret_output"
+  assert_no_release_artifacts "$committed_secret_output" "$committed_secret_commit"
+}
+
+run_committed_secret_failure list 'a committed Compose list-form secret'
+run_committed_secret_failure inline 'a committed inline YAML secret'
+run_committed_secret_failure access-key 'a committed access-key assignment'
+run_committed_secret_failure private-key 'committed private-key material'
+
+concurrent_repo="$temp_dir/concurrent-source-repo"
+cp -R "$base_repo" "$concurrent_repo"
+concurrent_output="$temp_dir/concurrent-source-output"
+mkdir "$concurrent_output"
+fake_concurrent_bin="$temp_dir/fake-concurrent-bin"
+mkdir "$fake_concurrent_bin"
+cat > "$fake_concurrent_bin/tar" <<'EOF'
+#!/bin/sh
+case " $* " in
+  *" -czf "*)
+    if [ ! -e "$AIRBOB_TAR_MUTATION_MARKER" ]; then
+      printf '\n# PACKAGED_TAR_TIME_DRIFT=yes\n' >> "$AIRBOB_TAR_MUTATION_SOURCE"
+      : > "$AIRBOB_TAR_MUTATION_MARKER"
+    fi
+    ;;
+esac
+exec "$AIRBOB_REAL_TAR" "$@"
+EOF
+chmod 700 "$fake_concurrent_bin/tar"
+real_tar=$(command -v tar)
+run_expect_failure 'a source mutation during tar creation' "$temp_dir/concurrent-source.log" \
+  env \
+    PATH="$fake_concurrent_bin:$PATH" \
+    AIRBOB_REAL_TAR="$real_tar" \
+    AIRBOB_TAR_MUTATION_MARKER="$temp_dir/concurrent-tar-marker" \
+    AIRBOB_TAR_MUTATION_SOURCE="$concurrent_repo/infra/aws/bundles/kafka/jmx-exporter.yml" \
+    "$concurrent_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$concurrent_output"
+[[ -f "$temp_dir/concurrent-tar-marker" ]] || fail "tar-time source mutation hook was not reached"
+assert_no_staging "$concurrent_output"
+assert_no_release_artifacts "$concurrent_output" "$valid_commit"
 
 valid_output="$temp_dir/valid-output"
 mkdir "$valid_output"
@@ -325,38 +438,64 @@ run_expect_failure 'a non-regular allowlisted path' "$temp_dir/nonregular.log" \
 assert_no_staging "$nonregular_output"
 
 run_fake_tar_failure() {
-  mode=$1
-  fake_bin="$temp_dir/fake-bin-$mode"
+  fake_bin="$temp_dir/fake-bin-failure"
   mkdir "$fake_bin"
-  if [[ "$mode" == failure ]]; then
-    cat > "$fake_bin/tar" <<'EOF'
+  cat > "$fake_bin/tar" <<'EOF'
 #!/bin/sh
 exit 73
 EOF
-  else
-    cat > "$fake_bin/tar" <<'EOF'
-#!/bin/sh
-kill -TERM "$PPID"
-sleep 1
-exit 143
-EOF
-  fi
   chmod 700 "$fake_bin/tar"
 
-  fake_output="$temp_dir/fake-output-$mode"
+  fake_output="$temp_dir/fake-output-failure"
   mkdir "$fake_output"
   chmod 700 "$fake_output"
   printf 'preserve-me\n' > "$fake_output/sentinel"
-  printf 'preserve-me\n' > "$temp_dir/fake-sentinel-$mode"
-  run_expect_failure "a $mode tar run" "$temp_dir/fake-$mode.log" \
+  printf 'preserve-me\n' > "$temp_dir/fake-sentinel-failure"
+  run_expect_failure 'a failing tar run' "$temp_dir/fake-failure.log" \
     env PATH="$fake_bin:$PATH" "$base_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$fake_output"
-  cmp -s "$temp_dir/fake-sentinel-$mode" "$fake_output/sentinel" || fail "$mode run modified an unrelated output sentinel"
+  cmp -s "$temp_dir/fake-sentinel-failure" "$fake_output/sentinel" || fail "failing tar run modified an unrelated output sentinel"
   assert_no_staging "$fake_output"
   assert_no_release_artifacts "$fake_output" "$valid_commit"
 }
 
-run_fake_tar_failure failure
-run_fake_tar_failure interrupted
+run_fake_tar_failure
+
+run_signal_before_publication() {
+  fake_bin="$temp_dir/fake-signal-tar-bin"
+  mkdir "$fake_bin"
+  cat > "$fake_bin/tar" <<'EOF'
+#!/bin/sh
+printf 'reached\n' > "$AIRBOB_SIGNAL_MARKER"
+while [ ! -s "$AIRBOB_PACKAGE_PID_FILE" ]; do
+  sleep 1
+done
+IFS= read -r package_pid < "$AIRBOB_PACKAGE_PID_FILE"
+kill -TERM "$package_pid"
+exit 143
+EOF
+  chmod 700 "$fake_bin/tar"
+
+  signal_output="$temp_dir/signal-before-publication-output"
+  mkdir "$signal_output"
+  chmod 700 "$signal_output"
+  printf 'preserve-me\n' > "$signal_output/unrelated-sentinel"
+  printf 'preserve-me\n' > "$temp_dir/signal-before-publication-sentinel"
+  pid_file="$temp_dir/signal-before-publication.pid"
+  marker="$temp_dir/signal-before-publication.marker"
+  run_expect_signal_143 'pre-publication signal run' "$temp_dir/signal-before-publication.log" "$pid_file" \
+    env \
+      PATH="$fake_bin:$PATH" \
+      AIRBOB_PACKAGE_PID_FILE="$pid_file" \
+      AIRBOB_SIGNAL_MARKER="$marker" \
+      "$base_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$signal_output"
+  [[ -f "$marker" ]] || fail "pre-publication signal hook was not reached"
+  cmp -s "$temp_dir/signal-before-publication-sentinel" "$signal_output/unrelated-sentinel" \
+    || fail "pre-publication signal run modified an unrelated sentinel"
+  assert_no_staging "$signal_output"
+  assert_no_release_artifacts "$signal_output" "$valid_commit"
+}
+
+run_signal_before_publication
 
 run_intermediate_publish_failure() {
   fail_on=$1
@@ -399,5 +538,58 @@ EOF
 
 run_intermediate_publish_failure 2
 run_intermediate_publish_failure 3
+
+run_signal_after_publication_links() {
+  signal_after=$1
+  fake_bin="$temp_dir/fake-signal-ln-bin-$signal_after"
+  mkdir "$fake_bin"
+  cat > "$fake_bin/ln" <<'EOF'
+#!/bin/sh
+count=0
+if [ -f "$AIRBOB_LN_COUNTER" ]; then
+  IFS= read -r count < "$AIRBOB_LN_COUNTER"
+fi
+count=$((count + 1))
+printf '%s\n' "$count" > "$AIRBOB_LN_COUNTER"
+"$AIRBOB_REAL_LN" "$@" || exit $?
+if [ "$count" -eq "$AIRBOB_SIGNAL_AFTER_LINK" ]; then
+  printf 'reached\n' > "$AIRBOB_SIGNAL_MARKER"
+  while [ ! -s "$AIRBOB_PACKAGE_PID_FILE" ]; do
+    sleep 1
+  done
+  IFS= read -r package_pid < "$AIRBOB_PACKAGE_PID_FILE"
+  kill -TERM "$package_pid"
+fi
+exit 0
+EOF
+  chmod 700 "$fake_bin/ln"
+
+  signal_output="$temp_dir/signal-after-link-output-$signal_after"
+  mkdir "$signal_output"
+  chmod 700 "$signal_output"
+  printf 'preserve-me\n' > "$signal_output/unrelated-sentinel"
+  printf 'preserve-me\n' > "$temp_dir/signal-after-link-sentinel-$signal_after"
+  pid_file="$temp_dir/signal-after-link-$signal_after.pid"
+  marker="$temp_dir/signal-after-link-$signal_after.marker"
+  counter="$temp_dir/signal-after-link-$signal_after.counter"
+  real_ln=$(command -v ln)
+  run_expect_signal_143 "signal after final link $signal_after" "$temp_dir/signal-after-link-$signal_after.log" "$pid_file" \
+    env \
+      PATH="$fake_bin:$PATH" \
+      AIRBOB_LN_COUNTER="$counter" \
+      AIRBOB_PACKAGE_PID_FILE="$pid_file" \
+      AIRBOB_REAL_LN="$real_ln" \
+      AIRBOB_SIGNAL_AFTER_LINK="$signal_after" \
+      AIRBOB_SIGNAL_MARKER="$marker" \
+      "$base_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$signal_output"
+  [[ -f "$marker" ]] || fail "signal-after-link $signal_after hook was not reached"
+  cmp -s "$temp_dir/signal-after-link-sentinel-$signal_after" "$signal_output/unrelated-sentinel" \
+    || fail "signal-after-link $signal_after modified an unrelated sentinel"
+  assert_no_staging "$signal_output"
+  assert_no_release_artifacts "$signal_output" "$valid_commit"
+}
+
+run_signal_after_publication_links 1
+run_signal_after_publication_links 2
 
 printf 'service bundle package tests passed\n'

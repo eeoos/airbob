@@ -63,8 +63,6 @@ archive_files=(
 archive_name="airbob-service-bundles-$commit.tar.gz"
 checksum_name="$archive_name.sha256"
 release_manifest_name="airbob-service-bundles-$commit.manifest.json"
-git -C "$repo_root" diff --quiet "$commit" -- "${archive_files[@]}" \
-  || fail "packaged source files do not match the requested HEAD commit"
 for final_name in "$archive_name" "$checksum_name" "$release_manifest_name"; do
   final_path="$output_physical/$final_name"
   [[ ! -e "$final_path" && ! -L "$final_path" ]] || fail "refusing to overwrite a pre-existing package artifact"
@@ -146,6 +144,12 @@ archive_path="$staging_dir/$archive_name"
 checksum_path="$staging_dir/$checksum_name"
 release_manifest_path="$staging_dir/$release_manifest_name"
 actual_listing="$staging_dir/archive-files.txt"
+actual_types="$staging_dir/archive-types.txt"
+expected_types="$staging_dir/expected-types.txt"
+commit_blob_root="$staging_dir/commit-blobs"
+archive_extract_root="$staging_dir/archive-extract"
+mkdir -p "$commit_blob_root" "$archive_extract_root"
+chmod 700 "$commit_blob_root" "$archive_extract_root"
 
 write_json_array() {
   array_name=$1
@@ -202,13 +206,28 @@ for relative_path in "${archive_files[@]}"; do
   parent_expected="$repo_root/$parent_relative"
   parent_physical=$(CDPATH= cd -P -- "$parent_expected" && pwd -P) || fail "archive allowlist parent cannot be resolved physically"
   [[ "$parent_physical" == "$parent_expected" ]] || fail "archive allowlist path has a symlinked parent"
+
+  tree_entry=$(git -C "$repo_root" ls-tree "$commit" -- "$relative_path")
+  case "$tree_entry" in
+    "100644 blob "*$'\t'"$relative_path"|"100755 blob "*$'\t'"$relative_path")
+      ;;
+    *)
+      fail "archive allowlist path is not a regular file in the requested commit"
+      ;;
+  esac
+  commit_blob="$commit_blob_root/$relative_path"
+  mkdir -p "$commit_blob_root/${relative_path%/*}"
+  git -C "$repo_root" cat-file blob "$commit:$relative_path" > "$commit_blob" \
+    || fail "archive allowlist blob cannot be read from the requested commit"
+  chmod 600 "$commit_blob"
+  cmp -s "$source_path" "$commit_blob" \
+    || fail "archive allowlist source bytes do not match the requested commit"
 done
 
 printf '%s\n' "${archive_files[@]}" > "$expected_listing"
-
-COPYFILE_DISABLE=1 tar -C "$repo_root" -czf "$archive_path" "${archive_files[@]}"
-COPYFILE_DISABLE=1 tar -tzf "$archive_path" > "$actual_listing"
-cmp -s "$expected_listing" "$actual_listing" || fail "created archive does not contain exactly the fixed nineteen-file allowlist"
+for relative_path in "${archive_files[@]}"; do
+  printf '%s\n' '-'
+done > "$expected_types"
 
 sha256_file() {
   checksum_target=$1
@@ -224,7 +243,30 @@ sha256_file() {
   printf '%s' "$checksum_digest"
 }
 
+COPYFILE_DISABLE=1 tar -C "$repo_root" -czf "$archive_path" "${archive_files[@]}"
+COPYFILE_DISABLE=1 tar -tzf "$archive_path" > "$actual_listing"
+cmp -s "$expected_listing" "$actual_listing" || fail "created archive does not contain exactly the fixed nineteen-file allowlist"
 archive_digest=$(sha256_file "$archive_path")
+
+COPYFILE_DISABLE=1 tar -tvzf "$archive_path" | awk '{ print substr($1, 1, 1) }' > "$actual_types"
+cmp -s "$expected_types" "$actual_types" || fail "created archive contains a non-regular member type"
+COPYFILE_DISABLE=1 tar -xzf "$archive_path" -C "$archive_extract_root"
+for relative_path in "${archive_files[@]}"; do
+  extracted_path="$archive_extract_root/$relative_path"
+  [[ -f "$extracted_path" && -r "$extracted_path" && ! -L "$extracted_path" ]] \
+    || fail "created archive did not extract an expected regular file"
+  extracted_parent_expected="$archive_extract_root/${relative_path%/*}"
+  extracted_parent_physical=$(CDPATH= cd -P -- "$extracted_parent_expected" && pwd -P) \
+    || fail "created archive member parent cannot be resolved physically"
+  [[ "$extracted_parent_physical" == "$extracted_parent_expected" ]] \
+    || fail "created archive member has a symlinked parent"
+  cmp -s "$extracted_path" "$commit_blob_root/$relative_path" \
+    || fail "created archive member bytes do not match the requested commit"
+done
+
+post_extract_digest=$(sha256_file "$archive_path")
+[[ "$post_extract_digest" == "$archive_digest" ]] || fail "archive changed during commit-byte verification"
+archive_digest=$post_extract_digest
 printf '%s  %s\n' "$archive_digest" "$archive_name" > "$checksum_path"
 
 {
@@ -246,6 +288,23 @@ release_digest=$(sed -n 's/^  "sha256": "\([0-9a-f][0-9a-f]*\)",$/\1/p' "$releas
 [[ "$release_digest" == "$recalculated_digest" ]] || fail "release manifest does not attest the staged archive"
 COPYFILE_DISABLE=1 tar -tzf "$archive_path" > "$actual_listing"
 cmp -s "$expected_listing" "$actual_listing" || fail "archive listing changed before publication"
+
+head_commit_before_publish=$(git -C "$repo_root" rev-parse --verify HEAD 2>/dev/null) \
+  || fail "current repository HEAD cannot be resolved before publication"
+[[ "$head_commit_before_publish" == "$commit" ]] \
+  || fail "repository HEAD changed before package publication"
+for relative_path in "${archive_files[@]}"; do
+  source_path="$repo_root/$relative_path"
+  [[ -f "$source_path" && -r "$source_path" && ! -L "$source_path" ]] \
+    || fail "archive allowlist source became unsafe before publication"
+  source_parent_expected="$repo_root/${relative_path%/*}"
+  source_parent_physical=$(CDPATH= cd -P -- "$source_parent_expected" && pwd -P) \
+    || fail "archive allowlist parent cannot be resolved before publication"
+  [[ "$source_parent_physical" == "$source_parent_expected" ]] \
+    || fail "archive allowlist source gained a symlinked parent before publication"
+  cmp -s "$source_path" "$commit_blob_root/$relative_path" \
+    || fail "archive allowlist source bytes changed before publication"
+done
 
 published_archive=1
 ln "$archive_path" "$archive_final" || fail "failed to publish archive without overwriting"

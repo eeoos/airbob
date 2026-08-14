@@ -480,6 +480,9 @@ EBS snapshot이 아니라 Elasticsearch native Snapshot API와 S3 repository를 
 - Elasticsearch custom image는 ES 버전과 Nori 설치를 digest로 고정한다.
 - Kafka, Redis, Prometheus, Grafana와 exporter도 ECR에 mirror하거나 digest를 직접 고정한다.
 - Compose/config bundle은 versioned S3 artifact로 올리고 EC2 user-data는 bundle SHA-256을 검증한 뒤 실행한다.
+- 현재 로컬 packager는 archive member의 regular-file type과 bytes를 지정된 현재 `HEAD` blob에 대조한다. caller-owned mode-0700 output과 신뢰할 수 있는 `PATH`/toolchain을 전제로 하며, SHA-256은 생성된 archive의 무결성 정보이지 서명된 진본성 증명이 아니다.
+- archive, checksum, release manifest의 세 파일은 하나의 filesystem transaction으로 동시에 공개되지 않는다. 소비자는 마지막 release manifest를 완료 marker로 삼고 commit, archive 이름, SHA-256과 정확한 파일 목록을 모두 검증한 뒤에만 archive를 사용한다.
+- 고정 corpus의 민감 키 검사는 승인된 placeholder/guard 외 표현을 보수적으로 거부하지만, 무해해 보이는 키에 숨긴 secret까지 증명하지는 못하므로 repository secret scan과 사람의 검토를 계속 요구한다.
 - user-data는 Docker 설치, bundle/secret 조회와 SSM agent 준비까지만 담당한다.
 - Terraform `remote-exec`과 SSH provisioner는 사용하지 않는다.
 - 서비스 준비 상태와 connector 등록은 SSM Run Command를 통해 실행하고 command result를 artifact로 남긴다.
