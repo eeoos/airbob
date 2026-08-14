@@ -2,9 +2,13 @@ package kr.kro.airbob.kafka.consumer;
 
 import static kr.kro.airbob.outbox.EventType.PAYMENT_EXECUTION_REQUESTED_V1;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -12,7 +16,6 @@ import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.retrytopic.SameIntervalTopicReuseStrategy;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
@@ -40,7 +43,7 @@ public class PaymentOperationEventsConsumer {
 	@RetryableTopic(
 		attempts = "${payment.operation.kafka.attempts:4}",
 		backoff = @Backoff(delayExpression = "${payment.operation.kafka.backoff-ms:30000}"),
-		kafkaTemplate = "deadLetterKafkaTemplate",
+		kafkaTemplate = "paymentOperationRetryKafkaTemplate",
 		retryTopicSuffix = ".RETRY",
 		dltTopicSuffix = ".DLT",
 		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
@@ -64,12 +67,25 @@ public class PaymentOperationEventsConsumer {
 	}
 
 	@DltHandler
+	public void handleDlt(ConsumerRecord<String, String> record, Acknowledgment ack) {
+		String topic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
+			.orElse(record.topic());
+		int partition = readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
+			.orElse(record.partition());
+		long offset = readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
+			.orElse(record.offset());
+		String error = record.headers().lastHeader(KafkaHeaders.EXCEPTION_FQCN) == null
+			? null
+			: PROCESSING_FAILURE;
+		handleDlt(record.value(), topic, partition, offset, error, ack);
+	}
+
 	public void handleDlt(
 		@Payload String message,
-		@Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-		@Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-		@Header(KafkaHeaders.OFFSET) long offset,
-		@Header(name = KafkaHeaders.EXCEPTION_MESSAGE, required = false) String error,
+		String topic,
+		int partition,
+		long offset,
+		String error,
 		Acknowledgment ack
 	) {
 		UUID operationUid = tryReadOperationUid(message).orElse(null);
@@ -86,6 +102,26 @@ public class PaymentOperationEventsConsumer {
 		} finally {
 			ack.acknowledge();
 		}
+	}
+
+	private Optional<String> readStringHeader(ConsumerRecord<String, String> record, String name) {
+		return Optional.ofNullable(record.headers().lastHeader(name))
+			.map(Header::value)
+			.map(value -> new String(value, StandardCharsets.UTF_8));
+	}
+
+	private Optional<Integer> readIntHeader(ConsumerRecord<String, String> record, String name) {
+		return Optional.ofNullable(record.headers().lastHeader(name))
+			.map(Header::value)
+			.filter(value -> value.length == Integer.BYTES)
+			.map(value -> ByteBuffer.wrap(value).getInt());
+	}
+
+	private Optional<Long> readLongHeader(ConsumerRecord<String, String> record, String name) {
+		return Optional.ofNullable(record.headers().lastHeader(name))
+			.map(Header::value)
+			.filter(value -> value.length == Long.BYTES)
+			.map(value -> ByteBuffer.wrap(value).getLong());
 	}
 
 	private Optional<UUID> tryReadOperationUid(String message) {

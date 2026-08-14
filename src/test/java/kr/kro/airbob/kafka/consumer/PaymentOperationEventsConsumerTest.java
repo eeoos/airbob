@@ -207,7 +207,7 @@ class PaymentOperationEventsConsumerTest {
 			.isEqualTo("${payment.operation.kafka.attempts:4}");
 		assertThat(retryableTopic.backoff().delayExpression())
 			.isEqualTo("${payment.operation.kafka.backoff-ms:30000}");
-		assertThat(retryableTopic.kafkaTemplate()).isEqualTo("deadLetterKafkaTemplate");
+		assertThat(retryableTopic.kafkaTemplate()).isEqualTo("paymentOperationRetryKafkaTemplate");
 		assertThat(retryableTopic.retryTopicSuffix()).isEqualTo(".RETRY");
 		assertThat(retryableTopic.dltTopicSuffix()).isEqualTo(".DLT");
 		assertThat(retryableTopic.sameIntervalTopicReuseStrategy())
