@@ -24,12 +24,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -133,6 +136,14 @@ class PaymentOperationFlowIntegrationTest {
 	private static final long AMOUNT = 90_000L;
 	private static final Instant NOW = Instant.parse("2026-08-14T00:00:00Z");
 	private static final Duration RETRY_DELAY = Duration.ofSeconds(10);
+	private static final Duration RETRY_MAX_DELAY = Duration.ofMinutes(5);
+	private static final int MAX_ATTEMPTS = 5;
+	private static final List<Duration> UNKNOWN_RETRY_DELAYS = List.of(
+		Duration.ofSeconds(10),
+		Duration.ofSeconds(20),
+		Duration.ofSeconds(40),
+		Duration.ofSeconds(80)
+	);
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
@@ -171,6 +182,7 @@ class PaymentOperationFlowIntegrationTest {
 	private long nonOwnerId;
 	private long reservationId;
 	private long memberCouponId;
+	private final Map<UUID, String> acceptedStatusUrls = new HashMap<>();
 
 	@BeforeEach
 	void setUp() {
@@ -178,6 +190,7 @@ class PaymentOperationFlowIntegrationTest {
 		clearFixtureRows();
 		clock.set(NOW);
 		gateway.reset();
+		acceptedStatusUrls.clear();
 		insertPendingReservationFixture();
 
 		PaymentController paymentController = new PaymentController(commandService, null);
@@ -267,6 +280,7 @@ class PaymentOperationFlowIntegrationTest {
 		deliverLatestExecutionEvent();
 
 		assertThat(gateway.calls()).containsExactly("confirm", "confirm");
+		assertConfirmCommands(operationUid, 2);
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
 			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
@@ -369,13 +383,37 @@ class PaymentOperationFlowIntegrationTest {
 			"READ_TIMEOUT", "provider response unavailable"));
 		deliverLatestExecutionEvent();
 
-		clock.advance(RETRY_DELAY.plusSeconds(1));
-		assertThat(recoveryService.recoverDue().enqueued()).isOne();
-		gateway.enqueueInquiry(new PaymentGatewayResult.RetryableFailure(
-			"CONNECTION_FAILED", "provider inquiry unavailable"));
-		deliverLatestExecutionEvent();
+		assertDurableState(operationUid, OUTCOME_UNKNOWN, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertThat(operationRepository.findByOperationUid(operationUid).orElseThrow().getAttemptCount())
+			.isOne();
+		assertOperationPrivacy(operationUid, "PROCESSING");
 
-		assertThat(gateway.calls()).containsExactly("confirm", "inquire");
+		for (int attempt = 2; attempt <= MAX_ATTEMPTS; attempt++) {
+			Duration retryDelay = UNKNOWN_RETRY_DELAYS.get(attempt - 2);
+			clock.advance(retryDelay.minusSeconds(1));
+			assertThat(recoveryService.recoverDue().enqueued()).isZero();
+			clock.advance(Duration.ofSeconds(2));
+			assertThat(recoveryService.recoverDue().enqueued()).isOne();
+
+			gateway.enqueueInquiry(new PaymentGatewayResult.RetryableFailure(
+				"CONNECTION_FAILED", "provider inquiry unavailable"));
+			deliverLatestExecutionEvent();
+
+			assertThat(gateway.confirmCommands()).hasSize(1);
+			assertThat(gateway.inquiryCommands()).hasSize(attempt - 1);
+			assertThat(gateway.calls().subList(1, gateway.calls().size())).containsOnly("inquire");
+			assertThat(operationRepository.findByOperationUid(operationUid).orElseThrow().getAttemptCount())
+				.isEqualTo(attempt);
+
+			if (attempt < MAX_ATTEMPTS) {
+				assertDurableState(operationUid, OUTCOME_UNKNOWN, PAYMENT_PROCESSING, 0, 0, List.of());
+				assertOperationPrivacy(operationUid, "PROCESSING");
+			}
+		}
+
+		assertThat(gateway.calls()).containsExactly(
+			"confirm", "inquire", "inquire", "inquire", "inquire");
+		assertConfirmCommands(operationUid, 1);
 		assertDurableState(operationUid, MANUAL_REVIEW, PAYMENT_PROCESSING, 0, 0, List.of());
 		assertThat(operationRepository.findByOperationUid(operationUid).orElseThrow().getFailureCode())
 			.isEqualTo("CONNECTION_FAILED");
@@ -384,18 +422,22 @@ class PaymentOperationFlowIntegrationTest {
 
 	@Test
 	void nonOwnerCreateAndRead() throws Exception {
+		PersistenceSnapshot beforeForbiddenCreate = persistenceSnapshot();
 		MvcResult forbiddenCreate = accept(nonOwnerId, status().isForbidden());
-		assertThat(operationRepository.count()).isZero();
-		assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus())
-			.isEqualTo(PAYMENT_PENDING);
-		assertThat(outboxRepository.count()).isZero();
+
+		assertThat(persistenceSnapshot()).isEqualTo(beforeForbiddenCreate);
+		assertForbiddenResponseHasNoDataOrDetails(forbiddenCreate);
 		assertNoSecret(forbiddenCreate.getResponse().getContentAsString());
 
 		UUID operationUid = acceptedOperationUid(accept(ownerId, status().isAccepted()));
+		PersistenceSnapshot beforeForbiddenRead = persistenceSnapshot();
 		MvcResult forbiddenRead = readOperation(operationUid, nonOwnerId, status().isForbidden());
 
+		assertThat(persistenceSnapshot()).isEqualTo(beforeForbiddenRead);
+		assertForbiddenResponseHasNoDataOrDetails(forbiddenRead);
 		assertThat(forbiddenRead.getResponse().getContentAsString())
 			.doesNotContain(PAYMENT_KEY)
+			.doesNotContain(operationUid.toString())
 			.doesNotContain(RESERVATION_UID.toString());
 		assertDurableState(operationUid, READY, PAYMENT_PROCESSING, 0, 0, List.of());
 		assertOperationPrivacy(operationUid, "PENDING");
@@ -421,9 +463,13 @@ class PaymentOperationFlowIntegrationTest {
 		long memberId,
 		org.springframework.test.web.servlet.ResultMatcher expectedStatus
 	) throws Exception {
+		String statusUrl = acceptedStatusUrls.get(operationUid);
+		assertThat(statusUrl)
+			.as("polling must use the status_url returned by the acceptance response")
+			.isNotNull();
 		UserContext.set(new UserInfo(memberId));
 		try {
-			return mockMvc.perform(get("/api/v1/payment-operations/{operationId}", operationUid))
+			return mockMvc.perform(get(statusUrl))
 				.andExpect(expectedStatus)
 				.andReturn();
 		} finally {
@@ -432,7 +478,13 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private UUID acceptedOperationUid(MvcResult result) throws Exception {
-		return UUID.fromString(responseData(result).path("operation_id").asText());
+		JsonNode data = responseData(result);
+		UUID operationUid = UUID.fromString(data.path("operation_id").asText());
+		String expectedStatusUrl = "/api/v1/payment-operations/" + operationUid;
+		String returnedStatusUrl = data.path("status_url").asText();
+		assertThat(returnedStatusUrl).isEqualTo(expectedStatusUrl);
+		acceptedStatusUrls.put(operationUid, returnedStatusUrl);
+		return operationUid;
 	}
 
 	private JsonNode responseData(MvcResult result) throws Exception {
@@ -501,10 +553,64 @@ class PaymentOperationFlowIntegrationTest {
 		assertThat(responseData(statusResponse).path("status").asText()).isEqualTo(expectedStatus);
 		assertNoSecret(serializedStatus);
 
-		assertThat(executionOutboxes()).isNotEmpty();
-		assertThat(executionOutboxes())
-			.extracting(Outbox::getPayload)
-			.allSatisfy(this::assertNoSecret);
+		List<Outbox> executionOutboxes = executionOutboxes();
+		assertThat(executionOutboxes).isNotEmpty();
+		for (Outbox outbox : executionOutboxes) {
+			assertExecutionOutboxContract(outbox, operationUid);
+			assertNoSecret(outbox.getPayload());
+		}
+		assertGatewayCommandsCorrelated(operationUid);
+	}
+
+	private void assertExecutionOutboxContract(Outbox outbox, UUID operationUid) throws Exception {
+		assertThat(outbox.getAggregateId()).isEqualTo(RESERVATION_UID.toString());
+		JsonNode payload = objectMapper.readTree(outbox.getPayload()).path("payload");
+		assertThat(fieldNames(payload)).containsExactlyInAnyOrder("operation_uid", "reservation_uid");
+		assertThat(payload.path("operation_uid").asText()).isEqualTo(operationUid.toString());
+		assertThat(payload.path("reservation_uid").asText()).isEqualTo(RESERVATION_UID.toString());
+	}
+
+	private void assertGatewayCommandsCorrelated(UUID operationUid) {
+		PaymentConfirmationCommand expected = expectedGatewayCommand(operationUid);
+		assertThat(gateway.invocations())
+			.extracting(GatewayInvocation::command)
+			.allSatisfy(command -> assertThat(command).isEqualTo(expected));
+	}
+
+	private void assertConfirmCommands(UUID operationUid, int expectedCount) {
+		PaymentConfirmationCommand expected = expectedGatewayCommand(operationUid);
+		assertThat(gateway.confirmCommands())
+			.hasSize(expectedCount)
+			.allSatisfy(command -> assertThat(command).isEqualTo(expected));
+	}
+
+	private PaymentConfirmationCommand expectedGatewayCommand(UUID operationUid) {
+		return new PaymentConfirmationCommand(
+			operationUid,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"airbob-confirm-" + operationUid
+		);
+	}
+
+	private void assertForbiddenResponseHasNoDataOrDetails(MvcResult result) throws Exception {
+		JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+		assertThat(response.path("success").asBoolean()).isFalse();
+		assertThat(fieldNames(response)).containsExactlyInAnyOrder("success", "error");
+		assertThat(response.findValues("data")).isEmpty();
+		assertThat(response.findValues("detail")).isEmpty();
+		assertThat(response.findValues("operation_id")).isEmpty();
+		assertThat(response.findValues("order_id")).isEmpty();
+		assertThat(response.findValues("status_url")).isEmpty();
+		assertThat(response.findValues("failure_code")).isEmpty();
+		assertThat(response.findValues("updated_at")).isEmpty();
+	}
+
+	private List<String> fieldNames(JsonNode node) {
+		List<String> names = new ArrayList<>();
+		node.fieldNames().forEachRemaining(names::add);
+		return names;
 	}
 
 	private void assertNoSecret(String serialized) {
@@ -516,6 +622,26 @@ class PaymentOperationFlowIntegrationTest {
 
 	private List<String> outboxEventTypes() {
 		return outboxRepository.findAll().stream().map(Outbox::getEventType).toList();
+	}
+
+	private PersistenceSnapshot persistenceSnapshot() {
+		List<PaymentOperation> operations = operationRepository.findAll();
+		PaymentOperation operation = operations.size() == 1 ? operations.getFirst() : null;
+		var reservation = reservationRepository.findById(reservationId).orElseThrow();
+		return new PersistenceSnapshot(
+			operations.size(),
+			operation == null ? null : operation.getStatus(),
+			operation == null ? null : operation.getAttemptCount(),
+			operation == null ? null : operation.getVersion(),
+			operation == null ? null : operation.getUpdatedAt(),
+			reservationRepository.count(),
+			reservation.getStatus(),
+			reservation.getUpdatedAt(),
+			historyRepository.count(),
+			paymentRepository.count(),
+			transactionRepository.count(),
+			outboxRepository.count()
+		);
 	}
 
 	private PaymentGatewayResult approved() {
@@ -630,6 +756,22 @@ class PaymentOperationFlowIntegrationTest {
 		memberCouponId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 	}
 
+	private record PersistenceSnapshot(
+		long operationCount,
+		PaymentOperationStatus operationStatus,
+		Integer operationAttemptCount,
+		Long operationVersion,
+		LocalDateTime operationUpdatedAt,
+		long reservationCount,
+		ReservationStatus reservationStatus,
+		LocalDateTime reservationUpdatedAt,
+		long reservationHistoryCount,
+		long paymentCount,
+		long ledgerCount,
+		long outboxCount
+	) {
+	}
+
 	@TestConfiguration(proxyBeanMethods = false)
 	static class FlowTestConfiguration {
 		@Bean
@@ -650,9 +792,9 @@ class PaymentOperationFlowIntegrationTest {
 				Duration.ofSeconds(30),
 				Duration.ofSeconds(10),
 				100,
-				2,
+				MAX_ATTEMPTS,
 				RETRY_DELAY,
-				Duration.ofMinutes(1),
+				RETRY_MAX_DELAY,
 				Duration.ofSeconds(10)
 			);
 		}
@@ -703,12 +845,12 @@ class PaymentOperationFlowIntegrationTest {
 	static final class ScriptedPaymentGateway implements PaymentConfirmationGateway {
 		private final Deque<PaymentGatewayResult> confirmations = new ArrayDeque<>();
 		private final Deque<PaymentGatewayResult> inquiries = new ArrayDeque<>();
-		private final List<String> calls = new ArrayList<>();
+		private final List<GatewayInvocation> invocations = new ArrayList<>();
 
 		void reset() {
 			confirmations.clear();
 			inquiries.clear();
-			calls.clear();
+			invocations.clear();
 		}
 
 		void enqueueConfirm(PaymentGatewayResult result) {
@@ -720,21 +862,40 @@ class PaymentOperationFlowIntegrationTest {
 		}
 
 		List<String> calls() {
-			return List.copyOf(calls);
+			return invocations.stream().map(GatewayInvocation::method).toList();
+		}
+
+		List<GatewayInvocation> invocations() {
+			return List.copyOf(invocations);
+		}
+
+		List<PaymentConfirmationCommand> confirmCommands() {
+			return commandsFor("confirm");
+		}
+
+		List<PaymentConfirmationCommand> inquiryCommands() {
+			return commandsFor("inquire");
 		}
 
 		@Override
 		public PaymentGatewayResult confirm(PaymentConfirmationCommand command) {
 			validate(command);
-			calls.add("confirm");
+			invocations.add(new GatewayInvocation("confirm", command));
 			return next(confirmations, "confirm");
 		}
 
 		@Override
 		public PaymentGatewayResult inquire(PaymentConfirmationCommand command) {
 			validate(command);
-			calls.add("inquire");
+			invocations.add(new GatewayInvocation("inquire", command));
 			return next(inquiries, "inquire");
+		}
+
+		private List<PaymentConfirmationCommand> commandsFor(String method) {
+			return invocations.stream()
+				.filter(invocation -> invocation.method().equals(method))
+				.map(GatewayInvocation::command)
+				.toList();
 		}
 
 		private void validate(PaymentConfirmationCommand command) {
@@ -742,8 +903,7 @@ class PaymentOperationFlowIntegrationTest {
 				|| !RESERVATION_UID.toString().equals(command.orderId())
 				|| command.amount() != AMOUNT
 				|| command.operationUid() == null
-				|| command.providerIdempotencyKey() == null
-				|| !command.providerIdempotencyKey().startsWith("airbob-confirm-")) {
+				|| command.providerIdempotencyKey() == null) {
 				throw new AssertionError("payment gateway received an uncorrelated command");
 			}
 		}
@@ -755,5 +915,8 @@ class PaymentOperationFlowIntegrationTest {
 			}
 			return result;
 		}
+	}
+
+	private record GatewayInvocation(String method, PaymentConfirmationCommand command) {
 	}
 }
