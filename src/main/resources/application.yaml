@@ -55,6 +55,7 @@ spring:
 
 google:
   api:
+    enabled: ${GOOGLE_API_ENABLED:true}
     key: ${GOOGLE_API_KEY}
 
 slack:
@@ -65,8 +66,14 @@ slack:
 
 payment:
   toss:
+    enabled: ${TOSS_PAYMENTS_ENABLED:true}
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com
+
+cloud:
+  aws:
+    s3:
+      write-enabled: ${AWS_S3_WRITE_ENABLED:true}
 
 springdoc:
   api-docs:

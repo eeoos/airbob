@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.retry.annotation.Backoff;
@@ -58,10 +59,13 @@ public class TossPaymentsAdapter {
 
 	private final RestClient tossPaymentsRestClient;
 	private final ObjectMapper objectMapper;
+	private final boolean enabled;
 
-	public TossPaymentsAdapter(@Qualifier("tossPaymentRestClient") RestClient tossPaymentsRestClient, ObjectMapper objectMapper) {
+	public TossPaymentsAdapter(@Qualifier("tossPaymentRestClient") RestClient tossPaymentsRestClient, ObjectMapper objectMapper,
+		@Value("${payment.toss.enabled:true}") boolean enabled) {
 		this.tossPaymentsRestClient = tossPaymentsRestClient;
 		this.objectMapper = objectMapper;
+		this.enabled = enabled;
 	}
 
 	@Retryable(
@@ -70,6 +74,8 @@ public class TossPaymentsAdapter {
 		backoff = @Backoff(delay = 2000)
 	)
 	public TossPaymentResponse confirmPayment(String paymentKey, String orderId, Integer amount) {
+		requireEnabled();
+
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(PAYMENT_KEY, paymentKey);
 		payload.put(ORDER_ID, orderId);
@@ -100,6 +106,8 @@ public class TossPaymentsAdapter {
 		backoff = @Backoff(delay = 2000)
 	)
 	public TossPaymentResponse cancelPayment(String paymentKey, String cancelReason, Long cancelAmount) {
+		requireEnabled();
+
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(CANCEL_REASON, cancelReason);
 
@@ -141,6 +149,8 @@ public class TossPaymentsAdapter {
 		backoff = @Backoff(delay = 2000)
 	)
 	public TossPaymentResponse issueVirtualAccount(Reservation reservation,String bankCode, String customerName) {
+		requireEnabled();
+
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(AMOUNT, reservation.getTotalPrice());
 		payload.put(ORDER_ID, reservation.getReservationUid().toString());
@@ -171,6 +181,8 @@ public class TossPaymentsAdapter {
 		backoff = @Backoff(delay = 2000)
 	)
 	private TossPaymentResponse getPayment(String path, String id) {
+		requireEnabled();
+
 		return tossPaymentsRestClient.get()
 			.uri(path, id)
 			.retrieve()
@@ -210,6 +222,12 @@ public class TossPaymentsAdapter {
 	private void throwIfIdempotentRequestIsProcessing(String errorCode) {
 		if (IDEMPOTENT_REQUEST_PROCESSING.equals(errorCode)) {
 			throw new ResourceAccessException(TOSS_API_SERVER_ERROR + errorCode);
+		}
+	}
+
+	private void requireEnabled() {
+		if (!enabled) {
+			throw new IllegalStateException("Toss Payments is disabled in this runtime profile");
 		}
 	}
 }

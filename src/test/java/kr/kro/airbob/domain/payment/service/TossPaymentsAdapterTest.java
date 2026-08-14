@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.ThrowableAssert;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -28,13 +29,37 @@ import kr.kro.airbob.domain.payment.exception.code.PaymentConfirmErrorCode;
 @DisplayName("TossPaymentsAdapter 테스트")
 class TossPaymentsAdapterTest {
 	private MockRestServiceServer server;
+	private RestClient.Builder builder;
 	private TossPaymentsAdapter adapter;
 
 	@BeforeEach
 	void setUp() {
-		RestClient.Builder builder = RestClient.builder().baseUrl("https://api.example.com");
+		builder = RestClient.builder().baseUrl("https://api.example.com");
 		server = MockRestServiceServer.bindTo(builder).build();
-		adapter = new TossPaymentsAdapter(builder.build(), new ObjectMapper());
+		adapter = new TossPaymentsAdapter(builder.build(), new ObjectMapper(), true);
+	}
+
+	@Test
+	@DisplayName("비활성화된 토스 결제 어댑터는 어떤 요청도 전송하지 않는다")
+	void disabledAdapterRejectsEveryExternalOperationBeforeSendingARequest() {
+		TossPaymentsAdapter disabledAdapter = new TossPaymentsAdapter(
+			builder.build(),
+			new ObjectMapper(),
+			false);
+
+		assertTossPaymentsDisabled(() -> disabledAdapter.confirmPayment("payment-key", "order-id", 1));
+		assertTossPaymentsDisabled(() -> disabledAdapter.cancelPayment("payment-key", "cancel", null));
+		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByPaymentKey("payment-key"));
+		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByOrderId("order-id"));
+		assertTossPaymentsDisabled(() -> disabledAdapter.issueVirtualAccount(null, "20", "guest"));
+
+		server.verify();
+	}
+
+	private void assertTossPaymentsDisabled(ThrowableAssert.ThrowingCallable invocation) {
+		assertThatThrownBy(invocation)
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("Toss Payments is disabled");
 	}
 
 	@Test
