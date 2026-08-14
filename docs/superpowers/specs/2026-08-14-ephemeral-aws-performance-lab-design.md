@@ -1,20 +1,20 @@
 ---
-title: "일회성 AWS 성능 실험실 및 역할별 Redis 설계"
+title: "일회성 AWS 성능 실험실 및 Redis 2분리 설계"
 date: "2026-08-14"
 status: "draft-for-review"
 related_plan: "docs/plans/2026-08-11-001-perf-aws-traffic-index-benchmark-plan.md"
 ---
 
-# 일회성 AWS 성능 실험실 및 역할별 Redis 설계
+# 일회성 AWS 성능 실험실 및 Redis 2분리 설계
 
 ## 결론
 
 OCI는 `api.airbob.cloud`의 상시 포트폴리오 환경으로 계속 실행한다. AWS는 성능 개선 검증이나 스케일아웃 실험이 필요할 때만 Terraform으로 생성하고, 검증을 마치면 다시 제거한다.
 
-AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 인프라의 서비스 경계를 유지하되 Redis만 전용 EC2 한 대 안에서 역할별 컨테이너 다섯 개로 나눈다.
+AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 인프라의 서비스 경계를 유지하되 Redis는 전용 EC2 한 대 안에 현재와 같은 범용 Redis와 숙소 상세 캐시 Redis 두 컨테이너로 실행한다.
 
 - 애플리케이션: `c6i.large` Auto Scaling Group
-- Redis: `t3.small` EC2 한 대, Redis 5개와 exporter 5개
+- Redis: `t3.small` EC2 한 대, Redis 2개와 exporter 2개
 - Kafka: `t3.medium` EC2 한 대
 - Debezium: `t3.medium` EC2 한 대
 - Elasticsearch: `t3.medium` EC2 한 대
@@ -46,7 +46,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 - 응답 성능 비교에서는 앱 인스턴스를 정확히 한 대로 고정한다.
 - 스케일아웃 실험에서는 앱 ASG를 `min=1`, `desired=1`, `max=4`로 전환한다.
 - 앱·Kafka·Debezium·Elasticsearch·Redis·RDS·모니터링의 서비스 경계를 보존한다.
-- Redis는 한 EC2에서 역할별 프로세스, persistence, eviction과 지표를 분리한다.
+- Redis는 한 EC2에서 범용 데이터와 숙소 상세 캐시의 persistence, eviction과 지표를 분리한다.
 - SQL dump와 Elasticsearch snapshot으로 동일한 합성 데이터를 재현한다.
 - 이미지 digest, 데이터 release, JVM 옵션과 실험 조건을 artifact에 남긴다.
 - 실행 실패나 사용 후 방치로 생기는 비용과 DNS 장애를 줄인다.
@@ -57,7 +57,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 - ElastiCache, MSK, OpenSearch, ECS 또는 EKS로 이전하지 않는다.
 - OCI와 AWS를 동시에 사용자 트래픽에 제공하거나 active-active로 운영하지 않는다.
 - 새 도메인을 구매하거나 도메인 등록기관을 가비아에서 옮기지 않는다. DNS hosting만 `airbob.cloud` 전체를 Route 53으로 이전한다.
-- OCI Redis도 다섯 컨테이너로 확장하지 않는다. OCI는 현재의 범용 Redis와 숙소 상세 캐시 Redis 두 개를 유지할 수 있다.
+- Redis를 인증·락·쿠폰 등으로 더 세분화하지 않는다. OCI와 AWS 모두 현재의 범용 Redis와 숙소 상세 캐시 Redis 두 개를 유지한다.
 - 실제 고객 데이터나 운영 트래픽을 재현한다고 주장하지 않는다.
 - 첫 버전에서 백그라운드 스케줄러의 다중 인스턴스 ownership 문제를 해결하지 않는다.
 - 내부 Kafka, Redis, Elasticsearch 통신에 TLS를 새로 도입하지 않는다. 합성 데이터만 사용하는 private VPC 실험실이라는 경계를 명시한다.
@@ -77,9 +77,9 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 ElastiCache, MSK와 OpenSearch는 운영 관점에서는 자연스럽지만 포트폴리오 실험실의 상시·기동 비용이 커진다. 관리형 서비스 운영이 이번 성능 실험의 학습 목표도 아니므로 채택하지 않는다.
 
-### 4. 서비스별 EC2를 유지하고 Redis만 한 호스트에서 역할 분리
+### 4. 서비스별 EC2를 유지하고 Redis만 한 호스트에서 2분리
 
-기존 아키텍처를 보여 주고 각 서비스 지표를 분리하면서도 Redis EC2 수는 한 대만 사용한다. 현재 프로젝트 규모와 비용 목표에 가장 적합하므로 이 방식을 채택한다.
+기존 아키텍처를 보여 주고 각 서비스 지표를 분리하면서도 Redis EC2 수는 한 대만 사용한다. Redis 내부 구성도 현재 구현된 범용/숙소 상세 캐시 경계를 그대로 사용한다. 현재 프로젝트 규모와 비용 목표에 가장 적합하므로 이 방식을 채택한다.
 
 ## 선행 조건: `airbob.cloud` 권한 DNS를 Route 53으로 이전
 
@@ -112,7 +112,7 @@ flowchart TB
   subgraph aws["AWS Seoul - 일회성 실험실"]
     alb --> asg["App ASG: c6i.large 1~4대"]
     asg --> rds[("RDS MySQL")]
-    asg --> redis["Redis EC2: 5개 컨테이너"]
+    asg --> redis["Redis EC2: 2개 컨테이너"]
     asg --> kafka["Kafka EC2"]
     asg --> es["Elasticsearch EC2"]
     rds --> debezium["Debezium EC2"]
@@ -176,7 +176,7 @@ OCI와 AWS는 데이터를 공유하지 않는다. DNS를 AWS로 전환하면 �
 | 구성요소 | 기본 크기 | 실행 내용 | 설계 의도 |
 |---|---:|---|---|
 | App ASG | `c6i.large` | 노드당 앱 컨테이너 1개 | CPU credit이 없는 x86 고정 성능 측정 대상 |
-| Redis | `t3.small` | Redis 5개 + exporter 5개 | 한 장애 도메인 안에서 역할과 지표만 분리 |
+| Redis | `t3.small` | 범용/cache Redis 2개 + exporter 2개 | 한 장애 도메인 안에서 데이터 성격과 지표만 분리 |
 | Kafka | `t3.medium` | Kafka + JMX exporter | 단일 broker, 합성 이벤트 처리 |
 | Debezium | `t3.medium` | Connect/Debezium + exporter | RDS binlog → Kafka CDC |
 | Elasticsearch | `t3.medium` | ES 8.18.8 + Nori + exporter | 단일 node 검색 실험 |
@@ -191,7 +191,7 @@ Elasticsearch heap은 1GiB, Kafka heap은 1GiB, Debezium heap은 512MiB를 초�
 
 T3 계열은 비용 절약을 위해 의존 서비스에만 사용한다. EC2 T3는 빠른 bootstrap을 위해 `unlimited`를 명시하고, RDS T3도 Unlimited 동작임을 비용 계산에 포함한다. 새 T3에 launch credit이 있다고 가정하지 않는다. 서비스 준비 후 최초 credit/surplus 상태를 기록하고, 측정 전 idle-control에서 surplus가 해소되고 사전에 정한 최소 credit·CPU·I/O gate를 통과할 때까지 기다린다. `CPUCreditBalance`, `CPUSurplusCreditBalance`, `CPUSurplusCreditsCharged`, CPU와 load를 모든 실행에서 기록한다.
 
-의존 서비스가 credit 또는 CPU·heap·I/O 한계에 닿거나 baseline/candidate 사이 credit 시작 상태가 gate를 벗어난 실행은 앱 응답 성능의 증거로 채택하지 않는다. 정해진 준비 시간 안에 gate를 통과하지 못하거나 특정 의존 서비스가 반복적으로 병목이면 그 실행에서만 fixed-performance/상위 instance type override를 명시하고 별도 조건으로 보고한다.
+의존 서비스가 credit 또는 CPU·heap·I/O 한계에 닿거나 baseline/candidate 사이 credit 시작 상태가 gate를 벗어난 실행은 앱 응답 성능의 증거로 채택하지 않는다. 정해진 준비 시간 안에 gate를 통과하지 못하거나 특정 의존 서비스가 반복적으로 병목이면 실행을 중단하고 지표와 병목 증거를 사용자에게 보고한다. fixed-performance 또는 상위 instance type으로 바꾸는 재실행은 사용자 승인 뒤 별도 조건으로 수행한다.
 
 ## 네트워크와 보안
 
@@ -214,8 +214,8 @@ T3 계열은 비용 절약을 위해 의존 서비스에만 사용한다. EC2 T3
 | ALB | Internet | 443 |
 | App | ALB SG, monitoring SG | 8080 |
 | RDS | App SG, Debezium SG, 승인된 load-generator SG | 3306 |
-| Redis | App SG | 6379~6383 |
-| Redis exporters | monitoring SG | 9121~9125 |
+| Redis | App SG | 6379, 6380 |
+| Redis exporters | monitoring SG | 9121, 9122 |
 | Kafka | App SG, Debezium SG | 9092 |
 | Kafka JMX exporter | monitoring SG | 7071 |
 | Debezium admin/API | SSM을 통한 localhost 접근 | 8083을 외부 SG에 열지 않음 |
@@ -237,13 +237,14 @@ GitHub OIDC 권한도 수명 주기 경계와 맞춘다. 일반 `lab-operator`/�
 
 AWS의 각 EC2는 동일 Docker bridge에 있지 않으므로 OCI의 `redis`, `kafka`, `mysql` 같은 Compose 서비스명을 그대로 사용할 수 없다. Route 53 private hosted zone `lab.airbob.internal`에 다음 이름을 만든다.
 
-- `redis.lab.airbob.internal`
+- `redis-general.lab.airbob.internal`
+- `redis-cache.lab.airbob.internal`
 - `kafka.lab.airbob.internal`
 - `connect.lab.airbob.internal`
 - `elasticsearch.lab.airbob.internal`
 - `monitoring.lab.airbob.internal`
 
-Redis의 다섯 이름은 같은 private IP를 가리키고 포트로 역할을 구분할 수 있다. 또는 가독성을 위해 `redis-auth`, `redis-coordination`, `redis-coupon`, `redis-recent`, `redis-detail-cache`가 같은 IP를 가리키게 한다. 애플리케이션에는 역할별 host와 port를 모두 명시한다.
+`redis-general.lab.airbob.internal`과 `redis-cache.lab.airbob.internal`은 같은 Redis EC2 private IP를 가리킨다. 범용 Redis는 host port 6379, 숙소 상세 캐시는 host port 6380을 사용한다. 애플리케이션에는 두 endpoint를 명시적으로 주입한다.
 
 Kafka는 container 내부 listener와 EC2 간 listener를 분리한다.
 
@@ -254,67 +255,54 @@ Debezium connector도 Docker 이름이 아니라 RDS endpoint와 VPC Kafka 이�
 
 별도 bootstrap EC2를 상시 추가하지 않는다. 의존 서비스 초기화 구간에는 아직 connector를 시작하지 않은 Debezium EC2가 SSM bootstrap runner 역할을 맡아 SQL dump import, Elasticsearch restore API 호출, Kafka topic과 connector 준비를 수행한다. 이 임시 책임은 측정 전에 끝나며 bootstrap 도구와 로그가 백그라운드 프로세스로 남지 않았는지 확인한다. 기록용 k6 EC2는 실제 측정 직전에 만들고 evidence 업로드 직후 제거할 수 있다.
 
-## 단일 Redis EC2의 역할별 설계
+## 단일 Redis EC2의 2컨테이너 설계
 
-현재 저장소는 범용 `redis`와 숙소 상세 전용 `redis-cache`의 두 프로세스를 갖는다. 범용 Redis에는 세션, 예약·정산 락, 예약 hold, 쿠폰, 최근 본 숙소가 함께 들어 있다. 목표 AWS 구조는 기존 숙소 상세 캐시 격리를 보존하면서 범용 역할을 네 개로 나눈 총 다섯 프로세스다.
+현재 저장소는 범용 `redis`와 숙소 상세 전용 `redis-cache`의 두 프로세스를 갖는다. AWS도 이 경계를 그대로 유지하며 인증·락·쿠폰·최근 본 숙소를 추가로 분리하지 않는다.
 
 ```mermaid
 flowchart LR
-  app["App ASG"] --> auth["6379 auth"]
-  app --> coordination["6380 coordination"]
-  app --> coupon["6381 coupon"]
-  app --> recent["6382 recently-viewed"]
-  app --> detail["6383 accommodation-detail-cache"]
-  monitor["Prometheus"] --> e1["9121 exporter"]
-  monitor --> e2["9122 exporter"]
-  monitor --> e3["9123 exporter"]
-  monitor --> e4["9124 exporter"]
-  monitor --> e5["9125 exporter"]
-  e1 --> auth
-  e2 --> coordination
-  e3 --> coupon
-  e4 --> recent
-  e5 --> detail
+  app["App ASG"] --> general["6379 general Redis"]
+  app --> cache["6380 accommodation-detail cache"]
+  monitor["Prometheus"] --> e1["9121 general exporter"]
+  monitor --> e2["9122 cache exporter"]
+  e1 --> general
+  e2 --> cache
 ```
 
-| 역할 | 주요 키/사용처 | persistence | eviction | 초깃값 memory budget |
+| 컨테이너 | 주요 키/사용처 | persistence | eviction | 현재 기준 memory budget |
 |---|---|---|---|---:|
-| `auth` | `SESSION:*`, `MEMBER_SESSIONS:*`, `MEMBER_SESSION_ACTIVE:*` | AOF `everysec` | `noeviction` | maxmemory 128MiB, container 192MiB |
-| `coordination` | 예약 Redisson lock, `HOLD:RESERVATION:*`, 정산 lock | 없음 | `noeviction` | maxmemory 64MiB, container 128MiB |
-| `coupon` | Lua stock/issued, 쿠폰 비교용 Redisson lock | AOF `everysec` | `noeviction` | maxmemory 128MiB, container 192MiB |
-| `recently-viewed` | `recently_viewed:*` | 없음 | `allkeys-lru` | maxmemory 64MiB, container 96MiB |
-| `accommodation-detail-cache` | 상세 positive/negative cache, stampede lock, load permit | 없음 | `allkeys-lru` | maxmemory 256MiB, container 320MiB |
+| `redis` | 세션, 예약 hold/락, 정산 락, 쿠폰 stock/issued와 비교용 락, 최근 본 숙소 | AOF `everysec` | `noeviction` | maxmemory 512MiB, container 640MiB |
+| `redis-cache` | 숙소 상세 positive/negative cache, stampede lock, load permit | 없음 | `allkeys-lru` | maxmemory 256MiB, container 320MiB |
 
-exporter는 역할별로 하나씩 두고 `namespace`와 `instance` label을 고정한다. exporter의 memory limit은 각 32~48MiB에서 시작한다. 위 값은 합성 dataset 초깃값이며 다음 bootstrap gate를 모두 통과해야 한다.
+현재와 같이 `redis-exporter-general`, `redis-exporter-cache`를 하나씩 두고 각 memory limit은 64MiB로 시작한다. Prometheus label도 기존 `namespace=general|cache`, `instance=redis-general|redis-cache`를 유지한다. 다음 bootstrap gate를 모두 통과해야 한다.
 
-- 모든 Redis/exporter/node agent 기동 후 host `MemAvailable >= 512MiB`
+- Redis 2개, exporter 2개와 node agent 기동 후 host `MemAvailable >= 512MiB`
 - swap in/out 0, host와 cgroup OOM event 0
 - 각 container peak memory가 hard limit의 80% 미만
-- auth와 coupon에서 시험 `BGREWRITEAOF`가 성공하고 그 peak에도 `MemAvailable >= 256MiB`
+- 범용 Redis의 시험 `BGREWRITEAOF`가 성공하고 그 peak에도 `MemAvailable >= 256MiB`
 - Redis fragmentation, fork failure와 exporter scrape failure 없음
 
-하나라도 실패하면 DNS 전환 전에 Terraform을 `redis_instance_type=t3.medium`으로 다시 apply한다. 측정 중 gate가 깨진 실행도 무효다.
+하나라도 실패하면 DNS 전환과 성능 측정을 중단하고 관측값을 사용자에게 보고한다. `t3.medium`으로 변경하거나 memory budget을 조정하는 선택은 사용자 승인 없이 적용하지 않는다. 측정 중 gate가 깨진 실행도 무효로 표시하고 다음 조치를 묻는다.
 
-다섯 프로세스가 한 EC2에 있으므로 host 장애, EBS 장애와 CPU·network contention은 공유한다. 이 설계는 HA가 아니라 다음만 보장한다.
+두 프로세스가 한 EC2에 있으므로 host 장애, EBS 장애와 CPU·network contention은 공유한다. 이 설계는 HA가 아니라 다음만 보장한다.
 
-- cache eviction이 인증 세션이나 쿠폰 재고를 지우지 않는다.
-- `FLUSHDB`, persistence와 maxmemory 정책의 영향 범위를 역할별로 줄인다.
-- 쿠폰, coordination과 cache 지표를 서로 섞지 않는다.
-- 포트폴리오에서 역할별 데이터 성격에 맞는 정책 선택을 설명할 수 있다.
+- 숙소 상세 cache eviction이 범용 Redis의 세션·락·쿠폰 데이터를 지우지 않는다.
+- cache flush와 persistence/maxmemory 정책의 영향 범위를 두 데이터 성격으로 나눈다.
+- 범용 Redis와 숙소 상세 cache 지표를 분리한다.
+- 기존 OCI와 로컬 환경에서 검증한 Redis 경계를 AWS에서도 재사용한다.
 
-### 애플리케이션 라우팅 변경
+### 애플리케이션 연결 계약
 
-Terraform만으로 Redis 역할 분리가 완성되지는 않는다. 현재 코드는 범용 Spring Redis/Redisson과 숙소 상세 전용 client 두 개만 알고 있으므로 다음 애플리케이션 변경이 선행돼야 한다.
+현재 코드는 이미 범용 Spring Redis/Redisson과 숙소 상세 전용 Lettuce/Redisson client를 갖는다. 새 역할별 client를 추가하지 않는다.
 
-- 인증용 `RedisTemplate`을 `auth` endpoint에 명시적으로 연결한다.
-- 예약 hold용 template과 예약·정산용 Redisson을 `coordination` endpoint에 연결한다.
-- 쿠폰 Lua template과 비교용 Redisson을 모두 `coupon` endpoint에 연결한다.
-- 최근 본 숙소 template을 `recently-viewed` endpoint에 연결한다.
-- 기존 숙소 상세 전용 Lettuce/Redisson은 `accommodation-detail-cache`를 유지한다.
-- AWS profile에서는 역할별 endpoint 누락 시 시작에 실패하며 범용 Redis로 조용히 fallback하지 않는다.
-- OCI profile에서는 비용 절감을 위해 auth/coordination/coupon/recently-viewed가 기존 범용 `redis`를 가리켜도 된다. 숙소 상세 cache는 기존 `redis-cache`를 유지한다.
+- `spring.data.redis`는 `redis-general.lab.airbob.internal:6379`를 사용한다.
+- `accommodation.detail-cache.redis`는 같은 EC2의 `redis-cache.lab.airbob.internal:6380`을 사용한다.
+- 인증, 예약·정산, 쿠폰과 최근 본 숙소 코드는 현재처럼 범용 client를 사용한다.
+- 숙소 상세 cache와 cache lock/load permit은 현재처럼 전용 client를 사용한다.
+- AWS/lab profile에서는 두 endpoint를 모두 명시하고 서로 같은 host/port 조합이면 시작에 실패한다. 현재 AWS 설정의 cache→범용 endpoint fallback을 lab에서 허용하지 않는다.
+- OCI는 기존 `REDIS_HOST=redis`, `ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache` 구성을 유지한다.
 
-라우팅은 이름 있는 properties와 명시적 qualifier 또는 역할별 adapter로 표현한다. `@Primary`에 기대어 여러 역할이 우연히 같은 client를 받지 않게 한다. 테스트는 실제 Redis 컨테이너 다섯 개를 띄워 키 namespace가 기대 서버에만 생성되는지 확인한다.
+통합 테스트는 실제 Redis 컨테이너 두 개를 띄워 범용 키와 숙소 상세 cache 키가 각각 기대 서버에만 생성되는지 확인한다. 기존 도메인 코드의 Redis 역할을 더 세분화하는 리팩터링은 이 계획의 범위가 아니다.
 
 ## Terraform 용량 모드
 
@@ -458,7 +446,7 @@ RDS와 bootstrap은 CDC 및 SQL evidence에 필요한 다음 값을 명시적으
 - `performance_schema=ON`과 statement digest에 필요한 instrument/consumer 활성화
 - MySQL engine/parameter-group/storage version, timezone과 Flyway lineage 기록
 
-parameter 적용과 reboot 완료, master credential 조회를 확인한 뒤에만 connector를 등록한다. snapshot에서 복원한 경우에도 secret 연결과 credential rotation 상태를 다시 확인한다. `db.t3.micro`의 free memory, CPU credit 또는 connection limit 때문에 Performance Schema 자체가 병목이면 해당 실행을 무효화하고 명시적인 RDS size override로 다시 실행한다.
+parameter 적용과 reboot 완료, master credential 조회를 확인한 뒤에만 connector를 등록한다. snapshot에서 복원한 경우에도 secret 연결과 credential rotation 상태를 다시 확인한다. `db.t3.micro`의 free memory, CPU credit 또는 connection limit 때문에 Performance Schema 자체가 병목이면 해당 실행을 무효화하고 지표를 사용자에게 보고한다. RDS 크기를 바꾼 재실행은 사용자 승인 뒤 별도 조건으로 수행한다.
 
 ### Elasticsearch
 
@@ -475,8 +463,9 @@ EBS snapshot이 아니라 Elasticsearch native Snapshot API와 S3 repository를 
 
 ### Redis, Kafka와 Debezium
 
-- `auth`, `coordination`, `recently-viewed`, `accommodation-detail-cache`는 빈 상태로 시작한다.
-- `coupon`은 manifest의 coupon ID와 수량으로 prepare한 뒤 DB marker와 Redis count를 함께 검증한다.
+- 범용 `redis`와 숙소 상세용 `redis-cache`는 모두 빈 상태로 시작한다.
+- 범용 Redis의 session, hold/lock과 recently-viewed 상태는 비워 두고, coupon만 manifest의 ID와 수량으로 prepare한 뒤 release tuple/DB fingerprint와 Redis count를 함께 검증한다.
+- 숙소 상세 Redis는 실험 유형에 맞춰 비운 상태 또는 선언된 동일 warm-up 상태로 맞춘다.
 - Kafka topic은 빈 상태로 생성하며 retention과 partition 수를 manifest 또는 infra release에 고정한다.
 - Debezium은 DB import와 outbox 정리 후 connector를 등록한다.
 - 새 release bootstrap에서는 `snapshot.mode=no_data`처럼 기존 row를 이벤트로 재발행하지 않는 connector 설정을 사용한다.
@@ -498,7 +487,7 @@ EBS snapshot이 아니라 Elasticsearch native Snapshot API와 S3 repository를 
 Prometheus는 다음 대상을 수집한다.
 
 - App ASG: EC2 service discovery와 tag relabeling으로 `/actuator/prometheus` 수집
-- Redis: 역할별 exporter 5개
+- Redis: 범용/cache exporter 2개
 - Kafka/Debezium/Elasticsearch: 각 서비스 exporter/JMX metric
 - 모든 EC2: node exporter, 필요한 경우 cAdvisor
 
@@ -509,7 +498,7 @@ Grafana는 Prometheus datasource와 CloudWatch datasource를 사용한다. Cloud
 - 앱: request rate, error rate, p50/p95/p99, JVM heap/GC, thread, Hikari pool
 - ALB/ASG: target response time, request count/target, healthy host, desired/in-service capacity, scale activity
 - RDS: CPU, connection, free memory, read/write latency, IOPS, Performance Schema digest delta
-- Redis: role별 memory, ops, latency, hit/miss, key count, expired/evicted, blocked client
+- Redis: 범용/cache별 memory, ops, latency, hit/miss, key count, expired/evicted, blocked client
 - Kafka/Debezium: consumer lag, producer/consumer rate, connector state와 restart count
 - Elasticsearch: heap, GC, search/index latency, thread pool reject, document count
 - T3 host: CPU credit balance/surplus와 network/disk saturation
@@ -665,7 +654,8 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 
 - **Fail closed:** 데이터 checksum, ES version, image digest, health check가 맞지 않으면 DNS를 전환하지 않는다.
 - **Rollback first:** AWS 전환 후 오류가 나면 OCI로 먼저 되돌리고 destroy한다.
-- **No silent fallback:** ES snapshot 실패를 Logstash 재색인으로 숨기거나 role Redis endpoint 누락을 범용 Redis로 합치지 않는다.
+- **No silent fallback:** ES snapshot 실패를 Logstash 재색인으로 숨기거나 숙소 상세 cache Redis endpoint 누락을 범용 Redis로 합치지 않는다.
+- **Ask before changing design:** 계획한 topology, instance type, memory budget, 데이터 복원 경로나 측정 계약을 바꿔야 하는 실패가 발생하면 중단하고 증거를 보존한 뒤 사용자에게 묻는다. 승인 없이 resize, 서비스 통합, 재색인 경로 또는 endpoint fallback을 적용하지 않는다.
 - **Idempotent control:** 같은 입력의 `up`, `status`, `switch`, `down`을 다시 실행해도 현재 상태를 탐지하고 안전하게 이어 간다.
 - **Evidence before cleanup:** 실패 로그와 자원 상태를 secret 없이 저장한 뒤 정리한다.
 - **Scoped destroy:** account/region/tag/state allowlist가 맞지 않으면 destroy를 거부한다.
@@ -674,14 +664,14 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 
 ### Phase 0. 실행 계약과 선행 애플리케이션 격리
 
-- 역할별 Redis properties/client/qualifier와 물리 라우팅 테스트를 추가한다.
+- 기존 범용/숙소 상세 Redis client 경계를 유지하고, AWS endpoint 명시·서로 다른 host/port 검증과 물리 라우팅 테스트를 추가한다.
 - `traffic-benchmark` profile에서 scheduler와 Kafka listener를 끄는 계약을 구현한다.
 - 동일 image의 cache A/B를 위한 명시적 enable toggle과 reset 계약을 추가한다.
 - 모든 lab profile에서 실제 Toss/Slack/Google/일반 S3 쓰기를 stub·disable하거나 전용 allowlist prefix로 제한한다.
 - AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
 - 앱과 infra image를 immutable digest로 발행한다.
 
-이 단계가 끝나기 전에는 “Redis 역할 분리”나 “잡음 없는 성능 비교”를 완료했다고 보지 않는다.
+이 단계가 끝나기 전에는 “Redis 2분리 검증”이나 “잡음 없는 성능 비교”를 완료했다고 보지 않는다.
 
 ### Phase 1. Terraform bootstrap과 영구 기반
 
@@ -695,8 +685,8 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 
 - VPC, subnet, SG, NAT instance, private DNS를 만든다.
 - disposable private probe로 NAT/S3 endpoint egress를 검증한 뒤 service fleet을 생성한다.
-- Redis 5개, Kafka, Debezium, Elasticsearch와 monitoring Compose bundle을 배포한다.
-- SSM health check와 역할별 exporter scrape를 연결한다.
+- 범용/숙소 상세 Redis 2개와 exporter 2개, Kafka, Debezium, Elasticsearch 및 monitoring Compose bundle을 배포한다.
+- SSM health check와 범용/cache exporter scrape를 연결한다.
 
 ### Phase 3. 데이터 bootstrap
 
@@ -734,15 +724,15 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - mode별 plan snapshot에서 ASG capacity와 scaling policy 유무를 검사한다.
 - persistent state resource가 lab destroy plan에 포함되지 않는지 검사한다.
 - Compose config, image digest, Redis port/memory/persistence/eviction 정책을 테스트한다.
-- role별 Redis client routing과 endpoint 누락 fail-fast를 테스트한다.
+- 범용/cache Redis client routing, 서로 다른 endpoint와 endpoint 누락 fail-fast를 테스트한다.
 
 ### 통합 검증
 
 - bootstrap/foundation과 하나의 published dataset release가 존재하고 lab state/resource는 빈 상태에서 `up → smoke → down`을 수행한다.
 - 별도로 새 test account에서 bootstrap state 생성·S3 이관, public-zone record 복제와 name-server 변경 직전까지의 foundation plan/destroy boundary를 검증한다. 실제 가비아 name server 변경은 수동 승인 단계로 남긴다.
 - 로컬 up과 GitHub status/down이 같은 state를 인식하는지 교차 검증한다.
-- 실제 Redis 5개에서 각 key가 지정된 서버에만 생성되는지 검사한다.
-- auth/coupon/coordination Redis를 유지한 채 cache Redis를 flush해 기능 영향 범위를 확인한다.
+- 실제 Redis 2개에서 범용 key와 숙소 상세 cache key가 지정된 서버에만 생성되는지 검사한다.
+- 범용 Redis의 session/coupon/lock 데이터를 유지한 채 숙소 상세 Redis를 flush해 기능 영향 범위를 확인한다.
 - `evidence`/search-enabled release에서는 ES snapshot 복원 후 analyzer, mapping, document count와 검색 smoke를 확인한다. search-disabled `pipeline-rehearsal`은 이 gate를 실행하지 않는다.
 - outbox가 과거 이벤트를 재발행하지 않는지 확인한다.
 - Prometheus가 ASG instance 교체 후 새 target을 자동 발견하고 이전 target을 제거하는지 확인한다.
@@ -752,7 +742,7 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - 공통 데이터 checksum 오류, 해당 release의 ES version 불일치와 unhealthy target에서 DNS가 바뀌지 않아야 한다.
 - AWS public smoke 실패 시 OCI로 자동 rollback해야 한다.
 - 만료 전 수동 down에서 OCI health가 실패하면 destroy 전에 멈춰야 한다.
-- TTL 만료 후 2시간 grace가 끝난 fallback cleanup은 경고 기록 후 OCI로 DNS를 돌리고 lab을 강제 정리해야 한다.
+- TTL 만료 후 2시간 grace가 끝난 expiry cleanup은 경고 기록 후 OCI로 DNS를 돌리고 lab을 강제 정리해야 한다.
 - 로컬/GitHub 조합으로 동시에 두 mutating command를 실행하면 전역 orchestration lease로 하나가 거부되어야 한다.
 - 이전 fencing token의 중단·재개 프로세스는 다음 phase와 AWS API mutation을 수행하지 못해야 한다.
 - TTL이 지난 lab은 scheduled cleanup 후 orphan scan이 0이어야 한다.
@@ -764,7 +754,7 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - `scaling` plan은 1/1/4이고 검증된 request target 및 CPU policy가 있다.
 - AWS가 healthy하기 전에는 `api.airbob.cloud`가 OCI를 계속 가리킨다.
 - AWS 전환 중에도 OCI는 실행되며 rollback 대상으로 유지된다.
-- Redis EC2 한 대에 다섯 역할 컨테이너와 다섯 exporter가 있고 key routing 검증이 통과한다.
+- Redis EC2 한 대에 범용/숙소 상세 Redis 컨테이너 2개와 exporter 2개가 있고 key routing 검증이 통과한다.
 - 모든 release의 SQL dump가 검증되고, `evidence`/search-enabled release에서는 ES snapshot도 같은 release tuple로 복원·검증된다.
 - 성능 결과는 선언한 독립 변수 하나만 다르고 나머지 JVM/dataset/instance 조건은 고정되며 baseline/candidate 값을 모두 포함해 S3에 남는다.
 - T3 dependency saturation이나 load-generator bottleneck이 있는 실행은 자동으로 invalid 표시된다.
