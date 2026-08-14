@@ -21,6 +21,7 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 		select c
 		from Coupon c
 		where c.isActive = true
+		  and c.redisStockPreparedAt is not null
 		  and c.issueEndAt > :now
 		order by c.issueStartAt desc, c.id desc
 		""")

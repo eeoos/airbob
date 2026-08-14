@@ -2,8 +2,11 @@ package kr.kro.airbob.domain.coupon.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,6 +30,7 @@ import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 class CouponQueryServiceTest {
 
 	private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 20, 9, 30);
+	private static final long REDIS_NOW_MILLIS = Instant.parse("2026-08-20T00:30:00Z").toEpochMilli();
 
 	@Mock
 	private CouponRepository couponRepository;
@@ -34,20 +38,27 @@ class CouponQueryServiceTest {
 	private MemberCouponRepository memberCouponRepository;
 	@Mock
 	private CouponTimeProvider timeProvider;
+	@Mock
+	private CouponRedisStockManager stockManager;
 
 	private CouponQueryService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new CouponQueryService(couponRepository, memberCouponRepository, timeProvider);
-		when(timeProvider.now()).thenReturn(NOW);
+		service = new CouponQueryService(
+			couponRepository,
+			memberCouponRepository,
+			timeProvider,
+			stockManager);
 	}
 
 	@Test
-	@DisplayName("쿠폰 캠페인을 발급 시작 최신순과 현재 발급 상태로 조회한다")
+	@DisplayName("쿠폰 캠페인 상태는 발급 Lua와 동일한 Redis 시각으로 계산한다")
 	void findsCouponCampaignsWithIssuanceStatus() {
 		Coupon upcoming = coupon(2L, NOW.plusDays(1), 100, 0);
 		Coupon open = coupon(1L, NOW.minusMinutes(30), 100, 10);
+		when(stockManager.currentEpochMillis()).thenReturn(REDIS_NOW_MILLIS);
+		when(timeProvider.fromEpochMilli(REDIS_NOW_MILLIS)).thenReturn(NOW);
 		when(couponRepository.findCampaigns(NOW)).thenReturn(List.of(upcoming, open));
 
 		CouponResponse.CouponInfos response = service.findCouponCampaigns();
@@ -57,6 +68,7 @@ class CouponQueryServiceTest {
 			.containsExactly(
 				tuple(2L, CouponIssuanceStatus.UPCOMING),
 				tuple(1L, CouponIssuanceStatus.OPEN));
+		verify(timeProvider, never()).now();
 	}
 
 	@Test
@@ -64,6 +76,7 @@ class CouponQueryServiceTest {
 	void findsMyCouponsWithMemberCouponStatus() {
 		MemberCoupon used = memberCoupon(12L, coupon(2L, NOW.minusDays(2), 100, 1), true);
 		MemberCoupon available = memberCoupon(11L, coupon(1L, NOW.minusDays(3), 100, 1), false);
+		when(timeProvider.now()).thenReturn(NOW);
 		when(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(10L))
 			.thenReturn(List.of(used, available));
 

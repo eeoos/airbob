@@ -17,10 +17,11 @@ public class CouponQueryService {
 	private final CouponRepository couponRepository;
 	private final MemberCouponRepository memberCouponRepository;
 	private final CouponTimeProvider timeProvider;
+	private final CouponRedisStockManager stockManager;
 
 	@Transactional(readOnly = true)
 	public CouponResponse.CouponInfos findCouponCampaigns() {
-		LocalDateTime now = timeProvider.now();
+		LocalDateTime now = timeProvider.fromEpochMilli(stockManager.currentEpochMillis());
 		var infos = couponRepository.findCampaigns(now).stream()
 			.map(coupon -> CouponResponse.CouponInfo.of(coupon, now))
 			.toList();

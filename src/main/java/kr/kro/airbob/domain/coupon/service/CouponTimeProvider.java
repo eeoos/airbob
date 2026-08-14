@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.coupon.service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
@@ -16,5 +17,9 @@ public class CouponTimeProvider {
 
 	public long toEpochMilli(LocalDateTime dateTime) {
 		return dateTime.atZone(COUPON_ZONE).toInstant().toEpochMilli();
+	}
+
+	public LocalDateTime fromEpochMilli(long epochMillis) {
+		return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), COUPON_ZONE);
 	}
 }

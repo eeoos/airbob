@@ -20,6 +20,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
@@ -29,7 +30,7 @@ import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaAuditingConfig.class, QueryDslConfig.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class})
 @DisplayName("쿠폰 조회 저장소 테스트")
 class CouponQueryRepositoryTest {
 
@@ -59,12 +60,13 @@ class CouponQueryRepositoryTest {
 	private JdbcTemplate jdbc;
 
 	@Test
-	@DisplayName("활성 상태이고 발급이 끝나지 않은 캠페인만 발급 시작 최신순으로 조회한다")
+	@DisplayName("Redis 재고가 준비된 활성·미종료 캠페인만 발급 시작 최신순으로 조회한다")
 	void findsVisibleCampaignsInLatestIssueOrder() {
 		long older = insertCoupon("진행 중", true, NOW.minusHours(1), NOW.plusHours(1));
 		long latest = insertCoupon("오픈 예정", true, NOW.plusMinutes(30), NOW.plusHours(2));
 		insertCoupon("종료", true, NOW.minusHours(2), NOW);
 		insertCoupon("비활성", false, NOW.plusHours(1), NOW.plusHours(2));
+		insertUnpreparedCoupon("재고 미준비", NOW.minusMinutes(30), NOW.plusHours(1));
 
 		assertThat(couponRepository.findCampaigns(NOW))
 			.extracting(Coupon::getId)
@@ -104,19 +106,39 @@ class CouponQueryRepositoryTest {
 		LocalDateTime issueStartAt,
 		LocalDateTime issueEndAt
 	) {
+		return insertCoupon(name, active, issueStartAt, issueEndAt, NOW);
+	}
+
+	private long insertUnpreparedCoupon(
+		String name,
+		LocalDateTime issueStartAt,
+		LocalDateTime issueEndAt
+	) {
+		return insertCoupon(name, true, issueStartAt, issueEndAt, null);
+	}
+
+	private long insertCoupon(
+		String name,
+		boolean active,
+		LocalDateTime issueStartAt,
+		LocalDateTime issueEndAt,
+		LocalDateTime redisStockPreparedAt
+	) {
 		jdbc.update("""
 			INSERT INTO coupon (
 			  name, discount_type, discount_value,
 			  issue_start_at, issue_end_at, usable_from, usable_until,
-			  is_active, total_quantity, issued_quantity, created_at, updated_at
-			) VALUES (?, 'FIXED_AMOUNT', 10000, ?, ?, ?, ?, ?, 100, 0, NOW(6), NOW(6))
+			  is_active, total_quantity, issued_quantity, redis_stock_prepared_at,
+			  created_at, updated_at
+			) VALUES (?, 'FIXED_AMOUNT', 10000, ?, ?, ?, ?, ?, 100, 0, ?, NOW(6), NOW(6))
 			""",
 			name,
 			issueStartAt,
 			issueEndAt,
 			issueStartAt,
 			issueEndAt.plusDays(30),
-			active);
+			active,
+			redisStockPreparedAt);
 		return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 	}
 
