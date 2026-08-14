@@ -38,3 +38,7 @@ services:
 
 volumes:
   elasticsearch-data:
+
+x-airbob-host-contracts:
+  elasticsearch:
+    vm.max_map_count: 1048576

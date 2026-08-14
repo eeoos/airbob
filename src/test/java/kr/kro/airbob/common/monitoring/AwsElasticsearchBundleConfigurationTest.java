@@ -21,7 +21,8 @@ class AwsElasticsearchBundleConfigurationTest {
 		assertThat(COMPOSE_FILE).exists();
 
 		Map<String, Object> compose = yaml(COMPOSE_FILE);
-		assertThat(compose.keySet()).containsExactlyInAnyOrder("services", "volumes");
+		assertThat(compose.keySet()).containsExactlyInAnyOrder(
+			"services", "volumes", "x-airbob-host-contracts");
 
 		Map<String, Object> services = map(compose.get("services"));
 		assertThat(services.keySet()).containsExactlyInAnyOrder(
@@ -66,6 +67,17 @@ class AwsElasticsearchBundleConfigurationTest {
 				"${ELASTICSEARCH_IMAGE:?ELASTICSEARCH_IMAGE is required}",
 				"${ELASTICSEARCH_EXPORTER_IMAGE:?ELASTICSEARCH_EXPORTER_IMAGE is required}",
 				"${NODE_EXPORTER_IMAGE:?NODE_EXPORTER_IMAGE is required}");
+	}
+
+	@Test
+	void awsElasticsearchBundleCarriesTheRequiredHostVirtualMemoryMapLimit() throws IOException {
+		Map<String, Object> compose = yaml(COMPOSE_FILE);
+		assertThat(compose).containsKey("x-airbob-host-contracts");
+		Map<String, Object> hostContracts = map(compose.get("x-airbob-host-contracts"));
+
+		assertThat(hostContracts.keySet()).containsExactly("elasticsearch");
+		assertThat(map(hostContracts.get("elasticsearch")))
+			.containsExactly(Map.entry("vm.max_map_count", 1048576));
 	}
 
 	private void assertNodeExporter(Map<String, Object> nodeExporter) {
