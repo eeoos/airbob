@@ -97,6 +97,7 @@ public class PaymentTransaction extends BaseEntity {
 		Payment payment,
 		Long paymentOperationId
 	) {
+		ConfirmedPayment.VirtualAccountDetails virtualAccount = confirmed.virtualAccount();
 		return PaymentTransaction.builder()
 			.reservationId(reservation.getId())
 			.paymentId(payment.getId())
@@ -107,6 +108,10 @@ public class PaymentTransaction extends BaseEntity {
 			.paymentKey(limitLength(confirmed.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
 			.orderId(confirmed.orderId())
 			.method(confirmed.method())
+			.virtualBankCode(virtualAccount != null ? virtualAccount.bankCode() : null)
+			.virtualAccountNumber(virtualAccount != null ? virtualAccount.accountNumber() : null)
+			.virtualCustomerName(virtualAccount != null ? virtualAccount.customerName() : null)
+			.virtualDueDate(virtualAccount != null ? virtualAccount.dueDate() : null)
 			.build();
 	}
 

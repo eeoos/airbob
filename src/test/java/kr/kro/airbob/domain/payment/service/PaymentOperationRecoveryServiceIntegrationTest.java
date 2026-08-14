@@ -61,7 +61,6 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.ManualReviewNotice;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.RecoveryBatch;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.outbox.entity.Outbox;
@@ -151,7 +150,7 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 		RecoveryBatch batch = recoveryService.recoverDue();
 
 		assertThat(batch.enqueued()).isEqualTo(4);
-		assertThat(batch.manualReviews()).extracting(ManualReviewNotice::operationUid)
+		assertThat(batch.manualReviews()).extracting(PaymentOperationManualReviewNotice::operationUid)
 			.containsExactly(exhaustedUid);
 		assertThat(outboxOperationUids()).containsExactlyInAnyOrder(
 			staleReadyUid, retryUid, unknownUid, expiredLeaseUid);

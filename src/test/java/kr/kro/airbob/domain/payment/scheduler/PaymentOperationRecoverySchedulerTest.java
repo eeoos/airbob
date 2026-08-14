@@ -16,11 +16,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewNotice;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
-import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.ManualReviewNotice;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.RecoveryBatch;
 import kr.kro.airbob.outbox.SlackNotificationService;
 
@@ -44,8 +49,8 @@ class PaymentOperationRecoverySchedulerTest {
 
 	@Test
 	void delegatesOneRecoveryBatchAndAlertsEveryManualReviewAfterward() {
-		ManualReviewNotice first = new ManualReviewNotice(FIRST_UID);
-		ManualReviewNotice second = new ManualReviewNotice(SECOND_UID);
+		PaymentOperationManualReviewNotice first = new PaymentOperationManualReviewNotice(FIRST_UID);
+		PaymentOperationManualReviewNotice second = new PaymentOperationManualReviewNotice(SECOND_UID);
 		given(recoveryService.recoverDue()).willReturn(new RecoveryBatch(3, List.of(first, second)));
 
 		scheduler.recoverPaymentOperations();
@@ -57,15 +62,30 @@ class PaymentOperationRecoverySchedulerTest {
 
 	@Test
 	void alertFailureCannotFailRecoveryOrPreventRemainingSanitizedNotices() {
-		ManualReviewNotice first = new ManualReviewNotice(FIRST_UID);
-		ManualReviewNotice second = new ManualReviewNotice(SECOND_UID);
+		PaymentOperationManualReviewNotice first = new PaymentOperationManualReviewNotice(FIRST_UID);
+		PaymentOperationManualReviewNotice second = new PaymentOperationManualReviewNotice(SECOND_UID);
 		given(recoveryService.recoverDue()).willReturn(new RecoveryBatch(0, List.of(first, second)));
-		willThrow(new IllegalStateException("slack unavailable"))
+		willThrow(new IllegalStateException("slack unavailable paymentKey=sensitive"))
 			.given(alertService).alertManualReview(first);
+		Logger logger = (Logger)LoggerFactory.getLogger(PaymentOperationRecoveryScheduler.class);
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
 
-		assertThatCode(scheduler::recoverPaymentOperations).doesNotThrowAnyException();
+		try {
+			assertThatCode(scheduler::recoverPaymentOperations).doesNotThrowAnyException();
+		} finally {
+			logger.detachAppender(appender);
+			appender.stop();
+		}
 
 		then(alertService).should().alertManualReview(second);
+		assertThat(appender.list).singleElement().satisfies(event -> {
+			assertThat(event.getFormattedMessage())
+				.contains(FIRST_UID.toString())
+				.doesNotContain("paymentKey", "sensitive", "slack unavailable");
+			assertThat(event.getThrowableProxy()).isNull();
+		});
 	}
 
 	@Test
@@ -85,7 +105,7 @@ class PaymentOperationRecoverySchedulerTest {
 			org.mockito.Mockito.mock(SlackNotificationService.class);
 		PaymentOperationAlertService service = new PaymentOperationAlertService(slackNotificationService);
 
-		service.alertManualReview(new ManualReviewNotice(FIRST_UID));
+		service.alertManualReview(new PaymentOperationManualReviewNotice(FIRST_UID));
 
 		ArgumentCaptor<String> alert = ArgumentCaptor.forClass(String.class);
 		then(slackNotificationService).should().sendAlert(alert.capture());

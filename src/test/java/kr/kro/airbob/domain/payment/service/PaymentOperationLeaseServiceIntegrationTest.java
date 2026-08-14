@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -127,12 +126,12 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 
 		try {
-			CompletableFuture<Optional<PaymentExecution>> first = CompletableFuture.supplyAsync(
+			CompletableFuture<PaymentOperationClaimResult> first = CompletableFuture.supplyAsync(
 				() -> holdingClaimTransaction.claimAndHold(
 					OPERATION_UID, firstClaimed, releaseFirstTransaction), executor);
 			assertThat(firstClaimed.await(5, TimeUnit.SECONDS)).isTrue();
 
-			CompletableFuture<Optional<PaymentExecution>> second = CompletableFuture.supplyAsync(() -> {
+			CompletableFuture<PaymentOperationClaimResult> second = CompletableFuture.supplyAsync(() -> {
 				secondStarted.countDown();
 				return service.claim(OPERATION_UID);
 			}, executor);
@@ -141,8 +140,10 @@ class PaymentOperationLeaseServiceIntegrationTest {
 				.isInstanceOf(TimeoutException.class);
 
 			releaseFirstTransaction.countDown();
-			PaymentExecution claimed = first.get(5, TimeUnit.SECONDS).orElseThrow();
-			assertThat(second.get(5, TimeUnit.SECONDS)).isEmpty();
+			PaymentExecution claimed = first.get(5, TimeUnit.SECONDS).execution().orElseThrow();
+			PaymentOperationClaimResult secondResult = second.get(5, TimeUnit.SECONDS);
+			assertThat(secondResult.execution()).isEmpty();
+			assertThat(secondResult.manualReviewNotice()).isEmpty();
 
 			Map<String, Object> row = jdbc.queryForMap("""
 				SELECT status, attempt_count, lease_owner
@@ -193,12 +194,12 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		}
 
 		@Transactional
-		public Optional<PaymentExecution> claimAndHold(
+		public PaymentOperationClaimResult claimAndHold(
 			UUID operationUid,
 			CountDownLatch claimed,
 			CountDownLatch release
 		) {
-			Optional<PaymentExecution> result = service.claim(operationUid);
+			PaymentOperationClaimResult result = service.claim(operationUid);
 			claimed.countDown();
 			try {
 				if (!release.await(5, TimeUnit.SECONDS)) {

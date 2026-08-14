@@ -84,6 +84,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer;
@@ -99,7 +100,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.kafka.consumer.PaymentOperationEventsConsumer;
-import kr.kro.airbob.outbox.DebeziumEventParser;
+import kr.kro.airbob.kafka.consumer.PaymentOperationEventParser;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.outbox.entity.Outbox;
@@ -115,7 +116,7 @@ import kr.kro.airbob.outbox.repository.OutboxRepository;
 	CouponTimeProvider.class,
 	CouponUsageService.class,
 	OutboxEventPublisher.class,
-	DebeziumEventParser.class,
+	PaymentOperationEventParser.class,
 	PaymentOperationCommandService.class,
 	PaymentOperationLeaseService.class,
 	PaymentOperationExecutor.class,
@@ -174,7 +175,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private PaymentRepository paymentRepository;
 	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private OutboxRepository outboxRepository;
-	@Autowired private DebeziumEventParser parser;
+	@Autowired private PaymentOperationEventParser parser;
 
 	private MockMvc mockMvc;
 	private PaymentOperationEventsConsumer consumer;
@@ -808,6 +809,11 @@ class PaymentOperationFlowIntegrationTest {
 		@Bean
 		ScriptedPaymentGateway paymentOperationFlowGateway() {
 			return new ScriptedPaymentGateway();
+		}
+
+		@Bean
+		PaymentOperationAlertService paymentOperationFlowAlertService() {
+			return org.mockito.Mockito.mock(PaymentOperationAlertService.class);
 		}
 	}
 

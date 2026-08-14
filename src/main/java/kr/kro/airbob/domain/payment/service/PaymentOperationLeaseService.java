@@ -33,37 +33,57 @@ public class PaymentOperationLeaseService {
 	}
 
 	@Transactional
-	public Optional<PaymentExecution> claim(UUID operationUid) {
+	public PaymentOperationClaimResult claim(UUID operationUid) {
 		PaymentOperation operation = lock(operationUid);
 		Instant now = clock.instant();
 		if (operation.markManualReviewIfAttemptsExhausted(properties.maxAttempts(), now)) {
-			return Optional.empty();
+			return PaymentOperationClaimResult.manualReview(manualReviewNotice(operation));
 		}
 		String owner = UUID.randomUUID().toString();
 		return operation.acquireLease(owner, now, properties.leaseDuration())
-			.map(mode -> PaymentExecution.from(operation, owner, mode));
+			.map(mode -> PaymentOperationClaimResult.claimed(
+				PaymentExecution.from(operation, owner, mode)))
+			.orElseGet(PaymentOperationClaimResult::noAction);
 	}
 
 	@Transactional
-	public boolean scheduleRetry(PaymentExecution execution, String code, String message) {
+	public Optional<PaymentOperationManualReviewNotice> scheduleRetry(
+		PaymentExecution execution,
+		String code,
+		String message
+	) {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		if (operation.getAttemptCount() >= properties.maxAttempts()) {
-			return operation.markManualReview(execution.leaseOwner(), now, code, message);
+			return operation.markManualReview(execution.leaseOwner(), now, code, message)
+				? Optional.of(manualReviewNotice(operation))
+				: Optional.empty();
 		}
 		Instant retryAt = now.plus(backoff.forAttempt(operation.getAttemptCount()));
-		return operation.scheduleRetry(execution.leaseOwner(), retryAt, code, message);
+		operation.scheduleRetry(execution.leaseOwner(), retryAt, code, message);
+		return Optional.empty();
 	}
 
 	@Transactional
-	public boolean markOutcomeUnknown(PaymentExecution execution, String code, String message) {
+	public Optional<PaymentOperationManualReviewNotice> markOutcomeUnknown(
+		PaymentExecution execution,
+		String code,
+		String message
+	) {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		if (operation.getAttemptCount() >= properties.maxAttempts()) {
-			return operation.markManualReview(execution.leaseOwner(), now, code, message);
+			return operation.markManualReview(execution.leaseOwner(), now, code, message)
+				? Optional.of(manualReviewNotice(operation))
+				: Optional.empty();
 		}
 		Instant retryAt = now.plus(backoff.forAttempt(operation.getAttemptCount()));
-		return operation.markOutcomeUnknown(execution.leaseOwner(), retryAt, code, message);
+		operation.markOutcomeUnknown(execution.leaseOwner(), retryAt, code, message);
+		return Optional.empty();
+	}
+
+	private PaymentOperationManualReviewNotice manualReviewNotice(PaymentOperation operation) {
+		return new PaymentOperationManualReviewNotice(operation.getOperationUid());
 	}
 
 	private PaymentOperation lock(UUID operationUid) {

@@ -10,7 +10,9 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationGateway;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class PaymentOperationExecutor {
 	private static final int FAILURE_CODE_MAX_LENGTH = 100;
@@ -23,33 +25,37 @@ public class PaymentOperationExecutor {
 	private final PaymentOperationLeaseService leaseService;
 	private final PaymentConfirmationGateway gateway;
 	private final PaymentOperationFinalizer finalizer;
+	private final PaymentOperationAlertService alertService;
 
 	public PaymentOperationExecutor(
 		PaymentOperationLeaseService leaseService,
 		PaymentConfirmationGateway gateway,
-		PaymentOperationFinalizer finalizer
+		PaymentOperationFinalizer finalizer,
+		PaymentOperationAlertService alertService
 	) {
 		this.leaseService = leaseService;
 		this.gateway = gateway;
 		this.finalizer = finalizer;
+		this.alertService = alertService;
 	}
 
 	public void execute(UUID operationUid) {
-		Optional<PaymentExecution> claimed = leaseService.claim(operationUid);
-		if (claimed.isEmpty()) {
+		PaymentOperationClaimResult claimResult = leaseService.claim(operationUid);
+		notifyManualReview(claimResult.manualReviewNotice());
+		if (claimResult.execution().isEmpty()) {
 			return;
 		}
-		PaymentExecution execution = claimed.get();
+		PaymentExecution execution = claimResult.execution().orElseThrow();
 
 		PaymentGatewayResult result;
 		try {
 			result = executeGateway(execution);
 		} catch (RuntimeException unexpectedGatewayFailure) {
-			leaseService.markOutcomeUnknown(
+			notifyManualReview(leaseService.markOutcomeUnknown(
 				execution,
 				"UNCLASSIFIED_GATEWAY_FAILURE",
 				UNEXPECTED_GATEWAY_MESSAGE
-			);
+			));
 			return;
 		}
 
@@ -93,11 +99,11 @@ public class PaymentOperationExecutor {
 
 	private void applyApproved(PaymentExecution execution, ConfirmedPayment confirmed) {
 		if (!isCorrelatedApproval(execution, confirmed)) {
-			leaseService.markOutcomeUnknown(
+			notifyManualReview(leaseService.markOutcomeUnknown(
 				execution,
 				"PROVIDER_RESPONSE_MISMATCH",
 				RESPONSE_MISMATCH_MESSAGE
-			);
+			));
 			return;
 		}
 
@@ -106,8 +112,8 @@ public class PaymentOperationExecutor {
 
 	private void applyRetryable(PaymentExecution execution, String code, String message) {
 		if (execution.mode() == PaymentExecutionMode.CONFIRM) {
-			leaseService.scheduleRetry(
-				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
+			notifyManualReview(leaseService.scheduleRetry(
+				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
 			return;
 		}
 
@@ -116,8 +122,8 @@ public class PaymentOperationExecutor {
 
 	private void applyNotFound(PaymentExecution execution, String code, String message) {
 		if (execution.mode() == PaymentExecutionMode.INQUIRE) {
-			leaseService.scheduleRetry(
-				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
+			notifyManualReview(leaseService.scheduleRetry(
+				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
 			return;
 		}
 
@@ -125,8 +131,23 @@ public class PaymentOperationExecutor {
 	}
 
 	private void markOutcomeUnknown(PaymentExecution execution, String code, String message) {
-		leaseService.markOutcomeUnknown(
-			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
+		notifyManualReview(leaseService.markOutcomeUnknown(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+	}
+
+	private void notifyManualReview(Optional<PaymentOperationManualReviewNotice> notice) {
+		notice.ifPresent(this::notifyManualReview);
+	}
+
+	private void notifyManualReview(PaymentOperationManualReviewNotice notice) {
+		try {
+			alertService.alertManualReview(notice);
+		} catch (RuntimeException alertFailure) {
+			log.error(
+				"payment-operation manual-review alert failed. operationUid={}",
+				notice.operationUid()
+			);
+		}
 	}
 
 	private boolean isCorrelatedApproval(PaymentExecution execution, ConfirmedPayment confirmed) {

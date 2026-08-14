@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,14 +40,14 @@ public class PaymentOperationRecoveryService {
 		Instant staleBefore = now.minus(properties.recoveryPublicationInterval());
 		List<PaymentOperation> recoverable = repository.findRecoverableForUpdate(
 			now, staleBefore, properties.batchSize());
-		List<ManualReviewNotice> manualReviews = new ArrayList<>();
+		List<PaymentOperationManualReviewNotice> manualReviews = new ArrayList<>();
 		int enqueued = 0;
 
 		for (PaymentOperation operation : recoverable) {
 			operation.recoverExpiredExecution(now);
 			if (operation.markManualReviewForRecoveryIfAttemptsExhausted(
 				properties.maxAttempts(), now)) {
-				manualReviews.add(new ManualReviewNotice(operation.getOperationUid()));
+				manualReviews.add(new PaymentOperationManualReviewNotice(operation.getOperationUid()));
 				continue;
 			}
 
@@ -64,12 +63,9 @@ public class PaymentOperationRecoveryService {
 		return new RecoveryBatch(enqueued, manualReviews);
 	}
 
-	public record RecoveryBatch(int enqueued, List<ManualReviewNotice> manualReviews) {
+	public record RecoveryBatch(int enqueued, List<PaymentOperationManualReviewNotice> manualReviews) {
 		public RecoveryBatch {
 			manualReviews = List.copyOf(manualReviews);
 		}
-	}
-
-	public record ManualReviewNotice(UUID operationUid) {
 	}
 }

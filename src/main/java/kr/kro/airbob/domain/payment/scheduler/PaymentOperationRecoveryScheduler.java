@@ -4,8 +4,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewNotice;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
-import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.ManualReviewNotice;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.RecoveryBatch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,7 @@ public class PaymentOperationRecoveryScheduler {
 		batch.manualReviews().forEach(this::alertManualReview);
 	}
 
-	private void alertManualReview(ManualReviewNotice notice) {
+	private void alertManualReview(PaymentOperationManualReviewNotice notice) {
 		try {
 			alertService.alertManualReview(notice);
 		} catch (RuntimeException alertFailure) {

@@ -57,11 +57,13 @@ class PaymentOperationLeaseServiceTest {
 	void readyClaimGetsConfirmModeAndFencesConcurrentWorker() {
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Optional<PaymentExecution> first = service.claim(OPERATION_UID);
-		Optional<PaymentExecution> second = service.claim(OPERATION_UID);
+		PaymentOperationClaimResult first = service.claim(OPERATION_UID);
+		PaymentOperationClaimResult second = service.claim(OPERATION_UID);
 
-		assertThat(first).get().extracting(PaymentExecution::mode).isEqualTo(CONFIRM);
-		assertThat(second).isEmpty();
+		assertThat(first.execution()).get().extracting(PaymentExecution::mode).isEqualTo(CONFIRM);
+		assertThat(first.manualReviewNotice()).isEmpty();
+		assertThat(second.execution()).isEmpty();
+		assertThat(second.manualReviewNotice()).isEmpty();
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.EXECUTING);
 		assertThat(operation.getAttemptCount()).isEqualTo(1);
 		assertThat(operation.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(30));
@@ -72,10 +74,11 @@ class PaymentOperationLeaseServiceTest {
 		operation.acquireLease("old-worker", NOW.minusSeconds(31), Duration.ofSeconds(30));
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Optional<PaymentExecution> recovered = service.claim(OPERATION_UID);
+		PaymentOperationClaimResult recovered = service.claim(OPERATION_UID);
 
-		assertThat(recovered).get().extracting(PaymentExecution::mode).isEqualTo(INQUIRE);
-		assertThat(recovered.orElseThrow().leaseOwner()).isNotEqualTo("old-worker");
+		assertThat(recovered.execution()).get().extracting(PaymentExecution::mode).isEqualTo(INQUIRE);
+		assertThat(recovered.execution().orElseThrow().leaseOwner()).isNotEqualTo("old-worker");
+		assertThat(recovered.manualReviewNotice()).isEmpty();
 		assertThat(operation.getAttemptCount()).isEqualTo(2);
 	}
 
@@ -86,8 +89,8 @@ class PaymentOperationLeaseServiceTest {
 		operation.acquireLease("new-worker", NOW, Duration.ofSeconds(30));
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		assertThat(service.markOutcomeUnknown(stale, "TIMEOUT", "lost response")).isFalse();
-		assertThat(service.scheduleRetry(stale, "TEMPORARY", "try later")).isFalse();
+		assertThat(service.markOutcomeUnknown(stale, "TIMEOUT", "lost response")).isEmpty();
+		assertThat(service.scheduleRetry(stale, "TEMPORARY", "try later")).isEmpty();
 		assertThat(operation.getLeaseOwner()).isEqualTo("new-worker");
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.EXECUTING);
 	}
@@ -95,9 +98,9 @@ class PaymentOperationLeaseServiceTest {
 	@Test
 	void retryUsesAttemptNumberForCappedDeterministicBackoff() {
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
-		PaymentExecution execution = service.claim(OPERATION_UID).orElseThrow();
+		PaymentExecution execution = service.claim(OPERATION_UID).execution().orElseThrow();
 
-		assertThat(service.scheduleRetry(execution, "TEMPORARY", "try later")).isTrue();
+		assertThat(service.scheduleRetry(execution, "TEMPORARY", "try later")).isEmpty();
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.RETRY_WAIT);
 		assertThat(operation.getNextAttemptAt()).isEqualTo(NOW.plusSeconds(10));
@@ -106,9 +109,9 @@ class PaymentOperationLeaseServiceTest {
 	@Test
 	void unknownOutcomeSchedulesInquiryUsingTheSameBackoffPolicy() {
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
-		PaymentExecution execution = service.claim(OPERATION_UID).orElseThrow();
+		PaymentExecution execution = service.claim(OPERATION_UID).execution().orElseThrow();
 
-		assertThat(service.markOutcomeUnknown(execution, "TIMEOUT", "lost response")).isTrue();
+		assertThat(service.markOutcomeUnknown(execution, "TIMEOUT", "lost response")).isEmpty();
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.OUTCOME_UNKNOWN);
 		assertThat(operation.getNextAttemptAt()).isEqualTo(NOW.plusSeconds(10));
@@ -120,14 +123,17 @@ class PaymentOperationLeaseServiceTest {
 	void fifthFailedExecutionStopsAutomaticAttemptsInManualReview() {
 		operation = operation(PaymentOperationStatus.READY, 4);
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
-		PaymentExecution fifth = service.claim(OPERATION_UID).orElseThrow();
+		PaymentExecution fifth = service.claim(OPERATION_UID).execution().orElseThrow();
 
-		assertThat(service.scheduleRetry(fifth, "TEMPORARY", "still unavailable")).isTrue();
+		assertThat(service.scheduleRetry(fifth, "TEMPORARY", "still unavailable"))
+			.contains(new PaymentOperationManualReviewNotice(OPERATION_UID));
 
 		assertThat(operation.getAttemptCount()).isEqualTo(5);
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
 		assertThat(operation.getNextAttemptAt()).isNull();
-		assertThat(service.claim(OPERATION_UID)).isEmpty();
+		PaymentOperationClaimResult terminalClaim = service.claim(OPERATION_UID);
+		assertThat(terminalClaim.execution()).isEmpty();
+		assertThat(terminalClaim.manualReviewNotice()).isEmpty();
 	}
 
 	@Test
@@ -136,9 +142,11 @@ class PaymentOperationLeaseServiceTest {
 		operation.acquireLease("crashed-fifth-worker", NOW.minusSeconds(31), Duration.ofSeconds(30));
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		Optional<PaymentExecution> recovered = service.claim(OPERATION_UID);
+		PaymentOperationClaimResult recovered = service.claim(OPERATION_UID);
 
-		assertThat(recovered).isEmpty();
+		assertThat(recovered.execution()).isEmpty();
+		assertThat(recovered.manualReviewNotice())
+			.contains(new PaymentOperationManualReviewNotice(OPERATION_UID));
 		assertThat(operation.getAttemptCount()).isEqualTo(5);
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
 		assertThat(operation.getLeaseOwner()).isNull();
@@ -150,7 +158,7 @@ class PaymentOperationLeaseServiceTest {
 	void executionCreatesTypedGatewayCommandWithoutCallingTheGateway() {
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
 
-		PaymentExecution execution = service.claim(OPERATION_UID).orElseThrow();
+		PaymentExecution execution = service.claim(OPERATION_UID).execution().orElseThrow();
 
 		assertThat(execution.reservationUid()).isEqualTo(RESERVATION_UID);
 		assertThat(execution.gatewayCommand()).isEqualTo(new PaymentConfirmationCommand(

@@ -175,6 +175,35 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	@Test
+	void virtualAccountApprovalPersistsNormalizedConfirmationLedgerMetadata() {
+		Instant dueDate = NOW.plusSeconds(3600);
+		ConfirmedPayment confirmed = new ConfirmedPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			AMOUNT,
+			PaymentMethod.VIRTUAL_ACCOUNT,
+			PaymentStatus.DONE,
+			NOW.plusSeconds(60),
+			new ConfirmedPayment.VirtualAccountDetails(
+				"088", "sensitive-account", "sensitive-customer", dueDate)
+		);
+
+		finalizer.applyApproved(execution(LEASE_OWNER), confirmed);
+
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(ledger.getMethod()).isEqualTo(PaymentMethod.VIRTUAL_ACCOUNT);
+		assertThat(ledger)
+			.extracting(
+				PaymentTransaction::getVirtualBankCode,
+				PaymentTransaction::getVirtualAccountNumber,
+				PaymentTransaction::getVirtualCustomerName,
+				PaymentTransaction::getVirtualDueDate
+			)
+			.containsExactly("088", "sensitive-account", "sensitive-customer", dueDate);
+	}
+
+	@Test
 	void duplicateApprovalDoesNotAppendAnySecondLocalEffect() {
 		PaymentExecution execution = execution(LEASE_OWNER);
 		ConfirmedPayment confirmed = confirmedPayment();
@@ -398,8 +427,15 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	private void assertPreFinalizationState() {
-		assertThat(reloadOperation().getStatus()).isEqualTo(EXECUTING);
-		assertThat(reloadOperation().getLeaseOwner()).isEqualTo(LEASE_OWNER);
+		PaymentOperation operation = reloadOperation();
+		assertThat(operation.getStatus()).isEqualTo(EXECUTING);
+		assertThat(operation.getCompletedAt()).isNull();
+		assertThat(operation.getFailureCode()).isNull();
+		assertThat(operation.getFailureMessage()).isNull();
+		assertThat(operation.getNextAttemptAt()).isNull();
+		assertThat(operation.getLeaseOwner()).isEqualTo(LEASE_OWNER);
+		assertThat(operation.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(60));
+		assertThat(operation.getAttemptCount()).isOne();
 		assertThat(reloadReservation().getStatus()).isEqualTo(PAYMENT_PROCESSING);
 		assertThat(paymentRepository.findByReservationId(reservationId)).isEmpty();
 		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
@@ -470,8 +506,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentMethod.CARD,
 			PaymentStatus.DONE,
 			NOW.plusSeconds(60),
-			new ConfirmedPayment.VirtualAccountDetails(
-				"088", "sensitive-account", "sensitive-customer", NOW.plusSeconds(3600))
+			null
 		);
 	}
 

@@ -1,7 +1,5 @@
 package kr.kro.airbob.kafka.consumer;
 
-import static kr.kro.airbob.outbox.EventType.PAYMENT_EXECUTION_REQUESTED_V1;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -20,11 +18,8 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
-import kr.kro.airbob.outbox.DebeziumEventParser;
-import kr.kro.airbob.outbox.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +31,7 @@ public class PaymentOperationEventsConsumer {
 	private static final String PROCESSING_FAILURE = "processing failure";
 	private static final String FAILURE_UNAVAILABLE = "failure unavailable";
 
-	private final DebeziumEventParser parser;
+	private final PaymentOperationEventParser parser;
 	private final PaymentOperationExecutor executor;
 	private final PaymentOperationAlertService alertService;
 
@@ -54,15 +49,7 @@ public class PaymentOperationEventsConsumer {
 		groupId = "${payment.operation.kafka.group:payment-operation-execution-group}"
 	)
 	public void handle(@Payload String message, Acknowledgment ack) {
-		String type = parser.getEventType(message);
-		if (EventType.from(type) != PAYMENT_EXECUTION_REQUESTED_V1) {
-			throw new IllegalArgumentException("지원하지 않는 payment-operation 이벤트: " + type);
-		}
-
-		PaymentExecutionRequestedV1 event = parser
-			.parse(message, PaymentExecutionRequestedV1.class)
-			.payload();
-		executor.execute(event.operationUid());
+		executor.execute(parser.parseOperationUid(message));
 		ack.acknowledge();
 	}
 
@@ -74,10 +61,7 @@ public class PaymentOperationEventsConsumer {
 			.orElse(record.partition());
 		long offset = readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
 			.orElse(record.offset());
-		String error = record.headers().lastHeader(KafkaHeaders.EXCEPTION_FQCN) == null
-			? null
-			: PROCESSING_FAILURE;
-		handleDlt(record.value(), topic, partition, offset, error, ack);
+		handleDlt(record.value(), topic, partition, offset, PROCESSING_FAILURE, ack);
 	}
 
 	public void handleDlt(
@@ -88,7 +72,7 @@ public class PaymentOperationEventsConsumer {
 		String error,
 		Acknowledgment ack
 	) {
-		UUID operationUid = tryReadOperationUid(message).orElse(null);
+		UUID operationUid = parser.tryReadOperationUid(message).orElse(null);
 		try {
 			alertService.alertQuarantined(
 				topic, partition, offset, operationUid, sanitize(error));
@@ -122,20 +106,6 @@ public class PaymentOperationEventsConsumer {
 			.map(Header::value)
 			.filter(value -> value.length == Long.BYTES)
 			.map(value -> ByteBuffer.wrap(value).getLong());
-	}
-
-	private Optional<UUID> tryReadOperationUid(String message) {
-		try {
-			if (EventType.from(parser.getEventType(message)) != PAYMENT_EXECUTION_REQUESTED_V1) {
-				return Optional.empty();
-			}
-			PaymentExecutionRequestedV1 event = parser
-				.parse(message, PaymentExecutionRequestedV1.class)
-				.payload();
-			return Optional.ofNullable(event.operationUid());
-		} catch (RuntimeException ignored) {
-			return Optional.empty();
-		}
 	}
 
 	private String sanitize(String error) {

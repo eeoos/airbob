@@ -1,14 +1,12 @@
 package kr.kro.airbob.kafka.consumer;
 
-import static kr.kro.airbob.outbox.EventType.PAYMENT_EXECUTION_REQUESTED_V1;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,23 +23,28 @@ import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.retrytopic.SameIntervalTopicReuseStrategy;
 import org.springframework.kafka.support.Acknowledgment;
 
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
-import kr.kro.airbob.outbox.DebeziumEventParser;
-import kr.kro.airbob.outbox.EventEnvelope;
 import kr.kro.airbob.outbox.SlackNotificationService;
-import kr.kro.airbob.outbox.exception.DebeziumEventParsingException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("payment-operation Kafka 소비자 테스트")
 class PaymentOperationEventsConsumerTest {
 
 	private static final UUID OPERATION_UID = UUID.fromString("b7f97942-3e28-4a5f-9cb4-797001b4f5c1");
-	private static final UUID RESERVATION_UID = UUID.fromString("81eb3596-050b-42e9-845f-cc74d34b7cf2");
-	private static final String MESSAGE = "payment-operation-envelope";
+	private static final String RAW_SECRET = "poison-provider-secret-7a8e0d";
+	private static final String MESSAGE = """
+		{
+		  "event_type": "PAYMENT_EXECUTION_REQUESTED_V1",
+		  "payload": {
+		    "operation_uid": "b7f97942-3e28-4a5f-9cb4-797001b4f5c1",
+		    "reservation_uid": "81eb3596-050b-42e9-845f-cc74d34b7cf2"
+		  }
+		}
+		""";
 
-	@Mock private DebeziumEventParser parser;
 	@Mock private PaymentOperationExecutor executor;
 	@Mock private PaymentOperationAlertService alertService;
 	@Mock private Acknowledgment acknowledgment;
@@ -50,18 +53,13 @@ class PaymentOperationEventsConsumerTest {
 
 	@BeforeEach
 	void setUp() {
-		consumer = new PaymentOperationEventsConsumer(parser, executor, alertService);
+		consumer = new PaymentOperationEventsConsumer(
+			new PaymentOperationEventParser(new ObjectMapper()), executor, alertService);
 	}
 
 	@Test
 	@DisplayName("실행 결과가 내구 상태로 반영된 뒤에만 원본 메시지를 ACK한다")
 	void executesThenAcknowledges() {
-		PaymentExecutionRequestedV1 payload = new PaymentExecutionRequestedV1(OPERATION_UID, RESERVATION_UID);
-		EventEnvelope<PaymentExecutionRequestedV1> envelope =
-			EventEnvelope.of(PAYMENT_EXECUTION_REQUESTED_V1, payload, Instant.EPOCH);
-		given(parser.getEventType(MESSAGE)).willReturn(PAYMENT_EXECUTION_REQUESTED_V1.name());
-		given(parser.parse(MESSAGE, PaymentExecutionRequestedV1.class)).willReturn(envelope);
-
 		consumer.handle(MESSAGE, acknowledgment);
 
 		InOrder order = inOrder(executor, acknowledgment);
@@ -70,15 +68,17 @@ class PaymentOperationEventsConsumerTest {
 	}
 
 	@Test
-	@DisplayName("파싱 실패는 재시도 경계로 전파하고 ACK하지 않는다")
-	void rethrowsParsingFailureWithoutAck() {
-		DebeziumEventParsingException failure =
-			new DebeziumEventParsingException(new IllegalArgumentException("broken"));
-		given(parser.getEventType(MESSAGE)).willThrow(failure);
+	@DisplayName("파싱 실패는 원문을 보존하지 않는 예외로 전파하고 ACK하지 않는다")
+	void rethrowsPayloadFreeParsingFailureWithoutAck() {
+		String malformed = "not-json paymentKey=" + RAW_SECRET;
 
-		assertThatThrownBy(() -> consumer.handle(MESSAGE, acknowledgment))
-			.isSameAs(failure);
+		Throwable failure = catchThrowable(() -> consumer.handle(malformed, acknowledgment));
 
+		assertThat(failure)
+			.isInstanceOf(PaymentOperationEventParsingException.class)
+			.hasMessage("Invalid payment-operation event.")
+			.hasNoCause();
+		assertThat(failure.toString()).doesNotContain(RAW_SECRET, malformed);
 		then(executor).shouldHaveNoInteractions();
 		then(acknowledgment).shouldHaveNoInteractions();
 	}
@@ -86,11 +86,6 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("실행기가 내구 상태를 만들지 못하면 실패를 전파하고 ACK하지 않는다")
 	void rethrowsUndurableExecutionFailureWithoutAck() {
-		PaymentExecutionRequestedV1 payload = new PaymentExecutionRequestedV1(OPERATION_UID, RESERVATION_UID);
-		EventEnvelope<PaymentExecutionRequestedV1> envelope =
-			EventEnvelope.of(PAYMENT_EXECUTION_REQUESTED_V1, payload, Instant.EPOCH);
-		given(parser.getEventType(MESSAGE)).willReturn(PAYMENT_EXECUTION_REQUESTED_V1.name());
-		given(parser.parse(MESSAGE, PaymentExecutionRequestedV1.class)).willReturn(envelope);
 		willThrow(new IllegalStateException("database unavailable"))
 			.given(executor).execute(OPERATION_UID);
 
@@ -102,14 +97,19 @@ class PaymentOperationEventsConsumerTest {
 	}
 
 	@Test
-	@DisplayName("다른 이벤트 타입은 poison message로 거부하고 ACK하지 않는다")
-	void rejectsUnsupportedEventWithoutAck() {
-		given(parser.getEventType(MESSAGE)).willReturn("RESERVATION_PENDING");
+	@DisplayName("다른 이벤트 타입도 공격자 제어 문자열을 보존하지 않는 poison 예외로 거부한다")
+	void rejectsUnsupportedEventWithoutRetainingTypeOrPayload() {
+		String unsupported = """
+			{"event_type":"%s","payload":{"operation_uid":"%s"}}
+			""".formatted(RAW_SECRET, OPERATION_UID);
 
-		assertThatThrownBy(() -> consumer.handle(MESSAGE, acknowledgment))
-			.isInstanceOf(IllegalArgumentException.class)
-			.hasMessageContaining("RESERVATION_PENDING");
+		Throwable failure = catchThrowable(() -> consumer.handle(unsupported, acknowledgment));
 
+		assertThat(failure)
+			.isInstanceOf(PaymentOperationEventParsingException.class)
+			.hasMessage("Invalid payment-operation event.")
+			.hasNoCause();
+		assertThat(failure.toString()).doesNotContain(RAW_SECRET, unsupported);
 		then(executor).shouldHaveNoInteractions();
 		then(acknowledgment).shouldHaveNoInteractions();
 	}
@@ -117,12 +117,6 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("DLT 알림에는 원본 좌표와 읽을 수 있는 operation UID만 전달하고 ACK한다")
 	void quarantinesWithCoordinatesAndOperationUidThenAcknowledges() {
-		PaymentExecutionRequestedV1 payload = new PaymentExecutionRequestedV1(OPERATION_UID, RESERVATION_UID);
-		EventEnvelope<PaymentExecutionRequestedV1> envelope =
-			EventEnvelope.of(PAYMENT_EXECUTION_REQUESTED_V1, payload, Instant.EPOCH);
-		given(parser.getEventType(MESSAGE)).willReturn(PAYMENT_EXECUTION_REQUESTED_V1.name());
-		given(parser.parse(MESSAGE, PaymentExecutionRequestedV1.class)).willReturn(envelope);
-
 		consumer.handleDlt(
 			MESSAGE,
 			"PAYMENT_OPERATION.events",
@@ -140,11 +134,14 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("DLT payload가 깨져도 민감한 원문을 알리지 않고 operation UID 없이 ACK한다")
 	void acknowledgesMalformedDltWithoutRawMessageAlert() {
-		DebeziumEventParsingException failure =
-			new DebeziumEventParsingException(new IllegalArgumentException("broken"));
-		given(parser.getEventType(MESSAGE)).willThrow(failure);
-
-		consumer.handleDlt(MESSAGE, "PAYMENT_OPERATION.events", 0, 7L, MESSAGE, acknowledgment);
+		consumer.handleDlt(
+			"not-json paymentKey=" + RAW_SECRET,
+			"PAYMENT_OPERATION.events",
+			0,
+			7L,
+			RAW_SECRET,
+			acknowledgment
+		);
 
 		then(alertService).should().alertQuarantined(
 			"PAYMENT_OPERATION.events", 0, 7L, null, "processing failure");
@@ -159,7 +156,7 @@ class PaymentOperationEventsConsumerTest {
 			.alertQuarantined("PAYMENT_OPERATION.events", 1, 19L, null, "failure unavailable");
 
 		consumer.handleDlt(
-			MESSAGE, "PAYMENT_OPERATION.events", 1, 19L, null, acknowledgment);
+			"not-json", "PAYMENT_OPERATION.events", 1, 19L, null, acknowledgment);
 
 		then(acknowledgment).should().acknowledge();
 	}
@@ -167,7 +164,8 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("격리 알림 본문에는 허용된 복구 좌표만 포함한다")
 	void alertBodyExcludesProviderAndMessageSecrets() {
-		SlackNotificationService slackNotificationService = org.mockito.Mockito.mock(SlackNotificationService.class);
+		SlackNotificationService slackNotificationService =
+			org.mockito.Mockito.mock(SlackNotificationService.class);
 		PaymentOperationAlertService service = new PaymentOperationAlertService(slackNotificationService);
 		String sensitiveFailure = "raw-message paymentKey=secret providerBody={card:4111} "
 			+ "virtualAccount={accountNumber:123-456}";
