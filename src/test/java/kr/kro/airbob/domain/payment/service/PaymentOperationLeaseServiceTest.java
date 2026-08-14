@@ -131,6 +131,22 @@ class PaymentOperationLeaseServiceTest {
 	}
 
 	@Test
+	void expiredFifthExecutionMovesToManualReviewWithoutIssuingSixthLease() {
+		operation = operation(PaymentOperationStatus.READY, 4);
+		operation.acquireLease("crashed-fifth-worker", NOW.minusSeconds(31), Duration.ofSeconds(30));
+		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
+
+		Optional<PaymentExecution> recovered = service.claim(OPERATION_UID);
+
+		assertThat(recovered).isEmpty();
+		assertThat(operation.getAttemptCount()).isEqualTo(5);
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
+		assertThat(operation.getLeaseOwner()).isNull();
+		assertThat(operation.getLeaseExpiresAt()).isNull();
+		assertThat(operation.getCompletedAt()).isEqualTo(NOW);
+	}
+
+	@Test
 	void executionCreatesTypedGatewayCommandWithoutCallingTheGateway() {
 		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
 

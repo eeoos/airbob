@@ -138,15 +138,7 @@ public class PaymentOperation extends BaseEntity {
 	public Optional<PaymentExecutionMode> acquireLease(
 		String owner, Instant now, Duration leaseDuration
 	) {
-		if (status.isTerminal()) {
-			return Optional.empty();
-		}
-		if (status == PaymentOperationStatus.EXECUTING
-			&& leaseExpiresAt != null && leaseExpiresAt.isAfter(now)) {
-			return Optional.empty();
-		}
-		if ((status == PaymentOperationStatus.RETRY_WAIT || status == PaymentOperationStatus.OUTCOME_UNKNOWN)
-			&& nextAttemptAt != null && nextAttemptAt.isAfter(now)) {
+		if (!isEligibleForLeaseAt(now)) {
 			return Optional.empty();
 		}
 		PaymentExecutionMode mode = status == PaymentOperationStatus.OUTCOME_UNKNOWN
@@ -157,6 +149,18 @@ public class PaymentOperation extends BaseEntity {
 		leaseExpiresAt = now.plus(leaseDuration);
 		attemptCount++;
 		return Optional.of(mode);
+	}
+
+	public boolean markManualReviewIfAttemptsExhausted(int maxAttempts, Instant now) {
+		if (attemptCount < maxAttempts || !isEligibleForLeaseAt(now)) {
+			return false;
+		}
+		status = PaymentOperationStatus.MANUAL_REVIEW;
+		leaseOwner = null;
+		leaseExpiresAt = null;
+		nextAttemptAt = null;
+		completedAt = now;
+		return true;
 	}
 
 	public boolean scheduleRetry(String owner, Instant retryAt, String code, String message) {
@@ -193,6 +197,18 @@ public class PaymentOperation extends BaseEntity {
 		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
 		completedAt = terminalAt;
 		return true;
+	}
+
+	private boolean isEligibleForLeaseAt(Instant now) {
+		if (status.isTerminal()) {
+			return false;
+		}
+		if (status == PaymentOperationStatus.EXECUTING
+			&& leaseExpiresAt != null && leaseExpiresAt.isAfter(now)) {
+			return false;
+		}
+		return (status != PaymentOperationStatus.RETRY_WAIT && status != PaymentOperationStatus.OUTCOME_UNKNOWN)
+			|| nextAttemptAt == null || !nextAttemptAt.isAfter(now);
 	}
 
 	private static void requireMaxLength(String value, int maxLength, String fieldName) {

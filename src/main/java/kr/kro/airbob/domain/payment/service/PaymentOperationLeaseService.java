@@ -35,8 +35,12 @@ public class PaymentOperationLeaseService {
 	@Transactional
 	public Optional<PaymentExecution> claim(UUID operationUid) {
 		PaymentOperation operation = lock(operationUid);
+		Instant now = clock.instant();
+		if (operation.markManualReviewIfAttemptsExhausted(properties.maxAttempts(), now)) {
+			return Optional.empty();
+		}
 		String owner = UUID.randomUUID().toString();
-		return operation.acquireLease(owner, clock.instant(), properties.leaseDuration())
+		return operation.acquireLease(owner, now, properties.leaseDuration())
 			.map(mode -> PaymentExecution.from(operation, owner, mode));
 	}
 
