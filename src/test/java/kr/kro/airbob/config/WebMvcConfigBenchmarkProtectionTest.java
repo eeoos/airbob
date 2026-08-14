@@ -28,7 +28,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 			mock(CurrentMemberIdArgumentResolver.class);
 		WebMvcConfig config = new WebMvcConfig(
 			currentMemberIdArgumentResolver,
-			mock(CursorParamArgumentResolver.class),
+			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
 			mock(QueryCountInterceptor.class)
@@ -45,7 +45,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 	void v2CouponBenchmarkPathUsesSessionAuthentication() {
 		WebMvcConfig config = new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
-			mock(CursorParamArgumentResolver.class),
+			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
 			mock(QueryCountInterceptor.class)
@@ -60,7 +60,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 	void v2AccommodationBenchmarkPathUsesSessionAuthentication() {
 		WebMvcConfig config = new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
-			mock(CursorParamArgumentResolver.class),
+			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
 			mock(QueryCountInterceptor.class)
@@ -76,7 +76,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 		AdminAuthInterceptor adminAuthInterceptor = mock(AdminAuthInterceptor.class);
 		WebMvcConfig config = new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
-			mock(CursorParamArgumentResolver.class),
+			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			adminAuthInterceptor,
 			mock(QueryCountInterceptor.class)
@@ -104,7 +104,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 		AdminAuthInterceptor adminAuthInterceptor = mock(AdminAuthInterceptor.class);
 		WebMvcConfig config = new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
-			mock(CursorParamArgumentResolver.class),
+			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			adminAuthInterceptor,
 			mock(QueryCountInterceptor.class)
