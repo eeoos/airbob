@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 aws_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
@@ -7,6 +8,7 @@ verifier="$aws_dir/scripts/verify-app-runtime-env.sh"
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-app-runtime-env.XXXXXX")
 valid_env="$temp_dir/valid.env"
 secret='task-3-password-must-not-be-printed'
+synthetic_secret='  ${TASK3_AMBIENT_SECRET} "double quoted" '\''single quoted'\'' # literal suffix  '
 
 cleanup() {
   status=$?
@@ -74,14 +76,16 @@ expect_success() {
   output="$temp_dir/success-output"
   if ! run_verifier "$@" >"$output" 2>&1; then
     printf 'expected %s to pass verification\n' "$description" >&2
-    if grep -F "$secret" "$output" >/dev/null; then
+    if grep -F "$secret" "$output" >/dev/null \
+      || grep -F "$synthetic_secret" "$output" >/dev/null; then
       printf '[verifier output contained the datasource password and was redacted]\n' >&2
     else
       sed 's/^/[verifier] /' "$output" >&2
     fi
     exit 1
   fi
-  if grep -F "$secret" "$output" >/dev/null; then
+  if grep -F "$secret" "$output" >/dev/null \
+    || grep -F "$synthetic_secret" "$output" >/dev/null; then
     printf 'verifier disclosed the datasource password while accepting %s\n' "$description" >&2
     exit 1
   fi
@@ -95,7 +99,8 @@ expect_failure() {
     printf 'expected %s to fail verification\n' "$description" >&2
     exit 1
   fi
-  if grep -F "$secret" "$output" >/dev/null; then
+  if grep -F "$secret" "$output" >/dev/null \
+    || grep -F "$synthetic_secret" "$output" >/dev/null; then
     printf 'verifier disclosed the datasource password while rejecting %s\n' "$description" >&2
     exit 1
   fi
@@ -219,6 +224,37 @@ replace_key CLOUDFRONT_DOMAIN "\$(touch $not_sourced_marker)" "$valid_env" "$not
 expect_success 'literal shell syntax in an allowed value' "$not_sourced" integrated-smoke
 if [[ -e "$not_sourced_marker" ]]; then
   printf 'verifier sourced or evaluated the runtime env file\n' >&2
+  exit 1
+fi
+
+raw_secret_env="$temp_dir/raw-secret.env"
+replace_key SPRING_DATASOURCE_PASSWORD "$synthetic_secret" "$valid_env" "$raw_secret_env"
+expect_success 'raw synthetic datasource secret' "$raw_secret_env" integrated-smoke
+
+compose_env="$temp_dir/compose.env"
+compose_config="$temp_dir/compose-config.json"
+compose_stderr="$temp_dir/compose-stderr"
+printf '%s\n' \
+  'APP_IMAGE=registry.example.invalid/airbob/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+  'NODE_EXPORTER_IMAGE=registry.example.invalid/airbob/node-exporter@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' \
+  "APP_ENV_FILE=$raw_secret_env" > "$compose_env"
+
+if ! TASK3_AMBIENT_SECRET='ambient-value-must-not-replace-file-bytes' \
+  docker compose \
+    --env-file "$compose_env" \
+    -f "$aws_dir/bundles/app/compose.yml" \
+    config --format json >"$compose_config" 2>"$compose_stderr"
+then
+  printf 'expected app bundle to render the raw runtime env file\n' >&2
+  exit 1
+fi
+if grep -F "$synthetic_secret" "$compose_stderr" >/dev/null; then
+  printf 'docker compose disclosed the synthetic datasource secret on stderr\n' >&2
+  exit 1
+fi
+expected_config_field='"SPRING_DATASOURCE_PASSWORD": "  $${TASK3_AMBIENT_SECRET} \"double quoted\" '\''single quoted'\'' # literal suffix  "'
+if ! grep -Fq "$expected_config_field" "$compose_config"; then
+  printf 'effective app datasource password did not preserve the verified bytes\n' >&2
   exit 1
 fi
 

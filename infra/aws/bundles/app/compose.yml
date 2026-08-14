@@ -3,7 +3,9 @@ services:
     image: ${APP_IMAGE:?APP_IMAGE is required}
     platform: linux/amd64
     env_file:
-      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+      - path: ${APP_ENV_FILE:?APP_ENV_FILE is required}
+        required: true
+        format: raw
     environment:
       JAVA_OPTS: -Xms1536m -Xmx1536m -XX:+UseG1GC
     ports: ["8080:8080"]

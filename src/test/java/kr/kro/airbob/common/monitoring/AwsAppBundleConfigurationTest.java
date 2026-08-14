@@ -33,7 +33,10 @@ class AwsAppBundleConfigurationTest {
 			.containsEntry("memswap_limit", "3G")
 			.containsEntry("restart", "unless-stopped");
 		assertThat(list(app.get("env_file")))
-			.containsExactly("${APP_ENV_FILE:?APP_ENV_FILE is required}");
+			.containsExactly(Map.of(
+				"path", "${APP_ENV_FILE:?APP_ENV_FILE is required}",
+				"required", true,
+				"format", "raw"));
 		assertThat(map(app.get("environment")))
 			.containsExactly(Map.entry("JAVA_OPTS", "-Xms1536m -Xmx1536m -XX:+UseG1GC"));
 		assertThat(list(app.get("ports"))).containsExactly("8080:8080");
