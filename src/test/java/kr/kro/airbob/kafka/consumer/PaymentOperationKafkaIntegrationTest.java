@@ -6,7 +6,10 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -69,7 +72,7 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 	"payment.operation.kafka.topic=PAYMENT_OPERATION.events",
 	"payment.operation.kafka.group=payment-operation-execution-group",
 	"payment.operation.kafka.attempts=2",
-	"payment.operation.kafka.backoff-ms=0"
+	"payment.operation.kafka.backoff-ms=25"
 })
 @EmbeddedKafka(
 	partitions = 1,
@@ -92,7 +95,12 @@ class PaymentOperationKafkaIntegrationTest {
 	private static final UUID OPERATION_UID = UUID.fromString("7e19fa7d-a8dc-4096-8c75-e84f43e5b639");
 	private static final UUID RESERVATION_UID = UUID.fromString("ac3921de-5f64-4d73-829d-a49c32321950");
 	private static final String RAW_SECRET = "raw-provider-secret-019ffe7e-d014";
+	private static final String RESERVED_HEADER_SECRET = "reserved-header-secret-019ffe7e-d014";
 	private static final String CUSTOM_SENSITIVE_HEADER = "x-provider-authorization";
+	private static final String SPOOFED_TOPIC = "SPOOFED_PAYMENT.events";
+	private static final int SPOOFED_PARTITION = 77;
+	private static final long SPOOFED_OFFSET = 999L;
+	private static final long SPOOFED_TIMESTAMP = 1L;
 	private static final String SANITIZED_POISON = "{\"event_type\":\"UNKNOWN\",\"payload\":{}}";
 	private static final List<String> SAFE_RETRY_DLT_HEADERS = List.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
@@ -177,6 +185,7 @@ class PaymentOperationKafkaIntegrationTest {
 			OPERATION_TOPIC, "sensitive-key-" + RAW_SECRET, malformed);
 		poison.headers().add(
 			CUSTOM_SENSITIVE_HEADER, RAW_SECRET.getBytes(StandardCharsets.UTF_8));
+		addSpoofedReservedHeaders(poison);
 		kafkaTemplate.send(poison)
 			.get(10, TimeUnit.SECONDS);
 
@@ -192,10 +201,25 @@ class PaymentOperationKafkaIntegrationTest {
 			KafkaHeaders.ORIGINAL_OFFSET);
 		assertThat(retryHeaderNames).isSubsetOf(SAFE_RETRY_DLT_HEADERS);
 		assertThat(dltHeaderNames).isSubsetOf(SAFE_RETRY_DLT_HEADERS);
+		assertThat(retryHeaderNames).doesNotHaveDuplicates();
+		assertThat(dltHeaderNames).doesNotHaveDuplicates();
 		assertThat(retryRecord.headers().lastHeader(CUSTOM_SENSITIVE_HEADER)).isNull();
 		assertThat(quarantined.headers().lastHeader(CUSTOM_SENSITIVE_HEADER)).isNull();
+		assertThat(readIntHeader(retryRecord, RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS))
+			.isEqualTo(2);
+		long originalTimestamp = readTimestampHeader(
+			retryRecord, RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP);
+		long backoffTimestamp = readTimestampHeader(
+			retryRecord, RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP);
+		assertThat(originalTimestamp).isGreaterThan(SPOOFED_TIMESTAMP);
+		assertThat(backoffTimestamp).isGreaterThanOrEqualTo(originalTimestamp + 25L);
+		assertThat(readStringHeader(quarantined, KafkaHeaders.ORIGINAL_TOPIC))
+			.isEqualTo(OPERATION_TOPIC);
+		assertThat(readIntHeader(quarantined, KafkaHeaders.ORIGINAL_PARTITION)).isZero();
+		assertThat(readLongHeader(quarantined, KafkaHeaders.ORIGINAL_OFFSET)).isEqualTo(1L);
 		verify(alertService, timeout(15_000)).alertQuarantined(
 			OPERATION_TOPIC, 0, 1L, null, "processing failure");
+		verifyNoMoreInteractions(alertService);
 		assertThat(retryRecord.value()).isEqualTo(SANITIZED_POISON);
 		assertThat(retryRecord.key()).isNull();
 		assertThat(quarantined.topic()).isEqualTo(OPERATION_DLT_TOPIC);
@@ -203,7 +227,8 @@ class PaymentOperationKafkaIntegrationTest {
 		assertThat(quarantined.key()).isNull();
 		assertRecordDoesNotContainSecret(retryRecord);
 		assertRecordDoesNotContainSecret(quarantined);
-		assertThat(capturedLogs()).doesNotContain(RAW_SECRET, malformed);
+		assertThat(capturedLogs()).doesNotContain(
+			RAW_SECRET, RESERVED_HEADER_SECRET, malformed);
 		assertThat(KafkaTestUtils.getRecords(globalPaymentDltConsumer, Duration.ofSeconds(2)))
 			.isEmpty();
 		verifyNoInteractions(executor);
@@ -245,11 +270,58 @@ class PaymentOperationKafkaIntegrationTest {
 		return names;
 	}
 
+	private void addSpoofedReservedHeaders(ProducerRecord<String, String> record) {
+		for (String headerName : SAFE_RETRY_DLT_HEADERS) {
+			record.headers().add(
+				headerName, RESERVED_HEADER_SECRET.getBytes(StandardCharsets.UTF_8));
+		}
+		record.headers().add(
+			RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS, intBytes(1));
+		record.headers().add(
+			RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
+			BigInteger.valueOf(SPOOFED_TIMESTAMP).toByteArray());
+		record.headers().add(
+			RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
+			BigInteger.valueOf(SPOOFED_TIMESTAMP).toByteArray());
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_TOPIC, SPOOFED_TOPIC.getBytes(StandardCharsets.UTF_8));
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_PARTITION, intBytes(SPOOFED_PARTITION));
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_OFFSET, longBytes(SPOOFED_OFFSET));
+	}
+
 	private void assertRecordDoesNotContainSecret(ConsumerRecord<String, String> record) {
 		assertThat(String.valueOf(record.key())).doesNotContain(RAW_SECRET);
 		assertThat(record.value()).doesNotContain(RAW_SECRET);
-		assertThat(headerNames(record)).noneMatch(name -> name.contains(RAW_SECRET));
-		assertThat(headerValues(record)).noneMatch(value -> value.contains(RAW_SECRET));
+		assertThat(headerNames(record)).noneMatch(name ->
+			name.contains(RAW_SECRET) || name.contains(RESERVED_HEADER_SECRET));
+		assertThat(headerValues(record)).noneMatch(value ->
+			value.contains(RAW_SECRET) || value.contains(RESERVED_HEADER_SECRET));
+	}
+
+	private String readStringHeader(ConsumerRecord<String, String> record, String name) {
+		return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+	}
+
+	private int readIntHeader(ConsumerRecord<String, String> record, String name) {
+		return ByteBuffer.wrap(record.headers().lastHeader(name).value()).getInt();
+	}
+
+	private long readLongHeader(ConsumerRecord<String, String> record, String name) {
+		return ByteBuffer.wrap(record.headers().lastHeader(name).value()).getLong();
+	}
+
+	private long readTimestampHeader(ConsumerRecord<String, String> record, String name) {
+		return new BigInteger(record.headers().lastHeader(name).value()).longValueExact();
+	}
+
+	private byte[] intBytes(int value) {
+		return ByteBuffer.allocate(Integer.BYTES).putInt(value).array();
+	}
+
+	private byte[] longBytes(long value) {
+		return ByteBuffer.allocate(Long.BYTES).putLong(value).array();
 	}
 
 	private String capturedLogs() {

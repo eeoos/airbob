@@ -11,19 +11,17 @@ import java.util.UUID;
 import org.apache.kafka.clients.producer.ProducerInterceptor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
-import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.retrytopic.RetryTopicHeaders;
-import org.springframework.kafka.support.KafkaHeaders;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import kr.kro.airbob.kafka.PaymentOperationKafkaHeaders;
 
 @Configuration(proxyBeanMethods = false)
 public class PaymentOperationKafkaPublisherConfig {
@@ -32,13 +30,6 @@ public class PaymentOperationKafkaPublisherConfig {
 		"event_id", "trace_id", "event_type", "event_version", "timestamp", "payload");
 	private static final Set<String> APPROVED_PAYLOAD_FIELDS = Set.of(
 		"operation_uid", "reservation_uid");
-	private static final Set<String> SAFE_RETRY_DLT_HEADERS = Set.of(
-		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
-		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
-		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
-		KafkaHeaders.ORIGINAL_TOPIC,
-		KafkaHeaders.ORIGINAL_PARTITION,
-		KafkaHeaders.ORIGINAL_OFFSET);
 	private static final String SANITIZED_POISON = "{\"event_type\":\"UNKNOWN\",\"payload\":{}}";
 
 	@Bean
@@ -61,7 +52,8 @@ public class PaymentOperationKafkaPublisherConfig {
 		@Override
 		public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
 			SanitizedPayload sanitized = sanitize(record.value());
-			Headers sanitizedHeaders = sanitizedHeaders(record.headers());
+			Headers sanitizedHeaders = PaymentOperationKafkaHeaders.copyValidatedFrameworkOwned(
+				record.headers(), record.topic(), record.partition());
 			return new ProducerRecord<>(
 				record.topic(),
 				record.partition(),
@@ -70,17 +62,6 @@ public class PaymentOperationKafkaPublisherConfig {
 				sanitized.value(),
 				sanitizedHeaders
 			);
-		}
-
-		private Headers sanitizedHeaders(Headers source) {
-			Headers sanitized = new RecordHeaders();
-			for (Header header : source) {
-				if (SAFE_RETRY_DLT_HEADERS.contains(header.key())) {
-					byte[] value = header.value();
-					sanitized.add(header.key(), value == null ? null : value.clone());
-				}
-			}
-			return sanitized;
 		}
 
 		private SanitizedPayload sanitize(String value) {

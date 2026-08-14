@@ -7,8 +7,12 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,8 +24,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
+import org.springframework.kafka.retrytopic.RetryTopicHeaders;
 import org.springframework.kafka.retrytopic.SameIntervalTopicReuseStrategy;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -35,6 +42,14 @@ class PaymentOperationEventsConsumerTest {
 
 	private static final UUID OPERATION_UID = UUID.fromString("b7f97942-3e28-4a5f-9cb4-797001b4f5c1");
 	private static final String RAW_SECRET = "poison-provider-secret-7a8e0d";
+	private static final List<String> FRAMEWORK_OWNED_HEADERS = List.of(
+		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
+		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
+		RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
+		KafkaHeaders.ORIGINAL_TOPIC,
+		KafkaHeaders.ORIGINAL_PARTITION,
+		KafkaHeaders.ORIGINAL_OFFSET
+	);
 	private static final String MESSAGE = """
 		{
 		  "event_type": "PAYMENT_EXECUTION_REQUESTED_V1",
@@ -55,6 +70,42 @@ class PaymentOperationEventsConsumerTest {
 	void setUp() {
 		consumer = new PaymentOperationEventsConsumer(
 			new PaymentOperationEventParser(new ObjectMapper()), executor, alertService);
+		ReflectionTestUtils.setField(consumer, "primaryTopic", "PAYMENT_OPERATION.events");
+	}
+
+	@Test
+	@DisplayName("원본 토픽에서는 공격자가 주입한 프레임워크 예약 헤더를 실행 전에 제거한다")
+	void stripsFrameworkOwnedHeadersFromPrimaryRecord() {
+		ConsumerRecord<String, String> record = new ConsumerRecord<>(
+			"PAYMENT_OPERATION.events", 0, 9L, null, MESSAGE);
+		for (String name : FRAMEWORK_OWNED_HEADERS) {
+			record.headers().add(name, RAW_SECRET.getBytes(StandardCharsets.UTF_8));
+		}
+		record.headers().add("safe-trace", "trace-id".getBytes(StandardCharsets.UTF_8));
+
+		consumer.handle(record, acknowledgment);
+
+		assertThat(record.headers()).noneMatch(header ->
+			FRAMEWORK_OWNED_HEADERS.contains(header.key()));
+		assertThat(record.headers().lastHeader("safe-trace")).isNotNull();
+		then(executor).should().execute(OPERATION_UID);
+		then(acknowledgment).should().acknowledge();
+	}
+
+	@Test
+	@DisplayName("재시도 토픽에서는 Spring Kafka의 시도 상태 헤더를 유지한다")
+	void retainsFrameworkHeadersFromRetryRecord() {
+		ConsumerRecord<String, String> record = new ConsumerRecord<>(
+			"PAYMENT_OPERATION.events.RETRY", 0, 2L, null, MESSAGE);
+		byte[] attempts = ByteBuffer.allocate(Integer.BYTES).putInt(2).array();
+		record.headers().add(RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS, attempts);
+
+		consumer.handle(record, acknowledgment);
+
+		assertThat(record.headers().lastHeader(RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS).value())
+			.containsExactly(attempts);
+		then(executor).should().execute(OPERATION_UID);
+		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
@@ -196,7 +247,7 @@ class PaymentOperationEventsConsumerTest {
 	@DisplayName("전용 토픽, 그룹, 재시도 토픽, DLT 계약을 구성한다")
 	void configuresDedicatedRetryAndDltContract() throws NoSuchMethodException {
 		var method = PaymentOperationEventsConsumer.class
-			.getMethod("handle", String.class, Acknowledgment.class);
+			.getMethod("handle", ConsumerRecord.class, Acknowledgment.class);
 		RetryableTopic retryableTopic = method.getAnnotation(RetryableTopic.class);
 		KafkaListener kafkaListener = method.getAnnotation(KafkaListener.class);
 

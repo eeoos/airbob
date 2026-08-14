@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
+import kr.kro.airbob.kafka.PaymentOperationKafkaHeaders;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,6 +36,8 @@ public class PaymentOperationEventsConsumer {
 	private final PaymentOperationEventParser parser;
 	private final PaymentOperationExecutor executor;
 	private final PaymentOperationAlertService alertService;
+	@Value("${payment.operation.kafka.topic:PAYMENT_OPERATION.events}")
+	private String primaryTopic;
 
 	@RetryableTopic(
 		attempts = "${payment.operation.kafka.attempts:4}",
@@ -48,6 +52,13 @@ public class PaymentOperationEventsConsumer {
 		topics = "${payment.operation.kafka.topic:PAYMENT_OPERATION.events}",
 		groupId = "${payment.operation.kafka.group:payment-operation-execution-group}"
 	)
+	public void handle(ConsumerRecord<String, String> record, Acknowledgment ack) {
+		if (record.topic().equals(primaryTopic)) {
+			PaymentOperationKafkaHeaders.stripFrameworkOwned(record.headers());
+		}
+		handle(record.value(), ack);
+	}
+
 	public void handle(@Payload String message, Acknowledgment ack) {
 		executor.execute(parser.parseOperationUid(message));
 		ack.acknowledge();
