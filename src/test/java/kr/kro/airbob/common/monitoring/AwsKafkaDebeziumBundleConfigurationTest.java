@@ -116,8 +116,6 @@ class AwsKafkaDebeziumBundleConfigurationTest {
 			"./connect-distributed.aws.properties:/opt/kafka/config/connect-distributed.aws.properties:ro",
 			"./jmx-exporter.yml:/opt/jmx/debezium.yml:ro");
 		assertHealthCheck(debezium, 60);
-		assertThat(list(map(debezium.get("healthcheck")).get("test"))).containsExactly(
-			"CMD", "/bin/bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/8083");
 		assertNodeExporter(map(services.get("node-exporter")));
 		assertJmxConfiguration(DEBEZIUM_JMX);
 
@@ -139,6 +137,41 @@ class AwsKafkaDebeziumBundleConfigurationTest {
 			.containsEntry("key.converter.schemas.enable", "false")
 			.containsEntry("value.converter", "org.apache.kafka.connect.storage.StringConverter")
 			.containsEntry("offset.flush.interval.ms", "10000");
+	}
+
+	@Test
+	void kafkaHealthProbeDoesNotReuseTheBrokerJmxAgentOrHeap() throws IOException {
+		Map<String, Object> kafka = map(map(yaml(KAFKA_COMPOSE).get("services")).get("kafka"));
+		Map<String, Object> environment = map(kafka.get("environment"));
+		assertThat(environment)
+			.containsEntry("KAFKA_HEAP_OPTS", "-Xms1g -Xmx1g")
+			.containsEntry("KAFKA_OPTS",
+				"-javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7071:/opt/jmx/kafka.yml");
+
+		List<String> healthCommand = list(map(kafka.get("healthcheck")).get("test"));
+		assertThat(healthCommand).hasSize(2).first().isEqualTo("CMD-SHELL");
+		assertThat(healthCommand.get(1))
+			.contains("KAFKA_OPTS=''")
+			.contains("KAFKA_HEAP_OPTS='-Xms64m -Xmx64m'")
+			.contains("/opt/kafka/bin/kafka-broker-api-versions.sh")
+			.contains("--bootstrap-server localhost:19092");
+	}
+
+	@Test
+	void debeziumHealthProbeRequiresConnectorsHttpStatus200WithinTheReadTimeout()
+		throws IOException {
+		Map<String, Object> debezium = map(
+			map(yaml(DEBEZIUM_COMPOSE).get("services")).get("debezium"));
+		List<String> healthCommand = list(map(debezium.get("healthcheck")).get("test"));
+		assertThat(healthCommand).hasSize(4);
+		assertThat(healthCommand.subList(0, 3)).containsExactly("CMD", "/bin/bash", "-ec");
+		assertThat(healthCommand.get(3))
+			.contains("GET /connectors HTTP/1.1")
+			.contains("read -r -t 5 protocol status_code")
+			.contains("[[ \"$$status_code\" == 200 ]]")
+			.doesNotContain("curl")
+			.doesNotContain("wget");
+		assertThat(map(debezium.get("healthcheck"))).containsEntry("timeout", "10s");
 	}
 
 	@Test
