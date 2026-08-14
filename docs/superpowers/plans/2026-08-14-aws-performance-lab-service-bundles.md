@@ -241,7 +241,7 @@ ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache.lab.airbob.internal
 ACCOMMODATION_DETAIL_CACHE_REDIS_PORT=6380
 ```
 
-The verifier must reject identical general/cache endpoint tuples and must never print datasource passwords. The Java test must require app `8080`, node exporter `9100`, `cpus: 2.0`, `mem_limit: 3G`, `memswap_limit: 3G`, fixed JVM options, health check, and digest-only image variables.
+The verifier must reject identical general/cache endpoint tuples and must never print datasource passwords. The runtime env key set is an exact allowlist: an otherwise-valid file containing any unlisted key must fail. Add explicit regressions for `PAYMENT_TOSS_ENABLED`, `CLOUD_AWS_S3_WRITEENABLED`, `SPRING_APPLICATION_JSON`, `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS`, `SPRING_CONFIG_ADDITIONAL_LOCATION`, `SPRING_CONFIG_LOCATION`, and `SPRING_CONFIG_IMPORT` so higher-precedence Spring/JVM inputs cannot re-enable external effects. The Java test must require app `8080`, node exporter `9100`, `cpus: 2.0`, `mem_limit: 3G`, `memswap_limit: 3G`, fixed JVM options, health check, and digest-only image variables.
 
 - [ ] **Step 2: Confirm RED**
 
@@ -278,7 +278,9 @@ Add the existing actuator health check with a 90-second start period. Add one no
 
 - [ ] **Step 4: Implement fail-closed env verification**
 
-`required-runtime-env.txt` lists `SPRING_PROFILES_ACTIVE`, the four external guards, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, both Redis host/ports, `KAFKA_BOOTSTRAP_SERVERS`, `ELASTICSEARCH_URIS`, `ELASTICSEARCH_USERNAME`, `ELASTIC_PASSWORD`, `AWS_S3_BUCKET_NAME`, and `CLOUDFRONT_DOMAIN`. Parse the env file without sourcing it. Reject duplicate keys, missing keys, whitespace around names, non-false guard values, a profile/policy mismatch, Redis endpoint equality after lowercasing/trimming hosts, Kafka values other than `kafka.lab.airbob.internal:9092`, and Elasticsearch values other than `http://elasticsearch.lab.airbob.internal:9200`. Permit empty values only for `ELASTICSEARCH_USERNAME` and `ELASTIC_PASSWORD` because the private lab ES node has security disabled. Reject `TOSS_SECRET_KEY`, `GOOGLE_API_KEY`, `SLACK_WEBHOOK_URL`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` if they appear in the lab runtime env file.
+`required-runtime-env.txt` is the exact 18-key allowlist: `SPRING_PROFILES_ACTIVE`, the four external guards, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, both Redis host/ports, `KAFKA_BOOTSTRAP_SERVERS`, `ELASTICSEARCH_URIS`, `ELASTICSEARCH_USERNAME`, `ELASTIC_PASSWORD`, `AWS_S3_BUCKET_NAME`, and `CLOUDFRONT_DOMAIN`. Parse the env file without sourcing it. Ignore blank lines and full-line `#` comments, but reject every parsed key not in the allowlist, duplicate keys, missing keys, whitespace around names, non-false guard values, a profile/policy mismatch, Redis endpoint equality after lowercasing/trimming hosts, Kafka values other than `kafka.lab.airbob.internal:9092`, and Elasticsearch values other than `http://elasticsearch.lab.airbob.internal:9200`. Permit empty values only for `ELASTICSEARCH_USERNAME` and `ELASTIC_PASSWORD` because the private lab ES node has security disabled. The exact allowlist therefore also rejects `TOSS_SECRET_KEY`, `GOOGLE_API_KEY`, `SLACK_WEBHOOK_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, canonical integration-property overrides, Spring config/property-source inputs, and JVM option inputs. Never print values from the runtime env file.
+
+This verifier attests the root-owned `APP_ENV_FILE`; it is not itself a trusted launcher. The later EC2 bootstrap/operator must invoke it immediately before `docker compose up` and must not add `-e`, alternate Spring config locations, JVM override variables, or command-line Spring properties after verification.
 
 - [ ] **Step 5: Verify and commit**
 
