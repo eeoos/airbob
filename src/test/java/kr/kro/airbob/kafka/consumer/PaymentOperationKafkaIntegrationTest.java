@@ -84,6 +84,7 @@ class PaymentOperationKafkaIntegrationTest {
 	static final String OPERATION_DLT_TOPIC = "PAYMENT_OPERATION.events.DLT";
 	static final String GLOBAL_PAYMENT_DLT_TOPIC = "PAYMENT.events.DLT";
 	private static final UUID OPERATION_UID = UUID.fromString("7e19fa7d-a8dc-4096-8c75-e84f43e5b639");
+	private static final UUID RESERVATION_UID = UUID.fromString("ac3921de-5f64-4d73-829d-a49c32321950");
 	private static final String SANITIZED_POISON = "{\"event_type\":\"UNKNOWN\",\"payload\":{}}";
 	private static final String VALID_MESSAGE = """
 		{
@@ -184,10 +185,24 @@ class PaymentOperationKafkaIntegrationTest {
 		doThrow(new IllegalStateException("database unavailable"))
 			.doNothing()
 			.when(executor).execute(OPERATION_UID);
-		kafkaTemplate.send(OPERATION_TOPIC, VALID_MESSAGE).get(10, TimeUnit.SECONDS);
+		kafkaTemplate.send(OPERATION_TOPIC, RESERVATION_UID.toString(), VALID_MESSAGE)
+			.get(10, TimeUnit.SECONDS);
 		ConsumerRecord<String, String> validRetry = KafkaTestUtils.getSingleRecord(
 			operationRetryConsumer, OPERATION_RETRY_TOPIC, Duration.ofSeconds(15));
 		assertThat(validRetry.value()).isEqualTo(VALID_MESSAGE);
+		assertThat(validRetry.key()).isEqualTo(RESERVATION_UID.toString());
+		assertThat(validRetry.partition()).isZero();
+		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID);
+
+		reset(executor);
+		doThrow(new IllegalStateException("database unavailable"))
+			.doNothing()
+			.when(executor).execute(OPERATION_UID);
+		kafkaTemplate.send(OPERATION_TOPIC, "untrusted-incoming-key", VALID_MESSAGE)
+			.get(10, TimeUnit.SECONDS);
+		ConsumerRecord<String, String> rekeyedRetry = KafkaTestUtils.getSingleRecord(
+			operationRetryConsumer, OPERATION_RETRY_TOPIC, Duration.ofSeconds(15));
+		assertThat(rekeyedRetry.key()).isEqualTo(RESERVATION_UID.toString());
 		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID);
 
 		reset(executor);

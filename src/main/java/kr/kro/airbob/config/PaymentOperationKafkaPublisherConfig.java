@@ -60,32 +60,35 @@ public class PaymentOperationKafkaPublisherConfig {
 
 		@Override
 		public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
-			String sanitizedValue = sanitize(record.value());
+			SanitizedPayload sanitized = sanitize(record.value());
 			Headers sanitizedHeaders = new RecordHeaders(record.headers().toArray());
 			SENSITIVE_FAILURE_HEADERS.forEach(sanitizedHeaders::remove);
 			return new ProducerRecord<>(
 				record.topic(),
 				record.partition(),
 				record.timestamp(),
-				null,
-				sanitizedValue,
+				sanitized.key(),
+				sanitized.value(),
 				sanitizedHeaders
 			);
 		}
 
-		private String sanitize(String value) {
+		private SanitizedPayload sanitize(String value) {
 			try {
 				JsonNode root = objectMapper.readTree(value);
 				Optional<UUID> operationUid = readOperationUid(root);
 				if (operationUid.isEmpty()) {
-					return SANITIZED_POISON;
+					return SanitizedPayload.poison();
 				}
 				if (isApprovedIdentifierOnlyEnvelope(root)) {
-					return value;
+					String reservationKey = readUuid(root.path("payload").path("reservation_uid"))
+						.orElseThrow()
+						.toString();
+					return new SanitizedPayload(value, reservationKey);
 				}
-				return sanitizedExecutionRequest(operationUid.get());
+				return new SanitizedPayload(sanitizedExecutionRequest(operationUid.get()), null);
 			} catch (Exception ignored) {
-				return SANITIZED_POISON;
+				return SanitizedPayload.poison();
 			}
 		}
 
@@ -153,6 +156,12 @@ public class PaymentOperationKafkaPublisherConfig {
 
 		@Override
 		public void configure(Map<String, ?> configs) {
+		}
+	}
+
+	private record SanitizedPayload(String value, String key) {
+		private static SanitizedPayload poison() {
+			return new SanitizedPayload(SANITIZED_POISON, null);
 		}
 	}
 }
