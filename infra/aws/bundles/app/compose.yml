@@ -1,0 +1,30 @@
+services:
+  app:
+    image: ${APP_IMAGE:?APP_IMAGE is required}
+    platform: linux/amd64
+    env_file:
+      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+    environment:
+      JAVA_OPTS: -Xms1536m -Xmx1536m -XX:+UseG1GC
+    ports: ["8080:8080"]
+    cpus: 2.0
+    mem_limit: 3G
+    memswap_limit: 3G
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    restart: unless-stopped
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE:?NODE_EXPORTER_IMAGE is required}
+    platform: linux/amd64
+    pid: host
+    command: ["--path.rootfs=/host"]
+    ports: ["9100:9100"]
+    volumes: ["/:/host:ro"]
+    mem_limit: 128M
+    memswap_limit: 128M
+    restart: unless-stopped
