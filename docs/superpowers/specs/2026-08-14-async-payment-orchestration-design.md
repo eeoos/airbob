@@ -157,6 +157,7 @@ Migration `V17__add_payment_operation.sql` adds one table with the following log
 | `deduplication_key` | Unique server key `CONFIRM:{reservationUid}` |
 | `attempt_count` | Number of claimed execution attempts |
 | `next_attempt_at` | Earliest recovery time |
+| `last_enqueued_at` | Last time an execution command was written, used to rate-limit recovery publication |
 | `lease_owner` | Worker currently executing the operation |
 | `lease_expires_at` | Crash-recovery deadline |
 | `failure_code` | Bounded normalized provider or application code |
@@ -170,7 +171,7 @@ Indexes and constraints:
 - Unique `operation_uid`.
 - Unique `provider_idempotency_key`.
 - Unique `deduplication_key`.
-- Index `(status, next_attempt_at)` for scheduler scans.
+- Index `(status, next_attempt_at, last_enqueued_at)` for due-work and stale-command scans.
 - Index `lease_expires_at` for abandoned execution scans.
 - Foreign keys to reservation and requesting member.
 
@@ -241,10 +242,11 @@ The operation foreign key is persisted on each new ledger effect and is unique, 
 
 ### PaymentOperationRecoveryScheduler
 
-- Pages through due `RETRY_WAIT`, `OUTCOME_UNKNOWN`, and lease-expired `EXECUTING` operations.
+- Pages through stale `READY`, due `RETRY_WAIT`, due `OUTCOME_UNKNOWN`, and lease-expired `EXECUTING` operations.
 - Uses database locking so multiple scheduler instances cannot claim the same recovery item simultaneously.
 - Converts lease-expired `EXECUTING` work to `OUTCOME_UNKNOWN` before enqueueing recovery.
 - Writes another `PaymentExecutionRequestedV1` outbox command rather than invoking Toss directly.
+- Advances `last_enqueued_at` in the same transaction so an unconsumed command is republished only after the configured recovery-publication interval.
 - Moves exhausted ambiguous work to `MANUAL_REVIEW` and emits an alert.
 
 ### TossPaymentGateway
@@ -271,7 +273,7 @@ With the current Debezium route-by-aggregate convention, the outbox aggregate ty
 
 The command may be delivered more than once. Correctness depends on operation state, database constraints, execution lease, provider idempotency, and finalizer idempotency. It does not depend on exactly-once Kafka delivery.
 
-The payment-operation DLT handler retains the original topic, partition, offset, and operation UID, alerts operators, and quarantines the record. It does not perform payment compensation. The recovery scheduler continues to make progress even if the Kafka record remains parked.
+The payment-operation DLT handler retains the original topic, partition, offset, and operation UID when the envelope is parseable, alerts operators, and quarantines the record. It does not perform payment compensation. The recovery scheduler continues to make progress even if the Kafka record remains parked.
 
 Default execution policy is configurable but starts with a 30-second lease, a scheduler interval of 10 seconds, and a batch size of 100. Toss connect and response deadlines must be shorter than the lease. Retryable execution uses exponential backoff and moves unresolved work to `MANUAL_REVIEW` after five automatic attempts; outcome-unknown work always performs inquiry before another confirmation call.
 
@@ -295,6 +297,7 @@ This slice preserves existing reservation status semantics:
 
 - Operation creation moves `PAYMENT_PENDING` to `PAYMENT_PROCESSING`.
 - Success moves `PAYMENT_PROCESSING` to `CONFIRMED`.
+- The payment deadline is checked when the operation is accepted. Once accepted, a correlated Toss approval remains valid even if provider latency puts `approvedAt` after the reservation deadline; inventory stays held until the operation resolves.
 - Final decline moves `PAYMENT_PROCESSING` to `EXPIRED`.
 - `RETRY_WAIT` and `OUTCOME_UNKNOWN` remain `PAYMENT_PROCESSING` and are owned by the recovery scheduler.
 - `MANUAL_REVIEW` keeps inventory occupied until money state is resolved.
