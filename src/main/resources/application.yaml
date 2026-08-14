@@ -4,6 +4,9 @@ spring:
 
   profiles:
     active: dev
+    group:
+      traffic-benchmark:
+        - performance-lab
 
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
