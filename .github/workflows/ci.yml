@@ -25,3 +25,10 @@ jobs:
       - name: Build and Test
         run: ./gradlew clean build
 
+      - name: Verify AWS performance-lab application contracts
+        run: |
+          ./gradlew test \
+            --tests "kr.kro.airbob.config.PerformanceLabRedisEndpointConfigurationTest" \
+            --tests "kr.kro.airbob.config.PerformanceLabProfileConfigurationTest" \
+            --tests "kr.kro.airbob.config.TrafficBenchmarkProfileConfigurationTest" \
+            --tests "kr.kro.airbob.common.monitoring.RedisMonitoringConfigurationTest"

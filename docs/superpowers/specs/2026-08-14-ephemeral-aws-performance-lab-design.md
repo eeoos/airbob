@@ -1,7 +1,7 @@
 ---
 title: "일회성 AWS 성능 실험실 및 Redis 2분리 설계"
 date: "2026-08-14"
-status: "draft-for-review"
+status: "implementation-in-progress"
 related_plan: "docs/plans/2026-08-11-001-perf-aws-traffic-index-benchmark-plan.md"
 ---
 
@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 전에 합의할 설계 기준이다. 승인 후 별도의 파일 단위 구현 계획을 작성한다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약만 구현되었으며, Terraform, DNS 이전·전환, AWS 자원 생성과 성능 증거 수집은 아직 진행 전이다.
 
 ## 배경
 
@@ -350,7 +350,7 @@ Terraform의 `performance/scaling`은 인프라 용량 모드이고, 앱의 백�
 
 현재 스케줄러는 각 앱 인스턴스에서 실행되므로 ASG가 2대 이상이면 같은 작업이 중복 실행될 수 있다. v1의 scaling 실험은 scheduler가 꺼진 web request path만 대상으로 한다. 향후 ShedLock 또는 singleton worker ownership을 도입하기 전에는 “백그라운드 작업까지 포함한 운영형 다중화”를 주장하지 않는다.
 
-`isolated-read`에 필요한 `traffic-benchmark` application profile은 아직 존재하지 않는 선행 구현이다. 다음을 명시적으로 비활성화하고, idle-control 구간에서 DB/Kafka 지표가 움직이지 않는지 검증해야 한다.
+`isolated-read`의 `traffic-benchmark` application profile은 Phase 0에서 구현되었다. 이 profile은 group으로 `performance-lab`을 포함하고 다음을 명시적으로 비활성화한다. idle-control 구간에서 DB/Kafka 지표가 움직이지 않는지는 이후 AWS 실험에서 검증해야 한다.
 
 - Spring scheduled task
 - Kafka listener
@@ -359,7 +359,7 @@ Terraform의 `performance/scaling`은 인프라 용량 모드이고, 앱의 백�
 
 현재 AWS 설정에는 실제 Toss endpoint와 Slack 전송 설정이 있으므로 기존 `application-aws.yaml`만으로 lab을 시작하지 않는다. 모든 lab 정책은 실제 Toss 결제, Slack webhook, Google API와 일반 application S3 prefix에 대한 외부 부작용을 stub 또는 disable한다. 업로드 자체를 검증해야 하면 별도 lab prefix와 synthetic object allowlist만 사용하고 down에서 정리한다. `integrated-smoke`는 Kafka/Debezium 내부 흐름을 켠다는 뜻이지 실제 외부 결제·알림을 호출한다는 뜻이 아니다.
 
-현재 숙소 상세 Redis cache에는 별도 enable toggle이 없다. 따라서 Phase 0에서 fail-fast 설정과 함께 `accommodation.detail-cache.enabled` 같은 명시적 실험 toggle을 추가해야 cache A/B를 같은 app image로 통제할 수 있다. toggle 구현 전에는 서로 다른 image/profile 결과를 cache 효과 하나로 주장하지 않는다.
+숙소 상세 Redis cache는 Phase 0에서 `accommodation.detail-cache.enabled` toggle을 추가했다. 동일 app image에서 이 값만 바꿔 cache A/B를 통제하며, disabled일 때 cache client를 호출하지 않는다. Redis topology는 범용과 숙소 상세 cache의 두 endpoint를 유지한다.
 
 ## Dataset release와 복원
 
@@ -664,12 +664,12 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 
 ### Phase 0. 실행 계약과 선행 애플리케이션 격리
 
-- 기존 범용/숙소 상세 Redis client 경계를 유지하고, AWS endpoint 명시·서로 다른 host/port 검증과 물리 라우팅 테스트를 추가한다.
-- `traffic-benchmark` profile에서 scheduler와 Kafka listener를 끄는 계약을 구현한다.
-- 동일 image의 cache A/B를 위한 명시적 enable toggle과 reset 계약을 추가한다.
-- 모든 lab profile에서 실제 Toss/Slack/Google/일반 S3 쓰기를 stub·disable하거나 전용 allowlist prefix로 제한한다.
-- AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
-- 앱과 infra image를 immutable digest로 발행한다.
+- [x] 기존 범용/숙소 상세 Redis client 경계를 유지하고, AWS endpoint 명시·서로 다른 host/port 검증과 물리 라우팅 테스트를 추가한다.
+- [x] `traffic-benchmark` profile에서 scheduler와 Kafka listener를 끄는 계약을 구현한다.
+- [x] 동일 image의 cache A/B를 위한 명시적 enable toggle과 reset 계약을 추가한다. reset은 전용 cache Redis에만 `FLUSHDB`를 실행하며, HTTP reset endpoint는 만들지 않는다.
+- [x] 모든 lab profile에서 실제 Toss/Slack/Google/일반 S3 쓰기를 stub·disable하거나 전용 allowlist prefix로 제한한다.
+- [ ] AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
+- [ ] 앱과 infra image를 immutable digest로 발행한다.
 
 이 단계가 끝나기 전에는 “Redis 2분리 검증”이나 “잡음 없는 성능 비교”를 완료했다고 보지 않는다.
 
