@@ -20,7 +20,7 @@ images=$(docker compose --env-file "$image_env_file" -f "$compose_file" config -
   exit 1
 }
 
-component_pattern='^[a-z0-9]+([._-][a-z0-9]+)*$'
+component_pattern='^[a-z0-9]+(([._]|__|-+)[a-z0-9]+)*$'
 digest_pattern='^[0-9a-f]{64}$'
 
 is_valid_repository() {
