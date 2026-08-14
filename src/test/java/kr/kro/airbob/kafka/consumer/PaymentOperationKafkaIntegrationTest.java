@@ -54,6 +54,7 @@ import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.read.ListAppender;
 
 import kr.kro.airbob.config.KafkaConfig;
+import kr.kro.airbob.config.PaymentOperationKafkaConsumerConfig;
 import kr.kro.airbob.config.PaymentOperationKafkaPublisherConfig;
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
@@ -72,7 +73,7 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 	"payment.operation.kafka.topic=PAYMENT_OPERATION.events",
 	"payment.operation.kafka.group=payment-operation-execution-group",
 	"payment.operation.kafka.attempts=2",
-	"payment.operation.kafka.backoff-ms=25"
+	"payment.operation.kafka.backoff-ms=500"
 })
 @EmbeddedKafka(
 	partitions = 1,
@@ -100,7 +101,9 @@ class PaymentOperationKafkaIntegrationTest {
 	private static final String SPOOFED_TOPIC = "SPOOFED_PAYMENT.events";
 	private static final int SPOOFED_PARTITION = 77;
 	private static final long SPOOFED_OFFSET = 999L;
-	private static final long SPOOFED_TIMESTAMP = 1L;
+	private static final long SPOOFED_ORIGINAL_TIMESTAMP = 1L;
+	private static final long ATTACKER_BACKOFF_DELAY_MS = 30_000L;
+	private static final long PROMPT_DELIVERY_TIMEOUT_MS = 2_000L;
 	private static final String SANITIZED_POISON = "{\"event_type\":\"UNKNOWN\",\"payload\":{}}";
 	private static final List<String> SAFE_RETRY_DLT_HEADERS = List.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
@@ -173,7 +176,7 @@ class PaymentOperationKafkaIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("poison message는 전용 DLT로만 가고 정상 중복 메시지는 경계에서 두 번 실행된다")
+	@DisplayName("원본의 미래 backoff 헤더는 같은 파티션을 막지 않고 poison만 전용 DLT로 격리한다")
 	void isolatesPoisonMessageAndDeliversValidDuplicatesAtBoundary() throws Exception {
 		String malformed = "not-json paymentKey=" + RAW_SECRET;
 
@@ -185,14 +188,21 @@ class PaymentOperationKafkaIntegrationTest {
 			OPERATION_TOPIC, "sensitive-key-" + RAW_SECRET, malformed);
 		poison.headers().add(
 			CUSTOM_SENSITIVE_HEADER, RAW_SECRET.getBytes(StandardCharsets.UTF_8));
-		addSpoofedReservedHeaders(poison);
+		long attackerBackoffTimestamp = System.currentTimeMillis() + ATTACKER_BACKOFF_DELAY_MS;
+		addSpoofedReservedHeaders(poison, attackerBackoffTimestamp);
 		kafkaTemplate.send(poison)
 			.get(10, TimeUnit.SECONDS);
+		ProducerRecord<String, String> validFollower = new ProducerRecord<>(
+			OPERATION_TOPIC, 0, RESERVATION_UID.toString(), VALID_MESSAGE);
+		kafkaTemplate.send(validFollower).get(10, TimeUnit.SECONDS);
+		verify(executor, timeout(PROMPT_DELIVERY_TIMEOUT_MS)).execute(OPERATION_UID);
+		org.mockito.Mockito.clearInvocations(executor);
 
 		ConsumerRecord<String, String> retryRecord = KafkaTestUtils.getSingleRecord(
 			operationRetryConsumer, OPERATION_RETRY_TOPIC, Duration.ofSeconds(15));
 		ConsumerRecord<String, String> quarantined = KafkaTestUtils.getSingleRecord(
 			operationDltConsumer, OPERATION_DLT_TOPIC, Duration.ofSeconds(15));
+		long dltObservedAt = System.currentTimeMillis();
 		List<String> retryHeaderNames = headerNames(retryRecord);
 		List<String> dltHeaderNames = headerNames(quarantined);
 		assertThat(dltHeaderNames).contains(
@@ -211,8 +221,10 @@ class PaymentOperationKafkaIntegrationTest {
 			retryRecord, RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP);
 		long backoffTimestamp = readTimestampHeader(
 			retryRecord, RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP);
-		assertThat(originalTimestamp).isGreaterThan(SPOOFED_TIMESTAMP);
-		assertThat(backoffTimestamp).isGreaterThanOrEqualTo(originalTimestamp + 25L);
+		assertThat(originalTimestamp).isGreaterThan(SPOOFED_ORIGINAL_TIMESTAMP);
+		assertThat(backoffTimestamp).isGreaterThanOrEqualTo(originalTimestamp + 500L);
+		assertThat(backoffTimestamp).isLessThan(attackerBackoffTimestamp);
+		assertThat(dltObservedAt).isGreaterThanOrEqualTo(backoffTimestamp);
 		assertThat(readStringHeader(quarantined, KafkaHeaders.ORIGINAL_TOPIC))
 			.isEqualTo(OPERATION_TOPIC);
 		assertThat(readIntHeader(quarantined, KafkaHeaders.ORIGINAL_PARTITION)).isZero();
@@ -270,7 +282,10 @@ class PaymentOperationKafkaIntegrationTest {
 		return names;
 	}
 
-	private void addSpoofedReservedHeaders(ProducerRecord<String, String> record) {
+	private void addSpoofedReservedHeaders(
+		ProducerRecord<String, String> record,
+		long attackerBackoffTimestamp
+	) {
 		for (String headerName : SAFE_RETRY_DLT_HEADERS) {
 			record.headers().add(
 				headerName, RESERVED_HEADER_SECRET.getBytes(StandardCharsets.UTF_8));
@@ -279,10 +294,10 @@ class PaymentOperationKafkaIntegrationTest {
 			RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS, intBytes(1));
 		record.headers().add(
 			RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
-			BigInteger.valueOf(SPOOFED_TIMESTAMP).toByteArray());
+			BigInteger.valueOf(attackerBackoffTimestamp).toByteArray());
 		record.headers().add(
 			RetryTopicHeaders.DEFAULT_HEADER_ORIGINAL_TIMESTAMP,
-			BigInteger.valueOf(SPOOFED_TIMESTAMP).toByteArray());
+			BigInteger.valueOf(SPOOFED_ORIGINAL_TIMESTAMP).toByteArray());
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_TOPIC, SPOOFED_TOPIC.getBytes(StandardCharsets.UTF_8));
 		record.headers().add(
@@ -355,6 +370,7 @@ class PaymentOperationKafkaIntegrationTest {
 		JacksonAutoConfiguration.class,
 		KafkaAutoConfiguration.class,
 		KafkaConfig.class,
+		PaymentOperationKafkaConsumerConfig.class,
 		PaymentOperationKafkaPublisherConfig.class,
 		PaymentOperationEventsConsumer.class
 	})
