@@ -47,6 +47,21 @@ class RedisMonitoringConfigurationTest {
 		}
 	}
 
+	@Test
+	void awsPrometheusScrapesExactlyTwoRedisExportersWithDashboardLabels() throws IOException {
+		Map<String, Object> prometheus = yaml(
+			Path.of("monitoring", "prometheus", "prometheus.aws.yml"));
+		List<Map<String, Object>> jobs = list(prometheus.get("scrape_configs"));
+
+		assertRedisJob(jobs, "redis-general",
+			"redis-general.lab.airbob.internal:9121", "general");
+		assertRedisJob(jobs, "redis-cache",
+			"redis-cache.lab.airbob.internal:9122", "cache");
+		assertThat(jobs.stream()
+			.filter(job -> job.get("job_name").toString().startsWith("redis-")))
+			.hasSize(2);
+	}
+
 	private void assertRedisServices(Map<String, Object> services, boolean local) {
 		Map<String, Object> general = map(services.get("redis"));
 		Map<String, Object> cache = map(services.get("redis-cache"));
