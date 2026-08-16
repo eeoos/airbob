@@ -9,7 +9,11 @@ on:
         description: Lab operation
         required: true
         type: choice
-        options: [up, status, switch, down]
+        options: [up, status, switch, down, measure]
+      run_id:
+        description: Existing lab run id used by switch, down, or measure
+        required: false
+        type: string
       mode:
         description: App capacity mode used by up
         required: false
@@ -55,6 +59,50 @@ on:
         required: false
         default: false
         type: boolean
+      benchmark_target:
+        description: Single public endpoint used by the first measurement slice
+        required: false
+        default: accommodation-detail
+        type: choice
+        options: [accommodation-detail]
+      rate:
+        description: Requests per second used by measure
+        required: false
+        default: '1'
+        type: string
+      duration:
+        description: Whole-second k6 measurement duration
+        required: false
+        default: '30s'
+        type: string
+      warmup_duration:
+        description: Whole-second k6 warm-up duration
+        required: false
+        default: '10s'
+        type: string
+      minimum_completed_samples:
+        description: Minimum successful measurement iterations
+        required: false
+        default: '30'
+        type: string
+      round:
+        description: Repetition round number
+        required: false
+        default: '1'
+        type: string
+      run_order:
+        description: Execution order within the experiment
+        required: false
+        default: '1'
+        type: string
+      app_commit:
+        description: Full Git commit tag resolving to the deployed app digest
+        required: false
+        type: string
+      expected_sql_calls_per_request:
+        description: Expected total Performance Schema calls per completed request
+        required: false
+        type: string
 
 concurrency:
   group: aws-performance-lab
@@ -87,7 +135,7 @@ jobs:
           role-duration-seconds: 7200
 
       - name: Run shared lab operator
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.action != 'measure'
         env:
           AWS_REGION: ap-northeast-2
           MODE: ${{ inputs.mode }}
@@ -106,8 +154,25 @@ jobs:
           LOAD_GENERATOR_ENABLED: ${{ vars.AWS_LAB_LOAD_GENERATOR_ENABLED || 'true' }}
           BUNDLE_COMMIT: ${{ github.sha }}
           DATABASE_BOOTSTRAP: dump
-          RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || '' }}
+          RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
         run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"
+
+      - name: Run shared AWS discovery harness
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'measure'
+        env:
+          AWS_REGION: ap-northeast-2
+          RUN_ID: ${{ inputs.run_id }}
+          TARGET: ${{ inputs.benchmark_target }}
+          RATE: ${{ inputs.rate }}
+          DURATION: ${{ inputs.duration }}
+          WARMUP_DURATION: ${{ inputs.warmup_duration }}
+          MIN_COMPLETED_SAMPLES: ${{ inputs.minimum_completed_samples }}
+          ROUND: ${{ inputs.round }}
+          RUN_ORDER: ${{ inputs.run_order }}
+          APP_COMMIT: ${{ inputs.app_commit }}
+          EXPECTED_SQL_CALLS_PER_REQUEST: ${{ inputs.expected_sql_calls_per_request }}
+          OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
+        run: load-test/k6/traffic/run-aws-discovery.sh
 
       - name: Clean up an expired lab after grace
         if: github.event_name == 'schedule'

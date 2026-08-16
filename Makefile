@@ -1,4 +1,4 @@
-.PHONY: aws-up aws-status aws-switch aws-down
+.PHONY: aws-up aws-status aws-switch aws-down aws-discovery
 
 aws-up:
 	AWS_REGION=ap-northeast-2 \
@@ -22,3 +22,11 @@ aws-switch:
 aws-down:
 	AWS_REGION=ap-northeast-2 RUN_ID="$(RUN_ID)" FORCE="$(or $(FORCE),false)" \
 	infra/aws/scripts/aws-lab.sh down
+
+aws-discovery:
+	AWS_REGION=ap-northeast-2 RUN_ID="$(RUN_ID)" TARGET="$(or $(TARGET),accommodation-detail)" \
+	RATE="$(RATE)" DURATION="$(DURATION)" WARMUP_DURATION="$(or $(WARMUP_DURATION),10s)" \
+	MIN_COMPLETED_SAMPLES="$(MIN_COMPLETED_SAMPLES)" ROUND="$(ROUND)" RUN_ORDER="$(RUN_ORDER)" \
+	APP_COMMIT="$(APP_COMMIT)" EXPECTED_SQL_CALLS_PER_REQUEST="$(EXPECTED_SQL_CALLS_PER_REQUEST)" \
+	RUN_LABEL="$(RUN_LABEL)" OCI_ORIGIN_IPV4="$(OCI_ORIGIN_IPV4)" \
+	load-test/k6/traffic/run-aws-discovery.sh

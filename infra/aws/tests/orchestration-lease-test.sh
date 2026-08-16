@@ -53,6 +53,8 @@ run_lease() {
 : > "$temp_dir/calls.log"
 token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 5400)
 [[ "$token" == 'fencing_token=7' ]] || fail "acquire did not return the atomic fencing token"
+measurement_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a measurement 180 5400)
+[[ "$measurement_token" == 'fencing_token=7' ]] || fail "measurement did not use the shared fencing-token lease"
 grep -Fq 'attribute_not_exists(#owner) OR #owner = :released OR (#expires < :now AND #deadline < :now)' "$temp_dir/calls.log" \
   || fail "acquire does not require both heartbeat expiry and command deadline for reclaim"
 grep -Fq 'if_not_exists(#token, :zero) + :one' "$temp_dir/calls.log" \

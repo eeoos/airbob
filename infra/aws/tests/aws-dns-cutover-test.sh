@@ -35,6 +35,10 @@ assert_contains "$controller" 'if [[ -n "$aws_alb_arn" ]]'
 assert_contains "$controller" 'apply_dns oci false'
 assert_contains "$controller" '[[ "$answer" == "$OCI_ORIGIN_IPV4" ]]'
 assert_contains "$controller" '! grep -Fqx "$OCI_ORIGIN_IPV4"'
+assert_contains "$controller" 'verify)'
+assert_contains "$controller" 'assert_lease'
+assert_contains "$controller" 'verify_dns aws'
+assert_contains "$controller" 'measurement verification requires the AWS target'
 
 if grep -Eq 'route53 change-resource-record-sets' "$controller"; then
   fail "DNS changes must remain owned by the isolated Terraform DNS state"

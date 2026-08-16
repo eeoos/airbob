@@ -8,6 +8,11 @@ locals {
     local.services_enabled && var.load_generator_enabled ? toset(["loadgen"]) : toset([]),
   )
   data_plane_host_roles = local.services_enabled ? local.service_role_names : toset([])
+  measurement_host_roles = local.services_enabled && var.load_generator_enabled ? toset([
+    "debezium",
+    "loadgen",
+    "monitoring",
+  ]) : toset([])
   phase2_ecr_arns = [
     for image_key in local.phase2_image_keys : local.ecr_repositories[image_key].arn
   ]
@@ -125,6 +130,49 @@ resource "aws_iam_role_policy" "data_plane" {
         }
       },
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "measurement_data_plane" {
+  for_each = local.measurement_host_roles
+
+  name = "airbob-performance-lab-${each.key}-measurement"
+  role = aws_iam_role.host[each.key].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [
+        {
+          Sid      = "WriteMeasurementEvidence"
+          Effect   = "Allow"
+          Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+          Resource = "arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/measurements/${var.run_id}/*"
+          Condition = {
+            StringEquals = {
+              "s3:RequestObjectTag/Retention" = ["raw", "summary"]
+            }
+          }
+        },
+      ],
+      each.key == "monitoring" ? [] : [
+        {
+          Sid      = "ReadMeasurementInputs"
+          Effect   = "Allow"
+          Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+          Resource = ["arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/measurement-inputs/${var.run_id}/*"]
+        },
+      ],
+      [
+        for statement in [
+          {
+            Sid      = "ReadSelectedBenchmarkManifest"
+            Effect   = "Allow"
+            Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+            Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/benchmark/manifest.json"
+          },
+        ] : statement if each.key == "loadgen"
+      ],
+    )
   })
 }
 

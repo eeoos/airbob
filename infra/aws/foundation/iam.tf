@@ -396,10 +396,13 @@ locals {
         }
       },
       {
-        Sid      = "ReadOperatorEvidence"
-        Effect   = "Allow"
-        Action   = "s3:GetObject"
-        Resource = "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json"
+        Sid    = "ReadOperatorEvidence"
+        Effect = "Allow"
+        Action = "s3:GetObject"
+        Resource = [
+          "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+          "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+        ]
       },
       {
         Sid      = "AbortEvidenceMultipartUpload"

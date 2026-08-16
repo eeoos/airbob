@@ -340,6 +340,29 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
       output.phase4_contract.load_generator_enabled == true &&
       output.phase4_contract.load_generator_instance_type == "c6i.xlarge" &&
       output.phase4_contract.load_generator_public_ipv4 == true &&
+      toset(keys(aws_iam_role_policy.measurement_data_plane)) == toset(["debezium", "loadgen", "monitoring"]) &&
+      alltrue([
+        for role in ["debezium", "loadgen"] :
+        contains(one([
+          for statement in jsondecode(aws_iam_role_policy.measurement_data_plane[role].policy).Statement : statement
+          if statement.Sid == "ReadMeasurementInputs"
+        ]).Resource, "arn:aws:s3:::airbob-performance-lab-evidence-942632789808/measurement-inputs/phase3-test/*")
+      ]) &&
+      length([
+        for statement in jsondecode(aws_iam_role_policy.measurement_data_plane["monitoring"].policy).Statement : statement
+        if statement.Sid == "ReadMeasurementInputs"
+      ]) == 0 &&
+      one([
+        for statement in jsondecode(aws_iam_role_policy.measurement_data_plane["loadgen"].policy).Statement : statement
+        if statement.Sid == "ReadSelectedBenchmarkManifest"
+      ]).Resource == "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/datasets/rehearsal-v16/benchmark/manifest.json" &&
+      alltrue([
+        for policy in values(aws_iam_role_policy.measurement_data_plane) :
+        one([
+          for statement in jsondecode(policy.policy).Statement : statement
+          if statement.Sid == "WriteMeasurementEvidence"
+        ]).Resource == "arn:aws:s3:::airbob-performance-lab-evidence-942632789808/measurements/phase3-test/*"
+      ]) &&
       output.phase4_contract.refresh.min_healthy_percentage == 100 &&
       output.phase4_contract.refresh.max_healthy_percentage == 200 &&
       output.phase4_contract.refresh.checkpoint_percentages[0] == 50 &&

@@ -3,6 +3,10 @@ set -euo pipefail
 umask 077
 
 install -d -m 700 /var/lib/airbob /etc/airbob
+if ! command -v aws >/dev/null 2>&1; then
+  dnf install -y awscli2 || dnf install -y awscli
+fi
+dnf install -y curl jq tar gzip
 printf '%s\n' '${region}' > /etc/airbob/region
 printf '%s\n' '${runtime_revision}' > /etc/airbob/app-runtime-revision
 chmod 600 /etc/airbob/region /etc/airbob/app-runtime-revision

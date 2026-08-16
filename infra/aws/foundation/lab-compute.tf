@@ -41,6 +41,7 @@ locals {
           "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*",
           "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
           "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/measurement-inputs/*",
         ]
       },
       {
@@ -94,10 +95,11 @@ locals {
         Resource = [
           "${aws_s3_bucket.managed["evidence"].arn}/phase2/*",
           "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
         ]
         Condition = {
           StringEquals = {
-            "s3:RequestObjectTag/Retention" = "summary"
+            "s3:RequestObjectTag/Retention" = ["raw", "summary"]
           }
         }
       },

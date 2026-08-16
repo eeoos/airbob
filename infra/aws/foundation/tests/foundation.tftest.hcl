@@ -577,6 +577,18 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
         if statement.Sid == "ProbeEvidenceBucketLocation"
       ]).Action == "s3:GetBucketLocation" &&
+      contains(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "ReadImmutableRuntimeInputs"
+      ]).Resource, "${aws_s3_bucket.managed["evidence"].arn}/measurement-inputs/*") &&
+      contains(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "WriteBootstrapEvidence"
+      ]).Resource, "${aws_s3_bucket.managed["evidence"].arn}/measurements/*") &&
+      toset(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "WriteBootstrapEvidence"
+      ]).Condition.StringEquals["s3:RequestObjectTag/Retention"]) == toset(["raw", "summary"]) &&
       toset(one([
         for statement in jsondecode(local.lab_compute_policy).Statement : statement
         if statement.Sid == "ReadNetworkReceipts"
@@ -784,10 +796,13 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "ReadOperatorEvidence"
       ]).Action == "s3:GetObject" &&
-      one([
+      toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "ReadOperatorEvidence"
-      ]).Resource == "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+      ])
       && toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "OrchestrationLease"

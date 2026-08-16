@@ -24,6 +24,7 @@
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Weighted OCI/AWS controller implemented; not executed |
+| AWS discovery and SQL-digest harness | Implemented for public accommodation detail (fake-AWS tests only; not executed) |
 | AWS performance evidence | Not collected |
 
 The repository now supplies application guards and statically verified service
@@ -77,7 +78,10 @@ SSM association and a mode-0600 env file. ALB stickiness is disabled, app/node
 metrics are discoverable by Prometheus tags, and a CloudWatch dashboard covers
 ALB, ASG, RDS, dependency credit/surplus, and optional load-generator metrics.
 The optional `c6i.xlarge` load-generator host has a direct public route and no
-inbound rule; k6 installation and evidence execution are still deferred.
+inbound rule. The Phase 6 discovery runner installs checksum-pinned k6 v1.5.0,
+executes inspect/warm-up/idle-control/measure as separate SSM commands, and
+joins k6, Prometheus, and MySQL digest artifacts. The path is covered by a
+hermetic fake-AWS execution but remains unproven on the live host.
 Terraform does not wait for an ASG instance refresh to finish, so the 15-minute
 poll and pre-DNS target-health decision are now implemented by the Phase 5
 controller. They remain an unproven runtime guarantee until a live rehearsal.

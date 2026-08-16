@@ -749,11 +749,12 @@ lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성�
 
 ### Phase 6. 실험 검증과 증거 보존
 
-- 기존 `nplus1-v1`을 감싼 `pipeline-rehearsal`로 AWS traffic/index benchmark 계획의 첫 vertical slice를 실행한다.
-- A/A noise, baseline/candidate, dependency saturation gate를 확인한다.
-- scaling에서 1→N→1 변화, 응답시간과 오류율을 기록한다.
-- Up 실패, AWS smoke 실패, OCI health 실패와 만료 cleanup을 연습한다.
-- 현재 인프라 코드가 없고 AWS deploy job이 비활성인 동안 README의 ALB/ASG 표현을 완료 사실로 두지 않는다. 실제 `up → scale → down` evidence가 나온 뒤에만 구현 완료 문구와 링크를 갱신한다.
+- [x] 기존 `nplus1-v1`을 감싼 `pipeline-rehearsal`의 public accommodation-detail vertical slice, SQL digest/Prometheus 집계와 공통 local/GitHub runner를 구현·fake-AWS 검증한다.
+- [ ] 구현된 runner를 실제 AWS에서 실행해 k6, digest, Prometheus artifact가 같은 window로 연결되는지 확인한다.
+- [ ] A/A noise, baseline/candidate, dependency saturation gate를 확인한다.
+- [ ] scaling에서 1→N→1 변화, 응답시간과 오류율을 기록한다.
+- [ ] Up 실패, AWS smoke 실패, OCI health 실패와 만료 cleanup을 연습한다.
+- 실제 `up → measure → scale → down` evidence가 나오기 전에는 README와 포트폴리오에서 ALB/ASG 또는 성능 개선을 live 완료 사실로 표현하지 않는다.
 
 ## 테스트 전략
 

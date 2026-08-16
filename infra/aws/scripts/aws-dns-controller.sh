@@ -18,12 +18,13 @@ valid_ipv4() {
   done
 }
 
-[[ "$#" -eq 2 ]] || fail "usage: aws-dns-controller.sh stage|switch|remove oci|aws"
+[[ "$#" -eq 2 ]] || fail "usage: aws-dns-controller.sh stage|switch|remove|verify oci|aws"
 dns_action=$1
 traffic_target=$2
-[[ "$dns_action" == stage || "$dns_action" == switch || "$dns_action" == remove ]] || fail "unsupported DNS action"
+[[ "$dns_action" == stage || "$dns_action" == switch || "$dns_action" == remove || "$dns_action" == verify ]] || fail "unsupported DNS action"
 [[ "$traffic_target" == oci || "$traffic_target" == aws ]] || fail "traffic target must be oci or aws"
 [[ "$dns_action:$traffic_target" != remove:aws ]] || fail "remove may only preserve the OCI target"
+[[ "$dns_action:$traffic_target" != verify:oci ]] || fail "measurement verification requires the AWS target"
 
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -P -- "$script_dir/../../.." && pwd -P)
@@ -206,6 +207,11 @@ force_down=${FORCE_DOWN:-false}
 [[ "$force_down" == true || "$force_down" == false ]] || fail "FORCE_DOWN must be true or false"
 
 case "$dns_action" in
+  verify)
+    assert_lease
+    probe_aws
+    verify_dns aws
+    ;;
   stage)
     [[ "$traffic_target" == oci ]] || fail "AWS alias staging must retain OCI traffic"
     probe_oci

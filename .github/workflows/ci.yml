@@ -55,6 +55,34 @@ jobs:
           bash infra/aws/tests/expiry-cleanup-test.sh
           bash infra/aws/tests/measurement-policy-test.sh
 
+      - name: Install pinned k6 for traffic contracts
+        run: |
+          source infra/aws/toolchain.env
+          archive="k6-v${AIRBOB_K6_VERSION}-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location --retry 5 \
+            --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/grafana/k6/releases/download/v${AIRBOB_K6_VERSION}/$archive"
+          printf '%s  %s\n' "$AIRBOB_K6_LINUX_AMD64_SHA256" "$RUNNER_TEMP/$archive" \
+            | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+          printf '%s\n' "$RUNNER_TEMP/k6-v${AIRBOB_K6_VERSION}-linux-amd64" >> "$GITHUB_PATH"
+
+      - name: Verify AWS traffic discovery contracts
+        env:
+          K6_NO_USAGE_REPORT: 'true'
+        run: |
+          k6 run --address '' load-test/k6/test/traffic-benchmark-test.js
+          MODE=inspect ROLE=guest TARGET=accommodation-detail \
+            RATE=1 DURATION=1s MIN_COMPLETED_SAMPLES=1 \
+            ROUND=1 RUN_ORDER=1 RUN_LABEL=guest-test \
+            APP_COMMIT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APP_INSTANCE_COUNT=1 \
+            BASE_URL=http://127.0.0.1:8080 \
+            BENCHMARK_MANIFEST="$PWD/load-test/k6/test/fixtures/nplus1-v1.json" \
+            k6 run --address '' load-test/k6/test/guest-read-traffic-test.js
+          node load-test/k6/test/prepare-benchmark-sessions-test.js
+          node load-test/k6/test/traffic-result-aggregation-test.mjs
+          bash load-test/k6/test/run-aws-discovery-test.sh
+
       - name: Build and Test
         run: ./gradlew clean build
 

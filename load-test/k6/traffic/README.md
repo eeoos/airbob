@@ -98,3 +98,44 @@ run identity, canonical payload digest, ETL commit, Flyway version/checksums,
 evaluation time/expiry, or target cardinality/popularity. These fields are
 preserved as a machine-readable `manifestGaps` list in every measure artifact;
 they must become part of `traffic-v1` before representative AWS conclusions.
+
+## First AWS discovery run
+
+`run-aws-discovery.sh` operates only an already-running `isolated-read` lab with
+its load generator enabled. Local Make and the protected GitHub workflow call
+the same script. The first slice accepts only the public
+`accommodation-detail` target, so it neither reads nor creates a session.
+
+```bash
+make aws-discovery \
+  RUN_ID=<active-lab-run-id> \
+  TARGET=accommodation-detail \
+  RATE=1 DURATION=30s WARMUP_DURATION=10s \
+  MIN_COMPLETED_SAMPLES=30 ROUND=1 RUN_ORDER=1 \
+  APP_COMMIT=<full-40-character-ECR-tag> \
+  OCI_ORIGIN_IPV4=<current-OCI-origin-ipv4> \
+  EXPECTED_SQL_CALLS_PER_REQUEST=<observed-contract>
+```
+
+The runner acquires the same DynamoDB lease used by `up`, `switch`, and
+`down`, then binds its committed source archive and the official k6 v1.5.0
+Linux amd64 archive to pinned SHA-256 values. It verifies the selected dataset
+wrapper, benchmark-manifest hash, bootstrap receipt, deployed ECR digest,
+Flyway V16, actual healthy app count, direct ALB health, and authoritative plus
+public DNS convergence on the AWS weighted origin before traffic. Inspect and warm-up
+must pass before it opens a same-duration idle SQL window. Any ambient SQL,
+counter reset, digest eviction, or digest-text drift prevents measurement.
+
+The measurement invocation performs no login or setup request. It records the
+load-generator timestamps, k6 result, Performance Schema snapshots, and the
+same Prometheus query window under
+`measurements/<RUN_ID>/<RUN_LABEL>/`. Dataset hashes, ECR digest, Flyway
+version, and healthy app count are read again after the run; drift marks the
+aggregate invalid. The local aggregate is
+`build/k6/traffic/<RUN_LABEL>-aggregate.json` and remains stamped
+`pipeline-rehearsal` / `pipeline-only`.
+
+Use a fresh `RUN_LABEL` for every attempt. Input and output objects are created
+at immutable run-scoped paths, and existing remote staging is never replaced.
+This harness has fake-AWS and mock-Terraform coverage but has not yet produced
+live AWS performance evidence.

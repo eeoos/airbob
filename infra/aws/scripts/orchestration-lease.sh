@@ -30,7 +30,7 @@ validate_identity() {
   [[ "$owner" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] || fail "lease owner is not canonical"
   [[ "$run_id" =~ ^[a-z0-9][a-z0-9-]{2,31}$ && "$run_id" != *--* && "$run_id" != *- ]] \
     || fail "lease run id is not canonical"
-  [[ "$command_name" == up || "$command_name" == switch || "$command_name" == down || "$command_name" == dataset-promotion ]] \
+  [[ "$command_name" == up || "$command_name" == switch || "$command_name" == down || "$command_name" == measurement || "$command_name" == dataset-promotion ]] \
     || fail "lease command is not approved"
 }
 
