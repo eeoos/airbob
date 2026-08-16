@@ -9,7 +9,9 @@ import java.util.List;
 import org.redisson.api.RMap;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.redisnode.RedisNodes;
 import org.redisson.client.codec.StringCodec;
+import org.redisson.client.protocol.Time;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
@@ -147,6 +149,11 @@ public class CouponRedisStockManager {
 			throw new IllegalStateException("준비되지 않은 쿠폰의 Redis 재고는 조회할 수 없습니다.");
 		}
 		return Long.parseLong(stock);
+	}
+
+	public long currentEpochMillis() {
+		Time redisTime = redissonClient.getRedisNodes(RedisNodes.SINGLE).getInstance().time();
+		return (long)redisTime.getSeconds() * 1_000L + redisTime.getMicroseconds() / 1_000L;
 	}
 
 	static String metaKey(Long couponId) {

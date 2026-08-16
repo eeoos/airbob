@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.coupon.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,7 +17,15 @@ import kr.kro.airbob.domain.coupon.entity.Coupon;
 @Repository
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
-	List<Coupon> findByIsActiveTrue();
+	@Query("""
+		select c
+		from Coupon c
+		where c.isActive = true
+		  and c.redisStockPreparedAt is not null
+		  and c.issueEndAt > :now
+		order by c.issueStartAt desc, c.id desc
+		""")
+	List<Coupon> findCampaigns(@Param("now") LocalDateTime now);
 
 	/**
 	 * Lua 운영 경로로 전환할 수 없는 기존 Redisson 발급 쿠폰 수를 조회한다.
