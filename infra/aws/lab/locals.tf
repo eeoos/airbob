@@ -97,6 +97,11 @@ locals {
     ]),
     false,
   )
+  app_image_valid = !contains(["services", "data-ready"], var.deployment_phase) || try(
+    var.app_image_reference == "${local.ecr_repositories.APP_IMAGE.url}@${split("@", var.app_image_reference)[1]}" &&
+    can(regex("@sha256:[0-9a-f]{64}$", var.app_image_reference)),
+    false,
+  )
 
   network_cidr = "10.42.0.0/16"
   availability_zones = {
@@ -116,6 +121,21 @@ locals {
   receipt_required = var.deployment_phase != "network"
   services_enabled = contains(["services", "data-ready"], var.deployment_phase)
   data_ready       = var.deployment_phase == "data-ready"
+
+  bounded_name_prefix = "airbob-${substr(var.run_id, 0, 12)}-${substr(sha1(var.run_id), 0, 6)}"
+  app_capacity = !var.app_enabled ? {
+    min = 0, desired = 0, max = 0
+    } : var.mode == "performance" ? {
+    min = 1, desired = 1, max = 1
+    } : {
+    min = 1, desired = 1, max = 4
+  }
+  app_subnet_ids = var.mode == "performance" ? [
+    module.network.private_subnet_ids.primary,
+    ] : [
+    module.network.private_subnet_ids.primary,
+    module.network.private_subnet_ids.secondary,
+  ]
 
   dataset_prefix       = "datasets/${var.dataset_release}"
   dataset_manifest_key = "${local.dataset_prefix}/manifest.json"

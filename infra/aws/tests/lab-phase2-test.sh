@@ -84,7 +84,11 @@ redis_exporters=$(grep -Ec '^[[:space:]]{2}redis-exporter-(general|cache):$' "$r
 assert_not_contains "$lab_root" 'aws_nat_gateway'
 assert_not_contains "$lab_root" 'remote-exec|connection[[:space:]]*\{'
 assert_not_contains "$lab_root" '0\.0\.0\.0/0[^\n]*(22|8083|3000|9090)'
-assert_not_contains "$lab_root" 'associate_public_ip_address[[:space:]]*=[[:space:]]*true'
+if grep -R -n -E 'associate_public_ip_address[[:space:]]*=[[:space:]]*true' \
+  "$lab_root" --include='*.tf' \
+  | grep -Fv '/modules/load-generator/main.tf:' >/dev/null; then
+  fail "only the dedicated load generator may use an ephemeral public IPv4"
+fi
 
 terraform -chdir="$lab_root" fmt -check -recursive
 terraform -chdir="$lab_root" init -backend=false -input=false -lockfile=readonly

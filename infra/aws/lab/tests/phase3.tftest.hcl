@@ -45,6 +45,7 @@ variables {
   dataset_manifest_sha256    = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
   database_bootstrap         = "dump"
   rds_engine_version         = "8.0.40"
+  app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   infra_image_references = {
     REDIS_IMAGE                  = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     REDIS_EXPORTER_IMAGE         = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis-exporter@sha256:1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -266,4 +267,141 @@ run "reject_unsafe_snapshot_identifier" {
   }
 
   expect_failures = [var.rds_snapshot_identifier]
+}
+
+run "bootstrap_app_infrastructure_at_zero_capacity" {
+  command = plan
+
+  assert {
+    condition = (
+      output.phase4_contract.app_enabled == false &&
+      output.phase4_contract.mode == "performance" &&
+      output.phase4_contract.capacity == { min = 0, desired = 0, max = 0 } &&
+      output.phase4_contract.app_subnet_count == 1 &&
+      output.phase4_contract.scaling_policy_count == 0 &&
+      output.phase4_contract.load_generator_enabled == false &&
+      output.phase4_contract.alb_https_only == true &&
+      output.phase4_contract.alb_stickiness_enabled == false
+    )
+    error_message = "Services bootstrap must create HTTPS ALB and App ASG infrastructure at exact 0/0/0 capacity without scaling policies."
+  }
+}
+
+run "enable_single_az_performance_capacity_after_data_ready" {
+  command = plan
+
+  variables {
+    deployment_phase = "data-ready"
+    app_enabled      = true
+  }
+
+  assert {
+    condition = (
+      output.phase4_contract.mode == "performance" &&
+      output.phase4_contract.measurement_policy == "isolated-read" &&
+      output.phase4_contract.capacity.min == 1 &&
+      output.phase4_contract.capacity.desired == 1 &&
+      output.phase4_contract.capacity.max == 1 &&
+      output.phase4_contract.app_subnet_count == 1 &&
+      output.phase4_contract.scaling_policy_count == 0 &&
+      output.phase4_contract.instance_type == "c6i.large" &&
+      output.phase4_contract.default_instance_warmup == 180 &&
+      output.phase4_contract.refresh.min_healthy_percentage == 0 &&
+      output.phase4_contract.refresh.max_healthy_percentage == 100 &&
+      length(output.phase4_contract.refresh.checkpoint_percentages) == 0 &&
+      output.phase4_contract.refresh.auto_rollback == true
+    )
+    error_message = "Performance mode must be single-AZ 1/1/1 with fixed warmup, replace-first refresh safety, and no scaling policy."
+  }
+}
+
+run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
+  command = plan
+
+  variables {
+    deployment_phase                    = "data-ready"
+    app_enabled                         = true
+    mode                                = "scaling"
+    measurement_policy                  = "isolated-read"
+    request_count_per_target_per_minute = 1200
+    load_generator_enabled              = true
+  }
+
+  assert {
+    condition = (
+      output.phase4_contract.capacity.min == 1 &&
+      output.phase4_contract.capacity.desired == 1 &&
+      output.phase4_contract.capacity.max == 4 &&
+      output.phase4_contract.app_subnet_count == 2 &&
+      output.phase4_contract.scaling_policy_count == 2 &&
+      output.phase4_contract.request_count_per_target_per_minute == 1200 &&
+      output.phase4_contract.cpu_target_percent == 50 &&
+      output.phase4_contract.load_generator_enabled == true &&
+      output.phase4_contract.load_generator_instance_type == "c6i.xlarge" &&
+      output.phase4_contract.load_generator_public_ipv4 == true &&
+      output.phase4_contract.refresh.min_healthy_percentage == 100 &&
+      output.phase4_contract.refresh.max_healthy_percentage == 200 &&
+      output.phase4_contract.refresh.checkpoint_percentages[0] == 50 &&
+      output.phase4_contract.refresh.checkpoint_percentages[1] == 100 &&
+      output.phase4_contract.refresh.auto_rollback == true
+    )
+    error_message = "Scaling mode must be two-AZ 1/1/4 with CPU and baseline-derived ALB request target tracking plus the public no-ingress load generator."
+  }
+}
+
+run "reject_scaling_without_baseline_request_target" {
+  command = plan
+
+  variables {
+    deployment_phase   = "data-ready"
+    app_enabled        = true
+    mode               = "scaling"
+    measurement_policy = "isolated-read"
+  }
+
+  expect_failures = [check.app_capacity_contract]
+}
+
+run "reject_integrated_smoke_in_scaling_mode" {
+  command = plan
+
+  variables {
+    deployment_phase                    = "data-ready"
+    app_enabled                         = true
+    mode                                = "scaling"
+    measurement_policy                  = "integrated-smoke"
+    request_count_per_target_per_minute = 1200
+  }
+
+  expect_failures = [check.app_capacity_contract]
+}
+
+run "reject_app_capacity_before_data_ready" {
+  command = plan
+
+  variables {
+    app_enabled = true
+  }
+
+  expect_failures = [check.app_capacity_contract]
+}
+
+run "reject_load_generator_without_enabled_app" {
+  command = plan
+
+  variables {
+    load_generator_enabled = true
+  }
+
+  expect_failures = [check.app_capacity_contract]
+}
+
+run "reject_app_image_outside_approved_ecr_repository" {
+  command = plan
+
+  variables {
+    app_image_reference = "public.example.invalid/airbob@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+
+  expect_failures = [check.app_release]
 }

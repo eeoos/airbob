@@ -90,6 +90,7 @@ run "reject_services_without_probe_identity" {
     var.dataset_manifest_sha256,
     var.database_bootstrap,
     var.rds_engine_version,
+    check.app_release,
   ]
 }
 
@@ -105,6 +106,7 @@ run "reject_unapproved_image_reference_set" {
     dataset_manifest_sha256    = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
     database_bootstrap         = "dump"
     rds_engine_version         = "8.0.40"
+    app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     infra_image_references = {
       REDIS_IMAGE = "public.example/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     }
@@ -168,6 +170,7 @@ run "services_require_both_receipts_and_immutable_release" {
     dataset_manifest_sha256    = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
     database_bootstrap         = "dump"
     rds_engine_version         = "8.0.40"
+    app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     infra_image_references = {
       REDIS_IMAGE                  = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       REDIS_EXPORTER_IMAGE         = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis-exporter@sha256:1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

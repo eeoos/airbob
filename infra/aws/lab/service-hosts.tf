@@ -26,6 +26,7 @@ locals {
         images_env             = local.phase2_images_env
         docker_compose_version = local.docker_compose_version
         docker_compose_sha256  = local.docker_compose_sha256
+        runtime_contract       = ""
       })
       monitoring = true
     }

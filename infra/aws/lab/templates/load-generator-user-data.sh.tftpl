@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+install -d -m 700 /var/lib/airbob /etc/airbob
+printf '%s\n' '${region}' > /etc/airbob/region
+printf '%s\n' '${runtime_revision}' > /etc/airbob/app-runtime-revision
+chmod 600 /etc/airbob/region /etc/airbob/app-runtime-revision
+systemctl enable --now amazon-ssm-agent
+printf '%s\n' 'infrastructure-ready; locked k6 tooling is installed by the Phase 6 measurement runner' \
+  > /var/lib/airbob/load-generator-ready

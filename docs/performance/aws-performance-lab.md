@@ -16,13 +16,13 @@
 | Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; repository-s3 and live proof pending |
 | Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration implemented; not executed |
 | Terraform persistent foundation | Implemented, including protected private DNS anchor (configuration/static tests only; not applied) |
-| Terraform DNS/lab state boundaries | Implemented (DNS contract + Phase 2 ephemeral lab root; not applied) |
+| Terraform DNS/lab state boundaries | Implemented (DNS contract + Phase 2-4 ephemeral lab root; not applied) |
 | Expiry observer and SNS/CloudWatch alerts | Implemented (read-only configuration/static tests; disabled, delivery unverified, and not applied) |
 | Lease/fencing cleanup controller and automatic destroy | Not implemented yet |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
 | Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V16 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
-| Ephemeral ALB/App ASG/load generator Terraform | Not implemented yet |
+| Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Not executed |
 | AWS performance evidence | Not collected |
 
@@ -65,6 +65,22 @@ accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords
 are resolved only on the host from Secrets Manager. Persistent RDS snapshot
 promotion is a separate publisher/admin command and remains outside the lab
 role and lab destroy graph.
+
+Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
+data bootstrap is in progress. An exact `data-ready` receipt is required before
+`app_enabled=true` can select single-AZ `performance` (`1/1/1`, no scaling
+policy) or two-AZ `scaling` (`1/1/4`, CPU 50% plus a caller-supplied
+baseline-derived ALB request target). The immutable app digest, measurement
+policy, cache toggle, dataset, and RDS identity form a launch-template runtime
+revision. New targets receive the RDS credential only through a tag-targeted
+SSM association and a mode-0600 env file. ALB stickiness is disabled, app/node
+metrics are discoverable by Prometheus tags, and a CloudWatch dashboard covers
+ALB, ASG, RDS, dependency credit/surplus, and optional load-generator metrics.
+The optional `c6i.xlarge` load-generator host has a direct public route and no
+inbound rule; k6 installation and evidence execution are still deferred.
+Terraform does not wait for an ASG instance refresh to finish, so the 15-minute
+poll/cancel/rollback and pre-DNS health decision remain Phase 5 orchestration,
+not a completed runtime guarantee.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`. It also materializes the aggregate validator, its

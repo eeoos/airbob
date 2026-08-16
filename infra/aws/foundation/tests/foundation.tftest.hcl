@@ -426,10 +426,33 @@ run "foundation_contract" {
       length(local.lab_operator_policy) <= 10240 &&
       length(local.lab_compute_policy) <= 10240 &&
       length(local.lab_data_compute_policy) <= 10240 &&
+      length(local.lab_app_compute_policy) <= 10240 &&
       length(local.lab_host_boundary_policy) <= 6144 &&
       length(local.image_publisher_policy) <= 10240
     )
     error_message = "Role trust and inline policies must remain within default AWS IAM document-size quotas."
+  }
+
+  assert {
+    condition = (
+      contains(one([
+        for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
+        if statement.Sid == "ManageNamedLabAutoScaling"
+      ]).Action, "autoscaling:StartInstanceRefresh") &&
+      one([
+        for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
+        if statement.Sid == "ManageNamedLabAutoScaling"
+      ]).Resource == "arn:aws:autoscaling:ap-northeast-2:942632789808:autoScalingGroup:*:autoScalingGroupName/airbob-*" &&
+      one([
+        for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
+        if statement.Sid == "ManageNamedLabDashboard"
+      ]).Resource == "arn:aws:cloudwatch::942632789808:dashboard/airbob-*" &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_app_compute_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "route53:ChangeResourceRecordSets")
+    )
+    error_message = "Phase 4 permissions must be limited to named ephemeral app/ALB/ASG/CloudWatch resources and must not mutate public DNS."
   }
 
   assert {

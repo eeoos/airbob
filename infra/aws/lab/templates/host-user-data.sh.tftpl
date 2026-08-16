@@ -76,6 +76,13 @@ ${images_env}
 EOF
 chmod 600 /etc/airbob/images.env
 
+%{ if runtime_contract != "" ~}
+cat >/etc/airbob/app-runtime-contract.env <<'AIRBOB_APP_RUNTIME_CONTRACT'
+${runtime_contract}
+AIRBOB_APP_RUNTIME_CONTRACT
+chmod 600 /etc/airbob/app-runtime-contract.env
+%{ endif ~}
+
 printf '%s\n' "$expected_commit" > /var/lib/airbob/bundle-commit
 printf '%s\n' "$expected_sha256" > /var/lib/airbob/bundle-sha256
 printf '%s\n' 'ready' > /var/lib/airbob/release-ready

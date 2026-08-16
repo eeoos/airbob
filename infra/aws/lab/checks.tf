@@ -248,6 +248,32 @@ check "service_release" {
   }
 }
 
+check "app_release" {
+  assert {
+    condition     = local.app_image_valid
+    error_message = "The services phase requires the exact immutable application image from the approved ECR repository."
+  }
+}
+
+check "app_capacity_contract" {
+  assert {
+    condition = (
+      (!var.app_enabled || (local.data_ready && local.data_bootstrap_receipt_valid)) &&
+      (!var.load_generator_enabled || var.app_enabled) &&
+      (var.measurement_policy != "integrated-smoke" || var.mode == "performance") &&
+      (
+        (var.mode == "performance" && var.request_count_per_target_per_minute == null) ||
+        (
+          var.mode == "scaling" &&
+          (!var.app_enabled || var.request_count_per_target_per_minute != null) &&
+          var.measurement_policy == "isolated-read"
+        )
+      )
+    )
+    error_message = "App capacity requires data-ready, integrated smoke is performance-only, scaling is isolated-read with a baseline request target, and load generation requires an enabled app."
+  }
+}
+
 check "dataset_release" {
   assert {
     condition     = local.dataset_release_valid && local.dataset_snapshot_valid

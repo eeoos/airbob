@@ -135,6 +135,69 @@ variable "infra_image_references" {
   default     = {}
 }
 
+variable "app_image_reference" {
+  description = "Exact immutable amd64 application ECR repository@sha256 reference."
+  type        = string
+  default     = ""
+}
+
+variable "app_enabled" {
+  description = "Internal capacity gate; false keeps the App ASG at 0/0/0 during data bootstrap."
+  type        = bool
+  default     = false
+}
+
+variable "mode" {
+  description = "Application capacity mode, independent from the application measurement policy."
+  type        = string
+  default     = "performance"
+
+  validation {
+    condition     = contains(["performance", "scaling"], var.mode)
+    error_message = "mode must be performance or scaling."
+  }
+}
+
+variable "measurement_policy" {
+  description = "Application background-work policy used by the selected experiment."
+  type        = string
+  default     = "isolated-read"
+
+  validation {
+    condition     = contains(["integrated-smoke", "isolated-read"], var.measurement_policy)
+    error_message = "measurement_policy must be integrated-smoke or isolated-read."
+  }
+}
+
+variable "accommodation_detail_cache_enabled" {
+  description = "Explicit same-image accommodation-detail cache A/B toggle."
+  type        = bool
+  default     = true
+}
+
+variable "request_count_per_target_per_minute" {
+  description = "Baseline-derived ALBRequestCountPerTarget one-minute target, required only for enabled scaling mode."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.request_count_per_target_per_minute == null ||
+      (
+        var.request_count_per_target_per_minute >= 1 &&
+        var.request_count_per_target_per_minute <= 1000000
+      )
+    )
+    error_message = "request_count_per_target_per_minute must be null or between 1 and 1,000,000."
+  }
+}
+
+variable "load_generator_enabled" {
+  description = "Create the no-ingress c6i.xlarge public-subnet load generator for a recorded run."
+  type        = bool
+  default     = false
+}
+
 variable "dataset_release" {
   description = "Immutable dataset release selected before Phase 3 planning."
   type        = string

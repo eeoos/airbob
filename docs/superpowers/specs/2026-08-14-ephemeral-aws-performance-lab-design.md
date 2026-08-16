@@ -719,17 +719,18 @@ lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성�
 
 ### Phase 3. 데이터 bootstrap
 
-- versioned SQL dump/manifest 검증과 RDS import를 자동화한다.
-- 선택적 RDS dataset snapshot 생성·복원 경로를 추가한다.
-- `evidence`/search-enabled release에만 ES S3 repository 등록, restore와 document/mapping 검증을 실행한다.
-- Redis/Kafka/Debezium의 순서 있는 초기화를 구현한다.
+- [x] versioned SQL dump/manifest 검증과 RDS import를 자동화한다.
+- [x] 선택적 RDS dataset snapshot 생성·복원 경로를 추가한다.
+- [x] `evidence`/search-enabled release에만 ES S3 repository 등록, restore와 document/mapping 검증을 실행한다.
+- [x] Redis/Kafka/Debezium의 순서 있는 초기화를 구현한다.
 
 ### Phase 4. App ASG와 두 용량 모드
 
-- `c6i.large` launch template, fixed JVM/container limit와 ALB를 구성한다.
-- `performance`의 1/1/1과 `scaling`의 1/1/4를 Terraform variable로 만든다.
-- target tracking, detailed monitoring, warm-up과 instance refresh를 검증한다.
-- Prometheus EC2 service discovery와 CloudWatch dashboard를 연결한다.
+- [x] `c6i.large` launch template, fixed JVM/container limit와 ALB를 구성한다.
+- [x] `performance`의 1/1/1과 `scaling`의 1/1/4를 Terraform variable로 만든다.
+- [x] target tracking, detailed monitoring, warm-up과 instance refresh의 정적/mock 계약을 검증한다.
+- [x] Prometheus EC2 service discovery와 CloudWatch dashboard를 연결한다.
+- [ ] 실제 AWS에서 app SSM/runtime, target health, 1→N→1과 refresh rollback evidence를 검증한다.
 
 ### Phase 5. 공통 조작과 DNS 전환
 

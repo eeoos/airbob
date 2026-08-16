@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+for attempt in $(seq 1 120); do
+  [[ -f /var/lib/airbob/release-ready && -f /etc/airbob/app-runtime-contract.env ]] && break
+  if [[ "$attempt" -eq 120 ]]; then
+    printf '%s\n' 'application release or runtime contract did not become ready' >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+[[ "$(cat /etc/airbob/service-name)" == app ]]
+contract_file=/etc/airbob/app-runtime-contract.env
+expected_keys=(
+  AIRBOB_MEASUREMENT_POLICY
+  AIRBOB_CACHE_ENABLED
+  AIRBOB_RDS_ENDPOINT
+  AIRBOB_RDS_MASTER_SECRET_ARN
+  AIRBOB_RUNTIME_REVISION
+)
+
+[[ "$(grep -Ec '^[A-Z][A-Z0-9_]*=.*$' "$contract_file")" -eq "${#expected_keys[@]}" ]]
+index=0
+while IFS='=' read -r key value || [[ -n "$key" ]]; do
+  [[ "$key" == "${expected_keys[$index]}" && -n "$value" ]]
+  index=$((index + 1))
+done < "$contract_file"
+[[ "$index" -eq "${#expected_keys[@]}" ]]
+
+contract_value() {
+  local wanted=$1
+  awk -F= -v wanted="$wanted" '$1 == wanted { print substr($0, index($0, "=") + 1); found=1 } END { exit(found ? 0 : 1) }' "$contract_file"
+}
+
+policy=$(contract_value AIRBOB_MEASUREMENT_POLICY)
+cache_enabled=$(contract_value AIRBOB_CACHE_ENABLED)
+rds_endpoint=$(contract_value AIRBOB_RDS_ENDPOINT)
+rds_secret_arn=$(contract_value AIRBOB_RDS_MASTER_SECRET_ARN)
+runtime_revision=$(contract_value AIRBOB_RUNTIME_REVISION)
+
+case "$policy" in
+  integrated-smoke) spring_profiles='aws,performance-lab' ;;
+  isolated-read) spring_profiles='aws,traffic-benchmark' ;;
+  *) printf '%s\n' 'unsupported application measurement policy' >&2; exit 1 ;;
+esac
+case "$cache_enabled" in true|false) ;; *) printf '%s\n' 'invalid cache experiment toggle' >&2; exit 1 ;; esac
+[[ "$rds_endpoint" =~ ^[a-zA-Z0-9.-]+$ ]]
+[[ "$rds_secret_arn" =~ ^arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db- ]]
+[[ "$runtime_revision" =~ ^[0-9a-f]{64}$ ]]
+
+region=$(cat /etc/airbob/region)
+secret_json=$(aws --region "$region" secretsmanager get-secret-value \
+  --secret-id "$rds_secret_arn" --query SecretString --output text)
+username=$(jq -er '.username | strings | select(length > 0)' <<<"$secret_json")
+password=$(jq -er '.password | strings | select(length > 0)' <<<"$secret_json")
+[[ "$username" != *$'\n'* && "$username" != *$'\r'* ]]
+[[ "$password" != *$'\n'* && "$password" != *$'\r'* ]]
+
+runtime_env_tmp=$(mktemp /etc/airbob/app.env.XXXXXX)
+cleanup_runtime_env() {
+  rm -f "$runtime_env_tmp"
+}
+trap cleanup_runtime_env EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+chmod 600 "$runtime_env_tmp"
+{
+  printf 'SPRING_PROFILES_ACTIVE=%s\n' "$spring_profiles"
+  printf '%s\n' 'TOSS_PAYMENTS_ENABLED=false'
+  printf '%s\n' 'GOOGLE_API_ENABLED=false'
+  printf '%s\n' 'AWS_S3_WRITE_ENABLED=false'
+  printf '%s\n' 'SLACK_NOTIFICATION_ENABLED=false'
+  printf 'SPRING_DATASOURCE_URL=jdbc:mysql://%s:3306/airbobdb?serverTimezone=UTC&characterEncoding=UTF-8\n' "$rds_endpoint"
+  printf 'SPRING_DATASOURCE_USERNAME=%s\n' "$username"
+  printf 'SPRING_DATASOURCE_PASSWORD=%s\n' "$password"
+  printf '%s\n' 'REDIS_HOST=redis-general.lab.airbob.internal'
+  printf '%s\n' 'REDIS_PORT=6379'
+  printf 'ACCOMMODATION_DETAIL_CACHE_ENABLED=%s\n' "$cache_enabled"
+  printf '%s\n' 'ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache.lab.airbob.internal'
+  printf '%s\n' 'ACCOMMODATION_DETAIL_CACHE_REDIS_PORT=6380'
+  printf '%s\n' 'KAFKA_BOOTSTRAP_SERVERS=kafka.lab.airbob.internal:9092'
+  printf '%s\n' 'ELASTICSEARCH_URIS=http://elasticsearch.lab.airbob.internal:9200'
+  printf '%s\n' 'ELASTICSEARCH_USERNAME='
+  printf '%s\n' 'ELASTIC_PASSWORD='
+  printf '%s\n' 'AWS_S3_BUCKET_NAME=performance-lab-disabled'
+  printf '%s\n' 'CLOUDFRONT_DOMAIN=https://invalid.performance-lab'
+} > "$runtime_env_tmp"
+unset secret_json username password
+
+mv -f "$runtime_env_tmp" /etc/airbob/app.env
+trap - EXIT HUP INT TERM
+chmod 600 /etc/airbob/app.env
+/opt/airbob/release/infra/aws/scripts/verify-app-runtime-env.sh /etc/airbob/app.env "$policy"
+
+compose_file=/opt/airbob/release/infra/aws/bundles/app/compose.yml
+[[ -f "$compose_file" && ! -L "$compose_file" ]]
+app_image=$(awk -F= '$1 == "APP_IMAGE" { print $2; found=1 } END { exit(found ? 0 : 1) }' /etc/airbob/images.env)
+registry=${app_image%%/*}
+[[ "$registry" == 942632789808.dkr.ecr.ap-northeast-2.amazonaws.com ]]
+aws --region "$region" ecr get-login-password | docker login --username AWS --password-stdin "$registry" >/dev/null
+
+export APP_ENV_FILE=/etc/airbob/app.env
+docker compose --env-file /etc/airbob/images.env -f "$compose_file" config --quiet
+docker compose --env-file /etc/airbob/images.env -f "$compose_file" \
+  up --detach --force-recreate --wait --wait-timeout 600
+[[ "$(docker compose --env-file /etc/airbob/images.env -f "$compose_file" ps --status running --services | wc -l | tr -d ' ')" == 2 ]]
+curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health >/dev/null
+
+docker compose --env-file /etc/airbob/images.env -f "$compose_file" exec --no-TTY app sh -ec '
+  token=$(wget -qO- --method=PUT --header="X-aws-ec2-metadata-token-ttl-seconds: 60" http://169.254.169.254/latest/api/token)
+  role=$(wget -qO- --header="X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+  test -n "$role"
+  wget -qO- --header="X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$role" | grep -q '"Code"[[:space:]]*:[[:space:]]*"Success"'
+'
+
+printf '%s\n' "$runtime_revision" > /var/lib/airbob/app-runtime-revision
+printf '%s\n' 'healthy' > /var/lib/airbob/app-health

@@ -115,3 +115,42 @@ output "phase3_contract" {
     error_message = "The data-ready output is unavailable because the ordered bootstrap receipt is invalid."
   }
 }
+
+output "phase4_contract" {
+  description = "Non-secret ALB, application-capacity, scaling, refresh, and load-generator contract."
+  value = {
+    app_enabled                        = var.app_enabled
+    mode                               = var.mode
+    measurement_policy                 = var.measurement_policy
+    accommodation_detail_cache_enabled = var.accommodation_detail_cache_enabled
+    instance_type                      = local.services_enabled ? module.app_asg[0].contract.instance_type : "c6i.large"
+    capacity = local.services_enabled ? {
+      min     = module.app_asg[0].contract.min
+      desired = module.app_asg[0].contract.desired
+      max     = module.app_asg[0].contract.max
+    } : local.app_capacity
+    app_subnet_count                    = local.services_enabled ? module.app_asg[0].contract.subnet_count : length(local.app_subnet_ids)
+    scaling_policy_count                = local.services_enabled ? module.app_asg[0].contract.scaling_policy_count : 0
+    request_count_per_target_per_minute = local.services_enabled ? module.app_asg[0].contract.request_target_per_minute : var.request_count_per_target_per_minute
+    cpu_target_percent                  = local.services_enabled ? module.app_asg[0].contract.cpu_target_percent : 50
+    default_instance_warmup             = local.services_enabled ? module.app_asg[0].contract.default_instance_warmup : 180
+    runtime_revision                    = local.app_runtime_revision
+    alb_arn                             = local.services_enabled ? module.alb[0].arn : null
+    alb_dns_name                        = local.services_enabled ? module.alb[0].dns_name : null
+    alb_zone_id                         = local.services_enabled ? module.alb[0].zone_id : null
+    alb_https_only                      = local.services_enabled ? module.alb[0].contract.https_only : true
+    alb_stickiness_enabled              = local.services_enabled ? module.alb[0].contract.stickiness_enabled : false
+    load_generator_enabled              = var.load_generator_enabled
+    load_generator_instance_type        = local.services_enabled && var.load_generator_enabled ? module.load_generator[0].contract.instance_type : null
+    load_generator_instance_id          = local.services_enabled && var.load_generator_enabled ? module.load_generator[0].instance_id : null
+    load_generator_public_ipv4          = local.services_enabled && var.load_generator_enabled ? module.load_generator[0].contract.public_ipv4 : false
+    refresh = local.services_enabled ? module.app_asg[0].contract.refresh : {
+      min_healthy_percentage = var.mode == "performance" ? 0 : 100
+      max_healthy_percentage = var.mode == "performance" ? 100 : 200
+      checkpoint_percentages = var.mode == "scaling" ? [50, 100] : []
+      auto_rollback          = true
+    }
+    refresh_completion_gate = "Phase 5 controller must poll the asynchronous instance refresh for at most 15 minutes before DNS switch."
+  }
+
+}

@@ -4,6 +4,8 @@ locals {
     toset(["nat"]),
     local.probe_enabled ? toset(["probe"]) : toset([]),
     local.services_enabled ? local.service_role_names : toset([]),
+    local.services_enabled ? toset(["app"]) : toset([]),
+    local.services_enabled && var.load_generator_enabled ? toset(["loadgen"]) : toset([]),
   )
   data_plane_host_roles = local.services_enabled ? local.service_role_names : toset([])
   phase2_ecr_arns = [
@@ -17,6 +19,45 @@ locals {
       Principal = { Service = "ec2.amazonaws.com" }
       Action    = "sts:AssumeRole"
     }]
+  })
+}
+
+resource "aws_iam_role_policy" "app_data_plane" {
+  count = local.services_enabled ? 1 : 0
+
+  name = "airbob-performance-lab-app-data-plane"
+  role = aws_iam_role.host["app"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadBundleRelease"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = "arn:aws:s3:::${local.lab_contract.bundle_bucket_name}/${local.bundle_prefix}/*"
+      },
+      {
+        Sid    = "PullApplicationImages"
+        Effect = "Allow"
+        Action = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:DescribeImages"]
+        Resource = [
+          local.ecr_repositories.APP_IMAGE.arn,
+          local.ecr_repositories.NODE_EXPORTER_IMAGE.arn,
+        ]
+      },
+      {
+        Sid      = "EcrLogin"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Sid      = "ReadRdsMasterSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"]
+        Resource = module.rds[0].master_secret_arn
+      },
+    ]
   })
 }
 

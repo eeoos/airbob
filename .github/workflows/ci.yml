@@ -38,10 +38,11 @@ jobs:
       - name: Verify immutable AWS image publication contracts
         run: bash infra/aws/tests/image-publication-test.sh
 
-      - name: Verify AWS foundation and Phase 2 Terraform contracts
+      - name: Verify AWS foundation and Phase 2-4 Terraform contracts
         run: |
           bash infra/aws/tests/foundation-test.sh
           bash infra/aws/tests/lab-phase2-test.sh
+          bash infra/aws/tests/app-asg-test.sh
           bash infra/aws/tests/network-egress-test.sh
           bash infra/aws/tests/service-bundle-publisher-test.sh
 

@@ -147,6 +147,7 @@ locals {
         Action = [
           "ec2:AllocateAddress",
           "ec2:CreateInternetGateway",
+          "ec2:CreateLaunchTemplate",
           "ec2:CreateRouteTable",
           "ec2:CreateSecurityGroup",
           "ec2:CreateSubnet",
@@ -179,10 +180,12 @@ locals {
           "ec2:AuthorizeSecurityGroupEgress",
           "ec2:AuthorizeSecurityGroupIngress",
           "ec2:CreateRoute",
+          "ec2:CreateLaunchTemplateVersion",
           "ec2:DeleteRoute",
           "ec2:DisassociateAddress",
           "ec2:DisassociateRouteTable",
           "ec2:ModifyInstanceAttribute",
+          "ec2:ModifyLaunchTemplate",
           "ec2:ModifySubnetAttribute",
           "ec2:ModifyVpcAttribute",
           "ec2:RevokeSecurityGroupEgress",
@@ -209,6 +212,7 @@ locals {
             "ec2:CreateAction" = [
               "AllocateAddress",
               "CreateInternetGateway",
+              "CreateLaunchTemplate",
               "CreateRouteTable",
               "CreateSecurityGroupRule",
               "CreateSecurityGroup",
@@ -252,6 +256,8 @@ locals {
         Effect = "Allow"
         Action = [
           "ec2:DeleteInternetGateway",
+          "ec2:DeleteLaunchTemplate",
+          "ec2:DeleteLaunchTemplateVersions",
           "ec2:DeleteRouteTable",
           "ec2:DeleteSecurityGroup",
           "ec2:DeleteSubnet",
@@ -622,6 +628,152 @@ locals {
       },
     ]
   })
+
+  lab_app_compute_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DescribeLabApplicationInfrastructure"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:Describe*",
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:GetDashboard",
+          "cloudwatch:GetMetricData",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListDashboards",
+          "cloudwatch:ListMetrics",
+          "elasticloadbalancing:Describe*",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "CreateTaggedLabAutoScaling"
+        Effect   = "Allow"
+        Action   = "autoscaling:CreateAutoScalingGroup"
+        Resource = "arn:aws:autoscaling:${var.aws_region}:${var.account_id}:autoScalingGroup:*:autoScalingGroupName/airbob-*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestTag/Project"     = "airbob"
+            "aws:RequestTag/Environment" = "performance-lab"
+            "aws:RequestTag/Stack"       = "lab"
+            "aws:RequestTag/ManagedBy"   = "terraform"
+            "aws:RequestTag/Persistence" = "ephemeral"
+          }
+          Null = {
+            "aws:RequestTag/ExpiresAt" = "false"
+            "aws:RequestTag/RunId"     = "false"
+          }
+        }
+      },
+      {
+        Sid    = "CreateTaggedLabLoadBalancing"
+        Effect = "Allow"
+        Action = ["elasticloadbalancing:CreateLoadBalancer", "elasticloadbalancing:CreateTargetGroup"]
+        Resource = [
+          "arn:aws:elasticloadbalancing:${var.aws_region}:${var.account_id}:loadbalancer/app/airbob-*/*",
+          "arn:aws:elasticloadbalancing:${var.aws_region}:${var.account_id}:targetgroup/airbob-*/*",
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestTag/Project"     = "airbob"
+            "aws:RequestTag/Environment" = "performance-lab"
+            "aws:RequestTag/Stack"       = "lab"
+            "aws:RequestTag/ManagedBy"   = "terraform"
+            "aws:RequestTag/Persistence" = "ephemeral"
+          }
+          Null = {
+            "aws:RequestTag/ExpiresAt" = "false"
+            "aws:RequestTag/RunId"     = "false"
+          }
+        }
+      },
+      {
+        Sid    = "ManageNamedLabAutoScaling"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:AttachLoadBalancerTargetGroups",
+          "autoscaling:CancelInstanceRefresh",
+          "autoscaling:CreateOrUpdateTags",
+          "autoscaling:DeleteAutoScalingGroup",
+          "autoscaling:DeletePolicy",
+          "autoscaling:DeleteTags",
+          "autoscaling:DetachLoadBalancerTargetGroups",
+          "autoscaling:DisableMetricsCollection",
+          "autoscaling:EnableMetricsCollection",
+          "autoscaling:PutScalingPolicy",
+          "autoscaling:RollbackInstanceRefresh",
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:StartInstanceRefresh",
+          "autoscaling:UpdateAutoScalingGroup",
+        ]
+        Resource = "arn:aws:autoscaling:${var.aws_region}:${var.account_id}:autoScalingGroup:*:autoScalingGroupName/airbob-*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/Project"     = "airbob"
+            "aws:ResourceTag/Environment" = "performance-lab"
+            "aws:ResourceTag/Stack"       = "lab"
+            "aws:ResourceTag/ManagedBy"   = "terraform"
+            "aws:ResourceTag/Persistence" = "ephemeral"
+          }
+        }
+      },
+      {
+        Sid    = "ManageNamedLabLoadBalancing"
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:ModifyListener",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:ModifyTargetGroupAttributes",
+          "elasticloadbalancing:RemoveTags",
+          "elasticloadbalancing:SetSecurityGroups",
+          "elasticloadbalancing:SetSubnets",
+        ]
+        Resource = [
+          "arn:aws:elasticloadbalancing:${var.aws_region}:${var.account_id}:loadbalancer/app/airbob-*/*",
+          "arn:aws:elasticloadbalancing:${var.aws_region}:${var.account_id}:listener/app/airbob-*/*/*",
+          "arn:aws:elasticloadbalancing:${var.aws_region}:${var.account_id}:targetgroup/airbob-*/*",
+        ]
+      },
+      {
+        Sid    = "ManageNamedLabAlarms"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:DeleteAlarms",
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:TagResource",
+          "cloudwatch:UntagResource",
+        ]
+        Resource = "arn:aws:cloudwatch:${var.aws_region}:${var.account_id}:alarm:airbob-*"
+      },
+      {
+        Sid      = "ManageNamedLabDashboard"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:DeleteDashboards", "cloudwatch:PutDashboard"]
+        Resource = "arn:aws:cloudwatch::${var.account_id}:dashboard/airbob-*"
+      },
+      {
+        Sid      = "CreateRequiredServiceLinkedRoles"
+        Effect   = "Allow"
+        Action   = "iam:CreateServiceLinkedRole"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = [
+              "autoscaling.amazonaws.com",
+              "elasticloadbalancing.amazonaws.com",
+            ]
+          }
+        }
+      },
+    ]
+  })
 }
 
 resource "aws_iam_policy" "lab_host_boundary" {
@@ -648,6 +800,16 @@ resource "aws_iam_role_policy" "lab_data_compute" {
   name   = "airbob-lab-operator-data-compute"
   role   = aws_iam_role.lab_operator.id
   policy = local.lab_data_compute_policy
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "lab_app_compute" {
+  name   = "airbob-lab-operator-app-compute"
+  role   = aws_iam_role.lab_operator.id
+  policy = local.lab_app_compute_policy
 
   lifecycle {
     prevent_destroy = true
