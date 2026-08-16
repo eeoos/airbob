@@ -48,3 +48,53 @@ Run the common contract test with the repository-pinned k6 version:
 ```bash
 k6 run load-test/k6/test/traffic-benchmark-test.js
 ```
+
+## Guest read slice
+
+`guest-read.js` accepts one of these targets:
+
+- `accommodation-detail`
+- `review-list`
+- `review-summary`
+- `guest-reservations`
+- `wishlist-list`
+- `wishlist-accommodations`
+- `recently-viewed`
+
+Paginated targets additionally require `PAGE_SIZE=1|20|50`; the selected size
+must not exceed the count guaranteed by the manifest. `recently-viewed` instead
+requires `RECENTLY_VIEWED_SIZE=1|20|50|100`, bounded by the manifest. All IDs,
+filters, and expected row counts come from the selected manifest. There is no
+production ID fallback.
+
+Public targets can run without a session. Authenticated warm-up and measurement
+targets require `BENCHMARK_SESSION_FILE`, a mode-0600 temporary file containing
+only the already-prepared `SESSION_ID` value. The script never creates a login
+session during a measurement invocation. For `recently-viewed`, prepare the
+benchmark account's ZSET before the digest baseline; the measurement script
+does not call the fixture mutation endpoint.
+
+Use an absolute manifest path outside tests. k6 resolves a relative path from
+the module containing `open()`, not necessarily from the shell working
+directory.
+
+```bash
+export BENCHMARK_MANIFEST=/absolute/path/to/benchmark-fixture.json
+export APP_COMMIT="$(git rev-parse HEAD)"
+
+MODE=inspect ROLE=guest TARGET=accommodation-detail \
+RATE=1 DURATION=1s MIN_COMPLETED_SAMPLES=1 \
+ROUND=1 RUN_ORDER=1 RUN_LABEL=guest-detail-inspect \
+APP_INSTANCE_COUNT=1 BASE_URL=http://localhost:8080 \
+k6 run load-test/k6/traffic/guest-read.js
+```
+
+For authenticated targets, create the session file outside the repository,
+restrict it to the current user, and delete it after the invocation. Do not put
+the cookie in `RUN_LABEL`, `K6_RESULT_PATH`, a command argument, or a result.
+
+The current manifest cannot establish account concurrency capacity, dataset
+run identity, canonical payload digest, ETL commit, Flyway version/checksums,
+evaluation time/expiry, or target cardinality/popularity. These fields are
+preserved as a machine-readable `manifestGaps` list in every measure artifact;
+they must become part of `traffic-v1` before representative AWS conclusions.
