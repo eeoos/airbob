@@ -85,8 +85,14 @@ locals {
     local.dataset_manifest.datasetRelease == var.dataset_release &&
     contains(["pipeline-rehearsal", "evidence"], local.dataset_release_kind) &&
     can(regex("^[a-z0-9][a-z0-9._-]{2,63}$", local.dataset_manifest.datasetRunId)) &&
+    toset(keys(local.dataset_manifest.source)) == toset([
+      "datasetVersion", "etlCommit", "seed", "profile", "manifestVersion",
+      "canonicalPayloadSha256", "benchmarkManifestKey", "benchmarkManifestSha256",
+    ]) &&
     can(regex("^[0-9a-f]{40}$", local.dataset_manifest.source.etlCommit)) &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.canonicalPayloadSha256)) &&
+    local.dataset_manifest.source.benchmarkManifestKey == "benchmark/manifest.json" &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.benchmarkManifestSha256)) &&
     local.dataset_manifest.mysql.dumpKey == "mysql/airbob.sql.zst" &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.dumpSha256)) &&
     local.dataset_manifest.mysql.flywayVersion == "16" &&

@@ -22,13 +22,21 @@ write_release() {
   local kind=$2
   local search_enabled=$3
   local dump_sha
+  local benchmark_manifest_sha
   local search_json
   local evidence_json=''
 
-  mkdir -p "$root/mysql" "$root/elasticsearch"
+  mkdir -p "$root/mysql" "$root/elasticsearch" "$root/benchmark"
   printf '%s' 'canonical-zstd-fixture' > "$root/mysql/airbob.sql.zst"
   dump_sha=$(sha256_file "$root/mysql/airbob.sql.zst")
   printf '%s  %s\n' "$dump_sha" airbob.sql.zst > "$root/mysql/sha256.txt"
+
+  if [[ "$kind" == evidence ]]; then
+    printf '%s\n' '{"datasetVersion":"traffic-v1"}' > "$root/benchmark/manifest.json"
+  else
+    cp "$repo_root/load-test/k6/test/fixtures/nplus1-v1.json" "$root/benchmark/manifest.json"
+  fi
+  benchmark_manifest_sha=$(sha256_file "$root/benchmark/manifest.json")
 
   if [[ "$search_enabled" == true ]]; then
     search_json='{
@@ -93,6 +101,7 @@ JSON
     --arg kind "$kind" \
     --arg datasetVersion "$([[ "$kind" == evidence ]] && printf traffic-v1 || printf nplus1-v1)" \
     --arg dumpSha "$dump_sha" \
+    --arg benchmarkManifestSha "$benchmark_manifest_sha" \
     --argjson search "$search_json" \
     --argjson evidenceFragment "{${evidence_json#,}}" '
     {
@@ -106,7 +115,9 @@ JSON
         seed: "airbob-production-seed-v1",
         profile: "large",
         manifestVersion: "benchmark-fixture-v1",
-        canonicalPayloadSha256: "3333333333333333333333333333333333333333333333333333333333333333"
+        canonicalPayloadSha256: "3333333333333333333333333333333333333333333333333333333333333333",
+        benchmarkManifestKey: "benchmark/manifest.json",
+        benchmarkManifestSha256: $benchmarkManifestSha
       },
       mysql: {
         dumpKey: "mysql/airbob.sql.zst",
@@ -133,6 +144,19 @@ JSON
   ' > "$root/manifest.json"
 }
 
+rewrite_benchmark_manifest() {
+  local root=$1
+  local filter=$2
+  local benchmark_sha
+
+  jq "$filter" "$root/benchmark/manifest.json" > "$root/benchmark/manifest.next"
+  mv "$root/benchmark/manifest.next" "$root/benchmark/manifest.json"
+  benchmark_sha=$(sha256_file "$root/benchmark/manifest.json")
+  jq --arg sha "$benchmark_sha" '.source.benchmarkManifestSha256 = $sha' \
+    "$root/manifest.json" > "$root/manifest.next"
+  mv "$root/manifest.next" "$root/manifest.json"
+}
+
 expect_failure() {
   local label=$1
   shift
@@ -153,6 +177,43 @@ write_release "$tmp_dir/rehearsal" pipeline-rehearsal false
 
 write_release "$tmp_dir/evidence" evidence true
 "$validator" "$tmp_dir/evidence" rehearsal-v16 evidence >/dev/null
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/unknown-source-key"
+jq '.source.unreviewed = "value"' \
+  "$tmp_dir/unknown-source-key/manifest.json" > "$tmp_dir/unknown-source-key/manifest.next"
+mv "$tmp_dir/unknown-source-key/manifest.next" "$tmp_dir/unknown-source-key/manifest.json"
+expect_failure unknown-source-key "$validator" "$tmp_dir/unknown-source-key" rehearsal-v16 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/missing-benchmark-manifest"
+rm "$tmp_dir/missing-benchmark-manifest/benchmark/manifest.json"
+expect_failure missing-benchmark-manifest "$validator" "$tmp_dir/missing-benchmark-manifest" rehearsal-v16 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/symlink-benchmark-manifest"
+rm "$tmp_dir/symlink-benchmark-manifest/benchmark/manifest.json"
+ln -s ../manifest.json "$tmp_dir/symlink-benchmark-manifest/benchmark/manifest.json"
+expect_failure symlink-benchmark-manifest "$validator" "$tmp_dir/symlink-benchmark-manifest" rehearsal-v16 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-benchmark-hash"
+jq '.account.email = "other@airbob.cloud"' \
+  "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.json" \
+  > "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.next"
+mv "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.next" \
+  "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.json"
+expect_failure wrong-benchmark-hash "$validator" "$tmp_dir/wrong-benchmark-hash" rehearsal-v16 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-benchmark-version"
+rewrite_benchmark_manifest "$tmp_dir/wrong-benchmark-version" '.datasetVersion = "traffic-v1"'
+expect_failure wrong-benchmark-version "$validator" "$tmp_dir/wrong-benchmark-version" rehearsal-v16 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/benchmark-secret-key"
+rewrite_benchmark_manifest "$tmp_dir/benchmark-secret-key" '.account.sessionToken = "hunter2"'
+expect_failure benchmark-secret-key "$validator" "$tmp_dir/benchmark-secret-key" rehearsal-v16 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/duplicate-recent-id"
+rewrite_benchmark_manifest \
+  "$tmp_dir/duplicate-recent-id" \
+  '.recentlyViewed.accommodationIds[1] = .recentlyViewed.accommodationIds[0]'
+expect_failure duplicate-recent-id "$validator" "$tmp_dir/duplicate-recent-id" rehearsal-v16 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-flyway"
 jq '.mysql.flywayVersion = "12"' "$tmp_dir/wrong-flyway/manifest.json" > "$tmp_dir/wrong-flyway/manifest.next"

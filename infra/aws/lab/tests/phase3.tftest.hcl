@@ -43,7 +43,7 @@ variables {
   bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
   bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   dataset_release            = "rehearsal-v16"
-  dataset_manifest_sha256    = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
+  dataset_manifest_sha256    = "3b6663243b80a42b8e8d06dd65c4e41902803900584495f90c06c29ea58168a2"
   database_bootstrap         = "dump"
   rds_engine_version         = "8.0.40"
   app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -158,7 +158,7 @@ override_data {
       flywayVersion           = "16"
       migrationChecksumSha256 = "4444444444444444444444444444444444444444444444444444444444444444"
       schemaFingerprintSha256 = "5555555555555555555555555555555555555555555555555555555555555555"
-      datasetManifestSha256   = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
+      datasetManifestSha256   = "3b6663243b80a42b8e8d06dd65c4e41902803900584495f90c06c29ea58168a2"
       rdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
       rdsEngineVersion        = "8.0.40"
       outboxState             = "empty"
@@ -213,7 +213,7 @@ run "restore_rds_only_from_matching_snapshot" {
         DatasetRunId   = "etl-20260816-001"
         DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
         FlywayVersion  = "16"
-        ManifestSha256 = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
+        ManifestSha256 = "3b6663243b80a42b8e8d06dd65c4e41902803900584495f90c06c29ea58168a2"
       }
     }
   }

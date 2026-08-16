@@ -33,8 +33,9 @@ done
 work_root=/var/lib/airbob/data-bootstrap
 release_root="$work_root/release"
 secret_root="$work_root/secrets"
-install -d -m 700 "$release_root/mysql" "$secret_root"
+install -d -m 700 "$release_root/mysql" "$release_root/benchmark" "$secret_root"
 manifest="$release_root/manifest.json"
+benchmark_manifest="$release_root/benchmark/manifest.json"
 dump="$release_root/mysql/airbob.sql.zst"
 checksum="$release_root/mysql/sha256.txt"
 dataset_uri="s3://$AIRBOB_DATASET_BUCKET/datasets/$AIRBOB_DATASET_RELEASE"
@@ -57,6 +58,8 @@ actual_manifest_sha=$(sha256sum "$manifest" | awk '{print $1}')
   || { printf '%s\n' 'dataset manifest digest mismatch' >&2; exit 1; }
 release_kind=$(jq -r '.releaseKind' "$manifest")
 search_enabled=$(jq -r '.search.enabled' "$manifest")
+aws --region "$AIRBOB_REGION" s3 cp \
+  "$dataset_uri/benchmark/manifest.json" "$benchmark_manifest" --only-show-errors
 aws --region "$AIRBOB_REGION" s3 cp "$dataset_uri/mysql/sha256.txt" "$checksum" --only-show-errors
 if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
   aws --region "$AIRBOB_REGION" s3 cp "$dataset_uri/mysql/airbob.sql.zst" "$dump" --only-show-errors

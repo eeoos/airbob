@@ -76,7 +76,8 @@ merge hosts.
 The canonical release lives below
 `s3://<dataset-bucket>/datasets/<release>/`. `manifest.json` is published last
 and its SHA-256 is an explicit Terraform input. The release contains
-`mysql/airbob.sql.zst` and `mysql/sha256.txt`; a search-enabled release also
+the immutable `benchmark/manifest.json` workload input bound by the wrapper,
+`mysql/airbob.sql.zst`, and `mysql/sha256.txt`; a search-enabled release also
 contains `elasticsearch/snapshot-reference.json` and points to a read-only
 native S3 snapshot repository. Run
 `infra/aws/scripts/verify-dataset-release.sh` before publication or restore.

@@ -372,6 +372,8 @@ Debezium connector pause는 Spring profile이 수행하지 않는다. `isolated-
 ```text
 datasets/<dataset-release>/
 ├── manifest.json
+├── benchmark/
+│   └── manifest.json
 ├── mysql/
 │   ├── airbob.sql.zst
 │   └── sha256.txt
@@ -383,11 +385,14 @@ datasets/<dataset-release>/
 
 - `releaseKind`, `datasetRelease`, `datasetRunId`, ETL commit과 seed/profile
 - 원본 ETL manifest version과 canonical payload digest
+- secret 없는 원본 benchmark manifest의 고정 key와 파일 SHA-256
 - SQL dump SHA-256, Flyway version/checksum, schema fingerprint
 - timezone, evaluation time과 데이터 유효 기한
 - bootstrap의 outbox 처리 정책과 선택적 coupon 준비 대상
 
-secret과 사용자 세션은 manifest에 넣지 않는다.
+secret과 사용자 세션은 두 manifest에 넣지 않는다. wrapper `manifest.json`은
+`benchmark/manifest.json`의 exact bytes를 SHA-256으로 결속하며 모든 artifact
+검증 후 마지막에 올리는 completion marker다.
 
 두 release kind를 구분한다.
 

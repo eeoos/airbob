@@ -11,6 +11,8 @@ exact manifest SHA-256; it never searches for a latest release.
 ```text
 datasets/<release>/
 ├── manifest.json
+├── benchmark/
+│   └── manifest.json
 ├── mysql/
 │   ├── airbob.sql.zst
 │   └── sha256.txt
@@ -29,6 +31,14 @@ and Elasticsearch fingerprints, and the causal-fence fields enforced by
 `verify-dataset-release.sh`. Both kinds require the current application
 Flyway version, currently V16. An older dump must be regenerated through the
 producer; changing only its label or manifest is invalid.
+
+`benchmark/manifest.json` is the immutable, secret-free workload input. The
+wrapper records its fixed key and SHA-256 as `source.benchmarkManifestKey` and
+`source.benchmarkManifestSha256`; `manifest.json` remains the completion marker
+and is uploaded only after this artifact. A rehearsal manifest must satisfy the
+same `nplus1-v1` invariants consumed by k6, including the benchmark account,
+row capacities, target ids, and unique recently-viewed ids. The digest binds
+the exact bytes, so consumers must not reformat the file after publication.
 
 ## Canonical database fingerprints
 

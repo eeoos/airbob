@@ -9,7 +9,9 @@
     "seed": "airbob-production-seed-v1",
     "profile": "large",
     "manifestVersion": "benchmark-fixture-v1",
-    "canonicalPayloadSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    "canonicalPayloadSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "benchmarkManifestKey": "benchmark/manifest.json",
+    "benchmarkManifestSha256": "2c38a71d5566c051775f8c4fdfc08e12fbebc4fdd6f1e284a185699fd1478647"
   },
   "mysql": {
     "dumpKey": "mysql/airbob.sql.zst",
