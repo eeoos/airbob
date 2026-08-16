@@ -181,7 +181,58 @@ locals {
           "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
+          aws_iam_role.expiry_observer.arn,
         ]
+      },
+      {
+        Sid    = "ExpiryObserverLambdaReadOnly"
+        Effect = "Allow"
+        Action = [
+          "lambda:GetFunction",
+          "lambda:GetFunctionCodeSigningConfig",
+          "lambda:GetPolicy",
+          "lambda:ListVersionsByFunction",
+        ]
+        Resource = aws_lambda_function.expiry_observer.arn
+      },
+      {
+        Sid      = "ExpiryObserverEventRuleReadOnly"
+        Effect   = "Allow"
+        Action   = ["events:DescribeRule", "events:ListTagsForResource", "events:ListTargetsByRule"]
+        Resource = aws_cloudwatch_event_rule.expiry_observer.arn
+      },
+      {
+        Sid    = "ExpiryObserverAlarmReadOnly"
+        Effect = "Allow"
+        Action = ["cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource"]
+        Resource = concat(
+          [for alarm in values(aws_cloudwatch_metric_alarm.expiry_observer) : alarm.arn],
+          [aws_cloudwatch_metric_alarm.expiry_observer_errors.arn],
+        )
+      },
+      {
+        Sid      = "ExpiryObserverTopicReadOnly"
+        Effect   = "Allow"
+        Action   = ["sns:GetSubscriptionAttributes", "sns:GetTopicAttributes", "sns:ListSubscriptionsByTopic", "sns:ListTagsForResource"]
+        Resource = aws_sns_topic.expiry_alerts.arn
+      },
+      {
+        Sid      = "ExpiryObserverLogGroupReadOnly"
+        Effect   = "Allow"
+        Action   = "logs:ListTagsForResource"
+        Resource = aws_cloudwatch_log_group.expiry_observer.arn
+      },
+      {
+        Sid      = "ExpiryObserverLogDiscovery"
+        Effect   = "Allow"
+        Action   = "logs:DescribeLogGroups"
+        Resource = "*"
+      },
+      {
+        Sid      = "ExpiryObserverKeyReadOnly"
+        Effect   = "Allow"
+        Action   = ["kms:DescribeKey", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListResourceTags"]
+        Resource = aws_kms_key.expiry_alerts.arn
       },
       {
         Sid    = "LeaseTableReadAndConfigure"

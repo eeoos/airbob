@@ -23,6 +23,8 @@ Do not run a live plan until all of these inputs are known and reviewed:
   import it into this state before the first apply rather than creating a
   duplicate);
 - exact local IAM principal ARNs and an explicit MFA decision.
+- when enabling the expiry observer, one reviewed email address whose SNS
+  subscription the owner can confirm and acknowledge explicitly.
 
 The approved workflow binding is `workflow-name`. Trust also requires each
 exact subject, repository ID `1056501820`, owner ID `119295425`, and the main
@@ -101,6 +103,71 @@ parts because those requests cannot carry the required tag condition. Reject
 artifacts at or above the 5 GiB single-request limit before upload. An
 unconditioned, evidence-bucket-only abort permission exists solely to clean up
 an accidentally initiated multipart upload.
+
+## Expiry observer is alert-only
+
+The foundation declares a small EventBridge-scheduled Lambda that discovers
+resources by the stable `Project`, `Environment`, and `Stack=lab` identity tags
+every fifteen minutes, then validates all five exact tags below in code:
+
+```text
+Project=airbob
+Environment=performance-lab
+Stack=lab
+ManagedBy=terraform
+Persistence=ephemeral
+```
+
+`ExpiresAt` must be a canonical positive decimal Unix timestamp in seconds.
+The observer publishes only aggregate counts and a heartbeat to
+`Airbob/PerformanceLab`; it does not log resource ARNs. Its execution role can
+read Resource Groups Tagging API results and write that metric namespace and
+its own logs. It has no EC2/RDS/ELB/Auto Scaling, Route 53, CodeBuild,
+DynamoDB, S3, or cleanup mutation permission. `CLEANUP_ENABLED=false` is both
+a Terraform contract and a runtime fail-closed check.
+
+The schedule and alarm actions default to disabled. Alarm resources keep stable
+Terraform addresses while disabled so `prevent_destroy` cannot block a later
+enable/disable transition. Activation is intentionally two pass:
+
+1. Set `expiry_alert_email` while keeping `expiry_observer_enabled=false`,
+   review/apply with an approved local foundation principal, and confirm the
+   SNS subscription email. Verify the subscription in AWS and send a test
+   notification before treating delivery as proven.
+2. Set `expiry_alert_subscription_confirmed=true` and
+   `expiry_observer_enabled=true`, review a second plan, and apply. Terraform
+   also verifies that AWS reports the subscription as no longer pending before
+   enabling the schedule or alarm actions. Both use the same
+   `delivery_ready` condition, so an unconfirmed first-pass apply leaves all of
+   them disabled even if activation was requested too early.
+
+To rotate the email, first disable the observer and set the confirmation flag
+to false, then apply the new email, confirm it, and re-enable in a separate
+reviewed apply. The email subscription is the only replaceable foundation
+resource; its KMS key, topic, alarms, Lambda, and schedule remain protected by
+`prevent_destroy`.
+
+This creates alarms for an expired/invalid resource, a missing heartbeat, and
+Lambda errors. The SNS topic uses a customer-managed rotating KMS key whose
+policy grants only the CloudWatch alarm publisher the required encrypt/decrypt
+operations for this account and alarm-name prefix. It does **not** destroy
+resources, change DNS, acquire the
+orchestration lease, or prove that every AWS resource type participates in the
+Resource Groups Tagging API. Until the lease/fencing controller and bounded
+cleanup path are implemented, an alert requires the user to inspect the lab
+and run the reviewed manual down procedure. The GitHub foundation role has
+read-only refresh access to these observer resources. At the current U4
+boundary, creation, activation, mutation, or replacement remains a local-admin
+operation. U5 must add a protected GitHub foundation workflow that calls the
+same repository-owned configure/status primitives as local operation; it may
+receive only the exact rule/alarm/subscription mutations needed for activation,
+not IAM, Lambda-code, KMS, topic, cleanup, or DNS mutation.
+Resources missing any identity tag are outside this observer's inventory;
+the later controller/orphan scan must compare against authoritative lab state
+instead of treating this tag query as complete.
+Mocked plans cover both enabled and disabled alarm configurations. The real
+enable-to-disable state transition and CloudWatch-to-SNS-to-email delivery
+remain live acceptance checks; this repository has not applied either path.
 
 ## Imported application repository
 

@@ -252,3 +252,33 @@ variable "ecr_tagged_image_count" {
     error_message = "ecr_tagged_image_count must be between 20 and 500."
   }
 }
+
+variable "expiry_observer_enabled" {
+  description = "Whether the read-only expiry observer schedule and alarm actions are active. Cleanup remains unavailable."
+  type        = bool
+  default     = false
+}
+
+variable "expiry_alert_email" {
+  description = "Email endpoint for expiry observer alarms. Confirm the SNS subscription before enabling the observer."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.expiry_alert_email == null ||
+      (
+        trimspace(var.expiry_alert_email) == var.expiry_alert_email &&
+        can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.expiry_alert_email))
+      )
+    )
+    error_message = "expiry_alert_email must be null or one canonical email address without whitespace."
+  }
+}
+
+variable "expiry_alert_subscription_confirmed" {
+  description = "Explicit acknowledgement that the configured SNS email subscription was confirmed before observer activation."
+  type        = bool
+  default     = false
+}

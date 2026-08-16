@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 비용 자원이 없는 lab destruction boundary까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Immutable image 생성·발행과 runtime smoke, bundle upload 및 repository-s3 검증, SSM bootstrap/sysctl 적용, ephemeral VPC/compute/RDS/ALB, DNS 이전·전환과 성능 증거 수집은 아직 진행 전이다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 비용 자원이 없는 lab destruction boundary, 삭제 권한이 없는 만료 observer/알림까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Observer는 자동 cleanup의 대체물이 아니며 lease/fencing controller, DNS rollback 및 강제 destroy는 아직 구현되지 않았다. Immutable image 생성·발행과 runtime smoke, bundle upload 및 repository-s3 검증, SSM bootstrap/sysctl 적용, ephemeral VPC/compute/RDS/ALB, DNS 이전·전환과 성능 증거 수집도 아직 진행 전이다.
 
 ## 배경
 
@@ -169,7 +169,7 @@ OCI와 AWS는 데이터를 공유하지 않는다. DNS를 AWS로 전환하면 �
 - lab 전용 IAM instance profile, security group, private DNS record
 - AWS 쪽 weighted public DNS record
 
-모든 일회성 자원에는 `Project=airbob`, `Environment=performance-lab`, `ManagedBy=terraform`, `ExpiresAt` 태그를 붙인다.
+모든 일회성 자원에는 `Project=airbob`, `Environment=performance-lab`, `Stack=lab`, `ManagedBy=terraform`, `Persistence=ephemeral`, `ExpiresAt` 태그를 붙인다. 영구 foundation 자원은 `Stack=foundation`, `Persistence=persistent`로 분리한다.
 
 ## 인스턴스와 컨테이너 기준
 
@@ -554,6 +554,8 @@ GitHub Actions는 `workflow_dispatch` 입력으로 같은 값을 받고 내부�
 
 코드 수정이 없더라도 기존 image digest를 지정해 로컬에서 `aws-up`을 실행할 수 있다. 반대로 GitHub UI에서는 수동 버튼으로 같은 작업을 실행할 수 있다. CD workflow가 ECR에 image를 push하는 일과 AWS lab을 생성하는 일은 분리한다. `integrated-smoke`는 `performance`에서만 허용하고, DB/Redis/Kafka/ES를 바꾼 smoke 뒤에는 dataset reset을 통과해야만 `isolated-read`로 전환한다.
 
+`aws-status`는 lab 상태와 함께 fixed-name expiry observer rule, 세 alarm의 live state와 마지막 평가 시각을 읽어야 한다. Metric 원문 조회 권한이나 foundation state를 넓게 공개하지 않고, heartbeat 누락은 heartbeat alarm 상태로 표현한다. Observer email 설정·활성화·비활성화는 protected `aws-foundation` 환경의 별도 workflow와 로컬이 같은 repository script를 호출하며, 사람의 SNS email confirmation 자체는 자동화하지 않는다.
+
 GitHub는 OIDC로 AWS role을 assume하고 static access key를 저장하지 않는다. 로컬은 AWS SSO/profile 등 표준 credential chain을 사용한다. GitHub workflow에는 `concurrency: aws-performance-lab`과 `cancel-in-progress: false`를 두지만 이는 로컬 실행을 막지 못하므로 보조 장치일 뿐이다.
 
 이는 새 lab workflow만의 목표가 아니다. 현재 앱 ECR publish workflow가 사용하는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secret도 Phase 1에서 OIDC로 이관하고 정적 key를 제거한다. 기존 앱 multi-arch ECR/GHCR build는 재사용하며, infra image workflow의 `latest` 발행은 immutable commit tag와 digest 출력으로 바꾼다.
@@ -655,7 +657,20 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - NAT Gateway는 사용하지 않고 test-only NAT instance를 사용한다.
 - AWS Up 성공 여부와 무관하게 종료 시 orphan scan을 수행한다.
 
-비용이 집중되는 ALB, RDS, EC2와 public IPv4는 lab 수명에만 존재한다. 상시 남는 비용은 작은 S3/ECR 저장량, `airbob.cloud` Route 53 hosted zone, orchestration lease row와 선택적 dataset snapshot 정도다.
+현재 Phase 1 중간 구현은 위 최종 cleanup 경로가 아니라
+`CLEANUP_ENABLED=false`로 고정된 read-only observer다. 이 observer는 15분마다
+`Project=airbob`, `Environment=performance-lab`, `Stack=lab` identity 태그로 후보를 찾은 뒤
+`ManagedBy=terraform`, `Persistence=ephemeral`과 canonical `ExpiresAt` Unix 초
+값을 코드에서 검사한다. 따라서 누락되거나 잘못된 lifecycle 태그도 invalid로
+집계한다. aggregate metric/heartbeat 및 customer-managed KMS로 암호화된 SNS
+알림만 남기고 Resource ARN은 로그에 남기지 않으며
+Route 53, CodeBuild, lease, EC2/RDS/ALB 삭제 권한이 없다. 따라서 알림을 받은
+사용자가 수동 down을 수행해야 하고, Resource Groups Tagging API가 지원하지
+않는 자원이나 세 identity 태그 중 하나라도 누락된 자원까지 완전 탐지한다고 주장하지
+않는다. 후속 controller/orphan scan은 authoritative lab state와 대조해야 한다. 자동 rollback/destroy는
+lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성화한다.
+
+비용이 집중되는 ALB, RDS, EC2와 public IPv4는 lab 수명에만 존재한다. 상시 남는 비용은 작은 S3/ECR 저장량, `airbob.cloud` Route 53 hosted zone, orchestration lease row와 선택적 dataset snapshot 정도다. Expiry observer를 구성하면 customer-managed KMS key와 CloudWatch alarm이 영구 foundation에 남고, 활성화하면 Lambda 호출·로그, custom metric과 SNS/KMS 요청 사용량도 추가되므로 별도 비용 항목으로 관측한다.
 
 ## 오류 처리 원칙
 
@@ -683,11 +698,13 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 
 ### Phase 1. Terraform bootstrap과 영구 기반
 
-- S3 backend/versioning/lock file을 만들고 bootstrap state를 이관한다.
-- 기존 ECR/S3 자원은 import/reference하고 `airbob.cloud` Route 53 zone과 기존 DNS record 복제본을 생성·보호한 뒤 가비아 name server 변경 승인을 진행한다.
-- GitHub OIDC role, ACM, dataset/evidence lifecycle을 구성한다.
-- immutable expiry sweeper와 on-demand cleanup CodeBuild 경로를 구성한다.
-- foundation/dns/lab state와 destroy 경계를 검증한다.
+- [x] S3 backend/versioning/lock file과 bootstrap state 이관 계약을 구현·정적 검증한다.
+- [x] 기존 ECR/S3 import/reference, `airbob.cloud` Route 53 zone 및 reviewed DNS inventory 계약을 구현·정적 검증한다. 실제 가비아 name server 변경은 아직 하지 않는다.
+- [x] GitHub OIDC role, ACM, dataset/evidence lifecycle을 구성·정적 검증한다.
+- [x] 삭제 권한이 없는 expiry observer와 CloudWatch/SNS 알림을 구성·정적 검증한다. 기본값은 disabled다.
+- [ ] 로컬과 protected GitHub foundation workflow가 같은 repository script로 observer email 설정·활성화·비활성화를 수행하고, 공통 `aws-status`가 rule/alarm 상태를 foundation state 노출 없이 읽게 한다. U4 현재 경계는 local-admin only다.
+- [ ] lease/fencing controller와 immutable expiry sweeper, on-demand cleanup 경로를 구성한다.
+- [x] foundation/dns/lab state와 destroy 경계를 검증한다.
 
 ### Phase 2. 네트워크와 서비스 EC2
 
@@ -733,6 +750,7 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - persistent state resource가 lab destroy plan에 포함되지 않는지 검사한다.
 - Compose config, image digest, Redis port/memory/persistence/eviction 정책을 테스트한다.
 - 범용/cache Redis client routing, 서로 다른 endpoint와 endpoint 누락 fail-fast를 테스트한다.
+- expiry observer는 stable identity tag로 후보를 찾고 잘못된 lifecycle tag를 invalid로 집계하며, enabled/disabled plan 모두 동일한 alarm 주소를 유지하고 action만 전환하는지 검사한다. 실제 상태 전환과 CloudWatch→SNS→email 전달은 live foundation acceptance에서 확인한다.
 
 ### 통합 검증
 

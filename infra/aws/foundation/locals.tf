@@ -14,6 +14,7 @@ locals {
   required_tags = {
     Project     = "airbob"
     Environment = "performance-lab"
+    Stack       = "foundation"
     ManagedBy   = "terraform"
     Persistence = "persistent"
   }

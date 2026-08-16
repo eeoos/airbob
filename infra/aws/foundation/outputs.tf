@@ -96,3 +96,16 @@ output "foundation_contract_parameter_names" {
     lab = aws_ssm_parameter.lab_consumer_contract.name
   }
 }
+
+output "expiry_observer" {
+  description = "Read-only expiry observer status. Cleanup and DNS mutation are not implemented."
+  value = {
+    enabled                = local.expiry_alert_delivery_ready
+    cleanup_enabled        = false
+    schedule_expression    = aws_cloudwatch_event_rule.expiry_observer.schedule_expression
+    function_name          = aws_lambda_function.expiry_observer.function_name
+    alert_topic_arn        = aws_sns_topic.expiry_alerts.arn
+    email_configured       = var.expiry_alert_email != null
+    subscription_confirmed = length(aws_sns_topic_subscription.expiry_alert_email) == 1 ? !aws_sns_topic_subscription.expiry_alert_email[0].pending_confirmation : false
+  }
+}

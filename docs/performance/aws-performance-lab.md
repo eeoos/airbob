@@ -17,6 +17,8 @@
 | Elasticsearch host `vm.max_map_count` runtime enforcement | Not implemented yet |
 | Terraform persistent foundation | Implemented (configuration/static tests only; not applied) |
 | Terraform DNS/lab state boundaries | Implemented (DNS contract + zero-resource lab root; not applied) |
+| Expiry observer and SNS/CloudWatch alerts | Implemented (read-only configuration/static tests; disabled, delivery unverified, and not applied) |
+| Lease/fencing cleanup controller and automatic destroy | Not implemented yet |
 | Ephemeral VPC/compute/RDS/ALB Terraform | Not implemented yet |
 | Route 53 cutover | Not executed |
 | AWS performance evidence | Not collected |
@@ -31,7 +33,11 @@ does not prove that arbitrary secret material hidden under a benign key is
 absent. The persistent foundation, separate weighted-DNS state, and empty lab
 destruction boundary are represented and statically tested, but have not been
 planned against or applied to AWS. The lab root intentionally has no billable
-resources yet. This work does not
+resources yet. A disabled-by-default observer discovers the lab by stable
+identity tags, reports missing/invalid lifecycle tags, and can alert through a
+customer-KMS-encrypted CloudWatch/SNS path after explicit email confirmation.
+It cannot mutate DNS,
+start cleanup, or delete resources. This work does not
 build or publish immutable images, upload the package, run container smoke
 tests, enforce host prerequisites through SSM, create AWS resources, apply
 Terraform, migrate authoritative DNS, change Route 53 traffic, or establish

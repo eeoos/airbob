@@ -57,7 +57,8 @@ command -v terraform >/dev/null 2>&1 || fail "Terraform is required"
 for required_file in \
   backend.tf versions.tf providers.tf variables.tf locals.tf data.tf \
   storage.tf ecr.tf imports.tf oidc.tf iam.tf lease.tf dns.tf contracts.tf \
-  outputs.tf README.md .terraform.lock.hcl tests/foundation.tftest.hcl
+  expiry-observer.tf outputs.tf README.md .terraform.lock.hcl \
+  lambda/expiry_observer.py tests/test_expiry_observer.py tests/foundation.tftest.hcl
 do
   [[ -f "$foundation_root/$required_file" && ! -L "$foundation_root/$required_file" ]] \
     || fail "foundation/$required_file is missing or unsafe"
@@ -83,12 +84,17 @@ assert_not_contains "$backend_helper" 'dynamodb_table'
 resource_count=$(grep -hE '^resource "aws_[^"]+" "[^"]+" \{' "$foundation_root"/*.tf | wc -l | tr -d ' ')
 prevent_destroy_count=$(grep -hE '^[[:space:]]+prevent_destroy = true$' "$foundation_root"/*.tf | wc -l | tr -d ' ')
 [[ "$resource_count" -gt 0 ]] || fail "foundation must declare persistent AWS resources"
-[[ "$resource_count" -eq "$prevent_destroy_count" ]] \
-  || fail "every foundation AWS resource must have prevent_destroy"
+[[ "$resource_count" -eq $((prevent_destroy_count + 1)) ]] \
+  || fail "every foundation AWS resource except the replaceable alert subscription must have prevent_destroy"
+subscription_block=$(sed -n '/^resource "aws_sns_topic_subscription" "expiry_alert_email" {$/,/^}$/p' "$foundation_root/expiry-observer.tf")
+[[ -n "$subscription_block" ]] || fail "replaceable expiry alert subscription is missing"
+if printf '%s\n' "$subscription_block" | grep -Fq 'prevent_destroy'; then
+  fail "the expiry alert subscription must remain replaceable for email rotation"
+fi
 
 assert_not_contains "$foundation_root" 'force_destroy[[:space:]]*=[[:space:]]*true'
 assert_not_contains "$foundation_root" 'terraform_remote_state'
-assert_not_contains "$foundation_root" 'aws_(instance|rds|lb|autoscaling|eventbridge|lambda|codebuild)'
+assert_not_contains "$foundation_root" 'aws_(instance|rds|lb|autoscaling|codebuild)'
 assert_not_contains "$foundation_root" 'AKIA[0-9A-Z]{16}'
 assert_not_contains "$foundation_root" 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY'
 assert_not_contains "$foundation_root" 'AWS_SECRET_ACCESS_KEY[[:space:]]*='
@@ -100,9 +106,21 @@ assert_contains "$foundation_root/imports.tf" 'id = "airbob-repo"'
 assert_contains "$foundation_root/contracts.tf" '/airbob/performance-lab/foundation/dns-contract'
 assert_contains "$foundation_root/contracts.tf" '/airbob/performance-lab/foundation/lab-contract'
 assert_contains "$foundation_root/contracts.tf" 'schemaVersion'
+grep -Eq 'Stack[[:space:]]*=[[:space:]]*"foundation"' "$foundation_root/locals.tf" \
+  || fail "foundation resources must remain outside the Stack=lab observer scope"
 assert_file_not_contains "$foundation_root/iam.tf" 'iam:(PutRolePolicy|DeleteRolePolicy|UpdateAssumeRolePolicy|CreateRole|CreateOpenIDConnectProvider)'
 assert_file_not_contains "$foundation_root/iam.tf" 'Action[[:space:]]*=[[:space:]]*"(s3|ecr|dynamodb|route53|acm|ssm):\*"'
 assert_file_not_contains "$foundation_root/iam.tf" 'github_oidc_subject_mode'
+grep -Eq 'CLEANUP_ENABLED[[:space:]]*=[[:space:]]*"false"' "$foundation_root/expiry-observer.tf" \
+  || fail "expiry observer cleanup guard is missing"
+assert_contains "$foundation_root/expiry-observer.tf" 'schedule_expression = "rate(15 minutes)"'
+assert_contains "$foundation_root/expiry-observer.tf" 'resource "aws_kms_key" "expiry_alerts"'
+assert_contains "$foundation_root/expiry-observer.tf" 'state               = local.expiry_alert_delivery_ready ? "ENABLED" : "DISABLED"'
+assert_contains "$foundation_root/expiry-observer.tf" 'try(!aws_sns_topic_subscription.expiry_alert_email[0].pending_confirmation, false)'
+[[ "$(grep -Fc 'actions_enabled     = local.expiry_alert_delivery_ready' "$foundation_root/expiry-observer.tf")" -eq 2 ]] \
+  || fail "both expiry alarm families must use the shared delivery-ready gate"
+assert_file_not_contains "$foundation_root/expiry-observer.tf" 'alias/aws/sns'
+assert_file_not_contains "$foundation_root/lambda/expiry_observer.py" 'delete_|terminate_|stop_|change_resource|start_build|put_item|update_item'
 
 lab_policy_source=$(sed -n '/^  lab_operator_policy = jsonencode({$/,/^  image_publisher_policy = jsonencode({$/p' "$foundation_root/iam.tf")
 [[ -n "$lab_policy_source" ]] || fail "lab operator policy source is missing"
@@ -230,5 +248,6 @@ terraform -chdir="$foundation_root" fmt -check -recursive
 terraform -chdir="$foundation_root" init -backend=false -input=false -lockfile=readonly
 terraform -chdir="$foundation_root" validate
 terraform -chdir="$foundation_root" test
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest "$foundation_root/tests/test_expiry_observer.py"
 
 printf '%s\n' 'foundation contract tests passed'

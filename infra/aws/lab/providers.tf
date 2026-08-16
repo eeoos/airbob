@@ -6,6 +6,7 @@ provider "aws" {
     tags = {
       Project     = "airbob"
       Environment = "performance-lab"
+      Stack       = "lab"
       ManagedBy   = "terraform"
       Persistence = "ephemeral"
     }

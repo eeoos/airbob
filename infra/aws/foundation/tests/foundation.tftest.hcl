@@ -113,19 +113,98 @@ mock_provider "aws" {
       arn = "arn:aws:ssm:ap-northeast-2:942632789808:parameter/airbob/performance-lab/foundation/lab-contract"
     }
   }
+
+  override_resource {
+    target          = aws_cloudwatch_log_group.expiry_observer
+    override_during = plan
+    values = {
+      arn = "arn:aws:logs:ap-northeast-2:942632789808:log-group:/aws/lambda/airbob-performance-lab-expiry-observer"
+    }
+  }
+
+  override_resource {
+    target          = aws_iam_role.expiry_observer
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::942632789808:role/airbob-performance-lab-expiry-observer"
+    }
+  }
+
+  override_resource {
+    target          = aws_lambda_function.expiry_observer
+    override_during = plan
+    values = {
+      arn           = "arn:aws:lambda:ap-northeast-2:942632789808:function:airbob-performance-lab-expiry-observer"
+      function_name = "airbob-performance-lab-expiry-observer"
+    }
+  }
+
+  override_resource {
+    target          = aws_cloudwatch_event_rule.expiry_observer
+    override_during = plan
+    values = {
+      arn  = "arn:aws:events:ap-northeast-2:942632789808:rule/airbob-performance-lab-expiry-observer"
+      name = "airbob-performance-lab-expiry-observer"
+    }
+  }
+
+  override_resource {
+    target          = aws_sns_topic.expiry_alerts
+    override_during = plan
+    values = {
+      arn = "arn:aws:sns:ap-northeast-2:942632789808:airbob-performance-lab-expiry-alerts"
+    }
+  }
+
+  override_resource {
+    target          = aws_kms_key.expiry_alerts
+    override_during = plan
+    values = {
+      arn    = "arn:aws:kms:ap-northeast-2:942632789808:key/11111111-2222-3333-4444-555555555555"
+      key_id = "11111111-2222-3333-4444-555555555555"
+    }
+  }
+
+  override_resource {
+    target          = aws_cloudwatch_metric_alarm.expiry_observer["action-required"]
+    override_during = plan
+    values = {
+      arn = "arn:aws:cloudwatch:ap-northeast-2:942632789808:alarm:airbob-performance-lab-expiry-action-required"
+    }
+  }
+
+  override_resource {
+    target          = aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"]
+    override_during = plan
+    values = {
+      arn = "arn:aws:cloudwatch:ap-northeast-2:942632789808:alarm:airbob-performance-lab-expiry-heartbeat-missing"
+    }
+  }
+
+  override_resource {
+    target          = aws_cloudwatch_metric_alarm.expiry_observer_errors
+    override_during = plan
+    values = {
+      arn = "arn:aws:cloudwatch:ap-northeast-2:942632789808:alarm:airbob-performance-lab-expiry-lambda-errors"
+    }
+  }
+
 }
 
 variables {
-  existing_application_bucket_name = "airbob-existing-application-assets"
-  application_ecr_scan_on_push     = false
-  dns_inventory_reviewed           = true
-  dnssec_ds_reviewed               = true
-  github_foundation_subject        = "repo:eeoos/airbob:environment:aws-foundation"
-  github_lab_subject               = "repo:eeoos/airbob:environment:aws-performance-lab"
-  github_image_subject             = "repo:eeoos/airbob:ref:refs/heads/main"
-  github_oidc_subjects_reviewed    = true
-  local_principal_arns             = ["arn:aws:iam::942632789808:user/foundation-test"]
-  local_principal_requires_mfa     = true
+  existing_application_bucket_name    = "airbob-existing-application-assets"
+  application_ecr_scan_on_push        = false
+  dns_inventory_reviewed              = true
+  dnssec_ds_reviewed                  = true
+  github_foundation_subject           = "repo:eeoos/airbob:environment:aws-foundation"
+  github_lab_subject                  = "repo:eeoos/airbob:environment:aws-performance-lab"
+  github_image_subject                = "repo:eeoos/airbob:ref:refs/heads/main"
+  github_oidc_subjects_reviewed       = true
+  local_principal_arns                = ["arn:aws:iam::942632789808:user/foundation-test"]
+  local_principal_requires_mfa        = true
+  expiry_observer_enabled             = false
+  expiry_alert_email                  = null
+  expiry_alert_subscription_confirmed = false
 
   static_dns_records = {
     apex = {
@@ -145,6 +224,20 @@ variables {
 
 run "foundation_contract" {
   command = plan
+
+  variables {
+    expiry_observer_enabled             = true
+    expiry_alert_email                  = "alerts@example.com"
+    expiry_alert_subscription_confirmed = true
+  }
+
+  override_resource {
+    target          = aws_sns_topic_subscription.expiry_alert_email[0]
+    override_during = plan
+    values = {
+      pending_confirmation = false
+    }
+  }
 
   assert {
     condition = (
@@ -360,6 +453,60 @@ run "foundation_contract" {
       ]).Action, "iam:ListAttachedRolePolicies") &&
       contains(one([
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "FoundationIdentityReadOnly"
+      ]).Resource, aws_iam_role.expiry_observer.arn) &&
+      toset(one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverLambdaReadOnly"
+        ]).Action) == toset([
+        "lambda:GetFunction",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetPolicy",
+        "lambda:ListVersionsByFunction",
+      ]) &&
+      one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverLambdaReadOnly"
+      ]).Resource == aws_lambda_function.expiry_observer.arn &&
+      one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverEventRuleReadOnly"
+      ]).Resource == aws_cloudwatch_event_rule.expiry_observer.arn &&
+      toset(one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverAlarmReadOnly"
+        ]).Resource) == toset(concat(
+        [for alarm in values(aws_cloudwatch_metric_alarm.expiry_observer) : alarm.arn],
+        [aws_cloudwatch_metric_alarm.expiry_observer_errors.arn],
+      )) &&
+      one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverTopicReadOnly"
+      ]).Resource == aws_sns_topic.expiry_alerts.arn &&
+      toset(one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverTopicReadOnly"
+        ]).Action) == toset([
+        "sns:GetSubscriptionAttributes",
+        "sns:GetTopicAttributes",
+        "sns:ListSubscriptionsByTopic",
+        "sns:ListTagsForResource",
+      ]) &&
+      one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverLogGroupReadOnly"
+      ]).Resource == aws_cloudwatch_log_group.expiry_observer.arn &&
+      one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ExpiryObserverKeyReadOnly"
+      ]).Resource == aws_kms_key.expiry_alerts.arn &&
+      toset(flatten([
+        for statement in jsondecode(local.foundation_admin_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+        if startswith(statement.Sid, "ExpiryObserver") && try(statement.Resource == "*", false)
+      ])) == toset(["logs:DescribeLogGroups"]) &&
+      contains(one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "LeaseTableReadAndConfigure"
       ]).Action, "dynamodb:DescribeTimeToLive") &&
       contains(one([
@@ -433,6 +580,242 @@ run "foundation_contract" {
     )
     error_message = "Lab permissions must support tagged evidence and read-only DNS/ALB refresh without direct Route 53 mutation."
   }
+
+  assert {
+    condition = (
+      aws_lambda_function.expiry_observer.runtime == "python3.14" &&
+      one(aws_lambda_function.expiry_observer.architectures) == "arm64" &&
+      aws_lambda_function.expiry_observer.reserved_concurrent_executions == 1
+    )
+    error_message = "The observer Lambda must use the pinned runtime, architecture, and concurrency limit."
+  }
+
+  assert {
+    condition = (
+      one(aws_lambda_function.expiry_observer.environment).variables.CLEANUP_ENABLED == "false" &&
+      one(aws_lambda_function.expiry_observer.environment).variables.METRIC_NAMESPACE == "Airbob/PerformanceLab"
+    )
+    error_message = "The observer Lambda must reject cleanup and use the fixed metric namespace."
+  }
+
+  assert {
+    condition = (
+      aws_cloudwatch_event_rule.expiry_observer.schedule_expression == "rate(15 minutes)" &&
+      aws_cloudwatch_event_rule.expiry_observer.state == "ENABLED" &&
+      toset(keys(aws_cloudwatch_metric_alarm.expiry_observer)) == toset([
+        "action-required",
+        "heartbeat-missing",
+      ]) &&
+      alltrue([for alarm in aws_cloudwatch_metric_alarm.expiry_observer : alarm.actions_enabled]) &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.actions_enabled &&
+      length(aws_sns_topic_subscription.expiry_alert_email) == 1 &&
+      aws_sns_topic_subscription.expiry_alert_email[0].endpoint == "alerts@example.com" &&
+      aws_sns_topic.expiry_alerts.kms_master_key_id == aws_kms_key.expiry_alerts.arn &&
+      aws_kms_key.expiry_alerts.enable_key_rotation &&
+      aws_kms_key.expiry_alerts.deletion_window_in_days == 30 &&
+      one([
+        for statement in jsondecode(aws_kms_key.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Principal.Service == "cloudwatch.amazonaws.com" &&
+      toset(one([
+        for statement in jsondecode(aws_kms_key.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Action) == toset(["kms:Decrypt", "kms:GenerateDataKey*"]) &&
+      one([
+        for statement in jsondecode(aws_kms_key.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Condition.StringEquals["aws:SourceAccount"] == "942632789808" &&
+      one([
+        for statement in jsondecode(aws_kms_key.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Condition.ArnLike["aws:SourceArn"] == "arn:aws:cloudwatch:ap-northeast-2:942632789808:alarm:airbob-performance-lab-expiry-*" &&
+      output.expiry_observer.subscription_confirmed &&
+      output.expiry_observer.cleanup_enabled == false
+    )
+    error_message = "The enabled observer must be scheduled and connected to its bounded alert path."
+  }
+
+  assert {
+    condition = (
+      aws_cloudwatch_event_target.expiry_observer.rule == aws_cloudwatch_event_rule.expiry_observer.name &&
+      aws_cloudwatch_event_target.expiry_observer.arn == aws_lambda_function.expiry_observer.arn &&
+      aws_lambda_permission.expiry_observer_schedule.action == "lambda:InvokeFunction" &&
+      aws_lambda_permission.expiry_observer_schedule.principal == "events.amazonaws.com" &&
+      aws_lambda_permission.expiry_observer_schedule.source_arn == aws_cloudwatch_event_rule.expiry_observer.arn &&
+      alltrue([
+        for alarm in aws_cloudwatch_metric_alarm.expiry_observer :
+        toset(alarm.alarm_actions) == toset([aws_sns_topic.expiry_alerts.arn])
+      ]) &&
+      toset(aws_cloudwatch_metric_alarm.expiry_observer_errors.alarm_actions) == toset([aws_sns_topic.expiry_alerts.arn]) &&
+      one([
+        for statement in jsondecode(aws_sns_topic_policy.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Principal.Service == "cloudwatch.amazonaws.com" &&
+      one([
+        for statement in jsondecode(aws_sns_topic_policy.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Action == "sns:Publish" &&
+      one([
+        for statement in jsondecode(aws_sns_topic_policy.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Resource == aws_sns_topic.expiry_alerts.arn &&
+      one([
+        for statement in jsondecode(aws_sns_topic_policy.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Condition.StringEquals["aws:SourceAccount"] == "942632789808" &&
+      one([
+        for statement in jsondecode(aws_sns_topic_policy.expiry_alerts.policy).Statement : statement
+        if statement.Sid == "AllowCloudWatchExpiryAlarms"
+      ]).Condition.ArnLike["aws:SourceArn"] == "arn:aws:cloudwatch:ap-northeast-2:942632789808:alarm:airbob-performance-lab-expiry-*"
+    )
+    error_message = "EventBridge, Lambda, alarms, and the bounded SNS publisher policy must remain connected exactly."
+  }
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].namespace == "Airbob/PerformanceLab" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].metric_name == "ActionRequiredCount" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].datapoints_to_alarm == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].period == 900 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].statistic == "Maximum" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].threshold == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["action-required"].treat_missing_data == "notBreaching" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].namespace == "Airbob/PerformanceLab" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].metric_name == "ObserverHeartbeat" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].comparison_operator == "LessThanThreshold" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].evaluation_periods == 2 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].datapoints_to_alarm == 2 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].period == 900 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].statistic == "Minimum" &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].threshold == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].treat_missing_data == "breaching" &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.namespace == "AWS/Lambda" &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.metric_name == "Errors" &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.datapoints_to_alarm == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.period == 300 &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.statistic == "Sum" &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.threshold == 1 &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.treat_missing_data == "notBreaching" &&
+      aws_cloudwatch_metric_alarm.expiry_observer_errors.dimensions.FunctionName == aws_lambda_function.expiry_observer.function_name
+    )
+    error_message = "Observer metrics and alarm thresholds must remain an exact executable contract."
+  }
+
+  assert {
+    condition = (
+      toset(flatten([
+        for statement in jsondecode(aws_iam_role_policy.expiry_observer.policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+        ])) == toset([
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "tag:GetResources",
+        "cloudwatch:PutMetricData",
+      ]) &&
+      one([
+        for statement in jsondecode(aws_iam_role_policy.expiry_observer.policy).Statement : statement
+        if statement.Sid == "WriteExpiryMetrics"
+      ]).Condition.StringEquals["cloudwatch:namespace"] == "Airbob/PerformanceLab"
+    )
+    error_message = "The observer role must contain only log, tag-read, and namespace-scoped metric permissions."
+  }
+}
+
+run "expiry_observer_disabled_by_default_contract" {
+  command = plan
+
+  variables {
+    expiry_observer_enabled             = false
+    expiry_alert_email                  = null
+    expiry_alert_subscription_confirmed = false
+  }
+
+  assert {
+    condition = (
+      aws_cloudwatch_event_rule.expiry_observer.state == "DISABLED" &&
+      toset(keys(aws_cloudwatch_metric_alarm.expiry_observer)) == toset([
+        "action-required",
+        "heartbeat-missing",
+      ]) &&
+      alltrue([for alarm in aws_cloudwatch_metric_alarm.expiry_observer : !alarm.actions_enabled]) &&
+      !aws_cloudwatch_metric_alarm.expiry_observer_errors.actions_enabled &&
+      aws_cloudwatch_metric_alarm.expiry_observer["heartbeat-missing"].treat_missing_data == "notBreaching" &&
+      length(aws_sns_topic_subscription.expiry_alert_email) == 0 &&
+      !output.expiry_observer.cleanup_enabled
+    )
+    error_message = "The observer schedule and alarm actions must stay inactive while stable alarm resources remain declared."
+  }
+}
+
+run "reject_enabled_observer_without_email" {
+  command = plan
+
+  variables {
+    expiry_observer_enabled             = true
+    expiry_alert_email                  = null
+    expiry_alert_subscription_confirmed = true
+  }
+
+  expect_failures = [aws_cloudwatch_event_rule.expiry_observer]
+}
+
+run "reject_enabled_observer_without_subscription_confirmation" {
+  command = plan
+
+  variables {
+    expiry_observer_enabled             = true
+    expiry_alert_email                  = "alerts@example.com"
+    expiry_alert_subscription_confirmed = false
+  }
+
+  expect_failures = [aws_cloudwatch_event_rule.expiry_observer]
+}
+
+run "reject_enabled_observer_with_pending_subscription" {
+  command = plan
+
+  variables {
+    expiry_observer_enabled             = true
+    expiry_alert_email                  = "alerts@example.com"
+    expiry_alert_subscription_confirmed = true
+  }
+
+  override_resource {
+    target          = aws_sns_topic_subscription.expiry_alert_email[0]
+    override_during = plan
+    values = {
+      pending_confirmation = true
+    }
+  }
+
+  expect_failures = [aws_cloudwatch_event_rule.expiry_observer]
+}
+
+run "reject_subscription_confirmation_without_email" {
+  command = plan
+
+  variables {
+    expiry_observer_enabled             = false
+    expiry_alert_email                  = null
+    expiry_alert_subscription_confirmed = true
+  }
+
+  expect_failures = [aws_cloudwatch_event_rule.expiry_observer]
+}
+
+run "reject_noncanonical_expiry_alert_email" {
+  command = plan
+
+  variables {
+    expiry_observer_enabled = false
+    expiry_alert_email      = " alerts@example.com"
+  }
+
+  expect_failures = [var.expiry_alert_email]
 }
 
 run "delegated_certificate_validation" {

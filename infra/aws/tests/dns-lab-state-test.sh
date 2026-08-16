@@ -69,6 +69,8 @@ lab_resource_count=$(grep -hE '^resource "aws_[^"]+" "[^"]+" \{' "$lab_root"/*.t
 
 assert_contains "$dns_root/data.tf" '/airbob/performance-lab/foundation/dns-contract'
 assert_contains "$lab_root/data.tf" '/airbob/performance-lab/foundation/lab-contract'
+grep -Eq 'Stack[[:space:]]*=[[:space:]]*"lab"' "$lab_root/providers.tf" \
+  || fail "lab resources must carry the stable Stack=lab observer scope tag"
 oci_record_source=$(sed -n \
   '/^resource "aws_route53_record" "oci_api"/,/^resource "aws_route53_record" "aws_api"/p' \
   "$dns_root/records.tf" | sed '$d')
