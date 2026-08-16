@@ -285,17 +285,28 @@ public class AccommodationDetailCache {
 		}
 
 		try {
-			AccommodationDetailSnapshot snapshot = timedLoad(loader);
-			newLoad.complete(snapshot);
+			AccommodationDetailSnapshot snapshot;
+			try {
+				snapshot = timedLoad(loader);
+			} catch (AccommodationNotFoundException exception) {
+				if (!newLoad.completeExceptionally(exception)) {
+					// 조회 중 게시 상태가 바뀌었을 수 있으므로 404도 최신 DB 상태를 다시 확인
+					return timedUncachedLoad(loader);
+				}
+				metricRecorder.recordRequest(NEGATIVE_LOADED);
+				throw exception;
+			} catch (RuntimeException exception) {
+				// DB 장애는 오래된 조회 결과가 아니므로 무효화와 겹쳐도 재시도하지 않음
+				newLoad.completeExceptionally(exception);
+				throw exception;
+			}
+
+			if (!newLoad.complete(snapshot)) {
+				// 무효화가 먼저 완료한 결과는 공유하지 않고 Redis를 우회해 한 번만 다시 조회
+				return timedUncachedLoad(loader);
+			}
 			metricRecorder.recordRequest(LOADED);
 			return snapshot;
-		} catch (AccommodationNotFoundException exception) {
-			newLoad.completeExceptionally(exception);
-			metricRecorder.recordRequest(NEGATIVE_LOADED);
-			throw exception;
-		} catch (RuntimeException exception) {
-			newLoad.completeExceptionally(exception);
-			throw exception;
 		} finally {
 			localLoads.remove(accommodationId, newLoad);
 		}

@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -379,16 +380,15 @@ class AccommodationDetailCacheTest {
 		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
 		CountDownLatch staleLoadStarted = new CountDownLatch(1);
 		CountDownLatch releaseStaleLoad = new CountDownLatch(1);
+		AtomicInteger leaderLoads = new AtomicInteger();
 		CompletableFuture<AccommodationDetailSnapshot> staleLoad = CompletableFuture.supplyAsync(
 			() -> cache.getOrLoad(1L, () -> {
-				staleLoadStarted.countDown();
-				try {
-					releaseStaleLoad.await(5, TimeUnit.SECONDS);
-				} catch (InterruptedException exception) {
-					Thread.currentThread().interrupt();
-					throw new IllegalStateException(exception);
+				if (leaderLoads.incrementAndGet() == 1) {
+					staleLoadStarted.countDown();
+					await(releaseStaleLoad);
+					return snapshot(1L, "old");
 				}
-				return snapshot(1L, "old");
+				return snapshot(1L, "new");
 			}));
 		assertThat(staleLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
@@ -397,7 +397,8 @@ class AccommodationDetailCacheTest {
 		releaseStaleLoad.countDown();
 
 		assertThat(fresh.name()).isEqualTo("new");
-		assertThat(staleLoad.get(5, TimeUnit.SECONDS).name()).isEqualTo("old");
+		assertThat(staleLoad.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
+		assertThat(leaderLoads).hasValue(2);
 	}
 
 	@Test
@@ -406,16 +407,15 @@ class AccommodationDetailCacheTest {
 		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
 		CountDownLatch staleLoadStarted = new CountDownLatch(1);
 		CountDownLatch releaseStaleLoad = new CountDownLatch(1);
+		AtomicInteger leaderLoads = new AtomicInteger();
 		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
 			() -> cache.getOrLoad(1L, () -> {
-				staleLoadStarted.countDown();
-				try {
-					releaseStaleLoad.await(5, TimeUnit.SECONDS);
-				} catch (InterruptedException exception) {
-					Thread.currentThread().interrupt();
-					throw new IllegalStateException(exception);
+				if (leaderLoads.incrementAndGet() == 1) {
+					staleLoadStarted.countDown();
+					await(releaseStaleLoad);
+					return snapshot(1L, "old");
 				}
-				return snapshot(1L, "old");
+				return snapshot(1L, "new");
 			}));
 		assertThat(staleLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
 		AtomicInteger followerLoads = new AtomicInteger();
@@ -429,8 +429,123 @@ class AccommodationDetailCacheTest {
 		assertThat(follower.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
 		releaseStaleLoad.countDown();
 
-		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("old");
+		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
+		assertThat(leaderLoads).hasValue(2);
 		assertThat(followerLoads).hasValue(1);
+	}
+
+	@Test
+	@DisplayName("무효화가 404 조회보다 먼저 완료되면 leader도 DB를 다시 조회한다")
+	void invalidatedNotFoundLeaderRetriesDatabaseLoad() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		CountDownLatch firstLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseFirstLoad = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, () -> {
+				if (loads.incrementAndGet() == 1) {
+					firstLoadStarted.countDown();
+					await(releaseFirstLoad);
+					throw new AccommodationNotFoundException();
+				}
+				return snapshot(1L, "published");
+			}));
+		assertThat(firstLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		releaseFirstLoad.countDown();
+
+		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("published");
+		assertThat(loads).hasValue(2);
+		verify(metricRecorder).recordRequest(
+			AccommodationDetailCacheMetricRecorder.RequestResult.LOADED);
+	}
+
+	@Test
+	@DisplayName("무효화와 겹친 일반 DB 예외는 재시도하지 않는다")
+	void invalidatedFailedLeaderDoesNotRetryDatabaseLoad() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		CountDownLatch loadStarted = new CountDownLatch(1);
+		CountDownLatch releaseLoad = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, () -> {
+				loads.incrementAndGet();
+				loadStarted.countDown();
+				await(releaseLoad);
+				throw new IllegalStateException("database failure");
+			}));
+		assertThat(loadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		releaseLoad.countDown();
+
+		assertThatThrownBy(() -> leader.get(5, TimeUnit.SECONDS))
+			.isInstanceOf(ExecutionException.class)
+			.hasCauseInstanceOf(IllegalStateException.class);
+		assertThat(loads).hasValue(1);
+	}
+
+	@Test
+	@DisplayName("무효화 경쟁으로 인한 leader 재조회는 한 번으로 제한한다")
+	void invalidatedLeaderRetryIsBounded() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		CountDownLatch firstLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseFirstLoad = new CountDownLatch(1);
+		CountDownLatch retryStarted = new CountDownLatch(1);
+		CountDownLatch releaseRetry = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, () -> {
+				int attempt = loads.incrementAndGet();
+				if (attempt == 1) {
+					firstLoadStarted.countDown();
+					await(releaseFirstLoad);
+					return snapshot(1L, "old");
+				}
+				retryStarted.countDown();
+				await(releaseRetry);
+				return snapshot(1L, "new");
+			}));
+		assertThat(firstLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		releaseFirstLoad.countDown();
+		assertThat(retryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		releaseRetry.countDown();
+
+		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
+		assertThat(loads).hasValue(2);
+	}
+
+	@Test
+	@DisplayName("무효화된 조회의 재시도가 404여도 추가로 재조회하지 않는다")
+	void invalidatedLeaderNotFoundRetryIsBounded() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		CountDownLatch firstLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseFirstLoad = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, () -> {
+				if (loads.incrementAndGet() == 1) {
+					firstLoadStarted.countDown();
+					await(releaseFirstLoad);
+					return snapshot(1L, "old");
+				}
+				throw new AccommodationNotFoundException();
+			}));
+		assertThat(firstLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		releaseFirstLoad.countDown();
+
+		assertThatThrownBy(() -> leader.get(5, TimeUnit.SECONDS))
+			.isInstanceOf(ExecutionException.class)
+			.hasCauseInstanceOf(AccommodationNotFoundException.class);
+		assertThat(loads).hasValue(2);
+		verify(metricRecorder).recordRequest(
+			AccommodationDetailCacheMetricRecorder.RequestResult.NEGATIVE_LOADED);
 	}
 
 	@Test
@@ -548,5 +663,16 @@ class AccommodationDetailCacheTest {
 				Duration.ofSeconds(1),
 				Duration.ofSeconds(1))
 		);
+	}
+
+	private void await(CountDownLatch latch) {
+		try {
+			if (!latch.await(5, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("latch wait timed out");
+			}
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException(exception);
+		}
 	}
 }
