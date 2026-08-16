@@ -1,0 +1,117 @@
+name: Operate AWS Performance Lab
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Lab operation
+        required: true
+        type: choice
+        options: [up, status, switch, down]
+      mode:
+        description: App capacity mode used by up
+        required: false
+        default: performance
+        type: choice
+        options: [performance, scaling]
+      policy:
+        description: Measurement policy used by up
+        required: false
+        default: isolated-read
+        type: choice
+        options: [isolated-read, integrated-smoke]
+      app_image_digest:
+        description: Immutable ECR sha256 digest used by up
+        required: false
+        type: string
+      dataset_release:
+        description: Immutable dataset release used by up
+        required: false
+        type: string
+      request_target:
+        description: Scaling ALB requests-per-target-per-minute target
+        required: false
+        type: string
+      target:
+        description: DNS target used by switch
+        required: false
+        default: oci
+        type: choice
+        options: [oci, aws]
+      ttl_hours:
+        description: Ephemeral resource TTL, maximum 24 hours
+        required: false
+        default: '6'
+        type: string
+      keep_on_failure:
+        description: Preserve a failed pre-cutover lab for diagnosis
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: Force expired down only after the two-hour grace period
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: aws-performance-lab
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    runs-on: ubuntu-latest
+    environment: aws-performance-lab
+    timeout-minutes: 95
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Terraform 1.15.5
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_LAB_OPERATOR_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-session-name: airbob-lab-${{ github.run_id }}
+          role-duration-seconds: 7200
+
+      - name: Run shared lab operator
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          AWS_REGION: ap-northeast-2
+          MODE: ${{ inputs.mode }}
+          POLICY: ${{ inputs.policy }}
+          IMAGE_DIGEST: ${{ inputs.app_image_digest }}
+          DATASET_RELEASE: ${{ inputs.dataset_release }}
+          REQUEST_TARGET: ${{ inputs.request_target }}
+          TARGET: ${{ inputs.target }}
+          TTL_HOURS: ${{ inputs.ttl_hours }}
+          KEEP_ON_FAILURE: ${{ inputs.keep_on_failure }}
+          FORCE: ${{ inputs.force }}
+          AMI_ID: ${{ vars.AWS_LAB_AMI_ID }}
+          OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
+          RDS_ENGINE_VERSION: ${{ vars.AWS_LAB_RDS_ENGINE_VERSION }}
+          CACHE_ENABLED: ${{ vars.AWS_LAB_CACHE_ENABLED || 'true' }}
+          LOAD_GENERATOR_ENABLED: ${{ vars.AWS_LAB_LOAD_GENERATOR_ENABLED || 'true' }}
+          BUNDLE_COMMIT: ${{ github.sha }}
+          DATABASE_BOOTSTRAP: dump
+          RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || '' }}
+        run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"
+
+      - name: Clean up an expired lab after grace
+        if: github.event_name == 'schedule'
+        env:
+          AWS_REGION: ap-northeast-2
+          OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
+        run: infra/aws/scripts/cleanup-expired-lab.sh

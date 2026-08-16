@@ -48,6 +48,11 @@ output "lab_operator_role_arn" {
   value       = aws_iam_role.lab_operator.arn
 }
 
+output "dns_controller_role_arn" {
+  description = "Role assumable only by the lab operator for fenced public DNS-state changes."
+  value       = aws_iam_role.dns_controller.arn
+}
+
 output "image_publisher_role_arn" {
   description = "OIDC role used by the two approved image-publishing workflows."
   value       = aws_iam_role.image_publisher.arn

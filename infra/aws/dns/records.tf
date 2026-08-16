@@ -8,7 +8,7 @@ resource "aws_route53_record" "oci_api" {
   set_identifier = "oci"
 
   weighted_routing_policy {
-    weight = 100
+    weight = var.traffic_target == "oci" ? 100 : 0
   }
 
   lifecycle {
@@ -28,6 +28,11 @@ resource "aws_route53_record" "oci_api" {
       condition     = local.aws_alias_valid
       error_message = "The staged AWS alias must resolve to the tagged internet-facing application load balancer."
     }
+
+    precondition {
+      condition     = local.traffic_target_valid
+      error_message = "The AWS traffic target requires a validated staged AWS alias."
+    }
   }
 }
 
@@ -43,7 +48,7 @@ resource "aws_route53_record" "aws_api" {
   set_identifier = "aws"
 
   weighted_routing_policy {
-    weight = 0
+    weight = var.traffic_target == "aws" ? 100 : 0
   }
 
   alias {

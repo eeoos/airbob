@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 bundle packaging/immutable S3 publication 계약이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 Phase 2의 ephemeral VPC/NAT/probe/dependency-service EC2 destruction boundary, 삭제 권한이 없는 만료 observer/알림까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Observer는 자동 cleanup의 대체물이 아니며 lease/fencing controller, DNS rollback 및 강제 destroy는 아직 구현되지 않았다. Immutable app/infra image의 digest-pinned build, OIDC-only ECR publication manifest와 image runtime 검증 workflow는 구현했지만 실제 ECR·bundle 발행은 수행하지 않았다. Phase 2 SSM bootstrap/sysctl/Redis memory·exporter gate도 코드와 mock/fake-CLI 검증까지만 완료되었으며 실제 runtime proof, RDS/ALB/App ASG, DNS 이전·전환과 성능 증거 수집은 아직 진행 전이다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약, 여섯 service-host bundle, immutable image publication, Phase 1 foundation/DNS 경계, Phase 2 VPC와 dependency hosts, Phase 3 dataset bootstrap, Phase 4 ALB/App ASG, Phase 5 공통 operator와 lease/fencing/DNS controller가 코드와 정적·mock/fake-CLI 테스트로 구현되었다. 만료 observer는 계속 alert-only이며 별도 scheduled wrapper가 expiry+2시간 grace 뒤 같은 forced-down 경로를 호출한다. 어떤 Terraform도 AWS에 plan/apply하지 않았고 ECR·bundle·dataset도 실제 발행하지 않았다. 따라서 SSM/runtime, RDS/ALB/ASG, Route 53 이전·전환·rollback, automatic expiry cleanup과 성능 증거는 모두 live acceptance 전이다.
 
 ## 배경
 
@@ -170,7 +170,7 @@ OCI와 AWS는 데이터를 공유하지 않는다. DNS를 AWS로 전환하면 �
 - lab 전용 IAM instance profile, security group, private-zone VPC association과 서비스 A record
 - AWS 쪽 weighted public DNS record
 
-모든 일회성 자원에는 `Project=airbob`, `Environment=performance-lab`, `Stack=lab`, `ManagedBy=terraform`, `Persistence=ephemeral`, `ExpiresAt` 태그를 붙인다. 영구 foundation 자원은 `Stack=foundation`, `Persistence=persistent`로 분리한다.
+모든 일회성 자원에는 `Project=airbob`, `Environment=performance-lab`, `Stack=lab`, `ManagedBy=terraform`, `Persistence=ephemeral`, `ExpiresAt`, `FencingToken` 태그를 붙인다. 영구 foundation 자원은 `Stack=foundation`, `Persistence=persistent`로 분리한다.
 
 ## 인스턴스와 컨테이너 기준
 
@@ -663,7 +663,7 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 현재 Phase 1 중간 구현은 위 최종 cleanup 경로가 아니라
 `CLEANUP_ENABLED=false`로 고정된 read-only observer다. 이 observer는 15분마다
 `Project=airbob`, `Environment=performance-lab`, `Stack=lab` identity 태그로 후보를 찾은 뒤
-`ManagedBy=terraform`, `Persistence=ephemeral`과 canonical `ExpiresAt` Unix 초
+`ManagedBy=terraform`, `Persistence=ephemeral`, canonical `ExpiresAt` Unix 초와 positive `FencingToken`
 값을 코드에서 검사한다. 따라서 누락되거나 잘못된 lifecycle 태그도 invalid로
 집계한다. aggregate metric/heartbeat 및 customer-managed KMS로 암호화된 SNS
 알림만 남기고 Resource ARN은 로그에 남기지 않으며
@@ -734,9 +734,13 @@ lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성�
 
 ### Phase 5. 공통 조작과 DNS 전환
 
-- 공통 `up/status/switch/down` script와 Make target을 만든다.
-- GitHub workflow_dispatch/OIDC/concurrency와 local credential 경로를 연결한다.
-- OCI 검증, weighted record cutover/rollback, TTL과 orphan scan을 구현한다.
+- [x] 공통 `up/status/switch/down` script와 Make target을 만든다.
+- [x] GitHub workflow_dispatch/OIDC/concurrency와 local credential 경로를 연결한다.
+- [x] OCI 검증, weighted record cutover/rollback, TTL과 orphan scan을 구현한다.
+- [x] DynamoDB 조건부 lease, 단조 증가 fencing token, heartbeat와 90분 command deadline을 공통 mutation 경계로 구현한다.
+- [x] public DNS mutation을 session-tagged 전용 controller role과 별도 Terraform DNS state로 격리한다.
+- [x] lab plan의 persistent delete 거부, run/fencing tag가 일치하는 ALB만 전환, cleanup 전 redacted Terraform output evidence를 구현한다.
+- [ ] 실제 AWS에서 local/GitHub 동시 실행 거부, health gate, cutover/rollback, TTL 강제 정리와 orphan 0 evidence를 검증한다.
 
 ### Phase 6. 실험 검증과 증거 보존
 

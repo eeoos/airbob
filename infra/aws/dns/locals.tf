@@ -21,13 +21,22 @@ locals {
     false,
   )
   aws_alias_enabled = var.aws_alb_arn != null
+  traffic_target_valid = (
+    var.traffic_target == "oci" ||
+    (var.traffic_target == "aws" && local.aws_alias_enabled)
+  )
   aws_alias_valid = !local.aws_alias_enabled || try(
     !data.aws_lb.api[0].internal &&
     data.aws_lb.api[0].load_balancer_type == "application" &&
     data.aws_lb.api[0].tags.Project == "airbob" &&
     data.aws_lb.api[0].tags.Environment == "performance-lab" &&
+    data.aws_lb.api[0].tags.Stack == "lab" &&
     data.aws_lb.api[0].tags.ManagedBy == "terraform" &&
-    data.aws_lb.api[0].tags.Persistence == "ephemeral",
+    data.aws_lb.api[0].tags.Persistence == "ephemeral" &&
+    var.run_id != null &&
+    var.fencing_token != null &&
+    data.aws_lb.api[0].tags.RunId == var.run_id &&
+    data.aws_lb.api[0].tags.FencingToken == tostring(var.fencing_token),
     false,
   )
 }

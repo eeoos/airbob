@@ -158,13 +158,14 @@ locals {
   docker_compose_sha256  = "6c964d9655cd629ef43c5dc75d9612c2da319237debee54a7aef217e9f362b88"
 
   ephemeral_tags = {
-    Project     = "airbob"
-    Environment = "performance-lab"
-    Stack       = "lab"
-    ManagedBy   = "terraform"
-    Persistence = "ephemeral"
-    ExpiresAt   = var.expires_at
-    RunId       = var.run_id
+    Project      = "airbob"
+    Environment  = "performance-lab"
+    Stack        = "lab"
+    ManagedBy    = "terraform"
+    Persistence  = "ephemeral"
+    ExpiresAt    = var.expires_at
+    RunId        = var.run_id
+    FencingToken = tostring(var.fencing_token)
   }
 
   service_hosts = {

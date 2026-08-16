@@ -18,12 +18,12 @@
 | Terraform persistent foundation | Implemented, including protected private DNS anchor (configuration/static tests only; not applied) |
 | Terraform DNS/lab state boundaries | Implemented (DNS contract + Phase 2-4 ephemeral lab root; not applied) |
 | Expiry observer and SNS/CloudWatch alerts | Implemented (read-only configuration/static tests; disabled, delivery unverified, and not applied) |
-| Lease/fencing cleanup controller and automatic destroy | Not implemented yet |
+| Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
 | Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V16 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
-| Route 53 cutover | Not executed |
+| Route 53 cutover | Weighted OCI/AWS controller implemented; not executed |
 | AWS performance evidence | Not collected |
 
 The repository now supplies application guards and statically verified service
@@ -79,8 +79,72 @@ ALB, ASG, RDS, dependency credit/surplus, and optional load-generator metrics.
 The optional `c6i.xlarge` load-generator host has a direct public route and no
 inbound rule; k6 installation and evidence execution are still deferred.
 Terraform does not wait for an ASG instance refresh to finish, so the 15-minute
-poll/cancel/rollback and pre-DNS health decision remain Phase 5 orchestration,
-not a completed runtime guarantee.
+poll and pre-DNS target-health decision are now implemented by the Phase 5
+controller. They remain an unproven runtime guarantee until a live rehearsal.
+
+## Phase 5 operator workflow
+
+Local operation and the protected GitHub workflow both call
+`infra/aws/scripts/aws-lab.sh`. Every mutating operation acquires the one-row
+DynamoDB lease, increments its fencing token, heartbeats it, and rechecks the
+exact owner/token/run/command before every Terraform or DNS mutation. Status is
+read-only and does not acquire or update the lease. Public DNS is changed only
+after assuming `airbob-dns-controller`; the general lab role cannot write the
+public hosted zone.
+
+The local interface is:
+
+```bash
+make aws-up \
+  MODE=performance \
+  POLICY=isolated-read \
+  IMAGE_DIGEST=sha256:<64-hex> \
+  DATASET_RELEASE=<published-v16-release> \
+  AMI_ID=<reviewed-al2023-x86_64-ami> \
+  OCI_ORIGIN_IPV4=<reviewed-oci-ip> \
+  RDS_ENGINE_VERSION=8.0.<reviewed-patch>
+
+make aws-status
+make aws-switch TARGET=oci
+make aws-down
+```
+
+Scaling additionally requires `REQUEST_TARGET=<baseline requests/target/min>`.
+`TTL_HOURS` defaults to 6 and is limited to 24. The default dump bootstrap can
+be changed to a prevalidated snapshot only with both
+`DATABASE_BOOTSTRAP=snapshot` and its exact snapshot identifier. The bundle
+commit defaults to the checked-out full Git commit; the operator resolves its
+nine ECR image digests, bundle checksum, application digest, and dataset
+manifest SHA before creating a VPC. It never discovers or guesses the AMI, OCI
+origin, RDS patch, application digest, or dataset release.
+
+`up` performs four ordered Terraform transitions (`network`, `probe-cleared`,
+`services`, `data-ready`). Between the last two transitions, `isolated-read`
+pauses the Debezium connector, requires an empty outbox/idle DB threads, and
+proves Kafka end offsets remain stable over the idle window. It then waits at
+most 15 minutes for the ASG refresh and all
+desired ALB targets, probes OCI with `--resolve` and AWS with `--connect-to` to
+preserve SNI, stages AWS at weight zero, and then switches weights. A failed
+public AWS smoke attempts OCI rollback. Every lab plan is inspected before
+apply and rejects any deletion carrying `Persistence=persistent`. `up` also
+refuses to replace an existing lab state; inspect it with `aws-status` and run
+`aws-down` before starting a different run. Unless `KEEP_ON_FAILURE=true`, a
+failed pre-cutover run records bounded failure and redacted Terraform-output
+evidence before destroying the lab-only state. `down` first restores and
+verifies OCI, repeatedly checks the public API for two TTL intervals (120
+seconds), removes the AWS alias, records the final non-sensitive Terraform
+outputs, destroys only the lab state, and checks tagged plus explicit
+EC2/RDS/ALB/EBS/EIP/ASG orphans. `FORCE=true` is rejected until two hours after
+the run expiry.
+
+Before the first live run, apply the reviewed foundation/DNS changes, delegate
+the zone and issue ACM, publish the full-commit images and bundle, and publish a
+compatible V16 dataset. Protect the GitHub Environment `aws-performance-lab`
+and define `AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
+`OCI_ORIGIN_IPV4`, and `AWS_LAB_RDS_ENGINE_VERSION`. The workflow uses OIDC
+only, has a fixed concurrency group with in-progress cancellation disabled,
+and calls the same operator script. None of these live prerequisites or the
+operator itself has been applied against AWS in this branch.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`. It also materializes the aggregate validator, its

@@ -15,6 +15,7 @@ REQUIRED_TAGS = {
     "Persistence": "ephemeral",
 }
 EXPIRES_TAG_KEY = "ExpiresAt"
+FENCING_TAG_KEY = "FencingToken"
 
 
 def _parse_expiry(value):
@@ -47,7 +48,12 @@ def observe_expiry(tagging_client, cloudwatch_client, now_epoch=None):
             observed += 1
             tags = _tags(resource)
             expiry = _parse_expiry(tags.get(EXPIRES_TAG_KEY))
-            if any(tags.get(key) != value for key, value in REQUIRED_TAGS.items()) or expiry is None:
+            fencing_token = _parse_expiry(tags.get(FENCING_TAG_KEY))
+            if (
+                any(tags.get(key) != value for key, value in REQUIRED_TAGS.items())
+                or expiry is None
+                or fencing_token is None
+            ):
                 invalid += 1
             elif expiry <= now_epoch:
                 expired += 1

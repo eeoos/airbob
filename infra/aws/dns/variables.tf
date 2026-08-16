@@ -53,3 +53,44 @@ variable "aws_alb_arn" {
     error_message = "aws_alb_arn must identify an application load balancer in the pinned account and Seoul region."
   }
 }
+
+variable "traffic_target" {
+  description = "Weighted public API origin selected by the fenced Phase 5 controller."
+  type        = string
+  default     = "oci"
+
+  validation {
+    condition     = contains(["oci", "aws"], var.traffic_target)
+    error_message = "traffic_target must be oci or aws."
+  }
+}
+
+variable "run_id" {
+  description = "Ephemeral lab run whose tagged ALB may receive public traffic. Null is valid only for OCI-only state."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.run_id == null ||
+      can(regex("^[a-z0-9][a-z0-9-]{2,31}$", var.run_id))
+    )
+    error_message = "run_id must be null or one canonical lab run id."
+  }
+}
+
+variable "fencing_token" {
+  description = "Lease token that must match the selected ALB tag. Null is valid only for OCI-only state."
+  type        = number
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.fencing_token == null ||
+      (var.fencing_token >= 1 && floor(var.fencing_token) == var.fencing_token)
+    )
+    error_message = "fencing_token must be null or a positive integer."
+  }
+}

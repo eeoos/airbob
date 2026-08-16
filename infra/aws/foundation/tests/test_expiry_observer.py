@@ -69,6 +69,7 @@ def resource(arn, expires_at=None, omit=(), **overrides):
         "Stack": "lab",
         "ManagedBy": "terraform",
         "Persistence": "ephemeral",
+        "FencingToken": "1",
     }
     tags.update(overrides)
     for key in omit:
@@ -114,6 +115,11 @@ class ExpiryObserverTest(unittest.TestCase):
                             ManagedBy="manual",
                         ),
                         resource(
+                            "arn:aws:ec2:ap-northeast-2:942632789808:instance/i-missing-fencing",
+                            "199",
+                            omit=("FencingToken",),
+                        ),
+                        resource(
                             "arn:aws:s3:::airbob-performance-lab-foundation",
                             None,
                             Stack="foundation",
@@ -132,10 +138,10 @@ class ExpiryObserverTest(unittest.TestCase):
         self.assertEqual(
             result,
             {
-                "observed": 7,
+                "observed": 8,
                 "expired": 1,
-                "invalid": 5,
-                "action_required": 6,
+                "invalid": 6,
+                "action_required": 7,
                 "cleanup_enabled": False,
             },
         )
@@ -164,16 +170,16 @@ class ExpiryObserverTest(unittest.TestCase):
             metrics,
             {
                 "ObserverHeartbeat": 1,
-                "ObservedResourceCount": 7,
+                "ObservedResourceCount": 8,
                 "ExpiredResourceCount": 1,
-                "InvalidResourceCount": 5,
-                "ActionRequiredCount": 6,
+                "InvalidResourceCount": 6,
+                "ActionRequiredCount": 7,
             },
         )
         self.assertNotIn("arn:aws", output.getvalue())
         self.assertEqual(
             output.getvalue().strip(),
-            '{"action_required":6,"cleanup_enabled":false,"expired":1,"invalid":5,"observed":7}',
+            '{"action_required":7,"cleanup_enabled":false,"expired":1,"invalid":6,"observed":8}',
         )
 
     def test_requires_canonical_positive_ascii_expiry(self):

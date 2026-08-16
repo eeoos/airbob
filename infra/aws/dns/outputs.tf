@@ -17,3 +17,8 @@ output "aws_record_staged" {
   description = "Whether the optional AWS ALB alias exists at its initial zero weight."
   value       = local.aws_alias_enabled
 }
+
+output "traffic_target" {
+  description = "Origin currently selected by the weighted DNS state."
+  value       = var.traffic_target
+}

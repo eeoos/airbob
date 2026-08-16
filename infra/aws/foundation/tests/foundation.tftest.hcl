@@ -56,6 +56,15 @@ mock_provider "aws" {
   }
 
   override_resource {
+    target          = aws_iam_role.dns_controller
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::942632789808:role/airbob-dns-controller"
+      id  = "airbob-dns-controller"
+    }
+  }
+
+  override_resource {
     target          = aws_route53_zone.public
     override_during = plan
     values = {
@@ -412,7 +421,8 @@ run "foundation_contract" {
       ]) &&
       aws_iam_role.foundation_admin.max_session_duration == 7200 &&
       aws_iam_role.lab_operator.max_session_duration == 7200 &&
-      aws_iam_role.image_publisher.max_session_duration == 7200
+      aws_iam_role.image_publisher.max_session_duration == 7200 &&
+      aws_iam_role.dns_controller.max_session_duration == 3600
     )
     error_message = "GitHub trust must use only AWS-supported aud plus the exact protected-environment subject and session limit."
   }
@@ -428,9 +438,31 @@ run "foundation_contract" {
       length(local.lab_data_compute_policy) <= 10240 &&
       length(local.lab_app_compute_policy) <= 10240 &&
       length(local.lab_host_boundary_policy) <= 6144 &&
-      length(local.image_publisher_policy) <= 10240
+      length(local.image_publisher_policy) <= 10240 &&
+      length(local.dns_controller_policy) <= 10240
     )
     error_message = "Role trust and inline policies must remain within default AWS IAM document-size quotas."
+  }
+
+
+  assert {
+    condition = (
+      jsondecode(local.dns_controller_trust_policy).Statement[0].Principal.AWS == "arn:aws:iam::942632789808:role/airbob-lab-operator" &&
+      toset(jsondecode(local.dns_controller_trust_policy).Statement[0].Action) == toset(["sts:AssumeRole", "sts:TagSession"]) &&
+      one([
+        for statement in jsondecode(local.dns_controller_policy).Statement : statement
+        if statement.Sid == "ChangeApiARecords"
+      ]).Resource == aws_route53_zone.public.arn &&
+      one([
+        for statement in jsondecode(local.dns_controller_policy).Statement : statement
+        if statement.Sid == "ChangeApiARecords"
+      ]).Condition["ForAllValues:StringEquals"]["route53:ChangeResourceRecordSetsNormalizedRecordNames"] == ["api.airbob.cloud"] &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "AssumeDnsController"
+      ]).Resource == aws_iam_role.dns_controller.arn
+    )
+    error_message = "Only the lab operator may assume the session-tagged controller that mutates the exact public API A records."
   }
 
   assert {
@@ -676,6 +708,10 @@ run "foundation_contract" {
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "FoundationIdentityReadOnly"
       ]).Resource, aws_iam_role.expiry_observer.arn) &&
+      contains(one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "FoundationIdentityReadOnly"
+      ]).Resource, aws_iam_role.dns_controller.arn) &&
       toset(one([
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "ExpiryObserverLambdaReadOnly"
@@ -740,6 +776,38 @@ run "foundation_contract" {
       ]).Condition["ForAllValues:StringEquals"]["route53:ChangeResourceRecordSetsNormalizedRecordNames"], "api.airbob.cloud")
     )
     error_message = "The foundation role must retain the exact read permissions required by backend preflight and provider refresh."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadOperatorEvidence"
+      ]).Action == "s3:GetObject" &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadOperatorEvidence"
+      ]).Resource == "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json"
+      && toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OrchestrationLease"
+      ]).Action) == toset(["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DescribeTable"])
+    )
+    error_message = "The lab operator must resume from the narrow run manifest and mutate the lease without deleting its fencing history."
+  }
+
+  assert {
+    condition = (
+      length([
+        for statement in concat(
+          jsondecode(local.lab_compute_policy).Statement,
+          jsondecode(local.lab_data_compute_policy).Statement,
+          jsondecode(local.lab_app_compute_policy).Statement,
+        ) : statement
+        if try(statement.Condition.Null["aws:RequestTag/FencingToken"] == "false", false)
+      ]) == 6
+    )
+    error_message = "All six tag-gated EC2/IAM/RDS/ASG/ELB creation statements must require the orchestration fencing token."
   }
 
   assert {

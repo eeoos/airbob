@@ -42,10 +42,13 @@ mock_provider "aws" {
       internal           = false
       load_balancer_type = "application"
       tags = {
-        Project     = "airbob"
-        Environment = "performance-lab"
-        ManagedBy   = "terraform"
-        Persistence = "ephemeral"
+        Project      = "airbob"
+        Environment  = "performance-lab"
+        Stack        = "lab"
+        ManagedBy    = "terraform"
+        Persistence  = "ephemeral"
+        RunId        = "lab-dns-test"
+        FencingToken = "42"
       }
     }
   }
@@ -53,6 +56,8 @@ mock_provider "aws" {
 
 variables {
   oci_origin_ipv4 = "140.245.76.140"
+  run_id          = "lab-dns-test"
+  fencing_token   = 42
 }
 
 run "oci_only_safe_default" {
@@ -91,6 +96,33 @@ run "stage_aws_alias_at_zero" {
     )
     error_message = "The optional AWS origin must be an ALB alias staged at weight zero."
   }
+}
+
+run "switch_all_weight_to_aws" {
+  command = plan
+
+  variables {
+    aws_alb_arn    = "arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-api/50dc6c495c0c9188"
+    traffic_target = "aws"
+  }
+
+  assert {
+    condition = (
+      one(aws_route53_record.oci_api.weighted_routing_policy).weight == 0 &&
+      one(aws_route53_record.aws_api[0].weighted_routing_policy).weight == 100
+    )
+    error_message = "AWS cutover must atomically set OCI/AWS weights to 0/100."
+  }
+}
+
+run "reject_aws_target_without_alias" {
+  command = plan
+
+  variables {
+    traffic_target = "aws"
+  }
+
+  expect_failures = [aws_route53_record.oci_api]
 }
 
 run "targeted_aws_alias_retains_oci_dependency" {
@@ -140,6 +172,36 @@ run "reject_untagged_alb" {
       internal           = false
       load_balancer_type = "application"
       tags               = {}
+    }
+  }
+
+  expect_failures = [aws_route53_record.oci_api]
+}
+
+run "reject_alb_from_another_fenced_run" {
+  command = plan
+
+  variables {
+    aws_alb_arn = "arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-api/50dc6c495c0c9188"
+  }
+
+  override_data {
+    target = data.aws_lb.api
+    values = {
+      arn                = "arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-api/50dc6c495c0c9188"
+      dns_name           = "airbob-api-123456789.ap-northeast-2.elb.amazonaws.com"
+      zone_id            = "ZWKZPGTI48KDX"
+      internal           = false
+      load_balancer_type = "application"
+      tags = {
+        Project      = "airbob"
+        Environment  = "performance-lab"
+        Stack        = "lab"
+        ManagedBy    = "terraform"
+        Persistence  = "ephemeral"
+        RunId        = "lab-stale-run"
+        FencingToken = "41"
+      }
     }
   }
 

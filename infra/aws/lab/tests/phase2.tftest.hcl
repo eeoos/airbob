@@ -40,9 +40,10 @@ mock_provider "aws" {
 }
 
 variables {
-  run_id     = "phase2-test"
-  expires_at = "1893456000"
-  ami_id     = "ami-0123456789abcdef0"
+  run_id        = "phase2-test"
+  expires_at    = "1893456000"
+  fencing_token = 42
+  ami_id        = "ami-0123456789abcdef0"
 }
 
 run "network_creates_probe_without_services" {

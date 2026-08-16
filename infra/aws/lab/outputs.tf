@@ -56,6 +56,7 @@ output "phase2_contract" {
   description = "Non-secret Phase 2 topology and ordered transition status."
   value = {
     run_id                       = var.run_id
+    fencing_token                = var.fencing_token
     deployment_phase             = var.deployment_phase
     vpc_id                       = module.network.vpc_id
     primary_private_route_table  = module.network.private_route_table_ids.primary
@@ -138,6 +139,8 @@ output "phase4_contract" {
     alb_arn                             = local.services_enabled ? module.alb[0].arn : null
     alb_dns_name                        = local.services_enabled ? module.alb[0].dns_name : null
     alb_zone_id                         = local.services_enabled ? module.alb[0].zone_id : null
+    target_group_arn                    = local.services_enabled ? module.alb[0].target_group_arn : null
+    auto_scaling_group_name             = local.services_enabled ? module.app_asg[0].name : null
     alb_https_only                      = local.services_enabled ? module.alb[0].contract.https_only : true
     alb_stickiness_enabled              = local.services_enabled ? module.alb[0].contract.stickiness_enabled : false
     load_generator_enabled              = var.load_generator_enabled

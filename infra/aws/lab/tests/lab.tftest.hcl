@@ -40,9 +40,10 @@ mock_provider "aws" {
 }
 
 variables {
-  run_id     = "contract-test"
-  expires_at = "1893456000"
-  ami_id     = "ami-0123456789abcdef0"
+  run_id        = "contract-test"
+  expires_at    = "1893456000"
+  fencing_token = 42
+  ami_id        = "ami-0123456789abcdef0"
 }
 
 run "validate_persistent_boundary_with_network_phase" {
@@ -163,4 +164,14 @@ run "reject_rds_unsafe_run_id" {
   }
 
   expect_failures = [var.run_id]
+}
+
+run "reject_missing_or_invalid_fencing_token" {
+  command = plan
+
+  variables {
+    fencing_token = 0
+  }
+
+  expect_failures = [var.fencing_token]
 }

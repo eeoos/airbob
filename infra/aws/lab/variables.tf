@@ -44,6 +44,16 @@ variable "expires_at" {
   }
 }
 
+variable "fencing_token" {
+  description = "Monotonically increasing orchestration-lease token copied to every ephemeral resource tag."
+  type        = number
+
+  validation {
+    condition     = var.fencing_token >= 1 && floor(var.fencing_token) == var.fencing_token
+    error_message = "fencing_token must be a positive integer issued by the orchestration lease."
+  }
+}
+
 variable "deployment_phase" {
   description = "Ordered lab transition; data-ready attests the completed Phase 3 bootstrap."
   type        = string

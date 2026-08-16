@@ -137,9 +137,9 @@ discovers app and node-exporter targets from their EC2 tags.
 Terraform starts an instance refresh from the exact numeric launch-template
 version and configures the health alarm plus automatic rollback. The AWS
 provider returns before that asynchronous refresh finishes. The Phase 5
-controller must therefore poll it for at most 15 minutes, cancel or roll back
-on failure, and refuse DNS switching until the new target is healthy. This
-root does not claim that completion gate yet.
+controller now polls it for at most 15 minutes and refuses DNS switching until
+the desired targets are healthy. This path is covered by static/fake-CLI
+contracts only and remains unproven in live AWS.
 
 The optional load-generator instance is a public-subnet `c6i.xlarge` with an
 ephemeral public IPv4, no inbound security-group rule, detailed monitoring,
@@ -153,13 +153,11 @@ to enter only through the validated SSM contract.
 
 No live plan or apply has been executed. The Terraform configuration and mock
 tests are implemented, but applying `network`, `services`, or `data-ready` will
-create billable EC2/EBS/EIP/RDS/ALB resources. The orchestration lease/wrapper is a later
-phase, so these low-level phase transitions must not be treated as the finished
-one-command operator workflow yet.
+create billable EC2/EBS/EIP/RDS/ALB resources. The Phase 5 wrapper is now the
+supported entry point because it supplies the required fencing token and
+ordered receipts; low-level phase applies remain diagnostic/emergency tools.
 
-Until that wrapper exists, a manual emergency teardown must run `terraform
-destroy` with `deployment_phase=network` plus the same `run_id`, `expires_at`,
-and `ami_id`. Destroy mode then does not read network receipts or bundle
-objects, so missing evidence cannot prevent cost cleanup. Do not run a normal
-`apply` with those emergency values as a substitute for the documented phase
-sequence.
+The supported teardown is `make aws-down`. A manual emergency teardown must
+still use `deployment_phase=network` plus the same `run_id`, `expires_at`,
+`fencing_token`, and `ami_id`; destroy mode then avoids receipt and bundle
+reads. Do not run a normal low-level `apply` as a substitute for the operator.

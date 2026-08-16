@@ -85,6 +85,7 @@ jacoco.exec
 
 # Gradle build info (추가)
 .gradle/
+__pycache__/
 
 # Generated AsciiDoc files
 src/docs/asciidoc/

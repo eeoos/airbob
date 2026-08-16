@@ -56,7 +56,7 @@ command -v terraform >/dev/null 2>&1 || fail "Terraform is required"
 
 for required_file in \
   backend.tf versions.tf providers.tf variables.tf locals.tf data.tf \
-  storage.tf ecr.tf imports.tf oidc.tf iam.tf lease.tf dns.tf contracts.tf \
+  storage.tf ecr.tf imports.tf oidc.tf iam.tf lease.tf dns.tf dns-controller.tf contracts.tf \
   expiry-observer.tf lab-compute.tf outputs.tf README.md .terraform.lock.hcl \
   lambda/expiry_observer.py tests/test_expiry_observer.py tests/foundation.tftest.hcl
 do

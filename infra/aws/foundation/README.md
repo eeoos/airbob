@@ -125,7 +125,7 @@ an accidentally initiated multipart upload.
 
 The foundation declares a small EventBridge-scheduled Lambda that discovers
 resources by the stable `Project`, `Environment`, and `Stack=lab` identity tags
-every fifteen minutes, then validates all five exact tags below in code:
+every fifteen minutes, then validates the exact identity/lifecycle tags below in code:
 
 ```text
 Project=airbob
@@ -133,9 +133,11 @@ Environment=performance-lab
 Stack=lab
 ManagedBy=terraform
 Persistence=ephemeral
+FencingToken=<positive decimal lease token>
 ```
 
-`ExpiresAt` must be a canonical positive decimal Unix timestamp in seconds.
+`ExpiresAt` must be a canonical positive decimal Unix timestamp in seconds;
+`FencingToken` must be a canonical positive decimal issued by the lease.
 The observer publishes only aggregate counts and a heartbeat to
 `Airbob/PerformanceLab`; it does not log resource ARNs. Its execution role can
 read Resource Groups Tagging API results and write that metric namespace and
@@ -170,9 +172,9 @@ policy grants only the CloudWatch alarm publisher the required encrypt/decrypt
 operations for this account and alarm-name prefix. It does **not** destroy
 resources, change DNS, acquire the
 orchestration lease, or prove that every AWS resource type participates in the
-Resource Groups Tagging API. Until the lease/fencing controller and bounded
-cleanup path are implemented, an alert requires the user to inspect the lab
-and run the reviewed manual down procedure. The GitHub foundation role has
+Resource Groups Tagging API. Phase 5 now provides a separate lease/fencing
+operator and bounded cleanup path, but the observer remains alert-only and the
+live cleanup path is unverified. The GitHub foundation role has
 read-only refresh access to these observer resources. At the current U4
 boundary, creation, activation, mutation, or replacement remains a local-admin
 operation. U5 must add a protected GitHub foundation workflow that calls the

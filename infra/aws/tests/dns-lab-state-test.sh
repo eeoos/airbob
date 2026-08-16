@@ -65,12 +65,16 @@ done
 dns_resource_count=$(grep -hE '^resource "aws_[^"]+" "[^"]+" \{' "$dns_root"/*.tf | wc -l | tr -d ' ')
 lab_resource_count=$(grep -hE '^resource "aws_[^"]+" "[^"]+" \{' "$lab_root"/*.tf 2>/dev/null | wc -l | tr -d ' ' || true)
 [[ "$dns_resource_count" -eq 2 ]] || fail "DNS state must declare exactly two weighted Route 53 record resources"
-[[ "$lab_resource_count" -eq 0 ]] || fail "Phase 1 lab state must not create AWS resources"
+[[ "$lab_resource_count" -gt 0 ]] || fail "lab state must declare only its ephemeral Phase 2-4 resources"
 
 assert_contains "$dns_root/data.tf" '/airbob/performance-lab/foundation/dns-contract'
 assert_contains "$lab_root/data.tf" '/airbob/performance-lab/foundation/lab-contract'
 grep -Eq 'Stack[[:space:]]*=[[:space:]]*"lab"' "$lab_root/providers.tf" \
   || fail "lab resources must carry the stable Stack=lab observer scope tag"
+grep -Eq 'RunId[[:space:]]*=[[:space:]]*var.run_id' "$lab_root/providers.tf" \
+  || fail "all taggable lab resources must inherit the exact run identity"
+grep -Eq 'FencingToken[[:space:]]*=[[:space:]]*tostring\(var.fencing_token\)' "$lab_root/providers.tf" \
+  || fail "all taggable lab resources must inherit the active fencing token"
 oci_record_source=$(sed -n \
   '/^resource "aws_route53_record" "oci_api"/,/^resource "aws_route53_record" "aws_api"/p' \
   "$dns_root/records.tf" | sed '$d')
@@ -81,8 +85,8 @@ if printf '%s\n' "$aws_record_source" | grep -Fq 'prevent_destroy'; then
   fail "removable AWS Route 53 record must not carry prevent_destroy"
 fi
 assert_not_contains "$dns_root" 'aws_route53_zone'
-assert_not_contains "$lab_root" '^resource "aws_'
-assert_not_contains "$lab_root" 'data "aws_s3_object"'
+assert_not_contains "$lab_root" 'resource "aws_route53_zone"'
+assert_not_contains "$lab_root" 'resource "aws_(s3_bucket|ecr_repository|dynamodb_table|acm_certificate)"'
 
 assert_contains "$toolchain_contract" 'AIRBOB_STATE_KEY_DNS=airbob/dns/terraform.tfstate'
 assert_contains "$toolchain_contract" 'AIRBOB_STATE_KEY_LAB=airbob/lab/terraform.tfstate'

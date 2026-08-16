@@ -176,6 +176,7 @@ locals {
           "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
+          "arn:aws:iam::${var.account_id}:role/${local.dns_controller_role_name}",
           aws_iam_role.expiry_observer.arn,
           aws_iam_policy.lab_host_boundary.arn,
         ]
@@ -395,6 +396,12 @@ locals {
         }
       },
       {
+        Sid      = "ReadOperatorEvidence"
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json"
+      },
+      {
         Sid      = "AbortEvidenceMultipartUpload"
         Effect   = "Allow"
         Action   = "s3:AbortMultipartUpload"
@@ -421,7 +428,7 @@ locals {
       {
         Sid      = "OrchestrationLease"
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DescribeTable"]
         Resource = aws_dynamodb_table.orchestration_lease.arn
       },
       {
@@ -450,6 +457,30 @@ locals {
           "elasticloadbalancing:DescribeLoadBalancers",
           "elasticloadbalancing:DescribeTags",
         ]
+        Resource = "*"
+      },
+      {
+        Sid      = "AssumeDnsController"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole", "sts:TagSession"]
+        Resource = aws_iam_role.dns_controller.arn
+      },
+      {
+        Sid      = "ReadExpiryObserverStatus"
+        Effect   = "Allow"
+        Action   = "events:DescribeRule"
+        Resource = aws_cloudwatch_event_rule.expiry_observer.arn
+      },
+      {
+        Sid      = "ReadExpiryAlarmStatus"
+        Effect   = "Allow"
+        Action   = "cloudwatch:DescribeAlarms"
+        Resource = "*"
+      },
+      {
+        Sid      = "ReadLabTagInventory"
+        Effect   = "Allow"
+        Action   = "tag:GetResources"
         Resource = "*"
       },
     ]

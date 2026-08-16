@@ -41,10 +41,19 @@ jobs:
       - name: Verify AWS foundation and Phase 2-4 Terraform contracts
         run: |
           bash infra/aws/tests/foundation-test.sh
+          bash infra/aws/tests/dns-lab-state-test.sh
           bash infra/aws/tests/lab-phase2-test.sh
           bash infra/aws/tests/app-asg-test.sh
           bash infra/aws/tests/network-egress-test.sh
           bash infra/aws/tests/service-bundle-publisher-test.sh
+
+      - name: Verify AWS performance-lab operator contracts
+        run: |
+          bash infra/aws/tests/orchestration-lease-test.sh
+          bash infra/aws/tests/aws-dns-cutover-test.sh
+          bash infra/aws/tests/aws-lab-operator-test.sh
+          bash infra/aws/tests/expiry-cleanup-test.sh
+          bash infra/aws/tests/measurement-policy-test.sh
 
       - name: Build and Test
         run: ./gradlew clean build

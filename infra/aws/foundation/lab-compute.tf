@@ -165,8 +165,9 @@ locals {
             "aws:RequestTag/Persistence" = "ephemeral"
           }
           Null = {
-            "aws:RequestTag/ExpiresAt" = "false"
-            "aws:RequestTag/RunId"     = "false"
+            "aws:RequestTag/ExpiresAt"    = "false"
+            "aws:RequestTag/FencingToken" = "false"
+            "aws:RequestTag/RunId"        = "false"
           }
         }
       },
@@ -228,8 +229,9 @@ locals {
             "aws:RequestTag/Persistence" = "ephemeral"
           }
           Null = {
-            "aws:RequestTag/ExpiresAt" = "false"
-            "aws:RequestTag/RunId"     = "false"
+            "aws:RequestTag/ExpiresAt"    = "false"
+            "aws:RequestTag/FencingToken" = "false"
+            "aws:RequestTag/RunId"        = "false"
           }
         }
       },
@@ -293,8 +295,9 @@ locals {
             "aws:RequestTag/Persistence" = "ephemeral"
           }
           Null = {
-            "aws:RequestTag/ExpiresAt" = "false"
-            "aws:RequestTag/RunId"     = "false"
+            "aws:RequestTag/ExpiresAt"    = "false"
+            "aws:RequestTag/FencingToken" = "false"
+            "aws:RequestTag/RunId"        = "false"
           }
         }
       },
@@ -564,8 +567,9 @@ locals {
             "aws:RequestTag/Persistence" = "ephemeral"
           }
           Null = {
-            "aws:RequestTag/ExpiresAt" = "false"
-            "aws:RequestTag/RunId"     = "false"
+            "aws:RequestTag/ExpiresAt"    = "false"
+            "aws:RequestTag/FencingToken" = "false"
+            "aws:RequestTag/RunId"        = "false"
           }
         }
       },
@@ -661,8 +665,9 @@ locals {
             "aws:RequestTag/Persistence" = "ephemeral"
           }
           Null = {
-            "aws:RequestTag/ExpiresAt" = "false"
-            "aws:RequestTag/RunId"     = "false"
+            "aws:RequestTag/ExpiresAt"    = "false"
+            "aws:RequestTag/FencingToken" = "false"
+            "aws:RequestTag/RunId"        = "false"
           }
         }
       },
@@ -683,8 +688,9 @@ locals {
             "aws:RequestTag/Persistence" = "ephemeral"
           }
           Null = {
-            "aws:RequestTag/ExpiresAt" = "false"
-            "aws:RequestTag/RunId"     = "false"
+            "aws:RequestTag/ExpiresAt"    = "false"
+            "aws:RequestTag/FencingToken" = "false"
+            "aws:RequestTag/RunId"        = "false"
           }
         }
       },

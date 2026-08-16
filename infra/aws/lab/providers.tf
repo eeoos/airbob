@@ -4,12 +4,14 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "airbob"
-      Environment = "performance-lab"
-      Stack       = "lab"
-      ManagedBy   = "terraform"
-      Persistence = "ephemeral"
-      ExpiresAt   = var.expires_at
+      Project      = "airbob"
+      Environment  = "performance-lab"
+      Stack        = "lab"
+      ManagedBy    = "terraform"
+      Persistence  = "ephemeral"
+      ExpiresAt    = var.expires_at
+      RunId        = var.run_id
+      FencingToken = tostring(var.fencing_token)
     }
   }
 }
