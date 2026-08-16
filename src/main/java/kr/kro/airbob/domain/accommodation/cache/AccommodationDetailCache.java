@@ -135,7 +135,7 @@ public class AccommodationDetailCache {
 			case CacheLookup.Failure<AccommodationDetailSnapshot>() -> {
 				return loadWithoutCache(accommodationId, loader);
 			}
-			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {
+			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> { // MISS인 경우 분산 락 진입
 			}
 		}
 
@@ -164,7 +164,7 @@ public class AccommodationDetailCache {
 			// Redis 장애 가능성이 있는 락 오류나 인터럽트에서는 추가 조회 없이 바로 우회
 			if (lockResult == TIMEOUT) {
 				CacheLookup<AccommodationDetailSnapshot> timeoutLookup = read(accommodationId);
-				// hit만 즉시 반환하고, miss와 Redis 조회 실패는 아래의 로컬 single-flight로 합류
+				// hit만 즉시 반환하고, miss와 Redis 조회 실패(Failure)는 아래의 로컬 single-flight로 합류
 				switch (timeoutLookup) {
 					case CacheLookup.Hit<AccommodationDetailSnapshot>(var snapshot) -> {
 						return resolvePositiveHit(snapshot, HIT_AFTER_WAIT);
@@ -192,28 +192,30 @@ public class AccommodationDetailCache {
 					return resolveNegativeHit();
 				}
 				case CacheLookup.Failure<AccommodationDetailSnapshot>() -> {
-					return loadWithoutCache(accommodationId, loader);
+					// Redis를 사용할 수 없으므로 락을 먼저 해제한 뒤 DB로 우회
 				}
 				case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {
+					// 조회 중 데이터가 변경되면 무효화가 이 토큰을 지워 오래된 결과의 저장을 거부
+					String loadPermit = acquireLoadPermit(accommodationId);
+					if (loadPermit != null) {
+						return loadAndCache(accommodationId, loadPermit, loader);
+					}
+					// 쓰기 허가가 없으면 캐시를 채울 수 없으므로 락 밖에서 DB로 우회
 				}
 			}
-
-			// 조회 중 데이터가 변경되면 무효화가 이 토큰을 지워 오래된 결과의 저장을 거부
-			String loadPermit = acquireLoadPermit(accommodationId);
-			if (loadPermit == null) {
-				return loadWithoutCache(accommodationId, loader);
-			}
-			return loadAndCache(accommodationId, loadPermit, loader);
 		} finally {
 			release(lock, accommodationId);
 		}
+
+		// 캐시에 저장하지 않는 DB 조회는 분산 락의 보호 대상이 아님
+		return loadWithoutCache(accommodationId, loader);
 	}
 
 	public void evict(
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason
 	) {
-		// DB 변경은 이미 커밋됐으므로 캐시 장애가 정상 요청을 실패시키지 않게 best-effort로 처리한다.
+		// DB 변경은 이미 커밋됐으므로 캐시 장애가 정상 요청을 실패시키지 않게 best-effort로 처리
 		try {
 			evictInternal(accommodationId, reason);
 		} catch (RuntimeException exception) {
@@ -226,13 +228,13 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason
 	) {
-		// 변경 전 조회를 기다리는 로컬 요청이 오래된 결과를 사용하지 않도록 다시 조회시킨다.
+		// 변경 전 조회를 기다리는 로컬 요청이 오래된 결과를 사용하지 않도록 다시 조회시킴
 		CompletableFuture<AccommodationDetailSnapshot> localLoad = localLoads.remove(accommodationId);
 		if (localLoad != null) {
 			localLoad.completeExceptionally(new LocalLoadInvalidatedException());
 		}
 		try {
-			// Lua로 쓰기 허가와 캐시 값을 원자적으로 삭제해 stale refill을 막는다.
+			// Lua로 쓰기 허가와 캐시 값을 원자적으로 삭제해 stale refill을 막음
 			Long invalidated = redisClient.execute(
 				INVALIDATE_SCRIPT,
 				List.of(loadPermitKey(accommodationId), cacheKey(accommodationId))
@@ -404,7 +406,7 @@ public class AccommodationDetailCache {
 			deleteCorruptEntry(accommodationId);
 			return CacheLookup.miss();
 		} catch (RuntimeException exception) {
-			// Redis 장애는 miss와 구분해 이후 분산 락 시도까지 건너뛰고 DB로 우회한다.
+			// Redis 장애는 miss와 구분해 이후 분산 락 시도까지 건너뛰고 DB로 우회
 			metricRecorder.recordRedis(GET, AccommodationDetailCacheMetricRecorder.OperationResult.ERROR);
 			log.warn("숙소 상세 캐시 조회 실패. accommodationId={}", accommodationId, exception);
 			return CacheLookup.failure();
@@ -482,7 +484,7 @@ public class AccommodationDetailCache {
 			return;
 		}
 		try {
-			// 다른 스레드가 다시 획득한 락을 해제하지 않도록 현재 소유자만 unlock한다.
+			// 다른 스레드가 다시 획득한 락을 해제하지 않도록 현재 소유자만 unlock
 			if (lock.isHeldByCurrentThread()) {
 				lock.unlock();
 			}

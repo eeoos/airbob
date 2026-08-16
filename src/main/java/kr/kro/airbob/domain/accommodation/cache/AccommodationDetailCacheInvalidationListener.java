@@ -8,7 +8,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 원본 변경이 롤백됐을 때 정상 캐시를 지우지 않도록 커밋 이후에만 무효화한다.
+ * 원본 변경이 롤백됐을 때 정상 캐시를 지우지 않도록 커밋 이후에만 무효화
  */
 @Component
 @RequiredArgsConstructor

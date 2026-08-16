@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -179,6 +181,60 @@ class AccommodationDetailCacheTest {
 		assertThat(actual).isEqualTo(expected);
 		verifyNoInteractions(redissonClient);
 		verify(redisClient, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
+	}
+
+	@Test
+	@DisplayName("락 내부 재조회가 실패하면 락을 해제한 뒤 DB로 우회한다")
+	void secondReadFailureReleasesLockBeforeDatabaseFallback() throws Exception {
+		AccommodationDetailSnapshot expected = snapshot(1L, "database");
+		AtomicBoolean lockReleased = new AtomicBoolean();
+		when(redisClient.get(CACHE_KEY))
+			.thenReturn(null)
+			.thenThrow(new IllegalStateException("redis down"));
+		when(redissonClient.getLock(LOCK_KEY)).thenReturn(lock);
+		when(lock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(true);
+		when(lock.isHeldByCurrentThread()).thenReturn(true);
+		doAnswer(invocation -> {
+			lockReleased.set(true);
+			return null;
+		}).when(lock).unlock();
+
+		AccommodationDetailSnapshot actual = cache.getOrLoad(1L, () -> {
+			assertThat(lockReleased).isTrue();
+			return expected;
+		});
+
+		assertThat(actual).isEqualTo(expected);
+		verify(lock).unlock();
+	}
+
+	@Test
+	@DisplayName("쓰기 허가를 얻지 못하면 락을 해제한 뒤 DB로 우회한다")
+	void loadPermitFailureReleasesLockBeforeDatabaseFallback() throws Exception {
+		AccommodationDetailSnapshot expected = snapshot(1L, "database");
+		AtomicBoolean lockReleased = new AtomicBoolean();
+		when(redisClient.get(CACHE_KEY)).thenReturn(null, (String)null);
+		when(redissonClient.getLock(LOCK_KEY)).thenReturn(lock);
+		when(lock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(true);
+		when(lock.isHeldByCurrentThread()).thenReturn(true);
+		when(redisClient.execute(
+			any(RedisScript.class),
+			eq(List.of(LOAD_PERMIT_KEY)),
+			any(String.class),
+			any(String.class)
+		)).thenReturn(null);
+		doAnswer(invocation -> {
+			lockReleased.set(true);
+			return null;
+		}).when(lock).unlock();
+
+		AccommodationDetailSnapshot actual = cache.getOrLoad(1L, () -> {
+			assertThat(lockReleased).isTrue();
+			return expected;
+		});
+
+		assertThat(actual).isEqualTo(expected);
+		verify(lock).unlock();
 	}
 
 	@Test

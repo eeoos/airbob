@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 메트릭 시스템의 실패가 캐시 처리와 숙소 상세 응답에 영향을 주지 않도록 예외를 격리한다.
+ * 메트릭 시스템의 실패가 캐시 처리와 숙소 상세 응답에 영향을 주지 않도록 예외를 격리
  */
 @Slf4j
 @Primary
