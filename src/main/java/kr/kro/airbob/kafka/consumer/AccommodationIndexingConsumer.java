@@ -43,7 +43,8 @@ public class AccommodationIndexingConsumer {
 	)
 	@KafkaListener(
 		topics = "${accommodation.indexing.kafka.topic:ACCOMMODATION.events}",
-		groupId = "${accommodation.indexing.kafka.group:accommodation-indexing-group}"
+		groupId = "${accommodation.indexing.kafka.group:accommodation-indexing-group}",
+		autoStartup = "${accommodation.indexing.kafka.auto-startup:true}"
 	)
 	public void handle(@Payload String message, Acknowledgment ack) {
 		AccommodationIndexingCommand command = parser.parse(message);

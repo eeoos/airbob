@@ -2,6 +2,7 @@ package kr.kro.airbob.search.service;
 
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
+import static org.mockito.Mockito.never;
 
 import java.util.UUID;
 
@@ -31,6 +32,7 @@ class AccommodationIndexingServiceTest {
 			new AccommodationIndexingService(searchRepository, documentBuilder);
 		AccommodationDocument document = AccommodationDocument.builder()
 			.id(ACCOMMODATION_UID.toString())
+			.status("PUBLISHED")
 			.build();
 		willReturn(document).given(documentBuilder)
 			.buildAccommodationDocument(ACCOMMODATION_UID.toString());
@@ -38,6 +40,24 @@ class AccommodationIndexingServiceTest {
 		service.refreshAccommodationIndex(ACCOMMODATION_UID);
 
 		then(searchRepository).should().save(document);
+	}
+
+	@Test
+	@DisplayName("게시 중단 이벤트는 MySQL 최신 상태를 확인하고 검색 문서를 제거한다")
+	void removesDocumentWhenAuthoritativeStateIsUnpublished() {
+		AccommodationIndexingService service =
+			new AccommodationIndexingService(searchRepository, documentBuilder);
+		AccommodationDocument document = AccommodationDocument.builder()
+			.id(ACCOMMODATION_UID.toString())
+			.status("UNPUBLISHED")
+			.build();
+		willReturn(document).given(documentBuilder)
+			.buildAccommodationDocument(ACCOMMODATION_UID.toString());
+
+		service.refreshAccommodationIndex(ACCOMMODATION_UID);
+
+		then(searchRepository).should().deleteById(ACCOMMODATION_UID);
+		then(searchRepository).should(never()).save(document);
 	}
 
 	@Test

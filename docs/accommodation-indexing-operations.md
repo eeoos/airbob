@@ -12,6 +12,13 @@
 
 기본값은 총 4회 시도, 시도 간격 30초다. `ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS`와 `ACCOMMODATION_INDEXING_KAFKA_BACKOFF_MS`로 조정할 수 있다.
 
+## Full reindex
+
+전체 MySQL projection을 다시 적재할 때는 Logstash를 live alias에 직접 연결하지 않는다.
+숙소 색인 consumer를 중지하고 버전 인덱스를 채운 뒤 alias를 원자 전환하는 절차는
+[`docs/logstash-reindex.md`](logstash-reindex.md)를 따른다. consumer 재개 후 Kafka lag가
+0으로 돌아와야 새 인덱스가 MySQL 최신 상태로 수렴한 것이다.
+
 ## DLT response
 
 `[accommodation-indexing-quarantined]` 알림에는 이벤트 타입, 숙소 UID, 원본 topic/partition/offset만 포함된다.

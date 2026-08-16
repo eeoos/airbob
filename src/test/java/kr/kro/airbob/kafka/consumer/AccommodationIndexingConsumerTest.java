@@ -165,5 +165,7 @@ class AccommodationIndexingConsumerTest {
 			.containsExactly("${accommodation.indexing.kafka.topic:ACCOMMODATION.events}");
 		assertThat(kafkaListener.groupId())
 			.isEqualTo("${accommodation.indexing.kafka.group:accommodation-indexing-group}");
+		assertThat(kafkaListener.autoStartup())
+			.isEqualTo("${accommodation.indexing.kafka.auto-startup:true}");
 	}
 }

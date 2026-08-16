@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,10 @@ public class AccommodationIndexingService {
 	public void refreshAccommodationIndex(UUID accommodationUid) {
 		AccommodationDocument document =
 			documentBuilder.buildAccommodationDocument(accommodationUid.toString());
+		if (!AccommodationStatus.PUBLISHED.name().equals(document.status())) {
+			deleteAccommodationIndex(accommodationUid);
+			return;
+		}
 		searchRepository.save(document);
 		log.info("[ES-INDEX] 숙소 최신 상태 반영: {}", accommodationUid);
 	}

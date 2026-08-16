@@ -60,6 +60,9 @@ toss:
   secret-key: dummy-toss-secret-key
 
 accommodation:
+  indexing:
+    kafka:
+      auto-startup: false
   detail-cache:
     redis:
       host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${spring.data.redis.host:localhost}}

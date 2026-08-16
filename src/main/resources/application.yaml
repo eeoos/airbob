@@ -101,6 +101,7 @@ accommodation:
     kafka:
       topic: ${ACCOMMODATION_INDEXING_TOPIC:ACCOMMODATION.events}
       group: ${ACCOMMODATION_INDEXING_GROUP:accommodation-indexing-group}
+      auto-startup: ${ACCOMMODATION_INDEXING_AUTO_STARTUP:true}
       attempts: ${ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS:4}
       backoff-ms: ${ACCOMMODATION_INDEXING_KAFKA_BACKOFF_MS:30000}
   detail-cache:

@@ -255,6 +255,9 @@ graph LR
     Retry -->|Retry| Consumer
     Retry -->|Exhausted| DLT
 ```
+
+전체 검색 인덱스 재구축은 live 인덱스를 삭제하지 않고 버전 인덱스와 alias를 사용합니다.
+운영 순서는 [`docs/logstash-reindex.md`](docs/logstash-reindex.md)를 참고하세요.
 <br>
 
 ### ERD
