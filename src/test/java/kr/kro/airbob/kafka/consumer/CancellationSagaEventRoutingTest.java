@@ -100,7 +100,7 @@ class CancellationSagaEventRoutingTest {
 		given(parser.parse(message, PaymentEvent.PaymentCancellationCompletedEvent.class))
 			.willReturn(envelope);
 
-		new PaymentEventTranslator(parser, outboxEventPublisher)
+		new PaymentCancellationEventTranslator(parser, outboxEventPublisher)
 			.translatePaymentEvents(message, acknowledgment);
 
 		then(outboxEventPublisher).should().save(
@@ -143,7 +143,7 @@ class CancellationSagaEventRoutingTest {
 		given(parser.parse(message, PaymentEvent.PaymentCancellationFailedEvent.class))
 			.willReturn(envelope);
 
-		new PaymentEventTranslator(parser, outboxEventPublisher)
+		new PaymentCancellationEventTranslator(parser, outboxEventPublisher)
 			.translatePaymentEvents(message, acknowledgment);
 
 		then(outboxEventPublisher).should().save(

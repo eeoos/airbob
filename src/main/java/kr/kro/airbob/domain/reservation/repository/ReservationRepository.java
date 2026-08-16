@@ -16,6 +16,9 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long>, ReservationRepositoryCustom{
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select reservation from Reservation reservation where reservation.id = :reservationId")
+	Optional<Reservation> findByIdWithLock(@Param("reservationId") Long reservationId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	List<Reservation> findAllByStatusAndExpiresAtLessThanEqual(ReservationStatus status, Instant expiresAt);

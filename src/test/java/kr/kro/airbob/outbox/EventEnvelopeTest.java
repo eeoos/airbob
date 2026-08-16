@@ -31,11 +31,11 @@ class EventEnvelopeTest {
 	@DisplayName("이벤트 발생 시각은 UTC 절대 시각으로 보존한다")
 	void timestampIsAnInstant() {
 		Instant occurredAt = Instant.parse("2026-08-12T05:30:00.123456Z");
-		PaymentEvent.PaymentCompletedEvent payload =
-			new PaymentEvent.PaymentCompletedEvent("reservation-uid");
+		PaymentEvent.PaymentCancellationCompletedEvent payload =
+			new PaymentEvent.PaymentCancellationCompletedEvent("reservation-uid");
 
-		EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope = EventEnvelope.of(
-			EventType.PAYMENT_COMPLETED,
+		EventEnvelope<PaymentEvent.PaymentCancellationCompletedEvent> envelope = EventEnvelope.of(
+			EventType.PAYMENT_CANCELLATION_COMPLETED,
 			payload,
 			occurredAt
 		);
@@ -46,7 +46,7 @@ class EventEnvelopeTest {
 	@Test
 	@DisplayName("호환 기간에는 UTC 시각을 오프셋 없는 기존 형식으로 직렬화한다")
 	void serializesTimestampAsLegacyBareUtc() throws JsonProcessingException {
-		EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope = envelopeAt(
+		EventEnvelope<PaymentEvent.PaymentCancellationCompletedEvent> envelope = envelopeAt(
 			Instant.parse("2026-08-12T05:30:00.123456Z")
 		);
 
@@ -59,7 +59,7 @@ class EventEnvelopeTest {
 	@MethodSource("compatibleTimestamps")
 	@DisplayName("기존 UTC 문자열과 Z·오프셋 문자열을 동일한 Instant로 역직렬화한다")
 	void deserializesLegacyAndOffsetTimestamps(String timestamp, Instant expected) throws JsonProcessingException {
-		EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope = objectMapper.readValue(
+		EventEnvelope<PaymentEvent.PaymentCancellationCompletedEvent> envelope = objectMapper.readValue(
 			envelopeJson(timestamp),
 			envelopeType()
 		);
@@ -76,10 +76,10 @@ class EventEnvelopeTest {
 			.hasMessageContaining("timestamp");
 	}
 
-	private EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelopeAt(Instant timestamp) {
+	private EventEnvelope<PaymentEvent.PaymentCancellationCompletedEvent> envelopeAt(Instant timestamp) {
 		return EventEnvelope.of(
-			EventType.PAYMENT_COMPLETED,
-			new PaymentEvent.PaymentCompletedEvent("reservation-uid"),
+			EventType.PAYMENT_CANCELLATION_COMPLETED,
+			new PaymentEvent.PaymentCancellationCompletedEvent("reservation-uid"),
 			timestamp
 		);
 	}
@@ -87,7 +87,7 @@ class EventEnvelopeTest {
 	private JavaType envelopeType() {
 		return objectMapper.getTypeFactory().constructParametricType(
 			EventEnvelope.class,
-			PaymentEvent.PaymentCompletedEvent.class
+			PaymentEvent.PaymentCancellationCompletedEvent.class
 		);
 	}
 
@@ -100,7 +100,7 @@ class EventEnvelopeTest {
 			{
 			  "event_id": "12f4c680-6c60-4b60-a1c8-8ef1ea285207",
 			  "trace_id": "reservation-uid",
-			  "event_type": "PAYMENT_COMPLETED",
+			  "event_type": "PAYMENT_CANCELLATION_COMPLETED",
 			  "event_version": "1.0",
 			  "timestamp": %s,
 			  "payload": {"reservation_uid": "reservation-uid"}

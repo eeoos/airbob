@@ -19,6 +19,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -85,6 +86,19 @@ public class Payment extends BaseEntity {
 			.method(PaymentMethod.fromDescription(response.getMethod()))
 			.status(PaymentStatus.from(response.getStatus()))
 			.approvedAt(response.getApprovedAt().toInstant())
+			.reservation(reservation)
+			.build();
+	}
+
+	public static Payment create(ConfirmedPayment confirmed, Reservation reservation) {
+		return Payment.builder()
+			.paymentKey(confirmed.paymentKey())
+			.orderId(confirmed.orderId())
+			.amount(confirmed.totalAmount())
+			.balanceAmount(confirmed.balanceAmount())
+			.method(confirmed.method())
+			.status(confirmed.status())
+			.approvedAt(confirmed.approvedAt())
 			.reservation(reservation)
 			.build();
 	}

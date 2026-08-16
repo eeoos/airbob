@@ -27,12 +27,8 @@ import org.springframework.kafka.support.Acknowledgment;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.config.KafkaConfig;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
-import kr.kro.airbob.domain.payment.service.PaymentApprovalService;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationProcessor;
-import kr.kro.airbob.domain.payment.service.PaymentCompensationService;
-import kr.kro.airbob.domain.payment.service.PaymentConfirmationProcessor;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
@@ -49,13 +45,10 @@ class DlqConsumerTest {
 
 	@Mock private DebeziumEventParser debeziumEventParser;
 	@Mock private SlackNotificationService slackNotificationService;
-	@Mock private PaymentCompensationService paymentCompensationService;
-	@Mock private PaymentApprovalService paymentApprovalService;
 	@Mock private PaymentCancellationProcessor paymentCancellationProcessor;
-	@Mock private PaymentConfirmationProcessor paymentConfirmationProcessor;
 	@Mock private ReservationService reservationService;
 	@Mock private OutboxEventPublisher outboxEventPublisher;
-	@Mock private PaymentGatewayWorker paymentGatewayWorker;
+	@Mock private PaymentCancellationGatewayWorker paymentCancellationGatewayWorker;
 	@Mock private Acknowledgment acknowledgment;
 	@InjectMocks private DlqConsumer consumer;
 
@@ -66,12 +59,11 @@ class DlqConsumerTest {
 		ReservationEvent.ReservationCancelledEvent payload =
 			new ReservationEvent.ReservationCancelledEvent(
 				"reservation-uid", "사용자 요청", null);
-		EventEnvelope<ReservationEvent.ReservationCancelledEvent> envelope =
-			EventEnvelope.of(EventType.RESERVATION_CANCELLED, payload, java.time.Instant.EPOCH);
 		given(debeziumEventParser.getEventType(message))
 			.willReturn(EventType.RESERVATION_CANCELLED.name());
 		given(debeziumEventParser.parse(message, ReservationEvent.ReservationCancelledEvent.class))
-			.willReturn(envelope);
+			.willReturn(EventEnvelope.of(
+				EventType.RESERVATION_CANCELLED, payload, java.time.Instant.EPOCH));
 
 		consumer.consumeDlqEvents(message, acknowledgment);
 
@@ -91,12 +83,11 @@ class DlqConsumerTest {
 		ReservationEvent.ReservationCancelledEvent payload =
 			new ReservationEvent.ReservationCancelledEvent(
 				"reservation-uid", "사용자 요청", null);
-		EventEnvelope<ReservationEvent.ReservationCancelledEvent> envelope =
-			EventEnvelope.of(EventType.RESERVATION_CANCELLED, payload, java.time.Instant.EPOCH);
 		given(debeziumEventParser.getEventType(message))
 			.willReturn(EventType.RESERVATION_CANCELLED.name());
 		given(debeziumEventParser.parse(message, ReservationEvent.ReservationCancelledEvent.class))
-			.willReturn(envelope);
+			.willReturn(EventEnvelope.of(
+				EventType.RESERVATION_CANCELLED, payload, java.time.Instant.EPOCH));
 		willThrow(new IllegalStateException("outbox unavailable"))
 			.given(outboxEventPublisher)
 			.save(eq(EventType.PG_CANCEL_CALL_REQUESTED), argThat(event -> true));
@@ -105,57 +96,6 @@ class DlqConsumerTest {
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessage("outbox unavailable");
 
-		then(outboxEventPublisher).should().save(
-			eq(EventType.PG_CANCEL_CALL_REQUESTED), argThat(event -> true));
-		then(slackNotificationService).shouldHaveNoInteractions();
-		then(acknowledgment).should(never()).acknowledge();
-		then(acknowledgment).should(never()).nack(any(Duration.class));
-	}
-
-	@Test
-	@DisplayName("예약 확정 요청이 최종 실패하면 이미 승인된 결제를 보상 취소한다")
-	void compensatesFailedReservationConfirmation() {
-		String message = "reservation-confirm-requested-dlt";
-		PaymentEvent.PaymentCompletedEvent payload =
-			new PaymentEvent.PaymentCompletedEvent("reservation-uid");
-		EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope =
-			EventEnvelope.of(
-				EventType.RESERVATION_CONFIRM_REQUESTED,
-				payload,
-				java.time.Instant.parse("2026-08-12T00:00:00Z")
-			);
-		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.RESERVATION_CONFIRM_REQUESTED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PaymentCompletedEvent.class))
-			.willReturn(envelope);
-
-		consumer.consumeDlqEvents(message, acknowledgment);
-
-		then(paymentCompensationService).should().compensate("reservation-uid");
-		then(acknowledgment).should().acknowledge();
-	}
-
-	@Test
-	@DisplayName("결제 보상 처리 실패는 비차단 재시도 토픽으로 전달한다")
-	void forwardsFailedPaymentCompensationToRetryTopic() {
-		String message = "payment-completed-dlt";
-		PaymentEvent.PaymentCompletedEvent payload =
-			new PaymentEvent.PaymentCompletedEvent("reservation-uid");
-		EventEnvelope<PaymentEvent.PaymentCompletedEvent> envelope =
-			EventEnvelope.of(EventType.PAYMENT_COMPLETED, payload, java.time.Instant.EPOCH);
-		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PAYMENT_COMPLETED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PaymentCompletedEvent.class))
-			.willReturn(envelope);
-		willThrow(new IllegalStateException("compensation unavailable"))
-			.given(paymentCompensationService)
-			.compensate("reservation-uid");
-
-		assertThatThrownBy(() -> consumer.consumeDlqEvents(message, acknowledgment))
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessage("compensation unavailable");
-
-		then(paymentCompensationService).should().compensate("reservation-uid");
 		then(slackNotificationService).shouldHaveNoInteractions();
 		then(acknowledgment).should(never()).acknowledge();
 		then(acknowledgment).should(never()).nack(any(Duration.class));
@@ -167,17 +107,14 @@ class DlqConsumerTest {
 		String message = "reservation-cancellation-complete-requested-dlt";
 		ReservationEvent.ReservationCancellationCompleteRequestedEvent payload =
 			new ReservationEvent.ReservationCancellationCompleteRequestedEvent("reservation-uid");
-		EventEnvelope<ReservationEvent.ReservationCancellationCompleteRequestedEvent> envelope =
-			EventEnvelope.of(
-				EventType.RESERVATION_CANCELLATION_COMPLETE_REQUESTED,
-				payload,
-				java.time.Instant.parse("2026-08-12T00:00:00Z")
-			);
 		given(debeziumEventParser.getEventType(message))
 			.willReturn(EventType.RESERVATION_CANCELLATION_COMPLETE_REQUESTED.name());
 		given(debeziumEventParser.parse(
 			message, ReservationEvent.ReservationCancellationCompleteRequestedEvent.class))
-			.willReturn(envelope);
+			.willReturn(EventEnvelope.of(
+				EventType.RESERVATION_CANCELLATION_COMPLETE_REQUESTED,
+				payload,
+				java.time.Instant.EPOCH));
 
 		consumer.consumeDlqEvents(message, acknowledgment);
 
@@ -192,106 +129,96 @@ class DlqConsumerTest {
 		PaymentEvent.PaymentCancellationRequestedEvent payload =
 			new PaymentEvent.PaymentCancellationRequestedEvent(
 				"reservation-uid", "사용자 요청", null);
-		EventEnvelope<PaymentEvent.PaymentCancellationRequestedEvent> envelope =
-			EventEnvelope.of(EventType.PG_CANCEL_CALL_REQUESTED, payload, java.time.Instant.EPOCH);
 		given(debeziumEventParser.getEventType(message))
 			.willReturn(EventType.PG_CANCEL_CALL_REQUESTED.name());
 		given(debeziumEventParser.parse(
 			message, PaymentEvent.PaymentCancellationRequestedEvent.class))
-			.willReturn(envelope);
+			.willReturn(EventEnvelope.of(
+				EventType.PG_CANCEL_CALL_REQUESTED, payload, java.time.Instant.EPOCH));
 
 		consumer.consumeDlqEvents(message, acknowledgment);
 
-		then(paymentGatewayWorker).should().processCancelRequest(payload);
+		then(paymentCancellationGatewayWorker).should().processCancelRequest(payload);
 		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
-	@DisplayName("PG 승인 요청이 최종 실패해도 같은 멱등키 워커로 승인 결과를 복구한다")
-	void retriesFailedPgConfirmRequest() {
-		String message = "pg-call-requested-dlt";
-		PaymentRequest.Confirm payload = new PaymentRequest.Confirm(
-			"payment-key", "reservation-uid", 100_000);
-		EventEnvelope<PaymentRequest.Confirm> envelope =
-			EventEnvelope.of(EventType.PG_CALL_REQUESTED, payload, java.time.Instant.EPOCH);
+	@DisplayName("PG 취소 성공 반영이 최종 실패하면 DLQ에서 다시 반영한다")
+	void retriesFailedPgCancellationSuccess() {
+		String message = "pg-cancel-call-succeeded-dlt";
+		PaymentEvent.PgCancelCallSucceededEvent payload =
+			new PaymentEvent.PgCancelCallSucceededEvent(null, "reservation-uid");
 		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PG_CALL_REQUESTED.name());
-		given(debeziumEventParser.parse(message, PaymentRequest.Confirm.class))
-			.willReturn(envelope);
+			.willReturn(EventType.PG_CANCEL_CALL_SUCCEEDED.name());
+		given(debeziumEventParser.parse(message, PaymentEvent.PgCancelCallSucceededEvent.class))
+			.willReturn(EventEnvelope.of(
+				EventType.PG_CANCEL_CALL_SUCCEEDED, payload, java.time.Instant.EPOCH));
 
 		consumer.consumeDlqEvents(message, acknowledgment);
 
-		then(paymentGatewayWorker).should().processConfirmRequest(payload);
+		then(paymentCancellationProcessor).should().processSuccess(payload);
 		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
-	@DisplayName("결제 승인 요청이 DLQ에 도착하면 승인 선점 로직을 다시 실행한다")
-	void recoversPaymentConfirmRequest() {
-		String message = "payment-confirm-requested-dlt";
-		PaymentRequest.Confirm payload = new PaymentRequest.Confirm(
-			"payment-key", "reservation-uid", 100_000);
-		EventEnvelope<PaymentRequest.Confirm> envelope = EventEnvelope.of(
-			EventType.PAYMENT_CONFIRM_REQUESTED, payload, java.time.Instant.EPOCH);
+	@DisplayName("PG 취소 실패 반영이 최종 실패하면 DLQ에서 다시 반영한다")
+	void retriesFailedPgCancellationFailure() {
+		String message = "pg-cancel-call-failed-dlt";
+		PaymentEvent.PaymentCancellationRequestedEvent request =
+			new PaymentEvent.PaymentCancellationRequestedEvent(
+				"reservation-uid", "사용자 요청", null);
+		PaymentEvent.PgCancelCallFailedEvent payload =
+			new PaymentEvent.PgCancelCallFailedEvent(
+				request, "reservation-uid", "CANCEL_FAILED", "취소 실패");
 		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PAYMENT_CONFIRM_REQUESTED.name());
-		given(debeziumEventParser.parse(message, PaymentRequest.Confirm.class))
-			.willReturn(envelope);
+			.willReturn(EventType.PG_CANCEL_CALL_FAILED.name());
+		given(debeziumEventParser.parse(message, PaymentEvent.PgCancelCallFailedEvent.class))
+			.willReturn(EventEnvelope.of(
+				EventType.PG_CANCEL_CALL_FAILED, payload, java.time.Instant.EPOCH));
 
 		consumer.consumeDlqEvents(message, acknowledgment);
 
-		then(paymentApprovalService).should().preparePgCall(payload);
+		then(paymentCancellationProcessor).should().processFailure(payload);
 		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
-	@DisplayName("결제 승인 선점의 일시 오류는 비차단 재시도 토픽으로 전달한다")
-	void retriesTransientPaymentConfirmFailure() {
-		String message = "payment-confirm-requested-dlt";
-		PaymentRequest.Confirm payload = new PaymentRequest.Confirm(
-			"payment-key", "reservation-uid", 100_000);
-		EventEnvelope<PaymentRequest.Confirm> envelope = EventEnvelope.of(
-			EventType.PAYMENT_CONFIRM_REQUESTED, payload, java.time.Instant.EPOCH);
+	@DisplayName("결제 취소 완료 번역 실패는 예약 취소 완료 처리로 복구한다")
+	void recoversPaymentCancellationCompletion() {
+		String message = "payment-cancellation-completed-dlt";
+		PaymentEvent.PaymentCancellationCompletedEvent payload =
+			new PaymentEvent.PaymentCancellationCompletedEvent("reservation-uid");
 		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PAYMENT_CONFIRM_REQUESTED.name());
-		given(debeziumEventParser.parse(message, PaymentRequest.Confirm.class))
-			.willReturn(envelope);
-		willThrow(new IllegalStateException("database unavailable"))
-			.given(paymentApprovalService)
-			.preparePgCall(payload);
+			.willReturn(EventType.PAYMENT_CANCELLATION_COMPLETED.name());
+		given(debeziumEventParser.parse(message, PaymentEvent.PaymentCancellationCompletedEvent.class))
+			.willReturn(EventEnvelope.of(
+				EventType.PAYMENT_CANCELLATION_COMPLETED, payload, java.time.Instant.EPOCH));
 
-		assertThatThrownBy(() -> consumer.consumeDlqEvents(message, acknowledgment))
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessage("database unavailable");
+		consumer.consumeDlqEvents(message, acknowledgment);
 
-		then(acknowledgment).should(never()).acknowledge();
-		then(slackNotificationService).shouldHaveNoInteractions();
+		then(reservationService).should().completeCancellation(
+			new ReservationEvent.ReservationCancellationCompleteRequestedEvent("reservation-uid"));
+		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
-	@DisplayName("PG 승인 복구 호출 실패는 비차단 재시도 토픽으로 전달한다")
-	void forwardsFailedPgConfirmRecoveryToRetryTopic() {
-		String message = "pg-call-requested-dlt";
-		PaymentRequest.Confirm payload = new PaymentRequest.Confirm(
-			"payment-key", "reservation-uid", 100_000);
-		EventEnvelope<PaymentRequest.Confirm> envelope =
-			EventEnvelope.of(EventType.PG_CALL_REQUESTED, payload, java.time.Instant.EPOCH);
+	@DisplayName("결제 취소 실패 번역 실패는 예약 취소 실패 처리로 복구한다")
+	void recoversPaymentCancellationFailure() {
+		String message = "payment-cancellation-failed-dlt";
+		PaymentEvent.PaymentCancellationFailedEvent payload =
+			new PaymentEvent.PaymentCancellationFailedEvent("reservation-uid", "취소 실패");
 		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PG_CALL_REQUESTED.name());
-		given(debeziumEventParser.parse(message, PaymentRequest.Confirm.class))
-			.willReturn(envelope);
-		willThrow(new IllegalStateException("pg unavailable"))
-			.given(paymentGatewayWorker)
-			.processConfirmRequest(payload);
+			.willReturn(EventType.PAYMENT_CANCELLATION_FAILED.name());
+		given(debeziumEventParser.parse(message, PaymentEvent.PaymentCancellationFailedEvent.class))
+			.willReturn(EventEnvelope.of(
+				EventType.PAYMENT_CANCELLATION_FAILED, payload, java.time.Instant.EPOCH));
 
-		assertThatThrownBy(() -> consumer.consumeDlqEvents(message, acknowledgment))
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessage("pg unavailable");
+		consumer.consumeDlqEvents(message, acknowledgment);
 
-		then(paymentGatewayWorker).should().processConfirmRequest(payload);
-		then(slackNotificationService).shouldHaveNoInteractions();
-		then(acknowledgment).should(never()).acknowledge();
-		then(acknowledgment).should(never()).nack(any(Duration.class));
+		then(reservationService).should().revertCancellation(
+			new ReservationEvent.ReservationCancellationRevertRequestedEvent(
+				"reservation-uid", "취소 실패"));
+		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
@@ -313,101 +240,22 @@ class DlqConsumerTest {
 		assertThat(retryableTopic.exclude())
 			.containsExactlyInAnyOrder(
 				InvalidInputException.class,
-				ReservationNotFoundException.class
-			);
+				ReservationNotFoundException.class);
 		assertThat(KafkaConfig.class.isAnnotationPresent(EnableKafkaRetryTopic.class)).isTrue();
 	}
 
 	@Test
 	@DisplayName("재시도를 모두 소진한 메시지는 한 번 알리고 보관 토픽 오프셋을 커밋한다")
 	void alertsOnceWhenRetriesAreExhausted() {
-		String message = "payment-completed-parking";
+		String message = "payment-cancellation-completed-parking";
 		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PAYMENT_COMPLETED.name());
+			.willReturn(EventType.PAYMENT_CANCELLATION_COMPLETED.name());
+
 		consumer.handleExhaustedRecovery(message, "database unavailable", acknowledgment);
 
 		then(slackNotificationService).should().sendAlert(argThat(alert ->
-			alert.contains(EventType.PAYMENT_COMPLETED.name())
+			alert.contains(EventType.PAYMENT_CANCELLATION_COMPLETED.name())
 				&& alert.contains("database unavailable")));
-		then(acknowledgment).should().acknowledge();
-	}
-
-	@Test
-	@DisplayName("PG 승인 성공 이벤트의 DB 반영이 최종 실패하면 DLQ에서 다시 반영한다")
-	void retriesFailedPgCallSucceeded() {
-		String message = "pg-call-succeeded-dlt";
-		PaymentEvent.PgCallSucceededEvent payload =
-			new PaymentEvent.PgCallSucceededEvent(null, "reservation-uid");
-		EventEnvelope<PaymentEvent.PgCallSucceededEvent> envelope =
-			EventEnvelope.of(EventType.PG_CALL_SUCCEEDED, payload, java.time.Instant.EPOCH);
-		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PG_CALL_SUCCEEDED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PgCallSucceededEvent.class))
-			.willReturn(envelope);
-
-		consumer.consumeDlqEvents(message, acknowledgment);
-
-		then(paymentConfirmationProcessor).should().processSuccess(payload);
-		then(acknowledgment).should().acknowledge();
-	}
-
-	@Test
-	@DisplayName("PG 승인 실패 이벤트의 DB 반영이 최종 실패하면 DLQ에서 다시 반영한다")
-	void retriesFailedPgCallFailure() {
-		String message = "pg-call-failed-dlt";
-		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
-			"payment-key", "reservation-uid", 100_000);
-		PaymentEvent.PgCallFailedEvent payload =
-			new PaymentEvent.PgCallFailedEvent(
-				request, "reservation-uid", "REJECTED", "결제 거절");
-		EventEnvelope<PaymentEvent.PgCallFailedEvent> envelope =
-			EventEnvelope.of(EventType.PG_CALL_FAILED, payload, java.time.Instant.EPOCH);
-		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PG_CALL_FAILED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PgCallFailedEvent.class))
-			.willReturn(envelope);
-
-		consumer.consumeDlqEvents(message, acknowledgment);
-
-		then(paymentConfirmationProcessor).should().processFailure(payload);
-		then(acknowledgment).should().acknowledge();
-	}
-
-	@Test
-	@DisplayName("결제 실패 이벤트 번역이 최종 실패하면 DLQ에서 예약을 만료 처리한다")
-	void expiresReservationForFailedPayment() {
-		String message = "payment-failed-dlt";
-		PaymentEvent.PaymentFailedEvent payload =
-			new PaymentEvent.PaymentFailedEvent("reservation-uid", "결제 거절");
-		EventEnvelope<PaymentEvent.PaymentFailedEvent> envelope =
-			EventEnvelope.of(EventType.PAYMENT_FAILED, payload, java.time.Instant.EPOCH);
-		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PAYMENT_FAILED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PaymentFailedEvent.class))
-			.willReturn(envelope);
-
-		consumer.consumeDlqEvents(message, acknowledgment);
-
-		then(reservationService).should().expireReservation(payload);
-		then(acknowledgment).should().acknowledge();
-	}
-
-	@Test
-	@DisplayName("예약 만료 요청이 최종 실패하면 DLQ에서 예약을 다시 만료 처리한다")
-	void retriesFailedReservationExpiration() {
-		String message = "reservation-expire-requested-dlt";
-		PaymentEvent.PaymentFailedEvent payload =
-			new PaymentEvent.PaymentFailedEvent("reservation-uid", "결제 거절");
-		EventEnvelope<PaymentEvent.PaymentFailedEvent> envelope =
-			EventEnvelope.of(EventType.RESERVATION_EXPIRE_REQUESTED, payload, java.time.Instant.EPOCH);
-		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.RESERVATION_EXPIRE_REQUESTED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PaymentFailedEvent.class))
-			.willReturn(envelope);
-
-		consumer.consumeDlqEvents(message, acknowledgment);
-
-		then(reservationService).should().expireReservation(payload);
 		then(acknowledgment).should().acknowledge();
 	}
 
@@ -427,10 +275,10 @@ class DlqConsumerTest {
 	@Test
 	@DisplayName("지원하는 이벤트라도 페이로드를 파싱할 수 없으면 무한 재시도하지 않는다")
 	void acknowledgesPoisonPayload() {
-		String message = "malformed-payment-completed-dlt";
+		String message = "malformed-pg-cancel-succeeded-dlt";
 		given(debeziumEventParser.getEventType(message))
-			.willReturn(EventType.PAYMENT_COMPLETED.name());
-		given(debeziumEventParser.parse(message, PaymentEvent.PaymentCompletedEvent.class))
+			.willReturn(EventType.PG_CANCEL_CALL_SUCCEEDED.name());
+		given(debeziumEventParser.parse(message, PaymentEvent.PgCancelCallSucceededEvent.class))
 			.willThrow(new DebeziumEventParsingException(new IOException("malformed payload")));
 
 		consumer.consumeDlqEvents(message, acknowledgment);

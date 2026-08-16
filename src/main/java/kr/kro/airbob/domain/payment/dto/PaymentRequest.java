@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import kr.kro.airbob.outbox.EventPayload;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -15,12 +14,7 @@ public class PaymentRequest {
 		@NotBlank @Size(max = 200) String paymentKey,
 		@NotBlank String orderId,
 		@NotNull @Positive Integer amount
-	)implements EventPayload {
-		@Override
-		public String getId() {
-			return this.orderId;
-		}
-	}
+	) {}
 
 	public record Cancel(
 		@NotBlank(message = "취소 사유는 필수입니다.")

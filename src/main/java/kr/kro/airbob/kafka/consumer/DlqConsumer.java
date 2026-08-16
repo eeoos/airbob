@@ -13,12 +13,8 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
-import kr.kro.airbob.domain.payment.service.PaymentApprovalService;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationProcessor;
-import kr.kro.airbob.domain.payment.service.PaymentCompensationService;
-import kr.kro.airbob.domain.payment.service.PaymentConfirmationProcessor;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
@@ -47,13 +43,10 @@ public class DlqConsumer {
 
 	private final DebeziumEventParser debeziumEventParser;
 	private final SlackNotificationService slackNotificationService;
-	private final PaymentCompensationService paymentCompensationService;
-	private final PaymentApprovalService paymentApprovalService;
 	private final PaymentCancellationProcessor paymentCancellationProcessor;
-	private final PaymentConfirmationProcessor paymentConfirmationProcessor;
 	private final ReservationService reservationService;
 	private final OutboxEventPublisher outboxEventPublisher;
-	private final PaymentGatewayWorker paymentGatewayWorker;
+	private final PaymentCancellationGatewayWorker paymentCancellationGatewayWorker;
 
 	@RetryableTopic(
 		attempts = "4",
@@ -127,25 +120,6 @@ public class DlqConsumer {
 
 	private void recoverEvent(EventType eventType, String message) {
 		switch (eventType) {
-			case PAYMENT_CONFIRM_REQUESTED ->
-				paymentApprovalService.preparePgCall(parsePayload(message, PaymentRequest.Confirm.class));
-			case PAYMENT_COMPLETED, RESERVATION_CONFIRM_REQUESTED -> {
-				PaymentEvent.PaymentCompletedEvent event = parsePayload(
-					message, PaymentEvent.PaymentCompletedEvent.class);
-				log.warn(
-					"[DLQ-COMPENSATION] 예약 확정 실패에 대한 결제 보상 트랜잭션 시작. ReservationUID: {}",
-					event.reservationUid()
-				);
-				paymentCompensationService.compensate(event.reservationUid());
-			}
-			case PG_CALL_REQUESTED ->
-				paymentGatewayWorker.processConfirmRequest(parsePayload(message, PaymentRequest.Confirm.class));
-			case PG_CALL_SUCCEEDED -> paymentConfirmationProcessor.processSuccess(
-				parsePayload(message, PaymentEvent.PgCallSucceededEvent.class));
-			case PG_CALL_FAILED -> paymentConfirmationProcessor.processFailure(
-				parsePayload(message, PaymentEvent.PgCallFailedEvent.class));
-			case PAYMENT_FAILED, RESERVATION_EXPIRE_REQUESTED -> reservationService.expireReservation(
-				parsePayload(message, PaymentEvent.PaymentFailedEvent.class));
 			case PG_CANCEL_CALL_SUCCEEDED -> paymentCancellationProcessor.processSuccess(
 				parsePayload(message, PaymentEvent.PgCancelCallSucceededEvent.class));
 			case PG_CANCEL_CALL_FAILED -> paymentCancellationProcessor.processFailure(
@@ -162,7 +136,7 @@ public class DlqConsumer {
 				publishPaymentCancellationRequest(
 					event.reservationUid(), event.cancelReason(), event.cancelAmount());
 			}
-			case PG_CANCEL_CALL_REQUESTED -> paymentGatewayWorker.processCancelRequest(
+			case PG_CANCEL_CALL_REQUESTED -> paymentCancellationGatewayWorker.processCancelRequest(
 				parsePayload(message, PaymentEvent.PaymentCancellationRequestedEvent.class));
 			case PAYMENT_CANCELLATION_COMPLETED -> {
 				PaymentEvent.PaymentCancellationCompletedEvent event = parsePayload(

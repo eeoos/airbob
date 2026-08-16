@@ -22,6 +22,7 @@
 - Before: 예약별 `ReservationHistoryRepository.save()`
 - After: `JdbcTemplate.batchUpdate()`를 이용한 100건 단위 INSERT
 - 유지: 만료 대상 SELECT와 관리 상태의 reservation dirty-check UPDATE
+- 추가: 만료 예약 ID 묶음에 사용된 쿠폰을 복원하는 JPQL UPDATE 1회 (`N > 0`)
 - 유지: 하나의 Spring 트랜잭션 경계
 - 제외: Kafka가 처리하는 단건 예약 상태 변경 경로
 - 제외: 정산, 쿠폰 발급 등 다른 쓰기 경로
@@ -36,9 +37,10 @@ After 경로는 다음 순서로 실행된다.
 
 1. 하나의 cutoff 시각으로 만료된 `PAYMENT_PENDING` 예약을 조회한다.
 2. 조회한 관리 엔티티를 `EXPIRED`로 변경하고 history snapshot을 생성한다.
-3. 모든 history를 100건 단위 JDBC batch로 저장한다.
-4. history batch가 모두 성공한 뒤 예약 hold 제거를 호출한다.
-5. 트랜잭션 commit 시 reservation UPDATE가 dirty checking으로 반영된다.
+3. 만료 예약에 연결된 사용 쿠폰을 ID 묶음으로 한 번에 복원한다.
+4. 모든 history를 100건 단위 JDBC batch로 저장한다.
+5. history batch가 모두 성공한 뒤 예약 hold 제거를 호출한다.
+6. 트랜잭션 commit 시 reservation UPDATE가 dirty checking으로 반영된다.
 
 `JdbcTemplate`은 JPA와 같은 `DataSource` 및 Spring 트랜잭션에 참여한다. 따라서 중간 batch가 실패하면 앞에서 성공한 history chunk는 rollback되고 관리 엔티티의 reservation 상태 변경도 DB에 반영되지 않는다.
 
@@ -86,12 +88,12 @@ Hibernate `StatementInspector`는 `JdbcTemplate` SQL을 볼 수 없으므로 JDB
 | --- | ---: | ---: |
 | Hibernate SELECT | 1 | 1 |
 | Hibernate INSERT | N | 0 |
-| Hibernate UPDATE | N | N |
-| Hibernate TOTAL | `2N + 1` | `N + 1` |
+| Hibernate UPDATE | N | `N + 1` |
+| Hibernate TOTAL | `2N + 1` | `N + 2` |
 | JDBC batch 호출 | 0 | `ceil(N / 100)` |
 | JDBC 제출 행 | 0 | N |
 
-이 표의 `Hibernate TOTAL`은 raw JDBC 호출을 포함하지 않는다. 또한 Connector/J의 `rewriteBatchedStatements=true`가 실제 wire-level SQL을 재작성할 수 있으므로 JDBC batch 호출 수를 DB 네트워크 왕복 수와 완전히 같은 값으로 단정하지 않는다.
+After의 고정 UPDATE 1회는 사용된 쿠폰이 없는 fixture에서도 실행되는 멱등 bulk UPDATE다. 이 표의 `Hibernate TOTAL`은 raw JDBC 호출을 포함하지 않는다. 또한 Connector/J의 `rewriteBatchedStatements=true`가 실제 wire-level SQL을 재작성할 수 있으므로 JDBC batch 호출 수를 DB 네트워크 왕복 수와 완전히 같은 값으로 단정하지 않는다.
 
 ## 로컬 통제 측정
 
@@ -124,7 +126,7 @@ hold 제거 대상과 호출 수는 검증하지만 네트워크는 발생시키
 
 ### 로컬 결과
 
-각 행은 원시 표본 10개를 사용했다. 표본이 10개인 nearest-rank p95는 열 번째 값이므로 max와 같다.
+아래 수치는 쿠폰 복원 UPDATE가 추가되기 전 커밋의 원시 표본이다. 기능 경계가 바뀌었으므로 성능 수치는 다음 격리 측정에서 다시 수집해야 한다. 각 행은 원시 표본 10개를 사용했고, 표본이 10개인 nearest-rank p95는 열 번째 값이므로 max와 같다.
 
 | N | Variant | Min (ms) | p50 (ms) | p95 (ms) |
 | ---: | --- | ---: | ---: | ---: |

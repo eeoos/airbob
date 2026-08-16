@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.coupon.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +43,11 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
 	@Query("update MemberCoupon mc set mc.used = false, mc.usedAt = null "
 		+ "where mc.reservationId = :reservationId and mc.used = true")
 	int restoreByReservationId(@Param("reservationId") Long reservationId);
+
+	@Modifying
+	@Query("update MemberCoupon mc set mc.used = false, mc.usedAt = null "
+		+ "where mc.reservationId in :reservationIds and mc.used = true")
+	int restoreAllByReservationIds(@Param("reservationIds") Collection<Long> reservationIds);
 
 	/**
 	 * 취소 보상(취소 실패) 시 복원했던 쿠폰을 다시 사용 처리한다. 멱등 — 대상이 없으면 0.

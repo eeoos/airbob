@@ -13,6 +13,12 @@ import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.payment.entity.Payment;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
+	Optional<Payment> findByReservationId(Long reservationId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select payment from Payment payment where payment.reservation.id = :reservationId")
+	Optional<Payment> findByReservationIdWithLock(@Param("reservationId") Long reservationId);
+
 	Optional<Payment> findByReservationReservationUid(UUID reservationUid);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

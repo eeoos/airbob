@@ -1,7 +1,6 @@
 package kr.kro.airbob.search.service;
 
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -10,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.GeoLocation;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
@@ -19,14 +19,13 @@ import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonGeneratorFactory;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
 import kr.kro.airbob.search.dto.AccommodationSearchResponse;
+import kr.kro.airbob.search.exception.SearchUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,24 +65,6 @@ public class AccommodationSearchService {
 
         Query query = buildQuery(req, viewport, eligibleTimeZones);
 
-        /*//
-        JsonGeneratorFactory factory = esClient._transport()
-            .jsonpMapper()
-            .jsonProvider()
-            .createGeneratorFactory(null);
-
-        StringWriter writer = new StringWriter();
-        JsonGenerator generator = factory.createGenerator(writer);
-
-
-        // query → JSON 으로 변환
-        esClient._transport().jsonpMapper().serialize(query, generator);
-        generator.close(); // flush & close
-
-        System.out.println("es query:");
-        System.out.println(writer.toString());
-        //*/
-
         SearchRequest searchReq = new SearchRequest.Builder()
                 .index(INDEX)
                 .query(query)
@@ -94,9 +75,9 @@ public class AccommodationSearchService {
         SearchResponse<AccommodationDocument> res;
         try {
             res = esClient.search(searchReq, AccommodationDocument.class);
-        } catch (IOException e) {
+        } catch (IOException | ElasticsearchException e) {
             log.error("ES search failed", e);
-            return createEmpty(pageable);
+            throw new SearchUnavailableException(e);
         }
 
         List<AccommodationDocument> docs = res.hits().hits()

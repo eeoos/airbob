@@ -14,8 +14,8 @@ import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.service.PaymentQueryService;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
+import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -23,16 +23,16 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api")
 public class PaymentController {
 
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final PaymentOperationCommandService paymentOperationCommandService;
 	private final PaymentQueryService paymentQueryService;
 
 	@PostMapping("/v1/payments/confirm")
-	public ResponseEntity<ApiResponse<Void>> confirmPayment(@Valid @RequestBody PaymentRequest.Confirm request) {
-		outboxEventPublisher.save(
-			EventType.PAYMENT_CONFIRM_REQUESTED,
-			request
-		);
-		return ResponseEntity.accepted().body(ApiResponse.success());
+	public ResponseEntity<ApiResponse<Accepted>> confirmPayment(
+		@Valid @RequestBody PaymentRequest.Confirm request,
+		@CurrentMemberId Long memberId
+	) {
+		return ResponseEntity.accepted()
+			.body(ApiResponse.success(paymentOperationCommandService.requestConfirmation(request, memberId)));
 	}
 
 	@GetMapping("/v1/payments/{paymentKey}")
