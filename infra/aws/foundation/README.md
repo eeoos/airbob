@@ -4,6 +4,13 @@ This root owns persistent resources only. Ephemeral VPC, compute, database,
 load-generator, and service hosts belong to the separate `lab` state and must
 never be added here.
 
+The foundation also owns `lab.airbob.internal` and a subnet-free `/28` anchor
+VPC because Route 53 private hosted zones must remain associated with at least
+one VPC. The anchor VPC has no subnet, route to the internet, or hourly VPC
+charge. The private hosted zone adds the standard hosted-zone monthly charge.
+It is protected with `prevent_destroy`; the lab role can associate only its
+regional VPC and change only the six approved service A records.
+
 ## Live prerequisites
 
 Do not run a live plan until all of these inputs are known and reviewed:
@@ -100,6 +107,12 @@ the DNS name and value are unchanged.
 The DNS and lab consumers must reject any SSM contract whose `schemaVersion`
 is not exactly supported; they must not infer missing fields or read the full
 foundation state as a fallback.
+
+Route 53 does not support tag-based IAM conditions. For that reason the lab
+role never creates, deletes, or tags a hosted zone. Its private-DNS permission
+uses the exact foundation zone ARN, the `route53:VPCs` regional condition, and
+the six normalized record names. This prevents Phase 2 teardown from reaching
+the public `airbob.cloud` zone.
 
 Evidence publication uses a single tagged `PutObject` request with
 `Retention=raw|summary`; the lab role does not authorize multipart upload

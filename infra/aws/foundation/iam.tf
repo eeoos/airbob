@@ -170,13 +170,14 @@ locals {
       {
         Sid    = "FoundationIdentityReadOnly"
         Effect = "Allow"
-        Action = ["iam:GetOpenIDConnectProvider", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:ListRoleTags"]
+        Action = ["iam:GetOpenIDConnectProvider", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListPolicyTags", "iam:ListPolicyVersions", "iam:ListRolePolicies", "iam:ListRoleTags"]
         Resource = [
           aws_iam_openid_connect_provider.github.arn,
           "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
           aws_iam_role.expiry_observer.arn,
+          aws_iam_policy.lab_host_boundary.arn,
         ]
       },
       {
@@ -254,6 +255,27 @@ locals {
           "route53:ListTagsForResource",
         ]
         Resource = aws_route53_zone.public.arn
+      },
+      {
+        Sid    = "PrivateDnsFoundationRead"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeTags",
+          "ec2:DescribeVpcAttribute",
+          "ec2:DescribeVpcs",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "PrivateZoneReadAndTag"
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeTagsForResource",
+          "route53:GetHostedZone",
+          "route53:ListResourceRecordSets",
+          "route53:ListTagsForResource",
+        ]
+        Resource = aws_route53_zone.private.arn
       },
       {
         Sid      = "PublicZoneRecordsConfigure"
@@ -447,6 +469,12 @@ locals {
         Effect   = "Allow"
         Action   = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:CompleteLayerUpload", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload", "ecr:PutImage", "ecr:UploadLayerPart"]
         Resource = local.all_ecr_repository_arns
+      },
+      {
+        Sid      = "PublishImmutableServiceBundles"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject"]
+        Resource = "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*"
       },
     ]
   })

@@ -22,6 +22,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Set up Terraform 1.15.5
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
       - name: Verify AWS service bundle contracts
         run: |
           bash infra/aws/tests/service-bundle-verifier-test.sh
@@ -31,6 +37,13 @@ jobs:
 
       - name: Verify immutable AWS image publication contracts
         run: bash infra/aws/tests/image-publication-test.sh
+
+      - name: Verify AWS foundation and Phase 2 Terraform contracts
+        run: |
+          bash infra/aws/tests/foundation-test.sh
+          bash infra/aws/tests/lab-phase2-test.sh
+          bash infra/aws/tests/network-egress-test.sh
+          bash infra/aws/tests/service-bundle-publisher-test.sh
 
       - name: Build and Test
         run: ./gradlew clean build

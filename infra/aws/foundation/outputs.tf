@@ -74,6 +74,15 @@ output "public_zone_name_servers" {
   value       = aws_route53_zone.public.name_servers
 }
 
+output "private_dns_zone" {
+  description = "Protected private DNS zone anchored by a subnet-free persistent VPC."
+  value = {
+    id            = aws_route53_zone.private.zone_id
+    name          = aws_route53_zone.private.name
+    anchor_vpc_id = aws_vpc.private_dns_anchor.id
+  }
+}
+
 output "api_certificate_arn" {
   description = "ACM certificate ARN for api.airbob.cloud."
   value       = aws_acm_certificate.api.arn

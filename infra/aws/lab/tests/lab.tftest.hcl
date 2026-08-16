@@ -26,9 +26,26 @@ mock_provider "aws" {
       value = file("tests/fixtures/lab-contract.json")
     }
   }
+
+  override_data {
+    target          = data.aws_ami.selected
+    override_during = plan
+    values = {
+      id           = "ami-0123456789abcdef0"
+      architecture = "x86_64"
+      owner_id     = "137112412989"
+      state        = "available"
+    }
+  }
 }
 
-run "validate_zero_resource_boundary" {
+variables {
+  run_id     = "contract-test"
+  expires_at = "1893456000"
+  ami_id     = "ami-0123456789abcdef0"
+}
+
+run "validate_persistent_boundary_with_network_phase" {
   command = plan
 
   assert {
@@ -40,7 +57,7 @@ run "validate_zero_resource_boundary" {
       output.persistent_resource_contract.api_fqdn == "api.airbob.cloud" &&
       length(output.persistent_resource_contract.ecr_repositories) == 10
     )
-    error_message = "The empty lab state must validate the exact persistent contract without creating resources."
+    error_message = "The lab state must validate the exact persistent contract without reading foundation state."
   }
 }
 
@@ -57,7 +74,7 @@ run "reject_unsupported_contract_schema" {
     }
   }
 
-  expect_failures = [output.persistent_resource_contract]
+  expect_failures = [check.foundation_boundary, output.persistent_resource_contract]
 }
 
 run "reject_extra_contract_field" {
@@ -73,7 +90,7 @@ run "reject_extra_contract_field" {
     }
   }
 
-  expect_failures = [output.persistent_resource_contract]
+  expect_failures = [check.foundation_boundary, output.persistent_resource_contract]
 }
 
 run "reject_substituted_dataset_bucket" {
@@ -89,7 +106,7 @@ run "reject_substituted_dataset_bucket" {
     }
   }
 
-  expect_failures = [output.persistent_resource_contract]
+  expect_failures = [check.foundation_boundary, output.persistent_resource_contract]
 }
 
 run "reject_mismatched_ecr_pair" {
@@ -115,7 +132,7 @@ run "reject_mismatched_ecr_pair" {
     }
   }
 
-  expect_failures = [output.persistent_resource_contract]
+  expect_failures = [check.foundation_boundary, output.persistent_resource_contract]
 }
 
 run "reject_wrong_account" {

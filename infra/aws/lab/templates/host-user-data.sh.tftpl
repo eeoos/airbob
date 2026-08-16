@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+mode='${mode}'
+service='${service}'
+region='${region}'
+
+mkdir -p /var/lib/airbob /etc/airbob /opt/airbob
+printf '%s\n' "$service" > /etc/airbob/service-name
+printf '%s\n' "$region" > /etc/airbob/region
+chmod 600 /etc/airbob/service-name /etc/airbob/region
+systemctl enable --now amazon-ssm-agent
+
+if ! command -v aws >/dev/null 2>&1; then
+  dnf install -y awscli2 || dnf install -y awscli
+fi
+dnf install -y curl jq tar gzip openssl
+
+if [[ "$mode" == probe ]]; then
+  printf '%s\n' 'ready' > /var/lib/airbob/probe-ready
+  exit 0
+fi
+
+[[ "$mode" == service ]] || { printf '%s\n' 'unsupported host bootstrap mode' >&2; exit 1; }
+dnf install -y docker
+systemctl enable --now docker
+
+compose_version='${docker_compose_version}'
+compose_sha256='${docker_compose_sha256}'
+compose_url="https://github.com/docker/compose/releases/download/v$compose_version/docker-compose-linux-x86_64"
+install -d -m 755 /usr/local/lib/docker/cli-plugins
+curl --fail --silent --show-error --location --retry 5 --output /tmp/docker-compose "$compose_url"
+printf '%s  %s\n' "$compose_sha256" /tmp/docker-compose | sha256sum --check --status
+install -m 755 /tmp/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+rm -f /tmp/docker-compose
+[[ "$(docker compose version --short)" == "$compose_version" ]]
+
+bundle_bucket='${bundle_bucket}'
+archive_key='${bundle_archive_key}'
+checksum_key='${bundle_checksum_key}'
+manifest_key='${bundle_manifest_key}'
+expected_commit='${bundle_commit}'
+expected_sha256='${bundle_sha256}'
+archive_name="airbob-service-bundles-$expected_commit.tar.gz"
+release_root=/opt/airbob/release
+staging=/opt/airbob/staging
+
+install -d -m 700 "$staging" "$release_root"
+aws --region "$region" s3 cp "s3://$bundle_bucket/$archive_key" "$staging/$archive_name" --only-show-errors
+aws --region "$region" s3 cp "s3://$bundle_bucket/$checksum_key" "$staging/$archive_name.sha256" --only-show-errors
+aws --region "$region" s3 cp "s3://$bundle_bucket/$manifest_key" "$staging/manifest.json" --only-show-errors
+
+[[ "$(jq -r '.schemaVersion' "$staging/manifest.json")" == 1 ]]
+[[ "$(jq -r '.commit' "$staging/manifest.json")" == "$expected_commit" ]]
+[[ "$(jq -r '.archive' "$staging/manifest.json")" == "$archive_name" ]]
+[[ "$(jq -r '.sha256' "$staging/manifest.json")" == "$expected_sha256" ]]
+jq -e --argjson expected '${bundle_files_json}' '.files == $expected' "$staging/manifest.json" >/dev/null
+[[ "$(cat "$staging/$archive_name.sha256")" == "$expected_sha256  $archive_name" ]]
+printf '%s  %s\n' "$expected_sha256" "$staging/$archive_name" | sha256sum --check --status
+
+tar -tzf "$staging/$archive_name" > "$staging/archive-members"
+[[ "$(wc -l < "$staging/archive-members" | tr -d ' ')" == 19 ]]
+jq -r '.[]' <<<'${bundle_files_json}' | LC_ALL=C sort > "$staging/expected-members"
+LC_ALL=C sort "$staging/archive-members" > "$staging/sorted-members"
+cmp -s "$staging/expected-members" "$staging/sorted-members"
+while IFS= read -r member; do
+  case "/$member/" in
+    */../*|//* ) printf '%s\n' 'unsafe service bundle member' >&2; exit 1 ;;
+  esac
+done < "$staging/archive-members"
+tar -xzf "$staging/$archive_name" -C "$release_root"
+
+cat >/etc/airbob/images.env <<'EOF'
+${images_env}
+EOF
+chmod 600 /etc/airbob/images.env
+
+printf '%s\n' "$expected_commit" > /var/lib/airbob/bundle-commit
+printf '%s\n' "$expected_sha256" > /var/lib/airbob/bundle-sha256
+printf '%s\n' 'ready' > /var/lib/airbob/release-ready

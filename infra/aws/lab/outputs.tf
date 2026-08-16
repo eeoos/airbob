@@ -11,6 +11,8 @@ output "persistent_resource_contract" {
     zone_id                 = try(local.lab_contract.zone_id, null)
     api_fqdn                = try(local.lab_contract.api_fqdn, null)
     api_certificate_arn     = try(local.lab_contract.api_certificate_arn, null)
+    private_dns_zone_id     = try(local.lab_contract.private_dns_zone_id, null)
+    private_dns_zone_name   = try(local.lab_contract.private_dns_zone_name, null)
     ecr_repositories        = local.ecr_repositories
   }
 
@@ -47,5 +49,41 @@ output "state_boundaries" {
     foundation = try(local.lab_contract.foundation_state_key, null)
     dns        = try(local.lab_contract.dns_state_key, null)
     lab        = try(local.lab_contract.lab_state_key, null)
+  }
+}
+
+output "phase2_contract" {
+  description = "Non-secret Phase 2 topology and ordered transition status."
+  value = {
+    run_id                       = var.run_id
+    deployment_phase             = var.deployment_phase
+    vpc_id                       = module.network.vpc_id
+    primary_private_route_table  = module.network.private_route_table_ids.primary
+    s3_gateway_endpoint_id       = module.network.s3_endpoint_id
+    nat_instance_id              = module.nat.instance_id
+    nat_public_ip                = module.nat.public_ip
+    probe_enabled                = local.probe_enabled
+    probe_instance_id            = try(module.egress_probe.instance_ids["egress-probe"], null)
+    expected_network_receipt_key = local.probe_enabled ? try("network-receipts/${var.run_id}/${module.egress_probe.instance_ids["egress-probe"]}.json", null) : "network-receipts/${var.run_id}/${var.verified_probe_instance_id}.json"
+    services                     = module.service_hosts.instance_ids
+    private_dns_zone_id          = local.lab_contract.private_dns_zone_id
+    instance_types               = { for service, host in local.service_hosts : service => host.instance_type }
+    redis_topology = {
+      host_count      = 1
+      redis_processes = 2
+      exporters       = 2
+      general         = "redis-general.lab.airbob.internal:6379"
+      cache           = "redis-cache.lab.airbob.internal:6380"
+    }
+  }
+
+  precondition {
+    condition     = local.network_receipt_valid && local.probe_clearance_valid
+    error_message = "Phase 2 output is unavailable because its required transition receipts are invalid."
+  }
+
+  precondition {
+    condition     = local.bundle_release_valid && local.phase2_images_valid
+    error_message = "Phase 2 service output is unavailable because the immutable runtime release is invalid."
   }
 }

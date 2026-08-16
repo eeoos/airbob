@@ -25,6 +25,8 @@ locals {
     zone_id                 = aws_route53_zone.public.zone_id
     api_fqdn                = local.api_fqdn
     api_certificate_arn     = aws_acm_certificate.api.arn
+    private_dns_zone_id     = aws_route53_zone.private.zone_id
+    private_dns_zone_name   = aws_route53_zone.private.name
     ecr_repositories        = local.ecr_repositories
   }
 }

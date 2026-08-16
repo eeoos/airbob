@@ -48,12 +48,38 @@ mock_provider "aws" {
   }
 
   override_resource {
+    target          = aws_iam_policy.lab_host_boundary
+    override_during = plan
+    values = {
+      arn = "arn:aws:iam::942632789808:policy/airbob-performance-lab-host-boundary"
+    }
+  }
+
+  override_resource {
     target          = aws_route53_zone.public
     override_during = plan
     values = {
       arn          = "arn:aws:route53:::hostedzone/Z0123456789EXAMPLE"
       zone_id      = "Z0123456789EXAMPLE"
       name_servers = ["ns-1.awsdns.example", "ns-2.awsdns.example", "ns-3.awsdns.example", "ns-4.awsdns.example"]
+    }
+  }
+
+  override_resource {
+    target          = aws_vpc.private_dns_anchor
+    override_during = plan
+    values = {
+      id = "vpc-0privateanchor123"
+    }
+  }
+
+  override_resource {
+    target          = aws_route53_zone.private
+    override_during = plan
+    values = {
+      arn     = "arn:aws:route53:::hostedzone/Z0987654321PRIVATE"
+      zone_id = "Z0987654321PRIVATE"
+      name    = "lab.airbob.internal"
     }
   }
 
@@ -364,6 +390,8 @@ run "foundation_contract" {
         "zone_id",
         "api_fqdn",
         "api_certificate_arn",
+        "private_dns_zone_id",
+        "private_dns_zone_name",
         "ecr_repositories",
       ])
     )
@@ -396,9 +424,69 @@ run "foundation_contract" {
       length(local.role_trust_policies.image) <= 2048 &&
       length(local.foundation_admin_policy) <= 10240 &&
       length(local.lab_operator_policy) <= 10240 &&
+      length(local.lab_compute_policy) <= 10240 &&
+      length(local.lab_host_boundary_policy) <= 6144 &&
       length(local.image_publisher_policy) <= 10240
     )
     error_message = "Role trust and inline policies must remain within default AWS IAM document-size quotas."
+  }
+
+  assert {
+    condition = (
+      aws_iam_policy.lab_host_boundary.name == "airbob-performance-lab-host-boundary" &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "iam:PutRolePolicy") &&
+      one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "CreateBoundedHostRoles"
+      ]).Resource == "arn:aws:iam::942632789808:role/airbob-lab-host-*" &&
+      one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "CreateBoundedHostRoles"
+      ]).Condition.StringEquals["iam:PermissionsBoundary"] == aws_iam_policy.lab_host_boundary.arn &&
+      !contains(one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "ManageBoundedHostRoles"
+      ]).Action, "iam:CreateRole") &&
+      one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "PassBoundedRolesToEc2"
+      ]).Resource == "arn:aws:iam::942632789808:role/airbob-lab-host-*" &&
+      one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "PassBoundedRolesToEc2"
+      ]).Condition.StringEquals["iam:PassedToService"] == "ec2.amazonaws.com" &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_compute_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "iam:UpdateAssumeRolePolicy") &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_compute_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "iam:PutRolePermissionsBoundary") &&
+      contains(one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "MutateTaggedEc2Lab"
+      ]).Action, "ec2:ModifyInstanceAttribute") &&
+      one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "ProbeEvidenceBucketLocation"
+      ]).Resource == aws_s3_bucket.managed["evidence"].arn &&
+      one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "ProbeEvidenceBucketLocation"
+      ]).Action == "s3:GetBucketLocation" &&
+      toset(one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "ReadNetworkReceipts"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+      ])
+    )
+    error_message = "Phase 2 compute permissions must force the immutable host boundary and exclude persistent-role escalation."
   }
 
   assert {
@@ -416,17 +504,65 @@ run "foundation_contract" {
     error_message = "The image publisher contract must remain scoped to exactly ten ECR repositories."
   }
 
+
   assert {
-    condition = toset(jsondecode(local.image_publisher_policy).Statement[1].Action) == toset([
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:BatchGetImage",
-      "ecr:CompleteLayerUpload",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:InitiateLayerUpload",
-      "ecr:PutImage",
-      "ecr:UploadLayerPart",
-    ])
-    error_message = "The image publisher must have only the exact ECR lookup, pull, and immutable-push actions."
+    condition = (
+      aws_vpc.private_dns_anchor.cidr_block == "10.255.255.240/28" &&
+      aws_vpc.private_dns_anchor.enable_dns_support &&
+      aws_vpc.private_dns_anchor.enable_dns_hostnames &&
+      aws_route53_zone.private.name == "lab.airbob.internal" &&
+      !aws_route53_zone.private.force_destroy &&
+      one(aws_route53_zone.private.vpc).vpc_id == aws_vpc.private_dns_anchor.id &&
+      local.lab_consumer_contract.private_dns_zone_id == aws_route53_zone.private.zone_id &&
+      local.lab_consumer_contract.private_dns_zone_name == "lab.airbob.internal"
+    )
+    error_message = "Foundation must protect the persistent private zone with a subnet-free anchor VPC."
+  }
+
+  assert {
+    condition = (
+      !contains(flatten([
+        for statement in jsondecode(local.lab_compute_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "route53:CreateHostedZone") &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_compute_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "route53:DeleteHostedZone") &&
+      one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "ChangePrivateServiceRecords"
+      ]).Resource == aws_route53_zone.private.arn &&
+      toset(one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "ChangePrivateServiceRecords"
+        ]).Condition["ForAllValues:StringEquals"]["route53:ChangeResourceRecordSetsNormalizedRecordNames"]) == toset([
+        "connect.lab.airbob.internal",
+        "elasticsearch.lab.airbob.internal",
+        "kafka.lab.airbob.internal",
+        "monitoring.lab.airbob.internal",
+        "redis-cache.lab.airbob.internal",
+        "redis-general.lab.airbob.internal",
+      ])
+    )
+    error_message = "The lab role must manage only six A records in the exact persistent private zone."
+  }
+
+  assert {
+    condition = (
+      toset(jsondecode(local.image_publisher_policy).Statement[1].Action) == toset([
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart",
+      ]) &&
+      toset(jsondecode(local.image_publisher_policy).Statement[2].Action) == toset(["s3:GetObject", "s3:PutObject"]) &&
+      jsondecode(local.image_publisher_policy).Statement[2].Resource == "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*"
+    )
+    error_message = "The publisher must have only exact immutable ECR and service-bundle object actions."
   }
 
   assert {

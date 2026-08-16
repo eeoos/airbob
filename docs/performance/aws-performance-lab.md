@@ -11,15 +11,16 @@
 | Six service-host Compose/config contracts | Implemented (configuration only) |
 | Debezium worker and connector template | Implemented (unrendered, enumerated sensitive-marker gate) |
 | Prometheus AWS target definitions | Implemented (static/config validation only) |
-| Verified nineteen-file bundle package | Implemented (local artifact only) |
+| Verified nineteen-file bundle package | Implemented (local package + immutable S3 publication workflow; not executed) |
 | Immutable app/infra image construction and publication | Implemented (workflow/config only; no ECR publication executed) |
-| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Image build/runtime proof configured; upload and SSM bootstrap not implemented |
-| Elasticsearch host `vm.max_map_count` runtime enforcement | Not implemented yet |
-| Terraform persistent foundation | Implemented (configuration/static tests only; not applied) |
-| Terraform DNS/lab state boundaries | Implemented (DNS contract + zero-resource lab root; not applied) |
+| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; repository-s3 and live proof pending |
+| Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration implemented; not executed |
+| Terraform persistent foundation | Implemented, including protected private DNS anchor (configuration/static tests only; not applied) |
+| Terraform DNS/lab state boundaries | Implemented (DNS contract + Phase 2 ephemeral lab root; not applied) |
 | Expiry observer and SNS/CloudWatch alerts | Implemented (read-only configuration/static tests; disabled, delivery unverified, and not applied) |
 | Lease/fencing cleanup controller and automatic destroy | Not implemented yet |
-| Ephemeral VPC/compute/RDS/ALB Terraform | Not implemented yet |
+| Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
+| Ephemeral RDS/ALB/App ASG Terraform | Not implemented yet |
 | Route 53 cutover | Not executed |
 | AWS performance evidence | Not collected |
 
@@ -30,10 +31,13 @@ path families are excluded. The content gate rejects the enumerated password,
 secret, token, credential, API/access/private-key, service-account, and private
 key marker families except for six exact reviewed placeholder/guard lines. It
 does not prove that arbitrary secret material hidden under a benign key is
-absent. The persistent foundation, separate weighted-DNS state, and empty lab
+absent. The persistent foundation, separate weighted-DNS state, and Phase 2 lab
 destruction boundary are represented and statically tested, but have not been
-planned against or applied to AWS. The lab root intentionally has no billable
-resources yet. A disabled-by-default observer discovers the lab by stable
+planned against or applied to AWS. Applying the lab root now declares billable
+NAT/probe or dependency-service EC2/EBS/EIP resources according to its explicit
+phase. The foundation additionally declares one persistent private hosted zone
+(standard monthly hosted-zone charge) and a subnet-free anchor VPC with no
+hourly VPC charge. A disabled-by-default observer discovers the lab by stable
 identity tags, reports missing/invalid lifecycle tags, and can alert through a
 customer-KMS-encrypted CloudWatch/SNS path after explicit email confirmation.
 It cannot mutate DNS,
@@ -42,9 +46,10 @@ multi-architecture app/infra builds, exact ECR publication manifests, OIDC-only
 publisher workflows, and CI-side image runtime checks, but none has been run
 against ECR yet. The OCI compatibility job alone retains mutable GHCR `latest`
 tags for the two custom images; AWS consumers accept only ECR digest references.
-This work does not upload the bundle package, enforce host prerequisites through SSM, create AWS resources, apply
-Terraform, migrate authoritative DNS, change Route 53 traffic, or establish
-performance results.
+The repository can now publish the bundle package immutably and enforce Phase 2
+host prerequisites through SSM, but neither path has run against AWS. This work
+does not apply Terraform, create live AWS resources, migrate authoritative DNS,
+change Route 53 traffic, restore data, or establish performance results.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`. It also materializes the aggregate validator, its
@@ -56,8 +61,9 @@ trusted `PATH`/toolchain. The three files cannot appear atomically as one
 filesystem transaction, so consumers must treat the release manifest as the
 completion marker and verify its archive name, checksum, commit, and exact file
 list before using the archive. The SHA-256 protects integrity of the produced
-archive; it is not an authenticity signature. Remote upload and repository/S3
-trust remain unimplemented. The fixed-corpus sensitive-key gate complements,
+archive; it is not an authenticity signature. Remote upload is implemented
+with an immutable-key/manifest-last contract but has not been executed;
+repository/S3 runtime trust remains unproven. The fixed-corpus sensitive-key gate complements,
 but does not replace, repository secret scanning and human review for
 benign-looking keys.
 

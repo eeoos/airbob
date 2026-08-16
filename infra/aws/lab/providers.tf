@@ -9,6 +9,7 @@ provider "aws" {
       Stack       = "lab"
       ManagedBy   = "terraform"
       Persistence = "ephemeral"
+      ExpiresAt   = var.expires_at
     }
   }
 }

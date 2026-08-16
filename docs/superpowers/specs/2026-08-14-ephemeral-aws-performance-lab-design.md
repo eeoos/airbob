@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 비용 자원이 없는 lab destruction boundary, 삭제 권한이 없는 만료 observer/알림까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Observer는 자동 cleanup의 대체물이 아니며 lease/fencing controller, DNS rollback 및 강제 destroy는 아직 구현되지 않았다. Immutable app/infra image의 digest-pinned build, OIDC-only ECR publication manifest와 image runtime 검증 workflow는 구현했지만 실제 ECR 발행은 수행하지 않았다. bundle upload, SSM bootstrap/sysctl 적용, ephemeral VPC/compute/RDS/ALB, DNS 이전·전환과 성능 증거 수집도 아직 진행 전이다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 bundle packaging/immutable S3 publication 계약이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 Phase 2의 ephemeral VPC/NAT/probe/dependency-service EC2 destruction boundary, 삭제 권한이 없는 만료 observer/알림까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Observer는 자동 cleanup의 대체물이 아니며 lease/fencing controller, DNS rollback 및 강제 destroy는 아직 구현되지 않았다. Immutable app/infra image의 digest-pinned build, OIDC-only ECR publication manifest와 image runtime 검증 workflow는 구현했지만 실제 ECR·bundle 발행은 수행하지 않았다. Phase 2 SSM bootstrap/sysctl/Redis memory·exporter gate도 코드와 mock/fake-CLI 검증까지만 완료되었으며 실제 runtime proof, RDS/ALB/App ASG, DNS 이전·전환과 성능 증거 수집은 아직 진행 전이다.
 
 ## 배경
 
@@ -149,6 +149,7 @@ OCI와 AWS는 데이터를 공유하지 않는다. DNS를 AWS로 전환하면 �
 | GitHub OIDC IAM roles | 수동·예약 workflow 인증 | static AWS access key 금지, foundation/lab 권한 분리 |
 | ACM certificate | ALB의 `api.airbob.cloud` TLS | Route 53 zone으로 DNS 검증 |
 | Route 53 public hosted zone | `airbob.cloud` 권한 DNS | 가비아는 등록기관으로 유지, `prevent_destroy` |
+| Route 53 private hosted zone + anchor VPC | `lab.airbob.internal` 서비스 DNS | zone `prevent_destroy`, subnet/IGW 없는 `/28` anchor VPC, lab VPC association만 일회성 |
 | DNS 전환 state | `api`의 OCI/AWS weighted record 관리 | apex/`www` 정적 record와 분리, AWS가 없을 때 OCI만 유지 |
 | DynamoDB orchestration lease | 여러 state에 걸친 up/down 상호 배제 | on-demand, lock row 1개 |
 | 선택적 RDS dataset snapshot | dump에서 검증된 빠른 복원본 | 현재 dataset release만 유지 |
@@ -166,7 +167,7 @@ OCI와 AWS는 데이터를 공유하지 않는다. DNS를 AWS로 전환하면 �
 - RDS instance와 lab용 subnet/parameter group
 - Redis, Kafka, Debezium, Elasticsearch, monitoring EC2와 EBS
 - 선택적 load-generator EC2
-- lab 전용 IAM instance profile, security group, private DNS record
+- lab 전용 IAM instance profile, security group, private-zone VPC association과 서비스 A record
 - AWS 쪽 weighted public DNS record
 
 모든 일회성 자원에는 `Project=airbob`, `Environment=performance-lab`, `Stack=lab`, `ManagedBy=terraform`, `Persistence=ephemeral`, `ExpiresAt` 태그를 붙인다. 영구 foundation 자원은 `Stack=foundation`, `Persistence=persistent`로 분리한다.
@@ -229,13 +230,13 @@ IP CIDR 전체 허용 대신 security-group-to-security-group 참조를 사용�
 
 RDS master credential은 RDS가 관리하는 Secrets Manager secret을 사용한다. Redis와 애플리케이션 secret도 런타임에 SSM/Secrets Manager에서 읽으며 Terraform variable, state, user-data 출력과 GitHub log에 평문 값을 남기지 않는다. EC2가 내려받은 환경 파일은 root 전용 권한으로 저장한다.
 
-GitHub OIDC 권한도 수명 주기 경계와 맞춘다. 일반 `lab-operator`/만료 cleanup role은 lab tag가 붙은 자원을 관리하지만 Route 53을 직접 변경하거나 foundation을 삭제할 권한은 갖지 않는다. Route 53 IAM은 동일 이름/type의 OCI/AWS weighted set identifier를 구분하지 못하므로, DNS mutation은 orchestration lease와 fencing token, 두 origin health를 검증하는 전용 controller role/service만 수행한다. 로컬과 GitHub workflow는 같은 controller entry point를 호출한다. ECR/OIDC/S3 같은 영구 기반을 변경하는 `foundation-admin`은 별도 승인 경로에서만 사용한다. scheduled cleanup이 foundation state에 접근하거나 destroy할 수 없어야 한다.
+GitHub OIDC 권한도 수명 주기 경계와 맞춘다. 일반 `lab-operator`/만료 cleanup role은 lab tag가 붙은 자원을 관리하지만 public Route 53을 직접 변경하거나 foundation을 삭제할 권한은 갖지 않는다. 예외적으로 lab-operator는 foundation이 소유한 exact private-zone ARN에 lab VPC를 연결하고 아래 여섯 A record만 변경할 수 있다. Hosted zone 생성·삭제·tag 권한은 없다. Route 53 IAM은 동일 이름/type의 OCI/AWS weighted set identifier를 구분하지 못하므로, public DNS mutation은 orchestration lease와 fencing token, 두 origin health를 검증하는 전용 controller role/service만 수행한다. 로컬과 GitHub workflow는 같은 controller entry point를 호출한다. ECR/OIDC/S3 같은 영구 기반을 변경하는 `foundation-admin`은 별도 승인 경로에서만 사용한다. scheduled cleanup이 foundation state에 접근하거나 destroy할 수 없어야 한다.
 
 합성 데이터 실험실의 Kafka, Redis와 Elasticsearch 내부 연결은 private subnet과 SG로 격리하되 v1에서는 TLS를 추가하지 않는다. 외부 진입점인 ALB는 ACM 인증서로 HTTPS만 제공한다.
 
 ## Private DNS와 Docker 연결
 
-AWS의 각 EC2는 동일 Docker bridge에 있지 않으므로 OCI의 `redis`, `kafka`, `mysql` 같은 Compose 서비스명을 그대로 사용할 수 없다. Route 53 private hosted zone `lab.airbob.internal`에 다음 이름을 만든다.
+AWS의 각 EC2는 동일 Docker bridge에 있지 않으므로 OCI의 `redis`, `kafka`, `mysql` 같은 Compose 서비스명을 그대로 사용할 수 없다. Route 53 private hosted zone `lab.airbob.internal`은 foundation이 subnet과 IGW가 없는 `/28` anchor VPC와 함께 상시 보호한다. Route 53은 tag 기반 IAM 조건을 지원하지 않으므로 zone을 lab state에 두지 않는다. Lab state는 실행 중 자기 VPC association과 다음 여섯 A record만 만들고 down에서 그것만 제거한다.
 
 - `redis-general.lab.airbob.internal`
 - `redis-cache.lab.airbob.internal`
@@ -672,7 +673,7 @@ Route 53, CodeBuild, lease, EC2/RDS/ALB 삭제 권한이 없다. 따라서 알�
 않는다. 후속 controller/orphan scan은 authoritative lab state와 대조해야 한다. 자동 rollback/destroy는
 lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성화한다.
 
-비용이 집중되는 ALB, RDS, EC2와 public IPv4는 lab 수명에만 존재한다. 상시 남는 비용은 작은 S3/ECR 저장량, `airbob.cloud` Route 53 hosted zone, orchestration lease row와 선택적 dataset snapshot 정도다. Expiry observer를 구성하면 customer-managed KMS key와 CloudWatch alarm이 영구 foundation에 남고, 활성화하면 Lambda 호출·로그, custom metric과 SNS/KMS 요청 사용량도 추가되므로 별도 비용 항목으로 관측한다.
+비용이 집중되는 ALB, RDS, EC2와 public IPv4는 lab 수명에만 존재한다. 상시 남는 비용은 작은 S3/ECR 저장량, `airbob.cloud` public zone과 `lab.airbob.internal` private zone의 Route 53 hosted-zone 비용, orchestration lease row와 선택적 dataset snapshot 정도다. Private DNS anchor VPC는 subnet, NAT, IGW가 없어 별도 시간당 VPC 비용이 없다. Expiry observer를 구성하면 customer-managed KMS key와 CloudWatch alarm이 영구 foundation에 남고, 활성화하면 Lambda 호출·로그, custom metric과 SNS/KMS 요청 사용량도 추가되므로 별도 비용 항목으로 관측한다.
 
 ## 오류 처리 원칙
 
@@ -710,10 +711,11 @@ lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성�
 
 ### Phase 2. 네트워크와 서비스 EC2
 
-- VPC, subnet, SG, NAT instance, private DNS를 만든다.
-- disposable private probe로 NAT/S3 endpoint egress를 검증한 뒤 service fleet을 생성한다.
-- 범용/숙소 상세 Redis 2개와 exporter 2개, Kafka, Debezium, Elasticsearch 및 monitoring Compose bundle을 배포한다.
-- SSM health check와 범용/cache exporter scrape를 연결한다.
+- [x] Foundation 보호 private zone/anchor VPC와 lab VPC association, 2-AZ public/private subnet, SG, NAT instance, S3 gateway endpoint Terraform 계약을 구현·정적 검증한다.
+- [x] `network → probe-cleared → services`의 3단계와 egress/termination receipt를 강제해 disposable private probe 제거 전 service fleet 생성을 거부한다.
+- [x] 범용/숙소 상세 Redis 2개와 exporter 2개, Kafka, Debezium, Elasticsearch 및 monitoring의 고정 EC2/Compose/immutable bundle bootstrap 계약을 구현한다.
+- [x] SSM health, Redis memory/AOF/fragmentation/OOM gate와 범용/cache exporter 및 Prometheus scrape 검증을 연결한다.
+- [ ] foundation, image/bundle publication과 Phase 2 Terraform을 실제 AWS에 적용해 runtime proof와 비용/실패 evidence를 수집한다.
 
 ### Phase 3. 데이터 bootstrap
 

@@ -57,7 +57,7 @@ command -v terraform >/dev/null 2>&1 || fail "Terraform is required"
 for required_file in \
   backend.tf versions.tf providers.tf variables.tf locals.tf data.tf \
   storage.tf ecr.tf imports.tf oidc.tf iam.tf lease.tf dns.tf contracts.tf \
-  expiry-observer.tf outputs.tf README.md .terraform.lock.hcl \
+  expiry-observer.tf lab-compute.tf outputs.tf README.md .terraform.lock.hcl \
   lambda/expiry_observer.py tests/test_expiry_observer.py tests/foundation.tftest.hcl
 do
   [[ -f "$foundation_root/$required_file" && ! -L "$foundation_root/$required_file" ]] \
@@ -106,9 +106,20 @@ assert_contains "$foundation_root/imports.tf" 'id = "airbob-repo"'
 assert_contains "$foundation_root/contracts.tf" '/airbob/performance-lab/foundation/dns-contract'
 assert_contains "$foundation_root/contracts.tf" '/airbob/performance-lab/foundation/lab-contract'
 assert_contains "$foundation_root/contracts.tf" 'schemaVersion'
+assert_contains "$foundation_root/dns.tf" 'resource "aws_vpc" "private_dns_anchor"'
+assert_contains "$foundation_root/dns.tf" 'resource "aws_route53_zone" "private"'
+assert_contains "$foundation_root/dns.tf" 'name          = "lab.airbob.internal"'
+assert_contains "$foundation_root/dns.tf" 'cidr_block           = "10.255.255.240/28"'
 grep -Eq 'Stack[[:space:]]*=[[:space:]]*"foundation"' "$foundation_root/locals.tf" \
   || fail "foundation resources must remain outside the Stack=lab observer scope"
 assert_file_not_contains "$foundation_root/iam.tf" 'iam:(PutRolePolicy|DeleteRolePolicy|UpdateAssumeRolePolicy|CreateRole|CreateOpenIDConnectProvider)'
+assert_contains "$foundation_root/lab-compute.tf" 'resource "aws_iam_policy" "lab_host_boundary"'
+assert_contains "$foundation_root/lab-compute.tf" '"iam:PermissionsBoundary"'
+assert_contains "$foundation_root/lab-compute.tf" 'role/airbob-lab-host-*'
+assert_file_not_contains "$foundation_root/lab-compute.tf" 'role/airbob-(foundation-admin|lab-operator|image-publisher)'
+assert_file_not_contains "$foundation_root/lab-compute.tf" 'iam:(UpdateAssumeRolePolicy|PutRolePermissionsBoundary|DeleteRolePermissionsBoundary)'
+assert_file_not_contains "$foundation_root/lab-compute.tf" 'route53:ChangeResourceRecordSetsNormalizedRecordNames.*api\.airbob\.cloud'
+assert_file_not_contains "$foundation_root/lab-compute.tf" 'route53:(CreateHostedZone|DeleteHostedZone|ChangeTagsForResource)'
 assert_file_not_contains "$foundation_root/iam.tf" 'Action[[:space:]]*=[[:space:]]*"(s3|ecr|dynamodb|route53|acm|ssm):\*"'
 assert_file_not_contains "$foundation_root/iam.tf" 'github_oidc_subject_mode'
 assert_not_contains "$foundation_root" 'token\.actions\.githubusercontent\.com:(repository|repository_id|repository_owner_id|ref|workflow|environment)'

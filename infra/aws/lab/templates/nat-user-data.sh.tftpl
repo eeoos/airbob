@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+mkdir -p /var/lib/airbob
+systemctl enable --now amazon-ssm-agent
+
+for attempt in $(seq 1 60); do
+  if curl --fail --silent --show-error --max-time 5 https://checkip.amazonaws.com >/dev/null; then
+    break
+  fi
+  if [[ "$attempt" -eq 60 ]]; then
+    printf '%s\n' 'NAT instance did not receive working public egress' >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+dnf install -y iptables
+
+cat >/etc/sysctl.d/99-airbob-nat.conf <<'EOF'
+net.ipv4.ip_forward = 1
+EOF
+sysctl --system >/dev/null
+
+cat >/usr/local/sbin/airbob-nat.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+outbound_interface=$(ip -4 route show default | awk 'NR == 1 { print $5 }')
+[[ -n "$outbound_interface" ]]
+iptables -t nat -C POSTROUTING -o "$outbound_interface" -j MASQUERADE 2>/dev/null \
+  || iptables -t nat -A POSTROUTING -o "$outbound_interface" -j MASQUERADE
+iptables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
+  || iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -C FORWARD -s 10.42.0.0/16 -j ACCEPT 2>/dev/null \
+  || iptables -A FORWARD -s 10.42.0.0/16 -j ACCEPT
+EOF
+chmod 700 /usr/local/sbin/airbob-nat.sh
+
+cat >/etc/systemd/system/airbob-nat.service <<'EOF'
+[Unit]
+Description=Airbob test-only NAT forwarding
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/airbob-nat.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now airbob-nat.service
+printf '%s\n' '${region}' > /var/lib/airbob/region
+printf '%s\n' 'ready' > /var/lib/airbob/nat-ready

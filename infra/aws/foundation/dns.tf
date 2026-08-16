@@ -7,6 +7,34 @@ resource "aws_route53_zone" "public" {
   }
 }
 
+resource "aws_vpc" "private_dns_anchor" {
+  cidr_block           = "10.255.255.240/28"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name = "airbob-private-dns-anchor"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_route53_zone" "private" {
+  name          = "lab.airbob.internal"
+  force_destroy = false
+
+  vpc {
+    vpc_id     = aws_vpc.private_dns_anchor.id
+    vpc_region = var.aws_region
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "aws_route53_record" "static" {
   for_each = var.static_dns_records
 

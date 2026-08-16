@@ -18,6 +18,8 @@ locals {
     "zone_id",
     "api_fqdn",
     "api_certificate_arn",
+    "private_dns_zone_id",
+    "private_dns_zone_name",
     "ecr_repositories",
   ])
 
@@ -66,6 +68,8 @@ locals {
     local.lab_contract.lease_lock_id == "airbob-performance-lab" &&
     can(regex("^Z[A-Z0-9]+$", local.lab_contract.zone_id)) &&
     local.lab_contract.api_fqdn == "api.airbob.cloud" &&
+    can(regex("^Z[A-Z0-9]+$", local.lab_contract.private_dns_zone_id)) &&
+    local.lab_contract.private_dns_zone_name == "lab.airbob.internal" &&
     can(regex(
       "^arn:aws:acm:ap-northeast-2:942632789808:certificate/[0-9a-f-]+$",
       local.lab_contract.api_certificate_arn,
@@ -82,4 +86,76 @@ locals {
     ]),
     false,
   )
+
+  phase2_image_keys = setsubtract(toset(keys(local.expected_ecr_repositories)), toset(["APP_IMAGE"]))
+  phase2_images_valid = var.deployment_phase != "services" || try(
+    toset(keys(var.infra_image_references)) == local.phase2_image_keys &&
+    alltrue([
+      for image_key in local.phase2_image_keys :
+      var.infra_image_references[image_key] == "${local.ecr_repositories[image_key].url}@${split("@", var.infra_image_references[image_key])[1]}" &&
+      can(regex("@sha256:[0-9a-f]{64}$", var.infra_image_references[image_key]))
+    ]),
+    false,
+  )
+
+  network_cidr = "10.42.0.0/16"
+  availability_zones = {
+    primary   = var.primary_availability_zone
+    secondary = var.secondary_availability_zone
+  }
+  public_subnet_cidrs = {
+    primary   = "10.42.0.0/24"
+    secondary = "10.42.2.0/24"
+  }
+  private_subnet_cidrs = {
+    primary   = "10.42.1.0/24"
+    secondary = "10.42.3.0/24"
+  }
+
+  probe_enabled    = var.deployment_phase == "network"
+  receipt_required = var.deployment_phase != "network"
+  services_enabled = var.deployment_phase == "services"
+
+  bundle_archive_name  = "airbob-service-bundles-${var.bundle_commit}.tar.gz"
+  bundle_prefix        = "service-bundles/${var.bundle_commit}"
+  bundle_archive_key   = "${local.bundle_prefix}/${local.bundle_archive_name}"
+  bundle_checksum_key  = "${local.bundle_archive_key}.sha256"
+  bundle_manifest_key  = "${local.bundle_prefix}/airbob-service-bundles-${var.bundle_commit}.manifest.json"
+  service_bundle_files = jsondecode(file("${path.module}/../bundles/manifest.json")).files
+
+  docker_compose_version = "2.40.2"
+  docker_compose_sha256  = "6c964d9655cd629ef43c5dc75d9612c2da319237debee54a7aef217e9f362b88"
+
+  ephemeral_tags = {
+    Project     = "airbob"
+    Environment = "performance-lab"
+    Stack       = "lab"
+    ManagedBy   = "terraform"
+    Persistence = "ephemeral"
+    ExpiresAt   = var.expires_at
+    RunId       = var.run_id
+  }
+
+  service_hosts = {
+    redis = {
+      instance_type = "t3.small"
+      volume_size   = 20
+    }
+    kafka = {
+      instance_type = "t3.medium"
+      volume_size   = 30
+    }
+    debezium = {
+      instance_type = "t3.medium"
+      volume_size   = 20
+    }
+    elasticsearch = {
+      instance_type = "t3.medium"
+      volume_size   = 40
+    }
+    monitoring = {
+      instance_type = "t3.small"
+      volume_size   = 30
+    }
+  }
 }

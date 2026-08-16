@@ -12,6 +12,11 @@ on:
       - 'infra/aws/scripts/publish-ecr-image.sh'
       - 'infra/aws/scripts/verify-published-image.sh'
       - 'infra/aws/scripts/assemble-image-release.sh'
+      - 'infra/aws/scripts/package-service-bundles.sh'
+      - 'infra/aws/scripts/publish-service-bundles.sh'
+      - 'infra/aws/bundles/**'
+      - 'monitoring/prometheus/prometheus.aws.yml'
+      - 'monitoring/grafana/**'
       - '.github/workflows/infra-images.yml'
   workflow_dispatch:
 
@@ -120,6 +125,34 @@ jobs:
           path: ${{ runner.temp }}/infra-image-release.json
           if-no-files-found: error
           retention-days: 30
+
+  publish-service-bundles:
+    needs: [prepare, publish-ecr-images]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_IMAGE_PUBLISHER_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-session-name: airbob-service-bundle-${{ github.run_id }}
+
+      - name: Verify and publish immutable service bundles
+        env:
+          AWS_REGION: ap-northeast-2
+          BUNDLE_BUCKET: airbob-performance-lab-bundles-942632789808
+        run: |
+          set -euo pipefail
+          bash infra/aws/tests/all-service-bundles-test.sh
+          infra/aws/scripts/publish-service-bundles.sh "$GITHUB_SHA" "$BUNDLE_BUCKET"
 
   publish-oci-compat-images:
     needs: prepare
