@@ -305,7 +305,7 @@ assert_contains "$create_output" 'bootstrap_state=remote'
 assert_contains "$temp_dir/calls.log" 'init -backend=false -input=false'
 assert_contains "$temp_dir/calls.log" 'apply -input=false -auto-approve'
 create_apply_line=$(grep -n 'terraform .* apply ' "$temp_dir/calls.log" | head -n 1 | cut -d: -f1)
-create_bucket_verify_line=$(grep -n 'aws s3api head-bucket ' "$temp_dir/calls.log" | head -n 1 | cut -d: -f1)
+create_bucket_verify_line=$(grep -n 'aws s3api get-bucket-location ' "$temp_dir/calls.log" | head -n 1 | cut -d: -f1)
 create_migrate_line=$(grep -n 'terraform .* init -input=false -migrate-state ' "$temp_dir/calls.log" | head -n 1 | cut -d: -f1)
 [[ "$create_apply_line" -lt "$create_bucket_verify_line" && "$create_bucket_verify_line" -lt "$create_migrate_line" ]] \
   || fail "create must apply locally, verify the bucket, and only then migrate state"

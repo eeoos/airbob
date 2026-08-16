@@ -140,11 +140,6 @@ verify_bucket_contract() {
   local bucket_policy_compact
   local required_tags
 
-  aws s3api head-bucket \
-    --bucket "$state_bucket_name" \
-    --region "$AIRBOB_AWS_REGION" >/dev/null 2>&1 \
-    || fail "state bucket is missing or inaccessible"
-
   bucket_region=$(aws_text "state bucket region check failed" \
     s3api get-bucket-location \
     --bucket "$state_bucket_name" \

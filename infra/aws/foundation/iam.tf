@@ -1,0 +1,458 @@
+locals {
+  approved_local_principals_statement = merge(
+    {
+      Sid       = "ApprovedLocalPrincipals"
+      Effect    = "Allow"
+      Principal = { AWS = sort(tolist(var.local_principal_arns)) }
+      Action    = "sts:AssumeRole"
+    },
+    var.local_principal_requires_mfa ? {
+      Condition = {
+        Bool = {
+          "aws:MultiFactorAuthPresent" = "true"
+        }
+      }
+    } : {},
+  )
+
+  github_role_trust = {
+    foundation = merge(local.github_trust_common, {
+      "token.actions.githubusercontent.com:sub"         = local.github_subjects.foundation
+      "token.actions.githubusercontent.com:environment" = "aws-foundation"
+      "token.actions.githubusercontent.com:workflow"    = local.github_workflow_names.foundation
+    })
+    lab = merge(local.github_trust_common, {
+      "token.actions.githubusercontent.com:sub"         = local.github_subjects.lab
+      "token.actions.githubusercontent.com:environment" = "aws-performance-lab"
+      "token.actions.githubusercontent.com:workflow"    = local.github_workflow_names.lab
+    })
+    image = merge(local.github_trust_common, {
+      "token.actions.githubusercontent.com:sub"      = local.github_subjects.image
+      "token.actions.githubusercontent.com:workflow" = local.github_workflow_names.image
+    })
+  }
+
+  role_trust_policies = {
+    foundation = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Sid       = "GitHubOidc"
+          Effect    = "Allow"
+          Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+          Action    = "sts:AssumeRoleWithWebIdentity"
+          Condition = { StringEquals = local.github_role_trust.foundation }
+        },
+        local.approved_local_principals_statement,
+      ]
+    })
+    lab = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Sid       = "GitHubOidc"
+          Effect    = "Allow"
+          Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+          Action    = "sts:AssumeRoleWithWebIdentity"
+          Condition = { StringEquals = local.github_role_trust.lab }
+        },
+        local.approved_local_principals_statement,
+      ]
+    })
+    image = jsonencode({
+      Version = "2012-10-17"
+      Statement = [{
+        Sid       = "GitHubOidc"
+        Effect    = "Allow"
+        Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+        Action    = "sts:AssumeRoleWithWebIdentity"
+        Condition = { StringEquals = local.github_role_trust.image }
+      }]
+    })
+  }
+
+  role_names = {
+    foundation = "airbob-foundation-admin"
+    lab        = "airbob-lab-operator"
+    image      = "airbob-image-publisher"
+  }
+
+  foundation_admin_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "FoundationState"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject"]
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${local.state_keys.foundation}"
+      },
+      {
+        Sid      = "FoundationStateLock"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${local.state_keys.foundation}.tflock"
+      },
+      {
+        Sid      = "FoundationStateList"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}"
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [local.state_keys.foundation, "${local.state_keys.foundation}.tflock"]
+          }
+        }
+      },
+      {
+        Sid      = "StateBucketPostureRead"
+        Effect   = "Allow"
+        Action   = local.state_bucket_posture_read_actions
+        Resource = "arn:aws:s3:::${var.state_bucket_name}"
+      },
+      {
+        Sid      = "BootstrapStateRead"
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${local.state_keys.bootstrap}"
+      },
+      {
+        Sid    = "ManagedBucketRead"
+        Effect = "Allow"
+        Action = [
+          "s3:GetBucket*",
+          "s3:GetEncryptionConfiguration",
+          "s3:GetLifecycleConfiguration",
+          "s3:GetReplicationConfiguration",
+          "s3:ListBucket",
+        ]
+        Resource = [for bucket in aws_s3_bucket.managed : bucket.arn]
+      },
+      {
+        Sid    = "ManagedBucketConfiguration"
+        Effect = "Allow"
+        Action = [
+          "s3:PutBucketOwnershipControls",
+          "s3:PutBucketPolicy",
+          "s3:PutBucketPublicAccessBlock",
+          "s3:PutBucketTagging",
+          "s3:PutBucketVersioning",
+          "s3:PutEncryptionConfiguration",
+          "s3:PutLifecycleConfiguration",
+        ]
+        Resource = [for bucket in aws_s3_bucket.managed : bucket.arn]
+      },
+      {
+        Sid      = "ApplicationBucketIdentityOnly"
+        Effect   = "Allow"
+        Action   = ["s3:GetBucketLocation", "s3:ListBucket"]
+        Resource = data.aws_s3_bucket.application.arn
+      },
+      {
+        Sid    = "ManagedRepositoryRead"
+        Effect = "Allow"
+        Action = [
+          "ecr:DescribeImages",
+          "ecr:DescribeRepositories",
+          "ecr:GetLifecyclePolicy",
+          "ecr:GetRepositoryPolicy",
+          "ecr:ListImages",
+          "ecr:ListTagsForResource",
+        ]
+        Resource = local.all_ecr_repository_arns
+      },
+      {
+        Sid    = "ManagedRepositoryConfiguration"
+        Effect = "Allow"
+        Action = [
+          "ecr:PutImageScanningConfiguration",
+          "ecr:PutImageTagMutability",
+          "ecr:PutLifecyclePolicy",
+          "ecr:TagResource",
+          "ecr:UntagResource",
+        ]
+        Resource = local.all_ecr_repository_arns
+      },
+      {
+        Sid    = "FoundationIdentityReadOnly"
+        Effect = "Allow"
+        Action = ["iam:GetOpenIDConnectProvider", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:ListRoleTags"]
+        Resource = [
+          aws_iam_openid_connect_provider.github.arn,
+          "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
+          "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
+          "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
+        ]
+      },
+      {
+        Sid    = "LeaseTableReadAndConfigure"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DescribeContinuousBackups",
+          "dynamodb:DescribeTable",
+          "dynamodb:DescribeTimeToLive",
+          "dynamodb:ListTagsOfResource",
+          "dynamodb:TagResource",
+          "dynamodb:UntagResource",
+          "dynamodb:UpdateContinuousBackups",
+          "dynamodb:UpdateTable",
+        ]
+        Resource = aws_dynamodb_table.orchestration_lease.arn
+      },
+      {
+        Sid    = "PublicZoneReadAndTag"
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeTagsForResource",
+          "route53:GetHostedZone",
+          "route53:ListResourceRecordSets",
+          "route53:ListTagsForResource",
+        ]
+        Resource = aws_route53_zone.public.arn
+      },
+      {
+        Sid      = "PublicZoneRecordsConfigure"
+        Effect   = "Allow"
+        Action   = "route53:ChangeResourceRecordSets"
+        Resource = aws_route53_zone.public.arn
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = local.foundation_dns_record_names
+            "route53:ChangeResourceRecordSetsRecordTypes"           = local.foundation_dns_record_types
+            "route53:ChangeResourceRecordSetsActions"               = ["CREATE", "UPSERT", "DELETE"]
+          }
+        }
+      },
+      {
+        Sid    = "ApiCertificateReadAndTag"
+        Effect = "Allow"
+        Action = [
+          "acm:AddTagsToCertificate",
+          "acm:DescribeCertificate",
+          "acm:ListTagsForCertificate",
+          "acm:RemoveTagsFromCertificate",
+        ]
+        Resource = aws_acm_certificate.api.arn
+      },
+      {
+        Sid    = "FoundationContractsReadAndConfigure"
+        Effect = "Allow"
+        Action = [
+          "ssm:AddTagsToResource",
+          "ssm:GetParameter",
+          "ssm:ListTagsForResource",
+          "ssm:PutParameter",
+          "ssm:RemoveTagsFromResource",
+        ]
+        Resource = [
+          aws_ssm_parameter.dns_consumer_contract.arn,
+          aws_ssm_parameter.lab_consumer_contract.arn,
+        ]
+      },
+      {
+        Sid      = "FoundationReadDiscovery"
+        Effect   = "Allow"
+        Action   = ["acm:ListCertificates", "iam:ListOpenIDConnectProviders", "iam:ListRoles", "route53:GetChange", "route53:ListHostedZones", "route53:ListHostedZonesByName", "ssm:DescribeParameters"]
+        Resource = "*"
+      },
+    ]
+  })
+
+  lab_operator_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "OperationalState"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject"]
+        Resource = [for state_key in local.lab_operator_state_keys : "arn:aws:s3:::${var.state_bucket_name}/${state_key}"]
+      },
+      {
+        Sid      = "OperationalStateLocks"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = [for state_key in local.lab_operator_state_keys : "arn:aws:s3:::${var.state_bucket_name}/${state_key}.tflock"]
+      },
+      {
+        Sid      = "OperationalStateList"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}"
+        Condition = {
+          StringLike = {
+            "s3:prefix" = flatten([
+              for state_key in local.lab_operator_state_keys : [state_key, "${state_key}.tflock"]
+            ])
+          }
+        }
+      },
+      {
+        Sid      = "StateBucketPostureRead"
+        Effect   = "Allow"
+        Action   = local.state_bucket_posture_read_actions
+        Resource = "arn:aws:s3:::${var.state_bucket_name}"
+      },
+      {
+        Sid      = "BootstrapStateRead"
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${local.state_keys.bootstrap}"
+      },
+      {
+        Sid    = "ReadDatasetAndBundles"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = [
+          "${aws_s3_bucket.managed["dataset"].arn}/*",
+          "${aws_s3_bucket.managed["bundle"].arn}/*",
+        ]
+      },
+      {
+        Sid    = "ListDatasetAndBundles"
+        Effect = "Allow"
+        Action = ["s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = [
+          aws_s3_bucket.managed["dataset"].arn,
+          aws_s3_bucket.managed["bundle"].arn,
+        ]
+      },
+      {
+        Sid      = "WriteTaggedEvidence"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = "${aws_s3_bucket.managed["evidence"].arn}/*"
+        Condition = {
+          StringEquals = {
+            "s3:RequestObjectTag/Retention" = ["raw", "summary"]
+          }
+        }
+      },
+      {
+        Sid      = "AbortEvidenceMultipartUpload"
+        Effect   = "Allow"
+        Action   = "s3:AbortMultipartUpload"
+        Resource = "${aws_s3_bucket.managed["evidence"].arn}/*"
+      },
+      {
+        Sid      = "ListEvidence"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = aws_s3_bucket.managed["evidence"].arn
+      },
+      {
+        Sid      = "PullImages"
+        Effect   = "Allow"
+        Action   = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:DescribeImages"]
+        Resource = local.all_ecr_repository_arns
+      },
+      {
+        Sid      = "EcrLogin"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Sid      = "OrchestrationLease"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
+        Resource = aws_dynamodb_table.orchestration_lease.arn
+      },
+      {
+        Sid      = "ReadFoundationContracts"
+        Effect   = "Allow"
+        Action   = "ssm:GetParameter"
+        Resource = [aws_ssm_parameter.dns_consumer_contract.arn, aws_ssm_parameter.lab_consumer_contract.arn]
+      },
+      {
+        Sid      = "SwitchApiOriginRecords"
+        Effect   = "Allow"
+        Action   = "route53:ChangeResourceRecordSets"
+        Resource = aws_route53_zone.public.arn
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = [local.api_fqdn]
+            "route53:ChangeResourceRecordSetsRecordTypes"           = ["A"]
+            "route53:ChangeResourceRecordSetsActions"               = ["CREATE", "UPSERT", "DELETE"]
+          }
+        }
+      },
+    ]
+  })
+
+  image_publisher_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "EcrLogin"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Sid      = "PublishImmutableImages"
+        Effect   = "Allow"
+        Action   = ["ecr:BatchCheckLayerAvailability", "ecr:CompleteLayerUpload", "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload", "ecr:ListImages", "ecr:PutImage", "ecr:UploadLayerPart"]
+        Resource = local.all_ecr_repository_arns
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role" "foundation_admin" {
+  name                 = local.role_names.foundation
+  assume_role_policy   = local.role_trust_policies.foundation
+  max_session_duration = 7200
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role" "lab_operator" {
+  name                 = local.role_names.lab
+  assume_role_policy   = local.role_trust_policies.lab
+  max_session_duration = 7200
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role" "image_publisher" {
+  name                 = local.role_names.image
+  assume_role_policy   = local.role_trust_policies.image
+  max_session_duration = 7200
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "foundation_admin" {
+  name   = "airbob-foundation-admin"
+  role   = aws_iam_role.foundation_admin.id
+  policy = local.foundation_admin_policy
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "lab_operator" {
+  name   = "airbob-lab-operator-foundation-base"
+  role   = aws_iam_role.lab_operator.id
+  policy = local.lab_operator_policy
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "image_publisher" {
+  name   = "airbob-image-publisher"
+  role   = aws_iam_role.image_publisher.id
+  policy = local.image_publisher_policy
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
