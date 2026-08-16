@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.coupon.service;
 
+import java.util.Collection;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +60,14 @@ public class CouponUsageService {
 	@Transactional
 	public void restore(Long reservationId) {
 		memberCouponRepository.restoreByReservationId(reservationId);
+	}
+
+	@Transactional
+	public void restoreAll(Collection<Long> reservationIds) {
+		if (reservationIds.isEmpty()) {
+			return;
+		}
+		memberCouponRepository.restoreAllByReservationIds(reservationIds);
 	}
 
 	/**

@@ -25,10 +25,34 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 @JsonTest
 @DisplayName("예약 응답 시간대 테스트")
-class ReservationResponseTest {
+	class ReservationResponseTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Test
+	@DisplayName("예약 준비 응답은 결제 필요 여부와 현재 상태를 명시한다")
+	void readyResponseExposesPaymentRequirement() throws Exception {
+		Member guest = Member.builder().email("guest@test.com").nickname("guest").build();
+		Accommodation accommodation = Accommodation.builder().name("free stay").build();
+		Reservation reservation = Reservation.builder()
+			.reservationUid(UUID.randomUUID())
+			.accommodation(accommodation)
+			.guest(guest)
+			.totalPrice(0L)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		ReservationResponse.Ready response = ReservationResponse.Ready.from(reservation);
+
+		assertThat(response.status()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(response.paymentRequired()).isFalse();
+
+		JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
+		assertThat(json.path("status").asText()).isEqualTo("CONFIRMED");
+		assertThat(json.path("payment_required").asBoolean()).isFalse();
+		assertThat(json.path("amount").asLong()).isZero();
+	}
 
 	@Test
 	@DisplayName("숙소 시간대가 바뀌어도 예약 당시 시간대 스냅샷으로 현지 시각을 복원한다")

@@ -31,6 +31,8 @@ public class ReservationResponse {
 		String reservationUid, // toss orderId
 		String orderName,
 		Long amount,
+		ReservationStatus status,
+		boolean paymentRequired,
 		String customerEmail,
 		String customerName
 	) {
@@ -39,6 +41,8 @@ public class ReservationResponse {
 				.reservationUid(reservation.getReservationUid().toString())
 				.orderName(reservation.getAccommodation().getName())
 				.amount(reservation.getTotalPrice())
+				.status(reservation.getStatus())
+				.paymentRequired(reservation.requiresPayment())
 				.customerEmail(reservation.getGuest().getEmail())
 				.customerName(reservation.getGuest().getNickname())
 				.build();

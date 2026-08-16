@@ -3,10 +3,10 @@ package kr.kro.airbob.domain.reservation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,18 +26,19 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
-import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -49,6 +50,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -141,6 +143,7 @@ class ReservationTransactionServiceTest {
 			.checkOutTime(LocalTime.of(11, 0))
 			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
+			.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(2).build())
 			.member(host)
 			.build();
 
@@ -224,6 +227,28 @@ class ReservationTransactionServiceTest {
 	class CreatePendingReservationInTxTest {
 
 		@Test
+		@DisplayName("숙소 최대 정원을 초과하면 예약·쿠폰·이벤트 쓰기 전에 거부한다")
+		void rejectsGuestCountOverAccommodationCapacityBeforeWrites() {
+			ReservationRequest.Create overCapacity = new ReservationRequest.Create(
+				accommodation.getId(), WINDOW_START.plusDays(1), WINDOW_START.plusDays(2), 3);
+			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
+				.willReturn(Optional.of(guest));
+			given(accommodationRepository.findByIdAndStatusForUpdate(
+				overCapacity.accommodationId(), AccommodationStatus.PUBLISHED))
+				.willReturn(Optional.of(accommodation));
+
+			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(
+				overCapacity, memberId, "정원 검증"))
+				.isInstanceOf(ReservationOccupancyExceededException.class);
+
+			then(bookingWindowProvider).shouldHaveNoInteractions();
+			then(reservationRepository).shouldHaveNoInteractions();
+			then(couponUsageService).shouldHaveNoInteractions();
+			then(historyRepository).shouldHaveNoInteractions();
+			then(outboxEventPublisher).shouldHaveNoInteractions();
+		}
+
+		@Test
 		@DisplayName("정상적인 예약 생성 시 Reservation이 저장되고 이벤트가 발행된다")
 		void 정상_예약_생성() {
 			// given
@@ -285,6 +310,44 @@ class ReservationTransactionServiceTest {
 
 			// verify event published
 			then(outboxEventPublisher).should().save(eq(EventType.RESERVATION_PENDING), any(ReservationEvent.ReservationPendingEvent.class));
+		}
+
+		@Test
+		@DisplayName("쿠폰이 전액을 할인하면 PG 작업 없이 예약을 즉시 확정하고 재고 이벤트를 발행한다")
+		void fullDiscountConfirmsWithoutPaymentOperation() throws Exception {
+			ReservationRequest.Create complimentaryRequest = new ReservationRequest.Create(
+				accommodation.getId(), WINDOW_START.plusDays(1), WINDOW_START.plusDays(3), 2, 77L);
+			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
+				.willReturn(Optional.of(guest));
+			given(accommodationRepository.findByIdAndStatusForUpdate(
+				complimentaryRequest.accommodationId(), AccommodationStatus.PUBLISHED))
+				.willReturn(Optional.of(accommodation));
+			given(reservationRepository.existsConflictingReservation(
+				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
+				.willReturn(false);
+			given(reservationRepository.existsByReservationCode(anyString())).willReturn(false);
+			given(reservationRepository.save(any(Reservation.class))).willAnswer(invocation -> {
+				Reservation reservation = invocation.getArgument(0);
+				java.lang.reflect.Field idField = Reservation.class.getDeclaredField("id");
+				idField.setAccessible(true);
+				idField.set(reservation, 99L);
+				java.lang.reflect.Field uidField = Reservation.class.getDeclaredField("reservationUid");
+				uidField.setAccessible(true);
+				uidField.set(reservation, UUID.randomUUID());
+				return reservation;
+			});
+			given(couponUsageService.use(memberId, 77L, 99L, 200_000L)).willReturn(200_000L);
+
+			Reservation result = transactionService.createPendingReservationInTx(
+				complimentaryRequest, memberId, "0원 예약");
+
+			assertThat(result.getTotalPrice()).isZero();
+			assertThat(result.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+			then(outboxEventPublisher).should(never()).save(eq(EventType.RESERVATION_PENDING), any());
+			then(outboxEventPublisher).should().save(
+				eq(EventType.RESERVATION_CONFIRMED), any(ReservationEvent.ReservationConfirmedEvent.class));
+			then(outboxEventPublisher).should().save(
+				eq(EventType.RESERVATION_CHANGED), any(AccommodationIndexingEvents.ReservationChangedEvent.class));
 		}
 
 		@Test
@@ -471,6 +534,48 @@ class ReservationTransactionServiceTest {
 	@Nested
 	@DisplayName("예약 취소 트랜잭션 테스트")
 	class CancelReservationInTxTest {
+
+		@Test
+		@DisplayName("확정된 0원 예약은 PG 이벤트 없이 즉시 취소하고 쿠폰과 재고를 복원한다")
+		void complimentaryReservationCancelsLocally() {
+			UUID reservationUid = UUID.randomUUID();
+			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest, 0L);
+			given(reservationRepository.findByReservationUidWithLock(reservationUid))
+				.willReturn(Optional.of(reservation));
+
+			transactionService.cancelReservationInTx(
+				reservationUid.toString(), new PaymentRequest.Cancel("0원 예약 취소", null), memberId);
+			transactionService.cancelReservationInTx(
+				reservationUid.toString(), new PaymentRequest.Cancel("중복 취소", null), memberId);
+
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+			then(paymentRepository).shouldHaveNoInteractions();
+			then(couponUsageService).should(times(1)).restore(reservation.getId());
+			then(historyRepository).should(times(1)).save(historyCaptor.capture());
+			assertThat(historyCaptor.getValue().getChangeType()).isEqualTo(ChangeType.CANCEL);
+			then(outboxEventPublisher).should(never())
+				.save(eq(EventType.RESERVATION_CANCELLATION_REQUESTED), any());
+			then(outboxEventPublisher).should(times(1)).save(
+				eq(EventType.RESERVATION_CHANGED), any(AccommodationIndexingEvents.ReservationChangedEvent.class));
+		}
+
+		@Test
+		@DisplayName("0원 예약에 환불 금액을 지정하면 상태를 바꾸지 않고 거부한다")
+		void complimentaryCancellationRejectsRefundAmount() {
+			UUID reservationUid = UUID.randomUUID();
+			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest, 0L);
+			given(reservationRepository.findByReservationUidWithLock(reservationUid))
+				.willReturn(Optional.of(reservation));
+
+			assertThatThrownBy(() -> transactionService.cancelReservationInTx(
+				reservationUid.toString(), new PaymentRequest.Cancel("잘못된 환불", 1L), memberId))
+				.isInstanceOf(InvalidInputException.class);
+
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+			then(couponUsageService).shouldHaveNoInteractions();
+			then(historyRepository).shouldHaveNoInteractions();
+			then(outboxEventPublisher).shouldHaveNoInteractions();
+		}
 
 		@Test
 		@DisplayName("CONFIRMED 상태에서 본인이 취소 요청 시 CANCELLATION_PENDING으로 변경된다")
@@ -907,6 +1012,14 @@ class ReservationTransactionServiceTest {
 	}
 
 	private Reservation createConfirmedReservationWithGuest(UUID reservationUid, Member guestMember) {
+		return createConfirmedReservationWithGuest(reservationUid, guestMember, 200_000L);
+	}
+
+	private Reservation createConfirmedReservationWithGuest(
+		UUID reservationUid,
+		Member guestMember,
+		long totalPrice
+	) {
 		return Reservation.builder()
 			.id(1L)
 			.reservationUid(reservationUid)
@@ -919,7 +1032,7 @@ class ReservationTransactionServiceTest {
 			.checkOutAt(Instant.parse("2025-01-28T16:00:00Z"))
 			.timeZoneId(TIME_ZONE_ID)
 			.guestCount(2)
-			.totalPrice(200_000L)
+			.totalPrice(totalPrice)
 			.currency("KRW")
 			.status(ReservationStatus.CONFIRMED)
 			.expiresAt(NOW.plusSeconds(15 * 60))

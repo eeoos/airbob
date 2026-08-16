@@ -148,6 +148,39 @@ class ReservationTest {
 	class StatusTransitionTest {
 
 		@Test
+		@DisplayName("전액 할인된 PAYMENT_PENDING 예약은 PG 없이 즉시 확정한다")
+		void confirmsComplimentaryReservationWithoutPayment() {
+			Reservation reservation = createPendingReservation();
+			reservation.applyDiscount(reservation.getTotalPrice());
+
+			reservation.confirmComplimentary();
+
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+			assertThat(reservation.requiresPayment()).isFalse();
+		}
+
+		@Test
+		@DisplayName("결제 금액이 남은 예약은 무료 확정할 수 없다")
+		void rejectsComplimentaryConfirmationWithPositiveBalance() {
+			Reservation reservation = createPendingReservation();
+
+			assertThatThrownBy(reservation::confirmComplimentary)
+				.isInstanceOf(InvalidReservationStatusException.class);
+		}
+
+		@Test
+		@DisplayName("확정된 0원 예약은 PG 없이 즉시 취소한다")
+		void cancelsComplimentaryReservationWithoutPayment() {
+			Reservation reservation = createPendingReservation();
+			reservation.applyDiscount(reservation.getTotalPrice());
+			reservation.confirmComplimentary();
+
+			assertThat(reservation.cancelComplimentary()).isTrue();
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+			assertThat(reservation.cancelComplimentary()).isFalse();
+		}
+
+		@Test
 		@DisplayName("미만료 PAYMENT_PENDING 예약은 결제 처리를 선점한다")
 		void startsPaymentBeforeExpiry() {
 			Reservation reservation = createPendingReservation();

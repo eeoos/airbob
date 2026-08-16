@@ -62,6 +62,7 @@ public enum ErrorCode {
 	RESERVATION_OUTSIDE_BOOKING_WINDOW(HttpStatus.BAD_REQUEST, "R010", "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."),
 	CANNOT_CONFIRM_EXPIRED_RESERVATION(HttpStatus.CONFLICT, "R011", "결제 유효 시간이 지난 예약은 확정할 수 없습니다."),
 	RESERVATION_LOCAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "R012", "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."),
+	RESERVATION_OCCUPANCY_EXCEEDED(HttpStatus.BAD_REQUEST, "R013", "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."),
 
 
 	// payment

@@ -177,6 +177,17 @@ public class Reservation extends BaseEntity {
 		this.status = ReservationStatus.CONFIRMED;
 	}
 
+	public void confirmComplimentary() {
+		if (this.status != ReservationStatus.PAYMENT_PENDING || requiresPayment()) {
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CONFIRM_RESERVATION);
+		}
+		this.status = ReservationStatus.CONFIRMED;
+	}
+
+	public boolean requiresPayment() {
+		return !Long.valueOf(0L).equals(this.totalPrice);
+	}
+
 	public boolean startPayment(Instant now) {
 		if (this.status != ReservationStatus.PAYMENT_PENDING || isExpiredAt(now)) {
 			return false;
@@ -221,6 +232,17 @@ public class Reservation extends BaseEntity {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLATION_PENDING;
+		return true;
+	}
+
+	public boolean cancelComplimentary() {
+		if (this.status == ReservationStatus.CANCELLED) {
+			return false;
+		}
+		if (this.status != ReservationStatus.CONFIRMED || requiresPayment()) {
+			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
+		}
+		this.status = ReservationStatus.CANCELLED;
 		return true;
 	}
 

@@ -128,6 +128,8 @@ class ReservationServiceTest {
 			assertThat(result).isNotNull();
 			assertThat(result.reservationUid()).isEqualTo(mockReservation.getReservationUid().toString());
 			assertThat(result.amount()).isEqualTo(mockReservation.getTotalPrice());
+			assertThat(result.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+			assertThat(result.paymentRequired()).isTrue();
 
 			// verify interactions
 			then(holdService).should().isAnyDateHeld(
@@ -145,6 +147,32 @@ class ReservationServiceTest {
 			then(accommodationRepository).should()
 				.findBookingProjectionByIdAndStatus(1L, AccommodationStatus.PUBLISHED);
 			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID);
+			then(lockManager).should().releaseLocks(mockLock);
+		}
+
+		@Test
+		@DisplayName("0원으로 즉시 확정된 예약에는 Redis 결제 홀드를 만들지 않는다")
+		void complimentaryReservationSkipsPaymentHold() {
+			Reservation complimentary = Reservation.builder()
+				.id(mockReservation.getId())
+				.reservationUid(mockReservation.getReservationUid())
+				.accommodation(mockReservation.getAccommodation())
+				.guest(mockReservation.getGuest())
+				.status(ReservationStatus.CONFIRMED)
+				.totalPrice(0L)
+				.build();
+			givenPublishedBookingWindow();
+			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
+				.willReturn(false);
+			given(lockManager.acquireLocks(anyList())).willReturn(mockLock);
+			given(transactionService.createPendingReservationInTx(any(), anyLong(), anyString()))
+				.willReturn(complimentary);
+
+			ReservationResponse.Ready result = reservationService.createPendingReservation(validRequest, memberId);
+
+			assertThat(result.status()).isEqualTo(ReservationStatus.CONFIRMED);
+			assertThat(result.paymentRequired()).isFalse();
+			then(holdService).should(never()).holdDates(anyLong(), any(), any());
 			then(lockManager).should().releaseLocks(mockLock);
 		}
 

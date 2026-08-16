@@ -58,20 +58,22 @@ public class ReservationService {
 		RLock lock = lockManager.acquireLocks(lockKeys);
 
 		try {
-			Reservation pendingReservation = transactionService.createPendingReservationInTx(
+			Reservation reservation = transactionService.createPendingReservationInTx(
 				request,
 				memberId,
 				"사용자 예약 생성"
 			);
 
-			try {
-				holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
-			} catch (Exception e) {
-				log.error("Redis hold 설정 실패. DB 예약은 생성됨. accommodationId={}, checkIn={}, checkOut={}",
-					request.accommodationId(), request.checkInDate(), request.checkOutDate(), e);
+			if (reservation.requiresPayment()) {
+				try {
+					holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
+				} catch (Exception e) {
+					log.error("Redis hold 설정 실패. DB 예약은 생성됨. accommodationId={}, checkIn={}, checkOut={}",
+						request.accommodationId(), request.checkInDate(), request.checkOutDate(), e);
+				}
 			}
 
-			return ReservationResponse.Ready.from(pendingReservation);
+			return ReservationResponse.Ready.from(reservation);
 		} finally {
 			lockManager.releaseLocks(lock);
 		}
