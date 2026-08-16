@@ -16,7 +16,8 @@
 | Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Not implemented yet |
 | Elasticsearch host `vm.max_map_count` runtime enforcement | Not implemented yet |
 | Terraform persistent foundation | Implemented (configuration/static tests only; not applied) |
-| Terraform DNS/lab roots | Not implemented yet |
+| Terraform DNS/lab state boundaries | Implemented (DNS contract + zero-resource lab root; not applied) |
+| Ephemeral VPC/compute/RDS/ALB Terraform | Not implemented yet |
 | Route 53 cutover | Not executed |
 | AWS performance evidence | Not collected |
 
@@ -27,8 +28,10 @@ path families are excluded. The content gate rejects the enumerated password,
 secret, token, credential, API/access/private-key, service-account, and private
 key marker families except for six exact reviewed placeholder/guard lines. It
 does not prove that arbitrary secret material hidden under a benign key is
-absent. The persistent Terraform foundation is now represented and statically
-tested, but has not been planned against or applied to AWS. This work does not
+absent. The persistent foundation, separate weighted-DNS state, and empty lab
+destruction boundary are represented and statically tested, but have not been
+planned against or applied to AWS. The lab root intentionally has no billable
+resources yet. This work does not
 build or publish immutable images, upload the package, run container smoke
 tests, enforce host prerequisites through SSM, create AWS resources, apply
 Terraform, migrate authoritative DNS, change Route 53 traffic, or establish

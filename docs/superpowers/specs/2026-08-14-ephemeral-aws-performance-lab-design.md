@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging까지 구현되었다. Immutable image 생성·발행과 runtime smoke, bundle upload 및 repository-s3 검증, SSM bootstrap/sysctl 적용, Terraform, DNS 이전·전환, AWS 자원 생성과 성능 증거 수집은 아직 진행 전이다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 비용 자원이 없는 lab destruction boundary까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Immutable image 생성·발행과 runtime smoke, bundle upload 및 repository-s3 검증, SSM bootstrap/sysctl 적용, ephemeral VPC/compute/RDS/ALB, DNS 이전·전환과 성능 증거 수집은 아직 진행 전이다.
 
 ## 배경
 
@@ -229,7 +229,7 @@ IP CIDR 전체 허용 대신 security-group-to-security-group 참조를 사용�
 
 RDS master credential은 RDS가 관리하는 Secrets Manager secret을 사용한다. Redis와 애플리케이션 secret도 런타임에 SSM/Secrets Manager에서 읽으며 Terraform variable, state, user-data 출력과 GitHub log에 평문 값을 남기지 않는다. EC2가 내려받은 환경 파일은 root 전용 권한으로 저장한다.
 
-GitHub OIDC 권한도 수명 주기 경계와 맞춘다. 일반 `lab-operator`/만료 cleanup role은 lab tag가 붙은 자원과 `api.airbob.cloud`의 제한된 record만 변경할 수 있고 foundation 삭제 권한을 갖지 않는다. ECR/OIDC/S3 같은 영구 기반을 변경하는 `foundation-admin`은 별도 승인 경로에서만 사용한다. scheduled cleanup이 foundation state에 접근하거나 destroy할 수 없어야 한다.
+GitHub OIDC 권한도 수명 주기 경계와 맞춘다. 일반 `lab-operator`/만료 cleanup role은 lab tag가 붙은 자원을 관리하지만 Route 53을 직접 변경하거나 foundation을 삭제할 권한은 갖지 않는다. Route 53 IAM은 동일 이름/type의 OCI/AWS weighted set identifier를 구분하지 못하므로, DNS mutation은 orchestration lease와 fencing token, 두 origin health를 검증하는 전용 controller role/service만 수행한다. 로컬과 GitHub workflow는 같은 controller entry point를 호출한다. ECR/OIDC/S3 같은 영구 기반을 변경하는 `foundation-admin`은 별도 승인 경로에서만 사용한다. scheduled cleanup이 foundation state에 접근하거나 destroy할 수 없어야 한다.
 
 합성 데이터 실험실의 Kafka, Redis와 Elasticsearch 내부 연결은 private subnet과 SG로 격리하되 v1에서는 TLS를 추가하지 않는다. 외부 진입점인 ALB는 ACM 인증서로 HTTPS만 제공한다.
 

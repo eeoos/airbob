@@ -363,17 +363,26 @@ locals {
         Resource = [aws_ssm_parameter.dns_consumer_contract.arn, aws_ssm_parameter.lab_consumer_contract.arn]
       },
       {
-        Sid      = "SwitchApiOriginRecords"
+        Sid      = "ReadApiOriginRecords"
         Effect   = "Allow"
-        Action   = "route53:ChangeResourceRecordSets"
+        Action   = "route53:ListResourceRecordSets"
         Resource = aws_route53_zone.public.arn
-        Condition = {
-          "ForAllValues:StringEquals" = {
-            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = [local.api_fqdn]
-            "route53:ChangeResourceRecordSetsRecordTypes"           = ["A"]
-            "route53:ChangeResourceRecordSetsActions"               = ["CREATE", "UPSERT", "DELETE"]
-          }
-        }
+      },
+      {
+        Sid      = "ReadRoute53Changes"
+        Effect   = "Allow"
+        Action   = "route53:GetChange"
+        Resource = "arn:aws:route53:::change/*"
+      },
+      {
+        Sid    = "ReadLabLoadBalancer"
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:DescribeLoadBalancerAttributes",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeTags",
+        ]
+        Resource = "*"
       },
     ]
   })

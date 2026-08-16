@@ -74,12 +74,14 @@ After that apply:
 The foundation deliberately does not own the weighted OCI/AWS
 `api.airbob.cloud` A records. The separate DNS state owns them so lab teardown
 does not include either record or the hosted zone in its Terraform destroy
-graph. Route 53 IAM can restrict the role to the API A name/type/actions but
-cannot restrict weighted set identifiers or values. Therefore raw Route 53
-mutation is not an operator interface: U3 must provide a lease-held controller
-that verifies both weighted records and OCI health before and after every
+graph. Route 53 IAM can restrict writes to the API A name/type/actions but
+cannot distinguish the OCI and AWS weighted set identifiers or values. The
+general lab role therefore has read-only DNS access and no direct
+`ChangeResourceRecordSets` permission. Before any live DNS mutation, a later
+lease-held controller must receive a separate narrow role and verify both
+weighted records, the fencing token, and OCI health before and after every
 change, including rollback. Its tests must prove `down` leaves OCI at weight
-100; this residual authorization boundary is not treated as an IAM guarantee.
+100.
 
 If the bounded 20-minute ACM validation wait fails, leave the delegated zone
 and OCI record intact, correct the authoritative DNS or validation CNAME, and

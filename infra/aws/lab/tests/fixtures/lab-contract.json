@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "account_id": "942632789808",
+  "region": "ap-northeast-2",
+  "state_bucket_name": "airbob-performance-lab-tfstate-942632789808",
+  "bootstrap_state_key": "airbob/bootstrap/terraform.tfstate",
+  "foundation_state_key": "airbob/foundation/terraform.tfstate",
+  "dns_state_key": "airbob/dns/terraform.tfstate",
+  "lab_state_key": "airbob/lab/terraform.tfstate",
+  "dataset_bucket_name": "airbob-performance-lab-dataset-942632789808",
+  "evidence_bucket_name": "airbob-performance-lab-evidence-942632789808",
+  "bundle_bucket_name": "airbob-performance-lab-bundles-942632789808",
+  "lease_table_name": "airbob-performance-lab-orchestration-lease",
+  "lease_partition_key": "LockName",
+  "lease_expires_attribute": "ExpiresAt",
+  "lease_lock_id": "airbob-performance-lab",
+  "zone_id": "Z0123456789EXAMPLE",
+  "api_fqdn": "api.airbob.cloud",
+  "api_certificate_arn": "arn:aws:acm:ap-northeast-2:942632789808:certificate/11111111-2222-3333-4444-555555555555",
+  "ecr_repositories": {
+    "APP_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-repo"
+    },
+    "REDIS_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/redis"
+    },
+    "REDIS_EXPORTER_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis-exporter",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/redis-exporter"
+    },
+    "NODE_EXPORTER_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/node-exporter",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/node-exporter"
+    },
+    "KAFKA_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/kafka",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/kafka"
+    },
+    "DEBEZIUM_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/debezium",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/debezium"
+    },
+    "ELASTICSEARCH_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/elasticsearch",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/elasticsearch"
+    },
+    "ELASTICSEARCH_EXPORTER_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/elasticsearch-exporter",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/elasticsearch-exporter"
+    },
+    "PROMETHEUS_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/prometheus",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/prometheus"
+    },
+    "GRAFANA_IMAGE": {
+      "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/grafana",
+      "arn": "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/grafana"
+    }
+  }
+}

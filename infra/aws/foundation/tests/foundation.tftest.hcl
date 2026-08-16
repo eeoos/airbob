@@ -409,9 +409,29 @@ run "foundation_contract" {
         ]).Resource == [
         aws_ssm_parameter.dns_consumer_contract.arn,
         aws_ssm_parameter.lab_consumer_contract.arn,
-      ]
+      ] &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadApiOriginRecords"
+      ]).Resource == aws_route53_zone.public.arn &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadRoute53Changes"
+      ]).Resource == "arn:aws:route53:::change/*" &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadLabLoadBalancer"
+        ]).Action) == toset([
+        "elasticloadbalancing:DescribeLoadBalancerAttributes",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "elasticloadbalancing:DescribeTags",
+      ]) &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_operator_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "route53:ChangeResourceRecordSets")
     )
-    error_message = "Lab permissions must support tagged evidence and only the two narrow foundation contracts."
+    error_message = "Lab permissions must support tagged evidence and read-only DNS/ALB refresh without direct Route 53 mutation."
   }
 }
 
