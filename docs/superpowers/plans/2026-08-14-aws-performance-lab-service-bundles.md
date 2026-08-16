@@ -570,7 +570,7 @@ Expected: failure because manifest/package scripts are absent.
 package-service-bundles.sh <40-char-commit> <output-directory>
 ```
 
-It runs the aggregate verifier first, creates the archive from explicit manifest paths rather than a directory wildcard, calculates SHA-256 with `sha256sum` or macOS `shasum -a 256`, and writes a JSON release manifest containing the commit, archive filename, SHA-256, schema version, and file list. It must not contact AWS.
+It materializes the aggregate validator, its child verifier, the manifest, and validation fixtures from the requested commit into private staging and runs that commit-derived validator. A dirty working-tree validator must not be able to approve invalid committed bundle bytes. It creates the archive from explicit manifest paths rather than a directory wildcard, calculates SHA-256 with `sha256sum` or macOS `shasum -a 256`, and writes a JSON release manifest containing the commit, archive filename, SHA-256, schema version, and file list. It must not contact AWS.
 
 - [ ] **Step 4: Add the CI gate**
 

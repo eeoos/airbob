@@ -480,7 +480,7 @@ EBS snapshot이 아니라 Elasticsearch native Snapshot API와 S3 repository를 
 - Elasticsearch custom image는 ES 버전과 Nori 설치를 digest로 고정한다.
 - Kafka, Redis, Prometheus, Grafana와 exporter도 ECR에 mirror하거나 digest를 직접 고정한다.
 - Compose/config bundle은 versioned S3 artifact로 올리고 EC2 user-data는 bundle SHA-256을 검증한 뒤 실행한다.
-- 현재 로컬 packager는 archive member의 regular-file type과 bytes를 지정된 현재 `HEAD` blob에 대조한다. caller-owned mode-0700 output과 신뢰할 수 있는 `PATH`/toolchain을 전제로 하며, SHA-256은 생성된 archive의 무결성 정보이지 서명된 진본성 증명이 아니다.
+- 현재 로컬 packager는 archive member의 regular-file type과 bytes를 지정된 현재 `HEAD` blob에 대조한다. aggregate validator, child verifier, manifest와 image/runtime fixture도 같은 commit에서 private staging으로 materialize하여 mutable working-tree validator가 해당 commit의 bundle을 대신 승인할 수 없게 한다. caller-owned mode-0700 output과 신뢰할 수 있는 `PATH`/toolchain을 전제로 하며, SHA-256은 생성된 archive의 무결성 정보이지 서명된 진본성 증명이 아니다.
 - archive, checksum, release manifest의 세 파일은 하나의 filesystem transaction으로 동시에 공개되지 않는다. 소비자는 마지막 release manifest를 완료 marker로 삼고 commit, archive 이름, SHA-256과 정확한 파일 목록을 모두 검증한 뒤에만 archive를 사용한다.
 - 고정 19개 path에서 runtime env와 열거된 secret-bearing path family를 제외하고, password/passwd/secret/credential/token/API·access·private key/service account/private-key marker family는 경로와 전체 line이 고정된 여섯 placeholder/guard만 각각 정확히 한 번 허용한다. 이는 무해해 보이는 key 아래의 임의 secret 부재까지 증명하지 않으므로 repository secret scan과 사람의 검토를 계속 요구한다.
 - 현재 19개 승인 파일에는 hexadecimal character escape나 비-LF line break가 필요하지 않으므로 `\xNN`, `\uXXXX`, `\UXXXXXXXX`, physical line 끝의 `\`, raw CR/NEL/LS/PS byte를 위치와 용도에 관계없이 거부한다. Java Properties worker 파일은 승인 형태에 backslash가 전혀 필요 없으므로 모든 backslash byte를 추가로 거부한다. 정상 UTF-8과 Properties 밖의 기존 JMX regex `\\w`는 계속 허용한다.

@@ -59,6 +59,13 @@ archive_files=(
   monitoring/grafana/dashboards/airbob-redis.json
   monitoring/grafana/dashboards/airbob-spring-boot-statistics.json
 )
+validation_files=(
+  infra/aws/tests/all-service-bundles-test.sh
+  infra/aws/scripts/verify-service-bundle.sh
+  infra/aws/tests/fixtures/images.env
+  infra/aws/tests/fixtures/runtime.env
+  infra/aws/bundles/manifest.json
+)
 
 archive_name="airbob-service-bundles-$commit.tar.gz"
 checksum_name="$archive_name.sha256"
@@ -67,8 +74,6 @@ for final_name in "$archive_name" "$checksum_name" "$release_manifest_name"; do
   final_path="$output_physical/$final_name"
   [[ ! -e "$final_path" && ! -L "$final_path" ]] || fail "refusing to overwrite a pre-existing package artifact"
 done
-
-bash "$repo_root/infra/aws/tests/all-service-bundles-test.sh" --validate-only >/dev/null
 
 staging_dir=''
 staging_valid=0
@@ -151,6 +156,27 @@ archive_extract_root="$staging_dir/archive-extract"
 mkdir -p "$commit_blob_root" "$archive_extract_root"
 chmod 700 "$commit_blob_root" "$archive_extract_root"
 
+materialize_commit_file() {
+  local relative_path=$1
+  local target_mode=$2
+  local tree_entry
+  local commit_blob
+
+  tree_entry=$(git -C "$repo_root" ls-tree "$commit" -- "$relative_path")
+  case "$tree_entry" in
+    "100644 blob "*$'\t'"$relative_path"|"100755 blob "*$'\t'"$relative_path")
+      ;;
+    *)
+      fail "required path is not a regular file in the requested commit"
+      ;;
+  esac
+  commit_blob="$commit_blob_root/$relative_path"
+  mkdir -p "$commit_blob_root/${relative_path%/*}"
+  git -C "$repo_root" cat-file blob "$commit:$relative_path" > "$commit_blob" \
+    || fail "required blob cannot be read from the requested commit"
+  chmod "$target_mode" "$commit_blob"
+}
+
 write_json_array() {
   array_name=$1
   shift
@@ -207,22 +233,22 @@ for relative_path in "${archive_files[@]}"; do
   parent_physical=$(CDPATH= cd -P -- "$parent_expected" && pwd -P) || fail "archive allowlist parent cannot be resolved physically"
   [[ "$parent_physical" == "$parent_expected" ]] || fail "archive allowlist path has a symlinked parent"
 
-  tree_entry=$(git -C "$repo_root" ls-tree "$commit" -- "$relative_path")
-  case "$tree_entry" in
-    "100644 blob "*$'\t'"$relative_path"|"100755 blob "*$'\t'"$relative_path")
-      ;;
-    *)
-      fail "archive allowlist path is not a regular file in the requested commit"
-      ;;
-  esac
+  materialize_commit_file "$relative_path" 600
   commit_blob="$commit_blob_root/$relative_path"
-  mkdir -p "$commit_blob_root/${relative_path%/*}"
-  git -C "$repo_root" cat-file blob "$commit:$relative_path" > "$commit_blob" \
-    || fail "archive allowlist blob cannot be read from the requested commit"
-  chmod 600 "$commit_blob"
   cmp -s "$source_path" "$commit_blob" \
     || fail "archive allowlist source bytes do not match the requested commit"
 done
+
+for relative_path in "${validation_files[@]}"; do
+  case "$relative_path" in
+    *.sh) validation_mode=700 ;;
+    *) validation_mode=600 ;;
+  esac
+  materialize_commit_file "$relative_path" "$validation_mode"
+done
+
+bash "$commit_blob_root/infra/aws/tests/all-service-bundles-test.sh" \
+  --validate-only >/dev/null
 
 printf '%s\n' "${archive_files[@]}" > "$expected_listing"
 for relative_path in "${archive_files[@]}"; do

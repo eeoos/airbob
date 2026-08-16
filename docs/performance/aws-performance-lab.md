@@ -32,15 +32,19 @@ create AWS resources, apply Terraform, migrate authoritative DNS, change Route
 53 traffic, or establish performance results.
 
 The local packager binds every archive member's regular-file type and bytes to
-the named current `HEAD`, then emits the archive, checksum, and release
-manifest. Run it with a caller-owned mode-0700 output directory and a trusted
-`PATH`/toolchain. The three files cannot appear atomically as one filesystem
-transaction, so consumers must treat the release manifest as the completion
-marker and verify its archive name, checksum, commit, and exact file list before
-using the archive. The SHA-256 protects integrity of the produced archive; it is
-not an authenticity signature. Remote upload and repository/S3 trust remain
-unimplemented. The fixed-corpus sensitive-key gate complements, but does not
-replace, repository secret scanning and human review for benign-looking keys.
+the named current `HEAD`. It also materializes the aggregate validator, its
+child verifier, manifest, and image/runtime fixtures from that same commit in a
+private staging directory and validates those committed bytes rather than a
+mutable working-tree validator. It then emits the archive, checksum, and
+release manifest. Run it with a caller-owned mode-0700 output directory and a
+trusted `PATH`/toolchain. The three files cannot appear atomically as one
+filesystem transaction, so consumers must treat the release manifest as the
+completion marker and verify its archive name, checksum, commit, and exact file
+list before using the archive. The SHA-256 protects integrity of the produced
+archive; it is not an authenticity signature. Remote upload and repository/S3
+trust remain unimplemented. The fixed-corpus sensitive-key gate complements,
+but does not replace, repository secret scanning and human review for
+benign-looking keys.
 Because none of the nineteen approved files requires hexadecimal character
 escapes, the gate rejects every `\xNN`, `\uXXXX`, and `\UXXXXXXXX` occurrence
 and every physical line ending in `\` before placeholder approval. It rejects

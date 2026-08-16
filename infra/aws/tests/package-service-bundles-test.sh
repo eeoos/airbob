@@ -344,6 +344,27 @@ run_committed_secret_failure continued-key 'a committed backslash-continued pass
 run_committed_secret_failure properties-key 'a committed Java Properties escaped password key'
 run_committed_secret_failure ls-key 'a committed LS-spliced password key'
 
+dirty_validator_repo="$temp_dir/dirty-validator-repo"
+cp -R "$base_repo" "$dirty_validator_repo"
+printf '\npassword: hunter2\n' \
+  >> "$dirty_validator_repo/infra/aws/bundles/app/compose.yml"
+git -C "$dirty_validator_repo" add infra/aws/bundles/app/compose.yml
+git -C "$dirty_validator_repo" commit -q -m 'synthetic committed secret for dirty validator'
+dirty_validator_commit=$(git -C "$dirty_validator_repo" rev-parse HEAD)
+cat > "$dirty_validator_repo/infra/aws/tests/all-service-bundles-test.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod 755 "$dirty_validator_repo/infra/aws/tests/all-service-bundles-test.sh"
+dirty_validator_output="$temp_dir/dirty-validator-output"
+mkdir "$dirty_validator_output"
+run_expect_failure 'a dirty validator blessing an invalid HEAD bundle' \
+  "$temp_dir/dirty-validator.log" \
+  "$dirty_validator_repo/infra/aws/scripts/package-service-bundles.sh" \
+  "$dirty_validator_commit" "$dirty_validator_output"
+assert_no_staging "$dirty_validator_output"
+assert_no_release_artifacts "$dirty_validator_output" "$dirty_validator_commit"
+
 committed_alias_repo="$temp_dir/committed-profile-alias-repo"
 cp -R "$base_repo" "$committed_alias_repo"
 awk '
