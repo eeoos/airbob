@@ -53,3 +53,26 @@ data "aws_s3_object" "bundle_checksum" {
   bucket = local.lab_contract.bundle_bucket_name
   key    = local.bundle_checksum_key
 }
+
+data "aws_s3_object" "dataset_manifest" {
+  count = local.services_enabled ? 1 : 0
+
+  bucket = local.lab_contract.dataset_bucket_name
+  key    = local.dataset_manifest_key
+}
+
+data "aws_db_snapshot" "dataset" {
+  count = local.services_enabled && var.database_bootstrap == "snapshot" ? 1 : 0
+
+  db_snapshot_identifier = var.rds_snapshot_identifier
+  include_public         = false
+  include_shared         = false
+  most_recent            = false
+}
+
+data "aws_s3_object" "data_bootstrap_receipt" {
+  count = local.data_ready ? 1 : 0
+
+  bucket = local.lab_contract.evidence_bucket_name
+  key    = "data-bootstrap/${var.run_id}/${var.dataset_release}.json"
+}

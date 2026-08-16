@@ -70,6 +70,90 @@ locals {
     local.bundle_checksum_line == "${var.bundle_sha256}  ${local.bundle_archive_name}",
     false,
   )
+
+  dataset_manifest_keys = local.dataset_release_kind == "evidence" ? toset([
+    "schemaVersion", "releaseKind", "datasetRelease", "datasetRunId", "source", "mysql",
+    "couponPreparation", "kafka", "search", "evidence",
+    ]) : toset([
+    "schemaVersion", "releaseKind", "datasetRelease", "datasetRunId", "source", "mysql",
+    "couponPreparation", "kafka", "search",
+  ])
+  dataset_release_valid = !local.services_enabled || try(
+    sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
+    toset(keys(local.dataset_manifest)) == local.dataset_manifest_keys &&
+    local.dataset_manifest.schemaVersion == 1 &&
+    local.dataset_manifest.datasetRelease == var.dataset_release &&
+    contains(["pipeline-rehearsal", "evidence"], local.dataset_release_kind) &&
+    can(regex("^[a-z0-9][a-z0-9._-]{2,63}$", local.dataset_manifest.datasetRunId)) &&
+    can(regex("^[0-9a-f]{40}$", local.dataset_manifest.source.etlCommit)) &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.canonicalPayloadSha256)) &&
+    local.dataset_manifest.mysql.dumpKey == "mysql/airbob.sql.zst" &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.dumpSha256)) &&
+    local.dataset_manifest.mysql.flywayVersion == "16" &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.migrationChecksumSha256)) &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.schemaFingerprintSha256)) &&
+    local.dataset_manifest.mysql.timezone == "UTC" &&
+    contains(["absent", "truncate-after-import"], local.dataset_manifest.mysql.outboxPolicy) &&
+    contains(keys(local.dataset_expected_table_rows), "flyway_schema_history") &&
+    contains(keys(local.dataset_expected_table_rows), "outbox") &&
+    contains(keys(local.dataset_expected_table_rows), "accommodation") &&
+    length(local.dataset_manifest.kafka.topics) == 3 &&
+    (
+      (local.dataset_release_kind == "pipeline-rehearsal" && local.dataset_manifest.source.datasetVersion == "nplus1-v1") ||
+      (local.dataset_release_kind == "evidence" && local.dataset_manifest.source.datasetVersion == "traffic-v1" && local.dataset_search_enabled)
+    ) &&
+    (
+      !local.dataset_search_enabled ||
+      local.dataset_manifest.search.imageDigest == split("@", var.infra_image_references["ELASTICSEARCH_IMAGE"])[1]
+    ),
+    false,
+  )
+  dataset_snapshot_valid = !local.services_enabled || var.database_bootstrap != "snapshot" || try(
+    data.aws_db_snapshot.dataset[0].status == "available" &&
+    data.aws_db_snapshot.dataset[0].engine == "mysql" &&
+    data.aws_db_snapshot.dataset[0].engine_version == var.rds_engine_version &&
+    data.aws_db_snapshot.dataset[0].encrypted &&
+    data.aws_db_snapshot.dataset[0].tags.DatasetRelease == var.dataset_release &&
+    data.aws_db_snapshot.dataset[0].tags.DatasetRunId == local.dataset_manifest.datasetRunId &&
+    data.aws_db_snapshot.dataset[0].tags.DumpSha256 == local.dataset_manifest.mysql.dumpSha256 &&
+    data.aws_db_snapshot.dataset[0].tags.FlywayVersion == local.dataset_manifest.mysql.flywayVersion &&
+    data.aws_db_snapshot.dataset[0].tags.ManifestSha256 == var.dataset_manifest_sha256,
+    false,
+  )
+
+  data_bootstrap_receipt = try(
+    jsondecode(nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body)),
+    null,
+  )
+  data_bootstrap_receipt_valid = !local.data_ready || try(
+    toset(keys(local.data_bootstrap_receipt)) == toset([
+      "schemaVersion", "runId", "datasetRelease", "datasetRunId", "releaseKind",
+      "databaseBootstrap", "dumpSha256", "flywayVersion", "migrationChecksumSha256",
+      "schemaFingerprintSha256", "datasetManifestSha256",
+      "rdsResourceId", "rdsEngineVersion", "outboxState", "redisState", "kafkaTopics",
+      "connectorState", "searchState", "verifiedAt",
+    ]) &&
+    local.data_bootstrap_receipt.schemaVersion == 1 &&
+    local.data_bootstrap_receipt.runId == var.run_id &&
+    local.data_bootstrap_receipt.datasetRelease == var.dataset_release &&
+    local.data_bootstrap_receipt.datasetRunId == local.dataset_manifest.datasetRunId &&
+    local.data_bootstrap_receipt.releaseKind == local.dataset_release_kind &&
+    local.data_bootstrap_receipt.databaseBootstrap == var.database_bootstrap &&
+    local.data_bootstrap_receipt.dumpSha256 == local.dataset_manifest.mysql.dumpSha256 &&
+    local.data_bootstrap_receipt.flywayVersion == "16" &&
+    local.data_bootstrap_receipt.migrationChecksumSha256 == local.dataset_manifest.mysql.migrationChecksumSha256 &&
+    local.data_bootstrap_receipt.schemaFingerprintSha256 == local.dataset_manifest.mysql.schemaFingerprintSha256 &&
+    local.data_bootstrap_receipt.datasetManifestSha256 == var.dataset_manifest_sha256 &&
+    local.data_bootstrap_receipt.rdsResourceId == module.rds[0].resource_id &&
+    local.data_bootstrap_receipt.rdsEngineVersion == var.rds_engine_version &&
+    local.data_bootstrap_receipt.outboxState == "empty" &&
+    contains(["empty", "coupon-prepared"], local.data_bootstrap_receipt.redisState) &&
+    local.data_bootstrap_receipt.kafkaTopics == local.dataset_manifest.kafka.topics &&
+    local.data_bootstrap_receipt.connectorState == "RUNNING" &&
+    local.data_bootstrap_receipt.searchState == (local.dataset_search_enabled ? "restored" : "skipped") &&
+    can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", local.data_bootstrap_receipt.verifiedAt)),
+    false,
+  )
 }
 
 check "foundation_boundary" {
@@ -131,9 +215,49 @@ resource "terraform_data" "service_release_gate" {
   }
 }
 
+resource "terraform_data" "dataset_release_gate" {
+  count = local.services_enabled ? 1 : 0
+
+  input = var.dataset_release
+
+  lifecycle {
+    precondition {
+      condition     = local.dataset_release_valid && local.dataset_snapshot_valid
+      error_message = "Refusing to create RDS without the exact V16 dataset manifest and, when selected, matching snapshot tags."
+    }
+  }
+}
+
+resource "terraform_data" "data_bootstrap_gate" {
+  count = local.data_ready ? 1 : 0
+
+  input = var.dataset_release
+
+  lifecycle {
+    precondition {
+      condition     = local.data_bootstrap_receipt_valid
+      error_message = "Refusing to attest data-ready without the exact RDS, Redis, Kafka, Debezium, and search bootstrap receipt."
+    }
+  }
+}
+
 check "service_release" {
   assert {
     condition     = local.bundle_release_valid && local.phase2_images_valid
     error_message = "The services phase requires an immutable nineteen-file bundle release and nine exact ECR digest references."
+  }
+}
+
+check "dataset_release" {
+  assert {
+    condition     = local.dataset_release_valid && local.dataset_snapshot_valid
+    error_message = "Phase 3 requires an immutable V16 dataset release and a matching optional RDS snapshot."
+  }
+}
+
+check "data_bootstrap" {
+  assert {
+    condition     = local.data_bootstrap_receipt_valid
+    error_message = "The data-ready phase requires an exact ordered bootstrap receipt."
   }
 }

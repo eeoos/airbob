@@ -82,7 +82,15 @@ run "reject_services_without_probe_identity" {
     deployment_phase = "services"
   }
 
-  expect_failures = [var.verified_probe_instance_id, var.bundle_commit, var.bundle_sha256]
+  expect_failures = [
+    var.verified_probe_instance_id,
+    var.bundle_commit,
+    var.bundle_sha256,
+    var.dataset_release,
+    var.dataset_manifest_sha256,
+    var.database_bootstrap,
+    var.rds_engine_version,
+  ]
 }
 
 run "reject_unapproved_image_reference_set" {
@@ -93,6 +101,10 @@ run "reject_unapproved_image_reference_set" {
     verified_probe_instance_id = "i-0123456789abcdef0"
     bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
     bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    dataset_release            = "rehearsal-v16"
+    dataset_manifest_sha256    = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
+    database_bootstrap         = "dump"
+    rds_engine_version         = "8.0.40"
     infra_image_references = {
       REDIS_IMAGE = "public.example/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     }
@@ -126,7 +138,22 @@ run "reject_unapproved_image_reference_set" {
     }
   }
 
-  expect_failures = [check.phase_transition, check.service_release, terraform_data.network_receipt_gate, terraform_data.probe_clearance_gate, terraform_data.service_release_gate]
+  override_data {
+    target = data.aws_s3_object.dataset_manifest[0]
+    values = {
+      body = "{}"
+    }
+  }
+
+  expect_failures = [
+    check.phase_transition,
+    check.service_release,
+    check.dataset_release,
+    terraform_data.network_receipt_gate,
+    terraform_data.probe_clearance_gate,
+    terraform_data.service_release_gate,
+    terraform_data.dataset_release_gate,
+  ]
 }
 
 run "services_require_both_receipts_and_immutable_release" {
@@ -137,6 +164,10 @@ run "services_require_both_receipts_and_immutable_release" {
     verified_probe_instance_id = "i-0123456789abcdef0"
     bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
     bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    dataset_release            = "rehearsal-v16"
+    dataset_manifest_sha256    = "85341d28ef5df0c7e6e5fb5ece12bb1c56f7d5c74c511d0cefc60d8fd4fd05e3"
+    database_bootstrap         = "dump"
+    rds_engine_version         = "8.0.40"
     infra_image_references = {
       REDIS_IMAGE                  = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       REDIS_EXPORTER_IMAGE         = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis-exporter@sha256:1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -220,6 +251,15 @@ run "services_require_both_receipts_and_immutable_release" {
     override_during = plan
     values = {
       body = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  airbob-service-bundles-0123456789abcdef0123456789abcdef01234567.tar.gz\n"
+    }
+  }
+
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/dataset-manifest.json")
     }
   }
 

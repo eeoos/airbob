@@ -48,10 +48,10 @@ done
   || fail "service-bundle publisher is missing or not executable"
 
 assert_contains "$lab_root/variables.tf" 'validation {'
-assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services"], var.deployment_phase)'
+assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)'
 assert_contains "$lab_root/providers.tf" 'ExpiresAt'
 assert_contains "$lab_root/locals.tf" 'probe_enabled    = var.deployment_phase == "network"'
-assert_contains "$lab_root/locals.tf" 'services_enabled = var.deployment_phase == "services"'
+assert_contains "$lab_root/locals.tf" 'services_enabled = contains(["services", "data-ready"], var.deployment_phase)'
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "network_receipt_gate"'
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "probe_clearance_gate"'
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "service_release_gate"'

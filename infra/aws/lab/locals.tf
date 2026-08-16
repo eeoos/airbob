@@ -88,7 +88,7 @@ locals {
   )
 
   phase2_image_keys = setsubtract(toset(keys(local.expected_ecr_repositories)), toset(["APP_IMAGE"]))
-  phase2_images_valid = var.deployment_phase != "services" || try(
+  phase2_images_valid = !contains(["services", "data-ready"], var.deployment_phase) || try(
     toset(keys(var.infra_image_references)) == local.phase2_image_keys &&
     alltrue([
       for image_key in local.phase2_image_keys :
@@ -114,7 +114,18 @@ locals {
 
   probe_enabled    = var.deployment_phase == "network"
   receipt_required = var.deployment_phase != "network"
-  services_enabled = var.deployment_phase == "services"
+  services_enabled = contains(["services", "data-ready"], var.deployment_phase)
+  data_ready       = var.deployment_phase == "data-ready"
+
+  dataset_prefix       = "datasets/${var.dataset_release}"
+  dataset_manifest_key = "${local.dataset_prefix}/manifest.json"
+  dataset_manifest = local.services_enabled ? try(
+    jsondecode(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)),
+    null,
+  ) : null
+  dataset_release_kind        = try(local.dataset_manifest.releaseKind, null)
+  dataset_search_enabled      = try(local.dataset_manifest.search.enabled, false)
+  dataset_expected_table_rows = try(local.dataset_manifest.mysql.expectedTableRows, {})
 
   bundle_archive_name  = "airbob-service-bundles-${var.bundle_commit}.tar.gz"
   bundle_prefix        = "service-bundles/${var.bundle_commit}"

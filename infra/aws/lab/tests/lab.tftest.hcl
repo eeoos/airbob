@@ -154,3 +154,13 @@ run "reject_wrong_region" {
 
   expect_failures = [var.aws_region]
 }
+
+run "reject_rds_unsafe_run_id" {
+  command = plan
+
+  variables {
+    run_id = "invalid--run"
+  }
+
+  expect_failures = [var.run_id]
+}

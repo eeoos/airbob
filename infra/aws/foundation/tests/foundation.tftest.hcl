@@ -425,10 +425,54 @@ run "foundation_contract" {
       length(local.foundation_admin_policy) <= 10240 &&
       length(local.lab_operator_policy) <= 10240 &&
       length(local.lab_compute_policy) <= 10240 &&
+      length(local.lab_data_compute_policy) <= 10240 &&
       length(local.lab_host_boundary_policy) <= 6144 &&
       length(local.image_publisher_policy) <= 10240
     )
     error_message = "Role trust and inline policies must remain within default AWS IAM document-size quotas."
+  }
+
+  assert {
+    condition = (
+      toset(one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "CreateRdsManagedMasterSecret"
+        ]).Action) == toset([
+        "secretsmanager:CreateSecret",
+        "secretsmanager:TagResource",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "CreateRdsManagedMasterSecret"
+      ]).Resource == "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-*" &&
+      one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "DescribeSecretsManagerKey"
+      ]).Action == "kms:DescribeKey" &&
+      one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "DescribeSecretsManagerKey"
+      ]).Resource == "*"
+    )
+    error_message = "The lab operator must be able to create only RDS-managed master secrets and describe their AWS-managed KMS key."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "CreateTaggedLabRds"
+      ]).Resource != "*" &&
+      contains(one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "CreateTaggedLabRds"
+      ]).Resource, "arn:aws:rds:ap-northeast-2:942632789808:snapshot:airbob-dataset-*") &&
+      contains(one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "CreateTaggedLabRds"
+      ]).Resource, "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-*")
+    )
+    error_message = "The lab operator must create only Airbob-named RDS resources and restore only dataset-publisher snapshots."
   }
 
   assert {

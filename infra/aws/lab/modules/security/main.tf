@@ -21,6 +21,8 @@ locals {
     rds-loadgen-3306      = { target = "rds", source = "loadgen", port = 3306 }
     redis-app-6379        = { target = "redis", source = "app", port = 6379 }
     redis-app-6380        = { target = "redis", source = "app", port = 6380 }
+    redis-debezium-6379   = { target = "redis", source = "debezium", port = 6379 }
+    redis-debezium-6380   = { target = "redis", source = "debezium", port = 6380 }
     redis-monitoring-9121 = { target = "redis", source = "monitoring", port = 9121 }
     redis-monitoring-9122 = { target = "redis", source = "monitoring", port = 9122 }
     redis-monitoring-9100 = { target = "redis", source = "monitoring", port = 9100 }

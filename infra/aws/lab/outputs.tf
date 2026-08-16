@@ -87,3 +87,31 @@ output "phase2_contract" {
     error_message = "Phase 2 service output is unavailable because the immutable runtime release is invalid."
   }
 }
+
+output "phase3_contract" {
+  description = "Non-secret dataset, RDS, and ordered bootstrap status."
+  value = {
+    dataset_release            = var.dataset_release
+    dataset_run_id             = try(local.dataset_manifest.datasetRunId, null)
+    release_kind               = local.dataset_release_kind
+    database_bootstrap         = var.database_bootstrap
+    rds_instance_id            = local.services_enabled ? module.rds[0].id : null
+    rds_resource_id            = local.services_enabled ? module.rds[0].resource_id : null
+    rds_endpoint               = local.services_enabled ? module.rds[0].address : null
+    rds_engine_version         = var.rds_engine_version
+    rds_parameter_group        = local.services_enabled ? module.rds[0].parameter_group_name : null
+    search_enabled             = local.dataset_search_enabled
+    data_ready                 = local.data_ready && local.data_bootstrap_receipt_valid
+    data_bootstrap_receipt_key = local.data_ready ? "data-bootstrap/${var.run_id}/${var.dataset_release}.json" : null
+  }
+
+  precondition {
+    condition     = local.dataset_release_valid && local.dataset_snapshot_valid
+    error_message = "Phase 3 output is unavailable because its dataset or optional snapshot contract is invalid."
+  }
+
+  precondition {
+    condition     = local.data_bootstrap_receipt_valid
+    error_message = "The data-ready output is unavailable because the ordered bootstrap receipt is invalid."
+  }
+}

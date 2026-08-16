@@ -124,3 +124,79 @@ resource "aws_iam_role_policy" "monitoring_discovery" {
     }]
   })
 }
+
+resource "aws_iam_role_policy" "data_bootstrap" {
+  count = local.services_enabled ? 1 : 0
+
+  name = "airbob-performance-lab-data-bootstrap"
+  role = aws_iam_role.host["debezium"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadSelectedDatasetRelease"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*"
+      },
+      {
+        Sid      = "ReadRdsMasterSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"]
+        Resource = module.rds[0].master_secret_arn
+      },
+      {
+        Sid      = "ManageEphemeralDebeziumCredentialValue"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"]
+        Resource = aws_secretsmanager_secret.debezium[0].arn
+      },
+      {
+        Sid      = "WriteDataBootstrapReceipt"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = "arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/data-bootstrap/${var.run_id}/*"
+        Condition = {
+          StringEquals = {
+            "s3:RequestObjectTag/Retention" = "summary"
+          }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "elasticsearch_snapshot" {
+  count = local.services_enabled ? 1 : 0
+
+  name = "airbob-performance-lab-elasticsearch-snapshot"
+  role = aws_iam_role.host["elasticsearch"].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DatasetSnapshotBucketLocation"
+        Effect   = "Allow"
+        Action   = "s3:GetBucketLocation"
+        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}"
+      },
+      {
+        Sid      = "ListDatasetSnapshotRepository"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}"
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["elasticsearch/releases/${var.dataset_release}/*"]
+          }
+        }
+      },
+      {
+        Sid      = "ReadDatasetSnapshotRepository"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/elasticsearch/releases/${var.dataset_release}/*"
+      },
+    ]
+  })
+}

@@ -34,10 +34,40 @@ locals {
         Resource = "*"
       },
       {
-        Sid      = "ReadImmutableRuntimeInputs"
+        Sid    = "ReadImmutableRuntimeInputs"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = [
+          "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*",
+          "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
+          "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/*",
+        ]
+      },
+      {
+        Sid      = "DatasetSnapshotBucketLocation"
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
-        Resource = "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*"
+        Action   = "s3:GetBucketLocation"
+        Resource = aws_s3_bucket.managed["dataset"].arn
+      },
+      {
+        Sid      = "ListDatasetSnapshotRepository"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.managed["dataset"].arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["elasticsearch/*"]
+          }
+        }
+      },
+      {
+        Sid    = "BootstrapSecrets"
+        Effect = "Allow"
+        Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"]
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:rds!db-*",
+          "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:airbob/*/debezium-*",
+        ]
       },
       {
         Sid      = "ProbeEvidenceBucketLocation"
@@ -58,10 +88,13 @@ locals {
         Resource = "*"
       },
       {
-        Sid      = "WritePhase2Evidence"
-        Effect   = "Allow"
-        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
-        Resource = "${aws_s3_bucket.managed["evidence"].arn}/phase2/*"
+        Sid    = "WriteBootstrapEvidence"
+        Effect = "Allow"
+        Action = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = [
+          "${aws_s3_bucket.managed["evidence"].arn}/phase2/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+        ]
         Condition = {
           StringEquals = {
             "s3:RequestObjectTag/Retention" = "summary"
@@ -483,6 +516,112 @@ locals {
       },
     ]
   })
+
+  lab_data_compute_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DescribeLabRds"
+        Effect = "Allow"
+        Action = [
+          "rds:DescribeDBInstances",
+          "rds:DescribeDBParameterGroups",
+          "rds:DescribeDBParameters",
+          "rds:DescribeDBSnapshots",
+          "rds:DescribeDBSubnetGroups",
+          "rds:ListTagsForResource",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CreateTaggedLabRds"
+        Effect = "Allow"
+        Action = [
+          "rds:CreateDBInstance",
+          "rds:CreateDBParameterGroup",
+          "rds:CreateDBSubnetGroup",
+          "rds:RestoreDBInstanceFromDBSnapshot",
+        ]
+        Resource = [
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:db:airbob-*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:og:*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:snapshot:airbob-dataset-*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-*",
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:RequestTag/Project"     = "airbob"
+            "aws:RequestTag/Environment" = "performance-lab"
+            "aws:RequestTag/Stack"       = "lab"
+            "aws:RequestTag/ManagedBy"   = "terraform"
+            "aws:RequestTag/Persistence" = "ephemeral"
+          }
+          Null = {
+            "aws:RequestTag/ExpiresAt" = "false"
+            "aws:RequestTag/RunId"     = "false"
+          }
+        }
+      },
+      {
+        Sid    = "ManageTaggedLabRds"
+        Effect = "Allow"
+        Action = [
+          "rds:AddTagsToResource",
+          "rds:DeleteDBInstance",
+          "rds:DeleteDBParameterGroup",
+          "rds:DeleteDBSubnetGroup",
+          "rds:ModifyDBInstance",
+          "rds:ModifyDBParameterGroup",
+          "rds:ModifyDBSubnetGroup",
+          "rds:RebootDBInstance",
+          "rds:RemoveTagsFromResource",
+          "rds:ResetDBParameterGroup",
+        ]
+        Resource = [
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:db:airbob-*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-*",
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/Project"     = "airbob"
+            "aws:ResourceTag/Environment" = "performance-lab"
+            "aws:ResourceTag/Stack"       = "lab"
+            "aws:ResourceTag/ManagedBy"   = "terraform"
+            "aws:ResourceTag/Persistence" = "ephemeral"
+          }
+        }
+      },
+      {
+        Sid    = "ManageEphemeralLabSecretMetadata"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:DeleteSecret",
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:TagResource",
+          "secretsmanager:UntagResource",
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:airbob/*"
+      },
+      {
+        Sid    = "CreateRdsManagedMasterSecret"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:TagResource",
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:rds!db-*"
+      },
+      {
+        Sid      = "DescribeSecretsManagerKey"
+        Effect   = "Allow"
+        Action   = "kms:DescribeKey"
+        Resource = "*"
+      },
+    ]
+  })
 }
 
 resource "aws_iam_policy" "lab_host_boundary" {
@@ -499,6 +638,16 @@ resource "aws_iam_role_policy" "lab_compute" {
   name   = "airbob-lab-operator-compute"
   role   = aws_iam_role.lab_operator.id
   policy = local.lab_compute_policy
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "lab_data_compute" {
+  name   = "airbob-lab-operator-data-compute"
+  role   = aws_iam_role.lab_operator.id
+  policy = local.lab_data_compute_policy
 
   lifecycle {
     prevent_destroy = true

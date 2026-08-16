@@ -20,7 +20,9 @@
 | Expiry observer and SNS/CloudWatch alerts | Implemented (read-only configuration/static tests; disabled, delivery unverified, and not applied) |
 | Lease/fencing cleanup controller and automatic destroy | Not implemented yet |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Ephemeral RDS/ALB/App ASG Terraform | Not implemented yet |
+| Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V16 release published or restored) |
+| Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
+| Ephemeral ALB/App ASG/load generator Terraform | Not implemented yet |
 | Route 53 cutover | Not executed |
 | AWS performance evidence | Not collected |
 
@@ -49,7 +51,20 @@ tags for the two custom images; AWS consumers accept only ECR digest references.
 The repository can now publish the bundle package immutably and enforce Phase 2
 host prerequisites through SSM, but neither path has run against AWS. This work
 does not apply Terraform, create live AWS resources, migrate authoritative DNS,
-change Route 53 traffic, restore data, or establish performance results.
+change Route 53 traffic, restore data, or establish performance results. The
+historical ETL dump is Flyway V12 while the application is V16, so the Phase 3
+validator intentionally refuses it; a newly generated immutable V16 release is
+a prerequisite for the first live rehearsal.
+
+Phase 3 now binds one manifest SHA to an ephemeral RDS instance and runs the
+ordered bootstrap from the Debezium host: database import and Flyway/schema
+fingerprints, optional read-only Elasticsearch S3 snapshot restore, both Redis
+resets plus declared coupon preparation, exact empty Kafka topics, then a
+Debezium `no_data` connector. A separate `data-ready` Terraform transition
+accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords
+are resolved only on the host from Secrets Manager. Persistent RDS snapshot
+promotion is a separate publisher/admin command and remains outside the lab
+role and lab destroy graph.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`. It also materializes the aggregate validator, its
