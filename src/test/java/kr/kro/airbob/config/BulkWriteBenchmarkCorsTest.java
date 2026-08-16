@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
+import java.util.List;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -94,7 +95,7 @@ class BulkWriteBenchmarkCorsTest {
 	private WebMvcConfig createWebMvcConfig() {
 		return new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
-			mock(CursorParamArgumentResolver.class),
+			List.of(mock(CursorParamArgumentResolver.class)),
 			mock(SessionAuthFilter.class),
 			mock(AdminAuthInterceptor.class),
 			mock(QueryCountInterceptor.class)

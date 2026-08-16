@@ -20,4 +20,13 @@ class CouponTimeProviderTest {
 		assertThat(timeProvider.toEpochMilli(koreanTenAm))
 			.isEqualTo(Instant.parse("2026-07-18T01:00:00Z").toEpochMilli());
 	}
+
+	@Test
+	@DisplayName("epoch millisecond를 한국 로컬 쿠폰 시각으로 변환한다")
+	void convertsEpochMillisecondsToKoreanCampaignTime() {
+		long epochMillis = Instant.parse("2026-07-18T01:00:00Z").toEpochMilli();
+
+		assertThat(timeProvider.fromEpochMilli(epochMillis))
+			.isEqualTo(LocalDateTime.of(2026, 7, 18, 10, 0));
+	}
 }

@@ -12,7 +12,7 @@ import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
-import kr.kro.airbob.domain.coupon.service.CouponService;
+import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -23,12 +23,20 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api")
 public class CouponController {
 
-	private final CouponService couponService;
+	private final CouponQueryService couponQueryService;
 	private final CouponLuaIssueService luaIssueService;
 
 	@GetMapping("/v1/coupons")
-	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findValidCoupons() {
-		CouponResponse.CouponInfos coupons = couponService.findValidCoupons();
+	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns() {
+		CouponResponse.CouponInfos coupons = couponQueryService.findCouponCampaigns();
+		return ResponseEntity.ok(ApiResponse.success(coupons));
+	}
+
+	@GetMapping("/v1/members/me/coupons")
+	public ResponseEntity<ApiResponse<CouponResponse.MemberCouponInfos>> findMyCoupons(
+		@CurrentMemberId Long memberId
+	) {
+		CouponResponse.MemberCouponInfos coupons = couponQueryService.findMyCoupons(memberId);
 		return ResponseEntity.ok(ApiResponse.success(coupons));
 	}
 

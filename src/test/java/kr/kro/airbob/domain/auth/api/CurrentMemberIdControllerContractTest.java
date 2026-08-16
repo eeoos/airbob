@@ -68,6 +68,7 @@ class CurrentMemberIdControllerContractTest {
 			required(AuthController.class, "getMyInfo"),
 			required(CouponBenchmarkController.class, "issueCouponWithLock"),
 			required(CouponController.class, "issueCoupon"),
+			required(CouponController.class, "findMyCoupons"),
 			required(PaymentController.class, "confirmPayment"),
 			required(PaymentController.class, "getPaymentByPaymentKey"),
 			required(PaymentController.class, "getPaymentByOrderId"),
