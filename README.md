@@ -245,10 +245,15 @@ graph LR
     
     subgraph "Indexing Consumer"
         Consumer[AccommodationIndexingConsumer]
+        Retry[ACCOMMODATION.events.RETRY]
+        DLT[ACCOMMODATION.events.DLT]
     end
     
     Kafka -->|Consume| Consumer
-    Consumer -->|Upsert/Delete| ES[(Elasticsearch)]
+    Consumer -->|Rebuild from MySQL/Delete| ES[(Elasticsearch)]
+    Consumer -->|Transient failure| Retry
+    Retry -->|Retry| Consumer
+    Retry -->|Exhausted| DLT
 ```
 <br>
 

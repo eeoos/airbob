@@ -97,6 +97,12 @@ reservation:
     history-batch-size: ${RESERVATION_HISTORY_BATCH_SIZE:100}
 
 accommodation:
+  indexing:
+    kafka:
+      topic: ${ACCOMMODATION_INDEXING_TOPIC:ACCOMMODATION.events}
+      group: ${ACCOMMODATION_INDEXING_GROUP:accommodation-indexing-group}
+      attempts: ${ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS:4}
+      backoff-ms: ${ACCOMMODATION_INDEXING_KAFKA_BACKOFF_MS:30000}
   detail-cache:
     ttl: ${ACCOMMODATION_DETAIL_CACHE_TTL:10m}
     ttl-jitter: ${ACCOMMODATION_DETAIL_CACHE_TTL_JITTER:2m}

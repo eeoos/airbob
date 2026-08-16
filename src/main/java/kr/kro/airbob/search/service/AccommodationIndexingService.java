@@ -1,8 +1,9 @@
 package kr.kro.airbob.search.service;
 
-import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.search.document.AccommodationDocument;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -16,26 +17,17 @@ public class AccommodationIndexingService {
 
 	private final AccommodationSearchRepository searchRepository;
 	private final AccommodationDocumentBuilder documentBuilder;
-	private final AccommodationIndexUpdater indexUpdater;
 
-	public void updateAccommodationIndex(AccommodationUpdatedEvent event) {
-		AccommodationDocument document = documentBuilder.buildAccommodationDocument(event.accommodationUid());
+	@Transactional(readOnly = true)
+	public void refreshAccommodationIndex(UUID accommodationUid) {
+		AccommodationDocument document =
+			documentBuilder.buildAccommodationDocument(accommodationUid.toString());
 		searchRepository.save(document);
-		log.info("[ES-INDEX] 숙소 업데이트: {}", event.accommodationUid());
+		log.info("[ES-INDEX] 숙소 최신 상태 반영: {}", accommodationUid);
 	}
 
-	public void deleteAccommodationIndex(AccommodationDeletedEvent event) {
-		searchRepository.deleteById(java.util.UUID.fromString(event.accommodationUid()));
-		log.info("[ES-INDEX] 숙소 삭제: {}", event.accommodationUid());
-	}
-
-	public void updateReviewSummaryInIndex(ReviewSummaryChangedEvent event) {
-		indexUpdater.updateReviewSummaryInIndex(event.accommodationUid());
-		log.info("[ES-INDEX] 리뷰 요약 업데이트: {}", event.accommodationUid());
-	}
-
-	public void updateReservationRangesInIndex(ReservationChangedEvent event) {
-		indexUpdater.updateReservationRangesInIndex(event.accommodationUid());
-		log.info("[ES-INDEX] 예약 범위 업데이트: {}", event.accommodationUid());
+	public void deleteAccommodationIndex(UUID accommodationUid) {
+		searchRepository.deleteById(accommodationUid);
+		log.info("[ES-INDEX] 숙소 삭제: {}", accommodationUid);
 	}
 }

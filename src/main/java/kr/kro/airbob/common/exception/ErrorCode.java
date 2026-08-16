@@ -20,6 +20,7 @@ public enum ErrorCode {
 	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
 	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
+	SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "SE001", "검색 서비스를 일시적으로 사용할 수 없습니다."),
 
 	// common code
 	COMMON_CODE_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "CC001", "존재하지 않는 공통 코드 그룹입니다."),

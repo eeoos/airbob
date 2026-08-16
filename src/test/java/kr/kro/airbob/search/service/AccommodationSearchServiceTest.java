@@ -1,10 +1,16 @@
 package kr.kro.airbob.search.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.LocalDate;
+import java.io.IOException;
 import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
@@ -16,12 +22,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.query_dsl.RangeRelation;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
 
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import kr.kro.airbob.search.dto.AccommodationSearchRequest;
+import kr.kro.airbob.search.document.AccommodationDocument;
+import kr.kro.airbob.search.exception.SearchUnavailableException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 검색 서비스 테스트")
@@ -85,6 +95,44 @@ class AccommodationSearchServiceTest {
 				assertThat(mustNot.range().date().lt()).isEqualTo("2026-08-13");
 				assertThat(mustNot.range().date().relation()).isEqualTo(RangeRelation.Intersects);
 			});
+	}
+
+	@Test
+	@DisplayName("Elasticsearch 연결 실패를 정상적인 빈 검색 결과로 숨기지 않는다")
+	void throwsServiceUnavailableWhenElasticsearchCannotBeReached() throws IOException {
+		AccommodationSearchRequest.AccommodationSearchRequestDto request =
+			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		request.setDestination("Seoul");
+		willThrow(new IOException("connection refused"))
+			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
+
+		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
+			request,
+			new AccommodationSearchRequest.MapBoundsDto(),
+			PageRequest.of(0, 18),
+			null
+		))
+			.isInstanceOf(SearchUnavailableException.class);
+		verifyNoInteractions(wishlistRepository);
+	}
+
+	@Test
+	@DisplayName("Elasticsearch 오류 응답도 검색 서비스 장애로 명시한다")
+	void throwsServiceUnavailableWhenElasticsearchRejectsSearch() throws IOException {
+		AccommodationSearchRequest.AccommodationSearchRequestDto request =
+			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		request.setDestination("Seoul");
+		willThrow(mock(ElasticsearchException.class))
+			.given(esClient).search(any(SearchRequest.class), eq(AccommodationDocument.class));
+
+		assertThatThrownBy(() -> accommodationSearchService.searchAccommodations(
+			request,
+			new AccommodationSearchRequest.MapBoundsDto(),
+			PageRequest.of(0, 18),
+			null
+		))
+			.isInstanceOf(SearchUnavailableException.class);
+		verifyNoInteractions(wishlistRepository);
 	}
 
 	private AccommodationSearchRequest.AccommodationSearchRequestDto dateRequest(

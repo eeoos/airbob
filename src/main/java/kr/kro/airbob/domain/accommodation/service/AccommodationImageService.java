@@ -25,6 +25,9 @@ import kr.kro.airbob.domain.image.exception.ImageNotFoundException;
 import kr.kro.airbob.domain.image.exception.ImageUploadException;
 import kr.kro.airbob.domain.image.exception.InvalidImageFormatException;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
+import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.event.AccommodationIndexingEvents.AccommodationUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,6 +44,7 @@ public class AccommodationImageService {
 	private final AccommodationRepository accommodationRepository;
 	private final S3ImageUploader s3ImageUploader;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	private final OutboxEventPublisher outboxEventPublisher;
 
 	@Transactional
 	public ImageResponse.ImageUploadResult uploadImages(
@@ -82,7 +86,8 @@ public class AccommodationImageService {
 				.build());
 		}
 
-		findAndUpdateThumbnail(accommodation);
+		boolean thumbnailChanged = findAndUpdateThumbnail(accommodation);
+		publishReindexEventIfNeeded(accommodation, thumbnailChanged);
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.IMAGE);
 
@@ -100,12 +105,12 @@ public class AccommodationImageService {
 			throw new InvalidInputException();
 		}
 
-		s3ImageUploader.delete(image.getImageUrl());
 		accommodationImageRepository.delete(image);
 
-		if (image.getImageUrl().equals(accommodation.getThumbnailUrl())) {
-			findAndUpdateThumbnail(accommodation);
-		}
+		boolean thumbnailChanged = image.getImageUrl().equals(accommodation.getThumbnailUrl())
+			&& findAndUpdateThumbnail(accommodation);
+		publishReindexEventIfNeeded(accommodation, thumbnailChanged);
+		s3ImageUploader.delete(image.getImageUrl());
 
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.IMAGE);
@@ -126,13 +131,27 @@ public class AccommodationImageService {
 		}
 	}
 
-	private void findAndUpdateThumbnail(Accommodation accommodation) {
+	private boolean findAndUpdateThumbnail(Accommodation accommodation) {
 		List<AccommodationImage> remainingImages =
 			accommodationImageRepository.findByAccommodationIdOrderByIdAsc(accommodation.getId());
 		String newThumbnailUrl = remainingImages.isEmpty() ? null : remainingImages.getFirst().getImageUrl();
 
 		if (!Objects.equals(accommodation.getThumbnailUrl(), newThumbnailUrl)) {
 			accommodation.updateThumbnailUrl(newThumbnailUrl);
+			return true;
+		}
+		return false;
+	}
+
+	private void publishReindexEventIfNeeded(
+		Accommodation accommodation,
+		boolean thumbnailChanged
+	) {
+		if (thumbnailChanged && accommodation.getStatus() == AccommodationStatus.PUBLISHED) {
+			outboxEventPublisher.save(
+				EventType.ACCOMMODATION_UPDATED,
+				new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
+			);
 		}
 	}
 
