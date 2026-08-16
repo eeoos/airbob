@@ -1,58 +1,176 @@
 name: Build Infra Images
 
-# Elasticsearch/Debezium Dockerfile 변경 시 또는 수동 트리거
 on:
   push:
     branches: [ main ]
     paths:
+      - 'docker/aws-mirror/**'
+      - 'docker/kafka/**'
       - 'docker/elasticsearch/**'
       - 'docker/debezium/**'
+      - 'infra/aws/images/release.json'
+      - 'infra/aws/scripts/publish-ecr-image.sh'
+      - 'infra/aws/scripts/verify-published-image.sh'
+      - 'infra/aws/scripts/assemble-image-release.sh'
+      - '.github/workflows/infra-images.yml'
   workflow_dispatch:
 
 concurrency:
   group: infra-images
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build-infra-images:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      oci_matrix: ${{ steps.matrix.outputs.oci_matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify immutable image contract
+        run: bash infra/aws/tests/image-publication-test.sh
+
+      - name: Read approved image matrix
+        id: matrix
+        run: |
+          set -euo pipefail
+          printf 'matrix=%s\n' "$(jq -c '{include: [.infra[] | {variable: .variable}]}' infra/aws/images/release.json)" >> "$GITHUB_OUTPUT"
+          printf 'oci_matrix=%s\n' "$(jq -c '{include: [.infra[] | select(.variable == "DEBEZIUM_IMAGE" or .variable == "ELASTICSEARCH_IMAGE") | {variable: .variable, image: (if .variable == "DEBEZIUM_IMAGE" then "airbob-debezium" else "airbob-elasticsearch" end)}]}' infra/aws/images/release.json)" >> "$GITHUB_OUTPUT"
+
+  publish-ecr-images:
+    needs: prepare
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_IMAGE_PUBLISHER_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-session-name: airbob-infra-image-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
+
+      - name: Publish immutable infrastructure image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_VARIABLE: ${{ matrix.variable }}
+        run: |
+          set -euo pipefail
+          output_dir="$RUNNER_TEMP/image-reference"
+          infra/aws/scripts/publish-ecr-image.sh "$IMAGE_VARIABLE" "$GITHUB_SHA" "$output_dir"
+          image_ref=$(sed -n '1p' "$output_dir/$IMAGE_VARIABLE.ref")
+          infra/aws/scripts/verify-published-image.sh "$IMAGE_VARIABLE" "$image_ref"
+
+      - name: Upload immutable image reference
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: infra-image-${{ matrix.variable }}-${{ github.sha }}
+          path: ${{ runner.temp }}/image-reference/${{ matrix.variable }}.ref
+          if-no-files-found: error
+          retention-days: 30
+
+  assemble-infra-release:
+    needs: [prepare, publish-ecr-images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Download immutable image references
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: infra-image-*-${{ github.sha }}
+          path: ${{ runner.temp }}/infra-image-references
+          merge-multiple: true
+
+      - name: Assemble immutable infrastructure release
+        run: |
+          set -euo pipefail
+          infra/aws/scripts/assemble-image-release.sh infra "$GITHUB_SHA" "$RUNNER_TEMP/infra-image-references" "$RUNNER_TEMP/infra-image-release.json"
+
+      - name: Upload immutable infrastructure release manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: infra-image-release-${{ github.sha }}
+          path: ${{ runner.temp }}/infra-image-release.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-oci-compat-images:
+    needs: prepare
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.oci_matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Elasticsearch (with Nori)
-        uses: docker/build-push-action@v6
-        with:
-          context: docker/elasticsearch
-          file: docker/elasticsearch/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/airbob-elasticsearch:latest
+      - name: Read OCI compatibility build contract
+        id: image
+        env:
+          IMAGE_VARIABLE: ${{ matrix.variable }}
+        run: |
+          set -euo pipefail
+          entry=$(jq -ce --arg variable "$IMAGE_VARIABLE" '.infra[] | select(.variable == $variable)' infra/aws/images/release.json)
+          printf 'context=%s\n' "$(jq -r '.context' <<< "$entry")" >> "$GITHUB_OUTPUT"
+          printf 'dockerfile=%s\n' "$(jq -r '.dockerfile' <<< "$entry")" >> "$GITHUB_OUTPUT"
+          {
+            printf 'build_args<<EOF\n'
+            jq -r '.buildArgs | to_entries[] | "\(.key)=\(.value)"' <<< "$entry"
+            printf 'EOF\n'
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push Debezium (Kafka Connect)
-        uses: docker/build-push-action@v6
+      - name: Publish OCI compatibility image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
-          context: docker/debezium
-          file: docker/debezium/Dockerfile
+          context: ${{ steps.image.outputs.context }}
+          file: ${{ steps.image.outputs.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: ${{ steps.image.outputs.build_args }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/airbob-debezium:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest

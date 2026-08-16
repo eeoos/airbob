@@ -1,0 +1,7 @@
+**
+!docker/
+!docker/app/
+!docker/app/Dockerfile
+!build/
+!build/libs/
+!build/libs/airbob.jar

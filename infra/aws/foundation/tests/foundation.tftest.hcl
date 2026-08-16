@@ -417,6 +417,19 @@ run "foundation_contract" {
   }
 
   assert {
+    condition = toset(jsondecode(local.image_publisher_policy).Statement[1].Action) == toset([
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:CompleteLayerUpload",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ])
+    error_message = "The image publisher must have only the exact ECR lookup, pull, and immutable-push actions."
+  }
+
+  assert {
     condition = (
       !contains(flatten([
         for statement in jsondecode(local.foundation_admin_policy).Statement :

@@ -24,7 +24,7 @@ AWS는 모든 구성요소를 한 인스턴스에 합치지 않는다. 기존 �
 
 이는 다중 AZ 고가용성을 갖춘 실제 운영 인프라가 아니라, 운영과 비슷한 서비스 경계에서 병목과 스케일링을 관찰하기 위한 **일회성 production-shaped performance lab**이다. 단일 노드 상태 저장 서비스의 장애 대응이나 무중단 운영 능력을 주장하지 않는다.
 
-이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 비용 자원이 없는 lab destruction boundary, 삭제 권한이 없는 만료 observer/알림까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Observer는 자동 cleanup의 대체물이 아니며 lease/fencing controller, DNS rollback 및 강제 destroy는 아직 구현되지 않았다. Immutable image 생성·발행과 runtime smoke, bundle upload 및 repository-s3 검증, SSM bootstrap/sysctl 적용, ephemeral VPC/compute/RDS/ALB, DNS 이전·전환과 성능 증거 수집도 아직 진행 전이다.
+이 문서는 구현 기준과 진행 상태를 함께 기록한다. Phase 0의 애플리케이션 계약과 여섯 service-host의 Compose/config 계약, Debezium worker/connector template, Prometheus AWS target 정의 및 검증된 로컬 bundle packaging이 구현되었다. Terraform은 bootstrap, 영구 foundation, 별도 weighted-DNS state와 비용 자원이 없는 lab destruction boundary, 삭제 권한이 없는 만료 observer/알림까지 구성·정적 검증되었지만 AWS에 plan/apply하지 않았다. Observer는 자동 cleanup의 대체물이 아니며 lease/fencing controller, DNS rollback 및 강제 destroy는 아직 구현되지 않았다. Immutable app/infra image의 digest-pinned build, OIDC-only ECR publication manifest와 image runtime 검증 workflow는 구현했지만 실제 ECR 발행은 수행하지 않았다. bundle upload, SSM bootstrap/sysctl 적용, ephemeral VPC/compute/RDS/ALB, DNS 이전·전환과 성능 증거 수집도 아직 진행 전이다.
 
 ## 배경
 
@@ -560,7 +560,7 @@ GitHub는 OIDC로 AWS role을 assume하고 static access key를 저장하지 않
 
 AWS STS가 GitHub OIDC에서 IAM 조건으로 평가하는 표준 경계는 `aud`와 `sub`다. 따라서 foundation, lab, image publisher role은 `aud=sts.amazonaws.com`과 각각의 exact reviewed environment `sub`만 신뢰하고, AWS가 평가하지 않는 `repository_id`, `repository_owner_id`, `ref`, `workflow`를 별도 조건으로 추가하지 않는다. `aws-foundation`, `aws-performance-lab`, `aws-image-publisher` GitHub Environment는 `main`만 허용하고 보호 규칙을 적용한다. Immutable subject를 선택하면 owner/repository ID는 `sub` 문자열 자체에 포함된다.
 
-이는 새 lab workflow만의 목표가 아니다. 현재 앱 ECR publish workflow가 사용하는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secret도 Phase 1에서 OIDC로 이관하고 정적 key를 제거한다. 기존 앱 multi-arch ECR/GHCR build는 재사용하며, infra image workflow의 `latest` 발행은 immutable commit tag와 digest 출력으로 바꾼다.
+이는 새 lab workflow만의 목표가 아니다. 앱 ECR publish workflow는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secret을 제거하고 OIDC로 이관한다. AWS용 앱/infra 이미지는 full commit tag와 digest manifest만 허용한다. OCI 상시 운영 호환을 위한 Debezium/Elasticsearch GHCR 경로만 기존 `latest`와 full commit tag를 함께 발행하며, AWS bundle이나 release manifest는 GHCR `latest`를 참조하지 않는다.
 
 모든 mutating command인 `up`, `switch`, `down`, dataset promotion은 Terraform 실행 전 하나의 DynamoDB orchestration lease를 조건부 획득하고 전체 작업이 끝날 때까지 heartbeat한다. lease에는 단조 증가하는 fencing token, owner, run ID, command, acquired/heartbeat/expires 시각을 기록한다. 다른 실행은 만료되지 않은 lease가 있으면 실패한다.
 
@@ -694,7 +694,7 @@ lease와 fencing token을 검증하는 controller가 구현된 뒤에만 활성�
 - [x] 모든 lab profile에서 실제 Toss/Slack/Google/일반 S3 쓰기를 stub·disable하거나 전용 allowlist prefix로 제한한다.
 - [x] 앱, Redis, Kafka, Debezium, Elasticsearch, monitoring의 Compose/config bundle 계약과 고정 19개 runtime-secret path 제외 및 열거된 sensitive-marker gate packaging을 정의한다. 이는 정적/config 검증이며 임의 secret 부재, 실제 container 개수·health, CLI override, image runtime smoke나 S3 배포 완료를 뜻하지 않는다.
 - [x] AWS용 Debezium distributed-worker/connector template과 Prometheus target 방식을 정의한다.
-- [ ] 앱과 infra image를 immutable digest로 발행한다.
+- [ ] 구현된 OIDC workflow로 앱과 infra image를 실제 ECR에 발행하고 runtime proof를 확인한다. 코드·정적/fake-CLI 계약은 구현되었으며 아직 원격 실행하지 않았다.
 
 이 단계가 끝나기 전에는 “Redis 2분리 검증”이나 “잡음 없는 성능 비교”를 완료했다고 보지 않는다.
 

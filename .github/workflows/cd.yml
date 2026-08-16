@@ -8,26 +8,22 @@ concurrency:
   group: cd-main
   cancel-in-progress: false
 
-env:
-  AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: airbob-repo
-
 jobs:
-  build-and-push:
+  build-app:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
-
     outputs:
       image_sha7: ${{ steps.meta.outputs.image_sha7 }}
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify immutable image contract
+        run: bash infra/aws/tests/image-publication-test.sh
 
       - name: Set up JDK 21 (with Gradle cache)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -38,60 +34,130 @@ jobs:
           chmod +x gradlew
           ./gradlew clean build -x test
 
+      - name: Compute image tag
+        id: meta
+        run: printf 'image_sha7=%s\n' "${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload application JAR
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: app-jar-${{ github.sha }}
+          path: build/libs/airbob.jar
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-oci-image:
+    needs: build-app
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_sha7: ${{ needs.build-app.outputs.image_sha7 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Download application JAR
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: app-jar-${{ github.sha }}
+          path: build/libs
+
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute image tag
-        id: meta
+      - name: Read pinned application base
+        id: image
         run: |
-          echo "image_sha7=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          printf 'app_base=%s\n' "$(jq -r '.app.buildArgs.APP_BASE_IMAGE' infra/aws/images/release.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Build and Push multi-arch image
-        uses: docker/build-push-action@v6
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_SHA7: ${{ steps.meta.outputs.image_sha7 }}
+      - name: Build and push OCI compatibility image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           file: docker/app/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            APP_BASE_IMAGE=${{ steps.image.outputs.app_base }}
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image_sha7 }}
-            ghcr.io/${{ github.repository_owner }}/airbob:${{ steps.meta.outputs.image_sha7 }}
+            ghcr.io/${{ github.repository_owner }}/airbob:${{ needs.build-app.outputs.image_sha7 }}
             ghcr.io/${{ github.repository_owner }}/airbob:latest
 
+  publish-ecr-image:
+    needs: build-app
+    runs-on: ubuntu-latest
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Download application JAR
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: app-jar-${{ github.sha }}
+          path: build/libs
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_IMAGE_PUBLISHER_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-session-name: airbob-app-image-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
+
+      - name: Publish immutable app image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          output_dir="$RUNNER_TEMP/app-image"
+          infra/aws/scripts/publish-ecr-image.sh APP_IMAGE "$GITHUB_SHA" "$output_dir"
+          infra/aws/scripts/assemble-image-release.sh app "$GITHUB_SHA" "$output_dir" "$RUNNER_TEMP/app-image-release.json"
+
+      - name: Upload immutable app release manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: app-image-release-${{ github.sha }}
+          path: ${{ runner.temp }}/app-image-release.json
+          if-no-files-found: error
+          retention-days: 30
+
   deploy-oci:
-    needs: build-and-push
+    needs: publish-oci-image
     runs-on: self-hosted
     steps:
       - name: Login to GHCR
-        run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        run: printf '%s' "$GHCR_PAT" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Deploy app and verify health
         env:
-          IMAGE_SHA7: ${{ needs.build-and-push.outputs.image_sha7 }}
+          IMAGE_SHA7: ${{ needs.publish-oci-image.outputs.image_sha7 }}
         run: |
           set -Eeuo pipefail
           cd "$HOME/airbob"
@@ -148,82 +214,3 @@ jobs:
             rollback || echo "Rollback failed; manual recovery required" >&2
             exit 1
           fi
-
-  # AWS 배포 시 주석 해제
-  # deploy-aws:
-  #   needs: build-and-push
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Configure AWS credentials
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #         aws-region: ap-northeast-2
-  #
-  #     - name: Update SSM image tag
-  #       env:
-  #         IMAGE_SHA7: ${{ needs.build-and-push.outputs.image_sha7 }}
-  #       run: |
-  #         aws ssm put-parameter \
-  #           --name "/airbob/prod/image/tag" \
-  #           --type "String" \
-  #           --value "$IMAGE_SHA7" \
-  #           --overwrite
-  #
-  #     - name: ASG Instance Refresh (wait if in progress, else start)
-  #       run: |
-  #         set -euo pipefail
-  #         ASG_NAME=airbob-api-asg
-  #
-  #         REFRESH_ID=$(aws autoscaling describe-instance-refreshes \
-  #           --auto-scaling-group-name "$ASG_NAME" \
-  #           --query "InstanceRefreshes[?Status=='InProgress'].InstanceRefreshId | [0]" \
-  #           --output text)
-  #
-  #         if [ "$REFRESH_ID" = "None" ] || [ -z "$REFRESH_ID" ]; then
-  #           echo "No in-progress refresh. Starting a new instance refresh..."
-  #           REFRESH_ID=$(aws autoscaling start-instance-refresh \
-  #             --auto-scaling-group-name "$ASG_NAME" \
-  #             --preferences MinHealthyPercentage=90,InstanceWarmup=120 \
-  #             --query "InstanceRefreshId" \
-  #             --output text)
-  #         else
-  #           echo "Instance Refresh already in progress: $REFRESH_ID"
-  #         fi
-  #
-  #         echo "Watching refresh: $REFRESH_ID"
-  #
-  #         for i in {1..180}; do
-  #           STATUS=$(aws autoscaling describe-instance-refreshes \
-  #             --auto-scaling-group-name "$ASG_NAME" \
-  #             --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].Status | [0]" \
-  #             --output text)
-  #
-  #           PCT=$(aws autoscaling describe-instance-refreshes \
-  #             --auto-scaling-group-name "$ASG_NAME" \
-  #             --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].PercentageComplete | [0]" \
-  #             --output text)
-  #
-  #           REASON=$(aws autoscaling describe-instance-refreshes \
-  #             --auto-scaling-group-name "$ASG_NAME" \
-  #             --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].StatusReason | [0]" \
-  #             --output text)
-  #
-  #           echo "status=$STATUS percent=$PCT reason=$REASON"
-  #
-  #           if [ "$STATUS" = "Successful" ]; then
-  #             echo "Instance Refresh successful"
-  #             exit 0
-  #           fi
-  #
-  #           if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-  #             echo "Instance Refresh failed"
-  #             exit 1
-  #           fi
-  #
-  #           sleep 10
-  #         done
-  #
-  #         echo "Timed out waiting for instance refresh"
-  #         exit 1

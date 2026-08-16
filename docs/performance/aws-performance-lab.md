@@ -12,8 +12,8 @@
 | Debezium worker and connector template | Implemented (unrendered, enumerated sensitive-marker gate) |
 | Prometheus AWS target definitions | Implemented (static/config validation only) |
 | Verified nineteen-file bundle package | Implemented (local artifact only) |
-| Immutable app/infra image construction and publication | Not implemented yet |
-| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Not implemented yet |
+| Immutable app/infra image construction and publication | Implemented (workflow/config only; no ECR publication executed) |
+| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Image build/runtime proof configured; upload and SSM bootstrap not implemented |
 | Elasticsearch host `vm.max_map_count` runtime enforcement | Not implemented yet |
 | Terraform persistent foundation | Implemented (configuration/static tests only; not applied) |
 | Terraform DNS/lab state boundaries | Implemented (DNS contract + zero-resource lab root; not applied) |
@@ -37,9 +37,12 @@ resources yet. A disabled-by-default observer discovers the lab by stable
 identity tags, reports missing/invalid lifecycle tags, and can alert through a
 customer-KMS-encrypted CloudWatch/SNS path after explicit email confirmation.
 It cannot mutate DNS,
-start cleanup, or delete resources. This work does not
-build or publish immutable images, upload the package, run container smoke
-tests, enforce host prerequisites through SSM, create AWS resources, apply
+start cleanup, or delete resources. The repository now defines digest-pinned
+multi-architecture app/infra builds, exact ECR publication manifests, OIDC-only
+publisher workflows, and CI-side image runtime checks, but none has been run
+against ECR yet. The OCI compatibility job alone retains mutable GHCR `latest`
+tags for the two custom images; AWS consumers accept only ECR digest references.
+This work does not upload the bundle package, enforce host prerequisites through SSM, create AWS resources, apply
 Terraform, migrate authoritative DNS, change Route 53 traffic, or establish
 performance results.
 
@@ -57,6 +60,15 @@ archive; it is not an authenticity signature. Remote upload and repository/S3
 trust remain unimplemented. The fixed-corpus sensitive-key gate complements,
 but does not replace, repository secret scanning and human review for
 benign-looking keys.
+
+Before enabling the ECR publication jobs, create and protect the GitHub
+Environment `aws-image-publisher`, allow only `main`, and expose the applied
+foundation role ARN as `AWS_IMAGE_PUBLISHER_ROLE_ARN`. The AWS role trusts only
+`aud=sts.amazonaws.com` plus that Environment's exact reviewed OIDC `sub`.
+These settings are a one-time prerequisite; the repository does not fall back
+to static AWS access keys when they are absent. OCI publication and deployment
+are separate jobs, so an unconfigured or failed AWS publisher cannot block the
+always-on OCI deployment path.
 Because none of the nineteen approved files requires hexadecimal character
 escapes, the gate rejects every `\xNN`, `\uXXXX`, and `\UXXXXXXXX` occurrence
 and every physical line ending in `\` before placeholder approval. It rejects
