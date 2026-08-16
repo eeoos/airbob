@@ -17,8 +17,8 @@ Do not run a live plan until all of these inputs are known and reviewed:
   origin records, and ACM validation records;
 - the registrar DNSSEC/DS state;
 - the three exact repository OIDC subjects returned by the reviewed GitHub
-  configuration/token contract (foundation environment, lab environment, and
-  main-branch image publication);
+  configuration/token contract (foundation, lab, and image-publisher
+  environments);
 - whether the account-global GitHub OIDC provider already exists (if it does,
   import it into this state before the first apply rather than creating a
   duplicate);
@@ -26,10 +26,14 @@ Do not run a live plan until all of these inputs are known and reviewed:
 - when enabling the expiry observer, one reviewed email address whose SNS
   subscription the owner can confirm and acknowledge explicitly.
 
-The approved workflow binding is `workflow-name`. Trust also requires each
-exact subject, repository ID `1056501820`, owner ID `119295425`, and the main
-branch ref. GitHub environments `aws-foundation` and `aws-performance-lab`
-must be protected before their workflows are enabled.
+AWS STS accepts the GitHub OIDC `aud` and `sub` claims for this trust; it does
+not evaluate GitHub's other token claims as independent IAM condition keys.
+Each role therefore requires `aud=sts.amazonaws.com` plus one exact reviewed
+legacy or immutable environment subject. GitHub environments `aws-foundation`,
+`aws-performance-lab`, and `aws-image-publisher` must restrict deployment to
+`main` and be protected before their workflows are enabled. The immutable
+subjects carry owner and repository IDs inside `sub`; do not reintroduce
+unsupported `repository_id`, `ref`, or `workflow` IAM condition keys.
 
 ## Initialize
 

@@ -198,7 +198,7 @@ variables {
   dnssec_ds_reviewed                  = true
   github_foundation_subject           = "repo:eeoos/airbob:environment:aws-foundation"
   github_lab_subject                  = "repo:eeoos/airbob:environment:aws-performance-lab"
-  github_image_subject                = "repo:eeoos/airbob:ref:refs/heads/main"
+  github_image_subject                = "repo:eeoos/airbob:environment:aws-image-publisher"
   github_oidc_subjects_reviewed       = true
   local_principal_arns                = ["arn:aws:iam::942632789808:user/foundation-test"]
   local_principal_requires_mfa        = true
@@ -373,15 +373,20 @@ run "foundation_contract" {
   assert {
     condition = (
       local.github_role_trust.foundation["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-foundation" &&
-      local.github_role_trust.foundation["token.actions.githubusercontent.com:repository_id"] == "1056501820" &&
-      local.github_role_trust.foundation["token.actions.githubusercontent.com:repository_owner_id"] == "119295425" &&
-      local.github_role_trust.foundation["token.actions.githubusercontent.com:workflow"] == "AWS Foundation" &&
-      local.github_role_trust.image["token.actions.githubusercontent.com:workflow"] == ["CD (Prod)", "Build Infra Images"] &&
+      local.github_role_trust.lab["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-performance-lab" &&
+      local.github_role_trust.image["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-image-publisher" &&
+      alltrue([
+        for trust in values(local.github_role_trust) :
+        toset(keys(trust)) == toset([
+          "token.actions.githubusercontent.com:aud",
+          "token.actions.githubusercontent.com:sub",
+        ])
+      ]) &&
       aws_iam_role.foundation_admin.max_session_duration == 7200 &&
       aws_iam_role.lab_operator.max_session_duration == 7200 &&
       aws_iam_role.image_publisher.max_session_duration == 7200
     )
-    error_message = "GitHub trust must bind the exact subject, immutable repository claims, workflow choice, and session limit."
+    error_message = "GitHub trust must use only AWS-supported aud plus the exact protected-environment subject and session limit."
   }
 
   assert {
@@ -971,23 +976,33 @@ run "reject_unreviewed_oidc_subjects" {
   expect_failures = [var.github_oidc_subjects_reviewed]
 }
 
-run "immutable_subject_with_workflow_name_trust" {
+run "immutable_protected_environment_subjects" {
   command = plan
 
   variables {
     github_foundation_subject = "repo:eeoos@119295425/airbob@1056501820:environment:aws-foundation"
     github_lab_subject        = "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab"
-    github_image_subject      = "repo:eeoos@119295425/airbob@1056501820:ref:refs/heads/main"
+    github_image_subject      = "repo:eeoos@119295425/airbob@1056501820:environment:aws-image-publisher"
   }
 
   assert {
     condition = (
       local.github_role_trust.foundation["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-foundation" &&
-      local.github_role_trust.foundation["token.actions.githubusercontent.com:workflow"] == "AWS Foundation" &&
-      local.github_role_trust.image["token.actions.githubusercontent.com:workflow"] == ["CD (Prod)", "Build Infra Images"]
+      local.github_role_trust.lab["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab" &&
+      local.github_role_trust.image["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-image-publisher"
     )
-    error_message = "Immutable subjects must retain the approved exact workflow-name binding."
+    error_message = "Immutable subjects must bind all three protected GitHub environments."
   }
+}
+
+run "reject_main_branch_image_subject_without_environment" {
+  command = plan
+
+  variables {
+    github_image_subject = "repo:eeoos/airbob:ref:refs/heads/main"
+  }
+
+  expect_failures = [var.github_image_subject]
 }
 
 run "reject_guessed_oidc_subject" {

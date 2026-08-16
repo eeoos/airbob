@@ -111,6 +111,7 @@ grep -Eq 'Stack[[:space:]]*=[[:space:]]*"foundation"' "$foundation_root/locals.t
 assert_file_not_contains "$foundation_root/iam.tf" 'iam:(PutRolePolicy|DeleteRolePolicy|UpdateAssumeRolePolicy|CreateRole|CreateOpenIDConnectProvider)'
 assert_file_not_contains "$foundation_root/iam.tf" 'Action[[:space:]]*=[[:space:]]*"(s3|ecr|dynamodb|route53|acm|ssm):\*"'
 assert_file_not_contains "$foundation_root/iam.tf" 'github_oidc_subject_mode'
+assert_not_contains "$foundation_root" 'token\.actions\.githubusercontent\.com:(repository|repository_id|repository_owner_id|ref|workflow|environment)'
 grep -Eq 'CLEANUP_ENABLED[[:space:]]*=[[:space:]]*"false"' "$foundation_root/expiry-observer.tf" \
   || fail "expiry observer cleanup guard is missing"
 assert_contains "$foundation_root/expiry-observer.tf" 'schedule_expression = "rate(15 minutes)"'

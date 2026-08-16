@@ -558,6 +558,8 @@ GitHub Actions는 `workflow_dispatch` 입력으로 같은 값을 받고 내부�
 
 GitHub는 OIDC로 AWS role을 assume하고 static access key를 저장하지 않는다. 로컬은 AWS SSO/profile 등 표준 credential chain을 사용한다. GitHub workflow에는 `concurrency: aws-performance-lab`과 `cancel-in-progress: false`를 두지만 이는 로컬 실행을 막지 못하므로 보조 장치일 뿐이다.
 
+AWS STS가 GitHub OIDC에서 IAM 조건으로 평가하는 표준 경계는 `aud`와 `sub`다. 따라서 foundation, lab, image publisher role은 `aud=sts.amazonaws.com`과 각각의 exact reviewed environment `sub`만 신뢰하고, AWS가 평가하지 않는 `repository_id`, `repository_owner_id`, `ref`, `workflow`를 별도 조건으로 추가하지 않는다. `aws-foundation`, `aws-performance-lab`, `aws-image-publisher` GitHub Environment는 `main`만 허용하고 보호 규칙을 적용한다. Immutable subject를 선택하면 owner/repository ID는 `sub` 문자열 자체에 포함된다.
+
 이는 새 lab workflow만의 목표가 아니다. 현재 앱 ECR publish workflow가 사용하는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secret도 Phase 1에서 OIDC로 이관하고 정적 key를 제거한다. 기존 앱 multi-arch ECR/GHCR build는 재사용하며, infra image workflow의 `latest` 발행은 immutable commit tag와 digest 출력으로 바꾼다.
 
 모든 mutating command인 `up`, `switch`, `down`, dataset promotion은 Terraform 실행 전 하나의 DynamoDB orchestration lease를 조건부 획득하고 전체 작업이 끝날 때까지 heartbeat한다. lease에는 단조 증가하는 fencing token, owner, run ID, command, acquired/heartbeat/expires 시각을 기록한다. 다른 실행은 만료되지 않은 lease가 있으면 실패한다.

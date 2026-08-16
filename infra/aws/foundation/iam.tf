@@ -17,18 +17,13 @@ locals {
 
   github_role_trust = {
     foundation = merge(local.github_trust_common, {
-      "token.actions.githubusercontent.com:sub"         = local.github_subjects.foundation
-      "token.actions.githubusercontent.com:environment" = "aws-foundation"
-      "token.actions.githubusercontent.com:workflow"    = local.github_workflow_names.foundation
+      "token.actions.githubusercontent.com:sub" = local.github_subjects.foundation
     })
     lab = merge(local.github_trust_common, {
-      "token.actions.githubusercontent.com:sub"         = local.github_subjects.lab
-      "token.actions.githubusercontent.com:environment" = "aws-performance-lab"
-      "token.actions.githubusercontent.com:workflow"    = local.github_workflow_names.lab
+      "token.actions.githubusercontent.com:sub" = local.github_subjects.lab
     })
     image = merge(local.github_trust_common, {
-      "token.actions.githubusercontent.com:sub"      = local.github_subjects.image
-      "token.actions.githubusercontent.com:workflow" = local.github_workflow_names.image
+      "token.actions.githubusercontent.com:sub" = local.github_subjects.image
     })
   }
 

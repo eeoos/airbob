@@ -38,11 +38,6 @@ locals {
 
   lab_operator_state_keys = [local.state_keys.dns, local.state_keys.lab]
 
-  github_repository          = "eeoos/airbob"
-  github_repository_id       = "1056501820"
-  github_repository_owner_id = "119295425"
-  github_main_ref            = "refs/heads/main"
-
   github_subjects = {
     foundation = var.github_foundation_subject
     lab        = var.github_lab_subject
@@ -55,12 +50,6 @@ locals {
   github_subjects_are_immutable = alltrue([
     for subject in values(local.github_subjects) : startswith(subject, "repo:eeoos@119295425/airbob@1056501820:")
   ])
-
-  github_workflow_names = {
-    foundation = "AWS Foundation"
-    lab        = "AWS Performance Lab"
-    image      = ["CD (Prod)", "Build Infra Images"]
-  }
 
   infra_ecr_repositories = {
     redis                  = "airbob-infra/redis"
@@ -119,10 +108,6 @@ locals {
   lease_lock_id           = "airbob-performance-lab"
 
   github_trust_common = {
-    "token.actions.githubusercontent.com:aud"                 = "sts.amazonaws.com"
-    "token.actions.githubusercontent.com:repository"          = local.github_repository
-    "token.actions.githubusercontent.com:repository_id"       = local.github_repository_id
-    "token.actions.githubusercontent.com:repository_owner_id" = local.github_repository_owner_id
-    "token.actions.githubusercontent.com:ref"                 = local.github_main_ref
+    "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
   }
 }

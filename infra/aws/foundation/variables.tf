@@ -193,15 +193,15 @@ variable "github_lab_subject" {
 }
 
 variable "github_image_subject" {
-  description = "Exact GitHub OIDC subject observed for image publishing from main."
+  description = "Exact GitHub OIDC subject observed for the protected aws-image-publisher environment."
   type        = string
 
   validation {
     condition = contains([
-      "repo:eeoos/airbob:ref:refs/heads/main",
-      "repo:eeoos@119295425/airbob@1056501820:ref:refs/heads/main",
+      "repo:eeoos/airbob:environment:aws-image-publisher",
+      "repo:eeoos@119295425/airbob@1056501820:environment:aws-image-publisher",
     ], var.github_image_subject)
-    error_message = "github_image_subject must be the exact reviewed legacy or immutable Airbob main-branch subject."
+    error_message = "github_image_subject must be the exact reviewed legacy or immutable Airbob image-publisher environment subject."
   }
 }
 
