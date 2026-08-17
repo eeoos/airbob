@@ -40,7 +40,9 @@ DNS, and roll back to OCI 100/AWS 0 on failure. Raw `terraform apply` is not an
 approved cutover operation.
 
 The OCI-only state was applied on 2026-08-17 in account `942632789808` with
-`140.245.76.140`, weight 100, and TTL 60. All four Route 53 authoritative
-servers and the direct SNI-preserving `/health` probe passed. Gabia delegation,
-the AWS alias, and any traffic switch remain pending, so public traffic is
-still served through the pre-existing Gabia record.
+`140.245.76.140`, weight 100, and TTL 60. Gabia now delegates `airbob.cloud` to
+the four Route 53 name servers. Public resolvers return the Route 53 OCI record,
+and the direct SNI-preserving `/health` probe passes. The apex and `www` records
+still resolve to their reviewed Vercel targets. The API ACM certificate is
+issued. The AWS alias and any traffic switch remain pending, so public API
+traffic continues to use OCI.
