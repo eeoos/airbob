@@ -33,14 +33,15 @@ public class PaymentOperationLeaseService {
 	}
 
 	@Transactional
-	public PaymentOperationClaimResult claim(UUID operationUid) {
+	public PaymentOperationClaimResult claim(UUID operationUid, long dispatchGeneration) {
 		PaymentOperation operation = lock(operationUid);
 		Instant now = clock.instant();
-		if (operation.markManualReviewIfAttemptsExhausted(properties.maxAttempts(), now)) {
+		if (operation.markManualReviewIfAttemptsExhausted(
+			dispatchGeneration, properties.maxAttempts(), now)) {
 			return PaymentOperationClaimResult.manualReview(manualReviewNotice(operation));
 		}
 		String owner = UUID.randomUUID().toString();
-		return operation.acquireLease(owner, now, properties.leaseDuration())
+		return operation.acquireLease(owner, dispatchGeneration, now, properties.leaseDuration())
 			.map(mode -> PaymentOperationClaimResult.claimed(
 				PaymentExecution.from(operation, owner, mode)))
 			.orElseGet(PaymentOperationClaimResult::noAction);
@@ -55,12 +56,14 @@ public class PaymentOperationLeaseService {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		if (operation.getAttemptCount() >= properties.maxAttempts()) {
-			return operation.markManualReview(execution.leaseOwner(), now, code, message)
+			return operation.markManualReview(
+				execution.leaseOwner(), execution.dispatchGeneration(), now, code, message)
 				? Optional.of(manualReviewNotice(operation))
 				: Optional.empty();
 		}
 		Instant retryAt = now.plus(backoff.forAttempt(operation.getAttemptCount()));
-		operation.scheduleRetry(execution.leaseOwner(), retryAt, code, message);
+		operation.scheduleRetry(
+			execution.leaseOwner(), execution.dispatchGeneration(), retryAt, code, message);
 		return Optional.empty();
 	}
 
@@ -73,12 +76,14 @@ public class PaymentOperationLeaseService {
 		PaymentOperation operation = lock(execution.operationUid());
 		Instant now = clock.instant();
 		if (operation.getAttemptCount() >= properties.maxAttempts()) {
-			return operation.markManualReview(execution.leaseOwner(), now, code, message)
+			return operation.markManualReview(
+				execution.leaseOwner(), execution.dispatchGeneration(), now, code, message)
 				? Optional.of(manualReviewNotice(operation))
 				: Optional.empty();
 		}
 		Instant retryAt = now.plus(backoff.forAttempt(operation.getAttemptCount()));
-		operation.markOutcomeUnknown(execution.leaseOwner(), retryAt, code, message);
+		operation.markOutcomeUnknown(
+			execution.leaseOwner(), execution.dispatchGeneration(), retryAt, code, message);
 		return Optional.empty();
 	}
 

@@ -16,16 +16,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.client.ResourceAccessException;
-
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
-import kr.kro.airbob.domain.payment.exception.TossPaymentException;
-import kr.kro.airbob.domain.payment.exception.code.PaymentInquiryErrorCode;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -99,20 +95,12 @@ class PaymentQueryServiceTest {
 			given(paymentRepository.findByPaymentKey(paymentKey))
 				.willReturn(Optional.of(payment));
 
-			TossPaymentResponse tossResponse = TossPaymentResponse.builder()
-				.paymentKey(paymentKey)
-				.orderId(orderId)
-				.totalAmount(100_000L)
-				.build();
-
-			given(tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey))
-				.willReturn(tossResponse);
-
 			// when
 			PaymentResponse.PaymentInfo result = paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId);
 
 			// then
 			assertThat(result).isNotNull();
+			then(tossPaymentsAdapter).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -141,38 +129,6 @@ class PaymentQueryServiceTest {
 				.isInstanceOf(PaymentAccessDeniedException.class);
 		}
 
-		@Test
-		@DisplayName("Toss API 에러 시 TossPaymentException이 발생한다")
-		void Toss_API_에러() {
-			// given
-			given(paymentRepository.findByPaymentKey(paymentKey))
-				.willReturn(Optional.of(payment));
-
-			TossPaymentException tossException = new TossPaymentException(
-				PaymentInquiryErrorCode.NOT_FOUND_PAYMENT
-			);
-			given(tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey))
-				.willThrow(tossException);
-
-			// when & then
-			assertThatThrownBy(() -> paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId))
-				.isInstanceOf(TossPaymentException.class);
-		}
-
-		@Test
-		@DisplayName("외부 시스템 오류 시 ResourceAccessException이 발생한다")
-		void 외부_시스템_오류() {
-			// given
-			given(paymentRepository.findByPaymentKey(paymentKey))
-				.willReturn(Optional.of(payment));
-
-			given(tossPaymentsAdapter.getPaymentByPaymentKey(paymentKey))
-				.willThrow(new ResourceAccessException("네트워크 오류"));
-
-			// when & then
-			assertThatThrownBy(() -> paymentQueryService.findPaymentByPaymentKey(paymentKey, memberId))
-				.isInstanceOf(ResourceAccessException.class);
-		}
 	}
 
 	@Nested
@@ -186,20 +142,12 @@ class PaymentQueryServiceTest {
 			given(paymentRepository.findByOrderId(orderId))
 				.willReturn(Optional.of(payment));
 
-			TossPaymentResponse tossResponse = TossPaymentResponse.builder()
-				.paymentKey(paymentKey)
-				.orderId(orderId)
-				.totalAmount(100_000L)
-				.build();
-
-			given(tossPaymentsAdapter.getPaymentByOrderId(orderId))
-				.willReturn(tossResponse);
-
 			// when
 			PaymentResponse.PaymentInfo result = paymentQueryService.findPaymentByOrderId(orderId, memberId);
 
 			// then
 			assertThat(result).isNotNull();
+			then(tossPaymentsAdapter).shouldHaveNoInteractions();
 		}
 
 		@Test

@@ -39,8 +39,8 @@ public class PaymentOperationExecutor {
 		this.alertService = alertService;
 	}
 
-	public void execute(UUID operationUid) {
-		PaymentOperationClaimResult claimResult = leaseService.claim(operationUid);
+	public void execute(UUID operationUid, long dispatchGeneration) {
+		PaymentOperationClaimResult claimResult = leaseService.claim(operationUid, dispatchGeneration);
 		notifyManualReview(claimResult.manualReviewNotice());
 		if (claimResult.execution().isEmpty()) {
 			return;

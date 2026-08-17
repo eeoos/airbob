@@ -1,4 +1,4 @@
-package kr.kro.airbob.kafka.consumer;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
@@ -47,21 +47,17 @@ import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.read.ListAppender;
 
 import kr.kro.airbob.config.KafkaConfig;
-import kr.kro.airbob.config.PaymentOperationKafkaConsumerConfig;
-import kr.kro.airbob.config.PaymentOperationKafkaPublisherConfig;
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
-import kr.kro.airbob.outbox.EventEnvelope;
-import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.messaging.event.EventEnvelope;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 
 @SpringJUnitConfig(PaymentOperationKafkaIntegrationTest.KafkaTestConfiguration.class)
 @TestPropertySource(properties = {
@@ -99,6 +95,8 @@ class PaymentOperationKafkaIntegrationTest {
 	static final String GLOBAL_PAYMENT_DLT_TOPIC = "PAYMENT.events.DLT";
 	private static final UUID OPERATION_UID = UUID.fromString("7e19fa7d-a8dc-4096-8c75-e84f43e5b639");
 	private static final UUID RESERVATION_UID = UUID.fromString("ac3921de-5f64-4d73-829d-a49c32321950");
+	private static final UUID EVENT_UID = UUID.fromString("4c4a7c8c-8a8f-4c23-9215-c3c4ea87fc5a");
+	private static final long DISPATCH_GENERATION = 3;
 	private static final String RAW_SECRET = "raw-provider-secret-019ffe7e-d014";
 	private static final String RESERVED_HEADER_SECRET = "reserved-header-secret-019ffe7e-d014";
 	private static final String CUSTOM_SENSITIVE_HEADER = "x-provider-authorization";
@@ -109,9 +107,6 @@ class PaymentOperationKafkaIntegrationTest {
 	private static final long ATTACKER_BACKOFF_DELAY_MS = 30_000L;
 	private static final long PROMPT_DELIVERY_TIMEOUT_MS = 2_000L;
 	private static final String SANITIZED_POISON = "{\"event_type\":\"UNKNOWN\",\"payload\":{}}";
-	private static final String SANITIZED_EXECUTION_REQUEST =
-		"{\"event_type\":\"PAYMENT_EXECUTION_REQUESTED_V1\",\"payload\":{\"operation_uid\":\""
-			+ OPERATION_UID + "\"}}";
 	private static final List<String> SAFE_RETRY_DLT_HEADERS = List.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
@@ -124,7 +119,7 @@ class PaymentOperationKafkaIntegrationTest {
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final PaymentOperationExecutor executor;
 	private final PaymentOperationAlertService alertService;
-	private final ObjectMapper objectMapper;
+	private final IntegrationEventCodec codec;
 	private Logger rootLogger;
 	private ListAppender<ILoggingEvent> logAppender;
 	private Consumer<String, String> operationRetryConsumer;
@@ -137,13 +132,13 @@ class PaymentOperationKafkaIntegrationTest {
 		@Qualifier("deadLetterKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate,
 		PaymentOperationExecutor executor,
 		PaymentOperationAlertService alertService,
-		ObjectMapper objectMapper
+		IntegrationEventCodec codec
 	) {
 		this.broker = broker;
 		this.kafkaTemplate = kafkaTemplate;
 		this.executor = executor;
 		this.alertService = alertService;
-		this.objectMapper = objectMapper;
+		this.codec = codec;
 	}
 
 	@BeforeEach
@@ -176,10 +171,10 @@ class PaymentOperationKafkaIntegrationTest {
 	void isolatesPoisonMessageAndDeliversValidDuplicatesAtBoundary() throws Exception {
 		String validMessage = productionMessage();
 		String malformed = "not-json paymentKey=" + RAW_SECRET;
-		assertThat(validMessage).contains("\"timestamp\":\"2026-08-14T00:00:00\"");
+		assertThat(validMessage).contains("\"occurred_at\":\"2026-08-14T00:00:00Z\"");
 
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
-		verify(executor, timeout(15_000)).execute(OPERATION_UID);
+		verify(executor, timeout(15_000)).execute(OPERATION_UID, DISPATCH_GENERATION);
 		org.mockito.Mockito.clearInvocations(executor, alertService);
 
 		ProducerRecord<String, String> poison = new ProducerRecord<>(
@@ -193,7 +188,8 @@ class PaymentOperationKafkaIntegrationTest {
 		ProducerRecord<String, String> validFollower = new ProducerRecord<>(
 			OPERATION_TOPIC, 0, RESERVATION_UID.toString(), validMessage);
 		kafkaTemplate.send(validFollower).get(10, TimeUnit.SECONDS);
-		verify(executor, timeout(PROMPT_DELIVERY_TIMEOUT_MS)).execute(OPERATION_UID);
+		verify(executor, timeout(PROMPT_DELIVERY_TIMEOUT_MS))
+			.execute(OPERATION_UID, DISPATCH_GENERATION);
 		org.mockito.Mockito.clearInvocations(executor);
 
 		ConsumerRecord<String, String> retryRecord = KafkaTestUtils.getSingleRecord(
@@ -246,7 +242,7 @@ class PaymentOperationKafkaIntegrationTest {
 		reset(executor);
 		doThrow(new IllegalStateException("database unavailable"))
 			.doNothing()
-			.when(executor).execute(OPERATION_UID);
+			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 		kafkaTemplate.send(OPERATION_TOPIC, RESERVATION_UID.toString(), validMessage)
 			.get(10, TimeUnit.SECONDS);
 		ConsumerRecord<String, String> validRetry = KafkaTestUtils.getSingleRecord(
@@ -254,22 +250,22 @@ class PaymentOperationKafkaIntegrationTest {
 		assertThat(validRetry.value()).isEqualTo(validMessage);
 		assertThat(validRetry.key()).isEqualTo(RESERVATION_UID.toString());
 		assertThat(validRetry.partition()).isZero();
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID);
+		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
 
 		reset(executor);
 		doThrow(new IllegalStateException("database unavailable"))
 			.doNothing()
-			.when(executor).execute(OPERATION_UID);
+			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 		kafkaTemplate.send(OPERATION_TOPIC, "untrusted-incoming-key", validMessage)
 			.get(10, TimeUnit.SECONDS);
 		ConsumerRecord<String, String> rekeyedRetry = KafkaTestUtils.getSingleRecord(
 			operationRetryConsumer, OPERATION_RETRY_TOPIC, Duration.ofSeconds(15));
 		assertThat(rekeyedRetry.key()).isEqualTo(RESERVATION_UID.toString());
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID);
+		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
 
 		reset(executor);
 		doThrow(new IllegalStateException("database unavailable"))
-			.when(executor).execute(OPERATION_UID);
+			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 		String extraField = validMessage.replace(
 			"\"reservation_uid\":\"" + RESERVATION_UID + "\"",
 			"\"reservation_uid\":\"" + RESERVATION_UID + "\","
@@ -280,12 +276,12 @@ class PaymentOperationKafkaIntegrationTest {
 			operationRetryConsumer, OPERATION_RETRY_TOPIC, Duration.ofSeconds(15));
 		ConsumerRecord<String, String> sanitizedDlt = KafkaTestUtils.getSingleRecord(
 			operationDltConsumer, OPERATION_DLT_TOPIC, Duration.ofSeconds(15));
-		assertThat(sanitizedRetry.value()).isEqualTo(SANITIZED_EXECUTION_REQUEST);
+		assertThat(sanitizedRetry.value()).isEqualTo(SANITIZED_POISON);
 		assertThat(sanitizedRetry.key()).isNull();
-		assertThat(sanitizedDlt.value()).isEqualTo(SANITIZED_EXECUTION_REQUEST);
+		assertThat(sanitizedDlt.value()).isEqualTo(SANITIZED_POISON);
 		assertRecordDoesNotContainSecret(sanitizedRetry);
 		assertRecordDoesNotContainSecret(sanitizedDlt);
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID);
+		verifyNoInteractions(executor);
 
 		String duplicateKey = validMessage.replace(
 			"\"operation_uid\":\"" + OPERATION_UID + "\"",
@@ -299,14 +295,14 @@ class PaymentOperationKafkaIntegrationTest {
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
 
-		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID);
+		verify(executor, timeout(15_000).times(2)).execute(OPERATION_UID, DISPATCH_GENERATION);
 		assertThat(capturedLogs()).doesNotContain(RAW_SECRET, RESERVED_HEADER_SECRET);
 	}
 
 	private void assertSmuggledPayloadBecomesPoison(String smuggled) throws Exception {
 		reset(executor);
 		doThrow(new IllegalStateException("database unavailable"))
-			.when(executor).execute(OPERATION_UID);
+			.when(executor).execute(OPERATION_UID, DISPATCH_GENERATION);
 
 		kafkaTemplate.send(OPERATION_TOPIC, RESERVATION_UID.toString(), smuggled)
 			.get(10, TimeUnit.SECONDS);
@@ -326,10 +322,11 @@ class PaymentOperationKafkaIntegrationTest {
 	}
 
 	private String productionMessage() throws Exception {
-		return objectMapper.writeValueAsString(EventEnvelope.of(
-			EventType.PAYMENT_EXECUTION_REQUESTED_V1,
-			new PaymentExecutionRequestedV1(OPERATION_UID, RESERVATION_UID),
-			Instant.parse("2026-08-14T00:00:00Z")
+		return codec.encode(EventEnvelope.of(
+			EVENT_UID,
+			Instant.parse("2026-08-14T00:00:00Z"),
+			new PaymentOperationExecutionRequestedV1(
+				OPERATION_UID, RESERVATION_UID, DISPATCH_GENERATION)
 		));
 	}
 
@@ -429,14 +426,10 @@ class PaymentOperationKafkaIntegrationTest {
 		KafkaConfig.class,
 		PaymentOperationKafkaConsumerConfig.class,
 		PaymentOperationKafkaPublisherConfig.class,
-		PaymentOperationEventsConsumer.class
+		PaymentOperationEventsConsumer.class,
+		IntegrationEventCodec.class
 	})
 	static class KafkaTestConfiguration {
-
-		@Bean
-		PaymentOperationEventParser paymentOperationEventParser(ObjectMapper objectMapper) {
-			return new PaymentOperationEventParser(objectMapper);
-		}
 
 		@Bean
 		PaymentOperationExecutor paymentOperationExecutor() {

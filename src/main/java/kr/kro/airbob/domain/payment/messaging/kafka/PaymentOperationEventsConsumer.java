@@ -1,4 +1,4 @@
-package kr.kro.airbob.kafka.consumer;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +20,9 @@ import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.messaging.event.EventEnvelope;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,7 +34,7 @@ public class PaymentOperationEventsConsumer {
 	private static final String PROCESSING_FAILURE = "processing failure";
 	private static final String FAILURE_UNAVAILABLE = "failure unavailable";
 
-	private final PaymentOperationEventParser parser;
+	private final IntegrationEventCodec codec;
 	private final PaymentOperationExecutor executor;
 	private final PaymentOperationAlertService alertService;
 
@@ -51,7 +54,8 @@ public class PaymentOperationEventsConsumer {
 		containerFactory = "paymentOperationKafkaListenerContainerFactory"
 	)
 	public void handle(@Payload String message, Acknowledgment ack) {
-		executor.execute(parser.parseOperationUid(message));
+		PaymentOperationExecutionRequestedV1 event = decode(message).payload();
+		executor.execute(event.operationUid(), event.dispatchGeneration());
 		ack.acknowledge();
 	}
 
@@ -74,7 +78,7 @@ public class PaymentOperationEventsConsumer {
 		String error,
 		Acknowledgment ack
 	) {
-		UUID operationUid = parser.tryReadOperationUid(message).orElse(null);
+		UUID operationUid = tryReadOperationUid(message).orElse(null);
 		try {
 			alertService.alertQuarantined(
 				topic, partition, offset, operationUid, sanitize(error));
@@ -94,6 +98,22 @@ public class PaymentOperationEventsConsumer {
 		return Optional.ofNullable(record.headers().lastHeader(name))
 			.map(Header::value)
 			.map(value -> new String(value, StandardCharsets.UTF_8));
+	}
+
+	private EventEnvelope<PaymentOperationExecutionRequestedV1> decode(String message) {
+		return codec.decode(
+			message,
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			PaymentOperationExecutionRequestedV1.class
+		);
+	}
+
+	private Optional<UUID> tryReadOperationUid(String message) {
+		try {
+			return Optional.of(decode(message).payload().operationUid());
+		} catch (RuntimeException invalidEvent) {
+			return Optional.empty();
+		}
 	}
 
 	private Optional<Integer> readIntHeader(ConsumerRecord<String, String> record, String name) {

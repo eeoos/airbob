@@ -17,8 +17,8 @@ public class PaymentOperationResponse {
 
 		public static Status from(PaymentOperationStatus status) {
 			return switch (status) {
-				case READY, RETRY_WAIT -> PENDING;
-				case EXECUTING, OUTCOME_UNKNOWN -> PROCESSING;
+				case QUEUED, WAITING_RETRY -> PENDING;
+				case EXECUTING -> PROCESSING;
 				case APPLIED -> SUCCEEDED;
 				case DECLINED -> FAILED;
 				case MANUAL_REVIEW -> REQUIRES_REVIEW;

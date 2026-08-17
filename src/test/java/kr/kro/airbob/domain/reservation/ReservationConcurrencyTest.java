@@ -68,6 +68,7 @@ import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
@@ -228,9 +229,8 @@ class ReservationConcurrencyTest {
 		assertThat(paymentOperationRepository.count()).isZero();
 		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
 		assertThat(outboxRepository.findAll()).extracting(row -> row.getEventType())
-			.containsExactlyInAnyOrder(
-				EventType.RESERVATION_CONFIRMED.name(),
-				EventType.RESERVATION_CHANGED.name());
+			.containsExactly(
+				AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType());
 
 		reservationService.cancelReservation(
 			ready.reservationUid(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());

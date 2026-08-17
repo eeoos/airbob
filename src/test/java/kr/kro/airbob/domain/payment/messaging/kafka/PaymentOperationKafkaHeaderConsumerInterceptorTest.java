@@ -1,4 +1,4 @@
-package kr.kro.airbob.kafka;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

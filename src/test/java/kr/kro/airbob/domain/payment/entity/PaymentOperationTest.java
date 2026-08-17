@@ -37,9 +37,11 @@ class PaymentOperationTest {
 			.isEqualTo("airbob-confirm-" + operation.getOperationUid());
 		assertThat(operation.getDeduplicationKey())
 			.isEqualTo("CONFIRM:018290b8-d807-7a2e-8f41-114c7d0a4a21");
-		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.READY);
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.QUEUED);
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.CONFIRM);
+		assertThat(operation.getDispatchGeneration()).isOne();
+		assertThat(operation.getQueuedAt()).isEqualTo(NOW);
 		assertThat(operation.getAttemptCount()).isZero();
-		assertThat(operation.getLastEnqueuedAt()).isEqualTo(NOW);
 	}
 
 	@Test
@@ -79,33 +81,23 @@ class PaymentOperationTest {
 	}
 
 	@Test
-	void recordsItsLatestEnqueueTime() {
-		PaymentOperation operation = operation("pk-one", 100_000L);
-		Instant requeuedAt = Instant.parse("2026-08-14T00:01:00Z");
-
-		operation.recordEnqueued(requeuedAt);
-
-		assertThat(operation.getLastEnqueuedAt()).isEqualTo(requeuedAt);
-	}
-
-	@Test
-	void distinguishesTerminalOperationStates() {
+	void distinguishesCompletedOperationStatesFromPausedManualReview() {
 		assertThat(PaymentOperationStatus.APPLIED.isTerminal()).isTrue();
 		assertThat(PaymentOperationStatus.DECLINED.isTerminal()).isTrue();
-		assertThat(PaymentOperationStatus.MANUAL_REVIEW.isTerminal()).isTrue();
-		assertThat(PaymentOperationStatus.READY.isTerminal()).isFalse();
+		assertThat(PaymentOperationStatus.MANUAL_REVIEW.isTerminal()).isFalse();
+		assertThat(PaymentOperationStatus.QUEUED.isTerminal()).isFalse();
 		assertThat(PaymentOperationStatus.EXECUTING.isTerminal()).isFalse();
-		assertThat(PaymentOperationStatus.RETRY_WAIT.isTerminal()).isFalse();
-		assertThat(PaymentOperationStatus.OUTCOME_UNKNOWN.isTerminal()).isFalse();
+		assertThat(PaymentOperationStatus.WAITING_RETRY.isTerminal()).isFalse();
 	}
 
 	@Test
-	void readyOperationAcquiresOneConfirmationLease() {
+	void queuedOperationAcquiresOnlyItsMatchingGeneration() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
 
-		assertThat(operation.acquireLease("worker-one", NOW, Duration.ofSeconds(30)))
+		assertThat(operation.acquireLease("worker-stale", 0, NOW, Duration.ofSeconds(30))).isEmpty();
+		assertThat(operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30)))
 			.contains(PaymentExecutionMode.CONFIRM);
-		assertThat(operation.acquireLease("worker-two", NOW, Duration.ofSeconds(30))).isEmpty();
+		assertThat(operation.acquireLease("worker-two", 1, NOW, Duration.ofSeconds(30))).isEmpty();
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.EXECUTING);
 		assertThat(operation.getAttemptCount()).isEqualTo(1);
 		assertThat(operation.getLeaseOwner()).isEqualTo("worker-one");
@@ -113,46 +105,59 @@ class PaymentOperationTest {
 	}
 
 	@Test
-	void leaseIsRecoverableAtTheExactExpiryBoundaryInInquiryMode() {
+	void expiredLeaseMustBeRedispatchedBeforeItCanBeClaimedInInquiryMode() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
-		operation.acquireLease("old-worker", NOW.minusSeconds(30), Duration.ofSeconds(30));
+		operation.acquireLease("old-worker", 1, NOW.minusSeconds(30), Duration.ofSeconds(30));
 
-		assertThat(operation.acquireLease("new-worker", NOW, Duration.ofSeconds(30)))
+		assertThat(operation.prepareRecoveryDispatch(NOW)).isTrue();
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.QUEUED);
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.INQUIRE_CONFIRM);
+		assertThat(operation.getDispatchGeneration()).isEqualTo(2);
+		assertThat(operation.acquireLease("stale-worker", 1, NOW, Duration.ofSeconds(30))).isEmpty();
+		assertThat(operation.acquireLease("new-worker", 2, NOW, Duration.ofSeconds(30)))
 			.contains(PaymentExecutionMode.INQUIRE);
 		assertThat(operation.getLeaseOwner()).isEqualTo("new-worker");
 		assertThat(operation.getAttemptCount()).isEqualTo(2);
 	}
 
 	@Test
-	void retryWaitCannotBeClaimedBeforeItsDueTimeButIsClaimableAtTheBoundary() {
+	void retryWaitMustBeDueAndRedispatchedBeforeItCanBeClaimed() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
-		operation.acquireLease("worker-one", NOW, Duration.ofSeconds(30));
-		operation.scheduleRetry("worker-one", NOW.plusSeconds(10), "TEMPORARY", "try later");
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.scheduleRetry("worker-one", 1, NOW.plusSeconds(10), "TEMPORARY", "try later");
 
-		assertThat(operation.acquireLease("worker-two", NOW.plusSeconds(9), Duration.ofSeconds(30))).isEmpty();
-		assertThat(operation.acquireLease("worker-two", NOW.plusSeconds(10), Duration.ofSeconds(30)))
+		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(9))).isFalse();
+		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(10))).isTrue();
+		assertThat(operation.acquireLease("worker-two", 2, NOW.plusSeconds(10), Duration.ofSeconds(30)))
 			.contains(PaymentExecutionMode.CONFIRM);
 	}
 
 	@Test
-	void outcomeUnknownIsRecoveredInInquiryModeOnlyWhenDue() {
+	void unknownOutcomeWaitsForAnInquiryRedispatch() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
-		operation.acquireLease("worker-one", NOW, Duration.ofSeconds(30));
-		operation.markOutcomeUnknown("worker-one", NOW.plusSeconds(10), "TIMEOUT", "response unknown");
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markOutcomeUnknown(
+			"worker-one", 1, NOW.plusSeconds(10), "TIMEOUT", "response unknown");
 
-		assertThat(operation.acquireLease("worker-two", NOW.plusSeconds(9), Duration.ofSeconds(30))).isEmpty();
-		assertThat(operation.acquireLease("worker-two", NOW.plusSeconds(10), Duration.ofSeconds(30)))
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.WAITING_RETRY);
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.INQUIRE_CONFIRM);
+		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(9))).isFalse();
+		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(10))).isTrue();
+		assertThat(operation.acquireLease("worker-two", 2, NOW.plusSeconds(10), Duration.ofSeconds(30)))
 			.contains(PaymentExecutionMode.INQUIRE);
 	}
 
 	@Test
 	void staleLeaseOwnerCannotChangeCurrentExecution() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
-		operation.acquireLease("old-worker", NOW.minusSeconds(31), Duration.ofSeconds(30));
-		operation.acquireLease("new-worker", NOW, Duration.ofSeconds(30));
+		operation.acquireLease("old-worker", 1, NOW.minusSeconds(31), Duration.ofSeconds(30));
+		operation.prepareRecoveryDispatch(NOW);
+		operation.acquireLease("new-worker", 2, NOW, Duration.ofSeconds(30));
 
-		assertThat(operation.scheduleRetry("old-worker", NOW.plusSeconds(10), "TEMPORARY", "stale")).isFalse();
-		assertThat(operation.markOutcomeUnknown("old-worker", NOW.plusSeconds(10), "TIMEOUT", "stale")).isFalse();
+		assertThat(operation.scheduleRetry(
+			"old-worker", 1, NOW.plusSeconds(10), "TEMPORARY", "stale")).isFalse();
+		assertThat(operation.markOutcomeUnknown(
+			"old-worker", 1, NOW.plusSeconds(10), "TIMEOUT", "stale")).isFalse();
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.EXECUTING);
 		assertThat(operation.getLeaseOwner()).isEqualTo("new-worker");
 	}
@@ -160,11 +165,12 @@ class PaymentOperationTest {
 	@Test
 	void retryTransitionClearsLeaseAndBoundsDurableFailureDetails() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
-		operation.acquireLease("worker-one", NOW, Duration.ofSeconds(30));
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
 
 		assertThat(operation.scheduleRetry(
-			"worker-one", NOW.plusSeconds(10), "C".repeat(101), "M".repeat(513))).isTrue();
-		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.RETRY_WAIT);
+			"worker-one", 1, NOW.plusSeconds(10), "C".repeat(101), "M".repeat(513))).isTrue();
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.WAITING_RETRY);
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.CONFIRM);
 		assertThat(operation.getLeaseOwner()).isNull();
 		assertThat(operation.getLeaseExpiresAt()).isNull();
 		assertThat(operation.getNextAttemptAt()).isEqualTo(NOW.plusSeconds(10));
@@ -180,22 +186,22 @@ class PaymentOperationTest {
 			.status(PaymentOperationStatus.MANUAL_REVIEW)
 			.build();
 
-		assertThat(operation.acquireLease("worker", NOW, Duration.ofSeconds(30))).isEmpty();
+		assertThat(operation.acquireLease("worker", 1, NOW, Duration.ofSeconds(30))).isEmpty();
 		assertThat(operation.getAttemptCount()).isZero();
 	}
 
 	@Test
-	void recordingEnqueueTimeDoesNotChangeRetryOrLeaseState() {
+	void manualReviewPausesWithoutPretendingTheOperationCompleted() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
-		operation.acquireLease("worker-one", NOW, Duration.ofSeconds(30));
-		Instant requeuedAt = NOW.plusSeconds(5);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
 
-		operation.recordEnqueued(requeuedAt);
+		assertThat(operation.markManualReview(
+			"worker-one", 1, NOW, "UNKNOWN", "check provider")).isTrue();
 
-		assertThat(operation.getLastEnqueuedAt()).isEqualTo(requeuedAt);
-		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.EXECUTING);
-		assertThat(operation.getLeaseOwner()).isEqualTo("worker-one");
-		assertThat(operation.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(30));
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
+		assertThat(operation.getReviewRequiredAt()).isEqualTo(NOW);
+		assertThat(operation.getManualReviewCount()).isOne();
+		assertThat(operation.getCompletedAt()).isNull();
 	}
 
 	private PaymentOperation operation(String paymentKey, long amount) {

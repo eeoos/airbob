@@ -12,8 +12,7 @@ public record PaymentOperationProperties(
 	int batchSize,
 	int maxAttempts,
 	Duration retryInitialDelay,
-	Duration retryMaxDelay,
-	Duration recoveryPublicationInterval
+	Duration retryMaxDelay
 ) {
 	public PaymentOperationProperties {
 		requirePositive(leaseDuration, "leaseDuration");
@@ -22,7 +21,6 @@ public record PaymentOperationProperties(
 		requirePositive(maxAttempts, "maxAttempts");
 		requirePositive(retryInitialDelay, "retryInitialDelay");
 		requirePositive(retryMaxDelay, "retryMaxDelay");
-		requirePositive(recoveryPublicationInterval, "recoveryPublicationInterval");
 		if (retryInitialDelay.compareTo(retryMaxDelay) > 0) {
 			throw new IllegalArgumentException("retryInitialDelay must not exceed retryMaxDelay");
 		}

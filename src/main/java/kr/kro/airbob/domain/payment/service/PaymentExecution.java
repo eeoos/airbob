@@ -13,6 +13,7 @@ public record PaymentExecution(
 	long amount,
 	String providerIdempotencyKey,
 	String leaseOwner,
+	long dispatchGeneration,
 	PaymentExecutionMode mode
 ) {
 	public static PaymentExecution from(
@@ -22,7 +23,8 @@ public record PaymentExecution(
 		return new PaymentExecution(
 			operation.getOperationUid(), reservationUid, operation.getPaymentKey(),
 			reservationUid.toString(), operation.getExpectedAmount(),
-			operation.getProviderIdempotencyKey(), leaseOwner, mode);
+			operation.getProviderIdempotencyKey(), leaseOwner,
+			operation.getDispatchGeneration(), mode);
 	}
 
 	public PaymentConfirmationCommand gatewayCommand() {

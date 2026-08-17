@@ -47,7 +47,7 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void nonOwnerCannotObserveAnOperation() {
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation(PaymentOperationStatus.READY, null)));
+		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation(PaymentOperationStatus.QUEUED, null)));
 
 		assertThatThrownBy(() -> new PaymentOperationQueryService(repository).find(OPERATION_UID, 999L))
 			.isInstanceOf(PaymentAccessDeniedException.class);
@@ -63,7 +63,7 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void nonFailureStatusDoesNotExposeFailureCode() {
-		PaymentOperation operation = operation(PaymentOperationStatus.RETRY_WAIT, "transient-internal-detail");
+		PaymentOperation operation = operation(PaymentOperationStatus.WAITING_RETRY, "transient-internal-detail");
 		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
 		Detail detail = new PaymentOperationQueryService(repository).find(OPERATION_UID, OWNER_ID);

@@ -1,4 +1,4 @@
-package kr.kro.airbob.kafka.consumer;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +27,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
 import kr.kro.airbob.outbox.SlackNotificationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,10 +39,14 @@ class PaymentOperationEventsConsumerTest {
 	private static final String RAW_SECRET = "poison-provider-secret-7a8e0d";
 	private static final String MESSAGE = """
 		{
-		  "event_type": "PAYMENT_EXECUTION_REQUESTED_V1",
+		  "event_id": "7c245552-9212-4531-ac24-3fe0c64376f3",
+		  "event_type": "PAYMENT_OPERATION_EXECUTION_REQUESTED",
+		  "event_version": "1",
+		  "occurred_at": "2026-08-14T00:00:00Z",
 		  "payload": {
 		    "operation_uid": "b7f97942-3e28-4a5f-9cb4-797001b4f5c1",
-		    "reservation_uid": "81eb3596-050b-42e9-845f-cc74d34b7cf2"
+		    "reservation_uid": "81eb3596-050b-42e9-845f-cc74d34b7cf2",
+		    "dispatch_generation": 3
 		  }
 		}
 		""";
@@ -54,7 +60,7 @@ class PaymentOperationEventsConsumerTest {
 	@BeforeEach
 	void setUp() {
 		consumer = new PaymentOperationEventsConsumer(
-			new PaymentOperationEventParser(new ObjectMapper()), executor, alertService);
+			new IntegrationEventCodec(new ObjectMapper().findAndRegisterModules()), executor, alertService);
 	}
 
 	@Test
@@ -63,7 +69,7 @@ class PaymentOperationEventsConsumerTest {
 		consumer.handle(MESSAGE, acknowledgment);
 
 		InOrder order = inOrder(executor, acknowledgment);
-		order.verify(executor).execute(OPERATION_UID);
+		order.verify(executor).execute(OPERATION_UID, 3);
 		order.verify(acknowledgment).acknowledge();
 	}
 
@@ -75,8 +81,8 @@ class PaymentOperationEventsConsumerTest {
 		Throwable failure = catchThrowable(() -> consumer.handle(malformed, acknowledgment));
 
 		assertThat(failure)
-			.isInstanceOf(PaymentOperationEventParsingException.class)
-			.hasMessage("Invalid payment-operation event.")
+			.isInstanceOf(InvalidIntegrationEventException.class)
+			.hasMessage("Invalid integration event.")
 			.hasNoCause();
 		assertThat(failure.toString()).doesNotContain(RAW_SECRET, malformed);
 		then(executor).shouldHaveNoInteractions();
@@ -87,7 +93,7 @@ class PaymentOperationEventsConsumerTest {
 	@DisplayName("실행기가 내구 상태를 만들지 못하면 실패를 전파하고 ACK하지 않는다")
 	void rethrowsUndurableExecutionFailureWithoutAck() {
 		willThrow(new IllegalStateException("database unavailable"))
-			.given(executor).execute(OPERATION_UID);
+			.given(executor).execute(OPERATION_UID, 3);
 
 		assertThatThrownBy(() -> consumer.handle(MESSAGE, acknowledgment))
 			.isInstanceOf(IllegalStateException.class)
@@ -106,8 +112,8 @@ class PaymentOperationEventsConsumerTest {
 		Throwable failure = catchThrowable(() -> consumer.handle(unsupported, acknowledgment));
 
 		assertThat(failure)
-			.isInstanceOf(PaymentOperationEventParsingException.class)
-			.hasMessage("Invalid payment-operation event.")
+			.isInstanceOf(InvalidIntegrationEventException.class)
+			.hasMessage("Invalid integration event.")
 			.hasNoCause();
 		assertThat(failure.toString()).doesNotContain(RAW_SECRET, unsupported);
 		then(executor).shouldHaveNoInteractions();
@@ -125,8 +131,8 @@ class PaymentOperationEventsConsumerTest {
 		Throwable failure = catchThrowable(() -> consumer.handle(duplicated, acknowledgment));
 
 		assertThat(failure)
-			.isInstanceOf(PaymentOperationEventParsingException.class)
-			.hasMessage("Invalid payment-operation event.")
+			.isInstanceOf(InvalidIntegrationEventException.class)
+			.hasMessage("Invalid integration event.")
 			.hasNoCause();
 		assertThat(failure.toString()).doesNotContain(RAW_SECRET, duplicated);
 		then(executor).shouldHaveNoInteractions();
@@ -141,8 +147,8 @@ class PaymentOperationEventsConsumerTest {
 		Throwable failure = catchThrowable(() -> consumer.handle(trailing, acknowledgment));
 
 		assertThat(failure)
-			.isInstanceOf(PaymentOperationEventParsingException.class)
-			.hasMessage("Invalid payment-operation event.")
+			.isInstanceOf(InvalidIntegrationEventException.class)
+			.hasMessage("Invalid integration event.")
 			.hasNoCause();
 		assertThat(failure.toString()).doesNotContain(RAW_SECRET, trailing);
 		then(executor).shouldHaveNoInteractions();
@@ -212,7 +218,7 @@ class PaymentOperationEventsConsumerTest {
 		then(slackNotificationService).should().sendAlert(alert.capture());
 		assertThat(alert.getValue())
 			.contains(
-				"PAYMENT_EXECUTION_REQUESTED_V1",
+				"PAYMENT_OPERATION_EXECUTION_REQUESTED",
 				"PAYMENT_OPERATION.events",
 				"partition=3",
 				"offset=88",

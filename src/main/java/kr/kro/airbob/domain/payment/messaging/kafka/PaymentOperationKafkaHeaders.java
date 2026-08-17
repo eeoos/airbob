@@ -1,4 +1,4 @@
-package kr.kro.airbob.kafka;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

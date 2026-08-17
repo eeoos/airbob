@@ -13,7 +13,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
@@ -23,8 +23,7 @@ import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmation
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.messaging.outbox.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -34,7 +33,7 @@ public class PaymentOperationCommandService {
 	private final ReservationRepository reservationRepository;
 	private final PaymentOperationRepository paymentOperationRepository;
 	private final ReservationHistoryRepository historyRepository;
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
 	@Transactional
@@ -64,8 +63,11 @@ public class PaymentOperationCommandService {
 		paymentOperationRepository.save(operation);
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.STATUS_CHANGE, "결제 승인 처리 시작", "PAYMENT_OPERATION"));
-		outboxEventPublisher.save(EventType.PAYMENT_EXECUTION_REQUESTED_V1,
-			new PaymentExecutionRequestedV1(operation.getOperationUid(), reservationUid));
+		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
+			operation.getOperationUid(),
+			reservationUid,
+			operation.getDispatchGeneration()
+		));
 		return Accepted.from(operation);
 	}
 

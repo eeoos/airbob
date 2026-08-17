@@ -66,6 +66,10 @@ public class PaymentOperation extends BaseEntity {
 	@Column(nullable = false, length = 30)
 	private PaymentOperationStatus status;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private PaymentOperationNextAction nextAction;
+
 	@Column(nullable = false, length = PAYMENT_KEY_MAX_LENGTH)
 	private String paymentKey;
 
@@ -79,17 +83,31 @@ public class PaymentOperation extends BaseEntity {
 	private String deduplicationKey;
 
 	@Column(nullable = false)
+	private long dispatchGeneration;
+
+	@Column(nullable = false)
 	private int attemptCount;
 
 	private Instant nextAttemptAt;
 
 	@Column(nullable = false)
-	private Instant lastEnqueuedAt;
+	private Instant queuedAt;
 
 	@Column(length = LEASE_OWNER_MAX_LENGTH)
 	private String leaseOwner;
 
 	private Instant leaseExpiresAt;
+
+	private Instant reviewRequiredAt;
+
+	@Column(length = FAILURE_MESSAGE_MAX_LENGTH)
+	private String cancellationReason;
+
+	@Column(nullable = false)
+	private boolean manualReconciliationPending;
+
+	@Column(nullable = false)
+	private int manualReviewCount;
 
 	@Column(length = FAILURE_CODE_MAX_LENGTH)
 	private String failureCode;
@@ -113,14 +131,17 @@ public class PaymentOperation extends BaseEntity {
 			.reservation(reservation)
 			.requesterMemberId(requesterMemberId)
 			.operationType(PaymentOperationType.CONFIRM)
-			.status(PaymentOperationStatus.READY)
+			.status(PaymentOperationStatus.QUEUED)
+			.nextAction(PaymentOperationNextAction.CONFIRM)
 			.paymentKey(paymentKey)
 			.expectedAmount(amount)
 			.providerIdempotencyKey("airbob-confirm-" + operationUid)
 			.deduplicationKey("CONFIRM:" + reservation.getReservationUid())
+			.dispatchGeneration(1)
 			.attemptCount(0)
-			.nextAttemptAt(now)
-			.lastEnqueuedAt(now)
+			.queuedAt(now)
+			.manualReconciliationPending(false)
+			.manualReviewCount(0)
 			.build();
 	}
 
@@ -147,8 +168,10 @@ public class PaymentOperation extends BaseEntity {
 		}
 	}
 
-	public boolean isOwnedBy(String owner) {
-		return status == PaymentOperationStatus.EXECUTING && Objects.equals(leaseOwner, owner);
+	public boolean isOwnedBy(String owner, long expectedGeneration) {
+		return status == PaymentOperationStatus.EXECUTING
+			&& dispatchGeneration == expectedGeneration
+			&& Objects.equals(leaseOwner, owner);
 	}
 
 	public void markApplied(Instant now) {
@@ -159,19 +182,13 @@ public class PaymentOperation extends BaseEntity {
 		complete(PaymentOperationStatus.DECLINED, now, code, message);
 	}
 
-	public void recordEnqueued(Instant now) {
-		this.lastEnqueuedAt = now;
-	}
-
 	public Optional<PaymentExecutionMode> acquireLease(
-		String owner, Instant now, Duration leaseDuration
+		String owner, long expectedGeneration, Instant now, Duration leaseDuration
 	) {
-		if (!isEligibleForLeaseAt(now)) {
+		if (!isQueuedGeneration(expectedGeneration)) {
 			return Optional.empty();
 		}
-		PaymentExecutionMode mode = status == PaymentOperationStatus.OUTCOME_UNKNOWN
-			|| status == PaymentOperationStatus.EXECUTING
-			? PaymentExecutionMode.INQUIRE : PaymentExecutionMode.CONFIRM;
+		PaymentExecutionMode mode = executionMode();
 		status = PaymentOperationStatus.EXECUTING;
 		leaseOwner = owner;
 		leaseExpiresAt = now.plus(leaseDuration);
@@ -179,33 +196,30 @@ public class PaymentOperation extends BaseEntity {
 		return Optional.of(mode);
 	}
 
-	public boolean markManualReviewIfAttemptsExhausted(int maxAttempts, Instant now) {
-		if (attemptCount < maxAttempts || !isEligibleForLeaseAt(now)) {
+	public boolean markManualReviewIfAttemptsExhausted(
+		long expectedGeneration, int maxAttempts, Instant now
+	) {
+		if (attemptCount < maxAttempts || !isQueuedGeneration(expectedGeneration)) {
 			return false;
 		}
 		moveToManualReview(now);
 		return true;
 	}
 
-	public boolean recoverExpiredExecution(Instant now) {
+	public boolean prepareRecoveryDispatch(Instant now) {
+		if (status == PaymentOperationStatus.WAITING_RETRY) {
+			if (nextAttemptAt == null || nextAttemptAt.isAfter(now)) {
+				return false;
+			}
+			queueNextGeneration(now);
+			return true;
+		}
 		if (status != PaymentOperationStatus.EXECUTING
 			|| leaseExpiresAt == null || leaseExpiresAt.isAfter(now)) {
 			return false;
 		}
-		status = PaymentOperationStatus.OUTCOME_UNKNOWN;
-		leaseOwner = null;
-		leaseExpiresAt = null;
-		nextAttemptAt = now;
-		return true;
-	}
-
-	public boolean markManualReviewForRecoveryIfAttemptsExhausted(int maxAttempts, Instant now) {
-		boolean recoveryState = status == PaymentOperationStatus.RETRY_WAIT
-			|| status == PaymentOperationStatus.OUTCOME_UNKNOWN;
-		if (attemptCount < maxAttempts || !recoveryState || !isEligibleForLeaseAt(now)) {
-			return false;
-		}
-		moveToManualReview(now);
+		nextAction = inquiryActionFor(operationType);
+		queueNextGeneration(now);
 		return true;
 	}
 
@@ -214,42 +228,57 @@ public class PaymentOperation extends BaseEntity {
 		leaseOwner = null;
 		leaseExpiresAt = null;
 		nextAttemptAt = null;
-		completedAt = now;
+		reviewRequiredAt = now;
+		manualReviewCount++;
+		completedAt = null;
 	}
 
-	public boolean scheduleRetry(String owner, Instant retryAt, String code, String message) {
+	public boolean scheduleRetry(
+		String owner, long expectedGeneration, Instant retryAt, String code, String message
+	) {
 		return transitionFromExecution(
-			owner, PaymentOperationStatus.RETRY_WAIT, retryAt, code, message, null);
+			owner, expectedGeneration, PaymentOperationNextAction.CONFIRM, retryAt, code, message);
 	}
 
-	public boolean markOutcomeUnknown(String owner, Instant retryAt, String code, String message) {
+	public boolean markOutcomeUnknown(
+		String owner, long expectedGeneration, Instant retryAt, String code, String message
+	) {
 		return transitionFromExecution(
-			owner, PaymentOperationStatus.OUTCOME_UNKNOWN, retryAt, code, message, null);
+			owner, expectedGeneration, PaymentOperationNextAction.INQUIRE_CONFIRM,
+			retryAt, code, message);
 	}
 
-	public boolean markManualReview(String owner, Instant now, String code, String message) {
-		return transitionFromExecution(
-			owner, PaymentOperationStatus.MANUAL_REVIEW, null, code, message, now);
+	public boolean markManualReview(
+		String owner, long expectedGeneration, Instant now, String code, String message
+	) {
+		if (!isOwnedBy(owner, expectedGeneration)) {
+			return false;
+		}
+		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
+		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
+		moveToManualReview(now);
+		return true;
 	}
 
 	private boolean transitionFromExecution(
 		String owner,
-		PaymentOperationStatus nextStatus,
+		long expectedGeneration,
+		PaymentOperationNextAction retryAction,
 		Instant retryAt,
 		String code,
-		String message,
-		Instant terminalAt
+		String message
 	) {
-		if (status != PaymentOperationStatus.EXECUTING || !Objects.equals(leaseOwner, owner)) {
+		if (!isOwnedBy(owner, expectedGeneration)) {
 			return false;
 		}
-		status = nextStatus;
+		status = PaymentOperationStatus.WAITING_RETRY;
+		nextAction = retryAction;
 		leaseOwner = null;
 		leaseExpiresAt = null;
 		nextAttemptAt = retryAt;
 		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
 		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
-		completedAt = terminalAt;
+		completedAt = null;
 		return true;
 	}
 
@@ -267,16 +296,38 @@ public class PaymentOperation extends BaseEntity {
 		completedAt = now;
 	}
 
-	private boolean isEligibleForLeaseAt(Instant now) {
-		if (status.isTerminal()) {
-			return false;
+	private boolean isQueuedGeneration(long expectedGeneration) {
+		return status == PaymentOperationStatus.QUEUED
+			&& dispatchGeneration == expectedGeneration;
+	}
+
+	private PaymentExecutionMode executionMode() {
+		return switch (nextAction) {
+			case CONFIRM -> PaymentExecutionMode.CONFIRM;
+			case INQUIRE_CONFIRM -> PaymentExecutionMode.INQUIRE;
+			case CANCEL, INQUIRE_CANCEL -> throw new PaymentOperationInvariantException(
+				"cancellation execution is not supported by the confirmation executor");
+		};
+	}
+
+	private void queueNextGeneration(Instant now) {
+		try {
+			dispatchGeneration = Math.addExact(dispatchGeneration, 1);
+		} catch (ArithmeticException overflow) {
+			throw new PaymentOperationInvariantException("payment operation dispatch generation overflow");
 		}
-		if (status == PaymentOperationStatus.EXECUTING
-			&& leaseExpiresAt != null && leaseExpiresAt.isAfter(now)) {
-			return false;
-		}
-		return (status != PaymentOperationStatus.RETRY_WAIT && status != PaymentOperationStatus.OUTCOME_UNKNOWN)
-			|| nextAttemptAt == null || !nextAttemptAt.isAfter(now);
+		status = PaymentOperationStatus.QUEUED;
+		queuedAt = now;
+		nextAttemptAt = null;
+		leaseOwner = null;
+		leaseExpiresAt = null;
+	}
+
+	private PaymentOperationNextAction inquiryActionFor(PaymentOperationType type) {
+		return switch (type) {
+			case CONFIRM -> PaymentOperationNextAction.INQUIRE_CONFIRM;
+			case CANCEL -> PaymentOperationNextAction.INQUIRE_CANCEL;
+		};
 	}
 
 	private static void requireMaxLength(String value, int maxLength, String fieldName) {

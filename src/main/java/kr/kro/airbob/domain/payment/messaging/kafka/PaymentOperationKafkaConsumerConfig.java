@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,8 +11,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-
-import kr.kro.airbob.kafka.PaymentOperationKafkaHeaderConsumerInterceptor;
 
 @Configuration(proxyBeanMethods = false)
 public class PaymentOperationKafkaConsumerConfig {

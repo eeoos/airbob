@@ -105,13 +105,15 @@ class PaymentOperationLeaseServiceIntegrationTest {
 
 		jdbc.update("""
 			INSERT INTO payment_operation (
-			  operation_uid, reservation_id, requester_member_id, operation_type, status,
+			  operation_uid, reservation_id, requester_member_id, operation_type, status, next_action,
 			  payment_key, expected_amount, provider_idempotency_key, deduplication_key,
-			  attempt_count, next_attempt_at, last_enqueued_at, version, created_at, updated_at
+			  dispatch_generation, attempt_count, next_attempt_at, queued_at,
+			  manual_reconciliation_pending, manual_review_count, version, created_at, updated_at
 			) VALUES (
-			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', 'READY',
+			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', 'QUEUED', 'CONFIRM',
 			  'payment-key', 100000, 'provider-key', ?,
-			  0, '2026-08-14 00:00:00', '2026-08-14 00:00:00', 0, NOW(6), NOW(6)
+			  1, 0, NULL, '2026-08-14 00:00:00',
+			  false, 0, 0, NOW(6), NOW(6)
 			)
 			""", OPERATION_UID.toString(), reservationId, memberId, "CONFIRM:" + RESERVATION_UID);
 	}
@@ -133,7 +135,7 @@ class PaymentOperationLeaseServiceIntegrationTest {
 
 			CompletableFuture<PaymentOperationClaimResult> second = CompletableFuture.supplyAsync(() -> {
 				secondStarted.countDown();
-				return service.claim(OPERATION_UID);
+				return service.claim(OPERATION_UID, 1);
 			}, executor);
 			assertThat(secondStarted.await(5, TimeUnit.SECONDS)).isTrue();
 			assertThatThrownBy(() -> second.get(500, TimeUnit.MILLISECONDS))
@@ -172,7 +174,7 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		PaymentOperationProperties paymentOperationProperties() {
 			return new PaymentOperationProperties(
 				Duration.ofSeconds(30), Duration.ofSeconds(10), 100, 5,
-				Duration.ofSeconds(10), Duration.ofMinutes(5), Duration.ofSeconds(10));
+				Duration.ofSeconds(10), Duration.ofMinutes(5));
 		}
 
 		@Bean
@@ -199,7 +201,7 @@ class PaymentOperationLeaseServiceIntegrationTest {
 			CountDownLatch claimed,
 			CountDownLatch release
 		) {
-			PaymentOperationClaimResult result = service.claim(operationUid);
+			PaymentOperationClaimResult result = service.claim(operationUid, 1);
 			claimed.countDown();
 			try {
 				if (!release.await(5, TimeUnit.SECONDS)) {

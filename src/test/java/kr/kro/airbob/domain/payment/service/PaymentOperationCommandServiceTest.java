@@ -26,15 +26,14 @@ import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.messaging.outbox.OutboxWriter;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentOperationCommandServiceTest {
@@ -47,7 +46,7 @@ class PaymentOperationCommandServiceTest {
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private PaymentOperationRepository paymentOperationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
-	@Mock private OutboxEventPublisher outboxEventPublisher;
+	@Mock private OutboxWriter outboxWriter;
 
 	private PaymentOperationCommandService service;
 	private Reservation pendingReservation;
@@ -58,7 +57,7 @@ class PaymentOperationCommandServiceTest {
 			reservationRepository,
 			paymentOperationRepository,
 			historyRepository,
-			outboxEventPublisher,
+			outboxWriter,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		pendingReservation = Reservation.builder()
@@ -78,7 +77,8 @@ class PaymentOperationCommandServiceTest {
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 		ArgumentCaptor<PaymentOperation> operationCaptor = ArgumentCaptor.forClass(PaymentOperation.class);
-		ArgumentCaptor<PaymentExecutionRequestedV1> eventCaptor = ArgumentCaptor.forClass(PaymentExecutionRequestedV1.class);
+		ArgumentCaptor<PaymentOperationExecutionRequestedV1> eventCaptor =
+			ArgumentCaptor.forClass(PaymentOperationExecutionRequestedV1.class);
 
 		Accepted accepted = service.requestConfirmation(request(), GUEST_ID);
 
@@ -87,10 +87,12 @@ class PaymentOperationCommandServiceTest {
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
 		then(paymentOperationRepository).should().save(operationCaptor.capture());
 		assertThat(operationCaptor.getValue().getOperationUid()).isEqualTo(accepted.operationId());
-		then(outboxEventPublisher).should().save(
-			org.mockito.ArgumentMatchers.eq(EventType.PAYMENT_EXECUTION_REQUESTED_V1), eventCaptor.capture());
-		assertThat(eventCaptor.getValue()).isEqualTo(new PaymentExecutionRequestedV1(accepted.operationId(), RESERVATION_UID));
-		assertThat(eventCaptor.getValue().getId()).isEqualTo(RESERVATION_UID.toString());
+		then(outboxWriter).should().append(eventCaptor.capture());
+		assertThat(eventCaptor.getValue()).isEqualTo(new PaymentOperationExecutionRequestedV1(
+			accepted.operationId(), RESERVATION_UID, 1));
+		assertThat(eventCaptor.getValue().partitionKey()).isEqualTo(RESERVATION_UID.toString());
+		assertThat(eventCaptor.getValue().deduplicationKey())
+			.isEqualTo("PAYMENT_EXECUTION:" + accepted.operationId() + ":1");
 	}
 
 	@Test
@@ -104,7 +106,7 @@ class PaymentOperationCommandServiceTest {
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		then(paymentOperationRepository).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
-		then(outboxEventPublisher).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -123,7 +125,7 @@ class PaymentOperationCommandServiceTest {
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
 		then(historyRepository).shouldHaveNoInteractions();
-		then(outboxEventPublisher).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -141,7 +143,7 @@ class PaymentOperationCommandServiceTest {
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
 		then(historyRepository).shouldHaveNoInteractions();
-		then(outboxEventPublisher).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -166,7 +168,7 @@ class PaymentOperationCommandServiceTest {
 	private PaymentOperation existingOperation(String paymentKey, long amount) {
 		return PaymentOperation.builder()
 			.id(2L).operationUid(EXISTING_OPERATION_UID).reservation(pendingReservation).requesterMemberId(GUEST_ID)
-			.status(kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.READY)
+			.status(kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.QUEUED)
 			.paymentKey(paymentKey).expectedAmount(amount).deduplicationKey("CONFIRM:" + RESERVATION_UID)
 			.build();
 	}

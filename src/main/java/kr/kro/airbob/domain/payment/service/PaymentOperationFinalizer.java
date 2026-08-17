@@ -23,13 +23,10 @@ import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
-import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @Service
 public class PaymentOperationFinalizer {
@@ -42,7 +39,7 @@ public class PaymentOperationFinalizer {
 	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final CouponUsageService couponUsageService;
 	private final ReservationHistoryRepository historyRepository;
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final Clock clock;
 
 	public PaymentOperationFinalizer(
@@ -52,7 +49,7 @@ public class PaymentOperationFinalizer {
 		PaymentTransactionRepository paymentTransactionRepository,
 		CouponUsageService couponUsageService,
 		ReservationHistoryRepository historyRepository,
-		OutboxEventPublisher outboxEventPublisher,
+		AccommodationSearchRefreshPublisher searchRefreshPublisher,
 		Clock clock
 	) {
 		this.operationRepository = operationRepository;
@@ -61,7 +58,7 @@ public class PaymentOperationFinalizer {
 		this.paymentTransactionRepository = paymentTransactionRepository;
 		this.couponUsageService = couponUsageService;
 		this.historyRepository = historyRepository;
-		this.outboxEventPublisher = outboxEventPublisher;
+		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.clock = clock;
 	}
 
@@ -72,7 +69,7 @@ public class PaymentOperationFinalizer {
 			return;
 		}
 		operation.rejectOppositeTerminal(PaymentOperationStatus.APPLIED);
-		if (!operation.isOwnedBy(execution.leaseOwner())) {
+		if (!operation.isOwnedBy(execution.leaseOwner(), execution.dispatchGeneration())) {
 			return;
 		}
 
@@ -93,7 +90,7 @@ public class PaymentOperationFinalizer {
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.STATUS_CHANGE, "결제 성공", HISTORY_SOURCE));
 		operation.markApplied(clock.instant());
-		publishReservationConfirmedAndIndexChanged(reservation);
+		requestAccommodationSearchRefresh(reservation);
 	}
 
 	@Transactional
@@ -103,7 +100,7 @@ public class PaymentOperationFinalizer {
 			return;
 		}
 		operation.rejectOppositeTerminal(PaymentOperationStatus.DECLINED);
-		if (!operation.isOwnedBy(execution.leaseOwner())) {
+		if (!operation.isOwnedBy(execution.leaseOwner(), execution.dispatchGeneration())) {
 			return;
 		}
 
@@ -123,12 +120,7 @@ public class PaymentOperationFinalizer {
 			"결제 최종 거절: " + normalizedCode,
 			HISTORY_SOURCE));
 		operation.markDeclined(clock.instant(), normalizedCode, message);
-		outboxEventPublisher.save(
-			EventType.RESERVATION_EXPIRED,
-			new ReservationEvent.ReservationExpiredEvent(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()));
+		requestAccommodationSearchRefresh(reservation);
 	}
 
 	private PaymentOperation lockOperation(PaymentExecution execution) {
@@ -200,17 +192,9 @@ public class PaymentOperationFinalizer {
 		}
 	}
 
-	private void publishReservationConfirmedAndIndexChanged(Reservation reservation) {
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CONFIRMED,
-			new ReservationEvent.ReservationConfirmedEvent(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()));
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CHANGED,
-			new AccommodationIndexingEvents.ReservationChangedEvent(
-				reservation.getAccommodation().getAccommodationUid().toString()));
+	private void requestAccommodationSearchRefresh(Reservation reservation) {
+		searchRefreshPublisher.requestRefresh(
+			reservation.getAccommodation().getAccommodationUid());
 	}
 
 	private String normalizeFailureCode(String code) {

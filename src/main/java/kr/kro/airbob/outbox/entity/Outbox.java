@@ -23,13 +23,13 @@ public class Outbox extends BaseEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(nullable = false)
+	@Column(name = "aggregate_type", nullable = false)
 	private String aggregateType;
 
-	@Column(nullable = false)
+	@Column(name = "aggregate_id", nullable = false)
 	private String aggregateId;
 
-	@Column(nullable = false)
+	@Column(name = "event_type", nullable = false)
 	private String eventType;
 
 	@Column(columnDefinition = "TEXT", nullable = false)

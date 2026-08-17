@@ -4,17 +4,12 @@ import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.APPLIED
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.DECLINED;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.EXECUTING;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.MANUAL_REVIEW;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.OUTCOME_UNKNOWN;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.READY;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.RETRY_WAIT;
+import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.QUEUED;
+import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.WAITING_RETRY;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CONFIRMED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PENDING;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PROCESSING;
-import static kr.kro.airbob.outbox.EventType.PAYMENT_EXECUTION_REQUESTED_V1;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_CHANGED;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_CONFIRMED;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_EXPIRED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -81,6 +76,8 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationEventsConsumer;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
@@ -99,12 +96,12 @@ import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.kafka.consumer.PaymentOperationEventsConsumer;
-import kr.kro.airbob.kafka.consumer.PaymentOperationEventParser;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
 import kr.kro.airbob.outbox.entity.Outbox;
 import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
+import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 
 @DataJpaTest
 @Testcontainers
@@ -115,8 +112,9 @@ import kr.kro.airbob.outbox.repository.OutboxRepository;
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
 	CouponUsageService.class,
-	OutboxEventPublisher.class,
-	PaymentOperationEventParser.class,
+	IntegrationEventCodec.class,
+	JpaOutboxWriter.class,
+	OutboxAccommodationSearchRefreshPublisher.class,
 	PaymentOperationCommandService.class,
 	PaymentOperationLeaseService.class,
 	PaymentOperationExecutor.class,
@@ -175,7 +173,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private PaymentRepository paymentRepository;
 	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private OutboxRepository outboxRepository;
-	@Autowired private PaymentOperationEventParser parser;
+	@Autowired private IntegrationEventCodec eventCodec;
 
 	private MockMvc mockMvc;
 	private PaymentOperationEventsConsumer consumer;
@@ -201,7 +199,7 @@ class PaymentOperationFlowIntegrationTest {
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();
-		consumer = new PaymentOperationEventsConsumer(parser, executor, null);
+		consumer = new PaymentOperationEventsConsumer(eventCodec, executor, null);
 	}
 
 	@AfterEach
@@ -216,13 +214,13 @@ class PaymentOperationFlowIntegrationTest {
 		UUID operationUid = acceptedOperationUid(accepted);
 		assertThat(responseData(accepted).path("status").asText()).isEqualTo("PENDING");
 		assertNoSecret(accepted.getResponse().getContentAsString());
-		assertDurableState(operationUid, READY, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertDurableState(operationUid, QUEUED, PAYMENT_PROCESSING, 0, 0, List.of());
 
 		gateway.enqueueConfirm(approved());
 		deliverLatestExecutionEvent();
 
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
-			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertLedgerType(operationUid, PaymentTransactionType.CONFIRM);
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
 	}
@@ -260,7 +258,7 @@ class PaymentOperationFlowIntegrationTest {
 
 		assertThat(gateway.calls()).containsExactly("confirm");
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
-			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertLedgerType(operationUid, PaymentTransactionType.CONFIRM);
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
 	}
@@ -272,7 +270,7 @@ class PaymentOperationFlowIntegrationTest {
 			"CONNECTION_FAILED", "provider connection failed"));
 		deliverLatestExecutionEvent();
 
-		assertDurableState(operationUid, RETRY_WAIT, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertDurableState(operationUid, WAITING_RETRY, PAYMENT_PROCESSING, 0, 0, List.of());
 		assertOperationPrivacy(operationUid, "PENDING");
 
 		clock.advance(RETRY_DELAY.plusSeconds(1));
@@ -283,7 +281,7 @@ class PaymentOperationFlowIntegrationTest {
 		assertThat(gateway.calls()).containsExactly("confirm", "confirm");
 		assertConfirmCommands(operationUid, 2);
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
-			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
 	}
 
@@ -294,8 +292,8 @@ class PaymentOperationFlowIntegrationTest {
 			"READ_TIMEOUT", "provider response unavailable"));
 		deliverLatestExecutionEvent();
 
-		assertDurableState(operationUid, OUTCOME_UNKNOWN, PAYMENT_PROCESSING, 0, 0, List.of());
-		assertOperationPrivacy(operationUid, "PROCESSING");
+		assertDurableState(operationUid, WAITING_RETRY, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertOperationPrivacy(operationUid, "PENDING");
 
 		clock.advance(RETRY_DELAY.plusSeconds(1));
 		assertThat(recoveryService.recoverDue().enqueued()).isOne();
@@ -304,7 +302,7 @@ class PaymentOperationFlowIntegrationTest {
 
 		assertThat(gateway.calls()).containsExactly("confirm", "inquire");
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
-			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
 	}
 
@@ -324,13 +322,13 @@ class PaymentOperationFlowIntegrationTest {
 
 		clock.advance(Duration.ofSeconds(31));
 		assertThat(recoveryService.recoverDue().enqueued()).isOne();
-		assertDurableState(operationUid, OUTCOME_UNKNOWN, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertDurableState(operationUid, QUEUED, PAYMENT_PROCESSING, 0, 0, List.of());
 		gateway.enqueueInquiry(approved());
 		deliverLatestExecutionEvent();
 
 		assertThat(gateway.calls()).containsExactly("confirm", "inquire");
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
-			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertLedgerType(operationUid, PaymentTransactionType.CONFIRM);
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
 	}
@@ -345,9 +343,9 @@ class PaymentOperationFlowIntegrationTest {
 
 		assertThat(gateway.calls()).containsExactly("confirm");
 		assertDurableState(operationUid, APPLIED, CONFIRMED, 1, 1,
-			List.of(RESERVATION_CONFIRMED, RESERVATION_CHANGED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertThat(outboxEventTypes()).doesNotContain(
-			EventType.PAYMENT_CANCELLATION_REQUESTED.name());
+			"PAYMENT_CANCELLATION_REQUESTED");
 		assertThat(isCouponUsed()).isTrue();
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
 	}
@@ -361,7 +359,7 @@ class PaymentOperationFlowIntegrationTest {
 		deliverLatestExecutionEvent();
 
 		assertDurableState(operationUid, DECLINED, EXPIRED, 0, 1,
-			List.of(RESERVATION_EXPIRED));
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertLedgerType(operationUid, PaymentTransactionType.FAIL);
 		assertThat(isCouponUsed()).isFalse();
 		assertThat(jdbc.queryForObject(
@@ -384,10 +382,10 @@ class PaymentOperationFlowIntegrationTest {
 			"READ_TIMEOUT", "provider response unavailable"));
 		deliverLatestExecutionEvent();
 
-		assertDurableState(operationUid, OUTCOME_UNKNOWN, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertDurableState(operationUid, WAITING_RETRY, PAYMENT_PROCESSING, 0, 0, List.of());
 		assertThat(operationRepository.findByOperationUid(operationUid).orElseThrow().getAttemptCount())
 			.isOne();
-		assertOperationPrivacy(operationUid, "PROCESSING");
+		assertOperationPrivacy(operationUid, "PENDING");
 
 		for (int attempt = 2; attempt <= MAX_ATTEMPTS; attempt++) {
 			Duration retryDelay = UNKNOWN_RETRY_DELAYS.get(attempt - 2);
@@ -407,8 +405,8 @@ class PaymentOperationFlowIntegrationTest {
 				.isEqualTo(attempt);
 
 			if (attempt < MAX_ATTEMPTS) {
-				assertDurableState(operationUid, OUTCOME_UNKNOWN, PAYMENT_PROCESSING, 0, 0, List.of());
-				assertOperationPrivacy(operationUid, "PROCESSING");
+				assertDurableState(operationUid, WAITING_RETRY, PAYMENT_PROCESSING, 0, 0, List.of());
+				assertOperationPrivacy(operationUid, "PENDING");
 			}
 		}
 
@@ -440,7 +438,7 @@ class PaymentOperationFlowIntegrationTest {
 			.doesNotContain(PAYMENT_KEY)
 			.doesNotContain(operationUid.toString())
 			.doesNotContain(RESERVATION_UID.toString());
-		assertDurableState(operationUid, READY, PAYMENT_PROCESSING, 0, 0, List.of());
+		assertDurableState(operationUid, QUEUED, PAYMENT_PROCESSING, 0, 0, List.of());
 		assertOperationPrivacy(operationUid, "PENDING");
 	}
 
@@ -509,7 +507,8 @@ class PaymentOperationFlowIntegrationTest {
 
 	private List<Outbox> executionOutboxes() {
 		return outboxRepository.findAll().stream()
-			.filter(outbox -> outbox.getEventType().equals(PAYMENT_EXECUTION_REQUESTED_V1.name()))
+			.filter(outbox -> outbox.getEventType().equals(
+				PaymentOperationExecutionRequestedV1.DESCRIPTOR.eventType()))
 			.toList();
 	}
 
@@ -519,7 +518,7 @@ class PaymentOperationFlowIntegrationTest {
 		ReservationStatus reservationStatus,
 		long paymentCount,
 		long ledgerCount,
-		List<EventType> terminalOutboxTypes
+		List<String> terminalOutboxTypes
 	) {
 		PaymentOperation operation = operationRepository.findByOperationUid(operationUid).orElseThrow();
 		assertThat(operationRepository.count()).isOne();
@@ -532,12 +531,12 @@ class PaymentOperationFlowIntegrationTest {
 		assertTerminalOutboxTypes(terminalOutboxTypes);
 	}
 
-	private void assertTerminalOutboxTypes(List<EventType> expected) {
-		List<String> expectedNames = expected.stream().map(Enum::name).toList();
+	private void assertTerminalOutboxTypes(List<String> expected) {
 		List<String> actual = outboxEventTypes().stream()
-			.filter(type -> !type.equals(PAYMENT_EXECUTION_REQUESTED_V1.name()))
+			.filter(type -> !type.equals(
+				PaymentOperationExecutionRequestedV1.DESCRIPTOR.eventType()))
 			.toList();
-		assertThat(actual).containsExactlyInAnyOrderElementsOf(expectedNames);
+		assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
 	}
 
 	private void assertLedgerType(UUID operationUid, PaymentTransactionType expected) {
@@ -564,11 +563,13 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private void assertExecutionOutboxContract(Outbox outbox, UUID operationUid) throws Exception {
-		assertThat(outbox.getAggregateId()).isEqualTo(RESERVATION_UID.toString());
+		assertThat(outbox.getAggregateId()).isEqualTo(operationUid.toString());
 		JsonNode payload = objectMapper.readTree(outbox.getPayload()).path("payload");
-		assertThat(fieldNames(payload)).containsExactlyInAnyOrder("operation_uid", "reservation_uid");
+		assertThat(fieldNames(payload)).containsExactlyInAnyOrder(
+			"operation_uid", "reservation_uid", "dispatch_generation");
 		assertThat(payload.path("operation_uid").asText()).isEqualTo(operationUid.toString());
 		assertThat(payload.path("reservation_uid").asText()).isEqualTo(RESERVATION_UID.toString());
+		assertThat(payload.path("dispatch_generation").asLong()).isPositive();
 	}
 
 	private void assertGatewayCommandsCorrelated(UUID operationUid) {
@@ -795,8 +796,7 @@ class PaymentOperationFlowIntegrationTest {
 				100,
 				MAX_ATTEMPTS,
 				RETRY_DELAY,
-				RETRY_MAX_DELAY,
-				Duration.ofSeconds(10)
+				RETRY_MAX_DELAY
 			);
 		}
 

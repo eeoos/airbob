@@ -292,14 +292,6 @@ public class TossPaymentsAdapter implements PaymentConfirmationGateway {
 		);
 	}
 
-	public TossPaymentResponse getPaymentByPaymentKey(String paymentKey) {
-		return getPayment(GET_PATH_BY_PAYMENT_KEY, paymentKey);
-	}
-
-	public TossPaymentResponse getPaymentByOrderId(String orderId) {
-		return getPayment(GET_PATH_BY_ORDER_ID, orderId);
-	}
-
 	// TODO: 도메인 재발급 후 웹훅 구현 필요
 	@Retryable(
 		retryFor = { ResourceAccessException.class },

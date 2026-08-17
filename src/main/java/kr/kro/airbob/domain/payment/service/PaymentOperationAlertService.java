@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.outbox.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
 
@@ -37,7 +37,7 @@ public class PaymentOperationAlertService {
 	) {
 		// Exception messages are deliberately excluded because provider payloads and keys can be embedded in them.
 		String alert = ALERT_MESSAGE.formatted(
-			EventType.PAYMENT_EXECUTION_REQUESTED_V1.name(),
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR.eventType(),
 			topic,
 			partition,
 			offset,
@@ -48,7 +48,7 @@ public class PaymentOperationAlertService {
 
 	public void alertManualReview(PaymentOperationManualReviewNotice notice) {
 		String alert = MANUAL_REVIEW_ALERT_MESSAGE.formatted(
-			EventType.PAYMENT_EXECUTION_REQUESTED_V1.name(),
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR.eventType(),
 			notice.operationUid()
 		);
 		slackNotificationService.sendAlert(alert);

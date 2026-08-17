@@ -6,13 +6,8 @@ import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.EXECUTI
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CONFIRMED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PROCESSING;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_CHANGED;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_CONFIRMED;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_EXPIRED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
@@ -44,7 +39,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
@@ -72,10 +67,8 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.EventPayload;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest
 @Testcontainers
@@ -86,7 +79,6 @@ import kr.kro.airbob.outbox.repository.OutboxRepository;
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
 	CouponUsageService.class,
-	OutboxEventPublisher.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationFinalizerIntegrationTest.FinalizerTestConfiguration.class
 })
@@ -125,7 +117,7 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private OutboxRepository outboxRepository;
 	@Autowired private HoldingFinalizerTransaction holdingFinalizerTransaction;
-	@MockitoSpyBean private OutboxEventPublisher outboxEventPublisher;
+	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 
 	private long reservationId;
 	private long operationId;
@@ -138,8 +130,8 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	@AfterEach
-	void resetOutboxPublisherSpy() {
-		reset(outboxEventPublisher);
+	void resetSearchRefreshPublisherMock() {
+		reset(searchRefreshPublisher);
 	}
 
 	@Test
@@ -170,8 +162,8 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
 		assertThat(historyRepository.findAll()).extracting(ReservationHistory::getStatus)
 			.containsExactly(CONFIRMED);
-		assertThat(outboxEventTypes()).containsExactlyInAnyOrder(
-			RESERVATION_CONFIRMED.name(), RESERVATION_CHANGED.name());
+		assertThat(outboxRepository.count()).isZero();
+		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 	}
 
 	@Test
@@ -363,9 +355,9 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	@Test
-	void approvalOutboxFailureRollsBackPaymentLedgerReservationHistoryOperationAndOutbox() {
+	void approvalRefreshPublicationFailureRollsBackPaymentLedgerReservationHistoryAndOperation() {
 		doThrow(new IllegalStateException("injected index outbox failure"))
-			.when(outboxEventPublisher).save(eq(RESERVATION_CHANGED), any(EventPayload.class));
+			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment()))
 			.isInstanceOf(RuntimeException.class);
@@ -398,7 +390,8 @@ class PaymentOperationFinalizerIntegrationTest {
 			assertThat(history.getChangeReason()).isEqualTo("결제 최종 거절: REJECT_CARD_PAYMENT");
 			assertThat(history.getSourceSystem()).isEqualTo("PAYMENT_OPERATION");
 		});
-		assertThat(outboxEventTypes()).containsExactly(RESERVATION_EXPIRED.name());
+		assertThat(outboxRepository.count()).isZero();
+		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 	}
 
 	@Test
@@ -415,9 +408,9 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	@Test
-	void declineOutboxFailureRollsBackLedgerReservationCouponHistoryOperationAndOutbox() {
+	void declineRefreshPublicationFailureRollsBackLedgerReservationCouponHistoryAndOperation() {
 		doThrow(new IllegalStateException("injected expiration outbox failure"))
-			.when(outboxEventPublisher).save(eq(RESERVATION_EXPIRED), any(EventPayload.class));
+			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyDeclined(
 			execution(LEASE_OWNER), "REJECT_CARD_PAYMENT", "card rejected"))
@@ -454,8 +447,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CONFIRM);
 		assertThat(historyRepository.count()).isOne();
 		assertThat(isMemberCouponUsed()).isTrue();
-		assertThat(outboxEventTypes()).containsExactlyInAnyOrder(
-			RESERVATION_CONFIRMED.name(), RESERVATION_CHANGED.name());
+		assertThat(outboxRepository.count()).isZero();
 	}
 
 	private List<Long> localEffectCounts() {
@@ -465,10 +457,6 @@ class PaymentOperationFinalizerIntegrationTest {
 			historyRepository.count(),
 			outboxRepository.count()
 		);
-	}
-
-	private List<String> outboxEventTypes() {
-		return outboxRepository.findAll().stream().map(outbox -> outbox.getEventType()).toList();
 	}
 
 	private boolean isMemberCouponUsed() {
@@ -493,6 +481,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			AMOUNT,
 			"provider-key",
 			leaseOwner,
+			1,
 			PaymentExecutionMode.CONFIRM
 		);
 	}
@@ -586,14 +575,15 @@ class PaymentOperationFinalizerIntegrationTest {
 
 		jdbc.update("""
 			INSERT INTO payment_operation (
-			  operation_uid, reservation_id, requester_member_id, operation_type, status,
+			  operation_uid, reservation_id, requester_member_id, operation_type, status, next_action,
 			  payment_key, expected_amount, provider_idempotency_key, deduplication_key,
-			  attempt_count, next_attempt_at, last_enqueued_at, lease_owner, lease_expires_at,
+			  dispatch_generation, attempt_count, next_attempt_at, queued_at,
+			  lease_owner, lease_expires_at, manual_reconciliation_pending, manual_review_count,
 			  version, created_at, updated_at
 			) VALUES (
-			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', 'EXECUTING',
+			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', 'EXECUTING', 'CONFIRM',
 			  ?, ?, 'provider-key', ?,
-			  1, NULL, '2026-08-14 00:00:00', ?, '2026-08-14 00:01:00',
+			  1, 1, NULL, '2026-08-14 00:00:00', ?, '2026-08-14 00:01:00', false, 0,
 			  0, NOW(6), NOW(6)
 			)
 			""", OPERATION_UID.toString(), reservationId, memberId, PAYMENT_KEY, AMOUNT,
