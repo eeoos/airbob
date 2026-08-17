@@ -87,6 +87,22 @@ public class PaymentOperationLeaseService {
 		return Optional.empty();
 	}
 
+	@Transactional
+	public Optional<PaymentOperationManualReviewNotice> markManualReview(
+		PaymentExecution execution,
+		String code,
+		String message
+	) {
+		PaymentOperation operation = lock(execution.operationUid());
+		return operation.markManualReview(
+			execution.leaseOwner(),
+			execution.dispatchGeneration(),
+			clock.instant(),
+			code,
+			message
+		) ? Optional.of(manualReviewNotice(operation)) : Optional.empty();
+	}
+
 	private PaymentOperationManualReviewNotice manualReviewNotice(PaymentOperation operation) {
 		return new PaymentOperationManualReviewNotice(operation.getOperationUid());
 	}

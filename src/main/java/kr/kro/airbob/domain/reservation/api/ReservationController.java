@@ -15,6 +15,7 @@ import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
@@ -37,12 +38,13 @@ public class ReservationController {
 	}
 
 	@PostMapping("/v1/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<Void>> cancelReservation(
+	public ResponseEntity<ApiResponse<Cancellation>> cancelReservation(
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request,
 		@CurrentMemberId Long memberId) {
-		reservationService.cancelReservation(reservationUid, request, memberId);
-		return ResponseEntity.accepted().body(ApiResponse.success());
+		Cancellation response = reservationService.cancelReservation(reservationUid, request, memberId);
+		ApiResponse<Cancellation> body = ApiResponse.success(response);
+		return ResponseEntity.accepted().body(body);
 	}
 
 	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")

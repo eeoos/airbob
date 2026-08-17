@@ -7,6 +7,8 @@ import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.MANUAL_
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.QUEUED;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.WAITING_RETRY;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CONFIRMED;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLATION_PENDING;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PENDING;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PROCESSING;
@@ -82,6 +84,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer;
@@ -90,16 +93,17 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
 import kr.kro.airbob.domain.payment.service.PaymentRetryBackoff;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationCommand;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationGateway;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
-import kr.kro.airbob.outbox.entity.Outbox;
-import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.messaging.outbox.OutboxMessage;
+import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 
@@ -116,6 +120,7 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	JpaOutboxWriter.class,
 	OutboxAccommodationSearchRefreshPublisher.class,
 	PaymentOperationCommandService.class,
+	PaymentCancellationCommandService.class,
 	PaymentOperationLeaseService.class,
 	PaymentOperationExecutor.class,
 	PaymentOperationFinalizer.class,
@@ -164,6 +169,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private AdjustableClock clock;
 	@Autowired private ScriptedPaymentGateway gateway;
 	@Autowired private PaymentOperationCommandService commandService;
+	@Autowired private PaymentCancellationCommandService cancellationCommandService;
 	@Autowired private PaymentOperationExecutor executor;
 	@Autowired private PaymentOperationQueryService queryService;
 	@Autowired private PaymentOperationRecoveryService recoveryService;
@@ -172,7 +178,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private PaymentRepository paymentRepository;
 	@Autowired private PaymentTransactionRepository transactionRepository;
-	@Autowired private OutboxRepository outboxRepository;
+	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private IntegrationEventCodec eventCodec;
 
 	private MockMvc mockMvc;
@@ -331,6 +337,80 @@ class PaymentOperationFlowIntegrationTest {
 			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
 		assertLedgerType(operationUid, PaymentTransactionType.CONFIRM);
 		assertOperationPrivacy(operationUid, "SUCCEEDED");
+	}
+
+	@Test
+	void cancellationCommandThroughOutboxAppliesFullProviderCancellation() throws Exception {
+		preparePaidConfirmedReservation();
+
+		var accepted = cancellationCommandService.requestCancellation(
+			RESERVATION_UID.toString(),
+			new PaymentRequest.Cancel("사용자 요청", AMOUNT),
+			ownerId
+		);
+		UUID operationUid = accepted.operationId();
+		acceptedStatusUrls.put(operationUid, accepted.statusUrl());
+		assertDurableState(operationUid, QUEUED, CANCELLATION_PENDING, 1, 0, List.of());
+
+		gateway.enqueueCancel(cancelled());
+		deliverLatestExecutionEvent();
+
+		assertThat(gateway.calls()).containsExactly("cancel");
+		assertDurableState(operationUid, APPLIED, CANCELLED, 1, 1,
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
+		assertThat(paymentRepository.findByReservationId(reservationId).orElseThrow())
+			.extracting(payment -> payment.getStatus(), payment -> payment.getBalanceAmount())
+			.containsExactly(PaymentStatus.CANCELED, 0L);
+		assertThat(transactionRepository.findAll()).singleElement().satisfies(ledger -> {
+			assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL);
+			assertThat(ledger.getCancelAmount()).isEqualTo(AMOUNT);
+			assertThat(ledger.getCancelReason()).isEqualTo("사용자 요청");
+			assertThat(ledger.getTransactionKey()).isEqualTo("cancel-transaction-key");
+			assertThat(ledger.getCanceledAt()).isEqualTo(NOW.plusSeconds(1));
+		});
+		assertThat(isCouponUsed()).isFalse();
+		assertOperationPrivacy(operationUid, "SUCCEEDED");
+	}
+
+	@Test
+	void cancellationProviderSuccessThenDbRollbackRecoversByCancellationInquiry() throws Exception {
+		preparePaidConfirmedReservation();
+		var accepted = cancellationCommandService.requestCancellation(
+			RESERVATION_UID.toString(),
+			new PaymentRequest.Cancel("사용자 요청", null),
+			ownerId
+		);
+		UUID operationUid = accepted.operationId();
+		acceptedStatusUrls.put(operationUid, accepted.statusUrl());
+		gateway.enqueueCancel(cancelled());
+		createLedgerFailureTrigger();
+
+		assertThatThrownBy(this::deliverLatestExecutionEvent)
+			.isInstanceOf(RuntimeException.class);
+		dropLedgerFailureTrigger();
+
+		assertThat(gateway.calls()).containsExactly("cancel");
+		assertDurableState(operationUid, EXECUTING, CANCELLATION_PENDING, 1, 0, List.of());
+		assertThat(paymentRepository.findByReservationId(reservationId).orElseThrow().getStatus())
+			.isEqualTo(PaymentStatus.DONE);
+		assertThat(isCouponUsed()).isTrue();
+
+		clock.advance(Duration.ofSeconds(31));
+		assertThat(recoveryService.recoverDue().enqueued()).isOne();
+		PaymentOperation recovered = operationRepository.findByOperationUid(operationUid).orElseThrow();
+		assertThat(recovered.getStatus()).isEqualTo(QUEUED);
+		assertThat(recovered.getNextAction())
+			.isEqualTo(kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction.INQUIRE_CANCEL);
+		gateway.enqueueCancellationInquiry(cancelled());
+		deliverLatestExecutionEvent();
+
+		assertThat(gateway.calls()).containsExactly("cancel", "inquireCancel");
+		assertDurableState(operationUid, APPLIED, CANCELLED, 1, 1,
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
+		assertThat(paymentRepository.findByReservationId(reservationId).orElseThrow().getBalanceAmount())
+			.isZero();
+		assertLedgerType(operationUid, PaymentTransactionType.CANCEL);
+		assertThat(isCouponUsed()).isFalse();
 	}
 
 	@Test
@@ -500,12 +580,12 @@ class PaymentOperationFlowIntegrationTest {
 
 	private String latestExecutionPayload() {
 		return executionOutboxes().stream()
-			.max(java.util.Comparator.comparing(Outbox::getId))
+			.max(java.util.Comparator.comparing(OutboxMessage::getId))
 			.orElseThrow()
 			.getPayload();
 	}
 
-	private List<Outbox> executionOutboxes() {
+	private List<OutboxMessage> executionOutboxes() {
 		return outboxRepository.findAll().stream()
 			.filter(outbox -> outbox.getEventType().equals(
 				PaymentOperationExecutionRequestedV1.DESCRIPTOR.eventType()))
@@ -553,16 +633,16 @@ class PaymentOperationFlowIntegrationTest {
 		assertThat(responseData(statusResponse).path("status").asText()).isEqualTo(expectedStatus);
 		assertNoSecret(serializedStatus);
 
-		List<Outbox> executionOutboxes = executionOutboxes();
+		List<OutboxMessage> executionOutboxes = executionOutboxes();
 		assertThat(executionOutboxes).isNotEmpty();
-		for (Outbox outbox : executionOutboxes) {
+		for (OutboxMessage outbox : executionOutboxes) {
 			assertExecutionOutboxContract(outbox, operationUid);
 			assertNoSecret(outbox.getPayload());
 		}
 		assertGatewayCommandsCorrelated(operationUid);
 	}
 
-	private void assertExecutionOutboxContract(Outbox outbox, UUID operationUid) throws Exception {
+	private void assertExecutionOutboxContract(OutboxMessage outbox, UUID operationUid) throws Exception {
 		assertThat(outbox.getAggregateId()).isEqualTo(operationUid.toString());
 		JsonNode payload = objectMapper.readTree(outbox.getPayload()).path("payload");
 		assertThat(fieldNames(payload)).containsExactlyInAnyOrder(
@@ -573,26 +653,29 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private void assertGatewayCommandsCorrelated(UUID operationUid) {
-		PaymentConfirmationCommand expected = expectedGatewayCommand(operationUid);
+		PaymentProviderCommand expected = expectedGatewayCommand(operationUid);
 		assertThat(gateway.invocations())
 			.extracting(GatewayInvocation::command)
 			.allSatisfy(command -> assertThat(command).isEqualTo(expected));
 	}
 
 	private void assertConfirmCommands(UUID operationUid, int expectedCount) {
-		PaymentConfirmationCommand expected = expectedGatewayCommand(operationUid);
+		PaymentProviderCommand expected = expectedGatewayCommand(operationUid);
 		assertThat(gateway.confirmCommands())
 			.hasSize(expectedCount)
 			.allSatisfy(command -> assertThat(command).isEqualTo(expected));
 	}
 
-	private PaymentConfirmationCommand expectedGatewayCommand(UUID operationUid) {
-		return new PaymentConfirmationCommand(
+	private PaymentProviderCommand expectedGatewayCommand(UUID operationUid) {
+		PaymentOperation operation = operationRepository.findByOperationUid(operationUid).orElseThrow();
+		boolean cancellation = operation.isCancellation();
+		return new PaymentProviderCommand(
 			operationUid,
 			PAYMENT_KEY,
 			RESERVATION_UID.toString(),
 			AMOUNT,
-			"airbob-confirm-" + operationUid
+			(cancellation ? "airbob-cancel-" : "airbob-confirm-") + operationUid,
+			cancellation ? "사용자 요청" : null
 		);
 	}
 
@@ -623,7 +706,7 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private List<String> outboxEventTypes() {
-		return outboxRepository.findAll().stream().map(Outbox::getEventType).toList();
+		return outboxRepository.findAll().stream().map(OutboxMessage::getEventType).toList();
 	}
 
 	private PersistenceSnapshot persistenceSnapshot() {
@@ -658,6 +741,41 @@ class PaymentOperationFlowIntegrationTest {
 			null
 		);
 		return new PaymentGatewayResult.Approved(confirmed);
+	}
+
+	private PaymentGatewayResult cancelled() {
+		return new PaymentGatewayResult.Cancelled(new CancelledPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			0L,
+			PaymentStatus.CANCELED,
+			AMOUNT,
+			"사용자 요청",
+			"cancel-transaction-key",
+			clock.instant().plusSeconds(1)
+		));
+	}
+
+	private void preparePaidConfirmedReservation() {
+		jdbc.update("UPDATE reservation SET status = 'CONFIRMED' WHERE id = ?", reservationId);
+		jdbc.update("""
+			INSERT INTO payment (
+			  payment_uid, payment_key, order_id, amount, method, approved_at, created_at,
+			  reservation_id, status, balance_amount, updated_at
+			) VALUES (
+			  UNHEX(REPLACE(?, '-', '')), ?, ?, ?, 'CARD', ?, NOW(6),
+			  ?, 'DONE', ?, NOW(6)
+			)
+			""",
+			UUID.randomUUID().toString(),
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			java.sql.Timestamp.from(NOW),
+			reservationId,
+			AMOUNT
+		);
 	}
 
 	private boolean isCouponUsed() {
@@ -848,14 +966,18 @@ class PaymentOperationFlowIntegrationTest {
 		}
 	}
 
-	static final class ScriptedPaymentGateway implements PaymentConfirmationGateway {
+	static final class ScriptedPaymentGateway implements PaymentProviderGateway {
 		private final Deque<PaymentGatewayResult> confirmations = new ArrayDeque<>();
 		private final Deque<PaymentGatewayResult> inquiries = new ArrayDeque<>();
+		private final Deque<PaymentGatewayResult> cancellations = new ArrayDeque<>();
+		private final Deque<PaymentGatewayResult> cancellationInquiries = new ArrayDeque<>();
 		private final List<GatewayInvocation> invocations = new ArrayList<>();
 
 		void reset() {
 			confirmations.clear();
 			inquiries.clear();
+			cancellations.clear();
+			cancellationInquiries.clear();
 			invocations.clear();
 		}
 
@@ -867,6 +989,14 @@ class PaymentOperationFlowIntegrationTest {
 			inquiries.addLast(result);
 		}
 
+		void enqueueCancel(PaymentGatewayResult result) {
+			cancellations.addLast(result);
+		}
+
+		void enqueueCancellationInquiry(PaymentGatewayResult result) {
+			cancellationInquiries.addLast(result);
+		}
+
 		List<String> calls() {
 			return invocations.stream().map(GatewayInvocation::method).toList();
 		}
@@ -875,36 +1005,56 @@ class PaymentOperationFlowIntegrationTest {
 			return List.copyOf(invocations);
 		}
 
-		List<PaymentConfirmationCommand> confirmCommands() {
+		List<PaymentProviderCommand> confirmCommands() {
 			return commandsFor("confirm");
 		}
 
-		List<PaymentConfirmationCommand> inquiryCommands() {
+		List<PaymentProviderCommand> inquiryCommands() {
 			return commandsFor("inquire");
 		}
 
 		@Override
-		public PaymentGatewayResult confirm(PaymentConfirmationCommand command) {
+		public PaymentGatewayResult confirm(PaymentProviderCommand command) {
 			validate(command);
 			invocations.add(new GatewayInvocation("confirm", command));
 			return next(confirmations, "confirm");
 		}
 
 		@Override
-		public PaymentGatewayResult inquire(PaymentConfirmationCommand command) {
+		public PaymentGatewayResult inquireConfirmation(PaymentProviderCommand command) {
 			validate(command);
 			invocations.add(new GatewayInvocation("inquire", command));
 			return next(inquiries, "inquire");
 		}
 
-		private List<PaymentConfirmationCommand> commandsFor(String method) {
+		@Override
+		public PaymentGatewayResult cancel(PaymentProviderCommand command) {
+			validate(command);
+			if (!"사용자 요청".equals(command.cancellationReason())) {
+				throw new AssertionError("payment gateway received an uncorrelated cancellation reason");
+			}
+			invocations.add(new GatewayInvocation("cancel", command));
+			return next(cancellations, "cancel");
+		}
+
+		@Override
+		public PaymentGatewayResult inquireCancellation(PaymentProviderCommand command) {
+			validate(command);
+			if (!"사용자 요청".equals(command.cancellationReason())) {
+				throw new AssertionError("payment gateway received an uncorrelated cancellation reason");
+			}
+			invocations.add(new GatewayInvocation("inquireCancel", command));
+			return next(cancellationInquiries, "inquireCancel");
+		}
+
+		private List<PaymentProviderCommand> commandsFor(String method) {
 			return invocations.stream()
 				.filter(invocation -> invocation.method().equals(method))
 				.map(GatewayInvocation::command)
 				.toList();
 		}
 
-		private void validate(PaymentConfirmationCommand command) {
+		private void validate(PaymentProviderCommand command) {
 			if (!PAYMENT_KEY.equals(command.paymentKey())
 				|| !RESERVATION_UID.toString().equals(command.orderId())
 				|| command.amount() != AMOUNT
@@ -923,6 +1073,6 @@ class PaymentOperationFlowIntegrationTest {
 		}
 	}
 
-	private record GatewayInvocation(String method, PaymentConfirmationCommand command) {
+	private record GatewayInvocation(String method, PaymentProviderCommand command) {
 	}
 }

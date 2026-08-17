@@ -12,12 +12,18 @@ import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 
 public interface PaymentOperationRepository extends JpaRepository<PaymentOperation, Long> {
 
 	Optional<PaymentOperation> findByOperationUid(UUID operationUid);
 
 	Optional<PaymentOperation> findByDeduplicationKey(String deduplicationKey);
+
+	Optional<PaymentOperation> findFirstByReservationIdAndOperationTypeOrderByIdDesc(
+		Long reservationId,
+		PaymentOperationType operationType
+	);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select po from PaymentOperation po where po.operationUid = :operationUid")

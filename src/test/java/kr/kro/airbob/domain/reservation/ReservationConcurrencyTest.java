@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.UUID;
 
@@ -52,7 +53,14 @@ import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -66,8 +74,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
@@ -99,9 +106,15 @@ class ReservationConcurrencyTest {
 	@Autowired
 	private PaymentOperationCommandService paymentOperationCommandService;
 	@Autowired
+	private PaymentCancellationCommandService paymentCancellationCommandService;
+	@Autowired
 	private PaymentOperationRepository paymentOperationRepository;
 	@Autowired
-	private OutboxRepository outboxRepository;
+	private PaymentRepository paymentRepository;
+	@Autowired
+	private PaymentTransactionRepository paymentTransactionRepository;
+	@Autowired
+	private OutboxMessageRepository outboxRepository;
 	@Autowired
 	private CouponRepository couponRepository;
 	@Autowired
@@ -150,6 +163,8 @@ class ReservationConcurrencyTest {
 	void setUp() {
 		given(bookingWindowProvider.currentFor(TIME_ZONE_ID)).willReturn(BOOKING_WINDOW);
 		outboxRepository.deleteAllInBatch();
+		paymentTransactionRepository.deleteAllInBatch();
+		paymentRepository.deleteAllInBatch();
 		paymentOperationRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		memberCouponRepository.deleteAllInBatch();
@@ -184,6 +199,8 @@ class ReservationConcurrencyTest {
 	@AfterEach
 	void tearDown() {
 		outboxRepository.deleteAllInBatch();
+		paymentTransactionRepository.deleteAllInBatch();
+		paymentRepository.deleteAllInBatch();
 		paymentOperationRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		memberCouponRepository.deleteAllInBatch();
@@ -239,7 +256,7 @@ class ReservationConcurrencyTest {
 		assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 		assertThat(memberCoupon(guest, coupon).isUsed()).isFalse();
 		assertThat(outboxRepository.findAll()).extracting(row -> row.getEventType())
-			.doesNotContain(EventType.RESERVATION_CANCELLATION_REQUESTED.name());
+			.doesNotContain("RESERVATION_CANCELLATION_REQUESTED");
 	}
 
 	@Test
@@ -375,9 +392,76 @@ class ReservationConcurrencyTest {
 		assertThat(returnedOperationUids).hasSize(2).containsOnly(returnedOperationUids.getFirst());
 		assertThat(paymentOperationRepository.count()).isEqualTo(1);
 		assertThat(outboxRepository.findAll().stream()
-			.filter(row -> EventType.PAYMENT_EXECUTION_REQUESTED_V1.name().equals(row.getEventType())))
+			.filter(row -> "PAYMENT_OPERATION_EXECUTION_REQUESTED".equals(row.getEventType())))
 			.hasSize(1);
 		assertThat(reloadedReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
+	}
+
+	@Test
+	@DisplayName("동일한 전액 취소 명령이 동시에 도착해도 하나의 취소 작업과 이벤트를 공유한다")
+	void concurrentPaymentCancellationReturnsTheSameOperation() throws InterruptedException {
+		Member guest = guests.getFirst();
+		LocalDate checkInDate = WINDOW_START.plusDays(30);
+		Reservation reservation = transactionService.createPendingReservationInTx(
+			new ReservationRequest.Create(
+				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
+			guest.getId(),
+			"결제 취소 동시성 테스트"
+		);
+		jdbcTemplate.update(
+			"UPDATE reservation SET status = 'CONFIRMED' WHERE id = ?", reservation.getId());
+		paymentRepository.saveAndFlush(Payment.builder()
+			.paymentKey("paid-cancellation-key")
+			.orderId(reservation.getReservationUid().toString())
+			.amount(reservation.getTotalPrice())
+			.balanceAmount(reservation.getTotalPrice())
+			.method(PaymentMethod.CARD)
+			.approvedAt(Instant.now())
+			.reservation(reservation)
+			.status(PaymentStatus.DONE)
+			.build());
+		outboxRepository.deleteAllInBatch();
+
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		CountDownLatch ready = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+		CountDownLatch done = new CountDownLatch(2);
+		List<UUID> operationUids = java.util.Collections.synchronizedList(new ArrayList<>());
+		AtomicInteger failures = new AtomicInteger();
+		PaymentRequest.Cancel request = new PaymentRequest.Cancel(
+			"동일 전액 취소", reservation.getTotalPrice());
+
+		for (int index = 0; index < 2; index++) {
+			executor.submit(() -> {
+				try {
+					ready.countDown();
+					start.await();
+					operationUids.add(paymentCancellationCommandService.requestCancellation(
+						reservation.getReservationUid().toString(), request, guest.getId()).operationId());
+				} catch (Exception exception) {
+					failures.incrementAndGet();
+				} finally {
+					done.countDown();
+				}
+			});
+		}
+
+		assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+		start.countDown();
+		assertThat(done.await(10, TimeUnit.SECONDS)).isTrue();
+		executor.shutdownNow();
+		assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+
+		assertThat(failures.get()).isZero();
+		assertThat(operationUids).hasSize(2).containsOnly(operationUids.getFirst());
+		assertThat(paymentOperationRepository.findAll())
+			.filteredOn(operation -> operation.getOperationType() == PaymentOperationType.CANCEL)
+			.hasSize(1);
+		assertThat(outboxRepository.findAll())
+			.filteredOn(row -> "PAYMENT_OPERATION_EXECUTION_REQUESTED".equals(row.getEventType()))
+			.hasSize(1);
+		assertThat(reservationRepository.findById(reservation.getId()).orElseThrow().getStatus())
+			.isEqualTo(ReservationStatus.CANCELLATION_PENDING);
 	}
 
 	@Test

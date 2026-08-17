@@ -228,7 +228,8 @@ public class Reservation extends BaseEntity {
 		if (this.status == ReservationStatus.CANCELLATION_PENDING) {
 			return false;
 		}
-		if (this.status != ReservationStatus.CONFIRMED) {
+		if (this.status != ReservationStatus.CONFIRMED
+			&& this.status != ReservationStatus.CANCELLATION_FAILED) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLATION_PENDING;
@@ -250,8 +251,7 @@ public class Reservation extends BaseEntity {
 		if (this.status == ReservationStatus.CANCELLED) {
 			return false;
 		}
-		if (this.status != ReservationStatus.CANCELLATION_PENDING
-			&& this.status != ReservationStatus.CANCELLATION_FAILED) {
+		if (this.status != ReservationStatus.CANCELLATION_PENDING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLED;
@@ -269,10 +269,4 @@ public class Reservation extends BaseEntity {
 		return true;
 	}
 
-	public void recoverLegacyCancellationFailure() {
-		if (this.status != ReservationStatus.CANCELLED) {
-			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
-		}
-		this.status = ReservationStatus.CANCELLATION_FAILED;
-	}
 }

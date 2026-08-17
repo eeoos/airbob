@@ -4,6 +4,9 @@ import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.APPLIED
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.DECLINED;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.EXECUTING;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CONFIRMED;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLATION_FAILED;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLATION_PENDING;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PROCESSING;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,12 +65,13 @@ import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest
@@ -115,7 +119,7 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Autowired private PaymentRepository paymentRepository;
 	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private OutboxRepository outboxRepository;
+	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private HoldingFinalizerTransaction holdingFinalizerTransaction;
 	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 
@@ -419,6 +423,151 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertPreFinalizationState();
 	}
 
+	@Test
+	void fullCancellationAtomicallyPersistsProviderEvidenceAndReleasesReservation() {
+		prepareCancellationFixture();
+
+		finalizer.applyCancelled(cancellationExecution(LEASE_OWNER), cancelledPayment());
+
+		PaymentOperation operation = reloadOperation();
+		Reservation reservation = reloadReservation();
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(operation.getStatus()).isEqualTo(APPLIED);
+		assertThat(reservation.getStatus()).isEqualTo(CANCELLED);
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+		assertThat(payment.getBalanceAmount()).isZero();
+		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL);
+		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
+		assertThat(ledger.getCancelAmount()).isEqualTo(AMOUNT);
+		assertThat(ledger.getCancelReason()).isEqualTo("사용자 요청");
+		assertThat(ledger.getTransactionKey()).isEqualTo("cancel-transaction-key");
+		assertThat(ledger.getCanceledAt()).isEqualTo(NOW.plusSeconds(90));
+		assertThat(isMemberCouponUsed()).isFalse();
+		assertThat(historyRepository.findAll()).singleElement().satisfies(history -> {
+			assertThat(history.getStatus()).isEqualTo(CANCELLED);
+			assertThat(history.getSourceSystem()).isEqualTo("PAYMENT_OPERATION");
+		});
+		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+	}
+
+	@Test
+	void duplicateCancellationFinalizationAppendsExactlyOneLedgerAndCouponRestore() {
+		prepareCancellationFixture();
+		PaymentExecution execution = cancellationExecution(LEASE_OWNER);
+
+		finalizer.applyCancelled(execution, cancelledPayment());
+		List<Long> countsAfterFirstApply = localEffectCounts();
+		finalizer.applyCancelled(execution, cancelledPayment());
+
+		assertThat(localEffectCounts()).isEqualTo(countsAfterFirstApply);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
+		assertThat(isMemberCouponUsed()).isFalse();
+	}
+
+	@Test
+	void cancellationDeclineKeepsPaymentAndCouponWhileRecordingFailureFact() {
+		prepareCancellationFixture();
+
+		finalizer.applyDeclined(
+			cancellationExecution(LEASE_OWNER), "NOT_CANCELABLE_PAYMENT", "declined");
+
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(reloadOperation().getStatus()).isEqualTo(DECLINED);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_FAILED);
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DONE);
+		assertThat(payment.getBalanceAmount()).isEqualTo(AMOUNT);
+		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL_FAIL);
+		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
+		assertThat(ledger.getFailureCode()).isEqualTo("NOT_CANCELABLE_PAYMENT");
+		assertThat(ledger.getCancelReason()).isEqualTo("사용자 요청");
+		assertThat(isMemberCouponUsed()).isTrue();
+	}
+
+	@Test
+	void databaseFailureAfterProviderCancellationLeavesExecutionForLeaseInquiryRecovery() {
+		prepareCancellationFixture();
+		doThrow(new IllegalStateException("injected index outbox failure"))
+			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+
+		assertThatThrownBy(() -> finalizer.applyCancelled(
+			cancellationExecution(LEASE_OWNER), cancelledPayment()))
+			.isInstanceOf(RuntimeException.class);
+
+		PaymentOperation operation = reloadOperation();
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		assertThat(operation.getStatus()).isEqualTo(EXECUTING);
+		assertThat(operation.getLeaseOwner()).isEqualTo(LEASE_OWNER);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_PENDING);
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DONE);
+		assertThat(payment.getBalanceAmount()).isEqualTo(AMOUNT);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
+		assertThat(isMemberCouponUsed()).isTrue();
+	}
+
+	@Test
+	void mismatchedCancellationEvidenceIsRejectedBeforeAnyLocalEffect() {
+		prepareCancellationFixture();
+		CancelledPayment mismatched = new CancelledPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			0L,
+			PaymentStatus.CANCELED,
+			AMOUNT,
+			"다른 사유",
+			"cancel-transaction-key",
+			NOW.plusSeconds(90)
+		);
+
+		assertThatThrownBy(() -> finalizer.applyCancelled(
+			cancellationExecution(LEASE_OWNER), mismatched))
+			.isInstanceOf(PaymentOperationInvariantException.class);
+
+		assertThat(reloadOperation().getStatus()).isEqualTo(EXECUTING);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_PENDING);
+		assertThat(paymentRepository.findByReservationId(reservationId).orElseThrow().getStatus())
+			.isEqualTo(PaymentStatus.DONE);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
+		assertThat(isMemberCouponUsed()).isTrue();
+	}
+
+	@Test
+	void simultaneousCancellationFinalizersCommitOneCancellationFact() throws Exception {
+		prepareCancellationFixture();
+		CountDownLatch firstApplied = new CountDownLatch(1);
+		CountDownLatch releaseFirstTransaction = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+
+		try {
+			CompletableFuture<Void> first = CompletableFuture.runAsync(
+				() -> holdingFinalizerTransaction.applyCancelledAndHold(
+					cancellationExecution(LEASE_OWNER), cancelledPayment(),
+					firstApplied, releaseFirstTransaction),
+				executor);
+			assertThat(firstApplied.await(5, TimeUnit.SECONDS)).isTrue();
+			CompletableFuture<Void> second = CompletableFuture.runAsync(
+				() -> finalizer.applyCancelled(
+					cancellationExecution(LEASE_OWNER), cancelledPayment()),
+				executor);
+			assertThatThrownBy(() -> second.get(500, TimeUnit.MILLISECONDS))
+				.isInstanceOf(TimeoutException.class);
+
+			releaseFirstTransaction.countDown();
+			first.get(5, TimeUnit.SECONDS);
+			second.get(5, TimeUnit.SECONDS);
+
+			assertThat(reloadOperation().getStatus()).isEqualTo(APPLIED);
+			assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLED);
+			assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
+		} finally {
+			releaseFirstTransaction.countDown();
+			executor.shutdownNow();
+			assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
+	}
+
 	private void assertPreFinalizationState() {
 		PaymentOperation operation = reloadOperation();
 		assertThat(operation.getStatus()).isEqualTo(EXECUTING);
@@ -480,6 +629,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			RESERVATION_UID.toString(),
 			AMOUNT,
 			"provider-key",
+			null,
 			leaseOwner,
 			1,
 			PaymentExecutionMode.CONFIRM
@@ -497,6 +647,52 @@ class PaymentOperationFinalizerIntegrationTest {
 			NOW.plusSeconds(60),
 			null
 		);
+	}
+
+	private PaymentExecution cancellationExecution(String leaseOwner) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"airbob-cancel-" + OPERATION_UID,
+			"사용자 요청",
+			leaseOwner,
+			1,
+			PaymentExecutionMode.CANCEL
+		);
+	}
+
+	private CancelledPayment cancelledPayment() {
+		return new CancelledPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			0L,
+			PaymentStatus.CANCELED,
+			AMOUNT,
+			"사용자 요청",
+			"cancel-transaction-key",
+			NOW.plusSeconds(90)
+		);
+	}
+
+	private void prepareCancellationFixture() {
+		jdbc.update("""
+			UPDATE reservation SET status = 'CANCELLATION_PENDING' WHERE id = ?
+			""", reservationId);
+		jdbc.update("""
+			UPDATE payment_operation
+			SET operation_type = 'CANCEL', next_action = 'CANCEL',
+			    provider_idempotency_key = ?, deduplication_key = ?, cancellation_reason = ?
+			WHERE id = ?
+			""",
+			"airbob-cancel-" + OPERATION_UID,
+			"CANCEL:" + RESERVATION_UID + ":" + OPERATION_UID,
+			"사용자 요청",
+			operationId);
+		insertExistingPayment(PAYMENT_KEY);
 	}
 
 	private long insertExistingPayment(String paymentKey) {
@@ -632,6 +828,27 @@ class PaymentOperationFinalizerIntegrationTest {
 			} catch (InterruptedException exception) {
 				Thread.currentThread().interrupt();
 				throw new IllegalStateException("interrupted while holding finalization transaction", exception);
+			}
+		}
+
+		@Transactional
+		public void applyCancelledAndHold(
+			PaymentExecution execution,
+			CancelledPayment cancelled,
+			CountDownLatch applied,
+			CountDownLatch release
+		) {
+			finalizer.applyCancelled(execution, cancelled);
+			applied.countDown();
+			try {
+				if (!release.await(5, TimeUnit.SECONDS)) {
+					throw new IllegalStateException(
+						"timed out holding the cancellation finalization transaction");
+				}
+			} catch (InterruptedException exception) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(
+					"interrupted while holding cancellation transaction", exception);
 			}
 		}
 	}

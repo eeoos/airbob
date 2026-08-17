@@ -16,7 +16,7 @@ ALTER TABLE payment_operation
   ADD COLUMN dispatch_generation bigint NOT NULL DEFAULT 1 AFTER deduplication_key,
   ADD COLUMN queued_at datetime(6) NOT NULL AFTER next_attempt_at,
   ADD COLUMN review_required_at datetime(6) DEFAULT NULL AFTER lease_expires_at,
-  ADD COLUMN cancellation_reason varchar(512) DEFAULT NULL AFTER review_required_at,
+  ADD COLUMN cancellation_reason varchar(200) DEFAULT NULL AFTER review_required_at,
   ADD COLUMN manual_reconciliation_pending boolean NOT NULL DEFAULT false AFTER cancellation_reason,
   ADD COLUMN manual_review_count int NOT NULL DEFAULT 0 AFTER manual_reconciliation_pending,
   DROP COLUMN last_enqueued_at,

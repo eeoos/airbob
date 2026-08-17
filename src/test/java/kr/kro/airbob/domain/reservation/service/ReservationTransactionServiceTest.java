@@ -23,7 +23,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
@@ -34,9 +33,6 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -44,8 +40,6 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
-import kr.kro.airbob.domain.reservation.event.ReservationEvent;
-import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
@@ -56,8 +50,6 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,8 +61,6 @@ class ReservationTransactionServiceTest {
 
 	private ReservationTransactionService transactionService;
 
-	@Mock
-	private OutboxEventPublisher outboxEventPublisher;
 	@Mock
 	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock
@@ -109,7 +99,6 @@ class ReservationTransactionServiceTest {
 	@BeforeEach
 	void setUp() {
 		transactionService = new ReservationTransactionService(
-			outboxEventPublisher,
 			searchRefreshPublisher,
 			cursorPageInfoCreator,
 			memberRepository,
@@ -248,7 +237,6 @@ class ReservationTransactionServiceTest {
 			then(reservationRepository).shouldHaveNoInteractions();
 			then(couponUsageService).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -311,7 +299,6 @@ class ReservationTransactionServiceTest {
 			assertThat(savedHistory.getTimeZoneId()).isEqualTo(result.getTimeZoneId());
 			assertThat(savedHistory.getExpiresAt()).isEqualTo(result.getExpiresAt());
 
-			then(outboxEventPublisher).shouldHaveNoInteractions();
 			then(searchRefreshPublisher).shouldHaveNoInteractions();
 		}
 
@@ -346,7 +333,6 @@ class ReservationTransactionServiceTest {
 
 			assertThat(result.getTotalPrice()).isZero();
 			assertThat(result.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-			then(outboxEventPublisher).shouldHaveNoInteractions();
 			then(searchRefreshPublisher).should().requestRefresh(
 				accommodation.getAccommodationUid());
 		}
@@ -445,7 +431,6 @@ class ReservationTransactionServiceTest {
 			then(bookingWindowProvider).shouldHaveNoInteractions();
 			then(reservationRepository).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -470,7 +455,6 @@ class ReservationTransactionServiceTest {
 			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID);
 			then(reservationRepository).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -532,450 +516,6 @@ class ReservationTransactionServiceTest {
 	}
 
 
-	@Nested
-	@DisplayName("예약 취소 트랜잭션 테스트")
-	class CancelReservationInTxTest {
-
-		@Test
-		@DisplayName("확정된 0원 예약은 PG 이벤트 없이 즉시 취소하고 쿠폰과 재고를 복원한다")
-		void complimentaryReservationCancelsLocally() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest, 0L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			transactionService.cancelReservationInTx(
-				reservationUid.toString(), new PaymentRequest.Cancel("0원 예약 취소", null), memberId);
-			transactionService.cancelReservationInTx(
-				reservationUid.toString(), new PaymentRequest.Cancel("중복 취소", null), memberId);
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			then(paymentRepository).shouldHaveNoInteractions();
-			then(couponUsageService).should(times(1)).restore(reservation.getId());
-			then(historyRepository).should(times(1)).save(historyCaptor.capture());
-			assertThat(historyCaptor.getValue().getChangeType()).isEqualTo(ChangeType.CANCEL);
-			then(outboxEventPublisher).should(never())
-				.save(eq(EventType.RESERVATION_CANCELLATION_REQUESTED), any());
-			then(searchRefreshPublisher).should(times(1)).requestRefresh(
-				accommodation.getAccommodationUid());
-		}
-
-		@Test
-		@DisplayName("0원 예약에 환불 금액을 지정하면 상태를 바꾸지 않고 거부한다")
-		void complimentaryCancellationRejectsRefundAmount() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest, 0L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			assertThatThrownBy(() -> transactionService.cancelReservationInTx(
-				reservationUid.toString(), new PaymentRequest.Cancel("잘못된 환불", 1L), memberId))
-				.isInstanceOf(InvalidInputException.class);
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("CONFIRMED 상태에서 본인이 취소 요청 시 CANCELLATION_PENDING으로 변경된다")
-		void 정상_취소요청() {
-			// given
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest);
-			PaymentRequest.Cancel cancelRequest = new PaymentRequest.Cancel("사용자 취소 요청", null);
-
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			// when
-			transactionService.cancelReservationInTx(reservationUid.toString(), cancelRequest, memberId);
-
-			// then
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
-
-			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
-			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.STATUS_CHANGE);
-			assertThat(savedHistory.getChangeReason()).isEqualTo("사용자 취소 요청");
-
-			then(outboxEventPublisher).should().save(
-				eq(EventType.RESERVATION_CANCELLATION_REQUESTED),
-				any(ReservationEvent.ReservationCancellationRequestedEvent.class));
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(searchRefreshPublisher).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("이미 CANCELLATION_PENDING이면 중복 PG 취소 요청을 발행하지 않는다")
-		void 중복_취소요청_멱등() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(
-				reservationUid, ReservationStatus.CANCELLATION_PENDING);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			transactionService.cancelReservationInTx(
-				reservationUid.toString(), new PaymentRequest.Cancel("중복 요청", null), memberId);
-
-			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
-			then(couponUsageService).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("명시한 취소 금액이 현재 결제 잔액보다 작으면 예약 취소를 시작하지 않는다")
-		void 부분취소_금액_거부() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest);
-			Payment payment = Payment.builder()
-				.reservation(reservation)
-				.balanceAmount(200_000L)
-				.build();
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUid(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			assertThatThrownBy(() -> transactionService.cancelReservationInTx(
-				reservationUid.toString(), new PaymentRequest.Cancel("부분 환불", 100_000L), memberId))
-				.isInstanceOf(InvalidInputException.class);
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("명시한 취소 금액이 현재 결제 잔액 전액이면 취소 요청을 시작한다")
-		void 현재잔액_전액취소_허용() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, guest);
-			Payment payment = Payment.builder()
-				.reservation(reservation)
-				.balanceAmount(200_000L)
-				.build();
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUid(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			transactionService.cancelReservationInTx(
-				reservationUid.toString(), new PaymentRequest.Cancel("전액 환불", 200_000L), memberId);
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
-			then(outboxEventPublisher).should().save(
-				eq(EventType.RESERVATION_CANCELLATION_REQUESTED),
-				argThat(event -> event instanceof ReservationEvent.ReservationCancellationRequestedEvent requested
-					&& requested.cancelAmount().equals(200_000L)));
-		}
-
-		@Test
-		@DisplayName("예약이 존재하지 않으면 ReservationNotFoundException이 발생한다")
-		void 예외_예약_미존재() {
-			// given
-			UUID reservationUid = UUID.randomUUID();
-			PaymentRequest.Cancel cancelRequest = new PaymentRequest.Cancel("사용자 취소 요청", null);
-
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.empty());
-
-			// when & then
-			assertThatThrownBy(() -> transactionService.cancelReservationInTx(reservationUid.toString(), cancelRequest, memberId))
-				.isInstanceOf(ReservationNotFoundException.class);
-		}
-
-		@Test
-		@DisplayName("본인이 아니면 ReservationAccessDeniedException이 발생한다")
-		void 예외_권한_없음() {
-			// given
-			UUID reservationUid = UUID.randomUUID();
-			Member anotherGuest = Member.builder()
-				.id(999L)
-				.email("another@test.com")
-				.nickname("AnotherGuest")
-				.build();
-			Reservation reservation = createConfirmedReservationWithGuest(reservationUid, anotherGuest);
-			PaymentRequest.Cancel cancelRequest = new PaymentRequest.Cancel("사용자 취소 요청", null);
-
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			// when & then
-			assertThatThrownBy(() -> transactionService.cancelReservationInTx(reservationUid.toString(), cancelRequest, memberId))
-				.isInstanceOf(ReservationAccessDeniedException.class);
-		}
-	}
-
-	@Nested
-	@DisplayName("예약 취소 성공 확정 트랜잭션 테스트")
-	class CompleteCancellationInTxTest {
-
-		@Test
-		@DisplayName("CANCELLATION_PENDING에서 성공 이벤트를 받으면 CANCELLED 확정 후 쿠폰과 재고를 갱신한다")
-		void 정상_취소성공_확정() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(
-				reservationUid, ReservationStatus.CANCELLATION_PENDING);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			givenFullyCancelledPayment(reservationUid);
-
-			transactionService.completeCancellationInTx(reservationUid.toString());
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			then(couponUsageService).should().restore(reservation.getId());
-			then(historyRepository).should().save(historyCaptor.capture());
-			assertThat(historyCaptor.getValue().getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			assertThat(historyCaptor.getValue().getChangeType()).isEqualTo(ChangeType.CANCEL);
-			then(searchRefreshPublisher).should().requestRefresh(
-				accommodation.getAccommodationUid());
-		}
-
-		@Test
-		@DisplayName("실패 이벤트 뒤 전액 환불 성공이 확인되면 CANCELLED로 수렴한다")
-		void lateSuccessAfterFailureConvergesToCancelled() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(
-				reservationUid, ReservationStatus.CANCELLATION_FAILED);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			givenFullyCancelledPayment(reservationUid);
-
-			transactionService.completeCancellationInTx(reservationUid.toString());
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			then(couponUsageService).should().restore(reservation.getId());
-		}
-
-		@Test
-		@DisplayName("PG 전액 환불이 확인되지 않으면 예약 재고를 해제하지 않는다")
-		void doesNotReleaseInventoryWithoutFullRefund() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(
-				reservationUid, ReservationStatus.CANCELLATION_PENDING);
-			Payment payment = mock(Payment.class);
-			given(payment.getStatus()).willReturn(PaymentStatus.PARTIAL_CANCELED);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			assertThatThrownBy(() -> transactionService.completeCancellationInTx(reservationUid.toString()))
-				.isInstanceOf(IllegalStateException.class);
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
-			then(couponUsageService).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("이미 CANCELLED인 레거시 예약도 전액 환불을 확인하고 ES 예약 범위를 갱신한다")
-		void 레거시_취소성공_ES갱신() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			givenFullyCancelledPayment(reservationUid);
-
-			transactionService.completeCancellationInTx(reservationUid.toString());
-
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(historyRepository).shouldHaveNoInteractions();
-			then(searchRefreshPublisher).should().requestRefresh(
-				accommodation.getAccommodationUid());
-		}
-
-		@Test
-		@DisplayName("이미 CANCELLED여도 전액 환불이 확인되지 않으면 ES 예약 범위를 갱신하지 않는다")
-		void 레거시_취소성공_결제검증() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			Payment payment = mock(Payment.class);
-			given(payment.getStatus()).willReturn(PaymentStatus.CANCELED);
-			given(payment.getBalanceAmount()).willReturn(100_000L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			assertThatThrownBy(() -> transactionService.completeCancellationInTx(reservationUid.toString()))
-				.isInstanceOf(IllegalStateException.class);
-
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
-			then(searchRefreshPublisher).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("CANCELLED 성공 이벤트가 다시 와도 상태 부수 효과 없이 같은 ES 갱신으로 수렴한다")
-		void 중복_성공_멱등() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			givenFullyCancelledPayment(reservationUid);
-
-			transactionService.completeCancellationInTx(reservationUid.toString());
-			transactionService.completeCancellationInTx(reservationUid.toString());
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(historyRepository).shouldHaveNoInteractions();
-			then(searchRefreshPublisher).should(times(2)).requestRefresh(
-				accommodation.getAccommodationUid());
-		}
-	}
-
-	@Nested
-	@DisplayName("취소 실패 확정 트랜잭션 테스트")
-	class RevertCancellationInTxTest {
-
-		@Test
-		@DisplayName("CANCELLATION_PENDING 상태에서 실패 시 CANCELLATION_FAILED로 변경된다")
-		void 정상_실패확정() {
-			// given
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(
-				reservationUid, ReservationStatus.CANCELLATION_PENDING);
-
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			// when
-			transactionService.revertCancellationInTx(reservationUid.toString(), "환불 처리 실패");
-
-			// then
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-
-			then(historyRepository).should().save(historyCaptor.capture());
-			ReservationHistory savedHistory = historyCaptor.getValue();
-			assertThat(savedHistory.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-			assertThat(savedHistory.getChangeType()).isEqualTo(ChangeType.STATUS_CHANGE);
-			assertThat(savedHistory.getSourceSystem()).isEqualTo("KAFKA");
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(outboxEventPublisher).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("이미 CANCELLATION_FAILED 상태면 조기 반환한다 (멱등성)")
-		void 멱등성_이미_실패() {
-			// given
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLATION_FAILED);
-
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-
-			// when
-			transactionService.revertCancellationInTx(reservationUid.toString(), "환불 처리 실패");
-
-			// then
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-			then(historyRepository).should(never()).save(any());
-		}
-
-		@Test
-		@DisplayName("레거시 CANCELLED에서 결제가 남아 있으면 예약과 쿠폰을 복구한다")
-		void 레거시_전액환불_실패_복구() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			Payment payment = mock(Payment.class);
-			given(payment.getStatus()).willReturn(PaymentStatus.DONE);
-			given(payment.getBalanceAmount()).willReturn(200_000L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			transactionService.revertCancellationInTx(reservationUid.toString(), "환불 처리 실패");
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-			then(couponUsageService).should().reuse(reservation.getId());
-			then(historyRepository).should().save(historyCaptor.capture());
-			assertThat(historyCaptor.getValue().getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-			var lockOrder = inOrder(reservationRepository, paymentRepository);
-			lockOrder.verify(reservationRepository).findByReservationUidWithLock(reservationUid);
-			lockOrder.verify(paymentRepository).findByReservationReservationUidWithLock(reservationUid);
-		}
-
-		@Test
-		@DisplayName("레거시 CANCELLED의 부분 환불 실패도 예약과 쿠폰을 복구한다")
-		void 레거시_부분환불_실패_복구() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			Payment payment = mock(Payment.class);
-			given(payment.getStatus()).willReturn(PaymentStatus.PARTIAL_CANCELED);
-			given(payment.getBalanceAmount()).willReturn(100_000L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			transactionService.revertCancellationInTx(reservationUid.toString(), "부분 환불");
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-			then(couponUsageService).should().reuse(reservation.getId());
-		}
-
-		@Test
-		@DisplayName("전액 환불 성공 뒤 도착한 느은 실패 이벤트는 무시한다")
-		void 전액환불_후_느은실패_무시() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			Payment payment = mock(Payment.class);
-			given(payment.getStatus()).willReturn(PaymentStatus.CANCELED);
-			given(payment.getBalanceAmount()).willReturn(0L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			transactionService.revertCancellationInTx(reservationUid.toString(), "느은 실패");
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(historyRepository).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("레거시 CANCELLED의 모순된 결제 상태는 임의로 복구하지 않는다")
-		void 레거시_모순상태_복구거부() {
-			UUID reservationUid = UUID.randomUUID();
-			Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CANCELLED);
-			Payment payment = mock(Payment.class);
-			given(payment.getStatus()).willReturn(PaymentStatus.CANCELED);
-			given(payment.getBalanceAmount()).willReturn(1L);
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(reservation));
-			given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-				.willReturn(Optional.of(payment));
-
-			assertThatThrownBy(() -> transactionService.revertCancellationInTx(
-				reservationUid.toString(), "모순된 실패"))
-				.isInstanceOf(IllegalStateException.class);
-
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-			then(couponUsageService).shouldHaveNoInteractions();
-			then(historyRepository).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("예약이 존재하지 않으면 ReservationNotFoundException이 발생한다")
-		void 예외_예약_미존재() {
-			// given
-			UUID reservationUid = UUID.randomUUID();
-			given(reservationRepository.findByReservationUidWithLock(reservationUid))
-				.willReturn(Optional.empty());
-
-			// when & then
-			assertThatThrownBy(() -> transactionService.revertCancellationInTx(reservationUid.toString(), "환불 처리 실패"))
-				.isInstanceOf(ReservationNotFoundException.class);
-		}
-	}
-
 	private Reservation createReservationWithStatus(UUID reservationUid, ReservationStatus status) {
 		return Reservation.builder()
 			.id(1L)
@@ -996,39 +536,4 @@ class ReservationTransactionServiceTest {
 			.build();
 	}
 
-	private void givenFullyCancelledPayment(UUID reservationUid) {
-		Payment payment = mock(Payment.class);
-		given(payment.getStatus()).willReturn(PaymentStatus.CANCELED);
-		given(payment.getBalanceAmount()).willReturn(0L);
-		given(paymentRepository.findByReservationReservationUidWithLock(reservationUid))
-			.willReturn(Optional.of(payment));
-	}
-
-	private Reservation createConfirmedReservationWithGuest(UUID reservationUid, Member guestMember) {
-		return createConfirmedReservationWithGuest(reservationUid, guestMember, 200_000L);
-	}
-
-	private Reservation createConfirmedReservationWithGuest(
-		UUID reservationUid,
-		Member guestMember,
-		long totalPrice
-	) {
-		return Reservation.builder()
-			.id(1L)
-			.reservationUid(reservationUid)
-			.reservationCode("ABC123")
-			.accommodation(accommodation)
-			.guest(guestMember)
-			.checkInDate(LocalDate.of(2025, 1, 26))
-			.checkOutDate(LocalDate.of(2025, 1, 28))
-			.checkInAt(Instant.parse("2025-01-26T20:00:00Z"))
-			.checkOutAt(Instant.parse("2025-01-28T16:00:00Z"))
-			.timeZoneId(TIME_ZONE_ID)
-			.guestCount(2)
-			.totalPrice(totalPrice)
-			.currency("KRW")
-			.status(ReservationStatus.CONFIRMED)
-			.expiresAt(NOW.plusSeconds(15 * 60))
-			.build();
-	}
 }

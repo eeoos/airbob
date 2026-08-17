@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,8 +18,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
-import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
@@ -38,9 +39,6 @@ class PaymentQueryServiceTest {
 
 	@Mock
 	private PaymentTransactionRepository paymentTransactionRepository;
-
-	@Mock
-	private TossPaymentsAdapter tossPaymentsAdapter;
 
 	private UUID reservationUid;
 	private Member guest;
@@ -71,17 +69,17 @@ class PaymentQueryServiceTest {
 			.guest(guest)
 			.build();
 
-		TossPaymentResponse originalResponse = TossPaymentResponse.builder()
+		payment = Payment.builder()
+			.id(2L)
 			.paymentKey(paymentKey)
 			.orderId(orderId)
-			.totalAmount(100_000L)
+			.amount(100_000L)
 			.balanceAmount(100_000L)
-			.method("카드")
-			.status("DONE")
-			.approvedAt(ZonedDateTime.now())
+			.method(PaymentMethod.CARD)
+			.status(PaymentStatus.DONE)
+			.approvedAt(Instant.parse("2026-08-17T00:00:00Z"))
+			.reservation(reservation)
 			.build();
-
-		payment = Payment.create(originalResponse, reservation);
 	}
 
 	@Nested
@@ -100,7 +98,6 @@ class PaymentQueryServiceTest {
 
 			// then
 			assertThat(result).isNotNull();
-			then(tossPaymentsAdapter).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -147,7 +144,6 @@ class PaymentQueryServiceTest {
 
 			// then
 			assertThat(result).isNotNull();
-			then(tossPaymentsAdapter).shouldHaveNoInteractions();
 		}
 
 		@Test

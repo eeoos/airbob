@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 @DisplayName("결제 거래 시각 테스트")
@@ -50,20 +51,27 @@ class PaymentTransactionTimeTest {
 			.paymentKey("payment-key")
 			.orderId(reservation.getReservationUid().toString())
 			.method(PaymentMethod.CARD)
-			.status(PaymentStatus.CANCELED)
+			.status(PaymentStatus.DONE)
 			.reservation(reservation)
 			.build();
 		ZonedDateTime canceledAt = ZonedDateTime.of(
 			2026, 11, 1, 1, 30, 0, 654_321_000,
 			ZoneId.of("America/New_York")
 		);
-		TossPaymentResponse.Cancel cancel = TossPaymentResponse.Cancel.builder()
-			.cancelAmount(100_000L)
-			.cancelReason("사용자 요청")
-			.canceledAt(canceledAt)
-			.build();
+		CancelledPayment cancel = new CancelledPayment(
+			"payment-key",
+			reservation.getReservationUid().toString(),
+			100_000L,
+			0L,
+			PaymentStatus.CANCELED,
+			100_000L,
+			"사용자 요청",
+			"cancel-transaction-key",
+			canceledAt.toInstant()
+		);
 
-		PaymentTransaction transaction = PaymentTransaction.cancel(cancel, payment);
+		PaymentTransaction transaction = PaymentTransaction.cancel(
+			cancel, reservation, payment, 3L);
 
 		assertThat(transaction.getCanceledAt()).isEqualTo(canceledAt.toInstant());
 	}

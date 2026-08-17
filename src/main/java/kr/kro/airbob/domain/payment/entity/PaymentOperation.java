@@ -42,6 +42,7 @@ public class PaymentOperation extends BaseEntity {
 	private static final int LEASE_OWNER_MAX_LENGTH = 100;
 	private static final int FAILURE_CODE_MAX_LENGTH = 100;
 	private static final int FAILURE_MESSAGE_MAX_LENGTH = 512;
+	public static final int CANCELLATION_REASON_MAX_LENGTH = 200;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -100,7 +101,7 @@ public class PaymentOperation extends BaseEntity {
 
 	private Instant reviewRequiredAt;
 
-	@Column(length = FAILURE_MESSAGE_MAX_LENGTH)
+	@Column(length = CANCELLATION_REASON_MAX_LENGTH)
 	private String cancellationReason;
 
 	@Column(nullable = false)
@@ -145,8 +146,47 @@ public class PaymentOperation extends BaseEntity {
 			.build();
 	}
 
+	public static PaymentOperation createCancellation(
+		Reservation reservation,
+		Long requesterMemberId,
+		String paymentKey,
+		long amount,
+		String cancellationReason,
+		Instant now
+	) {
+		requireMaxLength(paymentKey, PAYMENT_KEY_MAX_LENGTH, "paymentKey");
+		requireMaxLength(cancellationReason, CANCELLATION_REASON_MAX_LENGTH, "cancellationReason");
+		if (cancellationReason == null || cancellationReason.isBlank()) {
+			throw new IllegalArgumentException("cancellationReason must not be blank");
+		}
+		UUID operationUid = UUID.randomUUID();
+		return PaymentOperation.builder()
+			.operationUid(operationUid)
+			.reservation(reservation)
+			.requesterMemberId(requesterMemberId)
+			.operationType(PaymentOperationType.CANCEL)
+			.status(PaymentOperationStatus.QUEUED)
+			.nextAction(PaymentOperationNextAction.CANCEL)
+			.paymentKey(paymentKey)
+			.expectedAmount(amount)
+			.providerIdempotencyKey("airbob-cancel-" + operationUid)
+			.deduplicationKey("CANCEL:" + reservation.getReservationUid() + ":" + operationUid)
+			.dispatchGeneration(1)
+			.attemptCount(0)
+			.queuedAt(now)
+			.cancellationReason(cancellationReason)
+			.manualReconciliationPending(false)
+			.manualReviewCount(0)
+			.build();
+	}
+
 	public boolean matchesConfirmation(String paymentKey, long amount) {
 		return Objects.equals(this.paymentKey, paymentKey) && this.expectedAmount == amount;
+	}
+
+	public boolean matchesCancellation(String reason, Long requestedAmount) {
+		return Objects.equals(cancellationReason, reason)
+			&& (requestedAmount == null || expectedAmount == requestedAmount);
 	}
 
 	public boolean isRequestedBy(Long memberId) {
@@ -159,6 +199,10 @@ public class PaymentOperation extends BaseEntity {
 
 	public boolean isDeclined() {
 		return status == PaymentOperationStatus.DECLINED;
+	}
+
+	public boolean isCancellation() {
+		return operationType == PaymentOperationType.CANCEL;
 	}
 
 	public void rejectOppositeTerminal(PaymentOperationStatus targetStatus) {
@@ -237,14 +281,14 @@ public class PaymentOperation extends BaseEntity {
 		String owner, long expectedGeneration, Instant retryAt, String code, String message
 	) {
 		return transitionFromExecution(
-			owner, expectedGeneration, PaymentOperationNextAction.CONFIRM, retryAt, code, message);
+			owner, expectedGeneration, executionActionFor(operationType), retryAt, code, message);
 	}
 
 	public boolean markOutcomeUnknown(
 		String owner, long expectedGeneration, Instant retryAt, String code, String message
 	) {
 		return transitionFromExecution(
-			owner, expectedGeneration, PaymentOperationNextAction.INQUIRE_CONFIRM,
+			owner, expectedGeneration, inquiryActionFor(operationType),
 			retryAt, code, message);
 	}
 
@@ -304,9 +348,9 @@ public class PaymentOperation extends BaseEntity {
 	private PaymentExecutionMode executionMode() {
 		return switch (nextAction) {
 			case CONFIRM -> PaymentExecutionMode.CONFIRM;
-			case INQUIRE_CONFIRM -> PaymentExecutionMode.INQUIRE;
-			case CANCEL, INQUIRE_CANCEL -> throw new PaymentOperationInvariantException(
-				"cancellation execution is not supported by the confirmation executor");
+			case INQUIRE_CONFIRM -> PaymentExecutionMode.INQUIRE_CONFIRM;
+			case CANCEL -> PaymentExecutionMode.CANCEL;
+			case INQUIRE_CANCEL -> PaymentExecutionMode.INQUIRE_CANCEL;
 		};
 	}
 
@@ -327,6 +371,13 @@ public class PaymentOperation extends BaseEntity {
 		return switch (type) {
 			case CONFIRM -> PaymentOperationNextAction.INQUIRE_CONFIRM;
 			case CANCEL -> PaymentOperationNextAction.INQUIRE_CANCEL;
+		};
+	}
+
+	private PaymentOperationNextAction executionActionFor(PaymentOperationType type) {
+		return switch (type) {
+			case CONFIRM -> PaymentOperationNextAction.CONFIRM;
+			case CANCEL -> PaymentOperationNextAction.CANCEL;
 		};
 	}
 

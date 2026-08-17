@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.payment.service;
 
 import static kr.kro.airbob.domain.payment.service.PaymentExecutionMode.CONFIRM;
-import static kr.kro.airbob.domain.payment.service.PaymentExecutionMode.INQUIRE;
+import static kr.kro.airbob.domain.payment.service.PaymentExecutionMode.INQUIRE_CONFIRM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -28,7 +28,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationCommand;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 @ExtendWith(MockitoExtension.class)
@@ -79,7 +79,7 @@ class PaymentOperationLeaseServiceTest {
 
 		PaymentOperationClaimResult recovered = service.claim(OPERATION_UID, 2);
 
-		assertThat(recovered.execution()).get().extracting(PaymentExecution::mode).isEqualTo(INQUIRE);
+		assertThat(recovered.execution()).get().extracting(PaymentExecution::mode).isEqualTo(INQUIRE_CONFIRM);
 		assertThat(recovered.execution().orElseThrow().leaseOwner()).isNotEqualTo("old-worker");
 		assertThat(recovered.manualReviewNotice()).isEmpty();
 		assertThat(operation.getAttemptCount()).isEqualTo(2);
@@ -169,8 +169,14 @@ class PaymentOperationLeaseServiceTest {
 		PaymentExecution execution = service.claim(OPERATION_UID, 1).execution().orElseThrow();
 
 		assertThat(execution.reservationUid()).isEqualTo(RESERVATION_UID);
-		assertThat(execution.gatewayCommand()).isEqualTo(new PaymentConfirmationCommand(
-			OPERATION_UID, "payment-key", RESERVATION_UID.toString(), 100_000L, "provider-key"));
+		assertThat(execution.gatewayCommand()).isEqualTo(new PaymentProviderCommand(
+			OPERATION_UID,
+			"payment-key",
+			RESERVATION_UID.toString(),
+			100_000L,
+			"provider-key",
+			null
+		));
 	}
 
 	@Test

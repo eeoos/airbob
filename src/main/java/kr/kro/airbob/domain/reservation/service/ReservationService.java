@@ -3,12 +3,13 @@ package kr.kro.airbob.domain.reservation.service;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.cursor.dto.CursorRequest;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
-import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import lombok.RequiredArgsConstructor;
 
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 public class ReservationService {
 
 	private final ReservationTransactionService transactionService;
+	private final PaymentCancellationCommandService cancellationCommandService;
 
 	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
@@ -31,16 +33,12 @@ public class ReservationService {
 		return ReservationResponse.Ready.from(reservation);
 	}
 
-	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
-		transactionService.cancelReservationInTx(reservationUid, request, memberId);
-	}
-
-	public void revertCancellation(ReservationEvent.ReservationCancellationRevertRequestedEvent event) {
-		transactionService.revertCancellationInTx(event.reservationUid(), event.reason());
-	}
-
-	public void completeCancellation(ReservationEvent.ReservationCancellationCompleteRequestedEvent event) {
-		transactionService.completeCancellationInTx(event.reservationUid());
+	public Cancellation cancelReservation(
+		String reservationUid,
+		PaymentRequest.Cancel request,
+		Long memberId
+	) {
+		return cancellationCommandService.requestCancellation(reservationUid, request, memberId);
 	}
 
 	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {

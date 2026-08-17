@@ -3,7 +3,7 @@ package kr.kro.airbob.domain.payment.service;
 import java.util.UUID;
 
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationCommand;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 
 public record PaymentExecution(
 	UUID operationUid,
@@ -12,6 +12,7 @@ public record PaymentExecution(
 	String orderId,
 	long amount,
 	String providerIdempotencyKey,
+	String cancellationReason,
 	String leaseOwner,
 	long dispatchGeneration,
 	PaymentExecutionMode mode
@@ -23,12 +24,18 @@ public record PaymentExecution(
 		return new PaymentExecution(
 			operation.getOperationUid(), reservationUid, operation.getPaymentKey(),
 			reservationUid.toString(), operation.getExpectedAmount(),
-			operation.getProviderIdempotencyKey(), leaseOwner,
+			operation.getProviderIdempotencyKey(), operation.getCancellationReason(), leaseOwner,
 			operation.getDispatchGeneration(), mode);
 	}
 
-	public PaymentConfirmationCommand gatewayCommand() {
-		return new PaymentConfirmationCommand(
-			operationUid, paymentKey, orderId, amount, providerIdempotencyKey);
+	public PaymentProviderCommand gatewayCommand() {
+		return new PaymentProviderCommand(
+			operationUid,
+			paymentKey,
+			orderId,
+			amount,
+			providerIdempotencyKey,
+			cancellationReason
+		);
 	}
 }

@@ -34,6 +34,27 @@ public class PaymentOperationResponse {
 		}
 	}
 
+	public record Cancellation(
+		UUID operationId,
+		Status status,
+		String statusUrl,
+		boolean completedSynchronously
+	) {
+		public static Cancellation accepted(PaymentOperation operation) {
+			UUID operationUid = operation.getOperationUid();
+			return new Cancellation(
+				operationUid,
+				Status.from(operation.getStatus()),
+				"/api/v1/payment-operations/" + operationUid,
+				false
+			);
+		}
+
+		public static Cancellation completed() {
+			return new Cancellation(null, Status.SUCCEEDED, null, true);
+		}
+	}
+
 	public record Detail(UUID operationId, UUID orderId, Status status, String failureCode, Instant updatedAt) {
 		public static Detail from(PaymentOperation operation) {
 			PaymentOperationStatus operationStatus = operation.getStatus();

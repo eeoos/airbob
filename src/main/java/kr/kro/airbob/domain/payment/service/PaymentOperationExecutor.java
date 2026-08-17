@@ -7,9 +7,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationGateway;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -23,13 +24,13 @@ public class PaymentOperationExecutor {
 		"Provider approval did not match the payment operation.";
 
 	private final PaymentOperationLeaseService leaseService;
-	private final PaymentConfirmationGateway gateway;
+	private final PaymentProviderGateway gateway;
 	private final PaymentOperationFinalizer finalizer;
 	private final PaymentOperationAlertService alertService;
 
 	public PaymentOperationExecutor(
 		PaymentOperationLeaseService leaseService,
-		PaymentConfirmationGateway gateway,
+		PaymentProviderGateway gateway,
 		PaymentOperationFinalizer finalizer,
 		PaymentOperationAlertService alertService
 	) {
@@ -63,14 +64,29 @@ public class PaymentOperationExecutor {
 	}
 
 	private PaymentGatewayResult executeGateway(PaymentExecution execution) {
-		return execution.mode() == PaymentExecutionMode.CONFIRM
-			? gateway.confirm(execution.gatewayCommand())
-			: gateway.inquire(execution.gatewayCommand());
+		return switch (execution.mode()) {
+			case CONFIRM -> gateway.confirm(execution.gatewayCommand());
+			case INQUIRE_CONFIRM -> gateway.inquireConfirmation(execution.gatewayCommand());
+			case CANCEL -> gateway.cancel(execution.gatewayCommand());
+			case INQUIRE_CANCEL -> gateway.inquireCancellation(execution.gatewayCommand());
+		};
 	}
 
 	private void dispatchDurableResult(PaymentExecution execution, PaymentGatewayResult result) {
 		if (result instanceof PaymentGatewayResult.Approved approved) {
 			applyApproved(execution, approved.payment());
+			return;
+		}
+		if (result instanceof PaymentGatewayResult.Cancelled cancelled) {
+			applyCancelled(execution, cancelled.payment());
+			return;
+		}
+		if (result instanceof PaymentGatewayResult.PaymentActive active) {
+			applyPaymentActive(execution, active.code(), active.message());
+			return;
+		}
+		if (result instanceof PaymentGatewayResult.ManualReviewRequired reviewRequired) {
+			markManualReview(execution, reviewRequired.code(), reviewRequired.message());
 			return;
 		}
 		if (result instanceof PaymentGatewayResult.Declined declined) {
@@ -98,6 +114,11 @@ public class PaymentOperationExecutor {
 	}
 
 	private void applyApproved(PaymentExecution execution, ConfirmedPayment confirmed) {
+		if (execution.mode() != PaymentExecutionMode.CONFIRM
+			&& execution.mode() != PaymentExecutionMode.INQUIRE_CONFIRM) {
+			markManualReview(execution, "UNEXPECTED_CONFIRMATION_RESULT", RESPONSE_MISMATCH_MESSAGE);
+			return;
+		}
 		if (!isCorrelatedApproval(execution, confirmed)) {
 			notifyManualReview(leaseService.markOutcomeUnknown(
 				execution,
@@ -110,8 +131,34 @@ public class PaymentOperationExecutor {
 		finalizer.applyApproved(execution, confirmed);
 	}
 
+	private void applyCancelled(PaymentExecution execution, CancelledPayment cancelled) {
+		if ((execution.mode() != PaymentExecutionMode.CANCEL
+			&& execution.mode() != PaymentExecutionMode.INQUIRE_CANCEL)
+			|| !isCorrelatedCancellation(execution, cancelled)) {
+			markManualReview(execution, "PROVIDER_RESPONSE_MISMATCH",
+				"Provider cancellation did not match the payment operation.");
+			return;
+		}
+		finalizer.applyCancelled(execution, cancelled);
+	}
+
+	private void applyPaymentActive(PaymentExecution execution, String code, String message) {
+		if (execution.mode() != PaymentExecutionMode.INQUIRE_CANCEL) {
+			markManualReview(execution, "UNEXPECTED_ACTIVE_PAYMENT_RESULT",
+				"Provider returned an active payment for an incompatible operation.");
+			return;
+		}
+		notifyManualReview(leaseService.scheduleRetry(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+	}
+
+	private void markManualReview(PaymentExecution execution, String code, String message) {
+		notifyManualReview(leaseService.markManualReview(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+	}
+
 	private void applyRetryable(PaymentExecution execution, String code, String message) {
-		if (execution.mode() == PaymentExecutionMode.CONFIRM) {
+		if (!execution.mode().isInquiry()) {
 			notifyManualReview(leaseService.scheduleRetry(
 				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
 			return;
@@ -121,12 +168,11 @@ public class PaymentOperationExecutor {
 	}
 
 	private void applyNotFound(PaymentExecution execution, String code, String message) {
-		if (execution.mode() == PaymentExecutionMode.INQUIRE) {
+		if (execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM) {
 			notifyManualReview(leaseService.scheduleRetry(
 				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
 			return;
 		}
-
 		markOutcomeUnknown(execution, code, message);
 	}
 
@@ -159,6 +205,19 @@ public class PaymentOperationExecutor {
 			&& confirmed.method() != null
 			&& confirmed.status() == PaymentStatus.DONE
 			&& confirmed.approvedAt() != null;
+	}
+
+	private boolean isCorrelatedCancellation(
+		PaymentExecution execution,
+		CancelledPayment cancelled
+	) {
+		return cancelled != null
+			&& Objects.equals(execution.paymentKey(), cancelled.paymentKey())
+			&& Objects.equals(execution.orderId(), cancelled.orderId())
+			&& execution.amount() == cancelled.totalAmount()
+			&& cancelled.cancelAmount() == execution.amount()
+			&& cancelled.balanceAmount() == 0L
+			&& cancelled.status() == PaymentStatus.CANCELED;
 	}
 
 	private String sanitizeCode(PaymentExecution execution, String code) {

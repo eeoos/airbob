@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
-import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
@@ -28,13 +27,10 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
-import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
@@ -45,8 +41,6 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
-import kr.kro.airbob.domain.reservation.event.ReservationEvent;
-import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
@@ -58,8 +52,6 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,7 +61,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ReservationTransactionService {
 
-	private final OutboxEventPublisher outboxEventPublisher;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
@@ -142,154 +133,9 @@ public class ReservationTransactionService {
 		}
 	}
 
-	@Transactional
-	public void cancelReservationInTx(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(UUID.fromString(reservationUid))
-			.orElseThrow(ReservationNotFoundException::new);
-
-		// todo: 추가 쿼리 발생 -> member까지 같이 조회 필요
-		if (!reservation.getGuest().getId().equals(memberId)) {
-			throw new ReservationAccessDeniedException();
-		}
-
-		if (reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING) {
-			log.info("[예약 취소 요청-SKIP] 이미 취소 처리 중인 예약입니다. UID: {}", reservationUid);
-			return;
-		}
-		if (!reservation.requiresPayment()) {
-			if (request.cancelAmount() != null) {
-				throw new InvalidInputException("0원 예약에는 환불 금액을 지정할 수 없습니다.");
-			}
-			cancelComplimentaryReservation(reservation, request.cancelReason());
-			return;
-		}
-
-		validateFullCancellationAmount(reservation.getReservationUid(), request.cancelAmount());
-		reservation.requestCancellation();
-
-		historyRepository.save(ReservationHistory.of(
-			reservation, ChangeType.STATUS_CHANGE, request.cancelReason()));
-
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CANCELLATION_REQUESTED,
-			new ReservationEvent.ReservationCancellationRequestedEvent(
-				reservationUid,
-				request.cancelReason(),
-				request.cancelAmount()
-			)
-		);
-		log.info("[예약 취소 요청]: Reservation UID {} 상태 CANCELLATION_PENDING 변경 및 이벤트 발행 완료", reservationUid);
-	}
-
-	private void cancelComplimentaryReservation(Reservation reservation, String reason) {
-		if (!reservation.cancelComplimentary()) {
-			return;
-		}
-		couponUsageService.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.CANCEL, reason, "RESERVATION"));
-		requestSearchRefresh(reservation);
-	}
-
-	@Transactional
-	public void completeCancellationInTx(String reservationUid) {
-		UUID reservationUuid = UUID.fromString(reservationUid);
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUuid)
-			.orElseThrow(ReservationNotFoundException::new);
-
-		Payment payment = paymentRepository.findByReservationReservationUidWithLock(reservationUuid)
-			.orElseThrow(PaymentNotFoundException::new);
-		validateFullyCancelledPayment(payment);
-
-		if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-			requestSearchRefresh(reservation);
-			log.info("[예약 취소 성공-SKIP] 이미 취소 완료된 예약입니다. ES 갱신 이벤트를 재발행합니다. UID: {}",
-				reservationUid);
-			return;
-		}
-		reservation.completeCancellation();
-
-		couponUsageService.restore(reservation.getId());
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.CANCEL, "PG 결제 취소 성공", "KAFKA"));
-		requestSearchRefresh(reservation);
-		log.info("[예약 취소 성공] 예약 상태 CANCELLED 확정 완료. UID: {}", reservationUid);
-	}
-
-	private void validateFullyCancelledPayment(Payment payment) {
-		if (payment.getStatus() != PaymentStatus.CANCELED
-			|| !Long.valueOf(0L).equals(payment.getBalanceAmount())) {
-			throw new IllegalStateException("전액 환불이 확인되지 않은 예약은 취소 완료할 수 없습니다.");
-		}
-	}
-
 	private void requestSearchRefresh(Reservation reservation) {
 		searchRefreshPublisher.requestRefresh(
 			reservation.getAccommodation().getAccommodationUid());
-	}
-
-	@Transactional
-	public void revertCancellationInTx(String reservationUid, String reason) {
-		UUID reservationUuid = UUID.fromString(reservationUid);
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUuid)
-			.orElseThrow(ReservationNotFoundException::new);
-
-		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED) {
-			log.info("[취소 실패-SKIP] 이미 취소 실패가 확정된 예약입니다. UID: {}", reservationUid);
-			return;
-		}
-		if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-			recoverLegacyCancellationFailure(reservation, reservationUuid, reason);
-			return;
-		}
-		reservation.failCancellation();
-
-		recordCancellationFailure(reservation, reason);
-	}
-
-	private void recoverLegacyCancellationFailure(
-		Reservation reservation,
-		UUID reservationUid,
-		String reason
-	) {
-		Payment payment = paymentRepository.findByReservationReservationUidWithLock(reservationUid)
-			.orElseThrow(PaymentNotFoundException::new);
-		if (payment.getStatus() == PaymentStatus.CANCELED
-			&& Long.valueOf(0L).equals(payment.getBalanceAmount())) {
-			log.info("[레거시 취소 실패-SKIP] 전액 환불이 이미 확정된 예약입니다. UID: {}", reservationUid);
-			return;
-		}
-		boolean paymentStillActive = payment.getBalanceAmount() != null
-			&& payment.getBalanceAmount() > 0L
-			&& (payment.getStatus() == PaymentStatus.DONE
-				|| payment.getStatus() == PaymentStatus.PARTIAL_CANCELED);
-		if (!paymentStillActive) {
-			throw new IllegalStateException("레거시 예약 취소 실패의 결제 상태가 일관되지 않습니다.");
-		}
-
-		reservation.recoverLegacyCancellationFailure();
-		couponUsageService.reuse(reservation.getId());
-		recordCancellationFailure(reservation, reason);
-	}
-
-	private void recordCancellationFailure(Reservation reservation, String reason) {
-
-		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE,
-			"PG 결제 취소 실패: " + reason, "KAFKA"));
-
-		log.info("[예약 취소 실패] 예약 상태 CANCELLATION_FAILED로 변경. UID: {}",
-			reservation.getReservationUid());
-	}
-
-	private void validateFullCancellationAmount(UUID reservationUid, Long cancelAmount) {
-		if (cancelAmount == null) {
-			return;
-		}
-		Payment payment = paymentRepository.findByReservationReservationUid(reservationUid)
-			.orElseThrow(PaymentNotFoundException::new);
-		if (!cancelAmount.equals(payment.getBalanceAmount())) {
-			throw new InvalidInputException("예약 취소는 현재 결제 잔액 전액만 가능합니다.");
-		}
 	}
 
 	@Transactional(readOnly = true)

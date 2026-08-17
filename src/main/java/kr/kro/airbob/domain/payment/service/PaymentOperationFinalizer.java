@@ -17,12 +17,15 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
+import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
+import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -107,11 +110,56 @@ public class PaymentOperationFinalizer {
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
 		String normalizedCode = normalizeFailureCode(code);
+		if (operation.isCancellation()) {
+			applyCancellationDecline(operation, reservation, normalizedCode, message);
+		} else {
+			applyConfirmationDecline(operation, reservation, normalizedCode, message);
+		}
+		operation.markDeclined(clock.instant(), normalizedCode, message);
+		requestAccommodationSearchRefresh(reservation);
+	}
+
+	@Transactional
+	public void applyCancelled(PaymentExecution execution, CancelledPayment cancelled) {
+		PaymentOperation operation = lockOperation(execution);
+		if (operation.isApplied()) {
+			return;
+		}
+		operation.rejectOppositeTerminal(PaymentOperationStatus.APPLIED);
+		if (!operation.isOwnedBy(execution.leaseOwner(), execution.dispatchGeneration())) {
+			return;
+		}
+
+		Reservation reservation = lockReservation(operation);
+		validateExecutionCorrelation(execution, operation, reservation);
+		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
+			.orElseThrow(PaymentNotFoundException::new);
+		validateCancellationCorrelation(cancelled, operation, reservation, payment);
+
+		payment.applyFullCancellation(cancelled);
+		if (!paymentTransactionRepository.existsByPaymentOperationId(operation.getId())) {
+			paymentTransactionRepository.save(PaymentTransaction.cancel(
+				cancelled, reservation, payment, operation.getId()));
+		}
+
+		reservation.completeCancellation();
+		couponUsageService.restore(reservation.getId());
+		historyRepository.save(ReservationHistory.ofSystem(
+			reservation, ChangeType.CANCEL, "PG 결제 전액 취소 성공", HISTORY_SOURCE));
+		operation.markApplied(clock.instant());
+		requestAccommodationSearchRefresh(reservation);
+	}
+
+	private void applyConfirmationDecline(
+		PaymentOperation operation,
+		Reservation reservation,
+		String normalizedCode,
+		String message
+	) {
 		if (!paymentTransactionRepository.existsByPaymentOperationId(operation.getId())) {
 			paymentTransactionRepository.save(
 				PaymentTransaction.fail(operation, reservation, normalizedCode, message));
 		}
-
 		reservation.expireAfterFinalPaymentDecline();
 		couponUsageService.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
@@ -119,8 +167,27 @@ public class PaymentOperationFinalizer {
 			ChangeType.STATUS_CHANGE,
 			"결제 최종 거절: " + normalizedCode,
 			HISTORY_SOURCE));
-		operation.markDeclined(clock.instant(), normalizedCode, message);
-		requestAccommodationSearchRefresh(reservation);
+	}
+
+	private void applyCancellationDecline(
+		PaymentOperation operation,
+		Reservation reservation,
+		String normalizedCode,
+		String message
+	) {
+		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
+			.orElseThrow(PaymentNotFoundException::new);
+		validateActivePaymentForCancellation(operation, reservation, payment);
+		if (!paymentTransactionRepository.existsByPaymentOperationId(operation.getId())) {
+			paymentTransactionRepository.save(PaymentTransaction.cancellationFailed(
+				operation, reservation, payment, normalizedCode, message));
+		}
+		reservation.failCancellation();
+		historyRepository.save(ReservationHistory.ofSystem(
+			reservation,
+			ChangeType.STATUS_CHANGE,
+			"결제 취소 최종 거절: " + normalizedCode,
+			HISTORY_SOURCE));
 	}
 
 	private PaymentOperation lockOperation(PaymentExecution execution) {
@@ -138,7 +205,13 @@ public class PaymentOperationFinalizer {
 		PaymentOperation operation,
 		Reservation reservation
 	) {
-		boolean matches = operation.getOperationType() == PaymentOperationType.CONFIRM
+		boolean operationModeMatches = switch (operation.getOperationType()) {
+			case CONFIRM -> execution.mode() == PaymentExecutionMode.CONFIRM
+				|| execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM;
+			case CANCEL -> execution.mode() == PaymentExecutionMode.CANCEL
+				|| execution.mode() == PaymentExecutionMode.INQUIRE_CANCEL;
+		};
+		boolean matches = operationModeMatches
 			&& Objects.equals(execution.operationUid(), operation.getOperationUid())
 			&& Objects.equals(execution.reservationUid(), reservation.getReservationUid())
 			&& Objects.equals(execution.paymentKey(), operation.getPaymentKey())
@@ -149,6 +222,54 @@ public class PaymentOperationFinalizer {
 		if (!matches) {
 			throw new PaymentOperationInvariantException(
 				"payment execution does not match its persisted operation and reservation");
+		}
+	}
+
+	private void validateCancellationCorrelation(
+		CancelledPayment cancelled,
+		PaymentOperation operation,
+		Reservation reservation,
+		Payment payment
+	) {
+		validateActivePaymentForCancellation(operation, reservation, payment);
+		boolean matches = cancelled != null
+			&& operation.getOperationType() == PaymentOperationType.CANCEL
+			&& Objects.equals(cancelled.paymentKey(), payment.getPaymentKey())
+			&& Objects.equals(cancelled.orderId(), payment.getOrderId())
+			&& Objects.equals(cancelled.orderId(), reservation.getReservationUid().toString())
+			&& cancelled.totalAmount() == payment.getAmount()
+			&& cancelled.cancelAmount() == operation.getExpectedAmount()
+			&& cancelled.balanceAmount() == 0L
+			&& cancelled.status() == PaymentStatus.CANCELED
+			&& Objects.equals(cancelled.cancelReason(), operation.getCancellationReason())
+			&& cancelled.transactionKey() != null
+			&& !cancelled.transactionKey().isBlank()
+			&& cancelled.transactionKey().length() <= 64
+			&& cancelled.cancelledAt() != null;
+		if (!matches) {
+			throw new PaymentOperationInvariantException(
+				"cancelled payment does not match its operation, reservation, and payment");
+		}
+	}
+
+	private void validateActivePaymentForCancellation(
+		PaymentOperation operation,
+		Reservation reservation,
+		Payment payment
+	) {
+		boolean matches = operation.getOperationType() == PaymentOperationType.CANCEL
+			&& reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING
+			&& Objects.equals(payment.getReservation().getId(), reservation.getId())
+			&& Objects.equals(payment.getPaymentKey(), operation.getPaymentKey())
+			&& Objects.equals(payment.getOrderId(), reservation.getReservationUid().toString())
+			&& payment.getStatus() == PaymentStatus.DONE
+			&& payment.getAmount() != null
+			&& payment.getBalanceAmount() != null
+			&& payment.getAmount().equals(payment.getBalanceAmount())
+			&& payment.getBalanceAmount() == operation.getExpectedAmount();
+		if (!matches) {
+			throw new PaymentOperationInvariantException(
+				"active payment does not match its cancellation operation and reservation");
 		}
 	}
 

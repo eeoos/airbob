@@ -19,11 +19,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
+import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 
@@ -36,6 +37,9 @@ class ReservationServiceTest {
 
 	@Mock
 	private ReservationTransactionService transactionService;
+
+	@Mock
+	private PaymentCancellationCommandService cancellationCommandService;
 
 	private ReservationRequest.Create validRequest;
 	private Long memberId;
@@ -142,48 +146,25 @@ class ReservationServiceTest {
 	class CancelReservationTest {
 
 		@Test
-		@DisplayName("예약 취소 시 transactionService에 위임된다")
+		@DisplayName("예약 취소 시 결제 operation command에 위임된다")
 		void delegatesCancellation() {
 			String reservationUid = UUID.randomUUID().toString();
 			PaymentRequest.Cancel cancelRequest = new PaymentRequest.Cancel("사용자 취소 요청", 200_000L);
+			Cancellation expected = new Cancellation(
+				UUID.randomUUID(),
+				kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status.PENDING,
+				"/api/v1/payment-operations/operation-id",
+				false
+			);
+			given(cancellationCommandService.requestCancellation(reservationUid, cancelRequest, memberId))
+				.willReturn(expected);
 
-			reservationService.cancelReservation(reservationUid, cancelRequest, memberId);
+			Cancellation actual = reservationService.cancelReservation(
+				reservationUid, cancelRequest, memberId);
 
-			then(transactionService).should().cancelReservationInTx(reservationUid, cancelRequest, memberId);
-		}
-	}
-
-	@Nested
-	@DisplayName("취소 보상 테스트")
-	class RevertCancellationTest {
-
-		@Test
-		@DisplayName("취소 보상 이벤트 수신 시 transactionService에 위임된다")
-		void delegatesCancellationRevert() {
-			String reservationUid = UUID.randomUUID().toString();
-			ReservationEvent.ReservationCancellationRevertRequestedEvent event =
-				new ReservationEvent.ReservationCancellationRevertRequestedEvent(reservationUid, "환불 처리 실패");
-
-			reservationService.revertCancellation(event);
-
-			then(transactionService).should().revertCancellationInTx(reservationUid, "환불 처리 실패");
-		}
-	}
-
-	@Nested
-	@DisplayName("예약 취소 완료 테스트")
-	class CompleteCancellationTest {
-
-		@Test
-		@DisplayName("결제 취소 완료 이벤트 수신 시 잠금 트랜잭션 처리에 위임한다")
-		void delegatesCancellationCompletion() {
-			String reservationUid = UUID.randomUUID().toString();
-			ReservationEvent.ReservationCancellationCompleteRequestedEvent event =
-				new ReservationEvent.ReservationCancellationCompleteRequestedEvent(reservationUid);
-
-			reservationService.completeCancellation(event);
-
-			then(transactionService).should().completeCancellationInTx(reservationUid);
+			assertThat(actual).isEqualTo(expected);
+			then(cancellationCommandService).should()
+				.requestCancellation(reservationUid, cancelRequest, memberId);
 		}
 	}
 }

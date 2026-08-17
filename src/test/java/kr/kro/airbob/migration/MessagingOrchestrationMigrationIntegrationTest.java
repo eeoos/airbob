@@ -56,6 +56,7 @@ class MessagingOrchestrationMigrationIntegrationTest {
 			assertThat(requiredColumn(connection, "payment_operation", "queued_at")).isTrue();
 			assertThat(nullableColumn(connection, "payment_operation", "review_required_at")).isTrue();
 			assertThat(nullableColumn(connection, "payment_operation", "cancellation_reason")).isTrue();
+			assertThat(columnSize(connection, "payment_operation", "cancellation_reason")).isEqualTo(200);
 			assertThat(requiredColumn(connection, "payment_operation", "manual_reconciliation_pending")).isTrue();
 			assertThat(requiredColumn(connection, "payment_operation", "manual_review_count")).isTrue();
 			assertThat(columnExists(connection, "payment_operation", "last_enqueued_at")).isFalse();
@@ -93,6 +94,13 @@ class MessagingOrchestrationMigrationIntegrationTest {
 	private boolean nullableColumn(Connection connection, String table, String column) throws SQLException {
 		try (ResultSet columns = connection.getMetaData().getColumns(connection.getCatalog(), null, table, column)) {
 			return columns.next() && columns.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
+		}
+	}
+
+	private int columnSize(Connection connection, String table, String column) throws SQLException {
+		try (ResultSet columns = connection.getMetaData().getColumns(connection.getCatalog(), null, table, column)) {
+			assertThat(columns.next()).isTrue();
+			return columns.getInt("COLUMN_SIZE");
 		}
 	}
 

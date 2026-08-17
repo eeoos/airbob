@@ -21,4 +21,14 @@ class PaymentRequestValidationTest {
 		assertThat(validator.validate(request))
 			.anyMatch(violation -> violation.getPropertyPath().toString().equals("paymentKey"));
 	}
+
+	@Test
+	void 취소사유는_200자까지_허용하고_201자는_거부한다() {
+		PaymentRequest.Cancel maximum = new PaymentRequest.Cancel("사".repeat(200), null);
+		PaymentRequest.Cancel oversized = new PaymentRequest.Cancel("사".repeat(201), null);
+
+		assertThat(validator.validate(maximum)).isEmpty();
+		assertThat(validator.validate(oversized))
+			.anyMatch(violation -> violation.getPropertyPath().toString().equals("cancelReason"));
+	}
 }

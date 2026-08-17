@@ -46,9 +46,10 @@ import ch.qos.logback.core.read.ListAppender;
 
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationGateway;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
 
 @SpringJUnitConfig(PaymentOperationExecutorTest.TestConfiguration.class)
 class PaymentOperationExecutorTest {
@@ -68,7 +69,7 @@ class PaymentOperationExecutorTest {
 	private PaymentOperationLeaseService leaseService;
 
 	@Autowired
-	private PaymentConfirmationGateway gateway;
+	private PaymentProviderGateway gateway;
 
 	@Autowired
 	private PaymentOperationFinalizer finalizer;
@@ -142,17 +143,84 @@ class PaymentOperationExecutorTest {
 
 	@Test
 	void approvedInquiryUsesInquiryAndFinalizes() {
-		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE);
+		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
 		ConfirmedPayment confirmed = confirmedPayment();
 		given(leaseService.claim(OPERATION_UID, 1))
 			.willReturn(PaymentOperationClaimResult.claimed(execution));
-		given(gateway.inquire(execution.gatewayCommand()))
+		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.Approved(confirmed));
 
 		executor.execute(OPERATION_UID, 1);
 
 		then(gateway).should(never()).confirm(any());
 		then(finalizer).should().applyApproved(execution, confirmed);
+	}
+
+	@Test
+	void cancellationCallsProviderOnceAndFinalizesNormalizedEvidence() {
+		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.CANCEL);
+		CancelledPayment cancelled = cancelledPayment();
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(PaymentOperationClaimResult.claimed(execution));
+		given(gateway.cancel(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.Cancelled(cancelled));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(gateway).should().cancel(execution.gatewayCommand());
+		then(gateway).should(never()).inquireCancellation(any());
+		then(finalizer).should().applyCancelled(execution, cancelled);
+	}
+
+	@Test
+	void cancellationTimeoutMovesDurablyToCancellationInquiry() {
+		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.CANCEL);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(PaymentOperationClaimResult.claimed(execution));
+		given(gateway.cancel(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.OutcomeUnknown("READ_TIMEOUT", "unknown"));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(leaseService).should().markOutcomeUnknown(execution, "READ_TIMEOUT", "unknown");
+		then(finalizer).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void cancellationInquirySeeingAnActivePaymentSchedulesAnotherCancelGeneration() {
+		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(PaymentOperationClaimResult.claimed(execution));
+		given(gateway.inquireCancellation(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.PaymentActive("PAYMENT_ACTIVE", "active"));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(leaseService).should().scheduleRetry(execution, "PAYMENT_ACTIVE", "active");
+		then(gateway).should(never()).cancel(any());
+		then(finalizer).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void inconsistentCancellationEvidenceStopsInManualReviewImmediately() {
+		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
+		PaymentOperationManualReviewNotice notice =
+			new PaymentOperationManualReviewNotice(OPERATION_UID);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(PaymentOperationClaimResult.claimed(execution));
+		given(gateway.inquireCancellation(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.ManualReviewRequired(
+				"PARTIAL_CANCELLATION_RESPONSE", "review"));
+		given(leaseService.markManualReview(
+			execution, "PARTIAL_CANCELLATION_RESPONSE", "review"))
+			.willReturn(Optional.of(notice));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(leaseService).should().markManualReview(
+			execution, "PARTIAL_CANCELLATION_RESPONSE", "review");
+		then(alertService).should().alertManualReview(notice);
+		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -211,10 +279,10 @@ class PaymentOperationExecutorTest {
 
 	@Test
 	void retryableInquiryRemainsUnknownSoItCannotReconfirm() {
-		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE);
+		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
 		given(leaseService.claim(OPERATION_UID, 1))
 			.willReturn(PaymentOperationClaimResult.claimed(execution));
-		given(gateway.inquire(execution.gatewayCommand()))
+		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.RetryableFailure("CONNECTION_FAILED", "try later"));
 
 		executor.execute(OPERATION_UID, 1);
@@ -241,12 +309,12 @@ class PaymentOperationExecutorTest {
 
 	@Test
 	void fifthUnknownResultAlertsOnlyAfterTheManualReviewTransitionReturns() {
-		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE);
+		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
 		PaymentOperationManualReviewNotice notice =
 			new PaymentOperationManualReviewNotice(OPERATION_UID);
 		given(leaseService.claim(OPERATION_UID, 1))
 			.willReturn(PaymentOperationClaimResult.claimed(execution));
-		given(gateway.inquire(execution.gatewayCommand()))
+		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.OutcomeUnknown("READ_TIMEOUT", "response lost"));
 		given(leaseService.markOutcomeUnknown(execution, "READ_TIMEOUT", "response lost"))
 			.willReturn(Optional.of(notice));
@@ -261,10 +329,10 @@ class PaymentOperationExecutorTest {
 
 	@Test
 	void unknownInquiryNotFoundReturnsToSafeConfirmRetry() {
-		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE);
+		PaymentExecution execution = execution(PaymentExecutionMode.INQUIRE_CONFIRM);
 		given(leaseService.claim(OPERATION_UID, 1))
 			.willReturn(PaymentOperationClaimResult.claimed(execution));
-		given(gateway.inquire(execution.gatewayCommand()))
+		given(gateway.inquireConfirmation(execution.gatewayCommand()))
 			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
 
 		executor.execute(OPERATION_UID, 1);
@@ -486,9 +554,39 @@ class PaymentOperationExecutorTest {
 			RESERVATION_UID.toString(),
 			AMOUNT,
 			"airbob-confirm-" + OPERATION_UID,
+			null,
 			LEASE_OWNER,
 			1,
 			mode
+		);
+	}
+
+	private static PaymentExecution cancellationExecution(PaymentExecutionMode mode) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"airbob-cancel-" + OPERATION_UID,
+			"사용자 요청",
+			LEASE_OWNER,
+			1,
+			mode
+		);
+	}
+
+	private static CancelledPayment cancelledPayment() {
+		return new CancelledPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			0L,
+			PaymentStatus.CANCELED,
+			AMOUNT,
+			"사용자 요청",
+			"cancel-transaction-key",
+			Instant.parse("2026-08-17T01:02:03Z")
 		);
 	}
 
@@ -515,8 +613,8 @@ class PaymentOperationExecutorTest {
 		}
 
 		@Bean
-		PaymentConfirmationGateway gateway() {
-			return mock(PaymentConfirmationGateway.class);
+		PaymentProviderGateway gateway() {
+			return mock(PaymentProviderGateway.class);
 		}
 
 		@Bean
@@ -532,7 +630,7 @@ class PaymentOperationExecutorTest {
 		@Bean
 		PaymentOperationExecutor executor(
 			PaymentOperationLeaseService leaseService,
-			PaymentConfirmationGateway gateway,
+			PaymentProviderGateway gateway,
 			PaymentOperationFinalizer finalizer,
 			PaymentOperationAlertService alertService
 		) {

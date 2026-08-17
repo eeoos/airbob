@@ -45,6 +45,37 @@ class PaymentOperationTest {
 	}
 
 	@Test
+	void createsCancellationWithItsOwnStableProviderKeyAndFirstDispatch() {
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation, 7L, "secret-payment-key", 100_000L, "게스트 요청", NOW);
+
+		assertThat(operation.getOperationType()).isEqualTo(PaymentOperationType.CANCEL);
+		assertThat(operation.getProviderIdempotencyKey())
+			.isEqualTo("airbob-cancel-" + operation.getOperationUid());
+		assertThat(operation.getDeduplicationKey())
+			.isEqualTo("CANCEL:018290b8-d807-7a2e-8f41-114c7d0a4a21:" + operation.getOperationUid());
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.QUEUED);
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.CANCEL);
+		assertThat(operation.getCancellationReason()).isEqualTo("게스트 요청");
+		assertThat(operation.getDispatchGeneration()).isOne();
+		assertThat(operation.getQueuedAt()).isEqualTo(NOW);
+	}
+
+	@Test
+	void cancellationReasonUsesTheSameTwoHundredCharacterBoundaryAsTheLedger() {
+		String maximumReason = "사".repeat(200);
+
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation, 7L, "payment-key", 100_000L, maximumReason, NOW);
+
+		assertThat(operation.getCancellationReason()).hasSize(200);
+		assertThatThrownBy(() -> PaymentOperation.createCancellation(
+			reservation, 7L, "payment-key", 100_000L, maximumReason + "유", NOW))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("cancellationReason must not exceed 200 characters");
+	}
+
+	@Test
 	void distinguishesIdenticalAndConflictingConfirmationReplays() {
 		PaymentOperation operation = operation("pk-one", 100_000L);
 
@@ -115,7 +146,7 @@ class PaymentOperationTest {
 		assertThat(operation.getDispatchGeneration()).isEqualTo(2);
 		assertThat(operation.acquireLease("stale-worker", 1, NOW, Duration.ofSeconds(30))).isEmpty();
 		assertThat(operation.acquireLease("new-worker", 2, NOW, Duration.ofSeconds(30)))
-			.contains(PaymentExecutionMode.INQUIRE);
+			.contains(PaymentExecutionMode.INQUIRE_CONFIRM);
 		assertThat(operation.getLeaseOwner()).isEqualTo("new-worker");
 		assertThat(operation.getAttemptCount()).isEqualTo(2);
 	}
@@ -144,7 +175,41 @@ class PaymentOperationTest {
 		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(9))).isFalse();
 		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(10))).isTrue();
 		assertThat(operation.acquireLease("worker-two", 2, NOW.plusSeconds(10), Duration.ofSeconds(30)))
-			.contains(PaymentExecutionMode.INQUIRE);
+			.contains(PaymentExecutionMode.INQUIRE_CONFIRM);
+	}
+
+	@Test
+	void cancellationUnknownOutcomeRedispatchesAsCancellationInquiry() {
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation, 7L, "pk-one", 100_000L, "게스트 요청", NOW);
+		assertThat(operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30)))
+			.contains(PaymentExecutionMode.CANCEL);
+
+		operation.markOutcomeUnknown(
+			"worker-one", 1, NOW.plusSeconds(10), "TIMEOUT", "response unknown");
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.INQUIRE_CANCEL);
+
+		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(10))).isTrue();
+		assertThat(operation.acquireLease("worker-two", 2, NOW.plusSeconds(10), Duration.ofSeconds(30)))
+			.contains(PaymentExecutionMode.INQUIRE_CANCEL);
+	}
+
+	@Test
+	void cancellationInquiryCanRetryTheCancelCallWithoutReusingTheOldGeneration() {
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation, 7L, "pk-one", 100_000L, "게스트 요청", NOW);
+		operation.acquireLease("worker-one", 1, NOW.minusSeconds(30), Duration.ofSeconds(30));
+		operation.prepareRecoveryDispatch(NOW);
+		operation.acquireLease("worker-two", 2, NOW, Duration.ofSeconds(30));
+
+		operation.scheduleRetry(
+			"worker-two", 2, NOW.plusSeconds(10), "PAYMENT_ACTIVE", "retry cancellation");
+
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.CANCEL);
+		assertThat(operation.prepareRecoveryDispatch(NOW.plusSeconds(10))).isTrue();
+		assertThat(operation.getDispatchGeneration()).isEqualTo(3);
+		assertThat(operation.acquireLease("worker-three", 3, NOW.plusSeconds(10), Duration.ofSeconds(30)))
+			.contains(PaymentExecutionMode.CANCEL);
 	}
 
 	@Test
