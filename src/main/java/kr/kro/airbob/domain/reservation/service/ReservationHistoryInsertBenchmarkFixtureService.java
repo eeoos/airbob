@@ -30,8 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemoval;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 
 @Service
 @Profile("bulk-write-benchmark")
@@ -107,12 +105,8 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-	public ReservationHistoryInsertBenchmarkVerification verify(
-		Fixture fixture,
-		HoldRemovalSnapshot holdSnapshot
-	) {
+	public ReservationHistoryInsertBenchmarkVerification verify(Fixture fixture) {
 		Objects.requireNonNull(fixture, "fixture must not be null");
-		Objects.requireNonNull(holdSnapshot, "holdSnapshot must not be null");
 
 		Map<Long, ReservationRow> reservations = findReservations(fixture.allReservationIds());
 		List<HistoryRow> histories = findHistories(fixture.allReservationIds());
@@ -149,16 +143,13 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		boolean historySnapshotsPreserved = verifiedRows == fixture.datasetSize();
 		boolean historyAuditContextPreserved = fixture.targets().stream()
 			.allMatch(target -> hasSchedulerAuditContext(historiesByReservation.get(target.id())));
-		boolean holdRemovalsMatched = holdRemovalCounts(expectedHoldRemovals(fixture))
-			.equals(holdRemovalCounts(holdSnapshot.removals()));
 
 		boolean succeeded = targetReservationsExpired
 			&& targetHistoriesInserted
 			&& futurePendingPreserved
 			&& nonPendingExpiredPreserved
 			&& historySnapshotsPreserved
-			&& historyAuditContextPreserved
-			&& holdRemovalsMatched;
+			&& historyAuditContextPreserved;
 
 		return new ReservationHistoryInsertBenchmarkVerification(
 			verifiedRows,
@@ -168,8 +159,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			futurePendingPreserved,
 			nonPendingExpiredPreserved,
 			historySnapshotsPreserved,
-			historyAuditContextPreserved,
-			holdRemovalsMatched
+			historyAuditContextPreserved
 		);
 	}
 
@@ -412,24 +402,6 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			&& Objects.equals(history.changeReason(), "결제 시간 초과")
 			&& Objects.equals(history.sourceSystem(), "BATCH")
 			&& history.clientIp() == null;
-	}
-
-	private List<HoldRemoval> expectedHoldRemovals(Fixture fixture) {
-		return fixture.targets().stream()
-			.map(target -> new HoldRemoval(
-				target.accommodationId(),
-				target.checkIn(),
-				target.checkOut()
-			))
-			.toList();
-	}
-
-	private Map<HoldRemoval, Integer> holdRemovalCounts(List<HoldRemoval> removals) {
-		Map<HoldRemoval, Integer> counts = new HashMap<>();
-		for (HoldRemoval removal : removals) {
-			counts.merge(removal, 1, Math::addExact);
-		}
-		return counts;
 	}
 
 	private boolean hasStatus(Map<Long, ReservationRow> reservations, long id, String status) {

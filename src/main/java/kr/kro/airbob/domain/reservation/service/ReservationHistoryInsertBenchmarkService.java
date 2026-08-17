@@ -14,7 +14,6 @@ import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkReq
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkResponse;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 
 @Service
 @Profile("bulk-write-benchmark")
@@ -27,7 +26,6 @@ public class ReservationHistoryInsertBenchmarkService {
 	private final ReservationHistoryInsertBeforeBenchmarkService beforeService;
 	private final ExpiredReservationCleanupService cleanupService;
 	private final ReservationHistoryInsertBenchmarkFixtureService fixtureService;
-	private final ReservationHistoryInsertBenchmarkHoldService holdService;
 	private final BulkOperationMonitor bulkOperationMonitor;
 	private final BulkWriteBenchmarkDatabaseGuard databaseGuard;
 
@@ -35,14 +33,12 @@ public class ReservationHistoryInsertBenchmarkService {
 		ReservationHistoryInsertBeforeBenchmarkService beforeService,
 		ExpiredReservationCleanupService cleanupService,
 		ReservationHistoryInsertBenchmarkFixtureService fixtureService,
-		ReservationHistoryInsertBenchmarkHoldService holdService,
 		BulkOperationMonitor bulkOperationMonitor,
 		BulkWriteBenchmarkDatabaseGuard databaseGuard
 	) {
 		this.beforeService = beforeService;
 		this.cleanupService = cleanupService;
 		this.fixtureService = fixtureService;
-		this.holdService = holdService;
 		this.bulkOperationMonitor = bulkOperationMonitor;
 		this.databaseGuard = databaseGuard;
 	}
@@ -54,17 +50,13 @@ public class ReservationHistoryInsertBenchmarkService {
 		Throwable operationFailure = null;
 
 		try {
-			Measurement measurement = measureScheduler(request.variant());
-			ReservationHistoryInsertBenchmarkVerification verification = fixtureService.verify(
-				fixture,
-				measurement.holdSnapshot()
-			);
+			BulkOperationSnapshot operation = measureScheduler(request.variant());
+			ReservationHistoryInsertBenchmarkVerification verification = fixtureService.verify(fixture);
 			return ReservationHistoryInsertBenchmarkResponse.of(
 				request.variant(),
 				datasetSize,
 				verification,
-				measurement.holdSnapshot(),
-				measurement.operation()
+				operation
 			);
 		} catch (RuntimeException | Error failure) {
 			operationFailure = failure;
@@ -82,24 +74,15 @@ public class ReservationHistoryInsertBenchmarkService {
 		}
 	}
 
-	private Measurement measureScheduler(Variant variant) {
+	private BulkOperationSnapshot measureScheduler(Variant variant) {
 		UserInfo previousUser = UserContext.get();
-		boolean recording = false;
 		try {
-			holdService.startRecording();
-			recording = true;
 			UserContext.clear();
-			BulkOperationSnapshot operation = bulkOperationMonitor.monitor(
+			return bulkOperationMonitor.monitor(
 				operationName(variant),
 				operation(variant)
 			);
-			HoldRemovalSnapshot holdSnapshot = holdService.finishRecording();
-			recording = false;
-			return new Measurement(operation, holdSnapshot);
 		} finally {
-			if (recording) {
-				holdService.clearRecording();
-			}
 			UserContext.clear();
 			if (previousUser != null) {
 				UserContext.set(previousUser);
@@ -137,9 +120,4 @@ public class ReservationHistoryInsertBenchmarkService {
 		return request.datasetSize();
 	}
 
-	private record Measurement(
-		BulkOperationSnapshot operation,
-		HoldRemovalSnapshot holdSnapshot
-	) {
-	}
 }

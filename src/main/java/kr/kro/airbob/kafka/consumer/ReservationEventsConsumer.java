@@ -6,7 +6,6 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
-import kr.kro.airbob.domain.reservation.service.ReservationHoldService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventEnvelope;
@@ -21,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ReservationEventsConsumer {
 
 	private final ReservationService reservationService;
-	private final ReservationHoldService reservationHoldService;
 	private final DebeziumEventParser debeziumEventParser;
 
 	@KafkaListener(topics = "RESERVATION.events", groupId = "reservation-group")
@@ -30,20 +28,6 @@ public class ReservationEventsConsumer {
 			String eventType = debeziumEventParser.getEventType(message);
 
 			switch (EventType.from(eventType)) {
-				case RESERVATION_CONFIRMED -> {
-					EventEnvelope<ReservationEvent.ReservationConfirmedEvent> envelope =
-						debeziumEventParser.parse(message, ReservationEvent.ReservationConfirmedEvent.class);
-					ReservationEvent.ReservationConfirmedEvent event = envelope.payload();
-					reservationHoldService.removeHold(event.accommodationId(), event.checkInDate(), event.checkOutDate());
-					log.info("[KAFKA] 예약 확정 완료. Redis 홀드 제거. Accommodation ID={}", event.accommodationId());
-				}
-				case RESERVATION_EXPIRED -> {
-					EventEnvelope<ReservationEvent.ReservationExpiredEvent> envelope =
-						debeziumEventParser.parse(message, ReservationEvent.ReservationExpiredEvent.class);
-					ReservationEvent.ReservationExpiredEvent event = envelope.payload();
-					reservationHoldService.removeHold(event.accommodationId(), event.checkInDate(), event.checkOutDate());
-					log.info("[KAFKA] 예약 만료 완료. Redis 홀드 제거. Accommodation ID={}", event.accommodationId());
-				}
 				case RESERVATION_CANCELLATION_REVERT_REQUESTED -> {
 					EventEnvelope<ReservationEvent.ReservationCancellationRevertRequestedEvent> envelope =
 						debeziumEventParser.parse(message, ReservationEvent.ReservationCancellationRevertRequestedEvent.class);

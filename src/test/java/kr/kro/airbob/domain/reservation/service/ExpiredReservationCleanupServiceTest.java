@@ -48,8 +48,6 @@ class ExpiredReservationCleanupServiceTest {
 	@Mock
 	private ReservationHistoryBatchWriter batchWriter;
 	@Mock
-	private ReservationHoldService holdService;
-	@Mock
 	private CouponUsageService couponUsageService;
 
 	private ExpiredReservationCleanupService service;
@@ -61,7 +59,6 @@ class ExpiredReservationCleanupServiceTest {
 		service = new ExpiredReservationCleanupService(
 			reservationRepository,
 			batchWriter,
-			holdService,
 			couponUsageService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
@@ -102,8 +99,8 @@ class ExpiredReservationCleanupServiceTest {
 	}
 
 	@Test
-	@DisplayName("모든 history batch가 성공한 뒤 hold를 제거한다")
-	void removesHoldsOnlyAfterHistoryBatchSucceeds() {
+	@DisplayName("만료된 예약 이력을 동일한 기준 시각으로 일괄 저장한다")
+	void writesExpiredHistoriesWithTheSameCutoff() {
 		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
 			eq(ReservationStatus.PAYMENT_PENDING),
 			any(Instant.class)
@@ -114,14 +111,7 @@ class ExpiredReservationCleanupServiceTest {
 		assertThat(cleaned).isEqualTo(2);
 		ArgumentCaptor<List<ReservationHistory>> histories = ArgumentCaptor.forClass(List.class);
 		ArgumentCaptor<Instant> historyCreatedAt = ArgumentCaptor.forClass(Instant.class);
-		InOrder order = inOrder(batchWriter, holdService);
-		order.verify(batchWriter).writeAll(histories.capture(), historyCreatedAt.capture());
-		order.verify(holdService).removeHold(
-			eq(11L), eq(LocalDate.of(2026, 8, 1)), eq(LocalDate.of(2026, 8, 2))
-		);
-		order.verify(holdService).removeHold(
-			eq(12L), eq(LocalDate.of(2026, 8, 3)), eq(LocalDate.of(2026, 8, 4))
-		);
+		then(batchWriter).should().writeAll(histories.capture(), historyCreatedAt.capture());
 		assertThat(histories.getValue()).extracting(ReservationHistory::getStatus)
 			.containsOnly(ReservationStatus.EXPIRED);
 		ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
@@ -133,8 +123,8 @@ class ExpiredReservationCleanupServiceTest {
 	}
 
 	@Test
-	@DisplayName("history batch 실패 시 hold를 제거하지 않는다")
-	void doesNotRemoveHoldsWhenHistoryBatchFails() {
+	@DisplayName("history batch 실패를 호출자에게 전달한다")
+	void propagatesHistoryBatchFailure() {
 		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(any(), any()))
 			.willReturn(List.of(first, second));
 		willThrow(new DataIntegrityViolationException("intentional"))
@@ -142,12 +132,10 @@ class ExpiredReservationCleanupServiceTest {
 
 		assertThatThrownBy(service::cleanupExpiredPendingReservations)
 			.isInstanceOf(DataIntegrityViolationException.class);
-
-		then(holdService).shouldHaveNoInteractions();
 	}
 
 	@Test
-	@DisplayName("만료된 예약이 없으면 history를 저장하거나 hold를 제거하지 않는다")
+	@DisplayName("만료된 예약이 없으면 history를 저장하거나 쿠폰을 복원하지 않는다")
 	void doesNothingWhenNoExpiredReservationsExist() {
 		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(any(), any()))
 			.willReturn(List.of());
@@ -156,7 +144,6 @@ class ExpiredReservationCleanupServiceTest {
 
 		assertThat(cleaned).isZero();
 		then(batchWriter).shouldHaveNoInteractions();
-		then(holdService).shouldHaveNoInteractions();
 		then(couponUsageService).shouldHaveNoInteractions();
 	}
 

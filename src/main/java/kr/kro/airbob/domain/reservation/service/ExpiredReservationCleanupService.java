@@ -25,7 +25,6 @@ public class ExpiredReservationCleanupService {
 
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryBatchWriter historyBatchWriter;
-	private final ReservationHoldService holdService;
 	private final CouponUsageService couponUsageService;
 	private final Clock clock;
 
@@ -54,11 +53,6 @@ public class ExpiredReservationCleanupService {
 
 		couponUsageService.restoreAll(expired.stream().map(Reservation::getId).toList());
 		historyBatchWriter.writeAll(histories, cutoff);
-		expired.forEach(reservation -> holdService.removeHold(
-			reservation.getAccommodation().getId(),
-			reservation.getCheckInDate(),
-			reservation.getCheckOutDate()
-		));
 		return expired.size();
 	}
 }

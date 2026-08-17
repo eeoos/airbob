@@ -45,11 +45,6 @@ class ReservationHistoryInsertBeforeBenchmarkServiceProfileTest {
 	static class TestConfiguration {
 
 		@Bean
-		ReservationHoldService reservationHoldService() {
-			return mock(ReservationHoldService.class);
-		}
-
-		@Bean
 		ReservationRepository reservationRepository() {
 			return mock(ReservationRepository.class);
 		}

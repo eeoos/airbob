@@ -16,7 +16,6 @@ import org.springframework.kafka.support.Acknowledgment;
 
 import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
-import kr.kro.airbob.domain.reservation.service.ReservationHoldService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventEnvelope;
@@ -32,7 +31,6 @@ class CancellationSagaEventRoutingTest {
 	@Mock private DebeziumEventParser parser;
 	@Mock private OutboxEventPublisher outboxEventPublisher;
 	@Mock private ReservationService reservationService;
-	@Mock private ReservationHoldService reservationHoldService;
 	@Mock private Acknowledgment acknowledgment;
 
 	@Test
@@ -123,7 +121,7 @@ class CancellationSagaEventRoutingTest {
 		given(parser.parse(message, ReservationEvent.ReservationCancellationCompleteRequestedEvent.class))
 			.willReturn(envelope);
 
-		new ReservationEventsConsumer(reservationService, reservationHoldService, parser)
+		new ReservationEventsConsumer(reservationService, parser)
 			.handleReservationEvents(message, acknowledgment);
 
 		then(reservationService).should().completeCancellation(payload);
@@ -168,7 +166,7 @@ class CancellationSagaEventRoutingTest {
 		given(parser.parse(message, ReservationEvent.ReservationCancellationRevertRequestedEvent.class))
 			.willReturn(envelope);
 
-		new ReservationEventsConsumer(reservationService, reservationHoldService, parser)
+		new ReservationEventsConsumer(reservationService, parser)
 			.handleReservationEvents(message, acknowledgment);
 
 		then(reservationService).should().revertCancellation(payload);

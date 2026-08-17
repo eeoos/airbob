@@ -24,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ReservationHistoryInsertBeforeBenchmarkService {
 
-	private final ReservationHoldService holdService;
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryRepository historyRepository;
 	private final Clock clock;
@@ -49,12 +48,6 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 
 			historyRepository.save(
 				ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, "결제 시간 초과", "BATCH"));
-
-			holdService.removeHold(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()
-			);
 		});
 		log.info("{}건의 만료된 예약 정리 완료", expiredList.size());
 	}

@@ -41,7 +41,6 @@ const jdbcBatchCalls = new Trend('bulk_write_jdbc_batch_calls');
 const jdbcSubmittedRows = new Trend('bulk_write_jdbc_submitted_rows');
 const jdbcConfiguredBatchSize = new Trend('bulk_write_jdbc_configured_batch_size');
 const jdbcAffectedRows = new Trend('bulk_write_jdbc_affected_rows');
-const holdRemovalCalls = new Trend('bulk_write_hold_removal_calls');
 const hibernateStatements = {};
 Object.entries(BULK_WRITE_HIBERNATE_METRICS).forEach(([type, metricName]) => {
   hibernateStatements[type] = new Trend(metricName);
@@ -63,7 +62,6 @@ function recordOperation(data) {
   const { operation } = data;
   serverOperationMs.add(operation.server_operation_ms, TAGS);
   verifiedRows.add(data.verified_rows, TAGS);
-  holdRemovalCalls.add(data.hold_removal_calls, TAGS);
   Object.entries(hibernateStatements).forEach(([type, metric]) => {
     metric.add(operation.hibernate_statements_by_type[type], TAGS);
   });
@@ -128,11 +126,6 @@ export default function (setupData) {
       contractMatches && payload.data.verification_succeeded === true
     ),
     'reservation history insert reports contract-supported JDBC measurements': () => contractMatches,
-    'reservation history insert excludes Redis network and records logical hold removals': () => (
-      contractMatches
-        && payload.data.redis_network_excluded === true
-        && payload.data.hold_removal_calls === RUN.datasetSize
-    ),
   }, TAGS);
 
   if (succeeded) {

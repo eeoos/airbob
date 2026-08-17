@@ -1,15 +1,8 @@
 package kr.kro.airbob.domain.reservation.service;
 
-import java.util.List;
-
-import org.redisson.api.RLock;
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.cursor.dto.CursorRequest;
-import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
@@ -17,66 +10,25 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
-import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
-import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
-import kr.kro.airbob.domain.reservation.policy.BookingWindow;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
 
-	private final ReservationHoldService holdService;
-	private final ReservationLockManager lockManager;
-
 	private final ReservationTransactionService transactionService;
-	private final AccommodationRepository accommodationRepository;
-	private final BookingWindowProvider bookingWindowProvider;
 
 	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new InvalidReservationDateException();
 		}
 
-		AccommodationBookingProjection accommodation = accommodationRepository
-			.findBookingProjectionByIdAndStatus(request.accommodationId(), AccommodationStatus.PUBLISHED)
-			.orElseThrow(AccommodationNotFoundException::new);
-		BookingWindow bookingWindow = bookingWindowProvider.currentFor(accommodation.timeZoneId());
-		if (!bookingWindow.containsStay(request.checkInDate(), request.checkOutDate())) {
-			throw new ReservationOutsideBookingWindowException();
-		}
-
-		if (holdService.isAnyDateHeld(request.accommodationId(), request.checkInDate(), request.checkOutDate())) {
-			throw new ReservationLockException();
-		}
-
-		List<String> lockKeys = DateLockKeyGenerator.generateLockKeys(request.accommodationId(), request.checkInDate(),
-			request.checkOutDate());
-		RLock lock = lockManager.acquireLocks(lockKeys);
-
-		try {
-			Reservation reservation = transactionService.createPendingReservationInTx(
-				request,
-				memberId,
-				"사용자 예약 생성"
-			);
-
-			if (reservation.requiresPayment()) {
-				try {
-					holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
-				} catch (Exception e) {
-					log.error("Redis hold 설정 실패. DB 예약은 생성됨. accommodationId={}, checkIn={}, checkOut={}",
-						request.accommodationId(), request.checkInDate(), request.checkOutDate(), e);
-				}
-			}
-
-			return ReservationResponse.Ready.from(reservation);
-		} finally {
-			lockManager.releaseLocks(lock);
-		}
+		Reservation reservation = transactionService.createPendingReservationInTx(
+			request,
+			memberId,
+			"사용자 예약 생성"
+		);
+		return ReservationResponse.Ready.from(reservation);
 	}
 
 	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request, Long memberId) {

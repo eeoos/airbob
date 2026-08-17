@@ -58,14 +58,12 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
-import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
-import kr.kro.airbob.domain.reservation.service.ReservationHoldService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.outbox.EventType;
@@ -109,8 +107,6 @@ class ReservationConcurrencyTest {
 	private MemberCouponRepository memberCouponRepository;
 	@Autowired
 	private ExpiredReservationCleanupService cleanupService;
-	@Autowired
-	private ReservationHoldService reservationHoldService;
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
@@ -235,8 +231,6 @@ class ReservationConcurrencyTest {
 			.containsExactlyInAnyOrder(
 				EventType.RESERVATION_CONFIRMED.name(),
 				EventType.RESERVATION_CHANGED.name());
-		assertThat(reservationHoldService.isAnyDateHeld(
-			accommodation.getId(), checkIn, checkIn.plusDays(2))).isFalse();
 
 		reservationService.cancelReservation(
 			ready.reservationUid(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());
@@ -420,7 +414,7 @@ class ReservationConcurrencyTest {
 					reservationService.createPendingReservation(request, guest.getId());
 					successCount.incrementAndGet();
 
-				} catch (ReservationLockException | ReservationConflictException e) {
+				} catch (ReservationConflictException e) {
 					expectedFailCount.incrementAndGet();
 				} catch (Exception e) {
 					unexpectedFailCount.incrementAndGet();
@@ -455,8 +449,8 @@ class ReservationConcurrencyTest {
 	}
 
 	@Test
-	@DisplayName("분산 락 없이 동시 예약하면 중복 예약이 발생한다")
-	void withoutLock_duplicateReservationOccurs() throws InterruptedException {
+	@DisplayName("서비스 계층을 우회해도 DB 권위 트랜잭션이 중복 예약을 막는다")
+	void authoritativeTransactionPreventsDuplicateReservations() throws InterruptedException {
 		// given
 		int threadCount = 10;
 		ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
@@ -465,7 +459,8 @@ class ReservationConcurrencyTest {
 		CountDownLatch doneLatch = new CountDownLatch(threadCount);
 
 		AtomicInteger successCount = new AtomicInteger(0);
-		AtomicInteger failCount = new AtomicInteger(0);
+		AtomicInteger expectedFailCount = new AtomicInteger(0);
+		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
@@ -477,7 +472,7 @@ class ReservationConcurrencyTest {
 			2
 		);
 
-		// when - 락 없이 트랜잭션 서비스 직접 호출
+		// when - 외부 서비스 계층을 우회하고 권위 트랜잭션을 직접 호출
 		for (int i = 0; i < threadCount; i++) {
 			final Member guest = guests.get(i);
 			executorService.submit(() -> {
@@ -485,12 +480,12 @@ class ReservationConcurrencyTest {
 					readyLatch.countDown();
 					startLatch.await();
 
-					transactionService.createPendingReservationInTx(request, guest.getId(), "락 미적용 테스트");
+					transactionService.createPendingReservationInTx(request, guest.getId(), "DB 권위 트랜잭션 테스트");
 					successCount.incrementAndGet();
 				} catch (ReservationConflictException e) {
-					failCount.incrementAndGet();
+					expectedFailCount.incrementAndGet();
 				} catch (Exception e) {
-					failCount.incrementAndGet();
+					unexpectedFailCount.incrementAndGet();
 				} finally {
 					doneLatch.countDown();
 				}
@@ -506,15 +501,19 @@ class ReservationConcurrencyTest {
 		long reservationCount = reservationRepository.count();
 
 		System.out.println("======================================");
-		System.out.println("[락 미적용] 중복 예약 재현 테스트");
+		System.out.println("[DB 권위 트랜잭션] 중복 예약 방지 테스트");
 		System.out.println("총 시도: " + threadCount);
 		System.out.println("예약 성공: " + successCount.get());
-		System.out.println("예약 실패: " + failCount.get());
+		System.out.println("예상된 실패: " + expectedFailCount.get());
+		System.out.println("예상치 못한 실패: " + unexpectedFailCount.get());
 		System.out.println("DB 예약 수: " + reservationCount);
 		System.out.println("======================================");
 
-		assertThat(reservationCount).as("락 없이는 중복 예약이 발생해야 한다 (2개 이상).")
-			.isGreaterThan(1);
+		assertThat(unexpectedFailCount.get()).as("예상치 못한 예외가 발생하면 안 된다.").isZero();
+		assertThat(successCount.get()).as("오직 하나의 예약만 성공해야 한다.").isEqualTo(1);
+		assertThat(expectedFailCount.get()).as("나머지 요청은 예약 충돌로 종료되어야 한다.")
+			.isEqualTo(threadCount - 1);
+		assertThat(reservationCount).as("DB에도 오직 하나의 예약만 기록되어야 한다.").isEqualTo(1);
 	}
 
 	@Test
@@ -641,7 +640,7 @@ class ReservationConcurrencyTest {
 				startLatch.await();
 				reservationService.createPendingReservation(requestA, guestA.getId());
 				successCount.incrementAndGet();
-			} catch (ReservationLockException | ReservationConflictException e) {
+			} catch (ReservationConflictException e) {
 				failCount.incrementAndGet();
 			} catch (Exception e) {
 				unexpectedFailCount.incrementAndGet();
@@ -657,7 +656,7 @@ class ReservationConcurrencyTest {
 				startLatch.await();
 				reservationService.createPendingReservation(requestB, guestB.getId());
 				successCount.incrementAndGet();
-			} catch (ReservationLockException | ReservationConflictException e) {
+			} catch (ReservationConflictException e) {
 				failCount.incrementAndGet();
 			} catch (Exception e) {
 				unexpectedFailCount.incrementAndGet();

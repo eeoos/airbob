@@ -8,7 +8,6 @@ public record ReservationHistoryInsertBenchmarkVerification(
 	boolean futurePendingPreserved,
 	boolean nonPendingExpiredPreserved,
 	boolean historySnapshotsPreserved,
-	boolean historyAuditContextPreserved,
-	boolean holdRemovalsMatched
+	boolean historyAuditContextPreserved
 ) {
 }

@@ -49,9 +49,6 @@ const RESERVATION_HISTORY_DATA_FIELDS = [
   'non_pending_expired_preserved',
   'history_snapshots_preserved',
   'history_audit_context_preserved',
-  'hold_removals_matched',
-  'hold_removal_calls',
-  'redis_network_excluded',
   'operation',
 ];
 const RESERVATION_HISTORY_VERIFICATION_FIELDS = [
@@ -62,7 +59,6 @@ const RESERVATION_HISTORY_VERIFICATION_FIELDS = [
   'non_pending_expired_preserved',
   'history_snapshots_preserved',
   'history_audit_context_preserved',
-  'hold_removals_matched',
 ];
 const ACCOMMODATION_AMENITY_DATA_FIELDS = [
   'candidate',
@@ -113,11 +109,6 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   maximumDatasetSize: 2000,
   supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
   dataFields: Object.freeze(RESERVATION_HISTORY_DATA_FIELDS),
-  externalEffects: Object.freeze({
-    holdRemovalMetric: 'bulk_write_hold_removal_calls',
-    holdRemovalMode: 'RECORDED_NO_IO',
-    redisNetworkExcluded: true,
-  }),
   matchesData: (data, datasetSize, variant) => {
     const counts = data.operation.hibernate_statements_by_type;
     const operation = data.operation;
@@ -148,8 +139,6 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
     return data.expected_rows === datasetSize
       && data.verified_rows === datasetSize
       && RESERVATION_HISTORY_VERIFICATION_FIELDS.every((field) => data[field] === true)
-      && data.hold_removal_calls === datasetSize
-      && data.redis_network_excluded === true
       && counts.DELETE === 0
       && counts.OTHER === 0
       && (isBefore || isAfterEmpty || isAfterNonEmpty);
