@@ -7,7 +7,7 @@
 - 로컬 측정 기준 커밋: `d388cc71ea649f62026bc15d3b2cb474b9dee450`
 - 운영 기본 batch size: `100`
 
-이 문서의 시간 수치는 로컬의 일회성 MySQL·Redis 환경에서 얻은 사전 검증 결과다. 구현 효과와 측정 절차가 정상적으로 동작하는지는 확인했지만, 이력서에 사용할 최종 수치는 아래 AWS 측정 절차로 다시 수집한 뒤 교체한다.
+이 문서의 시간 수치는 로컬의 일회성 MySQL 환경에서 얻은 사전 검증 결과다. 구현 효과와 측정 절차가 정상적으로 동작하는지는 확인했지만, 이력서에 사용할 최종 수치는 아래 AWS 측정 절차로 다시 수집한 뒤 교체한다.
 
 ## 문제와 개선 가설
 
@@ -24,7 +24,7 @@
 - 유지: 만료 대상 SELECT와 관리 상태의 reservation dirty-check UPDATE
 - 추가: 만료 예약 ID 묶음에 사용된 쿠폰을 복원하는 JPQL UPDATE 1회 (`N > 0`)
 - 유지: 하나의 Spring 트랜잭션 경계
-- 제외: Kafka가 처리하는 단건 예약 상태 변경 경로
+- 제외: PaymentOperation worker가 처리하는 단건 승인·취소 상태 변경 경로
 - 제외: 정산, 쿠폰 발급 등 다른 쓰기 경로
 
 운영 경로는 [`ExpiredReservationCleanupService`](../../src/main/java/kr/kro/airbob/domain/reservation/service/ExpiredReservationCleanupService.java)가 담당한다. 비교용 JPA 구현은 [`bulk-write-benchmark` 전용 Before 서비스](../../src/main/java/kr/kro/airbob/domain/reservation/service/ReservationHistoryInsertBeforeBenchmarkService.java)에만 남겨 운영 코드에 분기문을 추가하지 않았다.
@@ -104,7 +104,7 @@ After의 고정 UPDATE 1회는 사용된 쿠폰이 없는 fixture에서도 실�
 - batch size: 100
 - `rewriteBatchedStatements`: true
 - SQL·bind·Before 행별 WARN 로그: 비활성화
-- 자동 scheduler와 Kafka listener: 비활성화
+- 자동 scheduler와 payment/search Kafka listener: 비활성화
 
 각 `N ∈ {0, 100, 1000, 2000}`에 대해 Before 3회와 After 3회를 워밍업한 뒤, variant별로 독립된 1회 요청 결과를 10개씩 보존했다. 통계는 원시 `server_operation_ms`를 정렬해 nearest-rank 방식으로 다시 계산했다.
 
@@ -159,7 +159,7 @@ AWS 측정은 다음 조건의 격리된 환경에서만 수행한다.
 - 전용 ADMIN 계정과 32자 이상의 benchmark token을 사용한다.
 - HTTP를 사용하면 k6 보호 규칙에 맞게 같은 호스트 또는 SSH tunnel의 정확한 loopback 주소로 호출한다. 원격 hostname을 직접 사용해야 하면 유효한 HTTPS origin만 허용한다.
 - 측정 endpoint는 public load balancer에 연결하지 않는다.
-- 측정이 끝나면 애플리케이션, schema, Redis와 자격 증명을 폐기한다.
+- 측정이 끝나면 애플리케이션, schema와 자격 증명을 폐기한다.
 
 `bulk-write-benchmark` profile에서는 Flyway가 비활성화되므로 빈 schema를 애플리케이션이 자동 생성한다고 가정하면 안 된다. 현재 migration을 측정 전에 별도로 적용한다.
 
@@ -182,7 +182,6 @@ AWS 측정은 다음 조건의 격리된 환경에서만 수행한다.
 | k6 `REWRITE_BATCHED_STATEMENTS` metadata | true로 명시 |
 | 애플리케이션 인스턴스 수 | 1 |
 | schema label | TODO (`*_bulk_write_benchmark`) |
-| Redis 구성 | TODO |
 | 요청 timeout | 30s |
 
 ### 실행 순서
@@ -268,7 +267,7 @@ AWS 측정 후 이 문서에는 archive의 자격 증명이나 실제 endpoint �
 ## 한계와 후속 과제
 
 - 만료 대상을 한 번에 조회해 하나의 트랜잭션에서 처리하므로 대상 수가 무제한으로 커지는 scheduler 확장성까지 해결한 것은 아니다.
-- 여러 애플리케이션 인스턴스의 중복 실행이나 결제 완료와의 경쟁을 막는 claim/lock 전략은 이번 변경 범위가 아니다.
-- hold 제거는 DB commit 전에 호출된다. history batch 실패 전파는 보장하지만, hold 제거 후 DB commit 자체가 실패하는 경우의 외부 상태 불일치는 별도 신뢰성 과제다.
-- 로컬 측정은 Redis 네트워크를 제외했으므로 운영 end-to-end 시간을 나타내지 않는다.
+- 만료 조회는 reservation 행을 `PESSIMISTIC_WRITE`로 잠그므로 여러 인스턴스와 결제 상태 변경의 DB 경쟁은 직렬화된다. 다만 `SKIP LOCKED`나 bounded claim이 없어 큰 batch에서 lock 대기와 트랜잭션 시간이 늘어나는 확장성은 이번 최적화 범위가 아니다.
+- 예약 재고와 만료 상태는 MySQL이 권위 원본이다. 별도 외부 임시 재고 정리 같은 side effect가 없으므로 history batch 예외는 reservation·coupon 변경과 함께 rollback된다.
+- 로컬 측정은 scheduler 대기 시간, HTTP 왕복, Kafka·외부 provider 처리와 무관한 cleanup 트랜잭션만 측정하므로 운영 end-to-end 시간을 나타내지 않는다.
 - AWS 최종 수치는 격리된 동일 환경에서 다시 측정한 뒤 이 문서와 이력서 문장을 함께 갱신한다.

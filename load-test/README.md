@@ -311,6 +311,8 @@ unset BENCHMARK_READ_MODEL_TOKEN
 
 Wishlist DELETE와 ReservationHistory INSERT 비교는 운영 DB와 분리된 전용 스키마에서만 실행한다. 서버는 느슨한 profile 환경 변수나 직접 `bootRun`으로 시작하지 않고 전용 launcher를 사용한다.
 
+ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상태 변경, 쿠폰 복원, history 쓰기만 비교한다. 예약용 외부 임시 재고나 분산 락은 측정 범위에 없으며, 앞의 쿠폰 발급 lock/Lua 비교와는 서로 다른 실험이다.
+
 ```bash
 read -rsp 'Bulk write benchmark token: ' BENCHMARK_BULK_WRITE_TOKEN
 export BENCHMARK_BULK_WRITE_TOKEN
