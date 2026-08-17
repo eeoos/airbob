@@ -27,6 +27,10 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 	List<ThumbnailUrlProjection> findThumbnailUrlsByIds(@Param("ids") Collection<Long> ids);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT a FROM Accommodation a WHERE a.id = :id")
+	Optional<Accommodation> findByIdForUpdate(@Param("id") Long id);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id AND a.status = :status")
 	Optional<Accommodation> findByIdAndStatusForUpdate(
 		@Param("id") Long id,

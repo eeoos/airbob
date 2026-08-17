@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,10 +16,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
@@ -31,6 +35,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
+import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.OutboxWriter;
@@ -40,30 +45,40 @@ class PaymentOperationCommandServiceTest {
 
 	private static final UUID RESERVATION_UID = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 	private static final UUID EXISTING_OPERATION_UID = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
+	private static final Long ACCOMMODATION_ID = 20L;
 	private static final Long GUEST_ID = 10L;
 	private static final Instant NOW = Instant.parse("2026-08-14T01:00:00Z");
+	private static final LocalDate CHECK_IN = LocalDate.of(2026, 8, 20);
+	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 22);
 
+	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private PaymentOperationRepository paymentOperationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private OutboxWriter outboxWriter;
 
 	private PaymentOperationCommandService service;
+	private Accommodation accommodation;
 	private Reservation pendingReservation;
 
 	@BeforeEach
 	void setUp() {
 		service = new PaymentOperationCommandService(
+			accommodationRepository,
 			reservationRepository,
 			paymentOperationRepository,
 			historyRepository,
 			outboxWriter,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
+		accommodation = Accommodation.builder().id(ACCOMMODATION_ID).build();
 		pendingReservation = Reservation.builder()
 			.id(1L)
 			.reservationUid(RESERVATION_UID)
+			.accommodation(accommodation)
 			.guest(Member.builder().id(GUEST_ID).build())
+			.checkInDate(CHECK_IN)
+			.checkOutDate(CHECK_OUT)
 			.totalPrice(100_000L)
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.expiresAt(NOW.plusSeconds(60))
@@ -72,8 +87,7 @@ class PaymentOperationCommandServiceTest {
 
 	@Test
 	void ownerCreatesOperationAndCommandInOneTransaction() {
-		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
-			.willReturn(Optional.of(pendingReservation));
+		givenReservationLocks(pendingReservation);
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 		ArgumentCaptor<PaymentOperation> operationCaptor = ArgumentCaptor.forClass(PaymentOperation.class);
@@ -93,12 +107,17 @@ class PaymentOperationCommandServiceTest {
 		assertThat(eventCaptor.getValue().partitionKey()).isEqualTo(RESERVATION_UID.toString());
 		assertThat(eventCaptor.getValue().deduplicationKey())
 			.isEqualTo("PAYMENT_EXECUTION:" + accepted.operationId() + ":1");
+		InOrder lockOrder = org.mockito.Mockito.inOrder(reservationRepository, accommodationRepository);
+		lockOrder.verify(reservationRepository).findAccommodationIdByReservationUid(RESERVATION_UID);
+		lockOrder.verify(accommodationRepository).findByIdForUpdate(ACCOMMODATION_ID);
+		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
+		then(reservationRepository).should().existsConflictingReservationExcluding(
+			ACCOMMODATION_ID, pendingReservation.getId(), CHECK_IN, CHECK_OUT, NOW);
 	}
 
 	@Test
 	void nonOwnerCreatesNeitherOperationNorOutbox() {
-		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
-			.willReturn(Optional.of(pendingReservation));
+		givenReservationLocks(pendingReservation);
 
 		assertThatThrownBy(() -> service.requestConfirmation(request(), 999L))
 			.isInstanceOf(PaymentAccessDeniedException.class);
@@ -111,8 +130,7 @@ class PaymentOperationCommandServiceTest {
 
 	@Test
 	void identicalReplayReturnsSameOperationButDifferentRequestConflicts() {
-		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
-			.willReturn(Optional.of(pendingReservation));
+		givenReservationLocks(pendingReservation);
 		PaymentOperation existing = existingOperation("pk-one", 100_000L);
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.of(existing));
@@ -124,6 +142,13 @@ class PaymentOperationCommandServiceTest {
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+		then(reservationRepository).should(org.mockito.Mockito.never())
+			.existsConflictingReservationExcluding(
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any());
 		then(historyRepository).shouldHaveNoInteractions();
 		then(outboxWriter).shouldHaveNoInteractions();
 	}
@@ -131,15 +156,33 @@ class PaymentOperationCommandServiceTest {
 	@Test
 	void expiredReservationCreatesNeitherOperationNorOutbox() {
 		pendingReservation = Reservation.builder()
-			.id(1L).reservationUid(RESERVATION_UID).guest(Member.builder().id(GUEST_ID).build())
+			.id(1L).reservationUid(RESERVATION_UID).accommodation(accommodation)
+			.guest(Member.builder().id(GUEST_ID).build())
+			.checkInDate(CHECK_IN).checkOutDate(CHECK_OUT)
 			.totalPrice(100_000L).status(ReservationStatus.PAYMENT_PENDING).expiresAt(NOW).build();
-		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
-			.willReturn(Optional.of(pendingReservation));
+		givenReservationLocks(pendingReservation);
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.requestConfirmation(request(), GUEST_ID))
 			.isInstanceOf(ExpiredReservationConfirmationException.class);
+
+		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+		then(historyRepository).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void overlappingReservationCreatesNeitherOperationNorOutbox() {
+		givenReservationLocks(pendingReservation);
+		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
+			.willReturn(Optional.empty());
+		given(reservationRepository.existsConflictingReservationExcluding(
+			ACCOMMODATION_ID, pendingReservation.getId(), CHECK_IN, CHECK_OUT, NOW))
+			.willReturn(true);
+
+		assertThatThrownBy(() -> service.requestConfirmation(request(), GUEST_ID))
+			.isInstanceOf(ReservationConflictException.class);
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
 		then(historyRepository).shouldHaveNoInteractions();
@@ -154,7 +197,17 @@ class PaymentOperationCommandServiceTest {
 			.isInstanceOf(InvalidInputException.class);
 
 		then(reservationRepository).shouldHaveNoInteractions();
+		then(accommodationRepository).shouldHaveNoInteractions();
 		then(paymentOperationRepository).shouldHaveNoInteractions();
+	}
+
+	private void givenReservationLocks(Reservation reservation) {
+		given(reservationRepository.findAccommodationIdByReservationUid(RESERVATION_UID))
+			.willReturn(Optional.of(ACCOMMODATION_ID));
+		given(accommodationRepository.findByIdForUpdate(ACCOMMODATION_ID))
+			.willReturn(Optional.of(accommodation));
+		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
+			.willReturn(Optional.of(reservation));
 	}
 
 	private PaymentRequest.Confirm request() {

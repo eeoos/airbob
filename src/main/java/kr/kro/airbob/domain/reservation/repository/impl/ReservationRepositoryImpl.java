@@ -20,6 +20,7 @@ import org.springframework.data.domain.SliceImpl;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
+import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.member.entity.QMember;
 import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
@@ -43,18 +44,45 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		LocalDate checkOutDate,
 		Instant now
 	) {
-		Integer fetchFirst = queryFactory
-			.selectOne()
+		return existsConflictingReservation(
+			accommodationId, null, checkInDate, checkOutDate, now);
+	}
+
+	@Override
+	public boolean existsConflictingReservationExcluding(
+		Long accommodationId,
+		Long excludedReservationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	) {
+		return existsConflictingReservation(
+			accommodationId, excludedReservationId, checkInDate, checkOutDate, now);
+	}
+
+	private boolean existsConflictingReservation(
+		Long accommodationId,
+		Long excludedReservationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	) {
+		Long conflictingReservationId = queryFactory
+			.select(reservation.id)
 			.from(reservation)
 			.where(
 				reservation.accommodation.id.eq(accommodationId),
+				excludedReservationId == null ? null : reservation.id.ne(excludedReservationId),
 				inventoryOccupyingReservationStatus(now),
 				reservation.checkInDate.lt(checkOutDate),
 				reservation.checkOutDate.gt(checkInDate)
 			)
+			// A preceding plain read can open a stale MySQL REPEATABLE READ snapshot.
+			// The inventory mutex is already held, so use a current read for the final decision.
+			.setLockMode(LockModeType.PESSIMISTIC_WRITE)
 			.fetchFirst();
 
-		return fetchFirst != null;
+		return conflictingReservationId != null;
 	}
 
 	@Override

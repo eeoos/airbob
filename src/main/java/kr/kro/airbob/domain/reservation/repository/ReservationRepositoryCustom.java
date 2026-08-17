@@ -15,8 +15,22 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 
 public interface ReservationRepositoryCustom {
+	/**
+	 * Caller must hold the accommodation row lock for the inventory decision.
+	 */
 	boolean existsConflictingReservation(
 		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	);
+
+	/**
+	 * Caller must hold the accommodation row lock for the inventory decision.
+	 */
+	boolean existsConflictingReservationExcluding(
+		Long accommodationId,
+		Long excludedReservationId,
 		LocalDate checkInDate,
 		LocalDate checkOutDate,
 		Instant now

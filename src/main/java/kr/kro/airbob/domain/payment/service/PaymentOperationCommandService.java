@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
+import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -20,6 +22,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
+import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -30,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentOperationCommandService {
 
+	private final AccommodationRepository accommodationRepository;
 	private final ReservationRepository reservationRepository;
 	private final PaymentOperationRepository paymentOperationRepository;
 	private final ReservationHistoryRepository historyRepository;
@@ -39,6 +43,10 @@ public class PaymentOperationCommandService {
 	@Transactional
 	public Accepted requestConfirmation(PaymentRequest.Confirm request, Long memberId) {
 		UUID reservationUid = parseReservationUid(request.orderId());
+		Long accommodationId = reservationRepository.findAccommodationIdByReservationUid(reservationUid)
+			.orElseThrow(ReservationNotFoundException::new);
+		accommodationRepository.findByIdForUpdate(accommodationId)
+			.orElseThrow(AccommodationNotFoundException::new);
 		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUid)
 			.orElseThrow(ReservationNotFoundException::new);
 		if (!reservation.belongsToGuest(memberId)) {
@@ -57,6 +65,15 @@ public class PaymentOperationCommandService {
 		Instant now = clock.instant();
 		if (!reservation.startPayment(now)) {
 			throw new ExpiredReservationConfirmationException();
+		}
+		if (reservationRepository.existsConflictingReservationExcluding(
+			accommodationId,
+			reservation.getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			now
+		)) {
+			throw new ReservationConflictException();
 		}
 		PaymentOperation operation = PaymentOperation.createConfirmation(
 			reservation, memberId, request.paymentKey(), request.amount(), now);
