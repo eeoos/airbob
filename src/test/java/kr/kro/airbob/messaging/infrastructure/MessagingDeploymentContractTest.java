@@ -58,6 +58,12 @@ class MessagingDeploymentContractTest {
 		assertThat(text(config, "transforms.outbox.route.by.field")).isEqualTo("destination");
 		assertThat(text(config, "transforms.outbox.route.topic.replacement")).isEqualTo("${routedByValue}");
 		assertThat(text(config, "transforms.outbox.table.op.invalid.behavior")).isEqualTo("fatal");
+		assertThat(text(config, "predicates")).isEqualTo("IsOutboxTable");
+		assertThat(text(config, "predicates.IsOutboxTable.type"))
+			.isEqualTo("org.apache.kafka.connect.transforms.predicates.TopicNameMatches");
+		assertThat(text(config, "predicates.IsOutboxTable.pattern"))
+			.isEqualTo("airbob_outbox\\.airbobdb\\.outbox");
+		assertThat(text(config, "transforms.outbox.predicate")).isEqualTo("IsOutboxTable");
 		assertThat(text(config, "transforms.outbox.table.field.event.id")).isEqualTo("event_id");
 		assertThat(text(config, "transforms.outbox.table.field.event.key")).isEqualTo("partition_key");
 		assertThat(text(config, "transforms.outbox.table.field.event.payload")).isEqualTo("payload");
