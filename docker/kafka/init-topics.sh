@@ -60,6 +60,8 @@ create_topic "DEBEZIUM_SCHEMA_HISTORY" 1 \
   "retention.ms=-1" \
   "retention.bytes=-1"
 assert_partition_count "DEBEZIUM_SCHEMA_HISTORY" 1
+create_topic "__debezium-heartbeat.airbob_outbox" 1 "cleanup.policy=delete"
+assert_partition_count "__debezium-heartbeat.airbob_outbox" 1
 
 BUSINESS_TOPICS=(
   "PAYMENT_OPERATION.events"

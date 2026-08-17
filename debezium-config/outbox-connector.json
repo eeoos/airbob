@@ -11,6 +11,7 @@
   "table.include.list": "airbobdb.outbox",
   "topic.prefix": "airbob_outbox",
   "snapshot.mode": "initial",
+  "heartbeat.interval.ms": "10000",
   "include.schema.changes": "false",
   "tombstones.on.delete": "false",
   "schema.history.internal.kafka.bootstrap.servers": "${env:DEBEZIUM_KAFKA_BOOTSTRAP_SERVERS}",

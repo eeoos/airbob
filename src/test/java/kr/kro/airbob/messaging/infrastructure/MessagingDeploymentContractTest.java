@@ -39,6 +39,7 @@ class MessagingDeploymentContractTest {
 		assertThat(text(config, "database.password")).isEqualTo("${env:DEBEZIUM_DATABASE_PASSWORD}");
 		assertThat(text(config, "schema.history.internal.kafka.bootstrap.servers"))
 			.isEqualTo("${env:DEBEZIUM_KAFKA_BOOTSTRAP_SERVERS}");
+		assertThat(text(config, "heartbeat.interval.ms")).isEqualTo("10000");
 		assertThat(text(config, "key.converter"))
 			.isEqualTo("org.apache.kafka.connect.storage.StringConverter");
 		assertThat(text(config, "value.converter"))
@@ -94,6 +95,7 @@ class MessagingDeploymentContractTest {
 		assertThat(script)
 			.contains("readonly BUSINESS_TOPIC_PARTITIONS=3")
 			.contains("--if-not-exists")
+			.contains("\"__debezium-heartbeat.airbob_outbox\" 1")
 			.contains("assert_partition_count \"$topic\" \"$BUSINESS_TOPIC_PARTITIONS\"");
 		BUSINESS_TOPICS.forEach(topic -> assertThat(script).contains("\"" + topic + "\""));
 	}
