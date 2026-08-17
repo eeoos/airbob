@@ -11,6 +11,8 @@
 - Logstash는 `LOGSTASH_TARGET_INDEX`가 없으면 시작되지 않으며 live alias에 직접 쓰지 않는다.
 - MySQL의 공개 숙소 건수와 새 인덱스 문서 건수가 다르면 alias를 변경하지 않는다.
 - 재색인 도중 다른 작업이 alias를 바꾸면 현재 작업은 alias를 변경하지 않는다.
+- Logstash는 분리 실행한 단일 컨테이너 ID로만 추적한다. 제한 시간을 넘기면 그 컨테이너만
+  중지·제거하고 alias를 변경하지 않는다.
 - alias 전환 요청 전까지 실패하면 기존 alias와 인덱스를 유지한다. 실패한 새 인덱스도 조사 전에는 삭제하지 않는다.
 - 전환 후 consumer를 재개하면 쌓인 이벤트가 MySQL 최신 상태로 새 인덱스를 보정한다.
 
@@ -94,6 +96,20 @@ ELASTICSEARCH_PASSWORD=...
 Elasticsearch API의 기본 연결 제한은 5초, 요청 전체 제한은 30초다.
 `ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS`와 `ELASTICSEARCH_MAX_TIME_SECONDS`로 조정할 수 있다.
 
+Logstash 적재 제한 시간은 기본 3,600초이고 상태 확인 간격은 기본 2초다. 데이터 규모와
+평상시 적재 시간을 기준으로 아래 값을 조정할 수 있다.
+
+```text
+LOGSTASH_MAX_RUNTIME_SECONDS=3600
+LOGSTASH_POLL_INTERVAL_SECONDS=2
+```
+
+스크립트는 `docker compose run -d`가 반환한 컨테이너 ID를 검증한 뒤 그 ID만
+`inspect`, `logs`, `stop`, `rm` 대상으로 사용한다. Logstash가 제한 시간을 넘기거나
+0이 아닌 코드로 종료되면 로그를 출력하고 비정상 종료한다. 이때 alias는 기존 인덱스를
+계속 가리키며 실패한 버전 인덱스는 원인 조사와 재실행을 위해 보존된다. 스크립트를
+중단해도 종료 trap은 캡처한 컨테이너만 제거하며 다른 Compose 컨테이너를 중지하지 않는다.
+
 ## Verification
 
 ```bash
@@ -118,6 +134,10 @@ consumer를 재개한 운영자가 최소 30분 동안 다음 항목을 확인�
 
 DLT 유입, 지속적인 lag, 검색 오류율 증가, alias 또는 문서 수 불일치가 발견되면
 consumer를 중지하고 아래 rollback 절차를 적용한다.
+
+재색인 출력에 `Logstash exceeded maximum runtime` 또는 `Logstash exited with code`가
+나오면 consumer를 재개하거나 alias를 수동 전환하지 않는다. 출력된 Logstash 로그와
+보존된 대상 인덱스를 조사한 뒤 새 버전 이름으로 처음부터 다시 실행한다.
 
 ## Rollback
 

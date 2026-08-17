@@ -19,6 +19,11 @@
 [`docs/logstash-reindex.md`](logstash-reindex.md)를 따른다. consumer 재개 후 Kafka lag가
 0으로 돌아와야 새 인덱스가 MySQL 최신 상태로 수렴한 것이다.
 
+재색인 스크립트는 one-shot Logstash 컨테이너를 분리 실행하고 기본 3,600초의 runtime
+watchdog으로 감시한다. 제한 시간이나 비정상 exit가 발생하면 캡처한 컨테이너만
+정리하고 alias 전환 전에 중단한다. 실패한 대상 인덱스는 자동 삭제하지 않으므로,
+원인 확인 전까지 수동으로 alias를 전환하거나 인덱스를 삭제하지 않는다.
+
 ## DLT response
 
 `[accommodation-indexing-quarantined]` 알림에는 이벤트 타입, 숙소 UID, 원본 topic/partition/offset만 포함된다.

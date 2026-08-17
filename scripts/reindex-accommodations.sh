@@ -20,6 +20,8 @@ LOGSTASH_JDBC_USER="${LOGSTASH_JDBC_USER:-logstash}"
 LOGSTASH_JDBC_PASSWORD="${LOGSTASH_JDBC_PASSWORD:-logstash}"
 ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS="${ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS:-5}"
 ELASTICSEARCH_MAX_TIME_SECONDS="${ELASTICSEARCH_MAX_TIME_SECONDS:-30}"
+LOGSTASH_MAX_RUNTIME_SECONDS="${LOGSTASH_MAX_RUNTIME_SECONDS:-3600}"
+LOGSTASH_POLL_INTERVAL_SECONDS="${LOGSTASH_POLL_INTERVAL_SECONDS:-2}"
 
 fail() {
 	printf 'ERROR: %s\n' "$*" >&2
@@ -43,13 +45,32 @@ command -v "$JQ_BIN" >/dev/null 2>&1 || fail "jq executable not found: $JQ_BIN"
 	fail "ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS must be a positive integer"
 [[ "$ELASTICSEARCH_MAX_TIME_SECONDS" =~ ^[1-9][0-9]*$ ]] ||
 	fail "ELASTICSEARCH_MAX_TIME_SECONDS must be a positive integer"
+[[ "$LOGSTASH_MAX_RUNTIME_SECONDS" =~ ^[1-9][0-9]*$ ]] ||
+	fail "LOGSTASH_MAX_RUNTIME_SECONDS must be a positive integer"
+[[ "$LOGSTASH_POLL_INTERVAL_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ &&
+	"$LOGSTASH_POLL_INTERVAL_SECONDS" =~ [1-9] ]] ||
+	fail "LOGSTASH_POLL_INTERVAL_SECONDS must be greater than zero"
 target_prefix="${ES_ALIAS}-v"
 target_version="${ES_TARGET_INDEX#"$target_prefix"}"
 [[ "$ES_TARGET_INDEX" == "$target_prefix"* && "$target_version" =~ ^[0-9]{14}$ ]] ||
 	fail "target index must match ${ES_ALIAS}-vYYYYMMDDhhmmss"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/airbob-reindex.XXXXXX")"
-trap 'rm -rf "$WORK_DIR"' EXIT
+LOGSTASH_CONTAINER_ID=
+
+cleanup() {
+	local exit_code=$?
+	trap - EXIT
+	if [[ -n "$LOGSTASH_CONTAINER_ID" ]]; then
+		"$DOCKER_BIN" rm -f "$LOGSTASH_CONTAINER_ID" >/dev/null 2>&1 || true
+	fi
+	rm -rf "$WORK_DIR"
+	exit "$exit_code"
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 CURL_CONFIG_FILE=
 MYSQL_CLIENT_CONFIG="$WORK_DIR/mysql-client.cnf"
 REQUEST_NUMBER=0
@@ -166,6 +187,69 @@ mysql_published_count() {
 	printf '%s' "$count"
 }
 
+remove_logstash_container() {
+	local container_id="$LOGSTASH_CONTAINER_ID"
+	[[ -n "$container_id" ]] || return 0
+	"$DOCKER_BIN" rm -f "$container_id" >/dev/null || return 1
+	LOGSTASH_CONTAINER_ID=
+}
+
+print_logstash_logs() {
+	local container_id="$1"
+	"$DOCKER_BIN" logs "$container_id" ||
+		printf 'WARNING: could not collect Logstash logs for %s\n' "$container_id" >&2
+}
+
+run_logstash_with_watchdog() {
+	local container_id
+	local started_at
+	local now
+	local running
+	local exit_code
+
+	container_id="$(
+		"$DOCKER_BIN" compose -f "$COMPOSE_FILE" --profile reindex run -d \
+			-e "LOGSTASH_TARGET_INDEX=$ES_TARGET_INDEX" logstash
+	)" || fail "could not start Logstash reindex container"
+	container_id="$(printf '%s' "$container_id" | tr -d '[:space:]')"
+	[[ "$container_id" =~ ^[a-f0-9]{12,64}$ ]] ||
+		fail "Docker returned an invalid Logstash container ID"
+	LOGSTASH_CONTAINER_ID="$container_id"
+
+	started_at="$(date +%s)"
+	while true; do
+		running="$(
+			"$DOCKER_BIN" inspect --format '{{.State.Running}}' "$LOGSTASH_CONTAINER_ID"
+		)" || fail "could not inspect Logstash container $LOGSTASH_CONTAINER_ID"
+		case "$running" in
+			false) break ;;
+			true) ;;
+			*) fail "Docker returned an invalid running state for Logstash container $LOGSTASH_CONTAINER_ID" ;;
+		esac
+
+		now="$(date +%s)"
+		if ((now - started_at >= LOGSTASH_MAX_RUNTIME_SECONDS)); then
+			print_logstash_logs "$LOGSTASH_CONTAINER_ID"
+			"$DOCKER_BIN" stop -t 10 "$LOGSTASH_CONTAINER_ID" >/dev/null 2>&1 || true
+			remove_logstash_container ||
+				fail "could not remove timed-out Logstash container $LOGSTASH_CONTAINER_ID"
+			fail "Logstash exceeded maximum runtime of $LOGSTASH_MAX_RUNTIME_SECONDS seconds; target index $ES_TARGET_INDEX was retained"
+		fi
+
+		sleep "$LOGSTASH_POLL_INTERVAL_SECONDS"
+	done
+
+	exit_code="$(
+		"$DOCKER_BIN" inspect --format '{{.State.ExitCode}}' "$LOGSTASH_CONTAINER_ID"
+	)" || fail "could not read Logstash exit code from container $LOGSTASH_CONTAINER_ID"
+	[[ "$exit_code" =~ ^[0-9]+$ ]] ||
+		fail "Docker returned an invalid Logstash exit code for container $LOGSTASH_CONTAINER_ID"
+	print_logstash_logs "$LOGSTASH_CONTAINER_ID"
+	remove_logstash_container || fail "could not remove Logstash container $LOGSTASH_CONTAINER_ID"
+	[[ "$exit_code" == "0" ]] ||
+		fail "Logstash exited with code $exit_code; target index $ES_TARGET_INDEX was retained"
+}
+
 current_index="$(read_current_index)"
 api_request HEAD "/$ES_TARGET_INDEX"
 if [[ "$HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
@@ -181,8 +265,7 @@ expect_success "create target index"
 expect_acknowledged "create target index"
 
 info "Loading MySQL projection into $ES_TARGET_INDEX"
-"$DOCKER_BIN" compose -f "$COMPOSE_FILE" --profile reindex run --rm \
-	-e "LOGSTASH_TARGET_INDEX=$ES_TARGET_INDEX" logstash
+run_logstash_with_watchdog
 
 api_request POST "/$ES_TARGET_INDEX/_refresh"
 expect_success "refresh target index"
