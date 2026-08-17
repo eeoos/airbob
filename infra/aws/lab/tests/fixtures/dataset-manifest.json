@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "releaseKind": "pipeline-rehearsal",
   "datasetRelease": "rehearsal-v17",
-  "datasetRunId": "etl-20260816-001",
+  "datasetRunId": "20260816T001530Z-12345678",
   "source": {
     "datasetVersion": "nplus1-v1",
     "etlCommit": "0123456789abcdef0123456789abcdef01234567",

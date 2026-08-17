@@ -122,7 +122,7 @@ JSON
       schemaVersion: 1,
       releaseKind: $kind,
       datasetRelease: "rehearsal-v17",
-      datasetRunId: "etl-20260816-001",
+      datasetRunId: "20260816T001530Z-12345678",
       source: {
         datasetVersion: $datasetVersion,
         etlCommit: "0123456789abcdef0123456789abcdef01234567",
@@ -223,6 +223,34 @@ cp -R "$tmp_dir/rehearsal" "$tmp_dir/benchmark-secret-key"
 rewrite_benchmark_manifest "$tmp_dir/benchmark-secret-key" '.account.sessionToken = "hunter2"'
 expect_failure benchmark-secret-key "$validator" "$tmp_dir/benchmark-secret-key" rehearsal-v17 pipeline-rehearsal
 
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/benchmark-secret-value"
+rewrite_benchmark_manifest "$tmp_dir/benchmark-secret-value" \
+  '.notes = "aws_secret_access_key=hunter2"'
+expect_failure benchmark-secret-value \
+  "$validator" "$tmp_dir/benchmark-secret-value" rehearsal-v17 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/multi-document-manifest"
+{
+  printf '%s\n' '{"password":"hunter2"}'
+  cat "$tmp_dir/rehearsal/manifest.json"
+} > "$tmp_dir/multi-document-manifest/manifest.json"
+expect_failure multi-document-manifest \
+  "$validator" "$tmp_dir/multi-document-manifest" rehearsal-v17 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/multi-document-benchmark"
+{
+  printf '%s\n' '{"sessionToken":"hunter2"}'
+  cat "$tmp_dir/rehearsal/benchmark/manifest.json"
+} > "$tmp_dir/multi-document-benchmark/benchmark/manifest.json"
+multi_benchmark_sha=$(sha256_file "$tmp_dir/multi-document-benchmark/benchmark/manifest.json")
+jq --arg sha "$multi_benchmark_sha" '.source.benchmarkManifestSha256 = $sha' \
+  "$tmp_dir/multi-document-benchmark/manifest.json" \
+  > "$tmp_dir/multi-document-benchmark/manifest.next"
+mv "$tmp_dir/multi-document-benchmark/manifest.next" \
+  "$tmp_dir/multi-document-benchmark/manifest.json"
+expect_failure multi-document-benchmark \
+  "$validator" "$tmp_dir/multi-document-benchmark" rehearsal-v17 pipeline-rehearsal
+
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/duplicate-recent-id"
 rewrite_benchmark_manifest \
   "$tmp_dir/duplicate-recent-id" \
@@ -292,5 +320,13 @@ jq '.basePath = "elasticsearch/releases/another-release"' \
 mv "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.next" \
   "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.json"
 expect_failure cross-release-snapshot "$validator" "$tmp_dir/cross-release-snapshot" rehearsal-v17 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/multi-document-snapshot"
+{
+  printf '%s\n' '{"accessKey":"hunter2"}'
+  cat "$tmp_dir/evidence/elasticsearch/snapshot-reference.json"
+} > "$tmp_dir/multi-document-snapshot/elasticsearch/snapshot-reference.json"
+expect_failure multi-document-snapshot \
+  "$validator" "$tmp_dir/multi-document-snapshot" rehearsal-v17 evidence
 
 printf '%s\n' 'dataset release tests passed'

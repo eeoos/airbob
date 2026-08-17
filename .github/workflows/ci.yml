@@ -48,6 +48,11 @@ jobs:
           bash infra/aws/tests/network-egress-test.sh
           bash infra/aws/tests/service-bundle-publisher-test.sh
 
+      - name: Verify AWS dataset release production contracts
+        run: |
+          bash infra/aws/tests/dataset-attestation-test.sh
+          bash infra/aws/tests/dataset-release-assembler-test.sh
+
       - name: Verify AWS performance-lab operator contracts
         run: |
           bash infra/aws/tests/orchestration-lease-test.sh

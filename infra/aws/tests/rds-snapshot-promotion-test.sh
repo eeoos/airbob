@@ -21,7 +21,7 @@ cat > "$tmp_dir/receipt.json" <<'JSON'
   "schemaVersion": 1,
   "runId": "phase3-test",
   "datasetRelease": "rehearsal-v17",
-  "datasetRunId": "etl-20260816-001",
+  "datasetRunId": "20260816T001530Z-12345678",
   "releaseKind": "pipeline-rehearsal",
   "databaseBootstrap": "dump",
   "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
@@ -62,7 +62,7 @@ JSON
       DBSnapshotIdentifier:"airbob-dataset-rehearsal-v17",Status:"available",Engine:"mysql",Encrypted:true,
       TagList:[
         {Key:"DatasetRelease",Value:"rehearsal-v17"},
-        {Key:"DatasetRunId",Value:"etl-20260816-001"},
+        {Key:"DatasetRunId",Value:"20260816T001530Z-12345678"},
         {Key:"DumpSha256",Value:"94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"},
         {Key:"FlywayVersion",Value:"17"},
         {Key:"ManifestSha256",Value:$manifestSha},

@@ -43,7 +43,7 @@ variables {
   bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
   bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   dataset_release            = "rehearsal-v17"
-  dataset_manifest_sha256    = "18fb2dabd2b6a93f8a5c44bc5ae3f8387b1d65d01909c06e2dc963d0dbf51c2d"
+  dataset_manifest_sha256    = "584acb815e7747c726d229df9e561783ee845df549bdda7b07fdf3b044c41487"
   database_bootstrap         = "dump"
   rds_engine_version         = "8.0.40"
   app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -151,14 +151,14 @@ override_data {
       schemaVersion           = 1
       runId                   = "phase3-test"
       datasetRelease          = "rehearsal-v17"
-      datasetRunId            = "etl-20260816-001"
+      datasetRunId            = "20260816T001530Z-12345678"
       releaseKind             = "pipeline-rehearsal"
       databaseBootstrap       = "dump"
       dumpSha256              = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
       flywayVersion           = "17"
       migrationChecksumSha256 = "4444444444444444444444444444444444444444444444444444444444444444"
       schemaFingerprintSha256 = "5555555555555555555555555555555555555555555555555555555555555555"
-      datasetManifestSha256   = "18fb2dabd2b6a93f8a5c44bc5ae3f8387b1d65d01909c06e2dc963d0dbf51c2d"
+      datasetManifestSha256   = "584acb815e7747c726d229df9e561783ee845df549bdda7b07fdf3b044c41487"
       rdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
       rdsEngineVersion        = "8.0.40"
       outboxState             = "empty"
@@ -210,10 +210,10 @@ run "restore_rds_only_from_matching_snapshot" {
       encrypted              = true
       tags = {
         DatasetRelease = "rehearsal-v17"
-        DatasetRunId   = "etl-20260816-001"
+        DatasetRunId   = "20260816T001530Z-12345678"
         DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
         FlywayVersion  = "17"
-        ManifestSha256 = "18fb2dabd2b6a93f8a5c44bc5ae3f8387b1d65d01909c06e2dc963d0dbf51c2d"
+        ManifestSha256 = "584acb815e7747c726d229df9e561783ee845df549bdda7b07fdf3b044c41487"
       }
     }
   }

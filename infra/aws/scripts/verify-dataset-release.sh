@@ -50,6 +50,13 @@ fail_manifest() {
   exit 1
 }
 
+require_single_json_document() {
+  jq -se 'length == 1' "$1" >/dev/null || fail_manifest "$2"
+}
+
+require_single_json_document "$manifest" manifest-json-document
+require_single_json_document "$benchmark_manifest" benchmark-json-document
+
 common_jq='
   def exact_keys($wanted): (keys | sort) == ($wanted | sort);
   def sha256: type == "string" and test("^[0-9a-f]{64}$");
@@ -60,7 +67,7 @@ common_jq='
   .schemaVersion == 1 and
   .releaseKind == $expectedKind and
   .datasetRelease == $expectedRelease and
-  (.datasetRunId | type == "string" and test("^[a-z0-9][a-z0-9._-]{2,63}$")) and
+  (.datasetRunId | type == "string" and test("^([a-z0-9][a-z0-9._-]{2,63}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})$")) and
   (.source | exact_keys(["datasetVersion", "etlCommit", "seed", "profile", "manifestVersion", "canonicalPayloadSha256", "benchmarkManifestKey", "benchmarkManifestSha256"])) and
   (.source.etlCommit | type == "string" and test("^[0-9a-f]{40}$")) and
   (.source.seed | safe_name) and
@@ -112,10 +119,11 @@ jq -e \
 expected_benchmark_sha=$(jq -r '.source.benchmarkManifestSha256' "$manifest")
 actual_benchmark_sha=$(sha256_file "$benchmark_manifest")
 [[ "$actual_benchmark_sha" == "$expected_benchmark_sha" ]] || fail_manifest benchmark-sha256
-jq -e \
+  jq -e \
   --arg datasetVersion "$(jq -r '.source.datasetVersion' "$manifest")" '
     .datasetVersion == $datasetVersion and
-    ([.. | objects | keys[]] | all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
+    ([.. | objects | keys[]] | all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not)) and
+    ([.. | strings] | all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
   ' "$benchmark_manifest" >/dev/null || fail_manifest benchmark-common
 
 if [[ "$expected_kind" == pipeline-rehearsal ]]; then
@@ -183,6 +191,7 @@ case "$search_enabled" in
   true)
     snapshot_reference="$release_dir/elasticsearch/snapshot-reference.json"
     [[ -f "$snapshot_reference" && ! -L "$snapshot_reference" ]] || fail_manifest snapshot-reference
+    require_single_json_document "$snapshot_reference" snapshot-json-document
     jq -e '
       def exact_keys($wanted): (keys | sort) == ($wanted | sort);
       def sha256: type == "string" and test("^[0-9a-f]{64}$");

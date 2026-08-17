@@ -40,6 +40,89 @@ same `nplus1-v1` invariants consumed by k6, including the benchmark account,
 row capacities, target ids, and unique recently-viewed ids. The digest binds
 the exact bytes, so consumers must not reformat the file after publication.
 
+## Assemble a pipeline-rehearsal release
+
+The V17 ETL producer hands off one directory with exactly these ten regular,
+non-symlink files:
+
+```text
+PROVENANCE.txt
+SHA256SUMS
+airbob-production-seed.sql.gz
+backend-migrations.sha256
+benchmark-fixture.json
+database-fingerprint.tsv
+etl-code.sha256
+release-metadata.txt
+source.sha256
+traffic-v1.json
+```
+
+`SHA256SUMS` contains exactly nine canonical, filename-sorted entries—one for
+every file except itself. The source release metadata binds the `traffic-v1`
+manifest, its canonical ETL dataset run id, Flyway V17, and the
+`reset-flyway-v1-v17-etl-reseed-before-traffic` recovery contract. The traffic
+migration digest is the digest of the successful `flyway_schema_history`
+`version|script|checksum` stream; it is intentionally not the digest of
+`backend-migrations.sha256`. The migration inventory remains independently
+bound by `SHA256SUMS`. The provenance must select the `large` profile and
+enable both benchmark and traffic fixtures. Its service schema, traffic seed,
+anchor, validity window, and timezone must agree with `airbobdb` and the
+traffic manifest rather than merely being present.
+
+First restore the ETL dump into a writer-free local MySQL `airbobdb`, place the
+server in the read-only/quiesced state required by the capture script, and
+provide the connection values through `AIRBOB_DATASET_DB_*` environment
+variables. Do not put the password on the command line.
+
+```bash
+export AIRBOB_DATASET_DB_HOST=127.0.0.1
+export AIRBOB_DATASET_DB_PORT=3306
+export AIRBOB_DATASET_DB_USER=airbob_attestor
+export AIRBOB_DATASET_DB_NAME=airbobdb
+export AIRBOB_DATASET_DB_QUIESCED=true
+read -rs AIRBOB_DATASET_DB_PASSWORD
+export AIRBOB_DATASET_DB_PASSWORD
+
+infra/aws/scripts/capture-dataset-attestation.sh \
+  /path/to/etl-release /secure/path/attestation.json
+```
+
+Then create a caller-owned output directory with mode `0700` and assemble the
+pipeline-only release. Both supplied times are RFC3339 UTC timestamps. The
+evaluation time must be no earlier than the attestation capture, while
+`valid-until` must be the exact, still-future UTC instant derived from the
+source `traffic-v1.json` `validUntil` and `timezone`; callers cannot extend the
+source dataset window. If the producer also supplies `validUntilInstant`, the
+assembler requires it to equal that independently derived instant.
+
+```bash
+install -d -m 700 /secure/path/assembled-releases
+: "${AIRBOB_DATASET_EVALUATION_TIME:?set a current RFC3339 UTC time after attestation capture}"
+: "${AIRBOB_DATASET_VALID_UNTIL_UTC:?set the exact UTC conversion of source validUntil/timezone}"
+
+infra/aws/scripts/assemble-dataset-release.sh \
+  /path/to/etl-release \
+  /secure/path/attestation.json \
+  /secure/path/assembled-releases \
+  rehearsal-v17 \
+  "$AIRBOB_DATASET_EVALUATION_TIME" \
+  "$AIRBOB_DATASET_VALID_UNTIL_UTC"
+```
+
+The assembler snapshots its inputs into a private `<release>.incomplete`
+directory, verifies the exact ETL inventory, checksums, provenance, V17
+metadata, traffic manifest, and live-database attestation, and deterministically
+converts the gzip SQL bytes to single-threaded zstd. It copies the benchmark
+manifest byte-for-byte, writes `manifest.json` last, runs
+`verify-dataset-release.sh`, and only then atomically renames the directory to
+the final release name. Existing final or incomplete destinations are never
+overwritten.
+
+These two scripts are local-only. They do not call AWS, upload to S3, create an
+RDS snapshot, or start the performance lab. Publication remains a separate,
+explicit producer/admin action after the local release has been reviewed.
+
 ## Canonical database fingerprints
 
 After importing the dump into `airbobdb`, generate the Flyway checksum from
@@ -135,7 +218,8 @@ infra/aws/scripts/verify-dataset-release.sh \
 ```
 
 Use `evidence` as the final argument for a measurement release. The validator
-rejects missing or extra manifest keys, secret-bearing key names, duplicate
-coupon ids, stale Flyway lineage, expired evaluation windows, checksum drift,
-and mismatched search snapshot metadata. It validates a fixed finite schema;
-it is not a general secret scanner or proof that the data is representative.
+rejects missing or extra manifest keys, the enumerated secret markers in
+benchmark key names or string values, duplicate coupon ids, stale Flyway
+lineage, expired evaluation windows, checksum drift, and mismatched search
+snapshot metadata. It validates a fixed finite schema and marker family; it is
+not general DLP or proof that the data is representative.
