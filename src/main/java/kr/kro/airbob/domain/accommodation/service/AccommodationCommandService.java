@@ -1,7 +1,5 @@
 package kr.kro.airbob.domain.accommodation.service;
 
-import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
-
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -56,8 +54,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -73,7 +70,7 @@ public class AccommodationCommandService {
 	private final CommonCodeService commonCodeService;
 	private final AddressRepository addressRepository;
 	private final MemberRepository memberRepository;
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final GeocodingService geocodingService;
 	private final TimeZoneResolver timeZoneResolver;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
@@ -109,10 +106,7 @@ public class AccommodationCommandService {
 		recordHistory(accommodation, ChangeType.UPDATE, "숙소 정보 수정");
 
 		if (accommodation.getStatus() == AccommodationStatus.PUBLISHED) {
-			outboxEventPublisher.save(
-				EventType.ACCOMMODATION_UPDATED,
-				new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
-			);
+			searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		}
 
 		cacheInvalidationPublisher.publish(
@@ -126,10 +120,7 @@ public class AccommodationCommandService {
 		accommodation.delete();
 		recordHistory(accommodation, ChangeType.DELETE, "숙소 삭제");
 
-		outboxEventPublisher.save(
-			EventType.ACCOMMODATION_DELETED,
-			new AccommodationDeletedEvent(accommodation.getAccommodationUid().toString())
-		);
+		searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
@@ -142,10 +133,7 @@ public class AccommodationCommandService {
 		accommodation.publish();
 		recordHistory(accommodation, ChangeType.STATUS_CHANGE, "숙소 게시");
 
-		outboxEventPublisher.save(
-			EventType.ACCOMMODATION_UPDATED,
-			new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
-		);
+		searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}
@@ -161,10 +149,7 @@ public class AccommodationCommandService {
 		accommodation.unpublish();
 		recordHistory(accommodation, ChangeType.STATUS_CHANGE, "숙소 게시 중단");
 
-		outboxEventPublisher.save(
-			EventType.ACCOMMODATION_UPDATED,
-			new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
-		);
+		searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
 	}

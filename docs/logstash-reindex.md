@@ -7,7 +7,7 @@
 ## Safety Contract
 
 - 모든 애플리케이션 인스턴스에서 숙소 색인 consumer를 먼저 중지한다.
-- consumer offset은 유지하며 `ACCOMMODATION.events`의 변경 이벤트를 Kafka에 쌓아 둔다.
+- consumer offset은 유지하며 `ACCOMMODATION_INDEX.events`의 refresh 이벤트를 Kafka에 쌓아 둔다.
 - Logstash는 `LOGSTASH_TARGET_INDEX`가 없으면 시작되지 않으며 live alias에 직접 쓰지 않는다.
 - MySQL의 공개 숙소 건수와 새 인덱스 문서 건수가 다르면 alias를 변경하지 않는다.
 - 재색인 도중 다른 작업이 alias를 바꾸면 현재 작업은 alias를 변경하지 않는다.
@@ -33,8 +33,12 @@ FLUSH PRIVILEGES;
 
 ## One-time Alias Bootstrap
 
-애플리케이션은 `accommodations` 물리 인덱스를 자동 생성하지 않는다. 인덱스와 alias가
-모두 없는 환경에서는 아래 재색인 명령이 첫 버전 인덱스와 alias를 함께 생성한다.
+애플리케이션은 `accommodations` 물리 인덱스를 자동 생성하지 않는다. Elasticsearch의
+`action.auto_create_index` 역시 꺼져 있다. 인덱스와 alias가 모두 없으면 애플리케이션
+bootstrap이 canonical mapping으로 빈 `accommodations-vbootstrap` 인덱스와 write alias를
+원자적으로 생성한다. consumer는 alias가 하나의 version index를 가리키고
+`is_write_index: true`인지 검증된 뒤에만 시작한다. 애플리케이션을 먼저 기동하지
+않은 새 환경에서는 재색인 스크립트가 첫 버전 인덱스와 alias를 생성할 수 있다.
 
 이전 버전이 만든 `accommodations` 물리 인덱스가 있으면 스크립트는 데이터를 삭제하지
 않고 중단한다. 현재 환경처럼 데이터 적재 전인 경우에만 문서 건수가 0인지 확인한 후
@@ -126,7 +130,7 @@ alias는 정확히 하나의 `accommodations-v...` 인덱스를 가리키며 해
 consumer를 재개한 운영자가 최소 30분 동안 다음 항목을 확인한다.
 
 - `accommodation-indexing-group` lag가 0으로 수렴하고 다시 증가하지 않는다.
-- `ACCOMMODATION.events.DLT` 유입과 `accommodation-indexing-quarantined` 알림이 없다.
+- `ACCOMMODATION_INDEX.events.DLT` 유입과 `accommodation-indexing-quarantined` 알림이 없다.
 - 검색 API의 `SE001`/HTTP 503 비율이 배포 전 기준보다 증가하지 않는다.
 - `GET /_alias/accommodations` 결과가 정확히 하나의 버전 인덱스와
   `is_write_index: true`를 유지한다.
@@ -180,6 +184,7 @@ curl -X DELETE 'http://localhost:9200/accommodations-vYYYYMMDDhhmmss'
 - `accommodation_amenity.amenity_code`
 - 검색 가용 기간과 겹치는 확정·취소 처리 중 예약
 
-`logstash/config/elasticsearch/accommodations-index.json`이 버전 인덱스의 설정과
+`src/main/resources/elasticsearch/accommodations-index.json`이 애플리케이션 bootstrap과 재색인
+버전 인덱스의 설정과
 엄격한 mapping을 정의한다. 문서 필드를 바꿀 때 `AccommodationDocument`, Logstash SQL과
 이 파일을 같은 변경에서 갱신해야 한다.

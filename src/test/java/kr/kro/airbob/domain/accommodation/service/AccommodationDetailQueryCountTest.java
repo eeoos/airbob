@@ -50,7 +50,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -106,7 +106,7 @@ class AccommodationDetailQueryCountTest {
 	private CursorPageInfoCreator cursorPageInfoCreator;
 
 	@MockitoBean
-	private OutboxEventPublisher outboxEventPublisher;
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 
 	@MockitoBean
 	private GeocodingService geocodingService;

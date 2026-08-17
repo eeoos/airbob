@@ -1,7 +1,5 @@
 package kr.kro.airbob.domain.review.service;
 
-import static kr.kro.airbob.search.event.AccommodationIndexingEvents.*;
-
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -53,8 +51,7 @@ import kr.kro.airbob.domain.review.exception.ReviewUpdateForbiddenException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -74,7 +71,7 @@ public class ReviewService {
 	private final AccommodationReviewSummaryRepository summaryRepository;
 
 	private final CursorPageInfoCreator cursorPageInfoCreator;
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final S3ImageUploader s3ImageUploader;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	private final Clock clock;
@@ -96,10 +93,7 @@ public class ReviewService {
 		Review savedReview = reviewRepository.save(review);
 
 		updateReviewSummaryOnCreate(accommodation, request.rating());
-		outboxEventPublisher.save(
-			EventType.REVIEW_SUMMARY_CHANGED,
-			new ReviewSummaryChangedEvent(accommodation.getAccommodationUid().toString())
-		);
+		searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.REVIEW);
 
@@ -121,10 +115,8 @@ public class ReviewService {
 			int oldRating = review.getRating();
 			review.updateRating(request.rating());
 			summaryRepository.applyRatingChange(review.getAccommodation().getId(), oldRating, request.rating());
-			outboxEventPublisher.save(
-				EventType.REVIEW_SUMMARY_CHANGED,
-				new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
-			);
+			searchRefreshPublisher.requestRefresh(
+				review.getAccommodation().getAccommodationUid());
 			cacheInvalidationPublisher.publish(
 				review.getAccommodation().getId(), AccommodationDetailCacheInvalidationReason.REVIEW);
 		}
@@ -146,10 +138,8 @@ public class ReviewService {
 
 		updateReviewSummaryOnDelete(review.getAccommodation().getId(), review.getRating());
 
-		outboxEventPublisher.save(
-			EventType.REVIEW_SUMMARY_CHANGED,
-			new ReviewSummaryChangedEvent(review.getAccommodation().getAccommodationUid().toString())
-		);
+		searchRefreshPublisher.requestRefresh(
+			review.getAccommodation().getAccommodationUid());
 		cacheInvalidationPublisher.publish(
 			review.getAccommodation().getId(), AccommodationDetailCacheInvalidationReason.REVIEW);
 	}

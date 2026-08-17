@@ -58,7 +58,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationTransactionService 테스트")
@@ -71,6 +71,8 @@ class ReservationTransactionServiceTest {
 
 	@Mock
 	private OutboxEventPublisher outboxEventPublisher;
+	@Mock
+	private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock
 	private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock
@@ -108,6 +110,7 @@ class ReservationTransactionServiceTest {
 	void setUp() {
 		transactionService = new ReservationTransactionService(
 			outboxEventPublisher,
+			searchRefreshPublisher,
 			cursorPageInfoCreator,
 			memberRepository,
 			reviewRepository,
@@ -308,8 +311,8 @@ class ReservationTransactionServiceTest {
 			assertThat(savedHistory.getTimeZoneId()).isEqualTo(result.getTimeZoneId());
 			assertThat(savedHistory.getExpiresAt()).isEqualTo(result.getExpiresAt());
 
-			// verify event published
-			then(outboxEventPublisher).should().save(eq(EventType.RESERVATION_PENDING), any(ReservationEvent.ReservationPendingEvent.class));
+			then(outboxEventPublisher).shouldHaveNoInteractions();
+			then(searchRefreshPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -343,11 +346,9 @@ class ReservationTransactionServiceTest {
 
 			assertThat(result.getTotalPrice()).isZero();
 			assertThat(result.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-			then(outboxEventPublisher).should(never()).save(eq(EventType.RESERVATION_PENDING), any());
-			then(outboxEventPublisher).should().save(
-				eq(EventType.RESERVATION_CONFIRMED), any(ReservationEvent.ReservationConfirmedEvent.class));
-			then(outboxEventPublisher).should().save(
-				eq(EventType.RESERVATION_CHANGED), any(AccommodationIndexingEvents.ReservationChangedEvent.class));
+			then(outboxEventPublisher).shouldHaveNoInteractions();
+			then(searchRefreshPublisher).should().requestRefresh(
+				accommodation.getAccommodationUid());
 		}
 
 		@Test
@@ -555,8 +556,8 @@ class ReservationTransactionServiceTest {
 			assertThat(historyCaptor.getValue().getChangeType()).isEqualTo(ChangeType.CANCEL);
 			then(outboxEventPublisher).should(never())
 				.save(eq(EventType.RESERVATION_CANCELLATION_REQUESTED), any());
-			then(outboxEventPublisher).should(times(1)).save(
-				eq(EventType.RESERVATION_CHANGED), any(AccommodationIndexingEvents.ReservationChangedEvent.class));
+			then(searchRefreshPublisher).should(times(1)).requestRefresh(
+				accommodation.getAccommodationUid());
 		}
 
 		@Test
@@ -604,7 +605,7 @@ class ReservationTransactionServiceTest {
 				eq(EventType.RESERVATION_CANCELLATION_REQUESTED),
 				any(ReservationEvent.ReservationCancellationRequestedEvent.class));
 			then(couponUsageService).shouldHaveNoInteractions();
-			then(outboxEventPublisher).should(never()).save(eq(EventType.RESERVATION_CHANGED), any());
+			then(searchRefreshPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -729,11 +730,8 @@ class ReservationTransactionServiceTest {
 			then(historyRepository).should().save(historyCaptor.capture());
 			assertThat(historyCaptor.getValue().getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 			assertThat(historyCaptor.getValue().getChangeType()).isEqualTo(ChangeType.CANCEL);
-			then(outboxEventPublisher).should().save(
-				eq(EventType.RESERVATION_CHANGED),
-				argThat(event -> event instanceof AccommodationIndexingEvents.ReservationChangedEvent changed
-					&& changed.accommodationUid().equals(accommodation.getAccommodationUid().toString()))
-			);
+			then(searchRefreshPublisher).should().requestRefresh(
+				accommodation.getAccommodationUid());
 		}
 
 		@Test
@@ -785,11 +783,8 @@ class ReservationTransactionServiceTest {
 
 			then(couponUsageService).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).should().save(
-				eq(EventType.RESERVATION_CHANGED),
-				argThat(event -> event instanceof AccommodationIndexingEvents.ReservationChangedEvent changed
-					&& changed.accommodationUid().equals(accommodation.getAccommodationUid().toString()))
-			);
+			then(searchRefreshPublisher).should().requestRefresh(
+				accommodation.getAccommodationUid());
 		}
 
 		@Test
@@ -811,6 +806,7 @@ class ReservationTransactionServiceTest {
 			then(couponUsageService).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
 			then(outboxEventPublisher).shouldHaveNoInteractions();
+			then(searchRefreshPublisher).shouldHaveNoInteractions();
 		}
 
 		@Test
@@ -828,11 +824,8 @@ class ReservationTransactionServiceTest {
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 			then(couponUsageService).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
-			then(outboxEventPublisher).should(times(2)).save(
-				eq(EventType.RESERVATION_CHANGED),
-				argThat(event -> event instanceof AccommodationIndexingEvents.ReservationChangedEvent changed
-					&& changed.accommodationUid().equals(accommodation.getAccommodationUid().toString()))
-			);
+			then(searchRefreshPublisher).should(times(2)).requestRefresh(
+				accommodation.getAccommodationUid());
 		}
 	}
 

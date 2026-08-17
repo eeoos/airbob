@@ -2,6 +2,7 @@ package kr.kro.airbob.search.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -52,6 +53,30 @@ class AccommodationDocumentBuilderTest {
 
 	@InjectMocks
 	private AccommodationDocumentBuilder documentBuilder;
+
+	@Test
+	@DisplayName("검색 대상이 아닌 숙소는 부가 필드/연관 projection 없이 상태만 반환한다")
+	void skipsFullProjectionForUnpublishedAccommodation() {
+		UUID accommodationUid = UUID.fromString(
+			"89122b09-3d6f-482d-9a44-76948db7a7c7");
+		Accommodation unpublished = Accommodation.builder()
+			.accommodationUid(accommodationUid)
+			.status(AccommodationStatus.UNPUBLISHED)
+			.build();
+		when(accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid))
+			.thenReturn(Optional.of(unpublished));
+
+		AccommodationDocument document =
+			documentBuilder.buildAccommodationDocument(accommodationUid);
+
+		assertThat(document.id()).isEqualTo(accommodationUid.toString());
+		assertThat(document.status()).isEqualTo(AccommodationStatus.UNPUBLISHED.name());
+		verifyNoInteractions(
+			amenityRepository,
+			reservationRepository,
+			reviewSummaryRepository,
+			bookingWindowProvider);
+	}
 
 	@Test
 	@DisplayName("예약 범위는 숙소 UID로 조회하고 병합, 중복 제거, 정렬 없이 날짜 범위로 변환한다")
@@ -107,7 +132,7 @@ class AccommodationDocumentBuilderTest {
 			.thenReturn(projectedRanges);
 
 		AccommodationDocument document =
-			documentBuilder.buildAccommodationDocument(accommodationUid.toString());
+			documentBuilder.buildAccommodationDocument(accommodationUid);
 
 		assertThat(document.reservationRanges()).containsExactly(
 			new AccommodationDocument.DateRange(

@@ -18,22 +18,22 @@ import org.springframework.kafka.annotation.KafkaListener;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.kafka.consumer.AccommodationIndexingConsumer;
 import kr.kro.airbob.search.document.AccommodationDocument;
+import kr.kro.airbob.search.messaging.kafka.AccommodationSearchRefreshListener;
 
 class AccommodationReindexContractTest {
 
 	private static final Path INDEX_DEFINITION = Path.of(
-		"logstash/config/elasticsearch/accommodations-index.json");
+		"src/main/resources/elasticsearch/accommodations-index.json");
 	private static final Path LOGSTASH_PIPELINE = Path.of("logstash/pipeline/airbob.conf");
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Test
 	@DisplayName("애플리케이션은 물리 인덱스를 자동 생성하지 않고 alias만 사용한다")
-	void applicationUsesManagedAlias() throws NoSuchMethodException {
+	void applicationUsesManagedAlias() throws Exception {
 		Document document = AccommodationDocument.class.getAnnotation(Document.class);
-		KafkaListener listener = AccommodationIndexingConsumer.class
+		KafkaListener listener = AccommodationSearchRefreshListener.class
 			.getMethod("handle", String.class, org.springframework.kafka.support.Acknowledgment.class)
 			.getAnnotation(KafkaListener.class);
 
@@ -41,7 +41,13 @@ class AccommodationReindexContractTest {
 		assertThat(document.createIndex()).isFalse();
 		assertThat(document.writeTypeHint()).isEqualTo(WriteTypeHint.FALSE);
 		assertThat(listener.autoStartup())
-			.isEqualTo("${accommodation.indexing.kafka.auto-startup:true}");
+			.isEqualTo("#{@accommodationIndexAliasReadiness.shouldAutoStart()}");
+		assertThat(Files.exists(Path.of(
+			"logstash/config/elasticsearch/accommodations-index.json"))).isFalse();
+		assertThat(Files.readString(Path.of("docker-compose.yml")))
+			.contains("action.auto_create_index=false");
+		assertThat(Files.readString(Path.of("docker-compose.oci.yml")))
+			.contains("action.auto_create_index=false");
 	}
 
 	@Test

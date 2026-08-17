@@ -337,6 +337,7 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - action.auto_create_index=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - path.repo=/usr/share/elasticsearch/backup
     volumes:

@@ -60,7 +60,7 @@ import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,6 +70,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ReservationTransactionService {
 
 	private final OutboxEventPublisher outboxEventPublisher;
+	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 
 	private final MemberRepository memberRepository;
@@ -123,17 +124,8 @@ public class ReservationTransactionService {
 
 		historyRepository.save(ReservationHistory.of(reservation, ChangeType.CREATE, reason));
 
-		if (reservation.requiresPayment()) {
-			outboxEventPublisher.save(
-				EventType.RESERVATION_PENDING,
-				new ReservationEvent.ReservationPendingEvent(
-					reservation.getTotalPrice(),
-					null,
-					reservation.getReservationUid().toString()
-				)
-			);
-		} else {
-			publishComplimentaryReservationConfirmed(reservation);
+		if (!reservation.requiresPayment()) {
+			requestSearchRefresh(reservation);
 		}
 
 		log.info("예약 ID {} (UID: {}) {} 상태로 DB 저장 완료",
@@ -196,17 +188,7 @@ public class ReservationTransactionService {
 		couponUsageService.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.CANCEL, reason, "RESERVATION"));
-		publishReservationChanged(reservation);
-	}
-
-	private void publishComplimentaryReservationConfirmed(Reservation reservation) {
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CONFIRMED,
-			new ReservationEvent.ReservationConfirmedEvent(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()));
-		publishReservationChanged(reservation);
+		requestSearchRefresh(reservation);
 	}
 
 	@Transactional
@@ -220,7 +202,7 @@ public class ReservationTransactionService {
 		validateFullyCancelledPayment(payment);
 
 		if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-			publishReservationChanged(reservation);
+			requestSearchRefresh(reservation);
 			log.info("[예약 취소 성공-SKIP] 이미 취소 완료된 예약입니다. ES 갱신 이벤트를 재발행합니다. UID: {}",
 				reservationUid);
 			return;
@@ -230,7 +212,7 @@ public class ReservationTransactionService {
 		couponUsageService.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.CANCEL, "PG 결제 취소 성공", "KAFKA"));
-		publishReservationChanged(reservation);
+		requestSearchRefresh(reservation);
 		log.info("[예약 취소 성공] 예약 상태 CANCELLED 확정 완료. UID: {}", reservationUid);
 	}
 
@@ -241,13 +223,9 @@ public class ReservationTransactionService {
 		}
 	}
 
-	private void publishReservationChanged(Reservation reservation) {
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CHANGED,
-			new AccommodationIndexingEvents.ReservationChangedEvent(
-				reservation.getAccommodation().getAccommodationUid().toString()
-			)
-		);
+	private void requestSearchRefresh(Reservation reservation) {
+		searchRefreshPublisher.requestRefresh(
+			reservation.getAccommodation().getAccommodationUid());
 	}
 
 	@Transactional

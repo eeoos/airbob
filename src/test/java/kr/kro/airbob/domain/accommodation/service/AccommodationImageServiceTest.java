@@ -28,9 +28,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents.AccommodationUpdatedEvent;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 이미지 서비스 단위 테스트")
@@ -40,7 +38,7 @@ class AccommodationImageServiceTest {
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private S3ImageUploader s3ImageUploader;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Mock private OutboxEventPublisher outboxEventPublisher;
+	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Captor private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
 
 	@InjectMocks
@@ -149,9 +147,7 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.uploadImages(1L, List.of(file), 2L);
 
-		verify(outboxEventPublisher).save(
-			EventType.ACCOMMODATION_UPDATED,
-			new AccommodationUpdatedEvent(accommodationUid.toString()));
+		verify(searchRefreshPublisher).requestRefresh(accommodationUid);
 	}
 
 	@Test
@@ -171,7 +167,7 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.uploadImages(1L, List.of(file), 2L);
 
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -194,10 +190,8 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
-		var order = inOrder(outboxEventPublisher, s3ImageUploader);
-		order.verify(outboxEventPublisher).save(
-			EventType.ACCOMMODATION_UPDATED,
-			new AccommodationUpdatedEvent(accommodationUid.toString()));
+		var order = inOrder(searchRefreshPublisher, s3ImageUploader);
+		order.verify(searchRefreshPublisher).requestRefresh(accommodationUid);
 		order.verify(s3ImageUploader).delete(current.getImageUrl());
 	}
 

@@ -49,7 +49,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 명령 서비스 단위 테스트")
@@ -67,7 +67,7 @@ class AccommodationCommandServiceTest {
 	@Mock private GeocodingService geocodingService;
 	@Mock private TimeZoneResolver timeZoneResolver;
 	@Mock private MemberRepository memberRepository;
-	@Mock private OutboxEventPublisher outboxEventPublisher;
+	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	@Mock private Clock clock;
 
@@ -185,7 +185,7 @@ class AccommodationCommandServiceTest {
 			});
 		assertThat(accommodation.getName()).isEqualTo("공개 중인 숙소");
 		assertThat(accommodation.getAddress()).isSameAs(currentAddress);
-		verifyNoInteractions(addressRepository, outboxEventPublisher);
+		verifyNoInteractions(addressRepository, searchRefreshPublisher);
 	}
 
 	@Test
@@ -239,7 +239,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -274,7 +274,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -291,7 +291,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -337,7 +337,7 @@ class AccommodationCommandServiceTest {
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -362,7 +362,7 @@ class AccommodationCommandServiceTest {
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(accommodation.getCheckOutTime()).isEqualTo(LocalTime.of(11, 0));
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -378,7 +378,7 @@ class AccommodationCommandServiceTest {
 				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003"));
 
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -578,6 +578,7 @@ class AccommodationCommandServiceTest {
 		assertThat(accommodation.getAddress().getCity()).isEqualTo("Busan");
 		assertThat(accommodation.getTimeZoneId()).isEqualTo("Asia/Seoul");
 		verify(reservationRepository, never()).existsFutureInventoryReservation(anyLong(), any());
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -603,6 +604,7 @@ class AccommodationCommandServiceTest {
 		accommodationCommandService.updateAccommodation(1L, request, 2L);
 
 		assertThat(accommodation.getCheckInTime()).isEqualTo(LocalTime.of(16, 0));
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -621,6 +623,7 @@ class AccommodationCommandServiceTest {
 
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -635,6 +638,7 @@ class AccommodationCommandServiceTest {
 
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -653,6 +657,7 @@ class AccommodationCommandServiceTest {
 
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	private AddressRequest.AddressInfo seoulAddressInfo() {

@@ -61,6 +61,8 @@ toss:
 
 accommodation:
   indexing:
+    bootstrap:
+      enabled: false
     kafka:
       auto-startup: false
   detail-cache:

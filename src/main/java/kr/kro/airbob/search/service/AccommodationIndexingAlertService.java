@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
 
@@ -14,7 +13,6 @@ public class AccommodationIndexingAlertService {
 
 	private static final String ALERT_MESSAGE = """
 		[accommodation-indexing-quarantined]
-		eventType=%s
 		topic=%s
 		partition=%d
 		offset=%d
@@ -27,11 +25,9 @@ public class AccommodationIndexingAlertService {
 		String topic,
 		int partition,
 		long offset,
-		EventType eventType,
 		UUID accommodationUid
 	) {
 		String alert = ALERT_MESSAGE.formatted(
-			eventType != null ? eventType.name() : EventType.UNKNOWN.name(),
 			topic,
 			partition,
 			offset,
