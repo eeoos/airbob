@@ -66,9 +66,19 @@ public class SettlementService {
 			Thread.currentThread().interrupt();
 			log.warn("정산 생성 락 대기 중 인터럽트: month={}", month);
 		} finally {
-			if (acquired && lock.isHeldByCurrentThread()) {
-				lock.unlock();
+			if (acquired) {
+				releaseGenerateLock(lock, month);
 			}
+		}
+	}
+
+	private void releaseGenerateLock(RLock lock, YearMonth month) {
+		try {
+			// unlock이 소유자를 직접 검증하므로 별도 Redis 조회 없이 watchdog 정리까지 시도한다.
+			lock.unlock();
+		} catch (RuntimeException exception) {
+			// 락 해제 실패가 이미 끝난 집계 결과나 원래의 집계 예외를 덮어쓰지 않게 격리한다.
+			log.warn("정산 생성 락 해제 실패: month={}", month, exception);
 		}
 	}
 

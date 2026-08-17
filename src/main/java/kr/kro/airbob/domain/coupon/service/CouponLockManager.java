@@ -55,10 +55,9 @@ public class CouponLockManager {
 			return;
 		}
 		try {
-			if (lock.isHeldByCurrentThread()) {
-				lock.unlock();
-			}
-		} catch (Exception e) {
+			// unlock이 소유자 token을 원자적으로 검증한다. 별도 조회가 실패해 watchdog만 남는 상황을 피한다.
+			lock.unlock();
+		} catch (RuntimeException e) {
 			log.warn("쿠폰 락 해제 중 예외. 이미 만료됐을 수 있음.", e);
 		}
 	}

@@ -92,7 +92,7 @@ public class AccommodationDetailRedisConfig {
 	) {
 		Config config = new Config();
 		config.setUseScriptCache(true);
-		// 캐시 Redis 장애가 애플리케이션 시작 자체를 막지 않도록 최초 사용 시 연결한다.
+		// 캐시 Redis 장애가 애플리케이션 시작 자체를 막지 않도록 최초 사용 시 연결
 		config.setLazyInitialization(true);
 		config.setThreads(CACHE_LOCK_THREADS);
 		config.setNettyThreads(CACHE_LOCK_THREADS);
