@@ -2,6 +2,7 @@ package kr.kro.airbob.messaging.outbox;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -40,7 +41,7 @@ public class JpaOutboxWriter implements OutboxWriter {
 		String aggregateId = requireText(event.aggregateId(), "aggregateId");
 		String partitionKey = requireText(event.partitionKey(), "partitionKey");
 		UUID eventId = UUID.randomUUID();
-		Instant occurredAt = clock.instant();
+		Instant occurredAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
 		String payload = codec.encode(EventEnvelope.of(eventId, occurredAt, event));
 
 		repository.save(OutboxMessage.create(

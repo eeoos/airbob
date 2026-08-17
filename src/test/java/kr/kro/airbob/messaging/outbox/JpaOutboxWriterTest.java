@@ -79,6 +79,31 @@ class JpaOutboxWriterTest {
 		assertThat(transactional.propagation()).isEqualTo(Propagation.MANDATORY);
 	}
 
+	@Test
+	@DisplayName("row와 envelope 시각은 MySQL DATETIME(6) 정밀도로 동일하게 기록한다")
+	void normalizesOccurredAtToDatabasePrecision() {
+		Instant nanosecondClock = Instant.parse("2026-08-17T08:00:00.123456789Z");
+		JpaOutboxWriter writer = new JpaOutboxWriter(
+			repository,
+			new IntegrationEventCodec(JsonMapper.builder()
+				.addModule(new JavaTimeModule())
+				.propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+				.build()),
+			Clock.fixed(nanosecondClock, ZoneOffset.UTC)
+		);
+
+		writer.append(new TestEvent(AGGREGATE_UID, PARTITION_UID, 8L));
+
+		ArgumentCaptor<OutboxMessage> captor = ArgumentCaptor.forClass(OutboxMessage.class);
+		then(repository).should().save(captor.capture());
+		OutboxMessage message = captor.getValue();
+		assertThat(message.getOccurredAt())
+			.isEqualTo(Instant.parse("2026-08-17T08:00:00.123456Z"));
+		assertThat(message.getPayload())
+			.contains("\"occurred_at\":\"2026-08-17T08:00:00.123456Z\"")
+			.doesNotContain("123456789");
+	}
+
 	private record TestEvent(UUID uid, UUID reservationUid, long generation) implements IntegrationEvent {
 		@Override
 		public EventDescriptor descriptor() {
