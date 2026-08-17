@@ -5,6 +5,19 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.Assert;
 
+/**
+ * 숙소 상세 캐시의 만료, 대기, 장애 감지 시간을 정의
+ *
+ * @param ttl 정상 캐시의 기본 유지 시간
+ * @param ttlJitter 정상 캐시 만료 시점에 추가할 최대 분산 범위
+ * @param negativeTtl 404 캐시의 기본 유지 시간
+ * @param negativeTtlJitter 404 캐시 만료 시점에 추가할 최대 분산 범위
+ * @param lockWait 분산 락 획득을 기다리는 최대 시간
+ * @param localLoadWait 같은 JVM의 선행 DB 조회를 기다리는 최대 시간
+ * @param loadPermitTtl 캐시 쓰기 허가 토큰의 최대 유지 시간
+ * @param redisConnectTimeout 캐시 Redis 연결 제한 시간
+ * @param redisCommandTimeout 캐시 Redis 명령 제한 시간
+ */
 @ConfigurationProperties(prefix = "accommodation.detail-cache")
 public record AccommodationDetailCacheProperties(
 	boolean enabled,

@@ -3,6 +3,9 @@ package kr.kro.airbob.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.Assert;
 
+/**
+ * 세션과 예약 락이 사용하는 일반 Redis와 분리된 숙소 상세 캐시 Redis 접속 정보다.
+ */
 @ConfigurationProperties(prefix = "accommodation.detail-cache.redis")
 public record AccommodationDetailRedisProperties(
 	String host,

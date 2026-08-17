@@ -309,7 +309,7 @@ services:
 
   # --------------------------------------------------------
   # Logstash (one-shot reindex)
-  # 사용법: docker compose -f docker-compose.oci.yml --profile reindex run --rm logstash
+  # 사용법: COMPOSE_FILE=docker-compose.oci.yml CONFIRM_INDEXING_CONSUMER_PAUSED=true ./scripts/reindex-accommodations.sh
   # --------------------------------------------------------
   logstash:
     image: logstash:8.18.8

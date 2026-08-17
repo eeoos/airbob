@@ -26,7 +26,6 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -129,6 +128,8 @@ class ReservationServiceTest {
 			assertThat(result).isNotNull();
 			assertThat(result.reservationUid()).isEqualTo(mockReservation.getReservationUid().toString());
 			assertThat(result.amount()).isEqualTo(mockReservation.getTotalPrice());
+			assertThat(result.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+			assertThat(result.paymentRequired()).isTrue();
 
 			// verify interactions
 			then(holdService).should().isAnyDateHeld(
@@ -146,6 +147,32 @@ class ReservationServiceTest {
 			then(accommodationRepository).should()
 				.findBookingProjectionByIdAndStatus(1L, AccommodationStatus.PUBLISHED);
 			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID);
+			then(lockManager).should().releaseLocks(mockLock);
+		}
+
+		@Test
+		@DisplayName("0원으로 즉시 확정된 예약에는 Redis 결제 홀드를 만들지 않는다")
+		void complimentaryReservationSkipsPaymentHold() {
+			Reservation complimentary = Reservation.builder()
+				.id(mockReservation.getId())
+				.reservationUid(mockReservation.getReservationUid())
+				.accommodation(mockReservation.getAccommodation())
+				.guest(mockReservation.getGuest())
+				.status(ReservationStatus.CONFIRMED)
+				.totalPrice(0L)
+				.build();
+			givenPublishedBookingWindow();
+			given(holdService.isAnyDateHeld(anyLong(), any(LocalDate.class), any(LocalDate.class)))
+				.willReturn(false);
+			given(lockManager.acquireLocks(anyList())).willReturn(mockLock);
+			given(transactionService.createPendingReservationInTx(any(), anyLong(), anyString()))
+				.willReturn(complimentary);
+
+			ReservationResponse.Ready result = reservationService.createPendingReservation(validRequest, memberId);
+
+			assertThat(result.status()).isEqualTo(ReservationStatus.CONFIRMED);
+			assertThat(result.paymentRequired()).isFalse();
+			then(holdService).should(never()).holdDates(anyLong(), any(), any());
 			then(lockManager).should().releaseLocks(mockLock);
 		}
 
@@ -360,47 +387,6 @@ class ReservationServiceTest {
 
 			// then
 			then(transactionService).should().cancelReservationInTx(reservationUid, cancelRequest, memberId);
-		}
-	}
-
-	@Nested
-	@DisplayName("예약 확정 테스트")
-	class ConfirmReservationTest {
-
-		@Test
-		@DisplayName("결제 완료 이벤트 수신 시 transactionService에 위임된다")
-		void 정상_확정_위임() {
-			// given
-			String reservationUid = UUID.randomUUID().toString();
-			PaymentEvent.PaymentCompletedEvent event = new PaymentEvent.PaymentCompletedEvent(reservationUid);
-
-			// when
-			reservationService.confirmReservation(event);
-
-			// then
-			then(transactionService).should().confirmReservationInTx(reservationUid);
-		}
-	}
-
-	@Nested
-	@DisplayName("예약 만료 테스트")
-	class ExpireReservationTest {
-
-		@Test
-		@DisplayName("결제 실패 이벤트 수신 시 transactionService에 위임된다")
-		void 정상_만료_위임() {
-			// given
-			String reservationUid = UUID.randomUUID().toString();
-			PaymentEvent.PaymentFailedEvent event = new PaymentEvent.PaymentFailedEvent(
-				reservationUid,
-				"결제 시간 초과"
-			);
-
-			// when
-			reservationService.expireReservation(event);
-
-			// then
-			then(transactionService).should().expireReservationInTx(reservationUid, "결제 시간 초과");
 		}
 	}
 

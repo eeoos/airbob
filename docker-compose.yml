@@ -128,7 +128,7 @@ services:
 
   # --------------------------------------------------------
   # Logstash (one-shot reindex)
-  # 사용법: docker compose --profile reindex run --rm logstash
+  # 사용법: CONFIRM_INDEXING_CONSUMER_PAUSED=true ./scripts/reindex-accommodations.sh
   # --------------------------------------------------------
   logstash:
     image: logstash:8.18.8

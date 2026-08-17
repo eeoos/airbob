@@ -36,7 +36,7 @@ class PaymentCancellationProcessorTest {
 	private PaymentCancellationProcessor cancellationProcessor;
 
 	@Mock
-	private PaymentTransactionService paymentTransactionService;
+	private PaymentCancellationTransactionService paymentTransactionService;
 
 	@Mock
 	private PaymentRepository paymentRepository;

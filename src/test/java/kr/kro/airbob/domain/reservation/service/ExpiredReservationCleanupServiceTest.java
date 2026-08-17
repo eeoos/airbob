@@ -10,10 +10,10 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
@@ -48,6 +49,8 @@ class ExpiredReservationCleanupServiceTest {
 	private ReservationHistoryBatchWriter batchWriter;
 	@Mock
 	private ReservationHoldService holdService;
+	@Mock
+	private CouponUsageService couponUsageService;
 
 	private ExpiredReservationCleanupService service;
 	private Reservation first;
@@ -59,10 +62,26 @@ class ExpiredReservationCleanupServiceTest {
 			reservationRepository,
 			batchWriter,
 			holdService,
+			couponUsageService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		first = pendingReservation(1L, 11L, LocalDate.of(2026, 8, 1));
 		second = pendingReservation(2L, 12L, LocalDate.of(2026, 8, 3));
+	}
+
+	@Test
+	@DisplayName("만료한 예약의 쿠폰을 이력 저장과 같은 트랜잭션에서 일괄 복원한다")
+	void restoresCouponsForEveryExpiredReservation() {
+		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
+			ReservationStatus.PAYMENT_PENDING,
+			NOW
+		)).willReturn(List.of(first, second));
+
+		service.cleanupExpiredPendingReservations();
+
+		InOrder inOrder = inOrder(couponUsageService, batchWriter);
+		inOrder.verify(couponUsageService).restoreAll(List.of(first.getId(), second.getId()));
+		inOrder.verify(batchWriter).writeAll(anyList(), eq(NOW));
 	}
 
 	@Test
@@ -138,6 +157,7 @@ class ExpiredReservationCleanupServiceTest {
 		assertThat(cleaned).isZero();
 		then(batchWriter).shouldHaveNoInteractions();
 		then(holdService).shouldHaveNoInteractions();
+		then(couponUsageService).shouldHaveNoInteractions();
 	}
 
 	private Reservation pendingReservation(long reservationId, long accommodationId, LocalDate checkIn) {

@@ -1,0 +1,89 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "normalizer": {
+        "lowercase_normalizer": {
+          "type": "custom",
+          "filter": ["lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id": { "type": "keyword" },
+      "accommodationId": { "type": "long" },
+      "name": {
+        "type": "text",
+        "analyzer": "nori",
+        "fields": {
+          "english": { "type": "text", "analyzer": "standard" }
+        }
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "nori",
+        "fields": {
+          "english": { "type": "text", "analyzer": "standard" }
+        }
+      },
+      "basePrice": { "type": "long" },
+      "currency": { "type": "keyword" },
+      "type": { "type": "keyword" },
+      "status": { "type": "keyword" },
+      "timeZoneId": { "type": "keyword" },
+      "createdAt": { "type": "date", "format": "date_time" },
+      "location": { "type": "geo_point" },
+      "country": { "type": "keyword" },
+      "state": {
+        "type": "keyword",
+        "fields": {
+          "lower": { "type": "keyword", "normalizer": "lowercase_normalizer" }
+        }
+      },
+      "city": {
+        "type": "text",
+        "analyzer": "nori",
+        "fields": {
+          "english": { "type": "text", "analyzer": "standard" },
+          "keyword": { "type": "keyword" },
+          "lower": { "type": "keyword", "normalizer": "lowercase_normalizer" }
+        }
+      },
+      "district": {
+        "type": "text",
+        "analyzer": "nori",
+        "fields": {
+          "english": { "type": "text", "analyzer": "standard" }
+        }
+      },
+      "street": {
+        "type": "text",
+        "analyzer": "nori",
+        "fields": {
+          "english": { "type": "text", "analyzer": "standard" }
+        }
+      },
+      "addressDetail": {
+        "type": "text",
+        "analyzer": "nori",
+        "fields": {
+          "english": { "type": "text", "analyzer": "standard" },
+          "keyword": { "type": "keyword" }
+        }
+      },
+      "postalCode": { "type": "keyword" },
+      "maxGuests": { "type": "integer" },
+      "maxInfants": { "type": "integer" },
+      "maxPets": { "type": "integer" },
+      "amenityTypes": { "type": "keyword" },
+      "thumbnailUrl": { "type": "keyword" },
+      "reservationRanges": { "type": "date_range" },
+      "averageRating": { "type": "double" },
+      "reviewCount": { "type": "long" }
+    }
+  }
+}

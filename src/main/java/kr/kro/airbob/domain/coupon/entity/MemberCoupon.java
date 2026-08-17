@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import kr.kro.airbob.common.domain.BaseEntity;
+import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
 import kr.kro.airbob.domain.member.entity.Member;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -57,5 +58,21 @@ public class MemberCoupon extends BaseEntity {
 			.coupon(coupon)
 			.used(false)
 			.build();
+	}
+
+	public MemberCouponStatus status(LocalDateTime now) {
+		if (used) {
+			return MemberCouponStatus.USED;
+		}
+		if (!now.isBefore(coupon.getUsableUntil())) {
+			return MemberCouponStatus.EXPIRED;
+		}
+		if (!Boolean.TRUE.equals(coupon.getIsActive())) {
+			return MemberCouponStatus.UNAVAILABLE;
+		}
+		if (now.isBefore(coupon.getUsableFrom())) {
+			return MemberCouponStatus.UPCOMING;
+		}
+		return MemberCouponStatus.AVAILABLE;
 	}
 }

@@ -148,6 +148,39 @@ class ReservationTest {
 	class StatusTransitionTest {
 
 		@Test
+		@DisplayName("전액 할인된 PAYMENT_PENDING 예약은 PG 없이 즉시 확정한다")
+		void confirmsComplimentaryReservationWithoutPayment() {
+			Reservation reservation = createPendingReservation();
+			reservation.applyDiscount(reservation.getTotalPrice());
+
+			reservation.confirmComplimentary();
+
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+			assertThat(reservation.requiresPayment()).isFalse();
+		}
+
+		@Test
+		@DisplayName("결제 금액이 남은 예약은 무료 확정할 수 없다")
+		void rejectsComplimentaryConfirmationWithPositiveBalance() {
+			Reservation reservation = createPendingReservation();
+
+			assertThatThrownBy(reservation::confirmComplimentary)
+				.isInstanceOf(InvalidReservationStatusException.class);
+		}
+
+		@Test
+		@DisplayName("확정된 0원 예약은 PG 없이 즉시 취소한다")
+		void cancelsComplimentaryReservationWithoutPayment() {
+			Reservation reservation = createPendingReservation();
+			reservation.applyDiscount(reservation.getTotalPrice());
+			reservation.confirmComplimentary();
+
+			assertThat(reservation.cancelComplimentary()).isTrue();
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+			assertThat(reservation.cancelComplimentary()).isFalse();
+		}
+
+		@Test
 		@DisplayName("미만료 PAYMENT_PENDING 예약은 결제 처리를 선점한다")
 		void startsPaymentBeforeExpiry() {
 			Reservation reservation = createPendingReservation();
@@ -218,6 +251,24 @@ class ReservationTest {
 			reservation.expire();
 
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+		}
+
+		@Test
+		@DisplayName("결제 작업이 만료 전에 수락됐다면 PG 승인이 원래 만료 시각 뒤여도 확정된다")
+		void acceptedOperationCanConfirmAfterOriginalDeadline() {
+			Reservation reservation = processingReservationWithExpiry(NOW.minusSeconds(1));
+
+			assertThatCode(reservation::confirm).doesNotThrowAnyException();
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		}
+
+		@Test
+		@DisplayName("최종 결제 거절 만료는 PAYMENT_PROCESSING 상태에서만 허용된다")
+		void finalDeclineRequiresPaymentProcessingExactly() {
+			Reservation pending = createPendingReservation();
+
+			assertThatThrownBy(pending::expireAfterFinalPaymentDecline)
+				.isInstanceOf(InvalidReservationStatusException.class);
 		}
 
 		@Test
@@ -566,6 +617,15 @@ class ReservationTest {
 	private Reservation createPendingReservation() {
 		ReservationRequest.Create request = createValidRequest();
 		return Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
+	}
+
+	private Reservation processingReservationWithExpiry(Instant expiresAt) {
+		ReservationRequest.Create request = createValidRequest();
+		Instant acceptedAt = expiresAt.minusSeconds(1);
+		Reservation reservation = Reservation.createPendingReservation(
+			accommodation, guest, request, "ABC123", expiresAt.minusSeconds(15 * 60));
+		assertThat(reservation.startPayment(acceptedAt)).isTrue();
+		return reservation;
 	}
 
 	private ReservationRequest.Create createValidRequest() {

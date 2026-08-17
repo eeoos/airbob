@@ -20,6 +20,7 @@ import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
+import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
@@ -47,10 +48,10 @@ import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.event.ReservationEvent;
 import kr.kro.airbob.domain.reservation.exception.ReservationAccessDeniedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
-import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -88,6 +89,7 @@ public class ReservationTransactionService {
 		Accommodation accommodation = accommodationRepository.findByIdAndStatusForUpdate(
 			request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
+		validateOccupancy(accommodation, request.guestCount());
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new InvalidReservationDateException();
 		}
@@ -105,31 +107,47 @@ public class ReservationTransactionService {
 
 		String reservationCode = createReservationCode();
 
-		Reservation pendingReservation = Reservation.createPendingReservation(
+		Reservation reservation = Reservation.createPendingReservation(
 			accommodation, guest, request, reservationCode, now);
-		reservationRepository.save(pendingReservation);
+		reservationRepository.save(reservation);
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
 		if (request.couponId() != null) {
 			long discount = couponUsageService.use(
-				memberId, request.couponId(), pendingReservation.getId(), pendingReservation.getTotalPrice());
-			pendingReservation.applyDiscount(discount);
+				memberId, request.couponId(), reservation.getId(), reservation.getTotalPrice());
+			reservation.applyDiscount(discount);
+		}
+		if (!reservation.requiresPayment()) {
+			reservation.confirmComplimentary();
 		}
 
-		historyRepository.save(ReservationHistory.of(pendingReservation, ChangeType.CREATE, reason));
+		historyRepository.save(ReservationHistory.of(reservation, ChangeType.CREATE, reason));
 
-		// SAGA 시작 이벤트 발행
-		outboxEventPublisher.save(
-			EventType.RESERVATION_PENDING,
-			new ReservationEvent.ReservationPendingEvent(
-				pendingReservation.getTotalPrice(),
-				null, // 이 시점에는 paymentKey X
-				pendingReservation.getReservationUid().toString()
-			)
-		);
+		if (reservation.requiresPayment()) {
+			outboxEventPublisher.save(
+				EventType.RESERVATION_PENDING,
+				new ReservationEvent.ReservationPendingEvent(
+					reservation.getTotalPrice(),
+					null,
+					reservation.getReservationUid().toString()
+				)
+			);
+		} else {
+			publishComplimentaryReservationConfirmed(reservation);
+		}
 
-		log.info("예약 ID {} (UID: {}) PENDING 상태로 DB 저장 완료", pendingReservation.getId(), pendingReservation.getReservationUid());
-		return pendingReservation;
+		log.info("예약 ID {} (UID: {}) {} 상태로 DB 저장 완료",
+			reservation.getId(), reservation.getReservationUid(), reservation.getStatus());
+		return reservation;
+	}
+
+	private void validateOccupancy(Accommodation accommodation, int guestCount) {
+		OccupancyPolicy occupancyPolicy = accommodation.getOccupancyPolicy();
+		if (occupancyPolicy == null
+			|| occupancyPolicy.getMaxOccupancy() == null
+			|| guestCount > occupancyPolicy.getMaxOccupancy()) {
+			throw new ReservationOccupancyExceededException();
+		}
 	}
 
 	@Transactional
@@ -144,6 +162,13 @@ public class ReservationTransactionService {
 
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING) {
 			log.info("[예약 취소 요청-SKIP] 이미 취소 처리 중인 예약입니다. UID: {}", reservationUid);
+			return;
+		}
+		if (!reservation.requiresPayment()) {
+			if (request.cancelAmount() != null) {
+				throw new InvalidInputException("0원 예약에는 환불 금액을 지정할 수 없습니다.");
+			}
+			cancelComplimentaryReservation(reservation, request.cancelReason());
 			return;
 		}
 
@@ -164,107 +189,24 @@ public class ReservationTransactionService {
 		log.info("[예약 취소 요청]: Reservation UID {} 상태 CANCELLATION_PENDING 변경 및 이벤트 발행 완료", reservationUid);
 	}
 
-	@Transactional
-	public void confirmReservationInTx(String reservationUid) {
-
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(UUID.fromString(reservationUid))
-			.orElseThrow(ReservationNotFoundException::new);
-
-		if (reservation.getStatus().hasConfirmedPayment()) {
-			log.info("[결제 성공 확인-SKIP] 이미 결제가 확정된 예약: {}, status: {}",
-				reservation.getId(), reservation.getStatus());
+	private void cancelComplimentaryReservation(Reservation reservation, String reason) {
+		if (!reservation.cancelComplimentary()) {
 			return;
 		}
-		if (reservation.getStatus() != ReservationStatus.PAYMENT_PROCESSING) {
-			throw new ExpiredReservationConfirmationException();
-		}
-		Payment payment = paymentRepository.findByReservationReservationUidWithLock(
-			reservation.getReservationUid())
-			.orElseThrow(PaymentNotFoundException::new);
-		if (reservation.isExpiredAt(payment.getApprovedAt())) {
-			throw new ExpiredReservationConfirmationException();
-		}
+		couponUsageService.restore(reservation.getId());
+		historyRepository.save(ReservationHistory.ofSystem(
+			reservation, ChangeType.CANCEL, reason, "RESERVATION"));
+		publishReservationChanged(reservation);
+	}
 
-		reservation.confirm();
-
-		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, "결제 성공", "KAFKA"));
-
+	private void publishComplimentaryReservationConfirmed(Reservation reservation) {
 		outboxEventPublisher.save(
 			EventType.RESERVATION_CONFIRMED,
 			new ReservationEvent.ReservationConfirmedEvent(
 				reservation.getAccommodation().getId(),
 				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()
-			)
-		);
-
-		// es 색인
-		outboxEventPublisher.save(
-			EventType.RESERVATION_CHANGED,
-			new AccommodationIndexingEvents.ReservationChangedEvent(
-				reservation.getAccommodation().getAccommodationUid().toString()
-			)
-		);
-
-		log.info("[결제 성공 확인]: 예약 ID {} 상태 변경(CONFIRMED) 및 이벤트 발행 완료", reservation.getId());
-	}
-
-	@Transactional
-	public void expireReservationInTx(String reservationUid, String reason) {
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(UUID.fromString(reservationUid))
-			.orElseThrow(ReservationNotFoundException::new);
-
-		if (reservation.getStatus() == ReservationStatus.EXPIRED) {
-			log.info("[결제 실패 확인] 이미 만료 처리된 예약: {}", reservation.getId());
-			return;
-		}
-
-		reservation.expire();
-
-		historyRepository.save(ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, reason, "KAFKA"));
-
-		outboxEventPublisher.save(
-			EventType.RESERVATION_EXPIRED,
-			new ReservationEvent.ReservationExpiredEvent(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()
-			)
-		);
-
-		log.info("[결제 실패 확인] 예약 ID {} 상태 변경(EXPIRED) 사유: {}", reservation.getId(), reason);
-	}
-
-	@Transactional
-	public boolean preparePaymentCompensationInTx(String reservationUid, String reason) {
-		Reservation reservation = reservationRepository.findByReservationUidWithLock(
-			UUID.fromString(reservationUid))
-			.orElseThrow(ReservationNotFoundException::new);
-
-		if (reservation.getStatus() == ReservationStatus.EXPIRED) {
-			log.info("[결제 보상 준비-SKIP] 이미 만료된 예약입니다. UID: {}", reservationUid);
-			return true;
-		}
-		if (reservation.getStatus() != ReservationStatus.PAYMENT_PENDING
-			&& reservation.getStatus() != ReservationStatus.PAYMENT_PROCESSING) {
-			log.warn("[결제 보상 차단] 이미 결제가 확정된 예약은 취소하지 않습니다. UID: {}, status: {}",
-				reservationUid, reservation.getStatus());
-			return false;
-		}
-
-		reservation.expire();
-		historyRepository.save(ReservationHistory.ofSystem(
-			reservation, ChangeType.STATUS_CHANGE, reason, "DLQ"));
-		outboxEventPublisher.save(
-			EventType.RESERVATION_EXPIRED,
-			new ReservationEvent.ReservationExpiredEvent(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()
-			)
-		);
-		log.warn("[결제 보상 준비] 예약을 EXPIRED로 고정했습니다. UID: {}", reservationUid);
-		return true;
+				reservation.getCheckOutDate()));
+		publishReservationChanged(reservation);
 	}
 
 	@Transactional
@@ -507,13 +449,6 @@ public class ReservationTransactionService {
 
 	private String generateReservationCode() {
 		return RandomStringUtils.randomAlphanumeric(6).toUpperCase();
-	}
-
-
-	public Reservation findByReservationUidNullable(String reservationUid) {
-
-		return reservationRepository.findByReservationUid(UUID.fromString(reservationUid))
-			.orElse(null);
 	}
 
 	private Payment findPaymentByReservationUidNullable(UUID reservationUid) {

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
+import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -25,6 +26,7 @@ public class ExpiredReservationCleanupService {
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryBatchWriter historyBatchWriter;
 	private final ReservationHoldService holdService;
+	private final CouponUsageService couponUsageService;
 	private final Clock clock;
 
 	@Transactional
@@ -50,6 +52,7 @@ public class ExpiredReservationCleanupService {
 			})
 			.toList();
 
+		couponUsageService.restoreAll(expired.stream().map(Reservation::getId).toList());
 		historyBatchWriter.writeAll(histories, cutoff);
 		expired.forEach(reservation -> holdService.removeHold(
 			reservation.getAccommodation().getId(),

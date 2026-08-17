@@ -11,6 +11,9 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
+/**
+ * 고정된 enum 조합의 Meter를 시작 시 등록해 요청 중 동적 생성과 고카디널리티 증가를 막는다.
+ */
 @Component
 public class MicrometerAccommodationDetailCacheMetricRecorder
 	implements AccommodationDetailCacheMetricRecorder {

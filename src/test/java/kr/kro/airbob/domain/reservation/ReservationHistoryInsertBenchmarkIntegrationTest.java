@@ -191,7 +191,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("AFTER N=3은 proxied 운영 cleanup의 JDBC history와 dirty-check update를 함께 측정한다")
+	@DisplayName("AFTER N=3은 쿠폰 일괄 복원, JDBC history와 dirty-check update를 함께 측정한다")
 	void measuresActualAfterCleanup() {
 		var response = benchmarkService.run(
 			new ReservationHistoryInsertBenchmarkRequest(Variant.AFTER, 3)
@@ -206,8 +206,8 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 1)
 			.containsEntry(SqlQueryType.INSERT, 0)
-			.containsEntry(SqlQueryType.UPDATE, 3)
-			.containsEntry(SqlQueryType.TOTAL, 4);
+			.containsEntry(SqlQueryType.UPDATE, 4)
+			.containsEntry(SqlQueryType.TOTAL, 5);
 		assertThat(response.operation().jdbcBatchCalls()).isEqualTo(2);
 		assertThat(response.operation().jdbcSubmittedRows()).isEqualTo(3);
 		assertThat(response.operation().jdbcConfiguredBatchSize()).isEqualTo(2);

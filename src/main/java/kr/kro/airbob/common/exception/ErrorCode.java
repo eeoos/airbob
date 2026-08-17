@@ -15,11 +15,13 @@ public enum ErrorCode {
 	INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C003", "서버 내부에서 처리할 수 없는 오류가 발생했습니다."),
 	INVALID_TYPE_VALUE(HttpStatus.BAD_REQUEST, "C004", "유효하지 않은 타입 값입니다."),
 	CURSOR_ENCODING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C005", "커서 인코딩 중 오류가 발생했습니다."),
-	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "커서 페이지 크기는 1 이상이어야 합니다."),
+	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "유효하지 않은 커서 페이지 크기입니다."),
 	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
 	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
+	CURSOR_DECODING_ERROR(HttpStatus.BAD_REQUEST, "C010", "유효하지 않은 커서입니다."),
 	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
+	SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "SE001", "검색 서비스를 일시적으로 사용할 수 없습니다."),
 
 	// common code
 	COMMON_CODE_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "CC001", "존재하지 않는 공통 코드 그룹입니다."),
@@ -62,6 +64,7 @@ public enum ErrorCode {
 	RESERVATION_OUTSIDE_BOOKING_WINDOW(HttpStatus.BAD_REQUEST, "R010", "예약 숙박일은 오늘부터 3개월 이내만 선택할 수 있습니다."),
 	CANNOT_CONFIRM_EXPIRED_RESERVATION(HttpStatus.CONFLICT, "R011", "결제 유효 시간이 지난 예약은 확정할 수 없습니다."),
 	RESERVATION_LOCAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "R012", "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."),
+	RESERVATION_OCCUPANCY_EXCEEDED(HttpStatus.BAD_REQUEST, "R013", "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."),
 
 
 	// payment
@@ -69,6 +72,8 @@ public enum ErrorCode {
 	TOSS_PAYMENT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P002", "Toss Payments 예외"),
 	TOSS_PAYMENT_RESPONSE_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "P003", "토스페이먼츠 에러 응답 파싱 실패"),
 	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
+	PAYMENT_OPERATION_NOT_FOUND(HttpStatus.NOT_FOUND, "P005", "존재하지 않는 결제 작업입니다."),
+	PAYMENT_OPERATION_CONFLICT(HttpStatus.CONFLICT, "P006", "기존 결제 작업과 요청 내용이 일치하지 않습니다."),
 
 	// wishlist
 	WISHLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "W001", "존재하지 않는 위시리스트입니다."),

@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -39,6 +40,9 @@ public class PaymentTransaction extends BaseEntity {
 	private Long reservationId;
 
 	private Long paymentId; // 결제 확정 전(시도/실패/가상계좌)에는 null
+
+	@Column(unique = true)
+	private Long paymentOperationId;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
@@ -87,6 +91,30 @@ public class PaymentTransaction extends BaseEntity {
 			.build();
 	}
 
+	public static PaymentTransaction confirm(
+		ConfirmedPayment confirmed,
+		Reservation reservation,
+		Payment payment,
+		Long paymentOperationId
+	) {
+		ConfirmedPayment.VirtualAccountDetails virtualAccount = confirmed.virtualAccount();
+		return PaymentTransaction.builder()
+			.reservationId(reservation.getId())
+			.paymentId(payment.getId())
+			.paymentOperationId(paymentOperationId)
+			.transactionType(PaymentTransactionType.CONFIRM)
+			.status(confirmed.status())
+			.amount(confirmed.totalAmount())
+			.paymentKey(limitLength(confirmed.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
+			.orderId(confirmed.orderId())
+			.method(confirmed.method())
+			.virtualBankCode(virtualAccount != null ? virtualAccount.bankCode() : null)
+			.virtualAccountNumber(virtualAccount != null ? virtualAccount.accountNumber() : null)
+			.virtualCustomerName(virtualAccount != null ? virtualAccount.customerName() : null)
+			.virtualDueDate(virtualAccount != null ? virtualAccount.dueDate() : null)
+			.build();
+	}
+
 	// 결제 승인 실패
 	public static PaymentTransaction fail(PaymentRequest.Confirm event, Reservation reservation,
 		String failureCode, String failureMessage) {
@@ -97,6 +125,26 @@ public class PaymentTransaction extends BaseEntity {
 			.amount(Long.valueOf(event.amount()))
 			.paymentKey(limitLength(event.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
 			.orderId(event.orderId())
+			.method(PaymentMethod.UNKNOWN)
+			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
+			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))
+			.build();
+	}
+
+	public static PaymentTransaction fail(
+		PaymentOperation operation,
+		Reservation reservation,
+		String failureCode,
+		String failureMessage
+	) {
+		return PaymentTransaction.builder()
+			.reservationId(reservation.getId())
+			.paymentOperationId(operation.getId())
+			.transactionType(PaymentTransactionType.FAIL)
+			.status(PaymentStatus.ABORTED)
+			.amount(operation.getExpectedAmount())
+			.paymentKey(limitLength(operation.getPaymentKey(), PAYMENT_KEY_MAX_LENGTH))
+			.orderId(reservation.getReservationUid().toString())
 			.method(PaymentMethod.UNKNOWN)
 			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
 			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))

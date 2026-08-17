@@ -11,7 +11,6 @@ import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundExcepti
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.event.PaymentEvent;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -59,20 +58,22 @@ public class ReservationService {
 		RLock lock = lockManager.acquireLocks(lockKeys);
 
 		try {
-			Reservation pendingReservation = transactionService.createPendingReservationInTx(
+			Reservation reservation = transactionService.createPendingReservationInTx(
 				request,
 				memberId,
 				"사용자 예약 생성"
 			);
 
-			try {
-				holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
-			} catch (Exception e) {
-				log.error("Redis hold 설정 실패. DB 예약은 생성됨. accommodationId={}, checkIn={}, checkOut={}",
-					request.accommodationId(), request.checkInDate(), request.checkOutDate(), e);
+			if (reservation.requiresPayment()) {
+				try {
+					holdService.holdDates(request.accommodationId(), request.checkInDate(), request.checkOutDate());
+				} catch (Exception e) {
+					log.error("Redis hold 설정 실패. DB 예약은 생성됨. accommodationId={}, checkIn={}, checkOut={}",
+						request.accommodationId(), request.checkInDate(), request.checkOutDate(), e);
+				}
 			}
 
-			return ReservationResponse.Ready.from(pendingReservation);
+			return ReservationResponse.Ready.from(reservation);
 		} finally {
 			lockManager.releaseLocks(lock);
 		}
@@ -80,14 +81,6 @@ public class ReservationService {
 
 	public void cancelReservation(String reservationUid, PaymentRequest.Cancel request, Long memberId) {
 		transactionService.cancelReservationInTx(reservationUid, request, memberId);
-	}
-
-	public void confirmReservation(PaymentEvent.PaymentCompletedEvent event) {
-		transactionService.confirmReservationInTx(event.reservationUid());
-	}
-
-	public void expireReservation(PaymentEvent.PaymentFailedEvent event) {
-		transactionService.expireReservationInTx(event.reservationUid(), event.reason());
 	}
 
 	public void revertCancellation(ReservationEvent.ReservationCancellationRevertRequestedEvent event) {

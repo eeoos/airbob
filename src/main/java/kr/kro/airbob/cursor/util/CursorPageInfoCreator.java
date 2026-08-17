@@ -6,7 +6,10 @@ import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.cursor.dto.CursorData;
+import kr.kro.airbob.cursor.dto.CursorPayload;
 import kr.kro.airbob.cursor.dto.CursorResponse;
+import kr.kro.airbob.cursor.dto.ReviewCursorData;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -21,32 +24,16 @@ public class CursorPageInfoCreator {
 		Function<T, Long> idExtractor,
 		Function<T, LocalDateTime> createdAtExtractor) {
 
-		if (content.isEmpty()) {
-			return CursorResponse.PageInfo.builder()
-				.hasNext(false)
-				.nextCursor(null)
-				.currentSize(0)
-				.build();
-		}
-
-		String nextCursor = null;
-		if (hasNext) {
-			T lastEntity = content.getLast();
-			CursorResponse.CursorData cursorData = CursorResponse.CursorData.builder()
-				.id(idExtractor.apply(lastEntity))
-				.lastCreatedAt(createdAtExtractor.apply(lastEntity))
-				.build();
-			nextCursor = cursorEncoder.encode(cursorData);
-		}
-
-		return CursorResponse.PageInfo.builder()
-			.hasNext(hasNext)
-			.nextCursor(nextCursor)
-			.currentSize(content.size())
-			.build();
+		return createPageInfo(
+			content,
+			hasNext,
+			lastEntity -> new CursorData(
+				idExtractor.apply(lastEntity),
+				createdAtExtractor.apply(lastEntity)
+			)
+		);
 	}
 
-	// 리뷰용
 	public <T> CursorResponse.PageInfo createPageInfo(
 		List<T> content,
 		boolean hasNext,
@@ -54,29 +41,30 @@ public class CursorPageInfoCreator {
 		Function<T, LocalDateTime> createdAtExtractor,
 		Function<T, Integer> ratingExtractor) {
 
-		if (content.isEmpty()) {
-			return CursorResponse.PageInfo.builder()
-				.hasNext(false)
-				.nextCursor(null)
-				.currentSize(0)
-				.build();
-		}
-
-		String nextCursor = null;
-		if (hasNext) {
-			T lastEntity = content.getLast();
-			CursorResponse.ReviewCursorData reviewCursorData = new CursorResponse.ReviewCursorData(
+		return createPageInfo(
+			content,
+			hasNext,
+			lastEntity -> new ReviewCursorData(
 				idExtractor.apply(lastEntity),
 				createdAtExtractor.apply(lastEntity),
 				ratingExtractor.apply(lastEntity)
-			);
-			nextCursor = cursorEncoder.encode(reviewCursorData);
+			)
+		);
+	}
+
+	private <T> CursorResponse.PageInfo createPageInfo(
+		List<T> content,
+		boolean hasNext,
+		Function<T, ? extends CursorPayload> cursorFactory
+	) {
+		if (content.isEmpty()) {
+			return new CursorResponse.PageInfo(false, null, 0);
 		}
 
-		return CursorResponse.PageInfo.builder()
-			.hasNext(hasNext)
-			.nextCursor(nextCursor)
-			.currentSize(content.size())
-			.build();
+		String nextCursor = hasNext
+			? cursorEncoder.encode(cursorFactory.apply(content.getLast()))
+			: null;
+
+		return new CursorResponse.PageInfo(hasNext, nextCursor, content.size());
 	}
 }

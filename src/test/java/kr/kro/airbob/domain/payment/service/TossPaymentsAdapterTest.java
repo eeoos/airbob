@@ -1,57 +1,99 @@
 package kr.kro.airbob.domain.payment.service;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.http.HttpConnectTimeoutException;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.assertj.core.api.ThrowableAssert;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.EnableRetry;
-import org.springframework.retry.backoff.Sleeper;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.payment.exception.TossPaymentException;
-import kr.kro.airbob.domain.payment.exception.code.PaymentConfirmErrorCode;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationCommand;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationFailureClassifier;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 
-@DisplayName("TossPaymentsAdapter 테스트")
+@DisplayName("TossPaymentsAdapter tests")
 class TossPaymentsAdapterTest {
+
+	private static final String BASE_URL = "https://api.example.com";
+	private static final String CONFIRM_URL = BASE_URL + "/v1/payments/confirm";
+	private static final String INQUIRY_URL = BASE_URL + "/v1/payments/pk_test";
+	private static final UUID OPERATION_UID = UUID.fromString("4dc96ec8-d45f-4688-bb75-560c71b88d5d");
+	private static final String ORDER_ID = "5250ea1b-df85-46f4-a266-d1f34d4f2de9";
+	private static final String PROVIDER_IDEMPOTENCY_KEY = "airbob-confirm-" + OPERATION_UID;
+
 	private MockRestServiceServer server;
 	private RestClient.Builder builder;
 	private TossPaymentsAdapter adapter;
 
 	@BeforeEach
 	void setUp() {
-		builder = RestClient.builder().baseUrl("https://api.example.com");
+		builder = RestClient.builder().baseUrl(BASE_URL);
 		server = MockRestServiceServer.bindTo(builder).build();
-		adapter = new TossPaymentsAdapter(builder.build(), new ObjectMapper(), true);
+		adapter = adapter(builder.build());
 	}
 
 	@Test
 	@DisplayName("비활성화된 토스 결제 어댑터는 어떤 요청도 전송하지 않는다")
 	void disabledAdapterRejectsEveryExternalOperationBeforeSendingARequest() {
-		TossPaymentsAdapter disabledAdapter = new TossPaymentsAdapter(
-			builder.build(),
-			new ObjectMapper(),
-			false);
+		TossPaymentsAdapter disabledAdapter = adapter(builder.build(), false);
 
+		assertTossPaymentsDisabled(() -> disabledAdapter.confirm(command()));
+		assertTossPaymentsDisabled(() -> disabledAdapter.inquire(command()));
 		assertTossPaymentsDisabled(() -> disabledAdapter.confirmPayment("payment-key", "order-id", 1));
 		assertTossPaymentsDisabled(() -> disabledAdapter.cancelPayment("payment-key", "cancel", null));
 		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByPaymentKey("payment-key"));
 		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByOrderId("order-id"));
 		assertTossPaymentsDisabled(() -> disabledAdapter.issueVirtualAccount(null, "20", "guest"));
+
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("Spring 설정의 토스 결제 비활성화 값이 관리 빈에 적용된다")
+	void springManagedAdapterUsesDisabledPropertyBeforeSendingARequest() {
+		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+			context.getEnvironment().getPropertySources().addFirst(
+				new MapPropertySource("payment-guard-test", Map.of("payment.toss.enabled", false))
+			);
+			context.registerBean("tossPaymentRestClient", RestClient.class, builder::build);
+			context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+			context.registerBean(PaymentConfirmationFailureClassifier.class,
+				PaymentConfirmationFailureClassifier::new);
+			context.register(TossPaymentsAdapter.class);
+			context.refresh();
+
+			assertTossPaymentsDisabled(() -> context.getBean(TossPaymentsAdapter.class).confirm(command()));
+		}
 
 		server.verify();
 	}
@@ -63,101 +105,217 @@ class TossPaymentsAdapterTest {
 	}
 
 	@Test
-	@DisplayName("같은 결제 승인 재시도는 동일한 멱등키를 사용한다")
-	void confirmationUsesStableIdempotencyKey() {
-		String orderId = "reservation-order-123";
+	void confirmationUsesOperationIdempotencyKeyAndReturnsNormalizedPayment() {
+		server.expect(requestTo(CONFIRM_URL))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(header("Idempotency-Key", PROVIDER_IDEMPOTENCY_KEY))
+			.andExpect(content().json("""
+				{"paymentKey":"pk_test","orderId":"%s","amount":100000}
+				""".formatted(ORDER_ID)))
+			.andRespond(withSuccess(successBody("DONE"), MediaType.APPLICATION_JSON));
 
-		server.expect(requestTo("https://api.example.com/v1/payments/confirm"))
-			.andExpect(header(
-				TossPaymentsAdapter.IDEMPOTENCY_KEY_HEADER,
-				TossPaymentsAdapter.CONFIRMATION_IDEMPOTENCY_KEY_PREFIX + orderId
-			))
-			.andRespond(withSuccess(
-				"{\"paymentKey\":\"payment-key-123\",\"orderId\":\"reservation-order-123\",\"status\":\"DONE\"}",
-				MediaType.APPLICATION_JSON
-			));
+		PaymentGatewayResult result = adapter.confirm(command());
 
-		adapter.confirmPayment("payment-key-123", orderId, 100_000);
-
+		assertThat(result).isEqualTo(new PaymentGatewayResult.Approved(new ConfirmedPayment(
+			"pk_test",
+			ORDER_ID,
+			100_000L,
+			100_000L,
+			PaymentMethod.CARD,
+			PaymentStatus.DONE,
+			Instant.parse("2026-08-14T03:34:56Z"),
+			new ConfirmedPayment.VirtualAccountDetails(
+				"088",
+				"1234567890",
+				"홍길동",
+				Instant.parse("2026-08-15T06:00:00Z")
+			)
+		)));
 		server.verify();
 	}
 
 	@Test
-	@DisplayName("같은 결제 취소 재시도는 동일한 멱등키를 사용한다")
-	void cancellationUsesStableIdempotencyKey() {
-		String paymentKey = "payment-key-123";
+	void allowListedConfirmationFailureIsDeclinedWithoutProviderMessage() {
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withStatus(HttpStatus.FORBIDDEN)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"REJECT_CARD_PAYMENT","message":"provider account detail"}
+					"""));
 
-		server.expect(requestTo("https://api.example.com/v1/payments/payment-key-123/cancel"))
-			.andExpect(header(
-				TossPaymentsAdapter.IDEMPOTENCY_KEY_HEADER,
-				TossPaymentsAdapter.CANCELLATION_IDEMPOTENCY_KEY_PREFIX + paymentKey
-			))
+		PaymentGatewayResult result = adapter.confirm(command());
+
+		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.Declined.class, declined -> {
+			assertThat(declined.code()).isEqualTo("REJECT_CARD_PAYMENT");
+			assertThat(declined.message()).doesNotContain("provider account detail");
+		});
+		server.verify();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"ALREADY_PROCESSED_PAYMENT", "SOMETHING_NEW"})
+	void ambiguousConfirmation4xxRequiresInquiry(String code) {
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"%s","message":"provider detail"}
+					""".formatted(code)));
+
+		PaymentGatewayResult result = adapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@Test
+	void confirmation5xxRequiresInquiry() {
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"PROVIDER_ERROR","message":"provider infrastructure detail"}
+					"""));
+
+		PaymentGatewayResult result = adapter.confirm(command());
+
+		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.OutcomeUnknown.class, unknown ->
+			assertThat(unknown.message()).doesNotContain("provider infrastructure detail"));
+		server.verify();
+	}
+
+	@Test
+	void malformedConfirmationResponseRequiresInquiry() {
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withSuccess("{not-json", MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.confirm(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@Test
+	void mismatchedConfirmationResponseRequiresInquiry() {
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withSuccess(successBody("DONE").replace("pk_test", "different_payment"),
+				MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.confirm(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@Test
+	void connectFailureIsRetryable() {
+		TossPaymentsAdapter connectFailingAdapter = adapterThatFailsWith(new ConnectException("connection refused"));
+
+		PaymentGatewayResult result = connectFailingAdapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.RetryableFailure.class);
+	}
+
+	@Test
+	void connectTimeoutIsRetryable() {
+		TossPaymentsAdapter connectTimeoutAdapter =
+			adapterThatFailsWith(new HttpConnectTimeoutException("connect timed out"));
+
+		PaymentGatewayResult result = connectTimeoutAdapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.RetryableFailure.class);
+	}
+
+	@Test
+	void readTimeoutRequiresInquiry() {
+		TossPaymentsAdapter timeoutAdapter = adapterThatFailsWith(new SocketTimeoutException("read timed out"));
+
+		PaymentGatewayResult result = timeoutAdapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+	}
+
+	@Test
+	void responseLossRequiresInquiry() {
+		TossPaymentsAdapter responseLosingAdapter = adapterThatFailsWith(new IOException("connection reset"));
+
+		PaymentGatewayResult result = responseLosingAdapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+	}
+
+	@Test
+	void inquiry404IsNotFound() {
+		server.expect(requestTo(INQUIRY_URL))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withStatus(HttpStatus.NOT_FOUND)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"NOT_FOUND_PAYMENT","message":"provider detail"}
+					"""));
+
+		PaymentGatewayResult result = adapter.inquire(command());
+
+		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.NotFound.class, notFound -> {
+			assertThat(notFound.code()).isEqualTo("NOT_FOUND_PAYMENT");
+			assertThat(notFound.message()).doesNotContain("provider detail");
+		});
+		server.verify();
+	}
+
+	@Test
+	void inquiryDoneIsApproved() {
+		server.expect(requestTo(INQUIRY_URL))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withSuccess(successBody("DONE"), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.Approved.class);
+		server.verify();
+	}
+
+	@Test
+	void mismatchedInquiryResponseRequiresInquiry() {
+		server.expect(requestTo(INQUIRY_URL))
+			.andRespond(withSuccess(successBody("CANCELED").replace("pk_test", "different_payment"),
+				MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"ABORTED", "EXPIRED", "CANCELED"})
+	void inquiryTerminalFailureIsDeclined(String status) {
+		server.expect(requestTo(INQUIRY_URL))
+			.andRespond(withSuccess(successBody(status), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.Declined.class);
+		server.verify();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"READY", "IN_PROGRESS", "WAITING_FOR_DEPOSIT", "PARTIAL_CANCELED", "NEW_STATUS"})
+	void inquiryUnresolvedOrUnknownStatusRequiresInquiry(String status) {
+		server.expect(requestTo(INQUIRY_URL))
+			.andRespond(withSuccess(successBody(status), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@Test
+	void cancellationUsesStablePaymentKeyIdempotencyKey() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/payment-key-123/cancel"))
+			.andExpect(header("Idempotency-Key", "airbob-cancel-payment-key-123"))
 			.andRespond(withSuccess(
 				"{\"status\":\"CANCELED\",\"balanceAmount\":0}",
 				MediaType.APPLICATION_JSON
 			));
 
-		adapter.cancelPayment(paymentKey, "사용자 요청", null);
+		adapter.cancelPayment("payment-key-123", "사용자 요청", null);
 
 		server.verify();
 	}
 
 	@Test
-	@DisplayName("처리 중인 결제 승인 멱등 요청은 최종 실패로 확정하지 않는다")
-	void confirmationInProgressIsRetryable() {
-		server.expect(requestTo("https://api.example.com/v1/payments/confirm"))
-			.andRespond(withStatus(HttpStatus.CONFLICT)
-				.contentType(MediaType.APPLICATION_JSON)
-				.body("""
-					{"code":"IDEMPOTENT_REQUEST_PROCESSING","message":"이전 요청을 처리하고 있어요."}
-					"""));
-
-		assertThatThrownBy(() -> adapter.confirmPayment("payment-key-123", "reservation-order-123", 100_000))
-			.isInstanceOf(ResourceAccessException.class)
-			.hasMessageContaining("IDEMPOTENT_REQUEST_PROCESSING");
-
-		server.verify();
-	}
-
-	@Test
-	@DisplayName("처리 중인 결제 승인은 같은 멱등키로 재시도한 뒤 성공한다")
-	void retriesConfirmationInProgressWithStableIdempotencyKey() {
-		String orderId = "reservation-order-123";
-		for (int attempt = 0; attempt < 2; attempt++) {
-			server.expect(requestTo("https://api.example.com/v1/payments/confirm"))
-				.andExpect(header("Idempotency-Key", "airbob-confirm-" + orderId))
-				.andRespond(withStatus(HttpStatus.CONFLICT)
-					.contentType(MediaType.APPLICATION_JSON)
-					.body("""
-						{"code":"IDEMPOTENT_REQUEST_PROCESSING","message":"이전 요청을 처리하고 있어요."}
-						"""));
-		}
-		server.expect(requestTo("https://api.example.com/v1/payments/confirm"))
-			.andExpect(header("Idempotency-Key", "airbob-confirm-" + orderId))
-			.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
-			context.register(RetryProxyConfig.class);
-			context.registerBean(TossPaymentsAdapter.class, () -> adapter);
-			context.registerBean(Sleeper.class, () -> backOffPeriod -> { });
-			context.refresh();
-
-			TossPaymentsAdapter retryingAdapter = context.getBean(TossPaymentsAdapter.class);
-			assertThat(retryingAdapter.confirmPayment("payment-key-123", orderId, 100_000))
-				.isNotNull();
-		}
-		server.verify();
-	}
-
-	@Configuration(proxyBeanMethods = false)
-	@EnableRetry
-	static class RetryProxyConfig {
-	}
-
-	@Test
-	@DisplayName("처리 중인 결제 취소 멱등 요청은 최종 실패로 확정하지 않는다")
-	void cancellationInProgressIsRetryable() {
-		server.expect(requestTo("https://api.example.com/v1/payments/payment-key-123/cancel"))
+	void cancellationInProgressRemainsRetryable() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/payment-key-123/cancel"))
 			.andRespond(withStatus(HttpStatus.CONFLICT)
 				.contentType(MediaType.APPLICATION_JSON)
 				.body("""
@@ -167,125 +325,59 @@ class TossPaymentsAdapterTest {
 		assertThatThrownBy(() -> adapter.cancelPayment("payment-key-123", "사용자 요청", null))
 			.isInstanceOf(ResourceAccessException.class)
 			.hasMessageContaining("IDEMPOTENT_REQUEST_PROCESSING");
-
 		server.verify();
 	}
 
-	@Test
-	@DisplayName("토스의 최상위 오류 코드를 결제 승인 오류로 매핑한다")
-	void mapsTopLevelConfirmationErrorCode() {
-		server.expect(requestTo("https://api.example.com/v1/payments/confirm"))
-			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
-				.contentType(MediaType.APPLICATION_JSON)
-				.body("""
-					{"code":"INVALID_REQUEST","message":"잘못된 요청입니다."}
-					"""));
-
-		assertThatThrownBy(() -> adapter.confirmPayment("payment-key-123", "reservation-order-123", 100_000))
-			.isInstanceOfSatisfying(TossPaymentException.class, exception ->
-				assertThat(exception.getErrorCode()).isEqualTo(PaymentConfirmErrorCode.INVALID_REQUEST));
-
-		server.verify();
+	private TossPaymentsAdapter adapter(RestClient restClient) {
+		return adapter(restClient, true);
 	}
 
-	@Nested
-	@DisplayName("상수 값 검증 테스트")
-	class ConstantsTest {
+	private TossPaymentsAdapter adapter(RestClient restClient, boolean enabled) {
+		return new TossPaymentsAdapter(
+			restClient,
+			new ObjectMapper(),
+			new PaymentConfirmationFailureClassifier(),
+			enabled
+		);
+	}
 
-		@Test
-		@DisplayName("VALID_HOURS_VALUE는 24이다")
-		void VALID_HOURS_VALUE_검증() {
-			assertThat(TossPaymentsAdapter.VALID_HOURS_VALUE).isEqualTo(24);
-		}
+	private TossPaymentsAdapter adapterThatFailsWith(IOException failure) {
+		RestClient restClient = RestClient.builder()
+			.baseUrl(BASE_URL)
+			.requestFactory((uri, httpMethod) -> {
+				throw failure;
+			})
+			.build();
+		return adapter(restClient);
+	}
 
-		@Test
-		@DisplayName("CONFIRM_PATH가 올바르게 설정되어 있다")
-		void CONFIRM_PATH_검증() {
-			assertThat(TossPaymentsAdapter.CONFIRM_PATH).isEqualTo("/v1/payments/confirm");
-		}
+	private PaymentConfirmationCommand command() {
+		return new PaymentConfirmationCommand(
+			OPERATION_UID,
+			"pk_test",
+			ORDER_ID,
+			100_000L,
+			PROVIDER_IDEMPOTENCY_KEY
+		);
+	}
 
-		@Test
-		@DisplayName("CANCEL_PATH가 올바르게 설정되어 있다")
-		void CANCEL_PATH_검증() {
-			assertThat(TossPaymentsAdapter.CANCEL_PATH).isEqualTo("/v1/payments/{paymentKey}/cancel");
-		}
-
-		@Test
-		@DisplayName("VIRTUAL_ACCOUNTS_PATH가 올바르게 설정되어 있다")
-		void VIRTUAL_ACCOUNTS_PATH_검증() {
-			assertThat(TossPaymentsAdapter.VIRTUAL_ACCOUNTS_PATH).isEqualTo("/v1/virtual-accounts");
-		}
-
-		@Test
-		@DisplayName("GET_PATH_BY_PAYMENT_KEY가 올바르게 설정되어 있다")
-		void GET_PATH_BY_PAYMENT_KEY_검증() {
-			assertThat(TossPaymentsAdapter.GET_PATH_BY_PAYMENT_KEY).isEqualTo("/v1/payments/{paymentKey}");
-		}
-
-		@Test
-		@DisplayName("GET_PATH_BY_ORDER_ID가 올바르게 설정되어 있다")
-		void GET_PATH_BY_ORDER_ID_검증() {
-			assertThat(TossPaymentsAdapter.GET_PATH_BY_ORDER_ID).isEqualTo("/v1/payments/orders/{orderId}");
-		}
-
-		@Test
-		@DisplayName("PAYMENT_KEY 상수가 올바르게 설정되어 있다")
-		void PAYMENT_KEY_검증() {
-			assertThat(TossPaymentsAdapter.PAYMENT_KEY).isEqualTo("paymentKey");
-		}
-
-		@Test
-		@DisplayName("ORDER_ID 상수가 올바르게 설정되어 있다")
-		void ORDER_ID_검증() {
-			assertThat(TossPaymentsAdapter.ORDER_ID).isEqualTo("orderId");
-		}
-
-		@Test
-		@DisplayName("AMOUNT 상수가 올바르게 설정되어 있다")
-		void AMOUNT_검증() {
-			assertThat(TossPaymentsAdapter.AMOUNT).isEqualTo("amount");
-		}
-
-		@Test
-		@DisplayName("CANCEL_REASON 상수가 올바르게 설정되어 있다")
-		void CANCEL_REASON_검증() {
-			assertThat(TossPaymentsAdapter.CANCEL_REASON).isEqualTo("cancelReason");
-		}
-
-		@Test
-		@DisplayName("CANCEL_AMOUNT 상수가 올바르게 설정되어 있다")
-		void CANCEL_AMOUNT_검증() {
-			assertThat(TossPaymentsAdapter.CANCEL_AMOUNT).isEqualTo("cancelAmount");
-		}
-
-		@Test
-		@DisplayName("BANK 상수가 올바르게 설정되어 있다")
-		void BANK_검증() {
-			assertThat(TossPaymentsAdapter.BANK).isEqualTo("bank");
-		}
-
-		@Test
-		@DisplayName("CUSTOMER_NAME 상수가 올바르게 설정되어 있다")
-		void CUSTOMER_NAME_검증() {
-			assertThat(TossPaymentsAdapter.CUSTOMER_NAME).isEqualTo("customerName");
-		}
-
-		@Test
-		@DisplayName("VALID_HOURS 상수가 올바르게 설정되어 있다")
-		void VALID_HOURS_검증() {
-			assertThat(TossPaymentsAdapter.VALID_HOURS).isEqualTo("validHours");
-		}
-
-		@Test
-		@DisplayName("UNKNOWN_ERROR 상수가 올바르게 설정되어 있다")
-		void UNKNOWN_ERROR_검증() {
-			assertThat(TossPaymentsAdapter.UNKNOWN_ERROR).isEqualTo("UNKNOWN_ERROR");
-		}
-
-		@Test
-		@DisplayName("TOSS_API_SERVER_ERROR 상수가 올바르게 설정되어 있다")
-		void TOSS_API_SERVER_ERROR_검증() {
-			assertThat(TossPaymentsAdapter.TOSS_API_SERVER_ERROR).isEqualTo("토스 페이먼츠 API 서버 에러: ");
-		}
+	private String successBody(String status) {
+		return """
+			{
+			  "paymentKey":"pk_test",
+			  "orderId":"%s",
+			  "totalAmount":100000,
+			  "balanceAmount":100000,
+			  "method":"카드",
+			  "status":"%s",
+			  "approvedAt":"2026-08-14T12:34:56+09:00",
+			  "virtualAccount":{
+			    "bankCode":"088",
+			    "accountNumber":"1234567890",
+			    "customerName":"홍길동",
+			    "dueDate":"2026-08-15T15:00:00+09:00"
+			  }
+			}
+			""".formatted(ORDER_ID, status);
 	}
 }

@@ -166,6 +166,27 @@ class AccommodationDetailCacheTest {
 	}
 
 	@Test
+	@DisplayName("락 대기 중 채워진 negative cache도 DB loader를 사용하지 않는다")
+	void negativeHitAfterWaitingSkipsLoader() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenReturn(
+			null,
+			json(AccommodationDetailCacheValue.notFound()));
+		when(redissonClient.getLock(LOCK_KEY)).thenReturn(lock);
+		when(lock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(true);
+		when(lock.isHeldByCurrentThread()).thenReturn(true);
+		AtomicInteger loads = new AtomicInteger();
+
+		assertThatThrownBy(() -> cache.getOrLoad(1L, () -> {
+			loads.incrementAndGet();
+			return snapshot(1L, "database");
+		})).isInstanceOf(AccommodationNotFoundException.class);
+
+		assertThat(loads).hasValue(0);
+		verify(redisClient, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
+		verify(lock).unlock();
+	}
+
+	@Test
 	@DisplayName("miss이면 숙소별 락 안에서 다시 확인하고 DB 결과를 jitter TTL로 저장한다")
 	void missLoadsOnceAndStoresWithJitter() throws Exception {
 		AccommodationDetailSnapshot loaded = snapshot(1L, "database");
@@ -313,6 +334,44 @@ class AccommodationDetailCacheTest {
 
 		assertThat(actual).isEqualTo(expected);
 		verify(redisClient, never()).execute(any(RedisScript.class), anyList(), any(Object[].class));
+	}
+
+	@Test
+	@DisplayName("락 timeout 직후 캐시가 채워졌으면 DB를 다시 조회하지 않는다")
+	void lockTimeoutRechecksFilledCacheBeforeDbFallback() throws Exception {
+		AccommodationDetailSnapshot expected = snapshot(1L, "filled-while-waiting");
+		when(redisClient.get(CACHE_KEY)).thenReturn(
+			null,
+			json(AccommodationDetailCacheValue.found(expected)));
+		when(redissonClient.getLock(LOCK_KEY)).thenReturn(lock);
+		when(lock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(false);
+		AtomicInteger loads = new AtomicInteger();
+
+		AccommodationDetailSnapshot actual = cache.getOrLoad(1L, () -> {
+			loads.incrementAndGet();
+			return snapshot(1L, "database");
+		});
+
+		assertThat(actual).isEqualTo(expected);
+		assertThat(loads).hasValue(0);
+	}
+
+	@Test
+	@DisplayName("락 timeout 직후 negative cache가 채워졌으면 DB를 다시 조회하지 않는다")
+	void lockTimeoutRechecksNegativeCacheBeforeDbFallback() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenReturn(
+			null,
+			json(AccommodationDetailCacheValue.notFound()));
+		when(redissonClient.getLock(LOCK_KEY)).thenReturn(lock);
+		when(lock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(false);
+		AtomicInteger loads = new AtomicInteger();
+
+		assertThatThrownBy(() -> cache.getOrLoad(1L, () -> {
+			loads.incrementAndGet();
+			return snapshot(1L, "database");
+		})).isInstanceOf(AccommodationNotFoundException.class);
+
+		assertThat(loads).hasValue(0);
 	}
 
 	@Test

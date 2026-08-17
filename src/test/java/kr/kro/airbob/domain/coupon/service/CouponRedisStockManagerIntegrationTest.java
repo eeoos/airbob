@@ -65,6 +65,17 @@ class CouponRedisStockManagerIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("발급 판정에 사용할 Redis 서버 시각을 epoch millisecond로 조회한다")
+	void readsRedisServerTimeInEpochMilliseconds() {
+		long before = System.currentTimeMillis();
+
+		long redisNow = stockManager.currentEpochMillis();
+
+		long after = System.currentTimeMillis();
+		assertThat(redisNow).isBetween(before - 1_000L, after + 1_000L);
+	}
+
+	@Test
 	@DisplayName("쿠폰 재고는 기존 키를 덮어쓰지 않고 한 번만 준비한다")
 	void preparesOnlyOnceWithoutOverwriting() {
 		long now = System.currentTimeMillis();

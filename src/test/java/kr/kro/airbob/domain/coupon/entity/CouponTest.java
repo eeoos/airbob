@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 
 class CouponTest {
@@ -119,5 +120,43 @@ class CouponTest {
 
 		assertThat(inactive.isIssuable(ISSUE_START)).isFalse();
 		assertThat(inactive.isUsable(USABLE_FROM)).isFalse();
+	}
+
+	@Test
+	@DisplayName("발급 시작 전 쿠폰은 UPCOMING 상태다")
+	void upcomingIssuanceStatus() {
+		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
+
+		assertThat(coupon.issuanceStatus(ISSUE_START.minusNanos(1)))
+			.isEqualTo(CouponIssuanceStatus.UPCOMING);
+	}
+
+	@Test
+	@DisplayName("발급 기간 안에 재고가 남은 쿠폰은 OPEN 상태다")
+	void openIssuanceStatus() {
+		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
+
+		assertThat(coupon.issuanceStatus(ISSUE_START))
+			.isEqualTo(CouponIssuanceStatus.OPEN);
+	}
+
+	@Test
+	@DisplayName("발급 기간 안에 재고가 소진된 쿠폰은 SOLD_OUT 상태다")
+	void soldOutIssuanceStatus() {
+		Coupon coupon = Coupon.builder()
+			.name("매진 쿠폰")
+			.discountType(DiscountType.FIXED_AMOUNT)
+			.discountValue(5_000)
+			.issueStartAt(ISSUE_START)
+			.issueEndAt(ISSUE_END)
+			.usableFrom(USABLE_FROM)
+			.usableUntil(USABLE_UNTIL)
+			.isActive(true)
+			.totalQuantity(100)
+			.issuedQuantity(100)
+			.build();
+
+		assertThat(coupon.issuanceStatus(ISSUE_START))
+			.isEqualTo(CouponIssuanceStatus.SOLD_OUT);
 	}
 }

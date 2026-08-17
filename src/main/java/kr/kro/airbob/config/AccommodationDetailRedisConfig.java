@@ -19,6 +19,10 @@ import io.lettuce.core.SocketOptions;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheProperties;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailRedisClient;
 
+/**
+ * 숙소 상세 캐시 전용 Redis 클라이언트를 구성한다.
+ * Lettuce는 값과 Lua 연산에, Redisson은 분산 락에 사용하며 둘 다 짧은 timeout으로 fail-fast한다.
+ */
 @Configuration
 @EnableConfigurationProperties(AccommodationDetailRedisProperties.class)
 public class AccommodationDetailRedisConfig {
@@ -88,6 +92,7 @@ public class AccommodationDetailRedisConfig {
 	) {
 		Config config = new Config();
 		config.setUseScriptCache(true);
+		// 캐시 Redis 장애가 애플리케이션 시작 자체를 막지 않도록 최초 사용 시 연결한다.
 		config.setLazyInitialization(true);
 		config.setThreads(CACHE_LOCK_THREADS);
 		config.setNettyThreads(CACHE_LOCK_THREADS);

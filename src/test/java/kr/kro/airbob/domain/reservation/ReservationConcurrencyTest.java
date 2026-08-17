@@ -3,7 +3,10 @@ package kr.kro.airbob.domain.reservation;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +14,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -29,27 +35,37 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.AddressRepository;
+import kr.kro.airbob.domain.coupon.common.DiscountType;
+import kr.kro.airbob.domain.coupon.entity.Coupon;
+import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
+import kr.kro.airbob.domain.coupon.repository.CouponRepository;
+import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
-import kr.kro.airbob.domain.payment.service.PaymentApprovalService;
+import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
+import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationLockException;
+import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
+import kr.kro.airbob.domain.reservation.service.ReservationHoldService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.outbox.EventType;
@@ -82,9 +98,21 @@ class ReservationConcurrencyTest {
 	@Autowired
 	private ReservationHistoryRepository historyRepository;
 	@Autowired
-	private PaymentApprovalService paymentApprovalService;
+	private PaymentOperationCommandService paymentOperationCommandService;
+	@Autowired
+	private PaymentOperationRepository paymentOperationRepository;
 	@Autowired
 	private OutboxRepository outboxRepository;
+	@Autowired
+	private CouponRepository couponRepository;
+	@Autowired
+	private MemberCouponRepository memberCouponRepository;
+	@Autowired
+	private ExpiredReservationCleanupService cleanupService;
+	@Autowired
+	private ReservationHoldService reservationHoldService;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	@MockitoBean
 	private ElasticsearchClient elasticsearchClient;
@@ -99,7 +127,8 @@ class ReservationConcurrencyTest {
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
-		.withDatabaseName("airbobdb_test");
+		.withDatabaseName("airbobdb_test")
+		.withCommand("--log-bin-trust-function-creators=1");
 
 	@Container
 	private static final GenericContainer<?> redisContainer = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
@@ -124,8 +153,11 @@ class ReservationConcurrencyTest {
 	void setUp() {
 		given(bookingWindowProvider.currentFor(TIME_ZONE_ID)).willReturn(BOOKING_WINDOW);
 		outboxRepository.deleteAllInBatch();
+		paymentOperationRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
+		memberCouponRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
+		couponRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
 		addressRepository.deleteAllInBatch();
@@ -155,15 +187,150 @@ class ReservationConcurrencyTest {
 	@AfterEach
 	void tearDown() {
 		outboxRepository.deleteAllInBatch();
+		paymentOperationRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
+		memberCouponRepository.deleteAllInBatch();
 		reservationRepository.deleteAllInBatch();
+		couponRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
 		addressRepository.deleteAllInBatch();
 	}
 
 	@Test
-	@DisplayName("같은 결제 승인 요청이 동시에 도착해도 PG 호출 이벤트는 한 건만 만든다")
+	@DisplayName("최대 정원을 초과하면 예약과 이벤트가 남지 않는다")
+	void occupancyLimitIsEnforcedByTheAuthoritativeTransaction() {
+		LocalDate checkIn = WINDOW_START.plusDays(30);
+
+		assertThatThrownBy(() -> reservationService.createPendingReservation(
+			new ReservationRequest.Create(accommodation.getId(), checkIn, checkIn.plusDays(2), 3),
+			guests.getFirst().getId()))
+			.isInstanceOf(ReservationOccupancyExceededException.class);
+
+		assertThat(reservationRepository.count()).isZero();
+		assertThat(outboxRepository.count()).isZero();
+	}
+
+	@Test
+	@DisplayName("전액 할인 예약은 PG 없이 확정되고 취소도 로컬에서 쿠폰과 재고를 복원한다")
+	void complimentaryReservationCompletesWithoutPaymentGateway() {
+		Member guest = guests.getFirst();
+		Coupon coupon = issueFixedCoupon(guest, 200_000);
+		LocalDate checkIn = WINDOW_START.plusDays(30);
+
+		var ready = reservationService.createPendingReservation(
+			new ReservationRequest.Create(
+				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
+			guest.getId());
+
+		Reservation confirmed = reservationRepository.findByReservationUid(UUID.fromString(ready.reservationUid()))
+			.orElseThrow();
+		assertThat(ready.amount()).isZero();
+		assertThat(ready.status()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(ready.paymentRequired()).isFalse();
+		assertThat(confirmed.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(paymentOperationRepository.count()).isZero();
+		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
+		assertThat(outboxRepository.findAll()).extracting(row -> row.getEventType())
+			.containsExactlyInAnyOrder(
+				EventType.RESERVATION_CONFIRMED.name(),
+				EventType.RESERVATION_CHANGED.name());
+		assertThat(reservationHoldService.isAnyDateHeld(
+			accommodation.getId(), checkIn, checkIn.plusDays(2))).isFalse();
+
+		reservationService.cancelReservation(
+			ready.reservationUid(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());
+
+		Reservation cancelled = reservationRepository.findByReservationUid(confirmed.getReservationUid()).orElseThrow();
+		assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+		assertThat(memberCoupon(guest, coupon).isUsed()).isFalse();
+		assertThat(outboxRepository.findAll()).extracting(row -> row.getEventType())
+			.doesNotContain(EventType.RESERVATION_CANCELLATION_REQUESTED.name());
+	}
+
+	@Test
+	@DisplayName("결제 대기 만료 배치는 사용한 쿠폰을 함께 복원한다")
+	void expiredPendingReservationRestoresCoupon() {
+		Member guest = guests.getFirst();
+		Coupon coupon = issueFixedCoupon(guest, 50_000);
+		LocalDate checkIn = WINDOW_START.plusDays(30);
+		var ready = reservationService.createPendingReservation(
+			new ReservationRequest.Create(
+				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
+			guest.getId());
+		Reservation pending = reservationRepository.findByReservationUid(UUID.fromString(ready.reservationUid()))
+			.orElseThrow();
+		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
+		jdbcTemplate.update(
+			"UPDATE reservation SET expires_at = ? WHERE id = ?",
+			Timestamp.from(Instant.now().minusSeconds(5)),
+			pending.getId());
+
+		assertThat(cleanupService.cleanupExpiredPendingReservations()).isEqualTo(1);
+
+		assertThat(reservationRepository.findById(pending.getId()).orElseThrow().getStatus())
+			.isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(memberCoupon(guest, coupon).isUsed()).isFalse();
+	}
+
+	@Test
+	@DisplayName("만료 이력 저장이 실패하면 예약 만료와 쿠폰 복원을 함께 롤백한다")
+	void expirationFailureRollsBackCouponRestoration() {
+		Member guest = guests.getFirst();
+		Coupon coupon = issueFixedCoupon(guest, 50_000);
+		LocalDate checkIn = WINDOW_START.plusDays(30);
+		var ready = reservationService.createPendingReservation(
+			new ReservationRequest.Create(
+				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
+			guest.getId());
+		Reservation pending = reservationRepository.findByReservationUid(UUID.fromString(ready.reservationUid()))
+			.orElseThrow();
+		jdbcTemplate.update(
+			"UPDATE reservation SET expires_at = ? WHERE id = ?",
+			Timestamp.from(Instant.now().minusSeconds(5)),
+			pending.getId());
+		jdbcTemplate.execute("""
+			CREATE TRIGGER reservation_expiration_reject_history
+			BEFORE INSERT ON reservation_history
+			FOR EACH ROW
+			SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced history failure'
+			""");
+
+		try {
+			assertThatThrownBy(cleanupService::cleanupExpiredPendingReservations)
+				.isInstanceOf(DataAccessException.class);
+		} finally {
+			jdbcTemplate.execute("DROP TRIGGER IF EXISTS reservation_expiration_reject_history");
+		}
+
+		assertThat(reservationRepository.findById(pending.getId()).orElseThrow().getStatus())
+			.isEqualTo(ReservationStatus.PAYMENT_PENDING);
+		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
+	}
+
+	private Coupon issueFixedCoupon(Member member, int discountAmount) {
+		LocalDateTime now = LocalDateTime.now();
+		Coupon coupon = couponRepository.save(Coupon.builder()
+			.name(discountAmount + "원 할인")
+			.discountType(DiscountType.FIXED_AMOUNT)
+			.discountValue(discountAmount)
+			.issueStartAt(now.minusDays(1))
+			.issueEndAt(now.plusDays(1))
+			.usableFrom(now.minusDays(1))
+			.usableUntil(now.plusDays(1))
+			.isActive(true)
+			.issuedQuantity(1)
+			.build());
+		memberCouponRepository.save(MemberCoupon.issue(member, coupon));
+		return coupon;
+	}
+
+	private MemberCoupon memberCoupon(Member member, Coupon coupon) {
+		return memberCouponRepository.findByMemberIdAndCouponId(member.getId(), coupon.getId()).orElseThrow();
+	}
+
+	@Test
+	@DisplayName("같은 결제 승인 요청이 동시에 도착해도 하나의 결제 작업과 이벤트를 공유한다")
 	void concurrentPaymentApprovalClaimsOnce() throws InterruptedException {
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		Reservation pendingReservation = transactionService.createPendingReservationInTx(
@@ -183,17 +350,16 @@ class ReservationConcurrencyTest {
 		CountDownLatch readyLatch = new CountDownLatch(2);
 		CountDownLatch startLatch = new CountDownLatch(1);
 		CountDownLatch doneLatch = new CountDownLatch(2);
-		AtomicInteger claimedCount = new AtomicInteger();
 		AtomicInteger unexpectedFailCount = new AtomicInteger();
+		List<UUID> returnedOperationUids = java.util.Collections.synchronizedList(new ArrayList<>());
 
 		for (int i = 0; i < 2; i++) {
 			executorService.submit(() -> {
 				try {
 					readyLatch.countDown();
 					startLatch.await();
-					if (paymentApprovalService.preparePgCall(request)) {
-						claimedCount.incrementAndGet();
-					}
+					returnedOperationUids.add(paymentOperationCommandService
+						.requestConfirmation(request, guests.getFirst().getId()).operationId());
 				} catch (Exception e) {
 					unexpectedFailCount.incrementAndGet();
 				} finally {
@@ -207,17 +373,17 @@ class ReservationConcurrencyTest {
 		doneLatch.await();
 		executorService.shutdown();
 
-		Reservation claimedReservation = reservationRepository
+		Reservation reloadedReservation = reservationRepository
 			.findByReservationUid(pendingReservation.getReservationUid())
 			.orElseThrow();
-		long pgCallEventCount = outboxRepository.findAll().stream()
-			.filter(outbox -> EventType.PG_CALL_REQUESTED.name().equals(outbox.getEventType()))
-			.count();
 
 		assertThat(unexpectedFailCount.get()).isZero();
-		assertThat(claimedCount.get()).isEqualTo(1);
-		assertThat(claimedReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
-		assertThat(pgCallEventCount).isEqualTo(1);
+		assertThat(returnedOperationUids).hasSize(2).containsOnly(returnedOperationUids.getFirst());
+		assertThat(paymentOperationRepository.count()).isEqualTo(1);
+		assertThat(outboxRepository.findAll().stream()
+			.filter(row -> EventType.PAYMENT_EXECUTION_REQUESTED_V1.name().equals(row.getEventType())))
+			.hasSize(1);
+		assertThat(reloadedReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
 	}
 
 	@Test

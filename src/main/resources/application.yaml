@@ -68,10 +68,25 @@ slack:
     enabled: true
 
 payment:
+  operation:
+    lease-duration: ${PAYMENT_OPERATION_LEASE_DURATION:30s}
+    scheduler-delay: ${PAYMENT_OPERATION_SCHEDULER_DELAY:10s}
+    batch-size: ${PAYMENT_OPERATION_BATCH_SIZE:100}
+    max-attempts: ${PAYMENT_OPERATION_MAX_ATTEMPTS:5}
+    retry-initial-delay: ${PAYMENT_OPERATION_RETRY_INITIAL_DELAY:10s}
+    retry-max-delay: ${PAYMENT_OPERATION_RETRY_MAX_DELAY:5m}
+    recovery-publication-interval: ${PAYMENT_OPERATION_RECOVERY_PUBLICATION_INTERVAL:10s}
+    kafka:
+      topic: ${PAYMENT_OPERATION_TOPIC:PAYMENT_OPERATION.events}
+      group: ${PAYMENT_OPERATION_GROUP:payment-operation-execution-group}
+      attempts: ${PAYMENT_OPERATION_KAFKA_ATTEMPTS:4}
+      backoff-ms: ${PAYMENT_OPERATION_KAFKA_BACKOFF_MS:30000}
   toss:
     enabled: ${TOSS_PAYMENTS_ENABLED:true}
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com
+    connect-timeout: ${TOSS_CONNECT_TIMEOUT:2s}
+    read-timeout: ${TOSS_READ_TIMEOUT:10s}
 
 cloud:
   aws:
@@ -92,6 +107,13 @@ reservation:
     history-batch-size: ${RESERVATION_HISTORY_BATCH_SIZE:100}
 
 accommodation:
+  indexing:
+    kafka:
+      topic: ${ACCOMMODATION_INDEXING_TOPIC:ACCOMMODATION.events}
+      group: ${ACCOMMODATION_INDEXING_GROUP:accommodation-indexing-group}
+      auto-startup: ${ACCOMMODATION_INDEXING_AUTO_STARTUP:true}
+      attempts: ${ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS:4}
+      backoff-ms: ${ACCOMMODATION_INDEXING_KAFKA_BACKOFF_MS:30000}
   detail-cache:
     enabled: ${ACCOMMODATION_DETAIL_CACHE_ENABLED:true}
     ttl: ${ACCOMMODATION_DETAIL_CACHE_TTL:10m}
