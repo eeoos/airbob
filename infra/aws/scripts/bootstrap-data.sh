@@ -100,7 +100,7 @@ for attempt in $(seq 1 120); do
 done
 
 if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
-  zstd --decompress --stdout "$dump" | mysql_exec >/dev/null
+  zstd --decompress --stdout "$dump" | mysql_exec airbobdb >/dev/null
 fi
 
 mysql_exec --execute="CALL mysql.rds_set_configuration('binlog retention hours', 24);" >/dev/null
