@@ -57,6 +57,8 @@ assert_contains "$operator" 'switch requires an active lab ALB'
 assert_contains "$operator" 'persistent resource deletion is outside the lab-state boundary'
 assert_contains "$operator" 'terraform-outputs.redacted.json'
 assert_contains "$operator" 'run manifest expiry is invalid'
+assert_contains "$operator" 'dataset completion manifest is unavailable'
+assert_contains "$operator" 'dataset completion manifest is invalid'
 assert_contains "$operator" 'verify_public_aws_smoke'
 assert_contains "$operator" 'for attempt in 1 2 3'
 assert_contains "$operator" 'Terraform state run changed before lease acquisition'
@@ -202,6 +204,8 @@ case " $* " in
     [[ -n "$destination" ]] || exit 1
     if [[ "$*" == *'runs/'*'/operator.json'* ]]; then
       cat "${FAKE_RUN_MANIFEST:?}" > "$destination"
+    elif [[ "$*" == *'datasets/'*'/manifest.json'* ]]; then
+      cat "${FAKE_DATASET_MANIFEST:?}" > "$destination"
     elif [[ "$*" == *'.sha256'* ]]; then
       printf '%s  %s\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' bundle.tar.gz > "$destination"
     else
@@ -265,10 +269,24 @@ printf '%s\n' '{"status":"UP"}'
 EOF
 chmod 700 "$temp_dir/operator-bin/aws" "$temp_dir/operator-bin/terraform" "$temp_dir/operator-bin/curl"
 
+cat > "$temp_dir/dataset-manifest.json" <<'JSON'
+{
+  "schemaVersion": 1,
+  "releaseKind": "pipeline-rehearsal",
+  "datasetRelease": "fixture-v17",
+  "mysql": {
+    "flywayVersion": "17",
+    "expectedTableRows": {
+      "flyway_schema_history": 17
+    }
+  }
+}
+JSON
+
 jq -n \
   --arg runId lab-partial-down \
   --argjson expiresAt 2000000000 \
-  '{schemaVersion:1,runId:$runId,expiresAt:$expiresAt,fencingToken:41,mode:"performance",policy:"isolated-read",cacheEnabled:false,requestTarget:"",loadGeneratorEnabled:false,amiId:"ami-0123456789abcdef0",ociOriginIpv4:"203.0.113.10",databaseBootstrap:"dump",rdsSnapshotIdentifier:"",rdsEngineVersion:"8.0.42",bundleCommit:"cccccccccccccccccccccccccccccccccccccccc",bundleSha256:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",datasetRelease:"fixture-v16",datasetManifestSha256:"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",appImageReference:"942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",infraImageReferences:{},verifiedProbeInstanceId:"i-0123456789abcdef0"}' \
+  '{schemaVersion:1,runId:$runId,expiresAt:$expiresAt,fencingToken:41,mode:"performance",policy:"isolated-read",cacheEnabled:false,requestTarget:"",loadGeneratorEnabled:false,amiId:"ami-0123456789abcdef0",ociOriginIpv4:"203.0.113.10",databaseBootstrap:"dump",rdsSnapshotIdentifier:"",rdsEngineVersion:"8.0.42",bundleCommit:"cccccccccccccccccccccccccccccccccccccccc",bundleSha256:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",datasetRelease:"fixture-v17",datasetManifestSha256:"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",appImageReference:"942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",infraImageReferences:{},verifiedProbeInstanceId:"i-0123456789abcdef0"}' \
   > "$temp_dir/run-manifest.json"
 
 run_fake_up() {
@@ -277,11 +295,12 @@ run_fake_up() {
     FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
     FAKE_LAB_CONTRACT="$temp_dir/lab-contract.json" \
     FAKE_RUN_MANIFEST="$temp_dir/run-manifest.json" \
+    FAKE_DATASET_MANIFEST="${FAKE_DATASET_MANIFEST:-$temp_dir/dataset-manifest.json}" \
     FAKE_OPERATOR_TEMP_PREFIX="${TMPDIR:-/tmp}/airbob-lab." \
     FAKE_STATE_EXISTS="${FAKE_STATE_EXISTS:-false}" FAKE_STATE_RUN_ID="${FAKE_STATE_RUN_ID:-lab-partial-down}" \
     MODE=performance POLICY=isolated-read \
     IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-    DATASET_RELEASE=fixture-v16 BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
+    DATASET_RELEASE=fixture-v17 BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
     AMI_ID=ami-0123456789abcdef0 OCI_ORIGIN_IPV4="$oci_origin" \
     RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS=1 \
     RUN_ID="$1" FAKE_PUBLIC_SMOKE_FAILURE="${2:-false}" \
@@ -303,6 +322,55 @@ if FAKE_STATE_EXISTS=true FAKE_STATE_RUN_ID=lab-existing-run \
 fi
 if grep -Eq 'dns |terraform .* (plan|apply|destroy)' "$temp_dir/operator-execution.log"; then
   fail "active-run replacement rejection reached an infrastructure mutation"
+fi
+
+jq '.mysql.flywayVersion = "16"' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-v16.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-v16.json" \
+  run_fake_up lab-v16-dataset >"$temp_dir/v16.out" 2>"$temp_dir/v16.err"; then
+  fail "operator accepted a V16 dataset completion manifest"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
+  fail "V16 dataset rejection reached Terraform plan/apply or network verification"
+fi
+if grep -Eq '^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' "$temp_dir/operator-execution.log"; then
+  fail "V16 dataset rejection reached an AWS mutation"
+fi
+
+jq '.mysql.expectedTableRows.flyway_schema_history = 16' "$temp_dir/dataset-manifest.json" \
+  > "$temp_dir/dataset-manifest-history-v16.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-history-v16.json" \
+  run_fake_up lab-v16-history >"$temp_dir/v16-history.out" 2>"$temp_dir/v16-history.err"; then
+  fail "operator accepted a V17 manifest with a V16 Flyway history row count"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
+  fail "Flyway history rejection reached Terraform plan/apply or network verification"
+fi
+if grep -Eq '^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' "$temp_dir/operator-execution.log"; then
+  fail "Flyway history rejection reached an AWS mutation"
+fi
+
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/missing-dataset-manifest.json" \
+  run_fake_up lab-missing-dataset >"$temp_dir/missing.out" 2>"$temp_dir/missing.err"; then
+  fail "operator accepted an absent dataset completion manifest"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
+  fail "absent dataset rejection reached Terraform plan/apply or network verification"
+fi
+
+jq '.mysql.password = "must-not-be-replayed"' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-secret.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-secret.json" \
+  run_fake_up lab-secret-dataset >"$temp_dir/secret.out" 2>"$temp_dir/secret.err"; then
+  fail "operator accepted a secret-bearing dataset completion manifest"
+fi
+if grep -Fq 'must-not-be-replayed' "$temp_dir/secret.out" "$temp_dir/secret.err" "$temp_dir/operator-execution.log"; then
+  fail "operator replayed a rejected dataset manifest value"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
+  fail "secret-bearing dataset rejection reached Terraform plan/apply or network verification"
 fi
 
 : > "$temp_dir/operator-execution.log"
@@ -337,7 +405,7 @@ if env FAKE_PERSISTENT_DELETE=true \
   FAKE_OPERATOR_TEMP_PREFIX="${TMPDIR:-/tmp}/airbob-lab." \
   MODE=performance POLICY=isolated-read \
   IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  DATASET_RELEASE=fixture-v16 BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
+  DATASET_RELEASE=fixture-v17 BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
   AMI_ID=ami-0123456789abcdef0 OCI_ORIGIN_IPV4=203.0.113.10 \
   RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS=1 \
   RUN_ID=lab-persistent-delete "$fixture_scripts/aws-lab.sh" up >/dev/null 2>&1; then

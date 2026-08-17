@@ -20,7 +20,7 @@
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V16 release published or restored) |
+| Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V17 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Gabia delegation completed; Route 53 serves the verified OCI weight-100 record, while the AWS alias remains pending |
@@ -56,8 +56,8 @@ delegation. The public API origin is unchanged: Route 53 still sends all
 traffic to OCI at `140.245.76.140`, and the public `/health` probe remains
 healthy. The AWS alias is absent. The ephemeral lab has not been created, data
 has not been restored, and no performance results have been established. The
-historical ETL dump is Flyway V12 while the application is V16, so the Phase 3
-validator intentionally refuses it; a newly generated immutable V16 release is
+historical ETL dump is Flyway V12 while the application is V17, so the Phase 3
+validator intentionally refuses it; a newly generated immutable V17 release is
 a prerequisite for the first live rehearsal.
 
 Phase 3 now binds one manifest SHA to an ephemeral RDS instance and runs the
@@ -106,7 +106,7 @@ make aws-up \
   MODE=performance \
   POLICY=isolated-read \
   IMAGE_DIGEST=sha256:<64-hex> \
-  DATASET_RELEASE=<published-v16-release> \
+  DATASET_RELEASE=<published-v17-release> \
   AMI_ID=<reviewed-al2023-x86_64-ami> \
   OCI_ORIGIN_IPV4=<reviewed-oci-ip> \
   RDS_ENGINE_VERSION=8.0.<reviewed-patch>
@@ -146,7 +146,7 @@ the run expiry.
 
 Before the first live run, apply the reviewed foundation/DNS changes, delegate
 the zone and issue ACM, publish the full-commit images and bundle, and publish a
-compatible V16 dataset. Protect the GitHub Environment `aws-performance-lab`
+compatible V17 dataset. Protect the GitHub Environment `aws-performance-lab`
 and define `AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
 `OCI_ORIGIN_IPV4`, and `AWS_LAB_RDS_ENGINE_VERSION`. The workflow uses OIDC
 only, has a fixed concurrency group with in-progress cancellation disabled,

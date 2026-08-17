@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseKind": "pipeline-rehearsal",
-  "datasetRelease": "rehearsal-v16",
+  "datasetRelease": "rehearsal-v17",
   "datasetRunId": "etl-20260816-001",
   "source": {
     "datasetVersion": "nplus1-v1",
@@ -16,7 +16,7 @@
   "mysql": {
     "dumpKey": "mysql/airbob.sql.zst",
     "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
-    "flywayVersion": "16",
+    "flywayVersion": "17",
     "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
     "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
     "timezone": "UTC",
@@ -24,7 +24,7 @@
     "validUntil": "2099-12-31T00:00:00Z",
     "outboxPolicy": "absent",
     "expectedTableRows": {
-      "flyway_schema_history": 16,
+      "flyway_schema_history": 17,
       "outbox": 0,
       "accommodation": 730702
     }

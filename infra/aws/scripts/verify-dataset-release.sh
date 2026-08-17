@@ -72,7 +72,7 @@ common_jq='
   (.mysql | exact_keys(["dumpKey", "dumpSha256", "flywayVersion", "migrationChecksumSha256", "schemaFingerprintSha256", "timezone", "evaluationTime", "validUntil", "outboxPolicy", "expectedTableRows"])) and
   .mysql.dumpKey == "mysql/airbob.sql.zst" and
   (.mysql.dumpSha256 | sha256) and
-  .mysql.flywayVersion == "16" and
+  .mysql.flywayVersion == "17" and
   (.mysql.migrationChecksumSha256 | sha256) and
   (.mysql.schemaFingerprintSha256 | sha256) and
   .mysql.timezone == "UTC" and
@@ -83,6 +83,7 @@ common_jq='
   (.mysql.outboxPolicy == "absent" or .mysql.outboxPolicy == "truncate-after-import") and
   (.mysql.expectedTableRows | type == "object") and
   (.mysql.expectedTableRows | has("flyway_schema_history") and has("outbox") and has("accommodation")) and
+  .mysql.expectedTableRows.flyway_schema_history == 17 and
   all(.mysql.expectedTableRows | to_entries[]; (.key | test("^[a-z][a-z0-9_]{0,63}$")) and (.value | type == "number" and floor == . and . >= 0)) and
   (.couponPreparation | type == "array") and
   all(.couponPreparation[]; exact_keys(["couponId", "quantity"]) and (.couponId | type == "number" and floor == . and . > 0) and (.quantity | type == "number" and floor == . and . >= 0)) and

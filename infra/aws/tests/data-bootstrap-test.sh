@@ -6,6 +6,7 @@ repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
 lab_root="$repo_root/infra/aws/lab"
 bootstrap="$repo_root/infra/aws/scripts/bootstrap-data.sh"
 validator="$repo_root/infra/aws/scripts/verify-dataset-release.sh"
+dataset_readme="$repo_root/infra/aws/datasets/README.md"
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -16,9 +17,25 @@ assert_contains() {
   grep -Fq -- "$2" "$1" || fail "$1 does not contain the required Phase 3 contract: $2"
 }
 
+latest_flyway_version=0
+flyway_history_rows=0
+for migration_path in "$repo_root"/src/main/resources/db/migration/V*.sql; do
+  migration_file=${migration_path##*/}
+  migration_version=${migration_file#V}
+  migration_version=${migration_version%%__*}
+  [[ "$migration_version" =~ ^[0-9]+$ ]] || fail "invalid Flyway migration filename: $migration_file"
+  ((flyway_history_rows += 1))
+  if ((migration_version > latest_flyway_version)); then
+    latest_flyway_version=$migration_version
+  fi
+done
+[[ "$latest_flyway_version" -gt 0 && "$flyway_history_rows" -eq "$latest_flyway_version" ]] \
+  || fail "Flyway versions must remain contiguous for the release row-count contract"
+
 required_files=(
   "$bootstrap"
   "$validator"
+  "$dataset_readme"
   "$repo_root/infra/aws/scripts/promote-rds-snapshot.sh"
   "$lab_root/rds.tf"
   "$lab_root/modules/rds/main.tf"
@@ -72,8 +89,25 @@ assert_contains "$bootstrap" '/_search?scroll=2m'
 assert_contains "$bootstrap" 'dbIdsSha256'
 assert_contains "$bootstrap" 'esIdsSha256'
 assert_contains "$bootstrap" 'contentFingerprintSha256'
-assert_contains "$bootstrap" 'LC_ALL=C sort'
 assert_contains "$bootstrap" 'migrationChecksumSha256'
+assert_contains "$bootstrap" 'information_schema.COLUMNS'
+assert_contains "$bootstrap" 'information_schema.STATISTICS'
+assert_contains "$bootstrap" 'information_schema.TABLE_CONSTRAINTS'
+assert_contains "$bootstrap" 'information_schema.KEY_COLUMN_USAGE'
+assert_contains "$bootstrap" 'information_schema.REFERENTIAL_CONSTRAINTS'
+assert_contains "$bootstrap" 'information_schema.CHECK_CONSTRAINTS'
+assert_contains "$bootstrap" 'UNION ALL'
+assert_contains "$bootstrap" 'LC_ALL=C sort'
+for schema_contract in \
+  information_schema.COLUMNS \
+  information_schema.STATISTICS \
+  information_schema.TABLE_CONSTRAINTS \
+  information_schema.KEY_COLUMN_USAGE \
+  information_schema.REFERENTIAL_CONSTRAINTS \
+  information_schema.CHECK_CONSTRAINTS; do
+  assert_contains "$dataset_readme" "$schema_contract"
+done
+assert_contains "$dataset_readme" '`LC_ALL=C sort`'
 assert_contains "$bootstrap" 'kafka-topics.sh'
 assert_contains "$bootstrap" 'kafka-configs.sh'
 assert_contains "$bootstrap" '.tasks'
@@ -92,6 +126,23 @@ fi
 if grep -F -- "--execute" "$bootstrap" | grep -Fq 'debezium_password'; then
   fail "Phase 3 bootstrap must not place the Debezium password in process arguments"
 fi
+
+checks="$lab_root/checks.tf"
+aws_lab="$repo_root/infra/aws/scripts/aws-lab.sh"
+discovery="$repo_root/load-test/k6/traffic/run-aws-discovery.sh"
+aggregator="$repo_root/load-test/k6/traffic/aggregate-traffic-results.mjs"
+assert_contains "$validator" ".mysql.flywayVersion == \"$latest_flyway_version\""
+assert_contains "$validator" ".mysql.expectedTableRows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$checks" "local.dataset_manifest.mysql.flywayVersion == \"$latest_flyway_version\""
+assert_contains "$checks" "local.dataset_expected_table_rows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$checks" "local.data_bootstrap_receipt.flywayVersion == \"$latest_flyway_version\""
+assert_contains "$aws_lab" ".mysql.flywayVersion == \"$latest_flyway_version\""
+assert_contains "$aws_lab" ".mysql.expectedTableRows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$discovery" ".flywayVersion == \"$latest_flyway_version\""
+assert_contains "$discovery" '== "$expected_flyway_version" ]]'
+assert_contains "$discovery" '--arg flywayVersion "$expected_flyway_version"'
+assert_contains "$aggregator" "const CURRENT_FLYWAY_VERSION = '$latest_flyway_version';"
+assert_contains "$aggregator" 'metadata.flywayVersion === CURRENT_FLYWAY_VERSION'
 
 embedded_document_bytes=$((
   $(wc -c < "$bootstrap") +

@@ -29,7 +29,7 @@ cache and must be bound to the release with `DatasetRelease`, `DatasetRunId`,
 disable search. `evidence` requires `traffic-v1`, a search snapshot, database
 and Elasticsearch fingerprints, and the causal-fence fields enforced by
 `verify-dataset-release.sh`. Both kinds require the current application
-Flyway version, currently V16. An older dump must be regenerated through the
+Flyway version, currently V17. An older dump must be regenerated through the
 producer; changing only its label or manifest is invalid.
 
 `benchmark/manifest.json` is the immutable, secret-free workload input. The
@@ -53,15 +53,63 @@ FROM flyway_schema_history
 ORDER BY installed_rank;
 ```
 
-Generate the schema fingerprint the same way from:
+Generate the schema fingerprint from a fixed twelve-field union. Text fields
+are hex encoded so tabs, newlines, and connection collation cannot change the
+record shape; SQL `NULL` is the non-hex sentinel `<NULL>`. This binds columns,
+indexes, primary/unique/foreign/check constraints, foreign-key actions, and
+check clauses rather than only column definitions:
 
 ```sql
-SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, COLUMN_TYPE, IS_NULLABLE,
-       COALESCE(COLUMN_DEFAULT, '<NULL>'), EXTRA, COLLATION_NAME
+SELECT 'COLUMN', HEX(TABLE_NAME), HEX(COLUMN_NAME), HEX(CAST(ORDINAL_POSITION AS CHAR)),
+       HEX(COLUMN_NAME), HEX(COLUMN_TYPE), HEX(IS_NULLABLE),
+       COALESCE(HEX(CAST(COLUMN_DEFAULT AS CHAR)), '<NULL>'), HEX(EXTRA),
+       COALESCE(HEX(COLLATION_NAME), '<NULL>'),
+       COALESCE(HEX(CHARACTER_SET_NAME), '<NULL>'),
+       COALESCE(HEX(GENERATION_EXPRESSION), '<NULL>')
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = 'airbobdb'
-ORDER BY TABLE_NAME, ORDINAL_POSITION;
+UNION ALL
+SELECT 'INDEX', HEX(TABLE_NAME), HEX(INDEX_NAME), HEX(CAST(SEQ_IN_INDEX AS CHAR)),
+       COALESCE(HEX(COLUMN_NAME), '<NULL>'), HEX(CAST(NON_UNIQUE AS CHAR)),
+       COALESCE(HEX(COLLATION), '<NULL>'), COALESCE(HEX(CAST(SUB_PART AS CHAR)), '<NULL>'),
+       HEX(NULLABLE), HEX(INDEX_TYPE), HEX(IS_VISIBLE), COALESCE(HEX(EXPRESSION), '<NULL>')
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = 'airbobdb'
+UNION ALL
+SELECT 'CONSTRAINT', HEX(tc.TABLE_NAME), HEX(tc.CONSTRAINT_NAME),
+       COALESCE(HEX(CAST(kcu.ORDINAL_POSITION AS CHAR)), '<NULL>'),
+       COALESCE(HEX(kcu.COLUMN_NAME), '<NULL>'), HEX(tc.CONSTRAINT_TYPE),
+       COALESCE(HEX(CAST(kcu.POSITION_IN_UNIQUE_CONSTRAINT AS CHAR)), '<NULL>'),
+       COALESCE(HEX(kcu.REFERENCED_TABLE_SCHEMA), '<NULL>'),
+       COALESCE(HEX(kcu.REFERENCED_TABLE_NAME), '<NULL>'),
+       COALESCE(HEX(kcu.REFERENCED_COLUMN_NAME), '<NULL>'), HEX(tc.ENFORCED), '<NULL>'
+FROM information_schema.TABLE_CONSTRAINTS AS tc
+LEFT JOIN information_schema.KEY_COLUMN_USAGE AS kcu
+  ON kcu.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+ AND kcu.TABLE_NAME = tc.TABLE_NAME
+ AND kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+WHERE tc.CONSTRAINT_SCHEMA = 'airbobdb'
+UNION ALL
+SELECT 'REFERENTIAL', HEX(TABLE_NAME), HEX(CONSTRAINT_NAME), '<NULL>', '<NULL>',
+       HEX(UNIQUE_CONSTRAINT_SCHEMA), HEX(UNIQUE_CONSTRAINT_NAME), HEX(MATCH_OPTION),
+       HEX(UPDATE_RULE), HEX(DELETE_RULE), HEX(REFERENCED_TABLE_NAME), '<NULL>'
+FROM information_schema.REFERENTIAL_CONSTRAINTS
+WHERE CONSTRAINT_SCHEMA = 'airbobdb'
+UNION ALL
+SELECT 'CHECK', HEX(tc.TABLE_NAME), HEX(cc.CONSTRAINT_NAME), '<NULL>', '<NULL>',
+       HEX(cc.CHECK_CLAUSE), HEX(tc.ENFORCED), '<NULL>', '<NULL>', '<NULL>', '<NULL>', '<NULL>'
+FROM information_schema.CHECK_CONSTRAINTS AS cc
+INNER JOIN information_schema.TABLE_CONSTRAINTS AS tc
+  ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
+ AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+ AND tc.CONSTRAINT_TYPE = 'CHECK'
+WHERE cc.CONSTRAINT_SCHEMA = 'airbobdb';
 ```
+
+Write the headerless, tab-separated result to a temporary file, then run
+`LC_ALL=C sort` over the complete records. Hash the sorted file including its
+final newline. Producers and the Phase 3 bootstrap must use this exact query,
+encoding, and bytewise sort.
 
 Record the SHA-256 values as `mysql.migrationChecksumSha256` and
 `mysql.schemaFingerprintSha256`. Record exact row counts for every table used

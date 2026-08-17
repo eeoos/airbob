@@ -20,12 +20,12 @@ cat > "$tmp_dir/receipt.json" <<'JSON'
 {
   "schemaVersion": 1,
   "runId": "phase3-test",
-  "datasetRelease": "rehearsal-v16",
+  "datasetRelease": "rehearsal-v17",
   "datasetRunId": "etl-20260816-001",
   "releaseKind": "pipeline-rehearsal",
   "databaseBootstrap": "dump",
   "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
-  "flywayVersion": "16",
+  "flywayVersion": "17",
   "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
   "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
   "rdsResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWX",
@@ -59,12 +59,12 @@ JSON
   *"rds describe-db-snapshots"*)
     [[ -f "$FAKE_SNAPSHOT_CREATED" ]] || exit 1
     jq -n --arg manifestSha "$FAKE_MANIFEST_SHA" '{DBSnapshots:[{
-      DBSnapshotIdentifier:"airbob-dataset-rehearsal-v16",Status:"available",Engine:"mysql",Encrypted:true,
+      DBSnapshotIdentifier:"airbob-dataset-rehearsal-v17",Status:"available",Engine:"mysql",Encrypted:true,
       TagList:[
-        {Key:"DatasetRelease",Value:"rehearsal-v16"},
+        {Key:"DatasetRelease",Value:"rehearsal-v17"},
         {Key:"DatasetRunId",Value:"etl-20260816-001"},
         {Key:"DumpSha256",Value:"94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"},
-        {Key:"FlywayVersion",Value:"16"},
+        {Key:"FlywayVersion",Value:"17"},
         {Key:"ManifestSha256",Value:$manifestSha},
         {Key:"Persistence",Value:"persistent"}
       ]
@@ -87,17 +87,17 @@ FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
 FAKE_MANIFEST_SHA="$manifest_sha" \
 AIRBOB_REGION=ap-northeast-2 \
   "$script" "$manifest" "$tmp_dir/receipt.json" \
-  airbob-phase3-test airbob-dataset-rehearsal-v16 "$tmp_dir/promotion.json" >/dev/null
+  airbob-phase3-test airbob-dataset-rehearsal-v17 "$tmp_dir/promotion.json" >/dev/null
 
 jq -e --arg manifestSha "$manifest_sha" '
   .schemaVersion == 1 and
-  .snapshotIdentifier == "airbob-dataset-rehearsal-v16" and
-  .datasetRelease == "rehearsal-v16" and
+  .snapshotIdentifier == "airbob-dataset-rehearsal-v17" and
+  .datasetRelease == "rehearsal-v17" and
   .manifestSha256 == $manifestSha and
   .persistence == "persistent"
 ' "$tmp_dir/promotion.json" >/dev/null
 grep -Fq 'Key=Persistence,Value=persistent' "$tmp_dir/aws.log"
-grep -Fq 'Key=DatasetRelease,Value=rehearsal-v16' "$tmp_dir/aws.log"
+grep -Fq 'Key=DatasetRelease,Value=rehearsal-v17' "$tmp_dir/aws.log"
 
 cp "$tmp_dir/receipt.json" "$tmp_dir/bad-receipt.json"
 jq '.connectorState = "PAUSED"' "$tmp_dir/bad-receipt.json" > "$tmp_dir/bad.next"
@@ -105,7 +105,7 @@ mv "$tmp_dir/bad.next" "$tmp_dir/bad-receipt.json"
 if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
   FAKE_MANIFEST_SHA="$manifest_sha" AIRBOB_REGION=ap-northeast-2 \
   "$script" "$manifest" "$tmp_dir/bad-receipt.json" \
-  airbob-phase3-test airbob-dataset-rehearsal-v16 "$tmp_dir/rejected.json" >/dev/null 2>&1; then
+  airbob-phase3-test airbob-dataset-rehearsal-v17 "$tmp_dir/rejected.json" >/dev/null 2>&1; then
   printf '%s\n' 'snapshot promotion accepted an invalid data receipt' >&2
   exit 1
 fi
@@ -118,7 +118,7 @@ mv "$tmp_dir/tampered.next" "$tmp_dir/tampered-manifest.json"
 if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
   FAKE_MANIFEST_SHA="$manifest_sha" AIRBOB_REGION=ap-northeast-2 \
   "$script" "$tmp_dir/tampered-manifest.json" "$tmp_dir/receipt.json" \
-  airbob-phase3-test airbob-dataset-rehearsal-v16 "$tmp_dir/tampered.json" >/dev/null 2>&1; then
+  airbob-phase3-test airbob-dataset-rehearsal-v17 "$tmp_dir/tampered.json" >/dev/null 2>&1; then
   printf '%s\n' 'snapshot promotion accepted a manifest outside the bootstrap receipt tuple' >&2
   exit 1
 fi
@@ -126,10 +126,10 @@ fi
 [[ ! -s "$tmp_dir/aws.log" ]] || { printf '%s\n' 'snapshot promotion contacted AWS before validating the manifest tuple' >&2; exit 1; }
 
 for unsafe_identifier_pair in \
-  'airbob-phase3-test-|airbob-dataset-rehearsal-v16' \
-  'airbob-phase3--test|airbob-dataset-rehearsal-v16' \
-  'airbob-phase3-test|airbob-dataset-rehearsal-v16-' \
-  'airbob-phase3-test|airbob-dataset-rehearsal--v16'; do
+  'airbob-phase3-test-|airbob-dataset-rehearsal-v17' \
+  'airbob-phase3--test|airbob-dataset-rehearsal-v17' \
+  'airbob-phase3-test|airbob-dataset-rehearsal-v17-' \
+  'airbob-phase3-test|airbob-dataset-rehearsal--v17'; do
   unsafe_instance=${unsafe_identifier_pair%%|*}
   unsafe_snapshot=${unsafe_identifier_pair#*|}
   : > "$tmp_dir/aws.log"

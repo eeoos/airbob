@@ -7,6 +7,8 @@ import {
   verifyIdleControl,
 } from '../traffic/aggregate-traffic-results.mjs';
 
+const FLYWAY_VERSION = '17';
+
 function snapshot(rows) {
   return rows.map((row) => JSON.stringify({
     schemaName: 'airbobdb',
@@ -29,13 +31,13 @@ function fixture(overrides = {}) {
     releaseKind: 'pipeline-rehearsal',
     claimScope: 'pipeline-only',
     runId: 'rehearsal-run',
-    datasetRelease: 'rehearsal-v16',
+    datasetRelease: 'rehearsal-v17',
     datasetManifestSha256: 'c'.repeat(64),
     benchmarkManifestSha256: manifestSha,
     appCommit,
     imageDigest: `sha256:${'d'.repeat(64)}`,
     harnessCommit: 'e'.repeat(40),
-    flywayVersion: '16',
+    flywayVersion: FLYWAY_VERSION,
     appInstanceCount: 1,
     target: 'accommodation-detail',
     expectedSqlCallsPerRequest: 4,
@@ -44,7 +46,7 @@ function fixture(overrides = {}) {
       datasetManifestSha256: 'c'.repeat(64),
       benchmarkManifestSha256: manifestSha,
       imageDigest: `sha256:${'d'.repeat(64)}`,
-      flywayVersion: '16',
+      flywayVersion: FLYWAY_VERSION,
       appInstanceCount: 1,
     },
   };
@@ -179,11 +181,29 @@ assert(evicted.validity.reasons.includes('sql-digest-eviction'));
 const drifted = fixture();
 drifted.k6.metadata.appInstanceCount = 2;
 drifted.prometheus.endEpochMs = 12000;
-drifted.metadata.postRun.flywayVersion = '17';
 const drift = aggregateTrafficResult(drifted);
 assert.equal(drift.validity.status, 'invalid');
 assert(drift.validity.reasons.includes('run-provenance-drift'));
 assert(drift.validity.reasons.includes('measurement-window-drift'));
+
+const flywayDrifted = fixture();
+flywayDrifted.metadata.postRun.flywayVersion = '16';
+const flywayDrift = aggregateTrafficResult(flywayDrifted);
+assert.equal(flywayDrift.validity.status, 'invalid');
+assert(flywayDrift.validity.reasons.includes('run-provenance-drift'));
+
+assert.throws(
+  () => aggregateTrafficResult(fixture({
+    metadata: { ...fixture().metadata, flywayVersion: '017' },
+  })),
+  /traffic aggregation metadata is invalid/,
+);
+assert.throws(
+  () => aggregateTrafficResult(fixture({
+    metadata: { ...fixture().metadata, flywayVersion: '16' },
+  })),
+  /traffic aggregation metadata is invalid/,
+);
 
 const unattributable = aggregateTrafficResult(fixture({
   metadata: { ...fixture().metadata, expectedSqlCallsPerRequest: 5 },

@@ -294,8 +294,11 @@ aws s3api get-object --bucket "$evidence_bucket" \
 jq -e --arg run "$run_id" --arg release "$dataset_release" --arg sha "$dataset_manifest_sha256" '
   .schemaVersion == 1 and .runId == $run and .datasetRelease == $release and
   .releaseKind == "pipeline-rehearsal" and .datasetManifestSha256 == $sha and
-  .flywayVersion == "16" and .outboxState == "empty"
+  .flywayVersion == "17" and .outboxState == "empty"
 ' "$bootstrap_receipt" >/dev/null || fail "data bootstrap receipt does not attest the discovery dataset"
+expected_flyway_version=$(jq -er '.flywayVersion' "$bootstrap_receipt")
+[[ "$expected_flyway_version" =~ ^[1-9][0-9]*$ ]] \
+  || fail "data bootstrap receipt Flyway version is not canonical"
 
 remote_source_paths=(
   load-test/k6/traffic/run-aws-discovery.sh
@@ -386,7 +389,7 @@ aws --region '$AWS_REGION' secretsmanager get-secret-value --secret-id '$rds_sec
 chmod 600 "\$secret_file"
 username=\$(jq -er '.username' "\$secret_file")
 password=\$(jq -er '.password' "\$secret_file")
-flyway_version=\$(MYSQL_PWD="\$password" mysql --protocol=TCP --host='$rds_endpoint' --port=3306 --user="\$username" --ssl --batch --raw --skip-column-names --execute='SELECT COALESCE(MAX(version), "") FROM airbobdb.flyway_schema_history WHERE success = 1')
+flyway_version=\$(MYSQL_PWD="\$password" mysql --protocol=TCP --host='$rds_endpoint' --port=3306 --user="\$username" --ssl --batch --raw --skip-column-names --execute='SELECT version FROM airbobdb.flyway_schema_history WHERE success = 1 ORDER BY installed_rank DESC LIMIT 1')
 jq -n --arg flywayVersion "\$flyway_version" '{schemaVersion:1,flywayVersion:\$flywayVersion}' > "\$work/flyway-$phase.json"
 aws --region '$AWS_REGION' s3api put-object --bucket '$evidence_bucket' --key '$measurement_prefix/flyway-$phase.json' --body "\$work/flyway-$phase.json" --tagging Retention=raw --server-side-encryption AES256 --content-type application/json --if-none-match '*' >/dev/null
 printf '%s\n' '$marker'
@@ -419,7 +422,7 @@ send_and_wait "$loadgen_instance_id" "Airbob discovery stage" AIRBOB_DISCOVERY_S
 
 capture_flyway before AIRBOB_DISCOVERY_FLYWAY_BEFORE_OK
 download_measurement flyway-before.json "$temp_dir/flyway-before.json"
-[[ "$(jq -er '.flywayVersion' "$temp_dir/flyway-before.json")" == 16 ]] \
+[[ "$(jq -er '.flywayVersion' "$temp_dir/flyway-before.json")" == "$expected_flyway_version" ]] \
   || fail "Flyway version changed before discovery"
 
 k6_environment=$(cat <<EOF
@@ -547,20 +550,21 @@ post_flyway_version=$(jq -er '.flywayVersion' "$temp_dir/flyway-after.json")
   && "$post_benchmark_manifest_sha256" =~ ^[0-9a-f]{64}$ \
   && "$post_image_digest" =~ ^sha256:[0-9a-f]{64}$ \
   && "$post_app_instance_count" =~ ^[1-9][0-9]*$ \
-  && "$post_flyway_version" =~ ^[0-9]+$ ]] || fail "post-run provenance is malformed"
+  && "$post_flyway_version" =~ ^[1-9][0-9]*$ ]] || fail "post-run provenance is malformed"
 
 metadata="$temp_dir/metadata.json"
 jq -n --arg runId "$run_id" --arg datasetRelease "$dataset_release" \
   --arg datasetManifestSha256 "$dataset_manifest_sha256" \
   --arg benchmarkManifestSha256 "$benchmark_manifest_sha256" --arg appCommit "$app_commit" \
   --arg imageDigest "$image_digest" --arg harnessCommit "$harness_commit" \
+  --arg flywayVersion "$expected_flyway_version" \
   --argjson appInstanceCount "$app_instance_count" --argjson expectedSqlCallsPerRequest "$expected_sql_calls" \
   --arg postDatasetManifestSha256 "$post_dataset_manifest_sha256" \
   --arg postBenchmarkManifestSha256 "$post_benchmark_manifest_sha256" \
   --arg postImageDigest "$post_image_digest" --arg postFlywayVersion "$post_flyway_version" \
   --argjson postAppInstanceCount "$post_app_instance_count" \
   --argjson window "$(cat "$temp_dir/window.json")" \
-  '{schemaVersion:1,releaseKind:"pipeline-rehearsal",claimScope:"pipeline-only",runId:$runId,datasetRelease:$datasetRelease,datasetManifestSha256:$datasetManifestSha256,benchmarkManifestSha256:$benchmarkManifestSha256,appCommit:$appCommit,imageDigest:$imageDigest,harnessCommit:$harnessCommit,flywayVersion:"16",appInstanceCount:$appInstanceCount,target:"accommodation-detail",expectedSqlCallsPerRequest:$expectedSqlCallsPerRequest,window:{startEpochMs:$window.startEpochMs,endEpochMs:$window.endEpochMs},postRun:{datasetManifestSha256:$postDatasetManifestSha256,benchmarkManifestSha256:$postBenchmarkManifestSha256,imageDigest:$postImageDigest,flywayVersion:$postFlywayVersion,appInstanceCount:$postAppInstanceCount}}' \
+  '{schemaVersion:1,releaseKind:"pipeline-rehearsal",claimScope:"pipeline-only",runId:$runId,datasetRelease:$datasetRelease,datasetManifestSha256:$datasetManifestSha256,benchmarkManifestSha256:$benchmarkManifestSha256,appCommit:$appCommit,imageDigest:$imageDigest,harnessCommit:$harnessCommit,flywayVersion:$flywayVersion,appInstanceCount:$appInstanceCount,target:"accommodation-detail",expectedSqlCallsPerRequest:$expectedSqlCallsPerRequest,window:{startEpochMs:$window.startEpochMs,endEpochMs:$window.endEpochMs},postRun:{datasetManifestSha256:$postDatasetManifestSha256,benchmarkManifestSha256:$postBenchmarkManifestSha256,imageDigest:$postImageDigest,flywayVersion:$postFlywayVersion,appInstanceCount:$postAppInstanceCount}}' \
   > "$metadata"
 
 artifact_dir="$repo_root/build/k6/traffic"

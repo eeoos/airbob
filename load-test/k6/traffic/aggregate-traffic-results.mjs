@@ -20,6 +20,7 @@ const REPO_ROOT = resolve(dirname(SCRIPT_PATH), '../../..');
 const ARTIFACT_ROOT = resolve(REPO_ROOT, 'build/k6/traffic');
 const MAX_INPUT_BYTES = 1024 * 1024;
 const COUNTER_KEYS = ['count', 'timerWait', 'rowsExamined', 'rowsSent'];
+const CURRENT_FLYWAY_VERSION = '17';
 
 function requireCondition(condition, message) {
   if (!condition) {
@@ -47,6 +48,10 @@ function positiveInteger(value) {
 
 function canonicalSha256(value) {
   return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+}
+
+function canonicalFlywayVersion(value) {
+  return typeof value === 'string' && /^[1-9][0-9]*$/.test(value);
 }
 
 function parseCounter(value) {
@@ -183,7 +188,8 @@ function metadataContract(metadata) {
     && /^sha256:[0-9a-f]{64}$/.test(metadata.imageDigest)
     && typeof metadata.harnessCommit === 'string'
     && /^[0-9a-f]{40}$/.test(metadata.harnessCommit)
-    && metadata.flywayVersion === '16'
+    && canonicalFlywayVersion(metadata.flywayVersion)
+    && metadata.flywayVersion === CURRENT_FLYWAY_VERSION
     && positiveInteger(metadata.appInstanceCount)
     && metadata.target === 'accommodation-detail'
     && positiveInteger(metadata.expectedSqlCallsPerRequest)
@@ -202,7 +208,7 @@ function metadataContract(metadata) {
     && canonicalSha256(metadata.postRun.datasetManifestSha256)
     && canonicalSha256(metadata.postRun.benchmarkManifestSha256)
     && /^sha256:[0-9a-f]{64}$/.test(metadata.postRun.imageDigest)
-    && typeof metadata.postRun.flywayVersion === 'string'
+    && canonicalFlywayVersion(metadata.postRun.flywayVersion)
     && positiveInteger(metadata.postRun.appInstanceCount);
 }
 

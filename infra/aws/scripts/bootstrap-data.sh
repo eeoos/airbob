@@ -151,14 +151,56 @@ while IFS=$'\t' read -r table_name expected_rows; do
   [[ "$actual_rows" == "$expected_rows" ]] || { printf 'row-count contract failed: %s\n' "$table_name" >&2; exit 1; }
 done < <(jq -r '.mysql.expectedTableRows | to_entries | sort_by(.key)[] | [.key, (.value | tostring)] | @tsv' "$manifest")
 
+schema_unsorted_file="$work_root/schema-fingerprint.unsorted.tsv"
 schema_file="$work_root/schema-fingerprint.tsv"
 mysql_exec --execute="
-  SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, COLUMN_TYPE, IS_NULLABLE,
-         COALESCE(COLUMN_DEFAULT, '<NULL>'), EXTRA, COLLATION_NAME
+  SELECT 'COLUMN', HEX(TABLE_NAME), HEX(COLUMN_NAME), HEX(CAST(ORDINAL_POSITION AS CHAR)),
+         HEX(COLUMN_NAME), HEX(COLUMN_TYPE), HEX(IS_NULLABLE),
+         COALESCE(HEX(CAST(COLUMN_DEFAULT AS CHAR)), '<NULL>'), HEX(EXTRA),
+         COALESCE(HEX(COLLATION_NAME), '<NULL>'),
+         COALESCE(HEX(CHARACTER_SET_NAME), '<NULL>'),
+         COALESCE(HEX(GENERATION_EXPRESSION), '<NULL>')
   FROM information_schema.COLUMNS
   WHERE TABLE_SCHEMA = 'airbobdb'
-  ORDER BY TABLE_NAME, ORDINAL_POSITION;
-" > "$schema_file"
+  UNION ALL
+  SELECT 'INDEX', HEX(TABLE_NAME), HEX(INDEX_NAME), HEX(CAST(SEQ_IN_INDEX AS CHAR)),
+         COALESCE(HEX(COLUMN_NAME), '<NULL>'), HEX(CAST(NON_UNIQUE AS CHAR)),
+         COALESCE(HEX(COLLATION), '<NULL>'), COALESCE(HEX(CAST(SUB_PART AS CHAR)), '<NULL>'),
+         HEX(NULLABLE), HEX(INDEX_TYPE), HEX(IS_VISIBLE), COALESCE(HEX(EXPRESSION), '<NULL>')
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = 'airbobdb'
+  UNION ALL
+  SELECT 'CONSTRAINT', HEX(tc.TABLE_NAME), HEX(tc.CONSTRAINT_NAME),
+         COALESCE(HEX(CAST(kcu.ORDINAL_POSITION AS CHAR)), '<NULL>'),
+         COALESCE(HEX(kcu.COLUMN_NAME), '<NULL>'), HEX(tc.CONSTRAINT_TYPE),
+         COALESCE(HEX(CAST(kcu.POSITION_IN_UNIQUE_CONSTRAINT AS CHAR)), '<NULL>'),
+         COALESCE(HEX(kcu.REFERENCED_TABLE_SCHEMA), '<NULL>'),
+         COALESCE(HEX(kcu.REFERENCED_TABLE_NAME), '<NULL>'),
+         COALESCE(HEX(kcu.REFERENCED_COLUMN_NAME), '<NULL>'), HEX(tc.ENFORCED), '<NULL>'
+  FROM information_schema.TABLE_CONSTRAINTS AS tc
+  LEFT JOIN information_schema.KEY_COLUMN_USAGE AS kcu
+    ON kcu.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+   AND kcu.TABLE_NAME = tc.TABLE_NAME
+   AND kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+  WHERE tc.CONSTRAINT_SCHEMA = 'airbobdb'
+  UNION ALL
+  SELECT 'REFERENTIAL', HEX(TABLE_NAME), HEX(CONSTRAINT_NAME), '<NULL>', '<NULL>',
+         HEX(UNIQUE_CONSTRAINT_SCHEMA), HEX(UNIQUE_CONSTRAINT_NAME), HEX(MATCH_OPTION),
+         HEX(UPDATE_RULE), HEX(DELETE_RULE), HEX(REFERENCED_TABLE_NAME), '<NULL>'
+  FROM information_schema.REFERENTIAL_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = 'airbobdb'
+  UNION ALL
+  SELECT 'CHECK', HEX(tc.TABLE_NAME), HEX(cc.CONSTRAINT_NAME), '<NULL>', '<NULL>',
+         HEX(cc.CHECK_CLAUSE), HEX(tc.ENFORCED), '<NULL>', '<NULL>', '<NULL>', '<NULL>', '<NULL>'
+  FROM information_schema.CHECK_CONSTRAINTS AS cc
+  INNER JOIN information_schema.TABLE_CONSTRAINTS AS tc
+    ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
+   AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+   AND tc.CONSTRAINT_TYPE = 'CHECK'
+  WHERE cc.CONSTRAINT_SCHEMA = 'airbobdb';
+" > "$schema_unsorted_file"
+LC_ALL=C sort "$schema_unsorted_file" > "$schema_file"
+rm -f "$schema_unsorted_file"
 schema_fingerprint=$(sha256sum "$schema_file" | awk '{print $1}')
 [[ "$schema_fingerprint" == "$(jq -r '.mysql.schemaFingerprintSha256' "$manifest")" ]] \
   || { printf '%s\n' 'schema fingerprint does not match the dataset release' >&2; exit 1; }

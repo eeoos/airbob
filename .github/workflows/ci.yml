@@ -43,6 +43,7 @@ jobs:
           bash infra/aws/tests/foundation-test.sh
           bash infra/aws/tests/dns-lab-state-test.sh
           bash infra/aws/tests/lab-phase2-test.sh
+          bash infra/aws/tests/data-bootstrap-test.sh
           bash infra/aws/tests/app-asg-test.sh
           bash infra/aws/tests/network-egress-test.sh
           bash infra/aws/tests/service-bundle-publisher-test.sh

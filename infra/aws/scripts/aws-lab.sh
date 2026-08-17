@@ -250,6 +250,15 @@ resolve_release_inputs() {
   aws s3api get-object --bucket "$dataset_bucket" \
     --key "datasets/$dataset_release/manifest.json" "$dataset_manifest" \
     --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "dataset completion manifest is unavailable"
+  jq -e --arg expectedRelease "$dataset_release" '
+    .schemaVersion == 1 and
+    .datasetRelease == $expectedRelease and
+    (.releaseKind == "pipeline-rehearsal" or .releaseKind == "evidence") and
+    .mysql.flywayVersion == "17" and
+    .mysql.expectedTableRows.flyway_schema_history == 17 and
+    ([.. | objects | keys[]] |
+      all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
+  ' "$dataset_manifest" >/dev/null || fail "dataset completion manifest is invalid"
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
 
   app_repository=$(jq -er '.ecr_repositories.APP_IMAGE.url' <<<"$lab_contract")
@@ -480,12 +489,12 @@ case "$action" in
     run_id=${RUN_ID:-lab-$(date -u +%Y%m%d%H%M%S)-${GITHUB_RUN_ID:-local}}
     run_id=$(printf '%.32s' "$run_id" | sed 's/-$//')
     [[ "$run_id" =~ ^[a-z0-9][a-z0-9-]{2,31}$ ]] || fail "generated RUN_ID is not canonical"
+    current_stage=release-validation
+    resolve_release_inputs
     start_mutation_guard
     resource_fencing_token=$fencing_token
     assert_state_run_identity allow-absent
     up_in_progress=true
-    current_stage=release-validation
-    resolve_release_inputs
 
     manifest="$temp_dir/operator.json"
     jq -n --arg runId "$run_id" --arg expiresAt "$expires_at" --argjson fencingToken "$resource_fencing_token" \

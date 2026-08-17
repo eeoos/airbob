@@ -84,8 +84,8 @@ native S3 snapshot repository. Run
 The exact schema and fingerprint procedure are documented in
 `infra/aws/datasets/README.md`.
 
-The current application lineage is Flyway V16. The historical V12 ETL dump is
-therefore deliberately rejected and must not be relabelled. A new V16
+The current application lineage is Flyway V17. The historical V12 ETL dump is
+therefore deliberately rejected and must not be relabelled. A new V17
 `pipeline-rehearsal` or `evidence` release must be produced before a live Phase
 3 run. No dataset has been uploaded by this implementation.
 
