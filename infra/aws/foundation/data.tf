@@ -21,3 +21,13 @@ check "github_oidc_subject_mode_consistency" {
     error_message = "All GitHub OIDC subjects must use the same reviewed legacy or immutable repository identity format."
   }
 }
+
+check "local_principal_role_separation" {
+  assert {
+    condition = length(setintersection(
+      var.foundation_local_principal_arns,
+      var.lab_local_principal_arns,
+    )) == 0
+    error_message = "Foundation and lab local principals must be disjoint."
+  }
+}

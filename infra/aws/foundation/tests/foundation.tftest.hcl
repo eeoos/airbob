@@ -235,7 +235,8 @@ variables {
   github_lab_subject                  = "repo:eeoos/airbob:environment:aws-performance-lab"
   github_image_subject                = "repo:eeoos/airbob:environment:aws-image-publisher"
   github_oidc_subjects_reviewed       = true
-  local_principal_arns                = ["arn:aws:iam::942632789808:user/foundation-test"]
+  foundation_local_principal_arns     = ["arn:aws:iam::942632789808:user/foundation-test"]
+  lab_local_principal_arns            = ["arn:aws:iam::942632789808:user/lab-test"]
   local_principal_requires_mfa        = true
   expiry_observer_enabled             = false
   expiry_alert_email                  = null
@@ -422,7 +423,15 @@ run "foundation_contract" {
       aws_iam_role.foundation_admin.max_session_duration == 7200 &&
       aws_iam_role.lab_operator.max_session_duration == 7200 &&
       aws_iam_role.image_publisher.max_session_duration == 7200 &&
-      aws_iam_role.dns_controller.max_session_duration == 3600
+      aws_iam_role.dns_controller.max_session_duration == 3600 &&
+      one([
+        for statement in jsondecode(local.role_trust_policies.foundation).Statement : statement
+        if statement.Sid == "ApprovedLocalPrincipals"
+      ]).Principal.AWS == ["arn:aws:iam::942632789808:user/foundation-test"] &&
+      one([
+        for statement in jsondecode(local.role_trust_policies.lab).Statement : statement
+        if statement.Sid == "ApprovedLocalPrincipals"
+      ]).Principal.AWS == ["arn:aws:iam::942632789808:user/lab-test"]
     )
     error_message = "GitHub trust must use only AWS-supported aud plus the exact protected-environment subject and session limit."
   }
@@ -1427,12 +1436,33 @@ run "reject_out_of_zone_record" {
   expect_failures = [var.static_dns_records]
 }
 
-run "reject_foreign_local_principal" {
+run "reject_foreign_foundation_local_principal" {
   command = plan
 
   variables {
-    local_principal_arns = ["arn:aws:iam::111111111111:user/foreign"]
+    foundation_local_principal_arns = ["arn:aws:iam::111111111111:user/foreign"]
   }
 
-  expect_failures = [var.local_principal_arns]
+  expect_failures = [var.foundation_local_principal_arns]
+}
+
+run "reject_foreign_lab_local_principal" {
+  command = plan
+
+  variables {
+    lab_local_principal_arns = ["arn:aws:iam::111111111111:user/foreign"]
+  }
+
+  expect_failures = [var.lab_local_principal_arns]
+}
+
+run "reject_shared_foundation_and_lab_local_principal" {
+  command = plan
+
+  variables {
+    foundation_local_principal_arns = ["arn:aws:iam::942632789808:user/shared"]
+    lab_local_principal_arns        = ["arn:aws:iam::942632789808:user/shared"]
+  }
+
+  expect_failures = [check.local_principal_role_separation]
 }

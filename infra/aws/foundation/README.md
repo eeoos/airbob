@@ -29,7 +29,9 @@ Do not run a live plan until all of these inputs are known and reviewed:
 - whether the account-global GitHub OIDC provider already exists (if it does,
   import it into this state before the first apply rather than creating a
   duplicate);
-- exact local IAM principal ARNs and an explicit MFA decision.
+- separate exact local IAM principal ARNs for foundation administration and
+  ephemeral lab operation, plus an explicit MFA decision. Do not grant the
+  developer principal access to the foundation role.
 - when enabling the expiry observer, one reviewed email address whose SNS
   subscription the owner can confirm and acknowledge explicitly.
 

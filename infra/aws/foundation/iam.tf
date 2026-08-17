@@ -1,19 +1,24 @@
 locals {
-  approved_local_principals_statement = merge(
-    {
-      Sid       = "ApprovedLocalPrincipals"
-      Effect    = "Allow"
-      Principal = { AWS = sort(tolist(var.local_principal_arns)) }
-      Action    = "sts:AssumeRole"
-    },
-    var.local_principal_requires_mfa ? {
-      Condition = {
-        Bool = {
-          "aws:MultiFactorAuthPresent" = "true"
+  approved_local_principals_statements = {
+    for role, principals in {
+      foundation = var.foundation_local_principal_arns
+      lab        = var.lab_local_principal_arns
+      } : role => merge(
+      {
+        Sid       = "ApprovedLocalPrincipals"
+        Effect    = "Allow"
+        Principal = { AWS = sort(tolist(principals)) }
+        Action    = "sts:AssumeRole"
+      },
+      var.local_principal_requires_mfa ? {
+        Condition = {
+          Bool = {
+            "aws:MultiFactorAuthPresent" = "true"
+          }
         }
-      }
-    } : {},
-  )
+      } : {},
+    )
+  }
 
   github_role_trust = {
     foundation = merge(local.github_trust_common, {
@@ -38,7 +43,7 @@ locals {
           Action    = "sts:AssumeRoleWithWebIdentity"
           Condition = { StringEquals = local.github_role_trust.foundation }
         },
-        local.approved_local_principals_statement,
+        local.approved_local_principals_statements.foundation,
       ]
     })
     lab = jsonencode({
@@ -51,7 +56,7 @@ locals {
           Action    = "sts:AssumeRoleWithWebIdentity"
           Condition = { StringEquals = local.github_role_trust.lab }
         },
-        local.approved_local_principals_statement,
+        local.approved_local_principals_statements.lab,
       ]
     })
     image = jsonencode({

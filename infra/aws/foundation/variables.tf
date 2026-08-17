@@ -216,19 +216,35 @@ variable "github_oidc_subjects_reviewed" {
   }
 }
 
-variable "local_principal_arns" {
-  description = "Exact local IAM principal ARNs allowed to assume the foundation and lab roles."
+variable "foundation_local_principal_arns" {
+  description = "Exact local IAM principal ARNs allowed to assume only the foundation administration role."
   type        = set(string)
 
   validation {
     condition = (
-      length(var.local_principal_arns) > 0 &&
+      length(var.foundation_local_principal_arns) > 0 &&
       alltrue([
-        for arn in var.local_principal_arns :
+        for arn in var.foundation_local_principal_arns :
         can(regex("^arn:aws:iam::942632789808:(user|role)/[A-Za-z0-9+=,.@_/-]+$", arn))
       ])
     )
-    error_message = "Provide at least one exact IAM user or role ARN from account 942632789808."
+    error_message = "Provide at least one exact foundation IAM user or role ARN from account 942632789808."
+  }
+}
+
+variable "lab_local_principal_arns" {
+  description = "Exact local IAM principal ARNs allowed to assume only the ephemeral lab operator role."
+  type        = set(string)
+
+  validation {
+    condition = (
+      length(var.lab_local_principal_arns) > 0 &&
+      alltrue([
+        for arn in var.lab_local_principal_arns :
+        can(regex("^arn:aws:iam::942632789808:(user|role)/[A-Za-z0-9+=,.@_/-]+$", arn))
+      ])
+    )
+    error_message = "Provide at least one exact lab IAM user or role ARN from account 942632789808."
   }
 }
 
