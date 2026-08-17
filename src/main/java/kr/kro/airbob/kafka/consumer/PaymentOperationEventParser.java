@@ -7,15 +7,20 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.databind.ObjectReader;
 
 @Component
-@RequiredArgsConstructor
 public final class PaymentOperationEventParser {
-	private final ObjectMapper objectMapper;
+	private final ObjectReader strictReader;
+
+	public PaymentOperationEventParser(ObjectMapper objectMapper) {
+		this.strictReader = objectMapper.readerFor(JsonNode.class)
+			.with(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
+			.with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+	}
 
 	public UUID parseOperationUid(String message) {
 		return tryReadOperationUid(message)
@@ -24,7 +29,7 @@ public final class PaymentOperationEventParser {
 
 	public Optional<UUID> tryReadOperationUid(String message) {
 		try {
-			JsonNode root = objectMapper.readTree(message);
+			JsonNode root = strictReader.readTree(message);
 			if (root == null
 				|| !root.isObject()
 				|| !PAYMENT_EXECUTION_REQUESTED_V1.name().equals(root.path("event_type").asText())) {

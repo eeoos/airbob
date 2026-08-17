@@ -2,7 +2,9 @@ package kr.kro.airbob.config;
 
 import static kr.kro.airbob.outbox.EventType.PAYMENT_EXECUTION_REQUESTED_V1;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -18,8 +20,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import kr.kro.airbob.kafka.PaymentOperationKafkaHeaders;
 
@@ -44,9 +50,13 @@ public class PaymentOperationKafkaPublisherConfig {
 
 	private static final class SanitizingInterceptor implements ProducerInterceptor<String, String> {
 		private final ObjectMapper objectMapper;
+		private final ObjectReader strictReader;
 
 		private SanitizingInterceptor(ObjectMapper objectMapper) {
 			this.objectMapper = objectMapper;
+			this.strictReader = objectMapper.readerFor(JsonNode.class)
+				.with(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY)
+				.with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 		}
 
 		@Override
@@ -66,16 +76,13 @@ public class PaymentOperationKafkaPublisherConfig {
 
 		private SanitizedPayload sanitize(String value) {
 			try {
-				JsonNode root = objectMapper.readTree(value);
+				JsonNode root = strictReader.readTree(value);
 				Optional<UUID> operationUid = readOperationUid(root);
 				if (operationUid.isEmpty()) {
 					return SanitizedPayload.poison();
 				}
 				if (isApprovedIdentifierOnlyEnvelope(root)) {
-					String reservationKey = readUuid(root.path("payload").path("reservation_uid"))
-						.orElseThrow()
-						.toString();
-					return new SanitizedPayload(value, reservationKey);
+					return canonicalEnvelope(root);
 				}
 				return new SanitizedPayload(sanitizedExecutionRequest(operationUid.get()), null);
 			} catch (Exception ignored) {
@@ -100,9 +107,29 @@ public class PaymentOperationKafkaPublisherConfig {
 				&& readUuid(root.path("event_id")).isPresent()
 				&& readUuid(root.path("trace_id")).isPresent()
 				&& "1.0".equals(root.path("event_version").asText())
-				&& isInstant(root.path("timestamp"))
+				&& isSupportedTimestamp(root.path("timestamp"))
 				&& readUuid(payload.path("operation_uid")).isPresent()
 				&& readUuid(payload.path("reservation_uid")).isPresent();
+		}
+
+		private SanitizedPayload canonicalEnvelope(JsonNode root) throws JsonProcessingException {
+			UUID eventId = readUuid(root.path("event_id")).orElseThrow();
+			UUID traceId = readUuid(root.path("trace_id")).orElseThrow();
+			JsonNode payload = root.path("payload");
+			UUID operationUid = readUuid(payload.path("operation_uid")).orElseThrow();
+			UUID reservationUid = readUuid(payload.path("reservation_uid")).orElseThrow();
+
+			ObjectNode canonical = objectMapper.createObjectNode();
+			canonical.put("event_id", eventId.toString());
+			canonical.put("trace_id", traceId.toString());
+			canonical.put("event_type", PAYMENT_EXECUTION_REQUESTED_V1.name());
+			canonical.put("event_version", "1.0");
+			canonical.put("timestamp", root.path("timestamp").asText());
+			ObjectNode canonicalPayload = canonical.putObject("payload");
+			canonicalPayload.put("operation_uid", operationUid.toString());
+			canonicalPayload.put("reservation_uid", reservationUid.toString());
+			return new SanitizedPayload(
+				objectMapper.writeValueAsString(canonical), reservationUid.toString());
 		}
 
 		private boolean hasOnlyFields(JsonNode node, Set<String> approvedFields) {
@@ -120,15 +147,20 @@ public class PaymentOperationKafkaPublisherConfig {
 			}
 		}
 
-		private boolean isInstant(JsonNode node) {
+		private boolean isSupportedTimestamp(JsonNode node) {
 			if (!node.isTextual()) {
 				return false;
 			}
 			try {
-				Instant.parse(node.asText());
+				OffsetDateTime.parse(node.asText(), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 				return true;
-			} catch (RuntimeException ignored) {
-				return false;
+			} catch (RuntimeException ignoredOffset) {
+				try {
+					LocalDateTime.parse(node.asText(), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+					return true;
+				} catch (RuntimeException ignoredLocal) {
+					return false;
+				}
 			}
 		}
 

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.WriteTypeHint;
 import org.springframework.kafka.annotation.KafkaListener;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,6 +39,7 @@ class AccommodationReindexContractTest {
 
 		assertThat(document.indexName()).isEqualTo("accommodations");
 		assertThat(document.createIndex()).isFalse();
+		assertThat(document.writeTypeHint()).isEqualTo(WriteTypeHint.FALSE);
 		assertThat(listener.autoStartup())
 			.isEqualTo("${accommodation.indexing.kafka.auto-startup:true}");
 	}

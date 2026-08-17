@@ -115,6 +115,41 @@ class PaymentOperationEventsConsumerTest {
 	}
 
 	@Test
+	@DisplayName("중복 operation_uid로 숨긴 원문은 실행하지 않고 poison으로 거부한다")
+	void rejectsDuplicateTreeKeys() {
+		String duplicated = MESSAGE.replace(
+			"\"operation_uid\": \"" + OPERATION_UID + "\"",
+			"\"operation_uid\": \"" + RAW_SECRET + "\", "
+				+ "\"operation_uid\": \"" + OPERATION_UID + "\"");
+
+		Throwable failure = catchThrowable(() -> consumer.handle(duplicated, acknowledgment));
+
+		assertThat(failure)
+			.isInstanceOf(PaymentOperationEventParsingException.class)
+			.hasMessage("Invalid payment-operation event.")
+			.hasNoCause();
+		assertThat(failure.toString()).doesNotContain(RAW_SECRET, duplicated);
+		then(executor).shouldHaveNoInteractions();
+		then(acknowledgment).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("정상 envelope 뒤에 붙인 두 번째 JSON은 실행하지 않고 poison으로 거부한다")
+	void rejectsTrailingJsonValue() {
+		String trailing = MESSAGE + "{\"provider_secret\":\"" + RAW_SECRET + "\"}";
+
+		Throwable failure = catchThrowable(() -> consumer.handle(trailing, acknowledgment));
+
+		assertThat(failure)
+			.isInstanceOf(PaymentOperationEventParsingException.class)
+			.hasMessage("Invalid payment-operation event.")
+			.hasNoCause();
+		assertThat(failure.toString()).doesNotContain(RAW_SECRET, trailing);
+		then(executor).shouldHaveNoInteractions();
+		then(acknowledgment).shouldHaveNoInteractions();
+	}
+
+	@Test
 	@DisplayName("DLT 알림에는 원본 좌표와 읽을 수 있는 operation UID만 전달하고 ACK한다")
 	void quarantinesWithCoordinatesAndOperationUidThenAcknowledges() {
 		consumer.handleDlt(

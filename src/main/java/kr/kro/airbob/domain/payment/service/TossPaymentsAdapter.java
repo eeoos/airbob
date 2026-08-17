@@ -30,7 +30,6 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentResponseParsingException;
 import kr.kro.airbob.domain.payment.exception.code.PaymentCancelErrorCode;
-import kr.kro.airbob.domain.payment.exception.code.PaymentConfirmErrorCode;
 import kr.kro.airbob.domain.payment.exception.code.PaymentInquiryErrorCode;
 import kr.kro.airbob.domain.payment.exception.code.VirtualAccountIssueErrorCode;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
@@ -59,7 +58,6 @@ public class TossPaymentsAdapter implements PaymentConfirmationGateway {
 	public static final String CANCEL_PATH = "/v1/payments/{paymentKey}/cancel";
 	public static final String CANCEL_AMOUNT = "cancelAmount";
 	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
-	public static final String CONFIRMATION_IDEMPOTENCY_KEY_PREFIX = "airbob-confirm-";
 	public static final String CANCELLATION_IDEMPOTENCY_KEY_PREFIX = "airbob-cancel-";
 	public static final String GET_PATH_BY_PAYMENT_KEY = "/v1/payments/{paymentKey}";
 	public static final String GET_PATH_BY_ORDER_ID = "/v1/payments/orders/{orderId}";
@@ -146,31 +144,6 @@ public class TossPaymentsAdapter implements PaymentConfirmationGateway {
 		} catch (TossPaymentResponseParsingException | RestClientException exception) {
 			return classifyTransportFailure(exception);
 		}
-	}
-
-	public TossPaymentResponse confirmPayment(String paymentKey, String orderId, Integer amount) {
-		Map<String, Object> payload = new HashMap<>();
-		payload.put(PAYMENT_KEY, paymentKey);
-		payload.put(ORDER_ID, orderId);
-		payload.put(AMOUNT, amount);
-
-		return Objects.requireNonNull(
-			tossPaymentsRestClient.post()
-				.uri(CONFIRM_PATH)
-				.header(IDEMPOTENCY_KEY_HEADER, CONFIRMATION_IDEMPOTENCY_KEY_PREFIX + orderId)
-				.body(payload)
-				.retrieve()
-				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
-				})
-				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					String errorCode = readErrorCode(response);
-					throwIfIdempotentRequestIsProcessing(errorCode);
-					throw new TossPaymentException(PaymentConfirmErrorCode.fromErrorCode(errorCode));
-				})
-				.toEntity(TossPaymentResponse.class)
-				.getBody()
-		);
 	}
 
 	private PaymentGatewayResult approvedOrUnknown(
