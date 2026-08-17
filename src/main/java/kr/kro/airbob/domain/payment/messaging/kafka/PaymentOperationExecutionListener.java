@@ -17,9 +17,9 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.service.PaymentOperationDltIncidentService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
@@ -27,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-public class PaymentOperationEventsConsumer {
+public class PaymentOperationExecutionListener {
 
 	private final IntegrationEventCodec codec;
 	private final PaymentOperationExecutor executor;
@@ -37,7 +37,7 @@ public class PaymentOperationEventsConsumer {
 		attempts = "${payment.operation.kafka.attempts:4}",
 		backoff = @Backoff(delayExpression = "${payment.operation.kafka.backoff-ms:30000}"),
 		kafkaTemplate = "paymentOperationRetryKafkaTemplate",
-		listenerContainerFactory = "paymentOperationKafkaListenerContainerFactory",
+		listenerContainerFactory = PaymentOperationKafkaConsumerConfiguration.CONTAINER_FACTORY,
 		retryTopicSuffix = ".RETRY",
 		dltTopicSuffix = ".DLT",
 		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
@@ -47,7 +47,7 @@ public class PaymentOperationEventsConsumer {
 	@KafkaListener(
 		topics = PaymentOperationExecutionRequestedV1.TOPIC,
 		groupId = "${payment.operation.kafka.group:payment-operation-execution-group}",
-		containerFactory = "paymentOperationKafkaListenerContainerFactory"
+		containerFactory = PaymentOperationKafkaConsumerConfiguration.CONTAINER_FACTORY
 	)
 	public void handle(@Payload String message, Acknowledgment ack) {
 		PaymentOperationExecutionRequestedV1 event = decode(message).payload();

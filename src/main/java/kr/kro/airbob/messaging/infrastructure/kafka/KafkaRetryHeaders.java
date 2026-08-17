@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.alert.infrastructure.kafka;
+package kr.kro.airbob.messaging.infrastructure.kafka;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -12,7 +12,7 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.springframework.kafka.retrytopic.RetryTopicHeaders;
 import org.springframework.kafka.support.KafkaHeaders;
 
-final class OperatorAlertKafkaHeaders {
+public final class KafkaRetryHeaders {
 
 	private static final String RETRY_SUFFIX = ".RETRY";
 	private static final String DLT_SUFFIX = ".DLT";
@@ -57,14 +57,14 @@ final class OperatorAlertKafkaHeaders {
 		KafkaHeaders.DELIVERY_ATTEMPT
 	);
 
-	private OperatorAlertKafkaHeaders() {
+	private KafkaRetryHeaders() {
 	}
 
-	static void stripFrameworkOwned(Headers headers) {
+	public static void stripFrameworkOwned(Headers headers) {
 		RESERVED_HEADERS.forEach(headers::remove);
 	}
 
-	static Headers copyValidatedFrameworkOwned(
+	public static Headers copyValidatedFrameworkOwned(
 		Headers source,
 		String destinationTopic,
 		Integer destinationPartition

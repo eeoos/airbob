@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.payment.event;
+package kr.kro.airbob.domain.payment.messaging.event;
 
 import java.util.Objects;
 import java.util.UUID;

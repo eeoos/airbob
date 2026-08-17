@@ -15,7 +15,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;

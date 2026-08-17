@@ -42,7 +42,7 @@ public class AccommodationSearchRefreshListener {
 		attempts = "${accommodation.indexing.kafka.attempts:4}",
 		backoff = @Backoff(delayExpression = "${accommodation.indexing.kafka.backoff-ms:30000}"),
 		kafkaTemplate = "accommodationSearchRetryKafkaTemplate",
-		listenerContainerFactory = AccommodationSearchKafkaConsumerConfig.CONTAINER_FACTORY,
+		listenerContainerFactory = AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY,
 		retryTopicSuffix = ".RETRY",
 		dltTopicSuffix = ".DLT",
 		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
@@ -53,7 +53,7 @@ public class AccommodationSearchRefreshListener {
 		id = LISTENER_ID,
 		topics = AccommodationSearchRefreshRequestedV1.TOPIC,
 		groupId = "${accommodation.indexing.kafka.group:accommodation-indexing-group}",
-		containerFactory = AccommodationSearchKafkaConsumerConfig.CONTAINER_FACTORY,
+		containerFactory = AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY,
 		autoStartup = "#{@accommodationIndexAliasReadiness.shouldAutoStart()}"
 	)
 	public void handle(@Payload String message, Acknowledgment acknowledgment) {

@@ -1,4 +1,4 @@
-package kr.kro.airbob.search.messaging.kafka;
+package kr.kro.airbob.messaging.infrastructure.kafka;
 
 import java.util.Map;
 
@@ -8,11 +8,10 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
 
-public final class AccommodationSearchKafkaHeaderConsumerInterceptor
+public final class PrimaryTopicHeaderSanitizingInterceptor
 	implements ConsumerInterceptor<String, String> {
 
-	public static final String PRIMARY_TOPIC_CONFIG =
-		"airbob.accommodation-search.kafka.primary-topic";
+	public static final String PRIMARY_TOPIC_CONFIG = "airbob.messaging.kafka.primary-topic";
 
 	private String primaryTopic;
 
@@ -29,7 +28,7 @@ public final class AccommodationSearchKafkaHeaderConsumerInterceptor
 	public ConsumerRecords<String, String> onConsume(ConsumerRecords<String, String> records) {
 		for (var record : records) {
 			if (record.topic().equals(primaryTopic)) {
-				AccommodationSearchKafkaHeaders.stripFrameworkOwned(record.headers());
+				KafkaRetryHeaders.stripFrameworkOwned(record.headers());
 			}
 		}
 		return records;

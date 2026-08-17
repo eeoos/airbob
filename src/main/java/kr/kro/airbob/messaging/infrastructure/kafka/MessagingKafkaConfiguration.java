@@ -1,4 +1,4 @@
-package kr.kro.airbob.config;
+package kr.kro.airbob.messaging.infrastructure.kafka;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -6,6 +6,7 @@ import java.util.Map;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,12 +17,17 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.retrytopic.RetryTopicSchedulerWrapper;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-@Configuration
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+
+@Configuration(proxyBeanMethods = false)
 @EnableKafkaRetryTopic
-public class KafkaConfig {
+public class MessagingKafkaConfiguration {
+
+	public static final String PRODUCER_FACTORY = "integrationEventProducerFactory";
+	public static final String KAFKA_TEMPLATE = "integrationEventKafkaTemplate";
 
 	@Bean
-	public RetryTopicSchedulerWrapper retryTopicScheduler() {
+	public RetryTopicSchedulerWrapper kafkaRetryTopicScheduler() {
 		ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 		scheduler.setPoolSize(1);
 		scheduler.setThreadNamePrefix("kafka-retry-");
@@ -29,8 +35,8 @@ public class KafkaConfig {
 		return new RetryTopicSchedulerWrapper(scheduler);
 	}
 
-	@Bean
-	public ProducerFactory<String, String> deadLetterProducerFactory(
+	@Bean(name = PRODUCER_FACTORY)
+	public ProducerFactory<String, String> integrationEventProducerFactory(
 		KafkaProperties kafkaProperties
 	) {
 		Map<String, Object> properties = new HashMap<>(kafkaProperties.buildProducerProperties());
@@ -39,11 +45,28 @@ public class KafkaConfig {
 		return new DefaultKafkaProducerFactory<>(properties);
 	}
 
-	@Bean
-	public KafkaTemplate<String, String> deadLetterKafkaTemplate(
-		@Qualifier("deadLetterProducerFactory") ProducerFactory<String, String> producerFactory
+	@Bean(name = KAFKA_TEMPLATE)
+	public KafkaTemplate<String, String> integrationEventKafkaTemplate(
+		@Qualifier(PRODUCER_FACTORY) ProducerFactory<String, String> producerFactory
 	) {
 		return new KafkaTemplate<>(producerFactory);
 	}
 
+	@Bean
+	public IntegrationEventKafkaListenerContainerFactoryBuilder
+		integrationEventKafkaListenerContainerFactoryBuilder(
+			ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
+			KafkaProperties kafkaProperties
+		) {
+		return new IntegrationEventKafkaListenerContainerFactoryBuilder(
+			configurer, kafkaProperties);
+	}
+
+	@Bean
+	public SanitizingRetryKafkaTemplateFactory sanitizingRetryKafkaTemplateFactory(
+		@Qualifier(PRODUCER_FACTORY) ProducerFactory<String, String> producerFactory,
+		IntegrationEventCodec codec
+	) {
+		return new SanitizingRetryKafkaTemplateFactory(producerFactory, codec);
+	}
 }

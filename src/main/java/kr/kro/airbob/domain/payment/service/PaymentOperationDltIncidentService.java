@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;

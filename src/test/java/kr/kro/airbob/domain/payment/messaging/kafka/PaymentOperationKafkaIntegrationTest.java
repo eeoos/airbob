@@ -52,13 +52,14 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.read.ListAppender;
 
-import kr.kro.airbob.config.KafkaConfig;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.service.PaymentOperationDltIncidentService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
+import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @SpringJUnitConfig(PaymentOperationKafkaIntegrationTest.KafkaTestConfiguration.class)
 @TestPropertySource(properties = {
@@ -103,7 +104,8 @@ class PaymentOperationKafkaIntegrationTest {
 	private static final long SPOOFED_ORIGINAL_TIMESTAMP = 1L;
 	private static final long ATTACKER_BACKOFF_DELAY_MS = 30_000L;
 	private static final long PROMPT_DELIVERY_TIMEOUT_MS = 2_000L;
-	private static final String SANITIZED_POISON = "{\"event_type\":\"UNKNOWN\",\"payload\":{}}";
+	private static final String SANITIZED_POISON =
+		SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
 	private static final List<String> SAFE_RETRY_DLT_HEADERS = List.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
@@ -125,7 +127,8 @@ class PaymentOperationKafkaIntegrationTest {
 	@Autowired
 	PaymentOperationKafkaIntegrationTest(
 		EmbeddedKafkaBroker broker,
-		@Qualifier("deadLetterKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate,
+		@Qualifier(MessagingKafkaConfiguration.KAFKA_TEMPLATE)
+		KafkaTemplate<String, String> kafkaTemplate,
 		PaymentOperationExecutor executor,
 		PaymentOperationDltIncidentService dltIncidentService,
 		IntegrationEventCodec codec
@@ -415,10 +418,10 @@ class PaymentOperationKafkaIntegrationTest {
 	@Import({
 		JacksonAutoConfiguration.class,
 		KafkaAutoConfiguration.class,
-		KafkaConfig.class,
-		PaymentOperationKafkaConsumerConfig.class,
-		PaymentOperationKafkaPublisherConfig.class,
-		PaymentOperationEventsConsumer.class,
+		MessagingKafkaConfiguration.class,
+		PaymentOperationKafkaConsumerConfiguration.class,
+		PaymentOperationKafkaRetryPublisherConfiguration.class,
+		PaymentOperationExecutionListener.class,
 		IntegrationEventCodec.class
 	})
 	static class KafkaTestConfiguration {

@@ -37,11 +37,7 @@ spring:
     socket-timeout: 30s
 
   kafka:
-    consumer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-      group-id: payment-service-group
-    producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 # AWS SDK가 IAM Role에서 자동으로 자격증명을 가져옴
 # EC2 Instance Profile 또는 ECS Task Role 사용

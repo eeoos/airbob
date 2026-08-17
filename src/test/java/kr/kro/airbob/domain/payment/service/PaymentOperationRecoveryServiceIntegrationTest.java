@@ -51,7 +51,7 @@ import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.RecoveryBatch;
 import kr.kro.airbob.messaging.event.EventEnvelope;

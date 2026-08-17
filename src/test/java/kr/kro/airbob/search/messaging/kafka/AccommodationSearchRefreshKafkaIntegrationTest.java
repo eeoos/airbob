@@ -47,11 +47,12 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import kr.kro.airbob.config.KafkaConfig;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
+import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.search.service.AccommodationIndexingService;
 
@@ -92,7 +93,7 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	private static final String RAW_SECRET = "search-poison-secret-019ffe7e";
 	private static final String CUSTOM_SECRET_HEADER = "x-search-provider-secret";
 	private static final String SANITIZED_POISON =
-		AccommodationSearchKafkaPublisherConfig.SANITIZED_POISON;
+		SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON;
 	private static final Set<String> SAFE_RETRY_DLT_HEADERS = Set.of(
 		RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS,
 		RetryTopicHeaders.DEFAULT_HEADER_BACKOFF_TIMESTAMP,
@@ -122,7 +123,8 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	@Autowired
 	AccommodationSearchRefreshKafkaIntegrationTest(
 		EmbeddedKafkaBroker broker,
-		@Qualifier("deadLetterKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate,
+		@Qualifier(MessagingKafkaConfiguration.KAFKA_TEMPLATE)
+		KafkaTemplate<String, String> kafkaTemplate,
 		AccommodationIndexingService indexingService,
 		OperatorAlertEnqueueService alertEnqueueService,
 		IntegrationEventCodec eventCodec
@@ -271,10 +273,10 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	@Import({
 		JacksonAutoConfiguration.class,
 		KafkaAutoConfiguration.class,
-		KafkaConfig.class,
+		MessagingKafkaConfiguration.class,
 		IntegrationEventCodec.class,
-		AccommodationSearchKafkaConsumerConfig.class,
-		AccommodationSearchKafkaPublisherConfig.class,
+		AccommodationSearchKafkaConsumerConfiguration.class,
+		AccommodationSearchKafkaRetryPublisherConfiguration.class,
 		AccommodationSearchRefreshListener.class
 	})
 	static class KafkaTestConfiguration {

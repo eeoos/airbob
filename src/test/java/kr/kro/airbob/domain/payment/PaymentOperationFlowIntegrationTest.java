@@ -78,8 +78,8 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationEventsConsumer;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationExecutionListener;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
@@ -182,7 +182,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private IntegrationEventCodec eventCodec;
 
 	private MockMvc mockMvc;
-	private PaymentOperationEventsConsumer consumer;
+	private PaymentOperationExecutionListener listener;
 	private long ownerId;
 	private long nonOwnerId;
 	private long reservationId;
@@ -205,7 +205,7 @@ class PaymentOperationFlowIntegrationTest {
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();
-		consumer = new PaymentOperationEventsConsumer(eventCodec, executor, null);
+		listener = new PaymentOperationExecutionListener(eventCodec, executor, null);
 	}
 
 	@AfterEach
@@ -575,7 +575,7 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private void deliver(String message) {
-		consumer.handle(message, () -> { });
+		listener.handle(message, () -> { });
 	}
 
 	private String latestExecutionPayload() {

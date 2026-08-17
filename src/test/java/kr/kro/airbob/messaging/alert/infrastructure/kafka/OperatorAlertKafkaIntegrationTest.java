@@ -50,7 +50,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-import kr.kro.airbob.config.KafkaConfig;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertGateway;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
@@ -59,6 +58,8 @@ import kr.kro.airbob.messaging.alert.event.OperatorAlertSummaryCode;
 import kr.kro.airbob.messaging.alert.monitoring.OperatorAlertMetrics;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
+import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @SpringJUnitConfig(OperatorAlertKafkaIntegrationTest.TestConfiguration.class)
 @TestPropertySource(properties = {
@@ -120,7 +121,8 @@ class OperatorAlertKafkaIntegrationTest {
 	@Autowired
 	OperatorAlertKafkaIntegrationTest(
 		EmbeddedKafkaBroker broker,
-		@Qualifier("deadLetterKafkaTemplate") KafkaTemplate<String, String> template,
+		@Qualifier(MessagingKafkaConfiguration.KAFKA_TEMPLATE)
+		KafkaTemplate<String, String> template,
 		OperatorAlertGateway gateway,
 		OperatorAlertMetrics metrics,
 		IntegrationEventCodec codec
@@ -224,7 +226,7 @@ class OperatorAlertKafkaIntegrationTest {
 
 	private void assertSafePoison(ConsumerRecord<String, String> record) {
 		assertThat(record.value())
-			.isEqualTo(OperatorAlertKafkaPublisherConfiguration.SANITIZED_POISON)
+			.isEqualTo(SanitizingRetryKafkaTemplateFactory.SANITIZED_POISON)
 			.doesNotContain(RAW_SECRET);
 		assertThat(record.key()).isNull();
 		assertThat(headerNames(record)).isSubsetOf(SAFE_HEADERS).doesNotHaveDuplicates();
@@ -301,7 +303,7 @@ class OperatorAlertKafkaIntegrationTest {
 	@Import({
 		JacksonAutoConfiguration.class,
 		KafkaAutoConfiguration.class,
-		KafkaConfig.class,
+		MessagingKafkaConfiguration.class,
 		IntegrationEventCodec.class,
 		OperatorAlertKafkaConsumerConfiguration.class,
 		OperatorAlertKafkaPublisherConfiguration.class,

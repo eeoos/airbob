@@ -1,23 +1,23 @@
-package kr.kro.airbob.messaging.alert.infrastructure.kafka;
+package kr.kro.airbob.domain.payment.messaging.kafka;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 
-import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.messaging.infrastructure.kafka.IntegrationEventKafkaListenerContainerFactoryBuilder;
 
 @Configuration(proxyBeanMethods = false)
-public class OperatorAlertKafkaConsumerConfiguration {
+public class PaymentOperationKafkaConsumerConfiguration {
 
 	public static final String CONTAINER_FACTORY =
-		"operatorAlertKafkaListenerContainerFactory";
+		"paymentOperationKafkaListenerContainerFactory";
 
 	@Bean(name = CONTAINER_FACTORY)
 	public ConcurrentKafkaListenerContainerFactory<Object, Object>
-		operatorAlertKafkaListenerContainerFactory(
+		paymentOperationKafkaListenerContainerFactory(
 			IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder
 		) {
-		return factoryBuilder.build(OperatorAlertRequestedV1.TOPIC);
+		return factoryBuilder.build(PaymentOperationExecutionRequestedV1.TOPIC);
 	}
 }

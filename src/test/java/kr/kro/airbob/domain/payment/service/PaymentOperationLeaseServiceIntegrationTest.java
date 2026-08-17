@@ -46,7 +46,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;

@@ -28,7 +28,7 @@ import org.springframework.kafka.support.KafkaHeaders;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.service.PaymentOperationDltIncidentService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
@@ -37,7 +37,7 @@ import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("payment-operation Kafka 소비자 테스트")
-class PaymentOperationEventsConsumerTest {
+class PaymentOperationExecutionListenerTest {
 
 	private static final UUID OPERATION_UID = UUID.fromString("b7f97942-3e28-4a5f-9cb4-797001b4f5c1");
 	private static final String RAW_SECRET = "poison-provider-secret-7a8e0d";
@@ -59,11 +59,11 @@ class PaymentOperationEventsConsumerTest {
 	@Mock private PaymentOperationDltIncidentService dltIncidentService;
 	@Mock private Acknowledgment acknowledgment;
 
-	private PaymentOperationEventsConsumer consumer;
+	private PaymentOperationExecutionListener listener;
 
 	@BeforeEach
 	void setUp() {
-		consumer = new PaymentOperationEventsConsumer(
+		listener = new PaymentOperationExecutionListener(
 			new IntegrationEventCodec(new ObjectMapper().findAndRegisterModules()),
 			executor,
 			dltIncidentService);
@@ -72,7 +72,7 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("실행 결과가 내구 상태로 반영된 뒤에만 원본 메시지를 ACK한다")
 	void executesThenAcknowledges() {
-		consumer.handle(MESSAGE, acknowledgment);
+		listener.handle(MESSAGE, acknowledgment);
 
 		InOrder order = inOrder(executor, acknowledgment);
 		order.verify(executor).execute(OPERATION_UID, 3);
@@ -84,7 +84,7 @@ class PaymentOperationEventsConsumerTest {
 	void rethrowsPayloadFreeParsingFailureWithoutAck() {
 		String malformed = "not-json paymentKey=" + RAW_SECRET;
 
-		Throwable failure = catchThrowable(() -> consumer.handle(malformed, acknowledgment));
+		Throwable failure = catchThrowable(() -> listener.handle(malformed, acknowledgment));
 
 		assertThat(failure)
 			.isInstanceOf(InvalidIntegrationEventException.class)
@@ -101,7 +101,7 @@ class PaymentOperationEventsConsumerTest {
 		willThrow(new IllegalStateException("database unavailable"))
 			.given(executor).execute(OPERATION_UID, 3);
 
-		assertThatThrownBy(() -> consumer.handle(MESSAGE, acknowledgment))
+		assertThatThrownBy(() -> listener.handle(MESSAGE, acknowledgment))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessage("database unavailable");
 
@@ -115,7 +115,7 @@ class PaymentOperationEventsConsumerTest {
 			{"event_type":"%s","payload":{"operation_uid":"%s"}}
 			""".formatted(RAW_SECRET, OPERATION_UID);
 
-		Throwable failure = catchThrowable(() -> consumer.handle(unsupported, acknowledgment));
+		Throwable failure = catchThrowable(() -> listener.handle(unsupported, acknowledgment));
 
 		assertThat(failure)
 			.isInstanceOf(InvalidIntegrationEventException.class)
@@ -134,7 +134,7 @@ class PaymentOperationEventsConsumerTest {
 			"\"operation_uid\": \"" + RAW_SECRET + "\", "
 				+ "\"operation_uid\": \"" + OPERATION_UID + "\"");
 
-		Throwable failure = catchThrowable(() -> consumer.handle(duplicated, acknowledgment));
+		Throwable failure = catchThrowable(() -> listener.handle(duplicated, acknowledgment));
 
 		assertThat(failure)
 			.isInstanceOf(InvalidIntegrationEventException.class)
@@ -150,7 +150,7 @@ class PaymentOperationEventsConsumerTest {
 	void rejectsTrailingJsonValue() {
 		String trailing = MESSAGE + "{\"provider_secret\":\"" + RAW_SECRET + "\"}";
 
-		Throwable failure = catchThrowable(() -> consumer.handle(trailing, acknowledgment));
+		Throwable failure = catchThrowable(() -> listener.handle(trailing, acknowledgment));
 
 		assertThat(failure)
 			.isInstanceOf(InvalidIntegrationEventException.class)
@@ -166,7 +166,7 @@ class PaymentOperationEventsConsumerTest {
 	void recordsCanonicalIncidentThenAcknowledges() {
 		ConsumerRecord<String, String> record = dltRecord(MESSAGE, 2, 41L);
 
-		consumer.handleDlt(record, acknowledgment);
+		listener.handleDlt(record, acknowledgment);
 
 		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition(
 			PaymentOperationExecutionRequestedV1.TOPIC, 2, 41L);
@@ -181,7 +181,7 @@ class PaymentOperationEventsConsumerTest {
 		String poison = "not-json paymentKey=" + RAW_SECRET;
 		ConsumerRecord<String, String> record = dltRecord(poison, 0, 7L);
 
-		consumer.handleDlt(record, acknowledgment);
+		listener.handleDlt(record, acknowledgment);
 
 		then(dltIncidentService).should().record(
 			poison,
@@ -198,7 +198,7 @@ class PaymentOperationEventsConsumerTest {
 		willThrow(new IllegalStateException("operator alert outbox unavailable"))
 			.given(dltIncidentService).record("not-json", source);
 
-		assertThatThrownBy(() -> consumer.handleDlt(record, acknowledgment))
+		assertThatThrownBy(() -> listener.handleDlt(record, acknowledgment))
 			.isInstanceOf(IllegalStateException.class);
 
 		then(acknowledgment).shouldHaveNoInteractions();
@@ -207,7 +207,7 @@ class PaymentOperationEventsConsumerTest {
 	@Test
 	@DisplayName("전용 토픽, 그룹, 재시도 토픽, DLT 계약을 구성한다")
 	void configuresDedicatedRetryAndDltContract() throws NoSuchMethodException {
-		var method = PaymentOperationEventsConsumer.class
+		var method = PaymentOperationExecutionListener.class
 			.getMethod("handle", String.class, Acknowledgment.class);
 		RetryableTopic retryableTopic = method.getAnnotation(RetryableTopic.class);
 		KafkaListener kafkaListener = method.getAnnotation(KafkaListener.class);

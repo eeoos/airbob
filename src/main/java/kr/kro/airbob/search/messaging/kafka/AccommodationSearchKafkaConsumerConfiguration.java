@@ -1,23 +1,23 @@
-package kr.kro.airbob.messaging.alert.infrastructure.kafka;
+package kr.kro.airbob.search.messaging.kafka;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 
-import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.infrastructure.kafka.IntegrationEventKafkaListenerContainerFactoryBuilder;
+import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 
 @Configuration(proxyBeanMethods = false)
-public class OperatorAlertKafkaConsumerConfiguration {
+public class AccommodationSearchKafkaConsumerConfiguration {
 
 	public static final String CONTAINER_FACTORY =
-		"operatorAlertKafkaListenerContainerFactory";
+		"accommodationSearchKafkaListenerContainerFactory";
 
 	@Bean(name = CONTAINER_FACTORY)
 	public ConcurrentKafkaListenerContainerFactory<Object, Object>
-		operatorAlertKafkaListenerContainerFactory(
+		accommodationSearchKafkaListenerContainerFactory(
 			IntegrationEventKafkaListenerContainerFactoryBuilder factoryBuilder
 		) {
-		return factoryBuilder.build(OperatorAlertRequestedV1.TOPIC);
+		return factoryBuilder.build(AccommodationSearchRefreshRequestedV1.TOPIC);
 	}
 }

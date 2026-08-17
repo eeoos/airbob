@@ -15,8 +15,8 @@ import org.springframework.kafka.support.Acknowledgment;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationEventsConsumer;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationExecutionListener;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.infrastructure.kafka.OperatorAlertKafkaListener;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
@@ -119,7 +119,7 @@ class MessagingDeploymentContractTest {
 		assertThat(OperatorAlertRequestedV1.DESCRIPTOR.destination())
 			.isEqualTo(OperatorAlertRequestedV1.TOPIC);
 		assertCanonicalListenerTopic(
-			PaymentOperationEventsConsumer.class,
+			PaymentOperationExecutionListener.class,
 			PaymentOperationExecutionRequestedV1.TOPIC);
 		assertCanonicalListenerTopic(
 			AccommodationSearchRefreshListener.class,
@@ -153,6 +153,24 @@ class MessagingDeploymentContractTest {
 				"condition: service_completed_successfully",
 				"SPRING_KAFKA_ADMIN_AUTO_CREATE=false",
 				"SPRING_KAFKA_LISTENER_MISSING_TOPICS_FATAL=true");
+	}
+
+	@Test
+	@DisplayName("애플리케이션은 하나의 bootstrap 주소와 canonical String payload serializer를 사용한다")
+	void normalizesKafkaClientProperties() throws IOException {
+		String application = read("src/main/resources/application.yaml");
+		assertThat(application)
+			.contains("value-serializer: org.apache.kafka.common.serialization.StringSerializer")
+			.doesNotContain("value-serializer: org.springframework.kafka.support.serializer.JsonSerializer");
+
+		for (String profile : List.of("dev", "aws", "oci")) {
+			String profileConfig = read("src/main/resources/application-" + profile + ".yaml");
+			assertThat(profileConfig)
+				.contains("  kafka:\n    bootstrap-servers:")
+				.doesNotContain("group-id: payment-service-group")
+				.doesNotContain("consumer:\n      bootstrap-servers:")
+				.doesNotContain("producer:\n      bootstrap-servers:");
+		}
 	}
 
 	@Test

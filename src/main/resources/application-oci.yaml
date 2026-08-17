@@ -33,11 +33,7 @@ spring:
     socket-timeout: 30s
 
   kafka:
-    consumer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-      group-id: payment-service-group
-    producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 cloud:
   aws:

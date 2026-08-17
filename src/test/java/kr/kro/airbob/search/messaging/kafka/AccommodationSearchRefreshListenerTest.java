@@ -173,7 +173,7 @@ class AccommodationSearchRefreshListenerTest {
 		assertThat(retryableTopic.kafkaTemplate())
 			.isEqualTo("accommodationSearchRetryKafkaTemplate");
 		assertThat(retryableTopic.listenerContainerFactory())
-			.isEqualTo(AccommodationSearchKafkaConsumerConfig.CONTAINER_FACTORY);
+			.isEqualTo(AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY);
 		assertThat(retryableTopic.retryTopicSuffix()).isEqualTo(".RETRY");
 		assertThat(retryableTopic.dltTopicSuffix()).isEqualTo(".DLT");
 		assertThat(retryableTopic.autoCreateTopics()).isEqualTo("false");
@@ -182,7 +182,7 @@ class AccommodationSearchRefreshListenerTest {
 		assertThat(retryableTopic.dltStrategy()).isEqualTo(DltStrategy.FAIL_ON_ERROR);
 		assertThat(kafkaListener.id()).isEqualTo(AccommodationSearchRefreshListener.LISTENER_ID);
 		assertThat(kafkaListener.containerFactory())
-			.isEqualTo(AccommodationSearchKafkaConsumerConfig.CONTAINER_FACTORY);
+			.isEqualTo(AccommodationSearchKafkaConsumerConfiguration.CONTAINER_FACTORY);
 		assertThat(kafkaListener.topics()).containsExactly(
 			AccommodationSearchRefreshRequestedV1.TOPIC);
 		assertThat(kafkaListener.autoStartup())
