@@ -1,0 +1,11 @@
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: "kafka.server<type=(.+), name=(.+)PerSec\\w*><>Count"
+    name: kafka_server_$1_$2_total
+    type: COUNTER
+  - pattern: "kafka.server<type=(.+), name=(.+)><>(Value|Count)"
+    name: kafka_server_$1_$2
+  - pattern: "kafka.network<type=(.+), name=(.+)><>(Value|Count)"
+    name: kafka_network_$1_$2

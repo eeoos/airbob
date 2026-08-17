@@ -1,0 +1,24 @@
+payment:
+  toss:
+    enabled: false
+    secret-key: performance-lab-disabled
+    base-url: http://127.0.0.1
+
+google:
+  api:
+    enabled: false
+    key: performance-lab-disabled
+
+slack:
+  webhook:
+    url: ""
+  notification:
+    enabled: false
+
+cloud:
+  aws:
+    s3:
+      write-enabled: false
+      bucket: performance-lab-disabled
+  cloudfront:
+    domain: https://invalid.performance-lab

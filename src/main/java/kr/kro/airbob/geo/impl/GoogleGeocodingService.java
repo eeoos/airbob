@@ -21,6 +21,7 @@ public class GoogleGeocodingService implements GeocodingService {
 	public static final String OK = "OK";
 	private final RestClient restClient;
 	private final ViewportAdjuster viewportAdjuster;
+	private final boolean enabled;
 
 	// todo: 배포 후엔 api ip 제한 걸기
 	@Value("${google.api.key}")
@@ -28,13 +29,18 @@ public class GoogleGeocodingService implements GeocodingService {
 
 	private static final String GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
-	public GoogleGeocodingService(@Qualifier("generalRestClient") RestClient restClient, ViewportAdjuster viewportAdjuster) {
+	public GoogleGeocodingService(@Qualifier("generalRestClient") RestClient restClient, ViewportAdjuster viewportAdjuster,
+		@Value("${google.api.enabled:true}") boolean enabled) {
 		this.restClient = restClient;
 		this.viewportAdjuster = viewportAdjuster;
+		this.enabled = enabled;
 	}
 
 	@Override
 	public GeocodeResult getCoordinates(String address) {
+		if (!enabled) {
+			return GeocodeResult.fail();
+		}
 
 		try {
 

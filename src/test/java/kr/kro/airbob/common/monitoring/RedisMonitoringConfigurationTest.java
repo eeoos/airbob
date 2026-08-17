@@ -47,6 +47,21 @@ class RedisMonitoringConfigurationTest {
 		}
 	}
 
+	@Test
+	void awsPrometheusScrapesExactlyTwoRedisExportersWithDashboardLabels() throws IOException {
+		Map<String, Object> prometheus = yaml(
+			Path.of("monitoring", "prometheus", "prometheus.aws.yml"));
+		List<Map<String, Object>> jobs = list(prometheus.get("scrape_configs"));
+
+		assertRedisJob(jobs, "redis-general",
+			"redis-general.lab.airbob.internal:9121", "general");
+		assertRedisJob(jobs, "redis-cache",
+			"redis-cache.lab.airbob.internal:9122", "cache");
+		assertThat(jobs.stream()
+			.filter(job -> job.get("job_name").toString().startsWith("redis-")))
+			.hasSize(2);
+	}
+
 	private void assertRedisServices(Map<String, Object> services, boolean local) {
 		Map<String, Object> general = map(services.get("redis"));
 		Map<String, Object> cache = map(services.get("redis-cache"));
@@ -121,8 +136,21 @@ class RedisMonitoringConfigurationTest {
 			"${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}",
 			"${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}");
 		assertProfileCacheEndpoint("application-aws.yaml",
-			"${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}",
-			"${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}");
+			"${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST}",
+			"${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT}");
+		assertThat(awsProperty("spring.data.redis.port"))
+			.isEqualTo("${REDIS_PORT}");
+	}
+
+	private Object awsProperty(String propertyName) throws IOException {
+		return new YamlPropertySourceLoader().load(
+			"application-aws.yaml",
+			new ClassPathResource("application-aws.yaml"))
+			.stream()
+			.map(source -> source.getProperty(propertyName))
+			.filter(java.util.Objects::nonNull)
+			.findFirst()
+			.orElseThrow();
 	}
 
 	private void assertProfileCacheEndpoint(String resourceName, Object host, Object port)

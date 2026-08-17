@@ -117,6 +117,10 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		Supplier<AccommodationDetailSnapshot> loader
 	) {
+		if (!properties.enabled()) {
+			return timedUncachedLoad(loader);
+		}
+
 		// 같은 숙소를 이미 DB에서 읽는 스레드가 있으면 그 결과를 함께 사용
 		CompletableFuture<AccommodationDetailSnapshot> localLoad = localLoads.get(accommodationId);
 		if (localLoad != null) {
@@ -213,6 +217,10 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason
 	) {
+		if (!properties.enabled()) {
+			return;
+		}
+
 		// DB 변경은 이미 커밋됐으므로 캐시 장애가 정상 요청을 실패시키지 않게 best-effort로 처리한다.
 		try {
 			evictInternal(accommodationId, reason);

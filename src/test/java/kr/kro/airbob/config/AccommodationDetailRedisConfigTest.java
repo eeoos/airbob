@@ -108,6 +108,7 @@ class AccommodationDetailRedisConfigTest {
 
 	private AccommodationDetailCacheProperties cacheProperties() {
 		return new AccommodationDetailCacheProperties(
+			true,
 			Duration.ofMinutes(10), Duration.ofMinutes(2),
 			Duration.ofSeconds(45), Duration.ofSeconds(15),
 			Duration.ofSeconds(2), Duration.ofSeconds(5), Duration.ofSeconds(30),

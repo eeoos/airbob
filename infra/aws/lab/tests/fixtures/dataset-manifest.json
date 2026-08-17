@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "releaseKind": "pipeline-rehearsal",
+  "datasetRelease": "rehearsal-v17",
+  "datasetRunId": "20260816T001530Z-12345678",
+  "source": {
+    "datasetVersion": "nplus1-v1",
+    "etlCommit": "0123456789abcdef0123456789abcdef01234567",
+    "seed": "airbob-production-seed-v1",
+    "profile": "large",
+    "manifestVersion": "benchmark-fixture-v1",
+    "canonicalPayloadSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "benchmarkManifestKey": "benchmark/manifest.json",
+    "benchmarkManifestSha256": "2c38a71d5566c051775f8c4fdfc08e12fbebc4fdd6f1e284a185699fd1478647"
+  },
+  "mysql": {
+    "dumpKey": "mysql/airbob.sql.zst",
+    "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
+    "flywayVersion": "17",
+    "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "timezone": "UTC",
+    "evaluationTime": "2026-08-16T00:00:00Z",
+    "validUntil": "2099-12-31T00:00:00Z",
+    "outboxPolicy": "absent",
+    "expectedTableRows": {
+      "flyway_schema_history": 17,
+      "outbox": 0,
+      "accommodation": 730702
+    }
+  },
+  "couponPreparation": [],
+  "kafka": {
+    "topics": [
+      { "name": "PAYMENT.events", "partitions": 1, "retentionMs": 86400000 },
+      { "name": "RESERVATION.events", "partitions": 1, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATIONS.events", "partitions": 1, "retentionMs": 86400000 }
+    ]
+  },
+  "search": { "enabled": false }
+}

@@ -27,7 +27,7 @@ spring:
   data:
     redis:
       host: ${REDIS_HOST}
-      port: 6379
+      port: ${REDIS_PORT}
 
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS}
@@ -63,8 +63,8 @@ slack:
 accommodation:
   detail-cache:
     redis:
-      host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${REDIS_HOST}}
-      port: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:6379}
+      host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST}
+      port: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT}
 
 logging:
   level:
