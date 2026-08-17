@@ -69,6 +69,7 @@ class AccommodationDetailCacheConcurrencyIntegrationTest {
 			mock(AccommodationDetailCacheMetricRecorder.class),
 			new AccommodationDetailCacheJitter(),
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10),
 				Duration.ZERO,
 				Duration.ofSeconds(45),

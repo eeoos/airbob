@@ -1,0 +1,61 @@
+services:
+  redis:
+    image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
+    platform: linux/amd64
+    command: >-
+      redis-server --save "" --appendonly yes --appendfsync everysec
+      --maxmemory 512mb --maxmemory-policy noeviction
+    ports: ["6379:6379"]
+    volumes: ["redis-general-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    mem_limit: 640M
+    memswap_limit: 640M
+    restart: unless-stopped
+
+  redis-cache:
+    image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
+    platform: linux/amd64
+    command: >-
+      redis-server --save "" --appendonly no
+      --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports: ["6380:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    mem_limit: 320M
+    memswap_limit: 320M
+    restart: unless-stopped
+
+  redis-exporter-general:
+    image: ${REDIS_EXPORTER_IMAGE:?REDIS_EXPORTER_IMAGE is required}
+    platform: linux/amd64
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports: ["9121:9121"]
+    mem_limit: 64M
+    memswap_limit: 64M
+    restart: unless-stopped
+
+  redis-exporter-cache:
+    image: ${REDIS_EXPORTER_IMAGE:?REDIS_EXPORTER_IMAGE is required}
+    platform: linux/amd64
+    environment:
+      REDIS_ADDR: redis://redis-cache:6379
+    ports: ["9122:9121"]
+    mem_limit: 64M
+    memswap_limit: 64M
+    restart: unless-stopped
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE:?NODE_EXPORTER_IMAGE is required}
+    platform: linux/amd64
+    pid: host
+    command: ["--path.rootfs=/host"]
+    ports: ["9100:9100"]
+    volumes: ["/:/host:ro"]
+    mem_limit: 128M
+    memswap_limit: 128M
+    restart: unless-stopped
+
+volumes:
+  redis-general-data:

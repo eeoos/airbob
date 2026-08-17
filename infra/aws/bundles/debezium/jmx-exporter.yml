@@ -1,0 +1,13 @@
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: "kafka.connect<type=(.+), client-id=(.+)><>(.+)"
+    name: kafka_connect_$1_$3
+    labels:
+      client_id: "$2"
+  - pattern: "debezium.mysql<type=(.+), context=(.+), server=(.+)><>(.+)"
+    name: debezium_mysql_$1_$4
+    labels:
+      context: "$2"
+      server: "$3"

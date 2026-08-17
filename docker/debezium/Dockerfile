@@ -1,31 +1,38 @@
-# ARM64 호환 Debezium Kafka Connect
-# Multi-stage 빌드: apache/kafka에 패키지 매니저가 없어서 Alpine에서 다운로드
+ARG ALPINE_IMAGE=docker.io/library/alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+FROM ${ALPINE_IMAGE} AS downloader
 
-# Stage 1: Debezium 플러그인 다운로드
-FROM alpine:3.19 AS downloader
+RUN apk add --no-cache ca-certificates curl tar
 
-RUN apk add --no-cache curl tar
+ARG DEBEZIUM_VERSION=2.6.1.Final
+ARG DEBEZIUM_SHA256=af4dec6dd975a7736c3b441fe70212dcc50f7590ab6b56f71f56e9b4519c4483
+ARG JMX_EXPORTER_VERSION=1.6.0
+ARG JMX_EXPORTER_SHA256=a95983fd96e865d2bcdf911cc500e7c82808c27ab9fd226bf96732b6c3d8c46e
+RUN mkdir -p /downloads /plugins/debezium-mysql /opt/jmx \
+    && curl -fsSL --retry 3 \
+      -o /downloads/debezium.tar.gz \
+      "https://repo1.maven.org/maven2/io/debezium/debezium-connector-mysql/${DEBEZIUM_VERSION}/debezium-connector-mysql-${DEBEZIUM_VERSION}-plugin.tar.gz" \
+    && printf '%s  %s\n' "${DEBEZIUM_SHA256}" /downloads/debezium.tar.gz | sha256sum -c - \
+    && tar -xzf /downloads/debezium.tar.gz -C /plugins/debezium-mysql --strip-components=1 \
+    && curl -fsSL --retry 3 \
+      -o /opt/jmx/jmx_prometheus_javaagent.jar \
+      "https://github.com/prometheus/jmx_exporter/releases/download/${JMX_EXPORTER_VERSION}/jmx_prometheus_javaagent-${JMX_EXPORTER_VERSION}.jar" \
+    && printf '%s  %s\n' "${JMX_EXPORTER_SHA256}" /opt/jmx/jmx_prometheus_javaagent.jar | sha256sum -c -
 
-ENV DEBEZIUM_VERSION=2.6.1.Final
-
-RUN mkdir -p /plugins/debezium-mysql && \
-    curl -fSL https://repo1.maven.org/maven2/io/debezium/debezium-connector-mysql/${DEBEZIUM_VERSION}/debezium-connector-mysql-${DEBEZIUM_VERSION}-plugin.tar.gz | \
-    tar -xzC /plugins/debezium-mysql --strip-components=1
-
-# Stage 2: Kafka Connect 실행 이미지
-FROM apache/kafka:3.7.0
+ARG KAFKA_BASE_IMAGE=docker.io/apache/kafka@sha256:41c20d65b0a2180b9deca056d47540771752e69fe9225d5748dd65a25a9675d7
+FROM ${KAFKA_BASE_IMAGE}
 
 USER root
 
-# 다운로드한 플러그인 복사
 COPY --from=downloader /plugins /opt/kafka/connect-plugins
+COPY --from=downloader /opt/jmx/jmx_prometheus_javaagent.jar /opt/jmx/jmx_prometheus_javaagent.jar
 
-# 설정 파일 복사
 COPY connect-distributed.properties /opt/kafka/config/connect-distributed.properties
+
+RUN test -s /opt/jmx/jmx_prometheus_javaagent.jar \
+    && chmod 0444 /opt/jmx/jmx_prometheus_javaagent.jar
 
 USER appuser
 
 EXPOSE 8083
 
 CMD ["/opt/kafka/bin/connect-distributed.sh", "/opt/kafka/config/connect-distributed.properties"]
-

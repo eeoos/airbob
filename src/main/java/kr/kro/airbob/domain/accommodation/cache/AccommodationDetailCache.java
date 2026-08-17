@@ -131,6 +131,10 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		Supplier<AccommodationDetailSnapshot> loader
 	) {
+		if (!properties.enabled()) {
+			return timedUncachedLoad(loader);
+		}
+
 		// 같은 숙소를 이미 DB에서 읽는 스레드가 있으면 그 결과를 함께 사용
 		LocalLoad localLoad = localLoads.get(accommodationId);
 		if (localLoad != null) {
@@ -233,6 +237,10 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason
 	) {
+		if (!properties.enabled()) {
+			return;
+		}
+
 		// DB 변경은 이미 커밋됐으므로 캐시 장애가 정상 요청을 실패시키지 않게 best-effort로 처리
 		try {
 			evictInternal(accommodationId, reason, AFTER_COMMIT);
@@ -249,6 +257,10 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason
 	) {
+		if (!properties.enabled()) {
+			return;
+		}
+
 		evictInternal(accommodationId, reason, OUTBOX);
 	}
 
@@ -587,6 +599,19 @@ public class AccommodationDetailCache {
 			throw new IllegalStateException("숙소 상세 캐시 무효화 대기 중 인터럽트됨", exception);
 		} catch (ExecutionException exception) {
 			throw new IllegalStateException("숙소 상세 캐시 무효화 대기가 실패함", exception.getCause());
+		}
+	}
+
+	private AccommodationDetailSnapshot timedUncachedLoad(
+		Supplier<AccommodationDetailSnapshot> loader
+	) {
+		try {
+			AccommodationDetailSnapshot snapshot = timedLoad(loader);
+			metricRecorder.recordRequest(LOADED);
+			return snapshot;
+		} catch (AccommodationNotFoundException exception) {
+			metricRecorder.recordRequest(NEGATIVE_LOADED);
+			throw exception;
 		}
 	}
 

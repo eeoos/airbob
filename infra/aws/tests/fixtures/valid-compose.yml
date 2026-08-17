@@ -1,0 +1,25 @@
+services:
+  app:
+    image: ${APP_IMAGE:?APP_IMAGE is required}
+    env_file:
+      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+  redis:
+    image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
+  redis-exporter:
+    image: ${REDIS_EXPORTER_IMAGE:?REDIS_EXPORTER_IMAGE is required}
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE:?NODE_EXPORTER_IMAGE is required}
+  kafka:
+    image: ${KAFKA_IMAGE:?KAFKA_IMAGE is required}
+  debezium:
+    image: ${DEBEZIUM_IMAGE:?DEBEZIUM_IMAGE is required}
+  elasticsearch:
+    image: ${ELASTICSEARCH_IMAGE:?ELASTICSEARCH_IMAGE is required}
+  elasticsearch-exporter:
+    image: ${ELASTICSEARCH_EXPORTER_IMAGE:?ELASTICSEARCH_EXPORTER_IMAGE is required}
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:?PROMETHEUS_IMAGE is required}
+    env_file:
+      - ${MONITORING_ENV_FILE:?MONITORING_ENV_FILE is required}
+  grafana:
+    image: ${GRAFANA_IMAGE:?GRAFANA_IMAGE is required}

@@ -1,0 +1,87 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: airbob
+    scrape_timeout: 10s
+    metrics_path: /actuator/prometheus
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        port: 8080
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Project]
+        regex: airbob
+        action: keep
+      - source_labels: [__meta_ec2_tag_Environment]
+        regex: performance-lab
+        action: keep
+      - source_labels: [__meta_ec2_tag_Service]
+        regex: app
+        action: keep
+      - source_labels: [__meta_ec2_instance_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_ec2_tag_Environment]
+        target_label: environment
+
+  - job_name: node-exporter
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        port: 9100
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Project]
+        regex: airbob
+        action: keep
+      - source_labels: [__meta_ec2_tag_Environment]
+        regex: performance-lab
+        action: keep
+      - source_labels: [__meta_ec2_tag_Monitoring]
+        regex: node-exporter
+        action: keep
+      - source_labels: [__meta_ec2_instance_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_ec2_tag_Service]
+        regex: monitoring
+        action: drop
+
+  - job_name: redis-general
+    static_configs:
+      - targets: [redis-general.lab.airbob.internal:9121]
+        labels:
+          environment: performance-lab
+          namespace: general
+          instance: redis-general
+
+  - job_name: redis-cache
+    static_configs:
+      - targets: [redis-cache.lab.airbob.internal:9122]
+        labels:
+          environment: performance-lab
+          namespace: cache
+          instance: redis-cache
+
+  - job_name: kafka
+    static_configs:
+      - targets: [kafka.lab.airbob.internal:7071]
+        labels:
+          environment: performance-lab
+
+  - job_name: debezium
+    static_configs:
+      - targets: [connect.lab.airbob.internal:9404]
+        labels:
+          environment: performance-lab
+
+  - job_name: elasticsearch
+    static_configs:
+      - targets: [elasticsearch.lab.airbob.internal:9114]
+        labels:
+          environment: performance-lab
+
+  - job_name: node-exporter-monitoring
+    static_configs:
+      - targets: [monitoring.lab.airbob.internal:9100]
+        labels:
+          environment: performance-lab

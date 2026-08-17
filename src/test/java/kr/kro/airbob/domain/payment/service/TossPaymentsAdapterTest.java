@@ -14,13 +14,17 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpConnectTimeoutException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -48,13 +52,56 @@ class TossPaymentsAdapterTest {
 	private static final String PROVIDER_IDEMPOTENCY_KEY = "airbob-confirm-" + OPERATION_UID;
 
 	private MockRestServiceServer server;
+	private RestClient.Builder builder;
 	private TossPaymentsAdapter adapter;
 
 	@BeforeEach
 	void setUp() {
-		RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+		builder = RestClient.builder().baseUrl(BASE_URL);
 		server = MockRestServiceServer.bindTo(builder).build();
 		adapter = adapter(builder.build());
+	}
+
+	@Test
+	@DisplayName("비활성화된 토스 결제 어댑터는 어떤 요청도 전송하지 않는다")
+	void disabledAdapterRejectsEveryExternalOperationBeforeSendingARequest() {
+		TossPaymentsAdapter disabledAdapter = adapter(builder.build(), false);
+
+		assertTossPaymentsDisabled(() -> disabledAdapter.confirm(command()));
+		assertTossPaymentsDisabled(() -> disabledAdapter.inquire(command()));
+		assertTossPaymentsDisabled(() -> disabledAdapter.confirmPayment("payment-key", "order-id", 1));
+		assertTossPaymentsDisabled(() -> disabledAdapter.cancelPayment("payment-key", "cancel", null));
+		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByPaymentKey("payment-key"));
+		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByOrderId("order-id"));
+		assertTossPaymentsDisabled(() -> disabledAdapter.issueVirtualAccount(null, "20", "guest"));
+
+		server.verify();
+	}
+
+	@Test
+	@DisplayName("Spring 설정의 토스 결제 비활성화 값이 관리 빈에 적용된다")
+	void springManagedAdapterUsesDisabledPropertyBeforeSendingARequest() {
+		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+			context.getEnvironment().getPropertySources().addFirst(
+				new MapPropertySource("payment-guard-test", Map.of("payment.toss.enabled", false))
+			);
+			context.registerBean("tossPaymentRestClient", RestClient.class, builder::build);
+			context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+			context.registerBean(PaymentConfirmationFailureClassifier.class,
+				PaymentConfirmationFailureClassifier::new);
+			context.register(TossPaymentsAdapter.class);
+			context.refresh();
+
+			assertTossPaymentsDisabled(() -> context.getBean(TossPaymentsAdapter.class).confirm(command()));
+		}
+
+		server.verify();
+	}
+
+	private void assertTossPaymentsDisabled(ThrowableAssert.ThrowingCallable invocation) {
+		assertThatThrownBy(invocation)
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("Toss Payments is disabled");
 	}
 
 	@Test
@@ -282,7 +329,16 @@ class TossPaymentsAdapterTest {
 	}
 
 	private TossPaymentsAdapter adapter(RestClient restClient) {
-		return new TossPaymentsAdapter(restClient, new ObjectMapper(), new PaymentConfirmationFailureClassifier());
+		return adapter(restClient, true);
+	}
+
+	private TossPaymentsAdapter adapter(RestClient restClient, boolean enabled) {
+		return new TossPaymentsAdapter(
+			restClient,
+			new ObjectMapper(),
+			new PaymentConfirmationFailureClassifier(),
+			enabled
+		);
 	}
 
 	private TossPaymentsAdapter adapterThatFailsWith(IOException failure) {

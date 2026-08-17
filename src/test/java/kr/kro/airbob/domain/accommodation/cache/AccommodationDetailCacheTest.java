@@ -73,6 +73,7 @@ class AccommodationDetailCacheTest {
 			metricRecorder,
 			jitter,
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10),
 				Duration.ofMinutes(2),
 				Duration.ofSeconds(45),
@@ -83,6 +84,63 @@ class AccommodationDetailCacheTest {
 				Duration.ofSeconds(1),
 				Duration.ofSeconds(1))
 		);
+	}
+
+	@Test
+	@DisplayName("캐시가 비활성화되면 loader를 호출하고 Redis와 락을 사용하지 않는다")
+	void disabledCacheLoadsWithoutRedisOrLock() {
+		AccommodationDetailSnapshot expected = snapshot(1L, "database");
+		AccommodationDetailCache disabledCache = new AccommodationDetailCache(
+			redisClient,
+			redissonClient,
+			objectMapper,
+			metricRecorder,
+			jitter,
+			new AccommodationDetailCacheProperties(
+				false,
+				Duration.ofMinutes(10),
+				Duration.ofMinutes(2),
+				Duration.ofSeconds(45),
+				Duration.ofSeconds(15),
+				Duration.ofSeconds(2),
+				Duration.ofSeconds(5),
+				Duration.ofSeconds(30),
+				Duration.ofSeconds(1),
+				Duration.ofSeconds(1))
+		);
+
+		AccommodationDetailSnapshot actual = disabledCache.getOrLoad(1L, () -> expected);
+
+		assertThat(actual).isSameAs(expected);
+		verifyNoInteractions(redisClient, redissonClient);
+	}
+
+	@Test
+	@DisplayName("캐시가 비활성화되면 무효화가 Redis와 캐시 메트릭을 사용하지 않는다")
+	void disabledCacheEvictionDoesNotTouchCacheClientsOrMetrics() {
+		AccommodationDetailCache disabledCache = new AccommodationDetailCache(
+			redisClient,
+			redissonClient,
+			objectMapper,
+			metricRecorder,
+			jitter,
+			new AccommodationDetailCacheProperties(
+				false,
+				Duration.ofMinutes(10),
+				Duration.ofMinutes(2),
+				Duration.ofSeconds(45),
+				Duration.ofSeconds(15),
+				Duration.ofSeconds(2),
+				Duration.ofSeconds(5),
+				Duration.ofSeconds(30),
+				Duration.ofSeconds(1),
+				Duration.ofSeconds(1))
+		);
+
+		disabledCache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		disabledCache.evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+
+		verifyNoInteractions(redisClient, redissonClient, metricRecorder);
 	}
 
 	@Test
@@ -877,6 +935,7 @@ class AccommodationDetailCacheTest {
 			metricRecorder,
 			jitter,
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10),
 				Duration.ofMinutes(2),
 				Duration.ofSeconds(45),

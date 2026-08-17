@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "platforms": [
+    "linux/amd64",
+    "linux/arm64"
+  ],
+  "artifacts": {
+    "jmxExporter": {
+      "version": "1.6.0",
+      "sha256": "a95983fd96e865d2bcdf911cc500e7c82808c27ab9fd226bf96732b6c3d8c46e"
+    },
+    "debezium": {
+      "version": "2.6.1.Final",
+      "sha256": "af4dec6dd975a7736c3b441fe70212dcc50f7590ab6b56f71f56e9b4519c4483"
+    }
+  },
+  "app": {
+    "variable": "APP_IMAGE",
+    "repository": "airbob-repo",
+    "context": ".",
+    "dockerfile": "docker/app/Dockerfile",
+    "buildArgs": {
+      "APP_BASE_IMAGE": "docker.io/library/eclipse-temurin@sha256:371da296b8cb74c7e53fbe7083d5374befc0011b493231d97d45fa789915e434"
+    }
+  },
+  "infra": [
+    {
+      "variable": "REDIS_IMAGE",
+      "repository": "airbob-infra/redis",
+      "context": "docker/aws-mirror",
+      "dockerfile": "docker/aws-mirror/Dockerfile",
+      "buildArgs": {
+        "UPSTREAM_IMAGE": "docker.io/library/redis@sha256:05a97a479bc73de66f087dc05b569010772880f778cc8671fa6b8aadee32e5c6"
+      }
+    },
+    {
+      "variable": "REDIS_EXPORTER_IMAGE",
+      "repository": "airbob-infra/redis-exporter",
+      "context": "docker/aws-mirror",
+      "dockerfile": "docker/aws-mirror/Dockerfile",
+      "buildArgs": {
+        "UPSTREAM_IMAGE": "docker.io/oliver006/redis_exporter@sha256:fed773ffd2bb2eac706e0ed9cc2fff41651193ee4977e2a4f6919658ad2313f4"
+      }
+    },
+    {
+      "variable": "NODE_EXPORTER_IMAGE",
+      "repository": "airbob-infra/node-exporter",
+      "context": "docker/aws-mirror",
+      "dockerfile": "docker/aws-mirror/Dockerfile",
+      "buildArgs": {
+        "UPSTREAM_IMAGE": "docker.io/prom/node-exporter@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0"
+      }
+    },
+    {
+      "variable": "KAFKA_IMAGE",
+      "repository": "airbob-infra/kafka",
+      "context": "docker/kafka",
+      "dockerfile": "docker/kafka/Dockerfile",
+      "buildArgs": {
+        "ALPINE_IMAGE": "docker.io/library/alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1",
+        "KAFKA_BASE_IMAGE": "docker.io/apache/kafka@sha256:41c20d65b0a2180b9deca056d47540771752e69fe9225d5748dd65a25a9675d7"
+      }
+    },
+    {
+      "variable": "DEBEZIUM_IMAGE",
+      "repository": "airbob-infra/debezium",
+      "context": "docker/debezium",
+      "dockerfile": "docker/debezium/Dockerfile",
+      "buildArgs": {
+        "ALPINE_IMAGE": "docker.io/library/alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1",
+        "KAFKA_BASE_IMAGE": "docker.io/apache/kafka@sha256:41c20d65b0a2180b9deca056d47540771752e69fe9225d5748dd65a25a9675d7"
+      }
+    },
+    {
+      "variable": "ELASTICSEARCH_IMAGE",
+      "repository": "airbob-infra/elasticsearch",
+      "context": "docker/elasticsearch",
+      "dockerfile": "docker/elasticsearch/Dockerfile",
+      "buildArgs": {
+        "ELASTICSEARCH_BASE_IMAGE": "docker.io/library/elasticsearch@sha256:e5b3511e96ee1c58e9027d9d06185be4e627074717b40f6145e860b39c851d6d"
+      }
+    },
+    {
+      "variable": "ELASTICSEARCH_EXPORTER_IMAGE",
+      "repository": "airbob-infra/elasticsearch-exporter",
+      "context": "docker/aws-mirror",
+      "dockerfile": "docker/aws-mirror/Dockerfile",
+      "buildArgs": {
+        "UPSTREAM_IMAGE": "quay.io/prometheuscommunity/elasticsearch-exporter@sha256:a056739b095df4baaa076f0b31321394233da9a240eeada2623d1b028b7ee7a6"
+      }
+    },
+    {
+      "variable": "PROMETHEUS_IMAGE",
+      "repository": "airbob-infra/prometheus",
+      "context": "docker/aws-mirror",
+      "dockerfile": "docker/aws-mirror/Dockerfile",
+      "buildArgs": {
+        "UPSTREAM_IMAGE": "docker.io/prom/prometheus@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7"
+      }
+    },
+    {
+      "variable": "GRAFANA_IMAGE",
+      "repository": "airbob-infra/grafana",
+      "context": "docker/aws-mirror",
+      "dockerfile": "docker/aws-mirror/Dockerfile",
+      "buildArgs": {
+        "UPSTREAM_IMAGE": "docker.io/grafana/grafana@sha256:121a7a9ece6dc10b969f1f96eed64b4f07dfac0d0b8abc070f7cb83bbde86f63"
+      }
+    }
+  ]
+}

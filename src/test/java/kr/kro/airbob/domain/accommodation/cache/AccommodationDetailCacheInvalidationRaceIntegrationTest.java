@@ -68,6 +68,7 @@ class AccommodationDetailCacheInvalidationRaceIntegrationTest {
 			mock(AccommodationDetailCacheMetricRecorder.class),
 			new AccommodationDetailCacheJitter(),
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10), Duration.ZERO,
 				Duration.ofSeconds(45), Duration.ZERO,
 				Duration.ofSeconds(5),
@@ -162,6 +163,7 @@ class AccommodationDetailCacheInvalidationRaceIntegrationTest {
 			mock(AccommodationDetailCacheMetricRecorder.class),
 			new AccommodationDetailCacheJitter(),
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10), Duration.ZERO,
 				Duration.ofSeconds(45), Duration.ZERO,
 				Duration.ofSeconds(5),
