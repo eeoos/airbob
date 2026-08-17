@@ -1,5 +1,8 @@
 package kr.kro.airbob.domain.accommodation.cache;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
@@ -18,11 +21,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import kr.kro.airbob.outbox.EventType;
+import kr.kro.airbob.outbox.OutboxEventPublisher;
 
 @SpringJUnitConfig(AccommodationDetailCacheInvalidationListenerTest.TestConfiguration.class)
 @DisplayName("숙소 상세 캐시 무효화 트랜잭션 이벤트 테스트")
@@ -30,11 +36,12 @@ class AccommodationDetailCacheInvalidationListenerTest {
 
 	@Autowired private AccommodationDetailCacheInvalidationPublisher publisher;
 	@Autowired private AccommodationDetailCache cache;
+	@Autowired private OutboxEventPublisher outboxEventPublisher;
 	@Autowired private PlatformTransactionManager transactionManager;
 
 	@BeforeEach
 	void resetCacheMock() {
-		reset(cache);
+		reset(cache, outboxEventPublisher);
 	}
 
 	@Test
@@ -45,6 +52,12 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		transaction.executeWithoutResult(status -> {
 			publisher.publish(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 
+			verify(outboxEventPublisher).save(
+				eq(EventType.CACHE_INVALIDATION_REQUESTED),
+				argThat(payload ->
+					payload instanceof AccommodationDetailCacheInvalidationRequestedEvent event
+						&& event.accommodationId().equals(1L)
+						&& event.reason() == AccommodationDetailCacheInvalidationReason.IMAGE));
 			verify(cache, never()).evict(anyLong(), any());
 		});
 
@@ -64,6 +77,16 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		verifyNoInteractions(cache);
 	}
 
+	@Test
+	@DisplayName("활성 트랜잭션 밖에서는 원본 변경과 분리된 outbox 저장을 허용하지 않는다")
+	void requiresActiveTransaction() {
+		assertThatThrownBy(() -> publisher.publish(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION))
+			.isInstanceOf(IllegalTransactionStateException.class);
+
+		verifyNoInteractions(cache, outboxEventPublisher);
+	}
+
 	@Configuration(proxyBeanMethods = false)
 	@EnableTransactionManagement
 	@Import({
@@ -78,12 +101,18 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		}
 
 		@Bean
+		OutboxEventPublisher outboxEventPublisher() {
+			return mock(OutboxEventPublisher.class);
+		}
+
+		@Bean
 		PlatformTransactionManager transactionManager() {
 			return new TestTransactionManager();
 		}
 	}
 
 	private static class TestTransactionManager extends AbstractPlatformTransactionManager {
+		private final ThreadLocal<Boolean> active = ThreadLocal.withInitial(() -> false);
 
 		@Override
 		protected Object doGetTransaction() {
@@ -91,7 +120,13 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		}
 
 		@Override
+		protected boolean isExistingTransaction(Object transaction) {
+			return active.get();
+		}
+
+		@Override
 		protected void doBegin(Object transaction, TransactionDefinition definition) {
+			active.set(true);
 		}
 
 		@Override
@@ -100,6 +135,11 @@ class AccommodationDetailCacheInvalidationListenerTest {
 
 		@Override
 		protected void doRollback(DefaultTransactionStatus status) {
+		}
+
+		@Override
+		protected void doCleanupAfterCompletion(Object transaction) {
+			active.remove();
 		}
 	}
 }

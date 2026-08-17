@@ -67,3 +67,6 @@ accommodation:
     redis:
       host: ${ACCOMMODATION_DETAIL_CACHE_REDIS_HOST:${spring.data.redis.host:localhost}}
       port: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PORT:${spring.data.redis.port:6379}}
+    invalidation:
+      kafka:
+        auto-startup: false

@@ -224,6 +224,16 @@ public class AccommodationDetailCache {
 		}
 	}
 
+	/**
+	 * outbox 소비자가 삭제 실패를 감지해 Kafka retry/DLT로 넘길 수 있도록 예외를 전파
+	 */
+	public void evictOrThrow(
+		Long accommodationId,
+		AccommodationDetailCacheInvalidationReason reason
+	) {
+		evictInternal(accommodationId, reason);
+	}
+
 	private void evictInternal(
 		Long accommodationId,
 		AccommodationDetailCacheInvalidationReason reason

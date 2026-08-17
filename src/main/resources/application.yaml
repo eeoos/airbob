@@ -120,6 +120,13 @@ accommodation:
       database: ${ACCOMMODATION_DETAIL_CACHE_REDIS_DATABASE:0}
       username: ${ACCOMMODATION_DETAIL_CACHE_REDIS_USERNAME:}
       password: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PASSWORD:}
+    invalidation:
+      kafka:
+        topic: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_TOPIC:ACCOMMODATION_CACHE.events}
+        group: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_GROUP:accommodation-detail-cache-invalidation-group}
+        auto-startup: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP:true}
+        attempts: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_ATTEMPTS:4}
+        backoff-ms: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_BACKOFF_MS:30000}
 
 benchmark:
   read-model:

@@ -635,6 +635,19 @@ class AccommodationDetailCacheTest {
 			any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY)));
 	}
 
+	@Test
+	@DisplayName("내구성 복구용 무효화는 Redis 실패를 소비자에게 전파한다")
+	void durableEvictionPropagatesRedisFailure() {
+		when(redisClient.execute(
+			any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY))))
+			.thenThrow(new IllegalStateException("redis unavailable"));
+
+		assertThatThrownBy(() -> cache.evictOrThrow(
+			1L, AccommodationDetailCacheInvalidationReason.REVIEW))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessage("redis unavailable");
+	}
+
 	private String json(AccommodationDetailCacheValue value) throws Exception {
 		return objectMapper.writeValueAsString(value);
 	}
