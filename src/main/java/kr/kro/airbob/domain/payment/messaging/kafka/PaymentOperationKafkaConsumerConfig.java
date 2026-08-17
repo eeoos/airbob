@@ -4,13 +4,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 
 @Configuration(proxyBeanMethods = false)
 public class PaymentOperationKafkaConsumerConfig {
@@ -22,8 +23,7 @@ public class PaymentOperationKafkaConsumerConfig {
 	public ConcurrentKafkaListenerContainerFactory<Object, Object>
 		paymentOperationKafkaListenerContainerFactory(
 			ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
-			KafkaProperties kafkaProperties,
-			@Value("${payment.operation.kafka.topic:PAYMENT_OPERATION.events}") String primaryTopic
+			KafkaProperties kafkaProperties
 		) {
 		Map<String, Object> consumerProperties = new HashMap<>(
 			kafkaProperties.buildConsumerProperties());
@@ -33,7 +33,7 @@ public class PaymentOperationKafkaConsumerConfig {
 		);
 		consumerProperties.put(
 			PaymentOperationKafkaHeaderConsumerInterceptor.PRIMARY_TOPIC_CONFIG,
-			primaryTopic
+			PaymentOperationExecutionRequestedV1.TOPIC
 		);
 
 		DefaultKafkaConsumerFactory<Object, Object> consumerFactory =

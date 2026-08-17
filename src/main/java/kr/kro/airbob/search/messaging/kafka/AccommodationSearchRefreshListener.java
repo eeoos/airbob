@@ -51,7 +51,7 @@ public class AccommodationSearchRefreshListener {
 	)
 	@KafkaListener(
 		id = LISTENER_ID,
-		topics = "${accommodation.indexing.kafka.topic:ACCOMMODATION_INDEX.events}",
+		topics = AccommodationSearchRefreshRequestedV1.TOPIC,
 		groupId = "${accommodation.indexing.kafka.group:accommodation-indexing-group}",
 		containerFactory = AccommodationSearchKafkaConsumerConfig.CONTAINER_FACTORY,
 		autoStartup = "#{@accommodationIndexAliasReadiness.shouldAutoStart()}"

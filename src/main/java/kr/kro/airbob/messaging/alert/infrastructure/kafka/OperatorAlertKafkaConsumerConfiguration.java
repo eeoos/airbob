@@ -1,4 +1,4 @@
-package kr.kro.airbob.search.messaging.kafka;
+package kr.kro.airbob.messaging.alert.infrastructure.kafka;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,31 +11,31 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 
-import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 
 @Configuration(proxyBeanMethods = false)
-public class AccommodationSearchKafkaConsumerConfig {
+public class OperatorAlertKafkaConsumerConfiguration {
 
 	public static final String CONTAINER_FACTORY =
-		"accommodationSearchKafkaListenerContainerFactory";
+		"operatorAlertKafkaListenerContainerFactory";
 
 	@Bean(name = CONTAINER_FACTORY)
 	public ConcurrentKafkaListenerContainerFactory<Object, Object>
-		accommodationSearchKafkaListenerContainerFactory(
+		operatorAlertKafkaListenerContainerFactory(
 			ConcurrentKafkaListenerContainerFactoryConfigurer configurer,
 			KafkaProperties kafkaProperties
 		) {
-		Map<String, Object> consumerProperties = new HashMap<>(
+		Map<String, Object> properties = new HashMap<>(
 			kafkaProperties.buildConsumerProperties());
-		consumerProperties.put(
+		properties.put(
 			ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG,
-			AccommodationSearchKafkaHeaderConsumerInterceptor.class.getName());
-		consumerProperties.put(
-			AccommodationSearchKafkaHeaderConsumerInterceptor.PRIMARY_TOPIC_CONFIG,
-			AccommodationSearchRefreshRequestedV1.TOPIC);
+			OperatorAlertKafkaHeaderConsumerInterceptor.class.getName());
+		properties.put(
+			OperatorAlertKafkaHeaderConsumerInterceptor.PRIMARY_TOPIC_CONFIG,
+			OperatorAlertRequestedV1.TOPIC);
 
 		DefaultKafkaConsumerFactory<Object, Object> consumerFactory =
-			new DefaultKafkaConsumerFactory<>(consumerProperties);
+			new DefaultKafkaConsumerFactory<>(properties);
 		ConcurrentKafkaListenerContainerFactory<Object, Object> containerFactory =
 			new ConcurrentKafkaListenerContainerFactory<>();
 		configurer.configure(containerFactory, consumerFactory);

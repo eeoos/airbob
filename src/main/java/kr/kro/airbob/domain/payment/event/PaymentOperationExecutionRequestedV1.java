@@ -11,8 +11,9 @@ public record PaymentOperationExecutionRequestedV1(
 	UUID reservationUid,
 	long dispatchGeneration
 ) implements IntegrationEvent {
+	public static final String TOPIC = "PAYMENT_OPERATION.events";
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
-		"PAYMENT_OPERATION.events",
+		TOPIC,
 		"PAYMENT_OPERATION",
 		"PAYMENT_OPERATION_EXECUTION_REQUESTED",
 		"1"

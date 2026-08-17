@@ -63,7 +63,6 @@ import kr.kro.airbob.search.service.AccommodationIndexingService;
 	"spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
 	"spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer",
 	"spring.jackson.property-naming-strategy=SNAKE_CASE",
-	"accommodation.indexing.kafka.topic=ACCOMMODATION_INDEX.events",
 	"accommodation.indexing.kafka.group=accommodation-indexing-group",
 	"accommodation.indexing.kafka.attempts=2",
 	"accommodation.indexing.kafka.backoff-ms=100",
@@ -74,8 +73,7 @@ import kr.kro.airbob.search.service.AccommodationIndexingService;
 	topics = {
 		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_TOPIC,
 		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_RETRY_TOPIC,
-		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_DLT_TOPIC,
-		AccommodationSearchRefreshKafkaIntegrationTest.GLOBAL_PAYMENT_DLT_TOPIC
+		AccommodationSearchRefreshKafkaIntegrationTest.INDEXING_DLT_TOPIC
 	},
 	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
 	brokerProperties = "auto.create.topics.enable=false"
@@ -87,7 +85,6 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	static final String INDEXING_TOPIC = "ACCOMMODATION_INDEX.events";
 	static final String INDEXING_RETRY_TOPIC = "ACCOMMODATION_INDEX.events.RETRY";
 	static final String INDEXING_DLT_TOPIC = "ACCOMMODATION_INDEX.events.DLT";
-	static final String GLOBAL_PAYMENT_DLT_TOPIC = "PAYMENT.events.DLT";
 	private static final UUID ACCOMMODATION_UID =
 		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 	private static final String RAW_SECRET = "search-poison-secret-019ffe7e";
@@ -119,7 +116,6 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	private final IntegrationEventCodec eventCodec;
 	private Consumer<String, String> retryConsumer;
 	private Consumer<String, String> dltConsumer;
-	private Consumer<String, String> globalPaymentDltConsumer;
 
 	@Autowired
 	AccommodationSearchRefreshKafkaIntegrationTest(
@@ -140,10 +136,8 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	void setUp() {
 		retryConsumer = consumer("accommodation-indexing-retry-assertion");
 		dltConsumer = consumer("accommodation-indexing-dlt-assertion");
-		globalPaymentDltConsumer = consumer("global-payment-dlt-assertion-for-indexing");
 		broker.consumeFromAnEmbeddedTopic(retryConsumer, INDEXING_RETRY_TOPIC);
 		broker.consumeFromAnEmbeddedTopic(dltConsumer, INDEXING_DLT_TOPIC);
-		broker.consumeFromAnEmbeddedTopic(globalPaymentDltConsumer, GLOBAL_PAYMENT_DLT_TOPIC);
 		reset(indexingService, alertService);
 	}
 
@@ -151,7 +145,6 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	void tearDown() {
 		retryConsumer.close();
 		dltConsumer.close();
-		globalPaymentDltConsumer.close();
 	}
 
 	@Test
@@ -175,8 +168,6 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		assertThat(quarantined.value()).isEqualTo(canonicalMessage);
 		assertThat(retried.key()).isEqualTo(ACCOMMODATION_UID.toString());
 		assertThat(quarantined.key()).isEqualTo(ACCOMMODATION_UID.toString());
-		assertThat(KafkaTestUtils.getRecords(
-			globalPaymentDltConsumer, Duration.ofSeconds(1))).isEmpty();
 		verify(indexingService, timeout(15_000).times(2))
 			.refreshAccommodationIndex(ACCOMMODATION_UID);
 		verify(alertService, timeout(15_000)).alertQuarantined(

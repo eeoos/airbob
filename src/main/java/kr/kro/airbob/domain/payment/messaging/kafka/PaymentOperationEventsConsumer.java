@@ -46,10 +46,11 @@ public class PaymentOperationEventsConsumer {
 		retryTopicSuffix = ".RETRY",
 		dltTopicSuffix = ".DLT",
 		sameIntervalTopicReuseStrategy = SameIntervalTopicReuseStrategy.SINGLE_TOPIC,
-		dltStrategy = DltStrategy.FAIL_ON_ERROR
+		dltStrategy = DltStrategy.FAIL_ON_ERROR,
+		autoCreateTopics = "false"
 	)
 	@KafkaListener(
-		topics = "${payment.operation.kafka.topic:PAYMENT_OPERATION.events}",
+		topics = PaymentOperationExecutionRequestedV1.TOPIC,
 		groupId = "${payment.operation.kafka.group:payment-operation-execution-group}",
 		containerFactory = "paymentOperationKafkaListenerContainerFactory"
 	)

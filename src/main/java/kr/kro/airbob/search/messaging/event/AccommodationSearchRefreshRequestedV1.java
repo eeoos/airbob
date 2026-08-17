@@ -9,9 +9,10 @@ import kr.kro.airbob.messaging.event.IntegrationEvent;
 public record AccommodationSearchRefreshRequestedV1(
 	UUID accommodationUid
 ) implements IntegrationEvent {
+	public static final String TOPIC = "ACCOMMODATION_INDEX.events";
 
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
-		"ACCOMMODATION_INDEX.events",
+		TOPIC,
 		"ACCOMMODATION",
 		"ACCOMMODATION_SEARCH_REFRESH_REQUESTED",
 		"1"

@@ -65,12 +65,10 @@ import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 	"spring.kafka.consumer.enable-auto-commit=false",
 	"spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
 	"spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
-	"spring.kafka.consumer.properties.spring.kafka.dead-letter-publishing.topic-name=PAYMENT.events.DLT",
 	"spring.kafka.listener.ack-mode=manual",
 	"spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
 	"spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer",
 	"spring.jackson.property-naming-strategy=SNAKE_CASE",
-	"payment.operation.kafka.topic=PAYMENT_OPERATION.events",
 	"payment.operation.kafka.group=payment-operation-execution-group",
 	"payment.operation.kafka.attempts=2",
 	"payment.operation.kafka.backoff-ms=500"
@@ -80,8 +78,7 @@ import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 	topics = {
 		PaymentOperationKafkaIntegrationTest.OPERATION_TOPIC,
 		PaymentOperationKafkaIntegrationTest.OPERATION_RETRY_TOPIC,
-		PaymentOperationKafkaIntegrationTest.OPERATION_DLT_TOPIC,
-		PaymentOperationKafkaIntegrationTest.GLOBAL_PAYMENT_DLT_TOPIC
+		PaymentOperationKafkaIntegrationTest.OPERATION_DLT_TOPIC
 	},
 	bootstrapServersProperty = "spring.kafka.bootstrap-servers",
 	brokerProperties = "auto.create.topics.enable=false"
@@ -92,7 +89,6 @@ class PaymentOperationKafkaIntegrationTest {
 	static final String OPERATION_TOPIC = "PAYMENT_OPERATION.events";
 	static final String OPERATION_RETRY_TOPIC = "PAYMENT_OPERATION.events.RETRY";
 	static final String OPERATION_DLT_TOPIC = "PAYMENT_OPERATION.events.DLT";
-	static final String GLOBAL_PAYMENT_DLT_TOPIC = "PAYMENT.events.DLT";
 	private static final UUID OPERATION_UID = UUID.fromString("7e19fa7d-a8dc-4096-8c75-e84f43e5b639");
 	private static final UUID RESERVATION_UID = UUID.fromString("ac3921de-5f64-4d73-829d-a49c32321950");
 	private static final UUID EVENT_UID = UUID.fromString("4c4a7c8c-8a8f-4c23-9215-c3c4ea87fc5a");
@@ -124,7 +120,6 @@ class PaymentOperationKafkaIntegrationTest {
 	private ListAppender<ILoggingEvent> logAppender;
 	private Consumer<String, String> operationRetryConsumer;
 	private Consumer<String, String> operationDltConsumer;
-	private Consumer<String, String> globalPaymentDltConsumer;
 
 	@Autowired
 	PaymentOperationKafkaIntegrationTest(
@@ -145,10 +140,8 @@ class PaymentOperationKafkaIntegrationTest {
 	void setUp() {
 		operationRetryConsumer = consumer("payment-operation-retry-assertion");
 		operationDltConsumer = consumer("payment-operation-dlt-assertion");
-		globalPaymentDltConsumer = consumer("global-payment-dlt-assertion");
 		broker.consumeFromAnEmbeddedTopic(operationRetryConsumer, OPERATION_RETRY_TOPIC);
 		broker.consumeFromAnEmbeddedTopic(operationDltConsumer, OPERATION_DLT_TOPIC);
-		broker.consumeFromAnEmbeddedTopic(globalPaymentDltConsumer, GLOBAL_PAYMENT_DLT_TOPIC);
 		reset(executor);
 		reset(alertService);
 		rootLogger = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -163,7 +156,6 @@ class PaymentOperationKafkaIntegrationTest {
 		logAppender.stop();
 		operationRetryConsumer.close();
 		operationDltConsumer.close();
-		globalPaymentDltConsumer.close();
 	}
 
 	@Test
@@ -235,8 +227,6 @@ class PaymentOperationKafkaIntegrationTest {
 		assertRecordDoesNotContainSecret(quarantined);
 		assertThat(capturedLogs()).doesNotContain(
 			RAW_SECRET, RESERVED_HEADER_SECRET, malformed);
-		assertThat(KafkaTestUtils.getRecords(globalPaymentDltConsumer, Duration.ofSeconds(2)))
-			.isEmpty();
 		verifyNoInteractions(executor);
 
 		reset(executor);

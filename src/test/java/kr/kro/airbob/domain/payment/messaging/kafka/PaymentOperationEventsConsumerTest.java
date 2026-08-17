@@ -25,6 +25,7 @@ import org.springframework.kafka.support.Acknowledgment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
@@ -254,11 +255,12 @@ class PaymentOperationEventsConsumerTest {
 		assertThat(retryableTopic.sameIntervalTopicReuseStrategy())
 			.isEqualTo(SameIntervalTopicReuseStrategy.SINGLE_TOPIC);
 		assertThat(retryableTopic.dltStrategy()).isEqualTo(DltStrategy.FAIL_ON_ERROR);
+		assertThat(retryableTopic.autoCreateTopics()).isEqualTo("false");
 		assertThat(kafkaListener).isNotNull();
 		assertThat(kafkaListener.containerFactory())
 			.isEqualTo("paymentOperationKafkaListenerContainerFactory");
 		assertThat(kafkaListener.topics())
-			.containsExactly("${payment.operation.kafka.topic:PAYMENT_OPERATION.events}");
+			.containsExactly(PaymentOperationExecutionRequestedV1.TOPIC);
 		assertThat(kafkaListener.groupId())
 			.isEqualTo("${payment.operation.kafka.group:payment-operation-execution-group}");
 	}

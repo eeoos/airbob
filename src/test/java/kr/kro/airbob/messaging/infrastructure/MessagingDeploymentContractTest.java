@@ -9,9 +9,18 @@ import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationEventsConsumer;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
+import kr.kro.airbob.messaging.alert.infrastructure.kafka.OperatorAlertKafkaListener;
+import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
+import kr.kro.airbob.search.messaging.kafka.AccommodationSearchRefreshListener;
 
 class MessagingDeploymentContractTest {
 
@@ -101,6 +110,33 @@ class MessagingDeploymentContractTest {
 	}
 
 	@Test
+	@DisplayName("outbox destination과 listener topic은 override 없이 같은 canonical 상수를 사용한다")
+	void keepsOutboxDestinationsAndListenersOnProvisionedTopics() throws Exception {
+		assertThat(PaymentOperationExecutionRequestedV1.DESCRIPTOR.destination())
+			.isEqualTo(PaymentOperationExecutionRequestedV1.TOPIC);
+		assertThat(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.destination())
+			.isEqualTo(AccommodationSearchRefreshRequestedV1.TOPIC);
+		assertThat(OperatorAlertRequestedV1.DESCRIPTOR.destination())
+			.isEqualTo(OperatorAlertRequestedV1.TOPIC);
+		assertCanonicalListenerTopic(
+			PaymentOperationEventsConsumer.class,
+			PaymentOperationExecutionRequestedV1.TOPIC);
+		assertCanonicalListenerTopic(
+			AccommodationSearchRefreshListener.class,
+			AccommodationSearchRefreshRequestedV1.TOPIC);
+		assertCanonicalListenerTopic(
+			OperatorAlertKafkaListener.class,
+			OperatorAlertRequestedV1.TOPIC);
+
+		List.of(
+			PaymentOperationExecutionRequestedV1.TOPIC,
+			AccommodationSearchRefreshRequestedV1.TOPIC,
+			OperatorAlertRequestedV1.TOPIC
+		).forEach(topic -> assertThat(BUSINESS_TOPICS)
+			.contains(topic, topic + ".RETRY", topic + ".DLT"));
+	}
+
+	@Test
 	@DisplayName("compose는 자동 topic 생성을 끄고 topic과 connector init 성공 후 서비스한다")
 	void gatesServicesOnMessagingBootstrap() throws IOException {
 		String local = read("docker-compose.yml");
@@ -144,6 +180,15 @@ class MessagingDeploymentContractTest {
 
 	private String text(JsonNode config, String property) {
 		return config.path(property).asText();
+	}
+
+	private void assertCanonicalListenerTopic(Class<?> listenerType, String expectedTopic)
+		throws NoSuchMethodException {
+		KafkaListener listener = listenerType
+			.getMethod("handle", String.class, Acknowledgment.class)
+			.getAnnotation(KafkaListener.class);
+		assertThat(listener).isNotNull();
+		assertThat(listener.topics()).containsExactly(expectedTopic);
 	}
 
 	private String read(String path) throws IOException {

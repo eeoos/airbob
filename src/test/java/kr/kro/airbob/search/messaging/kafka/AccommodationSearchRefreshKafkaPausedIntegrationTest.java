@@ -16,7 +16,6 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 	"spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
 	"spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
 	"spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer",
-	"accommodation.indexing.kafka.topic=ACCOMMODATION_INDEX.events",
 	"accommodation.indexing.kafka.group=accommodation-indexing-paused-group",
 	"accommodation.indexing.kafka.attempts=2",
 	"accommodation.indexing.kafka.backoff-ms=100",

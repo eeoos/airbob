@@ -45,8 +45,6 @@ spring:
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      properties:
-        spring.kafka.dead-letter-publishing.topic-name: PAYMENT.events.DLT
     listener:
       ack-mode: MANUAL
     producer:
@@ -63,6 +61,18 @@ slack:
   notification:
     enabled: true
 
+operator-alert:
+  kafka:
+    group: ${OPERATOR_ALERT_GROUP:operator-alert-delivery-group}
+    auto-startup: ${OPERATOR_ALERT_KAFKA_AUTO_STARTUP:true}
+    attempts: ${OPERATOR_ALERT_KAFKA_ATTEMPTS:4}
+    backoff-ms: ${OPERATOR_ALERT_KAFKA_BACKOFF_MS:30000}
+  slack:
+    enabled: ${OPERATOR_ALERT_SLACK_ENABLED:true}
+    webhook-url: ${OPERATOR_ALERT_SLACK_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}
+    connect-timeout: ${OPERATOR_ALERT_SLACK_CONNECT_TIMEOUT:2s}
+    read-timeout: ${OPERATOR_ALERT_SLACK_READ_TIMEOUT:10s}
+
 payment:
   operation:
     lease-duration: ${PAYMENT_OPERATION_LEASE_DURATION:30s}
@@ -72,7 +82,6 @@ payment:
     retry-initial-delay: ${PAYMENT_OPERATION_RETRY_INITIAL_DELAY:10s}
     retry-max-delay: ${PAYMENT_OPERATION_RETRY_MAX_DELAY:5m}
     kafka:
-      topic: ${PAYMENT_OPERATION_TOPIC:PAYMENT_OPERATION.events}
       group: ${PAYMENT_OPERATION_GROUP:payment-operation-execution-group}
       attempts: ${PAYMENT_OPERATION_KAFKA_ATTEMPTS:4}
       backoff-ms: ${PAYMENT_OPERATION_KAFKA_BACKOFF_MS:30000}
@@ -100,7 +109,6 @@ accommodation:
     bootstrap:
       enabled: ${ACCOMMODATION_INDEX_BOOTSTRAP_ENABLED:true}
     kafka:
-      topic: ${ACCOMMODATION_INDEXING_TOPIC:ACCOMMODATION_INDEX.events}
       group: ${ACCOMMODATION_INDEXING_GROUP:accommodation-indexing-group}
       auto-startup: ${ACCOMMODATION_INDEXING_AUTO_STARTUP:true}
       attempts: ${ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS:4}

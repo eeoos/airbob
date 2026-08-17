@@ -150,7 +150,7 @@ class AccommodationSearchRefreshListenerTest {
 		assertThat(kafkaListener.containerFactory())
 			.isEqualTo(AccommodationSearchKafkaConsumerConfig.CONTAINER_FACTORY);
 		assertThat(kafkaListener.topics()).containsExactly(
-			"${accommodation.indexing.kafka.topic:ACCOMMODATION_INDEX.events}");
+			AccommodationSearchRefreshRequestedV1.TOPIC);
 		assertThat(kafkaListener.autoStartup())
 			.isEqualTo("#{@accommodationIndexAliasReadiness.shouldAutoStart()}");
 	}
