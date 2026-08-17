@@ -54,7 +54,6 @@ public enum ErrorCode {
 	// reservation
 	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "존재하지 않는 예약입니다."),
 	RESERVATION_CONFLICT(HttpStatus.CONFLICT, "R002", "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."), // 날짜 중복
-	RESERVATION_LOCK_FAILED(HttpStatus.CONFLICT, "R003", "동시에 많은 예약이 시도되어 처리하지 못했습니다. 잠시 후 다시 시도해주세요."), // 분산 락 실패 (동시성 이슈)
 	CANNOT_CANCEL_RESERVATION(HttpStatus.CONFLICT, "R004", "결제 완료 상태의 예약만 취소할 수 있습니다."),
 	CANNOT_CONFIRM_RESERVATION(HttpStatus.CONFLICT, "R005", "결제 대기 상태의 예약만 확정할 수 있습니다."),
 	CANNOT_EXPIRE_RESERVATION(HttpStatus.CONFLICT, "R006", "결제 대기 상태의 예약만 만료시킬 수 있습니다."),

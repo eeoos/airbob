@@ -17,7 +17,7 @@
 
 ## 변경 범위
 
-성능 최적화 대상은 결제 대기 예약 만료 스케줄러의 history INSERT다. 이 전환에 맞춰 모든 history batch가 성공한 뒤 hold를 제거하도록 실패 순서도 조정했다.
+성능 최적화 대상은 결제 대기 예약 만료 스케줄러의 history INSERT다.
 
 - Before: 예약별 `ReservationHistoryRepository.save()`
 - After: `JdbcTemplate.batchUpdate()`를 이용한 100건 단위 INSERT
@@ -39,8 +39,7 @@ After 경로는 다음 순서로 실행된다.
 2. 조회한 관리 엔티티를 `EXPIRED`로 변경하고 history snapshot을 생성한다.
 3. 만료 예약에 연결된 사용 쿠폰을 ID 묶음으로 한 번에 복원한다.
 4. 모든 history를 100건 단위 JDBC batch로 저장한다.
-5. history batch가 모두 성공한 뒤 예약 hold 제거를 호출한다.
-6. 트랜잭션 commit 시 reservation UPDATE가 dirty checking으로 반영된다.
+5. 트랜잭션 commit 시 reservation UPDATE가 dirty checking으로 반영된다.
 
 `JdbcTemplate`은 JPA와 같은 `DataSource` 및 Spring 트랜잭션에 참여한다. 따라서 중간 batch가 실패하면 앞에서 성공한 history chunk는 rollback되고 관리 엔티티의 reservation 상태 변경도 DB에 반영되지 않는다.
 
@@ -76,7 +75,6 @@ Hibernate `StatementInspector`는 `JdbcTemplate` SQL을 볼 수 없으므로 JDB
 - business snapshot 필드의 동등성과 scheduler 감사 계약(`history_created_at` non-null, system actor, `STATUS_CHANGE`, `BATCH`)을 검증한다.
 - After 경로의 Hibernate INSERT는 0회이고 제출한 JDBC 행 수는 대상 수와 같다.
 - 두 번째 JDBC chunk가 실패하면 첫 chunk INSERT는 rollback되고 관리 엔티티의 reservation 상태 변경도 DB에 반영되지 않는다.
-- history batch 실패 시 hold 제거는 0회다.
 
 핵심 회귀 테스트는 [`ReservationHistoryInsertBenchmarkIntegrationTest`](../../src/test/java/kr/kro/airbob/domain/reservation/ReservationHistoryInsertBenchmarkIntegrationTest.java)에 있다.
 
@@ -102,7 +100,6 @@ After의 고정 UPDATE 1회는 사용된 쿠폰이 없는 fixture에서도 실�
 - 애플리케이션 인스턴스: 1
 - JVM: OpenJDK 21.0.6
 - MySQL: 8.0.33, 일회성 컨테이너
-- Redis: 7.2, 일회성 컨테이너
 - 전용 schema: `_bulk_write_benchmark` suffix
 - batch size: 100
 - `rewriteBatchedStatements`: true
@@ -120,9 +117,8 @@ After의 고정 UPDATE 1회는 사용된 쿠폰이 없는 fixture에서도 실�
 - fixture 생성과 정리
 - 로그인과 응답 검증
 - HTTP 네트워크 왕복
-- Redis hold 제거의 실제 네트워크 I/O
 
-hold 제거 대상과 호출 수는 검증하지만 네트워크는 발생시키지 않는다. 성공 시 비즈니스 결과는 같지만 After는 모든 history batch가 성공한 뒤 hold 제거를 시작한다. 따라서 결과는 history INSERT를 주된 최적화 대상으로 한 cleanup 트랜잭션 비교이며, 운영 스케줄러 전체 처리량을 의미하지 않는다.
+따라서 결과는 history INSERT를 주된 최적화 대상으로 한 cleanup 트랜잭션 비교이며, 운영 스케줄러 전체 처리량을 의미하지 않는다.
 
 ### 로컬 결과
 

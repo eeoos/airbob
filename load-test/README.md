@@ -371,7 +371,6 @@ child 하나라도 실패하거나 artifact를 만들지 않으면 즉시 중단
 - 서버 연산 시간, 검증 성공 여부와 검증 행 수
 - Hibernate `SELECT/INSERT/UPDATE/DELETE/OTHER/TOTAL`
 - 명시적으로 계측한 custom JDBC writer의 batch 호출, 제출 행, 설정 batch 크기, 영향 행
-- ReservationHistory에 한해 hold 제거 호출/모드와 Redis network 제외 여부
 
 `observations`의 입력 순서 raw 목록이 정본이다. `statistics.server_operation_ms`는 이 목록을 오름차순 정렬한 뒤 nearest-rank 방식으로 다시 계산한다. 표본 수를 `n`, 분위수를 `p`(`0.50`, `0.95`)라 할 때 1부터 시작하는 순위는 `max(1, ceil(p * n))`이고 해당 정렬값을 p50/p95로 사용한다. 보간은 하지 않는다.
 
