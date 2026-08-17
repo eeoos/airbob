@@ -35,6 +35,9 @@ public enum EventType {
 	REVIEW_SUMMARY_CHANGED("ACCOMMODATION", "accommodation-events"),
 	RESERVATION_CHANGED("ACCOMMODATION", "accommodation-events"),
 
+	// 숙소 상세 캐시 무효화 이벤트
+	CACHE_INVALIDATION_REQUESTED("ACCOMMODATION_CACHE", "ACCOMMODATION_CACHE.events"),
+
 	// 그 외
 	UNKNOWN("UNKNOWN", null); // 알 수 없는 타입 처리
 

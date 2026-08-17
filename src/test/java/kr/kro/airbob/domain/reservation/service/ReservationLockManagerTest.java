@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.redisson.RedissonMultiLock;
+import org.redisson.api.RFuture;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
@@ -73,31 +74,42 @@ class ReservationLockManagerTest {
 	class ReleaseLocksTest {
 
 		@Test
-		@DisplayName("현재 스레드가 락을 보유 중이면 unlock이 호출된다")
+		@DisplayName("다중 락은 별도 소유권 조회 없이 모든 하위 락의 비동기 해제를 기다린다")
+		@SuppressWarnings("unchecked")
 		void 락_해제_성공() {
 			// given
 			RLock mockLock = mock(RLock.class);
-			given(mockLock.isHeldByCurrentThread()).willReturn(true);
+			RFuture<Void> unlockFuture = mock(RFuture.class);
+			given(mockLock.unlockAsync()).willReturn(unlockFuture);
+			given(unlockFuture.toCompletableFuture())
+				.willReturn(CompletableFuture.completedFuture(null));
 
 			// when
 			lockManager.releaseLocks(mockLock);
 
 			// then
-			then(mockLock).should().unlock();
+			then(mockLock).should().unlockAsync();
+			then(mockLock).should(never()).isHeldByCurrentThread();
 		}
 
 		@Test
-		@DisplayName("현재 스레드가 락을 보유하지 않으면 unlock이 호출되지 않는다")
-		void 락_만료_후_해제_시도() {
+		@DisplayName("일부 다중 락 해제 실패는 이미 끝난 예약 결과를 덮어쓰지 않는다")
+		@SuppressWarnings("unchecked")
+		void 락_해제_실패_격리() {
 			// given
 			RLock mockLock = mock(RLock.class);
-			given(mockLock.isHeldByCurrentThread()).willReturn(false);
+			RFuture<Void> unlockFuture = mock(RFuture.class);
+			CompletableFuture<Void> failedUnlock = new CompletableFuture<>();
+			failedUnlock.completeExceptionally(new IllegalMonitorStateException("already released"));
+			given(mockLock.unlockAsync()).willReturn(unlockFuture);
+			given(unlockFuture.toCompletableFuture()).willReturn(failedUnlock);
 
-			// when
-			lockManager.releaseLocks(mockLock);
+			// when & then
+			assertThatCode(() -> lockManager.releaseLocks(mockLock))
+				.doesNotThrowAnyException();
 
-			// then
-			then(mockLock).should(never()).unlock();
+			then(mockLock).should().unlockAsync();
+			then(mockLock).should(never()).isHeldByCurrentThread();
 		}
 
 		@Test

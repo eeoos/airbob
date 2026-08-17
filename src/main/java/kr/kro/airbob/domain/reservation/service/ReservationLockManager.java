@@ -49,11 +49,11 @@ public class ReservationLockManager {
 			return;
 		}
 		try {
-			if (lock.isHeldByCurrentThread()) {
-				lock.unlock();
-				log.info("다중 락 해제 성공.");
-			}
-		} catch (Exception e) {
+			// MultiLock의 동기 unlock은 앞선 하위 락 실패 시 뒤의 해제를 건너뛸 수 있다.
+			// 비동기 해제를 모두 발행한 뒤 완료를 기다려 남은 날짜 락의 watchdog까지 정리한다.
+			lock.unlockAsync().toCompletableFuture().join();
+			log.info("다중 락 해제 성공.");
+		} catch (RuntimeException e) {
 			log.warn("다중 락 해제 중 예외 발생. 이미 만료됐을 수 있음.", e);
 		}
 	}

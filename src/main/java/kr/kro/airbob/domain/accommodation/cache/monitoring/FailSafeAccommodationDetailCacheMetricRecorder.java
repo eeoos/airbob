@@ -1,13 +1,15 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.monitoring;
 
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheMetricRecorder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 메트릭 시스템의 실패가 캐시 처리와 숙소 상세 응답에 영향을 주지 않도록 예외를 격리한다.
+ * 메트릭 시스템의 실패가 캐시 처리와 숙소 상세 응답에 영향을 주지 않도록 예외를 격리
  */
 @Slf4j
 @Primary
@@ -39,8 +41,12 @@ public class FailSafeAccommodationDetailCacheMetricRecorder
 	}
 
 	@Override
-	public void recordEviction(AccommodationDetailCacheInvalidationReason reason, OperationResult result) {
-		record("eviction", () -> delegate.recordEviction(reason, result));
+	public void recordEviction(
+		EvictionSource source,
+		AccommodationDetailCacheInvalidationReason reason,
+		OperationResult result
+	) {
+		record("eviction", () -> delegate.recordEviction(source, reason, result));
 	}
 
 	private void record(String metric, Runnable action) {

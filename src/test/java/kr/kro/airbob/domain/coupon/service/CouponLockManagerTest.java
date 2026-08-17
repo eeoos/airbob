@@ -1,7 +1,11 @@
 package kr.kro.airbob.domain.coupon.service;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.concurrent.TimeUnit;
@@ -43,5 +47,33 @@ class CouponLockManagerTest {
 		verify(metricRecorder).recordLockWait(
 			org.mockito.ArgumentMatchers.eq(CouponIssueMetricRecorder.LockResult.TIMEOUT),
 			org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	@Test
+	@DisplayName("획득한 락은 별도 소유권 조회 없이 직접 해제한다")
+	void releasesLockWithoutOwnershipProbe() {
+		lockManager.releaseLock(lock);
+
+		verify(lock).unlock();
+		verify(lock, never()).isHeldByCurrentThread();
+	}
+
+	@Test
+	@DisplayName("락 해제 실패는 이미 끝난 쿠폰 발급 결과를 덮어쓰지 않는다")
+	void isolatesUnlockFailure() {
+		doThrow(new IllegalStateException("unlock failed")).when(lock).unlock();
+
+		assertThatCode(() -> lockManager.releaseLock(lock)).doesNotThrowAnyException();
+
+		verify(lock).unlock();
+		verify(lock, never()).isHeldByCurrentThread();
+	}
+
+	@Test
+	@DisplayName("null 락은 Redis 호출 없이 무시한다")
+	void ignoresNullLock() {
+		assertThatCode(() -> lockManager.releaseLock(null)).doesNotThrowAnyException();
+
+		verifyNoInteractions(lock);
 	}
 }

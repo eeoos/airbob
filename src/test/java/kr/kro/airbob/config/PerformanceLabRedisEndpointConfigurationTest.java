@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheConfiguration;
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
 
 class PerformanceLabRedisEndpointConfigurationTest {
 

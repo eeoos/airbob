@@ -15,6 +15,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.AccommodationDetailRedisConfig;
 import kr.kro.airbob.config.PerformanceLabRedisEndpointConfiguration;
 import kr.kro.airbob.config.RedisConfig;
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
+import kr.kro.airbob.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 
 @Testcontainers
 class PerformanceLabRedisEndpointIsolationIntegrationTest {
