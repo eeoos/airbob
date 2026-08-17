@@ -40,6 +40,29 @@ assert_contains "$controller" 'assert_lease'
 assert_contains "$controller" 'verify_dns aws'
 assert_contains "$controller" 'measurement verification requires the AWS target'
 
+probe_oci_source=$(sed -n '/^probe_oci() {$/,/^}$/p' "$controller")
+probe_aws_source=$(sed -n '/^probe_aws() {$/,/^}$/p' "$controller")
+oci_drain_source=$(sed -n '/^verify_public_oci_drain() {$/,/^}$/p' "$controller")
+
+printf '%s\n' "$probe_oci_source" | grep -Fq 'https://api.airbob.cloud/health' \
+  || fail "direct OCI probe must use the public Nginx health endpoint"
+printf '%s\n' "$probe_oci_source" | grep -Fq 'grep -Fqx '\''healthy'\''' \
+  || fail "direct OCI probe must validate the exact Nginx health body"
+if printf '%s\n' "$probe_oci_source" | grep -Fq '/actuator/health'; then
+  fail "direct OCI probe must not request the blocked actuator endpoint"
+fi
+printf '%s\n' "$oci_drain_source" | grep -Fq 'https://api.airbob.cloud/health' \
+  || fail "OCI drain verification must use the public Nginx health endpoint"
+printf '%s\n' "$oci_drain_source" | grep -Fq 'grep -Fqx '\''healthy'\''' \
+  || fail "OCI drain verification must validate the exact Nginx health body"
+if printf '%s\n' "$oci_drain_source" | grep -Fq '/actuator/health'; then
+  fail "OCI drain verification must not request the blocked actuator endpoint"
+fi
+printf '%s\n' "$probe_aws_source" | grep -Fq 'https://api.airbob.cloud/actuator/health' \
+  || fail "direct AWS probe must retain the Spring actuator health endpoint"
+printf '%s\n' "$probe_aws_source" | grep -Fq "jq -e '.status == \"UP\"'" \
+  || fail "direct AWS probe must validate the Spring health JSON"
+
 if grep -Eq 'route53 change-resource-record-sets' "$controller"; then
   fail "DNS changes must remain owned by the isolated Terraform DNS state"
 fi

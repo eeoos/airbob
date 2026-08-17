@@ -26,7 +26,10 @@ OCI origin IPv4 is confirmed, and the lease-held DNS controller role exists.
 Before Gabia delegation, that approved controller (or the explicitly reviewed
 local bootstrap principal) stages only the OCI record and verifies all four
 Route 53 authoritative servers plus an SNI-preserving HTTPS request to the OCI
-address.
+address. OCI terminates TLS at Nginx, which exposes only the plain-text
+`/health` probe and intentionally returns 404 for `/actuator/**`. AWS ALB
+probes continue to use the Spring `/actuator/health` JSON endpoint because the
+ALB targets the application container directly.
 
 Supplying the same-account Seoul ALB ARN makes Terraform resolve and verify its
 application type, internet-facing scheme, and required lab tags before an
@@ -36,5 +39,8 @@ interface. U4/U5 orchestration must hold the DynamoDB lease, verify OCI and AWS 
 DNS, and roll back to OCI 100/AWS 0 on failure. Raw `terraform apply` is not an
 approved cutover operation.
 
-No live plan, apply, DNS delegation, or traffic change has been executed from
-this repository configuration.
+The OCI-only state was applied on 2026-08-17 in account `942632789808` with
+`140.245.76.140`, weight 100, and TTL 60. All four Route 53 authoritative
+servers and the direct SNI-preserving `/health` probe passed. Gabia delegation,
+the AWS alias, and any traffic switch remain pending, so public traffic is
+still served through the pre-existing Gabia record.

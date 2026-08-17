@@ -110,8 +110,8 @@ assert_lease() {
 probe_oci() {
   curl --fail --silent --show-error --max-time 10 \
     --resolve "api.airbob.cloud:443:$OCI_ORIGIN_IPV4" \
-    "https://api.airbob.cloud/actuator/health" \
-    | jq -e '.status == "UP"' >/dev/null \
+    "https://api.airbob.cloud/health" \
+    | grep -Fqx 'healthy' \
     || fail "direct OCI origin health check failed"
 }
 
@@ -192,8 +192,8 @@ verify_public_oci_drain() {
   deadline=$(($(date +%s) + PUBLIC_DRAIN_SECONDS))
   while true; do
     curl --fail --silent --show-error --max-time 10 \
-      "https://api.airbob.cloud/actuator/health" \
-      | jq -e '.status == "UP"' >/dev/null \
+      "https://api.airbob.cloud/health" \
+      | grep -Fqx 'healthy' \
       || fail "public API health failed during the OCI drain window"
     now=$(date +%s)
     [[ "$now" -ge "$deadline" ]] && return 0

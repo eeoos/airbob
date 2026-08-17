@@ -15,15 +15,15 @@
 | Immutable app/infra image construction and publication | Implemented (workflow/config only; no ECR publication executed) |
 | Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; repository-s3 and live proof pending |
 | Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration implemented; not executed |
-| Terraform persistent foundation | Implemented, including protected private DNS anchor (configuration/static tests only; not applied) |
-| Terraform DNS/lab state boundaries | Implemented (DNS contract + Phase 2-4 ephemeral lab root; not applied) |
-| Expiry observer and SNS/CloudWatch alerts | Implemented (read-only configuration/static tests; disabled, delivery unverified, and not applied) |
+| Terraform persistent foundation | Applied in account `942632789808`, including the protected private DNS anchor; drift-free after apply |
+| Terraform DNS/lab state boundaries | OCI-only DNS state applied; Phase 2-4 ephemeral lab root remains unapplied |
+| Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
 | Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V16 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
-| Route 53 cutover | Weighted OCI/AWS controller implemented; not executed |
+| Route 53 cutover | OCI weight-100 record staged and verified; Gabia delegation and AWS alias remain pending |
 | AWS discovery and SQL-digest harness | Implemented for public accommodation detail (fake-AWS tests only; not executed) |
 | AWS performance evidence | Not collected |
 
@@ -34,9 +34,9 @@ path families are excluded. The content gate rejects the enumerated password,
 secret, token, credential, API/access/private-key, service-account, and private
 key marker families except for six exact reviewed placeholder/guard lines. It
 does not prove that arbitrary secret material hidden under a benign key is
-absent. The persistent foundation, separate weighted-DNS state, and Phase 2 lab
-destruction boundary are represented and statically tested, but have not been
-planned against or applied to AWS. Applying the lab root now declares billable
+absent. The persistent foundation and OCI-only weighted-DNS state are applied
+and drift-free; the Phase 2 lab destruction boundary remains statically tested
+but unapplied. Applying the lab root now declares billable
 NAT/probe or dependency-service EC2/EBS/EIP resources according to its explicit
 phase. The foundation additionally declares one persistent private hosted zone
 (standard monthly hosted-zone charge) and a subnet-free anchor VPC with no
@@ -50,10 +50,12 @@ publisher workflows, and CI-side image runtime checks, but none has been run
 against ECR yet. The OCI compatibility job alone retains mutable GHCR `latest`
 tags for the two custom images; AWS consumers accept only ECR digest references.
 The repository can now publish the bundle package immutably and enforce Phase 2
-host prerequisites through SSM, but neither path has run against AWS. This work
-does not apply Terraform, create live AWS resources, migrate authoritative DNS,
-change Route 53 traffic, restore data, or establish performance results. The
-historical ETL dump is Flyway V12 while the application is V16, so the Phase 3
+host prerequisites through SSM, but neither path has run against AWS. The live
+foundation and OCI-only Route 53 record do not yet migrate authoritative DNS or
+change public traffic because Gabia remains delegated. The ephemeral lab has
+not been created, data has not been restored, and no performance results have
+been established. The historical ETL dump is Flyway V12 while the application
+is V16, so the Phase 3
 validator intentionally refuses it; a newly generated immutable V16 release is
 a prerequisite for the first live rehearsal.
 
