@@ -1,0 +1,1346 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Application-level observability for the Airbob accommodation-detail cache-aside flow: cache effectiveness, single-flight behavior, lock and DB latency, Redis failures, and fast/durable invalidation attempts.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Redis Operations",
+      "tooltip": "Open Redis server health and capacity for the same time range.",
+      "type": "link",
+      "url": "/d/airbob-redis?var-namespace=cache&var-instance=redis-cache"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Spring Boot Statistics",
+      "tooltip": "Open JVM, HTTP, HikariCP, CPU and GC diagnostics for the same time range.",
+      "type": "link",
+      "url": "/d/spring_boot_21"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "API Query Count",
+      "tooltip": "Open per-request SQL query diagnostics for the same time range.",
+      "type": "link",
+      "url": "/d/airbob-query-count"
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "### Measurement contract\n- **DB offload ratio** is the share of completed cache outcomes that did not execute this request's DB loader. It includes Redis hits and JVM single-flight coalescing.\n- **Redis hit ratio** counts values served from Redis (`hit`, `hit_after_wait`, `negative_hit`) and excludes coalesced DB results.\n- Request outcomes do not include failed DB loads; inspect **DB load outcome RPS** for `error`. Latency quantiles use successful `found` loads and `acquired` locks.\n- `outbox` eviction success means the durable replay attempt completed. Because every change is replayed and retries count as attempts, it is not a count of proven stale-cache repairs. Use **All instances** when comparing fast and durable paths because Kafka may consume the replay on another application instance.",
+        "mode": "markdown"
+      },
+      "title": "How to read this dashboard",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 *\nsum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=~\"hit|hit_after_wait|coalesced|negative_hit|negative_coalesced\"}[$__rate_interval]))\n/\nclamp_min(sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "DB offload",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB offload ratio",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 *\nsum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=~\"hit|hit_after_wait|negative_hit\"}[$__rate_interval]))\n/\nclamp_min(sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "Redis hit",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Redis hit ratio",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "completed outcomes",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Completed cache outcome RPS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=~\"loaded|negative_loaded\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "DB loader",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB load RPS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 25,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "decimals": 2,
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 0,
+        "y": 9
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (result) (\n  rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])\n)",
+          "instant": false,
+          "legendFormat": "{{result}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Request outcome RPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 9
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=~\"hit|hit_after_wait|negative_hit\"}[$__rate_interval])) / clamp_min(sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "Redis hit",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=~\"hit|hit_after_wait|coalesced|negative_hit|negative_coalesced\"}[$__rate_interval])) / clamp_min(sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "DB offload",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=~\"coalesced|negative_coalesced\"}[$__rate_interval])) / clamp_min(sum(rate(accommodation_detail_cache_request_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "JVM coalesced",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Cache effectiveness ratios",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 3,
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(accommodation_detail_cache_lock_wait_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"acquired\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(accommodation_detail_cache_lock_wait_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"acquired\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(accommodation_detail_cache_lock_wait_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"acquired\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Lock wait p50 / p95 / p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 3,
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(accommodation_detail_cache_load_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"found\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(accommodation_detail_cache_load_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"found\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(accommodation_detail_cache_load_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"found\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "DB load p50 / p95 / p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 2,
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 27
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (result) (\n  rate(accommodation_detail_cache_lock_wait_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])\n)",
+          "instant": false,
+          "legendFormat": "{{result}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Lock outcome RPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 2,
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 27
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (operation, result) (\n  rate(accommodation_detail_cache_redis_operation_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])\n)",
+          "instant": false,
+          "legendFormat": "{{operation}} · {{result}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Redis operation outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 2,
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 27
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (source, reason, result) (\n  rate(accommodation_detail_cache_eviction_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", source=~\"$eviction_source\", reason=~\"$reason\"}[$__rate_interval])\n)",
+          "instant": false,
+          "legendFormat": "{{source}} · {{reason}} · {{result}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Eviction attempts by source",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      },
+      "id": 13,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(accommodation_detail_cache_eviction_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", source=\"after_commit\", reason=~\"$reason\", result=\"error\"}[$__rate_interval])) / clamp_min(sum(rate(accommodation_detail_cache_eviction_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", source=\"after_commit\", reason=~\"$reason\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "fast-path failure",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "AFTER_COMMIT failure ratio",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 36
+      },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum(rate(accommodation_detail_cache_eviction_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", source=\"outbox\", reason=~\"$reason\", result=\"error\"}[$__rate_interval])) / clamp_min(sum(rate(accommodation_detail_cache_eviction_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", source=\"outbox\", reason=~\"$reason\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "outbox attempt failure",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Outbox attempt failure ratio",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 36
+      },
+      "id": 15,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(accommodation_detail_cache_eviction_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", source=\"outbox\", reason=~\"$reason\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "outbox attempts",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Outbox replay attempt RPS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 2,
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (result) (\n  rate(accommodation_detail_cache_load_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])\n)",
+          "instant": false,
+          "legendFormat": "{{result}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB load outcome RPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "decimals": 2,
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "100 * sum by (operation) (rate(accommodation_detail_cache_redis_operation_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"error\"}[$__rate_interval])) / clamp_min(sum by (operation) (rate(accommodation_detail_cache_redis_operation_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__rate_interval])), 0.000000001)",
+          "instant": false,
+          "legendFormat": "{{operation}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Redis operation failure ratio",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "airbob",
+    "cache",
+    "accommodation-detail",
+    "prometheus"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=\"airbob\"}, environment)",
+        "description": "Prometheus target environment label.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Environment",
+        "multi": true,
+        "name": "environment",
+        "options": [],
+        "query": {
+          "query": "label_values(up{job=\"airbob\"}, environment)",
+          "refId": "PrometheusVariableQueryEditor-Environment"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=\"airbob\", environment=~\"$environment\"}, instance)",
+        "description": "Airbob application scrape targets included in the aggregation.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "label_values(up{job=\"airbob\", environment=~\"$environment\"}, instance)",
+          "refId": "PrometheusVariableQueryEditor-Instance"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "description": "Cache invalidation execution path.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Eviction source",
+        "multi": true,
+        "name": "eviction_source",
+        "options": [
+          {
+            "selected": false,
+            "text": "after_commit",
+            "value": "after_commit"
+          },
+          {
+            "selected": false,
+            "text": "outbox",
+            "value": "outbox"
+          }
+        ],
+        "query": "after_commit,outbox",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "description": "Domain change that requested cache invalidation.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Eviction reason",
+        "multi": true,
+        "name": "reason",
+        "options": [
+          {
+            "selected": false,
+            "text": "accommodation",
+            "value": "accommodation"
+          },
+          {
+            "selected": false,
+            "text": "image",
+            "value": "image"
+          },
+          {
+            "selected": false,
+            "text": "review",
+            "value": "review"
+          }
+        ],
+        "query": "accommodation,image,review",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "15s",
+      "30s",
+      "1m",
+      "5m"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "3h",
+      "6h",
+      "12h",
+      "24h"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Airbob - Accommodation Detail Cache",
+  "uid": "airbob-accommodation-detail-cache",
+  "version": 1,
+  "weekStart": ""
+}
