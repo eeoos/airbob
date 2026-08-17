@@ -54,7 +54,7 @@ import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.infrastructure.outbox.MysqlOperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
 import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 
 @DataJpaTest

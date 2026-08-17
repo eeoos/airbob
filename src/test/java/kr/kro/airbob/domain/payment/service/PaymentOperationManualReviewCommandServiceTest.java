@@ -34,7 +34,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
@@ -43,7 +43,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.messaging.outbox.OutboxWriter;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
@@ -201,7 +201,7 @@ class PaymentOperationManualReviewCommandServiceTest {
 			4L,
 			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
 			"support-case/ABC-123"))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
 		then(transactionRepository).should(never()).save(any());

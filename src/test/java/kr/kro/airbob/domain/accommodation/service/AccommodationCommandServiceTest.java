@@ -236,7 +236,7 @@ class AccommodationCommandServiceTest {
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 		verifyNoInteractions(searchRefreshPublisher);
@@ -253,7 +253,7 @@ class AccommodationCommandServiceTest {
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 	}
@@ -271,7 +271,7 @@ class AccommodationCommandServiceTest {
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 		verifyNoInteractions(searchRefreshPublisher);
@@ -288,7 +288,7 @@ class AccommodationCommandServiceTest {
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception -> {
 				assertThat(exception.getErrorCode().getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003");
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009");
 			});
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 		verifyNoInteractions(searchRefreshPublisher);
@@ -375,7 +375,7 @@ class AccommodationCommandServiceTest {
 
 		assertThatThrownBy(() -> accommodationCommandService.publishAccommodation(1L, 2L))
 			.isInstanceOfSatisfying(BaseException.class, exception ->
-				assertThat(exception.getErrorCode().getCode()).isEqualTo("A003"));
+				assertThat(exception.getErrorCode().getCode()).isEqualTo("A009"));
 
 		assertThat(accommodation.getStatus()).isEqualTo(AccommodationStatus.DRAFT);
 		verifyNoInteractions(searchRefreshPublisher);

@@ -8,9 +8,4 @@ public class TossPaymentResponseParsingException extends BaseException {
 	public TossPaymentResponseParsingException(ErrorCode errorCode) {
 		super(errorCode);
 	}
-
-
-	public TossPaymentResponseParsingException(Throwable cause, ErrorCode errorCode) {
-		super(cause, errorCode);
-	}
 }

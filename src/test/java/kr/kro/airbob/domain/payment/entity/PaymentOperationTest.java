@@ -10,7 +10,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.payment.service.PaymentExecutionMode;
 
@@ -352,7 +352,7 @@ class PaymentOperationTest {
 		assertThat(operation.isNotPaidResolutionEligible()).isFalse();
 		assertThatThrownBy(() -> operation.markNotPaid(
 			NOW.plusSeconds(3), "MANUAL_NOT_PAID_RESOLUTION", "verified not paid"))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 	}
 
 	@Test

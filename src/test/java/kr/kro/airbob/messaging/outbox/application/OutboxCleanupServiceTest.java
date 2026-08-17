@@ -1,47 +1,40 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.InOrder;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 class OutboxCleanupServiceTest {
 
 	@Test
-	@DisplayName("한 번 실행할 때 보관 기한 이전의 행을 정확히 한 배치만 삭제하고 backlog를 관측한다")
+	@DisplayName("한 번 실행할 때 보관 기한 이전의 행을 정확히 한 배치만 삭제한다")
 	void deletesExactlyOneBatchPerInvocation() {
-		Instant now = Instant.parse("2026-08-17T00:00:00Z");
+		Instant startedAt = Instant.parse("2026-08-17T00:00:00Z");
+		Instant completedAt = startedAt.plusSeconds(2);
 		OutboxCleanupBatchDeleter batchDeleter = mock(OutboxCleanupBatchDeleter.class);
-		OutboxCleanupRepository repository = mock(OutboxCleanupRepository.class);
-		OutboxCleanupProperties properties = new OutboxCleanupProperties(
-			Duration.ofDays(30), Duration.ofHours(1), 500);
-		OutboxBacklogSnapshot snapshot = new OutboxBacklogSnapshot(
-			42, Optional.of(now.minus(Duration.ofDays(2))));
-		when(batchDeleter.deleteOneBatch(now.minus(Duration.ofDays(30)), 500)).thenReturn(500);
-		when(repository.readBacklogSnapshot()).thenReturn(snapshot);
+		Clock clock = mock(Clock.class);
+		when(clock.instant()).thenReturn(startedAt, completedAt);
+		when(batchDeleter.deleteOneBatch(startedAt.minus(Duration.ofDays(30)), 500)).thenReturn(500);
 		OutboxCleanupService service = new OutboxCleanupService(
-			batchDeleter, repository, properties, Clock.fixed(now, ZoneOffset.UTC));
+			batchDeleter, Duration.ofDays(30), 500, clock);
 
 		OutboxCleanupResult result = service.cleanupOneBatch();
 
 		assertThat(result.deletedCount()).isEqualTo(500);
-		assertThat(result.backlog()).isEqualTo(snapshot);
-		assertThat(result.observedAt()).isEqualTo(now);
-		InOrder order = inOrder(batchDeleter, repository);
-		order.verify(batchDeleter).deleteOneBatch(now.minus(Duration.ofDays(30)), 500);
-		order.verify(repository).readBacklogSnapshot();
+		assertThat(result.observedAt()).isEqualTo(completedAt);
+		verify(batchDeleter).deleteOneBatch(startedAt.minus(Duration.ofDays(30)), 500);
+		verifyNoMoreInteractions(batchDeleter);
 	}
 
 	@Test

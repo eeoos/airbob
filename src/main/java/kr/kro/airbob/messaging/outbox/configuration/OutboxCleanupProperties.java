@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.configuration;
 
 import java.time.Duration;
 import java.util.Objects;

@@ -104,9 +104,9 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
-import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
-import kr.kro.airbob.messaging.outbox.OutboxMessage;
-import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessage;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPublisher;
 

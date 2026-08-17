@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -13,6 +13,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupService;
+import kr.kro.airbob.messaging.outbox.infrastructure.scheduling.OutboxCleanupScheduler;
 
 class OutboxCleanupConfigurationTest {
 

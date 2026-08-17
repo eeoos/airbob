@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.jpa;
 
 import java.time.Instant;
 

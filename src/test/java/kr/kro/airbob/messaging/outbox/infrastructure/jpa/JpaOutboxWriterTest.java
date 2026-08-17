@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.jpa;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.then;

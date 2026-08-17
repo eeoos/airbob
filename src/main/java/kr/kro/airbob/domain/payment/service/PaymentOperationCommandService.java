@@ -26,7 +26,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.messaging.outbox.OutboxWriter;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
 @Service

@@ -56,9 +56,9 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.RecoveryBatch;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
-import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
-import kr.kro.airbob.messaging.outbox.OutboxMessage;
-import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessage;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 
 @DataJpaTest
 @Testcontainers

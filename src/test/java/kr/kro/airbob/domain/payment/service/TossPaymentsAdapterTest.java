@@ -18,9 +18,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -38,6 +41,7 @@ import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 
 @DisplayName("TossPaymentsAdapter tests")
+@ExtendWith(OutputCaptureExtension.class)
 class TossPaymentsAdapterTest {
 
 	private static final String BASE_URL = "https://api.example.com";
@@ -143,6 +147,21 @@ class TossPaymentsAdapterTest {
 			.andRespond(withSuccess("{not-json", MediaType.APPLICATION_JSON));
 
 		assertThat(adapter.confirm(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@Test
+	void malformedProviderErrorDoesNotLeakRawPayload(CapturedOutput output) {
+		String rawSecret = "superSecretPaymentKey123";
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(rawSecret));
+
+		PaymentGatewayResult result = adapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		assertThat(output).doesNotContain(rawSecret);
 		server.verify();
 	}
 

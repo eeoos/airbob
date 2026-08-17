@@ -17,7 +17,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
@@ -283,7 +283,7 @@ public class PaymentOperationFinalizer {
 			&& execution.amount() == reservation.getTotalPrice()
 			&& Objects.equals(execution.providerIdempotencyKey(), operation.getProviderIdempotencyKey());
 		if (!matches) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"payment execution does not match its persisted operation and reservation");
 		}
 	}
@@ -310,7 +310,7 @@ public class PaymentOperationFinalizer {
 			&& cancelled.transactionKey().length() <= 64
 			&& cancelled.cancelledAt() != null;
 		if (!matches) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"cancelled payment does not match its operation, reservation, and payment");
 		}
 	}
@@ -331,7 +331,7 @@ public class PaymentOperationFinalizer {
 			&& payment.getAmount().equals(payment.getBalanceAmount())
 			&& payment.getBalanceAmount() == operation.getExpectedAmount();
 		if (!matches) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"active payment does not match its cancellation operation and reservation");
 		}
 	}
@@ -350,7 +350,7 @@ public class PaymentOperationFinalizer {
 			&& confirmed.status() == PaymentStatus.DONE
 			&& confirmed.approvedAt() != null;
 		if (!matches) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"approved payment does not match its operation and reservation");
 		}
 	}
@@ -371,7 +371,7 @@ public class PaymentOperationFinalizer {
 			&& payment.getApprovedAt().truncatedTo(ChronoUnit.MICROS)
 				.equals(confirmed.approvedAt().truncatedTo(ChronoUnit.MICROS));
 		if (!matches) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"reservation already has a different approved payment");
 		}
 	}

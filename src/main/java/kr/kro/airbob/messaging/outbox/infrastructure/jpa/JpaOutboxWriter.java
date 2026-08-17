@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.jpa;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -14,6 +14,7 @@ import kr.kro.airbob.messaging.event.EventDescriptor;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEvent;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @Component
 public class JpaOutboxWriter implements OutboxWriter {

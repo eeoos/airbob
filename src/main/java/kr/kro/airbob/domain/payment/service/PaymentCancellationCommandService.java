@@ -21,7 +21,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentNotFoundException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
@@ -31,7 +31,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.messaging.outbox.OutboxWriter;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @Service
@@ -147,7 +147,7 @@ public class PaymentCancellationCommandService {
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_PENDING) {
 			PaymentOperation operation = latest
 				.filter(this::isActiveCancellation)
-				.orElseThrow(() -> new PaymentOperationInvariantException(
+				.orElseThrow(() -> new PaymentOperationInvariantViolationException(
 					"cancellation-pending reservation has no active payment operation"));
 			if (!operation.matchesCancellation(request.cancelReason(), request.cancelAmount())) {
 				throw new PaymentOperationConflictException();
@@ -158,14 +158,14 @@ public class PaymentCancellationCommandService {
 			return latest
 				.filter(operation -> operation.getStatus() == PaymentOperationStatus.APPLIED)
 				.map(Cancellation::accepted)
-				.orElseThrow(() -> new PaymentOperationInvariantException(
+				.orElseThrow(() -> new PaymentOperationInvariantViolationException(
 					"paid cancelled reservation has no applied payment operation"));
 		}
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED
 			&& latest.map(PaymentOperation::getStatus)
 				.filter(status -> status == PaymentOperationStatus.DECLINED)
 				.isEmpty()) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"cancellation-failed reservation has no declined payment operation");
 		}
 		return null;

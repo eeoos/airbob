@@ -12,7 +12,7 @@ import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
@@ -143,7 +143,7 @@ public class PaymentOperationLeaseService {
 		if (!execution.manualReconciliation()
 			|| !execution.mode().isInquiry()
 			|| (notPaidEligible && execution.mode() != PaymentExecutionMode.INQUIRE_CONFIRM)) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"manual reconciliation review return does not match its inquiry mode");
 		}
 		PaymentOperation operation = lock(execution.operationUid());

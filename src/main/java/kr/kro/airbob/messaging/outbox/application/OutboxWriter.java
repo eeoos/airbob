@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.application;
 
 import kr.kro.airbob.messaging.event.IntegrationEvent;
 

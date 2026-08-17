@@ -66,7 +66,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
@@ -76,7 +76,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest
@@ -315,7 +315,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			approval.get(5, TimeUnit.SECONDS);
 			assertThatThrownBy(() -> decline.get(5, TimeUnit.SECONDS))
 				.isInstanceOf(ExecutionException.class)
-				.hasRootCauseInstanceOf(PaymentOperationInvariantException.class);
+				.hasRootCauseInstanceOf(PaymentOperationInvariantViolationException.class);
 
 			assertSingleApprovedOutcome();
 		} finally {
@@ -346,7 +346,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		long existingPaymentId = insertExistingPayment("conflicting-payment-key");
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment()))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
 		assertThat(paymentRepository.count()).isOne();
@@ -369,7 +369,7 @@ class PaymentOperationFinalizerIntegrationTest {
 
 		assertThatThrownBy(() -> finalizer.applyDeclined(
 			execution, "REJECT_CARD_PAYMENT", "card rejected"))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(reloadOperation().getStatus()).isEqualTo(APPLIED);
 		assertThat(reloadReservation().getStatus()).isEqualTo(CONFIRMED);
@@ -393,7 +393,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentMethod.CARD, PaymentStatus.DONE, NOW.plusSeconds(60), null);
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), mismatched))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertPreFinalizationState();
 	}
@@ -563,7 +563,7 @@ class PaymentOperationFinalizerIntegrationTest {
 
 		assertThatThrownBy(() -> finalizer.applyCancelled(
 			cancellationExecution(LEASE_OWNER), mismatched))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(reloadOperation().getStatus()).isEqualTo(EXECUTING);
 		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_PENDING);

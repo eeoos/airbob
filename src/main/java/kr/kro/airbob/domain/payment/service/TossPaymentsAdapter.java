@@ -452,7 +452,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		try {
 			return parseErrorCode(new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8));
 		} catch (IOException e) {
-			throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+			log.error("토스페이먼츠 에러 응답 읽기 실패: type={}", e.getClass().getSimpleName());
+			throw new TossPaymentResponseParsingException(ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
 		}
 	}
 
@@ -466,8 +467,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 
 			return root.path("failure").path("code").asText(UNKNOWN_ERROR);
 		} catch (JsonProcessingException e) {
-			log.error("토스페이먼츠 에러 응답 파싱 실패", e);
-			throw new TossPaymentResponseParsingException(e, ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+			log.error("토스페이먼츠 에러 응답 파싱 실패: type={}", e.getClass().getSimpleName());
+			throw new TossPaymentResponseParsingException(ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
 		}
 	}
 

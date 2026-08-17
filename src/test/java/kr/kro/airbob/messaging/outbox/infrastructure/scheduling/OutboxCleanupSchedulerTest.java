@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.scheduling;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -7,10 +7,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupResult;
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupService;
+import kr.kro.airbob.messaging.outbox.monitoring.OutboxCleanupMetrics;
 
 class OutboxCleanupSchedulerTest {
 
@@ -20,10 +23,7 @@ class OutboxCleanupSchedulerTest {
 		OutboxCleanupService service = mock(OutboxCleanupService.class);
 		OutboxCleanupMetrics metrics = mock(OutboxCleanupMetrics.class);
 		OutboxCleanupResult result = new OutboxCleanupResult(
-			100,
-			new OutboxBacklogSnapshot(12, Optional.of(Instant.parse("2026-08-16T00:00:00Z"))),
-			Instant.parse("2026-08-17T00:00:00Z")
-		);
+			100, Instant.parse("2026-08-17T00:00:00Z"));
 		when(service.cleanupOneBatch()).thenReturn(result);
 		OutboxCleanupScheduler scheduler = new OutboxCleanupScheduler(service, metrics);
 

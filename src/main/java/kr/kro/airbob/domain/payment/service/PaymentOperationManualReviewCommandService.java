@@ -19,7 +19,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
@@ -30,7 +30,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.messaging.outbox.OutboxWriter;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @Service
@@ -129,11 +129,11 @@ public class PaymentOperationManualReviewCommandService {
 			operation.getReservation().getId()).orElseThrow(ReservationNotFoundException::new);
 		validateNotPaidReservation(operation, reservation);
 		if (paymentRepository.findByReservationIdWithLock(reservation.getId()).isPresent()) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"an approved payment exists for the not-paid resolution");
 		}
 		if (transactionRepository.existsByPaymentOperationId(operation.getId())) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"the operation already has a terminal payment ledger entry");
 		}
 
@@ -193,7 +193,7 @@ public class PaymentOperationManualReviewCommandService {
 	private void validateNotPaidReservation(PaymentOperation operation, Reservation reservation) {
 		if (reservation.getStatus() != ReservationStatus.PAYMENT_PROCESSING
 			|| !Objects.equals(reservation.getTotalPrice(), operation.getExpectedAmount())) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"reservation does not match the not-paid resolution operation");
 		}
 	}

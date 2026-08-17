@@ -1,6 +1,9 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.scheduling;
 
 import org.springframework.scheduling.annotation.Scheduled;
+
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupService;
+import kr.kro.airbob.messaging.outbox.monitoring.OutboxCleanupMetrics;
 
 public class OutboxCleanupScheduler {
 

@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -92,18 +92,6 @@ class MysqlOutboxCleanupRepositoryIntegrationTest {
 		Timestamp updatedAt = jdbcTemplate.queryForObject(
 			"SELECT updated_at FROM outbox WHERE id = ?", Timestamp.class, retainedId);
 		assertThat(updatedAt.toInstant()).isEqualTo(MARKER_UPDATED_AT);
-	}
-
-	@Test
-	@DisplayName("backlog 스냅샷은 payload나 key 없이 개수와 가장 오래된 시각만 조회한다")
-	void readsOnlyBacklogHealthSnapshot() {
-		insert(CUTOFF.minusSeconds(10));
-		insert(CUTOFF.plusSeconds(10));
-
-		OutboxBacklogSnapshot snapshot = repository.readBacklogSnapshot();
-
-		assertThat(snapshot.messageCount()).isEqualTo(2);
-		assertThat(snapshot.oldestOccurredAt()).contains(CUTOFF.minusSeconds(10));
 	}
 
 	private long insert(Instant occurredAt) {

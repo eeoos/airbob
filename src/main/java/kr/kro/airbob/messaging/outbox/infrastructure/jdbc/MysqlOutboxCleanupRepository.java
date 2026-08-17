@@ -1,11 +1,12 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.infrastructure.jdbc;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupRepository;
 
 public class MysqlOutboxCleanupRepository implements OutboxCleanupRepository {
 
@@ -14,11 +15,6 @@ public class MysqlOutboxCleanupRepository implements OutboxCleanupRepository {
 		WHERE occurred_at < ?
 		ORDER BY occurred_at ASC, id ASC
 		LIMIT ?
-		""";
-
-	private static final String READ_BACKLOG_SQL = """
-		SELECT COUNT(*) AS message_count, MIN(occurred_at) AS oldest_occurred_at
-		FROM outbox
 		""";
 
 	private final JdbcTemplate jdbcTemplate;
@@ -38,17 +34,5 @@ public class MysqlOutboxCleanupRepository implements OutboxCleanupRepository {
 			Timestamp.from(cutoffExclusive),
 			batchSize
 		);
-	}
-
-	@Override
-	public OutboxBacklogSnapshot readBacklogSnapshot() {
-		return jdbcTemplate.queryForObject(READ_BACKLOG_SQL, (resultSet, rowNumber) -> {
-			long messageCount = resultSet.getLong("message_count");
-			Timestamp oldestOccurredAt = resultSet.getTimestamp("oldest_occurred_at");
-			return new OutboxBacklogSnapshot(
-				messageCount,
-				Optional.ofNullable(oldestOccurredAt).map(Timestamp::toInstant)
-			);
-		});
 	}
 }

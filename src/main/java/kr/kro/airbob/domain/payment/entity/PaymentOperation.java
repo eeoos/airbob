@@ -21,7 +21,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Version;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.service.PaymentExecutionMode;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
@@ -212,7 +212,7 @@ public class PaymentOperation extends BaseEntity {
 
 	public void rejectOppositeTerminal(PaymentOperationStatus targetStatus) {
 		if (status.isTerminal() && status != targetStatus) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"terminal operation cannot change from " + status + " to " + targetStatus);
 		}
 	}
@@ -239,7 +239,7 @@ public class PaymentOperation extends BaseEntity {
 		}
 		PaymentExecutionMode mode = executionMode();
 		if (manualReconciliationPending && !mode.isInquiry()) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"manual reconciliation can only acquire a provider inquiry lease");
 		}
 		status = PaymentOperationStatus.EXECUTING;
@@ -287,7 +287,7 @@ public class PaymentOperation extends BaseEntity {
 	public void requestManualReconciliation(Instant now) {
 		Objects.requireNonNull(now, "now must not be null");
 		if (status != PaymentOperationStatus.MANUAL_REVIEW || manualReconciliationPending) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"only a paused manual-review operation can request reconciliation");
 		}
 		nextAction = inquiryActionFor(operationType);
@@ -306,7 +306,7 @@ public class PaymentOperation extends BaseEntity {
 
 	private void moveToManualReview(Instant now, boolean notPaidEligible) {
 		if (notPaidEligible && operationType != PaymentOperationType.CONFIRM) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"only a confirmation can become eligible for not-paid resolution");
 		}
 		status = PaymentOperationStatus.MANUAL_REVIEW;
@@ -342,7 +342,7 @@ public class PaymentOperation extends BaseEntity {
 			|| status != PaymentOperationStatus.MANUAL_REVIEW
 			|| manualReconciliationPending
 			|| !notPaidResolutionEligible) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"operation is not eligible for a not-paid resolution");
 		}
 		status = PaymentOperationStatus.DECLINED;
@@ -414,7 +414,7 @@ public class PaymentOperation extends BaseEntity {
 
 	private void complete(PaymentOperationStatus terminalStatus, Instant now, String code, String message) {
 		if (status != PaymentOperationStatus.EXECUTING) {
-			throw new PaymentOperationInvariantException(
+			throw new PaymentOperationInvariantViolationException(
 				"only an executing payment operation can become " + terminalStatus);
 		}
 		status = terminalStatus;
@@ -447,7 +447,8 @@ public class PaymentOperation extends BaseEntity {
 		try {
 			dispatchGeneration = Math.addExact(dispatchGeneration, 1);
 		} catch (ArithmeticException overflow) {
-			throw new PaymentOperationInvariantException("payment operation dispatch generation overflow");
+			throw new PaymentOperationInvariantViolationException(
+				"payment operation dispatch generation overflow");
 		}
 		status = PaymentOperationStatus.QUEUED;
 		queuedAt = now;

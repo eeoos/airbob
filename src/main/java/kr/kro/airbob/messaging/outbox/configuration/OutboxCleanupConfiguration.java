@@ -1,4 +1,4 @@
-package kr.kro.airbob.messaging.outbox;
+package kr.kro.airbob.messaging.outbox.configuration;
 
 import java.time.Clock;
 
@@ -9,6 +9,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.micrometer.core.instrument.MeterRegistry;
+
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupBatchDeleter;
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupRepository;
+import kr.kro.airbob.messaging.outbox.application.OutboxCleanupService;
+import kr.kro.airbob.messaging.outbox.infrastructure.jdbc.MysqlOutboxCleanupRepository;
+import kr.kro.airbob.messaging.outbox.infrastructure.scheduling.OutboxCleanupScheduler;
+import kr.kro.airbob.messaging.outbox.monitoring.OutboxCleanupMetrics;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "messaging.outbox.cleanup.enabled", havingValue = "true")
@@ -30,11 +37,15 @@ public class OutboxCleanupConfiguration {
 	@Bean
 	public OutboxCleanupService outboxCleanupService(
 		OutboxCleanupBatchDeleter batchDeleter,
-		OutboxCleanupRepository repository,
 		OutboxCleanupProperties properties,
 		Clock clock
 	) {
-		return new OutboxCleanupService(batchDeleter, repository, properties, clock);
+		return new OutboxCleanupService(
+			batchDeleter,
+			properties.retention(),
+			properties.batchSize(),
+			clock
+		);
 	}
 
 	@Bean
