@@ -1,19 +1,15 @@
 package kr.kro.airbob.search.messaging.kafka;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.retrytopic.SameIntervalTopicReuseStrategy;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
@@ -21,6 +17,7 @@ import org.springframework.stereotype.Component;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
+import kr.kro.airbob.messaging.infrastructure.kafka.KafkaRetryHeaders;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
@@ -86,41 +83,13 @@ public class AccommodationSearchRefreshListener {
 		}
 	}
 
-	private Optional<String> readStringHeader(ConsumerRecord<String, String> record, String name) {
-		return Optional.ofNullable(record.headers().lastHeader(name))
-			.map(Header::value)
-			.map(value -> new String(value, StandardCharsets.UTF_8));
-	}
-
-	private Optional<Integer> readIntHeader(ConsumerRecord<String, String> record, String name) {
-		return Optional.ofNullable(record.headers().lastHeader(name))
-			.map(Header::value)
-			.filter(value -> value.length == Integer.BYTES)
-			.map(value -> ByteBuffer.wrap(value).getInt());
-	}
-
-	private Optional<Long> readLongHeader(ConsumerRecord<String, String> record, String name) {
-		return Optional.ofNullable(record.headers().lastHeader(name))
-			.map(Header::value)
-			.filter(value -> value.length == Long.BYTES)
-			.map(value -> ByteBuffer.wrap(value).getLong());
-	}
-
 	private OperatorAlertSourcePosition sourcePosition(ConsumerRecord<String, String> record) {
-		boolean canonicalTopic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
-			.filter(AccommodationSearchRefreshRequestedV1.TOPIC::equals)
-			.isPresent();
-		int partition = canonicalTopic
-			? readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
-				.filter(value -> value >= 0)
-				.orElse(record.partition())
-			: record.partition();
-		long offset = canonicalTopic
-			? readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
-				.filter(value -> value >= 0)
-				.orElse(record.offset())
-			: record.offset();
+		KafkaRetryHeaders.RecordCoordinates coordinates =
+			KafkaRetryHeaders.canonicalSourceCoordinates(
+				record, AccommodationSearchRefreshRequestedV1.TOPIC);
 		return new OperatorAlertSourcePosition(
-			AccommodationSearchRefreshRequestedV1.TOPIC, partition, offset);
+			AccommodationSearchRefreshRequestedV1.TOPIC,
+			coordinates.partition(),
+			coordinates.offset());
 	}
 }

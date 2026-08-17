@@ -113,6 +113,27 @@ class KafkaRetryHeadersTest {
 		assertThat(copied.lastHeader(KafkaHeaders.ORIGINAL_OFFSET)).isNotNull();
 	}
 
+	@Test
+	void usesOriginalCoordinatesOnlyForTheCanonicalTopic() {
+		ConsumerRecord<String, String> canonical = new ConsumerRecord<>(
+			RETRY_TOPIC, 5, 99L, "key", "value");
+		canonical.headers()
+			.add(KafkaHeaders.ORIGINAL_TOPIC, PRIMARY_TOPIC.getBytes(StandardCharsets.UTF_8))
+			.add(KafkaHeaders.ORIGINAL_PARTITION, intBytes(1))
+			.add(KafkaHeaders.ORIGINAL_OFFSET, longBytes(19L));
+		ConsumerRecord<String, String> foreign = new ConsumerRecord<>(
+			RETRY_TOPIC, 5, 99L, "key", "value");
+		foreign.headers()
+			.add(KafkaHeaders.ORIGINAL_TOPIC, "OTHER.events".getBytes(StandardCharsets.UTF_8))
+			.add(KafkaHeaders.ORIGINAL_PARTITION, intBytes(1))
+			.add(KafkaHeaders.ORIGINAL_OFFSET, longBytes(19L));
+
+		assertThat(KafkaRetryHeaders.canonicalSourceCoordinates(canonical, PRIMARY_TOPIC))
+			.isEqualTo(new KafkaRetryHeaders.RecordCoordinates(1, 19L));
+		assertThat(KafkaRetryHeaders.canonicalSourceCoordinates(foreign, PRIMARY_TOPIC))
+			.isEqualTo(new KafkaRetryHeaders.RecordCoordinates(5, 99L));
+	}
+
 	private ConsumerRecord<String, String> record(String topic) {
 		return new ConsumerRecord<>(topic, 0, 1L, "key", "value");
 	}

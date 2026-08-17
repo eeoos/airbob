@@ -1,12 +1,9 @@
 package kr.kro.airbob.messaging.alert.infrastructure.kafka;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
@@ -23,6 +20,7 @@ import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.monitoring.OperatorAlertMetrics;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.infrastructure.kafka.KafkaRetryHeaders;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -77,11 +75,14 @@ public class OperatorAlertKafkaListener {
 		ConsumerRecord<String, String> record,
 		Acknowledgment acknowledgment
 	) {
-		String topic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
+		String topic = KafkaRetryHeaders.readStringHeader(
+			record.headers(), KafkaHeaders.ORIGINAL_TOPIC)
 			.orElse(record.topic());
-		int partition = readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
+		int partition = KafkaRetryHeaders.readIntHeader(
+			record.headers(), KafkaHeaders.ORIGINAL_PARTITION)
 			.orElse(record.partition());
-		long offset = readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
+		long offset = KafkaRetryHeaders.readLongHeader(
+			record.headers(), KafkaHeaders.ORIGINAL_OFFSET)
 			.orElse(record.offset());
 		handleDlt(record.value(), topic, partition, offset, acknowledgment);
 	}
@@ -121,32 +122,4 @@ public class OperatorAlertKafkaListener {
 		}
 	}
 
-	private Optional<String> readStringHeader(
-		ConsumerRecord<String, String> record,
-		String name
-	) {
-		return Optional.ofNullable(record.headers().lastHeader(name))
-			.map(Header::value)
-			.map(value -> new String(value, StandardCharsets.UTF_8));
-	}
-
-	private Optional<Integer> readIntHeader(
-		ConsumerRecord<String, String> record,
-		String name
-	) {
-		return Optional.ofNullable(record.headers().lastHeader(name))
-			.map(Header::value)
-			.filter(value -> value.length == Integer.BYTES)
-			.map(value -> ByteBuffer.wrap(value).getInt());
-	}
-
-	private Optional<Long> readLongHeader(
-		ConsumerRecord<String, String> record,
-		String name
-	) {
-		return Optional.ofNullable(record.headers().lastHeader(name))
-			.map(Header::value)
-			.filter(value -> value.length == Long.BYTES)
-			.map(value -> ByteBuffer.wrap(value).getLong());
-	}
 }

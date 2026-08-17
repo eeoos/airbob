@@ -223,20 +223,22 @@ public class PaymentOperationExecutor {
 	}
 
 	private String sanitizeCode(PaymentExecution execution, String code) {
-		String redacted = code == null ? "" : code;
-		redacted = redact(redacted, execution.paymentKey());
-		redacted = redact(redacted, execution.orderId());
-		redacted = redact(redacted, execution.providerIdempotencyKey());
-		String sanitized = sanitizeText(redacted, FAILURE_CODE_MAX_LENGTH);
+		String sanitized = sanitizeText(
+			redactExecutionSecrets(execution, code), FAILURE_CODE_MAX_LENGTH);
 		return sanitized.isBlank() ? UNKNOWN_CODE : sanitized;
 	}
 
 	private String sanitizeMessage(PaymentExecution execution, String message) {
-		String redacted = message == null ? "" : message;
+		return sanitizeText(
+			redactExecutionSecrets(execution, message), FAILURE_MESSAGE_MAX_LENGTH);
+	}
+
+	private String redactExecutionSecrets(PaymentExecution execution, String value) {
+		String redacted = value == null ? "" : value;
 		redacted = redact(redacted, execution.paymentKey());
 		redacted = redact(redacted, execution.orderId());
 		redacted = redact(redacted, execution.providerIdempotencyKey());
-		return sanitizeText(redacted, FAILURE_MESSAGE_MAX_LENGTH);
+		return redacted;
 	}
 
 	private String sanitizeText(String value, int maxLength) {

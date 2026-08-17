@@ -1,6 +1,5 @@
 package kr.kro.airbob.search.messaging.outbox;
 
-import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -19,7 +18,6 @@ public class OutboxAccommodationSearchRefreshPublisher
 
 	@Override
 	public void requestRefresh(UUID accommodationUid) {
-		outboxWriter.append(new AccommodationSearchRefreshRequestedV1(
-			Objects.requireNonNull(accommodationUid, "accommodationUid must not be null")));
+		outboxWriter.append(new AccommodationSearchRefreshRequestedV1(accommodationUid));
 	}
 }
