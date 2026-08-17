@@ -12,8 +12,10 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: airbobdb
-      MYSQL_USER: debezium
-      MYSQL_PASSWORD: dbz
+      DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
+      DEBEZIUM_DATABASE_PASSWORD: ${DEBEZIUM_DATABASE_PASSWORD:-dbz}
+      LOGSTASH_JDBC_USER: ${LOGSTASH_JDBC_USER:-logstash}
+      LOGSTASH_JDBC_PASSWORD: ${LOGSTASH_JDBC_PASSWORD:-logstash}
       TZ: UTC
     ports:
       - "3307:3306"
@@ -56,6 +58,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: airbob-local-cluster
     volumes:
@@ -70,33 +73,65 @@ services:
       - local-infra
 
   # --------------------------------------------------------
-  # Debezium (x86_64 - 공식 이미지 사용)
+  # Kafka topic bootstrap
+  # --------------------------------------------------------
+  kafka-topic-init:
+    image: apache/kafka:3.7.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KAFKA_REPLICATION_FACTOR: 1
+    volumes:
+      - ./docker/kafka/init-topics.sh:/opt/airbob/init-topics.sh:ro
+    entrypoint: ["/bin/bash", "/opt/airbob/init-topics.sh"]
+    restart: "no"
+    networks:
+      - local-infra
+
+  # --------------------------------------------------------
+  # Debezium Kafka Connect
   # --------------------------------------------------------
   debezium:
-    image: debezium/connect:2.6
+    build:
+      context: ./docker/debezium
+      dockerfile: Dockerfile
+    image: airbob-debezium:local
     container_name: debezium
     ports:
       - "8083:8083"
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     environment:
-      BOOTSTRAP_SERVERS: kafka:19092
-      GROUP_ID: debezium-local
-      CONFIG_STORAGE_TOPIC: DEBEZIUM_CONNECT_CONFIGS
-      OFFSET_STORAGE_TOPIC: DEBEZIUM_CONNECT_OFFSETS
-      STATUS_STORAGE_TOPIC: DEBEZIUM_CONNECT_STATUSES
-      CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      DEBEZIUM_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
+      DEBEZIUM_DATABASE_PASSWORD: ${DEBEZIUM_DATABASE_PASSWORD:-dbz}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+    networks:
+      - local-infra
+
+  debezium-connector-init:
+    image: curlimages/curl:8.8.0
+    depends_on:
+      debezium:
+        condition: service_healthy
+    environment:
+      CONNECT_URL: http://debezium:8083
+      CONNECTOR_NAME: airbob-outbox-connector
+    volumes:
+      - ./debezium-config/outbox-connector.json:/config/outbox-connector.json:ro
+      - ./docker/debezium/register-connector.sh:/opt/airbob/register-connector.sh:ro
+    entrypoint: ["/bin/sh", "/opt/airbob/register-connector.sh"]
+    restart: "no"
     networks:
       - local-infra
 

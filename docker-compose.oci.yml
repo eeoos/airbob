@@ -68,6 +68,8 @@ services:
       - ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_KAFKA_ADMIN_AUTO_CREATE=false
+      - SPRING_KAFKA_LISTENER_MISSING_TOPICS_FATAL=true
     depends_on:
       mysql:
         condition: service_healthy
@@ -75,8 +77,10 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
+      debezium-connector-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -186,6 +190,9 @@ services:
       MYSQL_DATABASE: airbobdb
       MYSQL_USER: ${SPRING_DATASOURCE_USERNAME}
       MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
+      LOGSTASH_JDBC_USER: ${LOGSTASH_JDBC_USER:-logstash}
+      LOGSTASH_JDBC_PASSWORD: ${LOGSTASH_JDBC_PASSWORD:-logstash}
       TZ: UTC
     command:
       - --character-set-server=utf8mb4
@@ -198,8 +205,7 @@ services:
       - --enforce-gtid-consistency=ON
     volumes:
       - mysql-data:/var/lib/mysql
-      # init SQL은 최초 1회만 필요. 이미 초기화된 볼륨에서는 실행되지 않음
-      # 신규 배포 시: docker/mysql/init/ 내용을 수동 실행
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -231,6 +237,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: airbob-kafka-cluster
       # ARM64 메모리 최적화
@@ -252,17 +259,39 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
+  # Kafka topic bootstrap
+  # --------------------------------------------------------
+  kafka-topic-init:
+    image: apache/kafka:3.7.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_REPLICATION_FACTOR: 1
+    volumes:
+      - ./docker/kafka/init-topics.sh:/opt/airbob/init-topics.sh:ro
+    entrypoint: ["/bin/bash", "/opt/airbob/init-topics.sh"]
+    restart: "no"
+    networks:
+      - airbob-network
+
+  # --------------------------------------------------------
   # Debezium (Kafka Connect) - GHCR pre-built 이미지
-  # connect-distributed.properties가 이미지에 bake됨
+  # connect-distributed.properties is baked into the image.
   # --------------------------------------------------------
   debezium:
     image: ghcr.io/eeoos/airbob-debezium:latest
     container_name: debezium
+    env_file:
+      - .env.oci
     environment:
       KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      DEBEZIUM_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     healthcheck:
@@ -276,6 +305,26 @@ services:
         limits:
           memory: 768M
     restart: unless-stopped
+    networks:
+      - airbob-network
+
+  debezium-connector-init:
+    image: curlimages/curl:8.8.0
+    depends_on:
+      debezium:
+        condition: service_healthy
+    environment:
+      CONNECT_URL: http://debezium:8083
+      CONNECTOR_NAME: airbob-outbox-connector
+    volumes:
+      - ./debezium-config/outbox-connector.json:/config/outbox-connector.json:ro
+      - ./docker/debezium/register-connector.sh:/opt/airbob/register-connector.sh:ro
+    entrypoint: ["/bin/sh", "/opt/airbob/register-connector.sh"]
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    restart: "no"
     networks:
       - airbob-network
 
