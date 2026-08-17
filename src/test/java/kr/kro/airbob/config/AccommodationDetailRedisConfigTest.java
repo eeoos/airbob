@@ -12,9 +12,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheConfiguration;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheProperties;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailRedisClient;
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheConfiguration;
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
+import kr.kro.airbob.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 
 class AccommodationDetailRedisConfigTest {
 

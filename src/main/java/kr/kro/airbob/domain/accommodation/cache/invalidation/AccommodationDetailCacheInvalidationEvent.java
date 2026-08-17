@@ -1,4 +1,6 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.invalidation;
+
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 
 /**
  * 원본 데이터 변경 트랜잭션과 함께 발행되고, 커밋 뒤 숙소 상세 캐시를 제거하기 위한 이벤트

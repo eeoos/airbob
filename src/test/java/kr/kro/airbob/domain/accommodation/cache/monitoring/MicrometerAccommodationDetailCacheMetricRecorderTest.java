@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.monitoring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,6 +13,10 @@ import org.junit.jupiter.api.Test;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheMetricRecorder;
 
 @DisplayName("숙소 상세 캐시 Micrometer 지표 테스트")
 class MicrometerAccommodationDetailCacheMetricRecorderTest {
@@ -35,6 +39,7 @@ class MicrometerAccommodationDetailCacheMetricRecorderTest {
 		recorder.recordLoad(AccommodationDetailCacheMetricRecorder.LoadResult.FOUND,
 			Duration.ofMillis(80).toNanos());
 		recorder.recordEviction(
+			AccommodationDetailCacheMetricRecorder.EvictionSource.AFTER_COMMIT,
 			AccommodationDetailCacheInvalidationReason.REVIEW,
 			AccommodationDetailCacheMetricRecorder.OperationResult.SUCCESS);
 
@@ -45,7 +50,7 @@ class MicrometerAccommodationDetailCacheMetricRecorderTest {
 		Timer load = registry.find(MicrometerAccommodationDetailCacheMetricRecorder.LOAD_DURATION)
 			.tag("result", "found").timer();
 		Counter eviction = registry.find(MicrometerAccommodationDetailCacheMetricRecorder.EVICTION_TOTAL)
-			.tags("reason", "review", "result", "success").counter();
+			.tags("source", "after_commit", "reason", "review", "result", "success").counter();
 
 		assertThat(hit).isNotNull();
 		assertThat(hit.count()).isOne();
@@ -62,6 +67,7 @@ class MicrometerAccommodationDetailCacheMetricRecorderTest {
 			AccommodationDetailCacheMetricRecorder.RedisOperation.GET,
 			AccommodationDetailCacheMetricRecorder.OperationResult.SUCCESS);
 		recorder.recordEviction(
+			AccommodationDetailCacheMetricRecorder.EvictionSource.OUTBOX,
 			AccommodationDetailCacheInvalidationReason.IMAGE,
 			AccommodationDetailCacheMetricRecorder.OperationResult.SUCCESS);
 
@@ -71,5 +77,42 @@ class MicrometerAccommodationDetailCacheMetricRecorderTest {
 			.map(tag -> tag.getKey())
 			.toList())
 			.doesNotContainAnyElementsOf(forbidden);
+	}
+
+	@Test
+	@DisplayName("Grafana 대시보드가 사용하는 Prometheus 이름과 무효화 source 태그를 노출한다")
+	void exportsDashboardMetricNamesAndEvictionSource() {
+		PrometheusMeterRegistry prometheusRegistry =
+			new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+		MicrometerAccommodationDetailCacheMetricRecorder prometheusRecorder =
+			new MicrometerAccommodationDetailCacheMetricRecorder(prometheusRegistry);
+
+		prometheusRecorder.recordRequest(AccommodationDetailCacheMetricRecorder.RequestResult.HIT);
+		prometheusRecorder.recordLock(
+			AccommodationDetailCacheMetricRecorder.LockResult.ACQUIRED,
+			Duration.ofMillis(25).toNanos());
+		prometheusRecorder.recordLoad(
+			AccommodationDetailCacheMetricRecorder.LoadResult.FOUND,
+			Duration.ofMillis(80).toNanos());
+		prometheusRecorder.recordRedis(
+			AccommodationDetailCacheMetricRecorder.RedisOperation.GET,
+			AccommodationDetailCacheMetricRecorder.OperationResult.SUCCESS);
+		prometheusRecorder.recordEviction(
+			AccommodationDetailCacheMetricRecorder.EvictionSource.OUTBOX,
+			AccommodationDetailCacheInvalidationReason.REVIEW,
+			AccommodationDetailCacheMetricRecorder.OperationResult.SUCCESS);
+		prometheusRecorder.recordEviction(
+			AccommodationDetailCacheMetricRecorder.EvictionSource.AFTER_COMMIT,
+			AccommodationDetailCacheInvalidationReason.IMAGE,
+			AccommodationDetailCacheMetricRecorder.OperationResult.ERROR);
+
+		assertThat(prometheusRegistry.scrape())
+			.contains("accommodation_detail_cache_request_total")
+			.contains("accommodation_detail_cache_lock_wait_duration_seconds_bucket")
+			.contains("accommodation_detail_cache_load_duration_seconds_bucket")
+			.contains("accommodation_detail_cache_redis_operation_total")
+			.contains("accommodation_detail_cache_eviction_total")
+			.contains("source=\"outbox\"")
+			.contains("source=\"after_commit\"");
 	}
 }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -97,6 +98,15 @@ class AccommodationDetailCacheInvalidationConsumerTest {
 	}
 
 	@Test
+	@DisplayName("JSON null은 재시도 대상으로 처리하고 캐시를 삭제하거나 ACK하지 않는다")
+	void rejectsNullEnvelopeWithoutAck() {
+		assertThatThrownBy(() -> consumer.handle("null", acknowledgment))
+			.isInstanceOf(AccommodationDetailCacheInvalidationEventParsingException.class);
+		then(cache).shouldHaveNoInteractions();
+		then(acknowledgment).shouldHaveNoInteractions();
+	}
+
+	@Test
 	@DisplayName("재시도를 소진한 이벤트는 원본 좌표와 숙소 ID를 알리고 ACK한다")
 	void alertsQuarantinedEventThenAcknowledges() {
 		ConsumerRecord<String, String> record = new ConsumerRecord<>(
@@ -119,6 +129,38 @@ class AccommodationDetailCacheInvalidationConsumerTest {
 				&& alert.contains("accommodationId=1")
 				&& alert.contains("reason=IMAGE")));
 		then(acknowledgment).should().acknowledge();
+	}
+
+	@Test
+	@DisplayName("파싱할 수 없는 null 이벤트는 식별 정보를 unavailable로 알리고 ACK한다")
+	void alertsUnavailableMetadataForNullEventThenAcknowledges() {
+		ConsumerRecord<String, String> record = new ConsumerRecord<>(
+			"ACCOMMODATION_CACHE.events.DLT", 1, 9L, "1", "null");
+
+		consumer.handleDlt(record, acknowledgment);
+
+		then(slackNotificationService).should().sendAlert(org.mockito.ArgumentMatchers.argThat(alert ->
+			alert.contains("topic=ACCOMMODATION_CACHE.events.DLT")
+				&& alert.contains("partition=1")
+				&& alert.contains("offset=9")
+				&& alert.contains("accommodationId=unavailable")
+				&& alert.contains("reason=unavailable")));
+		then(acknowledgment).should(times(1)).acknowledge();
+	}
+
+	@Test
+	@DisplayName("DLT 알림 전송 실패를 격리하고 ACK는 한 번만 수행한다")
+	void isolatesSlackAlertFailureAndAcknowledgesOnce() {
+		ConsumerRecord<String, String> record = new ConsumerRecord<>(
+			"ACCOMMODATION_CACHE.events.DLT", 0, 7L, "1", MESSAGE);
+		willThrow(new IllegalStateException("slack unavailable"))
+			.given(slackNotificationService).sendAlert(org.mockito.ArgumentMatchers.anyString());
+
+		consumer.handleDlt(record, acknowledgment);
+
+		then(slackNotificationService).should(times(1))
+			.sendAlert(org.mockito.ArgumentMatchers.anyString());
+		then(acknowledgment).should(times(1)).acknowledge();
 	}
 
 	@Test

@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.redis;
 
 import java.util.List;
 
@@ -23,19 +23,19 @@ public final class AccommodationDetailRedisClient {
 		this.connectionFactory = connectionFactory;
 	}
 
-	String get(String key) {
+	public String get(String key) {
 		return redisTemplate.opsForValue().get(key);
 	}
 
-	Long execute(RedisScript<Long> script, List<String> keys, Object... args) {
+	public Long execute(RedisScript<Long> script, List<String> keys, Object... args) {
 		return redisTemplate.execute(script, keys, args);
 	}
 
-	Boolean delete(String key) {
+	public Boolean delete(String key) {
 		return redisTemplate.delete(key);
 	}
 
-	void destroy() {
+	public void destroy() {
 		connectionFactory.destroy();
 	}
 }

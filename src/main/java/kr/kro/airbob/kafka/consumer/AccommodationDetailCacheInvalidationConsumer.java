@@ -18,7 +18,7 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationRequestedEvent;
+import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationRequestedEvent;
 import kr.kro.airbob.outbox.DebeziumEventParser;
 import kr.kro.airbob.outbox.EventEnvelope;
 import kr.kro.airbob.outbox.EventType;
@@ -111,7 +111,8 @@ public class AccommodationDetailCacheInvalidationConsumer {
 			throw new AccommodationDetailCacheInvalidationEventParsingException(exception);
 		}
 
-		if (!EventType.CACHE_INVALIDATION_REQUESTED.name().equals(envelope.eventType())
+		if (envelope == null
+			|| !EventType.CACHE_INVALIDATION_REQUESTED.name().equals(envelope.eventType())
 			|| envelope.payload() == null) {
 			throw new AccommodationDetailCacheInvalidationEventParsingException();
 		}

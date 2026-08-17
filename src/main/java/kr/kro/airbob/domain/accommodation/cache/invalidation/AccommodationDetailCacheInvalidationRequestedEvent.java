@@ -1,10 +1,11 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.invalidation;
 
 import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.outbox.EventPayload;
 
 /**

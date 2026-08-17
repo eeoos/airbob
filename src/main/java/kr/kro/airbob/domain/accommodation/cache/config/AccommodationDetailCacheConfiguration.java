@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

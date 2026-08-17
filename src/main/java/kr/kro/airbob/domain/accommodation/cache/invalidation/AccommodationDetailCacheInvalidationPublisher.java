@@ -1,10 +1,11 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.invalidation;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 import lombok.RequiredArgsConstructor;

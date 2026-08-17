@@ -16,7 +16,11 @@ public interface AccommodationDetailCacheMetricRecorder {
 
 	void recordRedis(RedisOperation operation, OperationResult result);
 
-	void recordEviction(AccommodationDetailCacheInvalidationReason reason, OperationResult result);
+	void recordEviction(
+		EvictionSource source,
+		AccommodationDetailCacheInvalidationReason reason,
+		OperationResult result
+	);
 
 	interface TaggedValue {
 		default String tagValue() {
@@ -59,6 +63,13 @@ public interface AccommodationDetailCacheMetricRecorder {
 		GET,
 		PUT,
 		DELETE
+	}
+
+	enum EvictionSource implements TaggedValue {
+		// 원본 변경 커밋 직후 요청 스레드에서 실행하는 빠른 삭제
+		AFTER_COMMIT,
+		// outbox 이벤트를 소비해 재시도 가능한 경로에서 실행하는 멱등 재삭제
+		OUTBOX
 	}
 
 	enum OperationResult implements TaggedValue {

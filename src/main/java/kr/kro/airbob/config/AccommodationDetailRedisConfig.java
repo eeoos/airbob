@@ -16,12 +16,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.SocketOptions;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheProperties;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailRedisClient;
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
+import kr.kro.airbob.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 
 /**
- * 숙소 상세 캐시 전용 Redis 클라이언트를 구성한다.
- * Lettuce는 값과 Lua 연산에, Redisson은 분산 락에 사용하며 둘 다 짧은 timeout으로 fail-fast한다.
+ * 숙소 상세 캐시 전용 Redis 클라이언트를 구성
+ * Lettuce는 값과 Lua 연산에, Redisson은 분산 락에 사용하며 둘 다 짧은 timeout으로 fail-fast
  */
 @Configuration
 @EnableConfigurationProperties(AccommodationDetailRedisProperties.class)

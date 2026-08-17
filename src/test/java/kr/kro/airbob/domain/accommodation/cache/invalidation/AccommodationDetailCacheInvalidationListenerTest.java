@@ -1,4 +1,4 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.invalidation;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -27,6 +27,8 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.outbox.EventType;
 import kr.kro.airbob.outbox.OutboxEventPublisher;
 

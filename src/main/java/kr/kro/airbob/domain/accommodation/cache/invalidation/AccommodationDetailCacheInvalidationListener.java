@@ -1,10 +1,11 @@
-package kr.kro.airbob.domain.accommodation.cache;
+package kr.kro.airbob.domain.accommodation.cache.invalidation;
 
 import static org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import lombok.RequiredArgsConstructor;
 
 /**
