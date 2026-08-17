@@ -178,7 +178,7 @@ expect_failure() {
     printf 'expected failure: %s\n' "$label" >&2
     exit 1
   fi
-  if rg -n 'canonical-zstd-fixture|hunter2' "$tmp_dir/$label.out" >/dev/null 2>&1; then
+  if grep -Eq -- 'canonical-zstd-fixture|hunter2' "$tmp_dir/$label.out" >/dev/null 2>&1; then
     printf 'validator leaked fixture content: %s\n' "$label" >&2
     exit 1
   fi

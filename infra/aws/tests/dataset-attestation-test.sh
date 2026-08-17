@@ -160,7 +160,7 @@ expect_failure() {
   if "$@" > "$tmp_dir/$label.stdout" 2> "$tmp_dir/$label.stderr"; then
     fail "expected rejection: $label"
   fi
-  if rg -F "$fixture_password" "$tmp_dir/$label.stdout" "$tmp_dir/$label.stderr" >/dev/null 2>&1; then
+  if grep -Fq -- "$fixture_password" "$tmp_dir/$label.stdout" "$tmp_dir/$label.stderr" >/dev/null 2>&1; then
     fail "secret leaked for rejection: $label"
   fi
 }
@@ -218,7 +218,7 @@ fi
 
 [[ $(grep -c '^ARGS ' "$tmp_dir/mysql.log") -eq 16 ]] || fail 'unexpected MySQL query count'
 [[ $(grep -c '<airbobdb>' "$tmp_dir/mysql.log") -eq 16 ]] || fail 'every query must explicitly select airbobdb'
-! rg -n -- '--password|attestation-test-password' "$tmp_dir/mysql.log" >/dev/null \
+! grep -En -- '--password|attestation-test-password' "$tmp_dir/mysql.log" >/dev/null \
   || fail 'database password reached MySQL argv/query logs'
 for required_query in \
   'COUNT(*) AS history_rows' \
@@ -235,7 +235,7 @@ for required_query in \
   'SELECT COUNT(*) FROM `accommodation`' \
   'SELECT COUNT(*) FROM `flyway_schema_history`' \
   'SELECT COUNT(*) FROM `outbox`'; do
-  rg -F "$required_query" "$tmp_dir/mysql.log" >/dev/null || fail "missing exact query contract: $required_query"
+  grep -Fq -- "$required_query" "$tmp_dir/mysql.log" || fail "missing exact query contract: $required_query"
 done
 
 cp -R "$tmp_dir/release" "$tmp_dir/short-release-id"
@@ -348,7 +348,7 @@ mv "$tmp_dir/mismatched-traffic-migration/release-metadata.next" \
 refresh_traffic_manifest_binding "$tmp_dir/mismatched-traffic-migration"
 expect_failure mismatched-traffic-migration run_capture \
   "$tmp_dir/mismatched-traffic-migration" "$tmp_dir/mismatched-traffic-migration.json"
-rg -F 'database traffic migration digest does not match the source release' \
+grep -Fq -- 'database traffic migration digest does not match the source release' \
   "$tmp_dir/mismatched-traffic-migration.stderr" >/dev/null \
   || fail 'source migration digest mismatch did not reach the live database binding gate'
 
