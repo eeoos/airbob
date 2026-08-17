@@ -54,8 +54,9 @@ import ch.qos.logback.core.read.ListAppender;
 
 import kr.kro.airbob.config.KafkaConfig;
 import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationDltIncidentService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 
@@ -114,7 +115,7 @@ class PaymentOperationKafkaIntegrationTest {
 	private final EmbeddedKafkaBroker broker;
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final PaymentOperationExecutor executor;
-	private final PaymentOperationAlertService alertService;
+	private final PaymentOperationDltIncidentService dltIncidentService;
 	private final IntegrationEventCodec codec;
 	private Logger rootLogger;
 	private ListAppender<ILoggingEvent> logAppender;
@@ -126,13 +127,13 @@ class PaymentOperationKafkaIntegrationTest {
 		EmbeddedKafkaBroker broker,
 		@Qualifier("deadLetterKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate,
 		PaymentOperationExecutor executor,
-		PaymentOperationAlertService alertService,
+		PaymentOperationDltIncidentService dltIncidentService,
 		IntegrationEventCodec codec
 	) {
 		this.broker = broker;
 		this.kafkaTemplate = kafkaTemplate;
 		this.executor = executor;
-		this.alertService = alertService;
+		this.dltIncidentService = dltIncidentService;
 		this.codec = codec;
 	}
 
@@ -143,7 +144,7 @@ class PaymentOperationKafkaIntegrationTest {
 		broker.consumeFromAnEmbeddedTopic(operationRetryConsumer, OPERATION_RETRY_TOPIC);
 		broker.consumeFromAnEmbeddedTopic(operationDltConsumer, OPERATION_DLT_TOPIC);
 		reset(executor);
-		reset(alertService);
+		reset(dltIncidentService);
 		rootLogger = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
 		logAppender = new ListAppender<>();
 		logAppender.start();
@@ -167,7 +168,7 @@ class PaymentOperationKafkaIntegrationTest {
 
 		kafkaTemplate.send(OPERATION_TOPIC, validMessage).get(10, TimeUnit.SECONDS);
 		verify(executor, timeout(15_000)).execute(OPERATION_UID, DISPATCH_GENERATION);
-		org.mockito.Mockito.clearInvocations(executor, alertService);
+		org.mockito.Mockito.clearInvocations(executor, dltIncidentService);
 
 		ProducerRecord<String, String> poison = new ProducerRecord<>(
 			OPERATION_TOPIC, "sensitive-key-" + RAW_SECRET, malformed);
@@ -215,9 +216,10 @@ class PaymentOperationKafkaIntegrationTest {
 			.isEqualTo(OPERATION_TOPIC);
 		assertThat(readIntHeader(quarantined, KafkaHeaders.ORIGINAL_PARTITION)).isZero();
 		assertThat(readLongHeader(quarantined, KafkaHeaders.ORIGINAL_OFFSET)).isEqualTo(1L);
-		verify(alertService, timeout(15_000)).alertQuarantined(
-			OPERATION_TOPIC, 0, 1L, null, "processing failure");
-		verifyNoMoreInteractions(alertService);
+		verify(dltIncidentService, timeout(15_000)).record(
+			SANITIZED_POISON,
+			new OperatorAlertSourcePosition(OPERATION_TOPIC, 0, 1L));
+		verifyNoMoreInteractions(dltIncidentService);
 		assertThat(retryRecord.value()).isEqualTo(SANITIZED_POISON);
 		assertThat(retryRecord.key()).isNull();
 		assertThat(quarantined.topic()).isEqualTo(OPERATION_DLT_TOPIC);
@@ -427,8 +429,8 @@ class PaymentOperationKafkaIntegrationTest {
 		}
 
 		@Bean
-		PaymentOperationAlertService paymentOperationAlertService() {
-			return org.mockito.Mockito.mock(PaymentOperationAlertService.class);
+		PaymentOperationDltIncidentService paymentOperationDltIncidentService() {
+			return org.mockito.Mockito.mock(PaymentOperationDltIncidentService.class);
 		}
 	}
 }

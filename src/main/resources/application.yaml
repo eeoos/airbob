@@ -55,12 +55,6 @@ google:
   api:
     key: ${GOOGLE_API_KEY}
 
-slack:
-  webhook:
-    url: ${SLACK_WEBHOOK_URL}
-  notification:
-    enabled: true
-
 operator-alert:
   kafka:
     group: ${OPERATOR_ALERT_GROUP:operator-alert-delivery-group}

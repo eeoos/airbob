@@ -60,10 +60,6 @@ cloud:
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN:}
 
-slack:
-  notification:
-    enabled: false  # 로컬에서는 Slack 알림 비활성화
-
 logging:
   level:
     kr.kro.airbob: DEBUG

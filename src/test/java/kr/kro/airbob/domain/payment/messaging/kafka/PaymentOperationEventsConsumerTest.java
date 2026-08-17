@@ -7,13 +7,15 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,15 +24,16 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.retrytopic.SameIntervalTopicReuseStrategy;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.KafkaHeaders;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
-import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationDltIncidentService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
-import kr.kro.airbob.outbox.SlackNotificationService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("payment-operation Kafka 소비자 테스트")
@@ -53,7 +56,7 @@ class PaymentOperationEventsConsumerTest {
 		""";
 
 	@Mock private PaymentOperationExecutor executor;
-	@Mock private PaymentOperationAlertService alertService;
+	@Mock private PaymentOperationDltIncidentService dltIncidentService;
 	@Mock private Acknowledgment acknowledgment;
 
 	private PaymentOperationEventsConsumer consumer;
@@ -61,7 +64,9 @@ class PaymentOperationEventsConsumerTest {
 	@BeforeEach
 	void setUp() {
 		consumer = new PaymentOperationEventsConsumer(
-			new IntegrationEventCodec(new ObjectMapper().findAndRegisterModules()), executor, alertService);
+			new IntegrationEventCodec(new ObjectMapper().findAndRegisterModules()),
+			executor,
+			dltIncidentService);
 	}
 
 	@Test
@@ -157,81 +162,46 @@ class PaymentOperationEventsConsumerTest {
 	}
 
 	@Test
-	@DisplayName("DLT 알림에는 원본 좌표와 읽을 수 있는 operation UID만 전달하고 ACK한다")
-	void quarantinesWithCoordinatesAndOperationUidThenAcknowledges() {
-		consumer.handleDlt(
-			MESSAGE,
-			"PAYMENT_OPERATION.events",
-			2,
-			41L,
-			"provider body paymentKey=secret virtualAccount=123",
-			acknowledgment
-		);
+	@DisplayName("DLT incident 트랜잭션이 commit된 뒤에만 ACK한다")
+	void recordsCanonicalIncidentThenAcknowledges() {
+		ConsumerRecord<String, String> record = dltRecord(MESSAGE, 2, 41L);
 
-		then(alertService).should().alertQuarantined(
-			"PAYMENT_OPERATION.events", 2, 41L, OPERATION_UID, "processing failure");
+		consumer.handleDlt(record, acknowledgment);
+
+		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, 2, 41L);
+		InOrder order = inOrder(dltIncidentService, acknowledgment);
+		order.verify(dltIncidentService).record(MESSAGE, source);
+		order.verify(acknowledgment).acknowledge();
+	}
+
+	@Test
+	@DisplayName("poison DLT도 좌표와 raw value를 incident service에 맡기고 commit 뒤 ACK한다")
+	void recordsMalformedDltWithoutDecodingInListener() {
+		String poison = "not-json paymentKey=" + RAW_SECRET;
+		ConsumerRecord<String, String> record = dltRecord(poison, 0, 7L);
+
+		consumer.handleDlt(record, acknowledgment);
+
+		then(dltIncidentService).should().record(
+			poison,
+			new OperatorAlertSourcePosition(PaymentOperationExecutionRequestedV1.TOPIC, 0, 7L));
 		then(acknowledgment).should().acknowledge();
 	}
 
 	@Test
-	@DisplayName("DLT payload가 깨져도 민감한 원문을 알리지 않고 operation UID 없이 ACK한다")
-	void acknowledgesMalformedDltWithoutRawMessageAlert() {
-		consumer.handleDlt(
-			"not-json paymentKey=" + RAW_SECRET,
-			"PAYMENT_OPERATION.events",
-			0,
-			7L,
-			RAW_SECRET,
-			acknowledgment
-		);
+	@DisplayName("DLT incident DB/outbox 실패는 전파하고 ACK하지 않는다")
+	void incidentFailurePropagatesWithoutAck() {
+		ConsumerRecord<String, String> record = dltRecord("not-json", 1, 19L);
+		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, 1, 19L);
+		willThrow(new IllegalStateException("operator alert outbox unavailable"))
+			.given(dltIncidentService).record("not-json", source);
 
-		then(alertService).should().alertQuarantined(
-			"PAYMENT_OPERATION.events", 0, 7L, null, "processing failure");
-		then(acknowledgment).should().acknowledge();
-	}
+		assertThatThrownBy(() -> consumer.handleDlt(record, acknowledgment))
+			.isInstanceOf(IllegalStateException.class);
 
-	@Test
-	@DisplayName("알림 전송 실패보다 MySQL 복구 상태를 우선하여 DLT를 ACK한다")
-	void acknowledgesDltWhenAlertDeliveryFails() {
-		willThrow(new IllegalStateException("slack unavailable"))
-			.given(alertService)
-			.alertQuarantined("PAYMENT_OPERATION.events", 1, 19L, null, "failure unavailable");
-
-		consumer.handleDlt(
-			"not-json", "PAYMENT_OPERATION.events", 1, 19L, null, acknowledgment);
-
-		then(acknowledgment).should().acknowledge();
-	}
-
-	@Test
-	@DisplayName("격리 알림 본문에는 허용된 복구 좌표만 포함한다")
-	void alertBodyExcludesProviderAndMessageSecrets() {
-		SlackNotificationService slackNotificationService =
-			org.mockito.Mockito.mock(SlackNotificationService.class);
-		PaymentOperationAlertService service = new PaymentOperationAlertService(slackNotificationService);
-		String sensitiveFailure = "raw-message paymentKey=secret providerBody={card:4111} "
-			+ "virtualAccount={accountNumber:123-456}";
-
-		service.alertQuarantined(
-			"PAYMENT_OPERATION.events", 3, 88L, OPERATION_UID, sensitiveFailure);
-
-		ArgumentCaptor<String> alert = ArgumentCaptor.forClass(String.class);
-		then(slackNotificationService).should().sendAlert(alert.capture());
-		assertThat(alert.getValue())
-			.contains(
-				"PAYMENT_OPERATION_EXECUTION_REQUESTED",
-				"PAYMENT_OPERATION.events",
-				"partition=3",
-				"offset=88",
-				OPERATION_UID.toString())
-			.doesNotContain(
-				"raw-message",
-				"paymentKey",
-				"secret",
-				"providerBody",
-				"4111",
-				"virtualAccount",
-				"123-456");
+		then(acknowledgment).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -263,5 +233,20 @@ class PaymentOperationEventsConsumerTest {
 			.containsExactly(PaymentOperationExecutionRequestedV1.TOPIC);
 		assertThat(kafkaListener.groupId())
 			.isEqualTo("${payment.operation.kafka.group:payment-operation-execution-group}");
+	}
+
+	private ConsumerRecord<String, String> dltRecord(String value, int partition, long offset) {
+		ConsumerRecord<String, String> record = new ConsumerRecord<>(
+			PaymentOperationExecutionRequestedV1.TOPIC + ".DLT", 0, 99L, null, value);
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_TOPIC,
+			PaymentOperationExecutionRequestedV1.TOPIC.getBytes(StandardCharsets.UTF_8));
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_PARTITION,
+			ByteBuffer.allocate(Integer.BYTES).putInt(partition).array());
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_OFFSET,
+			ByteBuffer.allocate(Long.BYTES).putLong(offset).array());
+		return record;
 	}
 }

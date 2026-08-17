@@ -56,10 +56,6 @@ cloud:
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN}
 
-slack:
-  notification:
-    enabled: true
-
 accommodation:
   detail-cache:
     redis:

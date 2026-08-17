@@ -21,13 +21,13 @@ import org.springframework.stereotype.Component;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
-import kr.kro.airbob.search.service.AccommodationIndexingAlertService;
 import kr.kro.airbob.search.service.AccommodationIndexingService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AccommodationSearchRefreshListener {
@@ -36,7 +36,7 @@ public class AccommodationSearchRefreshListener {
 
 	private final IntegrationEventCodec eventCodec;
 	private final AccommodationIndexingService indexingService;
-	private final AccommodationIndexingAlertService alertService;
+	private final OperatorAlertEnqueueService alertEnqueueService;
 
 	@RetryableTopic(
 		attempts = "${accommodation.indexing.kafka.attempts:4}",
@@ -68,30 +68,10 @@ public class AccommodationSearchRefreshListener {
 
 	@DltHandler
 	public void handleDlt(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
-		String topic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
-			.orElse(record.topic());
-		int partition = readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
-			.orElse(record.partition());
-		long offset = readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
-			.orElse(record.offset());
 		UUID accommodationUid = tryReadAccommodationUid(record.value()).orElse(null);
-		try {
-			alertService.alertQuarantined(
-				topic,
-				partition,
-				offset,
-				accommodationUid
-			);
-		} catch (RuntimeException alertFailure) {
-			log.error(
-				"숙소 색인 DLT 알림 전송 실패. topic={}, partition={}, offset={}",
-				topic,
-				partition,
-				offset
-			);
-		} finally {
-			acknowledgment.acknowledge();
-		}
+		alertEnqueueService.enqueue(OperatorAlertRequest.accommodationIndexQuarantined(
+			accommodationUid, sourcePosition(record)));
+		acknowledgment.acknowledge();
 	}
 
 	private Optional<UUID> tryReadAccommodationUid(String message) {
@@ -124,5 +104,23 @@ public class AccommodationSearchRefreshListener {
 			.map(Header::value)
 			.filter(value -> value.length == Long.BYTES)
 			.map(value -> ByteBuffer.wrap(value).getLong());
+	}
+
+	private OperatorAlertSourcePosition sourcePosition(ConsumerRecord<String, String> record) {
+		boolean canonicalTopic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
+			.filter(AccommodationSearchRefreshRequestedV1.TOPIC::equals)
+			.isPresent();
+		int partition = canonicalTopic
+			? readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
+				.filter(value -> value >= 0)
+				.orElse(record.partition())
+			: record.partition();
+		long offset = canonicalTopic
+			? readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
+				.filter(value -> value >= 0)
+				.orElse(record.offset())
+			: record.offset();
+		return new OperatorAlertSourcePosition(
+			AccommodationSearchRefreshRequestedV1.TOPIC, partition, offset);
 	}
 }

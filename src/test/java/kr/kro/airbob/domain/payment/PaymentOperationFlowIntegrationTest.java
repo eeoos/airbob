@@ -83,7 +83,6 @@ import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationEventsConsum
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
-import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
@@ -101,6 +100,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
 import kr.kro.airbob.messaging.outbox.OutboxMessage;
 import kr.kro.airbob.messaging.outbox.OutboxMessageRepository;
@@ -930,8 +930,8 @@ class PaymentOperationFlowIntegrationTest {
 		}
 
 		@Bean
-		PaymentOperationAlertService paymentOperationFlowAlertService() {
-			return org.mockito.Mockito.mock(PaymentOperationAlertService.class);
+		OperatorAlertOutboxPublisher paymentOperationFlowAlertPublisher() {
+			return org.mockito.Mockito.mock(OperatorAlertOutboxPublisher.class);
 		}
 	}
 

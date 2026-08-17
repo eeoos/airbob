@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -18,6 +19,8 @@ import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -25,6 +28,8 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -36,9 +41,21 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
+import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
+import kr.kro.airbob.messaging.alert.infrastructure.outbox.MysqlOperatorAlertOutboxAppender;
+import kr.kro.airbob.messaging.event.EventEnvelope;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
 
 @DataJpaTest
 @Testcontainers
@@ -46,9 +63,13 @@ import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
 	JpaAuditingConfig.class,
-	QueryDslConfig.class,
-	PaymentOperationLeaseService.class,
-	PaymentOperationLeaseServiceIntegrationTest.LeaseTestConfiguration.class
+		QueryDslConfig.class,
+		PaymentOperationLeaseService.class,
+		PaymentOperationDltIncidentService.class,
+		JpaOutboxWriter.class,
+		MysqlOperatorAlertOutboxAppender.class,
+		OperatorAlertOutboxPublisher.class,
+		PaymentOperationLeaseServiceIntegrationTest.LeaseTestConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -76,9 +97,18 @@ class PaymentOperationLeaseServiceIntegrationTest {
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private PaymentOperationLeaseService service;
 	@Autowired private HoldingClaimTransaction holdingClaimTransaction;
+	@Autowired private ControllableAlertOutboxAppender alertOutboxAppender;
+	@Autowired private IntegrationEventCodec codec;
+	@Autowired private PaymentOperationDltIncidentService dltIncidentService;
 
 	@BeforeEach
 	void insertReadyOperation() {
+		alertOutboxAppender.fail(false);
+		jdbc.update("DELETE FROM outbox");
+		jdbc.update("DELETE FROM payment_operation");
+		jdbc.update("DELETE FROM reservation");
+		jdbc.update("DELETE FROM accommodation");
+		jdbc.update("DELETE FROM member");
 		jdbc.update("INSERT INTO member (email, nickname, role, status, updated_at) VALUES (?, ?, 'MEMBER', 'ACTIVE', NOW(6))",
 			"payment-lease@test.com", "payment-lease-member");
 		long memberId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
@@ -119,6 +149,204 @@ class PaymentOperationLeaseServiceIntegrationTest {
 	}
 
 	@Test
+	void manualReviewTransitionAndAlertCommitTogetherAndDuplicateClaimEmitsNothing() {
+		jdbc.update("""
+			UPDATE payment_operation
+			SET attempt_count = 5
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
+
+		assertThat(service.claim(OPERATION_UID, 1)).isEmpty();
+		assertThat(service.claim(OPERATION_UID, 1)).isEmpty();
+
+		Map<String, Object> operation = jdbc.queryForMap("""
+			SELECT status, manual_review_count
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
+		assertThat(operation)
+			.containsEntry("status", "MANUAL_REVIEW")
+			.containsEntry("manual_review_count", 1);
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM outbox", Integer.class)).isOne();
+
+		String payload = jdbc.queryForObject("SELECT payload FROM outbox", String.class);
+		EventEnvelope<OperatorAlertRequestedV1> envelope = codec.decode(
+			payload, OperatorAlertRequestedV1.DESCRIPTOR, OperatorAlertRequestedV1.class);
+		assertThat(envelope.payload().kind()).isEqualTo(OperatorAlertKind.PAYMENT_MANUAL_REVIEW);
+		assertThat(envelope.payload().subjectUid()).isEqualTo(OPERATION_UID);
+		assertThat(envelope.payload().sourcePosition().present()).isFalse();
+	}
+
+	@Test
+	void alertAppendFailureRollsBackManualReviewTransition() {
+		jdbc.update("""
+			UPDATE payment_operation
+			SET attempt_count = 5
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
+		alertOutboxAppender.fail(true);
+
+		assertThatThrownBy(() -> service.claim(OPERATION_UID, 1))
+			.isInstanceOf(DataAccessResourceFailureException.class);
+
+		Map<String, Object> operation = jdbc.queryForMap("""
+			SELECT status, manual_review_count
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
+		assertThat(operation)
+			.containsEntry("status", "QUEUED")
+			.containsEntry("manual_review_count", 0);
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM outbox", Integer.class)).isZero();
+	}
+
+	@Test
+	void queuedDltIncidentAdvancesOneGenerationAndAtomicallyAppendsExecutionAndAlert() {
+		var source = new kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, 2, 41L);
+		String message = executionMessage(1);
+
+		dltIncidentService.record(message, source);
+		dltIncidentService.record(message, source);
+
+		Map<String, Object> operation = jdbc.queryForMap("""
+			SELECT status, dispatch_generation, attempt_count
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
+		assertThat(operation)
+			.containsEntry("status", "QUEUED")
+			.containsEntry("dispatch_generation", 2L)
+			.containsEntry("attempt_count", 0);
+		assertThat(jdbc.queryForList(
+			"SELECT event_type FROM outbox ORDER BY id", String.class))
+			.containsExactlyInAnyOrder(
+				"PAYMENT_OPERATION_EXECUTION_REQUESTED",
+				"OPERATOR_ALERT_REQUESTED");
+
+		String executionPayload = jdbc.queryForObject("""
+			SELECT payload FROM outbox
+			WHERE event_type = 'PAYMENT_OPERATION_EXECUTION_REQUESTED'
+			""", String.class);
+		EventEnvelope<PaymentOperationExecutionRequestedV1> execution = codec.decode(
+			executionPayload,
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			PaymentOperationExecutionRequestedV1.class);
+		assertThat(execution.payload().operationUid()).isEqualTo(OPERATION_UID);
+		assertThat(execution.payload().reservationUid()).isEqualTo(RESERVATION_UID);
+		assertThat(execution.payload().dispatchGeneration()).isEqualTo(2);
+	}
+
+	@Test
+	void paymentDltAlertFailureRollsBackQueuedRedispatchAndBothOutboxRows() {
+		alertOutboxAppender.fail(true);
+
+		assertThatThrownBy(() -> dltIncidentService.record(
+			executionMessage(1),
+			new kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition(
+				PaymentOperationExecutionRequestedV1.TOPIC, 1, 19L)))
+			.isInstanceOf(DataAccessResourceFailureException.class);
+
+		Map<String, Object> operation = jdbc.queryForMap("""
+			SELECT status, dispatch_generation
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
+		assertThat(operation)
+			.containsEntry("status", "QUEUED")
+			.containsEntry("dispatch_generation", 1L);
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM outbox", Integer.class)).isZero();
+	}
+
+	@Test
+	void mismatchedReservationUidDoesNotRedispatchButStillCommitsOneQuarantineAlert() {
+		UUID mismatchedReservationUid =
+			UUID.fromString("4052fe21-1bbf-48b9-b76d-25d373ff94f8");
+		String mismatched = codec.encode(EventEnvelope.of(
+			UUID.fromString("908ed7b0-f1a2-4cd8-b2b8-83c96c676ea2"),
+			NOW,
+			new PaymentOperationExecutionRequestedV1(
+				OPERATION_UID, mismatchedReservationUid, 1)
+		));
+
+		dltIncidentService.record(
+			mismatched,
+			new kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition(
+				PaymentOperationExecutionRequestedV1.TOPIC, 3, 88L));
+
+		assertThat(jdbc.queryForMap("""
+			SELECT status, dispatch_generation
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString()))
+			.containsEntry("status", "QUEUED")
+			.containsEntry("dispatch_generation", 1L);
+		assertThat(jdbc.queryForList(
+			"SELECT event_type FROM outbox", String.class))
+			.containsExactly("OPERATOR_ALERT_REQUESTED");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"EXECUTING", "APPLIED"})
+	void nonQueuedOperationIsNeverRedispatchedButStillCommitsOneQuarantineAlert(String status) {
+		jdbc.update("""
+			UPDATE payment_operation
+			SET status = ?
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", status, OPERATION_UID.toString());
+
+		dltIncidentService.record(
+			executionMessage(1),
+			new kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition(
+				PaymentOperationExecutionRequestedV1.TOPIC, 4, 101L));
+
+		assertThat(jdbc.queryForMap("""
+			SELECT status, dispatch_generation
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString()))
+			.containsEntry("status", status)
+			.containsEntry("dispatch_generation", 1L);
+		assertThat(jdbc.queryForList(
+			"SELECT event_type FROM outbox", String.class))
+			.containsExactly("OPERATOR_ALERT_REQUESTED");
+	}
+
+	@Test
+	void poisonDltCreatesOnlyDeterministicCoordinateAlertWithoutRetainingRawPayload() {
+		var source = new kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, 0, 7L);
+		String poison = "not-json paymentKey=secret-provider-value";
+
+		dltIncidentService.record(poison, source);
+		dltIncidentService.record(poison, source);
+
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM outbox", Integer.class)).isOne();
+		String payload = jdbc.queryForObject("SELECT payload FROM outbox", String.class);
+		assertThat(payload).doesNotContain(poison, "paymentKey", "secret-provider-value");
+		EventEnvelope<OperatorAlertRequestedV1> envelope = codec.decode(
+			payload, OperatorAlertRequestedV1.DESCRIPTOR, OperatorAlertRequestedV1.class);
+		assertThat(envelope.payload().kind())
+			.isEqualTo(OperatorAlertKind.PAYMENT_OPERATION_QUARANTINED);
+		assertThat(envelope.payload().subjectUid()).isEqualTo(
+			OperatorAlertRequest.paymentOperationQuarantined(null, source).subjectUid());
+		assertThat(envelope.payload().sourcePosition()).isEqualTo(source);
+	}
+
+	private String executionMessage(long generation) {
+		return codec.encode(EventEnvelope.of(
+			UUID.fromString("908ed7b0-f1a2-4cd8-b2b8-83c96c676ea1"),
+			NOW,
+			new PaymentOperationExecutionRequestedV1(
+				OPERATION_UID, RESERVATION_UID, generation)
+		));
+	}
+
+	@Test
 	void pessimisticLockSerializesTwoProxiedClaimsAndCommitsOneLease() throws Exception {
 		assertThat(AopUtils.isAopProxy(service)).isTrue();
 		assertThat(AopUtils.isAopProxy(holdingClaimTransaction)).isTrue();
@@ -128,12 +356,12 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 
 		try {
-			CompletableFuture<PaymentOperationClaimResult> first = CompletableFuture.supplyAsync(
+			CompletableFuture<Optional<PaymentExecution>> first = CompletableFuture.supplyAsync(
 				() -> holdingClaimTransaction.claimAndHold(
 					OPERATION_UID, firstClaimed, releaseFirstTransaction), executor);
 			assertThat(firstClaimed.await(5, TimeUnit.SECONDS)).isTrue();
 
-			CompletableFuture<PaymentOperationClaimResult> second = CompletableFuture.supplyAsync(() -> {
+			CompletableFuture<Optional<PaymentExecution>> second = CompletableFuture.supplyAsync(() -> {
 				secondStarted.countDown();
 				return service.claim(OPERATION_UID, 1);
 			}, executor);
@@ -142,10 +370,9 @@ class PaymentOperationLeaseServiceIntegrationTest {
 				.isInstanceOf(TimeoutException.class);
 
 			releaseFirstTransaction.countDown();
-			PaymentExecution claimed = first.get(5, TimeUnit.SECONDS).execution().orElseThrow();
-			PaymentOperationClaimResult secondResult = second.get(5, TimeUnit.SECONDS);
-			assertThat(secondResult.execution()).isEmpty();
-			assertThat(secondResult.manualReviewNotice()).isEmpty();
+			PaymentExecution claimed = first.get(5, TimeUnit.SECONDS).orElseThrow();
+			Optional<PaymentExecution> secondResult = second.get(5, TimeUnit.SECONDS);
+			assertThat(secondResult).isEmpty();
 
 			Map<String, Object> row = jdbc.queryForMap("""
 				SELECT status, attempt_count, lease_owner
@@ -183,8 +410,42 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		}
 
 		@Bean
+		IntegrationEventCodec integrationEventCodec() {
+			return new IntegrationEventCodec(new ObjectMapper().findAndRegisterModules());
+		}
+
+		@Bean
+		@Primary
+		ControllableAlertOutboxAppender controllableAlertOutboxAppender(
+			MysqlOperatorAlertOutboxAppender delegate
+		) {
+			return new ControllableAlertOutboxAppender(delegate);
+		}
+
+		@Bean
 		HoldingClaimTransaction holdingClaimTransaction(PaymentOperationLeaseService service) {
 			return new HoldingClaimTransaction(service);
+		}
+	}
+
+	static class ControllableAlertOutboxAppender implements OperatorAlertOutboxAppender {
+		private final OperatorAlertOutboxAppender delegate;
+		private boolean fail;
+
+		ControllableAlertOutboxAppender(OperatorAlertOutboxAppender delegate) {
+			this.delegate = delegate;
+		}
+
+		void fail(boolean fail) {
+			this.fail = fail;
+		}
+
+		@Override
+		public boolean appendIfAbsent(OperatorAlertRequestedV1 event) {
+			if (fail) {
+				throw new DataAccessResourceFailureException("operator alert outbox unavailable");
+			}
+			return delegate.appendIfAbsent(event);
 		}
 	}
 
@@ -196,12 +457,12 @@ class PaymentOperationLeaseServiceIntegrationTest {
 		}
 
 		@Transactional
-		public PaymentOperationClaimResult claimAndHold(
+		public Optional<PaymentExecution> claimAndHold(
 			UUID operationUid,
 			CountDownLatch claimed,
 			CountDownLatch release
 		) {
-			PaymentOperationClaimResult result = service.claim(operationUid, 1);
+			Optional<PaymentExecution> result = service.claim(operationUid, 1);
 			claimed.countDown();
 			try {
 				if (!release.await(5, TimeUnit.SECONDS)) {

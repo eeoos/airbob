@@ -33,8 +33,10 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
-import kr.kro.airbob.search.service.AccommodationIndexingAlertService;
 import kr.kro.airbob.search.service.AccommodationIndexingService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +47,7 @@ class AccommodationSearchRefreshListenerTest {
 		UUID.fromString("109cc081-b87d-4502-9a5e-7d7b65993056");
 
 	@Mock private AccommodationIndexingService indexingService;
-	@Mock private AccommodationIndexingAlertService alertService;
+	@Mock private OperatorAlertEnqueueService alertEnqueueService;
 	@Mock private Acknowledgment acknowledgment;
 
 	private IntegrationEventCodec eventCodec;
@@ -58,7 +60,7 @@ class AccommodationSearchRefreshListenerTest {
 			.propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
 			.build());
 		listener = new AccommodationSearchRefreshListener(
-			eventCodec, indexingService, alertService);
+			eventCodec, indexingService, alertEnqueueService);
 	}
 
 	@Test
@@ -119,10 +121,42 @@ class AccommodationSearchRefreshListenerTest {
 
 		listener.handleDlt(record, acknowledgment);
 
-		InOrder order = inOrder(alertService, acknowledgment);
-		order.verify(alertService).alertQuarantined(
-			"ACCOMMODATION_INDEX.events", 2, 41L, ACCOMMODATION_UID);
+		OperatorAlertRequest request = OperatorAlertRequest.accommodationIndexQuarantined(
+			ACCOMMODATION_UID,
+			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 2, 41L));
+		InOrder order = inOrder(alertEnqueueService, acknowledgment);
+		order.verify(alertEnqueueService).enqueue(request);
 		order.verify(acknowledgment).acknowledge();
+	}
+
+	@Test
+	@DisplayName("poison DLT는 원문 없이 좌표 기반 subject로 durable alert를 만든다")
+	void poisonDltUsesDeterministicCoordinateSubject() {
+		ConsumerRecord<String, String> record = dltRecord("not-json paymentKey=secret", 0, 7L);
+		OperatorAlertSourcePosition source =
+			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 0, 7L);
+
+		listener.handleDlt(record, acknowledgment);
+
+		then(alertEnqueueService).should().enqueue(
+			OperatorAlertRequest.accommodationIndexQuarantined(null, source));
+		then(acknowledgment).should().acknowledge();
+	}
+
+	@Test
+	@DisplayName("durable alert enqueue 실패는 전파하고 DLT를 ACK하지 않는다")
+	void alertEnqueueFailurePropagatesWithoutAck() {
+		ConsumerRecord<String, String> record = dltRecord(validMessage(), 1, 19L);
+		OperatorAlertRequest request = OperatorAlertRequest.accommodationIndexQuarantined(
+			ACCOMMODATION_UID,
+			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 1, 19L));
+		willThrow(new IllegalStateException("operator alert outbox unavailable"))
+			.given(alertEnqueueService).enqueue(request);
+
+		assertThatThrownBy(() -> listener.handleDlt(record, acknowledgment))
+			.isInstanceOf(IllegalStateException.class);
+
+		then(acknowledgment).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -161,5 +195,20 @@ class AccommodationSearchRefreshListenerTest {
 			Instant.parse("2026-08-17T08:00:00Z"),
 			new AccommodationSearchRefreshRequestedV1(ACCOMMODATION_UID)
 		));
+	}
+
+	private ConsumerRecord<String, String> dltRecord(String value, int partition, long offset) {
+		ConsumerRecord<String, String> record = new ConsumerRecord<>(
+			"ACCOMMODATION_INDEX.events.DLT", 0, 99L, null, value);
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_TOPIC,
+			"ACCOMMODATION_INDEX.events".getBytes(StandardCharsets.UTF_8));
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_PARTITION,
+			ByteBuffer.allocate(Integer.BYTES).putInt(partition).array());
+		record.headers().add(
+			KafkaHeaders.ORIGINAL_OFFSET,
+			ByteBuffer.allocate(Long.BYTES).putLong(offset).array());
+		return record;
 	}
 }

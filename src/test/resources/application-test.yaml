@@ -46,10 +46,6 @@ google:
   api:
     key: dummy-google-key
 
-slack:
-  webhook:
-    url: https://hooks.slack.com/services/dummy/url
-
 operator-alert:
   kafka:
     auto-startup: false

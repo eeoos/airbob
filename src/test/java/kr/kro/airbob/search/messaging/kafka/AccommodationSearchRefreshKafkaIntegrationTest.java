@@ -48,9 +48,11 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import kr.kro.airbob.config.KafkaConfig;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertEnqueueService;
+import kr.kro.airbob.messaging.alert.application.OperatorAlertRequest;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
-import kr.kro.airbob.search.service.AccommodationIndexingAlertService;
 import kr.kro.airbob.search.service.AccommodationIndexingService;
 
 @SpringJUnitConfig(AccommodationSearchRefreshKafkaIntegrationTest.KafkaTestConfiguration.class)
@@ -112,7 +114,7 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 	private final EmbeddedKafkaBroker broker;
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final AccommodationIndexingService indexingService;
-	private final AccommodationIndexingAlertService alertService;
+	private final OperatorAlertEnqueueService alertEnqueueService;
 	private final IntegrationEventCodec eventCodec;
 	private Consumer<String, String> retryConsumer;
 	private Consumer<String, String> dltConsumer;
@@ -122,13 +124,13 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		EmbeddedKafkaBroker broker,
 		@Qualifier("deadLetterKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate,
 		AccommodationIndexingService indexingService,
-		AccommodationIndexingAlertService alertService,
+		OperatorAlertEnqueueService alertEnqueueService,
 		IntegrationEventCodec eventCodec
 	) {
 		this.broker = broker;
 		this.kafkaTemplate = kafkaTemplate;
 		this.indexingService = indexingService;
-		this.alertService = alertService;
+		this.alertEnqueueService = alertEnqueueService;
 		this.eventCodec = eventCodec;
 	}
 
@@ -138,7 +140,7 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		dltConsumer = consumer("accommodation-indexing-dlt-assertion");
 		broker.consumeFromAnEmbeddedTopic(retryConsumer, INDEXING_RETRY_TOPIC);
 		broker.consumeFromAnEmbeddedTopic(dltConsumer, INDEXING_DLT_TOPIC);
-		reset(indexingService, alertService);
+		reset(indexingService, alertEnqueueService);
 	}
 
 	@AfterEach
@@ -170,8 +172,10 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		assertThat(quarantined.key()).isEqualTo(ACCOMMODATION_UID.toString());
 		verify(indexingService, timeout(15_000).times(2))
 			.refreshAccommodationIndex(ACCOMMODATION_UID);
-		verify(alertService, timeout(15_000)).alertQuarantined(
-			INDEXING_TOPIC, 0, 0L, ACCOMMODATION_UID);
+		verify(alertEnqueueService, timeout(15_000)).enqueue(
+			OperatorAlertRequest.accommodationIndexQuarantined(
+				ACCOMMODATION_UID,
+				new OperatorAlertSourcePosition(INDEXING_TOPIC, 0, 0L)));
 
 		String malicious = MESSAGE.replace(
 			"\"accommodation_uid\": \"" + ACCOMMODATION_UID + "\"",
@@ -205,8 +209,10 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		assertThat(originalPoisonOffset).isNotNegative();
 		assertThat(readIntHeader(sanitizedRetry, RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS))
 			.isEqualTo(2);
-		verify(alertService, timeout(15_000)).alertQuarantined(
-			INDEXING_TOPIC, 0, originalPoisonOffset, null);
+		verify(alertEnqueueService, timeout(15_000)).enqueue(
+			OperatorAlertRequest.accommodationIndexQuarantined(
+				null,
+				new OperatorAlertSourcePosition(INDEXING_TOPIC, 0, originalPoisonOffset)));
 		assertThat(output).doesNotContain(RAW_SECRET, malicious);
 	}
 
@@ -279,8 +285,8 @@ class AccommodationSearchRefreshKafkaIntegrationTest {
 		}
 
 		@Bean
-		AccommodationIndexingAlertService accommodationIndexingAlertService() {
-			return org.mockito.Mockito.mock(AccommodationIndexingAlertService.class);
+		OperatorAlertEnqueueService operatorAlertEnqueueService() {
+			return org.mockito.Mockito.mock(OperatorAlertEnqueueService.class);
 		}
 
 		@Bean("accommodationIndexAliasReadiness")

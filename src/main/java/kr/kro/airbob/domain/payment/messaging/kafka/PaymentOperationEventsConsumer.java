@@ -3,7 +3,6 @@ package kr.kro.airbob.domain.payment.messaging.kafka;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
@@ -18,25 +17,21 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
-import kr.kro.airbob.domain.payment.service.PaymentOperationAlertService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationDltIncidentService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.event.PaymentOperationExecutionRequestedV1;
+import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class PaymentOperationEventsConsumer {
 
-	private static final String PROCESSING_FAILURE = "processing failure";
-	private static final String FAILURE_UNAVAILABLE = "failure unavailable";
-
 	private final IntegrationEventCodec codec;
 	private final PaymentOperationExecutor executor;
-	private final PaymentOperationAlertService alertService;
+	private final PaymentOperationDltIncidentService dltIncidentService;
 
 	@RetryableTopic(
 		attempts = "${payment.operation.kafka.attempts:4}",
@@ -62,37 +57,8 @@ public class PaymentOperationEventsConsumer {
 
 	@DltHandler
 	public void handleDlt(ConsumerRecord<String, String> record, Acknowledgment ack) {
-		String topic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
-			.orElse(record.topic());
-		int partition = readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
-			.orElse(record.partition());
-		long offset = readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
-			.orElse(record.offset());
-		handleDlt(record.value(), topic, partition, offset, PROCESSING_FAILURE, ack);
-	}
-
-	public void handleDlt(
-		@Payload String message,
-		String topic,
-		int partition,
-		long offset,
-		String error,
-		Acknowledgment ack
-	) {
-		UUID operationUid = tryReadOperationUid(message).orElse(null);
-		try {
-			alertService.alertQuarantined(
-				topic, partition, offset, operationUid, sanitize(error));
-		} catch (RuntimeException alertFailure) {
-			log.error(
-				"payment-operation DLT 알림 전송 실패. topic={}, partition={}, offset={}",
-				topic,
-				partition,
-				offset
-			);
-		} finally {
-			ack.acknowledge();
-		}
+		dltIncidentService.record(record.value(), sourcePosition(record));
+		ack.acknowledge();
 	}
 
 	private Optional<String> readStringHeader(ConsumerRecord<String, String> record, String name) {
@@ -109,14 +75,6 @@ public class PaymentOperationEventsConsumer {
 		);
 	}
 
-	private Optional<UUID> tryReadOperationUid(String message) {
-		try {
-			return Optional.of(decode(message).payload().operationUid());
-		} catch (RuntimeException invalidEvent) {
-			return Optional.empty();
-		}
-	}
-
 	private Optional<Integer> readIntHeader(ConsumerRecord<String, String> record, String name) {
 		return Optional.ofNullable(record.headers().lastHeader(name))
 			.map(Header::value)
@@ -131,7 +89,21 @@ public class PaymentOperationEventsConsumer {
 			.map(value -> ByteBuffer.wrap(value).getLong());
 	}
 
-	private String sanitize(String error) {
-		return error == null || error.isBlank() ? FAILURE_UNAVAILABLE : PROCESSING_FAILURE;
+	private OperatorAlertSourcePosition sourcePosition(ConsumerRecord<String, String> record) {
+		boolean canonicalTopic = readStringHeader(record, KafkaHeaders.ORIGINAL_TOPIC)
+			.filter(PaymentOperationExecutionRequestedV1.TOPIC::equals)
+			.isPresent();
+		int partition = canonicalTopic
+			? readIntHeader(record, KafkaHeaders.ORIGINAL_PARTITION)
+				.filter(value -> value >= 0)
+				.orElse(record.partition())
+			: record.partition();
+		long offset = canonicalTopic
+			? readLongHeader(record, KafkaHeaders.ORIGINAL_OFFSET)
+				.filter(value -> value >= 0)
+				.orElse(record.offset())
+			: record.offset();
+		return new OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, partition, offset);
 	}
 }

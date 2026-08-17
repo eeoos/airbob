@@ -53,10 +53,6 @@ cloud:
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN}
 
-slack:
-  notification:
-    enabled: true # 알림 켜기
-
 accommodation:
   detail-cache:
     redis:

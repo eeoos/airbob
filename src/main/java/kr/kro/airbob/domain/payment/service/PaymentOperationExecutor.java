@@ -1,7 +1,6 @@
 package kr.kro.airbob.domain.payment.service;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -11,9 +10,7 @@ import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Service
 public class PaymentOperationExecutor {
 	private static final int FAILURE_CODE_MAX_LENGTH = 100;
@@ -26,41 +23,37 @@ public class PaymentOperationExecutor {
 	private final PaymentOperationLeaseService leaseService;
 	private final PaymentProviderGateway gateway;
 	private final PaymentOperationFinalizer finalizer;
-	private final PaymentOperationAlertService alertService;
 
 	public PaymentOperationExecutor(
 		PaymentOperationLeaseService leaseService,
 		PaymentProviderGateway gateway,
-		PaymentOperationFinalizer finalizer,
-		PaymentOperationAlertService alertService
+		PaymentOperationFinalizer finalizer
 	) {
 		this.leaseService = leaseService;
 		this.gateway = gateway;
 		this.finalizer = finalizer;
-		this.alertService = alertService;
 	}
 
 	public void execute(UUID operationUid, long dispatchGeneration) {
-		PaymentOperationClaimResult claimResult = leaseService.claim(operationUid, dispatchGeneration);
-		notifyManualReview(claimResult.manualReviewNotice());
-		if (claimResult.execution().isEmpty()) {
+		var execution = leaseService.claim(operationUid, dispatchGeneration);
+		if (execution.isEmpty()) {
 			return;
 		}
-		PaymentExecution execution = claimResult.execution().orElseThrow();
+		PaymentExecution claimedExecution = execution.orElseThrow();
 
 		PaymentGatewayResult result;
 		try {
-			result = executeGateway(execution);
+			result = executeGateway(claimedExecution);
 		} catch (RuntimeException unexpectedGatewayFailure) {
-			notifyManualReview(leaseService.markOutcomeUnknown(
-				execution,
+			leaseService.markOutcomeUnknown(
+				claimedExecution,
 				"UNCLASSIFIED_GATEWAY_FAILURE",
 				UNEXPECTED_GATEWAY_MESSAGE
-			));
+			);
 			return;
 		}
 
-		dispatchDurableResult(execution, result);
+		dispatchDurableResult(claimedExecution, result);
 	}
 
 	private PaymentGatewayResult executeGateway(PaymentExecution execution) {
@@ -120,11 +113,11 @@ public class PaymentOperationExecutor {
 			return;
 		}
 		if (!isCorrelatedApproval(execution, confirmed)) {
-			notifyManualReview(leaseService.markOutcomeUnknown(
+			leaseService.markOutcomeUnknown(
 				execution,
 				"PROVIDER_RESPONSE_MISMATCH",
 				RESPONSE_MISMATCH_MESSAGE
-			));
+			);
 			return;
 		}
 
@@ -148,19 +141,19 @@ public class PaymentOperationExecutor {
 				"Provider returned an active payment for an incompatible operation.");
 			return;
 		}
-		notifyManualReview(leaseService.scheduleRetry(
-			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+		leaseService.scheduleRetry(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
 	private void markManualReview(PaymentExecution execution, String code, String message) {
-		notifyManualReview(leaseService.markManualReview(
-			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+		leaseService.markManualReview(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
 	private void applyRetryable(PaymentExecution execution, String code, String message) {
 		if (!execution.mode().isInquiry()) {
-			notifyManualReview(leaseService.scheduleRetry(
-				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+			leaseService.scheduleRetry(
+				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 			return;
 		}
 
@@ -169,31 +162,16 @@ public class PaymentOperationExecutor {
 
 	private void applyNotFound(PaymentExecution execution, String code, String message) {
 		if (execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM) {
-			notifyManualReview(leaseService.scheduleRetry(
-				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+			leaseService.scheduleRetry(
+				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 			return;
 		}
 		markOutcomeUnknown(execution, code, message);
 	}
 
 	private void markOutcomeUnknown(PaymentExecution execution, String code, String message) {
-		notifyManualReview(leaseService.markOutcomeUnknown(
-			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
-	}
-
-	private void notifyManualReview(Optional<PaymentOperationManualReviewNotice> notice) {
-		notice.ifPresent(this::notifyManualReview);
-	}
-
-	private void notifyManualReview(PaymentOperationManualReviewNotice notice) {
-		try {
-			alertService.alertManualReview(notice);
-		} catch (RuntimeException alertFailure) {
-			log.error(
-				"payment-operation manual-review alert failed. operationUid={}",
-				notice.operationUid()
-			);
-		}
+		leaseService.markOutcomeUnknown(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
 	private boolean isCorrelatedApproval(PaymentExecution execution, ConfirmedPayment confirmed) {

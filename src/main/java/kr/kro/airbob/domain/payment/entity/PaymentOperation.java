@@ -267,6 +267,14 @@ public class PaymentOperation extends BaseEntity {
 		return true;
 	}
 
+	public boolean redispatchQuarantinedGeneration(long expectedGeneration, Instant now) {
+		if (!isQueuedGeneration(expectedGeneration)) {
+			return false;
+		}
+		queueNextGeneration(now);
+		return true;
+	}
+
 	private void moveToManualReview(Instant now) {
 		status = PaymentOperationStatus.MANUAL_REVIEW;
 		leaseOwner = null;
