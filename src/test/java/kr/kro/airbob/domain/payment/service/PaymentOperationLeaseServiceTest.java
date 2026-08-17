@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 
 import java.time.Clock;
@@ -26,6 +27,7 @@ import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.config.TossPaymentClientProperties;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
@@ -44,6 +46,7 @@ class PaymentOperationLeaseServiceTest {
 
 	@Mock private PaymentOperationRepository repository;
 	@Mock private OperatorAlertOutboxPublisher alertPublisher;
+	@Mock private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private PaymentOperation operation;
 	private PaymentOperationLeaseService service;
@@ -57,7 +60,8 @@ class PaymentOperationLeaseServiceTest {
 			properties,
 			new PaymentRetryBackoff(properties.retryInitialDelay(), properties.retryMaxDelay()),
 			Clock.fixed(NOW, ZoneOffset.UTC),
-			alertPublisher
+			alertPublisher,
+			resolutionRecorder
 		);
 	}
 
@@ -87,6 +91,19 @@ class PaymentOperationLeaseServiceTest {
 		assertThat(recovered).get().extracting(PaymentExecution::mode).isEqualTo(INQUIRE_CONFIRM);
 		assertThat(recovered.orElseThrow().leaseOwner()).isNotEqualTo("old-worker");
 		assertThat(operation.getAttemptCount()).isEqualTo(2);
+	}
+
+	@Test
+	void manualReconciliationClaimCarriesImmutableInquiryFence() {
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "review");
+		operation.requestManualReconciliation(NOW);
+		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
+
+		PaymentExecution execution = service.claim(OPERATION_UID, 2).orElseThrow();
+
+		assertThat(execution.mode()).isEqualTo(INQUIRE_CONFIRM);
+		assertThat(execution.manualReconciliation()).isTrue();
 	}
 
 	@Test
@@ -165,6 +182,45 @@ class PaymentOperationLeaseServiceTest {
 		assertThat(operation.getReviewRequiredAt()).isEqualTo(NOW);
 		then(alertPublisher).should().append(
 			OperatorAlertRequest.paymentManualReview(OPERATION_UID, 1));
+	}
+
+	@Test
+	void exhaustedManualReconciliationRecordsSystemAuditInsteadOfGenericReviewAlert() {
+		operation = manualReconciliationOperation(5);
+		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
+
+		assertThat(service.claim(OPERATION_UID, 2)).isEmpty();
+
+		then(resolutionRecorder).should().recordSystem(
+			eq(operation),
+			eq(PaymentOperationResolutionAction.RECONCILIATION_RETURNED_TO_REVIEW),
+			eq("RECONCILIATION_ATTEMPTS_EXHAUSTED"),
+			eq(PaymentOperationStatus.QUEUED),
+			eq(PaymentOperationStatus.MANUAL_REVIEW),
+			eq(NOW));
+		then(alertPublisher).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void confirmationNotFoundReturnEnablesMarkNotPaidAndRecordsTheCycle() {
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "review");
+		operation.requestManualReconciliation(NOW);
+		given(repository.findByOperationUidWithLock(OPERATION_UID)).willReturn(Optional.of(operation));
+		PaymentExecution execution = service.claim(OPERATION_UID, 2).orElseThrow();
+
+		service.returnManualReconciliationToReview(
+			execution, "NOT_FOUND_PAYMENT", "not found", true);
+
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
+		assertThat(operation.isNotPaidResolutionEligible()).isTrue();
+		then(resolutionRecorder).should().recordSystem(
+			eq(operation),
+			eq(PaymentOperationResolutionAction.RECONCILIATION_RETURNED_TO_REVIEW),
+			eq("PROVIDER_PAYMENT_NOT_FOUND"),
+			eq(PaymentOperationStatus.EXECUTING),
+			eq(PaymentOperationStatus.MANUAL_REVIEW),
+			eq(NOW));
 	}
 
 	@Test
@@ -260,6 +316,27 @@ class PaymentOperationLeaseServiceTest {
 			.attemptCount(attemptCount)
 			.nextAttemptAt(NOW)
 			.queuedAt(NOW)
+			.build();
+	}
+
+	private PaymentOperation manualReconciliationOperation(int attemptCount) {
+		Reservation reservation = Reservation.builder().id(1L).reservationUid(RESERVATION_UID).build();
+		return PaymentOperation.builder()
+			.id(2L)
+			.operationUid(OPERATION_UID)
+			.reservation(reservation)
+			.requesterMemberId(7L)
+			.operationType(PaymentOperationType.CONFIRM)
+			.status(PaymentOperationStatus.QUEUED)
+			.nextAction(PaymentOperationNextAction.INQUIRE_CONFIRM)
+			.paymentKey("payment-key")
+			.expectedAmount(100_000L)
+			.providerIdempotencyKey("provider-key")
+			.deduplicationKey("CONFIRM:" + RESERVATION_UID)
+			.dispatchGeneration(2)
+			.attemptCount(attemptCount)
+			.queuedAt(NOW)
+			.manualReconciliationPending(true)
 			.build();
 	}
 }

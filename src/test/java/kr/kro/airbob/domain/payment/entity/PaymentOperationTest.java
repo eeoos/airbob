@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.payment.service.PaymentExecutionMode;
 
@@ -267,6 +268,110 @@ class PaymentOperationTest {
 		assertThat(operation.getReviewRequiredAt()).isEqualTo(NOW);
 		assertThat(operation.getManualReviewCount()).isOne();
 		assertThat(operation.getCompletedAt()).isNull();
+	}
+
+	@Test
+	void adminReconciliationStartsANewInquiryOnlyCycle() {
+		PaymentOperation operation = operation("pk-one", 100_000L);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "check provider");
+
+		operation.requestManualReconciliation(NOW.plusSeconds(1));
+
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.QUEUED);
+		assertThat(operation.getDispatchGeneration()).isEqualTo(2);
+		assertThat(operation.getAttemptCount()).isZero();
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.INQUIRE_CONFIRM);
+		assertThat(operation.isManualReconciliationPending()).isTrue();
+		assertThat(operation.isNotPaidResolutionEligible()).isFalse();
+		assertThat(operation.getReviewRequiredAt()).isNull();
+		assertThat(operation.acquireLease(
+			"manual-worker", 2, NOW.plusSeconds(1), Duration.ofSeconds(30)))
+			.contains(PaymentExecutionMode.INQUIRE_CONFIRM);
+	}
+
+	@Test
+	void cancellationAdminReconciliationCanOnlyInquire() {
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation, 7L, "pk-one", 100_000L, "게스트 요청", NOW);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "check provider");
+
+		operation.requestManualReconciliation(NOW.plusSeconds(1));
+
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.INQUIRE_CANCEL);
+		assertThat(operation.acquireLease(
+			"manual-worker", 2, NOW.plusSeconds(1), Duration.ofSeconds(30)))
+			.contains(PaymentExecutionMode.INQUIRE_CANCEL);
+	}
+
+	@Test
+	void manualReconciliationRetryPreservesInquiryInsteadOfRestoringMutation() {
+		PaymentOperation operation = operation("pk-one", 100_000L);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "check provider");
+		operation.requestManualReconciliation(NOW.plusSeconds(1));
+		operation.acquireLease("manual-worker", 2, NOW.plusSeconds(1), Duration.ofSeconds(30));
+
+		operation.scheduleRetry(
+			"manual-worker", 2, NOW.plusSeconds(10), "TEMPORARY", "try inquiry later");
+
+		assertThat(operation.getNextAction()).isEqualTo(PaymentOperationNextAction.INQUIRE_CONFIRM);
+		assertThat(operation.isManualReconciliationPending()).isTrue();
+	}
+
+	@Test
+	void confirmationNotFoundReentersReviewAndEnablesExplicitNotPaidResolution() {
+		PaymentOperation operation = operation("pk-one", 100_000L);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "check provider");
+		operation.requestManualReconciliation(NOW.plusSeconds(1));
+		operation.acquireLease("manual-worker", 2, NOW.plusSeconds(1), Duration.ofSeconds(30));
+
+		assertThat(operation.returnManualReconciliationToReview(
+			"manual-worker", 2, NOW.plusSeconds(2), "NOT_FOUND", "not found", true)).isTrue();
+
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
+		assertThat(operation.isManualReconciliationPending()).isFalse();
+		assertThat(operation.isNotPaidResolutionEligible()).isTrue();
+		assertThat(operation.getManualReviewCount()).isEqualTo(2);
+	}
+
+	@Test
+	void cancellationReentryNeverEnablesMarkNotPaid() {
+		PaymentOperation operation = PaymentOperation.createCancellation(
+			reservation, 7L, "pk-one", 100_000L, "게스트 요청", NOW);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "check provider");
+		operation.requestManualReconciliation(NOW.plusSeconds(1));
+		operation.acquireLease("manual-worker", 2, NOW.plusSeconds(1), Duration.ofSeconds(30));
+
+		assertThat(operation.returnManualReconciliationToReview(
+			"manual-worker", 2, NOW.plusSeconds(2), "ACTIVE", "still active", false)).isTrue();
+
+		assertThat(operation.isNotPaidResolutionEligible()).isFalse();
+		assertThatThrownBy(() -> operation.markNotPaid(
+			NOW.plusSeconds(3), "MANUAL_NOT_PAID_RESOLUTION", "verified not paid"))
+			.isInstanceOf(PaymentOperationInvariantException.class);
+	}
+
+	@Test
+	void onlyEligibleConfirmationCanBeMarkedNotPaid() {
+		PaymentOperation operation = operation("pk-one", 100_000L);
+		operation.acquireLease("worker-one", 1, NOW, Duration.ofSeconds(30));
+		operation.markManualReview("worker-one", 1, NOW, "UNKNOWN", "check provider");
+		operation.requestManualReconciliation(NOW.plusSeconds(1));
+		operation.acquireLease("manual-worker", 2, NOW.plusSeconds(1), Duration.ofSeconds(30));
+		operation.returnManualReconciliationToReview(
+			"manual-worker", 2, NOW.plusSeconds(2), "NOT_FOUND", "not found", true);
+
+		operation.markNotPaid(
+			NOW.plusSeconds(3), "MANUAL_NOT_PAID_RESOLUTION", "verified not paid");
+
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.DECLINED);
+		assertThat(operation.getCompletedAt()).isEqualTo(NOW.plusSeconds(3));
+		assertThat(operation.isNotPaidResolutionEligible()).isFalse();
+		assertThat(operation.getReviewRequiredAt()).isNull();
 	}
 
 	private PaymentOperation operation(String paymentKey, long amount) {

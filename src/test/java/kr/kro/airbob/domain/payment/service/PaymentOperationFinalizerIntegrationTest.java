@@ -11,6 +11,9 @@ import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PROCESSING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
@@ -58,6 +61,8 @@ import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
@@ -122,6 +127,7 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private HoldingFinalizerTransaction holdingFinalizerTransaction;
 	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@MockitoBean private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private long reservationId;
 	private long operationId;
@@ -168,6 +174,40 @@ class PaymentOperationFinalizerIntegrationTest {
 			.containsExactly(CONFIRMED);
 		assertThat(outboxRepository.count()).isZero();
 		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+	}
+
+	@Test
+	void manualInquiryApprovalRecordsTheFencedSystemResolution() {
+		prepareManualReconciliationExecution();
+
+		finalizer.applyApproved(manualExecution(LEASE_OWNER), confirmedPayment());
+
+		then(resolutionRecorder).should().recordSystem(
+			any(PaymentOperation.class),
+			eq(PaymentOperationResolutionAction.RECONCILIATION_APPLIED),
+			eq("PROVIDER_PAYMENT_CONFIRMED"),
+			eq(PaymentOperationStatus.EXECUTING),
+			eq(PaymentOperationStatus.APPLIED),
+			eq(NOW));
+	}
+
+	@Test
+	void manualResolutionAuditFailureRollsBackEveryFinalizationEffect() {
+		prepareManualReconciliationExecution();
+		doThrow(new IllegalStateException("injected resolution outbox failure"))
+			.when(resolutionRecorder).recordSystem(
+				any(PaymentOperation.class),
+				eq(PaymentOperationResolutionAction.RECONCILIATION_APPLIED),
+				eq("PROVIDER_PAYMENT_CONFIRMED"),
+				eq(PaymentOperationStatus.EXECUTING),
+				eq(PaymentOperationStatus.APPLIED),
+				eq(NOW));
+
+		assertThatThrownBy(() -> finalizer.applyApproved(
+			manualExecution(LEASE_OWNER), confirmedPayment()))
+			.isInstanceOf(IllegalStateException.class);
+
+		assertPreFinalizationState();
 	}
 
 	@Test
@@ -634,6 +674,30 @@ class PaymentOperationFinalizerIntegrationTest {
 			1,
 			PaymentExecutionMode.CONFIRM
 		);
+	}
+
+	private PaymentExecution manualExecution(String leaseOwner) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"provider-key",
+			null,
+			leaseOwner,
+			1,
+			PaymentExecutionMode.INQUIRE_CONFIRM,
+			true
+		);
+	}
+
+	private void prepareManualReconciliationExecution() {
+		jdbc.update("""
+			UPDATE payment_operation
+			SET next_action = 'INQUIRE_CONFIRM', manual_reconciliation_pending = true
+			WHERE id = ?
+			""", operationId);
 	}
 
 	private ConfirmedPayment confirmedPayment() {

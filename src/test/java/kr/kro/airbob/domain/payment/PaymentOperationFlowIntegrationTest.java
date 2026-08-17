@@ -76,6 +76,7 @@ import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
@@ -88,6 +89,8 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer;
 import kr.kro.airbob.domain.payment.service.PaymentOperationLeaseService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionRecorder;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
 import kr.kro.airbob.domain.payment.service.PaymentRetryBackoff;
@@ -122,6 +125,8 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	PaymentOperationCommandService.class,
 	PaymentCancellationCommandService.class,
 	PaymentOperationLeaseService.class,
+	PaymentOperationManualReviewCommandService.class,
+	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationExecutor.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationQueryService.class,
@@ -172,6 +177,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private PaymentCancellationCommandService cancellationCommandService;
 	@Autowired private PaymentOperationExecutor executor;
 	@Autowired private PaymentOperationQueryService queryService;
+	@Autowired private PaymentOperationManualReviewCommandService manualReviewCommandService;
 	@Autowired private PaymentOperationRecoveryService recoveryService;
 	@Autowired private PaymentOperationRepository operationRepository;
 	@Autowired private ReservationRepository reservationRepository;
@@ -500,6 +506,52 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	@Test
+	void manualReconciliationNotFoundThenExplicitMarkNotPaidNeverCallsConfirmAgain() throws Exception {
+		UUID operationUid = acceptedOperationUid(accept(ownerId, status().isAccepted()));
+		gateway.enqueueConfirm(new PaymentGatewayResult.ManualReviewRequired(
+			"PROVIDER_RESULT_UNKNOWN", "review provider state"));
+		deliverLatestExecutionEvent();
+
+		PaymentOperation initialReview = operationRepository.findByOperationUid(operationUid).orElseThrow();
+		assertThat(initialReview.getStatus()).isEqualTo(MANUAL_REVIEW);
+		manualReviewCommandService.requestReconciliation(
+			operationUid, ownerId, initialReview.getVersion());
+		gateway.enqueueInquiry(new PaymentGatewayResult.NotFound(
+			"NOT_FOUND_PAYMENT", "not found"));
+		deliverLatestExecutionEvent();
+
+		PaymentOperation eligibleReview = operationRepository.findByOperationUid(operationUid).orElseThrow();
+		assertThat(eligibleReview.getStatus()).isEqualTo(MANUAL_REVIEW);
+		assertThat(eligibleReview.isNotPaidResolutionEligible()).isTrue();
+		assertThat(eligibleReview.isManualReconciliationPending()).isFalse();
+		manualReviewCommandService.markNotPaid(
+			operationUid,
+			ownerId,
+			eligibleReview.getVersion(),
+			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
+			"provider-case/NOT-PAID-42");
+
+		assertThat(gateway.calls()).containsExactly("confirm", "inquire");
+		assertDurableState(
+			operationUid,
+			DECLINED,
+			EXPIRED,
+			0,
+			1,
+			List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
+		assertLedgerType(operationUid, PaymentTransactionType.FAIL);
+		assertThat(isCouponUsed()).isFalse();
+		assertThat(jdbc.queryForList("""
+			SELECT resolution_action
+			FROM payment_operation_resolution
+			ORDER BY id
+			""", String.class)).containsExactly(
+			"RECONCILIATION_REQUESTED",
+			"RECONCILIATION_RETURNED_TO_REVIEW",
+			"MARKED_NOT_PAID");
+	}
+
+	@Test
 	void nonOwnerCreateAndRead() throws Exception {
 		PersistenceSnapshot beforeForbiddenCreate = persistenceSnapshot();
 		MvcResult forbiddenCreate = accept(nonOwnerId, status().isForbidden());
@@ -811,6 +863,7 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	private void clearFixtureRows() {
+		jdbc.update("DELETE FROM payment_operation_resolution");
 		jdbc.update("DELETE FROM payment_transaction");
 		jdbc.update("DELETE FROM payment");
 		jdbc.update("DELETE FROM payment_operation");

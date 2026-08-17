@@ -175,6 +175,23 @@ class PaymentOperationExecutorTest {
 	}
 
 	@Test
+	void manualCancellationInquirySeeingActivePaymentReturnsToReviewWithoutCancelling() {
+		PaymentExecution execution = manualCancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(Optional.of(execution));
+		given(gateway.inquireCancellation(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.PaymentActive("PAYMENT_ACTIVE", "active"));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(leaseService).should().returnManualReconciliationToReview(
+			execution, "PAYMENT_ACTIVE", "active", false);
+		then(gateway).should(never()).cancel(any());
+		then(leaseService).should(never()).scheduleRetry(any(), any(), any());
+		then(finalizer).shouldHaveNoInteractions();
+	}
+
+	@Test
 	void inconsistentCancellationEvidenceStopsInManualReviewImmediately() {
 		PaymentExecution execution = cancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
 		given(leaseService.claim(OPERATION_UID, 1))
@@ -259,6 +276,55 @@ class PaymentOperationExecutorTest {
 
 		then(leaseService).should().scheduleRetry(execution, "NOT_FOUND_PAYMENT", "not found");
 		then(leaseService).should(never()).markOutcomeUnknown(any(), any(), any());
+	}
+
+	@Test
+	void manualConfirmationInquiryNotFoundReturnsToReviewAndEnablesNotPaidResolution() {
+		PaymentExecution execution = manualExecution(PaymentExecutionMode.INQUIRE_CONFIRM);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(Optional.of(execution));
+		given(gateway.inquireConfirmation(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(leaseService).should().returnManualReconciliationToReview(
+			execution, "NOT_FOUND_PAYMENT", "not found", true);
+		then(gateway).should(never()).confirm(any());
+		then(finalizer).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void manualCancellationInquiryNotFoundReturnsToReviewWithoutIssuingCancel() {
+		PaymentExecution execution = manualCancellationExecution(PaymentExecutionMode.INQUIRE_CANCEL);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(Optional.of(execution));
+		given(gateway.inquireCancellation(execution.gatewayCommand()))
+			.willReturn(new PaymentGatewayResult.NotFound("NOT_FOUND_PAYMENT", "not found"));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(leaseService).should().returnManualReconciliationToReview(
+			execution, "NOT_FOUND_PAYMENT", "not found", false);
+		then(gateway).should(never()).cancel(any());
+		then(finalizer).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void malformedManualCycleCannotInvokeMutationGatewayMethods() {
+		PaymentExecution execution = manualExecution(PaymentExecutionMode.CONFIRM);
+		given(leaseService.claim(OPERATION_UID, 1))
+			.willReturn(Optional.of(execution));
+
+		executor.execute(OPERATION_UID, 1);
+
+		then(gateway).shouldHaveNoInteractions();
+		then(leaseService).should().markManualReview(
+			execution,
+			"INVALID_MANUAL_RECONCILIATION_MODE",
+			"Manual reconciliation must use a provider inquiry."
+		);
+		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -453,6 +519,38 @@ class PaymentOperationExecutorTest {
 			LEASE_OWNER,
 			1,
 			mode
+		);
+	}
+
+	private static PaymentExecution manualExecution(PaymentExecutionMode mode) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"airbob-confirm-" + OPERATION_UID,
+			null,
+			LEASE_OWNER,
+			1,
+			mode,
+			true
+		);
+	}
+
+	private static PaymentExecution manualCancellationExecution(PaymentExecutionMode mode) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"airbob-cancel-" + OPERATION_UID,
+			"사용자 요청",
+			LEASE_OWNER,
+			1,
+			mode,
+			true
 		);
 	}
 

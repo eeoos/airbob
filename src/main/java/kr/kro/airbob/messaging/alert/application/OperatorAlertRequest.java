@@ -49,6 +49,43 @@ public record OperatorAlertRequest(
 		);
 	}
 
+	public static OperatorAlertRequest paymentReconciliationRequested(
+		UUID operationUid, long dispatchGeneration
+	) {
+		return paymentManualResolution(
+			operationUid, dispatchGeneration, OperatorAlertSummaryCode.RECONCILIATION_REQUESTED);
+	}
+
+	public static OperatorAlertRequest paymentReconciliationApplied(
+		UUID operationUid, long dispatchGeneration
+	) {
+		return paymentManualResolution(
+			operationUid, dispatchGeneration, OperatorAlertSummaryCode.RECONCILIATION_APPLIED);
+	}
+
+	public static OperatorAlertRequest paymentReconciliationDeclined(
+		UUID operationUid, long dispatchGeneration
+	) {
+		return paymentManualResolution(
+			operationUid, dispatchGeneration, OperatorAlertSummaryCode.RECONCILIATION_DECLINED);
+	}
+
+	public static OperatorAlertRequest paymentReconciliationReturnedToReview(
+		UUID operationUid, long dispatchGeneration
+	) {
+		return paymentManualResolution(
+			operationUid,
+			dispatchGeneration,
+			OperatorAlertSummaryCode.RECONCILIATION_RETURNED_TO_REVIEW);
+	}
+
+	public static OperatorAlertRequest paymentMarkedNotPaid(
+		UUID operationUid, long dispatchGeneration
+	) {
+		return paymentManualResolution(
+			operationUid, dispatchGeneration, OperatorAlertSummaryCode.PAYMENT_MARKED_NOT_PAID);
+	}
+
 	public static OperatorAlertRequest accommodationIndexQuarantined(
 		UUID accommodationUid,
 		OperatorAlertSourcePosition sourcePosition
@@ -80,6 +117,26 @@ public record OperatorAlertRequest(
 			summaryCode,
 			sourcePosition,
 			coordinateUid
+		);
+	}
+
+	private static OperatorAlertRequest paymentManualResolution(
+		UUID operationUid,
+		long dispatchGeneration,
+		OperatorAlertSummaryCode summaryCode
+	) {
+		Objects.requireNonNull(operationUid, "operationUid must not be null");
+		if (dispatchGeneration <= 0) {
+			throw new IllegalArgumentException("dispatchGeneration must be positive");
+		}
+		return new OperatorAlertRequest(
+			OperatorAlertKind.PAYMENT_MANUAL_RESOLUTION,
+			operationUid,
+			summaryCode,
+			OperatorAlertSourcePosition.none(),
+			deterministicUid(
+				"PAYMENT_MANUAL_RESOLUTION:" + operationUid + ":"
+					+ dispatchGeneration + ":" + summaryCode)
 		);
 	}
 

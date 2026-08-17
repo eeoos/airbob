@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.payment.service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
@@ -11,6 +12,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
@@ -43,6 +45,7 @@ public class PaymentOperationFinalizer {
 	private final CouponUsageService couponUsageService;
 	private final ReservationHistoryRepository historyRepository;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 	private final Clock clock;
 
 	public PaymentOperationFinalizer(
@@ -53,6 +56,7 @@ public class PaymentOperationFinalizer {
 		CouponUsageService couponUsageService,
 		ReservationHistoryRepository historyRepository,
 		AccommodationSearchRefreshPublisher searchRefreshPublisher,
+		PaymentOperationManualResolutionRecorder resolutionRecorder,
 		Clock clock
 	) {
 		this.operationRepository = operationRepository;
@@ -62,6 +66,7 @@ public class PaymentOperationFinalizer {
 		this.couponUsageService = couponUsageService;
 		this.historyRepository = historyRepository;
 		this.searchRefreshPublisher = searchRefreshPublisher;
+		this.resolutionRecorder = resolutionRecorder;
 		this.clock = clock;
 	}
 
@@ -75,6 +80,7 @@ public class PaymentOperationFinalizer {
 		if (!operation.isOwnedBy(execution.leaseOwner(), execution.dispatchGeneration())) {
 			return;
 		}
+		boolean manualReconciliation = isCurrentManualReconciliation(operation, execution);
 
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
@@ -92,8 +98,16 @@ public class PaymentOperationFinalizer {
 		reservation.confirm();
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.STATUS_CHANGE, "결제 성공", HISTORY_SOURCE));
-		operation.markApplied(clock.instant());
+		var completedAt = clock.instant();
+		operation.markApplied(completedAt);
 		requestAccommodationSearchRefresh(reservation);
+		recordManualResolutionResult(
+			operation,
+			manualReconciliation,
+			PaymentOperationResolutionAction.RECONCILIATION_APPLIED,
+			"PROVIDER_PAYMENT_CONFIRMED",
+			PaymentOperationStatus.APPLIED,
+			completedAt);
 	}
 
 	@Transactional
@@ -106,6 +120,7 @@ public class PaymentOperationFinalizer {
 		if (!operation.isOwnedBy(execution.leaseOwner(), execution.dispatchGeneration())) {
 			return;
 		}
+		boolean manualReconciliation = isCurrentManualReconciliation(operation, execution);
 
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
@@ -115,8 +130,16 @@ public class PaymentOperationFinalizer {
 		} else {
 			applyConfirmationDecline(operation, reservation, normalizedCode, message);
 		}
-		operation.markDeclined(clock.instant(), normalizedCode, message);
+		var completedAt = clock.instant();
+		operation.markDeclined(completedAt, normalizedCode, message);
 		requestAccommodationSearchRefresh(reservation);
+		recordManualResolutionResult(
+			operation,
+			manualReconciliation,
+			PaymentOperationResolutionAction.RECONCILIATION_DECLINED,
+			"PROVIDER_PAYMENT_DECLINED",
+			PaymentOperationStatus.DECLINED,
+			completedAt);
 	}
 
 	@Transactional
@@ -129,6 +152,7 @@ public class PaymentOperationFinalizer {
 		if (!operation.isOwnedBy(execution.leaseOwner(), execution.dispatchGeneration())) {
 			return;
 		}
+		boolean manualReconciliation = isCurrentManualReconciliation(operation, execution);
 
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
@@ -146,8 +170,43 @@ public class PaymentOperationFinalizer {
 		couponUsageService.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.CANCEL, "PG 결제 전액 취소 성공", HISTORY_SOURCE));
-		operation.markApplied(clock.instant());
+		var completedAt = clock.instant();
+		operation.markApplied(completedAt);
 		requestAccommodationSearchRefresh(reservation);
+		recordManualResolutionResult(
+			operation,
+			manualReconciliation,
+			PaymentOperationResolutionAction.RECONCILIATION_APPLIED,
+			"PROVIDER_CANCELLATION_CONFIRMED",
+			PaymentOperationStatus.APPLIED,
+			completedAt);
+	}
+
+	private boolean isCurrentManualReconciliation(
+		PaymentOperation operation,
+		PaymentExecution execution
+	) {
+		return execution.manualReconciliation() && operation.isManualReconciliationPending();
+	}
+
+	private void recordManualResolutionResult(
+		PaymentOperation operation,
+		boolean manualReconciliation,
+		PaymentOperationResolutionAction action,
+		String reason,
+		PaymentOperationStatus resultStatus,
+		Instant recordedAt
+	) {
+		if (!manualReconciliation) {
+			return;
+		}
+		resolutionRecorder.recordSystem(
+			operation,
+			action,
+			reason,
+			PaymentOperationStatus.EXECUTING,
+			resultStatus,
+			recordedAt);
 	}
 
 	private void applyConfirmationDecline(
@@ -211,7 +270,11 @@ public class PaymentOperationFinalizer {
 			case CANCEL -> execution.mode() == PaymentExecutionMode.CANCEL
 				|| execution.mode() == PaymentExecutionMode.INQUIRE_CANCEL;
 		};
+		boolean manualReconciliationMatches =
+			execution.manualReconciliation() == operation.isManualReconciliationPending()
+				&& (!execution.manualReconciliation() || execution.mode().isInquiry());
 		boolean matches = operationModeMatches
+			&& manualReconciliationMatches
 			&& Objects.equals(execution.operationUid(), operation.getOperationUid())
 			&& Objects.equals(execution.reservationUid(), reservation.getReservationUid())
 			&& Objects.equals(execution.paymentKey(), operation.getPaymentKey())

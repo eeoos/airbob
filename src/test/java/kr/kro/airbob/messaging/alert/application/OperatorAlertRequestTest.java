@@ -72,4 +72,24 @@ class OperatorAlertRequestTest {
 		assertThat(request.summaryCode()).isEqualTo(OperatorAlertSummaryCode.INDEX_REFRESH_FAILED);
 		assertThat(request.sourcePosition()).isEqualTo(source);
 	}
+
+	@Test
+	void manualResolutionAlertsAreIdentifierOnlyAndStablePerGenerationAndAction() {
+		OperatorAlertRequest requested =
+			OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 7);
+		OperatorAlertRequest duplicate =
+			OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 7);
+		OperatorAlertRequest nextGeneration =
+			OperatorAlertRequest.paymentReconciliationRequested(OPERATION_UID, 8);
+		OperatorAlertRequest applied =
+			OperatorAlertRequest.paymentReconciliationApplied(OPERATION_UID, 7);
+
+		assertThat(requested).isEqualTo(duplicate);
+		assertThat(requested.kind()).isEqualTo(OperatorAlertKind.PAYMENT_MANUAL_RESOLUTION);
+		assertThat(requested.summaryCode())
+			.isEqualTo(OperatorAlertSummaryCode.RECONCILIATION_REQUESTED);
+		assertThat(requested.sourcePosition()).isEqualTo(OperatorAlertSourcePosition.none());
+		assertThat(nextGeneration.occurrenceUid()).isNotEqualTo(requested.occurrenceUid());
+		assertThat(applied.occurrenceUid()).isNotEqualTo(requested.occurrenceUid());
+	}
 }

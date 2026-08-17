@@ -108,6 +108,9 @@ public class PaymentOperation extends BaseEntity {
 	private boolean manualReconciliationPending;
 
 	@Column(nullable = false)
+	private boolean notPaidResolutionEligible;
+
+	@Column(nullable = false)
 	private int manualReviewCount;
 
 	@Column(length = FAILURE_CODE_MAX_LENGTH)
@@ -142,6 +145,7 @@ public class PaymentOperation extends BaseEntity {
 			.attemptCount(0)
 			.queuedAt(now)
 			.manualReconciliationPending(false)
+			.notPaidResolutionEligible(false)
 			.manualReviewCount(0)
 			.build();
 	}
@@ -176,6 +180,7 @@ public class PaymentOperation extends BaseEntity {
 			.queuedAt(now)
 			.cancellationReason(cancellationReason)
 			.manualReconciliationPending(false)
+			.notPaidResolutionEligible(false)
 			.manualReviewCount(0)
 			.build();
 	}
@@ -233,6 +238,10 @@ public class PaymentOperation extends BaseEntity {
 			return Optional.empty();
 		}
 		PaymentExecutionMode mode = executionMode();
+		if (manualReconciliationPending && !mode.isInquiry()) {
+			throw new PaymentOperationInvariantException(
+				"manual reconciliation can only acquire a provider inquiry lease");
+		}
 		status = PaymentOperationStatus.EXECUTING;
 		leaseOwner = owner;
 		leaseExpiresAt = now.plus(leaseDuration);
@@ -275,21 +284,90 @@ public class PaymentOperation extends BaseEntity {
 		return true;
 	}
 
+	public void requestManualReconciliation(Instant now) {
+		Objects.requireNonNull(now, "now must not be null");
+		if (status != PaymentOperationStatus.MANUAL_REVIEW || manualReconciliationPending) {
+			throw new PaymentOperationInvariantException(
+				"only a paused manual-review operation can request reconciliation");
+		}
+		nextAction = inquiryActionFor(operationType);
+		attemptCount = 0;
+		manualReconciliationPending = true;
+		notPaidResolutionEligible = false;
+		reviewRequiredAt = null;
+		failureCode = null;
+		failureMessage = null;
+		queueNextGeneration(now);
+	}
+
 	private void moveToManualReview(Instant now) {
+		moveToManualReview(now, false);
+	}
+
+	private void moveToManualReview(Instant now, boolean notPaidEligible) {
+		if (notPaidEligible && operationType != PaymentOperationType.CONFIRM) {
+			throw new PaymentOperationInvariantException(
+				"only a confirmation can become eligible for not-paid resolution");
+		}
 		status = PaymentOperationStatus.MANUAL_REVIEW;
 		leaseOwner = null;
 		leaseExpiresAt = null;
 		nextAttemptAt = null;
 		reviewRequiredAt = now;
+		manualReconciliationPending = false;
+		notPaidResolutionEligible = notPaidEligible;
 		manualReviewCount++;
 		completedAt = null;
+	}
+
+	public boolean returnManualReconciliationToReview(
+		String owner,
+		long expectedGeneration,
+		Instant now,
+		String code,
+		String message,
+		boolean notPaidEligible
+	) {
+		if (!manualReconciliationPending || !isOwnedBy(owner, expectedGeneration)) {
+			return false;
+		}
+		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
+		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
+		moveToManualReview(now, notPaidEligible);
+		return true;
+	}
+
+	public void markNotPaid(Instant now, String code, String message) {
+		if (operationType != PaymentOperationType.CONFIRM
+			|| status != PaymentOperationStatus.MANUAL_REVIEW
+			|| manualReconciliationPending
+			|| !notPaidResolutionEligible) {
+			throw new PaymentOperationInvariantException(
+				"operation is not eligible for a not-paid resolution");
+		}
+		status = PaymentOperationStatus.DECLINED;
+		leaseOwner = null;
+		leaseExpiresAt = null;
+		nextAttemptAt = null;
+		reviewRequiredAt = null;
+		notPaidResolutionEligible = false;
+		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
+		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
+		completedAt = Objects.requireNonNull(now, "now must not be null");
 	}
 
 	public boolean scheduleRetry(
 		String owner, long expectedGeneration, Instant retryAt, String code, String message
 	) {
 		return transitionFromExecution(
-			owner, expectedGeneration, executionActionFor(operationType), retryAt, code, message);
+			owner,
+			expectedGeneration,
+			manualReconciliationPending
+				? inquiryActionFor(operationType)
+				: executionActionFor(operationType),
+			retryAt,
+			code,
+			message);
 	}
 
 	public boolean markOutcomeUnknown(
@@ -346,6 +424,9 @@ public class PaymentOperation extends BaseEntity {
 		failureCode = limitLength(code, FAILURE_CODE_MAX_LENGTH);
 		failureMessage = limitLength(message, FAILURE_MESSAGE_MAX_LENGTH);
 		completedAt = now;
+		reviewRequiredAt = null;
+		manualReconciliationPending = false;
+		notPaidResolutionEligible = false;
 	}
 
 	private boolean isQueuedGeneration(long expectedGeneration) {

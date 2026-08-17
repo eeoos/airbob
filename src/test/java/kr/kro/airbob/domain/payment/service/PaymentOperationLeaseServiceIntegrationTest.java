@@ -63,13 +63,14 @@ import kr.kro.airbob.messaging.outbox.JpaOutboxWriter;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
 	JpaAuditingConfig.class,
-		QueryDslConfig.class,
-		PaymentOperationLeaseService.class,
-		PaymentOperationDltIncidentService.class,
-		JpaOutboxWriter.class,
-		MysqlOperatorAlertOutboxAppender.class,
-		OperatorAlertOutboxPublisher.class,
-		PaymentOperationLeaseServiceIntegrationTest.LeaseTestConfiguration.class
+	QueryDslConfig.class,
+	PaymentOperationLeaseService.class,
+	PaymentOperationManualResolutionRecorder.class,
+	PaymentOperationDltIncidentService.class,
+	JpaOutboxWriter.class,
+	MysqlOperatorAlertOutboxAppender.class,
+	OperatorAlertOutboxPublisher.class,
+	PaymentOperationLeaseServiceIntegrationTest.LeaseTestConfiguration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -105,6 +106,7 @@ class PaymentOperationLeaseServiceIntegrationTest {
 	void insertReadyOperation() {
 		alertOutboxAppender.fail(false);
 		jdbc.update("DELETE FROM outbox");
+		jdbc.update("DELETE FROM payment_operation_resolution");
 		jdbc.update("DELETE FROM payment_operation");
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM accommodation");
@@ -146,6 +148,66 @@ class PaymentOperationLeaseServiceIntegrationTest {
 			  false, 0, 0, NOW(6), NOW(6)
 			)
 			""", OPERATION_UID.toString(), reservationId, memberId, "CONFIRM:" + RESERVATION_UID);
+	}
+
+	@Test
+	void exhaustedManualReconciliationReentryCommitsSystemAuditAndAlertTogether() {
+		prepareExhaustedManualReconciliation();
+
+		assertThat(service.claim(OPERATION_UID, 2)).isEmpty();
+
+		assertThat(jdbc.queryForMap("""
+			SELECT status, manual_reconciliation_pending, not_paid_resolution_eligible,
+			       manual_review_count
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString()))
+			.containsEntry("status", "MANUAL_REVIEW")
+			.containsEntry("manual_reconciliation_pending", false)
+			.containsEntry("not_paid_resolution_eligible", false)
+			.containsEntry("manual_review_count", 2);
+		assertThat(jdbc.queryForMap("""
+			SELECT actor_type, resolution_action, dispatch_generation,
+			       previous_status, result_status
+			FROM payment_operation_resolution
+			"""))
+			.containsEntry("actor_type", "SYSTEM")
+			.containsEntry("resolution_action", "RECONCILIATION_RETURNED_TO_REVIEW")
+			.containsEntry("dispatch_generation", 2L)
+			.containsEntry("previous_status", "QUEUED")
+			.containsEntry("result_status", "MANUAL_REVIEW");
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox", Integer.class)).isOne();
+	}
+
+	@Test
+	void manualReentryAlertFailureRollsBackTheStateAndAudit() {
+		prepareExhaustedManualReconciliation();
+		alertOutboxAppender.fail(true);
+
+		assertThatThrownBy(() -> service.claim(OPERATION_UID, 2))
+			.isInstanceOf(DataAccessResourceFailureException.class);
+
+		assertThat(jdbc.queryForMap("""
+			SELECT status, manual_reconciliation_pending, manual_review_count
+			FROM payment_operation
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString()))
+			.containsEntry("status", "QUEUED")
+			.containsEntry("manual_reconciliation_pending", true)
+			.containsEntry("manual_review_count", 1);
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM payment_operation_resolution", Integer.class)).isZero();
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox", Integer.class)).isZero();
+	}
+
+	private void prepareExhaustedManualReconciliation() {
+		jdbc.update("""
+			UPDATE payment_operation
+			SET status = 'QUEUED', next_action = 'INQUIRE_CONFIRM', dispatch_generation = 2,
+			    attempt_count = 5, manual_reconciliation_pending = true,
+			    not_paid_resolution_eligible = false, manual_review_count = 1
+			WHERE operation_uid = UNHEX(REPLACE(?, '-', ''))
+			""", OPERATION_UID.toString());
 	}
 
 	@Test

@@ -40,6 +40,13 @@ public class PaymentOperationExecutor {
 			return;
 		}
 		PaymentExecution claimedExecution = execution.orElseThrow();
+		if (claimedExecution.manualReconciliation() && !claimedExecution.mode().isInquiry()) {
+			leaseService.markManualReview(
+				claimedExecution,
+				"INVALID_MANUAL_RECONCILIATION_MODE",
+				"Manual reconciliation must use a provider inquiry.");
+			return;
+		}
 
 		PaymentGatewayResult result;
 		try {
@@ -141,6 +148,14 @@ public class PaymentOperationExecutor {
 				"Provider returned an active payment for an incompatible operation.");
 			return;
 		}
+		if (execution.manualReconciliation()) {
+			leaseService.returnManualReconciliationToReview(
+				execution,
+				sanitizeCode(execution, code),
+				sanitizeMessage(execution, message),
+				false);
+			return;
+		}
 		leaseService.scheduleRetry(
 			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
@@ -161,6 +176,15 @@ public class PaymentOperationExecutor {
 	}
 
 	private void applyNotFound(PaymentExecution execution, String code, String message) {
+		if (execution.manualReconciliation()) {
+			boolean notPaidEligible = execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM;
+			leaseService.returnManualReconciliationToReview(
+				execution,
+				sanitizeCode(execution, code),
+				sanitizeMessage(execution, message),
+				notPaidEligible);
+			return;
+		}
 		if (execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM) {
 			leaseService.scheduleRetry(
 				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
