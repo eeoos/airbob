@@ -442,15 +442,30 @@ run "foundation_contract" {
       length(local.role_trust_policies.lab) <= 2048 &&
       length(local.role_trust_policies.image) <= 2048 &&
       length(local.foundation_admin_policy) <= 10240 &&
-      length(local.lab_operator_policy) <= 10240 &&
-      length(local.lab_compute_policy) <= 10240 &&
-      length(local.lab_data_compute_policy) <= 10240 &&
-      length(local.lab_app_compute_policy) <= 10240 &&
+      length(local.lab_operator_managed_policies) == 5 &&
+      alltrue([
+        for policy in values(local.lab_operator_managed_policies) :
+        length(policy.document) <= 6144
+      ]) &&
       length(local.lab_host_boundary_policy) <= 6144 &&
       length(local.image_publisher_policy) <= 10240 &&
       length(local.dns_controller_policy) <= 10240
     )
-    error_message = "Role trust and inline policies must remain within default AWS IAM document-size quotas."
+    error_message = "Role trust, inline policies, and managed policies must remain within default AWS IAM document-size quotas."
+  }
+
+  assert {
+    condition = (
+      toset(keys(aws_iam_policy.lab_operator)) == toset(keys(local.lab_operator_managed_policies)) &&
+      toset(keys(aws_iam_role_policy_attachment.lab_operator)) == toset(keys(local.lab_operator_managed_policies)) &&
+      alltrue([
+        for key, policy in local.lab_operator_managed_policies :
+        aws_iam_policy.lab_operator[key].name == policy.name &&
+        aws_iam_policy.lab_operator[key].policy == policy.document &&
+        aws_iam_role_policy_attachment.lab_operator[key].role == aws_iam_role.lab_operator.name
+      ])
+    )
+    error_message = "Lab operator permissions must use five bounded customer-managed policies attached to the exact role."
   }
 
 
@@ -898,9 +913,9 @@ run "foundation_contract" {
     condition = (
       aws_lambda_function.expiry_observer.runtime == "python3.14" &&
       one(aws_lambda_function.expiry_observer.architectures) == "arm64" &&
-      aws_lambda_function.expiry_observer.reserved_concurrent_executions == 1
+      aws_lambda_function.expiry_observer.reserved_concurrent_executions == null
     )
-    error_message = "The observer Lambda must use the pinned runtime, architecture, and concurrency limit."
+    error_message = "The observer Lambda must use the pinned runtime and architecture without account-level reserved concurrency."
   }
 
   assert {

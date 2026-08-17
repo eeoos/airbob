@@ -123,6 +123,12 @@ artifacts at or above the 5 GiB single-request limit before upload. An
 unconditioned, evidence-bucket-only abort permission exists solely to clean up
 an accidentally initiated multipart upload.
 
+The lab operator's effective permissions are attached as five
+customer-managed policies. Each document stays within the 6,144-character
+managed-policy quota and the role remains below the default ten-policy
+attachment quota. Do not collapse them into inline policies: their aggregate
+size exceeds the 10,240-character per-role inline-policy quota.
+
 ## Expiry observer is alert-only
 
 The foundation declares a small EventBridge-scheduled Lambda that discovers
@@ -146,6 +152,12 @@ read Resource Groups Tagging API results and write that metric namespace and
 its own logs. It has no EC2/RDS/ELB/Auto Scaling, Route 53, CodeBuild,
 DynamoDB, S3, or cleanup mutation permission. `CLEANUP_ENABLED=false` is both
 a Terraform contract and a runtime fail-closed check.
+
+The observer uses the account's unreserved Lambda concurrency. New accounts
+can have only ten concurrent executions, and AWS refuses any reservation that
+would reduce unreserved concurrency below ten. The schedule is disabled by
+default and can invoke only this read-only function every fifteen minutes;
+activation monitoring must include Lambda throttles and errors.
 
 The schedule and alarm actions default to disabled. Alarm resources keep stable
 Terraform addresses while disabled so `prevent_destroy` cannot block a later

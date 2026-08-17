@@ -111,9 +111,8 @@ resource "aws_lambda_function" "expiry_observer" {
   filename         = data.archive_file.expiry_observer.output_path
   source_code_hash = data.archive_file.expiry_observer.output_base64sha256
 
-  memory_size                    = 128
-  timeout                        = 60
-  reserved_concurrent_executions = 1
+  memory_size = 128
+  timeout     = 60
 
   environment {
     variables = {

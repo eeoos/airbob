@@ -80,6 +80,12 @@ assert_contains "$backend_helper" 'AIRBOB_STATE_KEY_LAB'
 assert_contains "$backend_helper" 'use_lockfile = true'
 assert_contains "$backend_helper" '"$bootstrap_preflight" status'
 assert_not_contains "$backend_helper" 'dynamodb_table'
+assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_policy" "lab_operator" {'
+assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy_attachment" "lab_operator" {'
+assert_contains "$foundation_root/iam.tf" 'policy_arn = aws_iam_policy.lab_operator[each.key].arn'
+assert_file_not_contains "$foundation_root/iam.tf" '^resource "aws_iam_role_policy" "lab_operator"'
+assert_file_not_contains "$foundation_root/lab-compute.tf" '^resource "aws_iam_role_policy" "lab_(compute|data_compute|app_compute)"'
+assert_file_not_contains "$foundation_root/expiry-observer.tf" 'reserved_concurrent_executions'
 
 resource_count=$(grep -hE '^resource "aws_[^"]+" "[^"]+" \{' "$foundation_root"/*.tf | wc -l | tr -d ' ')
 prevent_destroy_count=$(grep -hE '^[[:space:]]+prevent_destroy = true$' "$foundation_root"/*.tf | wc -l | tr -d ' ')

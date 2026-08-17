@@ -20,6 +20,29 @@ locals {
     )
   }
 
+  lab_operator_managed_policies = {
+    foundation_base = {
+      name     = "airbob-lab-operator-foundation-base"
+      document = local.lab_operator_policy
+    }
+    compute_ec2_iam = {
+      name     = "airbob-lab-operator-compute-ec2-iam"
+      document = local.lab_compute_ec2_iam_policy
+    }
+    compute_ssm_dns = {
+      name     = "airbob-lab-operator-compute-ssm-dns"
+      document = local.lab_compute_ssm_dns_policy
+    }
+    data_compute = {
+      name     = "airbob-lab-operator-data-compute"
+      document = local.lab_data_compute_policy
+    }
+    app_compute = {
+      name     = "airbob-lab-operator-app-compute"
+      document = local.lab_app_compute_policy
+    }
+  }
+
   github_role_trust = {
     foundation = merge(local.github_trust_common, {
       "token.actions.githubusercontent.com:sub" = local.github_subjects.foundation
@@ -559,10 +582,22 @@ resource "aws_iam_role_policy" "foundation_admin" {
   }
 }
 
-resource "aws_iam_role_policy" "lab_operator" {
-  name   = "airbob-lab-operator-foundation-base"
-  role   = aws_iam_role.lab_operator.id
-  policy = local.lab_operator_policy
+resource "aws_iam_policy" "lab_operator" {
+  for_each = local.lab_operator_managed_policies
+
+  name   = each.value.name
+  policy = each.value.document
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "lab_operator" {
+  for_each = local.lab_operator_managed_policies
+
+  role       = aws_iam_role.lab_operator.name
+  policy_arn = aws_iam_policy.lab_operator[each.key].arn
 
   lifecycle {
     prevent_destroy = true

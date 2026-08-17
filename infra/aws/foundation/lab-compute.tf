@@ -118,414 +118,429 @@ locals {
     ]
   })
 
+  lab_compute_ec2_iam_statements = [
+    {
+      Sid    = "DescribeLabInfrastructure"
+      Effect = "Allow"
+      Action = [
+        "ec2:Describe*",
+        "iam:GetInstanceProfile",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRolePolicies",
+        "iam:ListRoleTags",
+        "ssm:DescribeAssociation",
+        "ssm:DescribeDocument",
+        "ssm:GetDocument",
+        "ssm:ListAssociationVersions",
+        "ssm:ListAssociations",
+        "ssm:ListDocuments",
+        "ssm:ListTagsForResource",
+      ]
+      Resource = "*"
+    },
+    {
+      Sid    = "CreateTaggedEc2Lab"
+      Effect = "Allow"
+      Action = [
+        "ec2:AllocateAddress",
+        "ec2:CreateInternetGateway",
+        "ec2:CreateLaunchTemplate",
+        "ec2:CreateRouteTable",
+        "ec2:CreateSecurityGroup",
+        "ec2:CreateSubnet",
+        "ec2:CreateVpc",
+        "ec2:CreateVpcEndpoint",
+        "ec2:RunInstances",
+      ]
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "aws:RequestTag/Project"     = "airbob"
+          "aws:RequestTag/Environment" = "performance-lab"
+          "aws:RequestTag/Stack"       = "lab"
+          "aws:RequestTag/ManagedBy"   = "terraform"
+          "aws:RequestTag/Persistence" = "ephemeral"
+        }
+        Null = {
+          "aws:RequestTag/ExpiresAt"    = "false"
+          "aws:RequestTag/FencingToken" = "false"
+          "aws:RequestTag/RunId"        = "false"
+        }
+      }
+    },
+    {
+      Sid    = "MutateTaggedEc2Lab"
+      Effect = "Allow"
+      Action = [
+        "ec2:AssociateAddress",
+        "ec2:AssociateRouteTable",
+        "ec2:AttachInternetGateway",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:CreateRoute",
+        "ec2:CreateLaunchTemplateVersion",
+        "ec2:DeleteRoute",
+        "ec2:DisassociateAddress",
+        "ec2:DisassociateRouteTable",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifyLaunchTemplate",
+        "ec2:ModifySubnetAttribute",
+        "ec2:ModifyVpcAttribute",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+      ]
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Project"     = "airbob"
+          "aws:ResourceTag/Environment" = "performance-lab"
+          "aws:ResourceTag/Stack"       = "lab"
+          "aws:ResourceTag/ManagedBy"   = "terraform"
+          "aws:ResourceTag/Persistence" = "ephemeral"
+        }
+      }
+    },
+    {
+      Sid      = "TagEc2LabOnCreate"
+      Effect   = "Allow"
+      Action   = "ec2:CreateTags"
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "ec2:CreateAction" = [
+            "AllocateAddress",
+            "CreateInternetGateway",
+            "CreateLaunchTemplate",
+            "CreateRouteTable",
+            "CreateSecurityGroupRule",
+            "CreateSecurityGroup",
+            "CreateSubnet",
+            "CreateVpc",
+            "CreateVpcEndpoint",
+            "RunInstances",
+          ]
+          "aws:RequestTag/Project"     = "airbob"
+          "aws:RequestTag/Environment" = "performance-lab"
+          "aws:RequestTag/Stack"       = "lab"
+          "aws:RequestTag/ManagedBy"   = "terraform"
+          "aws:RequestTag/Persistence" = "ephemeral"
+        }
+        Null = {
+          "aws:RequestTag/ExpiresAt"    = "false"
+          "aws:RequestTag/FencingToken" = "false"
+          "aws:RequestTag/RunId"        = "false"
+        }
+      }
+    },
+    {
+      Sid      = "TagVerifiedProbe"
+      Effect   = "Allow"
+      Action   = "ec2:CreateTags"
+      Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:instance/*"
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Project"     = "airbob"
+          "aws:ResourceTag/Environment" = "performance-lab"
+          "aws:ResourceTag/Stack"       = "lab"
+          "aws:ResourceTag/ManagedBy"   = "terraform"
+          "aws:ResourceTag/Persistence" = "ephemeral"
+        }
+        "ForAllValues:StringEquals" = {
+          "aws:TagKeys" = ["AirbobEgressVerified", "AirbobEgressVerifiedAt"]
+        }
+      }
+    },
+    {
+      Sid    = "DestroyTaggedEc2Lab"
+      Effect = "Allow"
+      Action = [
+        "ec2:DeleteInternetGateway",
+        "ec2:DeleteLaunchTemplate",
+        "ec2:DeleteLaunchTemplateVersions",
+        "ec2:DeleteRouteTable",
+        "ec2:DeleteSecurityGroup",
+        "ec2:DeleteSubnet",
+        "ec2:DeleteVpc",
+        "ec2:DeleteVpcEndpoints",
+        "ec2:DetachInternetGateway",
+        "ec2:ReleaseAddress",
+        "ec2:TerminateInstances",
+      ]
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Project"     = "airbob"
+          "aws:ResourceTag/Environment" = "performance-lab"
+          "aws:ResourceTag/Stack"       = "lab"
+          "aws:ResourceTag/ManagedBy"   = "terraform"
+          "aws:ResourceTag/Persistence" = "ephemeral"
+        }
+      }
+    },
+    {
+      Sid      = "CreateBoundedHostRoles"
+      Effect   = "Allow"
+      Action   = ["iam:CreateRole", "iam:TagRole"]
+      Resource = "arn:aws:iam::${var.account_id}:role/airbob-lab-host-*"
+      Condition = {
+        StringEquals = {
+          "iam:PermissionsBoundary"    = aws_iam_policy.lab_host_boundary.arn
+          "aws:RequestTag/Project"     = "airbob"
+          "aws:RequestTag/Environment" = "performance-lab"
+          "aws:RequestTag/Stack"       = "lab"
+          "aws:RequestTag/ManagedBy"   = "terraform"
+          "aws:RequestTag/Persistence" = "ephemeral"
+        }
+        Null = {
+          "aws:RequestTag/ExpiresAt"    = "false"
+          "aws:RequestTag/FencingToken" = "false"
+          "aws:RequestTag/RunId"        = "false"
+        }
+      }
+    },
+    {
+      Sid    = "ManageBoundedHostRoles"
+      Effect = "Allow"
+      Action = [
+        "iam:AttachRolePolicy",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+      ]
+      Resource = "arn:aws:iam::${var.account_id}:role/airbob-lab-host-*"
+    },
+    {
+      Sid    = "ManageLabInstanceProfiles"
+      Effect = "Allow"
+      Action = [
+        "iam:AddRoleToInstanceProfile",
+        "iam:CreateInstanceProfile",
+        "iam:DeleteInstanceProfile",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:TagInstanceProfile",
+        "iam:UntagInstanceProfile",
+      ]
+      Resource = "arn:aws:iam::${var.account_id}:instance-profile/airbob-lab-host-*"
+    },
+    {
+      Sid      = "PassBoundedRolesToEc2"
+      Effect   = "Allow"
+      Action   = "iam:PassRole"
+      Resource = "arn:aws:iam::${var.account_id}:role/airbob-lab-host-*"
+      Condition = {
+        StringEquals = {
+          "iam:PassedToService" = "ec2.amazonaws.com"
+        }
+      }
+    },
+    {
+      Sid      = "UseSsmCorePolicy"
+      Effect   = "Allow"
+      Action   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
+      Resource = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    },
+  ]
+
+  lab_compute_ssm_dns_statements = [
+    {
+      Sid      = "CreateTaggedLabDocument"
+      Effect   = "Allow"
+      Action   = "ssm:CreateDocument"
+      Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:document/airbob-*"
+      Condition = {
+        StringEquals = {
+          "aws:RequestTag/Project"     = "airbob"
+          "aws:RequestTag/Environment" = "performance-lab"
+          "aws:RequestTag/Stack"       = "lab"
+          "aws:RequestTag/Persistence" = "ephemeral"
+        }
+      }
+    },
+    {
+      Sid    = "ManageTaggedLabDocument"
+      Effect = "Allow"
+      Action = [
+        "ssm:AddTagsToResource",
+        "ssm:DeleteDocument",
+        "ssm:RemoveTagsFromResource",
+        "ssm:UpdateDocument",
+        "ssm:UpdateDocumentDefaultVersion",
+      ]
+      Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:document/airbob-*"
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Project"     = "airbob"
+          "aws:ResourceTag/Environment" = "performance-lab"
+          "aws:ResourceTag/Stack"       = "lab"
+          "aws:ResourceTag/Persistence" = "ephemeral"
+        }
+      }
+    },
+    {
+      Sid      = "CreateTaggedLabAssociation"
+      Effect   = "Allow"
+      Action   = "ssm:CreateAssociation"
+      Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:association/*"
+      Condition = {
+        StringEquals = {
+          "aws:RequestTag/Project"     = "airbob"
+          "aws:RequestTag/Environment" = "performance-lab"
+          "aws:RequestTag/Stack"       = "lab"
+          "aws:RequestTag/Persistence" = "ephemeral"
+        }
+      }
+    },
+    {
+      Sid    = "UseLabAssociationTargets"
+      Effect = "Allow"
+      Action = "ssm:CreateAssociation"
+      Resource = [
+        "arn:aws:ssm:${var.aws_region}:${var.account_id}:document/airbob-*",
+        "arn:aws:ec2:${var.aws_region}:${var.account_id}:instance/*",
+      ]
+      Condition = {
+        StringEquals = {
+          "ssm:resourceTag/Project"     = "airbob"
+          "ssm:resourceTag/Environment" = "performance-lab"
+          "ssm:resourceTag/Stack"       = "lab"
+        }
+      }
+    },
+    {
+      Sid    = "ManageTaggedLabAssociation"
+      Effect = "Allow"
+      Action = [
+        "ssm:AddTagsToResource",
+        "ssm:DeleteAssociation",
+        "ssm:RemoveTagsFromResource",
+        "ssm:UpdateAssociation",
+      ]
+      Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:association/*"
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Project"     = "airbob"
+          "aws:ResourceTag/Environment" = "performance-lab"
+          "aws:ResourceTag/Stack"       = "lab"
+          "aws:ResourceTag/Persistence" = "ephemeral"
+        }
+      }
+    },
+    {
+      Sid      = "UseRunShellDocument"
+      Effect   = "Allow"
+      Action   = "ssm:SendCommand"
+      Resource = "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript"
+    },
+    {
+      Sid      = "SendCommandsToLabInstances"
+      Effect   = "Allow"
+      Action   = "ssm:SendCommand"
+      Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:instance/*"
+      Condition = {
+        StringEquals = {
+          "ssm:resourceTag/Project"     = "airbob"
+          "ssm:resourceTag/Environment" = "performance-lab"
+          "ssm:resourceTag/Stack"       = "lab"
+        }
+      }
+    },
+    {
+      Sid      = "ReadCommandResults"
+      Effect   = "Allow"
+      Action   = ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:ListCommands"]
+      Resource = "*"
+    },
+    {
+      Sid    = "ReadPersistentPrivateZone"
+      Effect = "Allow"
+      Action = [
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets",
+        "route53:ListTagsForResource",
+      ]
+      Resource = aws_route53_zone.private.arn
+    },
+    {
+      Sid    = "AssociateLabVpcWithPrivateZone"
+      Effect = "Allow"
+      Action = [
+        "route53:AssociateVPCWithHostedZone",
+        "route53:DisassociateVPCFromHostedZone",
+      ]
+      Resource = aws_route53_zone.private.arn
+      Condition = {
+        StringLike = {
+          "route53:VPCs" = "VPCId=vpc-*,VPCRegion=${var.aws_region}"
+        }
+      }
+    },
+    {
+      Sid      = "ListPrivateZoneAssociations"
+      Effect   = "Allow"
+      Action   = "route53:ListHostedZonesByVPC"
+      Resource = "*"
+      Condition = {
+        StringLike = {
+          "route53:VPCs" = "VPCId=vpc-*,VPCRegion=${var.aws_region}"
+        }
+      }
+    },
+    {
+      Sid      = "ChangePrivateServiceRecords"
+      Effect   = "Allow"
+      Action   = "route53:ChangeResourceRecordSets"
+      Resource = aws_route53_zone.private.arn
+      Condition = {
+        "ForAllValues:StringEquals" = {
+          "route53:ChangeResourceRecordSetsNormalizedRecordNames" = [
+            "connect.lab.airbob.internal",
+            "elasticsearch.lab.airbob.internal",
+            "kafka.lab.airbob.internal",
+            "monitoring.lab.airbob.internal",
+            "redis-cache.lab.airbob.internal",
+            "redis-general.lab.airbob.internal",
+          ]
+          "route53:ChangeResourceRecordSetsRecordTypes" = "A"
+          "route53:ChangeResourceRecordSetsActions"     = ["CREATE", "UPSERT", "DELETE"]
+        }
+      }
+    },
+    {
+      Sid      = "ReadPrivateDnsChanges"
+      Effect   = "Allow"
+      Action   = "route53:GetChange"
+      Resource = "arn:aws:route53:::change/*"
+    },
+    {
+      Sid    = "ReadNetworkReceipts"
+      Effect = "Allow"
+      Action = "s3:GetObject"
+      Resource = [
+        "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+      ]
+    },
+  ]
+
   lab_compute_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "DescribeLabInfrastructure"
-        Effect = "Allow"
-        Action = [
-          "ec2:Describe*",
-          "iam:GetInstanceProfile",
-          "iam:GetRole",
-          "iam:GetRolePolicy",
-          "iam:ListAttachedRolePolicies",
-          "iam:ListInstanceProfilesForRole",
-          "iam:ListRolePolicies",
-          "iam:ListRoleTags",
-          "ssm:DescribeAssociation",
-          "ssm:DescribeDocument",
-          "ssm:GetDocument",
-          "ssm:ListAssociationVersions",
-          "ssm:ListAssociations",
-          "ssm:ListDocuments",
-          "ssm:ListTagsForResource",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "CreateTaggedEc2Lab"
-        Effect = "Allow"
-        Action = [
-          "ec2:AllocateAddress",
-          "ec2:CreateInternetGateway",
-          "ec2:CreateLaunchTemplate",
-          "ec2:CreateRouteTable",
-          "ec2:CreateSecurityGroup",
-          "ec2:CreateSubnet",
-          "ec2:CreateVpc",
-          "ec2:CreateVpcEndpoint",
-          "ec2:RunInstances",
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:RequestTag/Project"     = "airbob"
-            "aws:RequestTag/Environment" = "performance-lab"
-            "aws:RequestTag/Stack"       = "lab"
-            "aws:RequestTag/ManagedBy"   = "terraform"
-            "aws:RequestTag/Persistence" = "ephemeral"
-          }
-          Null = {
-            "aws:RequestTag/ExpiresAt"    = "false"
-            "aws:RequestTag/FencingToken" = "false"
-            "aws:RequestTag/RunId"        = "false"
-          }
-        }
-      },
-      {
-        Sid    = "MutateTaggedEc2Lab"
-        Effect = "Allow"
-        Action = [
-          "ec2:AssociateAddress",
-          "ec2:AssociateRouteTable",
-          "ec2:AttachInternetGateway",
-          "ec2:AuthorizeSecurityGroupEgress",
-          "ec2:AuthorizeSecurityGroupIngress",
-          "ec2:CreateRoute",
-          "ec2:CreateLaunchTemplateVersion",
-          "ec2:DeleteRoute",
-          "ec2:DisassociateAddress",
-          "ec2:DisassociateRouteTable",
-          "ec2:ModifyInstanceAttribute",
-          "ec2:ModifyLaunchTemplate",
-          "ec2:ModifySubnetAttribute",
-          "ec2:ModifyVpcAttribute",
-          "ec2:RevokeSecurityGroupEgress",
-          "ec2:RevokeSecurityGroupIngress",
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Project"     = "airbob"
-            "aws:ResourceTag/Environment" = "performance-lab"
-            "aws:ResourceTag/Stack"       = "lab"
-            "aws:ResourceTag/ManagedBy"   = "terraform"
-            "aws:ResourceTag/Persistence" = "ephemeral"
-          }
-        }
-      },
-      {
-        Sid      = "TagEc2LabOnCreate"
-        Effect   = "Allow"
-        Action   = "ec2:CreateTags"
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "ec2:CreateAction" = [
-              "AllocateAddress",
-              "CreateInternetGateway",
-              "CreateLaunchTemplate",
-              "CreateRouteTable",
-              "CreateSecurityGroupRule",
-              "CreateSecurityGroup",
-              "CreateSubnet",
-              "CreateVpc",
-              "CreateVpcEndpoint",
-              "RunInstances",
-            ]
-            "aws:RequestTag/Project"     = "airbob"
-            "aws:RequestTag/Environment" = "performance-lab"
-            "aws:RequestTag/Stack"       = "lab"
-            "aws:RequestTag/ManagedBy"   = "terraform"
-            "aws:RequestTag/Persistence" = "ephemeral"
-          }
-          Null = {
-            "aws:RequestTag/ExpiresAt"    = "false"
-            "aws:RequestTag/FencingToken" = "false"
-            "aws:RequestTag/RunId"        = "false"
-          }
-        }
-      },
-      {
-        Sid      = "TagVerifiedProbe"
-        Effect   = "Allow"
-        Action   = "ec2:CreateTags"
-        Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:instance/*"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Project"     = "airbob"
-            "aws:ResourceTag/Environment" = "performance-lab"
-            "aws:ResourceTag/Stack"       = "lab"
-            "aws:ResourceTag/ManagedBy"   = "terraform"
-            "aws:ResourceTag/Persistence" = "ephemeral"
-          }
-          "ForAllValues:StringEquals" = {
-            "aws:TagKeys" = ["AirbobEgressVerified", "AirbobEgressVerifiedAt"]
-          }
-        }
-      },
-      {
-        Sid    = "DestroyTaggedEc2Lab"
-        Effect = "Allow"
-        Action = [
-          "ec2:DeleteInternetGateway",
-          "ec2:DeleteLaunchTemplate",
-          "ec2:DeleteLaunchTemplateVersions",
-          "ec2:DeleteRouteTable",
-          "ec2:DeleteSecurityGroup",
-          "ec2:DeleteSubnet",
-          "ec2:DeleteVpc",
-          "ec2:DeleteVpcEndpoints",
-          "ec2:DetachInternetGateway",
-          "ec2:ReleaseAddress",
-          "ec2:TerminateInstances",
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Project"     = "airbob"
-            "aws:ResourceTag/Environment" = "performance-lab"
-            "aws:ResourceTag/Stack"       = "lab"
-            "aws:ResourceTag/ManagedBy"   = "terraform"
-            "aws:ResourceTag/Persistence" = "ephemeral"
-          }
-        }
-      },
-      {
-        Sid      = "CreateBoundedHostRoles"
-        Effect   = "Allow"
-        Action   = ["iam:CreateRole", "iam:TagRole"]
-        Resource = "arn:aws:iam::${var.account_id}:role/airbob-lab-host-*"
-        Condition = {
-          StringEquals = {
-            "iam:PermissionsBoundary"    = aws_iam_policy.lab_host_boundary.arn
-            "aws:RequestTag/Project"     = "airbob"
-            "aws:RequestTag/Environment" = "performance-lab"
-            "aws:RequestTag/Stack"       = "lab"
-            "aws:RequestTag/ManagedBy"   = "terraform"
-            "aws:RequestTag/Persistence" = "ephemeral"
-          }
-          Null = {
-            "aws:RequestTag/ExpiresAt"    = "false"
-            "aws:RequestTag/FencingToken" = "false"
-            "aws:RequestTag/RunId"        = "false"
-          }
-        }
-      },
-      {
-        Sid    = "ManageBoundedHostRoles"
-        Effect = "Allow"
-        Action = [
-          "iam:AttachRolePolicy",
-          "iam:DeleteRole",
-          "iam:DeleteRolePolicy",
-          "iam:DetachRolePolicy",
-          "iam:PutRolePolicy",
-          "iam:TagRole",
-          "iam:UntagRole",
-        ]
-        Resource = "arn:aws:iam::${var.account_id}:role/airbob-lab-host-*"
-      },
-      {
-        Sid    = "ManageLabInstanceProfiles"
-        Effect = "Allow"
-        Action = [
-          "iam:AddRoleToInstanceProfile",
-          "iam:CreateInstanceProfile",
-          "iam:DeleteInstanceProfile",
-          "iam:RemoveRoleFromInstanceProfile",
-          "iam:TagInstanceProfile",
-          "iam:UntagInstanceProfile",
-        ]
-        Resource = "arn:aws:iam::${var.account_id}:instance-profile/airbob-lab-host-*"
-      },
-      {
-        Sid      = "PassBoundedRolesToEc2"
-        Effect   = "Allow"
-        Action   = "iam:PassRole"
-        Resource = "arn:aws:iam::${var.account_id}:role/airbob-lab-host-*"
-        Condition = {
-          StringEquals = {
-            "iam:PassedToService" = "ec2.amazonaws.com"
-          }
-        }
-      },
-      {
-        Sid      = "UseSsmCorePolicy"
-        Effect   = "Allow"
-        Action   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
-        Resource = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-      },
-      {
-        Sid      = "CreateTaggedLabDocument"
-        Effect   = "Allow"
-        Action   = "ssm:CreateDocument"
-        Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:document/airbob-*"
-        Condition = {
-          StringEquals = {
-            "aws:RequestTag/Project"     = "airbob"
-            "aws:RequestTag/Environment" = "performance-lab"
-            "aws:RequestTag/Stack"       = "lab"
-            "aws:RequestTag/Persistence" = "ephemeral"
-          }
-        }
-      },
-      {
-        Sid    = "ManageTaggedLabDocument"
-        Effect = "Allow"
-        Action = [
-          "ssm:AddTagsToResource",
-          "ssm:DeleteDocument",
-          "ssm:RemoveTagsFromResource",
-          "ssm:UpdateDocument",
-          "ssm:UpdateDocumentDefaultVersion",
-        ]
-        Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:document/airbob-*"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Project"     = "airbob"
-            "aws:ResourceTag/Environment" = "performance-lab"
-            "aws:ResourceTag/Stack"       = "lab"
-            "aws:ResourceTag/Persistence" = "ephemeral"
-          }
-        }
-      },
-      {
-        Sid      = "CreateTaggedLabAssociation"
-        Effect   = "Allow"
-        Action   = "ssm:CreateAssociation"
-        Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:association/*"
-        Condition = {
-          StringEquals = {
-            "aws:RequestTag/Project"     = "airbob"
-            "aws:RequestTag/Environment" = "performance-lab"
-            "aws:RequestTag/Stack"       = "lab"
-            "aws:RequestTag/Persistence" = "ephemeral"
-          }
-        }
-      },
-      {
-        Sid    = "UseLabAssociationTargets"
-        Effect = "Allow"
-        Action = "ssm:CreateAssociation"
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:${var.account_id}:document/airbob-*",
-          "arn:aws:ec2:${var.aws_region}:${var.account_id}:instance/*",
-        ]
-        Condition = {
-          StringEquals = {
-            "ssm:resourceTag/Project"     = "airbob"
-            "ssm:resourceTag/Environment" = "performance-lab"
-            "ssm:resourceTag/Stack"       = "lab"
-          }
-        }
-      },
-      {
-        Sid    = "ManageTaggedLabAssociation"
-        Effect = "Allow"
-        Action = [
-          "ssm:AddTagsToResource",
-          "ssm:DeleteAssociation",
-          "ssm:RemoveTagsFromResource",
-          "ssm:UpdateAssociation",
-        ]
-        Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:association/*"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Project"     = "airbob"
-            "aws:ResourceTag/Environment" = "performance-lab"
-            "aws:ResourceTag/Stack"       = "lab"
-            "aws:ResourceTag/Persistence" = "ephemeral"
-          }
-        }
-      },
-      {
-        Sid      = "UseRunShellDocument"
-        Effect   = "Allow"
-        Action   = "ssm:SendCommand"
-        Resource = "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript"
-      },
-      {
-        Sid      = "SendCommandsToLabInstances"
-        Effect   = "Allow"
-        Action   = "ssm:SendCommand"
-        Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:instance/*"
-        Condition = {
-          StringEquals = {
-            "ssm:resourceTag/Project"     = "airbob"
-            "ssm:resourceTag/Environment" = "performance-lab"
-            "ssm:resourceTag/Stack"       = "lab"
-          }
-        }
-      },
-      {
-        Sid      = "ReadCommandResults"
-        Effect   = "Allow"
-        Action   = ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:ListCommands"]
-        Resource = "*"
-      },
-      {
-        Sid    = "ReadPersistentPrivateZone"
-        Effect = "Allow"
-        Action = [
-          "route53:GetHostedZone",
-          "route53:ListResourceRecordSets",
-          "route53:ListTagsForResource",
-        ]
-        Resource = aws_route53_zone.private.arn
-      },
-      {
-        Sid    = "AssociateLabVpcWithPrivateZone"
-        Effect = "Allow"
-        Action = [
-          "route53:AssociateVPCWithHostedZone",
-          "route53:DisassociateVPCFromHostedZone",
-        ]
-        Resource = aws_route53_zone.private.arn
-        Condition = {
-          StringLike = {
-            "route53:VPCs" = "VPCId=vpc-*,VPCRegion=${var.aws_region}"
-          }
-        }
-      },
-      {
-        Sid      = "ListPrivateZoneAssociations"
-        Effect   = "Allow"
-        Action   = "route53:ListHostedZonesByVPC"
-        Resource = "*"
-        Condition = {
-          StringLike = {
-            "route53:VPCs" = "VPCId=vpc-*,VPCRegion=${var.aws_region}"
-          }
-        }
-      },
-      {
-        Sid      = "ChangePrivateServiceRecords"
-        Effect   = "Allow"
-        Action   = "route53:ChangeResourceRecordSets"
-        Resource = aws_route53_zone.private.arn
-        Condition = {
-          "ForAllValues:StringEquals" = {
-            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = [
-              "connect.lab.airbob.internal",
-              "elasticsearch.lab.airbob.internal",
-              "kafka.lab.airbob.internal",
-              "monitoring.lab.airbob.internal",
-              "redis-cache.lab.airbob.internal",
-              "redis-general.lab.airbob.internal",
-            ]
-            "route53:ChangeResourceRecordSetsRecordTypes" = "A"
-            "route53:ChangeResourceRecordSetsActions"     = ["CREATE", "UPSERT", "DELETE"]
-          }
-        }
-      },
-      {
-        Sid      = "ReadPrivateDnsChanges"
-        Effect   = "Allow"
-        Action   = "route53:GetChange"
-        Resource = "arn:aws:route53:::change/*"
-      },
-      {
-        Sid    = "ReadNetworkReceipts"
-        Effect = "Allow"
-        Action = "s3:GetObject"
-        Resource = [
-          "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
-          "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
-        ]
-      },
-    ]
+    Version   = "2012-10-17"
+    Statement = concat(local.lab_compute_ec2_iam_statements, local.lab_compute_ssm_dns_statements)
+  })
+
+  lab_compute_ec2_iam_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = local.lab_compute_ec2_iam_statements
+  })
+
+  lab_compute_ssm_dns_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = local.lab_compute_ssm_dns_statements
   })
 
   lab_data_compute_policy = jsonencode({
@@ -788,36 +803,6 @@ resource "aws_iam_policy" "lab_host_boundary" {
   name        = local.lab_host_boundary_name
   description = "Maximum permissions for ephemeral Airbob performance-lab EC2 roles"
   policy      = local.lab_host_boundary_policy
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_iam_role_policy" "lab_compute" {
-  name   = "airbob-lab-operator-compute"
-  role   = aws_iam_role.lab_operator.id
-  policy = local.lab_compute_policy
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_iam_role_policy" "lab_data_compute" {
-  name   = "airbob-lab-operator-data-compute"
-  role   = aws_iam_role.lab_operator.id
-  policy = local.lab_data_compute_policy
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_iam_role_policy" "lab_app_compute" {
-  name   = "airbob-lab-operator-app-compute"
-  role   = aws_iam_role.lab_operator.id
-  policy = local.lab_app_compute_policy
 
   lifecycle {
     prevent_destroy = true
