@@ -361,7 +361,7 @@ class ReservationConcurrencyTest {
 		CountDownLatch readyLatch = new CountDownLatch(2);
 		CountDownLatch startLatch = new CountDownLatch(1);
 		CountDownLatch doneLatch = new CountDownLatch(2);
-		AtomicInteger unexpectedFailCount = new AtomicInteger();
+		List<Throwable> unexpectedFailures = java.util.Collections.synchronizedList(new ArrayList<>());
 		List<UUID> returnedOperationUids = java.util.Collections.synchronizedList(new ArrayList<>());
 
 		for (int i = 0; i < 2; i++) {
@@ -372,7 +372,7 @@ class ReservationConcurrencyTest {
 					returnedOperationUids.add(paymentOperationCommandService
 						.requestConfirmation(request, guests.getFirst().getId()).operationId());
 				} catch (Exception e) {
-					unexpectedFailCount.incrementAndGet();
+					unexpectedFailures.add(e);
 				} finally {
 					doneLatch.countDown();
 				}
@@ -388,7 +388,7 @@ class ReservationConcurrencyTest {
 			.findByReservationUid(pendingReservation.getReservationUid())
 			.orElseThrow();
 
-		assertThat(unexpectedFailCount.get()).isZero();
+		assertThat(unexpectedFailures).isEmpty();
 		assertThat(returnedOperationUids).hasSize(2).containsOnly(returnedOperationUids.getFirst());
 		assertThat(paymentOperationRepository.count()).isEqualTo(1);
 		assertThat(outboxRepository.findAll().stream()

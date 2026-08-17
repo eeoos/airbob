@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
@@ -40,7 +41,8 @@ public class PaymentOperationCommandService {
 	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
-	@Transactional
+	// The initial lookup establishes lock order; replay lookup must see a commit made while waiting.
+	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Accepted requestConfirmation(PaymentRequest.Confirm request, Long memberId) {
 		UUID reservationUid = parseReservationUid(request.orderId());
 		Long accommodationId = reservationRepository.findAccommodationIdByReservationUid(reservationUid)

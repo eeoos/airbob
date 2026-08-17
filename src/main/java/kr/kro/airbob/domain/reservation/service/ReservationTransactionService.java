@@ -10,6 +10,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.cursor.dto.CursorRequest;
@@ -75,7 +76,8 @@ public class ReservationTransactionService {
 	private final BookingWindowProvider bookingWindowProvider;
 	private final Clock clock;
 
-	@Transactional
+	// The accommodation row is the inventory mutex; avoid empty-range gap locks here.
+	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
 		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
 		Accommodation accommodation = accommodationRepository.findByIdAndStatusForUpdate(
