@@ -130,12 +130,6 @@ public class AccommodationDetailCache {
 			return timedUncachedLoad(loader);
 		}
 
-		// 같은 숙소를 이미 DB에서 읽는 스레드가 있으면 그 결과를 함께 사용
-		CompletableFuture<AccommodationDetailSnapshot> localLoad = localLoads.get(accommodationId);
-		if (localLoad != null) {
-			return awaitLocalLoad(accommodationId, localLoad, loader);
-		}
-
 		// 캐시가 정상이면 락이나 DB를 사용하지 않음
 		CacheLookup<AccommodationDetailSnapshot> firstLookup = read(accommodationId);
 		switch (firstLookup) {
@@ -150,6 +144,12 @@ public class AccommodationDetailCache {
 			}
 			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> { // MISS인 경우 분산 락 진입
 			}
+		}
+
+		// Redis miss라면 이미 진행 중인 fallback DB 조회에 합류해 추가 락과 조회를 피한다.
+		CompletableFuture<AccommodationDetailSnapshot> localLoad = localLoads.get(accommodationId);
+		if (localLoad != null) {
+			return awaitLocalLoad(accommodationId, localLoad, loader);
 		}
 
 		// Cache miss일 때 여러 서버 중 한 요청만 DB를 읽도록 숙소별 분산 락 사용

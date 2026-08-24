@@ -161,6 +161,108 @@ class AccommodationDetailCacheTest {
 	}
 
 	@Test
+	@DisplayName("fallback 조회 중 Redis가 복구되면 캐시 hit를 먼저 반환한다")
+	void recoveredRedisHitWinsOverInFlightFallback() throws Exception {
+		AccommodationDetailCache shortWaitCache = cacheWithLocalLoadWait(Duration.ofMillis(50));
+		AccommodationDetailSnapshot cached = snapshot(1L, "cached-after-recovery");
+		when(redisClient.get(CACHE_KEY))
+			.thenThrow(new IllegalStateException("redis down"))
+			.thenReturn(json(AccommodationDetailCacheValue.found(cached)));
+		CountDownLatch fallbackStarted = new CountDownLatch(1);
+		CountDownLatch releaseFallback = new CountDownLatch(1);
+		CompletableFuture<AccommodationDetailSnapshot> fallback = CompletableFuture.supplyAsync(
+			() -> shortWaitCache.getOrLoad(1L, () -> {
+				fallbackStarted.countDown();
+				await(releaseFallback);
+				return snapshot(1L, "fallback");
+			}));
+		assertThat(fallbackStarted.await(5, TimeUnit.SECONDS)).isTrue();
+		AtomicInteger secondLoads = new AtomicInteger();
+
+		AccommodationDetailSnapshot actual = shortWaitCache.getOrLoad(1L, () -> {
+			secondLoads.incrementAndGet();
+			return snapshot(1L, "unexpected-database");
+		});
+		releaseFallback.countDown();
+
+		assertThat(actual).isEqualTo(cached);
+		assertThat(secondLoads).hasValue(0);
+		assertThat(fallback.get(5, TimeUnit.SECONDS).name()).isEqualTo("fallback");
+		verify(redisClient, times(2)).get(CACHE_KEY);
+		verifyNoInteractions(redissonClient);
+	}
+
+	@Test
+	@DisplayName("fallback 조회 중 Redis가 복구되면 negative cache를 먼저 반환한다")
+	void recoveredRedisNegativeHitWinsOverInFlightFallback() throws Exception {
+		when(redisClient.get(CACHE_KEY))
+			.thenThrow(new IllegalStateException("redis down"))
+			.thenReturn(json(AccommodationDetailCacheValue.notFound()));
+		CountDownLatch fallbackStarted = new CountDownLatch(1);
+		CountDownLatch releaseFallback = new CountDownLatch(1);
+		CompletableFuture<AccommodationDetailSnapshot> fallback = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, () -> {
+				fallbackStarted.countDown();
+				await(releaseFallback);
+				return snapshot(1L, "fallback");
+			}));
+		assertThat(fallbackStarted.await(5, TimeUnit.SECONDS)).isTrue();
+		AtomicInteger secondLoads = new AtomicInteger();
+
+		assertThatThrownBy(() -> cache.getOrLoad(1L, () -> {
+			secondLoads.incrementAndGet();
+			return snapshot(1L, "unexpected-database");
+		})).isInstanceOf(AccommodationNotFoundException.class);
+		releaseFallback.countDown();
+
+		assertThat(secondLoads).hasValue(0);
+		assertThat(fallback.get(5, TimeUnit.SECONDS).name()).isEqualTo("fallback");
+		verify(redisClient, times(2)).get(CACHE_KEY);
+		verifyNoInteractions(redissonClient);
+	}
+
+	@Test
+	@DisplayName("fallback 조회 중 Redis가 miss이면 분산 락 전에 기존 조회에 합류한다")
+	void recoveredRedisMissJoinsInFlightFallbackBeforeLock() throws Exception {
+		CountDownLatch secondRedisRead = new CountDownLatch(1);
+		AtomicInteger redisReads = new AtomicInteger();
+		when(redisClient.get(CACHE_KEY)).thenAnswer(invocation -> {
+			if (redisReads.incrementAndGet() == 1) {
+				throw new IllegalStateException("redis down");
+			}
+			secondRedisRead.countDown();
+			return null;
+		});
+		CountDownLatch fallbackStarted = new CountDownLatch(1);
+		CountDownLatch releaseFallback = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+		Supplier<AccommodationDetailSnapshot> loader = () -> {
+			loads.incrementAndGet();
+			fallbackStarted.countDown();
+			await(releaseFallback);
+			return snapshot(1L, "fallback");
+		};
+		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, loader));
+		assertThat(fallbackStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+		AtomicReference<Thread> followerThread = new AtomicReference<>();
+		CompletableFuture<AccommodationDetailSnapshot> follower = CompletableFuture.supplyAsync(() -> {
+			followerThread.set(Thread.currentThread());
+			return cache.getOrLoad(1L, loader);
+		});
+		assertThat(secondRedisRead.await(5, TimeUnit.SECONDS)).isTrue();
+		awaitWaiting(followerThread);
+		releaseFallback.countDown();
+
+		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("fallback");
+		assertThat(follower.get(5, TimeUnit.SECONDS).name()).isEqualTo("fallback");
+		assertThat(loads).hasValue(1);
+		assertThat(redisReads).hasValue(2);
+		verifyNoInteractions(redissonClient);
+	}
+
+	@Test
 	@DisplayName("같은 ID의 반복 404는 negative cache에서 차단한다")
 	void negativeHitSkipsLoader() throws Exception {
 		when(redisClient.get(CACHE_KEY)).thenReturn(json(AccommodationDetailCacheValue.notFound()));
@@ -347,6 +449,7 @@ class AccommodationDetailCacheTest {
 		assertThat(first.get(5, TimeUnit.SECONDS).name()).isEqualTo("database");
 		assertThat(second.get(5, TimeUnit.SECONDS).name()).isEqualTo("database");
 		assertThat(loads).hasValue(1);
+		verify(redisClient, times(2)).get(CACHE_KEY);
 	}
 
 	@Test
@@ -523,7 +626,7 @@ class AccommodationDetailCacheTest {
 
 		assertThat(leader.isDone()).isFalse();
 		assertThat(follower.isDone()).isFalse();
-		verify(redisClient, times(1)).get(CACHE_KEY);
+		verify(redisClient, times(2)).get(CACHE_KEY);
 
 		releaseInvalidation.countDown();
 		eviction.get(5, TimeUnit.SECONDS);
@@ -533,7 +636,7 @@ class AccommodationDetailCacheTest {
 		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
 		assertThat(leaderLoads).hasValue(2);
 		assertThat(followerLoads).hasValue(1);
-		verify(redisClient, times(1)).get(CACHE_KEY);
+		verify(redisClient, times(2)).get(CACHE_KEY);
 	}
 
 	@Test
