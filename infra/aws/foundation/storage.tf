@@ -81,21 +81,69 @@ resource "aws_s3_bucket_policy" "managed" {
   bucket = each.value.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid       = "DenyInsecureTransport"
-      Effect    = "Deny"
-      Principal = "*"
-      Action    = "s3:*"
-      Resource = [
-        each.value.arn,
-        "${each.value.arn}/*",
-      ]
-      Condition = {
-        Bool = {
-          "aws:SecureTransport" = "false"
+    Statement = concat(
+      [{
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          each.value.arn,
+          "${each.value.arn}/*",
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
         }
-      }
-    }]
+      }],
+      [for statement in [
+        {
+          Sid       = "DenyDatasetReleaseOverwrite"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:PutObject"
+          Resource  = "${each.value.arn}/datasets/*"
+          Condition = {
+            Null = {
+              "s3:if-none-match" = "true"
+            }
+            Bool = {
+              "s3:ObjectCreationOperation" = "true"
+            }
+          }
+        },
+        {
+          Sid       = "DenyDatasetReleaseDeletion"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = ["s3:DeleteObject", "s3:DeleteObjectVersion"]
+          Resource  = "${each.value.arn}/datasets/*"
+        },
+        {
+          Sid       = "DenySnapshotSealOverwrite"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:PutObject"
+          Resource  = "${each.value.arn}/elasticsearch/seals/*"
+          Condition = {
+            Null = {
+              "s3:if-none-match" = "true"
+            }
+            Bool = {
+              "s3:ObjectCreationOperation" = "true"
+            }
+          }
+        },
+        {
+          Sid       = "DenySnapshotSealDeletion"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = ["s3:DeleteObject", "s3:DeleteObjectVersion"]
+          Resource  = "${each.value.arn}/elasticsearch/seals/*"
+        },
+      ] : statement if each.key == "dataset"],
+    )
   })
 
   depends_on = [aws_s3_bucket_public_access_block.managed]
@@ -121,14 +169,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "release" {
     }
   }
 
-  rule {
-    id     = "expire-noncurrent-versions"
-    status = "Enabled"
+  # A snapshot seal binds every completed object version and delete marker in
+  # its release prefix. Only the non-snapshot bundle bucket may expire old
+  # versions; incomplete multipart uploads never become sealed object versions.
+  dynamic "rule" {
+    for_each = each.value == "bundle" ? [true] : []
 
-    filter {}
+    content {
+      id     = "expire-noncurrent-versions"
+      status = "Enabled"
 
-    noncurrent_version_expiration {
-      noncurrent_days = 30
+      filter {}
+
+      noncurrent_version_expiration {
+        noncurrent_days = 30
+      }
     }
   }
 

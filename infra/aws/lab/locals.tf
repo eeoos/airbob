@@ -130,6 +130,12 @@ locals {
     } : {
     min = 1, desired = 1, max = 4
   }
+  app_availability_zones = var.mode == "performance" ? [
+    var.primary_availability_zone,
+    ] : [
+    var.primary_availability_zone,
+    var.secondary_availability_zone,
+  ]
   app_subnet_ids = var.mode == "performance" ? [
     module.network.private_subnet_ids.primary,
     ] : [

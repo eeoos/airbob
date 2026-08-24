@@ -1,10 +1,13 @@
 # AWS performance-lab dataset releases
 
-Dataset publication is a producer/admin responsibility outside the ephemeral
-lab Terraform role. Publish every object below
-`datasets/<datasetRelease>/`, verify it locally, and upload `manifest.json`
-last as the completion marker. The lab selects both the release name and the
-exact manifest SHA-256; it never searches for a latest release.
+Dataset publication is a local producer responsibility of the dedicated
+`airbob-dataset-publisher` role, never the ephemeral lab Terraform role. The
+role and its bucket policy are implemented in the foundation root but have not
+been applied, and no dataset release or Elasticsearch snapshot has been
+published. After applying that reviewed foundation change, publish every
+object below `datasets/<datasetRelease>/`, verify it locally, and upload
+`manifest.json` last as the completion marker. The lab selects both the release
+name and the exact manifest SHA-256; it never searches for a latest release.
 
 ## Release layout
 
@@ -72,27 +75,68 @@ enable both benchmark and traffic fixtures. Its service schema, traffic seed,
 anchor, validity window, and timezone must agree with `airbobdb` and the
 traffic manifest rather than merely being present.
 
-First restore the ETL dump into a writer-free local MySQL `airbobdb`, place the
-server in the read-only/quiesced state required by the capture script, and
-provide the connection values through `AIRBOB_DATASET_DB_*` environment
-variables. Do not put the password on the command line.
+Prepare a standalone local MySQL server with an existing but completely empty
+`airbobdb` schema. Stop every application, ETL process, scheduler, and CDC
+writer first, and do not use a primary with replicas, replication appliers, or
+any other independent writer. `AIRBOB_DATASET_DB_QUIESCED=true` is the
+operator's assertion of that isolation; it is not a discovery mechanism.
+
+The capture command receives two distinct credentials. The one-shot
+`airbob_restore` account may import the dump and set the global
+`super_read_only` variable. The separate `airbob_attestor` account is
+read-only. The script first proves that `airbobdb` has zero tables, views,
+routines, events, and triggers on the selected server UUID. It privately copies
+and rehashes the verified gzip, imports those exact decompressed bytes, then
+sets `GLOBAL super_read_only=ON`. MySQL consequently must report both
+`read_only=ON` and `super_read_only=ON` before and throughout all verifier and
+capture queries. The restore secret is removed before the attestor or ETL
+verifier is invoked.
+
+`AIRBOB_DATASET_ETL_REPOSITORY` points at a local clone that contains the exact
+forty-character `etl_head` recorded in `PROVENANCE.txt`; the verifier reads the
+two approved SQL contracts from that commit with `git show`, so uncommitted ETL
+working-tree bytes are not trusted. Do not put either password on the command
+line.
 
 ```bash
+export AIRBOB_DATASET_ETL_REPOSITORY=/path/to/etl/repository
 export AIRBOB_DATASET_DB_HOST=127.0.0.1
-export AIRBOB_DATASET_DB_PORT=3306
+export AIRBOB_DATASET_DB_PORT=3307
 export AIRBOB_DATASET_DB_USER=airbob_attestor
+export AIRBOB_DATASET_DB_RESTORE_USER=airbob_restore
 export AIRBOB_DATASET_DB_NAME=airbobdb
 export AIRBOB_DATASET_DB_QUIESCED=true
+read -rs AIRBOB_DATASET_DB_RESTORE_PASSWORD
+export AIRBOB_DATASET_DB_RESTORE_PASSWORD
 read -rs AIRBOB_DATASET_DB_PASSWORD
 export AIRBOB_DATASET_DB_PASSWORD
 
 infra/aws/scripts/capture-dataset-attestation.sh \
   /path/to/etl-release /secure/path/attestation.json
+unset AIRBOB_DATASET_DB_PASSWORD AIRBOB_DATASET_DB_RESTORE_PASSWORD
 ```
 
-Then create a caller-owned output directory with mode `0700` and assemble the
-pipeline-only release. Both supplied times are RFC3339 UTC timestamps. The
-evaluation time must be no earlier than the attestation capture, while
+The scripts do not create the schema or either account, stop external writers,
+or configure a standalone topology. The ETL restore handoff must supply the
+reviewed one-shot restore grant, a restricted read-only attestor grant, and the
+quiesce procedure before this command is used; do not substitute an application
+or broad everyday administrator credential. Revoke the restore grant after a
+successful capture. Capture and snapshot production must reuse the same host,
+port, and MySQL server UUID, with both global read-only variables still on.
+
+The generated schema-version-3 attestation records
+`databaseRestoreMethod=gzip-to-empty-airbobdb-v1` and requires
+`restoredDumpSha256` to equal `sourceDumpSha256`. This binds the database under
+inspection to the exact verified gzip imported into the initially empty schema
+on the recorded MySQL server UUID. It also binds the source ETL commit, exact
+two-file verifier-contract inventory, approved database-fingerprint subset,
+successful Flyway lineage, full schema fingerprint, outbox state, and every
+base-table count while the server remains read-only and quiesced.
+
+For a database-only rehearsal, create a caller-owned output directory with
+mode `0700` and assemble the release without a snapshot reference. Both
+supplied times are RFC3339 UTC timestamps. The evaluation time must be no
+earlier than the attestation capture, while
 `valid-until` must be the exact, still-future UTC instant derived from the
 source `traffic-v1.json` `validUntil` and `timezone`; callers cannot extend the
 source dataset window. If the producer also supplies `validUntilInstant`, the
@@ -114,16 +158,232 @@ infra/aws/scripts/assemble-dataset-release.sh \
 
 The assembler snapshots its inputs into a private `<release>.incomplete`
 directory, verifies the exact ETL inventory, checksums, provenance, V20
-metadata, traffic manifest, and live-database attestation, and deterministically
-converts the gzip SQL bytes to single-threaded zstd. It copies the benchmark
-manifest byte-for-byte, writes `manifest.json` last, runs
+metadata, traffic manifest, and live-database attestation, and converts the
+gzip SQL bytes with single-threaded zstd. The resulting compressed bytes are
+SHA-256-bound by the wrapper; cross-machine byte identity is not claimed
+without the same reviewed toolchain. It copies the benchmark manifest
+byte-for-byte, writes `manifest.json` last, runs
 `verify-dataset-release.sh`, and only then atomically renames the directory to
 the final release name. Existing final or incomplete destinations are never
 overwritten.
 
-These two scripts are local-only. They do not call AWS, upload to S3, create an
-RDS snapshot, or start the performance lab. Publication remains a separate,
-explicit producer/admin action after the local release has been reviewed.
+The attestation capture and assembler are local-only. They do not call AWS,
+upload to S3, create an RDS snapshot, or start the performance lab. Snapshot
+production and publication are separate explicit operations described below.
+
+## Produce a search snapshot
+
+A search-enabled rehearsal uses the native Elasticsearch S3 repository rather
+than copying Elasticsearch data directories. It requires the immutable
+`infra-image-release-<full-commit>` artifact produced by the successful
+`infra-images` workflow. Download its `infra-image-release.json` to a private
+local path. The producer rejects a mutable tag or a local image that does not
+retain the exact ECR digest selected by that artifact.
+
+The source name `accommodations` must be a single managed write alias whose
+only target matches `accommodations-v*` and has `is_write_index=true`. The
+producer resolves and freezes that physical target, rejects alias drift during
+production, and records both `logicalAlias` and `snapshotIndex` in the
+version-2 snapshot reference. Bootstrap restores only `snapshotIndex` into a
+new dataset-versioned physical index before atomically moving `logicalAlias`.
+
+The local Elasticsearch service must run that selected image and keep the
+producer S3 client pinned to Seoul. The repository compose file supplies the
+required client setting:
+
+```bash
+export AIRBOB_INFRA_IMAGE_RELEASE=/secure/path/infra-image-release.json
+export ELASTICSEARCH_IMAGE="$(jq -er '.images.ELASTICSEARCH_IMAGE' \
+  "$AIRBOB_INFRA_IMAGE_RELEASE")"
+docker compose pull elasticsearch
+docker compose up -d --no-deps elasticsearch
+```
+
+The producer requires a temporary, exact writer grant. In the ignored
+`infra/aws/foundation/terraform.tfvars`, set the one release that may write and
+review a saved foundation plan before applying it with `admin-eeoos`:
+
+```hcl
+dataset_snapshot_writer_release = "rehearsal-v20"
+```
+
+That value grants only
+`elasticsearch/releases/rehearsal-v20/*` plus the matching DynamoDB lease row
+`airbob-dataset-snapshot/rehearsal-v20`. A null value maps both grants to the
+unusable `__disabled__` target. Do not authorize two release prefixes at once.
+
+Configure an AWS CLI role profile after the reviewed foundation change has
+been applied; replace the MFA device ARN with the IAM user's actual device:
+
+```ini
+[profile airbob-dataset-publisher]
+source_profile = admin-eeoos
+role_arn = arn:aws:iam::942632789808:role/airbob-dataset-publisher
+mfa_serial = <MFA-device-ARN>
+region = ap-northeast-2
+role_session_name = airbob-dataset-local
+duration_seconds = 7200
+```
+
+Confirm that the profile resolves to
+`arn:aws:sts::942632789808:assumed-role/airbob-dataset-publisher/...`, then run
+the producer against the writer-free restored MySQL database and quiesced local
+`accommodations` index. Do not place the database password on the command line:
+
+```bash
+export AWS_PROFILE=airbob-dataset-publisher
+export AWS_REGION=ap-northeast-2
+export AIRBOB_REGION=ap-northeast-2
+export AIRBOB_AWS_ACCOUNT_ID=942632789808
+export AIRBOB_DATASET_ETL_REPOSITORY=/path/to/etl/repository
+export AIRBOB_DATASET_DB_HOST=127.0.0.1
+export AIRBOB_DATASET_DB_PORT=3307
+export AIRBOB_DATASET_DB_USER=airbob_attestor
+export AIRBOB_DATASET_DB_NAME=airbobdb
+export AIRBOB_DATASET_DB_QUIESCED=true
+export AIRBOB_DATASET_ES_URL=http://127.0.0.1:9200
+export AIRBOB_DATASET_ES_CONTAINER=elasticsearch
+export AIRBOB_DATASET_ES_QUIESCED=true
+read -rs AIRBOB_DATASET_DB_PASSWORD
+export AIRBOB_DATASET_DB_PASSWORD
+
+aws sts get-caller-identity
+infra/aws/scripts/produce-elasticsearch-snapshot.sh \
+  /path/to/etl-release \
+  /secure/path/attestation.json \
+  "$AIRBOB_INFRA_IMAGE_RELEASE" \
+  rehearsal-v20 \
+  /secure/path/snapshot-reference.json \
+  /secure/path/snapshot-producer-receipt.json
+unset AIRBOB_DATASET_DB_PASSWORD
+```
+
+Only one producer may own a release. Before its first S3 inventory call, the
+producer acquires the protected DynamoDB row
+`airbob-dataset-snapshot/<release>` with a monotonic fencing token. A heartbeat
+covers snapshot creation and verification, while the takeover deadline extends
+beyond the temporary STS credential expiry so a crashed local Elasticsearch
+process cannot overlap a replacement writer. The S3 prefix
+`elasticsearch/releases/<release>/` must have no object versions or delete
+markers before production; a failed partial production is not silently cleaned
+or reused. The producer reruns the source ETL commit's approved database
+verifiers, freezes the source index, installs only the temporary role
+credentials in the Elasticsearch keystore, and registers the writable
+`airbob-dataset-producer` repository. After a successful snapshot it removes
+that writer and registers the same bucket and base path as
+`airbob-dataset-readonly`. It then verifies the repository and exact snapshot
+metadata, restores to a temporary index, compares MySQL/Elasticsearch document
+membership, numeric IDs, and canonical document identity pairs, and compares
+the source-index mapping/content fingerprints with the restored snapshot. A
+document identity pair is the lowercase accommodation UUID, one tab, the
+positive decimal accommodation ID, and one newline. MySQL supplies
+`LOWER(BIN_TO_UUID(accommodation_uid)), id`; Elasticsearch supplies
+`_id, _source.accommodationId`. Both complete TSV streams are byte-sorted with
+`LC_ALL=C` before hashing. The producer captures and binds them before the
+source freeze and again after snapshot verification, so changing only an ES
+`_id` cannot pass as the same dataset. The ES content fingerprint proves snapshot
+fidelity; it is not a field-by-field MySQL-to-ES projection proof. Finally it
+records a stable S3 object-version inventory. Cleanup removes local
+repositories, temporary credentials, the restore index, and the source write
+block; it never deletes the remote snapshot prefix.
+
+That inventory includes every object version and delete marker under the
+release prefix. The foundation therefore configures no object expiration,
+noncurrent-version expiration, or expired-delete-marker cleanup on the dataset
+bucket. Its only lifecycle action aborts incomplete multipart uploads after
+seven days, which cannot remove a completed version recorded by a seal. A
+failed prefix containing any materialized version remains permanently
+occupied and must not be recycled; choose a new release name after resolving
+the producer failure.
+
+After both local mode-`0600` reference and receipt hard links exist and the
+final lease check still succeeds, the producer creates exactly one immutable
+sibling seal at `elasticsearch/seals/<release>.json`. Its schema version is 1
+and its only other fields are `datasetRelease`, `snapshot`,
+`snapshotReferenceSha256`, `snapshotReceiptSha256`, and `createdAt`. The S3
+write uses `If-None-Match: *`, AES256, and `application/json`, then reads back
+the returned object version and byte-compares it before treating the outputs as
+valid. The producer never deletes or overwrites a seal.
+
+If local cleanup cannot be confirmed, the producer intentionally leaves the
+lease owned until the credential-bound deadline. Inspect it without deleting
+or manually releasing an unknown owner:
+
+```bash
+AWS_PROFILE=airbob-dataset-publisher AWS_REGION=ap-northeast-2 \
+  infra/aws/scripts/orchestration-lease.sh status \
+  airbob-performance-lab-orchestration-lease \
+  airbob-dataset-snapshot/rehearsal-v20
+```
+
+The two mode-`0600` outputs are removed if seal creation or readback fails. A
+successful seal preserves them even if the subsequent lease release reports an
+error, because their hashes are already immutably bound in S3. Database-only
+and search-enabled assembly are alternative final releases, not sequential
+updates: the assembler never adds files to an existing final directory. To
+publish search for `rehearsal-v20`, produce the snapshot first and then pass its
+reference as the assembler's optional seventh argument:
+
+```bash
+infra/aws/scripts/assemble-dataset-release.sh \
+  /path/to/etl-release \
+  /secure/path/attestation.json \
+  /secure/path/assembled-releases \
+  rehearsal-v20 \
+  "$AIRBOB_DATASET_EVALUATION_TIME" \
+  "$AIRBOB_DATASET_VALID_UNTIL_UTC" \
+  /secure/path/snapshot-reference.json
+```
+
+This creates a search-enabled `pipeline-rehearsal` release. The receipt stays
+outside the release directory and is supplied only to the publisher. The
+current assembler does not produce the stricter `evidence` release kind.
+
+Before publishing the wrapper, revoke the native repository writer. Set
+`dataset_snapshot_writer_release = null`, review and apply a second foundation
+plan, and refresh the assumed-role session. The publisher inspects its own IAM
+role before its first S3 call and refuses to run while any real
+`elasticsearch/releases/<release>/*` mutation grant remains. This makes the
+same repository read-only after production instead of relying only on operator
+discipline. The immutable seal permanently burns that successful release's
+writer activation: never delete the seal and never authorize that release as a
+snapshot writer again.
+
+## Publish an immutable release
+
+Run publication locally with the assumed-role profile. A database-only release
+omits the final receipt argument; a search-enabled release requires it:
+
+```bash
+AWS_PROFILE=airbob-dataset-publisher AWS_REGION=ap-northeast-2 \
+  infra/aws/scripts/publish-dataset-release.sh \
+  /secure/path/assembled-releases/rehearsal-v20 \
+  rehearsal-v20 \
+  pipeline-rehearsal \
+  airbob-performance-lab-dataset-942632789808 \
+  /secure/path/snapshot-producer-receipt.json
+```
+
+The publisher copies the exact finite release inventory into private staging
+and reruns the full validator before any write. For a search-enabled release it
+also binds the reference, manifest, and producer receipt, then regenerates the
+complete S3 object-version inventory before the wrapper upload and immediately
+before the completion marker. Payload objects are uploaded with AES256 and
+no-overwrite semantics in this order: MySQL dump, checksum, benchmark manifest,
+and optional snapshot reference. `manifest.json` is the last write.
+
+Publication never repairs or replaces a completed release and never deletes a
+remote object. A retry may reuse an incomplete prefix only when every existing
+key has the exact staged bytes and there are no unexpected keys. An existing
+completion marker succeeds only when the entire remote inventory and every
+byte match; any mismatch, extra key, missing key, changed snapshot inventory,
+or lost write race fails closed. On success, retain the emitted manifest S3 URI
+and SHA-256 for the lab run.
+
+The AWS bootstrap later registers only `airbob-dataset-readonly` against the
+same snapshot base path and restores `accommodations` with global state
+excluded. The ephemeral lab role has no permission to publish or modify the
+snapshot repository.
 
 ## Canonical database fingerprints
 
@@ -205,7 +465,19 @@ and every declared count before it writes a data-ready receipt.
 For a search-enabled release, the cross-store ID fingerprint is the SHA-256 of
 the newline-terminated decimal ids for every `PUBLISHED` accommodation, sorted
 numerically. Elasticsearch ids come from `_source.accommodationId` and must
-produce the same digest. The content fingerprint is the SHA-256 of one compact
+produce the same digest. This numeric membership digest remains separate from
+the document identity pair digest. For the latter, MySQL emits
+`LOWER(BIN_TO_UUID(accommodation_uid)), id` and Elasticsearch emits
+`_id, _source.accommodationId`; encode each pair as lowercase UUID, tab,
+positive decimal ID, newline, then byte-sort the complete records with
+`LC_ALL=C`. The snapshot reference and producer receipt bind these as
+`dbDocumentIdentityPairsSha256` and `esDocumentIdentityPairsSha256`; the
+release manifest binds the same values as
+`databaseDocumentIdentityPairsSha256` and
+`elasticsearchDocumentIdentityPairsSha256`. Each DB/ES pair must be equal.
+After restore, Phase 3 independently regenerates both pair streams and rejects
+any mismatch before the `accommodations` write-alias cutover. The content
+fingerprint is the SHA-256 of one compact
 JSON `_source` value per restored document, with object keys sorted by `jq -S
 -c`, then all lines sorted bytewise with `LC_ALL=C`. Generate these values from
 the completed snapshot and record them in both the manifest and snapshot

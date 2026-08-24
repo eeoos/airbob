@@ -125,6 +125,14 @@ resource "aws_autoscaling_group" "app" {
   lifecycle {
     precondition {
       condition = (
+        (var.mode == "performance" && length(var.subnet_ids) == 1) ||
+        (var.mode == "scaling" && length(var.subnet_ids) == 2)
+      )
+      error_message = "Performance mode requires one subnet; scaling requires both private-AZ subnets."
+    }
+
+    precondition {
+      condition = (
         (!var.app_enabled && var.min_size == 0 && var.desired_capacity == 0 && var.max_size == 0) ||
         (var.app_enabled && var.mode == "performance" && var.min_size == 1 && var.desired_capacity == 1 && var.max_size == 1) ||
         (var.app_enabled && var.mode == "scaling" && var.min_size == 1 && var.desired_capacity == 1 && var.max_size == 4)

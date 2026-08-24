@@ -22,7 +22,7 @@ shift 3
 [[ "$lock_id" =~ ^[A-Za-z0-9_.:/-]{3,255}$ ]] || fail "lease lock id is not canonical"
 command -v aws >/dev/null 2>&1 || fail "AWS CLI is required"
 
-now_epoch=${AIRBOB_NOW_EPOCH:-$(date +%s)}
+now_epoch=$(date +%s)
 [[ "$now_epoch" =~ ^[1-9][0-9]{9}$ ]] || fail "current epoch is not canonical"
 
 validate_identity() {
@@ -30,7 +30,7 @@ validate_identity() {
   [[ "$owner" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] || fail "lease owner is not canonical"
   [[ "$run_id" =~ ^[a-z0-9][a-z0-9-]{2,31}$ && "$run_id" != *--* && "$run_id" != *- ]] \
     || fail "lease run id is not canonical"
-  [[ "$command_name" == up || "$command_name" == switch || "$command_name" == down || "$command_name" == measurement || "$command_name" == dataset-promotion ]] \
+  [[ "$command_name" == up || "$command_name" == switch || "$command_name" == down || "$command_name" == measurement || "$command_name" == dataset-promotion || "$command_name" == dataset-snapshot ]] \
     || fail "lease command is not approved"
 }
 
@@ -60,8 +60,10 @@ case "$action" in
     validate_identity "$owner" "$run_id" "$command_name"
     [[ "$heartbeat_ttl" =~ ^[1-9][0-9]{1,3}$ && "$heartbeat_ttl" -ge 60 && "$heartbeat_ttl" -le 900 ]] \
       || fail "heartbeat TTL must be 60-900 seconds"
-    [[ "$deadline_seconds" =~ ^[1-9][0-9]{2,4}$ && "$deadline_seconds" -le 5400 ]] \
-      || fail "command deadline must be at most 5400 seconds"
+    deadline_limit=5400
+    [[ "$command_name" != dataset-snapshot ]] || deadline_limit=9000
+    [[ "$deadline_seconds" =~ ^[1-9][0-9]{2,4}$ && "$deadline_seconds" -le "$deadline_limit" ]] \
+      || fail "command deadline exceeds the approved limit"
     expires_epoch=$((now_epoch + heartbeat_ttl))
     deadline_epoch=$((now_epoch + deadline_seconds))
     value_json=$(printf '{":zero":{"N":"0"},":one":{"N":"1"},":released":{"S":"released"},":owner":{"S":"%s"},":run":{"S":"%s"},":command":{"S":"%s"},":now":{"N":"%s"},":expires":{"N":"%s"},":deadline":{"N":"%s"}}' \

@@ -58,27 +58,33 @@ write_release() {
       "elasticsearchVersion": "8.18.8",
       "imageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "requiredPlugins": ["analysis-nori", "repository-s3"],
-      "index": "accommodations",
+      "logicalAlias": "accommodations",
+      "snapshotIndex": "accommodations-vsource-20260816",
       "documentCount": 730702,
       "mappingSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "databaseAccommodationIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "elasticsearchAccommodationIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "databaseDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "elasticsearchDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "contentFingerprintSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }'
     cat > "$root/elasticsearch/snapshot-reference.json" <<'JSON'
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "repository": "airbob-dataset-readonly",
   "bucket": "airbob-performance-lab-dataset-942632789808",
   "basePath": "elasticsearch/releases/rehearsal-v20",
   "snapshot": "airbob-rehearsal-v20",
-  "index": "accommodations",
+  "logicalAlias": "accommodations",
+  "snapshotIndex": "accommodations-vsource-20260816",
   "elasticsearchVersion": "8.18.8",
   "imageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "documentCount": 730702,
   "mappingSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "dbIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "esIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "dbDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "esDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "contentFingerprintSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 }
 JSON
@@ -327,6 +333,24 @@ jq '.search.elasticsearchAccommodationIdsSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 mv "$tmp_dir/evidence-mismatch/manifest.next" "$tmp_dir/evidence-mismatch/manifest.json"
 expect_failure evidence-mismatch "$validator" "$tmp_dir/evidence-mismatch" rehearsal-v20 evidence
 
+cp -R "$tmp_dir/evidence" "$tmp_dir/document-identity-mismatch"
+jq '.search.elasticsearchDocumentIdentityPairsSha256 = ("a" * 64)' \
+  "$tmp_dir/document-identity-mismatch/manifest.json" \
+  > "$tmp_dir/document-identity-mismatch/manifest.next"
+mv "$tmp_dir/document-identity-mismatch/manifest.next" \
+  "$tmp_dir/document-identity-mismatch/manifest.json"
+expect_failure document-identity-mismatch \
+  "$validator" "$tmp_dir/document-identity-mismatch" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/document-identity-schema-missing"
+jq 'del(.search.databaseDocumentIdentityPairsSha256)' \
+  "$tmp_dir/document-identity-schema-missing/manifest.json" \
+  > "$tmp_dir/document-identity-schema-missing/manifest.next"
+mv "$tmp_dir/document-identity-schema-missing/manifest.next" \
+  "$tmp_dir/document-identity-schema-missing/manifest.json"
+expect_failure document-identity-schema-missing \
+  "$validator" "$tmp_dir/document-identity-schema-missing" rehearsal-v20 evidence
+
 cp -R "$tmp_dir/evidence" "$tmp_dir/evidence-content-mismatch"
 jq '.evidence.targetFingerprints.contentSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' \
   "$tmp_dir/evidence-content-mismatch/manifest.json" > "$tmp_dir/evidence-content-mismatch/manifest.next"
@@ -363,6 +387,24 @@ jq '.basePath = "elasticsearch/releases/another-release"' \
 mv "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.next" \
   "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.json"
 expect_failure cross-release-snapshot "$validator" "$tmp_dir/cross-release-snapshot" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/unsafe-snapshot-index"
+jq '.snapshotIndex = .logicalAlias' \
+  "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.json" \
+  > "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.next"
+mv "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.next" \
+  "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.json"
+expect_failure unsafe-snapshot-index \
+  "$validator" "$tmp_dir/unsafe-snapshot-index" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/snapshot-index-mismatch"
+jq '.search.snapshotIndex = "accommodations-vother-source"' \
+  "$tmp_dir/snapshot-index-mismatch/manifest.json" \
+  > "$tmp_dir/snapshot-index-mismatch/manifest.next"
+mv "$tmp_dir/snapshot-index-mismatch/manifest.next" \
+  "$tmp_dir/snapshot-index-mismatch/manifest.json"
+expect_failure snapshot-index-mismatch \
+  "$validator" "$tmp_dir/snapshot-index-mismatch" rehearsal-v20 evidence
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/multi-document-snapshot"
 {

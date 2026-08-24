@@ -88,6 +88,7 @@ assert_contains "$workflow" 'environment: aws-performance-lab'
 assert_contains "$workflow" 'aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502'
 assert_contains "$workflow" 'infra/aws/scripts/aws-lab.sh'
 assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
+assert_contains "$workflow" 'options: [performance, scaling]'
 if grep -Eq 'AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY)' "$workflow"; then
   fail "AWS lab workflow must not use static credentials"
 fi
@@ -219,7 +220,7 @@ case " $* " in
   *' autoscaling describe-instance-refreshes '*) printf '%s\n' Successful ;;
   *' elbv2 describe-target-health '*'State!='*) printf '%s\n' 0 ;;
   *' elbv2 describe-target-health '*'State=='*) printf '%s\n' 1 ;;
-  *' autoscaling describe-auto-scaling-groups '*) printf '%s\n' 1 ;;
+  *' autoscaling describe-auto-scaling-groups '*) printf '%s\n' "${FAKE_DESIRED_CAPACITY:-1}" ;;
   *) printf 'unexpected fake operator AWS call: %s\n' "$*" >&2; exit 1 ;;
 esac
 EOF
@@ -253,7 +254,7 @@ case " $* " in
     if [[ "${FAKE_NO_ALB:-false}" == true ]]; then
       printf '%s\n' '{}'
     else
-      printf '%s\n' '{"alb_arn":"arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-fake/0123456789abcdef","alb_dns_name":"airbob-fake.ap-northeast-2.elb.amazonaws.com","target_group_arn":"arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:targetgroup/airbob-fake/0123456789abcdef","auto_scaling_group_name":"airbob-fake-asg"}'
+      printf '%s\n' '{"alb_arn":"arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-fake/0123456789abcdef","alb_dns_name":"airbob-fake.ap-northeast-2.elb.amazonaws.com","target_group_arn":"arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:targetgroup/airbob-fake/0123456789abcdef","auto_scaling_group_name":"airbob-fake-asg","app_availability_zones":["ap-northeast-2a","ap-northeast-2c"]}'
     fi
     ;;
   *' output -json '*)
@@ -267,7 +268,8 @@ set -euo pipefail
 [[ "${FAKE_PUBLIC_SMOKE_FAILURE:-false}" != true ]] || exit 22
 printf '%s\n' '{"status":"UP"}'
 EOF
-chmod 700 "$temp_dir/operator-bin/aws" "$temp_dir/operator-bin/terraform" "$temp_dir/operator-bin/curl"
+chmod 700 "$temp_dir/operator-bin/aws" "$temp_dir/operator-bin/terraform" \
+  "$temp_dir/operator-bin/curl"
 
 cat > "$temp_dir/dataset-manifest.json" <<'JSON'
 {
@@ -291,6 +293,9 @@ jq -n \
 
 run_fake_up() {
   local oci_origin=${3:-203.0.113.10}
+  local capacity_mode=${4:-performance}
+  local measurement_policy=${5:-isolated-read}
+  local request_target=${6:-}
   env PATH="$temp_dir/operator-bin:$PATH" AWS_REGION=ap-northeast-2 \
     FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
     FAKE_LAB_CONTRACT="$temp_dir/lab-contract.json" \
@@ -298,7 +303,7 @@ run_fake_up() {
     FAKE_DATASET_MANIFEST="${FAKE_DATASET_MANIFEST:-$temp_dir/dataset-manifest.json}" \
     FAKE_OPERATOR_TEMP_PREFIX="${TMPDIR:-/tmp}/airbob-lab." \
     FAKE_STATE_EXISTS="${FAKE_STATE_EXISTS:-false}" FAKE_STATE_RUN_ID="${FAKE_STATE_RUN_ID:-lab-partial-down}" \
-    MODE=performance POLICY=isolated-read \
+    MODE="$capacity_mode" POLICY="$measurement_policy" REQUEST_TARGET="$request_target" \
     IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
     DATASET_RELEASE=fixture-v20 BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc \
     AMI_ID=ami-0123456789abcdef0 OCI_ORIGIN_IPV4="$oci_origin" \
@@ -313,6 +318,22 @@ if run_fake_up lab-invalid-ip false 999.0.0.1 >/dev/null 2>&1; then
 fi
 if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
   fail "invalid OCI input acquired the orchestration lease"
+fi
+
+: > "$temp_dir/operator-execution.log"
+if run_fake_up lab-scaling-no-target false 203.0.113.10 scaling isolated-read >/dev/null 2>&1; then
+  fail "operator accepted scaling mode without a request target"
+fi
+if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
+  fail "scaling without a request target acquired the orchestration lease"
+fi
+
+: > "$temp_dir/operator-execution.log"
+if run_fake_up lab-performance-request false 203.0.113.10 performance isolated-read 1200 >/dev/null 2>&1; then
+  fail "operator accepted a request target outside scaling mode"
+fi
+if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
+  fail "non-scaling request target acquired the orchestration lease"
 fi
 
 : > "$temp_dir/operator-execution.log"

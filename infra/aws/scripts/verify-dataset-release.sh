@@ -202,36 +202,48 @@ case "$search_enabled" in
       def sha256: type == "string" and test("^[0-9a-f]{64}$");
       def image_digest: type == "string" and test("^sha256:[0-9a-f]{64}$");
       .search |
-      exact_keys(["enabled", "snapshotReferenceKey", "repository", "elasticsearchVersion", "imageDigest", "requiredPlugins", "index", "documentCount", "mappingSha256", "databaseAccommodationIdsSha256", "elasticsearchAccommodationIdsSha256", "contentFingerprintSha256"]) and
+      exact_keys(["enabled", "snapshotReferenceKey", "repository", "elasticsearchVersion", "imageDigest", "requiredPlugins", "logicalAlias", "snapshotIndex", "documentCount", "mappingSha256", "databaseAccommodationIdsSha256", "elasticsearchAccommodationIdsSha256", "databaseDocumentIdentityPairsSha256", "elasticsearchDocumentIdentityPairsSha256", "contentFingerprintSha256"]) and
       .enabled == true and
       .snapshotReferenceKey == "elasticsearch/snapshot-reference.json" and
       .repository == "airbob-dataset-readonly" and
       .elasticsearchVersion == "8.18.8" and
       (.imageDigest | image_digest) and
       (.requiredPlugins | sort) == ["analysis-nori", "repository-s3"] and
-      .index == "accommodations" and
+      .logicalAlias == "accommodations" and
+      (.snapshotIndex | type == "string" and
+        test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
       (.documentCount | type == "number" and floor == . and . >= 0) and
       (.mappingSha256 | sha256) and
       (.databaseAccommodationIdsSha256 | sha256) and
       (.elasticsearchAccommodationIdsSha256 | sha256) and
       .databaseAccommodationIdsSha256 == .elasticsearchAccommodationIdsSha256 and
+      (.databaseDocumentIdentityPairsSha256 | sha256) and
+      (.elasticsearchDocumentIdentityPairsSha256 | sha256) and
+      .databaseDocumentIdentityPairsSha256 == .elasticsearchDocumentIdentityPairsSha256 and
       (.contentFingerprintSha256 | sha256)
     ' "$manifest" >/dev/null || fail_manifest search
     jq -e --slurpfile manifest "$manifest" '
       def exact_keys($wanted): (keys | sort) == ($wanted | sort);
-      exact_keys(["schemaVersion", "repository", "bucket", "basePath", "snapshot", "index", "elasticsearchVersion", "imageDigest", "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256", "contentFingerprintSha256"]) and
-      .schemaVersion == 1 and
+      exact_keys(["schemaVersion", "repository", "bucket", "basePath", "snapshot", "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest", "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256", "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256", "contentFingerprintSha256"]) and
+      .schemaVersion == 2 and
       .repository == $manifest[0].search.repository and
       (.bucket | type == "string" and test("^airbob-performance-lab-dataset-[0-9]{12}$")) and
       .basePath == ("elasticsearch/releases/" + $manifest[0].datasetRelease) and
       (.snapshot | type == "string" and test("^[a-z0-9._-]+$")) and
-      .index == $manifest[0].search.index and
+      .logicalAlias == "accommodations" and
+      .logicalAlias == $manifest[0].search.logicalAlias and
+      (.snapshotIndex | type == "string" and
+        test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
+      .snapshotIndex == $manifest[0].search.snapshotIndex and
       .elasticsearchVersion == $manifest[0].search.elasticsearchVersion and
       .imageDigest == $manifest[0].search.imageDigest and
       .documentCount == $manifest[0].search.documentCount and
       .mappingSha256 == $manifest[0].search.mappingSha256 and
       .dbIdsSha256 == $manifest[0].search.databaseAccommodationIdsSha256 and
       .esIdsSha256 == $manifest[0].search.elasticsearchAccommodationIdsSha256 and
+      .dbDocumentIdentityPairsSha256 == $manifest[0].search.databaseDocumentIdentityPairsSha256 and
+      .esDocumentIdentityPairsSha256 == $manifest[0].search.elasticsearchDocumentIdentityPairsSha256 and
+      .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256 and
       .contentFingerprintSha256 == $manifest[0].search.contentFingerprintSha256
     ' "$snapshot_reference" >/dev/null || fail_manifest snapshot-reference
     ;;

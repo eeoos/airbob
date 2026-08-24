@@ -226,21 +226,39 @@ mock_provider "aws" {
 
 }
 
+override_data {
+  target          = data.aws_s3_objects.dataset_snapshot_seal_plan[0]
+  override_during = plan
+  values = {
+    keys = []
+  }
+}
+
+override_data {
+  target          = data.aws_s3_objects.dataset_snapshot_seal_apply[0]
+  override_during = apply
+  values = {
+    keys = []
+  }
+}
+
 variables {
-  existing_application_bucket_name    = "airbob-existing-application-assets"
-  application_ecr_scan_on_push        = false
-  dns_inventory_reviewed              = true
-  dnssec_ds_reviewed                  = true
-  github_foundation_subject           = "repo:eeoos/airbob:environment:aws-foundation"
-  github_lab_subject                  = "repo:eeoos/airbob:environment:aws-performance-lab"
-  github_image_subject                = "repo:eeoos/airbob:environment:aws-image-publisher"
-  github_oidc_subjects_reviewed       = true
-  foundation_local_principal_arns     = ["arn:aws:iam::942632789808:user/foundation-test"]
-  lab_local_principal_arns            = ["arn:aws:iam::942632789808:user/lab-test"]
-  local_principal_requires_mfa        = true
-  expiry_observer_enabled             = false
-  expiry_alert_email                  = null
-  expiry_alert_subscription_confirmed = false
+  existing_application_bucket_name       = "airbob-existing-application-assets"
+  application_ecr_scan_on_push           = false
+  dns_inventory_reviewed                 = true
+  dnssec_ds_reviewed                     = true
+  github_foundation_subject              = "repo:eeoos/airbob:environment:aws-foundation"
+  github_lab_subject                     = "repo:eeoos/airbob:environment:aws-performance-lab"
+  github_image_subject                   = "repo:eeoos/airbob:environment:aws-image-publisher"
+  github_oidc_subjects_reviewed          = true
+  foundation_local_principal_arns        = ["arn:aws:iam::942632789808:user/foundation-test"]
+  lab_local_principal_arns               = ["arn:aws:iam::942632789808:user/lab-test"]
+  dataset_publisher_local_principal_arns = ["arn:aws:iam::942632789808:user/admin-eeoos"]
+  dataset_snapshot_writer_release        = "rehearsal-v20"
+  local_principal_requires_mfa           = true
+  expiry_observer_enabled                = false
+  expiry_alert_email                     = null
+  expiry_alert_subscription_confirmed    = false
 
   static_dns_records = {
     apex = {
@@ -262,6 +280,7 @@ run "foundation_contract" {
   command = plan
 
   variables {
+    dns_delegation_confirmed            = false
     expiry_observer_enabled             = true
     expiry_alert_email                  = "alerts@example.com"
     expiry_alert_subscription_confirmed = true
@@ -345,10 +364,21 @@ run "foundation_contract" {
 
   assert {
     condition = (
-      length(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule) == 2 &&
+      aws_s3_bucket_lifecycle_configuration.release["dataset"].bucket == aws_s3_bucket.managed["dataset"].id &&
+      length(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule) == 1 &&
+      one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).id == "abort-incomplete-uploads" &&
+      one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).abort_incomplete_multipart_upload[0].days_after_initiation == 7 &&
+      length(one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).expiration) == 0 &&
+      length(one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).noncurrent_version_expiration) == 0
+    )
+    error_message = "The dataset bucket may only abort incomplete multipart uploads; lifecycle expiration must never target snapshot-release or seal versions/delete markers."
+  }
+
+  assert {
+    condition = (
       length(aws_s3_bucket_lifecycle_configuration.release["bundle"].rule) == 2 &&
       one([
-        for rule in aws_s3_bucket_lifecycle_configuration.release["dataset"].rule : rule
+        for rule in aws_s3_bucket_lifecycle_configuration.release["bundle"].rule : rule
         if rule.id == "expire-noncurrent-versions"
       ]).noncurrent_version_expiration[0].noncurrent_days == 30 &&
       one([
@@ -360,7 +390,7 @@ run "foundation_contract" {
         if rule.id == "expire-tagged-summary-evidence"
       ]).expiration[0].days == 365
     )
-    error_message = "Dataset, bundle, and tagged evidence retention policies must remain explicit and bounded."
+    error_message = "Only explicitly safe bundle and tagged evidence data may have bounded retention."
   }
 
   assert {
@@ -423,6 +453,7 @@ run "foundation_contract" {
       aws_iam_role.foundation_admin.max_session_duration == 7200 &&
       aws_iam_role.lab_operator.max_session_duration == 7200 &&
       aws_iam_role.image_publisher.max_session_duration == 7200 &&
+      aws_iam_role.dataset_publisher.max_session_duration == 7200 &&
       aws_iam_role.dns_controller.max_session_duration == 3600 &&
       one([
         for statement in jsondecode(local.role_trust_policies.foundation).Statement : statement
@@ -431,7 +462,14 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.role_trust_policies.lab).Statement : statement
         if statement.Sid == "ApprovedLocalPrincipals"
-      ]).Principal.AWS == ["arn:aws:iam::942632789808:user/lab-test"]
+      ]).Principal.AWS == ["arn:aws:iam::942632789808:user/lab-test"] &&
+      jsondecode(local.role_trust_policies.dataset).Statement == [{
+        Sid       = "ApprovedLocalPrincipals"
+        Effect    = "Allow"
+        Principal = { AWS = ["arn:aws:iam::942632789808:user/admin-eeoos"] }
+        Action    = "sts:AssumeRole"
+        Condition = { Bool = { "aws:MultiFactorAuthPresent" = "true" } }
+      }]
     )
     error_message = "GitHub trust must use only AWS-supported aud plus the exact protected-environment subject and session limit."
   }
@@ -441,6 +479,7 @@ run "foundation_contract" {
       length(local.role_trust_policies.foundation) <= 2048 &&
       length(local.role_trust_policies.lab) <= 2048 &&
       length(local.role_trust_policies.image) <= 2048 &&
+      length(local.role_trust_policies.dataset) <= 2048 &&
       length(local.foundation_admin_policy) <= 10240 &&
       length(local.lab_operator_managed_policies) == 5 &&
       alltrue([
@@ -449,6 +488,7 @@ run "foundation_contract" {
       ]) &&
       length(local.lab_host_boundary_policy) <= 6144 &&
       length(local.image_publisher_policy) <= 10240 &&
+      length(local.dataset_publisher_policy) <= 10240 &&
       length(local.dns_controller_policy) <= 10240
     )
     error_message = "Role trust, inline policies, and managed policies must remain within default AWS IAM document-size quotas."
@@ -698,6 +738,142 @@ run "foundation_contract" {
       jsondecode(local.image_publisher_policy).Statement[2].Resource == "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*"
     )
     error_message = "The publisher must have only exact immutable ECR and service-bundle object actions."
+  }
+
+  assert {
+    condition = (
+      aws_iam_role.dataset_publisher.name == "airbob-dataset-publisher" &&
+      aws_iam_role_policy.dataset_publisher.name == "airbob-dataset-publisher" &&
+      aws_iam_role_policy.dataset_publisher.policy == local.dataset_publisher_policy &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteImmutableDatasetRelease"
+      ]).Action == "s3:PutObject" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteImmutableDatasetRelease"
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/datasets/*" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteImmutableDatasetRelease"
+      ]).Condition.StringEquals["s3:if-none-match"] == "*" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteImmutableDatasetRelease"
+      ]).Condition.StringEqualsIfExists["s3:x-amz-server-side-encryption"] == "AES256" &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "ReadPublishedDatasetBytes"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion"]) &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "ReadPublishedDatasetBytes"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
+        "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/*",
+        "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/*",
+      ]) &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteDatasetMultipartParts"
+      ]).Condition.Bool["s3:ObjectCreationOperation"] == "false" &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "ManageDatasetMultipartUploads"
+      ]).Action) == toset(["s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"]) &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteElasticsearchSnapshotRepository"
+      ]).Action) == toset(["s3:PutObject", "s3:PutObjectAcl"]) &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteElasticsearchSnapshotRepository"
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/rehearsal-v20/*" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteElasticsearchSnapshotRepository"
+      ]).Condition.StringEqualsIfExists["s3:x-amz-acl"] == "bucket-owner-full-control" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteElasticsearchSnapshotRepository"
+      ]).Condition.StringEqualsIfExists["s3:x-amz-server-side-encryption"] == "AES256" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "WriteElasticsearchMultipartParts"
+      ]).Condition.Bool["s3:ObjectCreationOperation"] == "false" &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "ManageElasticsearchSnapshotRepository"
+        ]).Action) == toset([
+        "s3:AbortMultipartUpload",
+        "s3:DeleteObject",
+        "s3:ListMultipartUploadParts",
+      ]) &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "SealElasticsearchSnapshotRelease"
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/rehearsal-v20.json" &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "SealElasticsearchSnapshotRelease"
+      ]).Condition.StringEquals["s3:if-none-match"] == "*" &&
+      !contains(flatten([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "s3:DeleteObjectVersion") &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "InspectOwnDatasetPublisherRole"
+      ]).Action) == toset(["iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies"]) &&
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "OwnDatasetSnapshotLease"
+      ]).Action) == toset(["dynamodb:GetItem", "dynamodb:UpdateItem"]) &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "OwnDatasetSnapshotLease"
+      ]).Resource == aws_dynamodb_table.orchestration_lease.arn &&
+      one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "OwnDatasetSnapshotLease"
+      ]).Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["airbob-dataset-snapshot/rehearsal-v20"] &&
+      !contains(jsondecode(local.role_trust_policies.dataset).Statement[*].Action, "sts:AssumeRoleWithWebIdentity")
+    )
+    error_message = "The local dataset publisher must conditionally write wrapper objects and limit native snapshot mutation to its release prefix."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenyDatasetReleaseOverwrite"
+      ]).Action == "s3:PutObject" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenyDatasetReleaseOverwrite"
+      ]).Condition.Null["s3:if-none-match"] == "true" &&
+      toset(one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenyDatasetReleaseDeletion"
+      ]).Action) == toset(["s3:DeleteObject", "s3:DeleteObjectVersion"]) &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenyDatasetReleaseDeletion"
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/datasets/*" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenySnapshotSealOverwrite"
+      ]).Condition.Null["s3:if-none-match"] == "true" &&
+      toset(one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenySnapshotSealDeletion"
+      ]).Action) == toset(["s3:DeleteObject", "s3:DeleteObjectVersion"]) &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if statement.Sid == "DenySnapshotSealDeletion"
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/*"
+    )
+    error_message = "The dataset bucket must protect wrapper bytes and immutable snapshot seals without blocking repository cleanup."
   }
 
   assert {
@@ -1364,9 +1540,12 @@ run "mfa_disabled_omits_condition" {
       !contains(keys(one([
         for statement in jsondecode(local.role_trust_policies.lab).Statement : statement
         if statement.Sid == "ApprovedLocalPrincipals"
-      ])), "Condition")
+      ])), "Condition") &&
+      one(jsondecode(local.role_trust_policies.dataset).Statement).Condition == {
+        Bool = { "aws:MultiFactorAuthPresent" = "true" }
+      }
     )
-    error_message = "The explicit no-MFA branch must omit the IAM Condition member instead of emitting an empty object."
+    error_message = "Disabling shared MFA must affect only foundation/lab; the dataset publisher always requires MFA."
   }
 }
 
@@ -1471,6 +1650,39 @@ run "reject_foreign_lab_local_principal" {
   expect_failures = [var.lab_local_principal_arns]
 }
 
+run "reject_foreign_dataset_publisher_local_principal" {
+  command = plan
+
+  variables {
+    dataset_publisher_local_principal_arns = ["arn:aws:iam::111111111111:user/foreign"]
+  }
+
+  expect_failures = [var.dataset_publisher_local_principal_arns]
+}
+
+run "reject_alternate_dataset_publisher_local_principal" {
+  command = plan
+
+  variables {
+    dataset_publisher_local_principal_arns = ["arn:aws:iam::942632789808:user/another-admin"]
+  }
+
+  expect_failures = [var.dataset_publisher_local_principal_arns]
+}
+
+run "reject_multiple_dataset_publisher_local_principals" {
+  command = plan
+
+  variables {
+    dataset_publisher_local_principal_arns = [
+      "arn:aws:iam::942632789808:user/admin-eeoos",
+      "arn:aws:iam::942632789808:user/another-admin",
+    ]
+  }
+
+  expect_failures = [var.dataset_publisher_local_principal_arns]
+}
+
 run "reject_shared_foundation_and_lab_local_principal" {
   command = plan
 
@@ -1480,4 +1692,75 @@ run "reject_shared_foundation_and_lab_local_principal" {
   }
 
   expect_failures = [check.local_principal_role_separation]
+}
+
+run "reject_shared_lab_and_dataset_publisher_local_principal" {
+  command = plan
+
+  variables {
+    lab_local_principal_arns = ["arn:aws:iam::942632789808:user/admin-eeoos"]
+  }
+
+  expect_failures = [check.local_principal_role_separation]
+}
+
+run "revoke_real_snapshot_writer_prefix" {
+  command = plan
+
+  variables {
+    dataset_snapshot_writer_release = null
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(local.dataset_publisher_policy).Statement :
+      statement.Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/__disabled__/*"
+      if contains([
+        "WriteElasticsearchSnapshotRepository",
+        "WriteElasticsearchMultipartParts",
+        "ManageElasticsearchSnapshotRepository",
+      ], statement.Sid)
+    ])
+    error_message = "Revoking the snapshot writer must leave no real Elasticsearch release prefix writable."
+  }
+
+  assert {
+    condition = one([
+      for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+      if statement.Sid == "OwnDatasetSnapshotLease"
+    ]).Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["airbob-dataset-snapshot/__disabled__"]
+    error_message = "Revoking the snapshot writer must also revoke the real release lease key."
+  }
+
+  assert {
+    condition = one([
+      for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+      if statement.Sid == "SealElasticsearchSnapshotRelease"
+    ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/__disabled__.json"
+    error_message = "Revoking the snapshot writer must also revoke the real immutable seal key."
+  }
+
+  assert {
+    condition = (
+      toset(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "ReadPublishedDatasetBytes"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion"]) &&
+      contains(one([
+        for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
+        if statement.Sid == "ReadPublishedDatasetBytes"
+      ]).Resource, "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/*")
+    )
+    error_message = "Revoking the snapshot writer must preserve read-only access to every immutable seal."
+  }
+}
+
+run "reject_unsafe_snapshot_writer_release" {
+  command = plan
+
+  variables {
+    dataset_snapshot_writer_release = "Unsafe/Release"
+  }
+
+  expect_failures = [var.dataset_snapshot_writer_release]
 }

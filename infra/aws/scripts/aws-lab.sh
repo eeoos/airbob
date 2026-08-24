@@ -416,9 +416,8 @@ wait_for_application() {
       --output text --region "$AWS_REGION" --no-cli-pager)
     desired=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" \
       --query 'AutoScalingGroups[0].DesiredCapacity' --output text --region "$AWS_REGION" --no-cli-pager)
-    if [[ "$unhealthy" == 0 && "$healthy" == "$desired" && "$desired" -ge 1 && ( "$status" == Successful || "$status" == None ) ]]; then
-      return 0
-    fi
+    [[ "$unhealthy" == 0 && "$healthy" == "$desired" && "$desired" -ge 1 && ( "$status" == Successful || "$status" == None ) ]] \
+      && return 0
     sleep 10
   done
   aws autoscaling rollback-instance-refresh --auto-scaling-group-name "$asg_name" \
@@ -473,13 +472,15 @@ case "$action" in
     database_bootstrap=${DATABASE_BOOTSTRAP:-dump}
     rds_snapshot_identifier=${RDS_SNAPSHOT_IDENTIFIER:-}
     rds_engine_version=${RDS_ENGINE_VERSION:-}
-    [[ "$mode" == performance || "$mode" == scaling ]] || fail "MODE must be performance or scaling"
+    [[ "$mode" == performance || "$mode" == scaling ]] \
+      || fail "MODE must be performance or scaling"
     [[ "$policy" == integrated-smoke || "$policy" == isolated-read ]] || fail "POLICY is invalid"
     [[ "$mode:$policy" != scaling:integrated-smoke ]] || fail "scaling requires isolated-read"
     [[ "$cache_enabled" == true || "$cache_enabled" == false ]] || fail "CACHE_ENABLED must be true or false"
     [[ "$load_generator_enabled" == true || "$load_generator_enabled" == false ]] || fail "LOAD_GENERATOR_ENABLED must be true or false"
     [[ "$ttl_hours" =~ ^[1-9][0-9]?$ && "$ttl_hours" -le 24 ]] || fail "TTL_HOURS must be 1-24"
     [[ "$mode" != scaling || "$request_target" =~ ^[1-9][0-9]*$ ]] || fail "scaling requires REQUEST_TARGET"
+    [[ "$mode" == scaling || -z "$request_target" ]] || fail "REQUEST_TARGET is valid only for scaling"
     [[ "$ami_id" =~ ^ami-[0-9a-f]{8,17}$ ]] || fail "AMI_ID is required and must be reviewed"
     valid_ipv4 "$oci_origin_ipv4" || fail "OCI_ORIGIN_IPV4 must be one canonical IPv4 address"
     [[ "$rds_engine_version" =~ ^8\.0\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"

@@ -87,7 +87,7 @@ variable "primary_availability_zone" {
 }
 
 variable "secondary_availability_zone" {
-  description = "Second AZ reserved for later scaling mode."
+  description = "Second AZ used by scaling mode."
   type        = string
   default     = "ap-northeast-2c"
 
@@ -158,7 +158,7 @@ variable "app_enabled" {
 }
 
 variable "mode" {
-  description = "Application capacity mode, independent from the application measurement policy."
+  description = "Application capacity mode: single-node performance or elastic scaling."
   type        = string
   default     = "performance"
 
@@ -186,7 +186,7 @@ variable "accommodation_detail_cache_enabled" {
 }
 
 variable "request_count_per_target_per_minute" {
-  description = "Baseline-derived ALBRequestCountPerTarget one-minute target, required only for enabled scaling mode."
+  description = "Baseline-derived ALBRequestCountPerTarget one-minute target; non-null only for enabled scaling mode."
   type        = number
   default     = null
 

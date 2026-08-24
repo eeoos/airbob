@@ -355,6 +355,7 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
       output.phase4_contract.capacity.desired == 1 &&
       output.phase4_contract.capacity.max == 4 &&
       output.phase4_contract.app_subnet_count == 2 &&
+      output.phase4_contract.app_availability_zones == tolist(["ap-northeast-2a", "ap-northeast-2c"]) &&
       output.phase4_contract.scaling_policy_count == 2 &&
       output.phase4_contract.request_count_per_target_per_minute == 1200 &&
       output.phase4_contract.cpu_target_percent == 50 &&

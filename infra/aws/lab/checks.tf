@@ -298,7 +298,7 @@ check "app_capacity_contract" {
         )
       )
     )
-    error_message = "App capacity requires data-ready, integrated smoke is performance-only, scaling is isolated-read with a baseline request target, and load generation requires an enabled app."
+    error_message = "App capacity requires data-ready; integrated smoke is performance-only; scaling requires isolated-read with a baseline request target; and load generation requires an enabled app."
   }
 }
 

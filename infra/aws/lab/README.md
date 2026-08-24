@@ -52,10 +52,10 @@ The Phase 2-4 transition is deliberately four applies, not one:
 4. After the bootstrap has written its exact S3 receipt, apply
    `deployment_phase=data-ready` with the same immutable inputs and
    `app_enabled=true`. Choose `mode=performance` for single-AZ `1/1/1` or
-   `mode=scaling` for two-AZ `1/1/4`. Scaling additionally requires
+   `mode=scaling` for two-AZ `1/1/4`. Scaling requires
    `measurement_policy=isolated-read` and the baseline-derived one-minute
-   `request_count_per_target_per_minute`; only then are its CPU 50% and ALB
-   request-count target tracking policies created. This transition creates no
+   request target; only scaling creates its CPU 50% and ALB request-count
+   target tracking policies. This transition creates no
    replacement dataset and accepts only the exact receipt for this run,
    manifest, RDS resource id, and dependency state.
 
@@ -122,8 +122,9 @@ passes.
 
 `performance` uses only the primary private subnet and has no scaling policy.
 `scaling` uses both private subnets and creates exactly two target-tracking
-policies. `integrated-smoke` is performance-only; `isolated-read` is valid in
-either capacity mode. The accommodation-detail cache toggle remains a separate
+policies. `integrated-smoke` is performance-only and `scaling` requires
+`isolated-read`. The
+accommodation-detail cache toggle remains a separate
 explicit boolean and is included in the launch-template runtime revision, so a
 new target receives a fresh JVM and exact root-only runtime env. The app host
 resolves the RDS-managed secret only from Secrets Manager during its
@@ -143,8 +144,9 @@ Terraform starts an instance refresh from the exact numeric launch-template
 version and configures the health alarm plus automatic rollback. The AWS
 provider returns before that asynchronous refresh finishes. The Phase 5
 controller now polls it for at most 15 minutes and refuses DNS switching until
-the desired targets are healthy. This path is covered by static/fake-CLI
-contracts only and remains unproven in live AWS.
+the desired targets are healthy. Scaling's configured two-AZ placement remains
+part of the redacted Phase 4 Terraform output evidence. This path is covered by
+static/fake-CLI contracts only and remains unproven in live AWS.
 
 The optional load-generator instance is a public-subnet `c6i.xlarge` with an
 ephemeral public IPv4, no inbound security-group rule, detailed monitoring,

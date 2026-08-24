@@ -25,6 +25,12 @@ grep -Fq 'AcquiredAt.N,HeartbeatAt.N,ExpiresAt.N,CommandDeadline.N' "$lease_scri
   || fail "lease status does not expose acquisition/heartbeat timestamps for runtime inspection"
 
 mkdir -p "$temp_dir/bin"
+cat > "$temp_dir/bin/date" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == '+%s' ]] || { printf 'unexpected fake date call: %s\n' "$*" >&2; exit 1; }
+printf '%s\n' 1900000000
+EOF
 cat > "$temp_dir/bin/aws" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -43,11 +49,11 @@ case " $* " in
   *) printf 'unexpected fake AWS call: %s\n' "$*" >&2; exit 1 ;;
 esac
 EOF
-chmod 700 "$temp_dir/bin/aws"
+chmod 700 "$temp_dir/bin/aws" "$temp_dir/bin/date"
 
 run_lease() {
   env PATH="$temp_dir/bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
-    FAKE_CALL_LOG="$temp_dir/calls.log" AIRBOB_NOW_EPOCH=1900000000 "$@"
+    FAKE_CALL_LOG="$temp_dir/calls.log" "$@"
 }
 
 : > "$temp_dir/calls.log"
@@ -55,6 +61,11 @@ token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 18
 [[ "$token" == 'fencing_token=7' ]] || fail "acquire did not return the atomic fencing token"
 measurement_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a measurement 180 5400)
 [[ "$measurement_token" == 'fencing_token=7' ]] || fail "measurement did not use the shared fencing-token lease"
+snapshot_token=$(run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v20 owner-a snapshot-1234abcd dataset-snapshot 180 8100)
+[[ "$snapshot_token" == 'fencing_token=7' ]] || fail "dataset snapshot did not use the shared fencing-token lease"
+if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 8100 >/dev/null 2>&1; then
+  fail "non-snapshot command accepted the extended credential-fencing deadline"
+fi
 grep -Fq 'attribute_not_exists(#owner) OR #owner = :released OR (#expires < :now AND #deadline < :now)' "$temp_dir/calls.log" \
   || fail "acquire does not require both heartbeat expiry and command deadline for reclaim"
 grep -Fq 'if_not_exists(#token, :zero) + :one' "$temp_dir/calls.log" \
