@@ -12,6 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -93,6 +94,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
 	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean private S3Template s3Template;
+	@MockitoBean(name = "redissonClient") private RedissonClient redissonClient;
 
 	private UserInfo requestAdmin;
 
