@@ -5,13 +5,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
+import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
@@ -19,6 +20,8 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepositor
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
+import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageDeletionRequested;
+import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageUploaded;
 import kr.kro.airbob.domain.image.exception.EmptyImageFileException;
 import kr.kro.airbob.domain.image.exception.ImageFileSizeExceededException;
 import kr.kro.airbob.domain.image.exception.ImageNotFoundException;
@@ -41,6 +44,7 @@ public class AccommodationImageService {
 	private final AccommodationImageRepository accommodationImageRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final S3ImageUploader s3ImageUploader;
+	private final ApplicationEventPublisher applicationEventPublisher;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 
@@ -67,6 +71,8 @@ public class AccommodationImageService {
 					image.getOriginalFilename(), e);
 				throw new ImageUploadException(image.getOriginalFilename());
 			}
+			// 이후 DB 저장이나 outbox 발행이 실패하면 방금 업로드한 객체를 롤백 시 정리한다.
+			applicationEventPublisher.publishEvent(new ImageUploaded(imageUrl));
 
 			AccommodationImage accommodationImage = AccommodationImage.builder()
 				.accommodation(accommodation)
@@ -108,7 +114,8 @@ public class AccommodationImageService {
 		boolean thumbnailChanged = image.getImageUrl().equals(accommodation.getThumbnailUrl())
 			&& findAndUpdateThumbnail(accommodation);
 		publishReindexEventIfNeeded(accommodation, thumbnailChanged);
-		s3ImageUploader.delete(image.getImageUrl());
+		// DB 롤백 시 원본 객체가 유실되지 않도록 실제 삭제는 커밋 이후로 미룬다.
+		applicationEventPublisher.publishEvent(new ImageDeletionRequested(image.getImageUrl()));
 
 		cacheInvalidationPublisher.publish(
 			accommodationId, AccommodationDetailCacheInvalidationReason.IMAGE);

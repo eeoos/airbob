@@ -98,6 +98,17 @@ public record OperatorAlertRequest(
 		);
 	}
 
+	public static OperatorAlertRequest accommodationCacheQuarantined(
+		OperatorAlertSourcePosition sourcePosition
+	) {
+		return quarantined(
+			OperatorAlertKind.ACCOMMODATION_CACHE_QUARANTINED,
+			null,
+			OperatorAlertSummaryCode.CACHE_INVALIDATION_FAILED,
+			sourcePosition
+		);
+	}
+
 	private static OperatorAlertRequest quarantined(
 		OperatorAlertKind kind,
 		UUID decodedSubjectUid,

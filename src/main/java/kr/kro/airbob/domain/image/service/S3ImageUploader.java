@@ -11,15 +11,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import io.awspring.cloud.s3.ObjectMetadata;
 import io.awspring.cloud.s3.S3Template;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class S3ImageUploader {
 
 	private final S3Template s3Template;
+	private final boolean writeEnabled;
 
 	@Value("${cloud.aws.s3.bucket}")
 	private String bucket;
@@ -27,7 +26,13 @@ public class S3ImageUploader {
 	@Value("${cloud.cloudfront.domain}")
 	private String cloudfrontDomain;
 
+	public S3ImageUploader(S3Template s3Template, @Value("${cloud.aws.s3.write-enabled:true}") boolean writeEnabled) {
+		this.s3Template = s3Template;
+		this.writeEnabled = writeEnabled;
+	}
+
 	public String upload(MultipartFile multipartFile, String dirName) throws IOException {
+		requireWriteEnabled();
 
 		String originalFilename = multipartFile.getOriginalFilename();
 		String ext = originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
@@ -48,6 +53,10 @@ public class S3ImageUploader {
 	}
 
 	public void delete(String fileUrl) {
+		if (!writeEnabled) {
+			return;
+		}
+
 		try {
 			String s3FileKey = extractS3KeyFromUrl(fileUrl);
 			if (!s3FileKey.isEmpty()) {
@@ -58,6 +67,12 @@ public class S3ImageUploader {
 			}
 		} catch (Exception e) {
 			log.error("s3 파일 삭제 실패: {}", fileUrl, e);
+		}
+	}
+
+	private void requireWriteEnabled() {
+		if (!writeEnabled) {
+			throw new IllegalStateException("S3 writes are disabled in this runtime profile");
 		}
 	}
 

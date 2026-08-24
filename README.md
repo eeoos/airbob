@@ -135,16 +135,19 @@ flowchart LR
     O -->|binlog INSERT| D["Debezium EventRouter"]
     D --> P["PAYMENT_OPERATION.events"]
     D --> I["ACCOMMODATION_INDEX.events"]
+    D --> C["ACCOMMODATION_CACHE.events"]
     D --> A["OPERATOR_ALERT.events"]
     P --> PW["Payment worker"]
     I --> IW["Index refresh listener"]
+    C --> CW["Detail cache invalidation listener"]
     A --> AW["Operator alert listener"]
 ```
 
-운영 topic은 다음 세 스트림 각각의 main, `.RETRY`, `.DLT`로 고정됩니다.
+운영 topic은 다음 네 스트림 각각의 main, `.RETRY`, `.DLT`로 고정됩니다.
 
 - `PAYMENT_OPERATION.events`
 - `ACCOMMODATION_INDEX.events`
+- `ACCOMMODATION_CACHE.events`
 - `OPERATOR_ALERT.events`
 
 outbox 테이블에는 Kafka 전달 완료 column이 없습니다. 따라서 DB의 행 수·가장 오래된
@@ -183,9 +186,22 @@ flowchart LR
 검증하고 alias를 원자 전환하며, bootstrap은 alias가 정확히 하나의 write index를 가리키는지
 확인한 뒤 consumer를 시작합니다.
 
+### 숙소 상세 캐시: 커밋 직후 삭제 + durable 재시도
+
+숙소·이미지·리뷰 변경은 `AccommodationDetailCacheInvalidationPublisher` 포트 하나를
+호출합니다. outbox adapter가 원본 트랜잭션에 `AccommodationDetailCacheInvalidationRequestedV1`을
+기록하고 로컬 after-commit 이벤트도 함께 예약합니다. 정상 경로에서는 커밋 직후 빠르게
+삭제하고, Redis 장애나 프로세스 종료로 놓친 삭제는 `ACCOMMODATION_CACHE.events` 전용
+consumer가 retry/DLT를 거쳐 다시 수행합니다. 일반 Redis와 상세 캐시 Redis는 별도 연결을
+사용합니다.
+
+- application port: [AccommodationDetailCacheInvalidationPublisher.java](src/main/java/kr/kro/airbob/domain/accommodation/cache/invalidation/AccommodationDetailCacheInvalidationPublisher.java)
+- outbox adapter: [OutboxAccommodationDetailCacheInvalidationPublisher.java](src/main/java/kr/kro/airbob/domain/accommodation/cache/messaging/outbox/OutboxAccommodationDetailCacheInvalidationPublisher.java)
+- Kafka listener: [AccommodationDetailCacheInvalidationKafkaListener.java](src/main/java/kr/kro/airbob/domain/accommodation/cache/messaging/kafka/AccommodationDetailCacheInvalidationKafkaListener.java)
+
 ### 운영자 알림도 durable event로 처리
 
-결제 manual review, payment/search DLT 같은 운영 사건은 요청 스레드에서 Slack을 직접
+결제 manual review, payment/search/cache DLT 같은 운영 사건은 요청 스레드에서 Slack을 직접
 호출하지 않습니다. 원인 트랜잭션과 같은 outbox에 `OperatorAlertRequestedV1`을 기록하고
 전용 main/retry/DLT consumer가 전달합니다. 알림에는 닫힌 kind/summary와 안전한 source
 좌표만 포함합니다.
@@ -216,7 +232,7 @@ kr.kro.airbob
 ├── domain/
 │   ├── reservation/        DB-authoritative 예약·만료 cleanup
 │   ├── payment/            PaymentOperation, gateway, recovery, admin resolution
-│   ├── accommodation/      숙소 쓰기 모델
+│   ├── accommodation/      숙소 쓰기 모델과 상세 캐시 invalidation/messaging
 │   └── ...                 member, coupon, review, wishlist 등
 ├── messaging/
 │   ├── event/              canonical integration-event 계약

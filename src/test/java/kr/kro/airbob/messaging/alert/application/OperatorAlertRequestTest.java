@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import kr.kro.airbob.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertKind;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSourcePosition;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertSummaryCode;
@@ -70,6 +71,22 @@ class OperatorAlertRequestTest {
 		assertThat(request.kind()).isEqualTo(OperatorAlertKind.ACCOMMODATION_INDEX_QUARANTINED);
 		assertThat(request.subjectUid()).isEqualTo(ACCOMMODATION_UID);
 		assertThat(request.summaryCode()).isEqualTo(OperatorAlertSummaryCode.INDEX_REFRESH_FAILED);
+		assertThat(request.sourcePosition()).isEqualTo(source);
+	}
+
+	@Test
+	void cacheQuarantineUsesSafeCoordinateIdentityAndDedicatedSummary() {
+		OperatorAlertSourcePosition source = OperatorAlertSourcePosition.from(
+			AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR,
+			AccommodationDetailCacheInvalidationRequestedV1.TOPIC,
+			2,
+			19L);
+
+		OperatorAlertRequest request = OperatorAlertRequest.accommodationCacheQuarantined(source);
+
+		assertThat(request.kind()).isEqualTo(OperatorAlertKind.ACCOMMODATION_CACHE_QUARANTINED);
+		assertThat(request.summaryCode()).isEqualTo(OperatorAlertSummaryCode.CACHE_INVALIDATION_FAILED);
+		assertThat(request.subjectUid()).isEqualTo(request.occurrenceUid());
 		assertThat(request.sourcePosition()).isEqualTo(source);
 	}
 

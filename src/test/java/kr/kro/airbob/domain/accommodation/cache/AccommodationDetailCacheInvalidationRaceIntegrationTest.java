@@ -27,6 +27,9 @@ import org.testcontainers.utility.DockerImageName;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheJitter;
+import kr.kro.airbob.domain.accommodation.cache.config.AccommodationDetailCacheProperties;
+import kr.kro.airbob.domain.accommodation.cache.redis.AccommodationDetailRedisClient;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 
 @Testcontainers
@@ -65,6 +68,7 @@ class AccommodationDetailCacheInvalidationRaceIntegrationTest {
 			mock(AccommodationDetailCacheMetricRecorder.class),
 			new AccommodationDetailCacheJitter(),
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10), Duration.ZERO,
 				Duration.ofSeconds(45), Duration.ZERO,
 				Duration.ofSeconds(5),
@@ -159,6 +163,7 @@ class AccommodationDetailCacheInvalidationRaceIntegrationTest {
 			mock(AccommodationDetailCacheMetricRecorder.class),
 			new AccommodationDetailCacheJitter(),
 			new AccommodationDetailCacheProperties(
+				true,
 				Duration.ofMinutes(10), Duration.ZERO,
 				Duration.ofSeconds(45), Duration.ZERO,
 				Duration.ofSeconds(5),

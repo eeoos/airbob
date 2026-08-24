@@ -4,6 +4,9 @@ spring:
 
   profiles:
     active: dev
+    group:
+      traffic-benchmark:
+        - performance-lab
 
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
@@ -54,6 +57,7 @@ spring:
 
 google:
   api:
+    enabled: ${GOOGLE_API_ENABLED:true}
     key: ${GOOGLE_API_KEY}
 
 operator-alert:
@@ -84,10 +88,16 @@ payment:
       attempts: ${PAYMENT_OPERATION_KAFKA_ATTEMPTS:4}
       backoff-ms: ${PAYMENT_OPERATION_KAFKA_BACKOFF_MS:30000}
   toss:
+    enabled: ${TOSS_PAYMENTS_ENABLED:true}
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com
     connect-timeout: ${TOSS_CONNECT_TIMEOUT:2s}
     read-timeout: ${TOSS_READ_TIMEOUT:10s}
+
+cloud:
+  aws:
+    s3:
+      write-enabled: ${AWS_S3_WRITE_ENABLED:true}
 
 springdoc:
   api-docs:
@@ -112,6 +122,7 @@ accommodation:
       attempts: ${ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS:4}
       backoff-ms: ${ACCOMMODATION_INDEXING_KAFKA_BACKOFF_MS:30000}
   detail-cache:
+    enabled: ${ACCOMMODATION_DETAIL_CACHE_ENABLED:true}
     ttl: ${ACCOMMODATION_DETAIL_CACHE_TTL:10m}
     ttl-jitter: ${ACCOMMODATION_DETAIL_CACHE_TTL_JITTER:2m}
     negative-ttl: ${ACCOMMODATION_DETAIL_CACHE_NEGATIVE_TTL:45s}
@@ -127,6 +138,12 @@ accommodation:
       database: ${ACCOMMODATION_DETAIL_CACHE_REDIS_DATABASE:0}
       username: ${ACCOMMODATION_DETAIL_CACHE_REDIS_USERNAME:}
       password: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PASSWORD:}
+    invalidation:
+      kafka:
+        group: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_GROUP:accommodation-detail-cache-invalidation-group}
+        auto-startup: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP:true}
+        attempts: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_ATTEMPTS:4}
+        backoff-ms: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_BACKOFF_MS:30000}
 
 benchmark:
   read-model:

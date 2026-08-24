@@ -40,7 +40,7 @@ kr.kro.airbob/
 ├── domain/                  Business modules
 │   ├── reservation/         DB-authoritative booking and expiration cleanup
 │   ├── payment/             PaymentOperation orchestration, gateway, recovery, admin resolution
-│   └── accommodation/...    Accommodation and supporting domains
+│   └── accommodation/       Listing domain and isolated detail-cache components
 ├── messaging/
 │   ├── event/               Canonical integration event descriptor, envelope, and codec
 │   ├── outbox/              Transactional outbox, retention cleanup, and health monitoring
@@ -101,6 +101,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - The fixed business streams are:
   - `PAYMENT_OPERATION.events`, `.RETRY`, `.DLT`
   - `ACCOMMODATION_INDEX.events`, `.RETRY`, `.DLT`
+  - `ACCOMMODATION_CACHE.events`, `.RETRY`, `.DLT`
   - `OPERATOR_ALERT.events`, `.RETRY`, `.DLT`
 - Topic auto-creation is disabled. The OCI gate closes the old producer, applies Flyway migrations,
   then runs `docker/kafka/init-topics.sh` and `docker/debezium/register-connector.sh` before the app.
@@ -118,10 +119,28 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   consumer startup; full reindex builds a new version index and atomically swaps the alias.
 - See `docs/accommodation-indexing-operations.md` and `docs/logstash-reindex.md`.
 
+### Accommodation detail cache and AWS performance lab
+
+- Accommodation-detail cache code is isolated under
+  `domain/accommodation/cache/{config,invalidation,messaging,monitoring,redis}`.
+- General Redis and the dedicated accommodation-cache Redis are separate dependencies. The
+  `performance-lab` profile must fail when they resolve to the same endpoint, and experiments may
+  flush only the dedicated cache Redis.
+- Same-image experiments toggle the accommodation-detail cache through configuration. Durable
+  invalidation must use the domain-owned canonical messaging adapter and
+  `ACCOMMODATION_CACHE.events`; do not recreate root outbox or Kafka-consumer packages.
+- AWS performance-lab infrastructure and immutable image assets live under `infra/aws/`. Keep
+  image references digest-pinned, secrets out of the repository and rendered bundles, and ECR
+  publication authenticated through GitHub OIDC.
+- OCI deployment remains independent from the AWS experiment and retains the messaging,
+  migration, and connector gates in `scripts/deploy-oci.sh`.
+- See `docs/performance/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
+  experiment topology or image publication.
+
 ### Durable operator alerts
 
-- Payment manual-review transitions and payment/search DLT incidents append an operator-alert
-  event transactionally.
+- Payment manual-review transitions and payment/search/cache DLT incidents append an
+  operator-alert event transactionally.
 - Alerts contain closed kind/summary values and safe source coordinates. Do not include payloads,
   payment keys, provider responses, credentials, or exception messages.
 - Slack delivery has its own main/retry/DLT stream and must never recursively alert from its DLT.

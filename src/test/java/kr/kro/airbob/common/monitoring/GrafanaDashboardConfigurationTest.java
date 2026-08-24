@@ -84,6 +84,48 @@ class GrafanaDashboardConfigurationTest {
 			.contains("label_values(redis_up{namespace=~\"$namespace\"}, instance)");
 	}
 
+	@Test
+	void accommodationDetailCacheDashboardContainsApplicationCacheMetrics() throws IOException {
+		JsonNode dashboard = readDashboard("airbob-accommodation-detail-cache.json");
+
+		assertThat(dashboard.path("title").asText())
+			.isEqualTo("Airbob - Accommodation Detail Cache");
+		assertThat(dashboard.path("uid").asText())
+			.isEqualTo("airbob-accommodation-detail-cache");
+		assertPrometheusDatasourcesUseProvisionedUid(dashboard);
+
+		String expressions = dashboard.findValues("expr").toString();
+		assertThat(expressions)
+			.contains("accommodation_detail_cache_request_total")
+			.contains("accommodation_detail_cache_lock_wait_duration_seconds_bucket")
+			.contains("accommodation_detail_cache_load_duration_seconds_bucket")
+			.contains("accommodation_detail_cache_redis_operation_total")
+			.contains("accommodation_detail_cache_eviction_total")
+			.contains("source=\\\"after_commit\\\"")
+			.contains("source=\\\"outbox\\\"");
+
+		assertThat(dashboard.findValuesAsText("title"))
+			.contains(
+				"DB offload ratio",
+				"Redis hit ratio",
+				"Request outcome RPS",
+				"Lock wait p50 / p95 / p99",
+				"DB load p50 / p95 / p99",
+				"Eviction attempts by source",
+				"DB load outcome RPS",
+				"Redis operation failure ratio"
+			);
+
+		assertThat(dashboard.path("links").findValuesAsText("url"))
+			.contains(
+				"/d/airbob-redis?var-namespace=cache&var-instance=redis-cache",
+				"/d/spring_boot_21",
+				"/d/airbob-query-count");
+
+		assertThat(dashboard.path("templating").findValuesAsText("query"))
+			.contains("after_commit,outbox", "accommodation,image,review");
+	}
+
 	private JsonNode readDashboard(String fileName) throws IOException {
 		Path dashboardPath = DASHBOARD_DIRECTORY.resolve(fileName);
 		assertThat(dashboardPath).isRegularFile();

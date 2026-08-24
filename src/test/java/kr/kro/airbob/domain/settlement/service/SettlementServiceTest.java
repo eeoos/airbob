@@ -7,8 +7,11 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,8 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 import kr.kro.airbob.domain.settlement.entity.Settlement;
 import kr.kro.airbob.domain.settlement.exception.SettlementMonthNotClosedException;
@@ -34,6 +39,8 @@ class SettlementServiceTest {
 	@Mock private SettlementHistoryRepository settlementHistoryRepository;
 	@Mock private RedissonClient redissonClient;
 	@Mock private PlatformTransactionManager transactionManager;
+	@Mock private RLock lock;
+	@Mock private TransactionStatus transactionStatus;
 
 	private SettlementService settlementService;
 
@@ -83,5 +90,55 @@ class SettlementServiceTest {
 			.isInstanceOf(SettlementMonthNotClosedException.class);
 		assertThat(settlement.isPaid()).isFalse();
 		assertThat(settlement.getSettledAt()).isNull();
+	}
+
+	@Test
+	@DisplayName("획득한 월 정산 락은 별도 소유권 조회 없이 직접 해제한다")
+	void releasesGenerationLockWithoutOwnershipProbe() throws InterruptedException {
+		YearMonth month = YearMonth.of(2098, 12);
+		givenAcquiredGenerationLock(month);
+
+		settlementService.generateMonth(month);
+
+		verify(lock).unlock();
+		verify(lock, never()).isHeldByCurrentThread();
+	}
+
+	@Test
+	@DisplayName("정산 실패는 후속 락 해제 실패로 덮어쓰지 않는다")
+	void preservesGenerationFailureWhenUnlockAlsoFails() throws InterruptedException {
+		YearMonth month = YearMonth.of(2098, 12);
+		IllegalStateException generationFailure = new IllegalStateException("generation failed");
+		givenAcquiredGenerationLock(month);
+		when(settlementRepository.aggregateByHostForMonth(month.atDay(1), month.atEndOfMonth()))
+			.thenThrow(generationFailure);
+		doThrow(new IllegalStateException("unlock failed")).when(lock).unlock();
+
+		assertThatThrownBy(() -> settlementService.generateMonth(month))
+			.isSameAs(generationFailure);
+
+		verify(lock).unlock();
+		verify(lock, never()).isHeldByCurrentThread();
+	}
+
+	@Test
+	@DisplayName("월 정산 락을 얻지 못하면 해제를 시도하지 않는다")
+	void doesNotReleaseGenerationLockWhenAcquisitionTimesOut() throws InterruptedException {
+		YearMonth month = YearMonth.of(2098, 12);
+		when(redissonClient.getLock("LOCK:SETTLEMENT:GENERATE:" + month)).thenReturn(lock);
+		when(lock.tryLock(5, TimeUnit.SECONDS)).thenReturn(false);
+
+		settlementService.generateMonth(month);
+
+		verify(lock, never()).unlock();
+		verify(lock, never()).isHeldByCurrentThread();
+	}
+
+	private void givenAcquiredGenerationLock(YearMonth month) throws InterruptedException {
+		when(redissonClient.getLock("LOCK:SETTLEMENT:GENERATE:" + month)).thenReturn(lock);
+		when(lock.tryLock(5, TimeUnit.SECONDS)).thenReturn(true);
+		when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
+		when(settlementRepository.aggregateByHostForMonth(month.atDay(1), month.atEndOfMonth()))
+			.thenReturn(List.of());
 	}
 }

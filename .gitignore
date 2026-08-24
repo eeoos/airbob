@@ -85,6 +85,7 @@ jacoco.exec
 
 # Gradle build info (추가)
 .gradle/
+__pycache__/
 
 # Generated AsciiDoc files
 src/docs/asciidoc/
@@ -113,3 +114,23 @@ src/main/resources/mock-data/
 
 # Elasticsearch snapshot
 es-snapshot/
+
+# Terraform local/generated files (provider lock files stay committed)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tflock
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+**/terraform.tfvars
+**/terraform.tfvars.json
+**/*.auto.tfvars
+**/*.auto.tfvars.json
+**/zz_backend.generated.tf
+**/backend.generated.hcl
+!/infra/aws/toolchain.env

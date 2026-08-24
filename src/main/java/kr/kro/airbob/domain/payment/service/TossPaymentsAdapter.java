@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.retry.annotation.Backoff;
@@ -103,19 +104,24 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	private final RestClient tossPaymentsRestClient;
 	private final ObjectMapper objectMapper;
 	private final PaymentConfirmationFailureClassifier confirmationFailureClassifier;
+	private final boolean enabled;
 
 	public TossPaymentsAdapter(
 		@Qualifier("tossPaymentRestClient") RestClient tossPaymentsRestClient,
 		ObjectMapper objectMapper,
-		PaymentConfirmationFailureClassifier confirmationFailureClassifier
+		PaymentConfirmationFailureClassifier confirmationFailureClassifier,
+		@Value("${payment.toss.enabled:true}") boolean enabled
 	) {
 		this.tossPaymentsRestClient = tossPaymentsRestClient;
 		this.objectMapper = objectMapper;
 		this.confirmationFailureClassifier = confirmationFailureClassifier;
+		this.enabled = enabled;
 	}
 
 	@Override
 	public PaymentGatewayResult confirm(PaymentProviderCommand command) {
+		requireEnabled();
+
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(PAYMENT_KEY, command.paymentKey());
 		payload.put(ORDER_ID, command.orderId());
@@ -145,6 +151,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 
 	@Override
 	public PaymentGatewayResult inquireConfirmation(PaymentProviderCommand command) {
+		requireEnabled();
+
 		try {
 			TossPaymentResponse response = tossPaymentsRestClient.get()
 				.uri(GET_PATH_BY_PAYMENT_KEY, command.paymentKey())
@@ -293,6 +301,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 
 	@Override
 	public PaymentGatewayResult cancel(PaymentProviderCommand command) {
+		requireEnabled();
+
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(CANCEL_REASON, command.cancellationReason());
 		payload.put(CANCEL_AMOUNT, command.amount());
@@ -333,6 +343,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 
 	@Override
 	public PaymentGatewayResult inquireCancellation(PaymentProviderCommand command) {
+		requireEnabled();
+
 		try {
 			TossPaymentResponse response = tossPaymentsRestClient.get()
 				.uri(GET_PATH_BY_PAYMENT_KEY, command.paymentKey())
@@ -424,6 +436,8 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		backoff = @Backoff(delay = 2000)
 	)
 	public TossPaymentResponse issueVirtualAccount(Reservation reservation,String bankCode, String customerName) {
+		requireEnabled();
+
 		Map<String, Object> payload = new HashMap<>();
 		payload.put(AMOUNT, reservation.getTotalPrice());
 		payload.put(ORDER_ID, reservation.getReservationUid().toString());
@@ -469,6 +483,12 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 		} catch (JsonProcessingException e) {
 			log.error("토스페이먼츠 에러 응답 파싱 실패: type={}", e.getClass().getSimpleName());
 			throw new TossPaymentResponseParsingException(ErrorCode.TOSS_PAYMENT_RESPONSE_PARSING_ERROR);
+		}
+	}
+
+	private void requireEnabled() {
+		if (!enabled) {
+			throw new IllegalStateException("Toss Payments is disabled in this runtime profile");
 		}
 	}
 

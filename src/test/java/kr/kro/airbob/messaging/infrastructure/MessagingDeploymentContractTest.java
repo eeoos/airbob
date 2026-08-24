@@ -17,6 +17,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationExecutionListener;
+import kr.kro.airbob.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
+import kr.kro.airbob.domain.accommodation.cache.messaging.kafka.AccommodationDetailCacheInvalidationKafkaListener;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.alert.infrastructure.kafka.OperatorAlertKafkaListener;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
@@ -32,6 +34,9 @@ class MessagingDeploymentContractTest {
 		"ACCOMMODATION_INDEX.events",
 		"ACCOMMODATION_INDEX.events.RETRY",
 		"ACCOMMODATION_INDEX.events.DLT",
+		"ACCOMMODATION_CACHE.events",
+		"ACCOMMODATION_CACHE.events.RETRY",
+		"ACCOMMODATION_CACHE.events.DLT",
 		"OPERATOR_ALERT.events",
 		"OPERATOR_ALERT.events.RETRY",
 		"OPERATOR_ALERT.events.DLT"
@@ -103,7 +108,7 @@ class MessagingDeploymentContractTest {
 	}
 
 	@Test
-	@DisplayName("topic bootstrap은 세 스트림의 primary retry DLT를 같은 partition 수로 검증한다")
+	@DisplayName("topic bootstrap은 네 스트림의 primary retry DLT를 같은 partition 수로 검증한다")
 	void provisionsBusinessTopicsExplicitly() throws IOException {
 		String script = read("docker/kafka/init-topics.sh");
 
@@ -122,6 +127,8 @@ class MessagingDeploymentContractTest {
 			.isEqualTo(PaymentOperationExecutionRequestedV1.TOPIC);
 		assertThat(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.destination())
 			.isEqualTo(AccommodationSearchRefreshRequestedV1.TOPIC);
+		assertThat(AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR.destination())
+			.isEqualTo(AccommodationDetailCacheInvalidationRequestedV1.TOPIC);
 		assertThat(OperatorAlertRequestedV1.DESCRIPTOR.destination())
 			.isEqualTo(OperatorAlertRequestedV1.TOPIC);
 		assertCanonicalListenerTopic(
@@ -131,12 +138,16 @@ class MessagingDeploymentContractTest {
 			AccommodationSearchRefreshListener.class,
 			AccommodationSearchRefreshRequestedV1.TOPIC);
 		assertCanonicalListenerTopic(
+			AccommodationDetailCacheInvalidationKafkaListener.class,
+			AccommodationDetailCacheInvalidationRequestedV1.TOPIC);
+		assertCanonicalListenerTopic(
 			OperatorAlertKafkaListener.class,
 			OperatorAlertRequestedV1.TOPIC);
 
 		List.of(
 			PaymentOperationExecutionRequestedV1.TOPIC,
 			AccommodationSearchRefreshRequestedV1.TOPIC,
+			AccommodationDetailCacheInvalidationRequestedV1.TOPIC,
 			OperatorAlertRequestedV1.TOPIC
 		).forEach(topic -> assertThat(BUSINESS_TOPICS)
 			.contains(topic, topic + ".RETRY", topic + ".DLT"));

@@ -16,17 +16,21 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
-import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
+import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
+import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageDeletionRequested;
+import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageUploaded;
+import kr.kro.airbob.domain.image.exception.ImageUploadException;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
@@ -37,6 +41,7 @@ class AccommodationImageServiceTest {
 	@Mock private AccommodationImageRepository accommodationImageRepository;
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private S3ImageUploader s3ImageUploader;
+	@Mock private ApplicationEventPublisher applicationEventPublisher;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
 	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Captor private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
@@ -85,8 +90,38 @@ class AccommodationImageServiceTest {
 			new ImageResponse.ImageInfo(11L, savedSecond.getImageUrl())
 		);
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(savedFirst.getImageUrl());
+		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedFirst.getImageUrl()));
+		verify(applicationEventPublisher).publishEvent(new ImageUploaded(savedSecond.getImageUrl()));
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.IMAGE);
+	}
+
+	@Test
+	@DisplayName("여러 이미지 업로드 중 실패해도 이미 업로드된 객체의 롤백 정리를 등록한다")
+	void registersRollbackCleanupBeforeLaterUploadFails() throws IOException {
+		Accommodation accommodation = accommodation(1L, null);
+		MockMultipartFile firstFile = new MockMultipartFile(
+			"images", "first.jpg", "image/jpeg", new byte[] {1}
+		);
+		MockMultipartFile secondFile = new MockMultipartFile(
+			"images", "second.jpg", "image/jpeg", new byte[] {2}
+		);
+		String firstImageUrl = "https://cdn.example.com/first.jpg";
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNot(
+			1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+		when(s3ImageUploader.upload(firstFile, "accommodationInfos/1"))
+			.thenReturn(firstImageUrl);
+		when(s3ImageUploader.upload(secondFile, "accommodationInfos/1"))
+			.thenThrow(new IOException("S3 unavailable"));
+
+		assertThatThrownBy(() -> accommodationImageService.uploadImages(
+			1L, List.of(firstFile, secondFile), 2L))
+			.isInstanceOf(ImageUploadException.class);
+
+		verify(applicationEventPublisher).publishEvent(new ImageUploaded(firstImageUrl));
+		verify(accommodationImageRepository, never()).saveAll(anyList());
+		verifyNoInteractions(cacheInvalidationPublisher);
 	}
 
 	@Test
@@ -104,7 +139,9 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
-		verify(s3ImageUploader).delete(currentThumbnail.getImageUrl());
+		verify(applicationEventPublisher).publishEvent(
+			new ImageDeletionRequested(currentThumbnail.getImageUrl()));
+		verify(s3ImageUploader, never()).delete(anyString());
 		verify(accommodationImageRepository).delete(currentThumbnail);
 		assertThat(accommodation.getThumbnailUrl()).isEqualTo(nextImage.getImageUrl());
 		verify(cacheInvalidationPublisher).publish(
@@ -190,9 +227,10 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
-		var order = inOrder(searchRefreshPublisher, s3ImageUploader);
+		var order = inOrder(searchRefreshPublisher, applicationEventPublisher);
 		order.verify(searchRefreshPublisher).requestRefresh(accommodationUid);
-		order.verify(s3ImageUploader).delete(current.getImageUrl());
+		order.verify(applicationEventPublisher).publishEvent(
+			new ImageDeletionRequested(current.getImageUrl()));
 	}
 
 	@Test

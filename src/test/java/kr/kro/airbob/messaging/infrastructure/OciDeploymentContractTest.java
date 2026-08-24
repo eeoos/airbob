@@ -25,9 +25,11 @@ class OciDeploymentContractTest {
 		String deployJob = workflow.substring(workflow.indexOf("  deploy-oci:"));
 
 		assertThat(deployJob)
-			.contains("uses: actions/checkout@v4")
+			.contains("uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262")
+			.contains("persist-credentials: false")
 			.contains("sh scripts/sync-oci-deployment-assets.sh")
 			.contains("sh \"$HOME/airbob/scripts/deploy-oci.sh\"")
+			.contains("if: always()", "docker logout ghcr.io")
 			.doesNotContain("-f docker-compose.yml")
 			.doesNotContain("OLD_IMAGE_ID", "rollback()");
 	}

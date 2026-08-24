@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "bundles": [
+    "app",
+    "redis",
+    "kafka",
+    "debezium",
+    "elasticsearch",
+    "monitoring"
+  ],
+  "imageVariables": [
+    "APP_IMAGE",
+    "REDIS_IMAGE",
+    "REDIS_EXPORTER_IMAGE",
+    "NODE_EXPORTER_IMAGE",
+    "KAFKA_IMAGE",
+    "DEBEZIUM_IMAGE",
+    "ELASTICSEARCH_IMAGE",
+    "ELASTICSEARCH_EXPORTER_IMAGE",
+    "PROMETHEUS_IMAGE",
+    "GRAFANA_IMAGE"
+  ],
+  "files": [
+    "infra/aws/bundles/app/compose.yml",
+    "infra/aws/bundles/app/required-runtime-env.txt",
+    "infra/aws/bundles/redis/compose.yml",
+    "infra/aws/bundles/kafka/compose.yml",
+    "infra/aws/bundles/kafka/jmx-exporter.yml",
+    "infra/aws/bundles/debezium/compose.yml",
+    "infra/aws/bundles/debezium/connect-distributed.aws.properties",
+    "infra/aws/bundles/debezium/connector.aws.json.tmpl",
+    "infra/aws/bundles/debezium/jmx-exporter.yml",
+    "infra/aws/bundles/elasticsearch/compose.yml",
+    "infra/aws/bundles/monitoring/compose.yml",
+    "monitoring/prometheus/prometheus.aws.yml",
+    "monitoring/grafana/provisioning/datasources/prometheus.yml",
+    "monitoring/grafana/provisioning/datasources/cloudwatch.aws.yml",
+    "monitoring/grafana/provisioning/dashboards/airbob.yml",
+    "monitoring/grafana/dashboards/airbob-coupon-issuance.json",
+    "monitoring/grafana/dashboards/airbob-query-count.json",
+    "monitoring/grafana/dashboards/airbob-redis.json",
+    "monitoring/grafana/dashboards/airbob-spring-boot-statistics.json"
+  ]
+}

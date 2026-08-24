@@ -368,9 +368,9 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 
 		assertThat(snapshot.hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 2)
-			.containsEntry(SqlQueryType.INSERT, 1)
+			.containsEntry(SqlQueryType.INSERT, 2)
 			.containsEntry(SqlQueryType.UPDATE, 1)
-			.containsEntry(SqlQueryType.TOTAL, 4);
+			.containsEntry(SqlQueryType.TOTAL, 5);
 		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.DELETE, 0)).isZero();
 		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.OTHER, 0)).isZero();
 		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(oldMap);
@@ -669,10 +669,10 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 2)
 			.containsEntry(SqlQueryType.DELETE, 1)
-			.containsEntry(SqlQueryType.INSERT, replacementRows + 1)
+			.containsEntry(SqlQueryType.INSERT, replacementRows + 2)
 			.containsEntry(SqlQueryType.UPDATE, 1)
 			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, replacementRows + 5);
+			.containsEntry(SqlQueryType.TOTAL, replacementRows + 6);
 		assertNoJdbcBatchFields(response.operation().jdbcBatchCalls(),
 			response.operation().jdbcSubmittedRows(),
 			response.operation().jdbcConfiguredBatchSize(),

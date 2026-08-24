@@ -18,11 +18,12 @@ signal을 처리할 수 있어야 한다.
 ## Connect와 topic bootstrap
 
 broker 자동 topic 생성은 꺼져 있다. [`docker/kafka/init-topics.sh`](../docker/kafka/init-topics.sh)는
-Connect 내부 topic, schema history, heartbeat와 다음 9개 비즈니스 topic을 먼저 만들고
+Connect 내부 topic, schema history, heartbeat와 다음 12개 비즈니스 topic을 먼저 만들고
 partition 수를 검증한다.
 
 - `PAYMENT_OPERATION.events`, `.RETRY`, `.DLT`
 - `ACCOMMODATION_INDEX.events`, `.RETRY`, `.DLT`
+- `ACCOMMODATION_CACHE.events`, `.RETRY`, `.DLT`
 - `OPERATOR_ALERT.events`, `.RETRY`, `.DLT`
 
 [`docker/debezium/register-connector.sh`](../docker/debezium/register-connector.sh)는 connector
