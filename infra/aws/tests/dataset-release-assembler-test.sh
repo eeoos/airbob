@@ -64,10 +64,16 @@ write_attestation() {
     --arg sourceDatabaseFingerprintSha256 "$(sha256_file "$release_dir/database-fingerprint.tsv")" \
     --argjson accommodationRows "$accommodation_rows" '
     {
-      schemaVersion: 1,
+      schemaVersion: 3,
+      databaseRestoreMethod: "gzip-to-empty-airbobdb-v1",
       sourceReleasePayloadSha256: $sourceReleasePayloadSha256,
       sourceDumpSha256: $sourceDumpSha256,
+      restoredDumpSha256: $sourceDumpSha256,
       sourceDatabaseFingerprintSha256: $sourceDatabaseFingerprintSha256,
+      sourceEtlCommit: "0123456789abcdef0123456789abcdef01234567",
+      databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
+      verifierContractInventorySha256: "7777777777777777777777777777777777777777777777777777777777777777",
+      databaseFingerprintSubsetSha256: "8888888888888888888888888888888888888888888888888888888888888888",
       flywayVersion: "17",
       flywayHistoryRows: 17,
       migrationChecksumSha256: "4444444444444444444444444444444444444444444444444444444444444444",
@@ -82,6 +88,29 @@ write_attestation() {
       capturedAt: "2026-08-17T00:00:00Z"
     }
   ' > "$attestation"
+}
+
+write_snapshot_reference() {
+  local output_file=$1
+  local release_name=$2
+  jq -nS --arg release "$release_name" '
+    {
+      schemaVersion: 1,
+      repository: "airbob-dataset-readonly",
+      bucket: "airbob-performance-lab-dataset-942632789808",
+      basePath: ("elasticsearch/releases/" + $release),
+      snapshot: ("airbob-" + $release),
+      index: "accommodations",
+      elasticsearchVersion: "8.18.8",
+      imageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      documentCount: 201,
+      mappingSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      dbIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      esIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      contentFingerprintSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ' > "$output_file"
+  chmod 600 "$output_file"
 }
 
 refresh_traffic_binding() {
@@ -304,6 +333,68 @@ jq -e \
 [[ "$(cat "$release_one/mysql/sha256.txt")" == "$dump_sha  airbob.sql.zst" ]] \
   || fail 'assembled MySQL checksum file is not canonical'
 
+snapshot_reference="$temp_dir/snapshot-reference.json"
+search_output="$temp_dir/search-output"
+write_snapshot_reference "$snapshot_reference" "$dataset_release"
+make_output_root "$search_output"
+"$assembler" \
+  "$source_release" "$attestation" "$search_output" "$dataset_release" \
+  "$evaluation_time" "$valid_until" "$snapshot_reference" >/dev/null
+search_release="$search_output/$dataset_release"
+search_inventory=$(cd "$search_release" && find . -mindepth 1 -print | LC_ALL=C sort)
+expected_search_inventory=$(printf '%s\n' \
+  './benchmark' \
+  './benchmark/manifest.json' \
+  './elasticsearch' \
+  './elasticsearch/snapshot-reference.json' \
+  './manifest.json' \
+  './mysql' \
+  './mysql/airbob.sql.zst' \
+  './mysql/sha256.txt')
+[[ "$search_inventory" == "$expected_search_inventory" ]] \
+  || fail 'search-enabled release inventory is not exact'
+cmp -s "$snapshot_reference" "$search_release/elasticsearch/snapshot-reference.json" \
+  || fail 'assembler changed snapshot reference bytes'
+jq -e '
+  .releaseKind == "pipeline-rehearsal" and
+  .search == {
+    enabled: true,
+    snapshotReferenceKey: "elasticsearch/snapshot-reference.json",
+    repository: "airbob-dataset-readonly",
+    elasticsearchVersion: "8.18.8",
+    imageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    requiredPlugins: ["analysis-nori", "repository-s3"],
+    index: "accommodations",
+    documentCount: 201,
+    mappingSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    databaseAccommodationIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    elasticsearchAccommodationIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    contentFingerprintSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  }
+' "$search_release/manifest.json" >/dev/null \
+  || fail 'search-enabled manifest is not bound to its snapshot reference'
+"$validator" "$search_release" "$dataset_release" pipeline-rehearsal >/dev/null
+
+wrong_snapshot_reference="$temp_dir/wrong-snapshot-reference.json"
+jq '.basePath = "elasticsearch/releases/another-release"' \
+  "$snapshot_reference" > "$wrong_snapshot_reference"
+wrong_snapshot_output="$temp_dir/wrong-snapshot-output"
+make_output_root "$wrong_snapshot_output"
+expect_failure mismatched-snapshot-release "$wrong_snapshot_output" "$dataset_release" \
+  "$assembler" "$source_release" "$attestation" "$wrong_snapshot_output" \
+  "$dataset_release" "$evaluation_time" "$valid_until" "$wrong_snapshot_reference"
+
+multi_snapshot_reference="$temp_dir/multi-snapshot-reference.json"
+{
+  printf '%s\n' '{"password":"hunter2"}'
+  cat "$snapshot_reference"
+} > "$multi_snapshot_reference"
+multi_snapshot_output="$temp_dir/multi-snapshot-output"
+make_output_root "$multi_snapshot_output"
+expect_failure multi-document-snapshot "$multi_snapshot_output" "$dataset_release" \
+  "$assembler" "$source_release" "$attestation" "$multi_snapshot_output" \
+  "$dataset_release" "$evaluation_time" "$valid_until" "$multi_snapshot_reference"
+
 "$assembler" \
   "$source_release" "$attestation" "$output_two" "$dataset_release" \
   "$evaluation_time" "$valid_until" >/dev/null
@@ -311,7 +402,7 @@ release_two="$output_two/$dataset_release"
 cmp -s "$release_one/manifest.json" "$release_two/manifest.json" \
   || fail 'same inputs did not produce a deterministic manifest'
 cmp -s "$release_one/mysql/airbob.sql.zst" "$release_two/mysql/airbob.sql.zst" \
-  || fail 'same inputs did not produce a deterministic zstd dump'
+  || fail 'same toolchain repeat was not byte-stable'
 cmp -s "$release_one/mysql/sha256.txt" "$release_two/mysql/sha256.txt" \
   || fail 'same inputs did not produce a deterministic dump checksum'
 
@@ -365,6 +456,41 @@ make_output_root "$multi_attestation_output"
 expect_failure multi-document-attestation "$multi_attestation_output" "$dataset_release" \
   "$assembler" "$source_release" "$multi_attestation" \
   "$multi_attestation_output" "$dataset_release" "$evaluation_time" "$valid_until"
+
+v2_attestation="$temp_dir/v2-attestation.json"
+jq '.schemaVersion = 2' "$attestation" > "$v2_attestation"
+v2_attestation_output="$temp_dir/v2-attestation-output"
+make_output_root "$v2_attestation_output"
+expect_failure v2-attestation "$v2_attestation_output" "$dataset_release" \
+  "$assembler" "$source_release" "$v2_attestation" \
+  "$v2_attestation_output" "$dataset_release" "$evaluation_time" "$valid_until"
+
+wrong_restore_method_attestation="$temp_dir/wrong-restore-method-attestation.json"
+jq '.databaseRestoreMethod = "unreviewed-restore-v1"' \
+  "$attestation" > "$wrong_restore_method_attestation"
+wrong_restore_method_output="$temp_dir/wrong-restore-method-output"
+make_output_root "$wrong_restore_method_output"
+expect_failure wrong-restore-method "$wrong_restore_method_output" "$dataset_release" \
+  "$assembler" "$source_release" "$wrong_restore_method_attestation" \
+  "$wrong_restore_method_output" "$dataset_release" "$evaluation_time" "$valid_until"
+
+mismatched_restored_dump_attestation="$temp_dir/mismatched-restored-dump-attestation.json"
+jq '.restoredDumpSha256 = "9999999999999999999999999999999999999999999999999999999999999999"' \
+  "$attestation" > "$mismatched_restored_dump_attestation"
+mismatched_restored_dump_output="$temp_dir/mismatched-restored-dump-output"
+make_output_root "$mismatched_restored_dump_output"
+expect_failure mismatched-restored-dump "$mismatched_restored_dump_output" "$dataset_release" \
+  "$assembler" "$source_release" "$mismatched_restored_dump_attestation" \
+  "$mismatched_restored_dump_output" "$dataset_release" "$evaluation_time" "$valid_until"
+
+mismatched_etl_attestation="$temp_dir/mismatched-etl-attestation.json"
+jq '.sourceEtlCommit = "ffffffffffffffffffffffffffffffffffffffff"' \
+  "$attestation" > "$mismatched_etl_attestation"
+mismatched_etl_output="$temp_dir/mismatched-etl-output"
+make_output_root "$mismatched_etl_output"
+expect_failure mismatched-etl-attestation "$mismatched_etl_output" "$dataset_release" \
+  "$assembler" "$source_release" "$mismatched_etl_attestation" \
+  "$mismatched_etl_output" "$dataset_release" "$evaluation_time" "$valid_until"
 
 extended_source="$temp_dir/extended-source"
 extended_attestation="$temp_dir/extended-attestation.json"

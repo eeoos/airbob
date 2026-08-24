@@ -13,14 +13,15 @@
 | Prometheus AWS target definitions | Implemented (static/config validation only) |
 | Verified nineteen-file bundle package | Implemented (local package + immutable S3 publication workflow; not executed) |
 | Immutable app/infra image construction and publication | Implemented (workflow/config only; no ECR publication executed) |
-| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; repository-s3 and live proof pending |
+| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; local repository-s3 producer contract implemented, live proof pending |
 | Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration implemented; not executed |
-| Terraform persistent foundation | Applied in account `942632789808`, including the protected private DNS anchor and issued API ACM certificate; drift-free after apply |
+| Terraform persistent foundation | Applied baseline in account `942632789808`, including the protected private DNS anchor and issued API ACM certificate; last applied state was drift-free, dataset-publisher delta is unapplied |
 | Terraform DNS/lab state boundaries | Route 53-authoritative OCI-only DNS state applied; Phase 2-4 ephemeral lab root remains unapplied |
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Immutable dataset validator and ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V17 release published or restored) |
+| Immutable V17 dataset assembly and publication | Local DB/search assembly, native ES snapshot producer, and manifest-last publisher implemented (static/mock tests only; publisher role/policy unapplied and nothing published) |
+| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V17 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Gabia delegation completed; Route 53 serves the verified OCI weight-100 record, while the AWS alias remains pending |
@@ -34,9 +35,10 @@ path families are excluded. The content gate rejects the enumerated password,
 secret, token, credential, API/access/private-key, service-account, and private
 key marker families except for six exact reviewed placeholder/guard lines. It
 does not prove that arbitrary secret material hidden under a benign key is
-absent. The persistent foundation and OCI-only weighted-DNS state are applied
-and drift-free; the Phase 2 lab destruction boundary remains statically tested
-but unapplied. Applying the lab root now declares billable
+absent. The persistent foundation and OCI-only weighted-DNS state are applied;
+the last applied state was drift-free, while the new dataset-publisher delta
+remains unapplied. The Phase 2 lab destruction boundary remains statically
+tested but unapplied. Applying the lab root now declares billable
 NAT/probe or dependency-service EC2/EBS/EIP resources according to its explicit
 phase. The foundation additionally declares one persistent private hosted zone
 (standard monthly hosted-zone charge) and a subnet-free anchor VPC with no
@@ -70,11 +72,35 @@ are resolved only on the host from Secrets Manager. Persistent RDS snapshot
 promotion is a separate publisher/admin command and remains outside the lab
 role and lab destroy graph.
 
+The local search-data path now uses the exact digest-pinned Elasticsearch image
+from the `infra-image-release-<full-commit>` workflow artifact. A version-2
+database attestation reruns the exact verifier SQL from the source ETL commit
+and binds the restored MySQL server UUID and approved fingerprint subset. One
+local producer then acquires the release-specific DynamoDB lease and uses a
+temporarily enabled, exact-prefix IAM grant to write a native snapshot directly
+to the initially empty `elasticsearch/releases/<dataset-release>/` S3 prefix.
+It unregisters the writer repository, registers the same prefix read-only,
+restores the snapshot to a temporary verification index, compares DB/ES
+membership and IDs, verifies source-to-restored ES mapping/content fidelity,
+and records a stable S3 version inventory. It does not claim a field-by-field
+MySQL-to-ES content projection proof.
+
+After snapshot receipt generation, a second foundation plan sets the writer
+release back to null. The wrapper publisher self-inspects its role and refuses
+all S3 work until that revoke is active. It then checks the receipt and
+inventory, writes wrapper payloads with no-overwrite semantics, and writes
+`manifest.json` last. The AWS bootstrap registers only the read-only repository
+and cannot publish a snapshot. The dedicated local MFA role, temporary grant,
+and bucket policy exist in Terraform but are unapplied, and neither a V17
+wrapper nor native snapshot currently exists in the dataset bucket.
+
 Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
 data bootstrap is in progress. An exact `data-ready` receipt is required before
 `app_enabled=true` can select single-AZ `performance` (`1/1/1`, no scaling
-policy) or two-AZ `scaling` (`1/1/4`, CPU 50% plus a caller-supplied
-baseline-derived ALB request target). The immutable app digest, measurement
+policy), fixed two-AZ `distributed-lock` (`2/2/2`, no scaling policy), or
+two-AZ `scaling` (`1/1/4`, CPU 50% plus a caller-supplied baseline-derived ALB
+request target). `distributed-lock` requires `isolated-read` and a null request
+target. The immutable app digest, measurement
 policy, cache toggle, dataset, and RDS identity form a launch-template runtime
 revision. New targets receive the RDS credential only through a tag-targeted
 SSM association and a mode-0600 env file. ALB stickiness is disabled, app/node
@@ -88,6 +114,14 @@ hermetic fake-AWS execution but remains unproven on the live host.
 Terraform does not wait for an ASG instance refresh to finish, so the 15-minute
 poll and pre-DNS target-health decision are now implemented by the Phase 5
 controller. They remain an unproven runtime guarantee until a live rehearsal.
+
+`distributed-lock` currently prepares only a cross-JVM, shared-Redis topology.
+Here `isolated-read` means that schedulers, the connector, and Kafka consumers
+are isolated; it does not technically block an HTTP write.
+No mutating reservation contention runner or correctness evidence has been
+implemented or executed. A future run must use synthetic reservation data and
+must reset the dataset or tear the lab down afterward; read-performance results
+from a mutated dataset are invalid.
 
 ## Phase 5 operator workflow
 
@@ -117,6 +151,13 @@ make aws-down
 ```
 
 Scaling additionally requires `REQUEST_TARGET=<baseline requests/target/min>`.
+The fixed distributed-lock topology uses
+`MODE=distributed-lock POLICY=isolated-read` and rejects `REQUEST_TARGET`.
+Before DNS cutover, the operator requires exactly two healthy `InService` ASG
+instances across the two configured AZs and the same two healthy ALB target
+IDs. It repeats that check immediately before and after the AWS DNS switch;
+post-switch drift rolls DNS back to OCI. Only the final topology is stored in
+`runs/<run-id>/application-readiness.json`.
 `TTL_HOURS` defaults to 6 and is limited to 24. The default dump bootstrap can
 be changed to a prevalidated snapshot only with both
 `DATABASE_BOOTSTRAP=snapshot` and its exact snapshot identifier. The bundle
@@ -144,14 +185,17 @@ outputs, destroys only the lab state, and checks tagged plus explicit
 EC2/RDS/ALB/EBS/EIP/ASG orphans. `FORCE=true` is rejected until two hours after
 the run expiry.
 
-Before the first live run, apply the reviewed foundation/DNS changes, delegate
-the zone and issue ACM, publish the full-commit images and bundle, and publish a
-compatible V17 dataset. Protect the GitHub Environment `aws-performance-lab`
-and define `AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
+Before the first live run, apply the reviewed dataset-publisher foundation
+change, publish the full-commit images and bundle, download the matching
+immutable infrastructure image-release artifact, and publish a compatible V17
+dataset. The DNS delegation and ACM issuance are already complete. Protect the
+GitHub Environment `aws-performance-lab` and define
+`AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
 `OCI_ORIGIN_IPV4`, and `AWS_LAB_RDS_ENGINE_VERSION`. The workflow uses OIDC
 only, has a fixed concurrency group with in-progress cancellation disabled,
-and calls the same operator script. None of these live prerequisites or the
-operator itself has been applied against AWS in this branch.
+and calls the same operator script. The dataset-publisher foundation delta,
+image and bundle publication, V17 dataset publication, and the operator's live
+AWS execution all remain pending.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`. It also materializes the aggregate validator, its

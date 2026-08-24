@@ -5,7 +5,7 @@ performance-lab run. Phase 2 declares the two-AZ VPC, test-only NAT instance,
 S3 gateway endpoint, the protected private-zone association and records,
 disposable egress probe, and the five dependency-service EC2 hosts. Phase 3
 adds one Single-AZ RDS MySQL instance plus its ordered dataset bootstrap. Phase
-4 adds an HTTPS-only ALB, a `c6i.large` application ASG, two capacity modes,
+4 adds an HTTPS-only ALB, a `c6i.large` application ASG, three capacity modes,
 and an optional no-ingress `c6i.xlarge` load-generator host. It still
 consumes persistent identifiers only through the exact, non-secret SSM
 contract published by foundation.
@@ -51,11 +51,12 @@ The Phase 2-4 transition is deliberately four applies, not one:
    scaling policy exists.
 4. After the bootstrap has written its exact S3 receipt, apply
    `deployment_phase=data-ready` with the same immutable inputs and
-   `app_enabled=true`. Choose `mode=performance` for single-AZ `1/1/1` or
-   `mode=scaling` for two-AZ `1/1/4`. Scaling additionally requires
-   `measurement_policy=isolated-read` and the baseline-derived one-minute
-   `request_count_per_target_per_minute`; only then are its CPU 50% and ALB
-   request-count target tracking policies created. This transition creates no
+   `app_enabled=true`. Choose `mode=performance` for single-AZ `1/1/1`,
+   `mode=distributed-lock` for fixed two-AZ `2/2/2`, or `mode=scaling` for
+   two-AZ `1/1/4`. Distributed-lock and scaling require
+   `measurement_policy=isolated-read`; the baseline-derived one-minute request
+   target is required only by scaling, and only scaling creates its CPU 50%
+   and ALB request-count target tracking policies. This transition creates no
    replacement dataset and accepts only the exact receipt for this run,
    manifest, RDS resource id, and dependency state.
 
@@ -117,9 +118,11 @@ passes.
 ## Phase 4 application contract
 
 `performance` uses only the primary private subnet and has no scaling policy.
-`scaling` uses both private subnets and creates exactly two target-tracking
-policies. `integrated-smoke` is performance-only; `isolated-read` is valid in
-either capacity mode. The accommodation-detail cache toggle remains a separate
+`distributed-lock` uses both private subnets at fixed `2/2/2` with no scaling
+policy. `scaling` uses both private subnets and creates exactly two
+target-tracking policies. `integrated-smoke` is performance-only;
+`isolated-read` is required by both multi-instance modes. The
+accommodation-detail cache toggle remains a separate
 explicit boolean and is included in the launch-template runtime revision, so a
 new target receives a fresh JVM and exact root-only runtime env. The app host
 resolves the RDS-managed secret only from Secrets Manager during its
@@ -139,8 +142,24 @@ Terraform starts an instance refresh from the exact numeric launch-template
 version and configures the health alarm plus automatic rollback. The AWS
 provider returns before that asynchronous refresh finishes. The Phase 5
 controller now polls it for at most 15 minutes and refuses DNS switching until
-the desired targets are healthy. This path is covered by static/fake-CLI
-contracts only and remains unproven in live AWS.
+the desired targets are healthy. In `distributed-lock`, it additionally
+requires exactly two healthy `InService` instances, one in each configured AZ,
+and requires the ALB healthy target IDs to equal that ASG instance set. It
+rechecks the same invariant after DNS staging immediately before the switch
+and once more after the AWS switch. A post-switch mismatch rolls DNS back to
+OCI. The final verified topology is written to
+`runs/<run-id>/application-readiness.json`. This path is covered by
+static/fake-CLI contracts only and remains unproven in live AWS.
+
+The `distributed-lock` mode only prepares the two-JVM topology for controlled
+Redis distributed-lock correctness tests. Here `isolated-read` isolates
+schedulers, the connector, and Kafka consumers; it does not technically block
+an HTTP write. The mode does not implement or claim a
+passing mutating reservation workload. That runner and live evidence are still
+pending. Any future reservation mutation run must reset the immutable dataset
+before another measurement or tear the lab down immediately afterward; its
+results must not be mixed with read-performance evidence from the mutated
+dataset.
 
 The optional load-generator instance is a public-subnet `c6i.xlarge` with an
 ephemeral public IPv4, no inbound security-group rule, detailed monitoring,

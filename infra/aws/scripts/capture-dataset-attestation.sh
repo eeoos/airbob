@@ -2,9 +2,10 @@
 set -euo pipefail
 umask 077
 
-# This captures a restored-dump, writer-free database attestation. The source
-# digests and live database facts are bound into one document, but they are not
-# a cryptographic proof that a particular dump created the connected database.
+# This imports the verified dump into an empty target, locks that exact server
+# read-only, and captures a writer-free database attestation. The verifier SQL
+# from the source ETL commit must reproduce the shipped database fingerprint
+# subset before any live database facts are recorded.
 
 usage() {
   printf 'usage: %s <etl-release-dir> <output-json>\n' "${0##*/}" >&2
@@ -21,17 +22,22 @@ release_dir=$1
 output_json=$2
 
 required_environment=(
+  AIRBOB_DATASET_ETL_REPOSITORY
   AIRBOB_DATASET_DB_HOST
   AIRBOB_DATASET_DB_PORT
   AIRBOB_DATASET_DB_USER
   AIRBOB_DATASET_DB_PASSWORD
+  AIRBOB_DATASET_DB_RESTORE_USER
+  AIRBOB_DATASET_DB_RESTORE_PASSWORD
   AIRBOB_DATASET_DB_NAME
 )
 for environment_name in "${required_environment[@]}"; do
   [[ -n "${!environment_name:-}" ]] || fail "missing required database environment: $environment_name"
 done
 database_password=$AIRBOB_DATASET_DB_PASSWORD
-unset AIRBOB_DATASET_DB_PASSWORD
+restore_user=$AIRBOB_DATASET_DB_RESTORE_USER
+restore_password=$AIRBOB_DATASET_DB_RESTORE_PASSWORD
+unset AIRBOB_DATASET_DB_PASSWORD AIRBOB_DATASET_DB_RESTORE_PASSWORD
 
 [[ "$AIRBOB_DATASET_DB_NAME" == airbobdb ]] || fail 'database name must be airbobdb'
 [[ "$AIRBOB_DATASET_DB_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}$ ]] \
@@ -42,8 +48,13 @@ unset AIRBOB_DATASET_DB_PASSWORD
   || fail 'database port is invalid'
 [[ "$AIRBOB_DATASET_DB_USER" =~ ^[a-zA-Z][a-zA-Z0-9_]{0,31}$ ]] \
   || fail 'database user is invalid'
+[[ "$restore_user" =~ ^[a-zA-Z][a-zA-Z0-9_]{0,31}$ ]] \
+  || fail 'database restore user is invalid'
+[[ "$restore_user" != "$AIRBOB_DATASET_DB_USER" \
+  && "$restore_password" != "$database_password" ]] \
+  || fail 'database restore and attestation credentials must be distinct'
 [[ "${AIRBOB_DATASET_DB_QUIESCED:-}" == true ]] \
-  || fail 'AIRBOB_DATASET_DB_QUIESCED=true is required for a restored, writer-free database'
+  || fail 'AIRBOB_DATASET_DB_QUIESCED=true is required for an isolated restore target'
 
 for required_command in jq mysql sort find basename awk sed tail od tr mktemp chmod ln rm wc cmp gzip date; do
   command -v "$required_command" >/dev/null 2>&1 \
@@ -127,7 +138,7 @@ work_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-dataset-attestation.XXXXXX") \
   || fail 'cannot create attestation workspace'
 output_temp=''
 cleanup() {
-  unset MYSQL_PWD database_password
+  unset MYSQL_PWD database_password restore_password restore_user
   [[ -z "$output_temp" ]] || rm -f "$output_temp"
   rm -rf "$work_dir"
 }
@@ -135,6 +146,11 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+lineage_verifier="$script_dir/verify-etl-release-database.sh"
+[[ -f "$lineage_verifier" && ! -L "$lineage_verifier" && -x "$lineage_verifier" ]] \
+  || fail 'ETL release database verifier is missing or unsafe'
 
 checksum_file="$release_dir/SHA256SUMS"
 has_final_newline "$checksum_file" || fail 'SHA256SUMS must end with one newline'
@@ -277,9 +293,122 @@ jq -se '
 ' "$release_dir/benchmark-fixture.json" >/dev/null \
   || fail 'benchmark manifest contains unsupported or secret-bearing keys'
 
+restore_mysql_query() {
+  local label=$1
+  local query=$2
+  local destination=$3
+  if ! printf '%s\n' "$query" | MYSQL_PWD="$restore_password" mysql \
+    --protocol=TCP \
+    --host="$AIRBOB_DATASET_DB_HOST" \
+    --port="$AIRBOB_DATASET_DB_PORT" \
+    --user="$restore_user" \
+    --batch \
+    --raw \
+    --skip-column-names \
+    "$AIRBOB_DATASET_DB_NAME" > "$destination" 2>/dev/null; then
+    fail "database restore precondition failed: $label"
+  fi
+}
+
+restore_target_query="
+  SELECT
+    LOWER(@@server_uuid),
+    (SELECT COUNT(*) FROM information_schema.SCHEMATA
+     WHERE SCHEMA_NAME = 'airbobdb'),
+    (SELECT COUNT(*) FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = 'airbobdb' AND TABLE_TYPE = 'BASE TABLE'),
+    (SELECT COUNT(*) FROM information_schema.VIEWS
+     WHERE TABLE_SCHEMA = 'airbobdb'),
+    (SELECT COUNT(*) FROM information_schema.ROUTINES
+     WHERE ROUTINE_SCHEMA = 'airbobdb'),
+    (SELECT COUNT(*) FROM information_schema.EVENTS
+     WHERE EVENT_SCHEMA = 'airbobdb'),
+    (SELECT COUNT(*) FROM information_schema.TRIGGERS
+     WHERE TRIGGER_SCHEMA = 'airbobdb');
+"
+restore_target_file="$work_dir/restore-target.tsv"
+restore_mysql_query empty-target "$restore_target_query" "$restore_target_file"
+[[ "$(wc -l < "$restore_target_file" | tr -d '[:space:]')" == 1 ]] \
+  || fail 'database restore target inventory is malformed'
+IFS=$'\t' read -r restored_database_server_uuid schema_count table_count view_count \
+  routine_count event_count trigger_count extra_field < "$restore_target_file"
+[[ -z "${extra_field:-}" \
+  && "$restored_database_server_uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ \
+  && "$schema_count" == 1 \
+  && "$table_count" == 0 \
+  && "$view_count" == 0 \
+  && "$routine_count" == 0 \
+  && "$event_count" == 0 \
+  && "$trigger_count" == 0 ]] \
+  || fail 'database restore target must be the existing empty airbobdb schema'
+
+restored_dump="$work_dir/airbob-production-seed.sql.gz"
+cp "$release_dir/airbob-production-seed.sql.gz" "$restored_dump" \
+  || fail 'cannot copy the verified database dump into the private workspace'
+chmod 600 "$restored_dump"
+[[ -f "$restored_dump" && ! -L "$restored_dump" \
+  && "$(sha256_file "$restored_dump")" == "$source_dump_sha256" ]] \
+  || fail 'private database dump copy does not match the verified source dump'
+restored_dump_sha256=$(sha256_file "$restored_dump")
+
+dump_import_succeeded=true
+if ! gzip -dc "$restored_dump" 2>/dev/null | MYSQL_PWD="$restore_password" mysql \
+  --protocol=TCP \
+  --host="$AIRBOB_DATASET_DB_HOST" \
+  --port="$AIRBOB_DATASET_DB_PORT" \
+  --user="$restore_user" \
+  --batch \
+  --raw \
+  --skip-column-names \
+  "$AIRBOB_DATASET_DB_NAME" >/dev/null 2>/dev/null; then
+  dump_import_succeeded=false
+fi
+
+read_only_result="$work_dir/restore-read-only.txt"
+restore_mysql_query enable-super-read-only \
+  'SET GLOBAL super_read_only = ON;' "$read_only_result"
+[[ ! -s "$read_only_result" ]] \
+  || fail 'database read-only transition returned unexpected output'
+[[ "$(sha256_file "$restored_dump")" == "$restored_dump_sha256" \
+  && "$restored_dump_sha256" == "$source_dump_sha256" ]] \
+  || fail 'private database dump copy changed during restore'
+
+unset MYSQL_PWD restore_password restore_user \
+  AIRBOB_DATASET_DB_RESTORE_PASSWORD AIRBOB_DATASET_DB_RESTORE_USER
+[[ "$dump_import_succeeded" == true ]] \
+  || fail 'exact database dump import failed'
+
 captured_at=${AIRBOB_DATASET_CAPTURED_AT:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}
 [[ "$captured_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
   || fail 'capture timestamp is not RFC3339 UTC'
+
+lineage_receipt="$work_dir/lineage-receipt.json"
+if ! AIRBOB_DATASET_DB_PASSWORD="$database_password" \
+  "$lineage_verifier" "$release_dir" > "$lineage_receipt"; then
+  fail 'ETL release database lineage verification failed'
+fi
+jq -se '
+  def sha256: type == "string" and test("^[0-9a-f]{64}$");
+  length == 1 and
+  (.[0] |
+    (keys | sort) == ([
+      "schemaVersion", "sourceEtlCommit", "databaseServerUuid",
+      "verifierContractInventorySha256", "databaseFingerprintSubsetSha256"
+    ] | sort) and
+    .schemaVersion == 1 and
+    (.sourceEtlCommit | type == "string" and test("^[0-9a-f]{40}$")) and
+    (.databaseServerUuid | type == "string" and
+      test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
+    (.verifierContractInventorySha256 | sha256) and
+    (.databaseFingerprintSubsetSha256 | sha256))
+' "$lineage_receipt" >/dev/null \
+  || fail 'ETL release database lineage receipt is invalid'
+source_etl_commit=$(jq -r '.sourceEtlCommit' "$lineage_receipt")
+database_server_uuid=$(jq -r '.databaseServerUuid' "$lineage_receipt")
+[[ "$database_server_uuid" == "$restored_database_server_uuid" ]] \
+  || fail 'attested database server differs from the exact dump restore target'
+verifier_contract_inventory_sha256=$(jq -r '.verifierContractInventorySha256' "$lineage_receipt")
+database_fingerprint_subset_sha256=$(jq -r '.databaseFingerprintSubsetSha256' "$lineage_receipt")
 jq -en --arg capturedAt "$captured_at" '$capturedAt | fromdateiso8601' >/dev/null \
   || fail 'capture timestamp is not RFC3339 UTC'
 
@@ -300,11 +429,19 @@ mysql_query() {
   fi
 }
 
-read_only_before_file="$work_dir/read-only-before.txt"
-mysql_query read-only-before 'SELECT @@GLOBAL.read_only;' "$read_only_before_file"
-[[ "$(wc -l < "$read_only_before_file" | tr -d '[:space:]')" == 1 \
-   && "$(sed -n '1p' "$read_only_before_file")" == 1 ]] \
-  || fail 'database must be globally read-only before capture'
+server_before_file="$work_dir/server-before.tsv"
+mysql_query server-before \
+  'SELECT LOWER(@@server_uuid), @@GLOBAL.read_only, @@GLOBAL.super_read_only;' \
+  "$server_before_file"
+[[ "$(wc -l < "$server_before_file" | tr -d '[:space:]')" == 1 ]] \
+  || fail 'database server identity is malformed before capture'
+IFS=$'\t' read -r live_server_uuid read_only_before super_read_only_before extra_field \
+  < "$server_before_file"
+[[ -z "${extra_field:-}" \
+   && "$live_server_uuid" == "$database_server_uuid" \
+   && "$read_only_before" == 1 \
+   && "$super_read_only_before" == 1 ]] \
+  || fail 'database server identity or read-only state is invalid before capture'
 
 flyway_summary_query="
   SELECT
@@ -491,11 +628,12 @@ while IFS= read -r table_name; do
   printf '%s\t%s\n' "$table_name" "$row_count" >> "$second_expected_rows_tsv"
 done < "$second_sorted_table_inventory"
 
-read_only_after_file="$work_dir/read-only-after.txt"
-mysql_query read-only-after 'SELECT @@GLOBAL.read_only;' "$read_only_after_file"
-[[ "$(wc -l < "$read_only_after_file" | tr -d '[:space:]')" == 1 \
-   && "$(sed -n '1p' "$read_only_after_file")" == 1 ]] \
-  || fail 'database must remain globally read-only through capture'
+server_after_file="$work_dir/server-after.tsv"
+mysql_query server-after \
+  'SELECT LOWER(@@server_uuid), @@GLOBAL.read_only, @@GLOBAL.super_read_only;' \
+  "$server_after_file"
+cmp -s "$server_before_file" "$server_after_file" \
+  || fail 'database server identity or read-only state changed during capture'
 
 cmp -s "$migration_file" "$second_migration_file" \
   || fail 'Flyway history changed during capture'
@@ -512,6 +650,14 @@ for file_name in "${checksummed_files[@]}"; do
   [[ "$(sha256_file "$release_dir/$file_name")" == "$(checksum_digest_for "$file_name")" ]] \
     || fail 'ETL release artifact changed during capture'
 done
+
+lineage_receipt_after="$work_dir/lineage-receipt.after.json"
+if ! AIRBOB_DATASET_DB_PASSWORD="$database_password" \
+  "$lineage_verifier" "$release_dir" > "$lineage_receipt_after"; then
+  fail 'ETL release database lineage changed during capture'
+fi
+cmp -s "$lineage_receipt" "$lineage_receipt_after" \
+  || fail 'ETL release database lineage changed during capture'
 
 for required_table in accommodation flyway_schema_history outbox; do
   awk -F $'\t' -v target="$required_table" '$1 == target { found = 1 } END { exit !found }' \
@@ -534,7 +680,12 @@ output_temp=$(mktemp "$output_parent/.${output_name}.XXXXXX") \
 jq -n \
   --arg sourceReleasePayloadSha256 "$source_release_payload_sha256" \
   --arg sourceDumpSha256 "$source_dump_sha256" \
+  --arg restoredDumpSha256 "$restored_dump_sha256" \
   --arg sourceDatabaseFingerprintSha256 "$source_database_fingerprint_sha256" \
+  --arg sourceEtlCommit "$source_etl_commit" \
+  --arg databaseServerUuid "$database_server_uuid" \
+  --arg verifierContractInventorySha256 "$verifier_contract_inventory_sha256" \
+  --arg databaseFingerprintSubsetSha256 "$database_fingerprint_subset_sha256" \
   --arg flywayVersion "$flyway_version" \
   --argjson flywayHistoryRows "$flyway_history_rows" \
   --arg migrationChecksumSha256 "$migration_checksum_sha256" \
@@ -542,10 +693,16 @@ jq -n \
   --argjson expectedTableRows "$expected_table_rows_json" \
   --arg capturedAt "$captured_at" '
   {
-    schemaVersion: 1,
+    schemaVersion: 3,
+    databaseRestoreMethod: "gzip-to-empty-airbobdb-v1",
     sourceReleasePayloadSha256: $sourceReleasePayloadSha256,
     sourceDumpSha256: $sourceDumpSha256,
+    restoredDumpSha256: $restoredDumpSha256,
     sourceDatabaseFingerprintSha256: $sourceDatabaseFingerprintSha256,
+    sourceEtlCommit: $sourceEtlCommit,
+    databaseServerUuid: $databaseServerUuid,
+    verifierContractInventorySha256: $verifierContractInventorySha256,
+    databaseFingerprintSubsetSha256: $databaseFingerprintSubsetSha256,
     flywayVersion: $flywayVersion,
     flywayHistoryRows: $flywayHistoryRows,
     migrationChecksumSha256: $migrationChecksumSha256,
@@ -562,12 +719,22 @@ jq -e '
     "capturedAt", "expectedTableRows", "flywayHistoryRows", "flywayVersion",
     "migrationChecksumSha256", "outboxState", "schemaFingerprintSha256",
     "schemaVersion", "sourceDatabaseFingerprintSha256", "sourceDumpSha256",
-    "sourceReleasePayloadSha256"
+    "sourceReleasePayloadSha256", "sourceEtlCommit", "databaseServerUuid",
+    "verifierContractInventorySha256", "databaseFingerprintSubsetSha256",
+    "databaseRestoreMethod", "restoredDumpSha256"
   ] | sort) and
-  .schemaVersion == 1 and
+  .schemaVersion == 3 and
+  .databaseRestoreMethod == "gzip-to-empty-airbobdb-v1" and
   (.sourceReleasePayloadSha256 | sha256) and
   (.sourceDumpSha256 | sha256) and
+  (.restoredDumpSha256 | sha256) and
+  .restoredDumpSha256 == .sourceDumpSha256 and
   (.sourceDatabaseFingerprintSha256 | sha256) and
+  (.sourceEtlCommit | type == "string" and test("^[0-9a-f]{40}$")) and
+  (.databaseServerUuid | type == "string" and
+    test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
+  (.verifierContractInventorySha256 | sha256) and
+  (.databaseFingerprintSubsetSha256 | sha256) and
   .flywayVersion == "17" and
   .flywayHistoryRows == 17 and
   (.migrationChecksumSha256 | sha256) and

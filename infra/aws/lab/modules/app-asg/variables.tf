@@ -20,7 +20,7 @@ variable "subnet_ids" {
 
   validation {
     condition     = contains([1, 2], length(var.subnet_ids))
-    error_message = "The app ASG must use one subnet in performance mode or two in scaling mode."
+    error_message = "The app ASG must use one subnet in performance mode or two in distributed-lock/scaling mode."
   }
 }
 
@@ -49,8 +49,8 @@ variable "mode" {
   type = string
 
   validation {
-    condition     = contains(["performance", "scaling"], var.mode)
-    error_message = "mode must be performance or scaling."
+    condition     = contains(["performance", "distributed-lock", "scaling"], var.mode)
+    error_message = "mode must be performance, distributed-lock, or scaling."
   }
 }
 

@@ -131,6 +131,7 @@ output "phase4_contract" {
       max     = module.app_asg[0].contract.max
     } : local.app_capacity
     app_subnet_count                    = local.services_enabled ? module.app_asg[0].contract.subnet_count : length(local.app_subnet_ids)
+    app_availability_zones              = local.app_availability_zones
     scaling_policy_count                = local.services_enabled ? module.app_asg[0].contract.scaling_policy_count : 0
     request_count_per_target_per_minute = local.services_enabled ? module.app_asg[0].contract.request_target_per_minute : var.request_count_per_target_per_minute
     cpu_target_percent                  = local.services_enabled ? module.app_asg[0].contract.cpu_target_percent : 50

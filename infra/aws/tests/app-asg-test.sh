@@ -45,6 +45,7 @@ embedded_command_bytes=$((
 
 assert_contains "$lab_root/variables.tf" 'variable "app_enabled"'
 assert_contains "$lab_root/variables.tf" 'variable "request_count_per_target_per_minute"'
+assert_contains "$lab_root/variables.tf" 'contains(["performance", "distributed-lock", "scaling"], var.mode)'
 assert_matches "$lab_root/app.tf" 'instance_type[[:space:]]*=[[:space:]]*"c6i.large"'
 assert_matches "$lab_root/app.tf" 'app_enabled[[:space:]]*=[[:space:]]*var.app_enabled'
 assert_contains "$lab_root/modules/app-asg/main.tf" 'http_put_response_hop_limit = 2'
@@ -53,6 +54,9 @@ assert_matches "$lab_root/modules/app-asg/main.tf" 'version[[:space:]]*=[[:space
 assert_matches "$lab_root/modules/app-asg/main.tf" 'auto_rollback[[:space:]]*=[[:space:]]*true'
 assert_matches "$lab_root/modules/app-asg/main.tf" 'predefined_metric_type[[:space:]]*=[[:space:]]*"ALBRequestCountPerTarget"'
 assert_matches "$lab_root/modules/app-asg/main.tf" 'predefined_metric_type[[:space:]]*=[[:space:]]*"ASGAverageCPUUtilization"'
+assert_contains "$lab_root/modules/app-asg/main.tf" 'var.mode == "distributed-lock" && var.min_size == 2 && var.desired_capacity == 2 && var.max_size == 2'
+assert_contains "$lab_root/locals.tf" 'min = 2, desired = 2, max = 2'
+assert_contains "$lab_root/outputs.tf" 'app_availability_zones'
 assert_matches "$lab_root/modules/alb/main.tf" 'port[[:space:]]*=[[:space:]]*443'
 assert_matches "$lab_root/modules/alb/main.tf" 'protocol[[:space:]]*=[[:space:]]*"HTTPS"'
 assert_matches "$lab_root/modules/alb/main.tf" 'enabled[[:space:]]*=[[:space:]]*false'

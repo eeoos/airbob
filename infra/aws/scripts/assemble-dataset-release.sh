@@ -9,7 +9,7 @@ fail() {
 }
 
 usage() {
-  printf 'usage: %s ETL_RELEASE_DIR ATTESTATION_JSON OUTPUT_ROOT DATASET_RELEASE EVALUATION_TIME VALID_UNTIL\n' \
+  printf 'usage: %s ETL_RELEASE_DIR ATTESTATION_JSON OUTPUT_ROOT DATASET_RELEASE EVALUATION_TIME VALID_UNTIL [SNAPSHOT_REFERENCE_JSON]\n' \
     "${0##*/}" >&2
   exit 64
 }
@@ -89,7 +89,7 @@ cleanup_staging() {
   local staged_name
   [[ ${incomplete_created:-false} == true ]] || return 0
   [[ -n ${staging_dir:-} && -d ${staging_dir:-} && ! -L ${staging_dir:-} ]] || return 0
-  for staged_name in "${source_files[@]}" attestation.json; do
+  for staged_name in "${source_files[@]}" attestation.json snapshot-reference.json; do
     rm -f "$staging_dir/$staged_name" >/dev/null 2>&1 || true
   done
   rmdir "$staging_dir" >/dev/null 2>&1 || true
@@ -123,13 +123,14 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-[[ $# -eq 6 ]] || usage
+[[ $# -eq 6 || $# -eq 7 ]] || usage
 etl_release_dir=$1
 attestation_file=$2
 output_root=$3
 dataset_release=$4
 evaluation_time=$5
 valid_until=$6
+snapshot_reference_file=${7:-}
 
 for required_command in jq gzip zstd stat id cp cmp tr grep find sort awk wc date; do
   command -v "$required_command" >/dev/null 2>&1 \
@@ -153,12 +154,20 @@ jq -en \
   || fail 'ETL source release directory is missing or unsafe'
 [[ -f "$attestation_file" && ! -L "$attestation_file" ]] \
   || fail 'dataset attestation is missing or unsafe'
+if [[ -n "$snapshot_reference_file" ]]; then
+  [[ -f "$snapshot_reference_file" && ! -L "$snapshot_reference_file" ]] \
+    || fail 'Elasticsearch snapshot reference is missing or unsafe'
+fi
 [[ -d "$output_root" && ! -L "$output_root" ]] \
   || fail 'dataset output root is missing or unsafe'
 
 etl_release_dir=$(CDPATH= cd -P -- "$etl_release_dir" && pwd -P)
 attestation_parent=$(CDPATH= cd -P -- "$(dirname -- "$attestation_file")" && pwd -P)
 attestation_file="$attestation_parent/$(basename -- "$attestation_file")"
+if [[ -n "$snapshot_reference_file" ]]; then
+  snapshot_reference_parent=$(CDPATH= cd -P -- "$(dirname -- "$snapshot_reference_file")" && pwd -P)
+  snapshot_reference_file="$snapshot_reference_parent/$(basename -- "$snapshot_reference_file")"
+fi
 output_root=$(CDPATH= cd -P -- "$output_root" && pwd -P)
 
 [[ "$output_root" != / && "$output_root" != "$etl_release_dir" ]] \
@@ -217,6 +226,12 @@ cp "$attestation_file" "$staging_dir/attestation.json"
 chmod 600 "$staging_dir/attestation.json"
 [[ -f "$staging_dir/attestation.json" && ! -L "$staging_dir/attestation.json" ]] \
   || fail 'unable to stage the dataset attestation safely'
+if [[ -n "$snapshot_reference_file" ]]; then
+  cp "$snapshot_reference_file" "$staging_dir/snapshot-reference.json"
+  chmod 600 "$staging_dir/snapshot-reference.json"
+  [[ -f "$staging_dir/snapshot-reference.json" && ! -L "$staging_dir/snapshot-reference.json" ]] \
+    || fail 'unable to stage the Elasticsearch snapshot reference safely'
+fi
 
 expected_checksum_files=(
   PROVENANCE.txt
@@ -494,6 +509,7 @@ jq -se \
   --arg sourceReleasePayloadSha256 "$canonical_payload_sha" \
   --arg sourceDumpSha256 "$source_dump_sha" \
   --arg sourceDatabaseFingerprintSha256 "$source_database_fingerprint_sha" \
+  --arg sourceEtlCommit "$etl_commit" \
   --argjson requiredRows "$metadata_required_rows" '
   def exact_keys($wanted): (keys | sort) == ($wanted | sort);
   def sha256: type == "string" and test("^[0-9a-f]{64}$");
@@ -502,14 +518,24 @@ jq -se \
   (.[0] |
     exact_keys([
       "schemaVersion", "sourceReleasePayloadSha256", "sourceDumpSha256",
-      "sourceDatabaseFingerprintSha256", "flywayVersion", "flywayHistoryRows",
-      "migrationChecksumSha256", "schemaFingerprintSha256", "outboxState",
-      "expectedTableRows", "capturedAt"
+      "restoredDumpSha256", "databaseRestoreMethod",
+      "sourceDatabaseFingerprintSha256", "sourceEtlCommit", "databaseServerUuid",
+      "verifierContractInventorySha256", "databaseFingerprintSubsetSha256",
+      "flywayVersion", "flywayHistoryRows", "migrationChecksumSha256",
+      "schemaFingerprintSha256", "outboxState", "expectedTableRows", "capturedAt"
     ]) and
-    .schemaVersion == 1 and
+    .schemaVersion == 3 and
+    .databaseRestoreMethod == "gzip-to-empty-airbobdb-v1" and
     .sourceReleasePayloadSha256 == $sourceReleasePayloadSha256 and
     .sourceDumpSha256 == $sourceDumpSha256 and
+    .restoredDumpSha256 == $sourceDumpSha256 and
+    .restoredDumpSha256 == .sourceDumpSha256 and
     .sourceDatabaseFingerprintSha256 == $sourceDatabaseFingerprintSha256 and
+    .sourceEtlCommit == $sourceEtlCommit and
+    (.databaseServerUuid | type == "string" and
+      test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
+    (.verifierContractInventorySha256 | sha256) and
+    (.databaseFingerprintSubsetSha256 | sha256) and
     .flywayVersion == "17" and
     .flywayHistoryRows == 17 and
     (.migrationChecksumSha256 | sha256) and
@@ -550,7 +576,70 @@ jq -en \
     ($sourceValidUntil | fromdateiso8601) > now
   ' >/dev/null || fail 'supplied timestamps do not match the attested traffic validity window'
 
+search_json='{"enabled":false}'
+if [[ -n "$snapshot_reference_file" ]]; then
+  require_small_text_file "$staging_dir/snapshot-reference.json" 1048576
+  jq -se \
+    --arg release "$dataset_release" '
+    def exact_keys($wanted): (keys | sort) == ($wanted | sort);
+    def sha256: type == "string" and test("^[0-9a-f]{64}$");
+    def image_digest: type == "string" and test("^sha256:[0-9a-f]{64}$");
+    length == 1 and
+    (.[0] |
+      exact_keys([
+        "schemaVersion", "repository", "bucket", "basePath", "snapshot", "index",
+        "elasticsearchVersion", "imageDigest", "documentCount", "mappingSha256",
+        "dbIdsSha256", "esIdsSha256", "contentFingerprintSha256"
+      ]) and
+      .schemaVersion == 1 and
+      .repository == "airbob-dataset-readonly" and
+      .bucket == "airbob-performance-lab-dataset-942632789808" and
+      .basePath == ("elasticsearch/releases/" + $release) and
+      .snapshot == ("airbob-" + $release) and
+      .index == "accommodations" and
+      .elasticsearchVersion == "8.18.8" and
+      (.imageDigest | image_digest) and
+      (.documentCount | type == "number" and floor == . and . > 0) and
+      (.mappingSha256 | sha256) and
+      (.dbIdsSha256 | sha256) and
+      (.esIdsSha256 | sha256) and
+      .dbIdsSha256 == .esIdsSha256 and
+      (.contentFingerprintSha256 | sha256) and
+      ([.. | objects | keys[]] | all(
+        test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
+      )) and
+      ([.. | strings] | all(
+        test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
+      ))
+    )
+  ' "$staging_dir/snapshot-reference.json" >/dev/null \
+    || fail 'Elasticsearch snapshot reference does not satisfy the release contract'
+  search_json=$(jq -cS '
+    {
+      enabled: true,
+      snapshotReferenceKey: "elasticsearch/snapshot-reference.json",
+      repository: .repository,
+      elasticsearchVersion: .elasticsearchVersion,
+      imageDigest: .imageDigest,
+      requiredPlugins: ["analysis-nori", "repository-s3"],
+      index: .index,
+      documentCount: .documentCount,
+      mappingSha256: .mappingSha256,
+      databaseAccommodationIdsSha256: .dbIdsSha256,
+      elasticsearchAccommodationIdsSha256: .esIdsSha256,
+      contentFingerprintSha256: .contentFingerprintSha256
+    }
+  ' "$staging_dir/snapshot-reference.json")
+fi
+
 mkdir -m 700 "$incomplete_dir/benchmark" "$incomplete_dir/mysql"
+if [[ -n "$snapshot_reference_file" ]]; then
+  mkdir -m 700 "$incomplete_dir/elasticsearch"
+  cp "$staging_dir/snapshot-reference.json" "$incomplete_dir/elasticsearch/snapshot-reference.json"
+  chmod 600 "$incomplete_dir/elasticsearch/snapshot-reference.json"
+  cmp -s "$staging_dir/snapshot-reference.json" "$incomplete_dir/elasticsearch/snapshot-reference.json" \
+    || fail 'Elasticsearch snapshot reference byte copy failed'
+fi
 cp "$staging_dir/benchmark-fixture.json" "$incomplete_dir/benchmark/manifest.json"
 chmod 600 "$incomplete_dir/benchmark/manifest.json"
 benchmark_manifest_sha=$(sha256_file "$incomplete_dir/benchmark/manifest.json")
@@ -593,6 +682,7 @@ jq -nS \
   --arg schemaFingerprintSha256 "$schema_fingerprint_sha" \
   --arg evaluationTime "$evaluation_time" \
   --arg validUntil "$valid_until" \
+  --argjson search "$search_json" \
   --argjson expectedTableRows "$expected_table_rows" '
   {
     schemaVersion: 1,
@@ -629,7 +719,7 @@ jq -nS \
         {name: "ACCOMMODATIONS.events", partitions: 1, retentionMs: 86400000}
       ]
     },
-    search: {enabled: false}
+    search: $search
   }
 ' > "$incomplete_dir/.manifest.json.tmp"
 chmod 600 "$incomplete_dir/.manifest.json.tmp"
@@ -643,21 +733,35 @@ validator="$script_dir/verify-dataset-release.sh"
   || fail 'assembled dataset release failed local verification'
 
 actual_inventory=$(CDPATH= cd -P -- "$incomplete_dir" && find . -mindepth 1 -print | sort)
-expected_inventory=$(printf '%s\n' \
-  './benchmark' \
-  './benchmark/manifest.json' \
-  './manifest.json' \
-  './mysql' \
-  './mysql/airbob.sql.zst' \
-  './mysql/sha256.txt')
+expected_inventory_entries=(
+  './benchmark'
+  './benchmark/manifest.json'
+)
+if [[ -n "$snapshot_reference_file" ]]; then
+  expected_inventory_entries+=(
+    './elasticsearch'
+    './elasticsearch/snapshot-reference.json'
+  )
+fi
+expected_inventory_entries+=(
+  './manifest.json'
+  './mysql'
+  './mysql/airbob.sql.zst'
+  './mysql/sha256.txt'
+)
+expected_inventory=$(printf '%s\n' "${expected_inventory_entries[@]}")
 [[ "$actual_inventory" == "$expected_inventory" ]] \
   || fail 'assembled dataset release contains an unexpected artifact'
-for output_file in \
+output_files=(
   "$incomplete_dir/manifest.json" \
   "$incomplete_dir/benchmark/manifest.json" \
   "$incomplete_dir/mysql/airbob.sql.zst" \
   "$incomplete_dir/mysql/sha256.txt"
-do
+)
+if [[ -n "$snapshot_reference_file" ]]; then
+  output_files+=("$incomplete_dir/elasticsearch/snapshot-reference.json")
+fi
+for output_file in "${output_files[@]}"; do
   [[ -f "$output_file" && ! -L "$output_file" ]] \
     || fail 'assembled dataset release contains an unsafe artifact'
 done

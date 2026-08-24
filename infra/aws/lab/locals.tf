@@ -127,9 +127,17 @@ locals {
     min = 0, desired = 0, max = 0
     } : var.mode == "performance" ? {
     min = 1, desired = 1, max = 1
+    } : var.mode == "distributed-lock" ? {
+    min = 2, desired = 2, max = 2
     } : {
     min = 1, desired = 1, max = 4
   }
+  app_availability_zones = var.mode == "performance" ? [
+    var.primary_availability_zone,
+    ] : [
+    var.primary_availability_zone,
+    var.secondary_availability_zone,
+  ]
   app_subnet_ids = var.mode == "performance" ? [
     module.network.private_subnet_ids.primary,
     ] : [

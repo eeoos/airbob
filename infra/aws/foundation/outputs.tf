@@ -58,6 +58,16 @@ output "image_publisher_role_arn" {
   value       = aws_iam_role.image_publisher.arn
 }
 
+output "dataset_publisher_role_arn" {
+  description = "Local-only role used to publish immutable dataset releases and Elasticsearch snapshots; MFA follows the reviewed local-principal policy."
+  value       = aws_iam_role.dataset_publisher.arn
+}
+
+output "dataset_snapshot_writer_release" {
+  description = "The one temporarily writable native Elasticsearch snapshot release, or null when every real release is read-only."
+  value       = var.dataset_snapshot_writer_release
+}
+
 output "lease_contract" {
   description = "Persistent orchestration lease identifiers. DynamoDB TTL is intentionally disabled."
   value = {

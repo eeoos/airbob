@@ -29,9 +29,11 @@ Do not run a live plan until all of these inputs are known and reviewed:
 - whether the account-global GitHub OIDC provider already exists (if it does,
   import it into this state before the first apply rather than creating a
   duplicate);
-- separate exact local IAM principal ARNs for foundation administration and
-  ephemeral lab operation, plus an explicit MFA decision. Do not grant the
-  developer principal access to the foundation role.
+- separate exact local IAM principal ARNs for foundation administration,
+  ephemeral lab operation, and local dataset publication, plus an explicit
+  MFA decision. The dataset publisher principal must remain disjoint from the
+  lab principal; do not grant the developer principal access to the foundation
+  role.
 - when enabling the expiry observer, one reviewed email address whose SNS
   subscription the owner can confirm and acknowledge explicitly.
 
@@ -59,6 +61,65 @@ terraform -chdir=infra/aws/foundation init \
 
 Keep live values in an ignored `terraform.tfvars`; never commit credentials or
 runtime secrets. Review a saved plan before either apply.
+
+## Local dataset publisher role
+
+The foundation code defines the local-only
+`airbob-dataset-publisher` role and an exact dataset-bucket policy. This change
+has not been applied to account `942632789808`, and no dataset wrapper or
+Elasticsearch snapshot has been published. Before using the producer, set the
+reviewed local principal explicitly, create and inspect a saved foundation
+plan, and apply it with the approved foundation administrator. The dataset
+publisher contract always requires the one reviewed `admin-eeoos` principal
+and MFA; `local_principal_requires_mfa` controls only the other local roles:
+
+```hcl
+dataset_publisher_local_principal_arns = [
+  "arn:aws:iam::942632789808:user/admin-eeoos",
+]
+dataset_snapshot_writer_release = null
+local_principal_requires_mfa = true
+```
+
+The role has no GitHub OIDC trust and is not assumed by the lab. It can read
+and conditionally create immutable objects under `datasets/*`. With the default
+null writer value, its Elasticsearch mutation and snapshot-lease permissions
+point only at `__disabled__`. To produce one snapshot, set one exact release,
+review and apply the foundation plan, and assume the role. That temporary
+policy authorizes only the matching
+`elasticsearch/releases/<release>/*` prefix and DynamoDB
+`airbob-dataset-snapshot/<release>` row. The lease uses conditional
+`UpdateItem` with a monotonic fencing token; it never deletes the row.
+Revoking the writer keeps only `GetObject` and `GetObjectVersion` access to
+`elasticsearch/seals/*`, so the wrapper publisher can verify any immutable
+seal without regaining snapshot or seal mutation rights.
+
+The bucket policy denies dataset-wrapper overwrites and deletion for every
+principal. Elasticsearch retains narrowly scoped delete and multipart actions
+only for the selected native repository because Elasticsearch manages its own
+repository blobs. After the producer emits and verifies its receipt, set the
+writer variable back to null, review and apply the revoke plan, refresh the
+role session, and only then run the wrapper publisher. The publisher inspects
+the role and refuses all S3 work if a real Elasticsearch writer grant remains.
+At the end of successful snapshot production, the producer conditionally
+creates the immutable `elasticsearch/seals/<release>.json` object. The bucket
+policy denies overwriting or deleting any seal. Foundation checks that exact
+key during plan and again during apply, so the release cannot regain its
+writer grant even from a saved plan made before the seal appeared. The
+repository is therefore writable by one locally leased producer during
+snapshot creation and read-only for subsequent publication and AWS restore.
+Before writing any `datasets/<release>/*` object, the publisher reads the
+seal's exact S3 object version and verifies its encryption, content type,
+release/snapshot metadata, and byte-level hashes of both the staged snapshot
+reference and the full snapshot receipt.
+
+After apply, configure a local AWS CLI profile whose `source_profile` is the
+approved IAM user, whose `role_arn` is
+`arn:aws:iam::942632789808:role/airbob-dataset-publisher`, and whose
+`mfa_serial` is that user's real MFA device ARN. The publisher and snapshot
+producer both reject direct IAM-user credentials and require the resulting
+`assumed-role/airbob-dataset-publisher/...` session. Commands and complete
+retry semantics are documented in `infra/aws/datasets/README.md`.
 
 ## DNS and ACM are a two-pass operation
 

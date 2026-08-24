@@ -3,6 +3,7 @@ locals {
     for role, principals in {
       foundation = var.foundation_local_principal_arns
       lab        = var.lab_local_principal_arns
+      dataset    = var.dataset_publisher_local_principal_arns
       } : role => merge(
       {
         Sid       = "ApprovedLocalPrincipals"
@@ -10,7 +11,7 @@ locals {
         Principal = { AWS = sort(tolist(principals)) }
         Action    = "sts:AssumeRole"
       },
-      var.local_principal_requires_mfa ? {
+      (role == "dataset" || var.local_principal_requires_mfa) ? {
         Condition = {
           Bool = {
             "aws:MultiFactorAuthPresent" = "true"
@@ -92,13 +93,35 @@ locals {
         Condition = { StringEquals = local.github_role_trust.image }
       }]
     })
+    dataset = jsonencode({
+      Version   = "2012-10-17"
+      Statement = [local.approved_local_principals_statements.dataset]
+    })
   }
 
   role_names = {
     foundation = "airbob-foundation-admin"
     lab        = "airbob-lab-operator"
     image      = "airbob-image-publisher"
+    dataset    = "airbob-dataset-publisher"
   }
+
+  dataset_snapshot_write_segment = coalesce(var.dataset_snapshot_writer_release, "__disabled__")
+  dataset_snapshot_write_resource = (
+    "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/${local.dataset_snapshot_write_segment}/*"
+  )
+  dataset_snapshot_lock_name = "airbob-dataset-snapshot/${local.dataset_snapshot_write_segment}"
+  dataset_snapshot_seal_key = (
+    var.dataset_snapshot_writer_release == null
+    ? ""
+    : "elasticsearch/seals/${var.dataset_snapshot_writer_release}.json"
+  )
+  dataset_snapshot_seal_resource = (
+    "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/${local.dataset_snapshot_write_segment}.json"
+  )
+  dataset_snapshot_seal_read_resource = (
+    "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/*"
+  )
 
   foundation_admin_policy = jsonencode({
     Version = "2012-10-17"
@@ -204,6 +227,7 @@ locals {
           "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
           "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
+          "arn:aws:iam::${var.account_id}:role/${local.role_names.dataset}",
           "arn:aws:iam::${var.account_id}:role/${local.dns_controller_role_name}",
           aws_iam_role.expiry_observer.arn,
           aws_iam_policy.lab_host_boundary.arn,
@@ -540,6 +564,138 @@ locals {
       },
     ]
   })
+
+  dataset_publisher_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DatasetBucketLocation"
+        Effect   = "Allow"
+        Action   = "s3:GetBucketLocation"
+        Resource = aws_s3_bucket.managed["dataset"].arn
+      },
+      {
+        Sid    = "InspectOwnDatasetPublisherRole"
+        Effect = "Allow"
+        Action = ["iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies"]
+        Resource = (
+          "arn:aws:iam::${var.account_id}:role/${local.role_names.dataset}"
+        )
+      },
+      {
+        Sid      = "OwnDatasetSnapshotLease"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.orchestration_lease.arn
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "dynamodb:LeadingKeys" = [local.dataset_snapshot_lock_name]
+          }
+        }
+      },
+      {
+        Sid      = "ListDatasetReleasePrefixes"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:ListBucketVersions"]
+        Resource = aws_s3_bucket.managed["dataset"].arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["datasets/*", "elasticsearch/releases/*"]
+          }
+        }
+      },
+      {
+        Sid      = "ListElasticsearchMultipartUploads"
+        Effect   = "Allow"
+        Action   = "s3:ListBucketMultipartUploads"
+        Resource = aws_s3_bucket.managed["dataset"].arn
+      },
+      {
+        Sid    = "ReadPublishedDatasetBytes"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = [
+          "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
+          "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/*",
+          local.dataset_snapshot_seal_read_resource,
+        ]
+      },
+      {
+        Sid      = "WriteImmutableDatasetRelease"
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.managed["dataset"].arn}/datasets/*"
+        Condition = {
+          StringEquals = {
+            "s3:if-none-match" = "*"
+          }
+          StringEqualsIfExists = {
+            "s3:x-amz-server-side-encryption" = "AES256"
+          }
+        }
+      },
+      {
+        Sid      = "WriteDatasetMultipartParts"
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.managed["dataset"].arn}/datasets/*"
+        Condition = {
+          Bool = {
+            "s3:ObjectCreationOperation" = "false"
+          }
+        }
+      },
+      {
+        Sid      = "ManageDatasetMultipartUploads"
+        Effect   = "Allow"
+        Action   = ["s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"]
+        Resource = "${aws_s3_bucket.managed["dataset"].arn}/datasets/*"
+      },
+      {
+        Sid      = "WriteElasticsearchSnapshotRepository"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:PutObjectAcl"]
+        Resource = local.dataset_snapshot_write_resource
+        Condition = {
+          StringEqualsIfExists = {
+            "s3:x-amz-acl"                    = "bucket-owner-full-control"
+            "s3:x-amz-server-side-encryption" = "AES256"
+          }
+        }
+      },
+      {
+        Sid      = "WriteElasticsearchMultipartParts"
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = local.dataset_snapshot_write_resource
+        Condition = {
+          Bool = {
+            "s3:ObjectCreationOperation" = "false"
+          }
+        }
+      },
+      {
+        Sid      = "ManageElasticsearchSnapshotRepository"
+        Effect   = "Allow"
+        Action   = ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:ListMultipartUploadParts"]
+        Resource = local.dataset_snapshot_write_resource
+      },
+      {
+        Sid      = "SealElasticsearchSnapshotRelease"
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = local.dataset_snapshot_seal_resource
+        Condition = {
+          StringEquals = {
+            "s3:if-none-match" = "*"
+          }
+          StringEqualsIfExists = {
+            "s3:x-amz-server-side-encryption" = "AES256"
+          }
+        }
+      },
+    ]
+  })
 }
 
 resource "aws_iam_role" "foundation_admin" {
@@ -565,6 +721,16 @@ resource "aws_iam_role" "lab_operator" {
 resource "aws_iam_role" "image_publisher" {
   name                 = local.role_names.image
   assume_role_policy   = local.role_trust_policies.image
+  max_session_duration = 7200
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role" "dataset_publisher" {
+  name                 = local.role_names.dataset
+  assume_role_policy   = local.role_trust_policies.dataset
   max_session_duration = 7200
 
   lifecycle {
@@ -608,6 +774,18 @@ resource "aws_iam_role_policy" "image_publisher" {
   name   = "airbob-image-publisher"
   role   = aws_iam_role.image_publisher.id
   policy = local.image_publisher_policy
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "dataset_publisher" {
+  name   = "airbob-dataset-publisher"
+  role   = aws_iam_role.dataset_publisher.id
+  policy = local.dataset_publisher_policy
+
+  depends_on = [data.aws_s3_objects.dataset_snapshot_seal_apply]
 
   lifecycle {
     prevent_destroy = true
