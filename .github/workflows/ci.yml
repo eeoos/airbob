@@ -50,8 +50,11 @@ jobs:
 
       - name: Verify AWS dataset release production contracts
         run: |
+          bash infra/aws/tests/etl-release-database-verifier-test.sh
           bash infra/aws/tests/dataset-attestation-test.sh
+          bash infra/aws/tests/elasticsearch-snapshot-producer-test.sh
           bash infra/aws/tests/dataset-release-assembler-test.sh
+          bash infra/aws/tests/dataset-release-publisher-test.sh
 
       - name: Verify AWS performance-lab operator contracts
         run: |

@@ -271,13 +271,18 @@ check "app_capacity_contract" {
       (
         (var.mode == "performance" && var.request_count_per_target_per_minute == null) ||
         (
+          var.mode == "distributed-lock" &&
+          var.request_count_per_target_per_minute == null &&
+          var.measurement_policy == "isolated-read"
+        ) ||
+        (
           var.mode == "scaling" &&
           (!var.app_enabled || var.request_count_per_target_per_minute != null) &&
           var.measurement_policy == "isolated-read"
         )
       )
     )
-    error_message = "App capacity requires data-ready, integrated smoke is performance-only, scaling is isolated-read with a baseline request target, and load generation requires an enabled app."
+    error_message = "App capacity requires data-ready; integrated smoke is performance-only; distributed-lock requires isolated-read with no request target; scaling requires isolated-read with a baseline request target; and load generation requires an enabled app."
   }
 }
 

@@ -248,7 +248,7 @@ if [[ "$search_enabled" == true ]]; then
     "http://elasticsearch.lab.airbob.internal:9200/_snapshot/$repository" >/dev/null
   curl --silent --show-error --request DELETE \
     'http://elasticsearch.lab.airbob.internal:9200/accommodations' >/dev/null || true
-  restore_body='{"indices":"accommodations","include_global_state":false,"index_settings":{"index.number_of_replicas":0}}'
+  restore_body='{"indices":"accommodations","include_global_state":false,"index_settings":{"index.number_of_replicas":0,"index.blocks.write":false}}'
   curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' \
     --data-binary "$restore_body" \
     "http://elasticsearch.lab.airbob.internal:9200/_snapshot/$repository/$snapshot_name/_restore?wait_for_completion=true" >/dev/null

@@ -394,6 +394,36 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
   }
 }
 
+run "enable_two_az_distributed_lock_capacity_without_scaling_policies" {
+  command = plan
+
+  variables {
+    deployment_phase   = "data-ready"
+    app_enabled        = true
+    mode               = "distributed-lock"
+    measurement_policy = "isolated-read"
+  }
+
+  assert {
+    condition = (
+      output.phase4_contract.mode == "distributed-lock" &&
+      output.phase4_contract.measurement_policy == "isolated-read" &&
+      output.phase4_contract.capacity.min == 2 &&
+      output.phase4_contract.capacity.desired == 2 &&
+      output.phase4_contract.capacity.max == 2 &&
+      output.phase4_contract.app_subnet_count == 2 &&
+      output.phase4_contract.app_availability_zones == tolist(["ap-northeast-2a", "ap-northeast-2c"]) &&
+      output.phase4_contract.scaling_policy_count == 0 &&
+      output.phase4_contract.request_count_per_target_per_minute == null &&
+      output.phase4_contract.refresh.min_healthy_percentage == 100 &&
+      output.phase4_contract.refresh.max_healthy_percentage == 200 &&
+      length(output.phase4_contract.refresh.checkpoint_percentages) == 0 &&
+      output.phase4_contract.refresh.auto_rollback == true
+    )
+    error_message = "Distributed-lock mode must be two-AZ fixed 2/2/2 with isolated-read, no request target, and no scaling policy."
+  }
+}
+
 run "reject_scaling_without_baseline_request_target" {
   command = plan
 
@@ -415,6 +445,33 @@ run "reject_integrated_smoke_in_scaling_mode" {
     app_enabled                         = true
     mode                                = "scaling"
     measurement_policy                  = "integrated-smoke"
+    request_count_per_target_per_minute = 1200
+  }
+
+  expect_failures = [check.app_capacity_contract]
+}
+
+run "reject_integrated_smoke_in_distributed_lock_mode" {
+  command = plan
+
+  variables {
+    deployment_phase   = "data-ready"
+    app_enabled        = true
+    mode               = "distributed-lock"
+    measurement_policy = "integrated-smoke"
+  }
+
+  expect_failures = [check.app_capacity_contract]
+}
+
+run "reject_request_target_in_distributed_lock_mode" {
+  command = plan
+
+  variables {
+    deployment_phase                    = "data-ready"
+    app_enabled                         = true
+    mode                                = "distributed-lock"
+    measurement_policy                  = "isolated-read"
     request_count_per_target_per_minute = 1200
   }
 

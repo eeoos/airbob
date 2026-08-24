@@ -248,8 +248,34 @@ variable "lab_local_principal_arns" {
   }
 }
 
+variable "dataset_publisher_local_principal_arns" {
+  description = "The reviewed singleton admin-eeoos IAM principal allowed to assume the local-only dataset publisher role with MFA."
+  type        = set(string)
+
+  validation {
+    condition = var.dataset_publisher_local_principal_arns == toset([
+      "arn:aws:iam::942632789808:user/admin-eeoos",
+    ])
+    error_message = "The dataset publisher trust must contain only arn:aws:iam::942632789808:user/admin-eeoos."
+  }
+}
+
+variable "dataset_snapshot_writer_release" {
+  description = "One exact dataset release whose native Elasticsearch S3 repository is temporarily writable; null revokes every real snapshot prefix."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.dataset_snapshot_writer_release == null ||
+      can(regex("^[a-z0-9][a-z0-9._-]{2,63}$", var.dataset_snapshot_writer_release))
+    )
+    error_message = "dataset_snapshot_writer_release must be null or one lowercase safe dataset release name."
+  }
+}
+
 variable "local_principal_requires_mfa" {
-  description = "Whether local STS AssumeRole calls must present MFA. This must be an explicit operator decision."
+  description = "Whether foundation and lab local STS AssumeRole calls must present MFA. The dataset publisher always requires MFA."
   type        = bool
 }
 

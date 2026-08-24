@@ -104,6 +104,7 @@ services:
   # Elasticsearch (with Nori Analyzer)
   # --------------------------------------------------------
   elasticsearch:
+    image: ${ELASTICSEARCH_IMAGE:-airbob-elasticsearch-local}
     build:
       context: ./docker/elasticsearch
       dockerfile: Dockerfile
@@ -113,6 +114,7 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - path.repo=/usr/share/elasticsearch/backup
+      - s3.client.airbob_dataset_producer.region=ap-northeast-2
     ports:
       - "9200:9200"
     volumes:
