@@ -48,6 +48,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
+import kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFence;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
@@ -73,6 +74,8 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	OperatorAlertOutboxPublisher.class,
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationManualReviewCommandService.class,
+	PaymentOperationManualReviewTransactionService.class,
+	MysqlPaymentOperationExecutionFence.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationManualReviewCommandServiceIntegrationTest.CommandTestConfiguration.class
 })

@@ -2,6 +2,7 @@ package kr.kro.airbob.common.dto;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.validation.BindingResult;
 
@@ -49,15 +50,45 @@ public class ErrorResponse {
 		String field,
 		String value,
 		String reason
-	){
+	) {
+		private static final String REDACTED_VALUE = "[REDACTED]";
+		private static final List<String> SENSITIVE_FIELD_MARKERS = List.of(
+			"evidencereference",
+			"paymentkey",
+			"password",
+			"token",
+			"secret",
+			"credential",
+			"authorization",
+			"privatekey",
+			"apikey"
+		);
+
 		private static List<FieldError> of(final BindingResult bindingResult) {
 			final List<org.springframework.validation.FieldError> fieldErrors = bindingResult.getFieldErrors();
 			return fieldErrors.stream()
-				.map(error -> new FieldError(
-					error.getField(),
-					error.getRejectedValue() == null ? "null" : error.getRejectedValue().toString(),
-					error.getDefaultMessage()))
+				.map(FieldError::from)
 				.toList();
+		}
+
+		private static FieldError from(org.springframework.validation.FieldError error) {
+			if (isSensitive(error.getField())) {
+				return new FieldError(error.getField(), REDACTED_VALUE, constraintCode(error));
+			}
+			Object rejectedValue = error.getRejectedValue();
+			return new FieldError(
+				error.getField(),
+				rejectedValue == null ? "null" : rejectedValue.toString(),
+				error.getDefaultMessage());
+		}
+
+		private static boolean isSensitive(String field) {
+			String normalizedField = field.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+			return SENSITIVE_FIELD_MARKERS.stream().anyMatch(normalizedField::contains);
+		}
+
+		private static String constraintCode(org.springframework.validation.FieldError error) {
+			return error.getCode() == null ? "Validation" : error.getCode();
 		}
 	}
 }

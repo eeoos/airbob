@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 
@@ -27,7 +28,8 @@ class OperatorAlertRequestedV1Test {
 			OperatorAlertKind.PAYMENT_OPERATION_QUARANTINED,
 			SUBJECT_UID,
 			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED,
-			new OperatorAlertSourcePosition("PAYMENT_OPERATION.events", 2, 41L),
+			new OperatorAlertSourcePosition(
+				PaymentOperationExecutionRequestedV1.TOPIC, 2, 41L),
 			OCCURRENCE_UID
 		);
 
@@ -66,12 +68,51 @@ class OperatorAlertRequestedV1Test {
 	}
 
 	@Test
-	void rejectsPartialCoordinatesAndNonAllowlistedTopics() {
+	void derivesSourceTopicFromTheTrustedEventDescriptor() {
+		OperatorAlertSourcePosition source = OperatorAlertSourcePosition.from(
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			PaymentOperationExecutionRequestedV1.TOPIC,
+			2,
+			41L);
+
+		assertThat(source).isEqualTo(new OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR.destination(), 2, 41L));
+		assertThatThrownBy(() -> OperatorAlertSourcePosition.from(
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			"EVIL.events",
+			2,
+			41L))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void rejectsPartialCoordinatesUnknownTopicsInvalidShapesAndNegativeCoordinates() {
 		assertThatThrownBy(() -> new OperatorAlertSourcePosition(
-			"PAYMENT_OPERATION.events", null, 1L))
+			PaymentOperationExecutionRequestedV1.TOPIC, null, 1L))
 			.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new OperatorAlertSourcePosition(
-			"attacker-controlled-topic", 0, 1L))
+			"EVIL.events", 0, 1L))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new OperatorAlertSourcePosition(
+			"topic with spaces", 0, 1L))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new OperatorAlertSourcePosition(
+			"a".repeat(250), 0, 1L))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, -1, 1L))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new OperatorAlertSourcePosition(
+			PaymentOperationExecutionRequestedV1.TOPIC, 0, -1L))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new OperatorAlertRequestedV1(
+			UUID.randomUUID(),
+			OperatorAlertKind.PAYMENT_OPERATION_QUARANTINED,
+			SUBJECT_UID,
+			"EVIL.events",
+			0,
+			1L,
+			OperatorAlertSummaryCode.MESSAGE_PROCESSING_FAILED))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 

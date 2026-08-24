@@ -31,6 +31,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +85,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionReason;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
+import kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFence;
 import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.messaging.kafka.PaymentOperationExecutionListener;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
@@ -90,6 +97,7 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
 import kr.kro.airbob.domain.payment.service.PaymentOperationFinalizer;
 import kr.kro.airbob.domain.payment.service.PaymentOperationLeaseService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewTransactionService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionRecorder;
 import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService;
@@ -126,8 +134,10 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	PaymentCancellationCommandService.class,
 	PaymentOperationLeaseService.class,
 	PaymentOperationManualReviewCommandService.class,
+	PaymentOperationManualReviewTransactionService.class,
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationExecutor.class,
+	MysqlPaymentOperationExecutionFence.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationQueryService.class,
 	PaymentOperationRecoveryService.class,
@@ -176,6 +186,7 @@ class PaymentOperationFlowIntegrationTest {
 	@Autowired private PaymentOperationCommandService commandService;
 	@Autowired private PaymentCancellationCommandService cancellationCommandService;
 	@Autowired private PaymentOperationExecutor executor;
+	@Autowired private PaymentOperationLeaseService leaseService;
 	@Autowired private PaymentOperationQueryService queryService;
 	@Autowired private PaymentOperationManualReviewCommandService manualReviewCommandService;
 	@Autowired private PaymentOperationRecoveryService recoveryService;
@@ -508,9 +519,10 @@ class PaymentOperationFlowIntegrationTest {
 	@Test
 	void manualReconciliationNotFoundThenExplicitMarkNotPaidNeverCallsConfirmAgain() throws Exception {
 		UUID operationUid = acceptedOperationUid(accept(ownerId, status().isAccepted()));
+		String originalConfirmationPayload = latestExecutionPayload();
 		gateway.enqueueConfirm(new PaymentGatewayResult.ManualReviewRequired(
 			"PROVIDER_RESULT_UNKNOWN", "review provider state"));
-		deliverLatestExecutionEvent();
+		deliver(originalConfirmationPayload);
 
 		PaymentOperation initialReview = operationRepository.findByOperationUid(operationUid).orElseThrow();
 		assertThat(initialReview.getStatus()).isEqualTo(MANUAL_REVIEW);
@@ -530,6 +542,7 @@ class PaymentOperationFlowIntegrationTest {
 			eligibleReview.getVersion(),
 			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
 			"provider-case/NOT-PAID-42");
+		deliver(originalConfirmationPayload);
 
 		assertThat(gateway.calls()).containsExactly("confirm", "inquire");
 		assertDurableState(
@@ -549,6 +562,83 @@ class PaymentOperationFlowIntegrationTest {
 			"RECONCILIATION_REQUESTED",
 			"RECONCILIATION_RETURNED_TO_REVIEW",
 			"MARKED_NOT_PAID");
+	}
+
+	@Test
+	void markNotPaidWaitsForPreviouslyClaimedConfirmationToTerminate() throws Exception {
+		UUID operationUid = acceptedOperationUid(accept(ownerId, status().isAccepted()));
+		String staleExecutionPayload = latestExecutionPayload();
+		CountDownLatch staleWorkerReachedGateway = new CountDownLatch(1);
+		CountDownLatch terminateStaleWorker = new CountDownLatch(1);
+		CountDownLatch markNotPaidStarted = new CountDownLatch(1);
+		gateway.blockNextConfirmation(staleWorkerReachedGateway, terminateStaleWorker);
+		gateway.enqueueConfirm(new PaymentGatewayResult.RetryableFailure(
+			"CONNECTION_FAILED", "provider connection failed"));
+
+		ExecutorService workers = Executors.newFixedThreadPool(2);
+		Future<?> staleWorker = workers.submit(() -> deliver(staleExecutionPayload));
+		Future<?> markNotPaid = null;
+		try {
+			assertThat(staleWorkerReachedGateway.await(5, TimeUnit.SECONDS)).isTrue();
+
+			clock.advance(Duration.ofSeconds(31));
+			assertThat(recoveryService.recoverDue().enqueued()).isOne();
+			PaymentOperation recovered = operationRepository.findByOperationUid(operationUid)
+				.orElseThrow();
+			var automaticInquiry = leaseService.claim(
+				operationUid, recovered.getDispatchGeneration()).orElseThrow();
+			leaseService.markManualReview(
+				automaticInquiry, "PROVIDER_RESULT_UNKNOWN", "review provider state");
+
+			PaymentOperation initialReview = operationRepository.findByOperationUid(operationUid)
+				.orElseThrow();
+			manualReviewCommandService.requestReconciliation(
+				operationUid, ownerId, initialReview.getVersion());
+			PaymentOperation reconciliation = operationRepository.findByOperationUid(operationUid)
+				.orElseThrow();
+			var manualInquiry = leaseService.claim(
+				operationUid, reconciliation.getDispatchGeneration()).orElseThrow();
+			leaseService.returnManualReconciliationToReview(
+				manualInquiry, "NOT_FOUND_PAYMENT", "not found", true);
+
+			PaymentOperation eligibleReview = operationRepository.findByOperationUid(operationUid)
+				.orElseThrow();
+			assertThat(eligibleReview.isNotPaidResolutionEligible()).isTrue();
+			long expectedVersion = eligibleReview.getVersion();
+			markNotPaid = workers.submit(() -> {
+				markNotPaidStarted.countDown();
+				return manualReviewCommandService.markNotPaid(
+					operationUid,
+					ownerId,
+					expectedVersion,
+					PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
+					"provider-case/NOT-PAID-42");
+			});
+			assertThat(markNotPaidStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+			Future<?> pendingResolution = markNotPaid;
+			assertThatThrownBy(() -> pendingResolution.get(300, TimeUnit.MILLISECONDS))
+				.isInstanceOf(TimeoutException.class);
+			assertThat(operationRepository.findByOperationUid(operationUid).orElseThrow().getStatus())
+				.isEqualTo(MANUAL_REVIEW);
+
+			terminateStaleWorker.countDown();
+			staleWorker.get(5, TimeUnit.SECONDS);
+			markNotPaid.get(5, TimeUnit.SECONDS);
+
+			assertThat(gateway.calls()).containsExactly("confirm");
+			assertDurableState(
+				operationUid,
+				DECLINED,
+				EXPIRED,
+				0,
+				1,
+				List.of(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType()));
+		} finally {
+			terminateStaleWorker.countDown();
+			workers.shutdownNow();
+			assertThat(workers.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
 	}
 
 	@Test
@@ -1025,6 +1115,8 @@ class PaymentOperationFlowIntegrationTest {
 		private final Deque<PaymentGatewayResult> cancellations = new ArrayDeque<>();
 		private final Deque<PaymentGatewayResult> cancellationInquiries = new ArrayDeque<>();
 		private final List<GatewayInvocation> invocations = new ArrayList<>();
+		private CountDownLatch confirmationEntered;
+		private CountDownLatch confirmationRelease;
 
 		void reset() {
 			confirmations.clear();
@@ -1032,6 +1124,13 @@ class PaymentOperationFlowIntegrationTest {
 			cancellations.clear();
 			cancellationInquiries.clear();
 			invocations.clear();
+			confirmationEntered = null;
+			confirmationRelease = null;
+		}
+
+		void blockNextConfirmation(CountDownLatch entered, CountDownLatch release) {
+			confirmationEntered = entered;
+			confirmationRelease = release;
 		}
 
 		void enqueueConfirm(PaymentGatewayResult result) {
@@ -1069,8 +1168,28 @@ class PaymentOperationFlowIntegrationTest {
 		@Override
 		public PaymentGatewayResult confirm(PaymentProviderCommand command) {
 			validate(command);
+			awaitConfirmationRelease();
 			invocations.add(new GatewayInvocation("confirm", command));
 			return next(confirmations, "confirm");
+		}
+
+		private void awaitConfirmationRelease() {
+			CountDownLatch entered = confirmationEntered;
+			CountDownLatch release = confirmationRelease;
+			confirmationEntered = null;
+			confirmationRelease = null;
+			if (entered == null || release == null) {
+				return;
+			}
+			entered.countDown();
+			try {
+				if (!release.await(5, TimeUnit.SECONDS)) {
+					throw new IllegalStateException("timed out waiting to release confirmation");
+				}
+			} catch (InterruptedException interrupted) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException("confirmation worker interrupted", interrupted);
+			}
 		}
 
 		@Override

@@ -23,18 +23,28 @@ public class PaymentOperationExecutor {
 	private final PaymentOperationLeaseService leaseService;
 	private final PaymentProviderGateway gateway;
 	private final PaymentOperationFinalizer finalizer;
+	private final PaymentOperationExecutionFence executionFence;
 
 	public PaymentOperationExecutor(
 		PaymentOperationLeaseService leaseService,
 		PaymentProviderGateway gateway,
-		PaymentOperationFinalizer finalizer
+		PaymentOperationFinalizer finalizer,
+		PaymentOperationExecutionFence executionFence
 	) {
 		this.leaseService = leaseService;
 		this.gateway = gateway;
 		this.finalizer = finalizer;
+		this.executionFence = executionFence;
 	}
 
 	public void execute(UUID operationUid, long dispatchGeneration) {
+		executionFence.execute(operationUid, () -> {
+			executeWhileFenced(operationUid, dispatchGeneration);
+			return null;
+		});
+	}
+
+	private void executeWhileFenced(UUID operationUid, long dispatchGeneration) {
 		var execution = leaseService.claim(operationUid, dispatchGeneration);
 		if (execution.isEmpty()) {
 			return;

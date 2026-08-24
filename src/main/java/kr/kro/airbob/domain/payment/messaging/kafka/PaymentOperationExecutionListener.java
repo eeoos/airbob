@@ -7,6 +7,7 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.kafka.retrytopic.SameIntervalTopicReuseStrategy;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
@@ -65,11 +66,15 @@ public class PaymentOperationExecutionListener {
 	}
 
 	private OperatorAlertSourcePosition sourcePosition(ConsumerRecord<String, String> record) {
+		String trustedTopic = PaymentOperationExecutionRequestedV1.DESCRIPTOR.destination();
+		String observedOriginalTopic = KafkaRetryHeaders.readStringHeader(
+			record.headers(), KafkaHeaders.ORIGINAL_TOPIC).orElse(null);
 		KafkaRetryHeaders.RecordCoordinates coordinates =
 			KafkaRetryHeaders.canonicalSourceCoordinates(
-				record, PaymentOperationExecutionRequestedV1.TOPIC);
-		return new OperatorAlertSourcePosition(
-			PaymentOperationExecutionRequestedV1.TOPIC,
+				record, trustedTopic);
+		return OperatorAlertSourcePosition.from(
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			observedOriginalTopic,
 			coordinates.partition(),
 			coordinates.offset());
 	}

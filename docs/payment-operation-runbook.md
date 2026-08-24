@@ -19,6 +19,21 @@
 응답 유실 또는 lease 만료 뒤에는 먼저 조회(inquiry)한다. 관리자 reconciliation도 언제나
 조회만 수행하며 승인이나 취소 명령을 다시 보내지 않는다.
 
+worker는 operation UID로 만든 MySQL named lock을 전용 JDBC connection에서 획득한 뒤
+claim부터 provider 호출, durable 결과 반영까지 보유한다. `MARK_NOT_PAID`도 같은 lock을
+획득하고 수동 해결 트랜잭션의 커밋이 끝난 뒤 반납한다. 따라서 오래된 confirm worker가
+살아 있는 동안에는 미결제 확정이 커밋되지 않는다. reconciliation 요청 자체는 조회 작업만
+queue하며, 실제 inquiry worker가 동일한 lock을 획득하므로 기존 provider 명령과 겹치지 않는다.
+lock 이름에는 payment key 대신 비민감 operation UID만 사용한다.
+각 인스턴스는 공정한 local permit을 JDBC connection checkout 전에 획득하며 기본 동시
+펜스 수는 2다. permit과 MySQL named lock 획득은 같은 제한시간을 사용한다. 전용 JDBC
+connection과 GET_LOCK/RELEASE_LOCK statement에는 이보다 긴 별도 network/query timeout을
+적용해 반쪽 열린 연결도 worker를 무한히 점유하지 못하게 한다. 기본값은 획득 15초,
+JDBC I/O 20초이며 `PAYMENT_OPERATION_EXECUTION_FENCE_TIMEOUT`과
+`PAYMENT_OPERATION_EXECUTION_FENCE_NETWORK_TIMEOUT`으로 조정한다. Hikari를 쓰는
+경우 시작 시 최대 펜스 수가 pool 전체를 점유하지 않는지 검증해 트랜잭션용 connection을
+최소 하나 남긴다.
+
 ## 배포 전 조건
 
 broker 자동 topic 생성을 끈 상태에서 다음 topic을 미리 만든다. 세 topic의 partition 수는
@@ -37,7 +52,17 @@ Debezium의 `PAYMENT_OPERATION` aggregate route가 `PAYMENT_OPERATION.events`로
 3. `__debezium-heartbeat.airbob_outbox`의 최신 timestamp/offset이 10초 heartbeat 주기에
    맞게 전진한다.
 4. provider connect/read timeout이 `payment.operation.lease-duration`보다 짧다.
-5. recovery scheduler와 두 health refresh가 적어도 한 인스턴스에서 실행된다.
+5. Hikari pool은 동시 결제 worker마다 named-lock connection과 짧은 JPA transaction
+   connection을 함께 제공할 수 있어야 한다. 즉 `maximumPoolSize`는
+   `PAYMENT_OPERATION_EXECUTION_FENCE_MAX_CONCURRENCY`의 두 배 이상이어야 하며,
+   `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE`로 명시한다.
+6. recovery scheduler와 두 health refresh가 적어도 한 인스턴스에서 실행된다.
+7. OCI에서는 debezium-connector-monitor가 healthy이고 app보다 먼저 기동된다.
+
+CD는 reviewed OCI asset을 서버에 동기화하고 기존 app/ingress를 닫은 뒤 topic init,
+Flyway migration, connector init, connector monitor를 순서대로 통과시키고 app을 시작한다.
+새 connector 계약은 V18 적용 뒤에만 등록한다. 상세 순서와 first-rollout 절차는
+[OCI 배포 런북](oci-deployment-runbook.md)을 따른다.
 
 ## 항상 노출되는 지표
 
@@ -210,6 +235,15 @@ poison payload는 operation을 재발행하지 않고 좌표 기반 alert만 남
 provider 운영 절차 이후 다시 조회한다. operation, reservation, payment, ledger, coupon,
 resolution audit를 SQL로 직접 변경하지 않는다.
 
+`MARK_NOT_PAID`가 `P007`/503을 반환하면 local permit이 포화됐거나 이전 worker가 MySQL
+실행 펜스를 보유했거나 DB connection을 빌릴 수 없는 상태다. `P007`은 수동 해결 action이
+시작되기 전에만 반환하므로 작업 상태와 version을 다시 조회한 뒤 재시도한다. action 커밋 후
+`RELEASE_LOCK` 또는 connection 정리에 실패한 경우에는 이미 확정된 결과를 `P007`로
+뒤집지 않고 안정된 failure type과 operation UID만 로그로 남기며 물리 connection 종료를
+best-effort로 수행한다. 제한시간과 인스턴스별 최대 동시 펜스 수는 각각
+`PAYMENT_OPERATION_EXECUTION_FENCE_TIMEOUT`,
+`PAYMENT_OPERATION_EXECUTION_FENCE_MAX_CONCURRENCY`로 조정한다.
+
 ## 초기 경보 기준
 
 아래 값은 첫 운영 기준이며 실제 p95 지연과 호출량을 관찰한 뒤 조정한다. counter 경보는
@@ -256,12 +290,13 @@ resolution audit를 SQL로 직접 변경하지 않는다.
 
 ## 롤백 경계
 
-첫 새 결제 작업을 받기 전에는 `payment_operation`, payment-operation outbox 이벤트,
-main/retry/DLT topic에 처리할 명령이 없음을 확인한 뒤 이전 binary로 돌아갈 수 있다.
+config 검증과 image pull 단계의 실패는 기존 app과 ingress를 건드리지 않고 중단한다.
+그 다음에는 기존 app과 ingress를 먼저 닫고 Flyway V18 이상을 적용하므로, 새 결제 작업이
+아직 없더라도 CD가 pre-V18 binary로 자동 rollback해서는 안 된다.
 
-첫 작업을 받은 뒤에는 승인과 취소가 모두 새 orchestration 상태·generation·audit schema에
-의존한다. 이전 choreography binary로 자동 롤백하면 작업을 끝내지 못하거나 provider
-명령을 중복 실행할 수 있으므로 안전하지 않다. 이 시점의 절차는 다음과 같다.
+이전 choreography binary는 새 orchestration 상태·generation·audit schema를 이해하지
+못해 작업을 끝내지 못하거나 provider 명령을 중복 실행할 수 있다. migration 경계를 넘은
+뒤 실패하면 CD는 Nginx를 중지해 유입을 차단한다. 이 시점의 절차는 다음과 같다.
 
 1. 새 승인/취소 요청 유입을 중단한다.
 2. 현재 schema와 event contract를 이해하는 consumer, recovery scheduler, Debezium을 유지한다.

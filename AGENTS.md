@@ -72,13 +72,20 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   `MANUAL_REVIEW`.
 - API transactions lock the required accommodation/reservation rows and append a
   `PaymentOperationExecutionRequestedV1` outbox event.
-- A worker claims one dispatch generation with a lease, invokes Toss Payments outside a DB
-  transaction, and finalizes payment, ledger, reservation, coupon, audit, and search-refresh state
-  atomically.
+- A worker acquires the operation UID's MySQL execution fence on a dedicated JDBC connection,
+  claims one dispatch generation with a lease, invokes Toss Payments outside a DB transaction,
+  finalizes payment, ledger, reservation, coupon, audit, and search-refresh state atomically, and
+  then releases the fence.
+- A fair per-instance permit bounds fence connections before pool checkout. Hikari maximum pool
+  size must be at least twice the configured fence concurrency so every permit retains one
+  transaction connection.
 - Expired leases and due retries are recovered with a new generation. Unknown provider outcomes
   are inquired before another command is considered.
 - Manual reconciliation is inquiry-only. There is no mark-paid endpoint; mark-not-paid is allowed
-  only for an eligible confirmation with closed reason/evidence validation.
+  only for an eligible confirmation with closed reason/evidence validation, and its transaction
+  must commit while holding the same execution fence.
+- `P007` means fence-protected work never started. Post-action lock/connection cleanup failures are
+  logged with stable metadata and must not replace a committed result.
 - See `docs/payment-operation-runbook.md` before changing failure or rollback behavior.
 
 ### Messaging and outbox
@@ -95,8 +102,8 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   - `PAYMENT_OPERATION.events`, `.RETRY`, `.DLT`
   - `ACCOMMODATION_INDEX.events`, `.RETRY`, `.DLT`
   - `OPERATOR_ALERT.events`, `.RETRY`, `.DLT`
-- Topic auto-creation is disabled. `docker/kafka/init-topics.sh` and
-  `docker/debezium/register-connector.sh` are deployment gates.
+- Topic auto-creation is disabled. The OCI gate closes the old producer, applies Flyway migrations,
+  then runs `docker/kafka/init-topics.sh` and `docker/debezium/register-connector.sh` before the app.
 - Outbox row count and oldest-row age describe retention footprint, not delivery backlog. Check
   Connect tasks, heartbeat freshness, topic ingress, and consumer lag for delivery health.
 

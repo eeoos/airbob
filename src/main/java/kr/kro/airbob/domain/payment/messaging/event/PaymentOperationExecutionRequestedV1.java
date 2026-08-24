@@ -5,15 +5,16 @@ import java.util.UUID;
 
 import kr.kro.airbob.messaging.event.EventDescriptor;
 import kr.kro.airbob.messaging.event.IntegrationEvent;
+import kr.kro.airbob.messaging.event.IntegrationEventDestination;
 
 public record PaymentOperationExecutionRequestedV1(
 	UUID operationUid,
 	UUID reservationUid,
 	long dispatchGeneration
 ) implements IntegrationEvent {
-	public static final String TOPIC = "PAYMENT_OPERATION.events";
+	public static final String TOPIC = IntegrationEventDestination.Topic.PAYMENT_OPERATION;
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
-		TOPIC,
+		IntegrationEventDestination.PAYMENT_OPERATION,
 		"PAYMENT_OPERATION",
 		"PAYMENT_OPERATION_EXECUTION_REQUESTED",
 		"1"

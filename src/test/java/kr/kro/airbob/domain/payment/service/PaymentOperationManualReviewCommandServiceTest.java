@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,8 @@ class PaymentOperationManualReviewCommandServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new PaymentOperationManualReviewCommandService(
+		PaymentOperationManualReviewTransactionService transactionService =
+			new PaymentOperationManualReviewTransactionService(
 			operationRepository,
 			reservationRepository,
 			paymentRepository,
@@ -79,6 +81,8 @@ class PaymentOperationManualReviewCommandServiceTest {
 			outboxWriter,
 			resolutionRecorder,
 			Clock.fixed(NOW, ZoneOffset.UTC));
+		service = new PaymentOperationManualReviewCommandService(
+			transactionService, new ImmediatePaymentOperationExecutionFence());
 	}
 
 	@Test
@@ -265,5 +269,14 @@ class PaymentOperationManualReviewCommandServiceTest {
 			.notPaidResolutionEligible(notPaidEligible)
 			.version(4L)
 			.build();
+	}
+
+	private static final class ImmediatePaymentOperationExecutionFence
+		implements PaymentOperationExecutionFence {
+
+		@Override
+		public <T> T execute(UUID operationUid, Supplier<T> action) {
+			return action.get();
+		}
 	}
 }

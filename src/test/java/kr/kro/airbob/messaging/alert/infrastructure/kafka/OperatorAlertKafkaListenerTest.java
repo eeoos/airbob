@@ -30,6 +30,8 @@ import kr.kro.airbob.messaging.alert.event.OperatorAlertSummaryCode;
 import kr.kro.airbob.messaging.alert.monitoring.OperatorAlertMetrics;
 import kr.kro.airbob.messaging.event.EventEnvelope;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
+import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("operator alert Kafka listener")
@@ -51,7 +53,8 @@ class OperatorAlertKafkaListenerTest {
 			OperatorAlertKind.ACCOMMODATION_INDEX_QUARANTINED,
 			UUID.fromString("344e728f-4e7f-4a65-a923-5bddb38d359a"),
 			OperatorAlertSummaryCode.INDEX_REFRESH_FAILED,
-			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 1, 8L),
+			new OperatorAlertSourcePosition(
+				AccommodationSearchRefreshRequestedV1.TOPIC, 1, 8L),
 			UUID.fromString("391a1782-a1ef-42dd-a1e0-9d940f45694b")
 		);
 		message = codec.encode(EventEnvelope.of(
@@ -81,9 +84,24 @@ class OperatorAlertKafkaListenerTest {
 	}
 
 	@Test
+	void rejectsForgedSourceTopicBeforeSlackDelivery() {
+		String forged = message.replace(
+			"\"source_topic\":\""
+				+ AccommodationSearchRefreshRequestedV1.TOPIC + "\"",
+			"\"source_topic\":\"EVIL.events\"");
+
+		assertThatThrownBy(() -> listener.handle(forged, acknowledgment))
+			.isInstanceOf(InvalidIntegrationEventException.class);
+
+		then(gateway).shouldHaveNoInteractions();
+		then(metrics).should().failed();
+		then(acknowledgment).shouldHaveNoInteractions();
+	}
+
+	@Test
 	void dltDoesNotCallTheGatewayAndAcknowledgesAfterSafeMetricHandling() {
 		listener.handleDlt(
-			message, "OPERATOR_ALERT.events", 2, 99L, acknowledgment);
+			message, OperatorAlertRequestedV1.TOPIC, 2, 99L, acknowledgment);
 
 		InOrder order = inOrder(metrics, acknowledgment);
 		order.verify(metrics).dlt();

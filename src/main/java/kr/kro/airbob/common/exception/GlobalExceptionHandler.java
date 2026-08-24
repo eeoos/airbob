@@ -1,7 +1,10 @@
 package kr.kro.airbob.common.exception;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindingResult;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,9 +26,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(BindException.class)
 	protected ResponseEntity<ApiResponse<?>> handleBindException(BindException e) {
-		log.warn("handleBindException (Validation Failed): {}", e.getMessage());
+		BindingResult bindingResult = e.getBindingResult();
+		log.warn("handleBindException (Validation Failed): fields={}, constraints={}",
+			validationFields(bindingResult), validationConstraints(bindingResult));
 		final ErrorResponse response = ErrorResponse.of(
-			ErrorCode.INVALID_INPUT_VALUE, e.getBindingResult());
+			ErrorCode.INVALID_INPUT_VALUE, bindingResult);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
 	}
 
@@ -107,5 +112,22 @@ public class GlobalExceptionHandler {
 	private ResponseEntity<ApiResponse<?>> internalServerError() {
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INTERNAL_SERVER_ERROR.getStatus());
+	}
+
+	private static List<String> validationFields(BindingResult bindingResult) {
+		return bindingResult.getFieldErrors().stream()
+			.map(org.springframework.validation.FieldError::getField)
+			.distinct()
+			.sorted()
+			.toList();
+	}
+
+	private static List<String> validationConstraints(BindingResult bindingResult) {
+		return bindingResult.getAllErrors().stream()
+			.map(error -> error.getCode())
+			.filter(code -> code != null)
+			.distinct()
+			.sorted()
+			.toList();
 	}
 }

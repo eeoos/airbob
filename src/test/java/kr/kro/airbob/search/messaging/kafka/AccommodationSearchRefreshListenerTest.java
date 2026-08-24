@@ -107,11 +107,12 @@ class AccommodationSearchRefreshListenerTest {
 	@DisplayName("DLT는 원본 좌표와 식별자만 알림한 뒤 ACK한다")
 	void alertsWithOriginalCoordinatesAndIdentifier() {
 		ConsumerRecord<String, String> record = new ConsumerRecord<>(
-			"ACCOMMODATION_INDEX.events.DLT", 0, 7L,
+			AccommodationSearchRefreshRequestedV1.TOPIC + ".DLT", 0, 7L,
 			ACCOMMODATION_UID.toString(), validMessage());
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_TOPIC,
-			"ACCOMMODATION_INDEX.events".getBytes(StandardCharsets.UTF_8));
+			AccommodationSearchRefreshRequestedV1.TOPIC
+				.getBytes(StandardCharsets.UTF_8));
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_PARTITION,
 			ByteBuffer.allocate(Integer.BYTES).putInt(2).array());
@@ -123,7 +124,11 @@ class AccommodationSearchRefreshListenerTest {
 
 		OperatorAlertRequest request = OperatorAlertRequest.accommodationIndexQuarantined(
 			ACCOMMODATION_UID,
-			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 2, 41L));
+			OperatorAlertSourcePosition.from(
+				AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
+				AccommodationSearchRefreshRequestedV1.TOPIC,
+				2,
+				41L));
 		InOrder order = inOrder(alertEnqueueService, acknowledgment);
 		order.verify(alertEnqueueService).enqueue(request);
 		order.verify(acknowledgment).acknowledge();
@@ -134,7 +139,11 @@ class AccommodationSearchRefreshListenerTest {
 	void poisonDltUsesDeterministicCoordinateSubject() {
 		ConsumerRecord<String, String> record = dltRecord("not-json paymentKey=secret", 0, 7L);
 		OperatorAlertSourcePosition source =
-			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 0, 7L);
+			OperatorAlertSourcePosition.from(
+				AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
+				AccommodationSearchRefreshRequestedV1.TOPIC,
+				0,
+				7L);
 
 		listener.handleDlt(record, acknowledgment);
 
@@ -144,12 +153,29 @@ class AccommodationSearchRefreshListenerTest {
 	}
 
 	@Test
+	@DisplayName("공격자가 조작한 original topic은 운영 알림에 포함하지 않는다")
+	void rejectsAttackerControlledOriginalTopicAtTheAlertBoundary() {
+		ConsumerRecord<String, String> record = dltRecord(
+			validMessage(), "EVIL.events", 8, 777L);
+
+		assertThatThrownBy(() -> listener.handleDlt(record, acknowledgment))
+			.isInstanceOf(IllegalArgumentException.class);
+
+		then(alertEnqueueService).shouldHaveNoInteractions();
+		then(acknowledgment).shouldHaveNoInteractions();
+	}
+
+	@Test
 	@DisplayName("durable alert enqueue 실패는 전파하고 DLT를 ACK하지 않는다")
 	void alertEnqueueFailurePropagatesWithoutAck() {
 		ConsumerRecord<String, String> record = dltRecord(validMessage(), 1, 19L);
 		OperatorAlertRequest request = OperatorAlertRequest.accommodationIndexQuarantined(
 			ACCOMMODATION_UID,
-			new OperatorAlertSourcePosition("ACCOMMODATION_INDEX.events", 1, 19L));
+			OperatorAlertSourcePosition.from(
+				AccommodationSearchRefreshRequestedV1.DESCRIPTOR,
+				AccommodationSearchRefreshRequestedV1.TOPIC,
+				1,
+				19L));
 		willThrow(new IllegalStateException("operator alert outbox unavailable"))
 			.given(alertEnqueueService).enqueue(request);
 
@@ -198,11 +224,21 @@ class AccommodationSearchRefreshListenerTest {
 	}
 
 	private ConsumerRecord<String, String> dltRecord(String value, int partition, long offset) {
+		return dltRecord(
+			value, AccommodationSearchRefreshRequestedV1.TOPIC, partition, offset);
+	}
+
+	private ConsumerRecord<String, String> dltRecord(
+		String value,
+		String originalTopic,
+		int partition,
+		long offset
+	) {
 		ConsumerRecord<String, String> record = new ConsumerRecord<>(
-			"ACCOMMODATION_INDEX.events.DLT", 0, 99L, null, value);
+			AccommodationSearchRefreshRequestedV1.TOPIC + ".DLT", 0, 99L, null, value);
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_TOPIC,
-			"ACCOMMODATION_INDEX.events".getBytes(StandardCharsets.UTF_8));
+			originalTopic.getBytes(StandardCharsets.UTF_8));
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_PARTITION,
 			ByteBuffer.allocate(Integer.BYTES).putInt(partition).array());

@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.api;
 
+import java.net.URI;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,13 +40,16 @@ public class ReservationController {
 	}
 
 	@PostMapping("/v1/reservations/{reservationUid}")
-	public ResponseEntity<ApiResponse<Cancellation>> cancelReservation(
+	public ResponseEntity<ApiResponse<Void>> cancelReservation(
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request,
 		@CurrentMemberId Long memberId) {
 		Cancellation response = reservationService.cancelReservation(reservationUid, request, memberId);
-		ApiResponse<Cancellation> body = ApiResponse.success(response);
-		return ResponseEntity.accepted().body(body);
+		ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.accepted();
+		if (response.statusUrl() != null) {
+			responseBuilder.location(URI.create(response.statusUrl()));
+		}
+		return responseBuilder.body(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")

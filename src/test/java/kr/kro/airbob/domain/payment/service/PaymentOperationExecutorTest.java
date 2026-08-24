@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationExecutionFenceUnavailableException;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
@@ -69,9 +71,25 @@ class PaymentOperationExecutorTest {
 	@Autowired
 	private PaymentOperationFinalizer finalizer;
 
+	@Autowired
+	private ControllablePaymentOperationExecutionFence executionFence;
+
 	@BeforeEach
 	void resetDoubles() {
 		reset(leaseService, gateway, finalizer);
+		executionFence.reset();
+	}
+
+	@Test
+	void unavailableExecutionFenceDoesNotClaimOrCallTheGateway() {
+		executionFence.failNextAcquisition();
+
+		assertThatThrownBy(() -> executor.execute(OPERATION_UID, 1))
+			.isInstanceOf(PaymentOperationExecutionFenceUnavailableException.class);
+
+		then(leaseService).shouldHaveNoInteractions();
+		then(gateway).shouldHaveNoInteractions();
+		then(finalizer).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -604,9 +622,15 @@ class PaymentOperationExecutorTest {
 		PaymentOperationExecutor executor(
 			PaymentOperationLeaseService leaseService,
 			PaymentProviderGateway gateway,
-			PaymentOperationFinalizer finalizer
+			PaymentOperationFinalizer finalizer,
+			PaymentOperationExecutionFence executionFence
 		) {
-			return new PaymentOperationExecutor(leaseService, gateway, finalizer);
+			return new PaymentOperationExecutor(leaseService, gateway, finalizer, executionFence);
+		}
+
+		@Bean
+		ControllablePaymentOperationExecutionFence paymentOperationExecutionFence() {
+			return new ControllablePaymentOperationExecutionFence();
 		}
 
 		@Bean
@@ -632,6 +656,28 @@ class PaymentOperationExecutorTest {
 
 		@Override
 		protected void doRollback(DefaultTransactionStatus status) {
+		}
+	}
+
+	private static final class ControllablePaymentOperationExecutionFence
+		implements PaymentOperationExecutionFence {
+		private boolean failNextAcquisition;
+
+		@Override
+		public <T> T execute(UUID operationUid, Supplier<T> action) {
+			if (failNextAcquisition) {
+				failNextAcquisition = false;
+				throw new PaymentOperationExecutionFenceUnavailableException();
+			}
+			return action.get();
+		}
+
+		void failNextAcquisition() {
+			failNextAcquisition = true;
+		}
+
+		void reset() {
+			failNextAcquisition = false;
 		}
 	}
 }

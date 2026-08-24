@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,11 +14,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
@@ -27,6 +33,7 @@ class GlobalExceptionHandlerMvcTest {
 
 	private static final String SENSITIVE_PROVIDER_DETAIL =
 		"provider_response=secret-payment-key-and-raw-body";
+	private static final String HARMLESS_REJECTED_VALUE = "ordinary-visible-value";
 
 	private MockMvc mockMvc;
 
@@ -67,6 +74,26 @@ class GlobalExceptionHandlerMvcTest {
 			.andExpect(jsonPath("$.error.status").value(400));
 	}
 
+	@Test
+	void preservesUsefulMetadataForOrdinaryValidationWithoutLoggingRejectedValue(
+		CapturedOutput output
+	) throws Exception {
+		mockMvc.perform(post("/test/errors/validation/ordinary")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"displayName":"%s"}
+					""".formatted(HARMLESS_REJECTED_VALUE)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.errors[0].field").value("displayName"))
+			.andExpect(jsonPath("$.error.errors[0].value").value(HARMLESS_REJECTED_VALUE))
+			.andExpect(jsonPath("$.error.errors[0].reason").isNotEmpty());
+
+		assertThat(output)
+			.contains("fields=[displayName]")
+			.contains("constraints=[Size]")
+			.doesNotContain(HARMLESS_REJECTED_VALUE);
+	}
+
 	@RestController
 	private static final class FailureController {
 
@@ -84,5 +111,14 @@ class GlobalExceptionHandlerMvcTest {
 		void publishingField() {
 			throw new PublishingFieldRequiredException("title");
 		}
+
+		@PostMapping("/test/errors/validation/ordinary")
+		void ordinaryValidation(@Valid @RequestBody HarmlessValidationRequest request) {
+		}
+	}
+
+	private record HarmlessValidationRequest(
+		@Size(min = 32) String displayName
+	) {
 	}
 }

@@ -6,6 +6,19 @@ public record EventDescriptor(
 	String eventType,
 	String eventVersion
 ) {
+	public EventDescriptor(
+		IntegrationEventDestination destination,
+		String aggregateType,
+		String eventType,
+		String eventVersion
+	) {
+		this(
+			destination == null ? null : destination.topic(),
+			aggregateType,
+			eventType,
+			eventVersion);
+	}
+
 	public EventDescriptor {
 		requireText(destination, "destination");
 		requireText(aggregateType, "aggregateType");

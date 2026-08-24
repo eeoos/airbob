@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import kr.kro.airbob.messaging.event.EventDescriptor;
 import kr.kro.airbob.messaging.event.IntegrationEvent;
+import kr.kro.airbob.messaging.event.IntegrationEventDestination;
 
 public record OperatorAlertRequestedV1(
 	UUID alertUid,
@@ -16,10 +17,10 @@ public record OperatorAlertRequestedV1(
 	Long sourceOffset,
 	OperatorAlertSummaryCode summaryCode
 ) implements IntegrationEvent {
-	public static final String TOPIC = "OPERATOR_ALERT.events";
+	public static final String TOPIC = IntegrationEventDestination.Topic.OPERATOR_ALERT;
 
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
-		TOPIC,
+		IntegrationEventDestination.OPERATOR_ALERT,
 		"OPERATOR_ALERT",
 		"OPERATOR_ALERT_REQUESTED",
 		"1"

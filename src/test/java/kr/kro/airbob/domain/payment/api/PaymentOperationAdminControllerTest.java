@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
@@ -45,12 +47,14 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandS
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewResult;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PaymentOperationAdminControllerTest {
 
 	private static final Long ADMIN_ID = 9L;
 	private static final UUID OPERATION_UID =
 		UUID.fromString("98283dcc-f24f-44b2-a877-d89983fb7e31");
+	private static final String INVALID_EVIDENCE_SECRET =
+		"https://provider.test/case?id=secret-validation-value";
 
 	@Mock private PaymentOperationManualReviewQueryRepository queryRepository;
 	@Mock private PaymentOperationManualReviewCommandService commandService;
@@ -212,19 +216,30 @@ class PaymentOperationAdminControllerTest {
 	}
 
 	@Test
-	void rejectsUnsafeMarkNotPaidEvidenceBeforeCallingTheCommand() throws Exception {
-		mockMvc.perform(post(
+	void rejectsUnsafeMarkNotPaidEvidenceBeforeCallingTheCommand(
+		CapturedOutput output
+	) throws Exception {
+		MvcResult result = mockMvc.perform(post(
 				"/api/v1/admin/payment-operations/{operationId}/mark-not-paid", OPERATION_UID)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{
 					  "expected_version":7,
 					  "reason_code":"PROVIDER_PAYMENT_NOT_FOUND",
-					  "evidence_reference":"https://provider.test/case?id=secret"
+					  "evidence_reference":"%s"
 					}
-					"""))
+					""".formatted(INVALID_EVIDENCE_SECRET)))
 			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.error.code").value("C001"));
+			.andExpect(jsonPath("$.error.code").value("C001"))
+			.andExpect(jsonPath("$.error.errors[0].field").value("evidenceReference"))
+			.andExpect(jsonPath("$.error.errors[0].value").value("[REDACTED]"))
+			.andReturn();
+
+		assertThat(result.getResponse().getContentAsString()).doesNotContain(INVALID_EVIDENCE_SECRET);
+		assertThat(output)
+			.contains("fields=[evidenceReference]")
+			.contains("constraints=[Pattern]")
+			.doesNotContain(INVALID_EVIDENCE_SECRET);
 
 		then(commandService).shouldHaveNoInteractions();
 	}

@@ -168,8 +168,11 @@ class PaymentOperationExecutionListenerTest {
 
 		listener.handleDlt(record, acknowledgment);
 
-		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition(
-			PaymentOperationExecutionRequestedV1.TOPIC, 2, 41L);
+		OperatorAlertSourcePosition source = OperatorAlertSourcePosition.from(
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			PaymentOperationExecutionRequestedV1.TOPIC,
+			2,
+			41L);
 		InOrder order = inOrder(dltIncidentService, acknowledgment);
 		order.verify(dltIncidentService).record(MESSAGE, source);
 		order.verify(acknowledgment).acknowledge();
@@ -185,16 +188,36 @@ class PaymentOperationExecutionListenerTest {
 
 		then(dltIncidentService).should().record(
 			poison,
-			new OperatorAlertSourcePosition(PaymentOperationExecutionRequestedV1.TOPIC, 0, 7L));
+			OperatorAlertSourcePosition.from(
+				PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+				PaymentOperationExecutionRequestedV1.TOPIC,
+				0,
+				7L));
 		then(acknowledgment).should().acknowledge();
+	}
+
+	@Test
+	@DisplayName("공격자가 조작한 original topic은 알림 source에 사용하지 않는다")
+	void rejectsAttackerControlledOriginalTopicAtTheAlertBoundary() {
+		ConsumerRecord<String, String> record = dltRecord(
+			MESSAGE, "EVIL.events", 8, 777L);
+
+		assertThatThrownBy(() -> listener.handleDlt(record, acknowledgment))
+			.isInstanceOf(IllegalArgumentException.class);
+
+		then(dltIncidentService).shouldHaveNoInteractions();
+		then(acknowledgment).shouldHaveNoInteractions();
 	}
 
 	@Test
 	@DisplayName("DLT incident DB/outbox 실패는 전파하고 ACK하지 않는다")
 	void incidentFailurePropagatesWithoutAck() {
 		ConsumerRecord<String, String> record = dltRecord("not-json", 1, 19L);
-		OperatorAlertSourcePosition source = new OperatorAlertSourcePosition(
-			PaymentOperationExecutionRequestedV1.TOPIC, 1, 19L);
+		OperatorAlertSourcePosition source = OperatorAlertSourcePosition.from(
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			PaymentOperationExecutionRequestedV1.TOPIC,
+			1,
+			19L);
 		willThrow(new IllegalStateException("operator alert outbox unavailable"))
 			.given(dltIncidentService).record("not-json", source);
 
@@ -236,11 +259,21 @@ class PaymentOperationExecutionListenerTest {
 	}
 
 	private ConsumerRecord<String, String> dltRecord(String value, int partition, long offset) {
+		return dltRecord(
+			value, PaymentOperationExecutionRequestedV1.TOPIC, partition, offset);
+	}
+
+	private ConsumerRecord<String, String> dltRecord(
+		String value,
+		String originalTopic,
+		int partition,
+		long offset
+	) {
 		ConsumerRecord<String, String> record = new ConsumerRecord<>(
 			PaymentOperationExecutionRequestedV1.TOPIC + ".DLT", 0, 99L, null, value);
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_TOPIC,
-			PaymentOperationExecutionRequestedV1.TOPIC.getBytes(StandardCharsets.UTF_8));
+			originalTopic.getBytes(StandardCharsets.UTF_8));
 		record.headers().add(
 			KafkaHeaders.ORIGINAL_PARTITION,
 			ByteBuffer.allocate(Integer.BYTES).putInt(partition).array());

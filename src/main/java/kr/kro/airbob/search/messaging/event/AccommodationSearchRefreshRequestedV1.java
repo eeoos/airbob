@@ -5,14 +5,15 @@ import java.util.UUID;
 
 import kr.kro.airbob.messaging.event.EventDescriptor;
 import kr.kro.airbob.messaging.event.IntegrationEvent;
+import kr.kro.airbob.messaging.event.IntegrationEventDestination;
 
 public record AccommodationSearchRefreshRequestedV1(
 	UUID accommodationUid
 ) implements IntegrationEvent {
-	public static final String TOPIC = "ACCOMMODATION_INDEX.events";
+	public static final String TOPIC = IntegrationEventDestination.Topic.ACCOMMODATION_INDEX;
 
 	public static final EventDescriptor DESCRIPTOR = new EventDescriptor(
-		TOPIC,
+		IntegrationEventDestination.ACCOMMODATION_INDEX,
 		"ACCOMMODATION",
 		"ACCOMMODATION_SEARCH_REFRESH_REQUESTED",
 		"1"

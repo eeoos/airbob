@@ -17,6 +17,7 @@ spring:
 
   datasource:
     hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
       data-source-properties:
         connectionTimeZone: UTC
         forceConnectionTimeZoneToSession: true
@@ -75,6 +76,9 @@ payment:
     max-attempts: ${PAYMENT_OPERATION_MAX_ATTEMPTS:5}
     retry-initial-delay: ${PAYMENT_OPERATION_RETRY_INITIAL_DELAY:10s}
     retry-max-delay: ${PAYMENT_OPERATION_RETRY_MAX_DELAY:5m}
+    execution-fence-timeout: ${PAYMENT_OPERATION_EXECUTION_FENCE_TIMEOUT:15s}
+    execution-fence-network-timeout: ${PAYMENT_OPERATION_EXECUTION_FENCE_NETWORK_TIMEOUT:20s}
+    execution-fence-max-concurrency: ${PAYMENT_OPERATION_EXECUTION_FENCE_MAX_CONCURRENCY:2}
     kafka:
       group: ${PAYMENT_OPERATION_GROUP:payment-operation-execution-group}
       attempts: ${PAYMENT_OPERATION_KAFKA_ATTEMPTS:4}

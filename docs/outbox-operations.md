@@ -28,6 +28,16 @@ partition 수를 검증한다.
 [`docker/debezium/register-connector.sh`](../docker/debezium/register-connector.sh)는 connector
 config를 idempotent `PUT`으로 등록하고 connector와 적어도 하나의 task가 모두 `RUNNING`일
 때만 성공한다. 운영 secret에는 `DEBEZIUM_DATABASE_PASSWORD`가 반드시 있어야 한다.
+OCI 배포는 기존 app/ingress와 Debezium을 중지하고 Flyway V18~현재 migration을 먼저
+적용한 뒤 이 등록 절차를 실행한다. 새 EventRouter column 계약을 pre-V18 outbox에 먼저
+적용하지 않는다.
+
+등록 `PUT`과 상태 조회 `GET`에는 각각 연결 제한 시간과 전체 전송 제한 시간이 적용된다.
+기본값은 `CONNECTOR_HTTP_CONNECT_TIMEOUT_SECONDS=5`,
+`CONNECTOR_HTTP_MAX_TIME_SECONDS=10`이며 connector init 컨테이너 환경 변수로 조정할 수
+있다. 두 값은 0보다 큰 정수여야 하고, 잘못된 값이면 외부 요청을 보내기 전에 init이
+실패한다. 따라서 Connect가 TCP 연결만 받거나 응답을 끝내지 않아도 개별 요청이 무한히
+대기하지 않는다.
 
 EventRouter SMT에는 `TopicNameMatches` predicate가 적용된다. source topic
 `airbob_outbox.airbobdb.outbox` 레코드만 outbox event로 route하고,
@@ -64,6 +74,19 @@ key/value/header converter는 raw String 계약이다. 애플리케이션 consum
 curl --fail --silent --show-error \
   http://<connect-host>:8083/connectors/airbob-outbox-connector/status
 ```
+
+OCI에서는 일회성 확인에 더해 debezium-connector-monitor가 30초마다 같은 status API를
+bounded HTTP 호출로 검사한다. connector와 적어도 한 개의 task가 모두 RUNNING일 때만
+monitor container가 healthy다. 상태 파일에는 RUNNING 또는 NOT_RUNNING만 쓰고, 로그도
+상태 전환 때의 고정 문구만 남긴다. Connect raw body와 task trace는 출력하지 않는다.
+
+    docker inspect \
+      --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      airbob-debezium-connector-monitor
+
+monitor가 unhealthy이면 cleanup을 중단하고 heartbeat, offset, topic ingress, consumer
+lag를 확인한다. 배포 및 roll-forward 절차는
+[OCI 배포 런북](oci-deployment-runbook.md)을 따른다.
 
 outbox 행 수가 많거나 가장 오래된 행이 오래됐다는 사실만으로 CDC 장애라고 판단하지
 않는다. cleanup이 꺼져 있으면 오래된 행이 계속 남는 것이 정상이다.
@@ -142,7 +165,7 @@ cleanup 자체 지표는 다음과 같다.
 ## 장애 대응
 
 1. cleanup이 켜져 있다면 `messaging.outbox.cleanup.enabled=false`로 먼저 중단한다.
-2. connector/task와 heartbeat freshness를 확인한다.
+2. connector monitor health, connector/task와 heartbeat freshness를 확인한다.
 3. Connect offset, 대상 topic ingress, consumer lag를 비교한다.
 4. binlog가 필요한 장애 복구 구간을 보존한다.
 5. 유실 가능성이 있으면 payload를 출력하지 말고 제한된 절차로 DB와 Kafka의 `event_id`를

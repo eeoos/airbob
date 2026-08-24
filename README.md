@@ -67,8 +67,9 @@ sequenceDiagram
 
 승인과 유료 예약 취소는 같은 `PaymentOperation` 상태 머신을 사용합니다. API 트랜잭션은
 예약 상태와 작업·outbox 행만 원자적으로 저장하고 HTTP 202를 반환합니다. worker는
-generation과 lease를 검증해 작업을 claim한 뒤 DB 트랜잭션 밖에서 Toss Payments를
-호출하고, 결과를 새 트랜잭션에서 원장·예약·쿠폰·검색 refresh와 함께 확정합니다.
+operation UID 단위 MySQL 실행 펜스를 획득하고 generation과 lease를 검증해 작업을 claim한
+뒤 DB 트랜잭션 밖에서 Toss Payments를 호출하며, 결과를 새 트랜잭션에서 원장·예약·쿠폰·
+검색 refresh와 함께 확정한 후 펜스를 반납합니다.
 
 - 명령 생성: [PaymentOperationCommandService.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationCommandService.java), [PaymentCancellationCommandService.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentCancellationCommandService.java)
 - 외부 호출 실행: [PaymentOperationExecutor.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationExecutor.java)
@@ -126,6 +127,7 @@ heartbeat와 connector metadata 레코드는 transform을 우회합니다.
 - Debezium 설정: [outbox-connector.json](debezium-config/outbox-connector.json)
 - Connect 기동 검증: [register-connector.sh](docker/debezium/register-connector.sh)
 - topic bootstrap: [init-topics.sh](docker/kafka/init-topics.sh)
+- OCI 배포는 기존 producer를 닫고 Flyway migration을 먼저 적용한 뒤 새 connector를 등록합니다.
 
 ```mermaid
 flowchart LR

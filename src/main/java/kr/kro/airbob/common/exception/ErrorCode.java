@@ -71,6 +71,10 @@ public enum ErrorCode {
 	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
 	PAYMENT_OPERATION_NOT_FOUND(HttpStatus.NOT_FOUND, "P005", "존재하지 않는 결제 작업입니다."),
 	PAYMENT_OPERATION_CONFLICT(HttpStatus.CONFLICT, "P006", "기존 결제 작업과 요청 내용이 일치하지 않습니다."),
+	PAYMENT_OPERATION_EXECUTION_FENCE_UNAVAILABLE(
+		HttpStatus.SERVICE_UNAVAILABLE,
+		"P007",
+		"결제 작업을 안전하게 실행할 수 없어 잠시 후 다시 시도해야 합니다."),
 
 	// wishlist
 	WISHLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "W001", "존재하지 않는 위시리스트입니다."),
