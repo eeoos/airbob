@@ -7,7 +7,7 @@ import {
   verifyIdleControl,
 } from '../traffic/aggregate-traffic-results.mjs';
 
-const FLYWAY_VERSION = '20';
+const FLYWAY_VERSION = '27';
 
 function snapshot(rows) {
   return rows.map((row) => JSON.stringify({
