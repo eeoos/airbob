@@ -43,15 +43,13 @@ reservation owner에게 원자적으로 할당합니다. 결제 대기는 `HOLD(
 확정·취소 처리 중은 `OCCUPIED`입니다. 만료된 HOLD는 새 checkout이 같은 잠금 안에서 인수할 수
 있고, 오래된 cleanup은 여전히 자신이 소유한 HOLD만 해제합니다.
 
-DB connection pool 앞에는 인스턴스별 bounded admission을 둡니다. 기본 네 checkout만 DB 경로에
-들어가며, 포화 요청은 기다리지 않고 `503/R025`와 `Retry-After`를 받습니다. 이 admission은 부하
-차단일 뿐 중복 방지의 권위가 아닙니다. 프로세스를 우회하거나 여러 인스턴스가 실행돼도 최종
-판정은 MySQL 날짜 행과 트랜잭션이 담당합니다. Redis는 세션·캐시·쿠폰 같은 별도 용도에 남아
-있지만 예약 정합성 락으로 사용하지 않습니다.
+`NOWAIT` 잠금 경합은 기다리지 않고 `503/R025`와 `Retry-After`를 반환합니다. 재시도 시 날짜가
+이미 할당됐다면 `R002`로 응답합니다. 여러 인스턴스가 실행돼도 최종 판정은 MySQL 날짜 행과
+트랜잭션이 담당합니다. Redis는 세션·캐시·쿠폰 같은 별도 용도에 남아 있지만 예약 정합성 락으로
+사용하지 않습니다.
 
 - 권위 트랜잭션: [ReservationTransactionService.java](src/main/java/kr/kro/airbob/domain/reservation/service/ReservationTransactionService.java)
 - 날짜 inventory 전이: [ReservationInventoryService.java](src/main/java/kr/kro/airbob/domain/reservation/inventory/ReservationInventoryService.java)
-- checkout admission: [ReservationCheckoutAdmission.java](src/main/java/kr/kro/airbob/domain/reservation/admission/ReservationCheckoutAdmission.java)
 - seed·readiness: [AccommodationInventoryStartupBootstrap.java](src/main/java/kr/kro/airbob/domain/reservation/inventory/AccommodationInventoryStartupBootstrap.java)
 - 동일 날짜 300개 요청 회귀 테스트: [ReservationConcurrencyTest.java](src/test/java/kr/kro/airbob/domain/reservation/ReservationConcurrencyTest.java)
 
@@ -66,7 +64,6 @@ sequenceDiagram
         A->>API: 예약 생성
         B->>API: 예약 생성
     end
-    API->>API: bounded admission (즉시 성공 또는 busy)
     API->>DB: published accommodation FOR SHARE NOWAIT
     API->>DB: A - requested inventory days FOR UPDATE NOWAIT
     API->>DB: B - same inventory days NOWAIT → busy

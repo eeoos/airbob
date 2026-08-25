@@ -21,7 +21,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
@@ -347,7 +346,7 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("admission을 통과한 동일 quote checkout은 하나로 수렴하고 busy 요청은 재시도한다")
+	@DisplayName("동일 quote와 멱등성 키의 동시 checkout은 하나의 예약 UID로 수렴한다")
 	void concurrentSameQuoteAndKeyConvergesOnOneReservation() throws InterruptedException {
 		int threadCount = 8;
 		ReservationResponse.Quote quote = createQuote(null);
@@ -359,7 +358,6 @@ class ReservationQuoteFlowIntegrationTest {
 		CountDownLatch done = new CountDownLatch(threadCount);
 		List<String> reservationUids = java.util.Collections.synchronizedList(new ArrayList<>());
 		List<Throwable> failures = java.util.Collections.synchronizedList(new ArrayList<>());
-		AtomicInteger busyCount = new AtomicInteger();
 
 		try {
 			for (int index = 0; index < threadCount; index++) {
@@ -369,8 +367,6 @@ class ReservationQuoteFlowIntegrationTest {
 						start.await();
 						reservationUids.add(reservationService.createPendingReservation(
 							request, guest.getId(), idempotencyKey).reservationUid());
-					} catch (ReservationInventoryBusyException busy) {
-						busyCount.incrementAndGet();
 					} catch (Throwable failure) {
 						failures.add(failure);
 					} finally {
@@ -388,8 +384,7 @@ class ReservationQuoteFlowIntegrationTest {
 		}
 
 		assertThat(failures).isEmpty();
-		assertThat(reservationUids).isNotEmpty().containsOnly(reservationUids.getFirst());
-		assertThat(reservationUids.size() + busyCount.get()).isEqualTo(threadCount);
+		assertThat(reservationUids).hasSize(threadCount).containsOnly(reservationUids.getFirst());
 		assertThat(reservationService.createPendingReservation(request, guest.getId(), idempotencyKey)
 			.reservationUid()).isEqualTo(reservationUids.getFirst());
 		assertThat(reservationRepository.count()).isOne();

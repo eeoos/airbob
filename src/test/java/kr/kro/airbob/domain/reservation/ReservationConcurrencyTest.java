@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -583,21 +582,17 @@ class ReservationConcurrencyTest {
 			});
 		}
 
-		long startedAt = System.nanoTime();
-		long completedAt = startedAt;
 		try {
 			assertThat(readyLatch.await(10, TimeUnit.SECONDS)).isTrue();
-			startedAt = System.nanoTime();
 			startLatch.countDown();
-			assertThat(doneLatch.await(10, TimeUnit.SECONDS)).isTrue();
-			completedAt = System.nanoTime();
+			assertThat(doneLatch.await(60, TimeUnit.SECONDS))
+				.as("모든 동시 요청은 hang 없이 종료되어야 한다.")
+				.isTrue();
 		} finally {
 			startLatch.countDown();
 			executorService.shutdownNow();
 			assertThat(executorService.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
 		}
-		Duration elapsed = Duration.ofNanos(completedAt - startedAt);
-
 		// then
 		long reservationCount = reservationRepository.count();
 
@@ -612,13 +607,11 @@ class ReservationConcurrencyTest {
 
 		assertThat(unexpectedFailCount.get()).as("예상치 못한 예외가 발생하면 안 된다.").isZero();
 		assertThat(successCount.get()).as("오직 하나의 예약만 성공해야 한다.").isEqualTo(1);
-		assertThat(expectedFailCount.get()).as("나머지는 충돌 또는 빠른 busy로 종료되어야 한다.")
+		assertThat(expectedFailCount.get()).as("나머지는 점유 충돌 또는 NOWAIT 경합으로 종료되어야 한다.")
 			.isEqualTo(SAME_DATE_REQUEST_COUNT - 1);
 		assertThat(successCount.get() + expectedFailCount.get()).as("모든 요청이 처리되어야 한다.")
 			.isEqualTo(SAME_DATE_REQUEST_COUNT);
 		assertThat(reservationCount).as("DB에도 오직 하나의 예약만 기록되어야 한다.").isEqualTo(1);
-		assertThat(elapsed).as("포화 요청은 DB pool 앞에서 빠르게 차단되어야 한다.")
-			.isLessThan(Duration.ofSeconds(10));
 		assertThat(jdbcTemplate.queryForObject("""
 			SELECT COUNT(DISTINCT reservation_id)
 			FROM accommodation_inventory_day
@@ -778,7 +771,7 @@ class ReservationConcurrencyTest {
 	}
 
 	@Test
-	@DisplayName("admission을 통과한 동일 checkout은 하나로 수렴하고 busy 요청은 재시도할 수 있다")
+	@DisplayName("동일 checkout 10개 동시 요청은 하나의 예약 UID로 수렴한다")
 	void concurrentIdenticalCheckoutRequestsConvergeOnOneReservation() throws InterruptedException {
 		int threadCount = 10;
 		Member guest = guests.getFirst();
@@ -791,7 +784,6 @@ class ReservationConcurrencyTest {
 		CountDownLatch done = new CountDownLatch(threadCount);
 		List<String> reservationUids = java.util.Collections.synchronizedList(new ArrayList<>());
 		List<Throwable> failures = java.util.Collections.synchronizedList(new ArrayList<>());
-		AtomicInteger busyCount = new AtomicInteger();
 
 		for (int i = 0; i < threadCount; i++) {
 			executor.submit(() -> {
@@ -801,8 +793,6 @@ class ReservationConcurrencyTest {
 					reservationUids.add(reservationService
 						.createPendingReservation(request, guest.getId(), "concurrent-same-checkout")
 						.reservationUid());
-				} catch (ReservationInventoryBusyException busy) {
-					busyCount.incrementAndGet();
 				} catch (Throwable failure) {
 					failures.add(failure);
 				} finally {
@@ -817,8 +807,7 @@ class ReservationConcurrencyTest {
 		executor.shutdownNow();
 
 		assertThat(failures).isEmpty();
-		assertThat(reservationUids).isNotEmpty().containsOnly(reservationUids.getFirst());
-		assertThat(reservationUids.size() + busyCount.get()).isEqualTo(threadCount);
+		assertThat(reservationUids).hasSize(threadCount).containsOnly(reservationUids.getFirst());
 		assertThat(reservationService
 			.createPendingReservation(request, guest.getId(), "concurrent-same-checkout")
 			.reservationUid()).isEqualTo(reservationUids.getFirst());

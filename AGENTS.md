@@ -71,9 +71,8 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   and cancellation failure retain ownership.
 - Expired cleanup releases only `HOLD` rows still owned by that reservation. A newer checkout may
   atomically reclaim an expired hold, and stale cleanup must never clear the new owner.
-- `ReservationCheckoutAdmission` is an in-process, immediate bulkhead before transaction and pool
-  checkout. It protects capacity but is not a correctness lock. `R025` means retryable contention;
-  `R002` means the requested nights are already occupied.
+- `R025` means retryable `NOWAIT` lock contention; `R002` means the requested nights are already
+  occupied.
 - Startup seeds and verifies every published accommodation before readiness opens. Publish and
   timezone changes seed in the business transaction; rolling maintenance inserts only missing days.
 - There is no external distributed reservation lock or best-effort Redis hold.

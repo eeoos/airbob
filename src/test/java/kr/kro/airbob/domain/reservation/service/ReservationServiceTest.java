@@ -10,8 +10,6 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import javax.sql.DataSource;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,8 +23,6 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
-import kr.kro.airbob.domain.reservation.admission.ReservationCheckoutAdmission;
-import kr.kro.airbob.domain.reservation.admission.ReservationCheckoutAdmissionProperties;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -57,10 +53,6 @@ class ReservationServiceTest {
 		reservationService = new ReservationService(
 			transactionService,
 			cancellationCommandService,
-			new ReservationCheckoutAdmission(
-				mock(DataSource.class),
-				new ReservationCheckoutAdmissionProperties(1)
-			),
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		memberId = 1L;

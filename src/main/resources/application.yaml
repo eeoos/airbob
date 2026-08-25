@@ -114,9 +114,6 @@ settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
 
 reservation:
-  checkout:
-    admission:
-      max-concurrency: ${RESERVATION_CHECKOUT_ADMISSION_MAX_CONCURRENCY:4}
   inventory:
     startup:
       enabled: ${RESERVATION_INVENTORY_STARTUP_ENABLED:true}
