@@ -272,8 +272,7 @@ class PaymentOperationFlowIntegrationTest {
 	}
 
 	@Test
-	void v2PaymentAttemptConsumptionRollsBackWithOutboxAndSameTokenCanRetry() throws Exception {
-		requirePaymentAttempt(PAYMENT_ATTEMPT_ID);
+	void paymentAttemptConsumptionRollsBackWithOutboxAndSameTokenCanRetry() throws Exception {
 		createOutboxFailureTrigger();
 
 		MvcResult failed = accept(ownerId, PAYMENT_ATTEMPT_ID, status().is5xxServerError());
@@ -295,6 +294,19 @@ class PaymentOperationFlowIntegrationTest {
 			.isEqualTo(PAYMENT_PROCESSING);
 		assertThat(paymentAttemptConsumedAt()).isEqualTo(NOW);
 		assertNoSecret(failed.getResponse().getContentAsString());
+	}
+
+	@Test
+	void missingPaymentAttemptIsRejectedBeforeAnyStateChange() throws Exception {
+		MvcResult rejected = accept(ownerId, null, status().isBadRequest());
+
+		assertThat(operationRepository.count()).isZero();
+		assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus())
+			.isEqualTo(PAYMENT_PENDING);
+		assertThat(paymentAttemptConsumedAt()).isNull();
+		assertThat(historyRepository.count()).isZero();
+		assertThat(outboxRepository.count()).isZero();
+		assertNoSecret(rejected.getResponse().getContentAsString());
 	}
 
 	@Test
@@ -698,7 +710,7 @@ class PaymentOperationFlowIntegrationTest {
 
 	private MvcResult accept(long memberId, org.springframework.test.web.servlet.ResultMatcher expectedStatus)
 		throws Exception {
-		return accept(memberId, null, expectedStatus);
+		return accept(memberId, PAYMENT_ATTEMPT_ID, expectedStatus);
 	}
 
 	private MvcResult accept(
@@ -886,6 +898,7 @@ class PaymentOperationFlowIntegrationTest {
 	private void assertNoSecret(String serialized) {
 		assertThat(serialized)
 			.doesNotContain(PAYMENT_KEY)
+			.doesNotContain(PAYMENT_ATTEMPT_ID.toString())
 			.doesNotContain("paymentKey")
 			.doesNotContain("payment_key");
 	}
@@ -973,21 +986,6 @@ class PaymentOperationFlowIntegrationTest {
 			"SELECT used FROM member_coupon WHERE id = ?", Boolean.class, memberCouponId));
 	}
 
-	private void requirePaymentAttempt(UUID paymentAttemptId) {
-		jdbc.update("""
-			UPDATE reservation
-			SET payment_attempt_required = true,
-			    payment_attempt_uid = UNHEX(REPLACE(?, '-', '')),
-			    payment_attempt_started_at = ?,
-			    payment_attempt_consumed_at = NULL
-			WHERE id = ?
-			""",
-			paymentAttemptId.toString(),
-			java.sql.Timestamp.from(NOW.minusSeconds(30)),
-			reservationId
-		);
-	}
-
 	private Instant paymentAttemptConsumedAt() {
 		java.sql.Timestamp consumedAt = jdbc.queryForObject(
 			"SELECT payment_attempt_consumed_at FROM reservation WHERE id = ?",
@@ -1062,13 +1060,16 @@ class PaymentOperationFlowIntegrationTest {
 			INSERT INTO reservation (
 			  reservation_uid, accommodation_id, guest_id, check_in_date, check_out_date,
 			  check_in_at, check_out_at, time_zone_id, guest_count, total_price, discount_amount,
-			  status, reservation_code, created_at, expires_at, updated_at, currency
+			  status, reservation_code, created_at, expires_at, updated_at, currency,
+			  payment_attempt_required, payment_attempt_uid, payment_attempt_started_at
 			) VALUES (
 			  UNHEX(REPLACE(?, '-', '')), ?, ?, '2026-08-15', '2026-08-16',
 			  '2026-08-15 15:00:00', '2026-08-16 11:00:00', 'UTC', 2, ?, 10000,
-			  'PAYMENT_PENDING', 'TASK100001', NOW(6), '2026-08-14 00:01:00', NOW(6), 'KRW'
+			  'PAYMENT_PENDING', 'TASK100001', NOW(6), '2026-08-14 00:01:00', NOW(6), 'KRW',
+			  true, UNHEX(REPLACE(?, '-', '')), '2026-08-13 23:59:30'
 			)
-			""", RESERVATION_UID.toString(), accommodationId, ownerId, AMOUNT);
+			""", RESERVATION_UID.toString(), accommodationId, ownerId, AMOUNT,
+			PAYMENT_ATTEMPT_ID.toString());
 		reservationId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
 		jdbc.update("""

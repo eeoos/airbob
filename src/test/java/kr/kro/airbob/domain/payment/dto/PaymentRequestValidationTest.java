@@ -16,10 +16,19 @@ class PaymentRequestValidationTest {
 	@Test
 	void 결제키가_200자를_초과하면_거부한다() {
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
-			"p".repeat(201), UUID.randomUUID().toString(), 10_000);
+			"p".repeat(201), UUID.randomUUID().toString(), 10_000, UUID.randomUUID());
 
 		assertThat(validator.validate(request))
 			.anyMatch(violation -> violation.getPropertyPath().toString().equals("paymentKey"));
+	}
+
+	@Test
+	void 결제시도_토큰이_없으면_거부한다() {
+		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
+			"payment-key", UUID.randomUUID().toString(), 10_000, null);
+
+		assertThat(validator.validate(request))
+			.anyMatch(violation -> violation.getPropertyPath().toString().equals("paymentAttemptId"));
 	}
 
 	@Test

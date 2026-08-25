@@ -87,6 +87,7 @@ class PaymentOperationCommandServiceTest {
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.expiresAt(NOW.plusSeconds(60))
 			.build();
+		requirePaymentAttempt(pendingReservation);
 	}
 
 	@Test
@@ -99,7 +100,7 @@ class PaymentOperationCommandServiceTest {
 			ArgumentCaptor.forClass(PaymentOperationExecutionRequestedV1.class);
 
 		PaymentRequest.Confirm request = request();
-		assertThat(request.paymentAttemptId()).isNull();
+		assertThat(request.paymentAttemptId()).isEqualTo(PAYMENT_ATTEMPT_ID);
 
 		Accepted accepted = service.requestConfirmation(request, GUEST_ID);
 
@@ -121,8 +122,7 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	@Test
-	void v2FirstOperationValidatesBeforeReplayLookupAndConsumesAttemptBeforePersistence() {
-		requirePaymentAttempt(pendingReservation);
+	void firstOperationValidatesBeforeReplayLookupAndConsumesAttemptBeforePersistence() {
 		pendingReservation = org.mockito.Mockito.spy(pendingReservation);
 		givenReservationLocks(pendingReservation);
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
@@ -147,11 +147,10 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	@Test
-	void v2MissingPaymentAttemptIsRejectedBeforeReplayLookup() {
-		requirePaymentAttempt(pendingReservation);
+	void missingPaymentAttemptIsRejectedBeforeReplayLookup() {
 		givenReservationLocks(pendingReservation);
 
-		assertPaymentAttemptRejected(request());
+		assertPaymentAttemptRejected(request((UUID)null));
 
 		then(paymentOperationRepository).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
@@ -159,8 +158,7 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	@Test
-	void v2WrongPaymentAttemptIsRejectedBeforeReplayLookup() {
-		requirePaymentAttempt(pendingReservation);
+	void wrongPaymentAttemptIsRejectedBeforeReplayLookup() {
 		givenReservationLocks(pendingReservation);
 
 		assertPaymentAttemptRejected(request(WRONG_PAYMENT_ATTEMPT_ID));
@@ -199,7 +197,6 @@ class PaymentOperationCommandServiceTest {
 
 	@Test
 	void invalidPaymentAttemptCannotObserveExistingOperation() {
-		requirePaymentAttempt(pendingReservation);
 		givenReservationLocks(pendingReservation);
 		PaymentOperation existing = existingOperation("pk-one", 100_000L);
 		org.mockito.Mockito.lenient()
@@ -253,6 +250,7 @@ class PaymentOperationCommandServiceTest {
 			.guest(Member.builder().id(GUEST_ID).build())
 			.checkInDate(CHECK_IN).checkOutDate(CHECK_OUT)
 			.totalPrice(100_000L).status(ReservationStatus.PAYMENT_PENDING).expiresAt(NOW).build();
+		requirePaymentAttempt(pendingReservation);
 		givenReservationLocks(pendingReservation);
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
@@ -285,7 +283,8 @@ class PaymentOperationCommandServiceTest {
 
 	@Test
 	void malformedOrderIdDoesNotAccessPersistence() {
-		PaymentRequest.Confirm malformed = new PaymentRequest.Confirm("pk", "not-a-uuid", 100_000);
+		PaymentRequest.Confirm malformed = new PaymentRequest.Confirm(
+			"pk", "not-a-uuid", 100_000, PAYMENT_ATTEMPT_ID);
 
 		assertThatThrownBy(() -> service.requestConfirmation(malformed, GUEST_ID))
 			.isInstanceOf(InvalidInputException.class);
@@ -301,11 +300,12 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	private PaymentRequest.Confirm request() {
-		return request("pk-one", 100_000);
+		return request(PAYMENT_ATTEMPT_ID);
 	}
 
 	private PaymentRequest.Confirm request(String paymentKey, int amount) {
-		return new PaymentRequest.Confirm(paymentKey, RESERVATION_UID.toString(), amount);
+		return new PaymentRequest.Confirm(
+			paymentKey, RESERVATION_UID.toString(), amount, PAYMENT_ATTEMPT_ID);
 	}
 
 	private PaymentRequest.Confirm request(UUID paymentAttemptId) {

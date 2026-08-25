@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.payment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static kr.kro.airbob.domain.reservation.service.ReservationTransactionTestDriver.createPendingReservation;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -57,7 +58,7 @@ import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -88,6 +89,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 	private static final LocalDate STAY_START = LocalDate.of(2026, 8, 27);
 	private static final LocalDate STAY_END = STAY_START.plusDays(2);
 	private static final long PAYMENT_AMOUNT = 200_000L;
+	private static final UUID PAYMENT_ATTEMPT_ID =
+		UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 	private static final long BLOCK_ASSERTION_MILLIS = 500L;
 
 	@Container
@@ -292,6 +295,9 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.expiresAt(RESERVATION_EXPIRES_AT)
+			.paymentAttemptRequired(true)
+			.paymentAttemptUid(PAYMENT_ATTEMPT_ID)
+			.paymentAttemptStartedAt(CONFIRMATION_ACCEPTED_AT.minusSeconds(30))
 			.build());
 
 		jdbc.batchUpdate("""
@@ -306,8 +312,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 	}
 
 	private void createCompetingReservation() {
-		reservationTransactionService.createPendingReservationInTx(
-			new ReservationRequest.Create(accommodation.getId(), STAY_START, STAY_END, 2),
+		createPendingReservation(reservationTransactionService,
+			new ReservationCreateCommand(accommodation.getId(), STAY_START, STAY_END, 2),
 			competingGuest.getId(),
 			"inventory boundary concurrency test"
 		);
@@ -317,7 +323,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		return new PaymentRequest.Confirm(
 			"boundary-payment-key",
 			pendingReservation.getReservationUid().toString(),
-			Math.toIntExact(PAYMENT_AMOUNT)
+			Math.toIntExact(PAYMENT_AMOUNT),
+			PAYMENT_ATTEMPT_ID
 		);
 	}
 

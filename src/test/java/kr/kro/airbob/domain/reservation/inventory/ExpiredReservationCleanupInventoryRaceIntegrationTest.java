@@ -71,6 +71,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
+import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -112,6 +113,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 	}
 
 	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ExpiredReservationCleanupService cleanupService;
 	@MockitoSpyBean private ReservationInventoryService inventoryService;
 	@Autowired private ReservationRepository reservationRepository;
@@ -228,16 +230,17 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		Long couponId,
 		String idempotencyKey
 	) {
-		ReservationRequest.Create request = new ReservationRequest.Create(
+		ReservationResponse.Quote quote = quoteService.createQuote(new ReservationRequest.Quote(
 			accommodation.getId(),
 			STAY_START,
 			STAY_END,
 			2,
-			couponId,
-			"inventory cleanup race"
-		);
+			couponId
+		), guest.getId());
 		return reservationService.createPendingReservation(
-			request, guest.getId(), idempotencyKey);
+			new ReservationRequest.Checkout(quote.quoteUid(), "inventory cleanup race"),
+			guest.getId(),
+			idempotencyKey);
 	}
 
 	private Long reservationId(ReservationResponse.Ready checkout) {
@@ -338,6 +341,7 @@ class ExpiredReservationCleanupInventoryRaceIntegrationTest {
 		outboxRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		jdbcTemplate.update("DELETE FROM reservation_checkout_request");
+		jdbcTemplate.update("DELETE FROM reservation_quote");
 		memberCouponRepository.deleteAllInBatch();
 		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		reservationRepository.deleteAllInBatch();

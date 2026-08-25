@@ -62,12 +62,14 @@ import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -109,6 +111,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	}
 
 	@Autowired private ReservationService reservationService;
+	@Autowired private ReservationQuoteService quoteService;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private OutboxMessageRepository outboxRepository;
@@ -224,7 +227,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		seedDay(STAY_START);
 		seedDay(STAY_START.plusDays(2));
 		Coupon coupon = issueFixedCoupon(guests.get(0), 10_000);
-		ReservationRequest.Create request = new ReservationRequest.Create(
+		ReservationCreateCommand request = new ReservationCreateCommand(
 			accommodation.getId(), STAY_START, checkOut, 2, coupon.getId(), "missing inventory day");
 
 		Throwable failure = catchThrowable(() -> checkout(request, guests.get(0), "missing-day"));
@@ -290,6 +293,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	void lockedAccommodationReturnsBusyImmediately() throws Exception {
 		LocalDate checkOut = STAY_START.plusDays(2);
 		seedCalendar(STAY_START, checkOut);
+		ReservationRequest.Checkout request = checkoutRequest(
+			request(STAY_START, checkOut), guests.get(0));
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch accommodationLocked = new CountDownLatch(1);
 		CountDownLatch releaseAccommodation = new CountDownLatch(1);
@@ -303,8 +308,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 
 		Future<TimedFailure> checkout = executor.submit(() -> {
 			long startedAt = System.nanoTime();
-			Throwable failure = catchThrowable(() -> checkout(
-				request(STAY_START, checkOut), guests.get(0), "accommodation-nowait-busy"));
+			Throwable failure = catchThrowable(() -> reservationService.createPendingReservation(
+				request, guests.get(0).getId(), "accommodation-nowait-busy"));
 			return new TimedFailure(failure, Duration.ofNanos(System.nanoTime() - startedAt));
 		});
 
@@ -326,20 +331,22 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	}
 
 	private List<CheckoutAttempt> runSimultaneously(
-		ReservationRequest.Create firstRequest,
+		ReservationCreateCommand firstRequest,
 		Member firstGuest,
 		String firstKey,
-		ReservationRequest.Create secondRequest,
+		ReservationCreateCommand secondRequest,
 		Member secondGuest,
 		String secondKey
 	) throws Exception {
+		ReservationRequest.Checkout firstCheckout = checkoutRequest(firstRequest, firstGuest);
+		ReservationRequest.Checkout secondCheckout = checkoutRequest(secondRequest, secondGuest);
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
 		Future<CheckoutAttempt> first = executor.submit(() ->
-			attemptAfterBarrier(firstRequest, firstGuest, firstKey, ready, start));
+			attemptAfterBarrier(firstCheckout, firstGuest, firstKey, ready, start));
 		Future<CheckoutAttempt> second = executor.submit(() ->
-			attemptAfterBarrier(secondRequest, secondGuest, secondKey, ready, start));
+			attemptAfterBarrier(secondCheckout, secondGuest, secondKey, ready, start));
 
 		assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
 		start.countDown();
@@ -352,7 +359,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	}
 
 	private CheckoutAttempt attemptAfterBarrier(
-		ReservationRequest.Create request,
+		ReservationRequest.Checkout request,
 		Member guest,
 		String key,
 		CountDownLatch ready,
@@ -361,18 +368,34 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		ready.countDown();
 		await(start);
 		try {
-			return CheckoutAttempt.success(checkout(request, guest, key));
+			return CheckoutAttempt.success(reservationService.createPendingReservation(
+				request, guest.getId(), key));
 		} catch (Throwable failure) {
 			return CheckoutAttempt.failure(failure);
 		}
 	}
 
 	private ReservationResponse.Ready checkout(
-		ReservationRequest.Create request,
+		ReservationCreateCommand request,
 		Member guest,
 		String key
 	) {
-		return reservationService.createPendingReservation(request, guest.getId(), key);
+		return reservationService.createPendingReservation(
+			checkoutRequest(request, guest), guest.getId(), key);
+	}
+
+	private ReservationRequest.Checkout checkoutRequest(
+		ReservationCreateCommand request,
+		Member guest
+	) {
+		ReservationResponse.Quote quote = quoteService.createQuote(new ReservationRequest.Quote(
+			request.accommodationId(),
+			request.checkInDate(),
+			request.checkOutDate(),
+			request.guestCount(),
+			request.couponId()
+		), guest.getId());
+		return new ReservationRequest.Checkout(quote.quoteUid(), request.requestMessage());
 	}
 
 	private void assertSingleWinner(List<CheckoutAttempt> attempts) {
@@ -393,8 +416,8 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		return ((BaseException)failure).getErrorCode().getCode();
 	}
 
-	private ReservationRequest.Create request(LocalDate checkIn, LocalDate checkOut) {
-		return new ReservationRequest.Create(accommodation.getId(), checkIn, checkOut, 2);
+	private ReservationCreateCommand request(LocalDate checkIn, LocalDate checkOut) {
+		return new ReservationCreateCommand(accommodation.getId(), checkIn, checkOut, 2);
 	}
 
 	private void seedCalendar(LocalDate startInclusive, LocalDate endExclusive) {
@@ -490,6 +513,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 		outboxRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		jdbcTemplate.update("DELETE FROM reservation_checkout_request");
+		jdbcTemplate.update("DELETE FROM reservation_quote");
 		memberCouponRepository.deleteAllInBatch();
 		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		reservationRepository.deleteAllInBatch();

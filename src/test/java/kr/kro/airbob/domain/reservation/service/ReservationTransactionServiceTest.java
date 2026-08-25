@@ -36,7 +36,7 @@ import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -103,7 +103,7 @@ class ReservationTransactionServiceTest {
 
 	private Member guest;
 	private Accommodation accommodation;
-	private ReservationRequest.Create validRequest;
+	private ReservationCreateCommand validRequest;
 	private Long memberId;
 
 	private Member host;
@@ -156,7 +156,7 @@ class ReservationTransactionServiceTest {
 			.member(host)
 			.build();
 
-		validRequest = new ReservationRequest.Create(
+		validRequest = new ReservationCreateCommand(
 			1L,
 			LocalDate.of(2026, 8, 12),
 			LocalDate.of(2026, 8, 14),
@@ -240,7 +240,7 @@ class ReservationTransactionServiceTest {
 		@Test
 		@DisplayName("숙소 최대 정원을 초과하면 예약·쿠폰·이벤트 쓰기 전에 거부한다")
 		void rejectsGuestCountOverAccommodationCapacityBeforeWrites() {
-			ReservationRequest.Create overCapacity = new ReservationRequest.Create(
+			ReservationCreateCommand overCapacity = new ReservationCreateCommand(
 				accommodation.getId(), WINDOW_START.plusDays(1), WINDOW_START.plusDays(2), 3);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
@@ -322,7 +322,7 @@ class ReservationTransactionServiceTest {
 		@Test
 		@DisplayName("쿠폰이 전액을 할인하면 PG 작업 없이 예약을 즉시 확정하고 재고 이벤트를 발행한다")
 		void fullDiscountConfirmsWithoutPaymentOperation() throws Exception {
-			ReservationRequest.Create complimentaryRequest = new ReservationRequest.Create(
+			ReservationCreateCommand complimentaryRequest = new ReservationCreateCommand(
 				accommodation.getId(), WINDOW_START.plusDays(1), WINDOW_START.plusDays(3), 2, 77L);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
@@ -354,7 +354,7 @@ class ReservationTransactionServiceTest {
 		@Test
 		@DisplayName("DST 전환을 지나는 숙박도 숙소 현지 시각을 정확한 절대 시각으로 변환한다")
 		void conflictCheckUsesAccommodationZoneInstantsAcrossDst() {
-			ReservationRequest.Create dstRequest = new ReservationRequest.Create(
+			ReservationCreateCommand dstRequest = new ReservationCreateCommand(
 				accommodation.getId(),
 				LocalDate.of(2027, 3, 13),
 				LocalDate.of(2027, 3, 15),
@@ -423,7 +423,7 @@ class ReservationTransactionServiceTest {
 		@Test
 		@DisplayName("체크아웃이 체크인보다 이후가 아니면 범위와 충돌 검사 전에 거부한다")
 		void 예외_잘못된_숙박_기간() {
-			ReservationRequest.Create invalidRequest = new ReservationRequest.Create(
+			ReservationCreateCommand invalidRequest = new ReservationCreateCommand(
 				1L,
 				LocalDate.of(2026, 8, 12),
 				LocalDate.of(2026, 8, 12),
@@ -447,7 +447,7 @@ class ReservationTransactionServiceTest {
 		@Test
 		@DisplayName("숙소 현지 예약 가능 기간을 벗어나면 충돌과 쓰기 전에 거부한다")
 		void 예외_예약_가능_기간_초과() {
-			ReservationRequest.Create outsideRequest = new ReservationRequest.Create(
+			ReservationCreateCommand outsideRequest = new ReservationCreateCommand(
 				1L,
 				WINDOW_START.plusMonths(3),
 				WINDOW_START.plusMonths(3).plusDays(1),

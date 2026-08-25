@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.dto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,11 +19,12 @@ class ReservationRequestValidationTest {
 	@Test
 	@DisplayName("날짜의 과거 여부는 DTO 검증 대상이 아니다")
 	void allowsPastDatesForAccommodationLocalDateValidation() {
-		ReservationRequest.Create request = new ReservationRequest.Create(
+		ReservationRequest.Quote request = new ReservationRequest.Quote(
 			1L,
 			LocalDate.of(2000, 1, 1),
 			LocalDate.of(2000, 1, 2),
-			2
+			2,
+			null
 		);
 
 		assertThat(validator.validate(request)).isEmpty();
@@ -31,11 +33,12 @@ class ReservationRequestValidationTest {
 	@Test
 	@DisplayName("필수 날짜와 양수 숙소 ID 및 인원수 제약은 유지한다")
 	void keepsRequiredAndPositiveConstraints() {
-		ReservationRequest.Create request = new ReservationRequest.Create(
+		ReservationRequest.Quote request = new ReservationRequest.Quote(
 			0L,
 			null,
 			null,
-			0
+			0,
+			null
 		);
 
 		assertThat(validator.validate(request))
@@ -51,11 +54,10 @@ class ReservationRequestValidationTest {
 	@Test
 	@DisplayName("요청사항은 선택 입력이며 255자까지 허용한다")
 	void allowsOptionalRequestMessageUpTo255Characters() {
-		LocalDate checkIn = LocalDate.of(2026, 9, 1);
-		ReservationRequest.Create withoutMessage = new ReservationRequest.Create(
-			1L, checkIn, checkIn.plusDays(2), 2, null, null);
-		ReservationRequest.Create maxLengthMessage = new ReservationRequest.Create(
-			1L, checkIn, checkIn.plusDays(2), 2, null, "a".repeat(255));
+		ReservationRequest.Checkout withoutMessage = new ReservationRequest.Checkout(
+			UUID.randomUUID(), null);
+		ReservationRequest.Checkout maxLengthMessage = new ReservationRequest.Checkout(
+			UUID.randomUUID(), "a".repeat(255));
 
 		assertThat(validator.validate(withoutMessage)).isEmpty();
 		assertThat(validator.validate(maxLengthMessage)).isEmpty();
@@ -64,9 +66,8 @@ class ReservationRequestValidationTest {
 	@Test
 	@DisplayName("요청사항이 255자를 초과하면 거부한다")
 	void rejectsRequestMessageOver255Characters() {
-		LocalDate checkIn = LocalDate.of(2026, 9, 1);
-		ReservationRequest.Create request = new ReservationRequest.Create(
-			1L, checkIn, checkIn.plusDays(2), 2, null, "a".repeat(256));
+		ReservationRequest.Checkout request = new ReservationRequest.Checkout(
+			UUID.randomUUID(), "a".repeat(256));
 
 		assertThat(validator.validate(request))
 			.extracting(violation -> violation.getPropertyPath().toString())

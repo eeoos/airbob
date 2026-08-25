@@ -65,6 +65,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   remains the business state; the inventory table is the exclusive date-ownership model.
 - Quote creation never locks or consumes inventory. The authoritative checkout revalidates quote,
   price, coupon, accommodation, and inventory before creating the 15-minute hold.
+- The public write contract is V1-only: create a quote, checkout it with an `Idempotency-Key`, then
+  issue a payment-attempt token before confirmation. Do not restore direct-create or reservation V2
+  compatibility paths.
 - Every existing-reservation transition locks reservation before its date rows. Payment entry moves
   owned `HOLD` rows to `OCCUPIED`; definitive confirmation decline, successful cancellation, and
   eligible mark-not-paid release them. Retry, unknown outcome, manual review, cancellation pending,

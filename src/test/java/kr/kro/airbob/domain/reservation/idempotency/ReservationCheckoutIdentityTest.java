@@ -3,8 +3,7 @@ package kr.kro.airbob.domain.reservation.idempotency;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.LocalDate;
-import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -17,12 +16,8 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 class ReservationCheckoutIdentityTest {
 
 	private static final String IDEMPOTENCY_KEY = "checkout-key_2026.08:25";
-	private static final ReservationRequest.Create BASE_REQUEST = new ReservationRequest.Create(
-		101L,
-		LocalDate.of(2026, 9, 1),
-		LocalDate.of(2026, 9, 3),
-		2,
-		201L,
+	private static final ReservationRequest.Checkout BASE_REQUEST = new ReservationRequest.Checkout(
+		UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae"),
 		"조용한 방을 부탁드립니다."
 	);
 
@@ -58,7 +53,7 @@ class ReservationCheckoutIdentityTest {
 	@Test
 	void rejectsMissingReservationRequest() {
 		assertThatThrownBy(() -> ReservationCheckoutIdentity.from(
-			IDEMPOTENCY_KEY, (ReservationRequest.Create)null))
+			IDEMPOTENCY_KEY, (ReservationRequest.Checkout)null))
 			.isInstanceOf(InvalidInputException.class);
 	}
 
@@ -81,61 +76,13 @@ class ReservationCheckoutIdentityTest {
 	}
 
 	@Test
-	void includesEveryCheckoutFieldInTheRequestFingerprint() {
-		String baseFingerprint = fingerprint(BASE_REQUEST);
-		List<ReservationRequest.Create> requestsWithOneChangedField = List.of(
-			new ReservationRequest.Create(102L, BASE_REQUEST.checkInDate(), BASE_REQUEST.checkOutDate(),
-				BASE_REQUEST.guestCount(), BASE_REQUEST.couponId(), BASE_REQUEST.requestMessage()),
-			new ReservationRequest.Create(BASE_REQUEST.accommodationId(), LocalDate.of(2026, 9, 2),
-				BASE_REQUEST.checkOutDate(), BASE_REQUEST.guestCount(), BASE_REQUEST.couponId(),
-				BASE_REQUEST.requestMessage()),
-			new ReservationRequest.Create(BASE_REQUEST.accommodationId(), BASE_REQUEST.checkInDate(),
-				LocalDate.of(2026, 9, 4), BASE_REQUEST.guestCount(), BASE_REQUEST.couponId(),
-				BASE_REQUEST.requestMessage()),
-			new ReservationRequest.Create(BASE_REQUEST.accommodationId(), BASE_REQUEST.checkInDate(),
-				BASE_REQUEST.checkOutDate(), 3, BASE_REQUEST.couponId(), BASE_REQUEST.requestMessage()),
-			new ReservationRequest.Create(BASE_REQUEST.accommodationId(), BASE_REQUEST.checkInDate(),
-				BASE_REQUEST.checkOutDate(), BASE_REQUEST.guestCount(), 202L, BASE_REQUEST.requestMessage()),
-			new ReservationRequest.Create(BASE_REQUEST.accommodationId(), BASE_REQUEST.checkInDate(),
-				BASE_REQUEST.checkOutDate(), BASE_REQUEST.guestCount(), BASE_REQUEST.couponId(), "늦은 체크인")
-		);
-
-		assertThat(requestsWithOneChangedField)
-			.extracting(ReservationCheckoutIdentityTest::fingerprint)
-			.doesNotContain(baseFingerprint)
-			.doesNotHaveDuplicates();
-	}
-
-	@Test
-	void preservesNullBoundariesInTheRequestFingerprint() {
-		ReservationRequest.Create nullableFields = new ReservationRequest.Create(
-			BASE_REQUEST.accommodationId(),
-			BASE_REQUEST.checkInDate(),
-			BASE_REQUEST.checkOutDate(),
-			BASE_REQUEST.guestCount(),
-			null,
-			null
-		);
-		ReservationRequest.Create literalNulls = new ReservationRequest.Create(
-			BASE_REQUEST.accommodationId(),
-			BASE_REQUEST.checkInDate(),
-			BASE_REQUEST.checkOutDate(),
-			BASE_REQUEST.guestCount(),
-			null,
-			"null"
-		);
-
-		assertThat(fingerprint(nullableFields)).isNotEqualTo(fingerprint(literalNulls));
-	}
-
-	@Test
-	void v2FingerprintIncludesQuoteUidAndCheckoutMessage() {
+	void fingerprintIncludesQuoteUidAndCheckoutMessage() {
 		ReservationRequest.Checkout checkout = new ReservationRequest.Checkout(
-			java.util.UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae"),
+			UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae"),
 			"늦은 체크인 예정입니다"
 		);
 		ReservationRequest.Checkout changedQuote = new ReservationRequest.Checkout(
-			java.util.UUID.fromString("50a258ac-f741-47bc-a5eb-af7475f4336b"),
+			UUID.fromString("50a258ac-f741-47bc-a5eb-af7475f4336b"),
 			checkout.requestMessage()
 		);
 		ReservationRequest.Checkout changedMessage = new ReservationRequest.Checkout(
@@ -143,19 +90,25 @@ class ReservationCheckoutIdentityTest {
 			"조용한 방을 부탁드립니다"
 		);
 
-		String fingerprint = ReservationCheckoutIdentity.from(
-			IDEMPOTENCY_KEY, checkout).requestFingerprint();
+		String fingerprint = fingerprint(checkout);
 
 		assertThat(fingerprint).matches("[0-9a-f]{64}");
-		assertThat(ReservationCheckoutIdentity.from(
-			IDEMPOTENCY_KEY, checkout).requestFingerprint()).isEqualTo(fingerprint);
-		assertThat(ReservationCheckoutIdentity.from(
-			IDEMPOTENCY_KEY, changedQuote).requestFingerprint()).isNotEqualTo(fingerprint);
-		assertThat(ReservationCheckoutIdentity.from(
-			IDEMPOTENCY_KEY, changedMessage).requestFingerprint()).isNotEqualTo(fingerprint);
+		assertThat(fingerprint(checkout)).isEqualTo(fingerprint);
+		assertThat(fingerprint(changedQuote)).isNotEqualTo(fingerprint);
+		assertThat(fingerprint(changedMessage)).isNotEqualTo(fingerprint);
 	}
 
-	private static String fingerprint(ReservationRequest.Create request) {
+	@Test
+	void preservesNullBoundariesInTheRequestFingerprint() {
+		ReservationRequest.Checkout nullableMessage = new ReservationRequest.Checkout(
+			BASE_REQUEST.quoteUid(), null);
+		ReservationRequest.Checkout literalNull = new ReservationRequest.Checkout(
+			BASE_REQUEST.quoteUid(), "null");
+
+		assertThat(fingerprint(nullableMessage)).isNotEqualTo(fingerprint(literalNull));
+	}
+
+	private String fingerprint(ReservationRequest.Checkout request) {
 		return ReservationCheckoutIdentity.from(IDEMPOTENCY_KEY, request).requestFingerprint();
 	}
 }

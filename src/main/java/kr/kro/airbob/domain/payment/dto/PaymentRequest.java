@@ -17,12 +17,8 @@ public class PaymentRequest {
 		@NotBlank @Size(max = 200) String paymentKey,
 		@NotBlank String orderId,
 		@NotNull @Positive Integer amount,
-		UUID paymentAttemptId
-	) {
-		public Confirm(String paymentKey, String orderId, Integer amount) {
-			this(paymentKey, orderId, amount, null);
-		}
-	}
+		@NotNull UUID paymentAttemptId
+	) {}
 
 	public record Cancel(
 		@NotBlank(message = "취소 사유는 필수입니다.")

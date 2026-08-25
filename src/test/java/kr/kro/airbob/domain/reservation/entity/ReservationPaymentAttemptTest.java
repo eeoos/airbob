@@ -18,7 +18,7 @@ class ReservationPaymentAttemptTest {
 	private static final Instant STARTED_AT = Instant.parse("2026-08-25T03:00:00Z");
 
 	@Test
-	@DisplayName("V2 유료 예약은 하나의 결제 시도 토큰을 발급한다")
+	@DisplayName("유료 예약은 하나의 결제 시도 토큰을 발급한다")
 	void issuesOnePaymentAttempt() {
 		Reservation reservation = paidPendingReservation();
 		UUID attemptId = UUID.randomUUID();
@@ -65,13 +65,15 @@ class ReservationPaymentAttemptTest {
 	}
 
 	@Test
-	@DisplayName("기존 V1 예약은 결제 시도 토큰 없이 검증을 통과하고 소비하지 않는다")
-	void legacyReservationDoesNotRequireAttempt() {
+	@DisplayName("토큰이 발급되지 않은 유료 예약도 결제 승인을 우회할 수 없다")
+	void unissuedPaymentAttemptIsRejected() {
 		Reservation reservation = paidPendingReservation();
 
 		assertThat(reservation.isPaymentAttemptRequired()).isFalse();
-		reservation.validatePaymentAttempt(null);
-		assertThat(reservation.consumePaymentAttempt(null, STARTED_AT)).isFalse();
+		assertThatThrownBy(() -> reservation.validatePaymentAttempt(null))
+			.isInstanceOf(InvalidReservationPaymentAttemptException.class);
+		assertThatThrownBy(() -> reservation.consumePaymentAttempt(null, STARTED_AT))
+			.isInstanceOf(InvalidReservationPaymentAttemptException.class);
 	}
 
 	private Reservation paidPendingReservation() {

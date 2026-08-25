@@ -27,7 +27,6 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,7 +43,7 @@ class ReservationServiceTest {
 	@Mock
 	private PaymentCancellationCommandService cancellationCommandService;
 
-	private ReservationRequest.Create validRequest;
+	private ReservationRequest.Checkout validRequest;
 	private Long memberId;
 	private Reservation pendingReservation;
 
@@ -57,7 +56,7 @@ class ReservationServiceTest {
 		);
 		memberId = 1L;
 		LocalDate checkInDate = LocalDate.of(2026, 8, 13);
-		validRequest = new ReservationRequest.Create(1L, checkInDate, checkInDate.plusDays(2), 2);
+		validRequest = new ReservationRequest.Checkout(UUID.randomUUID(), "조용한 방을 부탁드립니다.");
 
 		Accommodation accommodation = Accommodation.builder()
 			.id(1L)
@@ -96,7 +95,7 @@ class ReservationServiceTest {
 		@DisplayName("예약 생성의 동시성 검증과 저장은 권위 트랜잭션에 위임한다")
 		void delegatesCreationToAuthoritativeTransaction() {
 			given(transactionService.createPendingReservationInTx(
-				validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성"))
+				validRequest, memberId, IDEMPOTENCY_KEY, "견적 기반 예약 생성"))
 				.willReturn(pendingReservation);
 
 			ReservationResponse.Ready result = reservationService.createPendingReservation(
@@ -111,23 +110,7 @@ class ReservationServiceTest {
 			assertThat(result.holdExpiresAt()).isEqualTo(NOW.plusSeconds(15 * 60));
 			then(transactionService).should()
 				.createPendingReservationInTx(
-					validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성");
-		}
-
-		@Test
-		@DisplayName("멱등성 헤더가 없는 기존 V1 요청은 기존 권위 트랜잭션으로 호환된다")
-		void keepsTheLegacyV1CreationPathWhenTheHeaderIsMissing() {
-			given(transactionService.createPendingReservationInTx(
-				validRequest, memberId, "사용자 예약 생성"))
-				.willReturn(pendingReservation);
-
-			ReservationResponse.Ready result = reservationService.createPendingReservation(
-				validRequest, memberId, null);
-
-			assertThat(result.reservationUid()).isEqualTo(pendingReservation.getReservationUid().toString());
-			then(transactionService).should()
-				.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
-			then(transactionService).shouldHaveNoMoreInteractions();
+					validRequest, memberId, IDEMPOTENCY_KEY, "견적 기반 예약 생성");
 		}
 
 		@Test
@@ -145,7 +128,7 @@ class ReservationServiceTest {
 				.expiresAt(NOW.plusSeconds(15 * 60))
 				.build();
 			given(transactionService.createPendingReservationInTx(
-				validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성"))
+				validRequest, memberId, IDEMPOTENCY_KEY, "견적 기반 예약 생성"))
 				.willReturn(complimentary);
 
 			ReservationResponse.Ready result = reservationService.createPendingReservation(
@@ -157,27 +140,10 @@ class ReservationServiceTest {
 		}
 
 		@Test
-		@DisplayName("잘못된 숙박 기간은 DB 트랜잭션 전에 거부한다")
-		void rejectsInvalidStayBeforeTransaction() {
-			LocalDate checkInDate = LocalDate.of(2026, 8, 13);
-			ReservationRequest.Create request = new ReservationRequest.Create(
-				1L,
-				checkInDate,
-				checkInDate,
-				2
-			);
-
-			assertThatThrownBy(() -> reservationService.createPendingReservation(
-				request, memberId, IDEMPOTENCY_KEY))
-				.isInstanceOf(InvalidReservationDateException.class);
-			then(transactionService).shouldHaveNoInteractions();
-		}
-
-		@Test
 		@DisplayName("DB 중복 예약 판정은 변경하지 않고 호출자에게 전달한다")
 		void propagatesReservationConflict() {
 			given(transactionService.createPendingReservationInTx(
-				validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성"))
+				validRequest, memberId, IDEMPOTENCY_KEY, "견적 기반 예약 생성"))
 				.willThrow(new ReservationConflictException());
 
 			assertThatThrownBy(() -> reservationService.createPendingReservation(

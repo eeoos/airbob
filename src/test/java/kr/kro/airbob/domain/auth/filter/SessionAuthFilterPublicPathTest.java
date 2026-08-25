@@ -18,18 +18,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class SessionAuthFilterPublicPathTest {
 
 	@Test
-	@DisplayName("예약 V2 견적과 checkout POST는 익명 요청을 거절한다")
-	void anonymousReservationV2PostsRequireAuthentication() throws Exception {
-		for (String path : new String[] {"/api/v2/reservation-quotes", "/api/v2/reservations"}) {
+	@DisplayName("예약 쓰기 API는 익명 요청을 거절한다")
+	void anonymousReservationWritesRequireAuthentication() throws Exception {
+		for (RequestTarget target : new RequestTarget[] {
+			new RequestTarget("POST", "/api/v1/reservation-quotes"),
+			new RequestTarget("POST", "/api/v1/reservations"),
+			new RequestTarget("DELETE", "/api/v1/reservations/reservation-uid/hold"),
+			new RequestTarget("POST", "/api/v1/reservations/reservation-uid/payment-attempts")
+		}) {
 			SessionAuthFilter filter = createFilter();
-			MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+			MockHttpServletRequest request = new MockHttpServletRequest(target.method(), target.path());
 			MockHttpServletResponse response = new MockHttpServletResponse();
 			MockFilterChain chain = new MockFilterChain();
 
 			filter.doFilter(request, response, chain);
 
-			assertThat(chain.getRequest()).as(path).isNull();
-			assertThat(response.getStatus()).as(path).isEqualTo(401);
+			assertThat(chain.getRequest()).as(target.path()).isNull();
+			assertThat(response.getStatus()).as(target.path()).isEqualTo(401);
 		}
 	}
 
@@ -147,4 +152,6 @@ class SessionAuthFilterPublicPathTest {
 		RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
 		return new SessionAuthFilter(redisTemplate, new ObjectMapper());
 	}
+
+	private record RequestTarget(String method, String path) {}
 }

@@ -14,12 +14,12 @@ import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 
-@DisplayName("예약 V2 세션 인증 경계 테스트")
+@DisplayName("예약 세션 인증 경계 테스트")
 class WebMvcConfigReservationProtectionTest {
 
 	@Test
 	@DisplayName("견적과 checkout 엔드포인트에 세션 인증 필터를 적용한다")
-	void reservationV2EndpointsUseSessionAuthentication() {
+	void reservationEndpointsUseSessionAuthentication() {
 		WebMvcConfig config = new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
 			List.of(mock(CursorParamArgumentResolver.class)),
@@ -29,6 +29,7 @@ class WebMvcConfigReservationProtectionTest {
 		);
 
 		assertThat(config.sessionFilter().getUrlPatterns())
-			.contains("/api/v2/reservation-quotes", "/api/v2/reservations", "/api/v2/reservations/*");
+			.contains("/api/v1/*")
+			.doesNotContain("/api/v2/reservation-quotes", "/api/v2/reservations", "/api/v2/reservations/*");
 	}
 }
