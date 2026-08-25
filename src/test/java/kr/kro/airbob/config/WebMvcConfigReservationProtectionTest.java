@@ -29,6 +29,6 @@ class WebMvcConfigReservationProtectionTest {
 		);
 
 		assertThat(config.sessionFilter().getUrlPatterns())
-			.contains("/api/v2/reservation-quotes", "/api/v2/reservations");
+			.contains("/api/v2/reservation-quotes", "/api/v2/reservations", "/api/v2/reservations/*");
 	}
 }

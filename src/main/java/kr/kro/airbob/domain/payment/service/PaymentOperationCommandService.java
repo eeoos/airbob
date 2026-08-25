@@ -57,6 +57,7 @@ public class PaymentOperationCommandService {
 		if (!reservation.matchesPaymentRequest(request.orderId(), request.amount().longValue())) {
 			throw new InvalidInputException("결제 승인 요청이 예약 정보와 일치하지 않습니다.");
 		}
+		reservation.validatePaymentAttempt(request.paymentAttemptId());
 
 		String deduplicationKey = "CONFIRM:" + reservationUid;
 		Optional<PaymentOperation> existing = paymentOperationRepository.findByDeduplicationKey(deduplicationKey);
@@ -68,6 +69,7 @@ public class PaymentOperationCommandService {
 		if (!reservation.startPayment(now)) {
 			throw new ExpiredReservationConfirmationException();
 		}
+		reservation.consumePaymentAttempt(request.paymentAttemptId(), now);
 		if (reservationRepository.existsConflictingReservationExcluding(
 			accommodationId,
 			reservation.getId(),

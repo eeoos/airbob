@@ -58,5 +58,17 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 	@Query("select reservation from Reservation reservation where reservation.reservationUid = :reservationUid")
 	Optional<Reservation> findByReservationUidWithLock(@Param("reservationUid") UUID reservationUid);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		select reservation
+		from Reservation reservation
+		where reservation.reservationUid = :reservationUid
+		  and reservation.guest.id = :guestId
+		""")
+	Optional<Reservation> findByReservationUidAndGuestIdWithLock(
+		@Param("reservationUid") UUID reservationUid,
+		@Param("guestId") Long guestId
+	);
+
 	boolean existsByReservationCode(String reservationCode);
 }

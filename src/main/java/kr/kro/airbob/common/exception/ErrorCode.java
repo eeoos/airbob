@@ -69,6 +69,10 @@ public enum ErrorCode {
 	RESERVATION_QUOTE_EXPIRED(HttpStatus.GONE, "R018", "예약 견적이 만료되었습니다. 새 견적을 요청해 주세요."),
 	RESERVATION_QUOTE_STALE(HttpStatus.CONFLICT, "R019", "예약 조건 또는 금액이 변경되었습니다. 새 견적을 요청해 주세요."),
 	RESERVATION_QUOTE_ALREADY_CHECKED_OUT(HttpStatus.CONFLICT, "R020", "이미 다른 요청으로 사용된 예약 견적입니다."),
+	RESERVATION_HOLD_RELEASE_NOT_ALLOWED(HttpStatus.CONFLICT, "R021", "현재 상태에서는 예약 보유를 해제할 수 없습니다."),
+	RESERVATION_PAYMENT_ATTEMPT_TOO_LATE(HttpStatus.CONFLICT, "R022", "결제를 시작할 수 있는 시간이 부족합니다."),
+	RESERVATION_PAYMENT_ATTEMPT_NOT_ALLOWED(HttpStatus.CONFLICT, "R023", "현재 예약에는 결제 시도를 발급할 수 없습니다."),
+	RESERVATION_PAYMENT_ATTEMPT_INVALID(HttpStatus.CONFLICT, "R024", "유효하지 않은 결제 시도입니다."),
 
 
 	// payment

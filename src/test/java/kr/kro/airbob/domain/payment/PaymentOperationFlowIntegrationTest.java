@@ -151,6 +151,8 @@ class PaymentOperationFlowIntegrationTest {
 		UUID.fromString("3aa4adf4-a748-46a8-90ec-a24c75591bcb");
 	private static final UUID ACCOMMODATION_UID =
 		UUID.fromString("79709a85-260d-44bb-9877-4c43825c30a7");
+	private static final UUID PAYMENT_ATTEMPT_ID =
+		UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 	private static final String PAYMENT_KEY = "task-ten-provider-payment-key";
 	private static final long AMOUNT = 90_000L;
 	private static final Instant NOW = Instant.parse("2026-08-14T00:00:00Z");
@@ -262,6 +264,32 @@ class PaymentOperationFlowIntegrationTest {
 		assertTerminalOutboxTypes(List.of());
 		assertThat(outboxRepository.count()).isZero();
 		assertThat(historyRepository.count()).isZero();
+		assertNoSecret(failed.getResponse().getContentAsString());
+	}
+
+	@Test
+	void v2PaymentAttemptConsumptionRollsBackWithOutboxAndSameTokenCanRetry() throws Exception {
+		requirePaymentAttempt(PAYMENT_ATTEMPT_ID);
+		createOutboxFailureTrigger();
+
+		MvcResult failed = accept(ownerId, PAYMENT_ATTEMPT_ID, status().is5xxServerError());
+
+		assertThat(operationRepository.count()).isZero();
+		assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus())
+			.isEqualTo(PAYMENT_PENDING);
+		assertThat(paymentAttemptConsumedAt()).isNull();
+		assertThat(outboxRepository.count()).isZero();
+		assertThat(historyRepository.count()).isZero();
+
+		dropFailureTriggers();
+
+		MvcResult accepted = accept(ownerId, PAYMENT_ATTEMPT_ID, status().isAccepted());
+
+		assertThat(acceptedOperationUid(accepted)).isNotNull();
+		assertThat(operationRepository.count()).isOne();
+		assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus())
+			.isEqualTo(PAYMENT_PROCESSING);
+		assertThat(paymentAttemptConsumedAt()).isEqualTo(NOW);
 		assertNoSecret(failed.getResponse().getContentAsString());
 	}
 
@@ -666,12 +694,23 @@ class PaymentOperationFlowIntegrationTest {
 
 	private MvcResult accept(long memberId, org.springframework.test.web.servlet.ResultMatcher expectedStatus)
 		throws Exception {
+		return accept(memberId, null, expectedStatus);
+	}
+
+	private MvcResult accept(
+		long memberId,
+		UUID paymentAttemptId,
+		org.springframework.test.web.servlet.ResultMatcher expectedStatus
+	) throws Exception {
 		UserContext.set(new UserInfo(memberId));
 		try {
 			return mockMvc.perform(post("/api/v1/payments/confirm")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(objectMapper.writeValueAsString(new PaymentRequest.Confirm(
-						PAYMENT_KEY, RESERVATION_UID.toString(), Math.toIntExact(AMOUNT)))))
+						PAYMENT_KEY,
+						RESERVATION_UID.toString(),
+						Math.toIntExact(AMOUNT),
+						paymentAttemptId))))
 				.andExpect(expectedStatus)
 				.andReturn();
 		} finally {
@@ -923,6 +962,30 @@ class PaymentOperationFlowIntegrationTest {
 	private boolean isCouponUsed() {
 		return Boolean.TRUE.equals(jdbc.queryForObject(
 			"SELECT used FROM member_coupon WHERE id = ?", Boolean.class, memberCouponId));
+	}
+
+	private void requirePaymentAttempt(UUID paymentAttemptId) {
+		jdbc.update("""
+			UPDATE reservation
+			SET payment_attempt_required = true,
+			    payment_attempt_uid = UNHEX(REPLACE(?, '-', '')),
+			    payment_attempt_started_at = ?,
+			    payment_attempt_consumed_at = NULL
+			WHERE id = ?
+			""",
+			paymentAttemptId.toString(),
+			java.sql.Timestamp.from(NOW.minusSeconds(30)),
+			reservationId
+		);
+	}
+
+	private Instant paymentAttemptConsumedAt() {
+		java.sql.Timestamp consumedAt = jdbc.queryForObject(
+			"SELECT payment_attempt_consumed_at FROM reservation WHERE id = ?",
+			java.sql.Timestamp.class,
+			reservationId
+		);
+		return consumedAt == null ? null : consumedAt.toInstant();
 	}
 
 	private void createOutboxFailureTrigger() {

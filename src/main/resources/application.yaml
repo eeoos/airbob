@@ -123,6 +123,8 @@ reservation:
     cleanup-transaction-timeout-seconds: ${RESERVATION_QUOTE_CLEANUP_TRANSACTION_TIMEOUT_SECONDS:10}
   hold:
     duration: ${RESERVATION_HOLD_DURATION:15m}
+  payment-attempt:
+    minimum-remaining: ${RESERVATION_PAYMENT_ATTEMPT_MINIMUM_REMAINING:90s}
   expiration:
     cleanup-batch-size: ${RESERVATION_EXPIRATION_CLEANUP_BATCH_SIZE:100}
     cleanup-interval: ${RESERVATION_EXPIRATION_CLEANUP_INTERVAL:30s}

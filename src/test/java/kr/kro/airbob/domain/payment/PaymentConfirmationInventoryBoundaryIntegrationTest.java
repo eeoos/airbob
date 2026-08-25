@@ -140,7 +140,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		transactionTemplate = new TransactionTemplate(transactionManager);
 		executor = Executors.newFixedThreadPool(2);
 		clock.set(CONFIRMATION_ACCEPTED_AT);
-		given(bookingWindowProvider.currentFor(TIME_ZONE_ID))
+		given(bookingWindowProvider.currentFor(TIME_ZONE_ID, NEW_RESERVATION_REQUESTED_AT))
 			.willReturn(BookingWindow.startingOn(STAY_START.minusDays(1)));
 
 		clearRows();

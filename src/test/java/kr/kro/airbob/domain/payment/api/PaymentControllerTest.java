@@ -58,6 +58,7 @@ class PaymentControllerTest {
 		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm("payment-key", reservationUid.toString(), 100_000);
+		org.assertj.core.api.Assertions.assertThat(request.paymentAttemptId()).isNull();
 		Accepted accepted = new Accepted(operationUid, Status.PENDING,
 			"/api/v1/payment-operations/" + operationUid);
 		given(commandService.requestConfirmation(eq(request), eq(10L))).willReturn(accepted);
@@ -65,6 +66,25 @@ class PaymentControllerTest {
 		ResponseEntity<ApiResponse<Accepted>> response = controller.confirmPayment(request, 10L);
 
 		org.assertj.core.api.Assertions.assertThat(response.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.ACCEPTED);
+		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isSameAs(accepted);
+		then(commandService).should().requestConfirmation(request, 10L);
+	}
+
+	@Test
+	void confirmPaymentForwardsTheOptionalPaymentAttemptId() {
+		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
+		UUID paymentAttemptId = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
+		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
+		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
+			"payment-key", reservationUid.toString(), 100_000, paymentAttemptId);
+		Accepted accepted = new Accepted(operationUid, Status.PENDING,
+			"/api/v1/payment-operations/" + operationUid);
+		given(commandService.requestConfirmation(eq(request), eq(10L))).willReturn(accepted);
+
+		ResponseEntity<ApiResponse<Accepted>> response = controller.confirmPayment(request, 10L);
+
+		org.assertj.core.api.Assertions.assertThat(response.getStatusCode())
+			.isEqualTo(org.springframework.http.HttpStatus.ACCEPTED);
 		org.assertj.core.api.Assertions.assertThat(response.getBody().getData()).isSameAs(accepted);
 		then(commandService).should().requestConfirmation(request, 10L);
 	}

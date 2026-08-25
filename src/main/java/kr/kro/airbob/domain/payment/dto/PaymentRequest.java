@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.payment.dto;
 
+import java.util.UUID;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -14,8 +16,13 @@ public class PaymentRequest {
 	public record Confirm(
 		@NotBlank @Size(max = 200) String paymentKey,
 		@NotBlank String orderId,
-		@NotNull @Positive Integer amount
-	) {}
+		@NotNull @Positive Integer amount,
+		UUID paymentAttemptId
+	) {
+		public Confirm(String paymentKey, String orderId, Integer amount) {
+			this(paymentKey, orderId, amount, null);
+		}
+	}
 
 	public record Cancel(
 		@NotBlank(message = "취소 사유는 필수입니다.")

@@ -170,6 +170,9 @@ public class ReservationTransactionService {
 			request.requestMessage()
 		);
 		Reservation reservation = createPendingReservation(createRequest, reason, guest);
+		if (reservation.requiresPayment()) {
+			reservation.requirePaymentAttempt();
+		}
 		Instant checkedOutAt = clock.instant();
 		if (quote.isExpiredAt(checkedOutAt)) {
 			throw new ReservationQuoteExpiredException();

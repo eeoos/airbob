@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.payment.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -20,6 +21,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -45,6 +47,8 @@ class PaymentOperationCommandServiceTest {
 
 	private static final UUID RESERVATION_UID = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 	private static final UUID EXISTING_OPERATION_UID = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
+	private static final UUID PAYMENT_ATTEMPT_ID = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
+	private static final UUID WRONG_PAYMENT_ATTEMPT_ID = UUID.fromString("e5a039bd-af07-4f1c-9495-01d8090106f2");
 	private static final Long ACCOMMODATION_ID = 20L;
 	private static final Long GUEST_ID = 10L;
 	private static final Instant NOW = Instant.parse("2026-08-14T01:00:00Z");
@@ -94,7 +98,10 @@ class PaymentOperationCommandServiceTest {
 		ArgumentCaptor<PaymentOperationExecutionRequestedV1> eventCaptor =
 			ArgumentCaptor.forClass(PaymentOperationExecutionRequestedV1.class);
 
-		Accepted accepted = service.requestConfirmation(request(), GUEST_ID);
+		PaymentRequest.Confirm request = request();
+		assertThat(request.paymentAttemptId()).isNull();
+
+		Accepted accepted = service.requestConfirmation(request, GUEST_ID);
 
 		assertThat(accepted.status()).isEqualTo(Status.PENDING);
 		assertThat(accepted.statusUrl()).isEqualTo("/api/v1/payment-operations/" + accepted.operationId());
@@ -113,6 +120,97 @@ class PaymentOperationCommandServiceTest {
 		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
 		then(reservationRepository).should().existsConflictingReservationExcluding(
 			ACCOMMODATION_ID, pendingReservation.getId(), CHECK_IN, CHECK_OUT, NOW);
+	}
+
+	@Test
+	void v2FirstOperationValidatesBeforeReplayLookupAndConsumesAttemptBeforePersistence() {
+		requirePaymentAttempt(pendingReservation);
+		pendingReservation = org.mockito.Mockito.spy(pendingReservation);
+		givenReservationLocks(pendingReservation);
+		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
+			.willReturn(Optional.empty());
+
+		service.requestConfirmation(request(PAYMENT_ATTEMPT_ID), GUEST_ID);
+
+		InOrder order = org.mockito.Mockito.inOrder(
+			pendingReservation,
+			paymentOperationRepository,
+			outboxWriter
+		);
+		order.verify(pendingReservation).validatePaymentAttempt(PAYMENT_ATTEMPT_ID);
+		order.verify(paymentOperationRepository).findByDeduplicationKey("CONFIRM:" + RESERVATION_UID);
+		order.verify(pendingReservation).startPayment(NOW);
+		order.verify(pendingReservation).consumePaymentAttempt(PAYMENT_ATTEMPT_ID, NOW);
+		order.verify(paymentOperationRepository).save(org.mockito.ArgumentMatchers.any());
+		order.verify(outboxWriter).append(org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	void v2MissingPaymentAttemptIsRejectedBeforeReplayLookup() {
+		requirePaymentAttempt(pendingReservation);
+		givenReservationLocks(pendingReservation);
+
+		assertPaymentAttemptRejected(request());
+
+		then(paymentOperationRepository).shouldHaveNoInteractions();
+		then(historyRepository).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void v2WrongPaymentAttemptIsRejectedBeforeReplayLookup() {
+		requirePaymentAttempt(pendingReservation);
+		givenReservationLocks(pendingReservation);
+
+		assertPaymentAttemptRejected(request(WRONG_PAYMENT_ATTEMPT_ID));
+
+		then(paymentOperationRepository).shouldHaveNoInteractions();
+		then(historyRepository).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void sameConsumedPaymentAttemptCanReplayExistingOperationAfterReservationExpiry() {
+		pendingReservation = Reservation.builder()
+			.id(1L).reservationUid(RESERVATION_UID).accommodation(accommodation)
+			.guest(Member.builder().id(GUEST_ID).build())
+			.checkInDate(CHECK_IN).checkOutDate(CHECK_OUT)
+			.totalPrice(100_000L).status(ReservationStatus.PAYMENT_PROCESSING).expiresAt(NOW)
+			.paymentAttemptRequired(true)
+			.paymentAttemptUid(PAYMENT_ATTEMPT_ID)
+			.paymentAttemptStartedAt(NOW.minusSeconds(30))
+			.paymentAttemptConsumedAt(NOW.minusSeconds(1))
+			.build();
+		givenReservationLocks(pendingReservation);
+		PaymentOperation existing = existingOperation("pk-one", 100_000L);
+		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
+			.willReturn(Optional.of(existing));
+
+		Accepted replay = service.requestConfirmation(request(PAYMENT_ATTEMPT_ID), GUEST_ID);
+
+		assertThat(replay.operationId()).isEqualTo(EXISTING_OPERATION_UID);
+		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
+		then(paymentOperationRepository).should(org.mockito.Mockito.never())
+			.save(org.mockito.ArgumentMatchers.any());
+		then(historyRepository).shouldHaveNoInteractions();
+		then(outboxWriter).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void invalidPaymentAttemptCannotObserveExistingOperation() {
+		requirePaymentAttempt(pendingReservation);
+		givenReservationLocks(pendingReservation);
+		PaymentOperation existing = existingOperation("pk-one", 100_000L);
+		org.mockito.Mockito.lenient()
+			.when(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
+			.thenReturn(Optional.of(existing));
+
+		assertPaymentAttemptRejected(request(WRONG_PAYMENT_ATTEMPT_ID));
+
+		then(paymentOperationRepository).should(org.mockito.Mockito.never())
+			.findByDeduplicationKey(org.mockito.ArgumentMatchers.anyString());
+		then(paymentOperationRepository).should(org.mockito.Mockito.never())
+			.save(org.mockito.ArgumentMatchers.any());
 	}
 
 	@Test
@@ -216,6 +314,22 @@ class PaymentOperationCommandServiceTest {
 
 	private PaymentRequest.Confirm request(String paymentKey, int amount) {
 		return new PaymentRequest.Confirm(paymentKey, RESERVATION_UID.toString(), amount);
+	}
+
+	private PaymentRequest.Confirm request(UUID paymentAttemptId) {
+		return new PaymentRequest.Confirm("pk-one", RESERVATION_UID.toString(), 100_000, paymentAttemptId);
+	}
+
+	private void requirePaymentAttempt(Reservation reservation) {
+		reservation.requirePaymentAttempt();
+		reservation.issuePaymentAttempt(PAYMENT_ATTEMPT_ID, NOW.minusSeconds(30));
+	}
+
+	private void assertPaymentAttemptRejected(PaymentRequest.Confirm request) {
+		Throwable thrown = catchThrowable(() -> service.requestConfirmation(request, GUEST_ID));
+
+		assertThat(thrown).isInstanceOf(BaseException.class);
+		assertThat(((BaseException)thrown).getErrorCode().getCode()).isEqualTo("R024");
 	}
 
 	private PaymentOperation existingOperation(String paymentKey, long amount) {

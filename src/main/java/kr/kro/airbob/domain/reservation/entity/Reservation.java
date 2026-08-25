@@ -29,7 +29,9 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
+import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import lombok.AccessLevel;
@@ -106,6 +108,18 @@ public class Reservation extends BaseEntity {
 
 	@Column(nullable = false)
 	private Instant expiresAt;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private boolean paymentAttemptRequired = false;
+
+	@JdbcTypeCode(SqlTypes.BINARY)
+	@Column(unique = true, columnDefinition = "BINARY(16)")
+	private UUID paymentAttemptUid;
+
+	private Instant paymentAttemptStartedAt;
+
+	private Instant paymentAttemptConsumedAt;
 
 	@PrePersist
 	protected void onCreate() {
@@ -236,6 +250,50 @@ public class Reservation extends BaseEntity {
 			return false;
 		}
 		this.status = ReservationStatus.PAYMENT_PROCESSING;
+		return true;
+	}
+
+	public void requirePaymentAttempt() {
+		if (this.status != ReservationStatus.PAYMENT_PENDING || !requiresPayment()) {
+			throw new ReservationPaymentAttemptNotAllowedException();
+		}
+		this.paymentAttemptRequired = true;
+	}
+
+	public void issuePaymentAttempt(UUID paymentAttemptUid, Instant startedAt) {
+		if (!this.paymentAttemptRequired
+			|| this.status != ReservationStatus.PAYMENT_PENDING
+			|| !requiresPayment()
+			|| this.paymentAttemptUid != null) {
+			throw new ReservationPaymentAttemptNotAllowedException();
+		}
+		this.paymentAttemptUid = Objects.requireNonNull(paymentAttemptUid);
+		this.paymentAttemptStartedAt = Objects.requireNonNull(startedAt);
+	}
+
+	public void validatePaymentAttempt(UUID paymentAttemptUid) {
+		if (!this.paymentAttemptRequired) {
+			return;
+		}
+		if (this.paymentAttemptUid == null
+			|| !this.paymentAttemptUid.equals(paymentAttemptUid)) {
+			throw new InvalidReservationPaymentAttemptException();
+		}
+	}
+
+	public boolean consumePaymentAttempt(UUID paymentAttemptUid, Instant consumedAt) {
+		if (!this.paymentAttemptRequired) {
+			return false;
+		}
+		validatePaymentAttempt(paymentAttemptUid);
+		if (this.paymentAttemptConsumedAt != null) {
+			return false;
+		}
+		Instant consumed = Objects.requireNonNull(consumedAt);
+		if (consumed.isBefore(this.paymentAttemptStartedAt)) {
+			throw new InvalidReservationPaymentAttemptException();
+		}
+		this.paymentAttemptConsumedAt = consumed;
 		return true;
 	}
 

@@ -112,6 +112,48 @@ public class ReservationResponse {
 		}
 	}
 
+	public record HoldRelease(
+		String reservationUid,
+		ReservationStatus status,
+		boolean releasedNow,
+		Instant serverTime
+	) {
+		public static HoldRelease from(Reservation reservation, boolean releasedNow, Instant serverTime) {
+			return new HoldRelease(
+				reservation.getReservationUid().toString(),
+				reservation.getStatus(),
+				releasedNow,
+				serverTime
+			);
+		}
+	}
+
+	public record PaymentAttemptReady(
+		UUID paymentAttemptId,
+		String orderId,
+		long amount,
+		String currency,
+		Instant holdExpiresAt,
+		long remainingSeconds,
+		Instant serverTime
+	) {
+		public static PaymentAttemptReady from(
+			Reservation reservation,
+			long remainingSeconds,
+			Instant serverTime
+		) {
+			return new PaymentAttemptReady(
+				reservation.getPaymentAttemptUid(),
+				reservation.getReservationUid().toString(),
+				reservation.getTotalPrice(),
+				reservation.getCurrency(),
+				reservation.getExpiresAt(),
+				remainingSeconds,
+				serverTime
+			);
+		}
+	}
+
 	@Builder
 	public record GuestReservationInfo(
 		long reservationId,
