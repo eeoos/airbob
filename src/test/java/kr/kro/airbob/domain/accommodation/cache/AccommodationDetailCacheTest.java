@@ -17,10 +17,12 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -596,6 +598,54 @@ class AccommodationDetailCacheTest {
 		assertThat(leaderLoads).hasValue(1);
 		assertThat(followerLoads).hasValue(0);
 		assertThat(freshLoads).hasValue(1);
+	}
+
+	@Test
+	@DisplayName("무효화는 Redis 삭제가 끝나기 전에 진행 중 로컬 조회를 분리한다")
+	void evictionDetachesLocalLoadBeforeRedisInvalidationCompletes() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		CountDownLatch oldLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseOldLoad = new CountDownLatch(1);
+		CountDownLatch invalidationStarted = new CountDownLatch(1);
+		CountDownLatch releaseInvalidation = new CountDownLatch(1);
+		when(redisClient.execute(
+			any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY))))
+			.thenAnswer(invocation -> {
+				invalidationStarted.countDown();
+				await(releaseInvalidation);
+				return 1L;
+			});
+		CountDownLatch freshLoadStarted = new CountDownLatch(1);
+		try (ExecutorService executor = Executors.newFixedThreadPool(3)) {
+			CompletableFuture<AccommodationDetailSnapshot> oldLoad = CompletableFuture.supplyAsync(
+				() -> cache.getOrLoad(1L, () -> {
+					oldLoadStarted.countDown();
+					await(releaseOldLoad);
+					return snapshot(1L, "old");
+				}), executor);
+			assertThat(oldLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+			CompletableFuture<Void> eviction = CompletableFuture.runAsync(() ->
+				cache.evictOrThrow(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION), executor);
+			assertThat(invalidationStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+			CompletableFuture<AccommodationDetailSnapshot> freshLoad = CompletableFuture.supplyAsync(
+				() -> cache.getOrLoad(1L, () -> {
+					freshLoadStarted.countDown();
+					return snapshot(1L, "new");
+				}), executor);
+			assertThat(freshLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+			assertThat(eviction).isNotDone();
+			assertThat(freshLoad.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
+
+			releaseInvalidation.countDown();
+			eviction.get(5, TimeUnit.SECONDS);
+			releaseOldLoad.countDown();
+			assertThat(oldLoad.get(5, TimeUnit.SECONDS).name()).isEqualTo("old");
+		} finally {
+			releaseInvalidation.countDown();
+			releaseOldLoad.countDown();
+		}
 	}
 
 	@Test
