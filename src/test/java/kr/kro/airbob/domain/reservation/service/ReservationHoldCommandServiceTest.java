@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
+import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
@@ -29,6 +30,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationHoldReleaseNotAllow
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.ReservationPaymentAttemptPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -43,6 +45,7 @@ class ReservationHoldCommandServiceTest {
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private CouponUsageService couponUsageService;
+	@Mock private ReservationInventoryService inventoryService;
 
 	private ReservationHoldCommandService service;
 
@@ -53,6 +56,7 @@ class ReservationHoldCommandServiceTest {
 			historyRepository,
 			couponUsageService,
 			new ReservationPaymentAttemptPolicy(Duration.ofSeconds(90)),
+			inventoryService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 	}
@@ -68,6 +72,11 @@ class ReservationHoldCommandServiceTest {
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
 		assertThat(response.releasedNow()).isTrue();
 		assertThat(response.serverTime()).isEqualTo(NOW);
+		then(inventoryService).should().releaseHeldIfOwned(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId());
 		then(couponUsageService).should().restore(reservation.getId());
 		then(historyRepository).should().save(any(ReservationHistory.class));
 	}
@@ -81,6 +90,7 @@ class ReservationHoldCommandServiceTest {
 		var response = service.releaseHold(reservation.getReservationUid().toString(), MEMBER_ID);
 
 		assertThat(response.releasedNow()).isFalse();
+		then(inventoryService).shouldHaveNoInteractions();
 		then(couponUsageService).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 	}
@@ -192,7 +202,10 @@ class ReservationHoldCommandServiceTest {
 		return Reservation.builder()
 			.id(41L)
 			.reservationUid(UUID.randomUUID())
+			.accommodation(Accommodation.builder().id(17L).build())
 			.guest(Member.builder().id(MEMBER_ID).build())
+			.checkInDate(java.time.LocalDate.of(2026, 9, 1))
+			.checkOutDate(java.time.LocalDate.of(2026, 9, 2))
 			.totalPrice(100_000L)
 			.currency("KRW")
 			.status(status)

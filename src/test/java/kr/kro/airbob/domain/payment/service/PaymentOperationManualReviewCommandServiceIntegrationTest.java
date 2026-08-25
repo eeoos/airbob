@@ -50,6 +50,8 @@ import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFence;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxAppender;
 import kr.kro.airbob.messaging.alert.application.OperatorAlertOutboxPublisher;
 import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
@@ -75,6 +77,8 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	PaymentOperationManualResolutionRecorder.class,
 	PaymentOperationManualReviewCommandService.class,
 	PaymentOperationManualReviewTransactionService.class,
+	AccommodationInventoryDayRepository.class,
+	ReservationInventoryService.class,
 	MysqlPaymentOperationExecutionFence.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationManualReviewCommandServiceIntegrationTest.CommandTestConfiguration.class
@@ -192,6 +196,10 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		assertThat(jdbc.queryForObject(
 			"SELECT status FROM reservation WHERE id = ?", String.class, reservationId))
 			.isEqualTo("EXPIRED");
+		assertThat(inventoryRow())
+			.containsEntry("state", "FREE")
+			.containsEntry("reservation_id", null)
+			.containsEntry("hold_expires_at", null);
 		assertThat(jdbc.queryForObject(
 			"SELECT used FROM member_coupon WHERE id = ?", Boolean.class, memberCouponId)).isFalse();
 		Map<String, Object> ledger = jdbc.queryForMap("""
@@ -244,6 +252,10 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		assertThat(jdbc.queryForObject(
 			"SELECT status FROM reservation WHERE id = ?", String.class, reservationId))
 			.isEqualTo("PAYMENT_PROCESSING");
+		assertThat(inventoryRow())
+			.containsEntry("state", "OCCUPIED")
+			.containsEntry("reservation_id", reservationId)
+			.containsEntry("hold_expires_at", null);
 		assertThat(jdbc.queryForObject(
 			"SELECT used FROM member_coupon WHERE id = ?", Boolean.class, memberCouponId)).isTrue();
 		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_transaction", Integer.class)).isZero();
@@ -369,6 +381,15 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 			""", operationId);
 	}
 
+	private Map<String, Object> inventoryRow() {
+		return jdbc.queryForMap("""
+			SELECT inventory.state, inventory.reservation_id, inventory.hold_expires_at
+			FROM accommodation_inventory_day inventory
+			JOIN reservation ON reservation.accommodation_id = inventory.accommodation_id
+			WHERE reservation.id = ? AND inventory.stay_date = '2026-08-18'
+			""", reservationId);
+	}
+
 	private void clearRows() {
 		jdbc.update("DELETE FROM payment_operation_resolution");
 		jdbc.update("DELETE FROM payment_transaction");
@@ -377,6 +398,7 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 		jdbc.update("DELETE FROM payment_operation");
 		jdbc.update("DELETE FROM reservation_history");
 		jdbc.update("DELETE FROM member_coupon");
+		jdbc.update("DELETE FROM accommodation_inventory_day");
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM coupon");
 		jdbc.update("DELETE FROM accommodation");
@@ -407,6 +429,11 @@ class PaymentOperationManualReviewCommandServiceIntegrationTest {
 			)
 			""", RESERVATION_UID.toString(), accommodationId, adminMemberId, AMOUNT);
 		reservationId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+		jdbc.update("""
+			INSERT INTO accommodation_inventory_day (
+			  accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, '2026-08-18', 'OCCUPIED', ?, NULL)
+			""", accommodationId, reservationId);
 		jdbc.update("""
 			INSERT INTO coupon (
 			  discount_value, is_active, min_payment_price, usable_from, usable_until,

@@ -37,14 +37,13 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("예약 견적 서비스 테스트")
@@ -57,7 +56,7 @@ class ReservationQuoteServiceTest {
 
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private MemberRepository memberRepository;
-	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationInventoryService inventoryService;
 	@Mock private ReservationQuoteRepository quoteRepository;
 	@Mock private CouponUsageService couponUsageService;
 	@Mock private BookingWindowProvider bookingWindowProvider;
@@ -96,9 +95,9 @@ class ReservationQuoteServiceTest {
 			.thenReturn(Optional.of(accommodation));
 		lenient().when(bookingWindowProvider.currentFor("Asia/Seoul", NOW))
 			.thenReturn(BookingWindow.startingOn(LocalDate.of(2026, 8, 25)));
-		lenient().when(reservationRepository.existsConflictingReservationSnapshot(
+		lenient().when(inventoryService.isRangeAvailableSnapshot(
 			anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-			.thenReturn(false);
+			.thenReturn(true);
 		lenient().when(quoteRepository.save(any(ReservationQuote.class)))
 			.thenAnswer(invocation -> invocation.getArgument(0));
 	}
@@ -137,15 +136,12 @@ class ReservationQuoteServiceTest {
 
 		then(accommodationRepository).should()
 			.findQuoteSnapshotByIdAndStatus(ACCOMMODATION_ID, AccommodationStatus.PUBLISHED);
-		then(accommodationRepository).should(never())
-			.findByIdAndStatusForUpdate(anyLong(), any(AccommodationStatus.class));
 		then(accommodationRepository).should(never()).findByIdForUpdate(anyLong());
-		then(reservationRepository).should().existsConflictingReservationSnapshot(
+		then(inventoryService).should().isRangeAvailableSnapshot(
 			ACCOMMODATION_ID, request.checkInDate(), request.checkOutDate(), NOW);
 		then(couponUsageService).should().preview(MEMBER_ID, COUPON_ID, 360_000L);
 		then(couponUsageService).should(never())
 			.use(anyLong(), anyLong(), anyLong(), anyLong());
-		then(reservationRepository).should(never()).save(any(Reservation.class));
 	}
 
 	@Test

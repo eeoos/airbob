@@ -122,6 +122,7 @@ class OciDeploymentContractTest {
 			.contains("COMPOSE_FILE=\"${COMPOSE_FILE:-$DEPLOY_DIR/docker-compose.oci.yml}\"")
 			.contains("compose config --quiet")
 			.contains("compose stop nginx app")
+			.contains("compose run --rm --no-deps reservation-inventory-cutover-preflight")
 			.contains("compose run --rm --no-deps kafka-topic-init")
 			.contains("compose run --rm --no-deps flyway-migrate")
 			.contains("compose up -d --no-deps --force-recreate debezium")
@@ -134,6 +135,8 @@ class OciDeploymentContractTest {
 		assertThat(script.indexOf("compose config --quiet"))
 			.isLessThan(admissionBoundary);
 		assertThat(admissionBoundary)
+			.isLessThan(script.indexOf("compose run --rm --no-deps reservation-inventory-cutover-preflight"));
+		assertThat(script.indexOf("compose run --rm --no-deps reservation-inventory-cutover-preflight"))
 			.isLessThan(script.indexOf("compose run --rm --no-deps kafka-topic-init"));
 		assertThat(script.indexOf("compose run --rm --no-deps kafka-topic-init"))
 			.isLessThan(script.indexOf("compose run --rm --no-deps flyway-migrate"));
@@ -144,14 +147,16 @@ class OciDeploymentContractTest {
 	}
 
 	@Test
-	@DisplayName("앱 시작 이후 실패는 ingress를 닫고 V18 호환 binary의 roll-forward만 허용한다")
+	@DisplayName("V25 컷오버 이후 실패는 ingress를 닫고 현재 inventory binary의 roll-forward만 허용한다")
 	void stopsAdmissionAcrossIrreversibleMigrationBoundary() throws IOException {
 		String script = read("scripts/deploy-oci.sh");
 
 		assertThat(script)
 			.contains("compose stop nginx app")
-			.contains("V18-compatible roll-forward is required")
-			.contains("No pre-V18 binary rollback was attempted")
+			.contains("Reservation inventory cutover preflight failed before Flyway; no migration was attempted")
+			.contains("No automatic V24 restart was attempted")
+			.contains("current binary that understands the V25 cutover, V26 inventory, and V27 index")
+			.contains("No pre-V25 binary rollback was attempted")
 			.doesNotContain("Rolling back to image");
 	}
 
@@ -199,7 +204,92 @@ class OciDeploymentContractTest {
 		assertThat(commands.lastIndexOf("stop nginx app"))
 			.isGreaterThan(commands.indexOf("up -d --no-deps --force-recreate debezium"));
 		assertThat(commands).doesNotContain("--force-recreate --pull never app");
-		assertThat(output).contains("V18-compatible roll-forward is required");
+		assertThat(output)
+			.contains("current binary that understands the V25 cutover, V26 inventory, and V27 index");
+	}
+
+	@Test
+	@DisplayName("실행 중인 app의 bootstrap health가 unhealthy여도 전체 readiness 기한 동안 회복을 기다린다")
+	void waitsForRunningApplicationToRecoverFromUnhealthyReadiness() throws Exception {
+		Path deployment = tempDir.resolve("readiness-deployment");
+		Path fakeBin = tempDir.resolve("readiness-bin");
+		Files.createDirectories(deployment);
+		Files.createDirectories(fakeBin);
+		Files.writeString(deployment.resolve(".env.oci"), "DB_ROOT_PASSWORD=test\n");
+		Files.writeString(deployment.resolve("docker-compose.oci.yml"), "services: {}\n");
+		Path dockerLog = tempDir.resolve("readiness-docker.log");
+		Path appInspectCount = tempDir.resolve("app-inspect-count");
+		Path fakeDocker = fakeBin.resolve("docker");
+		Files.writeString(fakeDocker, """
+			#!/bin/sh
+			printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
+			case "$*" in
+			  *"airbob-debezium-connector-monitor"*) printf '%s\n' 'running|healthy' ;;
+			  *"inspect "*" debezium"*) printf '%s\n' 'running|healthy' ;;
+			  *"airbob-app"*)
+			    count=0
+			    if [ -r "$FAKE_APP_INSPECT_COUNT" ]; then
+			      count=$(sed -n '1p' "$FAKE_APP_INSPECT_COUNT")
+			    fi
+			    count=$((count + 1))
+			    printf '%s\n' "$count" > "$FAKE_APP_INSPECT_COUNT"
+			    if [ "$count" -lt 3 ]; then
+			      printf '%s\n' 'running|unhealthy'
+			    else
+			      printf '%s\n' 'running|healthy'
+			    fi
+			    ;;
+			  *"inspect "*" nginx"*) printf '%s\n' 'running' ;;
+			esac
+			exit 0
+			""");
+		Path fakeSleep = fakeBin.resolve("sleep");
+		Files.writeString(fakeSleep, "#!/bin/sh\nexit 0\n");
+		assertThat(fakeDocker.toFile().setExecutable(true)).isTrue();
+		assertThat(fakeSleep.toFile().setExecutable(true)).isTrue();
+
+		ProcessBuilder processBuilder = new ProcessBuilder(
+			"/bin/sh",
+			Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()
+		).redirectErrorStream(true);
+		processBuilder.environment().put("DEPLOY_DIR", deployment.toString());
+		processBuilder.environment().put("DOCKER_BIN", fakeDocker.toString());
+		processBuilder.environment().put("IMAGE_TAG", "reviewed-sha");
+		processBuilder.environment().put("FAKE_DOCKER_LOG", dockerLog.toString());
+		processBuilder.environment().put("FAKE_APP_INSPECT_COUNT", appInspectCount.toString());
+		processBuilder.environment().put("HEALTH_ATTEMPTS", "5");
+		processBuilder.environment().put("HEALTH_DELAY_SECONDS", "1");
+		processBuilder.environment().put(
+			"PATH", fakeBin + ":" + processBuilder.environment().get("PATH"));
+
+		Process process = processBuilder.start();
+		boolean completed = process.waitFor(5, TimeUnit.SECONDS);
+		if (!completed) {
+			process.destroyForcibly();
+			process.waitFor(1, TimeUnit.SECONDS);
+		}
+		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+		assertThat(completed).withFailMessage(output).isTrue();
+		assertThat(process.exitValue()).withFailMessage(output).isZero();
+		assertThat(Files.readString(appInspectCount).trim()).isEqualTo("3");
+		assertThat(output)
+			.contains("application health: state=running, probe=unhealthy")
+			.contains("application health: state=running, probe=healthy")
+			.contains("OCI deployment is healthy");
+		assertThat(Files.readString(dockerLog))
+			.contains("up -d --no-deps --force-recreate nginx");
+	}
+
+	@Test
+	@DisplayName("health 대기는 unhealthy 자체가 아니라 exited 또는 dead container만 즉시 실패한다")
+	void treatsOnlyTerminalContainerStatesAsImmediateHealthFailure() throws IOException {
+		String script = read("scripts/deploy-oci.sh");
+
+		assertThat(script)
+			.contains("exited|dead) return 1")
+			.contains("case \"$container_health\" in")
+			.doesNotContain("unhealthy|exited|dead");
 	}
 
 	@Test
@@ -207,6 +297,7 @@ class OciDeploymentContractTest {
 	void migratesSchemaBeforeRegisteringConnector() throws IOException {
 		String compose = read("docker-compose.oci.yml");
 		String migration = serviceBlock(compose, "flyway-migrate");
+		String inventoryPreflight = serviceBlock(compose, "reservation-inventory-cutover-preflight");
 		String connectorInit = serviceBlock(compose, "debezium-connector-init");
 
 		assertThat(migration)
@@ -215,9 +306,113 @@ class OciDeploymentContractTest {
 			.contains("FLYWAY_BASELINE_ON_MIGRATE: \"true\"")
 			.contains("condition: service_healthy")
 			.contains("restart: \"no\"");
+		assertThat(inventoryPreflight)
+			.contains("mysql:8.0.33")
+			.contains("./scripts/preflight-reservation-inventory-cutover.sh:/preflight.sh:ro")
+			.contains("entrypoint: [\"/bin/sh\", \"/preflight.sh\"]")
+			.contains("restart: \"no\"");
 		assertThat(connectorInit)
 			.contains("flyway-migrate:")
 			.contains("condition: service_completed_successfully");
+	}
+
+	@Test
+	@DisplayName("V25 preflight는 이전 writer 정지 뒤 기존 예약이 있으면 Flyway 전에 거부한다")
+	void rejectsNonEmptyReservationInventoryCutover() throws Exception {
+		Path fakeBin = tempDir.resolve("preflight-bin");
+		Files.createDirectories(fakeBin);
+		Path fakeMysql = fakeBin.resolve("mysql");
+		Files.writeString(fakeMysql, """
+			#!/bin/sh
+			printf '%s\n' "$*" >> "${FAKE_MYSQL_LOG:?}"
+			case "$*" in
+			  *"TABLE_NAME = 'accommodation_inventory_day'"*) printf '%s\n' "${FAKE_INVENTORY_TABLE_COUNT:?}" ;;
+			  *"TABLE_NAME = 'reservation'"*) printf '%s\n' 1 ;;
+			  *"SELECT COUNT(*) FROM reservation"*) printf '%s\n' "${FAKE_RESERVATION_COUNT:?}" ;;
+			  *"TABLE_NAME = 'accommodation'"*"TABLE_TYPE = 'BASE TABLE'"*) printf '%s\n' 1 ;;
+			  *"COLUMN_NAME = 'time_zone_id'"*) printf '%s\n' 1 ;;
+			  *"FROM accommodation"*) printf '%s\n' 0 ;;
+			  *) exit 91 ;;
+			esac
+			""");
+		assertThat(fakeMysql.toFile().setExecutable(true)).isTrue();
+
+		ProcessBuilder processBuilder = new ProcessBuilder(
+			"/bin/sh",
+			Path.of("scripts/preflight-reservation-inventory-cutover.sh").toAbsolutePath().toString()
+		).redirectErrorStream(true);
+		processBuilder.environment().put("PATH", fakeBin + ":" + System.getenv("PATH"));
+		processBuilder.environment().put("MYSQL_USER", "airbob");
+		processBuilder.environment().put("MYSQL_PASSWORD", "not-logged-test-password");
+		processBuilder.environment().put("FAKE_MYSQL_LOG", tempDir.resolve("preflight-reject.log").toString());
+		processBuilder.environment().put("FAKE_INVENTORY_TABLE_COUNT", "0");
+		processBuilder.environment().put("FAKE_RESERVATION_COUNT", "1");
+
+		Process process = processBuilder.start();
+		assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+		assertThat(process.exitValue()).isNotZero();
+		assertThat(output)
+			.contains("reservation must contain zero rows before V25")
+			.doesNotContain("not-logged-test-password");
+	}
+
+	@Test
+	@DisplayName("V26 inventory가 이미 있으면 정상 예약을 보존하고 timezone 검사만 계속한다")
+	void permitsSubsequentDeploymentsWithReservations() throws Exception {
+		Path fakeBin = tempDir.resolve("post-cutover-bin");
+		Files.createDirectories(fakeBin);
+		Path mysqlLog = tempDir.resolve("post-cutover-mysql.log");
+		Path fakeMysql = fakeBin.resolve("mysql");
+		Files.writeString(fakeMysql, """
+			#!/bin/sh
+			printf '%s\n' "$*" >> "${FAKE_MYSQL_LOG:?}"
+			case "$*" in
+			  *"TABLE_NAME = 'accommodation_inventory_day'"*) printf '%s\n' 1 ;;
+			  *"TABLE_NAME = 'reservation'"*) printf '%s\n' 1 ;;
+			  *"SELECT COUNT(*) FROM reservation"*) printf '%s\n' 8 ;;
+			  *"TABLE_NAME = 'accommodation'"*"TABLE_TYPE = 'BASE TABLE'"*) printf '%s\n' 1 ;;
+			  *"COLUMN_NAME = 'time_zone_id'"*) printf '%s\n' 1 ;;
+			  *"FROM accommodation"*) printf '%s\n' 0 ;;
+			  *) exit 91 ;;
+			esac
+			""");
+		assertThat(fakeMysql.toFile().setExecutable(true)).isTrue();
+
+		ProcessBuilder processBuilder = new ProcessBuilder(
+			"/bin/sh",
+			Path.of("scripts/preflight-reservation-inventory-cutover.sh").toAbsolutePath().toString()
+		).redirectErrorStream(true);
+		processBuilder.environment().put("PATH", fakeBin + ":" + System.getenv("PATH"));
+		processBuilder.environment().put("MYSQL_USER", "airbob");
+		processBuilder.environment().put("MYSQL_PASSWORD", "not-logged-test-password");
+		processBuilder.environment().put("FAKE_MYSQL_LOG", mysqlLog.toString());
+
+		Process process = processBuilder.start();
+		assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+		assertThat(process.exitValue()).withFailMessage(output).isZero();
+		assertThat(output).contains("reservation inventory cutover preflight passed");
+		assertThat(Files.readString(mysqlLog))
+			.contains("TABLE_NAME = 'accommodation_inventory_day'")
+			.doesNotContain("SELECT COUNT(*) FROM reservation;");
+	}
+
+	@Test
+	@DisplayName("timezone preflight는 CET 같은 유효한 single-segment ZoneId 형식을 허용한다")
+	void acceptsPlausibleSingleSegmentZoneIdsBeforeJavaValidation() throws IOException {
+		String plausibleZoneIdPattern =
+			"time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'";
+
+		assertThat(read("scripts/preflight-reservation-inventory-cutover.sh"))
+			.contains(plausibleZoneIdPattern)
+			.doesNotContain("|UTC|GMT");
+		assertThat(read("infra/aws/scripts/bootstrap-data.sh"))
+			.contains(plausibleZoneIdPattern);
+		assertThat(read("infra/aws/scripts/capture-dataset-attestation.sh"))
+			.contains(plausibleZoneIdPattern);
 	}
 
 	@Test

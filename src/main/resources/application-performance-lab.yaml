@@ -22,3 +22,12 @@ cloud:
       bucket: performance-lab-disabled
   cloudfront:
     domain: https://invalid.performance-lab
+
+reservation:
+  inventory:
+    startup:
+      enabled: false
+    seed:
+      enabled: false
+    retention:
+      enabled: false

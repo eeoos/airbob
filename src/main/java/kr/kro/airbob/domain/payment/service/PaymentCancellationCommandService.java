@@ -30,6 +30,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationCancellationDeadlinePassedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -40,6 +41,7 @@ public class PaymentCancellationCommandService {
 	private static final String HISTORY_SOURCE = "PAYMENT_OPERATION";
 
 	private final ReservationRepository reservationRepository;
+	private final ReservationInventoryService inventoryService;
 	private final PaymentRepository paymentRepository;
 	private final PaymentOperationRepository operationRepository;
 	private final ReservationHistoryRepository historyRepository;
@@ -50,6 +52,7 @@ public class PaymentCancellationCommandService {
 
 	public PaymentCancellationCommandService(
 		ReservationRepository reservationRepository,
+		ReservationInventoryService inventoryService,
 		PaymentRepository paymentRepository,
 		PaymentOperationRepository operationRepository,
 		ReservationHistoryRepository historyRepository,
@@ -59,6 +62,7 @@ public class PaymentCancellationCommandService {
 		Clock clock
 	) {
 		this.reservationRepository = reservationRepository;
+		this.inventoryService = inventoryService;
 		this.paymentRepository = paymentRepository;
 		this.operationRepository = operationRepository;
 		this.historyRepository = historyRepository;
@@ -142,6 +146,12 @@ public class PaymentCancellationCommandService {
 		if (!reservation.cancelComplimentary()) {
 			return Cancellation.completed();
 		}
+		inventoryService.releaseOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId()
+		);
 		couponUsageService.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.CANCEL, request.cancelReason(), "RESERVATION"));

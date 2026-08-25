@@ -57,11 +57,26 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 
 ### Reservation inventory
 
-- `ReservationTransactionService` locks the published accommodation row with `FOR UPDATE`.
-- While holding that mutex, `ReservationRepositoryImpl` performs an overlap current read and then
-  creates the reservation in the same transaction.
-- There is no external distributed reservation lock, date-key locking scheme, or best-effort
-  provisional inventory state.
+- `accommodation_inventory_day` owns one row for every night in `[checkIn, checkOut)`. Its primary
+  key is `(accommodation_id, stay_date)`.
+- Checkout takes a short published-accommodation `FOR SHARE NOWAIT` snapshot, then locks only the
+  requested date rows in primary-key order with `FOR UPDATE NOWAIT` under `READ_COMMITTED`.
+- Inventory states are `FREE`, `HOLD(owner, expiresAt)`, and `OCCUPIED(owner)`. Reservation status
+  remains the business state; the inventory table is the exclusive date-ownership model.
+- Quote creation never locks or consumes inventory. The authoritative checkout revalidates quote,
+  price, coupon, accommodation, and inventory before creating the 15-minute hold.
+- Every existing-reservation transition locks reservation before its date rows. Payment entry moves
+  owned `HOLD` rows to `OCCUPIED`; definitive confirmation decline, successful cancellation, and
+  eligible mark-not-paid release them. Retry, unknown outcome, manual review, cancellation pending,
+  and cancellation failure retain ownership.
+- Expired cleanup releases only `HOLD` rows still owned by that reservation. A newer checkout may
+  atomically reclaim an expired hold, and stale cleanup must never clear the new owner.
+- `ReservationCheckoutAdmission` is an in-process, immediate bulkhead before transaction and pool
+  checkout. It protects capacity but is not a correctness lock. `R025` means retryable contention;
+  `R002` means the requested nights are already occupied.
+- Startup seeds and verifies every published accommodation before readiness opens. Publish and
+  timezone changes seed in the business transaction; rolling maintenance inserts only missing days.
+- There is no external distributed reservation lock or best-effort Redis hold.
 - Redis remains in use for sessions, caches, recently viewed accommodations, and coupon stock; do
   not confuse those uses with reservation authority.
 
@@ -148,18 +163,22 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V23.
+- Current schema history is V1 through V27.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.
   V21 added bounded expiry cleanup without narrowing legacy message storage, V22 added the hashed
-  checkout-idempotency ledger, and V23 added non-holding reservation quotes. These later migrations
-  preserve populated data and must not be rewritten after deployment.
+  checkout-idempotency ledger, V23 added non-holding reservation quotes, and V24 added the
+  payment-entry attempt lease. V25 is an intentional zero-reservation hard-cutover guard, V26 adds
+  the date inventory ownership table, and V27 indexes the bounded published-accommodation seed scan.
+  Stop every V24-or-older writer and verify zero reservation rows before V25; the guard is not a
+  database-level writer fence. Do not rewrite these migrations or automatically roll a V25+
+  database back to a pre-inventory binary.
 
 ## Testing expectations
 
-- Use real MySQL tests for lock ordering, overlap/current-read behavior, optimistic versions,
-  transaction rollback, and migration constraints.
+- Use real MySQL tests for date-row lock ordering, NOWAIT classification, expired-hold takeover,
+  cleanup/checkout races, transaction rollback, and migration constraints.
 - Use Embedded Kafka for main → retry → DLT behavior and header sanitation.
 - Testcontainers cover MySQL, Redis, and Elasticsearch where the behavior depends on the real
   implementation.

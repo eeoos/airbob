@@ -277,9 +277,13 @@ cat > "$temp_dir/dataset-manifest.json" <<'JSON'
   "releaseKind": "pipeline-rehearsal",
   "datasetRelease": "fixture-v20",
   "mysql": {
-    "flywayVersion": "20",
+    "flywayVersion": "27",
     "expectedTableRows": {
-      "flyway_schema_history": 20
+      "flyway_schema_history": 27,
+      "outbox": 0,
+      "accommodation": 1,
+      "accommodation_inventory_day": 0,
+      "reservation": 0
     }
   }
 }
@@ -363,7 +367,7 @@ jq '.mysql.expectedTableRows.flyway_schema_history = 19' "$temp_dir/dataset-mani
 : > "$temp_dir/operator-execution.log"
 if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-history-v19.json" \
   run_fake_up lab-v19-history >"$temp_dir/v19-history.out" 2>"$temp_dir/v19-history.err"; then
-  fail "operator accepted a V20 manifest with a V19 Flyway history row count"
+  fail "operator accepted a V27 manifest with a V19 Flyway history row count"
 fi
 if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
   fail "Flyway history rejection reached Terraform plan/apply or network verification"

@@ -8,6 +8,7 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
+import kr.kro.airbob.domain.reservation.admission.ReservationCheckoutAdmission;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -21,6 +22,7 @@ public class ReservationService {
 
 	private final ReservationTransactionService transactionService;
 	private final PaymentCancellationCommandService cancellationCommandService;
+	private final ReservationCheckoutAdmission checkoutAdmission;
 	private final Clock clock;
 
 	public ReservationResponse.Ready createPendingReservation(
@@ -32,14 +34,14 @@ public class ReservationService {
 			throw new InvalidReservationDateException();
 		}
 
-		Reservation reservation = idempotencyKey == null
+		Reservation reservation = checkoutAdmission.execute(() -> idempotencyKey == null
 			? transactionService.createPendingReservationInTx(request, memberId, "사용자 예약 생성")
 			: transactionService.createPendingReservationInTx(
 				request,
 				memberId,
 				idempotencyKey,
 				"사용자 예약 생성"
-			);
+			));
 		return ReservationResponse.Ready.from(reservation, clock.instant());
 	}
 
@@ -48,11 +50,13 @@ public class ReservationService {
 		Long memberId,
 		String idempotencyKey
 	) {
-		Reservation reservation = transactionService.createPendingReservationInTx(
-			request,
-			memberId,
-			idempotencyKey,
-			"견적 기반 예약 생성"
+		Reservation reservation = checkoutAdmission.execute(() ->
+			transactionService.createPendingReservationInTx(
+				request,
+				memberId,
+				idempotencyKey,
+				"견적 기반 예약 생성"
+			)
 		);
 		return ReservationResponse.Ready.from(reservation, clock.instant());
 	}

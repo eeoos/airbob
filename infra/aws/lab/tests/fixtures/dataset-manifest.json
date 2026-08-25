@@ -16,7 +16,7 @@
   "mysql": {
     "dumpKey": "mysql/airbob.sql.zst",
     "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
-    "flywayVersion": "20",
+    "flywayVersion": "27",
     "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
     "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
     "timezone": "UTC",
@@ -24,9 +24,11 @@
     "validUntil": "2099-12-31T00:00:00Z",
     "outboxPolicy": "absent",
     "expectedTableRows": {
-      "flyway_schema_history": 20,
+      "flyway_schema_history": 27,
       "outbox": 0,
-      "accommodation": 730702
+      "accommodation": 730702,
+      "accommodation_inventory_day": 0,
+      "reservation": 0
     }
   },
   "couponPreparation": [],

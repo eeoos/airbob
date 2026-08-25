@@ -125,7 +125,7 @@ actual_inventory=$(
   find "$release_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort
 )
 [[ "$actual_inventory" == "$expected_inventory" ]] \
-  || fail 'ETL release inventory does not match the exact V20 contract'
+  || fail 'ETL release inventory does not match the exact V27 contract'
 
 for file_name in "${release_files[@]}"; do
   [[ -f "$release_dir/$file_name" && ! -L "$release_dir/$file_name" ]] \
@@ -224,12 +224,12 @@ release_id=$(metadata_value release_id)
 traffic_dataset_run_id=$(metadata_value traffic_dataset_run_id)
 [[ "$traffic_dataset_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]] \
   || fail 'release metadata traffic run identity is invalid'
-[[ "$(metadata_value traffic_flyway_version)" == 20 ]] \
+[[ "$(metadata_value traffic_flyway_version)" == 27 ]] \
   || fail 'release metadata Flyway version is stale'
 required_rows=$(metadata_value required_rows)
 [[ "$required_rows" == 201 ]] \
   || fail 'release metadata row capacity is unsupported'
-[[ "$(metadata_value recovery)" == reset-flyway-v1-v20-etl-reseed-before-traffic ]] \
+[[ "$(metadata_value recovery)" == reset-flyway-v1-v27-etl-reseed-before-traffic ]] \
   || fail 'release metadata recovery contract is unsupported'
 
 traffic_manifest_sha256=$(metadata_value traffic_manifest_sha256)
@@ -244,8 +244,8 @@ migration_digest=$(metadata_value traffic_migration_digest)
 migration_digest_file="$release_dir/backend-migrations.sha256"
 has_final_newline "$migration_digest_file" \
   || fail 'backend migration digest must end with one newline'
-[[ "$(wc -l < "$migration_digest_file" | tr -d '[:space:]')" == 20 ]] \
-  || fail 'backend migration inventory must contain exactly V1 through V20'
+[[ "$(wc -l < "$migration_digest_file" | tr -d '[:space:]')" == 27 ]] \
+  || fail 'backend migration inventory must contain exactly V1 through V27'
 migration_inventory_paths="$work_dir/backend-migration-paths.txt"
 migration_inventory_versions="$work_dir/backend-migration-versions.txt"
 : > "$migration_inventory_paths"
@@ -259,15 +259,15 @@ done < "$migration_digest_file"
 LC_ALL=C sort "$migration_inventory_paths" > "$work_dir/backend-migration-paths.sorted.txt"
 cmp -s "$migration_inventory_paths" "$work_dir/backend-migration-paths.sorted.txt" \
   || fail 'backend migration inventory paths are not bytewise sorted'
-[[ "$(LC_ALL=C sort -u "$migration_inventory_paths" | wc -l | tr -d '[:space:]')" == 20 ]] \
+[[ "$(LC_ALL=C sort -u "$migration_inventory_paths" | wc -l | tr -d '[:space:]')" == 27 ]] \
   || fail 'backend migration inventory contains duplicate paths'
 LC_ALL=C sort -n "$migration_inventory_versions" > "$work_dir/backend-migration-versions.sorted.txt"
-awk 'BEGIN { for (version = 1; version <= 20; version += 1) print version }' \
+awk 'BEGIN { for (version = 1; version <= 27; version += 1) print version }' \
   > "$work_dir/backend-migration-versions.expected.txt"
 cmp -s \
   "$work_dir/backend-migration-versions.sorted.txt" \
   "$work_dir/backend-migration-versions.expected.txt" \
-  || fail 'backend migration inventory does not contain each version V1 through V20 exactly once'
+  || fail 'backend migration inventory does not contain each version V1 through V27 exactly once'
 
 jq -se \
   --arg runId "$traffic_dataset_run_id" \
@@ -276,14 +276,14 @@ jq -se \
   (.[0] |
     .datasetVersion == "traffic-v1" and
     .datasetRunId == $runId and
-    .schema.flywayVersion == "20" and
+    .schema.flywayVersion == "27" and
     .schema.migrationDigest == $migrationDigest and
     ([.. | objects | keys[]] |
       all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not)) and
     ([.. | strings] |
       all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not)))
 ' "$release_dir/traffic-v1.json" >/dev/null \
-  || fail 'traffic manifest does not match the V20 release metadata contract'
+  || fail 'traffic manifest does not match the V27 release metadata contract'
 jq -se '
   length == 1 and
   (.[0] | [.. | objects | keys[]] |
@@ -464,10 +464,10 @@ mysql_query flyway-lineage "$flyway_summary_query" "$flyway_summary_file"
   || fail 'database returned a malformed Flyway lineage'
 IFS=$'\t' read -r flyway_version flyway_history_rows successful_versioned_rows failed_rows extra_field \
   < "$flyway_summary_file"
-[[ -z "${extra_field:-}" && "$flyway_version" == 20 ]] \
-  || fail 'database Flyway version is not V20'
-[[ "$flyway_history_rows" == 20 && "$successful_versioned_rows" == 20 && "$failed_rows" == 0 ]] \
-  || fail 'database Flyway history is not exactly twenty successful versioned rows'
+[[ -z "${extra_field:-}" && "$flyway_version" == 27 ]] \
+  || fail 'database Flyway version is not V27'
+[[ "$flyway_history_rows" == 27 && "$successful_versioned_rows" == 27 && "$failed_rows" == 0 ]] \
+  || fail 'database Flyway history is not exactly twenty-seven successful versioned rows'
 
 outbox_file="$work_dir/outbox-count.txt"
 mysql_query outbox-state 'SELECT COUNT(*) FROM outbox;' "$outbox_file"
@@ -485,8 +485,8 @@ migration_file="$work_dir/flyway-migrations.tsv"
 mysql_query migration-checksum "$migration_query" "$migration_file"
 has_final_newline "$migration_file" \
   || fail 'database returned a malformed Flyway history'
-[[ "$(wc -l < "$migration_file" | tr -d '[:space:]')" == 20 ]] \
-  || fail 'database Flyway history does not contain exactly twenty records'
+[[ "$(wc -l < "$migration_file" | tr -d '[:space:]')" == 27 ]] \
+  || fail 'database Flyway history does not contain exactly twenty-seven records'
 awk -F $'\t' 'NF != 7 || $7 !~ /^[01]$/ { exit 1 }' "$migration_file" \
   || fail 'database returned a malformed Flyway history'
 migration_checksum_sha256=$(sha256_file "$migration_file")
@@ -497,7 +497,7 @@ awk -F $'\t' '
   $5 !~ /^V[1-9][0-9]*__[a-zA-Z0-9][a-zA-Z0-9._-]*\.sql$/ { exit 1 }
   $6 !~ /^-?[0-9]+$/ || $7 != "1" { exit 1 }
   { printf "%s|%s|%s\n", $2, $5, $6; expected_version += 1 }
-  END { if (expected_version != 21) exit 1 }
+  END { if (expected_version != 28) exit 1 }
 ' "$migration_file" > "$traffic_migration_stream" \
   || fail 'database Flyway rows cannot form the traffic migration digest'
 live_traffic_migration_digest="sha256:$(sha256_file "$traffic_migration_stream")"
@@ -659,13 +659,28 @@ fi
 cmp -s "$lineage_receipt" "$lineage_receipt_after" \
   || fail 'ETL release database lineage changed during capture'
 
-for required_table in accommodation flyway_schema_history outbox; do
+for required_table in accommodation accommodation_inventory_day flyway_schema_history outbox reservation; do
   awk -F $'\t' -v target="$required_table" '$1 == target { found = 1 } END { exit !found }' \
     "$expected_rows_tsv" || fail 'database is missing a required base table'
 done
 accommodation_rows=$(awk -F $'\t' '$1 == "accommodation" { print $2 }' "$expected_rows_tsv")
 [[ "$accommodation_rows" =~ ^[0-9]+$ && "$accommodation_rows" -ge "$required_rows" ]] \
   || fail 'database accommodation capacity is below the release contract'
+
+invalid_published_timezone_file="$work_dir/invalid-published-timezone-count.txt"
+mysql_query published-timezone-contract "
+  SELECT COUNT(*)
+  FROM accommodation
+  WHERE status = 'PUBLISHED'
+    AND (
+      time_zone_id IS NULL
+      OR TRIM(time_zone_id) = ''
+      OR time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'
+    );
+" "$invalid_published_timezone_file"
+[[ "$(wc -l < "$invalid_published_timezone_file" | tr -d '[:space:]')" == 1 \
+  && "$(sed -n '1p' "$invalid_published_timezone_file")" == 0 ]] \
+  || fail 'published accommodation timezone contract is invalid'
 
 expected_table_rows_json=$(jq -Rn '
   reduce inputs as $line (
@@ -735,12 +750,13 @@ jq -e '
     test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
   (.verifierContractInventorySha256 | sha256) and
   (.databaseFingerprintSubsetSha256 | sha256) and
-  .flywayVersion == "20" and
-  .flywayHistoryRows == 20 and
+  .flywayVersion == "27" and
+  .flywayHistoryRows == 27 and
   (.migrationChecksumSha256 | sha256) and
   (.schemaFingerprintSha256 | sha256) and
   .outboxState == "empty" and
   (.expectedTableRows | type == "object" and length > 0) and
+  (.expectedTableRows | has("accommodation_inventory_day") and has("reservation")) and
   all(.expectedTableRows | to_entries[];
     (.key | test("^[a-z][a-z0-9_]{0,63}$")) and
     (.key | test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not) and

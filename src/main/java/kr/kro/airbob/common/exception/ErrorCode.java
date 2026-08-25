@@ -73,6 +73,14 @@ public enum ErrorCode {
 	RESERVATION_PAYMENT_ATTEMPT_TOO_LATE(HttpStatus.CONFLICT, "R022", "결제를 시작할 수 있는 시간이 부족합니다."),
 	RESERVATION_PAYMENT_ATTEMPT_NOT_ALLOWED(HttpStatus.CONFLICT, "R023", "현재 예약에는 결제 시도를 발급할 수 없습니다."),
 	RESERVATION_PAYMENT_ATTEMPT_INVALID(HttpStatus.CONFLICT, "R024", "유효하지 않은 결제 시도입니다."),
+	RESERVATION_INVENTORY_BUSY(
+		HttpStatus.SERVICE_UNAVAILABLE,
+		"R025",
+		"예약 요청이 몰려 재고를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	RESERVATION_INVENTORY_NOT_READY(
+		HttpStatus.SERVICE_UNAVAILABLE,
+		"R026",
+		"예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."),
 
 
 	// payment

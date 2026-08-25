@@ -20,7 +20,7 @@ const REPO_ROOT = resolve(dirname(SCRIPT_PATH), '../../..');
 const ARTIFACT_ROOT = resolve(REPO_ROOT, 'build/k6/traffic');
 const MAX_INPUT_BYTES = 1024 * 1024;
 const COUNTER_KEYS = ['count', 'timerWait', 'rowsExamined', 'rowsSent'];
-const CURRENT_FLYWAY_VERSION = '20';
+const CURRENT_FLYWAY_VERSION = '27';
 
 function requireCondition(condition, message) {
   if (!condition) {

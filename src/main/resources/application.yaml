@@ -114,6 +114,25 @@ settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
 
 reservation:
+  checkout:
+    admission:
+      max-concurrency: ${RESERVATION_CHECKOUT_ADMISSION_MAX_CONCURRENCY:4}
+  inventory:
+    startup:
+      enabled: ${RESERVATION_INVENTORY_STARTUP_ENABLED:true}
+      batch-size: ${RESERVATION_INVENTORY_STARTUP_BATCH_SIZE:200}
+    seed:
+      enabled: ${RESERVATION_INVENTORY_SEED_ENABLED:true}
+      safety-buffer-days: ${RESERVATION_INVENTORY_SEED_SAFETY_BUFFER_DAYS:7}
+      batch-size: ${RESERVATION_INVENTORY_SEED_BATCH_SIZE:100}
+      max-batches-per-run: ${RESERVATION_INVENTORY_SEED_MAX_BATCHES_PER_RUN:10}
+      interval: ${RESERVATION_INVENTORY_SEED_INTERVAL:1h}
+    retention:
+      enabled: ${RESERVATION_INVENTORY_RETENTION_ENABLED:true}
+      past-free-days-to-keep: ${RESERVATION_INVENTORY_RETENTION_PAST_FREE_DAYS:30}
+      batch-size: ${RESERVATION_INVENTORY_RETENTION_BATCH_SIZE:1000}
+      max-batches-per-run: ${RESERVATION_INVENTORY_RETENTION_MAX_BATCHES_PER_RUN:10}
+      interval: ${RESERVATION_INVENTORY_RETENTION_INTERVAL:1h}
   quote:
     duration: ${RESERVATION_QUOTE_DURATION:5m}
     retention: ${RESERVATION_QUOTE_RETENTION:30d}
@@ -169,3 +188,10 @@ benchmark:
   read-model:
     enabled: ${BENCHMARK_READ_MODEL_ENABLED:false}
     token: ${BENCHMARK_READ_MODEL_TOKEN:}
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: accommodationInventory

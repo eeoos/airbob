@@ -10,7 +10,7 @@ import {
   summarizeTrafficMetrics,
 } from '../lib/traffic-benchmark.js';
 
-const GUEST_TARGETS = [
+export const GUEST_TARGETS = [
   'accommodation-detail',
   'review-list',
   'review-summary',

@@ -57,6 +57,22 @@ payment:
     secret-key: dummy-toss-secret-key
     base-url: https://api.tosspayments.com
 
+reservation:
+  inventory:
+    startup:
+      enabled: false
+    retention:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          # Limited @SpringBootTest contexts may not scan the inventory health bean.
+          # Wildcard membership keeps the test profile independent of a particular contributor.
+          include: "*"
+
 toss:
   client-key: dummy-client-key
   secret-key: dummy-toss-secret-key

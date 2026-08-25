@@ -91,6 +91,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			"benchmark-status-control",
 			EXPIRED_AT
 		);
+		seedInventory(targets, futurePending, nonPendingExpired);
 
 		Fixture fixture = new Fixture(
 			datasetSize,
@@ -143,13 +144,18 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		boolean historySnapshotsPreserved = verifiedRows == fixture.datasetSize();
 		boolean historyAuditContextPreserved = fixture.targets().stream()
 			.allMatch(target -> hasSchedulerAuditContext(historiesByReservation.get(target.id())));
+		boolean inventoryStatePreserved = fixture.targets().stream()
+			.allMatch(target -> hasInventoryState(target, "FREE"))
+			&& hasInventoryState(fixture.futurePending(), "HOLD")
+			&& hasInventoryState(fixture.nonPendingExpired(), "OCCUPIED");
 
 		boolean succeeded = targetReservationsExpired
 			&& targetHistoriesInserted
 			&& futurePendingPreserved
 			&& nonPendingExpiredPreserved
 			&& historySnapshotsPreserved
-			&& historyAuditContextPreserved;
+			&& historyAuditContextPreserved
+			&& inventoryStatePreserved;
 
 		return new ReservationHistoryInsertBenchmarkVerification(
 			verifiedRows,
@@ -169,6 +175,10 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			return;
 		}
 		deleteByReservationIds("reservation_history", fixture.allReservationIds());
+		jdbcTemplate.update(
+			"DELETE FROM accommodation_inventory_day WHERE accommodation_id = ?",
+			fixture.accommodationId()
+		);
 		deleteExactIds("reservation", fixture.allReservationIds());
 		deleteExactIds("accommodation", List.of(fixture.accommodationId()));
 		deleteExactIds("member", List.of(fixture.memberId()));
@@ -275,6 +285,67 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			CREATED_AT,
 			memberId
 		);
+	}
+
+	private void seedInventory(
+		List<ReservationExpectation> targets,
+		ReservationExpectation futurePending,
+		ReservationExpectation nonPendingExpired
+	) {
+		targets.forEach(target -> insertInventoryDays(target, "HOLD", target.expiresAt()));
+		insertInventoryDays(futurePending, "HOLD", futurePending.expiresAt());
+		insertInventoryDays(nonPendingExpired, "OCCUPIED", null);
+	}
+
+	private void insertInventoryDays(
+		ReservationExpectation reservation,
+		String state,
+		Instant holdExpiresAt
+	) {
+		String sql = """
+			INSERT INTO accommodation_inventory_day (
+				accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, ?, ?, ?, ?)
+			""";
+		List<Object[]> arguments = reservation.checkIn().datesUntil(reservation.checkOut())
+			.map(stayDate -> new Object[] {
+				reservation.accommodationId(),
+				stayDate,
+				state,
+				reservation.id(),
+				holdExpiresAt == null ? null : toUtcDateTime(holdExpiresAt)
+			})
+			.toList();
+		jdbcTemplate.batchUpdate(sql, arguments);
+	}
+
+	private boolean hasInventoryState(ReservationExpectation reservation, String expectedState) {
+		Long matchingNights = jdbcTemplate.queryForObject("""
+			SELECT COUNT(*)
+			FROM accommodation_inventory_day
+			WHERE accommodation_id = ?
+			  AND stay_date >= ?
+			  AND stay_date < ?
+			  AND state = ?
+			  AND (
+			    (? = 'FREE' AND reservation_id IS NULL AND hold_expires_at IS NULL)
+			    OR (? = 'HOLD' AND reservation_id = ? AND hold_expires_at IS NOT NULL)
+			    OR (? = 'OCCUPIED' AND reservation_id = ? AND hold_expires_at IS NULL)
+			  )
+			""",
+			Long.class,
+			reservation.accommodationId(),
+			reservation.checkIn(),
+			reservation.checkOut(),
+			expectedState,
+			expectedState,
+			expectedState,
+			reservation.id(),
+			expectedState,
+			reservation.id()
+		);
+		long expectedNights = reservation.checkIn().datesUntil(reservation.checkOut()).count();
+		return Objects.equals(matchingNights, expectedNights);
 	}
 
 	private long insertAndReturnKey(String sql, StatementBinder binder) {

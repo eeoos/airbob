@@ -11,8 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
@@ -23,8 +21,8 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
-import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -34,21 +32,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentOperationCommandService {
 
-	private final AccommodationRepository accommodationRepository;
 	private final ReservationRepository reservationRepository;
+	private final ReservationInventoryService inventoryService;
 	private final PaymentOperationRepository paymentOperationRepository;
 	private final ReservationHistoryRepository historyRepository;
 	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
-	// The initial lookup establishes lock order; replay lookup must see a commit made while waiting.
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Accepted requestConfirmation(PaymentRequest.Confirm request, Long memberId) {
 		UUID reservationUid = parseReservationUid(request.orderId());
-		Long accommodationId = reservationRepository.findAccommodationIdByReservationUid(reservationUid)
-			.orElseThrow(ReservationNotFoundException::new);
-		accommodationRepository.findByIdForUpdate(accommodationId)
-			.orElseThrow(AccommodationNotFoundException::new);
 		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUid)
 			.orElseThrow(ReservationNotFoundException::new);
 		if (!reservation.belongsToGuest(memberId)) {
@@ -70,15 +63,13 @@ public class PaymentOperationCommandService {
 			throw new ExpiredReservationConfirmationException();
 		}
 		reservation.consumePaymentAttempt(request.paymentAttemptId(), now);
-		if (reservationRepository.existsConflictingReservationExcluding(
-			accommodationId,
-			reservation.getId(),
+		inventoryService.transitionHeldToOccupied(
+			reservation.getAccommodation().getId(),
 			reservation.getCheckInDate(),
 			reservation.getCheckOutDate(),
+			reservation.getId(),
 			now
-		)) {
-			throw new ReservationConflictException();
-		}
+		);
 		PaymentOperation operation = PaymentOperation.createConfirmation(
 			reservation, memberId, request.paymentKey(), request.amount(), now);
 		paymentOperationRepository.save(operation);

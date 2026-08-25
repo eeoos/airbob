@@ -243,6 +243,24 @@ services:
     networks:
       - airbob-network
 
+  reservation-inventory-cutover-preflight:
+    image: mysql:8.0.33
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: airbobdb
+      MYSQL_USER: ${SPRING_DATASOURCE_USERNAME}
+      MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    volumes:
+      - ./scripts/preflight-reservation-inventory-cutover.sh:/preflight.sh:ro
+    entrypoint: ["/bin/sh", "/preflight.sh"]
+    restart: "no"
+    networks:
+      - airbob-network
+
   # --------------------------------------------------------
   # Kafka (Single Node - KRaft Mode)
   # --------------------------------------------------------

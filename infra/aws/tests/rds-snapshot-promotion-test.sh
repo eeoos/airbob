@@ -25,7 +25,7 @@ cat > "$tmp_dir/receipt.json" <<'JSON'
   "releaseKind": "pipeline-rehearsal",
   "databaseBootstrap": "dump",
   "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
-  "flywayVersion": "20",
+  "flywayVersion": "27",
   "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
   "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
   "rdsResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWX",
@@ -73,7 +73,7 @@ JSON
         {Key:"DatasetRelease",Value:"rehearsal-v20"},
         {Key:"DatasetRunId",Value:"20260816T001530Z-12345678"},
         {Key:"DumpSha256",Value:"94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"},
-        {Key:"FlywayVersion",Value:"20"},
+        {Key:"FlywayVersion",Value:"27"},
         {Key:"ManifestSha256",Value:$manifestSha},
         {Key:"Persistence",Value:"persistent"}
       ]
@@ -138,7 +138,7 @@ for unsafe_identifier_pair in \
   'airbob-phase3-test-|airbob-dataset-rehearsal-v20' \
   'airbob-phase3--test|airbob-dataset-rehearsal-v20' \
   'airbob-phase3-test|airbob-dataset-rehearsal-v20-' \
-  'airbob-phase3-test|airbob-dataset-rehearsal--v20'; do
+  'airbob-phase3-test|airbob-dataset-rehearsal--v27'; do
   unsafe_instance=${unsafe_identifier_pair%%|*}
   unsafe_snapshot=${unsafe_identifier_pair#*|}
   : > "$tmp_dir/aws.log"

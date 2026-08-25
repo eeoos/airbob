@@ -45,6 +45,8 @@ import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
@@ -61,7 +63,9 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
 	AccommodationQueryService.class,
-	AccommodationDetailReader.class
+	AccommodationDetailReader.class,
+	AccommodationInventoryDayRepository.class,
+	ReservationInventoryService.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("숙소 상세 조회 쿼리 테스트")
@@ -92,6 +96,9 @@ class AccommodationDetailQueryCountTest {
 
 	@Autowired
 	private MemberRepository memberRepository;
+
+	@Autowired
+	private AccommodationInventoryDayRepository inventoryDayRepository;
 
 	@Autowired
 	private EntityManager entityManager;
@@ -182,19 +189,24 @@ class AccommodationDetailQueryCountTest {
 	}
 
 	@Test
-	@DisplayName("숙소 예약 가능 정보는 숙소 시간대와 예약 구간을 SELECT 두 번으로 조회한다")
-	void findsAccommodationAvailabilityInTwoSelects() {
+	@DisplayName("숙소 예약 가능 정보는 숙소 JPA SELECT 1회와 inventory snapshot 1회로 조회한다")
+	void findsAccommodationAvailabilityWithOneJpaSelectAndOneInventorySnapshot() {
 		Member host = saveHost("accommodation-availability-query");
 		Accommodation accommodation = savePublishedAccommodation(host, "availability-query-accommodation");
+		LocalDate windowStart = LocalDate.of(2026, 8, 12);
+		LocalDate windowEndExclusive = LocalDate.of(2026, 11, 12);
+		entityManager.flush();
+		inventoryDayRepository.seedMissingDays(
+			accommodation.getId(), windowStart.datesUntil(windowEndExclusive).toList());
 		Statistics statistics = prepareQueryMeasurement();
 
 		AccommodationResponse.Availability response =
 			accommodationQueryService.findAccommodationAvailability(accommodation.getId());
 
-		assertThat(response.bookingWindowStartInclusive()).isEqualTo(LocalDate.of(2026, 8, 12));
-		assertThat(response.bookingWindowEndExclusive()).isEqualTo(LocalDate.of(2026, 11, 12));
+		assertThat(response.bookingWindowStartInclusive()).isEqualTo(windowStart);
+		assertThat(response.bookingWindowEndExclusive()).isEqualTo(windowEndExclusive);
 		assertThat(response.unavailableRanges()).isEmpty();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(statistics.getPrepareStatementCount()).isOne();
 	}
 
 	private Member saveHost(String nickname) {

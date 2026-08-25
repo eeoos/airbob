@@ -294,7 +294,7 @@ aws s3api get-object --bucket "$evidence_bucket" \
 jq -e --arg run "$run_id" --arg release "$dataset_release" --arg sha "$dataset_manifest_sha256" '
   .schemaVersion == 1 and .runId == $run and .datasetRelease == $release and
   .releaseKind == "pipeline-rehearsal" and .datasetManifestSha256 == $sha and
-  .flywayVersion == "20" and .outboxState == "empty"
+  .flywayVersion == "27" and .outboxState == "empty"
 ' "$bootstrap_receipt" >/dev/null || fail "data bootstrap receipt does not attest the discovery dataset"
 expected_flyway_version=$(jq -er '.flywayVersion' "$bootstrap_receipt")
 [[ "$expected_flyway_version" =~ ^[1-9][0-9]*$ ]] \

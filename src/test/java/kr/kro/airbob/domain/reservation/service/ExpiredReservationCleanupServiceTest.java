@@ -36,6 +36,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryBatchWriter;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
@@ -51,6 +52,8 @@ class ExpiredReservationCleanupServiceTest {
 	private ReservationHistoryBatchWriter batchWriter;
 	@Mock
 	private CouponUsageService couponUsageService;
+	@Mock
+	private ReservationInventoryService inventoryService;
 
 	private ExpiredReservationCleanupService service;
 	private Reservation first;
@@ -62,6 +65,7 @@ class ExpiredReservationCleanupServiceTest {
 			reservationRepository,
 			batchWriter,
 			couponUsageService,
+			inventoryService,
 			Clock.fixed(NOW, ZoneOffset.UTC),
 			CLEANUP_BATCH_SIZE
 		);
@@ -79,7 +83,11 @@ class ExpiredReservationCleanupServiceTest {
 
 		service.cleanupExpiredPendingReservations();
 
-		InOrder inOrder = inOrder(couponUsageService, batchWriter);
+		InOrder inOrder = inOrder(inventoryService, couponUsageService, batchWriter);
+		inOrder.verify(inventoryService).releaseHeldIfOwned(
+			first.getAccommodation().getId(), first.getCheckInDate(), first.getCheckOutDate(), first.getId());
+		inOrder.verify(inventoryService).releaseHeldIfOwned(
+			second.getAccommodation().getId(), second.getCheckInDate(), second.getCheckOutDate(), second.getId());
 		inOrder.verify(couponUsageService).restoreAll(List.of(first.getId(), second.getId()));
 		inOrder.verify(batchWriter).writeAll(anyList(), eq(NOW));
 	}
@@ -148,6 +156,7 @@ class ExpiredReservationCleanupServiceTest {
 		assertThat(cleaned).isZero();
 		then(batchWriter).shouldHaveNoInteractions();
 		then(couponUsageService).shouldHaveNoInteractions();
+		then(inventoryService).shouldHaveNoInteractions();
 	}
 
 	private Reservation pendingReservation(long reservationId, long accommodationId, LocalDate checkIn) {

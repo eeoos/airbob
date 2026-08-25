@@ -87,10 +87,29 @@ write alias. Run
 The exact schema and fingerprint procedure are documented in
 `infra/aws/datasets/README.md`.
 
-The current application lineage is Flyway V20. The historical V12 ETL dump is
-therefore deliberately rejected and must not be relabelled. A new V20
+The current application lineage is Flyway V27. The historical V12 ETL dump is
+therefore deliberately rejected and must not be relabelled. A new V27
 `pipeline-rehearsal` or `evidence` release must be produced before a live Phase
 3 run. No dataset has been uploaded by this implementation.
+
+The V27 dataset is built by applying migrations to an empty database before
+ETL fixtures are inserted. In particular, V25 must see zero reservation rows;
+there is no mixed-version window with a V24 writer and no automatic rollback
+to a pre-inventory app. Phase 3 accepts only the immutable V27 manifest and
+schema fingerprint, then checks published accommodation timezone shape before
+an app target can become healthy. Normal reservation-capable AWS and OCI
+profiles additionally perform full Java IANA `ZoneId` validation during their
+mandatory inventory bootstrap; the read-only performance-lab exception is
+described below.
+
+The lab application is deliberately read-only for reservation inventory. Both
+`aws,performance-lab` and the `aws,traffic-benchmark` profile group disable
+inventory startup, rolling seed, and retention, so the manifest's exact
+`accommodation_inventory_day=0` contract is preserved instead of materializing
+date rows for 730,702 accommodations. The benchmark target allowlist contains
+only GET requests and excludes availability, quote, checkout, and reservation
+mutations. Any inventory-dependent call therefore fails closed with HTTP 503 /
+`R026`. Ordinary `aws` and `oci` deployments retain mandatory inventory startup.
 
 Dump mode creates an empty `db.t3.micro` RDS MySQL instance; snapshot mode may
 use only an encrypted, available snapshot whose release, run, dump, Flyway,

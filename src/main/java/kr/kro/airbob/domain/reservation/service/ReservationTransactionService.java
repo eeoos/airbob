@@ -43,7 +43,6 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
-import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
@@ -54,9 +53,12 @@ import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyChecked
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteExpiredException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutEndpoint;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
+import kr.kro.airbob.domain.reservation.inventory.MysqlNowaitFailureClassifier;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
@@ -92,6 +94,7 @@ public class ReservationTransactionService {
 	private final ReservationHoldPolicy holdPolicy;
 	private final ReservationQuoteRepository quoteRepository;
 	private final ReservationCheckoutRequestStore checkoutRequestStore;
+	private final ReservationInventoryService inventoryService;
 	private final Clock clock;
 
 	@Transactional(isolation = Isolation.READ_COMMITTED)
@@ -192,7 +195,6 @@ public class ReservationTransactionService {
 		return reservation;
 	}
 
-	// The accommodation row is the inventory mutex; avoid empty-range gap locks here.
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
 		return createPendingReservation(request, reason, findActiveMember(memberId));
@@ -203,9 +205,7 @@ public class ReservationTransactionService {
 		String reason,
 		Member guest
 	) {
-		Accommodation accommodation = accommodationRepository.findByIdAndStatusForUpdate(
-			request.accommodationId(), AccommodationStatus.PUBLISHED)
-			.orElseThrow(AccommodationNotFoundException::new);
+		Accommodation accommodation = findBookingSnapshotNowait(request.accommodationId());
 		validateOccupancy(accommodation, request.guestCount());
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new InvalidReservationDateException();
@@ -221,11 +221,13 @@ public class ReservationTransactionService {
 		if (!now.isBefore(checkInAt)) {
 			throw new ReservationCheckInClosedException();
 		}
-
-		if (reservationRepository.existsConflictingReservation(
-			request.accommodationId(), request.checkInDate(), request.checkOutDate(), now)) {
-			throw new ReservationConflictException();
-		}
+		ReservationInventoryService.LockedRange lockedInventory =
+			inventoryService.lockAvailableRangeNowait(
+				request.accommodationId(),
+				request.checkInDate(),
+				request.checkOutDate(),
+				now
+			);
 
 		String reservationCode = createReservationCode();
 		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
@@ -240,7 +242,7 @@ public class ReservationTransactionService {
 			stayPrice,
 			accommodation.bookingCurrency()
 		);
-		reservationRepository.save(reservation);
+		reservationRepository.saveAndFlush(reservation);
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
 		if (request.couponId() != null) {
@@ -250,6 +252,10 @@ public class ReservationTransactionService {
 		}
 		if (!reservation.requiresPayment()) {
 			reservation.confirmComplimentary();
+			inventoryService.claimLockedForBooked(lockedInventory, reservation.getId());
+		} else {
+			inventoryService.claimLockedForPending(
+				lockedInventory, reservation.getId(), reservation.getExpiresAt());
 		}
 
 		historyRepository.save(ReservationHistory.of(reservation, ChangeType.CREATE, reason));
@@ -261,6 +267,19 @@ public class ReservationTransactionService {
 		log.info("예약 ID {} (UID: {}) {} 상태로 DB 저장 완료",
 			reservation.getId(), reservation.getReservationUid(), reservation.getStatus());
 		return reservation;
+	}
+
+	private Accommodation findBookingSnapshotNowait(Long accommodationId) {
+		try {
+			return accommodationRepository.findBookingSnapshotForShare(
+				accommodationId, AccommodationStatus.PUBLISHED)
+				.orElseThrow(AccommodationNotFoundException::new);
+		} catch (RuntimeException exception) {
+			if (MysqlNowaitFailureClassifier.isNowait(exception)) {
+				throw new ReservationInventoryBusyException(exception);
+			}
+			throw exception;
+		}
 	}
 
 	private Member findActiveMember(Long memberId) {

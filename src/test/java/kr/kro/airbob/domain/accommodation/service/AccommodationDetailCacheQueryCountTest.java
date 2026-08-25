@@ -55,6 +55,7 @@ import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -117,6 +118,7 @@ class AccommodationDetailCacheQueryCountTest {
 	@MockitoBean private GeocodingService geocodingService;
 	@MockitoBean private S3ImageUploader s3ImageUploader;
 	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean private ReservationInventoryService inventoryService;
 
 	private Accommodation accommodation;
 	private Member host;

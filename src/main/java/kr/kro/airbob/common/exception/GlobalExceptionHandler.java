@@ -19,6 +19,7 @@ import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredExcep
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.code.TossErrorCode;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -97,11 +98,23 @@ public class GlobalExceptionHandler {
 		return new ResponseEntity<>(ApiResponse.error(response), e.getErrorCode().getStatus());
 	}
 
+	@ExceptionHandler(ReservationInventoryBusyException.class)
+	protected ResponseEntity<ApiResponse<?>> handleReservationInventoryBusy(
+		ReservationInventoryBusyException exception
+	) {
+		ErrorCode errorCode = exception.getErrorCode();
+		return ResponseEntity.status(errorCode.getStatus())
+			.header("Retry-After", "1")
+			.body(ApiResponse.error(ErrorResponse.of(errorCode)));
+	}
+
 	@ExceptionHandler(BaseException.class)
 	protected ResponseEntity<ApiResponse<?>> handleBaseException(final BaseException e) {
 		final ErrorCode errorCode = e.getErrorCode();
-		log.warn("handleBaseException: Code={}, Message={}",
-			errorCode.getCode(), errorCode.getMessage());
+		if (errorCode != ErrorCode.RESERVATION_CONFLICT) {
+			log.warn("handleBaseException: Code={}, Message={}",
+				errorCode.getCode(), errorCode.getMessage());
+		}
 		final ErrorResponse response = ErrorResponse.of(errorCode);
 		return new ResponseEntity<>(ApiResponse.error(response), errorCode.getStatus());
 	}

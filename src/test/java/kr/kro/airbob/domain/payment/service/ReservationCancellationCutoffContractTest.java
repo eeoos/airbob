@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.then;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +34,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -46,9 +48,13 @@ class ReservationCancellationCutoffContractTest {
 	private static final UUID ACCOMMODATION_UID =
 		UUID.fromString("b9157c88-6e41-4264-b5f0-60f98cb15872");
 	private static final long GUEST_ID = 10L;
+	private static final long ACCOMMODATION_ID = 31L;
 	private static final Instant CHECK_IN_AT = Instant.parse("2026-08-26T06:00:00Z");
+	private static final LocalDate CHECK_IN_DATE = LocalDate.of(2026, 8, 26);
+	private static final LocalDate CHECK_OUT_DATE = LocalDate.of(2026, 8, 28);
 
 	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationInventoryService inventoryService;
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
@@ -106,6 +112,7 @@ class ReservationCancellationCutoffContractTest {
 		then(couponUsageService).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(inventoryService).shouldHaveNoInteractions();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
@@ -123,6 +130,7 @@ class ReservationCancellationCutoffContractTest {
 		then(couponUsageService).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(searchRefreshPublisher).shouldHaveNoInteractions();
+		then(inventoryService).shouldHaveNoInteractions();
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
@@ -190,6 +198,7 @@ class ReservationCancellationCutoffContractTest {
 		assertThat(response.completedSynchronously()).isTrue();
 		then(couponUsageService).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
+		then(inventoryService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -210,6 +219,7 @@ class ReservationCancellationCutoffContractTest {
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
 		then(operationRepository).should().save(any(PaymentOperation.class));
 		then(outboxWriter).should().append(any());
+		then(inventoryService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -226,11 +236,18 @@ class ReservationCancellationCutoffContractTest {
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
 		then(couponUsageService).should().restore(reservation.getId());
 		then(searchRefreshPublisher).should().requestRefresh(ACCOMMODATION_UID);
+		then(inventoryService).should().releaseOccupied(
+			ACCOMMODATION_ID,
+			CHECK_IN_DATE,
+			CHECK_OUT_DATE,
+			reservation.getId()
+		);
 	}
 
 	private PaymentCancellationCommandService serviceAt(Instant now) {
 		return new PaymentCancellationCommandService(
 			reservationRepository,
+			inventoryService,
 			paymentRepository,
 			operationRepository,
 			historyRepository,
@@ -251,8 +268,11 @@ class ReservationCancellationCutoffContractTest {
 			.reservationUid(RESERVATION_UID)
 			.guest(Member.builder().id(GUEST_ID).build())
 			.accommodation(Accommodation.builder()
+				.id(ACCOMMODATION_ID)
 				.accommodationUid(ACCOMMODATION_UID)
 				.build())
+			.checkInDate(CHECK_IN_DATE)
+			.checkOutDate(CHECK_OUT_DATE)
 			.checkInAt(CHECK_IN_AT)
 			.totalPrice(totalPrice)
 			.status(status)

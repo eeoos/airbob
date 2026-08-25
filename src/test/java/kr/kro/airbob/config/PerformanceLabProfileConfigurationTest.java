@@ -30,6 +30,15 @@ class PerformanceLabProfileConfigurationTest {
 				|| value.contains("${"));
 	}
 
+	@Test
+	void performanceLabDisablesTheReservationInventoryLifecycle() throws IOException {
+		EnumerablePropertySource<?> properties = loadPerformanceLabProperties();
+
+		assertThat(properties.getProperty("reservation.inventory.startup.enabled")).isEqualTo(false);
+		assertThat(properties.getProperty("reservation.inventory.seed.enabled")).isEqualTo(false);
+		assertThat(properties.getProperty("reservation.inventory.retention.enabled")).isEqualTo(false);
+	}
+
 	private EnumerablePropertySource<?> loadPerformanceLabProperties() throws IOException {
 		List<PropertySource<?>> sources = new YamlPropertySourceLoader().load(
 			"application-performance-lab.yaml",

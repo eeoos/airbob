@@ -24,7 +24,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.common.exception.InvalidInputException;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
@@ -37,7 +36,8 @@ import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
-import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -55,8 +55,8 @@ class PaymentOperationCommandServiceTest {
 	private static final LocalDate CHECK_IN = LocalDate.of(2026, 8, 20);
 	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 22);
 
-	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationInventoryService inventoryService;
 	@Mock private PaymentOperationRepository paymentOperationRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private OutboxWriter outboxWriter;
@@ -68,8 +68,8 @@ class PaymentOperationCommandServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new PaymentOperationCommandService(
-			accommodationRepository,
 			reservationRepository,
+			inventoryService,
 			paymentOperationRepository,
 			historyRepository,
 			outboxWriter,
@@ -114,12 +114,10 @@ class PaymentOperationCommandServiceTest {
 		assertThat(eventCaptor.getValue().partitionKey()).isEqualTo(RESERVATION_UID.toString());
 		assertThat(eventCaptor.getValue().deduplicationKey())
 			.isEqualTo("PAYMENT_EXECUTION:" + accepted.operationId() + ":1");
-		InOrder lockOrder = org.mockito.Mockito.inOrder(reservationRepository, accommodationRepository);
-		lockOrder.verify(reservationRepository).findAccommodationIdByReservationUid(RESERVATION_UID);
-		lockOrder.verify(accommodationRepository).findByIdForUpdate(ACCOMMODATION_ID);
+		InOrder lockOrder = org.mockito.Mockito.inOrder(reservationRepository, inventoryService);
 		lockOrder.verify(reservationRepository).findByReservationUidWithLock(RESERVATION_UID);
-		then(reservationRepository).should().existsConflictingReservationExcluding(
-			ACCOMMODATION_ID, pendingReservation.getId(), CHECK_IN, CHECK_OUT, NOW);
+		lockOrder.verify(inventoryService).transitionHeldToOccupied(
+			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 	}
 
 	@Test
@@ -134,6 +132,7 @@ class PaymentOperationCommandServiceTest {
 
 		InOrder order = org.mockito.Mockito.inOrder(
 			pendingReservation,
+			inventoryService,
 			paymentOperationRepository,
 			outboxWriter
 		);
@@ -141,6 +140,8 @@ class PaymentOperationCommandServiceTest {
 		order.verify(paymentOperationRepository).findByDeduplicationKey("CONFIRM:" + RESERVATION_UID);
 		order.verify(pendingReservation).startPayment(NOW);
 		order.verify(pendingReservation).consumePaymentAttempt(PAYMENT_ATTEMPT_ID, NOW);
+		order.verify(inventoryService).transitionHeldToOccupied(
+			ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 		order.verify(paymentOperationRepository).save(org.mockito.ArgumentMatchers.any());
 		order.verify(outboxWriter).append(org.mockito.ArgumentMatchers.any());
 	}
@@ -240,13 +241,7 @@ class PaymentOperationCommandServiceTest {
 
 		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
-		then(reservationRepository).should(org.mockito.Mockito.never())
-			.existsConflictingReservationExcluding(
-				org.mockito.ArgumentMatchers.anyLong(),
-				org.mockito.ArgumentMatchers.anyLong(),
-				org.mockito.ArgumentMatchers.any(),
-				org.mockito.ArgumentMatchers.any(),
-				org.mockito.ArgumentMatchers.any());
+		then(inventoryService).shouldHaveNoInteractions();
 		then(historyRepository).shouldHaveNoInteractions();
 		then(outboxWriter).shouldHaveNoInteractions();
 	}
@@ -271,16 +266,17 @@ class PaymentOperationCommandServiceTest {
 	}
 
 	@Test
-	void overlappingReservationCreatesNeitherOperationNorOutbox() {
+	void mismatchedInventoryCreatesNeitherOperationNorOutbox() {
 		givenReservationLocks(pendingReservation);
 		given(paymentOperationRepository.findByDeduplicationKey("CONFIRM:" + RESERVATION_UID))
 			.willReturn(Optional.empty());
-		given(reservationRepository.existsConflictingReservationExcluding(
-			ACCOMMODATION_ID, pendingReservation.getId(), CHECK_IN, CHECK_OUT, NOW))
-			.willReturn(true);
+		org.mockito.BDDMockito.willThrow(
+			new ReservationInventoryInvariantViolationException("owner mismatch"))
+			.given(inventoryService).transitionHeldToOccupied(
+				ACCOMMODATION_ID, CHECK_IN, CHECK_OUT, pendingReservation.getId(), NOW);
 
 		assertThatThrownBy(() -> service.requestConfirmation(request(), GUEST_ID))
-			.isInstanceOf(ReservationConflictException.class);
+			.isInstanceOf(ReservationInventoryInvariantViolationException.class);
 
 		then(paymentOperationRepository).should(org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
 		then(historyRepository).shouldHaveNoInteractions();
@@ -295,15 +291,11 @@ class PaymentOperationCommandServiceTest {
 			.isInstanceOf(InvalidInputException.class);
 
 		then(reservationRepository).shouldHaveNoInteractions();
-		then(accommodationRepository).shouldHaveNoInteractions();
+		then(inventoryService).shouldHaveNoInteractions();
 		then(paymentOperationRepository).shouldHaveNoInteractions();
 	}
 
 	private void givenReservationLocks(Reservation reservation) {
-		given(reservationRepository.findAccommodationIdByReservationUid(RESERVATION_UID))
-			.willReturn(Optional.of(ACCOMMODATION_ID));
-		given(accommodationRepository.findByIdForUpdate(ACCOMMODATION_ID))
-			.willReturn(Optional.of(accommodation));
 		given(reservationRepository.findByReservationUidWithLock(RESERVATION_UID))
 			.willReturn(Optional.of(reservation));
 	}

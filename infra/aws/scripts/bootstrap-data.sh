@@ -175,6 +175,19 @@ while IFS=$'\t' read -r table_name expected_rows; do
   [[ "$actual_rows" == "$expected_rows" ]] || { printf 'row-count contract failed: %s\n' "$table_name" >&2; exit 1; }
 done < <(jq -r '.mysql.expectedTableRows | to_entries | sort_by(.key)[] | [.key, (.value | tostring)] | @tsv' "$manifest")
 
+invalid_published_timezone_count=$(mysql_exec airbobdb --execute="
+  SELECT COUNT(*)
+  FROM accommodation
+  WHERE status = 'PUBLISHED'
+    AND (
+      time_zone_id IS NULL
+      OR TRIM(time_zone_id) = ''
+      OR time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'
+    );
+")
+[[ "$invalid_published_timezone_count" == 0 ]] \
+  || { printf '%s\n' 'published accommodation timezone contract failed' >&2; exit 1; }
+
 schema_unsorted_file="$work_root/schema-fingerprint.unsorted.tsv"
 schema_file="$work_root/schema-fingerprint.tsv"
 mysql_exec --execute="

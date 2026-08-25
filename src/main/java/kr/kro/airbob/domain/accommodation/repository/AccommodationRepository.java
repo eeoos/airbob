@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -15,8 +16,13 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
 import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationRepositoryCustom;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 
 public interface AccommodationRepository extends JpaRepository<Accommodation, Long>, AccommodationRepositoryCustom {
+	interface InventorySeedTarget {
+		Long getAccommodationId();
+		String getTimeZoneId();
+	}
 
 	// 대표 숙소 id 묶음 → 썸네일 URL 배치 조회 (위시리스트 목록 반정규화 읽기용)
 	interface ThumbnailUrlProjection {
@@ -31,9 +37,11 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id")
 	Optional<Accommodation> findByIdForUpdate(@Param("id") Long id);
 
-	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@EntityGraph(attributePaths = "occupancyPolicy")
+	@Lock(LockModeType.PESSIMISTIC_READ)
+	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id AND a.status = :status")
-	Optional<Accommodation> findByIdAndStatusForUpdate(
+	Optional<Accommodation> findBookingSnapshotForShare(
 		@Param("id") Long id,
 		@Param("status") AccommodationStatus status
 	);
@@ -60,6 +68,19 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 	Optional<Accommodation> findByIdAndMemberIdAndStatus(Long id, Long memberId, AccommodationStatus status);
 
 	List<Accommodation> findByIdInAndStatus(List<Long> accommodationIds, AccommodationStatus status);
+
+	@Query("""
+		SELECT a.id AS accommodationId, a.timeZoneId AS timeZoneId
+		FROM Accommodation a
+		WHERE a.status = :status
+		  AND a.id > :afterAccommodationId
+		ORDER BY a.id
+		""")
+	List<InventorySeedTarget> findInventorySeedTargets(
+		@Param("status") AccommodationStatus status,
+		@Param("afterAccommodationId") long afterAccommodationId,
+		org.springframework.data.domain.Pageable pageable
+	);
 
 	Optional<Accommodation> findByIdAndMemberId(Long accommodationId, Long memberId);
 

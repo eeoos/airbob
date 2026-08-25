@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,10 +26,9 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
-import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +41,7 @@ class AccommodationQueryServiceTest {
 
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private AccommodationReviewSummaryRepository reviewSummaryRepository;
-	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationInventoryService inventoryService;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private AccommodationDetailReader accommodationDetailReader;
@@ -98,12 +96,12 @@ class AccommodationQueryServiceTest {
 		accommodationQueryService.findAccommodation(1L, null);
 
 		verify(accommodationDetailCache).getOrLoad(eq(1L), any());
-		verifyNoInteractions(bookingWindowProvider, reservationRepository);
+		verifyNoInteractions(bookingWindowProvider, inventoryService);
 	}
 
 	@Test
-	@DisplayName("숙소 예약 가능 조회는 3개월 예약 구간을 숙소 ID로 조회한다")
-	void accommodationAvailabilityUsesAccommodationIdForReservations() {
+	@DisplayName("숙소 예약 가능 조회는 3개월 inventory snapshot을 숙소 ID와 조회 시각으로 조회한다")
+	void accommodationAvailabilityUsesAccommodationIdForInventory() {
 		givenPublishedAccommodationAvailability(1L);
 
 		AccommodationResponse.Availability response =
@@ -111,7 +109,7 @@ class AccommodationQueryServiceTest {
 		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
 		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
-		verify(reservationRepository).findUnavailableReservationRangesByAccommodationId(
+		verify(inventoryService).findUnavailableRangesSnapshot(
 			eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture(),
 			eq(AVAILABILITY_QUERIED_AT));
 		assertThat(windowEndCaptor.getValue()).isEqualTo(windowStartCaptor.getValue().plusMonths(3));
@@ -119,9 +117,6 @@ class AccommodationQueryServiceTest {
 			.isEqualTo(windowStartCaptor.getValue());
 		assertThat(response.bookingWindowEndExclusive())
 			.isEqualTo(windowEndCaptor.getValue());
-		verify(reservationRepository, never())
-			.findActiveReservationRangesByAccommodationUid(
-				any(UUID.class), any(LocalDate.class), any(LocalDate.class));
 	}
 
 	@Test
@@ -130,9 +125,9 @@ class AccommodationQueryServiceTest {
 		Long accommodationId = 1L;
 		LocalDate today = BOOKING_WINDOW_START;
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(reservationRepository.findUnavailableReservationRangesByAccommodationId(
+		when(inventoryService.findUnavailableRangesSnapshot(
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-			.thenReturn(List.of(new ReservationDateRange(
+			.thenReturn(List.of(new ReservationInventoryService.UnavailableRange(
 				today.plusDays(1),
 				today.plusDays(4)
 			)));
@@ -147,33 +142,21 @@ class AccommodationQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("숙소 예약 불가 구간은 3개월 범위로 자르고 정렬해 합친다")
-	void accommodationAvailabilityNormalizesRangesWithinBookingWindow() {
+	@DisplayName("inventory snapshot이 반환한 연속 점유 구간을 API 불가 구간으로 매핑한다")
+	void accommodationAvailabilityMapsInventoryUnavailableRanges() {
 		Long accommodationId = 1L;
 		LocalDate windowStart = BOOKING_WINDOW_START;
 		LocalDate windowEndExclusive = windowStart.plusMonths(3);
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(reservationRepository.findUnavailableReservationRangesByAccommodationId(
+		when(inventoryService.findUnavailableRangesSnapshot(
 			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 			.thenReturn(List.of(
-				new ReservationDateRange(
-					windowEndExclusive.minusDays(1),
-					windowEndExclusive.plusDays(5)),
-				new ReservationDateRange(
-					windowStart.plusDays(2),
-					windowStart.plusDays(5)),
-				new ReservationDateRange(
-					windowStart.minusDays(2),
-					windowStart.plusDays(3)),
-				new ReservationDateRange(
-					windowStart.plusDays(5),
+				new ReservationInventoryService.UnavailableRange(
+					windowStart,
 					windowStart.plusDays(6)),
-				new ReservationDateRange(
-					windowStart.minusDays(2),
-					windowStart),
-				new ReservationDateRange(
-					windowEndExclusive,
-					windowEndExclusive.plusDays(2))
+				new ReservationInventoryService.UnavailableRange(
+					windowEndExclusive.minusDays(1),
+					windowEndExclusive)
 			));
 
 		AccommodationResponse.Availability response =
@@ -194,7 +177,7 @@ class AccommodationQueryServiceTest {
 
 		assertThatThrownBy(() -> accommodationQueryService.findAccommodationAvailability(1L))
 			.isInstanceOf(AccommodationNotFoundException.class);
-		verifyNoInteractions(bookingWindowProvider, reservationRepository);
+		verifyNoInteractions(bookingWindowProvider, inventoryService);
 	}
 
 	@Test

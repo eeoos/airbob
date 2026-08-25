@@ -109,6 +109,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		UserContext.clear();
 		reset(historyRepository, jdbcTemplate);
 		jdbcTemplate.update("DELETE FROM reservation_history");
+		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		jdbcTemplate.update("DELETE FROM reservation");
 		jdbcTemplate.update("DELETE FROM accommodation");
 		jdbcTemplate.update("DELETE FROM member");
@@ -145,6 +146,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(response.operation().jdbcAffectedRows()).isNull();
 
 		assertThat(countRows("reservation_history")).isZero();
+		assertThat(countRows("accommodation_inventory_day")).isZero();
 		assertThat(countRows("reservation")).isZero();
 		assertThat(countRows("accommodation")).isZero();
 		assertThat(countRows("member")).isZero();
@@ -242,10 +244,12 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 
 		assertThat(countTargetStatus(fixture, "PAYMENT_PENDING")).isEqualTo(3);
 		assertThat(countHistories(fixture)).isZero();
+		assertThat(countTargetInventoryState(fixture, "HOLD")).isEqualTo(6);
 
 		fixtureService.cleanup(fixture);
 		fixtureService.cleanup(fixture);
 		assertThat(countRows("reservation_history")).isZero();
+		assertThat(countRows("accommodation_inventory_day")).isZero();
 		assertThat(countRows("reservation")).isZero();
 		assertThat(countRows("accommodation")).isZero();
 		assertThat(countRows("member")).isZero();
@@ -277,6 +281,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		);
 		assertThat(countTargetStatus(fixture, "PAYMENT_PENDING")).isEqualTo(3);
 		assertThat(countHistories(fixture)).isZero();
+		assertThat(countTargetInventoryState(fixture, "HOLD")).isEqualTo(6);
 
 		fixtureService.cleanup(fixture);
 		UserContext.set(requestAdmin);
@@ -301,6 +306,17 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 			Long.class,
 			fixture.targets().stream().map(target -> target.id()).toArray()
 		);
+	}
+
+	private long countTargetInventoryState(Fixture fixture, String state) {
+		String sql = "SELECT COUNT(*) FROM accommodation_inventory_day WHERE state = ? AND reservation_id IN ("
+			+ placeholders(fixture.targets().size()) + ")";
+		Object[] parameters = new Object[fixture.targets().size() + 1];
+		parameters[0] = state;
+		for (int index = 0; index < fixture.targets().size(); index++) {
+			parameters[index + 1] = fixture.targets().get(index).id();
+		}
+		return jdbcTemplate.queryForObject(sql, Long.class, parameters);
 	}
 
 	private String placeholders(int size) {

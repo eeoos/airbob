@@ -15,38 +15,6 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 
 public interface ReservationRepositoryCustom {
-	/**
-	 * Caller must hold the accommodation row lock for the inventory decision.
-	 */
-	boolean existsConflictingReservation(
-		Long accommodationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	);
-
-	/**
-	 * Caller must hold the accommodation row lock for the inventory decision.
-	 */
-	boolean existsConflictingReservationExcluding(
-		Long accommodationId,
-		Long excludedReservationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	);
-
-	/**
-	 * Advisory snapshot for quotes only. It never guarantees inventory and must be
-	 * followed by the authoritative locking check during checkout.
-	 */
-	boolean existsConflictingReservationSnapshot(
-		Long accommodationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	);
-
 	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
 
 	boolean existsCompletedReservationByGuest(Long accommodationId, Long memberId);
@@ -55,19 +23,6 @@ public interface ReservationRepositoryCustom {
 
 	List<ReservationDateRange> findActiveReservationRangesByAccommodationId(
 		Long accommodationId,
-		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	);
-
-	List<ReservationDateRange> findUnavailableReservationRangesByAccommodationId(
-		Long accommodationId,
-		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive,
-		Instant now
-	);
-
-	List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
-		UUID accommodationUid,
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	);

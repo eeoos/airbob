@@ -109,15 +109,17 @@ locals {
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.benchmarkManifestSha256)) &&
     local.dataset_manifest.mysql.dumpKey == "mysql/airbob.sql.zst" &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.dumpSha256)) &&
-    local.dataset_manifest.mysql.flywayVersion == "20" &&
+    local.dataset_manifest.mysql.flywayVersion == "27" &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.migrationChecksumSha256)) &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.schemaFingerprintSha256)) &&
     local.dataset_manifest.mysql.timezone == "UTC" &&
     contains(["absent", "truncate-after-import"], local.dataset_manifest.mysql.outboxPolicy) &&
     contains(keys(local.dataset_expected_table_rows), "flyway_schema_history") &&
-    local.dataset_expected_table_rows.flyway_schema_history == 20 &&
+    local.dataset_expected_table_rows.flyway_schema_history == 27 &&
     contains(keys(local.dataset_expected_table_rows), "outbox") &&
     contains(keys(local.dataset_expected_table_rows), "accommodation") &&
+    contains(keys(local.dataset_expected_table_rows), "accommodation_inventory_day") &&
+    contains(keys(local.dataset_expected_table_rows), "reservation") &&
     length(local.dataset_manifest.kafka.topics) == 12 &&
     toset([for topic in local.dataset_manifest.kafka.topics : topic.name]) == local.dataset_kafka_topics &&
     alltrue([
@@ -168,7 +170,7 @@ locals {
     local.data_bootstrap_receipt.releaseKind == local.dataset_release_kind &&
     local.data_bootstrap_receipt.databaseBootstrap == var.database_bootstrap &&
     local.data_bootstrap_receipt.dumpSha256 == local.dataset_manifest.mysql.dumpSha256 &&
-    local.data_bootstrap_receipt.flywayVersion == "20" &&
+    local.data_bootstrap_receipt.flywayVersion == "27" &&
     local.data_bootstrap_receipt.migrationChecksumSha256 == local.dataset_manifest.mysql.migrationChecksumSha256 &&
     local.data_bootstrap_receipt.schemaFingerprintSha256 == local.dataset_manifest.mysql.schemaFingerprintSha256 &&
     local.data_bootstrap_receipt.datasetManifestSha256 == var.dataset_manifest_sha256 &&
@@ -251,7 +253,7 @@ resource "terraform_data" "dataset_release_gate" {
   lifecycle {
     precondition {
       condition     = local.dataset_release_valid && local.dataset_snapshot_valid
-      error_message = "Refusing to create RDS without the exact V20 dataset manifest and, when selected, matching snapshot tags."
+      error_message = "Refusing to create RDS without the exact V27 dataset manifest and, when selected, matching snapshot tags."
     }
   }
 }
@@ -305,7 +307,7 @@ check "app_capacity_contract" {
 check "dataset_release" {
   assert {
     condition     = local.dataset_release_valid && local.dataset_snapshot_valid
-    error_message = "Phase 3 requires an immutable V20 dataset release and a matching optional RDS snapshot."
+    error_message = "Phase 3 requires an immutable V27 dataset release and a matching optional RDS snapshot."
   }
 }
 

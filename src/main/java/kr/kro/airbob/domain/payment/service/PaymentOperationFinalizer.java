@@ -29,6 +29,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -44,6 +45,7 @@ public class PaymentOperationFinalizer {
 	private final PaymentTransactionRepository paymentTransactionRepository;
 	private final CouponUsageService couponUsageService;
 	private final ReservationHistoryRepository historyRepository;
+	private final ReservationInventoryService inventoryService;
 	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	private final PaymentOperationManualResolutionRecorder resolutionRecorder;
 	private final Clock clock;
@@ -55,6 +57,7 @@ public class PaymentOperationFinalizer {
 		PaymentTransactionRepository paymentTransactionRepository,
 		CouponUsageService couponUsageService,
 		ReservationHistoryRepository historyRepository,
+		ReservationInventoryService inventoryService,
 		AccommodationSearchRefreshPublisher searchRefreshPublisher,
 		PaymentOperationManualResolutionRecorder resolutionRecorder,
 		Clock clock
@@ -65,6 +68,7 @@ public class PaymentOperationFinalizer {
 		this.paymentTransactionRepository = paymentTransactionRepository;
 		this.couponUsageService = couponUsageService;
 		this.historyRepository = historyRepository;
+		this.inventoryService = inventoryService;
 		this.searchRefreshPublisher = searchRefreshPublisher;
 		this.resolutionRecorder = resolutionRecorder;
 		this.clock = clock;
@@ -85,6 +89,11 @@ public class PaymentOperationFinalizer {
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
 		validateApprovalCorrelation(confirmed, operation, reservation);
+		inventoryService.verifyOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId());
 
 		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
 			.orElseGet(() -> paymentRepository.save(Payment.create(confirmed, reservation)));
@@ -156,6 +165,11 @@ public class PaymentOperationFinalizer {
 
 		Reservation reservation = lockReservation(operation);
 		validateExecutionCorrelation(execution, operation, reservation);
+		inventoryService.releaseOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId());
 		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
 			.orElseThrow(PaymentNotFoundException::new);
 		validateCancellationCorrelation(cancelled, operation, reservation, payment);
@@ -219,6 +233,11 @@ public class PaymentOperationFinalizer {
 			paymentTransactionRepository.save(
 				PaymentTransaction.fail(operation, reservation, normalizedCode, message));
 		}
+		inventoryService.releaseOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId());
 		reservation.expireAfterFinalPaymentDecline();
 		couponUsageService.restore(reservation.getId());
 		historyRepository.save(ReservationHistory.ofSystem(
@@ -237,6 +256,11 @@ public class PaymentOperationFinalizer {
 		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
 			.orElseThrow(PaymentNotFoundException::new);
 		validateActivePaymentForCancellation(operation, reservation, payment);
+		inventoryService.verifyOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId());
 		if (!paymentTransactionRepository.existsByPaymentOperationId(operation.getId())) {
 			paymentTransactionRepository.save(PaymentTransaction.cancellationFailed(
 				operation, reservation, payment, normalizedCode, message));

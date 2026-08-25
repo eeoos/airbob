@@ -74,6 +74,8 @@ import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
@@ -88,6 +90,8 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
 	CouponUsageService.class,
+	AccommodationInventoryDayRepository.class,
+	ReservationInventoryService.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationFinalizerIntegrationTest.FinalizerTestConfiguration.class
 })
@@ -157,6 +161,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(operation.getCompletedAt()).isEqualTo(NOW);
 		assertThat(operation.getLeaseOwner()).isNull();
 		assertThat(reservation.getStatus()).isEqualTo(CONFIRMED);
+		assertThat(inventoryStates()).containsExactly("OCCUPIED");
 		assertThat(payment)
 			.extracting(Payment::getPaymentKey, Payment::getOrderId, Payment::getAmount,
 				Payment::getBalanceAmount, Payment::getMethod, Payment::getStatus, Payment::getApprovedAt)
@@ -421,6 +426,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(operation.getCompletedAt()).isEqualTo(NOW);
 		assertThat(operation.getLeaseOwner()).isNull();
 		assertThat(reloadReservation().getStatus()).isEqualTo(EXPIRED);
+		assertThat(inventoryStates()).containsExactly("FREE");
 		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.FAIL);
 		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
 		assertThat(ledger.getPaymentId()).isNull();
@@ -475,6 +481,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
 		assertThat(operation.getStatus()).isEqualTo(APPLIED);
 		assertThat(reservation.getStatus()).isEqualTo(CANCELLED);
+		assertThat(inventoryStates()).containsExactly("FREE");
 		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
 		assertThat(payment.getBalanceAmount()).isZero();
 		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL);
@@ -516,6 +523,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
 		assertThat(reloadOperation().getStatus()).isEqualTo(DECLINED);
 		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_FAILED);
+		assertThat(inventoryStates()).containsExactly("OCCUPIED");
 		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DONE);
 		assertThat(payment.getBalanceAmount()).isEqualTo(AMOUNT);
 		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL_FAIL);
@@ -619,6 +627,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(operation.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(60));
 		assertThat(operation.getAttemptCount()).isOne();
 		assertThat(reloadReservation().getStatus()).isEqualTo(PAYMENT_PROCESSING);
+		assertThat(inventoryStates()).containsExactly("OCCUPIED");
 		assertThat(paymentRepository.findByReservationId(reservationId)).isEmpty();
 		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
 		assertThat(isMemberCouponUsed()).isTrue();
@@ -651,6 +660,12 @@ class PaymentOperationFinalizerIntegrationTest {
 	private boolean isMemberCouponUsed() {
 		return Boolean.TRUE.equals(jdbc.queryForObject(
 			"SELECT used FROM member_coupon WHERE id = ?", Boolean.class, memberCouponId));
+	}
+
+	private List<String> inventoryStates() {
+		return jdbc.queryForList(
+			"SELECT state FROM accommodation_inventory_day ORDER BY accommodation_id, stay_date",
+			String.class);
 	}
 
 	private PaymentOperation reloadOperation() {
@@ -780,6 +795,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		jdbc.update("DELETE FROM reservation_history");
 		jdbc.update("DELETE FROM outbox");
 		jdbc.update("DELETE FROM member_coupon");
+		jdbc.update("DELETE FROM accommodation_inventory_day");
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM coupon");
 		jdbc.update("DELETE FROM accommodation");
@@ -812,6 +828,12 @@ class PaymentOperationFinalizerIntegrationTest {
 			)
 			""", RESERVATION_UID.toString(), accommodationId, memberId, AMOUNT);
 		reservationId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+
+		jdbc.update("""
+			INSERT INTO accommodation_inventory_day (
+			  accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, '2026-08-15', 'OCCUPIED', ?, NULL)
+			""", accommodationId, reservationId);
 
 		jdbc.update("""
 			INSERT INTO coupon (

@@ -39,6 +39,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
@@ -91,6 +92,8 @@ class ReservationTransactionServiceTest {
 	private ReservationCheckoutRequestStore checkoutRequestStore;
 	@Mock
 	private ReservationQuoteRepository quoteRepository;
+	@Mock
+	private ReservationInventoryService inventoryService;
 	private ReservationHoldPolicy holdPolicy;
 
 	@Captor
@@ -123,6 +126,7 @@ class ReservationTransactionServiceTest {
 			holdPolicy,
 			quoteRepository,
 			checkoutRequestStore,
+			inventoryService,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		memberId = 1L;
@@ -240,7 +244,7 @@ class ReservationTransactionServiceTest {
 				accommodation.getId(), WINDOW_START.plusDays(1), WINDOW_START.plusDays(2), 3);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				overCapacity.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 
@@ -260,16 +264,13 @@ class ReservationTransactionServiceTest {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
-			given(reservationRepository.existsConflictingReservation(
-				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-				.willReturn(false);
 			given(reservationRepository.existsByReservationCode(anyString()))
 				.willReturn(false);
 			// save() 호출 시 reservationUid가 설정된 상태로 반환 (실제 JPA에서 @PrePersist로 설정됨)
-			given(reservationRepository.save(any(Reservation.class)))
+			given(reservationRepository.saveAndFlush(any(Reservation.class)))
 				.willAnswer(invocation -> {
 					Reservation reservation = invocation.getArgument(0);
 					// 리플렉션으로 reservationUid 설정 (실제 @PrePersist 동작 모방)
@@ -296,11 +297,11 @@ class ReservationTransactionServiceTest {
 			assertThat(result.getTimeZoneId()).isEqualTo(TIME_ZONE_ID);
 			assertThat(result.getExpiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(7)));
 			assertThat(result.getMessage()).isEqualTo("조용한 방으로 부탁드립니다");
-			then(accommodationRepository).should().findByIdAndStatusForUpdate(
+			then(accommodationRepository).should().findBookingSnapshotForShare(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED);
 
 			// verify reservation saved
-			then(reservationRepository).should().save(any(Reservation.class));
+			then(reservationRepository).should().saveAndFlush(any(Reservation.class));
 
 			// verify history saved
 			then(historyRepository).should().save(historyCaptor.capture());
@@ -325,14 +326,11 @@ class ReservationTransactionServiceTest {
 				accommodation.getId(), WINDOW_START.plusDays(1), WINDOW_START.plusDays(3), 2, 77L);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				complimentaryRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
-			given(reservationRepository.existsConflictingReservation(
-				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-				.willReturn(false);
 			given(reservationRepository.existsByReservationCode(anyString())).willReturn(false);
-			given(reservationRepository.save(any(Reservation.class))).willAnswer(invocation -> {
+			given(reservationRepository.saveAndFlush(any(Reservation.class))).willAnswer(invocation -> {
 				Reservation reservation = invocation.getArgument(0);
 				java.lang.reflect.Field idField = Reservation.class.getDeclaredField("id");
 				idField.setAccessible(true);
@@ -364,17 +362,14 @@ class ReservationTransactionServiceTest {
 			);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				dstRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 			given(bookingWindowProvider.currentFor(TIME_ZONE_ID, NOW))
 				.willReturn(BookingWindow.startingOn(LocalDate.of(2027, 3, 1)));
-			given(reservationRepository.existsConflictingReservation(
-				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-				.willReturn(false);
 			given(reservationRepository.existsByReservationCode(anyString()))
 				.willReturn(false);
-			given(reservationRepository.save(any(Reservation.class)))
+			given(reservationRepository.saveAndFlush(any(Reservation.class)))
 				.willAnswer(invocation -> {
 					Reservation reservation = invocation.getArgument(0);
 					java.lang.reflect.Field uidField = Reservation.class.getDeclaredField("reservationUid");
@@ -388,7 +383,7 @@ class ReservationTransactionServiceTest {
 
 			Instant expectedCheckInAt = Instant.parse("2027-03-13T20:00:00Z");
 			Instant expectedCheckOutAt = Instant.parse("2027-03-15T15:00:00Z");
-			then(reservationRepository).should().existsConflictingReservation(
+			then(inventoryService).should().lockAvailableRangeNowait(
 				accommodation.getId(), dstRequest.checkInDate(), dstRequest.checkOutDate(), NOW);
 			assertThat(result.getCheckInAt()).isEqualTo(expectedCheckInAt);
 			assertThat(result.getCheckOutAt()).isEqualTo(expectedCheckOutAt);
@@ -405,7 +400,7 @@ class ReservationTransactionServiceTest {
 			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(MemberNotFoundException.class);
 
-			then(reservationRepository).should(never()).save(any());
+			then(reservationRepository).should(never()).saveAndFlush(any());
 		}
 
 		@Test
@@ -414,7 +409,7 @@ class ReservationTransactionServiceTest {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.empty());
 
@@ -422,7 +417,7 @@ class ReservationTransactionServiceTest {
 			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(AccommodationNotFoundException.class);
 
-			then(reservationRepository).should(never()).save(any());
+			then(reservationRepository).should(never()).saveAndFlush(any());
 		}
 
 		@Test
@@ -436,7 +431,7 @@ class ReservationTransactionServiceTest {
 			);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				invalidRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 
@@ -460,7 +455,7 @@ class ReservationTransactionServiceTest {
 			);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				outsideRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 
@@ -479,18 +474,18 @@ class ReservationTransactionServiceTest {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
-			given(reservationRepository.existsConflictingReservation(
+			given(inventoryService.lockAvailableRangeNowait(
 				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-				.willReturn(true);
+				.willThrow(new ReservationConflictException());
 
 			// when & then
 			assertThatThrownBy(() -> transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(ReservationConflictException.class);
 
-			then(reservationRepository).should(never()).save(any());
+			then(reservationRepository).should(never()).saveAndFlush(any());
 		}
 
 		@Test
@@ -499,18 +494,15 @@ class ReservationTransactionServiceTest {
 			// given
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
 				.willReturn(Optional.of(guest));
-			given(accommodationRepository.findByIdAndStatusForUpdate(
+			given(accommodationRepository.findBookingSnapshotForShare(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
-			given(reservationRepository.existsConflictingReservation(
-				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
-				.willReturn(false);
 			// 첫 번째 코드는 중복, 두 번째는 유일
 			given(reservationRepository.existsByReservationCode(anyString()))
 				.willReturn(true)
 				.willReturn(false);
 			// save() 호출 시 reservationUid가 설정된 상태로 반환
-			given(reservationRepository.save(any(Reservation.class)))
+			given(reservationRepository.saveAndFlush(any(Reservation.class)))
 				.willAnswer(invocation -> {
 					Reservation reservation = invocation.getArgument(0);
 					if (reservation.getReservationUid() == null) {

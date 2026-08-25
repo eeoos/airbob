@@ -1,5 +1,8 @@
 # OCI 배포 런북
 
+예약 날짜 재고의 공통 hard-cutover 계약은
+[reservation-inventory-cutover.md](reservation-inventory-cutover.md)를 먼저 따른다.
+
 ## 배포 전제
 
 main CD의 self-hosted runner에는 다음 항목이 준비되어 있어야 한다.
@@ -38,19 +41,40 @@ docker-compose.oci.yml을 명시해서 다음 순서로 실행한다.
 2. immutable SHA image pull과 local latest tag 갱신
 3. 기존 Nginx와 app을 중지해 신규 요청과 기존 outbox producer 차단
 4. MySQL, Redis, Elasticsearch, Kafka 기동 및 health 대기
-5. kafka-topic-init one-shot 실행
-6. 기존 Debezium과 connector monitor 중지
-7. 애플리케이션과 동일한 Flyway 11.7.2로 V1~현재 migration 적용
-8. Debezium 기동 및 health 대기
-9. debezium-connector-init one-shot 실행
-10. debezium-connector-monitor 기동 및 health 대기
-11. app 교체와 health 대기
-12. Nginx 교체, config 검증, Docker network 내부 app health 검증
+5. V25 예약 재고 컷오버 preflight one-shot 실행
+6. kafka-topic-init one-shot 실행
+7. 기존 Debezium과 connector monitor 중지
+8. 애플리케이션과 동일한 Flyway 11.7.2로 V1~현재 migration 적용
+9. Debezium 기동 및 health 대기
+10. debezium-connector-init one-shot 실행
+11. debezium-connector-monitor 기동 및 health 대기
+12. app 교체와 health 대기
+13. Nginx 교체, config 검증, Docker network 내부 app health 검증
 
-5번, 7번, 9번은 app의 depends_on에만 맡기지 않고 CD가 명시적으로 실행한다. 따라서
+5번, 6번, 8번, 10번은 app의 depends_on에만 맡기지 않고 CD가 명시적으로 실행한다. 따라서
 기존 producer를 닫은 뒤 schema를 먼저 적용하고, 새 outbox column 계약을 이해하는
 connector가 RUNNING이 된 뒤에만 Kafka listener를 시작한다. 기존 airbob-app이나 nginx
 container가 없는 첫 배포도 같은 순서를 사용한다.
+
+V25는 기존 예약 행을 날짜 재고로 추측해 변환하지 않는 의도적인 hard cutover다. 최초
+cutover에서만 preflight는 이전 app/Nginx를 중지한 뒤 `reservation`이 0건인지 확인한다.
+V26 `accommodation_inventory_day`가 이미 존재하는 후속 배포는 정상 예약 데이터를 허용하고
+zero-data 검사를 건너뛴다. 모든 배포에서 `PUBLISHED` 숙소에는 `CET` 같은
+single-segment 식별자도 포함하는 최소한 형식상 유효한 `time_zone_id`가 있어야 한다.
+IANA ZoneId의 완전한 유효성은 새 애플리케이션의
+기동 bootstrap이 다시 검증하고, 실패하면 health가 열리지 않는다. preflight 실패를 Flyway로
+넘기지 않아 V25 guard 실패를 `repair`해야 하는 정상 운영 시나리오를 만들지 않는다.
+
+운영 `aws`/`oci` profile은 inventory startup과 rolling seed를 둘 다 필수로 검증한다.
+`test`와 읽기 전용 `performance-lab`만 lifecycle 비활성화와 readiness 우회를 허용한다.
+OCI app이 실행 중인 채 bootstrap으로 health가 `unhealthy`여도 배포 스크립트는 전체
+readiness 기한을 기다리며, container가 `exited` 또는 `dead`일 때만 즉시 실패한다.
+
+최초 cutover 검사는 DB만으로 이전 writer를 fence한다고 주장하지 않는다. V26 table이 아직
+없다면 배포 전에 이 Compose stack 밖의 V24 이하 app, batch, 관리 SQL writer를 모두 중지하고
+DB writer 자격 증명 사용을 통제해야 한다. preflight를 통과한 뒤 current app이 healthy가 될
+때까지 그런 writer를 다시 시작하면 안 된다. 최초 cutover 전에 데이터가 있다면 migration을
+강행하지 말고 별도 검증된 backfill 계획을 먼저 수립한다.
 
 수동으로 같은 reviewed script를 실행할 때는 immutable image tag를 넘긴다.
 
@@ -64,22 +88,23 @@ container가 없는 첫 배포도 같은 순서를 사용한다.
 | 실패 시점 | 자동 동작 | 운영 조치 |
 | --- | --- | --- |
 | config 검증·image pull | script가 실패하고 기존 app/Nginx는 건드리지 않는다 | 원인을 고친 뒤 같은 SHA 또는 수정 SHA로 재실행한다 |
-| admission 차단 이후 | app과 Nginx를 중지한 채 실패한다 | migration/connector 상태를 확인하고 V18~현재 contract를 이해하는 binary로 roll-forward한다 |
+| V25 preflight 실패 | app과 Nginx를 중지하지만 Flyway는 실행하지 않는다 | 남은 writer와 데이터·시간대를 확인한다. 자동 V24 재시작은 하지 않으며 명시적 운영 판단 뒤 재개한다 |
+| Flyway 시작 이후 | app과 Nginx를 중지한 채 실패한다 | migration/connector 상태를 확인하고 V25 cutover·V26 inventory·현재 V27 index를 이해하는 current binary로 roll-forward한다 |
 
 Nginx와 기존 app을 중지한 뒤 별도 Flyway container가 migration을 적용한다. Flyway가
 성공하기 전에는 새 EventRouter connector를 등록하지 않는다. 이 경계를 넘은 뒤 CD는
-이전 image ID를 찾거나 pre-V18 binary로 자동 rollback하지 않는다.
+이전 image ID를 찾거나 pre-V25 binary로 자동 rollback하지 않는다.
 다음 순서를 사용한다.
 
 1. nginx가 중지됐는지 확인하고 별도 ingress가 있다면 함께 차단한다.
 2. DB schema version과 app health 실패 유형을 확인한다. secret, provider body,
    connector raw trace는 일반 로그나 티켓에 붙이지 않는다.
 3. connector monitor와 Kafka topic은 유지한다.
-4. 같은 V18+ contract를 이해하는 수정 image를 build/push한다.
+4. V25 cutover와 V26 inventory를 이해하고 현재 V27 schema에 맞는 수정 image를 build/push한다.
 5. CD 또는 deploy-oci.sh로 roll-forward하고 app health가 통과한 뒤에만 Nginx를 연다.
 6. QUEUED, EXECUTING, WAITING_RETRY, MANUAL_REVIEW 상태를 결제 런북으로 점검한다.
 
-V18 이후 schema, outbox row, Kafka topic, Connect offset/schema history를 이전 binary에
+V25 이후 schema와 날짜 재고, outbox row, Kafka topic, Connect offset/schema history를 이전 binary에
 맞추려고 삭제하지 않는다.
 
 ## Connector 지속 감시

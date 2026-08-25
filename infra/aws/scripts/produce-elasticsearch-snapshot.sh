@@ -454,13 +454,14 @@ jq -se \
       test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
     (.verifierContractInventorySha256 | sha256) and
     (.databaseFingerprintSubsetSha256 | sha256) and
-    .flywayVersion == "20" and
-    .flywayHistoryRows == 20 and
+    .flywayVersion == "27" and
+    .flywayHistoryRows == 27 and
     (.migrationChecksumSha256 | sha256) and
     (.schemaFingerprintSha256 | sha256) and
     .outboxState == "empty" and
     (.expectedTableRows | type == "object" and length > 0) and
-    .expectedTableRows.flyway_schema_history == 20 and
+    (.expectedTableRows | has("accommodation_inventory_day") and has("reservation")) and
+    .expectedTableRows.flyway_schema_history == 27 and
     .expectedTableRows.outbox == 0 and
     (.expectedTableRows.accommodation | type == "number" and floor == . and . >= 0) and
     all(.expectedTableRows | to_entries[];
@@ -469,7 +470,7 @@ jq -se \
     ) and
     (.capturedAt | fromdateiso8601 | type == "number")
   )
-' "$attestation_file" >/dev/null || fail 'dataset attestation does not bind the exact V20 ETL release'
+' "$attestation_file" >/dev/null || fail 'dataset attestation does not bind the exact V27 ETL release'
 
 expected_image_keys='["DEBEZIUM_IMAGE","ELASTICSEARCH_EXPORTER_IMAGE","ELASTICSEARCH_IMAGE","GRAFANA_IMAGE","KAFKA_IMAGE","NODE_EXPORTER_IMAGE","PROMETHEUS_IMAGE","REDIS_EXPORTER_IMAGE","REDIS_IMAGE"]'
 jq -se \

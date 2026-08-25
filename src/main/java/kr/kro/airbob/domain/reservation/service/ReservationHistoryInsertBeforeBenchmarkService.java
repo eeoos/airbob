@@ -12,6 +12,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryRepository historyRepository;
+	private final ReservationInventoryService inventoryService;
 	private final Clock clock;
 
 	@Transactional
@@ -44,6 +46,12 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 
 		expiredList.forEach(reservation -> {
 			log.warn("예약 ID {}가 결제 시간 초과로 만료 처리됩니다.", reservation.getId());
+			inventoryService.releaseHeldIfOwned(
+				reservation.getAccommodation().getId(),
+				reservation.getCheckInDate(),
+				reservation.getCheckOutDate(),
+				reservation.getId()
+			);
 			reservation.expire();
 
 			historyRepository.save(

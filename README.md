@@ -21,7 +21,7 @@
 ## Tech Stack
 
 - Java 21, Spring Boot 3.5.8, Spring Data JPA, QueryDSL
-- MySQL 8, Flyway V1~V23
+- MySQL 8, Flyway V1~V27
 - Redis: 세션, 최근 본 숙소, 쿠폰 재고, 조회 캐시
 - Apache Kafka, Debezium Outbox Event Router
 - Elasticsearch, Nori analyzer, versioned index alias
@@ -30,17 +30,30 @@
 
 ## 핵심 문제와 현재 해법
 
-### 예약 중복: MySQL을 단일 진실의 원천으로 사용
+### 예약 중복: 날짜별 MySQL inventory를 단일 진실의 원천으로 사용
 
-같은 숙소의 겹치는 숙박일 요청은 별도 임시 재고나 분산 락에 의존하지 않습니다.
-트랜잭션이 숙소 행을 `FOR UPDATE`로 잠근 뒤, 겹치는 재고 점유 예약을 current read로
-재검증하고 예약을 저장합니다. 숙소 행이 동일 숙소의 재고 mutex이므로 애플리케이션
-인스턴스 수와 관계없이 판단 순서가 직렬화됩니다.
+검색·요청사항·쿠폰 입력 중에는 재고를 잡지 않습니다. 먼저 5분짜리 quote로 현재 가격과
+가능 여부를 확인하고, 사용자가 결제로 이동할 때 멱등 checkout이 예약과 15분 hold를 같은
+트랜잭션에서 만듭니다. 응답에는 서버 시각과 절대 만료시각이 포함되므로 클라이언트 타이머가
+재고의 권위가 되지 않습니다.
+
+숙박일 `[checkIn, checkOut)`은 `accommodation_inventory_day`의 날짜 행으로 미리 준비합니다.
+checkout은 요청한 날짜 행만 PK 순서로 `FOR UPDATE NOWAIT`하고, 모두 사용 가능할 때에만 한
+reservation owner에게 원자적으로 할당합니다. 결제 대기는 `HOLD(expiresAt)`, 결제 시작 이후와
+확정·취소 처리 중은 `OCCUPIED`입니다. 만료된 HOLD는 새 checkout이 같은 잠금 안에서 인수할 수
+있고, 오래된 cleanup은 여전히 자신이 소유한 HOLD만 해제합니다.
+
+DB connection pool 앞에는 인스턴스별 bounded admission을 둡니다. 기본 네 checkout만 DB 경로에
+들어가며, 포화 요청은 기다리지 않고 `503/R025`와 `Retry-After`를 받습니다. 이 admission은 부하
+차단일 뿐 중복 방지의 권위가 아닙니다. 프로세스를 우회하거나 여러 인스턴스가 실행돼도 최종
+판정은 MySQL 날짜 행과 트랜잭션이 담당합니다. Redis는 세션·캐시·쿠폰 같은 별도 용도에 남아
+있지만 예약 정합성 락으로 사용하지 않습니다.
 
 - 권위 트랜잭션: [ReservationTransactionService.java](src/main/java/kr/kro/airbob/domain/reservation/service/ReservationTransactionService.java)
-- 숙소 mutex: [AccommodationRepository.java](src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationRepository.java)
-- 겹침 current read: [ReservationRepositoryImpl.java](src/main/java/kr/kro/airbob/domain/reservation/repository/impl/ReservationRepositoryImpl.java)
-- 50개 동시 요청 회귀 테스트: [ReservationConcurrencyTest.java](src/test/java/kr/kro/airbob/domain/reservation/ReservationConcurrencyTest.java)
+- 날짜 inventory 전이: [ReservationInventoryService.java](src/main/java/kr/kro/airbob/domain/reservation/inventory/ReservationInventoryService.java)
+- checkout admission: [ReservationCheckoutAdmission.java](src/main/java/kr/kro/airbob/domain/reservation/admission/ReservationCheckoutAdmission.java)
+- seed·readiness: [AccommodationInventoryStartupBootstrap.java](src/main/java/kr/kro/airbob/domain/reservation/inventory/AccommodationInventoryStartupBootstrap.java)
+- 동일 날짜 300개 요청 회귀 테스트: [ReservationConcurrencyTest.java](src/test/java/kr/kro/airbob/domain/reservation/ReservationConcurrencyTest.java)
 
 ```mermaid
 sequenceDiagram
@@ -53,14 +66,13 @@ sequenceDiagram
         A->>API: 예약 생성
         B->>API: 예약 생성
     end
-    API->>DB: A - accommodation FOR UPDATE
-    API->>DB: B - accommodation FOR UPDATE (wait)
-    API->>DB: A - overlap current read
-    API->>DB: A - reservation INSERT + COMMIT
-    DB-->>API: B - accommodation lock 획득
-    API->>DB: B - overlap current read
-    API-->>B: ReservationConflict
-    API-->>A: PAYMENT_PENDING
+    API->>API: bounded admission (즉시 성공 또는 busy)
+    API->>DB: published accommodation FOR SHARE NOWAIT
+    API->>DB: A - requested inventory days FOR UPDATE NOWAIT
+    API->>DB: B - same inventory days NOWAIT → busy
+    API->>DB: A - reservation INSERT + days=HOLD + COMMIT
+    API-->>B: 503 R025 또는 재시도 시 R002
+    API-->>A: PAYMENT_PENDING + holdExpiresAt
 ```
 
 ### 결제 승인·취소: 비동기 PaymentOperation 오케스트레이션
@@ -263,6 +275,7 @@ Elasticsearch 정합성 테스트는 Testcontainers를 사용합니다.
 
 ## 운영 문서
 
+- [예약 날짜 inventory 최초 컷오버·readiness](docs/reservation-inventory-cutover.md)
 - [결제 작업·수동 해결·롤백](docs/payment-operation-runbook.md)
 - [Transactional Outbox 보관·Connect 점검](docs/outbox-operations.md)
 - [숙소 색인과 DLT](docs/accommodation-indexing-operations.md)

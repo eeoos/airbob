@@ -31,6 +31,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -59,7 +60,8 @@ import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryInvariantViolationException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
@@ -112,6 +114,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 
 	@Autowired private AdjustableClock clock;
 	@Autowired private PlatformTransactionManager transactionManager;
+	@Autowired private JdbcTemplate jdbc;
 	@Autowired private PaymentOperationCommandService commandService;
 	@Autowired private ReservationTransactionService reservationTransactionService;
 	@Autowired private PaymentOperationRepository paymentOperationRepository;
@@ -155,7 +158,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("신규 예약이 먼저 커밋되면 대기하던 결제 승인은 overlap 재검증으로 롤백된다")
+	@DisplayName("만료 HOLD를 신규 예약이 먼저 인수하면 대기하던 결제 승인은 소유권 검증으로 롤백된다")
 	void createCommitsFirst_confirmationRollsBack() throws Exception {
 		CountDownLatch createPrepared = new CountDownLatch(1);
 		CountDownLatch allowCreateCommit = new CountDownLatch(1);
@@ -180,7 +183,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		}
 
 		create.get(10, TimeUnit.SECONDS);
-		assertFutureFailedWith(confirmation, ReservationConflictException.class);
+		assertFutureFailedWith(
+			confirmation, ReservationInventoryInvariantViolationException.class);
 		assertThat(reservationRepository.findByReservationUid(pendingReservation.getReservationUid())
 			.orElseThrow().getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		assertThat(reservationRepository.count()).isEqualTo(2);
@@ -188,7 +192,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("결제 승인이 먼저 커밋되면 대기하던 신규 예약은 충돌로 롤백된다")
+	@DisplayName("결제 승인이 inventory를 잡고 있으면 신규 예약은 NOWAIT busy로 빠르게 롤백된다")
 	void confirmationCommitsFirst_createRollsBack() throws Exception {
 		CountDownLatch confirmationPrepared = new CountDownLatch(1);
 		CountDownLatch allowConfirmationCommit = new CountDownLatch(1);
@@ -206,14 +210,10 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		clock.set(NEW_RESERVATION_REQUESTED_AT);
 		Future<?> create = executor.submit(this::createCompetingReservation);
 
-		try {
-			assertBlocked(create);
-		} finally {
-			allowConfirmationCommit.countDown();
-		}
+		assertFutureFailedWith(create, ReservationInventoryBusyException.class);
+		allowConfirmationCommit.countDown();
 
 		confirmation.get(10, TimeUnit.SECONDS);
-		assertFutureFailedWith(create, ReservationConflictException.class);
 		assertThat(reservationRepository.findByReservationUid(pendingReservation.getReservationUid())
 			.orElseThrow().getStatus()).isEqualTo(ReservationStatus.PAYMENT_PROCESSING);
 		assertThat(reservationRepository.count()).isOne();
@@ -221,8 +221,8 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("결제 승인은 커밋할 때까지 숙소 재고 mutex를 보유한다")
-	void confirmationHoldsAccommodationInventoryMutexUntilCommit() throws Exception {
+	@DisplayName("결제 승인은 커밋할 때까지 해당 날짜 inventory 행 잠금을 보유한다")
+	void confirmationHoldsInventoryDayRowsUntilCommit() throws Exception {
 		CountDownLatch confirmationPrepared = new CountDownLatch(1);
 		CountDownLatch allowConfirmationCommit = new CountDownLatch(1);
 
@@ -235,18 +235,25 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		}));
 		awaitPrepared(confirmationPrepared, confirmation);
 
-		Future<?> accommodationLockProbe = executor.submit(() ->
-			transactionTemplate.executeWithoutResult(status ->
-				accommodationRepository.findByIdForUpdate(accommodation.getId()).orElseThrow()));
+		Future<?> inventoryLockProbe = executor.submit(() ->
+			transactionTemplate.executeWithoutResult(status -> jdbc.queryForList("""
+				SELECT stay_date
+				FROM accommodation_inventory_day
+				WHERE accommodation_id = ?
+				  AND stay_date >= ?
+				  AND stay_date < ?
+				ORDER BY stay_date
+				FOR UPDATE
+				""", LocalDate.class, accommodation.getId(), STAY_START, STAY_END)));
 
 		try {
-			assertBlocked(accommodationLockProbe);
+			assertBlocked(inventoryLockProbe);
 		} finally {
 			allowConfirmationCommit.countDown();
 		}
 
 		confirmation.get(10, TimeUnit.SECONDS);
-		accommodationLockProbe.get(10, TimeUnit.SECONDS);
+		inventoryLockProbe.get(10, TimeUnit.SECONDS);
 	}
 
 	private void createFixture() {
@@ -286,6 +293,16 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.expiresAt(RESERVATION_EXPIRES_AT)
 			.build());
+
+		jdbc.batchUpdate("""
+			INSERT INTO accommodation_inventory_day (
+			  accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, ?, 'HOLD', ?, ?)
+			""", STAY_START.datesUntil(STAY_END)
+			.map(stayDate -> new Object[] {
+				accommodation.getId(), stayDate, pendingReservation.getId(), RESERVATION_EXPIRES_AT
+			})
+			.toList());
 	}
 
 	private void createCompetingReservation() {
@@ -308,6 +325,7 @@ class PaymentConfirmationInventoryBoundaryIntegrationTest {
 		outboxRepository.deleteAllInBatch();
 		paymentOperationRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
+		jdbc.update("DELETE FROM accommodation_inventory_day");
 		reservationRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();

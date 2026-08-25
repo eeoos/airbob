@@ -254,8 +254,8 @@ resolve_release_inputs() {
     .schemaVersion == 1 and
     .datasetRelease == $expectedRelease and
     (.releaseKind == "pipeline-rehearsal" or .releaseKind == "evidence") and
-    .mysql.flywayVersion == "20" and
-    .mysql.expectedTableRows.flyway_schema_history == 20 and
+    .mysql.flywayVersion == "27" and
+    .mysql.expectedTableRows.flyway_schema_history == 27 and
     ([.. | objects | keys[]] |
       all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
   ' "$dataset_manifest" >/dev/null || fail "dataset completion manifest is invalid"

@@ -110,7 +110,7 @@ write_release() {
   printf '%s\n' 'CREATE TABLE exact_dump_binding (id BIGINT PRIMARY KEY);' \
     | gzip -n > "$root/airbob-production-seed.sql.gz"
   : > "$root/backend-migrations.sha256"
-  for migration_version in 10 11 12 13 14 15 16 17 18 19 1 20 2 3 4 5 6 7 8 9; do
+  for migration_version in 10 11 12 13 14 15 16 17 18 19 1 20 21 22 23 24 25 26 27 2 3 4 5 6 7 8 9; do
     printf '%s  ./V%s__migration_%s.sql\n' \
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
       "$migration_version" \
@@ -119,7 +119,7 @@ write_release() {
   done
   migration_stream="$root/.traffic-migration-canonical"
   : > "$migration_stream"
-  for migration_version in $(seq 1 20); do
+  for migration_version in $(seq 1 27); do
     printf '%s|V%s__migration_%s.sql|%s\n' \
       "$migration_version" \
       "$migration_version" \
@@ -134,7 +134,7 @@ write_release() {
     {
       datasetVersion: "traffic-v1",
       datasetRunId: "20260817T000000Z-12345678",
-      schema: {flywayVersion: "20", migrationDigest: $migrationDigest},
+      schema: {flywayVersion: "27", migrationDigest: $migrationDigest},
       cohorts: [range(0; 27) as $index |
         {accounts: [{email: ("traffic-" + ($index | tostring) + "@airbob.cloud")}]}]
     }
@@ -160,11 +160,11 @@ write_release() {
     printf 'traffic_manifest_sha256=%s\n' "$traffic_sha"
     printf '%s\n' 'traffic_dataset_version=traffic-v1'
     printf '%s\n' 'traffic_dataset_run_id=20260817T000000Z-12345678'
-    printf '%s\n' 'traffic_flyway_version=20'
+    printf '%s\n' 'traffic_flyway_version=27'
     printf 'traffic_migration_digest=%s\n' "$migration_digest"
     printf '%s\n' 'fingerprint=database-fingerprint.tsv'
     printf '%s\n' 'required_rows=201'
-    printf '%s\n' 'recovery=reset-flyway-v1-v20-etl-reseed-before-traffic'
+    printf '%s\n' 'recovery=reset-flyway-v1-v27-etl-reseed-before-traffic'
   } > "$root/release-metadata.txt"
 
   write_checksums "$root"
@@ -201,14 +201,17 @@ write_fake_mysql() {
   printf '%s\n' '  "SET GLOBAL super_read_only = ON;") : > "$AIRBOB_FAKE_READONLY_MARKER" ;;' >> "$tmp_dir/bin/mysql"
   printf '%s\n' '  *"LOWER(@@server_uuid)"*) printf "%s\t%s\t%s\n" "${AIRBOB_FAKE_SERVER_UUID:-00112233-4455-6677-8899-aabbccddeeff}" "${AIRBOB_FAKE_READ_ONLY:-1}" "${AIRBOB_FAKE_SUPER_READ_ONLY:-1}" ;;' >> "$tmp_dir/bin/mysql"
   printf '%s\n' '  *"production-contract-marker"*"traffic-contract-marker"*) if [[ -n "${AIRBOB_FAKE_LINEAGE_DRIFT_MARKER:-}" && -e "$AIRBOB_FAKE_LINEAGE_DRIFT_MARKER" ]]; then sed "s/^traffic_public_detail_overlap_count[[:space:]]*0$/traffic_public_detail_overlap_count\t1/" "$AIRBOB_FAKE_VERIFICATION_OUTPUT"; else [[ -z "${AIRBOB_FAKE_LINEAGE_DRIFT_MARKER:-}" ]] || : > "$AIRBOB_FAKE_LINEAGE_DRIFT_MARKER"; cat "$AIRBOB_FAKE_VERIFICATION_OUTPUT"; fi ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"COUNT(*) AS history_rows"*) printf "%b\n" "${AIRBOB_FAKE_FLYWAY_SUMMARY:-20\\t20\\t20\\t0}" ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"SELECT installed_rank, COALESCE(version,"*) for rank in $(seq 1 20); do printf "%s\t%s\tmigration %s\tSQL\tV%s__migration_%s.sql\t%s\t1\n" "$rank" "$rank" "$rank" "$rank" "$rank" "$rank"; done ;;' >> "$tmp_dir/bin/mysql"
+  printf '%s\n' '  *"COUNT(*) AS history_rows"*) printf "%b\n" "${AIRBOB_FAKE_FLYWAY_SUMMARY:-27\\t27\\t27\\t0}" ;;' >> "$tmp_dir/bin/mysql"
+  printf '%s\n' '  *"SELECT installed_rank, COALESCE(version,"*) for rank in $(seq 1 27); do printf "%s\t%s\tmigration %s\tSQL\tV%s__migration_%s.sql\t%s\t1\n" "$rank" "$rank" "$rank" "$rank" "$rank" "$rank"; done ;;' >> "$tmp_dir/bin/mysql"
   printf '%s\n' '  *"FROM information_schema.COLUMNS"*"UNION ALL"*) printf "INDEX\t62\t69\t31\t3C4E554C4C3E\t30\t41\t3C4E554C4C3E\t\t4254524545\t594553\t3C4E554C4C3E\nCOLUMN\t61\t62\t31\t62\t626967696E74\t4E4F\t3C4E554C4C3E\t\t3C4E554C4C3E\t3C4E554C4C3E\t\n" ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"FROM information_schema.TABLES"*) printf "accommodation\nflyway_schema_history\noutbox\n" ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"SELECT COUNT(*) FROM outbox"*) printf "%s\n" "${AIRBOB_FAKE_OUTBOX_COUNT:-0}" ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"SELECT COUNT(*) FROM "*"accommodation"*) if [[ -n "${AIRBOB_FAKE_MUTATION_MARKER:-}" ]]; then if [[ -e "$AIRBOB_FAKE_MUTATION_MARKER" ]]; then printf "202\n"; else : > "$AIRBOB_FAKE_MUTATION_MARKER"; printf "201\n"; fi; else printf "%s\n" "${AIRBOB_FAKE_ACCOMMODATION_ROWS:-201}"; fi ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"SELECT COUNT(*) FROM "*"flyway_schema_history"*) printf "20\n" ;;' >> "$tmp_dir/bin/mysql"
-  printf '%s\n' '  *"SELECT COUNT(*) FROM "*"outbox"*) printf "%s\n" "${AIRBOB_FAKE_OUTBOX_COUNT:-0}" ;;' >> "$tmp_dir/bin/mysql"
+  printf '%s\n' '  *"FROM information_schema.TABLES"*) printf "accommodation\naccommodation_inventory_day\nflyway_schema_history\noutbox\nreservation\n" ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"SELECT COUNT(*) FROM outbox"*) printf "%s\n" "${AIRBOB_FAKE_OUTBOX_COUNT:-0}" ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"time_zone_id NOT REGEXP"*) printf "%s\n" "${AIRBOB_FAKE_INVALID_PUBLISHED_TIMEZONES:-0}" ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"SELECT COUNT(*) FROM "*"accommodation_inventory_day"*) printf "0\n" ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"SELECT COUNT(*) FROM "*"accommodation"*) if [[ -n "${AIRBOB_FAKE_MUTATION_MARKER:-}" ]]; then if [[ -e "$AIRBOB_FAKE_MUTATION_MARKER" ]]; then printf "202\n"; else : > "$AIRBOB_FAKE_MUTATION_MARKER"; printf "201\n"; fi; else printf "%s\n" "${AIRBOB_FAKE_ACCOMMODATION_ROWS:-201}"; fi ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"SELECT COUNT(*) FROM "*"flyway_schema_history"*) printf "27\n" ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"SELECT COUNT(*) FROM "*"outbox"*) printf "%s\n" "${AIRBOB_FAKE_OUTBOX_COUNT:-0}" ;;' >> "$tmp_dir/bin/mysql"
+	printf '%s\n' '  *"SELECT COUNT(*) FROM "*"reservation"*) printf "0\n" ;;' >> "$tmp_dir/bin/mysql"
   printf '%s\n' '  *) exit 92 ;;' >> "$tmp_dir/bin/mysql"
   printf '%s\n' 'esac' >> "$tmp_dir/bin/mysql"
   chmod 700 "$tmp_dir/bin/mysql"
@@ -309,15 +312,17 @@ jq -e \
   .databaseServerUuid == "00112233-4455-6677-8899-aabbccddeeff" and
   .verifierContractInventorySha256 == $verifierContractInventorySha256 and
   .databaseFingerprintSubsetSha256 == $databaseFingerprintSubsetSha256 and
-  .flywayVersion == "20" and
-  .flywayHistoryRows == 20 and
+  .flywayVersion == "27" and
+  .flywayHistoryRows == 27 and
   (.migrationChecksumSha256 | test("^[0-9a-f]{64}$")) and
   (.schemaFingerprintSha256 | test("^[0-9a-f]{64}$")) and
   .outboxState == "empty" and
   .expectedTableRows == {
     accommodation: 201,
-    flyway_schema_history: 20,
-    outbox: 0
+    accommodation_inventory_day: 0,
+    flyway_schema_history: 27,
+    outbox: 0,
+    reservation: 0
   } and
   .capturedAt == "2026-08-17T03:04:05Z"
 ' "$tmp_dir/attestation.json" >/dev/null || fail 'attestation JSON contract mismatch'
@@ -329,9 +334,9 @@ else
 fi
 [[ "$output_mode" == 600 ]] || fail 'attestation output mode is not 0600'
 
-[[ $(grep -c '^ARGS ' "$tmp_dir/mysql.log") -eq 24 ]] || fail 'unexpected MySQL query count'
+[[ $(grep -c '^ARGS ' "$tmp_dir/mysql.log") -eq 29 ]] || fail 'unexpected MySQL query count'
 [[ $(grep -c '^IMPORT ' "$tmp_dir/mysql.log") -eq 1 ]] || fail 'exactly one dump import is required'
-[[ $(grep -c '<airbobdb>' "$tmp_dir/mysql.log") -eq 25 ]] || fail 'every database operation must explicitly select airbobdb'
+[[ $(grep -c '<airbobdb>' "$tmp_dir/mysql.log") -eq 30 ]] || fail 'every database operation must explicitly select airbobdb'
 ! grep -En -- '--password|attestation-test-password' "$tmp_dir/mysql.log" >/dev/null \
   || fail 'database password reached MySQL argv/query logs'
 ! grep -En -- 'restore-test-password' "$tmp_dir/mysql.log" >/dev/null \
@@ -364,8 +369,11 @@ for required_query in \
   "TABLE_SCHEMA = 'airbobdb'" \
   "TABLE_TYPE = 'BASE TABLE'" \
   'SELECT COUNT(*) FROM `accommodation`' \
+	'SELECT COUNT(*) FROM `accommodation_inventory_day`' \
   'SELECT COUNT(*) FROM `flyway_schema_history`' \
-  'SELECT COUNT(*) FROM `outbox`'; do
+	'SELECT COUNT(*) FROM `outbox`' \
+	'SELECT COUNT(*) FROM `reservation`' \
+		"time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'"; do
   grep -Fq -- "$required_query" "$tmp_dir/mysql.log" || fail "missing exact query contract: $required_query"
 done
 
@@ -571,17 +579,21 @@ expect_failure unstable-database run_capture \
   "$tmp_dir/release" "$tmp_dir/unstable-database.json" \
   AIRBOB_FAKE_MUTATION_MARKER="$tmp_dir/mutation.marker"
 
-expect_failure v19-history run_capture \
-  "$tmp_dir/release" "$tmp_dir/v19.json" \
-  AIRBOB_FAKE_FLYWAY_SUMMARY='19\t20\t20\t0'
+expect_failure v26-history run_capture \
+	"$tmp_dir/release" "$tmp_dir/v26.json" \
+	AIRBOB_FAKE_FLYWAY_SUMMARY='26\t27\t27\t0'
 
 expect_failure semantic-lineage-drift run_capture \
   "$tmp_dir/release" "$tmp_dir/semantic-lineage-drift.json" \
   AIRBOB_FAKE_LINEAGE_DRIFT_MARKER="$tmp_dir/lineage-drift.marker"
 
 expect_failure history-row-mismatch run_capture \
-  "$tmp_dir/release" "$tmp_dir/history-row-mismatch.json" \
-  AIRBOB_FAKE_FLYWAY_SUMMARY='20\t21\t20\t0'
+	"$tmp_dir/release" "$tmp_dir/history-row-mismatch.json" \
+	AIRBOB_FAKE_FLYWAY_SUMMARY='27\t28\t27\t0'
+
+expect_failure invalid-published-timezone run_capture \
+	"$tmp_dir/release" "$tmp_dir/invalid-published-timezone.json" \
+	AIRBOB_FAKE_INVALID_PUBLISHED_TIMEZONES=1
 
 expect_failure nonempty-outbox run_capture \
   "$tmp_dir/release" "$tmp_dir/nonempty-outbox.json" \
@@ -592,7 +604,7 @@ expect_failure insufficient-accommodation-capacity run_capture \
   AIRBOB_FAKE_ACCOMMODATION_ROWS=200
 
 write_fake_mysql
-sed 's/printf "accommodation\\nflyway_schema_history\\noutbox\\n"/printf "unsafe-name\\n"/' \
+sed 's/printf "accommodation\\naccommodation_inventory_day\\nflyway_schema_history\\noutbox\\nreservation\\n"/printf "unsafe-name\\n"/' \
   "$tmp_dir/bin/mysql" > "$tmp_dir/bin/mysql-unsafe"
 mv "$tmp_dir/bin/mysql-unsafe" "$tmp_dir/bin/mysql"
 chmod 700 "$tmp_dir/bin/mysql"

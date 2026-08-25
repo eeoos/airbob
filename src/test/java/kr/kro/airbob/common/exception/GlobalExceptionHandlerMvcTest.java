@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,6 +28,8 @@ import jakarta.validation.constraints.Size;
 import kr.kro.airbob.domain.accommodation.exception.PublishingFieldRequiredException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
+import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerMvcTest {
@@ -59,6 +62,17 @@ class GlobalExceptionHandlerMvcTest {
 	}
 
 	@Test
+	void mapsOccupiedReservationDatesToConflictWithoutWarning(CapturedOutput output)
+		throws Exception {
+		mockMvc.perform(get("/test/errors/reservation-conflict"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.error.code").value("R002"))
+			.andExpect(jsonPath("$.error.status").value(409));
+
+		assertThat(output).doesNotContain("R002");
+	}
+
+	@Test
 	void keepsExpectedPaymentOperationRequestConflictsAsConflict() throws Exception {
 		mockMvc.perform(get("/test/errors/payment-conflict"))
 			.andExpect(status().isConflict())
@@ -72,6 +86,22 @@ class GlobalExceptionHandlerMvcTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("A009"))
 			.andExpect(jsonPath("$.error.status").value(400));
+	}
+
+	@Test
+	void mapsInventoryContentionToRetryableBusyWithoutLeakingDatabaseCause(
+		CapturedOutput output
+	) throws Exception {
+		mockMvc.perform(get("/test/errors/reservation-inventory-busy"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(header().string("Retry-After", "1"))
+			.andExpect(jsonPath("$.error.code").value("R025"))
+			.andExpect(jsonPath("$.error.status").value(503))
+			.andExpect(content().string(not(containsString(SENSITIVE_PROVIDER_DETAIL))));
+
+		assertThat(output)
+			.doesNotContain("R025")
+			.doesNotContain(SENSITIVE_PROVIDER_DETAIL);
 	}
 
 	@Test
@@ -110,6 +140,17 @@ class GlobalExceptionHandlerMvcTest {
 		@GetMapping("/test/errors/publishing-field")
 		void publishingField() {
 			throw new PublishingFieldRequiredException("title");
+		}
+
+		@GetMapping("/test/errors/reservation-inventory-busy")
+		void reservationInventoryBusy() {
+			throw new ReservationInventoryBusyException(
+				new IllegalStateException(SENSITIVE_PROVIDER_DETAIL));
+		}
+
+		@GetMapping("/test/errors/reservation-conflict")
+		void reservationConflict() {
+			throw new ReservationConflictException();
 		}
 
 		@PostMapping("/test/errors/validation/ordinary")

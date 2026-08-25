@@ -45,7 +45,7 @@ assert_contains "$runner" 'app_query_per_request_queries_sum'
 assert_contains "$runner" 'api.airbob.cloud'
 assert_contains "$runner" "--if-none-match '*'"
 assert_contains "$runner" "SELECT version FROM airbobdb.flyway_schema_history WHERE success = 1 ORDER BY installed_rank DESC LIMIT 1"
-assert_contains "$runner" '.flywayVersion == "20"'
+assert_contains "$runner" '.flywayVersion == "27"'
 assert_contains "$runner" 'expected_flyway_version=$(jq -er '\''.flywayVersion'\'' "$bootstrap_receipt")'
 assert_contains "$runner" '--arg flywayVersion "$expected_flyway_version"'
 assert_contains "$makefile" 'aws-discovery:'
@@ -138,7 +138,7 @@ jq -n --arg sha "$benchmark_sha" '{source:{benchmarkManifestSha256:$sha}}' > "$t
 dataset_sha=$(sha256_file "$temp_dir/objects/dataset.json")
 printf '%s  %s\n' "$(printf 'd%.0s' {1..64})" airbob.sql.zst > "$temp_dir/objects/mysql-sha256.txt"
 jq -n --arg run phase3-test --arg release rehearsal-v20 --arg sha "$dataset_sha" \
-  '{schemaVersion:1,runId:$run,datasetRelease:$release,releaseKind:"pipeline-rehearsal",datasetManifestSha256:$sha,flywayVersion:"20",outboxState:"empty"}' \
+  '{schemaVersion:1,runId:$run,datasetRelease:$release,releaseKind:"pipeline-rehearsal",datasetManifestSha256:$sha,flywayVersion:"27",outboxState:"empty"}' \
   > "$temp_dir/objects/receipt.json"
 jq -n --arg run phase3-test --arg bundle "$harness_commit" --arg digest "$image_digest" \
   --arg release rehearsal-v20 --arg datasetSha "$dataset_sha" \
@@ -174,7 +174,7 @@ cp "$temp_dir/objects/idle-before.jsonl" "$temp_dir/objects/idle-after.jsonl"
 cp "$temp_dir/objects/idle-before.jsonl" "$temp_dir/objects/before.jsonl"
 write_snapshot "$temp_dir/objects/after.jsonl" 11 1100000000 11 11
 printf '%s\n' '{"schemaVersion":1,"startEpochMs":1000,"endEpochMs":11000}' > "$temp_dir/objects/window.json"
-printf '%s\n' '{"schemaVersion":1,"flywayVersion":"20"}' > "$temp_dir/objects/flyway-before.json"
+printf '%s\n' '{"schemaVersion":1,"flywayVersion":"27"}' > "$temp_dir/objects/flyway-before.json"
 cp "$temp_dir/objects/flyway-before.json" "$temp_dir/objects/flyway-after.json"
 jq -n --arg sha "$benchmark_sha" --arg commit "$app_commit" '
   {

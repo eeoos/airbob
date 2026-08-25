@@ -6,11 +6,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -42,6 +45,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
@@ -53,10 +57,14 @@ class PaymentOperationManualReviewCommandServiceTest {
 	private static final UUID OPERATION_UID = UUID.fromString("7621f641-6677-4a97-b626-85f3a697a0ae");
 	private static final UUID RESERVATION_UID = UUID.fromString("29a4332e-c560-4812-8705-5bc86be00f89");
 	private static final UUID ACCOMMODATION_UID = UUID.fromString("e282ab31-ef90-4ced-9810-5d3e1da42709");
+	private static final long ACCOMMODATION_ID = 31L;
 	private static final Instant NOW = Instant.parse("2026-08-17T02:00:00Z");
+	private static final LocalDate CHECK_IN = LocalDate.of(2026, 8, 18);
+	private static final LocalDate CHECK_OUT = LocalDate.of(2026, 8, 19);
 
 	@Mock private PaymentOperationRepository operationRepository;
 	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationInventoryService inventoryService;
 	@Mock private PaymentRepository paymentRepository;
 	@Mock private PaymentTransactionRepository transactionRepository;
 	@Mock private CouponUsageService couponUsageService;
@@ -71,16 +79,17 @@ class PaymentOperationManualReviewCommandServiceTest {
 	void setUp() {
 		PaymentOperationManualReviewTransactionService transactionService =
 			new PaymentOperationManualReviewTransactionService(
-			operationRepository,
-			reservationRepository,
-			paymentRepository,
-			transactionRepository,
-			couponUsageService,
-			historyRepository,
-			searchRefreshPublisher,
-			outboxWriter,
-			resolutionRecorder,
-			Clock.fixed(NOW, ZoneOffset.UTC));
+				operationRepository,
+				reservationRepository,
+				inventoryService,
+				paymentRepository,
+				transactionRepository,
+				couponUsageService,
+				historyRepository,
+				searchRefreshPublisher,
+				outboxWriter,
+				resolutionRecorder,
+				Clock.fixed(NOW, ZoneOffset.UTC));
 		service = new PaymentOperationManualReviewCommandService(
 			transactionService, new ImmediatePaymentOperationExecutionFence());
 	}
@@ -164,6 +173,13 @@ class PaymentOperationManualReviewCommandServiceTest {
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.DECLINED);
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+		InOrder lockOrder = inOrder(reservationRepository, inventoryService);
+		lockOrder.verify(reservationRepository).findByIdWithLock(reservation.getId());
+		lockOrder.verify(inventoryService).releaseOccupied(
+			ACCOMMODATION_ID,
+			CHECK_IN,
+			CHECK_OUT,
+			reservation.getId());
 		ArgumentCaptor<PaymentTransaction> ledger = ArgumentCaptor.forClass(PaymentTransaction.class);
 		then(transactionRepository).should().save(ledger.capture());
 		assertThat(ledger.getValue().getFailureCode()).isEqualTo("MANUAL_NOT_PAID_RESOLUTION");
@@ -208,6 +224,33 @@ class PaymentOperationManualReviewCommandServiceTest {
 			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
+		then(inventoryService).shouldHaveNoInteractions();
+		then(transactionRepository).should(never()).save(any());
+		then(resolutionRecorder).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void terminalLedgerBlocksMarkNotPaidBeforeInventoryRelease() {
+		PaymentOperation operation = manualReviewOperation(true);
+		Reservation reservation = operation.getReservation();
+		given(operationRepository.findByOperationUidWithLock(OPERATION_UID))
+			.willReturn(Optional.of(operation));
+		given(reservationRepository.findByIdWithLock(reservation.getId()))
+			.willReturn(Optional.of(reservation));
+		given(paymentRepository.findByReservationIdWithLock(reservation.getId()))
+			.willReturn(Optional.empty());
+		given(transactionRepository.existsByPaymentOperationId(operation.getId())).willReturn(true);
+
+		assertThatThrownBy(() -> service.markNotPaid(
+			OPERATION_UID,
+			99L,
+			4L,
+			PaymentOperationResolutionReason.PROVIDER_PAYMENT_NOT_FOUND,
+			"support-case/ABC-123"))
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
+
+		assertThat(operation.getStatus()).isEqualTo(PaymentOperationStatus.MANUAL_REVIEW);
+		then(inventoryService).shouldHaveNoInteractions();
 		then(transactionRepository).should(never()).save(any());
 		then(resolutionRecorder).shouldHaveNoInteractions();
 	}
@@ -240,13 +283,15 @@ class PaymentOperationManualReviewCommandServiceTest {
 
 	private PaymentOperation manualReviewOperation(boolean notPaidEligible) {
 		Accommodation accommodation = Accommodation.builder()
-			.id(31L)
+			.id(ACCOMMODATION_ID)
 			.accommodationUid(ACCOMMODATION_UID)
 			.build();
 		Reservation reservation = Reservation.builder()
 			.id(21L)
 			.reservationUid(RESERVATION_UID)
 			.accommodation(accommodation)
+			.checkInDate(CHECK_IN)
+			.checkOutDate(CHECK_OUT)
 			.status(ReservationStatus.PAYMENT_PROCESSING)
 			.totalPrice(100_000L)
 			.build();

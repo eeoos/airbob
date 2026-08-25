@@ -43,7 +43,7 @@ variables {
   bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
   bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   dataset_release            = "rehearsal-v20"
-  dataset_manifest_sha256    = "bff2552f6811e187527bf204cdb87f543826414c3085deab0a448a5123a5bfbc"
+  dataset_manifest_sha256    = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
   database_bootstrap         = "dump"
   rds_engine_version         = "8.0.40"
   app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -155,10 +155,10 @@ override_data {
       releaseKind             = "pipeline-rehearsal"
       databaseBootstrap       = "dump"
       dumpSha256              = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-      flywayVersion           = "20"
+      flywayVersion           = "27"
       migrationChecksumSha256 = "4444444444444444444444444444444444444444444444444444444444444444"
       schemaFingerprintSha256 = "5555555555555555555555555555555555555555555555555555555555555555"
-      datasetManifestSha256   = "bff2552f6811e187527bf204cdb87f543826414c3085deab0a448a5123a5bfbc"
+      datasetManifestSha256   = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
       rdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
       rdsEngineVersion        = "8.0.40"
       outboxState             = "empty"
@@ -212,8 +212,8 @@ run "restore_rds_only_from_matching_snapshot" {
         DatasetRelease = "rehearsal-v20"
         DatasetRunId   = "20260816T001530Z-12345678"
         DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion  = "20"
-        ManifestSha256 = "bff2552f6811e187527bf204cdb87f543826414c3085deab0a448a5123a5bfbc"
+        FlywayVersion  = "27"
+        ManifestSha256 = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
       }
     }
   }

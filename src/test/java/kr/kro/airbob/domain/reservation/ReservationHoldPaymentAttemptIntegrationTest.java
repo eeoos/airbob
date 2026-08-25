@@ -90,6 +90,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
@@ -149,6 +150,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Autowired private PaymentOperationExecutor paymentOperationExecutor;
 	@Autowired private PaymentOperationQueryService paymentOperationQueryService;
 	@Autowired private ReservationQuoteRepository quoteRepository;
+	@Autowired private ReservationInventoryService inventoryService;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private PaymentOperationRepository paymentOperationRepository;
@@ -609,6 +611,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
+		inventoryService.seed(
+			accommodation.getId(), BOOKING_WINDOW_START, BOOKING_WINDOW_START.plusMonths(3));
 	}
 
 	private Coupon issueFixedCoupon(int discountAmount) {
@@ -712,6 +716,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		quoteRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		memberCouponRepository.deleteAllInBatch();
+		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		reservationRepository.deleteAllInBatch();
 		couponRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();

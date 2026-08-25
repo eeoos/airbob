@@ -18,10 +18,8 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
-import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.member.entity.QMember;
 import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
@@ -37,79 +35,6 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	private final JPAQueryFactory queryFactory;
 
 	private final QMember guestMember = new QMember("guestMember");
-
-	@Override
-	public boolean existsConflictingReservation(
-		Long accommodationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	) {
-		return existsConflictingReservation(
-			accommodationId, null, checkInDate, checkOutDate, now);
-	}
-
-	@Override
-	public boolean existsConflictingReservationExcluding(
-		Long accommodationId,
-		Long excludedReservationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	) {
-		return existsConflictingReservation(
-			accommodationId, excludedReservationId, checkInDate, checkOutDate, now);
-	}
-
-	@Override
-	public boolean existsConflictingReservationSnapshot(
-		Long accommodationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	) {
-		Long conflictingReservationId = conflictingReservationQuery(
-			accommodationId, null, checkInDate, checkOutDate, now)
-			.fetchFirst();
-
-		return conflictingReservationId != null;
-	}
-
-	private boolean existsConflictingReservation(
-		Long accommodationId,
-		Long excludedReservationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	) {
-		Long conflictingReservationId = conflictingReservationQuery(
-			accommodationId, excludedReservationId, checkInDate, checkOutDate, now)
-			// A preceding plain read can open a stale MySQL REPEATABLE READ snapshot.
-			// The inventory mutex is already held, so use a current read for the final decision.
-			.setLockMode(LockModeType.PESSIMISTIC_WRITE)
-			.fetchFirst();
-
-		return conflictingReservationId != null;
-	}
-
-	private JPAQuery<Long> conflictingReservationQuery(
-		Long accommodationId,
-		Long excludedReservationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	) {
-		return queryFactory
-			.select(reservation.id)
-			.from(reservation)
-			.where(
-				reservation.accommodation.id.eq(accommodationId),
-				excludedReservationId == null ? null : reservation.id.ne(excludedReservationId),
-				inventoryOccupyingReservationStatus(now),
-				reservation.checkInDate.lt(checkOutDate),
-				reservation.checkOutDate.gt(checkInDate)
-			);
-	}
 
 	@Override
 	public boolean existsFutureInventoryReservation(Long accommodationId, Instant now) {
@@ -163,35 +88,6 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	) {
 		return findReservationRanges(
 			reservation.accommodation.id.eq(accommodationId),
-			activeReservationStatus(),
-			windowStartInclusive,
-			windowEndExclusive
-		);
-	}
-
-	@Override
-	public List<ReservationDateRange> findUnavailableReservationRangesByAccommodationId(
-		Long accommodationId,
-		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive,
-		Instant now
-	) {
-		return findReservationRanges(
-			reservation.accommodation.id.eq(accommodationId),
-			inventoryOccupyingReservationStatus(now),
-			windowStartInclusive,
-			windowEndExclusive
-		);
-	}
-
-	@Override
-	public List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
-		UUID accommodationUid,
-		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	) {
-		return findReservationRanges(
-			reservation.accommodation.accommodationUid.eq(accommodationUid),
 			activeReservationStatus(),
 			windowStartInclusive,
 			windowEndExclusive

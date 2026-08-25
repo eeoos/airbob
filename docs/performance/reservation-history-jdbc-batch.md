@@ -22,6 +22,7 @@
 - Before: 예약별 `ReservationHistoryRepository.save()`
 - After: `JdbcTemplate.batchUpdate()`를 이용한 100건 단위 INSERT
 - 유지: 만료 대상 SELECT와 관리 상태의 reservation dirty-check UPDATE
+- 유지: 같은 트랜잭션에서 예약이 소유한 날짜별 `HOLD` 재고를 `FREE`로 해제
 - 추가: 만료 예약 ID 묶음에 사용된 쿠폰을 복원하는 JPQL UPDATE 1회 (`N > 0`)
 - 유지: 하나의 Spring 트랜잭션 경계
 - 제외: PaymentOperation worker가 처리하는 단건 승인·취소 상태 변경 경로
@@ -36,10 +37,11 @@
 After 경로는 다음 순서로 실행된다.
 
 1. 하나의 cutoff 시각으로 만료된 `PAYMENT_PENDING` 예약을 조회한다.
-2. 조회한 관리 엔티티를 `EXPIRED`로 변경하고 history snapshot을 생성한다.
-3. 만료 예약에 연결된 사용 쿠폰을 ID 묶음으로 한 번에 복원한다.
-4. 모든 history를 100건 단위 JDBC batch로 저장한다.
-5. 트랜잭션 commit 시 reservation UPDATE가 dirty checking으로 반영된다.
+2. 각 예약이 여전히 소유한 날짜별 `HOLD` 재고를 잠그고 `FREE`로 해제한다.
+3. 조회한 관리 엔티티를 `EXPIRED`로 변경하고 history snapshot을 생성한다.
+4. 만료 예약에 연결된 사용 쿠폰을 ID 묶음으로 한 번에 복원한다.
+5. 모든 history를 100건 단위 JDBC batch로 저장한다.
+6. 트랜잭션 commit 시 reservation UPDATE가 dirty checking으로 반영된다.
 
 `JdbcTemplate`은 JPA와 같은 `DataSource` 및 Spring 트랜잭션에 참여한다. 따라서 중간 batch가 실패하면 앞에서 성공한 history chunk는 rollback되고 관리 엔티티의 reservation 상태 변경도 DB에 반영되지 않는다.
 
@@ -73,6 +75,7 @@ Hibernate `StatementInspector`는 `JdbcTemplate` SQL을 볼 수 없으므로 JDB
 - 대상 예약만 `EXPIRED`가 되고 미래 예약과 다른 상태 예약은 보존된다.
 - Before와 After가 같은 수의 history를 생성한다.
 - business snapshot 필드의 동등성과 scheduler 감사 계약(`history_created_at` non-null, system actor, `STATUS_CHANGE`, `BATCH`)을 검증한다.
+- Before와 After 모두 대상 날짜 재고를 `FREE`로 해제하고 미래 `HOLD` 및 확정 `OCCUPIED` 대조군은 보존한다.
 - After 경로의 Hibernate INSERT는 0회이고 제출한 JDBC 행 수는 대상 수와 같다.
 - 두 번째 JDBC chunk가 실패하면 첫 chunk INSERT는 rollback되고 관리 엔티티의 reservation 상태 변경도 DB에 반영되지 않는다.
 
@@ -91,7 +94,7 @@ Hibernate `StatementInspector`는 `JdbcTemplate` SQL을 볼 수 없으므로 JDB
 | JDBC batch 호출 | 0 | `ceil(N / 100)` |
 | JDBC 제출 행 | 0 | N |
 
-After의 고정 UPDATE 1회는 사용된 쿠폰이 없는 fixture에서도 실행되는 멱등 bulk UPDATE다. 이 표의 `Hibernate TOTAL`은 raw JDBC 호출을 포함하지 않는다. 또한 Connector/J의 `rewriteBatchedStatements=true`가 실제 wire-level SQL을 재작성할 수 있으므로 JDBC batch 호출 수를 DB 네트워크 왕복 수와 완전히 같은 값으로 단정하지 않는다.
+After의 고정 UPDATE 1회는 사용된 쿠폰이 없는 fixture에서도 실행되는 멱등 bulk UPDATE다. 날짜 재고 해제의 JDBC SELECT/UPDATE는 Before와 After의 동일한 정확성 비용이며 Hibernate statement 표에는 포함되지 않는다. 이 표의 `Hibernate TOTAL`은 raw JDBC 호출을 포함하지 않는다. 또한 Connector/J의 `rewriteBatchedStatements=true`가 실제 wire-level SQL을 재작성할 수 있으므로 JDBC batch 호출 수를 DB 네트워크 왕복 수와 완전히 같은 값으로 단정하지 않는다.
 
 ## 로컬 통제 측정
 
@@ -268,6 +271,6 @@ AWS 측정 후 이 문서에는 archive의 자격 증명이나 실제 endpoint �
 
 - 만료 대상을 한 번에 조회해 하나의 트랜잭션에서 처리하므로 대상 수가 무제한으로 커지는 scheduler 확장성까지 해결한 것은 아니다.
 - 만료 조회는 reservation 행을 `PESSIMISTIC_WRITE`로 잠그므로 여러 인스턴스와 결제 상태 변경의 DB 경쟁은 직렬화된다. 다만 `SKIP LOCKED`나 bounded claim이 없어 큰 batch에서 lock 대기와 트랜잭션 시간이 늘어나는 확장성은 이번 최적화 범위가 아니다.
-- 예약 재고와 만료 상태는 MySQL이 권위 원본이다. 별도 외부 임시 재고 정리 같은 side effect가 없으므로 history batch 예외는 reservation·coupon 변경과 함께 rollback된다.
+- 예약 재고와 만료 상태는 MySQL이 권위 원본이다. 날짜 재고 해제도 같은 DB 트랜잭션에 참여하므로 history batch 예외는 inventory·reservation·coupon 변경과 함께 rollback된다.
 - 로컬 측정은 scheduler 대기 시간, HTTP 왕복, Kafka·외부 provider 처리와 무관한 cleanup 트랜잭션만 측정하므로 운영 end-to-end 시간을 나타내지 않는다.
 - AWS 최종 수치는 격리된 동일 환경에서 다시 측정한 뒤 이 문서와 이력서 문장을 함께 갱신한다.

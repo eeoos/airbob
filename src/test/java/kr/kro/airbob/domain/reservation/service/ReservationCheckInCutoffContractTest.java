@@ -36,6 +36,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
@@ -69,6 +70,7 @@ class ReservationCheckInCutoffContractTest {
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private ReservationCheckoutRequestStore checkoutRequestStore;
 	@Mock private ReservationQuoteRepository quoteRepository;
+	@Mock private ReservationInventoryService inventoryService;
 
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
@@ -118,9 +120,6 @@ class ReservationCheckInCutoffContractTest {
 		ReservationTransactionService service = serviceAt(CHECK_IN_AT.minusNanos(1));
 		ReservationRequest.Create request = request();
 		stubValidMemberAccommodationAndWindow(request);
-		given(reservationRepository.existsConflictingReservation(
-			ACCOMMODATION_ID, CHECK_IN_DATE, CHECK_OUT_DATE, CHECK_IN_AT.minusNanos(1)))
-			.willReturn(false);
 		given(reservationRepository.existsByReservationCode(any(String.class))).willReturn(false);
 
 		Reservation reservation = service.createPendingReservationInTx(
@@ -128,7 +127,7 @@ class ReservationCheckInCutoffContractTest {
 
 		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		assertThat(reservation.getCheckInAt()).isEqualTo(CHECK_IN_AT);
-		then(reservationRepository).should().save(reservation);
+		then(reservationRepository).should().saveAndFlush(reservation);
 		then(historyRepository).should().save(any());
 	}
 
@@ -148,6 +147,7 @@ class ReservationCheckInCutoffContractTest {
 			ReservationHoldPolicy.defaultPolicy(),
 			quoteRepository,
 			checkoutRequestStore,
+			inventoryService,
 			Clock.fixed(now, ZoneOffset.UTC)
 		);
 	}
@@ -155,7 +155,7 @@ class ReservationCheckInCutoffContractTest {
 	private void stubValidMemberAccommodationAndWindow(ReservationRequest.Create request) {
 		given(memberRepository.findByIdAndStatus(GUEST_ID, MemberStatus.ACTIVE))
 			.willReturn(Optional.of(guest()));
-		given(accommodationRepository.findByIdAndStatusForUpdate(
+		given(accommodationRepository.findBookingSnapshotForShare(
 			request.accommodationId(), AccommodationStatus.PUBLISHED))
 			.willReturn(Optional.of(accommodation()));
 		given(bookingWindowProvider.currentFor(

@@ -21,7 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
@@ -71,9 +71,11 @@ import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteExpiredException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
@@ -127,6 +129,7 @@ class ReservationQuoteFlowIntegrationTest {
 	@Autowired private ReservationService reservationService;
 	@Autowired private ReservationQuoteRepository quoteRepository;
 	@Autowired private ReservationRepository reservationRepository;
+	@Autowired private ReservationInventoryService inventoryService;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private MemberRepository memberRepository;
@@ -245,8 +248,8 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("checkout이 숙소 mutex를 기다리는 동안 quote가 만료되면 전체를 롤백한다")
-	void quoteExpiryWhileWaitingForInventoryRollsBackCheckout() throws Exception {
+	@DisplayName("busy checkout은 상태를 소비하지 않고 재시도 시 quote 만료를 관찰한다")
+	void busyCheckoutCanRetryAndObserveQuoteExpiry() throws Exception {
 		ReservationResponse.Quote quote = createQuote(null);
 		given(bookingWindowProvider.currentFor(TIME_ZONE_ID, quote.quoteExpiresAt()))
 			.willReturn(BookingWindow.startingOn(BOOKING_WINDOW_START));
@@ -265,22 +268,24 @@ class ReservationQuoteFlowIntegrationTest {
 		Future<ReservationResponse.Ready> checkout = executor.submit(() ->
 			checkout(quote, "quote-expires-while-waiting", null));
 		try {
-			assertThatThrownBy(() -> checkout.get(500, TimeUnit.MILLISECONDS))
-				.isInstanceOf(TimeoutException.class);
-			clock.set(quote.quoteExpiresAt());
+			assertThatThrownBy(() -> checkout.get(2, TimeUnit.SECONDS))
+				.isInstanceOf(ExecutionException.class)
+				.hasCauseInstanceOf(ReservationInventoryBusyException.class);
+			assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
 		} finally {
 			releaseLock.countDown();
 		}
 
 		try {
-			assertThatThrownBy(() -> checkout.get(10, TimeUnit.SECONDS))
-				.isInstanceOf(ExecutionException.class)
-				.hasCauseInstanceOf(ReservationQuoteExpiredException.class);
 			lockHolder.get(10, TimeUnit.SECONDS);
 		} finally {
 			executor.shutdownNow();
 			executor.awaitTermination(10, TimeUnit.SECONDS);
 		}
+
+		clock.set(quote.quoteExpiresAt());
+		assertThatThrownBy(() -> checkout(quote, "quote-expires-while-waiting", null))
+			.isInstanceOf(ReservationQuoteExpiredException.class);
 		assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
 	}
 
@@ -342,7 +347,7 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("동일한 quote와 멱등성 키의 동시 checkout은 하나의 예약 UID로 수렴한다")
+	@DisplayName("admission을 통과한 동일 quote checkout은 하나로 수렴하고 busy 요청은 재시도한다")
 	void concurrentSameQuoteAndKeyConvergesOnOneReservation() throws InterruptedException {
 		int threadCount = 8;
 		ReservationResponse.Quote quote = createQuote(null);
@@ -354,6 +359,7 @@ class ReservationQuoteFlowIntegrationTest {
 		CountDownLatch done = new CountDownLatch(threadCount);
 		List<String> reservationUids = java.util.Collections.synchronizedList(new ArrayList<>());
 		List<Throwable> failures = java.util.Collections.synchronizedList(new ArrayList<>());
+		AtomicInteger busyCount = new AtomicInteger();
 
 		try {
 			for (int index = 0; index < threadCount; index++) {
@@ -363,6 +369,8 @@ class ReservationQuoteFlowIntegrationTest {
 						start.await();
 						reservationUids.add(reservationService.createPendingReservation(
 							request, guest.getId(), idempotencyKey).reservationUid());
+					} catch (ReservationInventoryBusyException busy) {
+						busyCount.incrementAndGet();
 					} catch (Throwable failure) {
 						failures.add(failure);
 					} finally {
@@ -380,7 +388,10 @@ class ReservationQuoteFlowIntegrationTest {
 		}
 
 		assertThat(failures).isEmpty();
-		assertThat(reservationUids).hasSize(threadCount).containsOnly(reservationUids.getFirst());
+		assertThat(reservationUids).isNotEmpty().containsOnly(reservationUids.getFirst());
+		assertThat(reservationUids.size() + busyCount.get()).isEqualTo(threadCount);
+		assertThat(reservationService.createPendingReservation(request, guest.getId(), idempotencyKey)
+			.reservationUid()).isEqualTo(reservationUids.getFirst());
 		assertThat(reservationRepository.count()).isOne();
 		assertThat(historyRepository.count()).isOne();
 		assertThat(checkoutRequestCount()).isOne();
@@ -452,6 +463,8 @@ class ReservationQuoteFlowIntegrationTest {
 			.timeZoneId(TIME_ZONE_ID)
 			.status(AccommodationStatus.PUBLISHED)
 			.build());
+		inventoryService.seed(
+			accommodation.getId(), BOOKING_WINDOW_START, BOOKING_WINDOW_START.plusMonths(3));
 	}
 
 	private Coupon issueFixedCoupon(int discountAmount) {
@@ -539,6 +552,7 @@ class ReservationQuoteFlowIntegrationTest {
 		outboxRepository.deleteAllInBatch();
 		historyRepository.deleteAllInBatch();
 		memberCouponRepository.deleteAllInBatch();
+		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		reservationRepository.deleteAllInBatch();
 		couponRepository.deleteAllInBatch();
 		accommodationRepository.deleteAllInBatch();

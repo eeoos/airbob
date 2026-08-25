@@ -24,12 +24,12 @@ import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedExcept
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -38,7 +38,7 @@ public class ReservationQuoteService {
 
 	private final AccommodationRepository accommodationRepository;
 	private final MemberRepository memberRepository;
-	private final ReservationRepository reservationRepository;
+	private final ReservationInventoryService inventoryService;
 	private final ReservationQuoteRepository quoteRepository;
 	private final CouponUsageService couponUsageService;
 	private final BookingWindowProvider bookingWindowProvider;
@@ -70,7 +70,7 @@ public class ReservationQuoteService {
 		if (!now.isBefore(checkInAt)) {
 			throw new ReservationCheckInClosedException();
 		}
-		if (reservationRepository.existsConflictingReservationSnapshot(
+		if (!inventoryService.isRangeAvailableSnapshot(
 			request.accommodationId(), request.checkInDate(), request.checkOutDate(), now)) {
 			throw new ReservationConflictException();
 		}

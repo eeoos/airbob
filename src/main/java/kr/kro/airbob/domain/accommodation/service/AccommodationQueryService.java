@@ -3,9 +3,7 @@ package kr.kro.airbob.domain.accommodation.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,10 +24,9 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
-import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -41,7 +38,7 @@ public class AccommodationQueryService {
 
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final AccommodationRepository accommodationRepository;
-	private final ReservationRepository reservationRepository;
+	private final ReservationInventoryService inventoryService;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final AccommodationDetailReader accommodationDetailReader;
@@ -69,8 +66,17 @@ public class AccommodationQueryService {
 		Instant queriedAt = clock.instant();
 		LocalDate bookingWindowStart = bookingWindow.startInclusive();
 		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
-		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(
-			accommodationId, bookingWindowStart, bookingWindowEndExclusive, queriedAt);
+		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = inventoryService
+			.findUnavailableRangesSnapshot(
+				accommodationId,
+				bookingWindowStart,
+				bookingWindowEndExclusive,
+				queriedAt
+			)
+			.stream()
+			.map(range -> new AccommodationResponse.UnavailableDateRange(
+				range.startInclusive(), range.endExclusive()))
+			.toList();
 
 		return new AccommodationResponse.Availability(
 			bookingWindowStart,
@@ -139,77 +145,6 @@ public class AccommodationQueryService {
 		Optional<AccommodationReviewSummary> summaryOpt = reviewSummaryRepository.findByAccommodationId(
 			accommodationId);
 		return ReviewResponse.ReviewSummary.of(summaryOpt.orElse(null));
-	}
-
-	private List<AccommodationResponse.UnavailableDateRange> getUnavailableRanges(
-		Long accommodationId,
-		LocalDate windowStart,
-		LocalDate windowEndExclusive,
-		Instant queriedAt
-	) {
-		List<ReservationDateRange> reservationRanges = reservationRepository
-			.findUnavailableReservationRangesByAccommodationId(
-				accommodationId,
-				windowStart,
-				windowEndExclusive,
-				queriedAt);
-
-		List<AccommodationResponse.UnavailableDateRange> clippedRanges = reservationRanges.stream()
-			.map(range -> clipUnavailableRange(range, windowStart, windowEndExclusive))
-			.filter(range -> range.startDate().isBefore(range.endDateExclusive()))
-			.sorted(Comparator
-				.comparing(AccommodationResponse.UnavailableDateRange::startDate)
-				.thenComparing(AccommodationResponse.UnavailableDateRange::endDateExclusive))
-			.toList();
-
-		return mergeUnavailableRanges(clippedRanges);
-	}
-
-	private AccommodationResponse.UnavailableDateRange clipUnavailableRange(
-		ReservationDateRange range,
-		LocalDate windowStart,
-		LocalDate windowEndExclusive
-	) {
-		LocalDate startDate = range.checkIn();
-		LocalDate endDateExclusive = range.checkOut();
-
-		if (startDate.isBefore(windowStart)) {
-			startDate = windowStart;
-		}
-		if (endDateExclusive.isAfter(windowEndExclusive)) {
-			endDateExclusive = windowEndExclusive;
-		}
-
-		return new AccommodationResponse.UnavailableDateRange(startDate, endDateExclusive);
-	}
-
-	private List<AccommodationResponse.UnavailableDateRange> mergeUnavailableRanges(
-		List<AccommodationResponse.UnavailableDateRange> ranges
-	) {
-		if (ranges.isEmpty()) {
-			return List.of();
-		}
-
-		List<AccommodationResponse.UnavailableDateRange> mergedRanges = new ArrayList<>();
-		AccommodationResponse.UnavailableDateRange current = ranges.getFirst();
-
-		for (int index = 1; index < ranges.size(); index++) {
-			AccommodationResponse.UnavailableDateRange next = ranges.get(index);
-
-			if (!next.startDate().isAfter(current.endDateExclusive())) {
-				LocalDate mergedEnd = next.endDateExclusive().isAfter(current.endDateExclusive())
-					? next.endDateExclusive()
-					: current.endDateExclusive();
-				current = new AccommodationResponse.UnavailableDateRange(current.startDate(), mergedEnd);
-				continue;
-			}
-
-			mergedRanges.add(current);
-			current = next;
-		}
-
-		mergedRanges.add(current);
-		return List.copyOf(mergedRanges);
 	}
 
 }

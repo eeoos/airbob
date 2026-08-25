@@ -74,16 +74,18 @@ write_attestation() {
       databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
       verifierContractInventorySha256: "7777777777777777777777777777777777777777777777777777777777777777",
       databaseFingerprintSubsetSha256: "8888888888888888888888888888888888888888888888888888888888888888",
-      flywayVersion: "20",
-      flywayHistoryRows: 20,
+      flywayVersion: "27",
+      flywayHistoryRows: 27,
       migrationChecksumSha256: "4444444444444444444444444444444444444444444444444444444444444444",
       schemaFingerprintSha256: "5555555555555555555555555555555555555555555555555555555555555555",
       outboxState: "empty",
       expectedTableRows: {
         accommodation: $accommodationRows,
-        flyway_schema_history: 20,
+        accommodation_inventory_day: 0,
+        flyway_schema_history: 27,
         member: 3,
-        outbox: 0
+        outbox: 0,
+        reservation: 0
       },
       capturedAt: "2026-08-17T00:00:00Z"
     }
@@ -150,7 +152,7 @@ write_source_release() {
   done < <(find "$repo_root/src/main/resources/db/migration" -maxdepth 1 -type f -name 'V*.sql' | LC_ALL=C sort)
   printf '%s\n' \
     'format_version	1' \
-    'flyway_applied_count	20' \
+    'flyway_applied_count	27' \
     'outbox_count	0' \
     > "$release_dir/database-fingerprint.tsv"
   printf '%s\n' \
@@ -169,7 +171,7 @@ write_source_release() {
       timezone: "Asia/Seoul",
       validUntil: "2099-12-31T09:00:00",
       schema: {
-        flywayVersion: "20",
+        flywayVersion: "27",
         migrationDigest: "sha256:6666666666666666666666666666666666666666666666666666666666666666"
       }
     }
@@ -212,11 +214,11 @@ traffic_manifest=traffic-v1.json
 traffic_manifest_sha256=$traffic_sha
 traffic_dataset_version=traffic-v1
 traffic_dataset_run_id=$traffic_run_id
-traffic_flyway_version=20
+traffic_flyway_version=27
 traffic_migration_digest=sha256:6666666666666666666666666666666666666666666666666666666666666666
 fingerprint=database-fingerprint.tsv
 required_rows=201
-recovery=reset-flyway-v1-v20-etl-reseed-before-traffic
+recovery=reset-flyway-v1-v27-etl-reseed-before-traffic
 EOF
 
   write_checksums "$release_dir"
@@ -315,7 +317,7 @@ jq -e \
   } and
   .mysql.dumpKey == "mysql/airbob.sql.zst" and
   .mysql.dumpSha256 == $dumpSha256 and
-  .mysql.flywayVersion == "20" and
+  .mysql.flywayVersion == "27" and
   .mysql.migrationChecksumSha256 == "4444444444444444444444444444444444444444444444444444444444444444" and
   .mysql.schemaFingerprintSha256 == "5555555555555555555555555555555555555555555555555555555555555555" and
   .mysql.timezone == "UTC" and
@@ -324,9 +326,11 @@ jq -e \
   .mysql.outboxPolicy == "absent" and
   .mysql.expectedTableRows == {
     accommodation: 201,
-    flyway_schema_history: 20,
+    accommodation_inventory_day: 0,
+    flyway_schema_history: 27,
     member: 3,
-    outbox: 0
+    outbox: 0,
+    reservation: 0
   } and
   .couponPreparation == [] and
   ([.kafka.topics[].name] | sort) == [
@@ -640,8 +644,8 @@ mv "$v19_source/traffic-v1.next" "$v19_source/traffic-v1.json"
 v19_traffic_sha=$(sha256_file "$v19_source/traffic-v1.json")
 sed \
   -e "s/^traffic_manifest_sha256=.*/traffic_manifest_sha256=$v19_traffic_sha/" \
-  -e 's/^traffic_flyway_version=20$/traffic_flyway_version=19/' \
-  -e 's/reset-flyway-v1-v20/reset-flyway-v1-v19/' \
+  -e 's/^traffic_flyway_version=27$/traffic_flyway_version=19/' \
+  -e 's/reset-flyway-v1-v27/reset-flyway-v1-v19/' \
   "$v19_source/release-metadata.txt" > "$v19_source/release-metadata.next"
 mv "$v19_source/release-metadata.next" "$v19_source/release-metadata.txt"
 write_checksums "$v19_source"

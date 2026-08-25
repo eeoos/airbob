@@ -1,7 +1,5 @@
 package kr.kro.airbob.domain.accommodation.service;
 
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,9 +20,9 @@ import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,7 +35,7 @@ class AccommodationAvailabilityOccupancyContractTest {
 
 	@Mock private AccommodationReviewSummaryRepository reviewSummaryRepository;
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private ReservationRepository reservationRepository;
+	@Mock private ReservationInventoryService inventoryService;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private AccommodationDetailReader accommodationDetailReader;
@@ -48,8 +46,8 @@ class AccommodationAvailabilityOccupancyContractTest {
 	private AccommodationQueryService service;
 
 	@Test
-	@DisplayName("직접 availability는 조회 기준 시각을 포함한 점유 구간 조회를 사용한다")
-	void directAvailabilityUsesTimeAwareOccupancyQuery() {
+	@DisplayName("직접 availability는 reservation overlap 대신 조회 시각을 포함한 inventory snapshot을 사용한다")
+	void directAvailabilityUsesInventorySnapshot() {
 		long accommodationId = 42L;
 		when(accommodationRepository.findBookingProjectionByIdAndStatus(
 			accommodationId,
@@ -61,16 +59,11 @@ class AccommodationAvailabilityOccupancyContractTest {
 
 		service.findAccommodationAvailability(accommodationId);
 
-		verify(reservationRepository).findUnavailableReservationRangesByAccommodationId(
+		verify(inventoryService).findUnavailableRangesSnapshot(
 			accommodationId,
 			WINDOW_START,
 			WINDOW_END_EXCLUSIVE,
 			QUERIED_AT
-		);
-		verify(reservationRepository, never()).findActiveReservationRangesByAccommodationId(
-			eq(accommodationId),
-			eq(WINDOW_START),
-			eq(WINDOW_END_EXCLUSIVE)
 		);
 	}
 }

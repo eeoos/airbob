@@ -65,14 +65,22 @@ wait_healthy() {
   attempt=1
 
   while [ "$attempt" -le "$HEALTH_ATTEMPTS" ]; do
-    container_status="$("$DOCKER_BIN" inspect \
-      --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+    container_snapshot="$("$DOCKER_BIN" inspect \
+      --format='{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
       "$container_name" 2>/dev/null || true)"
-    echo "$phase health: ${container_status:-missing} ($attempt/$HEALTH_ATTEMPTS)"
+    container_state=${container_snapshot%%|*}
+    container_health=${container_snapshot#*|}
+    if [ "$container_snapshot" = "$container_health" ]; then
+      container_state=''
+      container_health=''
+    fi
+    echo "$phase health: state=${container_state:-missing}, probe=${container_health:-missing} ($attempt/$HEALTH_ATTEMPTS)"
 
-    case "$container_status" in
+    case "$container_state" in
+      exited|dead) return 1 ;;
+    esac
+    case "$container_health" in
       healthy) return 0 ;;
-      unhealthy|exited|dead) return 1 ;;
     esac
 
     sleep "$HEALTH_DELAY_SECONDS"
@@ -108,8 +116,15 @@ wait_running() {
 stop_admission_and_require_roll_forward() {
   compose stop nginx app >/dev/null 2>&1 || true
   echo "Deployment crossed the Flyway/app-start boundary and did not become healthy." >&2
-  echo "No pre-V18 binary rollback was attempted; public admission is stopped." >&2
-  echo "A V18-compatible roll-forward is required." >&2
+  echo "No pre-V25 binary rollback was attempted; public admission is stopped." >&2
+  echo "Roll forward with the current binary that understands the V25 cutover, V26 inventory, and V27 index." >&2
+  exit 1
+}
+
+stop_admission_before_inventory_cutover() {
+  compose stop nginx app >/dev/null 2>&1 || true
+  echo "Reservation inventory cutover preflight failed before Flyway; no migration was attempted." >&2
+  echo "No automatic V24 restart was attempted; public admission is stopped for operator review." >&2
   exit 1
 }
 
@@ -129,6 +144,9 @@ fi
 
 if ! compose up -d --wait --wait-timeout 240 mysql redis redis-cache elasticsearch kafka; then
   stop_admission_and_require_roll_forward
+fi
+if ! compose run --rm --no-deps reservation-inventory-cutover-preflight; then
+  stop_admission_before_inventory_cutover
 fi
 if ! compose run --rm --no-deps kafka-topic-init; then
   stop_admission_and_require_roll_forward

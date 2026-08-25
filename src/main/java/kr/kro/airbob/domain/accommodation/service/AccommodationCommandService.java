@@ -51,6 +51,7 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventorySeedService;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.TimeZoneResolver;
 import kr.kro.airbob.geo.dto.GeocodeResult;
@@ -74,6 +75,7 @@ public class AccommodationCommandService {
 	private final GeocodingService geocodingService;
 	private final TimeZoneResolver timeZoneResolver;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
+	private final AccommodationInventorySeedService inventorySeedService;
 	private final Clock clock;
 
 	@Transactional
@@ -92,6 +94,7 @@ public class AccommodationCommandService {
 	@Transactional
 	public void updateAccommodation(Long accommodationId, AccommodationRequest.Update request, Long memberId) {
 		Accommodation accommodation = findByIdAndMemberIdAndStatusNot(accommodationId, memberId);
+		String previousTimeZoneId = accommodation.getTimeZoneId();
 
 		validateAccommodationType(request.type());
 		validateTurnoverTimes(accommodation, request);
@@ -102,6 +105,10 @@ public class AccommodationCommandService {
 		updateLocation(accommodation, resolvedLocation);
 		updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
 		updateAmenities(accommodation, amenityCountMap);
+		if (accommodation.getStatus() == AccommodationStatus.PUBLISHED
+			&& !Objects.equals(previousTimeZoneId, accommodation.getTimeZoneId())) {
+			inventorySeedService.seedCurrentHorizon(accommodation);
+		}
 
 		recordHistory(accommodation, ChangeType.UPDATE, "숙소 정보 수정");
 
@@ -127,9 +134,10 @@ public class AccommodationCommandService {
 
 	@Transactional
 	public void publishAccommodation(Long accommodationId, Long memberId) {
-		Accommodation accommodation = findWithDetailsExceptHostAndDeletedById(accommodationId, memberId);
+		Accommodation accommodation = findByIdAndMemberIdAndStatusNot(accommodationId, memberId);
 
 		validateAccommodationForPublishing(accommodation);
+		inventorySeedService.seedCurrentHorizon(accommodation);
 		accommodation.publish();
 		recordHistory(accommodation, ChangeType.STATUS_CHANGE, "숙소 게시");
 
@@ -379,11 +387,6 @@ public class AccommodationCommandService {
 		}
 	}
 
-	private Accommodation findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long memberId) {
-		return accommodationRepository.findWithDetailsExceptHostAndDeletedById(accommodationId, memberId)
-			.orElseThrow(AccommodationNotFoundException::new);
-	}
-
 	private Accommodation findByIdAndMemberIdAndStatusNot(Long accommodationId, Long memberId) {
 		return accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			accommodationId, memberId, AccommodationStatus.DELETED
@@ -391,7 +394,7 @@ public class AccommodationCommandService {
 	}
 
 	private Accommodation findByIdAndMemberIdExceptDeleted(Long accommodationId, Long memberId) {
-		return accommodationRepository.findByIdAndMemberIdAndStatusNot(
+		return accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(
 			accommodationId, memberId, AccommodationStatus.DELETED
 		).orElseThrow(AccommodationNotFoundException::new);
 	}

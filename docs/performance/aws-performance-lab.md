@@ -20,8 +20,8 @@
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Immutable V20 dataset assembly and publication | Local DB/search assembly, native ES snapshot producer, and manifest-last publisher implemented (static/mock tests only; publisher role/policy unapplied and nothing published) |
-| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V20 release published or restored) |
+| Immutable V27 dataset assembly and publication | Local DB/search assembly, native ES snapshot producer, and manifest-last publisher implemented (static/mock tests only; publisher role/policy unapplied and nothing published) |
+| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V27 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Gabia delegation completed; Route 53 serves the verified OCI weight-100 record, while the AWS alias remains pending |
@@ -58,9 +58,16 @@ delegation. The public API origin is unchanged: Route 53 still sends all
 traffic to OCI at `140.245.76.140`, and the public `/health` probe remains
 healthy. The AWS alias is absent. The ephemeral lab has not been created, data
 has not been restored, and no performance results have been established. The
-historical ETL dump is Flyway V12 while the application is V20, so the Phase 3
-validator intentionally refuses it; a newly generated immutable V20 release is
+historical ETL dump is Flyway V12 while the application is V27, so the Phase 3
+validator intentionally refuses it; a newly generated immutable V27 release is
 a prerequisite for the first live rehearsal.
+
+That release must apply V1–V27 while the source schema is empty and all V24 or
+older writers are stopped. V25 intentionally rejects non-empty reservation
+data instead of inferring date ownership. ETL fixtures are inserted only after
+V27, and the resulting release binds the inventory table, published timezone
+preflight, and exact schema fingerprint. A failed V25+ cutover is roll-forward
+only; the lab does not start or roll back to a pre-inventory application.
 
 Phase 3 now binds one manifest SHA to an ephemeral RDS instance and runs the
 ordered bootstrap from the Debezium host: database import and Flyway/schema
@@ -110,7 +117,7 @@ all S3 work until that revoke is active. It then checks the receipt and
 inventory, writes wrapper payloads with no-overwrite semantics, and writes
 `manifest.json` last. The AWS bootstrap registers only the read-only repository
 and cannot publish a snapshot. The dedicated local MFA role, temporary grant,
-and bucket policy exist in Terraform but are unapplied, and neither a V20
+and bucket policy exist in Terraform but are unapplied, and neither a V27
 wrapper nor native snapshot currently exists in the dataset bucket.
 
 Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
@@ -150,7 +157,7 @@ make aws-up \
   MODE=performance \
   POLICY=isolated-read \
   IMAGE_DIGEST=sha256:<64-hex> \
-  DATASET_RELEASE=<published-v20-release> \
+  DATASET_RELEASE=<published-v27-release> \
   AMI_ID=<reviewed-al2023-x86_64-ami> \
   OCI_ORIGIN_IPV4=<reviewed-oci-ip> \
   RDS_ENGINE_VERSION=8.0.<reviewed-patch>
@@ -193,14 +200,14 @@ the run expiry.
 
 Before the first live run, apply the reviewed dataset-publisher foundation
 change, publish the full-commit images and bundle, download the matching
-immutable infrastructure image-release artifact, and publish a compatible V20
+immutable infrastructure image-release artifact, and publish a compatible V27
 dataset. The DNS delegation and ACM issuance are already complete. Protect the
 GitHub Environment `aws-performance-lab` and define
 `AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
 `OCI_ORIGIN_IPV4`, and `AWS_LAB_RDS_ENGINE_VERSION`. The workflow uses OIDC
 only, has a fixed concurrency group with in-progress cancellation disabled,
 and calls the same operator script. The dataset-publisher foundation delta,
-image and bundle publication, V20 dataset publication, and the operator's live
+image and bundle publication, V27 dataset publication, and the operator's live
 AWS execution all remain pending.
 
 The local packager binds every archive member's regular-file type and bytes to
@@ -253,7 +260,9 @@ integrated-smoke: SPRING_PROFILES_ACTIVE=aws,performance-lab
 isolated-read:    SPRING_PROFILES_ACTIVE=aws,traffic-benchmark
 ```
 
-`integrated-smoke` retains the application's internal scheduler and Kafka flow while blocking external Toss, Google, Slack, and ordinary S3 write side effects. `isolated-read` adds the scheduler and Kafka listener isolation policy. `application-traffic-benchmark.yaml` includes `performance-lab` through a Spring profile group, so it also inherits the external side-effect block.
+`integrated-smoke` retains the application's other internal schedulers and Kafka flow while blocking external Toss, Google, Slack, and ordinary S3 write side effects. The `performance-lab` profile hard-codes reservation inventory startup, rolling seed, and retention to disabled. The immutable lab manifest therefore keeps `accommodation_inventory_day=0` even for the 730,702-accommodation dataset instead of generating tens of millions of date rows. Reservation availability, quote, and checkout calls intentionally fail closed with HTTP 503 / `R026`; this profile is not a reservation-mutation target.
+
+`isolated-read` adds the general scheduler and Kafka listener isolation policy. `application-traffic-benchmark.yaml` includes `performance-lab` through a Spring profile group, so it inherits both the external side-effect block and the disabled reservation-inventory lifecycle. The exact traffic allowlist uses only GET targets for accommodation detail, reviews, past guest reservations, wishlists, and recently viewed data. It contains neither availability nor quote/checkout/reservation mutation targets. Normal `aws` and `oci` application profiles do not disable the inventory lifecycle and retain mandatory startup coverage.
 
 ## Redis and cache experiment boundary
 

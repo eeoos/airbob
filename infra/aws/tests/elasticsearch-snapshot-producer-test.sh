@@ -111,11 +111,11 @@ traffic_manifest=traffic-v1.json
 traffic_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 traffic_dataset_version=traffic-v1
 traffic_dataset_run_id=20260817T001530Z-12345678
-traffic_flyway_version=20
+traffic_flyway_version=27
 traffic_migration_digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 fingerprint=database-fingerprint.tsv
 required_rows=201
-recovery=reset-flyway-v1-v20-etl-reseed-before-traffic
+recovery=reset-flyway-v1-v27-etl-reseed-before-traffic
 EOF
   printf '%s\n' 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd  source.csv' \
     > "$root/source.sha256"
@@ -173,12 +173,18 @@ write_attestation() {
       databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
       verifierContractInventorySha256: $verifierContractInventorySha256,
       databaseFingerprintSubsetSha256: $databaseFingerprintSubsetSha256,
-      flywayVersion: "20",
-      flywayHistoryRows: 20,
+      flywayVersion: "27",
+      flywayHistoryRows: 27,
       migrationChecksumSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       schemaFingerprintSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       outboxState: "empty",
-      expectedTableRows: {accommodation: 2, flyway_schema_history: 20, outbox: 0},
+      expectedTableRows: {
+        accommodation: 2,
+        accommodation_inventory_day: 0,
+        flyway_schema_history: 27,
+        outbox: 0,
+        reservation: 0
+      },
       capturedAt: "2026-08-17T03:04:05Z"
     }
   ' > "$output"

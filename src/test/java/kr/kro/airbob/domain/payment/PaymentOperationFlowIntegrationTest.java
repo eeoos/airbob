@@ -108,6 +108,8 @@ import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
@@ -127,6 +129,8 @@ import kr.kro.airbob.search.messaging.outbox.OutboxAccommodationSearchRefreshPub
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
 	CouponUsageService.class,
+	AccommodationInventoryDayRepository.class,
+	ReservationInventoryService.class,
 	IntegrationEventCodec.class,
 	JpaOutboxWriter.class,
 	OutboxAccommodationSearchRefreshPublisher.class,
@@ -941,6 +945,11 @@ class PaymentOperationFlowIntegrationTest {
 	private void preparePaidConfirmedReservation() {
 		jdbc.update("UPDATE reservation SET status = 'CONFIRMED' WHERE id = ?", reservationId);
 		jdbc.update("""
+			UPDATE accommodation_inventory_day
+			SET state = 'OCCUPIED', hold_expires_at = NULL
+			WHERE reservation_id = ?
+			""", reservationId);
+		jdbc.update("""
 			INSERT INTO payment (
 			  payment_uid, payment_key, order_id, amount, method, approved_at, created_at,
 			  reservation_id, status, balance_amount, updated_at
@@ -1023,6 +1032,7 @@ class PaymentOperationFlowIntegrationTest {
 		jdbc.update("DELETE FROM reservation_history");
 		jdbc.update("DELETE FROM outbox");
 		jdbc.update("DELETE FROM member_coupon");
+		jdbc.update("DELETE FROM accommodation_inventory_day");
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM coupon");
 		jdbc.update("DELETE FROM accommodation");
@@ -1060,6 +1070,12 @@ class PaymentOperationFlowIntegrationTest {
 			)
 			""", RESERVATION_UID.toString(), accommodationId, ownerId, AMOUNT);
 		reservationId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+
+		jdbc.update("""
+			INSERT INTO accommodation_inventory_day (
+			  accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, '2026-08-15', 'HOLD', ?, '2026-08-14 00:01:00')
+			""", accommodationId, reservationId);
 
 		jdbc.update("""
 			INSERT INTO coupon (

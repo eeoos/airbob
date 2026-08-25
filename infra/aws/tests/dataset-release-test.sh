@@ -149,7 +149,13 @@ JSON
         evaluationTime: "2026-08-16T00:00:00Z",
         validUntil: "2099-12-31T00:00:00Z",
         outboxPolicy: "absent",
-        expectedTableRows: { flyway_schema_history: $flywayHistoryRows, outbox: 0, accommodation: 730702 }
+        expectedTableRows: {
+          flyway_schema_history: $flywayHistoryRows,
+          outbox: 0,
+          accommodation: 730702,
+          accommodation_inventory_day: 0,
+          reservation: 0
+        }
       },
       couponPreparation: [],
       kafka: {
