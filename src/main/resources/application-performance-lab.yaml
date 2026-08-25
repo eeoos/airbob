@@ -9,10 +9,10 @@ google:
     enabled: false
     key: performance-lab-disabled
 
-slack:
-  webhook:
-    url: ""
-  notification:
+operator-alert:
+  kafka:
+    auto-startup: false
+  slack:
     enabled: false
 
 cloud:
@@ -22,3 +22,12 @@ cloud:
       bucket: performance-lab-disabled
   cloudfront:
     domain: https://invalid.performance-lab
+
+reservation:
+  inventory:
+    startup:
+      enabled: false
+    seed:
+      enabled: false
+    retention:
+      enabled: false

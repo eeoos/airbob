@@ -2,6 +2,30 @@
 set -euo pipefail
 umask 077
 
+validate_document_identity_pairs() {
+  local database_pairs=$1
+  local elasticsearch_pairs=$2
+  local expected_database_sha=$3
+  local expected_elasticsearch_sha=$4
+  local expected_count=$5
+  local actual_database_sha actual_elasticsearch_sha
+  local actual_database_count actual_elasticsearch_count
+
+  [[ -f "$database_pairs" && -f "$elasticsearch_pairs" \
+    && "$expected_database_sha" =~ ^[0-9a-f]{64}$ \
+    && "$expected_elasticsearch_sha" =~ ^[0-9a-f]{64}$ \
+    && "$expected_count" =~ ^[0-9]+$ ]] || return 1
+  actual_database_count=$(wc -l < "$database_pairs" | tr -d '[:space:]')
+  actual_elasticsearch_count=$(wc -l < "$elasticsearch_pairs" | tr -d '[:space:]')
+  actual_database_sha=$(sha256sum "$database_pairs" | awk '{print $1}')
+  actual_elasticsearch_sha=$(sha256sum "$elasticsearch_pairs" | awk '{print $1}')
+  [[ "$actual_database_count" == "$expected_count" \
+    && "$actual_elasticsearch_count" == "$expected_count" \
+    && "$actual_database_sha" == "$expected_database_sha" \
+    && "$actual_elasticsearch_sha" == "$expected_elasticsearch_sha" \
+    && "$actual_database_sha" == "$actual_elasticsearch_sha" ]]
+}
+
 required_environment=(
   AIRBOB_REGION AIRBOB_RUN_ID AIRBOB_DATASET_BUCKET AIRBOB_EVIDENCE_BUCKET
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
@@ -151,6 +175,19 @@ while IFS=$'\t' read -r table_name expected_rows; do
   [[ "$actual_rows" == "$expected_rows" ]] || { printf 'row-count contract failed: %s\n' "$table_name" >&2; exit 1; }
 done < <(jq -r '.mysql.expectedTableRows | to_entries | sort_by(.key)[] | [.key, (.value | tostring)] | @tsv' "$manifest")
 
+invalid_published_timezone_count=$(mysql_exec airbobdb --execute="
+  SELECT COUNT(*)
+  FROM accommodation
+  WHERE status = 'PUBLISHED'
+    AND (
+      time_zone_id IS NULL
+      OR TRIM(time_zone_id) = ''
+      OR time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'
+    );
+")
+[[ "$invalid_published_timezone_count" == 0 ]] \
+  || { printf '%s\n' 'published accommodation timezone contract failed' >&2; exit 1; }
+
 schema_unsorted_file="$work_root/schema-fingerprint.unsorted.tsv"
 schema_file="$work_root/schema-fingerprint.tsv"
 mysql_exec --execute="
@@ -232,6 +269,21 @@ if [[ "$search_enabled" == true ]]; then
   snapshot_name=$(jq -r '.snapshot' "$snapshot_reference")
   expected_documents=$(jq -r '.documentCount' "$snapshot_reference")
   expected_mapping_sha=$(jq -r '.mappingSha256' "$snapshot_reference")
+  expected_database_document_identity_pairs_sha=$(
+    jq -r '.dbDocumentIdentityPairsSha256' "$snapshot_reference"
+  )
+  expected_elasticsearch_document_identity_pairs_sha=$(
+    jq -r '.esDocumentIdentityPairsSha256' "$snapshot_reference"
+  )
+  logical_alias=$(jq -r '.logicalAlias' "$snapshot_reference")
+  snapshot_index=$(jq -r '.snapshotIndex' "$snapshot_reference")
+  [[ "$logical_alias" == accommodations ]] \
+    || { printf '%s\n' 'unsupported Elasticsearch snapshot index' >&2; exit 1; }
+  [[ "$snapshot_index" =~ ^accommodations-v[a-z0-9][a-z0-9._-]*$ ]] \
+    || { printf '%s\n' 'unsafe Elasticsearch snapshot source index' >&2; exit 1; }
+  restored_index="${logical_alias}-vdataset-${AIRBOB_DATASET_RELEASE}"
+  [[ "$restored_index" =~ ^accommodations-vdataset-[a-z0-9][a-z0-9._-]{2,63}$ ]] \
+    || { printf '%s\n' 'unsafe Elasticsearch restore index' >&2; exit 1; }
 
   elasticsearch_info=$(curl --fail --silent --show-error http://elasticsearch.lab.airbob.internal:9200/)
   [[ "$(jq -r '.version.number' <<<"$elasticsearch_info")" == 8.18.8 ]] \
@@ -246,35 +298,68 @@ if [[ "$search_enabled" == true ]]; then
   curl --fail --silent --show-error --request PUT \
     --header 'Content-Type: application/json' --data-binary "$repository_body" \
     "http://elasticsearch.lab.airbob.internal:9200/_snapshot/$repository" >/dev/null
-  curl --silent --show-error --request DELETE \
-    'http://elasticsearch.lab.airbob.internal:9200/accommodations' >/dev/null || true
-  restore_body='{"indices":"accommodations","include_global_state":false,"index_settings":{"index.number_of_replicas":0,"index.blocks.write":false}}'
+  delete_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --request DELETE "http://elasticsearch.lab.airbob.internal:9200/$restored_index")
+  [[ "$delete_status" == 200 || "$delete_status" == 404 ]] \
+    || { printf '%s\n' 'unable to clear the Elasticsearch restore index' >&2; exit 1; }
+  restore_body=$(jq -n --arg sourceIndex "$snapshot_index" --arg restoredIndex "$restored_index" '
+    {
+      indices: $sourceIndex,
+      include_global_state: false,
+      include_aliases:false,
+      feature_states:["none"],
+      rename_pattern: ("^" + $sourceIndex + "$"),
+      rename_replacement: $restoredIndex,
+      index_settings: {
+        "index.number_of_replicas": 0,
+        "index.blocks.write":false
+      }
+    }
+  ')
   curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' \
     --data-binary "$restore_body" \
     "http://elasticsearch.lab.airbob.internal:9200/_snapshot/$repository/$snapshot_name/_restore?wait_for_completion=true" >/dev/null
   restored_documents=$(curl --fail --silent --show-error \
-    'http://elasticsearch.lab.airbob.internal:9200/accommodations/_count' | jq -r '.count')
+    "http://elasticsearch.lab.airbob.internal:9200/$restored_index/_count" | jq -r '.count')
   [[ "$restored_documents" == "$expected_documents" ]] \
     || { printf '%s\n' 'Elasticsearch document count does not match the snapshot reference' >&2; exit 1; }
   mapping_file="$work_root/elasticsearch-mapping.json"
   curl --fail --silent --show-error \
-    'http://elasticsearch.lab.airbob.internal:9200/accommodations/_mapping' \
-    | jq -S '.accommodations.mappings' > "$mapping_file"
+    "http://elasticsearch.lab.airbob.internal:9200/$restored_index/_mapping" \
+    | jq -S --arg restoredIndex "$restored_index" '.[$restoredIndex].mappings' > "$mapping_file"
   [[ "$(sha256sum "$mapping_file" | awk '{print $1}')" == "$expected_mapping_sha" ]] \
     || { printf '%s\n' 'Elasticsearch mapping fingerprint does not match the snapshot reference' >&2; exit 1; }
 
   database_ids="$work_root/database-accommodation-ids.txt"
+  database_document_identity_pairs="$work_root/database-document-identity-pairs.tsv"
   elasticsearch_ids="$work_root/elasticsearch-accommodation-ids.txt"
+  elasticsearch_document_identity_pairs="$work_root/elasticsearch-document-identity-pairs.tsv"
   elasticsearch_content="$work_root/elasticsearch-content.jsonl"
   elasticsearch_page="$work_root/elasticsearch-page.json"
   mysql_exec airbobdb --execute="SELECT id FROM accommodation WHERE status = 'PUBLISHED' ORDER BY id" > "$database_ids"
+  mysql_exec airbobdb --execute="
+    SELECT LOWER(BIN_TO_UUID(accommodation_uid)), id
+    FROM accommodation
+    WHERE status = 'PUBLISHED'
+    ORDER BY LOWER(BIN_TO_UUID(accommodation_uid)), id
+  " > "$database_document_identity_pairs"
   : > "$elasticsearch_ids"
+  : > "$elasticsearch_document_identity_pairs"
   : > "$elasticsearch_content"
   curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' \
     --data-binary '{"size":1000,"sort":["_doc"],"_source":true}' \
-    'http://elasticsearch.lab.airbob.internal:9200/accommodations/_search?scroll=2m' > "$elasticsearch_page"
+    "http://elasticsearch.lab.airbob.internal:9200/$restored_index/_search?scroll=2m" > "$elasticsearch_page"
   while :; do
-    jq -e '.timed_out == false and ._shards.failed == 0' "$elasticsearch_page" >/dev/null \
+    jq -e '
+      .timed_out == false and ._shards.failed == 0 and
+      (.hits.hits | type == "array") and
+      all(.hits.hits[];
+        (._id | type == "string" and
+          test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
+        (._source | type == "object") and
+        (._source.accommodationId | type == "number" and floor == . and . > 0)
+      )
+    ' "$elasticsearch_page" >/dev/null \
       || { printf '%s\n' 'Elasticsearch scroll did not complete cleanly' >&2; exit 1; }
     page_hits=$(jq '.hits.hits | length' "$elasticsearch_page")
     scroll_id=$(jq -r '._scroll_id' "$elasticsearch_page")
@@ -282,6 +367,8 @@ if [[ "$search_enabled" == true ]]; then
       || { printf '%s\n' 'Elasticsearch scroll response is invalid' >&2; exit 1; }
     [[ "$page_hits" -gt 0 ]] || break
     jq -r '.hits.hits[]._source.accommodationId' "$elasticsearch_page" >> "$elasticsearch_ids"
+    jq -r '.hits.hits[] | [._id, (._source.accommodationId | tostring)] | @tsv' \
+      "$elasticsearch_page" >> "$elasticsearch_document_identity_pairs"
     jq -S -c '.hits.hits[]._source' "$elasticsearch_page" >> "$elasticsearch_content"
     scroll_body=$(jq -n --arg scrollId "$scroll_id" '{scroll: "2m", scroll_id: $scrollId}')
     curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' \
@@ -297,8 +384,22 @@ if [[ "$search_enabled" == true ]]; then
     || { printf '%s\n' 'database accommodation id stream is invalid' >&2; exit 1; }
   awk 'NF != 1 || $1 !~ /^[1-9][0-9]*$/ { exit 1 }' "$elasticsearch_ids" \
     || { printf '%s\n' 'Elasticsearch accommodation id stream is invalid' >&2; exit 1; }
+  awk -F '\t' '
+    NF != 2 ||
+    $1 !~ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ ||
+    $2 !~ /^[1-9][0-9]*$/ { exit 1 }
+  ' "$database_document_identity_pairs" \
+    || { printf '%s\n' 'database document identity pair stream is invalid' >&2; exit 1; }
+  awk -F '\t' '
+    NF != 2 ||
+    $1 !~ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ ||
+    $2 !~ /^[1-9][0-9]*$/ { exit 1 }
+  ' "$elasticsearch_document_identity_pairs" \
+    || { printf '%s\n' 'Elasticsearch document identity pair stream is invalid' >&2; exit 1; }
   LC_ALL=C sort -n "$database_ids" -o "$database_ids"
+  LC_ALL=C sort "$database_document_identity_pairs" -o "$database_document_identity_pairs"
   LC_ALL=C sort -n "$elasticsearch_ids" -o "$elasticsearch_ids"
+  LC_ALL=C sort "$elasticsearch_document_identity_pairs" -o "$elasticsearch_document_identity_pairs"
   LC_ALL=C sort "$elasticsearch_content" -o "$elasticsearch_content"
   [[ "$(wc -l < "$database_ids" | tr -d ' ')" == "$expected_documents" && \
       "$(wc -l < "$elasticsearch_ids" | tr -d ' ')" == "$expected_documents" ]] \
@@ -307,8 +408,55 @@ if [[ "$search_enabled" == true ]]; then
     || { printf '%s\n' 'database accommodation id fingerprint does not match the release' >&2; exit 1; }
   [[ "$(sha256sum "$elasticsearch_ids" | awk '{print $1}')" == "$(jq -r '.esIdsSha256' "$snapshot_reference")" ]] \
     || { printf '%s\n' 'Elasticsearch accommodation id fingerprint does not match the release' >&2; exit 1; }
+  validate_document_identity_pairs \
+    "$database_document_identity_pairs" \
+    "$elasticsearch_document_identity_pairs" \
+    "$expected_database_document_identity_pairs_sha" \
+    "$expected_elasticsearch_document_identity_pairs_sha" \
+    "$expected_documents" \
+    || { printf '%s\n' 'document identity pair fingerprint does not match the release' >&2; exit 1; }
   [[ "$(sha256sum "$elasticsearch_content" | awk '{print $1}')" == "$(jq -r '.contentFingerprintSha256' "$snapshot_reference")" ]] \
     || { printf '%s\n' 'Elasticsearch content fingerprint does not match the release' >&2; exit 1; }
+
+  existing_aliases_file="$work_root/elasticsearch-existing-aliases.json"
+  alias_status=$(curl --silent --show-error --output "$existing_aliases_file" --write-out '%{http_code}' \
+    "http://elasticsearch.lab.airbob.internal:9200/_alias/$logical_alias")
+  case "$alias_status" in
+    200) existing_aliases=$(cat "$existing_aliases_file") ;;
+    404) existing_aliases='{}' ;;
+    *) printf '%s\n' 'unable to inspect the Elasticsearch alias' >&2; exit 1 ;;
+  esac
+  jq -e --arg alias "$logical_alias" '
+    all(to_entries[];
+      (.key | startswith($alias + "-v")) and
+      (.value.aliases[$alias] != null)
+    )
+  ' <<<"$existing_aliases" >/dev/null \
+    || { printf '%s\n' 'Elasticsearch alias contains an unmanaged index' >&2; exit 1; }
+  alias_body=$(jq -n \
+    --arg alias "$logical_alias" \
+    --arg restoredIndex "$restored_index" \
+    --argjson existingAliases "$existing_aliases" '
+    {
+      actions: (
+        [$existingAliases | keys[] as $index |
+          {remove: {index: $index, alias: $alias, must_exist: true}}] +
+        [{add: {index: $restoredIndex, alias: $alias, is_write_index: true}}]
+      )
+    }
+  ')
+  alias_update=$(curl --fail --silent --show-error --request POST \
+    --header 'Content-Type: application/json' --data-binary "$alias_body" \
+    'http://elasticsearch.lab.airbob.internal:9200/_aliases')
+  jq -e '.acknowledged == true' <<<"$alias_update" >/dev/null \
+    || { printf '%s\n' 'Elasticsearch alias update was not acknowledged' >&2; exit 1; }
+  alias_state=$(curl --fail --silent --show-error \
+    "http://elasticsearch.lab.airbob.internal:9200/_alias/$logical_alias")
+  jq -e --arg alias "$logical_alias" --arg restoredIndex "$restored_index" '
+    (keys == [$restoredIndex]) and
+    .[$restoredIndex].aliases[$alias].is_write_index == true
+  ' <<<"$alias_state" >/dev/null \
+    || { printf '%s\n' 'Elasticsearch write alias does not target the restored index' >&2; exit 1; }
   search_state=restored
 else
   search_state=skipped
@@ -358,7 +506,14 @@ debezium_compose=/opt/airbob/release/infra/aws/bundles/debezium/compose.yml
 compose=(docker compose --env-file /etc/airbob/images.env -f "$debezium_compose")
 kafka_exec=("${compose[@]}" exec --no-TTY debezium env KAFKA_OPTS= KAFKA_HEAP_OPTS=-Xms64m\ -Xmx64m)
 while IFS=$'\t' read -r topic partitions retention_ms; do
-  [[ "$topic" =~ ^[A-Z]+\.events$ && "$partitions" =~ ^[1-9][0-9]*$ && "$retention_ms" =~ ^[1-9][0-9]*$ ]] \
+  case "$topic" in
+    PAYMENT_OPERATION.events|PAYMENT_OPERATION.events.RETRY|PAYMENT_OPERATION.events.DLT|\
+    ACCOMMODATION_INDEX.events|ACCOMMODATION_INDEX.events.RETRY|ACCOMMODATION_INDEX.events.DLT|\
+    ACCOMMODATION_CACHE.events|ACCOMMODATION_CACHE.events.RETRY|ACCOMMODATION_CACHE.events.DLT|\
+    OPERATOR_ALERT.events|OPERATOR_ALERT.events.RETRY|OPERATOR_ALERT.events.DLT) ;;
+    *) printf '%s\n' 'unsafe Kafka topic contract' >&2; exit 1 ;;
+  esac
+  [[ "$partitions" == 3 && "$retention_ms" == 86400000 ]] \
     || { printf '%s\n' 'unsafe Kafka topic contract' >&2; exit 1; }
   "${kafka_exec[@]}" /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server kafka.lab.airbob.internal:9092 --create --if-not-exists \

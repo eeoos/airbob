@@ -58,27 +58,33 @@ write_release() {
       "elasticsearchVersion": "8.18.8",
       "imageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "requiredPlugins": ["analysis-nori", "repository-s3"],
-      "index": "accommodations",
+      "logicalAlias": "accommodations",
+      "snapshotIndex": "accommodations-vsource-20260816",
       "documentCount": 730702,
       "mappingSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "databaseAccommodationIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "elasticsearchAccommodationIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "databaseDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "elasticsearchDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "contentFingerprintSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }'
     cat > "$root/elasticsearch/snapshot-reference.json" <<'JSON'
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "repository": "airbob-dataset-readonly",
   "bucket": "airbob-performance-lab-dataset-942632789808",
-  "basePath": "elasticsearch/releases/rehearsal-v17",
-  "snapshot": "airbob-rehearsal-v17",
-  "index": "accommodations",
+  "basePath": "elasticsearch/releases/rehearsal-v20",
+  "snapshot": "airbob-rehearsal-v20",
+  "logicalAlias": "accommodations",
+  "snapshotIndex": "accommodations-vsource-20260816",
   "elasticsearchVersion": "8.18.8",
   "imageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "documentCount": 730702,
   "mappingSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "dbIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "esIdsSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "dbDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "esDocumentIdentityPairsSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "contentFingerprintSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 }
 JSON
@@ -103,8 +109,8 @@ JSON
       },
       "outbox": { "initialState": "empty", "highWatermark": 0 },
       "kafkaCausalFence": {
-        "topic": "ACCOMMODATIONS.events",
-        "partitionOffsets": { "0": 0 }
+        "topic": "ACCOMMODATION_INDEX.events",
+        "partitionOffsets": { "0": 0, "1": 0, "2": 0 }
       }
     }'
   fi
@@ -121,7 +127,7 @@ JSON
     {
       schemaVersion: 1,
       releaseKind: $kind,
-      datasetRelease: "rehearsal-v17",
+      datasetRelease: "rehearsal-v20",
       datasetRunId: "20260816T001530Z-12345678",
       source: {
         datasetVersion: $datasetVersion,
@@ -143,14 +149,29 @@ JSON
         evaluationTime: "2026-08-16T00:00:00Z",
         validUntil: "2099-12-31T00:00:00Z",
         outboxPolicy: "absent",
-        expectedTableRows: { flyway_schema_history: $flywayHistoryRows, outbox: 0, accommodation: 730702 }
+        expectedTableRows: {
+          flyway_schema_history: $flywayHistoryRows,
+          outbox: 0,
+          accommodation: 730702,
+          accommodation_inventory_day: 0,
+          reservation: 0
+        }
       },
       couponPreparation: [],
       kafka: {
         topics: [
-          { name: "PAYMENT.events", partitions: 1, retentionMs: 86400000 },
-          { name: "RESERVATION.events", partitions: 1, retentionMs: 86400000 },
-          { name: "ACCOMMODATIONS.events", partitions: 1, retentionMs: 86400000 }
+          { name: "PAYMENT_OPERATION.events", partitions: 3, retentionMs: 86400000 },
+          { name: "PAYMENT_OPERATION.events.RETRY", partitions: 3, retentionMs: 86400000 },
+          { name: "PAYMENT_OPERATION.events.DLT", partitions: 3, retentionMs: 86400000 },
+          { name: "ACCOMMODATION_INDEX.events", partitions: 3, retentionMs: 86400000 },
+          { name: "ACCOMMODATION_INDEX.events.RETRY", partitions: 3, retentionMs: 86400000 },
+          { name: "ACCOMMODATION_INDEX.events.DLT", partitions: 3, retentionMs: 86400000 },
+          { name: "ACCOMMODATION_CACHE.events", partitions: 3, retentionMs: 86400000 },
+          { name: "ACCOMMODATION_CACHE.events.RETRY", partitions: 3, retentionMs: 86400000 },
+          { name: "ACCOMMODATION_CACHE.events.DLT", partitions: 3, retentionMs: 86400000 },
+          { name: "OPERATOR_ALERT.events", partitions: 3, retentionMs: 86400000 },
+          { name: "OPERATOR_ALERT.events.RETRY", partitions: 3, retentionMs: 86400000 },
+          { name: "OPERATOR_ALERT.events.DLT", partitions: 3, retentionMs: 86400000 }
         ]
       },
       search: $search
@@ -187,25 +208,25 @@ expect_failure() {
 [[ -x "$validator" ]] || { printf '%s\n' 'dataset release validator is missing or not executable' >&2; exit 1; }
 
 write_release "$tmp_dir/rehearsal" pipeline-rehearsal false
-"$validator" "$tmp_dir/rehearsal" rehearsal-v17 pipeline-rehearsal >/dev/null
+"$validator" "$tmp_dir/rehearsal" rehearsal-v20 pipeline-rehearsal >/dev/null
 
 write_release "$tmp_dir/evidence" evidence true
-"$validator" "$tmp_dir/evidence" rehearsal-v17 evidence >/dev/null
+"$validator" "$tmp_dir/evidence" rehearsal-v20 evidence >/dev/null
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/unknown-source-key"
 jq '.source.unreviewed = "value"' \
   "$tmp_dir/unknown-source-key/manifest.json" > "$tmp_dir/unknown-source-key/manifest.next"
 mv "$tmp_dir/unknown-source-key/manifest.next" "$tmp_dir/unknown-source-key/manifest.json"
-expect_failure unknown-source-key "$validator" "$tmp_dir/unknown-source-key" rehearsal-v17 pipeline-rehearsal
+expect_failure unknown-source-key "$validator" "$tmp_dir/unknown-source-key" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/missing-benchmark-manifest"
 rm "$tmp_dir/missing-benchmark-manifest/benchmark/manifest.json"
-expect_failure missing-benchmark-manifest "$validator" "$tmp_dir/missing-benchmark-manifest" rehearsal-v17 pipeline-rehearsal
+expect_failure missing-benchmark-manifest "$validator" "$tmp_dir/missing-benchmark-manifest" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/symlink-benchmark-manifest"
 rm "$tmp_dir/symlink-benchmark-manifest/benchmark/manifest.json"
 ln -s ../manifest.json "$tmp_dir/symlink-benchmark-manifest/benchmark/manifest.json"
-expect_failure symlink-benchmark-manifest "$validator" "$tmp_dir/symlink-benchmark-manifest" rehearsal-v17 pipeline-rehearsal
+expect_failure symlink-benchmark-manifest "$validator" "$tmp_dir/symlink-benchmark-manifest" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-benchmark-hash"
 jq '.account.email = "other@airbob.cloud"' \
@@ -213,21 +234,21 @@ jq '.account.email = "other@airbob.cloud"' \
   > "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.next"
 mv "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.next" \
   "$tmp_dir/wrong-benchmark-hash/benchmark/manifest.json"
-expect_failure wrong-benchmark-hash "$validator" "$tmp_dir/wrong-benchmark-hash" rehearsal-v17 pipeline-rehearsal
+expect_failure wrong-benchmark-hash "$validator" "$tmp_dir/wrong-benchmark-hash" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-benchmark-version"
 rewrite_benchmark_manifest "$tmp_dir/wrong-benchmark-version" '.datasetVersion = "traffic-v1"'
-expect_failure wrong-benchmark-version "$validator" "$tmp_dir/wrong-benchmark-version" rehearsal-v17 pipeline-rehearsal
+expect_failure wrong-benchmark-version "$validator" "$tmp_dir/wrong-benchmark-version" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/benchmark-secret-key"
 rewrite_benchmark_manifest "$tmp_dir/benchmark-secret-key" '.account.sessionToken = "hunter2"'
-expect_failure benchmark-secret-key "$validator" "$tmp_dir/benchmark-secret-key" rehearsal-v17 pipeline-rehearsal
+expect_failure benchmark-secret-key "$validator" "$tmp_dir/benchmark-secret-key" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/benchmark-secret-value"
 rewrite_benchmark_manifest "$tmp_dir/benchmark-secret-value" \
   '.notes = "aws_secret_access_key=hunter2"'
 expect_failure benchmark-secret-value \
-  "$validator" "$tmp_dir/benchmark-secret-value" rehearsal-v17 pipeline-rehearsal
+  "$validator" "$tmp_dir/benchmark-secret-value" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/multi-document-manifest"
 {
@@ -235,7 +256,7 @@ cp -R "$tmp_dir/rehearsal" "$tmp_dir/multi-document-manifest"
   cat "$tmp_dir/rehearsal/manifest.json"
 } > "$tmp_dir/multi-document-manifest/manifest.json"
 expect_failure multi-document-manifest \
-  "$validator" "$tmp_dir/multi-document-manifest" rehearsal-v17 pipeline-rehearsal
+  "$validator" "$tmp_dir/multi-document-manifest" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/multi-document-benchmark"
 {
@@ -249,69 +270,121 @@ jq --arg sha "$multi_benchmark_sha" '.source.benchmarkManifestSha256 = $sha' \
 mv "$tmp_dir/multi-document-benchmark/manifest.next" \
   "$tmp_dir/multi-document-benchmark/manifest.json"
 expect_failure multi-document-benchmark \
-  "$validator" "$tmp_dir/multi-document-benchmark" rehearsal-v17 pipeline-rehearsal
+  "$validator" "$tmp_dir/multi-document-benchmark" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/duplicate-recent-id"
 rewrite_benchmark_manifest \
   "$tmp_dir/duplicate-recent-id" \
   '.recentlyViewed.accommodationIds[1] = .recentlyViewed.accommodationIds[0]'
-expect_failure duplicate-recent-id "$validator" "$tmp_dir/duplicate-recent-id" rehearsal-v17 pipeline-rehearsal
+expect_failure duplicate-recent-id "$validator" "$tmp_dir/duplicate-recent-id" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-flyway"
-jq '.mysql.flywayVersion = "16"' "$tmp_dir/wrong-flyway/manifest.json" > "$tmp_dir/wrong-flyway/manifest.next"
+jq '.mysql.flywayVersion = "19"' "$tmp_dir/wrong-flyway/manifest.json" > "$tmp_dir/wrong-flyway/manifest.next"
 mv "$tmp_dir/wrong-flyway/manifest.next" "$tmp_dir/wrong-flyway/manifest.json"
-expect_failure wrong-flyway "$validator" "$tmp_dir/wrong-flyway" rehearsal-v17 pipeline-rehearsal
+expect_failure wrong-flyway "$validator" "$tmp_dir/wrong-flyway" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-flyway-history-count"
-jq '.mysql.expectedTableRows.flyway_schema_history = 16' \
+jq '.mysql.expectedTableRows.flyway_schema_history = 19' \
   "$tmp_dir/wrong-flyway-history-count/manifest.json" \
   > "$tmp_dir/wrong-flyway-history-count/manifest.next"
 mv "$tmp_dir/wrong-flyway-history-count/manifest.next" \
   "$tmp_dir/wrong-flyway-history-count/manifest.json"
 expect_failure wrong-flyway-history-count \
-  "$validator" "$tmp_dir/wrong-flyway-history-count" rehearsal-v17 pipeline-rehearsal
+  "$validator" "$tmp_dir/wrong-flyway-history-count" rehearsal-v20 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/unapproved-kafka-topic"
+jq '.kafka.topics[0].name = "UNAPPROVED.events"' \
+  "$tmp_dir/unapproved-kafka-topic/manifest.json" > "$tmp_dir/unapproved-kafka-topic/manifest.next"
+mv "$tmp_dir/unapproved-kafka-topic/manifest.next" "$tmp_dir/unapproved-kafka-topic/manifest.json"
+expect_failure unapproved-kafka-topic \
+  "$validator" "$tmp_dir/unapproved-kafka-topic" rehearsal-v20 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/incomplete-kafka-inventory"
+jq 'del(.kafka.topics[-1])' \
+  "$tmp_dir/incomplete-kafka-inventory/manifest.json" > "$tmp_dir/incomplete-kafka-inventory/manifest.next"
+mv "$tmp_dir/incomplete-kafka-inventory/manifest.next" "$tmp_dir/incomplete-kafka-inventory/manifest.json"
+expect_failure incomplete-kafka-inventory \
+  "$validator" "$tmp_dir/incomplete-kafka-inventory" rehearsal-v20 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-kafka-partitions"
+jq '.kafka.topics[0].partitions = 1' \
+  "$tmp_dir/wrong-kafka-partitions/manifest.json" > "$tmp_dir/wrong-kafka-partitions/manifest.next"
+mv "$tmp_dir/wrong-kafka-partitions/manifest.next" "$tmp_dir/wrong-kafka-partitions/manifest.json"
+expect_failure wrong-kafka-partitions \
+  "$validator" "$tmp_dir/wrong-kafka-partitions" rehearsal-v20 pipeline-rehearsal
+
+cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-kafka-retention"
+jq '.kafka.topics[0].retentionMs = 3600000' \
+  "$tmp_dir/wrong-kafka-retention/manifest.json" > "$tmp_dir/wrong-kafka-retention/manifest.next"
+mv "$tmp_dir/wrong-kafka-retention/manifest.next" "$tmp_dir/wrong-kafka-retention/manifest.json"
+expect_failure wrong-kafka-retention \
+  "$validator" "$tmp_dir/wrong-kafka-retention" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/wrong-dump"
 printf '%s' tampered >> "$tmp_dir/wrong-dump/mysql/airbob.sql.zst"
-expect_failure wrong-dump "$validator" "$tmp_dir/wrong-dump" rehearsal-v17 pipeline-rehearsal
+expect_failure wrong-dump "$validator" "$tmp_dir/wrong-dump" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/rehearsal-traffic"
 jq '.source.datasetVersion = "traffic-v1"' "$tmp_dir/rehearsal-traffic/manifest.json" > "$tmp_dir/rehearsal-traffic/manifest.next"
 mv "$tmp_dir/rehearsal-traffic/manifest.next" "$tmp_dir/rehearsal-traffic/manifest.json"
-expect_failure rehearsal-traffic "$validator" "$tmp_dir/rehearsal-traffic" rehearsal-v17 pipeline-rehearsal
+expect_failure rehearsal-traffic "$validator" "$tmp_dir/rehearsal-traffic" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/evidence-no-search"
 jq '.search = {enabled: false}' "$tmp_dir/evidence-no-search/manifest.json" > "$tmp_dir/evidence-no-search/manifest.next"
 mv "$tmp_dir/evidence-no-search/manifest.next" "$tmp_dir/evidence-no-search/manifest.json"
-expect_failure evidence-no-search "$validator" "$tmp_dir/evidence-no-search" rehearsal-v17 evidence
+expect_failure evidence-no-search "$validator" "$tmp_dir/evidence-no-search" rehearsal-v20 evidence
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/evidence-mismatch"
 jq '.search.elasticsearchAccommodationIdsSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' "$tmp_dir/evidence-mismatch/manifest.json" > "$tmp_dir/evidence-mismatch/manifest.next"
 mv "$tmp_dir/evidence-mismatch/manifest.next" "$tmp_dir/evidence-mismatch/manifest.json"
-expect_failure evidence-mismatch "$validator" "$tmp_dir/evidence-mismatch" rehearsal-v17 evidence
+expect_failure evidence-mismatch "$validator" "$tmp_dir/evidence-mismatch" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/document-identity-mismatch"
+jq '.search.elasticsearchDocumentIdentityPairsSha256 = ("a" * 64)' \
+  "$tmp_dir/document-identity-mismatch/manifest.json" \
+  > "$tmp_dir/document-identity-mismatch/manifest.next"
+mv "$tmp_dir/document-identity-mismatch/manifest.next" \
+  "$tmp_dir/document-identity-mismatch/manifest.json"
+expect_failure document-identity-mismatch \
+  "$validator" "$tmp_dir/document-identity-mismatch" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/document-identity-schema-missing"
+jq 'del(.search.databaseDocumentIdentityPairsSha256)' \
+  "$tmp_dir/document-identity-schema-missing/manifest.json" \
+  > "$tmp_dir/document-identity-schema-missing/manifest.next"
+mv "$tmp_dir/document-identity-schema-missing/manifest.next" \
+  "$tmp_dir/document-identity-schema-missing/manifest.json"
+expect_failure document-identity-schema-missing \
+  "$validator" "$tmp_dir/document-identity-schema-missing" rehearsal-v20 evidence
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/evidence-content-mismatch"
 jq '.evidence.targetFingerprints.contentSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' \
   "$tmp_dir/evidence-content-mismatch/manifest.json" > "$tmp_dir/evidence-content-mismatch/manifest.next"
 mv "$tmp_dir/evidence-content-mismatch/manifest.next" "$tmp_dir/evidence-content-mismatch/manifest.json"
-expect_failure evidence-content-mismatch "$validator" "$tmp_dir/evidence-content-mismatch" rehearsal-v17 evidence
+expect_failure evidence-content-mismatch "$validator" "$tmp_dir/evidence-content-mismatch" rehearsal-v20 evidence
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/evidence-wrong-causal-topic"
-jq '.evidence.kafkaCausalFence.topic = "PAYMENT.events"' \
+jq '.evidence.kafkaCausalFence.topic = "PAYMENT_OPERATION.events"' \
   "$tmp_dir/evidence-wrong-causal-topic/manifest.json" > "$tmp_dir/evidence-wrong-causal-topic/manifest.next"
 mv "$tmp_dir/evidence-wrong-causal-topic/manifest.next" "$tmp_dir/evidence-wrong-causal-topic/manifest.json"
-expect_failure evidence-wrong-causal-topic "$validator" "$tmp_dir/evidence-wrong-causal-topic" rehearsal-v17 evidence
+expect_failure evidence-wrong-causal-topic "$validator" "$tmp_dir/evidence-wrong-causal-topic" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/evidence-incomplete-causal-fence"
+jq 'del(.evidence.kafkaCausalFence.partitionOffsets["2"])' \
+  "$tmp_dir/evidence-incomplete-causal-fence/manifest.json" > "$tmp_dir/evidence-incomplete-causal-fence/manifest.next"
+mv "$tmp_dir/evidence-incomplete-causal-fence/manifest.next" "$tmp_dir/evidence-incomplete-causal-fence/manifest.json"
+expect_failure evidence-incomplete-causal-fence "$validator" "$tmp_dir/evidence-incomplete-causal-fence" rehearsal-v20 evidence
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/secret-key"
 jq '.mysql.password = "hunter2"' "$tmp_dir/secret-key/manifest.json" > "$tmp_dir/secret-key/manifest.next"
 mv "$tmp_dir/secret-key/manifest.next" "$tmp_dir/secret-key/manifest.json"
-expect_failure secret-key "$validator" "$tmp_dir/secret-key" rehearsal-v17 pipeline-rehearsal
+expect_failure secret-key "$validator" "$tmp_dir/secret-key" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/rehearsal" "$tmp_dir/duplicate-coupon"
 jq '.couponPreparation = [{couponId: 1, quantity: 10}, {couponId: 1, quantity: 10}]' \
   "$tmp_dir/duplicate-coupon/manifest.json" > "$tmp_dir/duplicate-coupon/manifest.next"
 mv "$tmp_dir/duplicate-coupon/manifest.next" "$tmp_dir/duplicate-coupon/manifest.json"
-expect_failure duplicate-coupon "$validator" "$tmp_dir/duplicate-coupon" rehearsal-v17 pipeline-rehearsal
+expect_failure duplicate-coupon "$validator" "$tmp_dir/duplicate-coupon" rehearsal-v20 pipeline-rehearsal
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/cross-release-snapshot"
 jq '.basePath = "elasticsearch/releases/another-release"' \
@@ -319,7 +392,25 @@ jq '.basePath = "elasticsearch/releases/another-release"' \
   > "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.next"
 mv "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.next" \
   "$tmp_dir/cross-release-snapshot/elasticsearch/snapshot-reference.json"
-expect_failure cross-release-snapshot "$validator" "$tmp_dir/cross-release-snapshot" rehearsal-v17 evidence
+expect_failure cross-release-snapshot "$validator" "$tmp_dir/cross-release-snapshot" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/unsafe-snapshot-index"
+jq '.snapshotIndex = .logicalAlias' \
+  "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.json" \
+  > "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.next"
+mv "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.next" \
+  "$tmp_dir/unsafe-snapshot-index/elasticsearch/snapshot-reference.json"
+expect_failure unsafe-snapshot-index \
+  "$validator" "$tmp_dir/unsafe-snapshot-index" rehearsal-v20 evidence
+
+cp -R "$tmp_dir/evidence" "$tmp_dir/snapshot-index-mismatch"
+jq '.search.snapshotIndex = "accommodations-vother-source"' \
+  "$tmp_dir/snapshot-index-mismatch/manifest.json" \
+  > "$tmp_dir/snapshot-index-mismatch/manifest.next"
+mv "$tmp_dir/snapshot-index-mismatch/manifest.next" \
+  "$tmp_dir/snapshot-index-mismatch/manifest.json"
+expect_failure snapshot-index-mismatch \
+  "$validator" "$tmp_dir/snapshot-index-mismatch" rehearsal-v20 evidence
 
 cp -R "$tmp_dir/evidence" "$tmp_dir/multi-document-snapshot"
 {
@@ -327,6 +418,6 @@ cp -R "$tmp_dir/evidence" "$tmp_dir/multi-document-snapshot"
   cat "$tmp_dir/evidence/elasticsearch/snapshot-reference.json"
 } > "$tmp_dir/multi-document-snapshot/elasticsearch/snapshot-reference.json"
 expect_failure multi-document-snapshot \
-  "$validator" "$tmp_dir/multi-document-snapshot" rehearsal-v17 evidence
+  "$validator" "$tmp_dir/multi-document-snapshot" rehearsal-v20 evidence
 
 printf '%s\n' 'dataset release tests passed'

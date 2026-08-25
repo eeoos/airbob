@@ -74,16 +74,18 @@ write_attestation() {
       databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
       verifierContractInventorySha256: "7777777777777777777777777777777777777777777777777777777777777777",
       databaseFingerprintSubsetSha256: "8888888888888888888888888888888888888888888888888888888888888888",
-      flywayVersion: "17",
-      flywayHistoryRows: 17,
+      flywayVersion: "27",
+      flywayHistoryRows: 27,
       migrationChecksumSha256: "4444444444444444444444444444444444444444444444444444444444444444",
       schemaFingerprintSha256: "5555555555555555555555555555555555555555555555555555555555555555",
       outboxState: "empty",
       expectedTableRows: {
         accommodation: $accommodationRows,
-        flyway_schema_history: 17,
+        accommodation_inventory_day: 0,
+        flyway_schema_history: 27,
         member: 3,
-        outbox: 0
+        outbox: 0,
+        reservation: 0
       },
       capturedAt: "2026-08-17T00:00:00Z"
     }
@@ -95,18 +97,21 @@ write_snapshot_reference() {
   local release_name=$2
   jq -nS --arg release "$release_name" '
     {
-      schemaVersion: 1,
+      schemaVersion: 2,
       repository: "airbob-dataset-readonly",
       bucket: "airbob-performance-lab-dataset-942632789808",
       basePath: ("elasticsearch/releases/" + $release),
       snapshot: ("airbob-" + $release),
-      index: "accommodations",
+      logicalAlias: "accommodations",
+      snapshotIndex: "accommodations-vsource-20260817",
       elasticsearchVersion: "8.18.8",
       imageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       documentCount: 201,
       mappingSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       dbIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       esIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      dbDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      esDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       contentFingerprintSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }
   ' > "$output_file"
@@ -147,7 +152,7 @@ write_source_release() {
   done < <(find "$repo_root/src/main/resources/db/migration" -maxdepth 1 -type f -name 'V*.sql' | LC_ALL=C sort)
   printf '%s\n' \
     'format_version	1' \
-    'flyway_applied_count	17' \
+    'flyway_applied_count	27' \
     'outbox_count	0' \
     > "$release_dir/database-fingerprint.tsv"
   printf '%s\n' \
@@ -166,7 +171,7 @@ write_source_release() {
       timezone: "Asia/Seoul",
       validUntil: "2099-12-31T09:00:00",
       schema: {
-        flywayVersion: "17",
+        flywayVersion: "27",
         migrationDigest: "sha256:6666666666666666666666666666666666666666666666666666666666666666"
       }
     }
@@ -209,11 +214,11 @@ traffic_manifest=traffic-v1.json
 traffic_manifest_sha256=$traffic_sha
 traffic_dataset_version=traffic-v1
 traffic_dataset_run_id=$traffic_run_id
-traffic_flyway_version=17
+traffic_flyway_version=27
 traffic_migration_digest=sha256:6666666666666666666666666666666666666666666666666666666666666666
 fingerprint=database-fingerprint.tsv
 required_rows=201
-recovery=reset-flyway-v1-v17-etl-reseed-before-traffic
+recovery=reset-flyway-v1-v27-etl-reseed-before-traffic
 EOF
 
   write_checksums "$release_dir"
@@ -251,7 +256,7 @@ source_release="$temp_dir/etl-release"
 attestation="$temp_dir/attestation.json"
 output_one="$temp_dir/output-one"
 output_two="$temp_dir/output-two"
-dataset_release=rehearsal-v17
+dataset_release=rehearsal-v20
 evaluation_time=2026-08-18T00:00:00Z
 valid_until=2099-12-31T00:00:00Z
 write_source_release "$source_release"
@@ -298,7 +303,7 @@ jq -e \
   ] | sort) and
   .schemaVersion == 1 and
   .releaseKind == "pipeline-rehearsal" and
-  .datasetRelease == "rehearsal-v17" and
+  .datasetRelease == "rehearsal-v20" and
   .datasetRunId == "20260817T001530Z-12345678" and
   .source == {
     datasetVersion: "nplus1-v1",
@@ -312,7 +317,7 @@ jq -e \
   } and
   .mysql.dumpKey == "mysql/airbob.sql.zst" and
   .mysql.dumpSha256 == $dumpSha256 and
-  .mysql.flywayVersion == "17" and
+  .mysql.flywayVersion == "27" and
   .mysql.migrationChecksumSha256 == "4444444444444444444444444444444444444444444444444444444444444444" and
   .mysql.schemaFingerprintSha256 == "5555555555555555555555555555555555555555555555555555555555555555" and
   .mysql.timezone == "UTC" and
@@ -321,13 +326,20 @@ jq -e \
   .mysql.outboxPolicy == "absent" and
   .mysql.expectedTableRows == {
     accommodation: 201,
-    flyway_schema_history: 17,
+    accommodation_inventory_day: 0,
+    flyway_schema_history: 27,
     member: 3,
-    outbox: 0
+    outbox: 0,
+    reservation: 0
   } and
   .couponPreparation == [] and
-  ([.kafka.topics[].name] | sort) == ["ACCOMMODATIONS.events", "PAYMENT.events", "RESERVATION.events"] and
-  all(.kafka.topics[]; .partitions == 1 and .retentionMs == 86400000) and
+  ([.kafka.topics[].name] | sort) == [
+    "ACCOMMODATION_CACHE.events", "ACCOMMODATION_CACHE.events.DLT", "ACCOMMODATION_CACHE.events.RETRY",
+    "ACCOMMODATION_INDEX.events", "ACCOMMODATION_INDEX.events.DLT", "ACCOMMODATION_INDEX.events.RETRY",
+    "OPERATOR_ALERT.events", "OPERATOR_ALERT.events.DLT", "OPERATOR_ALERT.events.RETRY",
+    "PAYMENT_OPERATION.events", "PAYMENT_OPERATION.events.DLT", "PAYMENT_OPERATION.events.RETRY"
+  ] and
+  all(.kafka.topics[]; .partitions == 3 and .retentionMs == 86400000) and
   .search == {enabled: false}
 ' "$release_one/manifest.json" >/dev/null || fail 'assembled manifest does not match the pipeline contract'
 [[ "$(cat "$release_one/mysql/sha256.txt")" == "$dump_sha  airbob.sql.zst" ]] \
@@ -364,11 +376,14 @@ jq -e '
     elasticsearchVersion: "8.18.8",
     imageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     requiredPlugins: ["analysis-nori", "repository-s3"],
-    index: "accommodations",
+    logicalAlias: "accommodations",
+    snapshotIndex: "accommodations-vsource-20260817",
     documentCount: 201,
     mappingSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     databaseAccommodationIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     elasticsearchAccommodationIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    databaseDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    elasticsearchDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     contentFingerprintSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
   }
 ' "$search_release/manifest.json" >/dev/null \
@@ -383,6 +398,45 @@ make_output_root "$wrong_snapshot_output"
 expect_failure mismatched-snapshot-release "$wrong_snapshot_output" "$dataset_release" \
   "$assembler" "$source_release" "$attestation" "$wrong_snapshot_output" \
   "$dataset_release" "$evaluation_time" "$valid_until" "$wrong_snapshot_reference"
+
+mismatched_document_identity_reference="$temp_dir/mismatched-document-identity-reference.json"
+jq '.esDocumentIdentityPairsSha256 = ("f" * 64)' \
+  "$snapshot_reference" > "$mismatched_document_identity_reference"
+mismatched_document_identity_output="$temp_dir/mismatched-document-identity-output"
+make_output_root "$mismatched_document_identity_output"
+expect_failure mismatched-document-identity-pairs \
+  "$mismatched_document_identity_output" "$dataset_release" \
+  "$assembler" "$source_release" "$attestation" "$mismatched_document_identity_output" \
+  "$dataset_release" "$evaluation_time" "$valid_until" \
+  "$mismatched_document_identity_reference"
+
+missing_document_identity_reference="$temp_dir/missing-document-identity-reference.json"
+jq 'del(.dbDocumentIdentityPairsSha256)' \
+  "$snapshot_reference" > "$missing_document_identity_reference"
+missing_document_identity_output="$temp_dir/missing-document-identity-output"
+make_output_root "$missing_document_identity_output"
+expect_failure missing-document-identity-schema \
+  "$missing_document_identity_output" "$dataset_release" \
+  "$assembler" "$source_release" "$attestation" "$missing_document_identity_output" \
+  "$dataset_release" "$evaluation_time" "$valid_until" \
+  "$missing_document_identity_reference"
+
+legacy_snapshot_reference="$temp_dir/legacy-snapshot-reference.json"
+jq '.schemaVersion = 1 | .index = .logicalAlias | del(.logicalAlias, .snapshotIndex)' \
+  "$snapshot_reference" > "$legacy_snapshot_reference"
+legacy_snapshot_output="$temp_dir/legacy-snapshot-output"
+make_output_root "$legacy_snapshot_output"
+expect_failure legacy-snapshot-schema "$legacy_snapshot_output" "$dataset_release" \
+  "$assembler" "$source_release" "$attestation" "$legacy_snapshot_output" \
+  "$dataset_release" "$evaluation_time" "$valid_until" "$legacy_snapshot_reference"
+
+unsafe_snapshot_reference="$temp_dir/unsafe-snapshot-reference.json"
+jq '.snapshotIndex = .logicalAlias' "$snapshot_reference" > "$unsafe_snapshot_reference"
+unsafe_snapshot_output="$temp_dir/unsafe-snapshot-output"
+make_output_root "$unsafe_snapshot_output"
+expect_failure logical-alias-as-snapshot-index "$unsafe_snapshot_output" "$dataset_release" \
+  "$assembler" "$source_release" "$attestation" "$unsafe_snapshot_output" \
+  "$dataset_release" "$evaluation_time" "$valid_until" "$unsafe_snapshot_reference"
 
 multi_snapshot_reference="$temp_dir/multi-snapshot-reference.json"
 {
@@ -582,27 +636,27 @@ expect_failure checksum-count "$short_output" "$dataset_release" \
   "$assembler" "$short_checksums" "$attestation" "$short_output" "$dataset_release" \
   "$evaluation_time" "$valid_until"
 
-v16_source="$temp_dir/v16-source"
-v16_attestation="$temp_dir/v16-attestation.json"
-cp -R "$source_release" "$v16_source"
-jq '.schema.flywayVersion = "16"' "$v16_source/traffic-v1.json" > "$v16_source/traffic-v1.next"
-mv "$v16_source/traffic-v1.next" "$v16_source/traffic-v1.json"
-v16_traffic_sha=$(sha256_file "$v16_source/traffic-v1.json")
+v19_source="$temp_dir/v19-source"
+v19_attestation="$temp_dir/v19-attestation.json"
+cp -R "$source_release" "$v19_source"
+jq '.schema.flywayVersion = "19"' "$v19_source/traffic-v1.json" > "$v19_source/traffic-v1.next"
+mv "$v19_source/traffic-v1.next" "$v19_source/traffic-v1.json"
+v19_traffic_sha=$(sha256_file "$v19_source/traffic-v1.json")
 sed \
-  -e "s/^traffic_manifest_sha256=.*/traffic_manifest_sha256=$v16_traffic_sha/" \
-  -e 's/^traffic_flyway_version=17$/traffic_flyway_version=16/' \
-  -e 's/reset-flyway-v1-v17/reset-flyway-v1-v16/' \
-  "$v16_source/release-metadata.txt" > "$v16_source/release-metadata.next"
-mv "$v16_source/release-metadata.next" "$v16_source/release-metadata.txt"
-write_checksums "$v16_source"
-write_attestation "$v16_source" "$v16_attestation"
-jq '.flywayVersion = "16" | .flywayHistoryRows = 16 | .expectedTableRows.flyway_schema_history = 16' \
-  "$v16_attestation" > "$v16_attestation.next"
-mv "$v16_attestation.next" "$v16_attestation"
-v16_output="$temp_dir/v16-output"
-make_output_root "$v16_output"
-expect_failure v16 "$v16_output" "$dataset_release" \
-  "$assembler" "$v16_source" "$v16_attestation" "$v16_output" "$dataset_release" \
+  -e "s/^traffic_manifest_sha256=.*/traffic_manifest_sha256=$v19_traffic_sha/" \
+  -e 's/^traffic_flyway_version=27$/traffic_flyway_version=19/' \
+  -e 's/reset-flyway-v1-v27/reset-flyway-v1-v19/' \
+  "$v19_source/release-metadata.txt" > "$v19_source/release-metadata.next"
+mv "$v19_source/release-metadata.next" "$v19_source/release-metadata.txt"
+write_checksums "$v19_source"
+write_attestation "$v19_source" "$v19_attestation"
+jq '.flywayVersion = "19" | .flywayHistoryRows = 19 | .expectedTableRows.flyway_schema_history = 19' \
+  "$v19_attestation" > "$v19_attestation.next"
+mv "$v19_attestation.next" "$v19_attestation"
+v19_output="$temp_dir/v19-output"
+make_output_root "$v19_output"
+expect_failure v19 "$v19_output" "$dataset_release" \
+  "$assembler" "$v19_source" "$v19_attestation" "$v19_output" "$dataset_release" \
   "$evaluation_time" "$valid_until"
 
 mismatch_attestation="$temp_dir/mismatch-attestation.json"

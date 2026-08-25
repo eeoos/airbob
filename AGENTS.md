@@ -1,100 +1,199 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides repository-specific guidance to coding agents.
 
-## Build and Test Commands
+## Build and test commands
 
 ```bash
-# Build (skipping tests)
-./gradlew build -x test
-
-# Run tests
-./gradlew test
-
-# Run a single test class
-./gradlew test --tests "kr.kro.airbob.domain.reservation.ReservationConcurrencyTest"
-
-# Run a single test method
-./gradlew test --tests "kr.kro.airbob.domain.reservation.ReservationConcurrencyTest.동시에_300개_요청이_들어오면_1개만_예약_성공한다"
-
-# Generate QueryDSL Q-classes (required after entity changes)
+# Compile, including QueryDSL Q-class generation after entity changes
 ./gradlew compileJava
 
-# Run the application (requires external services)
-./gradlew bootRun
+# Run all tests
+./gradlew test
 
-# Package for deployment
+# Run one test class or method
+./gradlew test --tests "kr.kro.airbob.domain.reservation.ReservationConcurrencyTest"
+./gradlew test --tests "kr.kro.airbob.domain.reservation.ReservationConcurrencyTest.reservationConcurrencyTest"
+
+# Build or run
+./gradlew build -x test
+./gradlew bootRun
 ./gradlew packageZip
 ```
 
-## Architecture Overview
+The application requires external infrastructure. Integration tests use Testcontainers where
+appropriate. The `test` profile disables scheduled execution and Kafka listener auto-startup.
 
-This is an Airbnb clone (Airbob) built with Spring Boot 3.5.8, JDK 21, using event-driven architecture for reservation and payment processing.
+## Current architecture
 
-### Package Structure
+Airbob uses Spring Boot 3.5.8 and JDK 21. MySQL is authoritative for reservation inventory,
+payment-operation state, and search projection input. Kafka records are wake-up signals, not domain
+state.
 
-```
+### Package structure
+
+```text
 kr.kro.airbob/
-├── common/          # Cross-cutting: BaseEntity, UserContext, ApiResponse, GlobalExceptionHandler
-├── config/          # Spring configs: Redis, Elasticsearch, Kafka, QueryDSL, WebMvc
-├── cursor/          # Cursor-based pagination (CursorParam annotation + resolver)
-├── domain/          # Domain modules (see below)
-├── geo/             # Geolocation utilities (Google Maps geocoding)
-├── kafka/           # Kafka consumers and event translators
-├── outbox/          # Transactional Outbox pattern for event publishing
-└── search/          # Elasticsearch search service with dual-backend (ES + MySQL fallback)
+├── common/                  Shared response, exception, audit, and monitoring code
+├── config/                  Web, JPA, Redis, Elasticsearch, and scheduling configuration
+├── cursor/                  Cursor pagination annotation and argument resolvers
+├── domain/                  Business modules
+│   ├── reservation/         DB-authoritative booking and expiration cleanup
+│   ├── payment/             PaymentOperation orchestration, gateway, recovery, admin resolution
+│   └── accommodation/       Listing domain and isolated detail-cache components
+├── messaging/
+│   ├── event/               Canonical integration event descriptor, envelope, and codec
+│   ├── outbox/              Transactional outbox, retention cleanup, and health monitoring
+│   ├── alert/               Durable operator-alert stream
+│   └── infrastructure/      Shared Kafka retry and header sanitization infrastructure
+└── search/                  MySQL-snapshot-driven Elasticsearch search and indexing
 ```
 
-### Domain Modules
+Do not recreate root `kafka/`, root `outbox/`, generic translator, or catch-all DLQ packages.
+Domain Kafka adapters live beside their domain; reusable contracts and infrastructure live under
+`messaging/`.
 
-Each domain follows layered structure: `api/` (controllers) → `service/` → `repository/` → `entity/`
+## Architectural invariants
 
-- **reservation**: Core booking logic with Redisson distributed locks for concurrency control
-- **payment**: Toss Payments integration with compensation service for failures
-- **accommodation**: Listings with QueryDSL for complex queries, Elasticsearch indexing
-- **member**: User management with session-based auth (Redis-backed)
-- **review**: Review system with denormalized summary aggregation
-- **wishlist**: User wishlists with cursor pagination
-- **auth**: Session authentication filter and utilities
+### Reservation inventory
 
-### Key Architectural Patterns
+- `accommodation_inventory_day` owns one row for every night in `[checkIn, checkOut)`. Its primary
+  key is `(accommodation_id, stay_date)`.
+- Checkout takes a short published-accommodation `FOR SHARE NOWAIT` snapshot, then locks only the
+  requested date rows in primary-key order with `FOR UPDATE NOWAIT` under `READ_COMMITTED`.
+- Inventory states are `FREE`, `HOLD(owner, expiresAt)`, and `OCCUPIED(owner)`. Reservation status
+  remains the business state; the inventory table is the exclusive date-ownership model.
+- Quote creation never locks or consumes inventory. The authoritative checkout revalidates quote,
+  price, coupon, accommodation, and inventory before creating the 15-minute hold.
+- Every existing-reservation transition locks reservation before its date rows. Payment entry moves
+  owned `HOLD` rows to `OCCUPIED`; definitive confirmation decline, successful cancellation, and
+  eligible mark-not-paid release them. Retry, unknown outcome, manual review, cancellation pending,
+  and cancellation failure retain ownership.
+- Expired cleanup releases only `HOLD` rows still owned by that reservation. A newer checkout may
+  atomically reclaim an expired hold, and stale cleanup must never clear the new owner.
+- `R025` means retryable `NOWAIT` lock contention; `R002` means the requested nights are already
+  occupied.
+- Startup seeds and verifies every published accommodation before readiness opens. Publish and
+  timezone changes seed in the business transaction; rolling maintenance inserts only missing days.
+- There is no external distributed reservation lock or best-effort Redis hold.
+- Redis remains in use for sessions, caches, recently viewed accommodations, and coupon stock; do
+  not confuse those uses with reservation authority.
 
-**Distributed Locking (Reservation)**
-- Redisson `RedissonMultiLock` with Pub/Sub (not spin-lock) for lock acquisition
-- Lock keys sorted alphabetically to prevent deadlocks: `accommodation:{id}:{date}`
-- Located in `ReservationLockManager.java`
+### Payment confirmation and cancellation
 
-**Event-Driven Architecture**
-- Kafka topics: `PAYMENT.events`, `RESERVATION.events`, `ACCOMMODATIONS.events`
-- Transactional Outbox pattern via Debezium CDC for exactly-once delivery
-- DLQ (`*.DLT`) with Slack notifications for failed messages
+- Paid confirmation and cancellation are asynchronous `PaymentOperation` workflows.
+- Durable states are `QUEUED`, `EXECUTING`, `WAITING_RETRY`, `APPLIED`, `DECLINED`, and
+  `MANUAL_REVIEW`.
+- API transactions lock the required accommodation/reservation rows and append a
+  `PaymentOperationExecutionRequestedV1` outbox event.
+- A worker acquires the operation UID's MySQL execution fence on a dedicated JDBC connection,
+  claims one dispatch generation with a lease, invokes Toss Payments outside a DB transaction,
+  finalizes payment, ledger, reservation, coupon, audit, and search-refresh state atomically, and
+  then releases the fence.
+- A fair per-instance permit bounds fence connections before pool checkout. Hikari maximum pool
+  size must be at least twice the configured fence concurrency so every permit retains one
+  transaction connection.
+- Expired leases and due retries are recovered with a new generation. Unknown provider outcomes
+  are inquired before another command is considered.
+- Manual reconciliation is inquiry-only. There is no mark-paid endpoint; mark-not-paid is allowed
+  only for an eligible confirmation with closed reason/evidence validation, and its transaction
+  must commit while holding the same execution fence.
+- `P007` means fence-protected work never started. Post-action lock/connection cleanup failures are
+  logged with stable metadata and must not replace a committed result.
+- See `docs/payment-operation-runbook.md` before changing failure or rollback behavior.
 
-**Search**
-- Elasticsearch 8.18.8 with Nori analyzer (Korean) + standard analyzer
-- Dual endpoints: `/api/v1/search/accommodations` (ES) and `/api/v2/search/accommodations` (MySQL fallback)
-- Event-driven index updates via `AccommodationIndexingConsumer`
+### Messaging and outbox
 
-### Database
+- Use `messaging.event.IntegrationEvent` and `EventDescriptor`; encode/decode with
+  `IntegrationEventCodec`.
+- Append via `messaging.outbox.application.OutboxWriter` inside the business transaction. It uses
+  mandatory transaction propagation.
+- Debezium publishes committed inserts with at-least-once delivery. Consumers must tolerate
+  duplicate wake-up signals.
+- The EventRouter transform is guarded by a `TopicNameMatches` predicate for
+  `airbob_outbox.airbobdb.outbox`; heartbeat and connector metadata records bypass the transform.
+- The fixed business streams are:
+  - `PAYMENT_OPERATION.events`, `.RETRY`, `.DLT`
+  - `ACCOMMODATION_INDEX.events`, `.RETRY`, `.DLT`
+  - `ACCOMMODATION_CACHE.events`, `.RETRY`, `.DLT`
+  - `OPERATOR_ALERT.events`, `.RETRY`, `.DLT`
+- Topic auto-creation is disabled. The OCI gate closes the old producer, applies Flyway migrations,
+  then runs `docker/kafka/init-topics.sh` and `docker/debezium/register-connector.sh` before the app.
+- Outbox row count and oldest-row age describe retention footprint, not delivery backlog. Check
+  Connect tasks, heartbeat freshness, topic ingress, and consumer lag for delivery health.
 
-- MySQL 8.0 with Flyway migrations in `src/main/resources/db/migration/`
-- 17 migration versions (V1-V17)
-- QueryDSL for type-safe queries (Q-classes generated at compile time)
+### Search indexing
 
-### Testing
+- All accommodation-related mutations publish `AccommodationSearchRefreshRequestedV1`.
+- The event carries only the accommodation UID. `AccommodationSearchSnapshotReader` rebuilds the
+  current document from MySQL after the Kafka transaction has ended.
+- `AccommodationIndexingService` saves a full document only when currently `PUBLISHED`; otherwise
+  it deletes the document.
+- The `accommodations` alias must point to exactly one versioned write index. Alias bootstrap gates
+  consumer startup; full reindex builds a new version index and atomically swaps the alias.
+- See `docs/accommodation-indexing-operations.md` and `docs/logstash-reindex.md`.
 
-- Testcontainers for MySQL, Redis, Elasticsearch
-- Concurrency tests validate distributed locking behavior
-- Test profile disables Kafka
+### Accommodation detail cache and AWS performance lab
 
-### External Integrations
+- Accommodation-detail cache code is isolated under
+  `domain/accommodation/cache/{config,invalidation,messaging,monitoring,redis}`.
+- General Redis and the dedicated accommodation-cache Redis are separate dependencies. The
+  `performance-lab` profile must fail when they resolve to the same endpoint, and experiments may
+  flush only the dedicated cache Redis.
+- Same-image experiments toggle the accommodation-detail cache through configuration. Durable
+  invalidation must use the domain-owned canonical messaging adapter and
+  `ACCOMMODATION_CACHE.events`; do not recreate root outbox or Kafka-consumer packages.
+- AWS performance-lab infrastructure and immutable image assets live under `infra/aws/`. Keep
+  image references digest-pinned, secrets out of the repository and rendered bundles, and ECR
+  publication authenticated through GitHub OIDC.
+- OCI deployment remains independent from the AWS experiment and retains the messaging,
+  migration, and connector gates in `scripts/deploy-oci.sh`.
+- See `docs/performance/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
+  experiment topology or image publication.
 
-- **Toss Payments**: Payment gateway (`domain/payment/service/gateway/`)
-- **Google Maps API**: Geocoding (`geo/`)
-- **AWS S3**: Image storage via Spring Cloud AWS
-- **Slack Webhooks**: Error alerting for DLQ events
+### Durable operator alerts
 
-### Session Authentication
+- Payment manual-review transitions and payment/search/cache DLT incidents append an
+  operator-alert event transactionally.
+- Alerts contain closed kind/summary values and safe source coordinates. Do not include payloads,
+  payment keys, provider responses, credentials, or exception messages.
+- Slack delivery has its own main/retry/DLT stream and must never recursively alert from its DLT.
 
-- Redis-backed sessions with `SessionAuthFilter`
-- `UserContext` (ThreadLocal) holds request-scoped user info
-- Public paths defined in filter: `/api/v1/auth/login`, `/api/v1/members`, search endpoints
+## Database
+
+- MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
+- Current schema history is V1 through V27.
+- V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
+  V19-V20 added manual-resolution audit and reconciliation state.
+- V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.
+  V21 added bounded expiry cleanup without narrowing legacy message storage, V22 added the hashed
+  checkout-idempotency ledger, V23 added non-holding reservation quotes, and V24 added the
+  payment-entry attempt lease. V25 is an intentional zero-reservation hard-cutover guard, V26 adds
+  the date inventory ownership table, and V27 indexes the bounded published-accommodation seed scan.
+  Stop every V24-or-older writer and verify zero reservation rows before V25; the guard is not a
+  database-level writer fence. Do not rewrite these migrations or automatically roll a V25+
+  database back to a pre-inventory binary.
+
+## Testing expectations
+
+- Use real MySQL tests for date-row lock ordering, NOWAIT classification, expired-hold takeover,
+  cleanup/checkout races, transaction rollback, and migration constraints.
+- Use Embedded Kafka for main → retry → DLT behavior and header sanitation.
+- Testcontainers cover MySQL, Redis, and Elasticsearch where the behavior depends on the real
+  implementation.
+- Do not weaken `test`-profile Kafka/scheduling isolation to make a focused test pass.
+
+## External integrations
+
+- Toss Payments gateway: `domain/payment/service/gateway/`
+- Google Maps geocoding: `geo/`
+- AWS S3 and CloudFront: image delivery
+- Elasticsearch: `search/`
+- Slack: `messaging/alert/infrastructure/slack/`
+
+## Authentication
+
+- Redis-backed sessions are enforced by `SessionAuthFilter`.
+- `UserContext` carries request-scoped member information.
+- `/api/v1/admin/**` is protected by `AdminAuthInterceptor`, which re-checks active ADMIN role from
+  MySQL.

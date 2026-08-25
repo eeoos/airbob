@@ -17,31 +17,36 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.assertj.core.api.ThrowableAssert;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.retry.annotation.Retryable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationCommand;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationFailureClassifier;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 
 @DisplayName("TossPaymentsAdapter tests")
+@ExtendWith(OutputCaptureExtension.class)
 class TossPaymentsAdapterTest {
 
 	private static final String BASE_URL = "https://api.example.com";
@@ -52,8 +57,8 @@ class TossPaymentsAdapterTest {
 	private static final String PROVIDER_IDEMPOTENCY_KEY = "airbob-confirm-" + OPERATION_UID;
 
 	private MockRestServiceServer server;
-	private RestClient.Builder builder;
 	private TossPaymentsAdapter adapter;
+	private RestClient.Builder builder;
 
 	@BeforeEach
 	void setUp() {
@@ -68,12 +73,11 @@ class TossPaymentsAdapterTest {
 		TossPaymentsAdapter disabledAdapter = adapter(builder.build(), false);
 
 		assertTossPaymentsDisabled(() -> disabledAdapter.confirm(command()));
-		assertTossPaymentsDisabled(() -> disabledAdapter.inquire(command()));
-		assertTossPaymentsDisabled(() -> disabledAdapter.confirmPayment("payment-key", "order-id", 1));
-		assertTossPaymentsDisabled(() -> disabledAdapter.cancelPayment("payment-key", "cancel", null));
-		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByPaymentKey("payment-key"));
-		assertTossPaymentsDisabled(() -> disabledAdapter.getPaymentByOrderId("order-id"));
-		assertTossPaymentsDisabled(() -> disabledAdapter.issueVirtualAccount(null, "20", "guest"));
+		assertTossPaymentsDisabled(() -> disabledAdapter.inquireConfirmation(command()));
+		assertTossPaymentsDisabled(() -> disabledAdapter.cancel(cancellationCommand()));
+		assertTossPaymentsDisabled(() -> disabledAdapter.inquireCancellation(cancellationCommand()));
+		assertTossPaymentsDisabled(() ->
+			disabledAdapter.issueVirtualAccount(null, "20", "guest"));
 
 		server.verify();
 	}
@@ -85,14 +89,17 @@ class TossPaymentsAdapterTest {
 			context.getEnvironment().getPropertySources().addFirst(
 				new MapPropertySource("payment-guard-test", Map.of("payment.toss.enabled", false))
 			);
-			context.registerBean("tossPaymentRestClient", RestClient.class, builder::build);
+			context.registerBean(
+				"tossPaymentRestClient", RestClient.class, () -> builder.build());
 			context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
-			context.registerBean(PaymentConfirmationFailureClassifier.class,
-				PaymentConfirmationFailureClassifier::new);
+			context.registerBean(
+				PaymentConfirmationFailureClassifier.class,
+				() -> new PaymentConfirmationFailureClassifier());
 			context.register(TossPaymentsAdapter.class);
 			context.refresh();
 
-			assertTossPaymentsDisabled(() -> context.getBean(TossPaymentsAdapter.class).confirm(command()));
+			assertTossPaymentsDisabled(() ->
+				context.getBean(TossPaymentsAdapter.class).confirm(command()));
 		}
 
 		server.verify();
@@ -194,6 +201,21 @@ class TossPaymentsAdapterTest {
 	}
 
 	@Test
+	void malformedProviderErrorDoesNotLeakRawPayload(CapturedOutput output) {
+		String rawSecret = "superSecretPaymentKey123";
+		server.expect(requestTo(CONFIRM_URL))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(rawSecret));
+
+		PaymentGatewayResult result = adapter.confirm(command());
+
+		assertThat(result).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		assertThat(output).doesNotContain(rawSecret);
+		server.verify();
+	}
+
+	@Test
 	void mismatchedConfirmationResponseRequiresInquiry() {
 		server.expect(requestTo(CONFIRM_URL))
 			.andRespond(withSuccess(successBody("DONE").replace("pk_test", "different_payment"),
@@ -250,7 +272,7 @@ class TossPaymentsAdapterTest {
 					{"code":"NOT_FOUND_PAYMENT","message":"provider detail"}
 					"""));
 
-		PaymentGatewayResult result = adapter.inquire(command());
+		PaymentGatewayResult result = adapter.inquireConfirmation(command());
 
 		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.NotFound.class, notFound -> {
 			assertThat(notFound.code()).isEqualTo("NOT_FOUND_PAYMENT");
@@ -265,7 +287,7 @@ class TossPaymentsAdapterTest {
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(withSuccess(successBody("DONE"), MediaType.APPLICATION_JSON));
 
-		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.Approved.class);
+		assertThat(adapter.inquireConfirmation(command())).isInstanceOf(PaymentGatewayResult.Approved.class);
 		server.verify();
 	}
 
@@ -275,7 +297,7 @@ class TossPaymentsAdapterTest {
 			.andRespond(withSuccess(successBody("CANCELED").replace("pk_test", "different_payment"),
 				MediaType.APPLICATION_JSON));
 
-		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		assertThat(adapter.inquireConfirmation(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
 		server.verify();
 	}
 
@@ -285,7 +307,7 @@ class TossPaymentsAdapterTest {
 		server.expect(requestTo(INQUIRY_URL))
 			.andRespond(withSuccess(successBody(status), MediaType.APPLICATION_JSON));
 
-		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.Declined.class);
+		assertThat(adapter.inquireConfirmation(command())).isInstanceOf(PaymentGatewayResult.Declined.class);
 		server.verify();
 	}
 
@@ -295,37 +317,158 @@ class TossPaymentsAdapterTest {
 		server.expect(requestTo(INQUIRY_URL))
 			.andRespond(withSuccess(successBody(status), MediaType.APPLICATION_JSON));
 
-		assertThat(adapter.inquire(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		assertThat(adapter.inquireConfirmation(command())).isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
 		server.verify();
 	}
 
 	@Test
-	void cancellationUsesStablePaymentKeyIdempotencyKey() {
-		server.expect(requestTo(BASE_URL + "/v1/payments/payment-key-123/cancel"))
-			.andExpect(header("Idempotency-Key", "airbob-cancel-payment-key-123"))
-			.andRespond(withSuccess(
-				"{\"status\":\"CANCELED\",\"balanceAmount\":0}",
-				MediaType.APPLICATION_JSON
-			));
+	void cancellationUsesOperationIdempotencyKeyAndReturnsVerifiedEvidence() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(header("Idempotency-Key", "airbob-cancel-" + OPERATION_UID))
+			.andExpect(content().json("""
+				{"cancelReason":"사용자 요청","cancelAmount":100000}
+				"""))
+			.andRespond(withSuccess(cancellationBody(), MediaType.APPLICATION_JSON));
 
-		adapter.cancelPayment("payment-key-123", "사용자 요청", null);
+		PaymentGatewayResult result = adapter.cancel(cancellationCommand());
 
+		assertThat(result).isInstanceOfSatisfying(PaymentGatewayResult.Cancelled.class, cancelled -> {
+			assertThat(cancelled.payment().transactionKey()).isEqualTo("cancel-transaction-key");
+			assertThat(cancelled.payment().cancelledAt())
+				.isEqualTo(Instant.parse("2026-08-17T01:02:03Z"));
+		});
 		server.verify();
 	}
 
 	@Test
-	void cancellationInProgressRemainsRetryable() {
-		server.expect(requestTo(BASE_URL + "/v1/payments/payment-key-123/cancel"))
+	void cancellationInProgressRequiresInquiryWithoutThrowing() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
 			.andRespond(withStatus(HttpStatus.CONFLICT)
 				.contentType(MediaType.APPLICATION_JSON)
 				.body("""
 					{"code":"IDEMPOTENT_REQUEST_PROCESSING","message":"이전 요청을 처리하고 있어요."}
 					"""));
 
-		assertThatThrownBy(() -> adapter.cancelPayment("payment-key-123", "사용자 요청", null))
-			.isInstanceOf(ResourceAccessException.class)
-			.hasMessageContaining("IDEMPOTENT_REQUEST_PROCESSING");
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
 		server.verify();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"ALREADY_CANCELED_PAYMENT",
+		"ALREADY_REFUND_PAYMENT",
+		"ALREADY_REFUNDING_PAYMENT"
+	})
+	void alreadyCancelledOrRefundedCancellationRequiresInquiry(String code) {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"%s","message":"provider state already changed"}
+					""".formatted(code)));
+
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+		"PROVIDER_ERROR, 400",
+		"FORBIDDEN_CONSECUTIVE_REQUEST, 403",
+		"NOT_AVAILABLE_BANK, 403"
+	})
+	void temporaryCancellationErrorsRetryTheCancelCall(String code, int status) {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andRespond(withStatus(HttpStatus.valueOf(status))
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"%s","message":"temporary provider failure"}
+					""".formatted(code)));
+
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.RetryableFailure.class);
+		server.verify();
+	}
+
+	@Test
+	void allowListedTerminalCancellationErrorIsDeclined() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"REFUND_REJECTED","message":"refund rejected"}
+					"""));
+
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.Declined.class);
+		server.verify();
+	}
+
+	@Test
+	void unclassifiedCancellationErrorRequiresInquiryInsteadOfAssumingDecline() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body("""
+					{"code":"NEW_PROVIDER_ERROR","message":"unknown contract"}
+					"""));
+
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.OutcomeUnknown.class);
+		server.verify();
+	}
+
+	@Test
+	void cancellationWithoutImmutableProviderEvidenceRequiresManualReview() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andRespond(withSuccess(cancellationBody().replace(
+				"\"transactionKey\":\"cancel-transaction-key\",", ""), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.ManualReviewRequired.class);
+		server.verify();
+	}
+
+	@Test
+	void cancellationWithDifferentProviderReasonRequiresManualReviewBeforeFinalization() {
+		server.expect(requestTo(BASE_URL + "/v1/payments/pk_test/cancel"))
+			.andRespond(withSuccess(cancellationBody().replace(
+				"\"cancelReason\":\"사용자 요청\"",
+				"\"cancelReason\":\"다른 사유\""), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.cancel(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.ManualReviewRequired.class);
+		server.verify();
+	}
+
+	@Test
+	void cancellationInquiryOfFullyActivePaymentRequestsAnotherCancelCall() {
+		server.expect(requestTo(INQUIRY_URL))
+			.andRespond(withSuccess(successBody("DONE"), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.inquireCancellation(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.PaymentActive.class);
+		server.verify();
+	}
+
+	@Test
+	void cancellationInquiryConvergesOnlyWithFullProviderEvidence() {
+		server.expect(requestTo(INQUIRY_URL))
+			.andRespond(withSuccess(cancellationBody(), MediaType.APPLICATION_JSON));
+
+		assertThat(adapter.inquireCancellation(cancellationCommand()))
+			.isInstanceOf(PaymentGatewayResult.Cancelled.class);
+		server.verify();
+	}
+
+	@Test
+	void operationCancellationHasNoSpringRetryAnnotation() throws Exception {
+		assertThat(TossPaymentsAdapter.class
+			.getMethod("cancel", PaymentProviderCommand.class)
+			.getAnnotation(Retryable.class)).isNull();
 	}
 
 	private TossPaymentsAdapter adapter(RestClient restClient) {
@@ -337,8 +480,7 @@ class TossPaymentsAdapterTest {
 			restClient,
 			new ObjectMapper(),
 			new PaymentConfirmationFailureClassifier(),
-			enabled
-		);
+			enabled);
 	}
 
 	private TossPaymentsAdapter adapterThatFailsWith(IOException failure) {
@@ -351,13 +493,25 @@ class TossPaymentsAdapterTest {
 		return adapter(restClient);
 	}
 
-	private PaymentConfirmationCommand command() {
-		return new PaymentConfirmationCommand(
+	private PaymentProviderCommand command() {
+		return new PaymentProviderCommand(
 			OPERATION_UID,
 			"pk_test",
 			ORDER_ID,
 			100_000L,
-			PROVIDER_IDEMPOTENCY_KEY
+			PROVIDER_IDEMPOTENCY_KEY,
+			null
+		);
+	}
+
+	private PaymentProviderCommand cancellationCommand() {
+		return new PaymentProviderCommand(
+			OPERATION_UID,
+			"pk_test",
+			ORDER_ID,
+			100_000L,
+			"airbob-cancel-" + OPERATION_UID,
+			"사용자 요청"
 		);
 	}
 
@@ -379,5 +533,25 @@ class TossPaymentsAdapterTest {
 			  }
 			}
 			""".formatted(ORDER_ID, status);
+	}
+
+	private String cancellationBody() {
+		return """
+			{
+			  "paymentKey":"pk_test",
+			  "orderId":"%s",
+			  "totalAmount":100000,
+			  "balanceAmount":0,
+			  "method":"카드",
+			  "status":"CANCELED",
+			  "approvedAt":"2026-08-14T12:34:56+09:00",
+			  "cancels":[{
+			    "cancelAmount":100000,
+			    "cancelReason":"사용자 요청",
+			    "transactionKey":"cancel-transaction-key",
+			    "canceledAt":"2026-08-17T10:02:03+09:00"
+			  }]
+			}
+			""".formatted(ORDER_ID);
 	}
 }

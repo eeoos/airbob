@@ -55,6 +55,7 @@ public class ReservationHistory extends HistoryBase {
 	private String currency;
 	@Enumerated(EnumType.STRING)
 	private ReservationStatus status;
+	@Column(length = 500)
 	private String message;
 	private Instant expiresAt;
 

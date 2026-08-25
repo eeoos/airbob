@@ -55,11 +55,12 @@ import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.geo.GeocodingService;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
@@ -113,10 +114,11 @@ class AccommodationDetailCacheQueryCountTest {
 
 	@MockitoBean private CommonCodeService commonCodeService;
 	@MockitoBean private CursorPageInfoCreator cursorPageInfoCreator;
-	@MockitoBean private OutboxEventPublisher outboxEventPublisher;
+	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@MockitoBean private GeocodingService geocodingService;
 	@MockitoBean private S3ImageUploader s3ImageUploader;
 	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean private ReservationInventoryService inventoryService;
 
 	private Accommodation accommodation;
 	private Member host;

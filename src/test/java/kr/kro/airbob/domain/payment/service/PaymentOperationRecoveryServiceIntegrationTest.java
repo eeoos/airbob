@@ -1,18 +1,13 @@
 package kr.kro.airbob.domain.payment.service;
 
+import static kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction.CONFIRM;
+import static kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction.INQUIRE_CONFIRM;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.APPLIED;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.EXECUTING;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.MANUAL_REVIEW;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.OUTCOME_UNKNOWN;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.READY;
-import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.RETRY_WAIT;
-import static kr.kro.airbob.outbox.EventType.PAYMENT_EXECUTION_REQUESTED_V1;
+import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.QUEUED;
+import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.WAITING_RETRY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -28,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
@@ -43,28 +37,28 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.payment.config.PaymentOperationProperties;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationNextAction;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryService.RecoveryBatch;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.outbox.entity.Outbox;
-import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.messaging.event.EventEnvelope;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriter;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessage;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 
 @DataJpaTest
 @Testcontainers
@@ -73,7 +67,8 @@ import kr.kro.airbob.outbox.repository.OutboxRepository;
 @Import({
 	JpaAuditingConfig.class,
 	QueryDslConfig.class,
-	OutboxEventPublisher.class,
+	IntegrationEventCodec.class,
+	JpaOutboxWriter.class,
 	PaymentOperationRecoveryService.class,
 	PaymentOperationRecoveryServiceIntegrationTest.RecoveryTestConfiguration.class
 })
@@ -89,7 +84,8 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
-		.withDatabaseName("airbobdb_payment_recovery");
+		.withDatabaseName("airbobdb_payment_recovery")
+		.withCommand("--log-bin-trust-function-creators=1");
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
@@ -102,82 +98,63 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 	}
 
 	@Autowired private JdbcTemplate jdbc;
-	@Autowired private ObjectMapper objectMapper;
 	@Autowired private PaymentOperationRecoveryService recoveryService;
 	@Autowired private PaymentOperationRepository operationRepository;
-	@Autowired private OutboxRepository outboxRepository;
+	@Autowired private OutboxMessageRepository outboxRepository;
+	@Autowired private IntegrationEventCodec codec;
 	@Autowired private HoldingRecoveryTransaction holdingRecoveryTransaction;
-	@MockitoSpyBean private OutboxEventPublisher outboxEventPublisher;
 
 	private long memberId;
 	private long reservationId;
 
 	@BeforeEach
 	void setUp() {
+		dropOutboxFailureTrigger();
 		clearFixtureRows();
 		insertReservationFixture();
 	}
 
-	@AfterEach
-	void resetOutboxPublisherSpy() {
-		reset(outboxEventPublisher);
-	}
-
 	@Test
-	void recoversOnlyDueDatabaseWorkAtInclusiveBoundariesAndQuarantinesExhaustedAttempts() {
-		UUID staleReadyUid = uid("stale-ready");
-		UUID freshReadyUid = uid("fresh-ready");
+	void recoversOnlyDueRetryAndExpiredLeaseWithoutRepublishingQueuedWork() {
+		UUID queuedUid = uid("already-queued");
 		UUID retryUid = uid("retry-due");
 		UUID notDueUid = uid("retry-not-due");
-		UUID unknownUid = uid("unknown-due");
 		UUID expiredLeaseUid = uid("expired-lease");
 		UUID validLeaseUid = uid("valid-lease");
-		UUID exhaustedUid = uid("unknown-exhausted");
 		UUID terminalUid = uid("terminal-applied");
 
-		insertOperation(staleReadyUid, READY, 0, NOW, NOW.minusSeconds(10), null, null);
-		insertOperation(freshReadyUid, READY, 0, NOW, NOW.minusSeconds(9), null, null);
-		insertOperation(retryUid, RETRY_WAIT, 2, NOW, NOW.minusSeconds(10), null, null);
-		insertOperation(notDueUid, RETRY_WAIT, 2, NOW.plusMillis(1), NOW.minusSeconds(30), null, null);
-		insertOperation(unknownUid, OUTCOME_UNKNOWN, 3, NOW, NOW.minusSeconds(30), null, null);
-		insertOperation(
-			expiredLeaseUid, EXECUTING, 4, NOW.minusSeconds(30), NOW.minusSeconds(30), "expired-owner", NOW);
-		insertOperation(
-			validLeaseUid, EXECUTING, 1, NOW.minusSeconds(30), NOW.minusSeconds(30), "active-owner", NOW.plusMillis(1));
-		insertOperation(exhaustedUid, OUTCOME_UNKNOWN, 5, NOW, NOW.minusSeconds(30), null, null);
-		insertOperation(terminalUid, APPLIED, 5, null, NOW.minusSeconds(30), null, null);
+		insertOperation(queuedUid, QUEUED, CONFIRM, 4, 0, null, NOW.minusSeconds(30), null, null);
+		insertOperation(retryUid, WAITING_RETRY, CONFIRM, 7, 2, NOW, NOW.minusSeconds(30), null, null);
+		insertOperation(notDueUid, WAITING_RETRY, CONFIRM, 3, 2, NOW.plusMillis(1), NOW.minusSeconds(30), null, null);
+		insertOperation(expiredLeaseUid, EXECUTING, CONFIRM, 9, 4, null, NOW.minusSeconds(30), "expired-owner", NOW);
+		insertOperation(validLeaseUid, EXECUTING, CONFIRM, 5, 1, null, NOW.minusSeconds(30), "active-owner", NOW.plusMillis(1));
+		insertOperation(terminalUid, APPLIED, CONFIRM, 2, 1, null, NOW.minusSeconds(30), null, null);
 
 		RecoveryBatch batch = recoveryService.recoverDue();
 
-		assertThat(batch.enqueued()).isEqualTo(4);
-		assertThat(batch.manualReviews()).extracting(PaymentOperationManualReviewNotice::operationUid)
-			.containsExactly(exhaustedUid);
-		assertThat(outboxOperationUids()).containsExactlyInAnyOrder(
-			staleReadyUid, retryUid, unknownUid, expiredLeaseUid);
-		assertThat(outboxOperationUids()).doesNotContain(
-			freshReadyUid, notDueUid, validLeaseUid, exhaustedUid, terminalUid);
-		assertThat(reload(expiredLeaseUid).getStatus()).isEqualTo(OUTCOME_UNKNOWN);
+		assertThat(batch.enqueued()).isEqualTo(2);
+		assertThat(outboxEvents()).extracting(PaymentOperationExecutionRequestedV1::operationUid)
+			.containsExactlyInAnyOrder(retryUid, expiredLeaseUid);
+		assertThat(reload(retryUid).getStatus()).isEqualTo(QUEUED);
+		assertThat(reload(retryUid).getNextAction()).isEqualTo(CONFIRM);
+		assertThat(reload(retryUid).getDispatchGeneration()).isEqualTo(8);
+		assertThat(reload(expiredLeaseUid).getStatus()).isEqualTo(QUEUED);
+		assertThat(reload(expiredLeaseUid).getNextAction()).isEqualTo(INQUIRE_CONFIRM);
+		assertThat(reload(expiredLeaseUid).getDispatchGeneration()).isEqualTo(10);
 		assertThat(reload(expiredLeaseUid).getLeaseOwner()).isNull();
 		assertThat(reload(expiredLeaseUid).getLeaseExpiresAt()).isNull();
-		assertThat(reload(expiredLeaseUid).getNextAttemptAt()).isEqualTo(NOW);
-		assertThat(reload(exhaustedUid).getStatus()).isEqualTo(MANUAL_REVIEW);
-		assertThat(reload(exhaustedUid).getCompletedAt()).isEqualTo(NOW);
-		assertThat(reload(notDueUid).getStatus()).isEqualTo(RETRY_WAIT);
+		assertThat(reload(queuedUid).getDispatchGeneration()).isEqualTo(4);
+		assertThat(reload(notDueUid).getStatus()).isEqualTo(WAITING_RETRY);
 		assertThat(reload(validLeaseUid).getStatus()).isEqualTo(EXECUTING);
-		assertThat(List.of(staleReadyUid, retryUid, unknownUid, expiredLeaseUid))
-			.allSatisfy(uid -> assertThat(reload(uid).getLastEnqueuedAt()).isEqualTo(NOW));
 
-		RecoveryBatch immediateRepeat = recoveryService.recoverDue();
-
-		assertThat(immediateRepeat.enqueued()).isZero();
-		assertThat(immediateRepeat.manualReviews()).isEmpty();
-		assertThat(outboxOperationUids()).hasSize(4);
+		assertThat(recoveryService.recoverDue().enqueued()).isZero();
+		assertThat(outboxEvents()).hasSize(2);
 	}
 
 	@Test
-	void twoConcurrentRecoveryTransactionsAppendExactlyOneCommandForOneDueRow() throws Exception {
+	void twoConcurrentRecoveryTransactionsAppendExactlyOneGenerationForOneDueRow() throws Exception {
 		UUID operationUid = uid("concurrent-due-row");
-		insertOperation(operationUid, READY, 0, NOW, NOW.minusSeconds(30), null, null);
+		insertOperation(operationUid, WAITING_RETRY, CONFIRM, 1, 2, NOW, NOW.minusSeconds(30), null, null);
 		assertThat(AopUtils.isAopProxy(recoveryService)).isTrue();
 		assertThat(AopUtils.isAopProxy(holdingRecoveryTransaction)).isTrue();
 		CountDownLatch firstRecovered = new CountDownLatch(1);
@@ -190,16 +167,17 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 				executor);
 			assertThat(firstRecovered.await(5, TimeUnit.SECONDS)).isTrue();
 
-			CompletableFuture<RecoveryBatch> second = CompletableFuture.supplyAsync(
-				recoveryService::recoverDue, executor);
-			RecoveryBatch secondBatch = second.get(5, TimeUnit.SECONDS);
-
+			RecoveryBatch second = CompletableFuture.supplyAsync(recoveryService::recoverDue, executor)
+				.get(5, TimeUnit.SECONDS);
 			releaseFirstTransaction.countDown();
 			RecoveryBatch firstBatch = first.get(5, TimeUnit.SECONDS);
 
-			assertThat(firstBatch.enqueued() + secondBatch.enqueued()).isOne();
-			assertThat(outboxOperationUids()).containsExactly(operationUid);
-			assertThat(reload(operationUid).getLastEnqueuedAt()).isEqualTo(NOW);
+			assertThat(firstBatch.enqueued() + second.enqueued()).isOne();
+			assertThat(outboxEvents()).singleElement().satisfies(event -> {
+				assertThat(event.operationUid()).isEqualTo(operationUid);
+				assertThat(event.dispatchGeneration()).isEqualTo(2);
+			});
+			assertThat(reload(operationUid).getDispatchGeneration()).isEqualTo(2);
 		} finally {
 			releaseFirstTransaction.countDown();
 			executor.shutdownNow();
@@ -210,57 +188,51 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 	@Test
 	void recoveryLimitsEachLockedScanToOneHundredRows() {
 		for (int index = 0; index < 101; index++) {
-			insertOperation(uid("batch-" + index), READY, 0, NOW, NOW.minusSeconds(30), null, null);
+			insertOperation(uid("batch-" + index), WAITING_RETRY, CONFIRM, 1, 1,
+				NOW, NOW.minusSeconds(30), null, null);
 		}
 
-		RecoveryBatch firstBatch = recoveryService.recoverDue();
-		RecoveryBatch secondBatch = recoveryService.recoverDue();
-
-		assertThat(firstBatch.enqueued()).isEqualTo(100);
-		assertThat(secondBatch.enqueued()).isOne();
-		assertThat(outboxOperationUids()).hasSize(101);
+		assertThat(recoveryService.recoverDue().enqueued()).isEqualTo(100);
+		assertThat(recoveryService.recoverDue().enqueued()).isOne();
+		assertThat(outboxEvents()).hasSize(101);
 	}
 
 	@Test
-	void outboxFailureRollsBackExpiredLeaseRecoveryAndEnqueueTimestampTogether() {
+	void outboxFailureRollsBackExpiredLeaseRecoveryAndGenerationTogether() {
 		UUID operationUid = uid("atomic-expired-lease");
-		Instant previousEnqueue = NOW.minusSeconds(30);
-		insertOperation(
-			operationUid, EXECUTING, 2, NOW.minusSeconds(30), previousEnqueue, "expired-owner", NOW);
-		doThrow(new IllegalStateException("injected outbox failure"))
-			.when(outboxEventPublisher)
-			.save(eq(PAYMENT_EXECUTION_REQUESTED_V1), any(PaymentExecutionRequestedV1.class));
+		insertOperation(operationUid, EXECUTING, CONFIRM, 4, 2,
+			null, NOW.minusSeconds(30), "expired-owner", NOW);
+		createOutboxFailureTrigger();
 
 		assertThatThrownBy(recoveryService::recoverDue)
-			.isInstanceOf(IllegalStateException.class)
-			.hasMessage("injected outbox failure");
+			.isInstanceOf(RuntimeException.class)
+			.hasMessageContaining("injected outbox failure");
 
 		PaymentOperation reloaded = reload(operationUid);
 		assertThat(reloaded.getStatus()).isEqualTo(EXECUTING);
+		assertThat(reloaded.getNextAction()).isEqualTo(CONFIRM);
+		assertThat(reloaded.getDispatchGeneration()).isEqualTo(4);
 		assertThat(reloaded.getLeaseOwner()).isEqualTo("expired-owner");
 		assertThat(reloaded.getLeaseExpiresAt()).isEqualTo(NOW);
-		assertThat(reloaded.getLastEnqueuedAt()).isEqualTo(previousEnqueue);
 		assertThat(outboxRepository.count()).isZero();
+		dropOutboxFailureTrigger();
 	}
 
 	private PaymentOperation reload(UUID operationUid) {
 		return operationRepository.findByOperationUid(operationUid).orElseThrow();
 	}
 
-	private List<UUID> outboxOperationUids() {
-		return outboxRepository.findAll().stream()
-			.filter(outbox -> PAYMENT_EXECUTION_REQUESTED_V1.name().equals(outbox.getEventType()))
-			.map(this::operationUidFrom)
-			.toList();
+	private List<PaymentOperationExecutionRequestedV1> outboxEvents() {
+		return outboxRepository.findAll().stream().map(this::decode).toList();
 	}
 
-	private UUID operationUidFrom(Outbox outbox) {
-		try {
-			JsonNode root = objectMapper.readTree(outbox.getPayload());
-			return UUID.fromString(root.path("payload").path("operation_uid").asText());
-		} catch (Exception exception) {
-			throw new AssertionError("payment operation outbox payload should be readable", exception);
-		}
+	private PaymentOperationExecutionRequestedV1 decode(OutboxMessage message) {
+		EventEnvelope<PaymentOperationExecutionRequestedV1> envelope = codec.decode(
+			message.getPayload(),
+			PaymentOperationExecutionRequestedV1.DESCRIPTOR,
+			PaymentOperationExecutionRequestedV1.class
+		);
+		return envelope.payload();
 	}
 
 	private void insertReservationFixture() {
@@ -292,29 +264,33 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 	private void insertOperation(
 		UUID operationUid,
 		PaymentOperationStatus status,
+		PaymentOperationNextAction nextAction,
+		long dispatchGeneration,
 		int attemptCount,
 		Instant nextAttemptAt,
-		Instant lastEnqueuedAt,
+		Instant queuedAt,
 		String leaseOwner,
 		Instant leaseExpiresAt
 	) {
 		jdbc.update("""
 			INSERT INTO payment_operation (
-			  operation_uid, reservation_id, requester_member_id, operation_type, status,
+			  operation_uid, reservation_id, requester_member_id, operation_type, status, next_action,
 			  payment_key, expected_amount, provider_idempotency_key, deduplication_key,
-			  attempt_count, next_attempt_at, last_enqueued_at, lease_owner, lease_expires_at,
-			  completed_at, version, created_at, updated_at
+			  dispatch_generation, attempt_count, next_attempt_at, queued_at,
+			  lease_owner, lease_expires_at, completed_at,
+			  manual_reconciliation_pending, manual_review_count, version, created_at, updated_at
 			) VALUES (
-			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', ?,
+			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', ?, ?,
 			  ?, 100000, ?, ?,
-			  ?, ?, ?, ?, ?,
-			  ?, 0, ?, ?
+			  ?, ?, ?, ?,
+			  ?, ?, ?,
+			  false, 0, 0, ?, ?
 			)
 			""",
-			operationUid.toString(), reservationId, memberId, status.name(),
+			operationUid.toString(), reservationId, memberId, status.name(), nextAction.name(),
 			"payment-key-" + operationUid, "provider-" + operationUid, "CONFIRM:" + operationUid,
-			attemptCount, timestamp(nextAttemptAt), timestamp(lastEnqueuedAt), leaseOwner,
-			timestamp(leaseExpiresAt), status.isTerminal() ? timestamp(NOW.minusSeconds(1)) : null,
+			dispatchGeneration, attemptCount, timestamp(nextAttemptAt), timestamp(queuedAt),
+			leaseOwner, timestamp(leaseExpiresAt), status.isTerminal() ? timestamp(NOW.minusSeconds(1)) : null,
 			timestamp(NOW.minusSeconds(60)), timestamp(NOW.minusSeconds(60)));
 	}
 
@@ -329,12 +305,26 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 	private void clearFixtureRows() {
 		jdbc.update("DELETE FROM outbox");
 		jdbc.update("DELETE FROM payment_transaction");
+		jdbc.update("DELETE FROM payment_operation_resolution");
 		jdbc.update("DELETE FROM payment_operation");
 		jdbc.update("DELETE FROM reservation_history");
 		jdbc.update("DELETE FROM member_coupon");
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM accommodation");
 		jdbc.update("DELETE FROM member");
+	}
+
+	private void createOutboxFailureTrigger() {
+		jdbc.execute("""
+			CREATE TRIGGER payment_recovery_reject_outbox
+			BEFORE INSERT ON outbox
+			FOR EACH ROW
+			SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'injected outbox failure'
+			""");
+	}
+
+	private void dropOutboxFailureTrigger() {
+		jdbc.execute("DROP TRIGGER IF EXISTS payment_recovery_reject_outbox");
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
@@ -348,13 +338,12 @@ class PaymentOperationRecoveryServiceIntegrationTest {
 		PaymentOperationProperties paymentOperationProperties() {
 			return new PaymentOperationProperties(
 				Duration.ofSeconds(30), Duration.ofSeconds(10), 100, 5,
-				Duration.ofSeconds(10), Duration.ofMinutes(5), Duration.ofSeconds(10));
+				Duration.ofSeconds(10), Duration.ofMinutes(5));
 		}
 
 		@Bean
 		ObjectMapper paymentRecoveryObjectMapper() {
-			return new ObjectMapper()
-				.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+			return new ObjectMapper().findAndRegisterModules();
 		}
 
 		@Bean

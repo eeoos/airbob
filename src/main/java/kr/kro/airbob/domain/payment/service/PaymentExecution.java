@@ -3,7 +3,7 @@ package kr.kro.airbob.domain.payment.service;
 import java.util.UUID;
 
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationCommand;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 
 public record PaymentExecution(
 	UUID operationUid,
@@ -12,9 +12,29 @@ public record PaymentExecution(
 	String orderId,
 	long amount,
 	String providerIdempotencyKey,
+	String cancellationReason,
 	String leaseOwner,
-	PaymentExecutionMode mode
+	long dispatchGeneration,
+	PaymentExecutionMode mode,
+	boolean manualReconciliation
 ) {
+	public PaymentExecution(
+		UUID operationUid,
+		UUID reservationUid,
+		String paymentKey,
+		String orderId,
+		long amount,
+		String providerIdempotencyKey,
+		String cancellationReason,
+		String leaseOwner,
+		long dispatchGeneration,
+		PaymentExecutionMode mode
+	) {
+		this(
+			operationUid, reservationUid, paymentKey, orderId, amount,
+			providerIdempotencyKey, cancellationReason, leaseOwner, dispatchGeneration, mode, false);
+	}
+
 	public static PaymentExecution from(
 		PaymentOperation operation, String leaseOwner, PaymentExecutionMode mode
 	) {
@@ -22,11 +42,18 @@ public record PaymentExecution(
 		return new PaymentExecution(
 			operation.getOperationUid(), reservationUid, operation.getPaymentKey(),
 			reservationUid.toString(), operation.getExpectedAmount(),
-			operation.getProviderIdempotencyKey(), leaseOwner, mode);
+			operation.getProviderIdempotencyKey(), operation.getCancellationReason(), leaseOwner,
+			operation.getDispatchGeneration(), mode, operation.isManualReconciliationPending());
 	}
 
-	public PaymentConfirmationCommand gatewayCommand() {
-		return new PaymentConfirmationCommand(
-			operationUid, paymentKey, orderId, amount, providerIdempotencyKey);
+	public PaymentProviderCommand gatewayCommand() {
+		return new PaymentProviderCommand(
+			operationUid,
+			paymentKey,
+			orderId,
+			amount,
+			providerIdempotencyKey,
+			cancellationReason
+		);
 	}
 }

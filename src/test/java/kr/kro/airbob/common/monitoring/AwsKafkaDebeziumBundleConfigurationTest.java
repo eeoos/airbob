@@ -175,30 +175,49 @@ class AwsKafkaDebeziumBundleConfigurationTest {
 	}
 
 	@Test
-	void connectorTemplateIsSecretFreeAndPreservesOutboxTopicRouting() throws IOException {
+	void connectorTemplateIsSecretFreeAndUsesTheCanonicalV18OutboxContract() throws IOException {
 		assertThat(DEBEZIUM_CONNECTOR).exists();
 
 		String template = Files.readString(DEBEZIUM_CONNECTOR);
-		Map<String, Object> connector = objectMapper.readValue(
+		Map<String, Object> config = objectMapper.readValue(
 			template, new TypeReference<>() {});
-		Map<String, Object> config = map(connector.get("config"));
 
-		assertThat(connector.get("name")).isEqualTo("airbob-outbox-connector");
 		assertThat(config)
+			.containsEntry("connector.class", "io.debezium.connector.mysql.MySqlConnector")
 			.containsEntry("database.hostname", "${RDS_ENDPOINT}")
 			.containsEntry("database.user", "${DEBEZIUM_USERNAME}")
 			.containsEntry("database.password", "${DEBEZIUM_PASSWORD}")
+			.containsEntry("database.connectionTimeZone", "UTC")
 			.containsEntry("database.include.list", "airbobdb")
 			.containsEntry("table.include.list", "airbobdb.outbox")
 			.containsEntry("snapshot.mode", "no_data")
+			.containsEntry("heartbeat.interval.ms", "10000")
+			.containsEntry("include.schema.changes", "false")
+			.containsEntry("tombstones.on.delete", "false")
 			.containsEntry("schema.history.internal.kafka.bootstrap.servers", KAFKA_BOOTSTRAP)
+			.containsEntry("key.converter", "org.apache.kafka.connect.storage.StringConverter")
+			.containsEntry("value.converter", "org.apache.kafka.connect.storage.StringConverter")
+			.containsEntry("header.converter", "org.apache.kafka.connect.storage.StringConverter")
+			.containsEntry("predicates", "IsOutboxTable")
+			.containsEntry("predicates.IsOutboxTable.type",
+				"org.apache.kafka.connect.transforms.predicates.TopicNameMatches")
+			.containsEntry("predicates.IsOutboxTable.pattern",
+				"airbob_server\\.airbobdb\\.outbox")
 			.containsEntry("transforms.outbox.type", "io.debezium.transforms.outbox.EventRouter")
-			.containsEntry("transforms.outbox.route.by.field", "aggregate_type")
-			.containsEntry("transforms.outbox.route.topic.replacement", "${routedByValue}.events")
-			.containsEntry("transforms.outbox.table.field.event.key", "aggregate_id")
+			.containsEntry("transforms.outbox.predicate", "IsOutboxTable")
+			.containsEntry("transforms.outbox.table.op.invalid.behavior", "fatal")
+			.containsEntry("transforms.outbox.route.by.field", "destination")
+			.containsEntry("transforms.outbox.route.topic.replacement", "${routedByValue}")
+			.containsEntry("transforms.outbox.table.field.event.id", "event_id")
+			.containsEntry("transforms.outbox.table.field.event.key", "partition_key")
 			.containsEntry("transforms.outbox.table.field.event.payload", "payload")
+			.containsEntry("transforms.outbox.table.field.event.timestamp", "occurred_at")
 			.containsEntry("transforms.outbox.table.fields.additional.placement",
-				"event_type:header:eventType");
+				"event_type:header:eventType,event_version:header:eventVersion,"
+					+ "aggregate_type:header:aggregateType,aggregate_id:header:aggregateId");
+		assertThat(config.keySet())
+			.doesNotContain(
+				"name", "config", "key.converter.schemas.enable", "header.converter.schemas.enable");
 
 		List<String> placeholders = new ArrayList<>();
 		Matcher matcher = PLACEHOLDER.matcher(template);

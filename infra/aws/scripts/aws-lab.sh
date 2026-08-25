@@ -254,8 +254,8 @@ resolve_release_inputs() {
     .schemaVersion == 1 and
     .datasetRelease == $expectedRelease and
     (.releaseKind == "pipeline-rehearsal" or .releaseKind == "evidence") and
-    .mysql.flywayVersion == "17" and
-    .mysql.expectedTableRows.flyway_schema_history == 17 and
+    .mysql.flywayVersion == "27" and
+    .mysql.expectedTableRows.flyway_schema_history == 27 and
     ([.. | objects | keys[]] |
       all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
   ' "$dataset_manifest" >/dev/null || fail "dataset completion manifest is invalid"
@@ -399,79 +399,6 @@ write_terraform_output_evidence() {
   [[ "$output_status" == available || "$requirement" == best-effort ]]
 }
 
-verify_distributed_lock_topology() {
-  local capacities
-  capacities=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" \
-    --query 'AutoScalingGroups[0].[MinSize,DesiredCapacity,MaxSize]' \
-    --output json --region "$AWS_REGION" --no-cli-pager) || return 1
-  jq -e 'type == "array" and . == [2, 2, 2]' <<<"$capacities" >/dev/null || return 1
-  DISTRIBUTED_LOCK_MIN_CAPACITY=$(jq -er '.[0]' <<<"$capacities") || return 1
-  DISTRIBUTED_LOCK_DESIRED_CAPACITY=$(jq -er '.[1]' <<<"$capacities") || return 1
-  DISTRIBUTED_LOCK_MAX_CAPACITY=$(jq -er '.[2]' <<<"$capacities") || return 1
-  DISTRIBUTED_LOCK_IN_SERVICE_INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
-    --auto-scaling-group-names "$asg_name" \
-    --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService` && HealthStatus==`Healthy`].[InstanceId,AvailabilityZone]' \
-    --output json --region "$AWS_REGION" --no-cli-pager) || return 1
-  DISTRIBUTED_LOCK_HEALTHY_TARGET_IDS=$(aws elbv2 describe-target-health \
-    --target-group-arn "$target_group_arn" \
-    --query 'TargetHealthDescriptions[?TargetHealth.State==`healthy`].Target.Id' \
-    --output json --region "$AWS_REGION" --no-cli-pager) || return 1
-  jq -e --argjson expectedAzs "$expected_app_availability_zones" '
-    type == "array" and
-    length == 2 and
-    all(.[]; type == "array" and length == 2 and all(.[]; type == "string" and length > 0)) and
-    (map(.[0]) | unique | length) == 2 and
-    (map(.[1]) | sort) == ($expectedAzs | sort)
-  ' <<<"$DISTRIBUTED_LOCK_IN_SERVICE_INSTANCES" >/dev/null &&
-    jq -en \
-      --argjson instances "$DISTRIBUTED_LOCK_IN_SERVICE_INSTANCES" \
-      --argjson targets "$DISTRIBUTED_LOCK_HEALTHY_TARGET_IDS" '
-        ($targets | type == "array") and
-        ($targets | length == 2) and
-        ($targets | unique | length == 2) and
-        (($instances | map(.[0]) | sort) == ($targets | sort))
-      ' >/dev/null
-}
-
-write_distributed_lock_readiness_evidence() {
-  local readiness_evidence="$temp_dir/application-readiness.json"
-  jq -n --arg runId "$run_id" --arg mode "$mode" --arg asgName "$asg_name" \
-    --arg targetGroupArn "$target_group_arn" \
-    --arg instanceRefreshStatus "$DISTRIBUTED_LOCK_REFRESH_STATUS" \
-    --argjson fencingToken "$fencing_token" \
-    --argjson minCapacity "$DISTRIBUTED_LOCK_MIN_CAPACITY" \
-    --argjson desiredCapacity "$DISTRIBUTED_LOCK_DESIRED_CAPACITY" \
-    --argjson maxCapacity "$DISTRIBUTED_LOCK_MAX_CAPACITY" \
-    --argjson instances "$DISTRIBUTED_LOCK_IN_SERVICE_INSTANCES" \
-    --argjson healthyTargetIds "$DISTRIBUTED_LOCK_HEALTHY_TARGET_IDS" \
-    --argjson expectedAvailabilityZones "$expected_app_availability_zones" \
-    --argjson verifiedAt "$(date +%s)" '
-    {
-      schemaVersion: 1,
-      runId: $runId,
-      fencingToken: $fencingToken,
-      mode: $mode,
-      autoScalingGroupName: $asgName,
-      targetGroupArn: $targetGroupArn,
-      instanceRefreshStatus: $instanceRefreshStatus,
-      minCapacity: $minCapacity,
-      desiredCapacity: $desiredCapacity,
-      maxCapacity: $maxCapacity,
-      expectedAvailabilityZones: ($expectedAvailabilityZones | sort),
-      healthyInServiceInstances: [
-        $instances[] | {instanceId: .[0], availabilityZone: .[1]}
-      ],
-      healthyTargetIds: ($healthyTargetIds | sort),
-      verifiedAt: $verifiedAt
-    }
-  ' > "$readiness_evidence"
-  assert_lease
-  aws s3api put-object --bucket "$evidence_bucket" \
-    --key "runs/$run_id/application-readiness.json" --body "$readiness_evidence" \
-    --tagging Retention=summary --server-side-encryption AES256 \
-    --content-type application/json --region "$AWS_REGION" --no-cli-pager >/dev/null
-}
-
 wait_for_application() {
   local deadline status unhealthy healthy desired
   deadline=$(($(date +%s) + INSTANCE_REFRESH_TIMEOUT_SECONDS))
@@ -489,16 +416,8 @@ wait_for_application() {
       --output text --region "$AWS_REGION" --no-cli-pager)
     desired=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$asg_name" \
       --query 'AutoScalingGroups[0].DesiredCapacity' --output text --region "$AWS_REGION" --no-cli-pager)
-    if [[ "$unhealthy" == 0 && "$healthy" == "$desired" && "$desired" -ge 1 && ( "$status" == Successful || "$status" == None ) ]]; then
-      if [[ "$mode" == distributed-lock ]]; then
-        if ! verify_distributed_lock_topology; then
-          sleep 10
-          continue
-        fi
-        DISTRIBUTED_LOCK_REFRESH_STATUS=$status
-      fi
-      return 0
-    fi
+    [[ "$unhealthy" == 0 && "$healthy" == "$desired" && "$desired" -ge 1 && ( "$status" == Successful || "$status" == None ) ]] \
+      && return 0
     sleep 10
   done
   aws autoscaling rollback-instance-refresh --auto-scaling-group-name "$asg_name" \
@@ -553,11 +472,10 @@ case "$action" in
     database_bootstrap=${DATABASE_BOOTSTRAP:-dump}
     rds_snapshot_identifier=${RDS_SNAPSHOT_IDENTIFIER:-}
     rds_engine_version=${RDS_ENGINE_VERSION:-}
-    [[ "$mode" == performance || "$mode" == distributed-lock || "$mode" == scaling ]] \
-      || fail "MODE must be performance, distributed-lock, or scaling"
+    [[ "$mode" == performance || "$mode" == scaling ]] \
+      || fail "MODE must be performance or scaling"
     [[ "$policy" == integrated-smoke || "$policy" == isolated-read ]] || fail "POLICY is invalid"
     [[ "$mode:$policy" != scaling:integrated-smoke ]] || fail "scaling requires isolated-read"
-    [[ "$mode:$policy" != distributed-lock:integrated-smoke ]] || fail "distributed-lock requires isolated-read"
     [[ "$cache_enabled" == true || "$cache_enabled" == false ]] || fail "CACHE_ENABLED must be true or false"
     [[ "$load_generator_enabled" == true || "$load_generator_enabled" == false ]] || fail "LOAD_GENERATOR_ENABLED must be true or false"
     [[ "$ttl_hours" =~ ^[1-9][0-9]?$ && "$ttl_hours" -le 24 ]] || fail "TTL_HOURS must be 1-24"
@@ -631,23 +549,13 @@ case "$action" in
     aws_alb_dns_name=$(jq -er '.alb_dns_name' <<<"$phase4")
     target_group_arn=$(jq -er '.target_group_arn' <<<"$phase4")
     asg_name=$(jq -er '.auto_scaling_group_name' <<<"$phase4")
-    expected_app_availability_zones=$(jq -ce '.app_availability_zones' <<<"$phase4")
     wait_for_application
     current_stage=dns-stage
     invoke_dns_controller stage oci >/dev/null
-    if [[ "$mode" == distributed-lock ]]; then
-      verify_distributed_lock_topology \
-        || fail "distributed-lock topology drifted before DNS cutover"
-    fi
     current_stage=dns-switch
     invoke_dns_controller switch aws >/dev/null
     dns_switched=true
     verify_public_aws_smoke
-    if [[ "$mode" == distributed-lock ]]; then
-      verify_distributed_lock_topology \
-        || fail "distributed-lock topology drifted after DNS cutover"
-      write_distributed_lock_readiness_evidence
-    fi
     current_stage=evidence
     write_terraform_output_evidence required
     up_in_progress=false

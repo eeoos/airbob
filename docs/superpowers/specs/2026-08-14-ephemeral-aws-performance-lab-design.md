@@ -203,7 +203,7 @@ T3 계열은 비용 절약을 위해 의존 서비스에만 사용한다. EC2 T3
 - App ASG, Redis, Kafka, Debezium, Elasticsearch와 monitoring은 private subnet에 둔다.
 - 기록용 load generator는 통제된 public subnet에 임시 public IPv4와 함께 둔다. inbound를 열지 않고 SSM만 사용하며, public ALB 요청이 `t3.micro` NAT를 통과하지 않게 한다.
 - Redis, Kafka, Debezium, Elasticsearch, monitoring과 Single-AZ RDS는 기록된 `primary_az`에 고정한다. RDS DB subnet group은 두 private subnet을 사용하되 실제 instance AZ는 `primary_az`다.
-- `performance`의 App ASG는 `primary_az` private subnet 하나만 사용해 instance refresh 사이의 AZ latency를 고정한다. `distributed-lock`과 `scaling`은 두 private subnet을 사용하고 target별 AZ 및 cross-AZ 배치를 artifact에 기록한다.
+- `performance`의 App ASG는 `primary_az` private subnet 하나만 사용해 instance refresh 사이의 AZ latency를 고정한다. `scaling`은 두 private subnet을 사용하고 target별 AZ 및 cross-AZ 배치를 artifact에 기록한다.
 - NAT instance는 한 AZ에만 존재한다. 장애 시 다른 AZ의 egress도 끊기는 비용 절감형 단일 장애점임을 명시한다.
 - NAT instance는 `source_dest_check=false`, IP forwarding과 masquerade, 부팅 후 egress health marker를 갖는다. network/NAT 단계에는 private subnet의 disposable `t3.nano` egress probe도 함께 만든다. probe가 S3 gateway와 NAT 경유 ECR·SSM·Secrets Manager 연결을 시험하고 success tag/console marker를 남기면 이를 종료한 뒤에만 private service EC2를 만든다. probe 자체의 SSM 연결 성공에만 판정을 의존하지 않는다.
 - 무료 S3 Gateway Endpoint를 사용해 dataset/artifact 트래픽이 NAT를 우회하게 한다.
@@ -298,7 +298,7 @@ flowchart LR
 
 - `spring.data.redis`는 `redis-general.lab.airbob.internal:6379`를 사용한다.
 - `accommodation.detail-cache.redis`는 같은 EC2의 `redis-cache.lab.airbob.internal:6380`을 사용한다.
-- 인증, 예약·정산, 쿠폰과 최근 본 숙소 코드는 현재처럼 범용 client를 사용한다.
+- 인증, 정산, 쿠폰과 최근 본 숙소 코드는 현재처럼 범용 client를 사용한다. 예약 가용성과 중복 방지는 MySQL 제약·트랜잭션이 담당하며 예약 Redis 락은 사용하지 않는다.
 - 숙소 상세 cache와 cache lock/load permit은 현재처럼 전용 client를 사용한다.
 - AWS/lab profile에서는 두 endpoint를 모두 명시하고 서로 같은 host/port 조합이면 시작에 실패한다. 현재 AWS 설정의 cache→범용 endpoint fallback을 lab에서 허용하지 않는다.
 - OCI는 기존 `REDIS_HOST=redis`, `ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache` 구성을 유지한다.
@@ -312,7 +312,6 @@ flowchart LR
 | `mode` | ASG min | desired | max | scaling policy | 용도 |
 |---|---:|---:|---:|---|---|
 | `performance` | 1 | 1 | 1 | 생성하지 않음 | 코드·쿼리·캐시 변경 전후 응답 성능 비교 |
-| `distributed-lock` | 2 | 2 | 2 | 생성하지 않음 | 두 JVM이 공유 Redis lock을 사용하는 correctness 환경 준비 |
 | `scaling` | 1 | 1 | 4 | target tracking 활성화 | scale-out/in과 응답 안정성 점검 |
 
 데이터 복원 중 사용하는 `app_enabled=false`는 사용자가 고르는 별도 mode가 아니라 내부 bootstrap phase다. 이 첫 apply에서는 ASG를 `min=0`, `desired=0`, `max=0`으로 만들고 scaling policy도 생성하지 않는다. 모든 의존 서비스와 데이터 검증이 끝난 뒤 두 번째 apply에서 `app_enabled=true`와 선택한 mode의 최종 capacity를 적용한다. 활성 mode의 양수 min capacity와 bootstrap의 `desired=0`을 한 apply에 섞지 않는다.
@@ -328,7 +327,6 @@ flowchart LR
 | 코드/쿼리 개선 | baseline/candidate app image digest | DB schema·dataset, Redis 정책, capacity, JVM | 새 JVM + 같은 cache warm-up |
 | MySQL index A/B | candidate의 index schema fingerprint만 | app binary digest, snapshot, workload, JVM | 같은 canonical snapshot에서 baseline/candidate RDS clone |
 | Redis cache A/B | 명시적 cache enabled/policy만 | app image, DB schema·dataset, capacity | cache flush + 동일 warm-up |
-| 분산 락 correctness | 고정 두 JVM에 동시에 들어가는 synthetic write만 | app image, DB/Redis/ES dataset, `2/2/2`, isolated policy | 실행 후 canonical dataset 재복원 또는 즉시 down |
 | scale-out | ASG in-service capacity만 부하에 따라 변화 | app image, DB/Redis/ES dataset, policy, workload | 실행마다 전체 dependency 상태 확인 |
 
 서로 다른 유형의 결과를 한 A/B 집합으로 섞지 않는다. index 실험은 하나의 RDS를 그대로 둔 채 Redis만 초기화하지 않고, 같은 canonical snapshot에서 복원한 baseline/candidate DB 또는 라운드별 snapshot reset을 사용한다. 최종 채택 migration 검증은 기존 AWS traffic/index benchmark 계획의 paired A/A·A/B 계약을 따른다.
@@ -340,20 +338,18 @@ flowchart LR
 
 여러 target tracking policy를 사용할 때 scale-out과 scale-in 조건을 별도로 관찰한다. 상세 모니터링 1분 주기, default instance warm-up 180초, ALB health check와 deregistration delay를 고정한다. 정확한 request target은 코드 상수가 아니라 검증된 baseline artifact에서 입력한다.
 
-단일 인스턴스 refresh는 provider 기본 timeout/health percentage에 맡기지 않는다. `performance`에서는 public traffic을 먼저 OCI로 돌리고 min healthy 0/max healthy 100의 replace 순서, 15분 bounded timeout, health alarm과 이전 launch-template 자동 rollback을 명시한다. 새 target이 healthy하기 전에는 AWS로 다시 전환하지 않는다. `distributed-lock`은 min healthy 100/max healthy 200으로 두 기존 target을 유지하되 scaling checkpoint는 만들지 않는다. `scaling` refresh는 같은 가용성 비율과 50/100 checkpoint를 사용한다. 모든 모드에서 refresh 실패가 한 시간 방치되거나 unhealthy image가 DNS 대상이 되지 않아야 한다.
+단일 인스턴스 refresh는 provider 기본 timeout/health percentage에 맡기지 않는다. `performance`에서는 public traffic을 먼저 OCI로 돌리고 min healthy 0/max healthy 100의 replace 순서, 15분 bounded timeout, health alarm과 이전 launch-template 자동 rollback을 명시한다. 새 target이 healthy하기 전에는 AWS로 다시 전환하지 않는다. `scaling` refresh는 min healthy 100/max healthy 200의 가용성 비율과 50/100 checkpoint를 사용한다. 모든 모드에서 refresh 실패가 한 시간 방치되거나 unhealthy image가 DNS 대상이 되지 않아야 한다.
 
 ## 측정 정책과 백그라운드 작업
 
-Terraform의 `performance/distributed-lock/scaling`은 인프라 용량 모드이고, 앱의 백그라운드 동작 여부는 별도 측정 정책이다. 둘을 한 이름으로 섞지 않는다.
+Terraform의 `performance/scaling`은 인프라 용량 모드이고, 앱의 백그라운드 동작 여부는 별도 측정 정책이다. 둘을 한 이름으로 섞지 않는다.
 
 | 측정 정책 | 허용 용량 모드 | scheduler | Debezium/consumer | 결과 용도 |
 |---|---|---|---|---|
 | `integrated-smoke` | `performance`만 | 켬 | 켬 | 전체 이벤트 흐름과 기능 확인 |
-| `isolated-read` | `performance`, `distributed-lock`, `scaling` | 끔 | connector pause, consumer 끔 | 응답 성능, web scale, 통제된 lock test 환경 |
+| `isolated-read` | `performance`, `scaling` | 끔 | connector pause, consumer 끔 | 응답 성능, web scale |
 
-현재 스케줄러는 각 앱 인스턴스에서 실행되므로 ASG가 2대 이상이면 같은 작업이 중복 실행될 수 있다. `distributed-lock`과 `scaling`은 scheduler와 Kafka consumer를 격리한 web request path만 대상으로 한다. 향후 ShedLock 또는 singleton worker ownership을 도입하기 전에는 “백그라운드 작업까지 포함한 운영형 다중화”를 주장하지 않는다.
-
-`distributed-lock`은 두 AZ의 `c6i.large` 두 대가 같은 범용 Redis를 사용하는 환경까지만 제공한다. 이때 `isolated-read`라는 정책 이름은 scheduler, connector와 Kafka consumer를 격리한다는 뜻이며 HTTP write를 기술적으로 차단한다는 뜻은 아니다. Controller는 healthy `InService` 인스턴스가 정확히 두 개이고 두 configured AZ에 하나씩 있으며, ALB healthy target ID 집합이 그 두 instance ID와 같은지 앱 준비 시점, DNS 전환 직전, AWS 전환 직후에 각각 검증한다. 전환 후 drift는 OCI로 rollback하고, 최종 확인된 topology만 `runs/<run-id>/application-readiness.json`에 남긴다. 실제 예약 write contention runner와 성공/실패 판정 artifact는 아직 구현하지 않았으므로 분산 락 correctness가 검증되었다고 주장하지 않는다. 향후 mutating run 뒤에는 canonical dataset reset을 수행하거나 즉시 down해야 하며, 변형된 dataset에서 얻은 read 성능 결과는 폐기한다.
+현재 스케줄러는 각 앱 인스턴스에서 실행되므로 ASG가 2대 이상이면 같은 작업이 중복 실행될 수 있다. `scaling`은 scheduler와 Kafka consumer를 격리한 web request path만 대상으로 한다. 향후 ShedLock 또는 singleton worker ownership을 도입하기 전에는 “백그라운드 작업까지 포함한 운영형 다중화”를 주장하지 않는다.
 
 `isolated-read`의 `traffic-benchmark` application profile은 Phase 0에서 구현되었다. 이 profile은 group으로 `performance-lab`을 포함하고 다음 애플리케이션 동작을 명시적으로 비활성화한다.
 
@@ -544,7 +540,6 @@ evidence/<dataset-release>/<experiment-id>/<timestamp>/
 
 ```text
 make aws-up MODE=performance POLICY=isolated-read IMAGE_DIGEST=... DATASET_RELEASE=...
-make aws-up MODE=distributed-lock POLICY=isolated-read IMAGE_DIGEST=... DATASET_RELEASE=...
 make aws-up MODE=scaling POLICY=isolated-read IMAGE_DIGEST=... DATASET_RELEASE=... REQUEST_TARGET=...
 make aws-status
 make aws-switch TARGET=aws
@@ -555,7 +550,7 @@ make aws-down
 GitHub Actions는 `workflow_dispatch` 입력으로 같은 값을 받고 내부에서 같은 `make` target 또는 script를 호출한다.
 
 - `action`: `up`, `status`, `switch`, `down`
-- `mode`: `performance`, `distributed-lock`, `scaling`
+- `mode`: `performance`, `scaling`
 - `policy`: `integrated-smoke`, `isolated-read`
 - `app_image_digest`
 - `dataset_release`
@@ -563,7 +558,7 @@ GitHub Actions는 `workflow_dispatch` 입력으로 같은 값을 받고 내부�
 - `ttl_hours`: 기본 6, 최대 24
 - `keep_on_failure`: 기본 false
 
-코드 수정이 없더라도 기존 image digest를 지정해 로컬에서 `aws-up`을 실행할 수 있다. 반대로 GitHub UI에서는 수동 버튼으로 같은 작업을 실행할 수 있다. CD workflow가 ECR에 image를 push하는 일과 AWS lab을 생성하는 일은 분리한다. `integrated-smoke`는 `performance`에서만 허용한다. `distributed-lock`은 `isolated-read`에서만 허용하고 request target을 거부한다. DB/Redis/Kafka/ES를 바꾼 smoke나 향후 분산 락 write test 뒤에는 dataset reset을 통과해야만 read 성능 측정으로 전환한다.
+코드 수정이 없더라도 기존 image digest를 지정해 로컬에서 `aws-up`을 실행할 수 있다. 반대로 GitHub UI에서는 수동 버튼으로 같은 작업을 실행할 수 있다. CD workflow가 ECR에 image를 push하는 일과 AWS lab을 생성하는 일은 분리한다. `integrated-smoke`는 `performance`에서만 허용한다. `scaling`은 `isolated-read`와 request target을 요구하며 request target은 다른 모드에서 거부한다. DB/Redis/Kafka/ES를 바꾼 smoke 뒤에는 dataset reset을 통과해야만 read 성능 측정으로 전환한다.
 
 `aws-status`는 lab 상태와 함께 fixed-name expiry observer rule, 세 alarm의 live state와 마지막 평가 시각을 읽어야 한다. Metric 원문 조회 권한이나 foundation state를 넓게 공개하지 않고, heartbeat 누락은 heartbeat alarm 상태로 표현한다. Observer email 설정·활성화·비활성화는 protected `aws-foundation` 환경의 별도 workflow와 로컬이 같은 repository script를 호출하며, 사람의 SNS email confirmation 자체는 자동화하지 않는다.
 
@@ -664,7 +659,7 @@ OCI health가 실패하면 만료 전의 기본 down은 AWS destroy 전에 멈�
 - cleanup 실패는 CloudWatch alarm과 SNS/email 등 사용자가 실제 수신하는 채널로 알리고 bounded retry 뒤에도 남은 resource inventory를 기록한다.
 - AWS Budget은 월 알림만 담당하며 hard stop이라고 표현하지 않는다.
 - `aws-status`는 현재 resource와 대략적인 실행 시간을 보여 준다.
-- `aws-cost-estimate`는 현재 서울 region 가격을 조회해 1시간 performance, 1시간 fixed distributed-lock, 1시간 max scaling, 기본 6시간과 최악 24시간 envelope를 apply 전에 보여 준다. EC2/RDS, ALB LCU와 ALB public IPv4, NAT/loadgen IPv4, EBS, T3 surplus, CloudWatch metric/log, Secrets Manager, S3/ECR와 retained snapshot을 포함한다. 이는 추정치이지 hard cap이 아니다.
+- `aws-cost-estimate`는 현재 서울 region 가격을 조회해 1시간 performance, 1시간 max scaling, 기본 6시간과 최악 24시간 envelope를 apply 전에 보여 준다. EC2/RDS, ALB LCU와 ALB public IPv4, NAT/loadgen IPv4, EBS, T3 surplus, CloudWatch metric/log, Secrets Manager, S3/ECR와 retained snapshot을 포함한다. 이는 추정치이지 hard cap이 아니다.
 - EBS는 `delete_on_termination`, RDS lab은 final snapshot 생성을 기본 해제한다.
 - ECR, dataset, evidence와 RDS dataset snapshot에는 명시적 lifecycle/rotation을 둔다.
 - NAT Gateway는 사용하지 않고 test-only NAT instance를 사용한다.
@@ -736,10 +731,10 @@ alert-only다. AWS-native EventBridge/CodeBuild sweeper와 그 live cleanup 검�
 - [x] `evidence`/search-enabled release에만 ES S3 repository 등록, restore와 document/mapping 검증을 실행한다.
 - [x] Redis/Kafka/Debezium의 순서 있는 초기화를 구현한다.
 
-### Phase 4. App ASG와 세 용량 모드
+### Phase 4. App ASG와 두 용량 모드
 
 - [x] `c6i.large` launch template, fixed JVM/container limit와 ALB를 구성한다.
-- [x] `performance` 1/1/1, `distributed-lock` 2/2/2, `scaling` 1/1/4를 Terraform variable로 만든다.
+- [x] `performance` 1/1/1, `scaling` 1/1/4를 Terraform variable로 만든다.
 - [x] target tracking, detailed monitoring, warm-up과 instance refresh의 정적/mock 계약을 검증한다.
 - [x] Prometheus EC2 service discovery와 CloudWatch dashboard를 연결한다.
 - [ ] 실제 AWS에서 app SSM/runtime, target health, 1→N→1과 refresh rollback evidence를 검증한다.
@@ -760,7 +755,6 @@ alert-only다. AWS-native EventBridge/CodeBuild sweeper와 그 live cleanup 검�
 - [ ] 구현된 runner를 실제 AWS에서 실행해 k6, digest, Prometheus artifact가 같은 window로 연결되는지 확인한다.
 - [ ] A/A noise, baseline/candidate, dependency saturation gate를 확인한다.
 - [ ] scaling에서 1→N→1 변화, 응답시간과 오류율을 기록한다.
-- [ ] `distributed-lock`에서 두 JVM에 동시에 예약 write를 보내 lock correctness와 결과 cardinality를 기록하고 dataset을 reset/down한다.
 - [ ] Up 실패, AWS smoke 실패, OCI health 실패와 만료 cleanup을 연습한다.
 - 실제 `up → measure → scale → down` evidence가 나오기 전에는 README와 포트폴리오에서 ALB/ASG 또는 성능 개선을 live 완료 사실로 표현하지 않는다.
 
@@ -770,7 +764,6 @@ alert-only다. AWS-native EventBridge/CodeBuild sweeper와 그 live cleanup 검�
 
 - `terraform fmt`, `validate`, `tflint`, Checkov 또는 동등한 IaC 보안 검사를 수행한다.
 - mode별 plan snapshot에서 ASG capacity와 scaling policy 유무를 검사한다.
-- `distributed-lock` fake-AWS gate에서 정확히 두 healthy `InService` instance가 두 AZ에 분산되고 ALB target 집합과 일치하지 않으면 DNS 전환을 거부하는지 검사한다.
 - persistent state resource가 lab destroy plan에 포함되지 않는지 검사한다.
 - Compose config, image digest, Redis port/memory/persistence/eviction 정책을 테스트한다.
 - 범용/cache Redis client routing, 서로 다른 endpoint와 endpoint 누락 fail-fast를 테스트한다.
@@ -801,7 +794,6 @@ alert-only다. AWS-native EventBridge/CodeBuild sweeper와 그 live cleanup 검�
 
 - `make aws-up`과 GitHub 수동 workflow가 동일한 Terraform과 script를 사용한다.
 - `performance` plan은 App ASG 1/1/1이고 scaling policy가 없다.
-- `distributed-lock` plan은 App ASG 2/2/2, 두 private AZ, scaling policy 0, request target null이며 `isolated-read`만 허용한다.
 - `scaling` plan은 1/1/4이고 검증된 request target 및 CPU policy가 있다.
 - AWS가 healthy하기 전에는 `api.airbob.cloud`가 OCI를 계속 가리킨다.
 - AWS 전환 중에도 OCI는 실행되며 rollback 대상으로 유지된다.

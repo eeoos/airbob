@@ -20,8 +20,8 @@
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Immutable V17 dataset assembly and publication | Local DB/search assembly, native ES snapshot producer, and manifest-last publisher implemented (static/mock tests only; publisher role/policy unapplied and nothing published) |
-| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V17 release published or restored) |
+| Immutable V27 dataset assembly and publication | Local DB/search assembly, native ES snapshot producer, and manifest-last publisher implemented (static/mock tests only; publisher role/policy unapplied and nothing published) |
+| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V27 release published or restored) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Gabia delegation completed; Route 53 serves the verified OCI weight-100 record, while the AWS alias remains pending |
@@ -58,14 +58,23 @@ delegation. The public API origin is unchanged: Route 53 still sends all
 traffic to OCI at `140.245.76.140`, and the public `/health` probe remains
 healthy. The AWS alias is absent. The ephemeral lab has not been created, data
 has not been restored, and no performance results have been established. The
-historical ETL dump is Flyway V12 while the application is V17, so the Phase 3
-validator intentionally refuses it; a newly generated immutable V17 release is
+historical ETL dump is Flyway V12 while the application is V27, so the Phase 3
+validator intentionally refuses it; a newly generated immutable V27 release is
 a prerequisite for the first live rehearsal.
+
+That release must apply V1–V27 while the source schema is empty and all V24 or
+older writers are stopped. V25 intentionally rejects non-empty reservation
+data instead of inferring date ownership. ETL fixtures are inserted only after
+V27, and the resulting release binds the inventory table, published timezone
+preflight, and exact schema fingerprint. A failed V25+ cutover is roll-forward
+only; the lab does not start or roll back to a pre-inventory application.
 
 Phase 3 now binds one manifest SHA to an ephemeral RDS instance and runs the
 ordered bootstrap from the Debezium host: database import and Flyway/schema
-fingerprints, optional read-only Elasticsearch S3 snapshot restore, both Redis
-resets plus declared coupon preparation, exact empty Kafka topics, then a
+fingerprints, optional read-only Elasticsearch S3 snapshot restore into a
+dataset-versioned physical index followed by a verified atomic write-alias cutover, both Redis
+resets plus declared coupon preparation, the exact 12 canonical Kafka
+main/retry/DLT topics at three partitions each, then a
 Debezium `no_data` connector. A separate `data-ready` Terraform transition
 accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords
 are resolved only on the host from Secrets Manager. Persistent RDS snapshot
@@ -73,17 +82,34 @@ promotion is a separate publisher/admin command and remains outside the lab
 role and lab destroy graph.
 
 The local search-data path now uses the exact digest-pinned Elasticsearch image
-from the `infra-image-release-<full-commit>` workflow artifact. A version-2
+from the `infra-image-release-<full-commit>` workflow artifact. A version-3
 database attestation reruns the exact verifier SQL from the source ETL commit
 and binds the restored MySQL server UUID and approved fingerprint subset. One
 local producer then acquires the release-specific DynamoDB lease and uses a
 temporarily enabled, exact-prefix IAM grant to write a native snapshot directly
 to the initially empty `elasticsearch/releases/<dataset-release>/` S3 prefix.
+Its version-2 snapshot reference binds the logical `accommodations` write alias
+separately from the single managed `accommodations-v*` physical index included
+in the snapshot.
 It unregisters the writer repository, registers the same prefix read-only,
 restores the snapshot to a temporary verification index, compares DB/ES
-membership and IDs, verifies source-to-restored ES mapping/content fidelity,
-and records a stable S3 version inventory. It does not claim a field-by-field
+membership and numeric IDs, and also binds the byte-sorted canonical identity
+pairs `LOWER(BIN_TO_UUID(accommodation_uid)), id` from MySQL against
+`_id, _source.accommodationId` from Elasticsearch. The reference, release
+manifest, and producer receipt carry exact DB/ES pair digests and require them
+to be equal. The AWS bootstrap recomputes those pairs from the restored RDS and
+physical Elasticsearch index and refuses alias cutover if an `_id` maps to the
+wrong accommodation. Existing mapping/content fingerprints remain independent
+restore-fidelity gates. The producer then records a stable S3 version inventory.
+It does not claim a field-by-field
 MySQL-to-ES content projection proof.
+
+The inventory covers every object version and delete marker in the sealed
+release prefix. The persistent dataset bucket consequently has no lifecycle
+expiration or noncurrent-version/delete-marker cleanup; it only aborts
+incomplete multipart uploads after seven days. Bounded 30-day noncurrent
+version cleanup remains isolated to the separate bundle bucket, so no
+lifecycle rule can invalidate a sealed Elasticsearch snapshot inventory.
 
 After snapshot receipt generation, a second foundation plan sets the writer
 release back to null. The wrapper publisher self-inspects its role and refuses
@@ -91,16 +117,15 @@ all S3 work until that revoke is active. It then checks the receipt and
 inventory, writes wrapper payloads with no-overwrite semantics, and writes
 `manifest.json` last. The AWS bootstrap registers only the read-only repository
 and cannot publish a snapshot. The dedicated local MFA role, temporary grant,
-and bucket policy exist in Terraform but are unapplied, and neither a V17
+and bucket policy exist in Terraform but are unapplied, and neither a V27
 wrapper nor native snapshot currently exists in the dataset bucket.
 
 Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
 data bootstrap is in progress. An exact `data-ready` receipt is required before
 `app_enabled=true` can select single-AZ `performance` (`1/1/1`, no scaling
-policy), fixed two-AZ `distributed-lock` (`2/2/2`, no scaling policy), or
-two-AZ `scaling` (`1/1/4`, CPU 50% plus a caller-supplied baseline-derived ALB
-request target). `distributed-lock` requires `isolated-read` and a null request
-target. The immutable app digest, measurement
+policy) or two-AZ `scaling` (`1/1/4`, CPU 50% plus a caller-supplied
+baseline-derived ALB request target). Scaling requires `isolated-read`; the
+request target is valid only in scaling mode. The immutable app digest, measurement
 policy, cache toggle, dataset, and RDS identity form a launch-template runtime
 revision. New targets receive the RDS credential only through a tag-targeted
 SSM association and a mode-0600 env file. ALB stickiness is disabled, app/node
@@ -114,14 +139,6 @@ hermetic fake-AWS execution but remains unproven on the live host.
 Terraform does not wait for an ASG instance refresh to finish, so the 15-minute
 poll and pre-DNS target-health decision are now implemented by the Phase 5
 controller. They remain an unproven runtime guarantee until a live rehearsal.
-
-`distributed-lock` currently prepares only a cross-JVM, shared-Redis topology.
-Here `isolated-read` means that schedulers, the connector, and Kafka consumers
-are isolated; it does not technically block an HTTP write.
-No mutating reservation contention runner or correctness evidence has been
-implemented or executed. A future run must use synthetic reservation data and
-must reset the dataset or tear the lab down afterward; read-performance results
-from a mutated dataset are invalid.
 
 ## Phase 5 operator workflow
 
@@ -140,7 +157,7 @@ make aws-up \
   MODE=performance \
   POLICY=isolated-read \
   IMAGE_DIGEST=sha256:<64-hex> \
-  DATASET_RELEASE=<published-v17-release> \
+  DATASET_RELEASE=<published-v27-release> \
   AMI_ID=<reviewed-al2023-x86_64-ami> \
   OCI_ORIGIN_IPV4=<reviewed-oci-ip> \
   RDS_ENGINE_VERSION=8.0.<reviewed-patch>
@@ -151,13 +168,9 @@ make aws-down
 ```
 
 Scaling additionally requires `REQUEST_TARGET=<baseline requests/target/min>`.
-The fixed distributed-lock topology uses
-`MODE=distributed-lock POLICY=isolated-read` and rejects `REQUEST_TARGET`.
-Before DNS cutover, the operator requires exactly two healthy `InService` ASG
-instances across the two configured AZs and the same two healthy ALB target
-IDs. It repeats that check immediately before and after the AWS DNS switch;
-post-switch drift rolls DNS back to OCI. Only the final topology is stored in
-`runs/<run-id>/application-readiness.json`.
+`REQUEST_TARGET` is rejected in performance mode. The selected application's
+AZ list, including scaling's two-AZ placement, remains in the redacted Phase 4
+Terraform output evidence.
 `TTL_HOURS` defaults to 6 and is limited to 24. The default dump bootstrap can
 be changed to a prevalidated snapshot only with both
 `DATABASE_BOOTSTRAP=snapshot` and its exact snapshot identifier. The bundle
@@ -187,14 +200,14 @@ the run expiry.
 
 Before the first live run, apply the reviewed dataset-publisher foundation
 change, publish the full-commit images and bundle, download the matching
-immutable infrastructure image-release artifact, and publish a compatible V17
+immutable infrastructure image-release artifact, and publish a compatible V27
 dataset. The DNS delegation and ACM issuance are already complete. Protect the
 GitHub Environment `aws-performance-lab` and define
 `AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
 `OCI_ORIGIN_IPV4`, and `AWS_LAB_RDS_ENGINE_VERSION`. The workflow uses OIDC
 only, has a fixed concurrency group with in-progress cancellation disabled,
 and calls the same operator script. The dataset-publisher foundation delta,
-image and bundle publication, V17 dataset publication, and the operator's live
+image and bundle publication, V27 dataset publication, and the operator's live
 AWS execution all remain pending.
 
 The local packager binds every archive member's regular-file type and bytes to
@@ -247,7 +260,9 @@ integrated-smoke: SPRING_PROFILES_ACTIVE=aws,performance-lab
 isolated-read:    SPRING_PROFILES_ACTIVE=aws,traffic-benchmark
 ```
 
-`integrated-smoke` retains the application's internal scheduler and Kafka flow while blocking external Toss, Google, Slack, and ordinary S3 write side effects. `isolated-read` adds the scheduler and Kafka listener isolation policy. `application-traffic-benchmark.yaml` includes `performance-lab` through a Spring profile group, so it also inherits the external side-effect block.
+`integrated-smoke` retains the application's other internal schedulers and Kafka flow while blocking external Toss, Google, Slack, and ordinary S3 write side effects. The `performance-lab` profile hard-codes reservation inventory startup, rolling seed, and retention to disabled. The immutable lab manifest therefore keeps `accommodation_inventory_day=0` even for the 730,702-accommodation dataset instead of generating tens of millions of date rows. Reservation availability, quote, and checkout calls intentionally fail closed with HTTP 503 / `R026`; this profile is not a reservation-mutation target.
+
+`isolated-read` adds the general scheduler and Kafka listener isolation policy. `application-traffic-benchmark.yaml` includes `performance-lab` through a Spring profile group, so it inherits both the external side-effect block and the disabled reservation-inventory lifecycle. The exact traffic allowlist uses only GET targets for accommodation detail, reviews, past guest reservations, wishlists, and recently viewed data. It contains neither availability nor quote/checkout/reservation mutation targets. Normal `aws` and `oci` application profiles do not disable the inventory lifecycle and retain mandatory startup coverage.
 
 ## Redis and cache experiment boundary
 

@@ -15,13 +15,6 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 
 public interface ReservationRepositoryCustom {
-	boolean existsConflictingReservation(
-		Long accommodationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	);
-
 	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
 
 	boolean existsCompletedReservationByGuest(Long accommodationId, Long memberId);
@@ -30,12 +23,6 @@ public interface ReservationRepositoryCustom {
 
 	List<ReservationDateRange> findActiveReservationRangesByAccommodationId(
 		Long accommodationId,
-		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	);
-
-	List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
-		UUID accommodationUid,
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	);

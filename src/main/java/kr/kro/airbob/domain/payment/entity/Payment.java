@@ -18,12 +18,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
@@ -77,19 +76,6 @@ public class Payment extends BaseEntity {
 		}
 	}
 
-	public static Payment create(TossPaymentResponse response, Reservation reservation) {
-		return Payment.builder()
-			.paymentKey(response.getPaymentKey())
-			.orderId(response.getOrderId())
-			.amount(response.getTotalAmount())
-			.balanceAmount(response.getTotalAmount())
-			.method(PaymentMethod.fromDescription(response.getMethod()))
-			.status(PaymentStatus.from(response.getStatus()))
-			.approvedAt(response.getApprovedAt().toInstant())
-			.reservation(reservation)
-			.build();
-	}
-
 	public static Payment create(ConfirmedPayment confirmed, Reservation reservation) {
 		return Payment.builder()
 			.paymentKey(confirmed.paymentKey())
@@ -103,9 +89,8 @@ public class Payment extends BaseEntity {
 			.build();
 	}
 
-	// 취소 시 현재 상태(상태/잔액)만 갱신. 취소 "사건"은 PaymentTransaction(CANCEL/PARTIAL_CANCEL)으로 서비스가 기록한다.
-	public void updateOnCancel(TossPaymentResponse response) {
-		this.status = PaymentStatus.from(response.getStatus());
-		this.balanceAmount = response.getBalanceAmount();
+	public void applyFullCancellation(CancelledPayment cancelled) {
+		this.status = cancelled.status();
+		this.balanceAmount = cancelled.balanceAmount();
 	}
 }

@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Import;
 
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 
 class ReservationHistoryInsertBeforeBenchmarkServiceProfileTest {
 
@@ -45,11 +46,6 @@ class ReservationHistoryInsertBeforeBenchmarkServiceProfileTest {
 	static class TestConfiguration {
 
 		@Bean
-		ReservationHoldService reservationHoldService() {
-			return mock(ReservationHoldService.class);
-		}
-
-		@Bean
 		ReservationRepository reservationRepository() {
 			return mock(ReservationRepository.class);
 		}
@@ -57,6 +53,11 @@ class ReservationHistoryInsertBeforeBenchmarkServiceProfileTest {
 		@Bean
 		ReservationHistoryRepository reservationHistoryRepository() {
 			return mock(ReservationHistoryRepository.class);
+		}
+
+		@Bean
+		ReservationInventoryService reservationInventoryService() {
+			return mock(ReservationInventoryService.class);
 		}
 
 		@Bean

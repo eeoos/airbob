@@ -51,6 +51,10 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 	@Query("select c from Coupon c where c.id = :id")
 	Optional<Coupon> findByIdForUpdate(@Param("id") Long id);
 
+	@Lock(LockModeType.PESSIMISTIC_READ)
+	@Query("select c from Coupon c where c.id = :id")
+	Optional<Coupon> findByIdForShare(@Param("id") Long id);
+
 	/**
 	 * 발급 수를 DB 레벨에서 원자적으로 증가시킨다.
 	 * Lua 경로에서 재고는 Redis 가 통제하므로, DB issuedQuantity 는

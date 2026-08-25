@@ -111,11 +111,11 @@ traffic_manifest=traffic-v1.json
 traffic_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 traffic_dataset_version=traffic-v1
 traffic_dataset_run_id=20260817T001530Z-12345678
-traffic_flyway_version=17
+traffic_flyway_version=27
 traffic_migration_digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 fingerprint=database-fingerprint.tsv
 required_rows=201
-recovery=reset-flyway-v1-v17-etl-reseed-before-traffic
+recovery=reset-flyway-v1-v27-etl-reseed-before-traffic
 EOF
   printf '%s\n' 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd  source.csv' \
     > "$root/source.sha256"
@@ -173,12 +173,18 @@ write_attestation() {
       databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
       verifierContractInventorySha256: $verifierContractInventorySha256,
       databaseFingerprintSubsetSha256: $databaseFingerprintSubsetSha256,
-      flywayVersion: "17",
-      flywayHistoryRows: 17,
+      flywayVersion: "27",
+      flywayHistoryRows: 27,
       migrationChecksumSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       schemaFingerprintSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       outboxState: "empty",
-      expectedTableRows: {accommodation: 2, flyway_schema_history: 17, outbox: 0},
+      expectedTableRows: {
+        accommodation: 2,
+        accommodation_inventory_day: 0,
+        flyway_schema_history: 27,
+        outbox: 0,
+        reservation: 0
+      },
       capturedAt: "2026-08-17T03:04:05Z"
     }
   ' > "$output"
@@ -288,7 +294,7 @@ if [[ "$1 $2" == 's3api put-object' ]]; then
   done
   printf '%s\n' 'seal-put' >> "${FAKE_EVENT_LOG:?}"
   [[ "$bucket" == airbob-performance-lab-dataset-942632789808 \
-    && "$key" == elasticsearch/seals/rehearsal-v17.json \
+    && "$key" == elasticsearch/seals/rehearsal-v20.json \
     && "$if_none_match" == '*' \
     && "$encryption" == AES256 \
     && "$content_type" == application/json \
@@ -329,7 +335,7 @@ if [[ "$1 $2" == 's3api get-object' ]]; then
     printf '%s\n' 'seal-get-latest' >> "${FAKE_EVENT_LOG:?}"
   fi
   [[ "${FAKE_SEAL_GET_FAILURE:-false}" != true ]] || exit 97
-  [[ "$key" == elasticsearch/seals/rehearsal-v17.json \
+  [[ "$key" == elasticsearch/seals/rehearsal-v20.json \
     && ( -z "$version_id" || "$version_id" == seal-version-1 ) \
     && -f "${FAKE_SEAL_OBJECT:?}" ]] || exit 97
   cp "$FAKE_SEAL_OBJECT" "$output"
@@ -351,7 +357,7 @@ if [[ "$1 $2" == 's3api list-object-versions' ]]; then
   if [[ "$invocation" -eq 1 && "${FAKE_PREFIX_OCCUPIED:-false}" != true ]]; then
     printf '%s\n' '{"IsTruncated":false,"Versions":[],"DeleteMarkers":[]}'
   elif [[ -z "$key_marker" ]]; then
-    prefix='elasticsearch/releases/rehearsal-v17/'
+    prefix='elasticsearch/releases/rehearsal-v20/'
     jq -n --arg prefix "$prefix" '
       {
         IsTruncated: true,
@@ -364,12 +370,12 @@ if [[ "$1 $2" == 's3api list-object-versions' ]]; then
       }
     '
   else
-    prefix='elasticsearch/releases/rehearsal-v17/'
+    prefix='elasticsearch/releases/rehearsal-v20/'
     jq -n --arg prefix "$prefix" '
       {
         IsTruncated: false,
         Versions: [
-          {Key: ($prefix + "snap-airbob-rehearsal-v17.dat"), VersionId: "v3", IsLatest: true, Size: 5, ETag: "etag-3", ChecksumAlgorithm: []}
+          {Key: ($prefix + "snap-airbob-rehearsal-v20.dat"), VersionId: "v3", IsLatest: true, Size: 5, ETag: "etag-3", ChecksumAlgorithm: []}
         ],
         DeleteMarkers: [
           {Key: ($prefix + "pending-master.dat"), VersionId: "d1", IsLatest: true}
@@ -448,6 +454,11 @@ case "$query" in
     ;;
   'SELECT COUNT(*) FROM accommodation') printf '%s\n' 2 ;;
   'SELECT COUNT(*) FROM outbox') printf '%s\n' 0 ;;
+  *'BIN_TO_UUID(accommodation_uid)'*)
+    printf '%s\t%s\n' \
+      '11111111-1111-1111-1111-111111111111' 1 \
+      '22222222-2222-2222-2222-222222222222' 2
+    ;;
   *"SELECT id FROM accommodation WHERE status = 'PUBLISHED' ORDER BY id"*)
     printf '%s\n' 1 2
     ;;
@@ -508,29 +519,38 @@ case "$method $url" in
   "GET ${FAKE_ES_URL}/_cluster/health?wait_for_no_relocating_shards=true&wait_for_no_initializing_shards=true&timeout=30s")
     printf '%s\n' '{"timed_out":false,"relocating_shards":0,"initializing_shards":0}'
     ;;
-  "GET ${FAKE_ES_URL}/accommodations/_settings?flat_settings=true&filter_path=*.settings.index.blocks.write")
-    if [[ "${FAKE_SOURCE_WRITE_BLOCKED:-false}" == true ]]; then
-      printf '%s\n' '{"accommodations":{"settings":{"index.blocks.write":"true"}}}'
+  "GET ${FAKE_ES_URL}/_alias/accommodations")
+    if [[ "${FAKE_ALIAS_MULTIPLE_TARGETS:-false}" == true ]]; then
+      printf '%s\n' '{"accommodations-v20260817001530":{"aliases":{"accommodations":{"is_write_index":true}}},"accommodations-v20260817001531":{"aliases":{"accommodations":{"is_write_index":false}}}}'
+    elif [[ "${FAKE_ALIAS_NOT_WRITE:-false}" == true ]]; then
+      printf '%s\n' '{"accommodations-v20260817001530":{"aliases":{"accommodations":{"is_write_index":false}}}}'
     else
-      printf '%s\n' '{"accommodations":{"settings":{}}}'
+      printf '%s\n' '{"accommodations-v20260817001530":{"aliases":{"accommodations":{"is_write_index":true}}}}'
+    fi
+    ;;
+  "GET ${FAKE_ES_URL}/accommodations-v20260817001530/_settings?flat_settings=true&filter_path=*.settings.index.blocks.write")
+    if [[ "${FAKE_SOURCE_WRITE_BLOCKED:-false}" == true ]]; then
+      printf '%s\n' '{"accommodations-v20260817001530":{"settings":{"index.blocks.write":"true"}}}'
+    else
+      printf '%s\n' '{"accommodations-v20260817001530":{"settings":{}}}'
     fi
     ;;
   "POST ${FAKE_ES_URL}/_nodes/reload_secure_settings")
     printf '%s\n' '{"nodes":{"node-1":{"reload_exception":null}}}'
     ;;
-  "PUT ${FAKE_ES_URL}/accommodations/_settings"|"PUT ${FAKE_ES_URL}/airbob-verify-rehearsal-v17/_settings")
+  "PUT ${FAKE_ES_URL}/accommodations-v20260817001530/_settings"|"PUT ${FAKE_ES_URL}/airbob-verify-rehearsal-v20/_settings")
     printf '%s\n' '{"acknowledged":true}'
     ;;
-  "GET ${FAKE_ES_URL}/accommodations/_count"|"GET ${FAKE_ES_URL}/airbob-verify-rehearsal-v17/_count")
+  "GET ${FAKE_ES_URL}/accommodations-v20260817001530/_count"|"GET ${FAKE_ES_URL}/airbob-verify-rehearsal-v20/_count")
     printf '%s\n' '{"count":2,"_shards":{"failed":0}}'
     ;;
-  "GET ${FAKE_ES_URL}/accommodations/_mapping")
-    printf '%s\n' '{"accommodations":{"mappings":{"properties":{"accommodationId":{"type":"long"},"name":{"type":"keyword"}}}}}'
+  "GET ${FAKE_ES_URL}/accommodations-v20260817001530/_mapping")
+    printf '%s\n' '{"accommodations-v20260817001530":{"mappings":{"properties":{"accommodationId":{"type":"long"},"name":{"type":"keyword"}}}}}'
     ;;
-  "GET ${FAKE_ES_URL}/airbob-verify-rehearsal-v17/_mapping")
-    printf '%s\n' '{"airbob-verify-rehearsal-v17":{"mappings":{"properties":{"accommodationId":{"type":"long"},"name":{"type":"keyword"}}}}}'
+  "GET ${FAKE_ES_URL}/airbob-verify-rehearsal-v20/_mapping")
+    printf '%s\n' '{"airbob-verify-rehearsal-v20":{"mappings":{"properties":{"accommodationId":{"type":"long"},"name":{"type":"keyword"}}}}}'
     ;;
-  "POST ${FAKE_ES_URL}/accommodations/_search?scroll=2m"|"POST ${FAKE_ES_URL}/airbob-verify-rehearsal-v17/_search?scroll=2m")
+  "POST ${FAKE_ES_URL}/accommodations-v20260817001530/_search?scroll=2m"|"POST ${FAKE_ES_URL}/airbob-verify-rehearsal-v20/_search?scroll=2m")
     initial=0
     [[ ! -f "${FAKE_CURL_STATE:?}" ]] || initial=$(cat "$FAKE_CURL_STATE")
     initial=$((initial + 1))
@@ -539,14 +559,21 @@ case "$method $url" in
     if [[ "${FAKE_ES_DRIFT:-false}" == true && "$initial" -ge 3 ]]; then
       name_two='changed'
     fi
-    jq -n --arg nameTwo "$name_two" --arg scroll "scroll-$initial" '
+    first_document_id='11111111-1111-1111-1111-111111111111'
+    if [[ "${FAKE_WRONG_DOCUMENT_ID:-false}" == true ]]; then
+      first_document_id='99999999-9999-9999-9999-999999999999'
+    fi
+    jq -n \
+      --arg firstDocumentId "$first_document_id" \
+      --arg nameTwo "$name_two" \
+      --arg scroll "scroll-$initial" '
       {
         _scroll_id: $scroll,
         timed_out: false,
         _shards: {failed: 0},
         hits: {hits: [
-          {_source: {accommodationId: 1, name: "alpha"}},
-          {_source: {accommodationId: 2, name: $nameTwo}}
+          {_id: $firstDocumentId, _source: {accommodationId: 1, name: "alpha"}},
+          {_id: "22222222-2222-2222-2222-222222222222", _source: {accommodationId: 2, name: $nameTwo}}
         ]}
       }
     '
@@ -563,7 +590,7 @@ case "$method $url" in
   "POST ${FAKE_ES_URL}/_snapshot/airbob-dataset-producer/_verify"|"POST ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/_verify")
     printf '%s\n' '{"nodes":{"node-1":{"name":"node-1"}}}'
     ;;
-  "PUT ${FAKE_ES_URL}/_snapshot/airbob-dataset-producer/airbob-rehearsal-v17?wait_for_completion=true")
+  "PUT ${FAKE_ES_URL}/_snapshot/airbob-dataset-producer/airbob-rehearsal-v20?wait_for_completion=true")
     if [[ "${FAKE_HEARTBEAT_FAILURE:-false}" == true ]]; then
       : > "${FAKE_SNAPSHOT_PUT_MARKER:?}"
       heartbeat_wait=0
@@ -586,10 +613,10 @@ case "$method $url" in
       --arg runId "${FAKE_DATASET_RUN_ID:?}" \
       --arg sourceSha "${FAKE_SOURCE_PAYLOAD_SHA:?}" '
       {snapshot:{
-        snapshot:"airbob-rehearsal-v17",uuid:"uuid-1",state:$state,version:"8.18.8",
-        indices:["accommodations"],include_global_state:false,feature_states:[],
+        snapshot:"airbob-rehearsal-v20",uuid:"uuid-1",state:$state,version:"8.18.8",
+        indices:["accommodations-v20260817001530"],include_global_state:false,feature_states:[],
         metadata:{
-          datasetRelease:"rehearsal-v17",datasetRunId:$runId,
+          datasetRelease:"rehearsal-v20",datasetRunId:$runId,
           sourceReleasePayloadSha256:$sourceSha,
           imageDigest:("sha256:" + ("a" * 64))
         },
@@ -600,20 +627,20 @@ case "$method $url" in
   "DELETE ${FAKE_ES_URL}/_snapshot/airbob-dataset-producer"|"DELETE ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly")
     printf '%s\n' '{"acknowledged":true}'
     ;;
-  "GET ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/airbob-rehearsal-v17")
-    metadata_release='rehearsal-v17'
-    [[ "${FAKE_SNAPSHOT_METADATA_DRIFT:-false}" != true ]] || metadata_release='other-v17'
+  "GET ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/airbob-rehearsal-v20")
+    metadata_release='rehearsal-v20'
+    [[ "${FAKE_SNAPSHOT_METADATA_DRIFT:-false}" != true ]] || metadata_release='other-v20'
     jq -n \
       --arg metadataRelease "$metadata_release" \
       --arg runId "${FAKE_DATASET_RUN_ID:?}" \
       --arg sourceSha "${FAKE_SOURCE_PAYLOAD_SHA:?}" '
       {
         snapshots:[{
-          snapshot:"airbob-rehearsal-v17",
+          snapshot:"airbob-rehearsal-v20",
           uuid:"uuid-1",
           repository:"airbob-dataset-readonly",
           version:"8.18.8",
-          indices:["accommodations"],
+          indices:["accommodations-v20260817001530"],
           include_global_state:false,
           feature_states:[],
           state:"SUCCESS",
@@ -632,10 +659,10 @@ case "$method $url" in
       }
     '
     ;;
-  "POST ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/airbob-rehearsal-v17/_restore?wait_for_completion=true")
-    printf '%s\n' '{"snapshot":{"snapshot":"airbob-rehearsal-v17","indices":["airbob-verify-rehearsal-v17"],"shards":{"total":1,"successful":1,"failed":0}}}'
+  "POST ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/airbob-rehearsal-v20/_restore?wait_for_completion=true")
+    printf '%s\n' '{"snapshot":{"snapshot":"airbob-rehearsal-v20","indices":["airbob-verify-rehearsal-v20"],"shards":{"total":1,"successful":1,"failed":0}}}'
     ;;
-  "DELETE ${FAKE_ES_URL}/airbob-verify-rehearsal-v17")
+  "DELETE ${FAKE_ES_URL}/airbob-verify-rehearsal-v20")
     printf '%s\n' '{"acknowledged":true}'
     ;;
   *) printf 'unexpected fake curl call: %s %s\n' "$method" "$url" >&2; exit 95 ;;
@@ -722,7 +749,7 @@ run_producer() {
     FAKE_SOURCE_PAYLOAD_SHA="$(sha256_file "$release/SHA256SUMS")" \
     "$@" \
     "$producer" "$release" "${PRODUCER_ATTESTATION:-$attestation}" \
-    "${PRODUCER_IMAGE_RELEASE:-$image_release}" rehearsal-v17 "$reference" "$receipt"
+    "${PRODUCER_IMAGE_RELEASE:-$image_release}" rehearsal-v20 "$reference" "$receipt"
 }
 
 expect_failure() {
@@ -788,22 +815,26 @@ run_producer "$reference" "$receipt" >/dev/null
 
 jq -e '
   (keys | sort) == ([
-    "basePath", "bucket", "contentFingerprintSha256", "dbIdsSha256", "documentCount",
-    "elasticsearchVersion", "esIdsSha256", "imageDigest", "index", "mappingSha256",
-    "repository", "schemaVersion", "snapshot"
+    "basePath", "bucket", "contentFingerprintSha256", "dbDocumentIdentityPairsSha256",
+    "dbIdsSha256", "documentCount", "elasticsearchVersion", "esDocumentIdentityPairsSha256",
+    "esIdsSha256", "imageDigest", "logicalAlias", "mappingSha256", "repository",
+    "schemaVersion", "snapshot", "snapshotIndex"
   ] | sort) and
-  .schemaVersion == 1 and
+  .schemaVersion == 2 and
   .repository == "airbob-dataset-readonly" and
   .bucket == "airbob-performance-lab-dataset-942632789808" and
-  .basePath == "elasticsearch/releases/rehearsal-v17" and
-  .snapshot == "airbob-rehearsal-v17" and
-  .index == "accommodations" and
+  .basePath == "elasticsearch/releases/rehearsal-v20" and
+  .snapshot == "airbob-rehearsal-v20" and
+  .logicalAlias == "accommodations" and
+  .snapshotIndex == "accommodations-v20260817001530" and
   .elasticsearchVersion == "8.18.8" and
   .imageDigest == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" and
   .documentCount == 2 and
   .mappingSha256 == "3b3da175955517975363408a2d42b15388d787b89100b2034291eeb54c37853b" and
   .dbIdsSha256 == "a6e2b7a040683432de03a18fd8a1939a2fdf82585b364bfc874bdd4095c4cae1" and
   .esIdsSha256 == "a6e2b7a040683432de03a18fd8a1939a2fdf82585b364bfc874bdd4095c4cae1" and
+  .dbDocumentIdentityPairsSha256 == "668f78e773ff929c20a45d855b2466f187091620e6f5a57ee7b966d8bde9da37" and
+  .esDocumentIdentityPairsSha256 == "668f78e773ff929c20a45d855b2466f187091620e6f5a57ee7b966d8bde9da37" and
   .contentFingerprintSha256 == "4f216b11588cf17caa70276c213d599282b8580d1da9b07f71f763a087617f9b"
 ' "$reference" >/dev/null || fail 'snapshot reference violates its exact contract'
 
@@ -812,16 +843,16 @@ source_payload_sha=$(sha256_file "$release/SHA256SUMS")
 expected_snapshot_metadata="$temp_dir/expected-snapshot-metadata.json"
 jq -cS -n --arg sourcePayloadSha "$source_payload_sha" '
   {
-    snapshot:"airbob-rehearsal-v17",
+    snapshot:"airbob-rehearsal-v20",
     uuid:"uuid-1",
     repository:"airbob-dataset-readonly",
     version:"8.18.8",
-    indices:["accommodations"],
+    indices:["accommodations-v20260817001530"],
     include_global_state:false,
     feature_states:[],
     state:"SUCCESS",
     metadata:{
-      datasetRelease:"rehearsal-v17",
+      datasetRelease:"rehearsal-v20",
       datasetRunId:"20260817T001530Z-12345678",
       sourceReleasePayloadSha256:$sourcePayloadSha,
       imageDigest:"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -840,8 +871,8 @@ jq -e \
     "createdAt", "datasetRelease", "datasetRunId", "producer", "repository", "schemaVersion",
     "snapshot", "sourceReleasePayloadSha256", "validation"
   ] | sort) and
-  .schemaVersion == 1 and
-  .datasetRelease == "rehearsal-v17" and
+  .schemaVersion == 2 and
+  .datasetRelease == "rehearsal-v20" and
   .datasetRunId == "20260817T001530Z-12345678" and
   .sourceReleasePayloadSha256 == $sourcePayloadSha and
   (.createdAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
@@ -851,7 +882,7 @@ jq -e \
   .producer.imageDigest == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" and
   (.repository | keys | sort) == (["basePath", "bucket", "inventory", "readerName", "verificationNodeCount", "writerName"] | sort) and
   .repository.bucket == "airbob-performance-lab-dataset-942632789808" and
-  .repository.basePath == "elasticsearch/releases/rehearsal-v17" and
+  .repository.basePath == "elasticsearch/releases/rehearsal-v20" and
   .repository.writerName == "airbob-dataset-producer" and
   .repository.readerName == "airbob-dataset-readonly" and
   .repository.verificationNodeCount == 1 and
@@ -859,24 +890,26 @@ jq -e \
   .repository.inventory.algorithm == "s3-list-object-versions-v1" and
   .repository.inventory.entryCount == 4 and
   .repository.inventory.totalVersionBytes == 35 and
-  .repository.inventory.sha256 == "f7741005185e58f204dbb4974a9d9fa4d14d0ad5d07a939b9c2b48ab739b4dbd" and
+  .repository.inventory.sha256 == "596f72d63e7322f5ca54ec745729f42d040aac4483739c6e2d22097ebbe55ab8" and
   (.snapshot | keys | sort) == (["failedShards", "includeGlobalState", "indices", "metadataSha256", "name", "state", "successfulShards", "totalShards", "uuid", "version"] | sort) and
-  .snapshot.name == "airbob-rehearsal-v17" and
+  .snapshot.name == "airbob-rehearsal-v20" and
   .snapshot.uuid == "uuid-1" and
   .snapshot.state == "SUCCESS" and
   .snapshot.version == "8.18.8" and
-  .snapshot.indices == ["accommodations"] and
+  .snapshot.indices == ["accommodations-v20260817001530"] and
   .snapshot.includeGlobalState == false and
   .snapshot.totalShards == 1 and
   .snapshot.successfulShards == 1 and
   .snapshot.failedShards == 0 and
   .snapshot.metadataSha256 == $expectedSnapshotMetadataSha and
-  (.validation | keys | sort) == (["contentFingerprintSha256", "dbIdsSha256", "documentCount", "esIdsSha256", "mappingSha256", "snapshotReferenceSha256"] | sort) and
+  (.validation | keys | sort) == (["contentFingerprintSha256", "dbDocumentIdentityPairsSha256", "dbIdsSha256", "documentCount", "esDocumentIdentityPairsSha256", "esIdsSha256", "mappingSha256", "snapshotReferenceSha256"] | sort) and
   .validation.snapshotReferenceSha256 == $referenceSha and
   .validation.documentCount == 2 and
   .validation.mappingSha256 == "3b3da175955517975363408a2d42b15388d787b89100b2034291eeb54c37853b" and
   .validation.dbIdsSha256 == "a6e2b7a040683432de03a18fd8a1939a2fdf82585b364bfc874bdd4095c4cae1" and
   .validation.esIdsSha256 == "a6e2b7a040683432de03a18fd8a1939a2fdf82585b364bfc874bdd4095c4cae1" and
+  .validation.dbDocumentIdentityPairsSha256 == "668f78e773ff929c20a45d855b2466f187091620e6f5a57ee7b966d8bde9da37" and
+  .validation.esDocumentIdentityPairsSha256 == "668f78e773ff929c20a45d855b2466f187091620e6f5a57ee7b966d8bde9da37" and
   .validation.contentFingerprintSha256 == "4f216b11588cf17caa70276c213d599282b8580d1da9b07f71f763a087617f9b"
 ' "$receipt" >/dev/null || fail 'snapshot receipt violates its exact contract'
 
@@ -889,8 +922,8 @@ jq -nS \
   --arg createdAt "$receipt_created_at" '
   {
     schemaVersion:1,
-    datasetRelease:"rehearsal-v17",
-    snapshot:"airbob-rehearsal-v17",
+    datasetRelease:"rehearsal-v20",
+    snapshot:"airbob-rehearsal-v20",
     snapshotReferenceSha256:$referenceSha,
     snapshotReceiptSha256:$receiptSha,
     createdAt:$createdAt
@@ -909,8 +942,8 @@ jq -se \
       "snapshotReceiptSha256", "snapshotReferenceSha256", "schemaVersion"
     ] | sort) and
     .schemaVersion == 1 and
-    .datasetRelease == "rehearsal-v17" and
-    .snapshot == "airbob-rehearsal-v17" and
+    .datasetRelease == "rehearsal-v20" and
+    .snapshot == "airbob-rehearsal-v20" and
     .snapshotReferenceSha256 == $referenceSha and
     .snapshotReceiptSha256 == $receiptSha and
     .createdAt == $createdAt and
@@ -918,7 +951,7 @@ jq -se \
 ' "$seal_object" >/dev/null || fail 'snapshot seal violates its exact contract'
 grep -Fq -- '<s3api> <put-object>' "$aws_log" \
   || fail 'snapshot seal was not uploaded with the S3 object API'
-grep -Fq -- '<--key> <elasticsearch/seals/rehearsal-v17.json>' "$aws_log" \
+grep -Fq -- '<--key> <elasticsearch/seals/rehearsal-v20.json>' "$aws_log" \
   || fail 'snapshot seal did not use the exact sibling key'
 grep -Fq -- '<--if-none-match> <*> ' "$aws_log" \
   || fail 'snapshot seal upload was not conditional'
@@ -961,9 +994,15 @@ grep -Fq -- '"server_side_encryption":true' "$curl_log" \
   || fail 'writer repository omitted S3 server-side encryption'
 grep -Fq -- '"feature_states":["none"]' "$curl_log" \
   || fail 'snapshot included feature state'
+grep -Fq -- '<GET> <http://127.0.0.1:9200/_alias/accommodations>' "$curl_log" \
+  || fail 'producer did not resolve the managed accommodations write alias'
+grep -Fq -- '"indices":"accommodations-v20260817001530"' "$curl_log" \
+  || fail 'snapshot did not bind the resolved physical source index'
+grep -Fq -- '"include_aliases":false' "$curl_log" \
+  || fail 'verification restore retained source aliases'
 grep -Fq -- '"partial":false' "$curl_log" || fail 'snapshot allowed partial completion'
 grep -Fq -- '"include_global_state":false' "$curl_log" || fail 'snapshot included global state'
-grep -Fq -- '"metadata":{"datasetRelease":"rehearsal-v17","datasetRunId":"20260817T001530Z-12345678","sourceReleasePayloadSha256":"' "$curl_log" \
+grep -Fq -- '"metadata":{"datasetRelease":"rehearsal-v20","datasetRunId":"20260817T001530Z-12345678","sourceReleasePayloadSha256":"' "$curl_log" \
   || fail 'snapshot metadata omitted the release lineage bindings'
 grep -Fq -- '"index.blocks.write":false' "$curl_log" \
   || fail 'verification restore retained the frozen source write block'
@@ -971,7 +1010,7 @@ grep -Fq -- '<DELETE> <http://127.0.0.1:9200/_snapshot/airbob-dataset-producer>'
   || fail 'writer repository was not unregistered'
 grep -Fq -- '<PUT> <http://127.0.0.1:9200/_snapshot/airbob-dataset-readonly>' "$curl_log" \
   || fail 'read-only repository was not registered'
-grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
+grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
   || fail 'source index was not unfrozen after snapshot creation'
 [[ $(grep -c '<remove> <s3.client.airbob_dataset_producer.' "$docker_log") -eq 3 ]] \
   || fail 'temporary Elasticsearch credentials were not removed'
@@ -982,7 +1021,7 @@ fi
 if grep -Fq 'dynamodb delete-item' "$producer" "$aws_log"; then
   fail 'snapshot producer must retain the lease fencing-token row'
 fi
-grep -Fq -- '<airbob-performance-lab-orchestration-lease> <--key> <{"LockName":{"S":"airbob-dataset-snapshot/rehearsal-v17"}}>' "$aws_log" \
+grep -Fq -- '<airbob-performance-lab-orchestration-lease> <--key> <{"LockName":{"S":"airbob-dataset-snapshot/rehearsal-v20"}}>' "$aws_log" \
   || fail 'snapshot producer did not use the exact per-release lease row'
 grep -Fq -- '":command":{"S":"dataset-snapshot"}' "$aws_log" \
   || fail 'snapshot producer did not use the dedicated lease command'
@@ -1138,18 +1177,32 @@ occupied_repository_receipt="$temp_dir/occupied-repository-receipt.json"
 expect_failure occupied-repository run_producer \
   "$occupied_repository_reference" "$occupied_repository_receipt" FAKE_REPOSITORY_OCCUPIED=true
 
+multiple_alias_reference="$temp_dir/multiple-alias-reference.json"
+multiple_alias_receipt="$temp_dir/multiple-alias-receipt.json"
+expect_failure multiple-alias-targets run_producer \
+  "$multiple_alias_reference" "$multiple_alias_receipt" FAKE_ALIAS_MULTIPLE_TARGETS=true
+! grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settings>' "$curl_log" \
+  || fail 'ambiguous accommodation alias reached source mutation'
+
+non_write_alias_reference="$temp_dir/non-write-alias-reference.json"
+non_write_alias_receipt="$temp_dir/non-write-alias-receipt.json"
+expect_failure non-write-alias run_producer \
+  "$non_write_alias_reference" "$non_write_alias_receipt" FAKE_ALIAS_NOT_WRITE=true
+! grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settings>' "$curl_log" \
+  || fail 'non-write accommodation alias reached source mutation'
+
 blocked_source_reference="$temp_dir/blocked-source-reference.json"
 blocked_source_receipt="$temp_dir/blocked-source-receipt.json"
 expect_failure preblocked-source run_producer \
   "$blocked_source_reference" "$blocked_source_receipt" FAKE_SOURCE_WRITE_BLOCKED=true
-! grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
+! grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
   || fail 'source ownership rejection changed a caller-owned write block'
 
 snapshot_failure_reference="$temp_dir/snapshot-failure-reference.json"
 snapshot_failure_receipt="$temp_dir/snapshot-failure-receipt.json"
 expect_failure snapshot-failure run_producer \
   "$snapshot_failure_reference" "$snapshot_failure_receipt" FAKE_SNAPSHOT_FAIL=true
-grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
+grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
   || fail 'snapshot failure did not unfreeze the source index'
 [[ $(grep -c '<remove> <s3.client.airbob_dataset_producer.' "$docker_log") -eq 3 ]] \
   || fail 'snapshot failure did not remove temporary credentials'
@@ -1166,7 +1219,7 @@ grep -Fq 'SET #heartbeat = :now, #expires = :expires' "$aws_log" \
   || fail 'lost snapshot lease wrote producer outputs'
 grep -Fq -- '<DELETE> <http://127.0.0.1:9200/_snapshot/airbob-dataset-producer>' "$curl_log" \
   || fail 'lost lease cleanup did not remove the writer repository'
-grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
+grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settings> BODY <{"index":{"blocks.write":false}}>' "$curl_log" \
   || fail 'lost lease cleanup did not unfreeze the source index'
 [[ $(grep -c '<remove> <s3.client.airbob_dataset_producer.' "$docker_log") -eq 3 ]] \
   || fail 'lost lease cleanup did not remove all temporary credentials'
@@ -1213,6 +1266,13 @@ grep -Fq 'SET #owner = :released' "$aws_log" \
 drift_reference="$temp_dir/drift-reference.json"
 drift_receipt="$temp_dir/drift-receipt.json"
 expect_failure source-drift run_producer "$drift_reference" "$drift_receipt" FAKE_ES_DRIFT=true
+
+wrong_document_id_reference="$temp_dir/wrong-document-id-reference.json"
+wrong_document_id_receipt="$temp_dir/wrong-document-id-receipt.json"
+expect_failure wrong-document-id run_producer \
+  "$wrong_document_id_reference" "$wrong_document_id_receipt" FAKE_WRONG_DOCUMENT_ID=true
+[[ ! -e "$wrong_document_id_reference" && ! -e "$wrong_document_id_receipt" ]] \
+  || fail 'mismatched Elasticsearch _id wrote snapshot outputs'
 
 metadata_drift_reference="$temp_dir/metadata-drift-reference.json"
 metadata_drift_receipt="$temp_dir/metadata-drift-receipt.json"

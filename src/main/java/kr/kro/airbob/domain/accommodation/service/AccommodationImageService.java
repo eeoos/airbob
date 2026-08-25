@@ -28,9 +28,7 @@ import kr.kro.airbob.domain.image.exception.ImageNotFoundException;
 import kr.kro.airbob.domain.image.exception.ImageUploadException;
 import kr.kro.airbob.domain.image.exception.InvalidImageFormatException;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents.AccommodationUpdatedEvent;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,7 +46,7 @@ public class AccommodationImageService {
 	private final S3ImageUploader s3ImageUploader;
 	private final ApplicationEventPublisher applicationEventPublisher;
 	private final AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final AccommodationSearchRefreshPublisher searchRefreshPublisher;
 
 	@Transactional
 	public ImageResponse.ImageUploadResult uploadImages(
@@ -155,10 +153,7 @@ public class AccommodationImageService {
 		boolean thumbnailChanged
 	) {
 		if (thumbnailChanged && accommodation.getStatus() == AccommodationStatus.PUBLISHED) {
-			outboxEventPublisher.save(
-				EventType.ACCOMMODATION_UPDATED,
-				new AccommodationUpdatedEvent(accommodation.getAccommodationUid().toString())
-			);
+			searchRefreshPublisher.requestRefresh(accommodation.getAccommodationUid());
 		}
 	}
 

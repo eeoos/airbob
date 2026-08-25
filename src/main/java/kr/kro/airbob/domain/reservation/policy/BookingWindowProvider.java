@@ -24,7 +24,11 @@ public class BookingWindowProvider {
 	}
 
 	public BookingWindow currentFor(String timeZoneId) {
-		return currentFor(ZoneId.of(timeZoneId), clock.instant());
+		return currentFor(timeZoneId, clock.instant());
+	}
+
+	public BookingWindow currentFor(String timeZoneId, Instant now) {
+		return currentFor(ZoneId.of(timeZoneId), now);
 	}
 
 	private BookingWindow currentFor(ZoneId timeZone, Instant now) {

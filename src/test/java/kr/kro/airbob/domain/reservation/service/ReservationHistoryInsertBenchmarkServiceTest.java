@@ -24,7 +24,6 @@ import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkReq
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest.Variant;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationHistory IDENTITY INSERT Before 벤치마크 서비스 테스트")
@@ -33,11 +32,9 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 	@Mock private ReservationHistoryInsertBeforeBenchmarkService beforeService;
 	@Mock private ExpiredReservationCleanupService cleanupService;
 	@Mock private ReservationHistoryInsertBenchmarkFixtureService fixtureService;
-	@Mock private ReservationHistoryInsertBenchmarkHoldService holdService;
 	@Mock private BulkOperationMonitor bulkOperationMonitor;
 	@Mock private BulkWriteBenchmarkDatabaseGuard databaseGuard;
 	@Mock private Fixture fixture;
-	@Mock private HoldRemovalSnapshot holdSnapshot;
 	@Mock private ReservationHistoryInsertBenchmarkVerification verification;
 
 	private ReservationHistoryInsertBenchmarkService benchmarkService;
@@ -48,7 +45,6 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 			beforeService,
 			cleanupService,
 			fixtureService,
-			holdService,
 			bulkOperationMonitor,
 			databaseGuard
 		);
@@ -58,8 +54,7 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 	@DisplayName("AFTER는 운영 cleanup service와 별도 operation name을 사용한다")
 	void delegatesAfterVariantToProductionCleanup() {
 		given(fixtureService.createFixture(3)).willReturn(fixture);
-		given(holdService.finishRecording()).willReturn(holdSnapshot);
-		given(fixtureService.verify(fixture, holdSnapshot)).willReturn(verification);
+		given(fixtureService.verify(fixture)).willReturn(verification);
 		given(bulkOperationMonitor.monitor(
 			eq(ReservationHistoryInsertBenchmarkService.AFTER_OPERATION_NAME),
 			any(Runnable.class)
@@ -86,9 +81,7 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 		UserContext.set(requestAdmin);
 		BulkOperationSnapshot snapshot = beforeSnapshot(3);
 		given(fixtureService.createFixture(3)).willReturn(fixture);
-		given(holdService.finishRecording()).willReturn(holdSnapshot);
-		given(holdSnapshot.callCount()).willReturn(3);
-		given(fixtureService.verify(fixture, holdSnapshot)).willReturn(verification);
+		given(fixtureService.verify(fixture)).willReturn(verification);
 		given(verification.verifiedRows()).willReturn(3L);
 		given(verification.succeeded()).willReturn(true);
 		given(bulkOperationMonitor.monitor(
@@ -109,17 +102,13 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 		assertThat(response.expectedRows()).isEqualTo(3);
 		assertThat(response.verifiedRows()).isEqualTo(3);
 		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.holdRemovalCalls()).isEqualTo(3);
-		assertThat(response.redisNetworkExcluded()).isTrue();
 		assertThat(response.operation().operationName())
 			.isEqualTo(ReservationHistoryInsertBenchmarkService.BEFORE_OPERATION_NAME);
 
 		then(databaseGuard).should().verifyReady();
 		then(fixtureService).should().createFixture(3);
-		then(holdService).should().startRecording();
 		then(beforeService).should().cleanupExpiredPendingReservations();
-		then(holdService).should().finishRecording();
-		then(fixtureService).should().verify(fixture, holdSnapshot);
+		then(fixtureService).should().verify(fixture);
 		then(fixtureService).should().cleanup(fixture);
 		then(cleanupService).shouldHaveNoInteractions();
 	}
@@ -167,7 +156,6 @@ class ReservationHistoryInsertBenchmarkServiceTest {
 		assertThat(thrown).isSameAs(operationFailure);
 		assertThat(thrown.getSuppressed()).containsExactly(cleanupFailure);
 		assertThat(UserContext.get()).isSameAs(requestAdmin);
-		then(holdService).should().clearRecording();
 		then(fixtureService).should().cleanup(fixture);
 	}
 

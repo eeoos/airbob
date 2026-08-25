@@ -39,7 +39,7 @@ import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("리뷰 서비스 단위 테스트")
@@ -52,7 +52,7 @@ class ReviewServiceTest {
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private AccommodationReviewSummaryRepository summaryRepository;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
-	@Mock private OutboxEventPublisher outboxEventPublisher;
+	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Mock private S3ImageUploader s3ImageUploader;
 	@Mock private Clock clock;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
@@ -83,6 +83,7 @@ class ReviewServiceTest {
 
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
 	}
 
 	@Test
@@ -96,6 +97,8 @@ class ReviewServiceTest {
 		verify(summaryRepository).applyRatingChange(1L, 3, 5);
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
+		verify(searchRefreshPublisher).requestRefresh(
+			review.getAccommodation().getAccommodationUid());
 	}
 
 	@ParameterizedTest(name = "요청 평점 {0}이면 캐시 무효화 이벤트를 발행하지 않는다")
@@ -110,6 +113,7 @@ class ReviewServiceTest {
 			10L, new ReviewRequest.Update("수정한 내용", requestedRating), 2L);
 
 		verifyNoInteractions(cacheInvalidationPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 		verify(summaryRepository, never()).applyRatingChange(anyLong(), anyInt(), anyInt());
 	}
 
@@ -123,6 +127,8 @@ class ReviewServiceTest {
 
 		verify(cacheInvalidationPublisher).publish(
 			1L, AccommodationDetailCacheInvalidationReason.REVIEW);
+		verify(searchRefreshPublisher).requestRefresh(
+			review.getAccommodation().getAccommodationUid());
 	}
 
 	@Test

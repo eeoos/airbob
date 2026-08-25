@@ -4,15 +4,16 @@ import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.APPLIED
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.DECLINED;
 import static kr.kro.airbob.domain.payment.entity.PaymentOperationStatus.EXECUTING;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CONFIRMED;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLATION_FAILED;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLATION_PENDING;
+import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.CANCELLED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.EXPIRED;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.PAYMENT_PROCESSING;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_CHANGED;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_CONFIRMED;
-import static kr.kro.airbob.outbox.EventType.RESERVATION_EXPIRED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
@@ -44,7 +45,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
@@ -60,22 +61,25 @@ import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionAction;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
-import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantException;
+import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.EventPayload;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.outbox.repository.OutboxRepository;
+import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest
 @Testcontainers
@@ -86,7 +90,8 @@ import kr.kro.airbob.outbox.repository.OutboxRepository;
 	QueryDslConfig.class,
 	CouponTimeProvider.class,
 	CouponUsageService.class,
-	OutboxEventPublisher.class,
+	AccommodationInventoryDayRepository.class,
+	ReservationInventoryService.class,
 	PaymentOperationFinalizer.class,
 	PaymentOperationFinalizerIntegrationTest.FinalizerTestConfiguration.class
 })
@@ -123,9 +128,10 @@ class PaymentOperationFinalizerIntegrationTest {
 	@Autowired private PaymentRepository paymentRepository;
 	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
-	@Autowired private OutboxRepository outboxRepository;
+	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private HoldingFinalizerTransaction holdingFinalizerTransaction;
-	@MockitoSpyBean private OutboxEventPublisher outboxEventPublisher;
+	@MockitoBean private AccommodationSearchRefreshPublisher searchRefreshPublisher;
+	@MockitoBean private PaymentOperationManualResolutionRecorder resolutionRecorder;
 
 	private long reservationId;
 	private long operationId;
@@ -138,8 +144,8 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	@AfterEach
-	void resetOutboxPublisherSpy() {
-		reset(outboxEventPublisher);
+	void resetSearchRefreshPublisherMock() {
+		reset(searchRefreshPublisher);
 	}
 
 	@Test
@@ -155,6 +161,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(operation.getCompletedAt()).isEqualTo(NOW);
 		assertThat(operation.getLeaseOwner()).isNull();
 		assertThat(reservation.getStatus()).isEqualTo(CONFIRMED);
+		assertThat(inventoryStates()).containsExactly("OCCUPIED");
 		assertThat(payment)
 			.extracting(Payment::getPaymentKey, Payment::getOrderId, Payment::getAmount,
 				Payment::getBalanceAmount, Payment::getMethod, Payment::getStatus, Payment::getApprovedAt)
@@ -170,8 +177,42 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
 		assertThat(historyRepository.findAll()).extracting(ReservationHistory::getStatus)
 			.containsExactly(CONFIRMED);
-		assertThat(outboxEventTypes()).containsExactlyInAnyOrder(
-			RESERVATION_CONFIRMED.name(), RESERVATION_CHANGED.name());
+		assertThat(outboxRepository.count()).isZero();
+		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+	}
+
+	@Test
+	void manualInquiryApprovalRecordsTheFencedSystemResolution() {
+		prepareManualReconciliationExecution();
+
+		finalizer.applyApproved(manualExecution(LEASE_OWNER), confirmedPayment());
+
+		then(resolutionRecorder).should().recordSystem(
+			any(PaymentOperation.class),
+			eq(PaymentOperationResolutionAction.RECONCILIATION_APPLIED),
+			eq("PROVIDER_PAYMENT_CONFIRMED"),
+			eq(PaymentOperationStatus.EXECUTING),
+			eq(PaymentOperationStatus.APPLIED),
+			eq(NOW));
+	}
+
+	@Test
+	void manualResolutionAuditFailureRollsBackEveryFinalizationEffect() {
+		prepareManualReconciliationExecution();
+		doThrow(new IllegalStateException("injected resolution outbox failure"))
+			.when(resolutionRecorder).recordSystem(
+				any(PaymentOperation.class),
+				eq(PaymentOperationResolutionAction.RECONCILIATION_APPLIED),
+				eq("PROVIDER_PAYMENT_CONFIRMED"),
+				eq(PaymentOperationStatus.EXECUTING),
+				eq(PaymentOperationStatus.APPLIED),
+				eq(NOW));
+
+		assertThatThrownBy(() -> finalizer.applyApproved(
+			manualExecution(LEASE_OWNER), confirmedPayment()))
+			.isInstanceOf(IllegalStateException.class);
+
+		assertPreFinalizationState();
 	}
 
 	@Test
@@ -279,7 +320,7 @@ class PaymentOperationFinalizerIntegrationTest {
 			approval.get(5, TimeUnit.SECONDS);
 			assertThatThrownBy(() -> decline.get(5, TimeUnit.SECONDS))
 				.isInstanceOf(ExecutionException.class)
-				.hasRootCauseInstanceOf(PaymentOperationInvariantException.class);
+				.hasRootCauseInstanceOf(PaymentOperationInvariantViolationException.class);
 
 			assertSingleApprovedOutcome();
 		} finally {
@@ -310,7 +351,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		long existingPaymentId = insertExistingPayment("conflicting-payment-key");
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment()))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
 		assertThat(paymentRepository.count()).isOne();
@@ -333,7 +374,7 @@ class PaymentOperationFinalizerIntegrationTest {
 
 		assertThatThrownBy(() -> finalizer.applyDeclined(
 			execution, "REJECT_CARD_PAYMENT", "card rejected"))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertThat(reloadOperation().getStatus()).isEqualTo(APPLIED);
 		assertThat(reloadReservation().getStatus()).isEqualTo(CONFIRMED);
@@ -357,15 +398,15 @@ class PaymentOperationFinalizerIntegrationTest {
 			PaymentMethod.CARD, PaymentStatus.DONE, NOW.plusSeconds(60), null);
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), mismatched))
-			.isInstanceOf(PaymentOperationInvariantException.class);
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
 
 		assertPreFinalizationState();
 	}
 
 	@Test
-	void approvalOutboxFailureRollsBackPaymentLedgerReservationHistoryOperationAndOutbox() {
+	void approvalRefreshPublicationFailureRollsBackPaymentLedgerReservationHistoryAndOperation() {
 		doThrow(new IllegalStateException("injected index outbox failure"))
-			.when(outboxEventPublisher).save(eq(RESERVATION_CHANGED), any(EventPayload.class));
+			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyApproved(execution(LEASE_OWNER), confirmedPayment()))
 			.isInstanceOf(RuntimeException.class);
@@ -385,6 +426,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(operation.getCompletedAt()).isEqualTo(NOW);
 		assertThat(operation.getLeaseOwner()).isNull();
 		assertThat(reloadReservation().getStatus()).isEqualTo(EXPIRED);
+		assertThat(inventoryStates()).containsExactly("FREE");
 		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.FAIL);
 		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
 		assertThat(ledger.getPaymentId()).isNull();
@@ -398,7 +440,8 @@ class PaymentOperationFinalizerIntegrationTest {
 			assertThat(history.getChangeReason()).isEqualTo("결제 최종 거절: REJECT_CARD_PAYMENT");
 			assertThat(history.getSourceSystem()).isEqualTo("PAYMENT_OPERATION");
 		});
-		assertThat(outboxEventTypes()).containsExactly(RESERVATION_EXPIRED.name());
+		assertThat(outboxRepository.count()).isZero();
+		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 	}
 
 	@Test
@@ -415,15 +458,162 @@ class PaymentOperationFinalizerIntegrationTest {
 	}
 
 	@Test
-	void declineOutboxFailureRollsBackLedgerReservationCouponHistoryOperationAndOutbox() {
+	void declineRefreshPublicationFailureRollsBackLedgerReservationCouponHistoryAndOperation() {
 		doThrow(new IllegalStateException("injected expiration outbox failure"))
-			.when(outboxEventPublisher).save(eq(RESERVATION_EXPIRED), any(EventPayload.class));
+			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
 
 		assertThatThrownBy(() -> finalizer.applyDeclined(
 			execution(LEASE_OWNER), "REJECT_CARD_PAYMENT", "card rejected"))
 			.isInstanceOf(RuntimeException.class);
 
 		assertPreFinalizationState();
+	}
+
+	@Test
+	void fullCancellationAtomicallyPersistsProviderEvidenceAndReleasesReservation() {
+		prepareCancellationFixture();
+
+		finalizer.applyCancelled(cancellationExecution(LEASE_OWNER), cancelledPayment());
+
+		PaymentOperation operation = reloadOperation();
+		Reservation reservation = reloadReservation();
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(operation.getStatus()).isEqualTo(APPLIED);
+		assertThat(reservation.getStatus()).isEqualTo(CANCELLED);
+		assertThat(inventoryStates()).containsExactly("FREE");
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+		assertThat(payment.getBalanceAmount()).isZero();
+		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL);
+		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
+		assertThat(ledger.getCancelAmount()).isEqualTo(AMOUNT);
+		assertThat(ledger.getCancelReason()).isEqualTo("사용자 요청");
+		assertThat(ledger.getTransactionKey()).isEqualTo("cancel-transaction-key");
+		assertThat(ledger.getCanceledAt()).isEqualTo(NOW.plusSeconds(90));
+		assertThat(isMemberCouponUsed()).isFalse();
+		assertThat(historyRepository.findAll()).singleElement().satisfies(history -> {
+			assertThat(history.getStatus()).isEqualTo(CANCELLED);
+			assertThat(history.getSourceSystem()).isEqualTo("PAYMENT_OPERATION");
+		});
+		org.mockito.Mockito.verify(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+	}
+
+	@Test
+	void duplicateCancellationFinalizationAppendsExactlyOneLedgerAndCouponRestore() {
+		prepareCancellationFixture();
+		PaymentExecution execution = cancellationExecution(LEASE_OWNER);
+
+		finalizer.applyCancelled(execution, cancelledPayment());
+		List<Long> countsAfterFirstApply = localEffectCounts();
+		finalizer.applyCancelled(execution, cancelledPayment());
+
+		assertThat(localEffectCounts()).isEqualTo(countsAfterFirstApply);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
+		assertThat(isMemberCouponUsed()).isFalse();
+	}
+
+	@Test
+	void cancellationDeclineKeepsPaymentAndCouponWhileRecordingFailureFact() {
+		prepareCancellationFixture();
+
+		finalizer.applyDeclined(
+			cancellationExecution(LEASE_OWNER), "NOT_CANCELABLE_PAYMENT", "declined");
+
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		PaymentTransaction ledger = transactionRepository.findAll().getFirst();
+		assertThat(reloadOperation().getStatus()).isEqualTo(DECLINED);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_FAILED);
+		assertThat(inventoryStates()).containsExactly("OCCUPIED");
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DONE);
+		assertThat(payment.getBalanceAmount()).isEqualTo(AMOUNT);
+		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CANCEL_FAIL);
+		assertThat(ledger.getPaymentOperationId()).isEqualTo(operationId);
+		assertThat(ledger.getFailureCode()).isEqualTo("NOT_CANCELABLE_PAYMENT");
+		assertThat(ledger.getCancelReason()).isEqualTo("사용자 요청");
+		assertThat(isMemberCouponUsed()).isTrue();
+	}
+
+	@Test
+	void databaseFailureAfterProviderCancellationLeavesExecutionForLeaseInquiryRecovery() {
+		prepareCancellationFixture();
+		doThrow(new IllegalStateException("injected index outbox failure"))
+			.when(searchRefreshPublisher).requestRefresh(ACCOMMODATION_UID);
+
+		assertThatThrownBy(() -> finalizer.applyCancelled(
+			cancellationExecution(LEASE_OWNER), cancelledPayment()))
+			.isInstanceOf(RuntimeException.class);
+
+		PaymentOperation operation = reloadOperation();
+		Payment payment = paymentRepository.findByReservationId(reservationId).orElseThrow();
+		assertThat(operation.getStatus()).isEqualTo(EXECUTING);
+		assertThat(operation.getLeaseOwner()).isEqualTo(LEASE_OWNER);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_PENDING);
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DONE);
+		assertThat(payment.getBalanceAmount()).isEqualTo(AMOUNT);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
+		assertThat(isMemberCouponUsed()).isTrue();
+	}
+
+	@Test
+	void mismatchedCancellationEvidenceIsRejectedBeforeAnyLocalEffect() {
+		prepareCancellationFixture();
+		CancelledPayment mismatched = new CancelledPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			0L,
+			PaymentStatus.CANCELED,
+			AMOUNT,
+			"다른 사유",
+			"cancel-transaction-key",
+			NOW.plusSeconds(90)
+		);
+
+		assertThatThrownBy(() -> finalizer.applyCancelled(
+			cancellationExecution(LEASE_OWNER), mismatched))
+			.isInstanceOf(PaymentOperationInvariantViolationException.class);
+
+		assertThat(reloadOperation().getStatus()).isEqualTo(EXECUTING);
+		assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLATION_PENDING);
+		assertThat(paymentRepository.findByReservationId(reservationId).orElseThrow().getStatus())
+			.isEqualTo(PaymentStatus.DONE);
+		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
+		assertThat(isMemberCouponUsed()).isTrue();
+	}
+
+	@Test
+	void simultaneousCancellationFinalizersCommitOneCancellationFact() throws Exception {
+		prepareCancellationFixture();
+		CountDownLatch firstApplied = new CountDownLatch(1);
+		CountDownLatch releaseFirstTransaction = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+
+		try {
+			CompletableFuture<Void> first = CompletableFuture.runAsync(
+				() -> holdingFinalizerTransaction.applyCancelledAndHold(
+					cancellationExecution(LEASE_OWNER), cancelledPayment(),
+					firstApplied, releaseFirstTransaction),
+				executor);
+			assertThat(firstApplied.await(5, TimeUnit.SECONDS)).isTrue();
+			CompletableFuture<Void> second = CompletableFuture.runAsync(
+				() -> finalizer.applyCancelled(
+					cancellationExecution(LEASE_OWNER), cancelledPayment()),
+				executor);
+			assertThatThrownBy(() -> second.get(500, TimeUnit.MILLISECONDS))
+				.isInstanceOf(TimeoutException.class);
+
+			releaseFirstTransaction.countDown();
+			first.get(5, TimeUnit.SECONDS);
+			second.get(5, TimeUnit.SECONDS);
+
+			assertThat(reloadOperation().getStatus()).isEqualTo(APPLIED);
+			assertThat(reloadReservation().getStatus()).isEqualTo(CANCELLED);
+			assertThat(transactionRepository.countByPaymentOperationId(operationId)).isOne();
+		} finally {
+			releaseFirstTransaction.countDown();
+			executor.shutdownNow();
+			assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
 	}
 
 	private void assertPreFinalizationState() {
@@ -437,6 +627,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(operation.getLeaseExpiresAt()).isEqualTo(NOW.plusSeconds(60));
 		assertThat(operation.getAttemptCount()).isOne();
 		assertThat(reloadReservation().getStatus()).isEqualTo(PAYMENT_PROCESSING);
+		assertThat(inventoryStates()).containsExactly("OCCUPIED");
 		assertThat(paymentRepository.findByReservationId(reservationId)).isEmpty();
 		assertThat(transactionRepository.countByPaymentOperationId(operationId)).isZero();
 		assertThat(isMemberCouponUsed()).isTrue();
@@ -454,8 +645,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		assertThat(ledger.getTransactionType()).isEqualTo(PaymentTransactionType.CONFIRM);
 		assertThat(historyRepository.count()).isOne();
 		assertThat(isMemberCouponUsed()).isTrue();
-		assertThat(outboxEventTypes()).containsExactlyInAnyOrder(
-			RESERVATION_CONFIRMED.name(), RESERVATION_CHANGED.name());
+		assertThat(outboxRepository.count()).isZero();
 	}
 
 	private List<Long> localEffectCounts() {
@@ -467,13 +657,15 @@ class PaymentOperationFinalizerIntegrationTest {
 		);
 	}
 
-	private List<String> outboxEventTypes() {
-		return outboxRepository.findAll().stream().map(outbox -> outbox.getEventType()).toList();
-	}
-
 	private boolean isMemberCouponUsed() {
 		return Boolean.TRUE.equals(jdbc.queryForObject(
 			"SELECT used FROM member_coupon WHERE id = ?", Boolean.class, memberCouponId));
+	}
+
+	private List<String> inventoryStates() {
+		return jdbc.queryForList(
+			"SELECT state FROM accommodation_inventory_day ORDER BY accommodation_id, stay_date",
+			String.class);
 	}
 
 	private PaymentOperation reloadOperation() {
@@ -492,9 +684,35 @@ class PaymentOperationFinalizerIntegrationTest {
 			RESERVATION_UID.toString(),
 			AMOUNT,
 			"provider-key",
+			null,
 			leaseOwner,
+			1,
 			PaymentExecutionMode.CONFIRM
 		);
+	}
+
+	private PaymentExecution manualExecution(String leaseOwner) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"provider-key",
+			null,
+			leaseOwner,
+			1,
+			PaymentExecutionMode.INQUIRE_CONFIRM,
+			true
+		);
+	}
+
+	private void prepareManualReconciliationExecution() {
+		jdbc.update("""
+			UPDATE payment_operation
+			SET next_action = 'INQUIRE_CONFIRM', manual_reconciliation_pending = true
+			WHERE id = ?
+			""", operationId);
 	}
 
 	private ConfirmedPayment confirmedPayment() {
@@ -508,6 +726,52 @@ class PaymentOperationFinalizerIntegrationTest {
 			NOW.plusSeconds(60),
 			null
 		);
+	}
+
+	private PaymentExecution cancellationExecution(String leaseOwner) {
+		return new PaymentExecution(
+			OPERATION_UID,
+			RESERVATION_UID,
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			"airbob-cancel-" + OPERATION_UID,
+			"사용자 요청",
+			leaseOwner,
+			1,
+			PaymentExecutionMode.CANCEL
+		);
+	}
+
+	private CancelledPayment cancelledPayment() {
+		return new CancelledPayment(
+			PAYMENT_KEY,
+			RESERVATION_UID.toString(),
+			AMOUNT,
+			0L,
+			PaymentStatus.CANCELED,
+			AMOUNT,
+			"사용자 요청",
+			"cancel-transaction-key",
+			NOW.plusSeconds(90)
+		);
+	}
+
+	private void prepareCancellationFixture() {
+		jdbc.update("""
+			UPDATE reservation SET status = 'CANCELLATION_PENDING' WHERE id = ?
+			""", reservationId);
+		jdbc.update("""
+			UPDATE payment_operation
+			SET operation_type = 'CANCEL', next_action = 'CANCEL',
+			    provider_idempotency_key = ?, deduplication_key = ?, cancellation_reason = ?
+			WHERE id = ?
+			""",
+			"airbob-cancel-" + OPERATION_UID,
+			"CANCEL:" + RESERVATION_UID + ":" + OPERATION_UID,
+			"사용자 요청",
+			operationId);
+		insertExistingPayment(PAYMENT_KEY);
 	}
 
 	private long insertExistingPayment(String paymentKey) {
@@ -531,6 +795,7 @@ class PaymentOperationFinalizerIntegrationTest {
 		jdbc.update("DELETE FROM reservation_history");
 		jdbc.update("DELETE FROM outbox");
 		jdbc.update("DELETE FROM member_coupon");
+		jdbc.update("DELETE FROM accommodation_inventory_day");
 		jdbc.update("DELETE FROM reservation");
 		jdbc.update("DELETE FROM coupon");
 		jdbc.update("DELETE FROM accommodation");
@@ -565,6 +830,12 @@ class PaymentOperationFinalizerIntegrationTest {
 		reservationId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
 		jdbc.update("""
+			INSERT INTO accommodation_inventory_day (
+			  accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, '2026-08-15', 'OCCUPIED', ?, NULL)
+			""", accommodationId, reservationId);
+
+		jdbc.update("""
 			INSERT INTO coupon (
 			  discount_value, is_active, min_payment_price, usable_from, usable_until,
 			  issue_start_at, issue_end_at, name, discount_type, total_quantity,
@@ -586,14 +857,15 @@ class PaymentOperationFinalizerIntegrationTest {
 
 		jdbc.update("""
 			INSERT INTO payment_operation (
-			  operation_uid, reservation_id, requester_member_id, operation_type, status,
+			  operation_uid, reservation_id, requester_member_id, operation_type, status, next_action,
 			  payment_key, expected_amount, provider_idempotency_key, deduplication_key,
-			  attempt_count, next_attempt_at, last_enqueued_at, lease_owner, lease_expires_at,
+			  dispatch_generation, attempt_count, next_attempt_at, queued_at,
+			  lease_owner, lease_expires_at, manual_reconciliation_pending, manual_review_count,
 			  version, created_at, updated_at
 			) VALUES (
-			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', 'EXECUTING',
+			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'CONFIRM', 'EXECUTING', 'CONFIRM',
 			  ?, ?, 'provider-key', ?,
-			  1, NULL, '2026-08-14 00:00:00', ?, '2026-08-14 00:01:00',
+			  1, 1, NULL, '2026-08-14 00:00:00', ?, '2026-08-14 00:01:00', false, 0,
 			  0, NOW(6), NOW(6)
 			)
 			""", OPERATION_UID.toString(), reservationId, memberId, PAYMENT_KEY, AMOUNT,
@@ -642,6 +914,27 @@ class PaymentOperationFinalizerIntegrationTest {
 			} catch (InterruptedException exception) {
 				Thread.currentThread().interrupt();
 				throw new IllegalStateException("interrupted while holding finalization transaction", exception);
+			}
+		}
+
+		@Transactional
+		public void applyCancelledAndHold(
+			PaymentExecution execution,
+			CancelledPayment cancelled,
+			CountDownLatch applied,
+			CountDownLatch release
+		) {
+			finalizer.applyCancelled(execution, cancelled);
+			applied.countDown();
+			try {
+				if (!release.await(5, TimeUnit.SECONDS)) {
+					throw new IllegalStateException(
+						"timed out holding the cancellation finalization transaction");
+				}
+			} catch (InterruptedException exception) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(
+					"interrupted while holding cancellation transaction", exception);
 			}
 		}
 	}

@@ -16,8 +16,6 @@ public enum ErrorCode {
 	INVALID_TYPE_VALUE(HttpStatus.BAD_REQUEST, "C004", "유효하지 않은 타입 값입니다."),
 	CURSOR_ENCODING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C005", "커서 인코딩 중 오류가 발생했습니다."),
 	CURSOR_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "C006", "유효하지 않은 커서 페이지 크기입니다."),
-	OUTBOX_PUBLISH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "C007", "요청을 처리하는 중 내부 이벤트 시스템에 오류가 발생했습니다."),
-	DEBEZIUM_EVENT_PARSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C008", "Debezium 이벤트 파싱 실패"),
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "C009", "요청 ID와 리소스가 속한 ID가 일치하지 않습니다."),
 	CURSOR_DECODING_ERROR(HttpStatus.BAD_REQUEST, "C010", "유효하지 않은 커서입니다."),
 	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "R000", "리소스를 찾을 수 없습니다."),
@@ -48,13 +46,12 @@ public enum ErrorCode {
 	ACCOMMODATION_IMAGE_COUNT_TOO_LOW(HttpStatus.BAD_REQUEST, "A006", "숙소 이미지가 최소 요구 개수 미만입니다."),
 	ACCOMMODATION_INVALID_AMENITY(HttpStatus.BAD_REQUEST, "A007", "편의시설 코드가 유효하지 않습니다."),
 	ACCOMMODATION_LOCATION_RESOLUTION_FAILED(HttpStatus.BAD_REQUEST, "A008", "숙소 위치의 좌표 또는 시간대를 확인할 수 없습니다."),
-	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A003", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
+	PUBLISHING_VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "A009", "숙소 게시를 위한 필수 정보가 누락되거나 유효하지 않습니다."),
 
 
 	// reservation
 	RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "존재하지 않는 예약입니다."),
 	RESERVATION_CONFLICT(HttpStatus.CONFLICT, "R002", "해당 날짜는 다른 예약과 겹쳐 예약이 불가능합니다."), // 날짜 중복
-	RESERVATION_LOCK_FAILED(HttpStatus.CONFLICT, "R003", "동시에 많은 예약이 시도되어 처리하지 못했습니다. 잠시 후 다시 시도해주세요."), // 분산 락 실패 (동시성 이슈)
 	CANNOT_CANCEL_RESERVATION(HttpStatus.CONFLICT, "R004", "결제 완료 상태의 예약만 취소할 수 있습니다."),
 	CANNOT_CONFIRM_RESERVATION(HttpStatus.CONFLICT, "R005", "결제 대기 상태의 예약만 확정할 수 있습니다."),
 	CANNOT_EXPIRE_RESERVATION(HttpStatus.CONFLICT, "R006", "결제 대기 상태의 예약만 만료시킬 수 있습니다."),
@@ -65,6 +62,25 @@ public enum ErrorCode {
 	CANNOT_CONFIRM_EXPIRED_RESERVATION(HttpStatus.CONFLICT, "R011", "결제 유효 시간이 지난 예약은 확정할 수 없습니다."),
 	RESERVATION_LOCAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "R012", "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."),
 	RESERVATION_OCCUPANCY_EXCEEDED(HttpStatus.BAD_REQUEST, "R013", "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."),
+	RESERVATION_CHECK_IN_CLOSED(HttpStatus.CONFLICT, "R014", "숙소 체크인 시각 이후에는 예약할 수 없습니다."),
+	RESERVATION_CANCELLATION_DEADLINE_PASSED(HttpStatus.CONFLICT, "R015", "체크인 시각 이후에는 예약을 취소할 수 없습니다."),
+	RESERVATION_CHECKOUT_IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "R016", "동일한 멱등성 키로 다른 예약 요청을 처리할 수 없습니다."),
+	RESERVATION_QUOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "R017", "예약 견적을 찾을 수 없습니다."),
+	RESERVATION_QUOTE_EXPIRED(HttpStatus.GONE, "R018", "예약 견적이 만료되었습니다. 새 견적을 요청해 주세요."),
+	RESERVATION_QUOTE_STALE(HttpStatus.CONFLICT, "R019", "예약 조건 또는 금액이 변경되었습니다. 새 견적을 요청해 주세요."),
+	RESERVATION_QUOTE_ALREADY_CHECKED_OUT(HttpStatus.CONFLICT, "R020", "이미 다른 요청으로 사용된 예약 견적입니다."),
+	RESERVATION_HOLD_RELEASE_NOT_ALLOWED(HttpStatus.CONFLICT, "R021", "현재 상태에서는 예약 보유를 해제할 수 없습니다."),
+	RESERVATION_PAYMENT_ATTEMPT_TOO_LATE(HttpStatus.CONFLICT, "R022", "결제를 시작할 수 있는 시간이 부족합니다."),
+	RESERVATION_PAYMENT_ATTEMPT_NOT_ALLOWED(HttpStatus.CONFLICT, "R023", "현재 예약에는 결제 시도를 발급할 수 없습니다."),
+	RESERVATION_PAYMENT_ATTEMPT_INVALID(HttpStatus.CONFLICT, "R024", "유효하지 않은 결제 시도입니다."),
+	RESERVATION_INVENTORY_BUSY(
+		HttpStatus.SERVICE_UNAVAILABLE,
+		"R025",
+		"예약 요청이 몰려 재고를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	RESERVATION_INVENTORY_NOT_READY(
+		HttpStatus.SERVICE_UNAVAILABLE,
+		"R026",
+		"예약 가능한 날짜 정보를 준비하고 있습니다. 잠시 후 다시 시도해 주세요."),
 
 
 	// payment
@@ -74,6 +90,10 @@ public enum ErrorCode {
 	PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "P004", "해당 결제 정보에 대한 접근 권한이 없습니다."),
 	PAYMENT_OPERATION_NOT_FOUND(HttpStatus.NOT_FOUND, "P005", "존재하지 않는 결제 작업입니다."),
 	PAYMENT_OPERATION_CONFLICT(HttpStatus.CONFLICT, "P006", "기존 결제 작업과 요청 내용이 일치하지 않습니다."),
+	PAYMENT_OPERATION_EXECUTION_FENCE_UNAVAILABLE(
+		HttpStatus.SERVICE_UNAVAILABLE,
+		"P007",
+		"결제 작업을 안전하게 실행할 수 없어 잠시 후 다시 시도해야 합니다."),
 
 	// wishlist
 	WISHLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "W001", "존재하지 않는 위시리스트입니다."),

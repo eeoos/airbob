@@ -311,6 +311,8 @@ unset BENCHMARK_READ_MODEL_TOKEN
 
 Wishlist DELETE와 ReservationHistory INSERT 비교는 운영 DB와 분리된 전용 스키마에서만 실행한다. 서버는 느슨한 profile 환경 변수나 직접 `bootRun`으로 시작하지 않고 전용 launcher를 사용한다.
 
+ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상태 변경, 쿠폰 복원, history 쓰기만 비교한다. 예약용 외부 임시 재고나 분산 락은 측정 범위에 없으며, 앞의 쿠폰 발급 lock/Lua 비교와는 서로 다른 실험이다.
+
 ```bash
 read -rsp 'Bulk write benchmark token: ' BENCHMARK_BULK_WRITE_TOKEN
 export BENCHMARK_BULK_WRITE_TOKEN
@@ -371,7 +373,6 @@ child 하나라도 실패하거나 artifact를 만들지 않으면 즉시 중단
 - 서버 연산 시간, 검증 성공 여부와 검증 행 수
 - Hibernate `SELECT/INSERT/UPDATE/DELETE/OTHER/TOTAL`
 - 명시적으로 계측한 custom JDBC writer의 batch 호출, 제출 행, 설정 batch 크기, 영향 행
-- ReservationHistory에 한해 hold 제거 호출/모드와 Redis network 제외 여부
 
 `observations`의 입력 순서 raw 목록이 정본이다. `statistics.server_operation_ms`는 이 목록을 오름차순 정렬한 뒤 nearest-rank 방식으로 다시 계산한다. 표본 수를 `n`, 분위수를 `p`(`0.50`, `0.95`)라 할 때 1부터 시작하는 순위는 `max(1, ceil(p * n))`이고 해당 정렬값을 p50/p95로 사용한다. 보간은 하지 않는다.
 

@@ -401,7 +401,7 @@ if [[ "$search_enabled" == true ]]; then
         "schemaVersion","datasetRelease","datasetRunId","sourceReleasePayloadSha256",
         "createdAt","producer","repository","snapshot","validation"
       ])) and
-      .[0].schemaVersion == 1 and
+      .[0].schemaVersion == 2 and
       .[0].datasetRelease == $release and
       .[0].datasetRunId == $manifest[0].datasetRunId and
       (.[0].datasetRunId | type == "string" and test("^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")) and
@@ -434,13 +434,13 @@ if [[ "$search_enabled" == true ]]; then
       (.[0].snapshot.uuid | safe_name) and
       .[0].snapshot.state == "SUCCESS" and
       .[0].snapshot.version == $reference[0].elasticsearchVersion and
-      .[0].snapshot.indices == [$reference[0].index] and
+      .[0].snapshot.indices == [$reference[0].snapshotIndex] and
       .[0].snapshot.includeGlobalState == false and
       (.[0].snapshot.totalShards | type == "number" and floor == . and . > 0) and
       .[0].snapshot.successfulShards == .[0].snapshot.totalShards and
       .[0].snapshot.failedShards == 0 and
       (.[0].snapshot.metadataSha256 | sha256) and
-      (.[0].validation | exact_keys(["snapshotReferenceSha256","documentCount","mappingSha256","dbIdsSha256","esIdsSha256","contentFingerprintSha256"])) and
+      (.[0].validation | exact_keys(["snapshotReferenceSha256","documentCount","mappingSha256","dbIdsSha256","esIdsSha256","dbDocumentIdentityPairsSha256","esDocumentIdentityPairsSha256","contentFingerprintSha256"])) and
       .[0].validation.snapshotReferenceSha256 == $referenceSha and
       .[0].validation.documentCount == $reference[0].documentCount and
       .[0].validation.documentCount == $manifest[0].search.documentCount and
@@ -451,11 +451,18 @@ if [[ "$search_enabled" == true ]]; then
       .[0].validation.esIdsSha256 == $reference[0].esIdsSha256 and
       .[0].validation.esIdsSha256 == $manifest[0].search.elasticsearchAccommodationIdsSha256 and
       .[0].validation.dbIdsSha256 == .[0].validation.esIdsSha256 and
+      .[0].validation.dbDocumentIdentityPairsSha256 == $reference[0].dbDocumentIdentityPairsSha256 and
+      .[0].validation.dbDocumentIdentityPairsSha256 == $manifest[0].search.databaseDocumentIdentityPairsSha256 and
+      .[0].validation.esDocumentIdentityPairsSha256 == $reference[0].esDocumentIdentityPairsSha256 and
+      .[0].validation.esDocumentIdentityPairsSha256 == $manifest[0].search.elasticsearchDocumentIdentityPairsSha256 and
+      .[0].validation.dbDocumentIdentityPairsSha256 == .[0].validation.esDocumentIdentityPairsSha256 and
       .[0].validation.contentFingerprintSha256 == $reference[0].contentFingerprintSha256 and
       .[0].validation.contentFingerprintSha256 == $manifest[0].search.contentFingerprintSha256 and
       (.[0].validation.mappingSha256 | sha256) and
       (.[0].validation.dbIdsSha256 | sha256) and
       (.[0].validation.esIdsSha256 | sha256) and
+      (.[0].validation.dbDocumentIdentityPairsSha256 | sha256) and
+      (.[0].validation.esDocumentIdentityPairsSha256 | sha256) and
       (.[0].validation.contentFingerprintSha256 | sha256)
     ' "$receipt_stage" >/dev/null \
     || fail 'snapshot receipt does not match the dataset search contract'

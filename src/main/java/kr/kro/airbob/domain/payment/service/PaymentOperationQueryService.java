@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.payment.service;
 
+import java.time.Clock;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 public class PaymentOperationQueryService {
 
 	private final PaymentOperationRepository repository;
+	private final Clock clock;
 
 	@Transactional(readOnly = true)
 	public Detail find(UUID operationUid, Long memberId) {
@@ -25,6 +27,6 @@ public class PaymentOperationQueryService {
 		if (!operation.isRequestedBy(memberId)) {
 			throw new PaymentAccessDeniedException();
 		}
-		return Detail.from(operation);
+		return Detail.from(operation, clock.instant());
 	}
 }

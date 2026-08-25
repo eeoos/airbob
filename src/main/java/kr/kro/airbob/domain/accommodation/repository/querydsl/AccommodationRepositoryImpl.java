@@ -128,24 +128,8 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
         return results;
     }
 
-    @Override
-    public Optional<Accommodation> findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long hostId) {
-        Accommodation result = jpaQueryFactory
-            .selectFrom(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .where(
-                accommodation.id.eq(accommodationId),
-                accommodation.member.id.eq(hostId),
-                accommodation.status.ne(AccommodationStatus.DELETED)
-            )
-            .fetchOne();
-
-        return Optional.ofNullable(result);
-    }
-
-    @Override
-    public Page<Accommodation> findForIndexing(Pageable pageable) {
+	@Override
+	public Page<Accommodation> findForIndexing(Pageable pageable) {
 
         // 1. Content Query: N+1 방지를 위해 Member, Policy를 fetchJoin
         List<Accommodation> content = jpaQueryFactory

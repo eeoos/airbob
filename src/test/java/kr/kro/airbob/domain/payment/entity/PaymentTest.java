@@ -1,26 +1,23 @@
 package kr.kro.airbob.domain.payment.entity;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
 @DisplayName("Payment 엔티티 테스트")
 class PaymentTest {
 
+	private static final Instant APPROVED_AT = Instant.parse("2026-08-12T05:30:00.123456Z");
 	private Reservation reservation;
-	private TossPaymentResponse tossResponse;
 
 	@BeforeEach
 	void setUp() {
@@ -30,150 +27,73 @@ class PaymentTest {
 			.reservationCode("ABC123")
 			.totalPrice(100_000L)
 			.build();
-
-		tossResponse = TossPaymentResponse.builder()
-			.paymentKey("test_payment_key_123")
-			.orderId("order_123")
-			.totalAmount(100_000L)
-			.balanceAmount(100_000L)
-			.method("카드")
-			.status("DONE")
-			.approvedAt(ZonedDateTime.now())
-			.build();
 	}
 
-	@Nested
-	@DisplayName("create 팩토리 메서드 테스트")
-	class CreateTest {
+	@Test
+	void normalizedConfirmationCreatesTheCurrentPaymentState() {
+		ConfirmedPayment confirmed = new ConfirmedPayment(
+			"test_payment_key_123",
+			reservation.getReservationUid().toString(),
+			100_000L,
+			100_000L,
+			PaymentMethod.CARD,
+			PaymentStatus.DONE,
+			APPROVED_AT,
+			null
+		);
 
-		@Test
-		@DisplayName("Toss 응답으로 Payment 생성 시 모든 필드가 정확히 매핑된다")
-		void 정상_Payment_생성() {
-			// when
-			Payment payment = Payment.create(tossResponse, reservation);
+		Payment payment = Payment.create(confirmed, reservation);
 
-			// then
-			assertThat(payment.getPaymentKey()).isEqualTo("test_payment_key_123");
-			assertThat(payment.getOrderId()).isEqualTo("order_123");
-			assertThat(payment.getAmount()).isEqualTo(100_000L);
-			assertThat(payment.getMethod()).isEqualTo(PaymentMethod.CARD);
-			assertThat(payment.getStatus()).isEqualTo(PaymentStatus.DONE);
-			assertThat(payment.getApprovedAt()).isNotNull();
-			assertThat(payment.getReservation()).isEqualTo(reservation);
-		}
-
-		@Test
-		@DisplayName("Payment 생성 시 balanceAmount가 totalAmount와 동일하게 설정된다")
-		void balanceAmount_초기값_검증() {
-			// when
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			// then
-			assertThat(payment.getBalanceAmount()).isEqualTo(100_000L);
-			assertThat(payment.getBalanceAmount()).isEqualTo(payment.getAmount());
-		}
-
-		@Test
-		@DisplayName("Toss 승인 시각은 offset을 보존한 절대 시각으로 변환된다")
-		void 승인_시각_offset_보존() {
-			ZonedDateTime approvedAt = ZonedDateTime.of(
-				2026, 8, 12, 14, 30, 0, 123_456_000,
-				ZoneId.of("Asia/Seoul")
+		assertThat(payment)
+			.extracting(
+				Payment::getPaymentKey,
+				Payment::getOrderId,
+				Payment::getAmount,
+				Payment::getBalanceAmount,
+				Payment::getMethod,
+				Payment::getStatus,
+				Payment::getApprovedAt,
+				Payment::getReservation
+			)
+			.containsExactly(
+				"test_payment_key_123",
+				reservation.getReservationUid().toString(),
+				100_000L,
+				100_000L,
+				PaymentMethod.CARD,
+				PaymentStatus.DONE,
+				APPROVED_AT,
+				reservation
 			);
-			tossResponse.setApprovedAt(approvedAt);
-
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			assertThat(payment.getApprovedAt())
-				.isEqualTo(Instant.parse("2026-08-12T05:30:00.123456Z"));
-		}
-
-		@Test
-		@DisplayName("간편결제 방식으로 Payment 생성")
-		void 간편결제_방식_생성() {
-			// given
-			tossResponse.setMethod("간편결제");
-
-			// when
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			// then
-			assertThat(payment.getMethod()).isEqualTo(PaymentMethod.EASY_PAY);
-		}
-
-		@Test
-		@DisplayName("가상계좌 방식으로 Payment 생성")
-		void 가상계좌_방식_생성() {
-			// given
-			tossResponse.setMethod("가상계좌");
-			tossResponse.setStatus("WAITING_FOR_DEPOSIT");
-
-			// when
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			// then
-			assertThat(payment.getMethod()).isEqualTo(PaymentMethod.VIRTUAL_ACCOUNT);
-			assertThat(payment.getStatus()).isEqualTo(PaymentStatus.WAITING_FOR_DEPOSIT);
-		}
 	}
 
-	@Nested
-	@DisplayName("updateOnCancel 테스트")
-	class UpdateOnCancelTest {
+	@Test
+	void normalizedFullCancellationUpdatesOnlyTheCurrentPaymentState() {
+		Payment payment = Payment.create(new ConfirmedPayment(
+			"test_payment_key_123",
+			reservation.getReservationUid().toString(),
+			100_000L,
+			100_000L,
+			PaymentMethod.CARD,
+			PaymentStatus.DONE,
+			APPROVED_AT,
+			null
+		), reservation);
+		CancelledPayment cancelled = new CancelledPayment(
+			payment.getPaymentKey(),
+			payment.getOrderId(),
+			100_000L,
+			0L,
+			PaymentStatus.CANCELED,
+			100_000L,
+			"사용자 요청",
+			"cancel-transaction-key",
+			APPROVED_AT.plusSeconds(60)
+		);
 
-		@Test
-		@DisplayName("부분 취소 시 상태가 PARTIAL_CANCELED로 변경된다")
-		void 부분_취소_상태_변경() {
-			// given
-			Payment payment = Payment.create(tossResponse, reservation);
+		payment.applyFullCancellation(cancelled);
 
-			TossPaymentResponse.Cancel cancelData = TossPaymentResponse.Cancel.builder()
-				.cancelAmount(50_000L)
-				.cancelReason("고객 요청")
-				.transactionKey("cancel_tx_123")
-				.canceledAt(ZonedDateTime.now())
-				.build();
-
-			TossPaymentResponse cancelResponse = TossPaymentResponse.builder()
-				.status("PARTIAL_CANCELED")
-				.balanceAmount(50_000L)
-				.cancels(List.of(cancelData))
-				.build();
-
-			// when
-			payment.updateOnCancel(cancelResponse);
-
-			// then
-			assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PARTIAL_CANCELED);
-			assertThat(payment.getBalanceAmount()).isEqualTo(50_000L);
-		}
-
-		@Test
-		@DisplayName("전액 취소 시 상태가 CANCELED로 변경되고 balanceAmount가 0이 된다")
-		void 전액_취소_상태_변경() {
-			// given
-			Payment payment = Payment.create(tossResponse, reservation);
-
-			TossPaymentResponse.Cancel cancelData = TossPaymentResponse.Cancel.builder()
-				.cancelAmount(100_000L)
-				.cancelReason("전액 환불")
-				.transactionKey("cancel_tx_456")
-				.canceledAt(ZonedDateTime.now())
-				.build();
-
-			TossPaymentResponse cancelResponse = TossPaymentResponse.builder()
-				.status("CANCELED")
-				.balanceAmount(0L)
-				.cancels(List.of(cancelData))
-				.build();
-
-			// when
-			payment.updateOnCancel(cancelResponse);
-
-			// then
-			assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
-			assertThat(payment.getBalanceAmount()).isEqualTo(0L);
-		}
-
+		assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+		assertThat(payment.getBalanceAmount()).isZero();
 	}
 }

@@ -20,12 +20,12 @@ cat > "$tmp_dir/receipt.json" <<'JSON'
 {
   "schemaVersion": 1,
   "runId": "phase3-test",
-  "datasetRelease": "rehearsal-v17",
+  "datasetRelease": "rehearsal-v20",
   "datasetRunId": "20260816T001530Z-12345678",
   "releaseKind": "pipeline-rehearsal",
   "databaseBootstrap": "dump",
   "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
-  "flywayVersion": "17",
+  "flywayVersion": "27",
   "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
   "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
   "rdsResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWX",
@@ -33,9 +33,18 @@ cat > "$tmp_dir/receipt.json" <<'JSON'
   "outboxState": "empty",
   "redisState": "empty",
   "kafkaTopics": [
-    { "name": "PAYMENT.events", "partitions": 1, "retentionMs": 86400000 },
-    { "name": "RESERVATION.events", "partitions": 1, "retentionMs": 86400000 },
-    { "name": "ACCOMMODATIONS.events", "partitions": 1, "retentionMs": 86400000 }
+    { "name": "PAYMENT_OPERATION.events", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "PAYMENT_OPERATION.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "PAYMENT_OPERATION.events.DLT", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "ACCOMMODATION_INDEX.events", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "ACCOMMODATION_INDEX.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "ACCOMMODATION_INDEX.events.DLT", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "ACCOMMODATION_CACHE.events", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "ACCOMMODATION_CACHE.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "ACCOMMODATION_CACHE.events.DLT", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "OPERATOR_ALERT.events", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "OPERATOR_ALERT.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+    { "name": "OPERATOR_ALERT.events.DLT", "partitions": 3, "retentionMs": 86400000 }
   ],
   "connectorState": "RUNNING",
   "searchState": "skipped",
@@ -59,12 +68,12 @@ JSON
   *"rds describe-db-snapshots"*)
     [[ -f "$FAKE_SNAPSHOT_CREATED" ]] || exit 1
     jq -n --arg manifestSha "$FAKE_MANIFEST_SHA" '{DBSnapshots:[{
-      DBSnapshotIdentifier:"airbob-dataset-rehearsal-v17",Status:"available",Engine:"mysql",Encrypted:true,
+      DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",Status:"available",Engine:"mysql",Encrypted:true,
       TagList:[
-        {Key:"DatasetRelease",Value:"rehearsal-v17"},
+        {Key:"DatasetRelease",Value:"rehearsal-v20"},
         {Key:"DatasetRunId",Value:"20260816T001530Z-12345678"},
         {Key:"DumpSha256",Value:"94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"},
-        {Key:"FlywayVersion",Value:"17"},
+        {Key:"FlywayVersion",Value:"27"},
         {Key:"ManifestSha256",Value:$manifestSha},
         {Key:"Persistence",Value:"persistent"}
       ]
@@ -87,17 +96,17 @@ FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
 FAKE_MANIFEST_SHA="$manifest_sha" \
 AIRBOB_REGION=ap-northeast-2 \
   "$script" "$manifest" "$tmp_dir/receipt.json" \
-  airbob-phase3-test airbob-dataset-rehearsal-v17 "$tmp_dir/promotion.json" >/dev/null
+  airbob-phase3-test airbob-dataset-rehearsal-v20 "$tmp_dir/promotion.json" >/dev/null
 
 jq -e --arg manifestSha "$manifest_sha" '
   .schemaVersion == 1 and
-  .snapshotIdentifier == "airbob-dataset-rehearsal-v17" and
-  .datasetRelease == "rehearsal-v17" and
+  .snapshotIdentifier == "airbob-dataset-rehearsal-v20" and
+  .datasetRelease == "rehearsal-v20" and
   .manifestSha256 == $manifestSha and
   .persistence == "persistent"
 ' "$tmp_dir/promotion.json" >/dev/null
 grep -Fq 'Key=Persistence,Value=persistent' "$tmp_dir/aws.log"
-grep -Fq 'Key=DatasetRelease,Value=rehearsal-v17' "$tmp_dir/aws.log"
+grep -Fq 'Key=DatasetRelease,Value=rehearsal-v20' "$tmp_dir/aws.log"
 
 cp "$tmp_dir/receipt.json" "$tmp_dir/bad-receipt.json"
 jq '.connectorState = "PAUSED"' "$tmp_dir/bad-receipt.json" > "$tmp_dir/bad.next"
@@ -105,7 +114,7 @@ mv "$tmp_dir/bad.next" "$tmp_dir/bad-receipt.json"
 if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
   FAKE_MANIFEST_SHA="$manifest_sha" AIRBOB_REGION=ap-northeast-2 \
   "$script" "$manifest" "$tmp_dir/bad-receipt.json" \
-  airbob-phase3-test airbob-dataset-rehearsal-v17 "$tmp_dir/rejected.json" >/dev/null 2>&1; then
+  airbob-phase3-test airbob-dataset-rehearsal-v20 "$tmp_dir/rejected.json" >/dev/null 2>&1; then
   printf '%s\n' 'snapshot promotion accepted an invalid data receipt' >&2
   exit 1
 fi
@@ -118,7 +127,7 @@ mv "$tmp_dir/tampered.next" "$tmp_dir/tampered-manifest.json"
 if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
   FAKE_MANIFEST_SHA="$manifest_sha" AIRBOB_REGION=ap-northeast-2 \
   "$script" "$tmp_dir/tampered-manifest.json" "$tmp_dir/receipt.json" \
-  airbob-phase3-test airbob-dataset-rehearsal-v17 "$tmp_dir/tampered.json" >/dev/null 2>&1; then
+  airbob-phase3-test airbob-dataset-rehearsal-v20 "$tmp_dir/tampered.json" >/dev/null 2>&1; then
   printf '%s\n' 'snapshot promotion accepted a manifest outside the bootstrap receipt tuple' >&2
   exit 1
 fi
@@ -126,10 +135,10 @@ fi
 [[ ! -s "$tmp_dir/aws.log" ]] || { printf '%s\n' 'snapshot promotion contacted AWS before validating the manifest tuple' >&2; exit 1; }
 
 for unsafe_identifier_pair in \
-  'airbob-phase3-test-|airbob-dataset-rehearsal-v17' \
-  'airbob-phase3--test|airbob-dataset-rehearsal-v17' \
-  'airbob-phase3-test|airbob-dataset-rehearsal-v17-' \
-  'airbob-phase3-test|airbob-dataset-rehearsal--v17'; do
+  'airbob-phase3-test-|airbob-dataset-rehearsal-v20' \
+  'airbob-phase3--test|airbob-dataset-rehearsal-v20' \
+  'airbob-phase3-test|airbob-dataset-rehearsal-v20-' \
+  'airbob-phase3-test|airbob-dataset-rehearsal--v27'; do
   unsafe_instance=${unsafe_identifier_pair%%|*}
   unsafe_snapshot=${unsafe_identifier_pair#*|}
   : > "$tmp_dir/aws.log"

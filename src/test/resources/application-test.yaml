@@ -46,14 +46,32 @@ google:
   api:
     key: dummy-google-key
 
-slack:
-  webhook:
-    url: https://hooks.slack.com/services/dummy/url
+operator-alert:
+  kafka:
+    auto-startup: false
+  slack:
+    enabled: false
 
 payment:
   toss:
     secret-key: dummy-toss-secret-key
     base-url: https://api.tosspayments.com
+
+reservation:
+  inventory:
+    startup:
+      enabled: false
+    retention:
+      enabled: false
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          # Limited @SpringBootTest contexts may not scan the inventory health bean.
+          # Wildcard membership keeps the test profile independent of a particular contributor.
+          include: "*"
 
 toss:
   client-key: dummy-client-key
@@ -61,6 +79,8 @@ toss:
 
 accommodation:
   indexing:
+    bootstrap:
+      enabled: false
     kafka:
       auto-startup: false
   detail-cache:

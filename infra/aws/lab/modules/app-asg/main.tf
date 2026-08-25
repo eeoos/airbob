@@ -126,19 +126,18 @@ resource "aws_autoscaling_group" "app" {
     precondition {
       condition = (
         (var.mode == "performance" && length(var.subnet_ids) == 1) ||
-        (contains(["distributed-lock", "scaling"], var.mode) && length(var.subnet_ids) == 2)
+        (var.mode == "scaling" && length(var.subnet_ids) == 2)
       )
-      error_message = "Performance mode requires one subnet; distributed-lock and scaling require both private-AZ subnets."
+      error_message = "Performance mode requires one subnet; scaling requires both private-AZ subnets."
     }
 
     precondition {
       condition = (
         (!var.app_enabled && var.min_size == 0 && var.desired_capacity == 0 && var.max_size == 0) ||
         (var.app_enabled && var.mode == "performance" && var.min_size == 1 && var.desired_capacity == 1 && var.max_size == 1) ||
-        (var.app_enabled && var.mode == "distributed-lock" && var.min_size == 2 && var.desired_capacity == 2 && var.max_size == 2) ||
         (var.app_enabled && var.mode == "scaling" && var.min_size == 1 && var.desired_capacity == 1 && var.max_size == 4)
       )
-      error_message = "ASG capacity must be 0/0/0 while disabled, 1/1/1 for performance, 2/2/2 for distributed-lock, or 1/1/4 for scaling."
+      error_message = "ASG capacity must be 0/0/0 while disabled, 1/1/1 for performance, or 1/1/4 for scaling."
     }
   }
 

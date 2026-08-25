@@ -113,6 +113,18 @@ seal's exact S3 object version and verifies its encryption, content type,
 release/snapshot metadata, and byte-level hashes of both the staged snapshot
 reference and the full snapshot receipt.
 
+The dataset bucket lifecycle deliberately has no current-object expiration,
+noncurrent-version expiration, or expired-delete-marker cleanup. A snapshot
+seal binds every object version and delete marker under its exact
+`elasticsearch/releases/<release>/` prefix. S3 lifecycle cannot dynamically
+exclude only prefixes that already have a seal, so a broad dataset expiration
+rule could make that immutable inventory unverifiable. The only dataset
+lifecycle action is aborting incomplete multipart uploads after seven days; an
+incomplete upload is not a completed object version and is not part of a seal.
+The separate bundle bucket retains its bounded 30-day noncurrent version
+cleanup, and evidence expiration remains restricted to explicitly tagged
+objects.
+
 After apply, configure a local AWS CLI profile whose `source_profile` is the
 approved IAM user, whose `role_arn` is
 `arn:aws:iam::942632789808:role/airbob-dataset-publisher`, and whose

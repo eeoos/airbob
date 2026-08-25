@@ -30,8 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationHistoryInsertBenchmarkVerification;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemoval;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 
 @Service
 @Profile("bulk-write-benchmark")
@@ -93,6 +91,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			"benchmark-status-control",
 			EXPIRED_AT
 		);
+		seedInventory(targets, futurePending, nonPendingExpired);
 
 		Fixture fixture = new Fixture(
 			datasetSize,
@@ -107,12 +106,8 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-	public ReservationHistoryInsertBenchmarkVerification verify(
-		Fixture fixture,
-		HoldRemovalSnapshot holdSnapshot
-	) {
+	public ReservationHistoryInsertBenchmarkVerification verify(Fixture fixture) {
 		Objects.requireNonNull(fixture, "fixture must not be null");
-		Objects.requireNonNull(holdSnapshot, "holdSnapshot must not be null");
 
 		Map<Long, ReservationRow> reservations = findReservations(fixture.allReservationIds());
 		List<HistoryRow> histories = findHistories(fixture.allReservationIds());
@@ -149,8 +144,10 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 		boolean historySnapshotsPreserved = verifiedRows == fixture.datasetSize();
 		boolean historyAuditContextPreserved = fixture.targets().stream()
 			.allMatch(target -> hasSchedulerAuditContext(historiesByReservation.get(target.id())));
-		boolean holdRemovalsMatched = holdRemovalCounts(expectedHoldRemovals(fixture))
-			.equals(holdRemovalCounts(holdSnapshot.removals()));
+		boolean inventoryStatePreserved = fixture.targets().stream()
+			.allMatch(target -> hasInventoryState(target, "FREE"))
+			&& hasInventoryState(fixture.futurePending(), "HOLD")
+			&& hasInventoryState(fixture.nonPendingExpired(), "OCCUPIED");
 
 		boolean succeeded = targetReservationsExpired
 			&& targetHistoriesInserted
@@ -158,7 +155,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			&& nonPendingExpiredPreserved
 			&& historySnapshotsPreserved
 			&& historyAuditContextPreserved
-			&& holdRemovalsMatched;
+			&& inventoryStatePreserved;
 
 		return new ReservationHistoryInsertBenchmarkVerification(
 			verifiedRows,
@@ -168,8 +165,7 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			futurePendingPreserved,
 			nonPendingExpiredPreserved,
 			historySnapshotsPreserved,
-			historyAuditContextPreserved,
-			holdRemovalsMatched
+			historyAuditContextPreserved
 		);
 	}
 
@@ -179,6 +175,10 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			return;
 		}
 		deleteByReservationIds("reservation_history", fixture.allReservationIds());
+		jdbcTemplate.update(
+			"DELETE FROM accommodation_inventory_day WHERE accommodation_id = ?",
+			fixture.accommodationId()
+		);
 		deleteExactIds("reservation", fixture.allReservationIds());
 		deleteExactIds("accommodation", List.of(fixture.accommodationId()));
 		deleteExactIds("member", List.of(fixture.memberId()));
@@ -285,6 +285,67 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			CREATED_AT,
 			memberId
 		);
+	}
+
+	private void seedInventory(
+		List<ReservationExpectation> targets,
+		ReservationExpectation futurePending,
+		ReservationExpectation nonPendingExpired
+	) {
+		targets.forEach(target -> insertInventoryDays(target, "HOLD", target.expiresAt()));
+		insertInventoryDays(futurePending, "HOLD", futurePending.expiresAt());
+		insertInventoryDays(nonPendingExpired, "OCCUPIED", null);
+	}
+
+	private void insertInventoryDays(
+		ReservationExpectation reservation,
+		String state,
+		Instant holdExpiresAt
+	) {
+		String sql = """
+			INSERT INTO accommodation_inventory_day (
+				accommodation_id, stay_date, state, reservation_id, hold_expires_at
+			) VALUES (?, ?, ?, ?, ?)
+			""";
+		List<Object[]> arguments = reservation.checkIn().datesUntil(reservation.checkOut())
+			.map(stayDate -> new Object[] {
+				reservation.accommodationId(),
+				stayDate,
+				state,
+				reservation.id(),
+				holdExpiresAt == null ? null : toUtcDateTime(holdExpiresAt)
+			})
+			.toList();
+		jdbcTemplate.batchUpdate(sql, arguments);
+	}
+
+	private boolean hasInventoryState(ReservationExpectation reservation, String expectedState) {
+		Long matchingNights = jdbcTemplate.queryForObject("""
+			SELECT COUNT(*)
+			FROM accommodation_inventory_day
+			WHERE accommodation_id = ?
+			  AND stay_date >= ?
+			  AND stay_date < ?
+			  AND state = ?
+			  AND (
+			    (? = 'FREE' AND reservation_id IS NULL AND hold_expires_at IS NULL)
+			    OR (? = 'HOLD' AND reservation_id = ? AND hold_expires_at IS NOT NULL)
+			    OR (? = 'OCCUPIED' AND reservation_id = ? AND hold_expires_at IS NULL)
+			  )
+			""",
+			Long.class,
+			reservation.accommodationId(),
+			reservation.checkIn(),
+			reservation.checkOut(),
+			expectedState,
+			expectedState,
+			expectedState,
+			reservation.id(),
+			expectedState,
+			reservation.id()
+		);
+		long expectedNights = reservation.checkIn().datesUntil(reservation.checkOut()).count();
+		return Objects.equals(matchingNights, expectedNights);
 	}
 
 	private long insertAndReturnKey(String sql, StatementBinder binder) {
@@ -412,24 +473,6 @@ public class ReservationHistoryInsertBenchmarkFixtureService {
 			&& Objects.equals(history.changeReason(), "결제 시간 초과")
 			&& Objects.equals(history.sourceSystem(), "BATCH")
 			&& history.clientIp() == null;
-	}
-
-	private List<HoldRemoval> expectedHoldRemovals(Fixture fixture) {
-		return fixture.targets().stream()
-			.map(target -> new HoldRemoval(
-				target.accommodationId(),
-				target.checkIn(),
-				target.checkOut()
-			))
-			.toList();
-	}
-
-	private Map<HoldRemoval, Integer> holdRemovalCounts(List<HoldRemoval> removals) {
-		Map<HoldRemoval, Integer> counts = new HashMap<>();
-		for (HoldRemoval removal : removals) {
-			counts.merge(removal, 1, Math::addExact);
-		}
-		return counts;
 	}
 
 	private boolean hasStatus(Map<Long, ReservationRow> reservations, long id, String status) {

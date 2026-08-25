@@ -25,33 +25,100 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 @JsonTest
 @DisplayName("예약 응답 시간대 테스트")
-	class ReservationResponseTest {
+class ReservationResponseTest {
+	private static final Instant SERVER_TIME = Instant.parse("2026-08-25T03:00:00Z");
 
 	@Autowired
 	private ObjectMapper objectMapper;
 
 	@Test
-	@DisplayName("예약 준비 응답은 결제 필요 여부와 현재 상태를 명시한다")
-	void readyResponseExposesPaymentRequirement() throws Exception {
+	@DisplayName("예약 준비 응답은 checkout과 결제에 필요한 전체 계약을 노출한다")
+	void readyResponseExposesCheckoutContract() throws Exception {
 		Member guest = Member.builder().email("guest@test.com").nickname("guest").build();
-		Accommodation accommodation = Accommodation.builder().name("free stay").build();
+		Accommodation accommodation = Accommodation.builder().name("discounted stay").build();
 		Reservation reservation = Reservation.builder()
 			.reservationUid(UUID.randomUUID())
 			.accommodation(accommodation)
 			.guest(guest)
-			.totalPrice(0L)
-			.status(ReservationStatus.CONFIRMED)
+			.checkInDate(LocalDate.of(2026, 9, 1))
+			.checkOutDate(LocalDate.of(2026, 9, 3))
+			.guestCount(2)
+			.totalPrice(170_000L)
+			.discountAmount(30_000L)
+			.currency("KRW")
+			.status(ReservationStatus.PAYMENT_PENDING)
+			.expiresAt(SERVER_TIME.plusSeconds(15 * 60))
 			.build();
 
-		ReservationResponse.Ready response = ReservationResponse.Ready.from(reservation);
+		ReservationResponse.Ready response = ReservationResponse.Ready.from(reservation, SERVER_TIME);
 
-		assertThat(response.status()).isEqualTo(ReservationStatus.CONFIRMED);
-		assertThat(response.paymentRequired()).isFalse();
+		assertThat(response.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+		assertThat(response.paymentRequired()).isTrue();
+		assertThat(response.paymentAllowed()).isTrue();
+		assertThat(response.holdExpiresAt()).isEqualTo(SERVER_TIME.plusSeconds(15 * 60));
+		assertThat(response.serverTime()).isEqualTo(SERVER_TIME);
+		assertThat(response.checkIn()).isEqualTo(LocalDate.of(2026, 9, 1));
+		assertThat(response.checkOut()).isEqualTo(LocalDate.of(2026, 9, 3));
+		assertThat(response.guestCount()).isEqualTo(2);
+		assertThat(response.subtotal()).isEqualTo(200_000L);
+		assertThat(response.discountAmount()).isEqualTo(30_000L);
+		assertThat(response.amount()).isEqualTo(170_000L);
+		assertThat(response.currency()).isEqualTo("KRW");
 
 		JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
-		assertThat(json.path("status").asText()).isEqualTo("CONFIRMED");
-		assertThat(json.path("payment_required").asBoolean()).isFalse();
-		assertThat(json.path("amount").asLong()).isZero();
+		assertThat(json.path("status").asText()).isEqualTo("PAYMENT_PENDING");
+		assertThat(json.path("payment_required").asBoolean()).isTrue();
+		assertThat(json.path("payment_allowed").asBoolean()).isTrue();
+		assertThat(json.path("hold_expires_at").asText()).isEqualTo("2026-08-25T03:15:00Z");
+		assertThat(json.path("server_time").asText()).isEqualTo("2026-08-25T03:00:00Z");
+		assertThat(json.path("check_in").asText()).isEqualTo("2026-09-01");
+		assertThat(json.path("check_out").asText()).isEqualTo("2026-09-03");
+		assertThat(json.path("guest_count").asInt()).isEqualTo(2);
+		assertThat(json.path("subtotal").asLong()).isEqualTo(200_000L);
+		assertThat(json.path("discount_amount").asLong()).isEqualTo(30_000L);
+		assertThat(json.path("amount").asLong()).isEqualTo(170_000L);
+		assertThat(json.path("currency").asText()).isEqualTo("KRW");
+	}
+
+	@Test
+	@DisplayName("저장 상태가 PAYMENT_PENDING이어도 hold 만료 시각부터 EXPIRED로 응답한다")
+	void readyResponseExposesEffectiveExpiryWithoutWaitingForCleanup() {
+		Member guest = Member.builder().email("guest@test.com").nickname("guest").build();
+		Accommodation accommodation = Accommodation.builder().name("expired stay").build();
+		Reservation reservation = Reservation.builder()
+			.reservationUid(UUID.randomUUID())
+			.accommodation(accommodation)
+			.guest(guest)
+			.totalPrice(200_000L)
+			.discountAmount(0L)
+			.currency("KRW")
+			.status(ReservationStatus.PAYMENT_PENDING)
+			.expiresAt(SERVER_TIME)
+			.build();
+
+		ReservationResponse.Ready response = ReservationResponse.Ready.from(reservation, SERVER_TIME);
+
+		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(response.paymentAllowed()).isFalse();
+		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+	}
+
+	@Test
+	@DisplayName("게스트 예약 목록도 cleanup을 기다리지 않고 만료된 hold를 EXPIRED로 응답한다")
+	void guestReservationInfoExposesEffectiveExpiry() {
+		Reservation reservation = Reservation.builder()
+			.id(20L)
+			.reservationUid(UUID.randomUUID())
+			.accommodation(Accommodation.builder().id(10L).name("expired stay").build())
+			.status(ReservationStatus.PAYMENT_PENDING)
+			.expiresAt(SERVER_TIME)
+			.build();
+
+		ReservationResponse.GuestReservationInfo response =
+			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
+
+		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 	}
 
 	@Test
@@ -87,16 +154,17 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 			.totalPrice(200_000L)
 			.currency("KRW")
 			.status(ReservationStatus.CONFIRMED)
+			.message("유아용 침대를 준비해 주세요")
 			.expiresAt(Instant.parse("2026-03-01T00:00:00Z"))
 			.createdAt(createdAt)
 			.build();
 
 		ReservationResponse.GuestDetail guestDetail = ReservationResponse.GuestDetail.from(
-			reservation, null, true);
+			reservation, null, true, SERVER_TIME);
 		ReservationResponse.HostDetail hostDetail = ReservationResponse.HostDetail.from(
 			reservation, null);
 		ReservationResponse.GuestReservationInfo guestInfo =
-			ReservationResponse.GuestReservationInfo.from(reservation);
+			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
 		ReservationResponse.HostReservationInfo hostInfo =
 			ReservationResponse.HostReservationInfo.from(reservation);
 
@@ -106,10 +174,16 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 		assertThat(guestDetail.checkOutDateTime()).isEqualTo(localCheckOut);
 		assertThat(guestDetail.checkInTime()).isEqualTo(LocalTime.of(15, 0));
 		assertThat(guestDetail.checkOutTime()).isEqualTo(LocalTime.of(11, 0));
+		assertThat(guestDetail.status()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(guestDetail.paymentAllowed()).isFalse();
+		assertThat(guestDetail.holdExpiresAt()).isNull();
+		assertThat(guestDetail.serverTime()).isEqualTo(SERVER_TIME);
+		assertThat(guestDetail.requestMessage()).isEqualTo("유아용 침대를 준비해 주세요");
 		assertThat(hostDetail.timeZoneId()).isEqualTo("America/New_York");
 		assertThat(hostDetail.checkInDateTime()).isEqualTo(localCheckIn);
 		assertThat(hostDetail.checkOutDateTime()).isEqualTo(localCheckOut);
 		assertThat(hostDetail.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));
+		assertThat(hostDetail.requestMessage()).isEqualTo("유아용 침대를 준비해 주세요");
 		assertThat(guestInfo.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));
 		assertThat(guestInfo.status()).isEqualTo(ReservationStatus.CONFIRMED);
 		assertThat(hostInfo.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));

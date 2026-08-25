@@ -1,5 +1,8 @@
 # AWS performance-lab dataset releases
 
+Reservation inventory의 V25–V27 hard-cutover 전제는
+[`docs/reservation-inventory-cutover.md`](../../../docs/reservation-inventory-cutover.md)에도 정리되어 있다.
+
 Dataset publication is a local producer responsibility of the dedicated
 `airbob-dataset-publisher` role, never the ephemeral lab Terraform role. The
 role and its bucket policy are implemented in the foundation root but have not
@@ -32,7 +35,7 @@ cache and must be bound to the release with `DatasetRelease`, `DatasetRunId`,
 disable search. `evidence` requires `traffic-v1`, a search snapshot, database
 and Elasticsearch fingerprints, and the causal-fence fields enforced by
 `verify-dataset-release.sh`. Both kinds require the current application
-Flyway version, currently V17. An older dump must be regenerated through the
+Flyway version, currently V27. An older dump must be regenerated through the
 producer; changing only its label or manifest is invalid.
 
 `benchmark/manifest.json` is the immutable, secret-free workload input. The
@@ -45,7 +48,7 @@ the exact bytes, so consumers must not reformat the file after publication.
 
 ## Assemble a pipeline-rehearsal release
 
-The V17 ETL producer hands off one directory with exactly these ten regular,
+The V27 ETL producer hands off one directory with exactly these ten regular,
 non-symlink files:
 
 ```text
@@ -63,12 +66,15 @@ traffic-v1.json
 
 `SHA256SUMS` contains exactly nine canonical, filename-sorted entries—one for
 every file except itself. The source release metadata binds the `traffic-v1`
-manifest, its canonical ETL dataset run id, Flyway V17, and the
-`reset-flyway-v1-v17-etl-reseed-before-traffic` recovery contract. The traffic
+manifest, its canonical ETL dataset run id, Flyway V27, and the
+`reset-flyway-v1-v27-etl-reseed-before-traffic` recovery contract. The traffic
 migration digest is the digest of the successful `flyway_schema_history`
 `version|script|checksum` stream; it is intentionally not the digest of
 `backend-migrations.sha256`. The migration inventory remains independently
-bound by `SHA256SUMS`. The provenance must select the `large` profile and
+bound by `SHA256SUMS` and must contain every migration from V1 through V27,
+including the V18 canonical outbox/orchestration migration, V19–V20 manual
+payment-resolution migrations, and V21–V27 reservation checkout/inventory
+migrations. The provenance must select the `large` profile and
 enable both benchmark and traffic fixtures. Its service schema, traffic seed,
 anchor, validity window, and timezone must agree with `airbobdb` and the
 traffic manifest rather than merely being present.
@@ -78,6 +84,14 @@ Prepare a standalone local MySQL server with an existing but completely empty
 writer first, and do not use a primary with replicas, replication appliers, or
 any other independent writer. `AIRBOB_DATASET_DB_QUIESCED=true` is the
 operator's assertion of that isolation; it is not a discovery mechanism.
+
+V25 is a zero-data reservation-inventory hard cutover. The producer must apply
+V1–V27 to the empty schema before ETL reseeds any reservation fixture; V24 or
+older application writers must remain stopped through that boundary. A final
+dataset may contain ETL-created historical reservation rows, but the dump must
+already have V27 lineage and the `accommodation_inventory_day` table. Neither
+the migration guard nor the attestation is a database-level fence for an old
+writer. Do not automatically roll a V27 dataset back to a V24 binary.
 
 The capture command receives two distinct credentials. The one-shot
 `airbob_restore` account may import the dump and set the global
@@ -149,17 +163,17 @@ infra/aws/scripts/assemble-dataset-release.sh \
   /path/to/etl-release \
   /secure/path/attestation.json \
   /secure/path/assembled-releases \
-  rehearsal-v17 \
+  rehearsal-v27 \
   "$AIRBOB_DATASET_EVALUATION_TIME" \
   "$AIRBOB_DATASET_VALID_UNTIL_UTC"
 ```
 
 The assembler snapshots its inputs into a private `<release>.incomplete`
-directory, verifies the exact ETL inventory, checksums, provenance, V17
+directory, verifies the exact ETL inventory, checksums, provenance, V27
 metadata, traffic manifest, and live-database attestation, and converts the
-gzip SQL bytes with single-threaded zstd. The resulting compressed
-bytes are SHA-256-bound by the wrapper; cross-machine byte identity is not
-claimed without the same reviewed toolchain. It copies the benchmark manifest
+gzip SQL bytes with single-threaded zstd. The resulting compressed bytes are
+SHA-256-bound by the wrapper; cross-machine byte identity is not claimed
+without the same reviewed toolchain. It copies the benchmark manifest
 byte-for-byte, writes `manifest.json` last, runs
 `verify-dataset-release.sh`, and only then atomically renames the directory to
 the final release name. Existing final or incomplete destinations are never
@@ -178,6 +192,13 @@ than copying Elasticsearch data directories. It requires the immutable
 local path. The producer rejects a mutable tag or a local image that does not
 retain the exact ECR digest selected by that artifact.
 
+The source name `accommodations` must be a single managed write alias whose
+only target matches `accommodations-v*` and has `is_write_index=true`. The
+producer resolves and freezes that physical target, rejects alias drift during
+production, and records both `logicalAlias` and `snapshotIndex` in the
+version-2 snapshot reference. Bootstrap restores only `snapshotIndex` into a
+new dataset-versioned physical index before atomically moving `logicalAlias`.
+
 The local Elasticsearch service must run that selected image and keep the
 producer S3 client pinned to Seoul. The repository compose file supplies the
 required client setting:
@@ -195,12 +216,12 @@ The producer requires a temporary, exact writer grant. In the ignored
 review a saved foundation plan before applying it with `admin-eeoos`:
 
 ```hcl
-dataset_snapshot_writer_release = "rehearsal-v17"
+dataset_snapshot_writer_release = "rehearsal-v27"
 ```
 
 That value grants only
-`elasticsearch/releases/rehearsal-v17/*` plus the matching DynamoDB lease row
-`airbob-dataset-snapshot/rehearsal-v17`. A null value maps both grants to the
+`elasticsearch/releases/rehearsal-v27/*` plus the matching DynamoDB lease row
+`airbob-dataset-snapshot/rehearsal-v27`. A null value maps both grants to the
 unusable `__disabled__` target. Do not authorize two release prefixes at once.
 
 Configure an AWS CLI role profile after the reviewed foundation change has
@@ -243,7 +264,7 @@ infra/aws/scripts/produce-elasticsearch-snapshot.sh \
   /path/to/etl-release \
   /secure/path/attestation.json \
   "$AIRBOB_INFRA_IMAGE_RELEASE" \
-  rehearsal-v17 \
+  rehearsal-v27 \
   /secure/path/snapshot-reference.json \
   /secure/path/snapshot-producer-receipt.json
 unset AIRBOB_DATASET_DB_PASSWORD
@@ -264,12 +285,28 @@ credentials in the Elasticsearch keystore, and registers the writable
 that writer and registers the same bucket and base path as
 `airbob-dataset-readonly`. It then verifies the repository and exact snapshot
 metadata, restores to a temporary index, compares MySQL/Elasticsearch document
-membership and IDs, and compares the source-index mapping/content fingerprints
-with the restored snapshot. The ES content fingerprint proves snapshot
+membership, numeric IDs, and canonical document identity pairs, and compares
+the source-index mapping/content fingerprints with the restored snapshot. A
+document identity pair is the lowercase accommodation UUID, one tab, the
+positive decimal accommodation ID, and one newline. MySQL supplies
+`LOWER(BIN_TO_UUID(accommodation_uid)), id`; Elasticsearch supplies
+`_id, _source.accommodationId`. Both complete TSV streams are byte-sorted with
+`LC_ALL=C` before hashing. The producer captures and binds them before the
+source freeze and again after snapshot verification, so changing only an ES
+`_id` cannot pass as the same dataset. The ES content fingerprint proves snapshot
 fidelity; it is not a field-by-field MySQL-to-ES projection proof. Finally it
 records a stable S3 object-version inventory. Cleanup removes local
 repositories, temporary credentials, the restore index, and the source write
 block; it never deletes the remote snapshot prefix.
+
+That inventory includes every object version and delete marker under the
+release prefix. The foundation therefore configures no object expiration,
+noncurrent-version expiration, or expired-delete-marker cleanup on the dataset
+bucket. Its only lifecycle action aborts incomplete multipart uploads after
+seven days, which cannot remove a completed version recorded by a seal. A
+failed prefix containing any materialized version remains permanently
+occupied and must not be recycled; choose a new release name after resolving
+the producer failure.
 
 After both local mode-`0600` reference and receipt hard links exist and the
 final lease check still succeeds, the producer creates exactly one immutable
@@ -288,7 +325,7 @@ or manually releasing an unknown owner:
 AWS_PROFILE=airbob-dataset-publisher AWS_REGION=ap-northeast-2 \
   infra/aws/scripts/orchestration-lease.sh status \
   airbob-performance-lab-orchestration-lease \
-  airbob-dataset-snapshot/rehearsal-v17
+  airbob-dataset-snapshot/rehearsal-v27
 ```
 
 The two mode-`0600` outputs are removed if seal creation or readback fails. A
@@ -296,7 +333,7 @@ successful seal preserves them even if the subsequent lease release reports an
 error, because their hashes are already immutably bound in S3. Database-only
 and search-enabled assembly are alternative final releases, not sequential
 updates: the assembler never adds files to an existing final directory. To
-publish search for `rehearsal-v17`, produce the snapshot first and then pass its
+publish search for `rehearsal-v27`, produce the snapshot first and then pass its
 reference as the assembler's optional seventh argument:
 
 ```bash
@@ -304,7 +341,7 @@ infra/aws/scripts/assemble-dataset-release.sh \
   /path/to/etl-release \
   /secure/path/attestation.json \
   /secure/path/assembled-releases \
-  rehearsal-v17 \
+  rehearsal-v27 \
   "$AIRBOB_DATASET_EVALUATION_TIME" \
   "$AIRBOB_DATASET_VALID_UNTIL_UTC" \
   /secure/path/snapshot-reference.json
@@ -332,8 +369,8 @@ omits the final receipt argument; a search-enabled release requires it:
 ```bash
 AWS_PROFILE=airbob-dataset-publisher AWS_REGION=ap-northeast-2 \
   infra/aws/scripts/publish-dataset-release.sh \
-  /secure/path/assembled-releases/rehearsal-v17 \
-  rehearsal-v17 \
+  /secure/path/assembled-releases/rehearsal-v27 \
+  rehearsal-v27 \
   pipeline-rehearsal \
   airbob-performance-lab-dataset-942632789808 \
   /secure/path/snapshot-producer-receipt.json
@@ -440,7 +477,19 @@ and every declared count before it writes a data-ready receipt.
 For a search-enabled release, the cross-store ID fingerprint is the SHA-256 of
 the newline-terminated decimal ids for every `PUBLISHED` accommodation, sorted
 numerically. Elasticsearch ids come from `_source.accommodationId` and must
-produce the same digest. The content fingerprint is the SHA-256 of one compact
+produce the same digest. This numeric membership digest remains separate from
+the document identity pair digest. For the latter, MySQL emits
+`LOWER(BIN_TO_UUID(accommodation_uid)), id` and Elasticsearch emits
+`_id, _source.accommodationId`; encode each pair as lowercase UUID, tab,
+positive decimal ID, newline, then byte-sort the complete records with
+`LC_ALL=C`. The snapshot reference and producer receipt bind these as
+`dbDocumentIdentityPairsSha256` and `esDocumentIdentityPairsSha256`; the
+release manifest binds the same values as
+`databaseDocumentIdentityPairsSha256` and
+`elasticsearchDocumentIdentityPairsSha256`. Each DB/ES pair must be equal.
+After restore, Phase 3 independently regenerates both pair streams and rejects
+any mismatch before the `accommodations` write-alias cutover. The content
+fingerprint is the SHA-256 of one compact
 JSON `_source` value per restored document, with object keys sorted by `jq -S
 -c`, then all lines sorted bytewise with `LC_ALL=C`. Generate these values from
 the completed snapshot and record them in both the manifest and snapshot

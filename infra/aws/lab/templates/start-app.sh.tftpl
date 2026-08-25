@@ -72,7 +72,7 @@ chmod 600 "$runtime_env_tmp"
   printf '%s\n' 'TOSS_PAYMENTS_ENABLED=false'
   printf '%s\n' 'GOOGLE_API_ENABLED=false'
   printf '%s\n' 'AWS_S3_WRITE_ENABLED=false'
-  printf '%s\n' 'SLACK_NOTIFICATION_ENABLED=false'
+  printf '%s\n' 'OPERATOR_ALERT_SLACK_ENABLED=false'
   printf 'SPRING_DATASOURCE_URL=jdbc:mysql://%s:3306/airbobdb?serverTimezone=UTC&characterEncoding=UTF-8\n' "$rds_endpoint"
   printf 'SPRING_DATASOURCE_USERNAME=%s\n' "$username"
   printf 'SPRING_DATASOURCE_PASSWORD=%s\n' "$password"

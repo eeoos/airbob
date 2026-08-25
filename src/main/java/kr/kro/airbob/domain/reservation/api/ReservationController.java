@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.api;
 
+import java.net.URI;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -7,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -15,6 +18,7 @@ import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
@@ -31,8 +35,10 @@ public class ReservationController {
 	@PostMapping("/v1/reservations")
 	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> createReservation(
 		@Valid @RequestBody ReservationRequest.Create request,
+		@RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
 		@CurrentMemberId Long memberId) {
-		ReservationResponse.Ready response = reservationService.createPendingReservation(request, memberId);
+		ReservationResponse.Ready response = reservationService.createPendingReservation(
+			request, memberId, idempotencyKey);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
@@ -41,8 +47,12 @@ public class ReservationController {
 		@PathVariable String reservationUid,
 		@Valid @RequestBody PaymentRequest.Cancel request,
 		@CurrentMemberId Long memberId) {
-		reservationService.cancelReservation(reservationUid, request, memberId);
-		return ResponseEntity.accepted().body(ApiResponse.success());
+		Cancellation response = reservationService.cancelReservation(reservationUid, request, memberId);
+		ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.accepted();
+		if (response.statusUrl() != null) {
+			responseBuilder.location(URI.create(response.statusUrl()));
+		}
+		return responseBuilder.body(ApiResponse.success());
 	}
 
 	@GetMapping("/v1/profile/guest/reservations/{reservationUid}")

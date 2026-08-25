@@ -318,30 +318,30 @@ class ReservationTest {
 		}
 
 		@Test
-		@DisplayName("CANCELLATION_FAILED 예약은 새 attempt 식별자 없이 재요청할 수 없다")
-		void 취소실패에서_재요청_거부() {
+		@DisplayName("CANCELLATION_FAILED 예약은 새 operation을 만들기 위해 CANCELLATION_PENDING으로 돌아간다")
+		void 취소실패에서_새작업_재요청() {
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
 			reservation.confirm();
 			reservation.requestCancellation();
 			reservation.failCancellation();
 
-			assertThatThrownBy(reservation::requestCancellation)
-				.isInstanceOf(InvalidReservationStatusException.class);
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
+			assertThat(reservation.requestCancellation()).isTrue();
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_PENDING);
 		}
 
 		@Test
-		@DisplayName("CANCELLATION_FAILED 예약에 늦은 성공 이벤트가 오면 CANCELLED로 수렴한다")
-		void 취소실패에서_늦은성공_수렴() {
+		@DisplayName("CANCELLATION_FAILED 예약은 새 operation 없이 완료될 수 없다")
+		void 취소실패에서_늦은성공_거부() {
 			Reservation reservation = createPendingReservation();
 			reservation.startPayment(NOW);
 			reservation.confirm();
 			reservation.requestCancellation();
 			reservation.failCancellation();
 
-			assertThat(reservation.completeCancellation()).isTrue();
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+			assertThatThrownBy(reservation::completeCancellation)
+				.isInstanceOf(InvalidReservationStatusException.class);
+			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
 		}
 
 		@Test
@@ -417,20 +417,6 @@ class ReservationTest {
 			reservation.failCancellation();
 
 			// then - 상태 유지 (예외 없음)
-			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
-		}
-
-		@Test
-		@DisplayName("레거시 CANCELLED 예약은 PG 취소 실패 복구 시 CANCELLATION_FAILED로 되돌린다")
-		void 레거시_취소실패_복구() {
-			Reservation reservation = createPendingReservation();
-			reservation.startPayment(NOW);
-			reservation.confirm();
-			reservation.requestCancellation();
-			reservation.completeCancellation();
-
-			reservation.recoverLegacyCancellationFailure();
-
 			assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLATION_FAILED);
 		}
 

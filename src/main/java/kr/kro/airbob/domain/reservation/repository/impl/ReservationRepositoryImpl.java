@@ -37,27 +37,6 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	private final QMember guestMember = new QMember("guestMember");
 
 	@Override
-	public boolean existsConflictingReservation(
-		Long accommodationId,
-		LocalDate checkInDate,
-		LocalDate checkOutDate,
-		Instant now
-	) {
-		Integer fetchFirst = queryFactory
-			.selectOne()
-			.from(reservation)
-			.where(
-				reservation.accommodation.id.eq(accommodationId),
-				inventoryOccupyingReservationStatus(now),
-				reservation.checkInDate.lt(checkOutDate),
-				reservation.checkOutDate.gt(checkInDate)
-			)
-			.fetchFirst();
-
-		return fetchFirst != null;
-	}
-
-	@Override
 	public boolean existsFutureInventoryReservation(Long accommodationId, Instant now) {
 		Integer fetchFirst = queryFactory
 			.selectOne()
@@ -107,28 +86,17 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	) {
-		return findActiveReservationRanges(
+		return findReservationRanges(
 			reservation.accommodation.id.eq(accommodationId),
+			activeReservationStatus(),
 			windowStartInclusive,
 			windowEndExclusive
 		);
 	}
 
-	@Override
-	public List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
-		UUID accommodationUid,
-		LocalDate windowStartInclusive,
-		LocalDate windowEndExclusive
-	) {
-		return findActiveReservationRanges(
-			reservation.accommodation.accommodationUid.eq(accommodationUid),
-			windowStartInclusive,
-			windowEndExclusive
-		);
-	}
-
-	private List<ReservationDateRange> findActiveReservationRanges(
+	private List<ReservationDateRange> findReservationRanges(
 		BooleanExpression accommodationCondition,
+		BooleanExpression statusCondition,
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	) {
@@ -140,7 +108,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.from(reservation)
 			.where(
 				accommodationCondition,
-				activeReservationStatus(),
+				statusCondition,
 				reservation.checkInDate.lt(windowEndExclusive),
 				reservation.checkOutDate.gt(windowStartInclusive)
 			)

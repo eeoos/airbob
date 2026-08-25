@@ -1,8 +1,6 @@
 package kr.kro.airbob.domain.accommodation.cache.invalidation;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
@@ -29,8 +27,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
+import kr.kro.airbob.domain.accommodation.cache.messaging.outbox.OutboxAccommodationDetailCacheInvalidationPublisher;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 
 @SpringJUnitConfig(AccommodationDetailCacheInvalidationListenerTest.TestConfiguration.class)
 @DisplayName("숙소 상세 캐시 무효화 트랜잭션 이벤트 테스트")
@@ -38,12 +37,12 @@ class AccommodationDetailCacheInvalidationListenerTest {
 
 	@Autowired private AccommodationDetailCacheInvalidationPublisher publisher;
 	@Autowired private AccommodationDetailCache cache;
-	@Autowired private OutboxEventPublisher outboxEventPublisher;
+	@Autowired private OutboxWriter outboxWriter;
 	@Autowired private PlatformTransactionManager transactionManager;
 
 	@BeforeEach
 	void resetCacheMock() {
-		reset(cache, outboxEventPublisher);
+		reset(cache, outboxWriter);
 	}
 
 	@Test
@@ -54,12 +53,8 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		transaction.executeWithoutResult(status -> {
 			publisher.publish(1L, AccommodationDetailCacheInvalidationReason.IMAGE);
 
-			verify(outboxEventPublisher).save(
-				eq(EventType.CACHE_INVALIDATION_REQUESTED),
-				argThat(payload ->
-					payload instanceof AccommodationDetailCacheInvalidationRequestedEvent event
-						&& event.accommodationId().equals(1L)
-						&& event.reason() == AccommodationDetailCacheInvalidationReason.IMAGE));
+			verify(outboxWriter).append(new AccommodationDetailCacheInvalidationRequestedV1(
+				1L, AccommodationDetailCacheInvalidationReason.IMAGE));
 			verify(cache, never()).evict(anyLong(), any());
 		});
 
@@ -86,13 +81,13 @@ class AccommodationDetailCacheInvalidationListenerTest {
 			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION))
 			.isInstanceOf(IllegalTransactionStateException.class);
 
-		verifyNoInteractions(cache, outboxEventPublisher);
+		verifyNoInteractions(cache, outboxWriter);
 	}
 
 	@Configuration(proxyBeanMethods = false)
 	@EnableTransactionManagement
 	@Import({
-		AccommodationDetailCacheInvalidationPublisher.class,
+		OutboxAccommodationDetailCacheInvalidationPublisher.class,
 		AccommodationDetailCacheInvalidationListener.class
 	})
 	static class TestConfiguration {
@@ -103,8 +98,8 @@ class AccommodationDetailCacheInvalidationListenerTest {
 		}
 
 		@Bean
-		OutboxEventPublisher outboxEventPublisher() {
-			return mock(OutboxEventPublisher.class);
+		OutboxWriter outboxWriter() {
+			return mock(OutboxWriter.class);
 		}
 
 		@Bean

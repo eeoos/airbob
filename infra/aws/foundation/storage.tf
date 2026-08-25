@@ -169,14 +169,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "release" {
     }
   }
 
-  rule {
-    id     = "expire-noncurrent-versions"
-    status = "Enabled"
+  # A snapshot seal binds every completed object version and delete marker in
+  # its release prefix. Only the non-snapshot bundle bucket may expire old
+  # versions; incomplete multipart uploads never become sealed object versions.
+  dynamic "rule" {
+    for_each = each.value == "bundle" ? [true] : []
 
-    filter {}
+    content {
+      id     = "expire-noncurrent-versions"
+      status = "Enabled"
 
-    noncurrent_version_expiration {
-      noncurrent_days = 30
+      filter {}
+
+      noncurrent_version_expiration {
+        noncurrent_days = 30
+      }
     }
   }
 

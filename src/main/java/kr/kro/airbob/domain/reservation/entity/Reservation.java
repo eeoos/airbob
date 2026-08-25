@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -29,9 +28,12 @@ import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
-import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
+import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
+import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
+import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -100,10 +102,24 @@ public class Reservation extends BaseEntity {
 	@Column(nullable = false)
 	private ReservationStatus status;
 
+	// Keep the legacy 500-character storage contract; public checkout APIs accept at most 255.
+	@Column(length = 500)
 	private String message;
 
 	@Column(nullable = false)
 	private Instant expiresAt;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private boolean paymentAttemptRequired = false;
+
+	@JdbcTypeCode(SqlTypes.BINARY)
+	@Column(unique = true, columnDefinition = "BINARY(16)")
+	private UUID paymentAttemptUid;
+
+	private Instant paymentAttemptStartedAt;
+
+	private Instant paymentAttemptConsumedAt;
 
 	@PrePersist
 	protected void onCreate() {
@@ -114,14 +130,43 @@ public class Reservation extends BaseEntity {
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
 		ReservationRequest.Create request, String reservationCode, Instant now) {
+		return createPendingReservation(
+			accommodation,
+			guest,
+			request,
+			reservationCode,
+			now,
+			ReservationHoldPolicy.defaultPolicy()
+		);
+	}
+
+	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
+		ReservationRequest.Create request, String reservationCode, Instant now,
+		ReservationHoldPolicy holdPolicy) {
+		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
+			accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
+		return createPendingReservation(
+			accommodation,
+			guest,
+			request,
+			reservationCode,
+			now,
+			holdPolicy,
+			stayPrice,
+			accommodation.bookingCurrency()
+		);
+	}
+
+	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
+		ReservationRequest.Create request, String reservationCode, Instant now,
+		ReservationHoldPolicy holdPolicy, ReservationStayPricePolicy.StayPrice stayPrice,
+		String currency) {
 
 		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
 		Instant checkInAt = resolveStayInstant(
 			request.checkInDate(), accommodation.getCheckInTime(), timeZone);
 		Instant checkOutAt = resolveStayInstant(
 			request.checkOutDate(), accommodation.getCheckOutTime(), timeZone);
-		Long price = calculatePrice(accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
-
 		return Reservation.builder()
 			.accommodation(accommodation)
 			.guest(guest)
@@ -131,15 +176,23 @@ public class Reservation extends BaseEntity {
 			.checkOutAt(checkOutAt)
 			.timeZoneId(timeZone.getId())
 			.guestCount(request.guestCount())
-			.totalPrice(price)
-			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
-			// 이후 국제화 도입 필요
-			.currency("KRW")
+			.totalPrice(stayPrice.subtotal())
+			.currency(currency)
 			.status(ReservationStatus.PAYMENT_PENDING)
-			// .message(request.message())
-			.expiresAt(now.plus(15, ChronoUnit.MINUTES))
+			.message(request.requestMessage())
+			.expiresAt(holdPolicy.expiresAtFrom(now))
 			.reservationCode(reservationCode)
 			.build();
+	}
+
+	public static Instant resolveCheckInAt(Accommodation accommodation, LocalDate checkInDate) {
+		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
+		return resolveStayInstant(checkInDate, accommodation.getCheckInTime(), timeZone);
+	}
+
+	public static Instant resolveCheckOutAt(Accommodation accommodation, LocalDate checkOutDate) {
+		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
+		return resolveStayInstant(checkOutDate, accommodation.getCheckOutTime(), timeZone);
 	}
 
 	private static Instant resolveStayInstant(LocalDate date, java.time.LocalTime time, ZoneId timeZone) {
@@ -161,15 +214,6 @@ public class Reservation extends BaseEntity {
 		this.totalPrice -= applied;
 	}
 
-	private static Long calculatePrice(Long basePrice, LocalDate checkIn, LocalDate checkOut) {
-		long nights = ChronoUnit.DAYS.between(checkIn, checkOut);
-
-		if (nights <= 0) {
-			throw new InvalidReservationDateException();
-		}
-		return (basePrice * nights);
-	}
-
 	public void confirm() {
 		if (this.status != ReservationStatus.PAYMENT_PROCESSING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CONFIRM_RESERVATION);
@@ -188,11 +232,68 @@ public class Reservation extends BaseEntity {
 		return !Long.valueOf(0L).equals(this.totalPrice);
 	}
 
+	public ReservationStatus effectiveStatus(Instant now) {
+		if (this.status == ReservationStatus.PAYMENT_PENDING && isExpiredAt(now)) {
+			return ReservationStatus.EXPIRED;
+		}
+		return this.status;
+	}
+
+	public boolean isPaymentAllowedAt(Instant now) {
+		return this.status == ReservationStatus.PAYMENT_PENDING
+			&& requiresPayment()
+			&& !isExpiredAt(now);
+	}
+
 	public boolean startPayment(Instant now) {
 		if (this.status != ReservationStatus.PAYMENT_PENDING || isExpiredAt(now)) {
 			return false;
 		}
 		this.status = ReservationStatus.PAYMENT_PROCESSING;
+		return true;
+	}
+
+	public void requirePaymentAttempt() {
+		if (this.status != ReservationStatus.PAYMENT_PENDING || !requiresPayment()) {
+			throw new ReservationPaymentAttemptNotAllowedException();
+		}
+		this.paymentAttemptRequired = true;
+	}
+
+	public void issuePaymentAttempt(UUID paymentAttemptUid, Instant startedAt) {
+		if (!this.paymentAttemptRequired
+			|| this.status != ReservationStatus.PAYMENT_PENDING
+			|| !requiresPayment()
+			|| this.paymentAttemptUid != null) {
+			throw new ReservationPaymentAttemptNotAllowedException();
+		}
+		this.paymentAttemptUid = Objects.requireNonNull(paymentAttemptUid);
+		this.paymentAttemptStartedAt = Objects.requireNonNull(startedAt);
+	}
+
+	public void validatePaymentAttempt(UUID paymentAttemptUid) {
+		if (!this.paymentAttemptRequired) {
+			return;
+		}
+		if (this.paymentAttemptUid == null
+			|| !this.paymentAttemptUid.equals(paymentAttemptUid)) {
+			throw new InvalidReservationPaymentAttemptException();
+		}
+	}
+
+	public boolean consumePaymentAttempt(UUID paymentAttemptUid, Instant consumedAt) {
+		if (!this.paymentAttemptRequired) {
+			return false;
+		}
+		validatePaymentAttempt(paymentAttemptUid);
+		if (this.paymentAttemptConsumedAt != null) {
+			return false;
+		}
+		Instant consumed = Objects.requireNonNull(consumedAt);
+		if (consumed.isBefore(this.paymentAttemptStartedAt)) {
+			throw new InvalidReservationPaymentAttemptException();
+		}
+		this.paymentAttemptConsumedAt = consumed;
 		return true;
 	}
 
@@ -228,7 +329,8 @@ public class Reservation extends BaseEntity {
 		if (this.status == ReservationStatus.CANCELLATION_PENDING) {
 			return false;
 		}
-		if (this.status != ReservationStatus.CONFIRMED) {
+		if (this.status != ReservationStatus.CONFIRMED
+			&& this.status != ReservationStatus.CANCELLATION_FAILED) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLATION_PENDING;
@@ -250,8 +352,7 @@ public class Reservation extends BaseEntity {
 		if (this.status == ReservationStatus.CANCELLED) {
 			return false;
 		}
-		if (this.status != ReservationStatus.CANCELLATION_PENDING
-			&& this.status != ReservationStatus.CANCELLATION_FAILED) {
+		if (this.status != ReservationStatus.CANCELLATION_PENDING) {
 			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
 		}
 		this.status = ReservationStatus.CANCELLED;
@@ -269,10 +370,4 @@ public class Reservation extends BaseEntity {
 		return true;
 	}
 
-	public void recoverLegacyCancellationFailure() {
-		if (this.status != ReservationStatus.CANCELLED) {
-			throw new InvalidReservationStatusException(ErrorCode.CANNOT_CANCEL_RESERVATION);
-		}
-		this.status = ReservationStatus.CANCELLATION_FAILED;
-	}
 }

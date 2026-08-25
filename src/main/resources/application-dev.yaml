@@ -39,11 +39,7 @@ spring:
     socket-timeout: 30s
 
   kafka:
-    consumer:
-      bootstrap-servers: localhost:9092
-      group-id: payment-service-group
-    producer:
-      bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9092
 
 # 로컬에서는 .env 파일에서 AWS 자격증명 로드
 cloud:
@@ -59,10 +55,6 @@ cloud:
       auto: false
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN:}
-
-slack:
-  notification:
-    enabled: false  # 로컬에서는 Slack 알림 비활성화
 
 logging:
   level:

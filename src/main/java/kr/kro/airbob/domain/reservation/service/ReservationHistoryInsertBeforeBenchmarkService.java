@@ -12,6 +12,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,9 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ReservationHistoryInsertBeforeBenchmarkService {
 
-	private final ReservationHoldService holdService;
 	private final ReservationRepository reservationRepository;
 	private final ReservationHistoryRepository historyRepository;
+	private final ReservationInventoryService inventoryService;
 	private final Clock clock;
 
 	@Transactional
@@ -45,16 +46,16 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 
 		expiredList.forEach(reservation -> {
 			log.warn("예약 ID {}가 결제 시간 초과로 만료 처리됩니다.", reservation.getId());
+			inventoryService.releaseHeldIfOwned(
+				reservation.getAccommodation().getId(),
+				reservation.getCheckInDate(),
+				reservation.getCheckOutDate(),
+				reservation.getId()
+			);
 			reservation.expire();
 
 			historyRepository.save(
 				ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, "결제 시간 초과", "BATCH"));
-
-			holdService.removeHold(
-				reservation.getAccommodation().getId(),
-				reservation.getCheckInDate(),
-				reservation.getCheckOutDate()
-			);
 		});
 		log.info("{}건의 만료된 예약 정리 완료", expiredList.size());
 	}

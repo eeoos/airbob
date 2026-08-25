@@ -7,7 +7,7 @@ import {
   verifyIdleControl,
 } from '../traffic/aggregate-traffic-results.mjs';
 
-const FLYWAY_VERSION = '17';
+const FLYWAY_VERSION = '27';
 
 function snapshot(rows) {
   return rows.map((row) => JSON.stringify({
@@ -31,7 +31,7 @@ function fixture(overrides = {}) {
     releaseKind: 'pipeline-rehearsal',
     claimScope: 'pipeline-only',
     runId: 'rehearsal-run',
-    datasetRelease: 'rehearsal-v17',
+    datasetRelease: 'rehearsal-v20',
     datasetManifestSha256: 'c'.repeat(64),
     benchmarkManifestSha256: manifestSha,
     appCommit,

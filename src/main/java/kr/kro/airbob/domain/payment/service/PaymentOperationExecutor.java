@@ -1,18 +1,16 @@
 package kr.kro.airbob.domain.payment.service;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
-import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationGateway;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
-import lombok.extern.slf4j.Slf4j;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
 
-@Slf4j
 @Service
 public class PaymentOperationExecutor {
 	private static final int FAILURE_CODE_MAX_LENGTH = 100;
@@ -23,54 +21,82 @@ public class PaymentOperationExecutor {
 		"Provider approval did not match the payment operation.";
 
 	private final PaymentOperationLeaseService leaseService;
-	private final PaymentConfirmationGateway gateway;
+	private final PaymentProviderGateway gateway;
 	private final PaymentOperationFinalizer finalizer;
-	private final PaymentOperationAlertService alertService;
+	private final PaymentOperationExecutionFence executionFence;
 
 	public PaymentOperationExecutor(
 		PaymentOperationLeaseService leaseService,
-		PaymentConfirmationGateway gateway,
+		PaymentProviderGateway gateway,
 		PaymentOperationFinalizer finalizer,
-		PaymentOperationAlertService alertService
+		PaymentOperationExecutionFence executionFence
 	) {
 		this.leaseService = leaseService;
 		this.gateway = gateway;
 		this.finalizer = finalizer;
-		this.alertService = alertService;
+		this.executionFence = executionFence;
 	}
 
-	public void execute(UUID operationUid) {
-		PaymentOperationClaimResult claimResult = leaseService.claim(operationUid);
-		notifyManualReview(claimResult.manualReviewNotice());
-		if (claimResult.execution().isEmpty()) {
+	public void execute(UUID operationUid, long dispatchGeneration) {
+		executionFence.execute(operationUid, () -> {
+			executeWhileFenced(operationUid, dispatchGeneration);
+			return null;
+		});
+	}
+
+	private void executeWhileFenced(UUID operationUid, long dispatchGeneration) {
+		var execution = leaseService.claim(operationUid, dispatchGeneration);
+		if (execution.isEmpty()) {
 			return;
 		}
-		PaymentExecution execution = claimResult.execution().orElseThrow();
+		PaymentExecution claimedExecution = execution.orElseThrow();
+		if (claimedExecution.manualReconciliation() && !claimedExecution.mode().isInquiry()) {
+			leaseService.markManualReview(
+				claimedExecution,
+				"INVALID_MANUAL_RECONCILIATION_MODE",
+				"Manual reconciliation must use a provider inquiry.");
+			return;
+		}
 
 		PaymentGatewayResult result;
 		try {
-			result = executeGateway(execution);
+			result = executeGateway(claimedExecution);
 		} catch (RuntimeException unexpectedGatewayFailure) {
-			notifyManualReview(leaseService.markOutcomeUnknown(
-				execution,
+			leaseService.markOutcomeUnknown(
+				claimedExecution,
 				"UNCLASSIFIED_GATEWAY_FAILURE",
 				UNEXPECTED_GATEWAY_MESSAGE
-			));
+			);
 			return;
 		}
 
-		dispatchDurableResult(execution, result);
+		dispatchDurableResult(claimedExecution, result);
 	}
 
 	private PaymentGatewayResult executeGateway(PaymentExecution execution) {
-		return execution.mode() == PaymentExecutionMode.CONFIRM
-			? gateway.confirm(execution.gatewayCommand())
-			: gateway.inquire(execution.gatewayCommand());
+		return switch (execution.mode()) {
+			case CONFIRM -> gateway.confirm(execution.gatewayCommand());
+			case INQUIRE_CONFIRM -> gateway.inquireConfirmation(execution.gatewayCommand());
+			case CANCEL -> gateway.cancel(execution.gatewayCommand());
+			case INQUIRE_CANCEL -> gateway.inquireCancellation(execution.gatewayCommand());
+		};
 	}
 
 	private void dispatchDurableResult(PaymentExecution execution, PaymentGatewayResult result) {
 		if (result instanceof PaymentGatewayResult.Approved approved) {
 			applyApproved(execution, approved.payment());
+			return;
+		}
+		if (result instanceof PaymentGatewayResult.Cancelled cancelled) {
+			applyCancelled(execution, cancelled.payment());
+			return;
+		}
+		if (result instanceof PaymentGatewayResult.PaymentActive active) {
+			applyPaymentActive(execution, active.code(), active.message());
+			return;
+		}
+		if (result instanceof PaymentGatewayResult.ManualReviewRequired reviewRequired) {
+			markManualReview(execution, reviewRequired.code(), reviewRequired.message());
 			return;
 		}
 		if (result instanceof PaymentGatewayResult.Declined declined) {
@@ -98,22 +124,61 @@ public class PaymentOperationExecutor {
 	}
 
 	private void applyApproved(PaymentExecution execution, ConfirmedPayment confirmed) {
+		if (execution.mode() != PaymentExecutionMode.CONFIRM
+			&& execution.mode() != PaymentExecutionMode.INQUIRE_CONFIRM) {
+			markManualReview(execution, "UNEXPECTED_CONFIRMATION_RESULT", RESPONSE_MISMATCH_MESSAGE);
+			return;
+		}
 		if (!isCorrelatedApproval(execution, confirmed)) {
-			notifyManualReview(leaseService.markOutcomeUnknown(
+			leaseService.markOutcomeUnknown(
 				execution,
 				"PROVIDER_RESPONSE_MISMATCH",
 				RESPONSE_MISMATCH_MESSAGE
-			));
+			);
 			return;
 		}
 
 		finalizer.applyApproved(execution, confirmed);
 	}
 
+	private void applyCancelled(PaymentExecution execution, CancelledPayment cancelled) {
+		if ((execution.mode() != PaymentExecutionMode.CANCEL
+			&& execution.mode() != PaymentExecutionMode.INQUIRE_CANCEL)
+			|| !isCorrelatedCancellation(execution, cancelled)) {
+			markManualReview(execution, "PROVIDER_RESPONSE_MISMATCH",
+				"Provider cancellation did not match the payment operation.");
+			return;
+		}
+		finalizer.applyCancelled(execution, cancelled);
+	}
+
+	private void applyPaymentActive(PaymentExecution execution, String code, String message) {
+		if (execution.mode() != PaymentExecutionMode.INQUIRE_CANCEL) {
+			markManualReview(execution, "UNEXPECTED_ACTIVE_PAYMENT_RESULT",
+				"Provider returned an active payment for an incompatible operation.");
+			return;
+		}
+		if (execution.manualReconciliation()) {
+			leaseService.returnManualReconciliationToReview(
+				execution,
+				sanitizeCode(execution, code),
+				sanitizeMessage(execution, message),
+				false);
+			return;
+		}
+		leaseService.scheduleRetry(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
+	}
+
+	private void markManualReview(PaymentExecution execution, String code, String message) {
+		leaseService.markManualReview(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
+	}
+
 	private void applyRetryable(PaymentExecution execution, String code, String message) {
-		if (execution.mode() == PaymentExecutionMode.CONFIRM) {
-			notifyManualReview(leaseService.scheduleRetry(
-				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+		if (!execution.mode().isInquiry()) {
+			leaseService.scheduleRetry(
+				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 			return;
 		}
 
@@ -121,33 +186,26 @@ public class PaymentOperationExecutor {
 	}
 
 	private void applyNotFound(PaymentExecution execution, String code, String message) {
-		if (execution.mode() == PaymentExecutionMode.INQUIRE) {
-			notifyManualReview(leaseService.scheduleRetry(
-				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
+		if (execution.manualReconciliation()) {
+			boolean notPaidEligible = execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM;
+			leaseService.returnManualReconciliationToReview(
+				execution,
+				sanitizeCode(execution, code),
+				sanitizeMessage(execution, message),
+				notPaidEligible);
 			return;
 		}
-
+		if (execution.mode() == PaymentExecutionMode.INQUIRE_CONFIRM) {
+			leaseService.scheduleRetry(
+				execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
+			return;
+		}
 		markOutcomeUnknown(execution, code, message);
 	}
 
 	private void markOutcomeUnknown(PaymentExecution execution, String code, String message) {
-		notifyManualReview(leaseService.markOutcomeUnknown(
-			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message)));
-	}
-
-	private void notifyManualReview(Optional<PaymentOperationManualReviewNotice> notice) {
-		notice.ifPresent(this::notifyManualReview);
-	}
-
-	private void notifyManualReview(PaymentOperationManualReviewNotice notice) {
-		try {
-			alertService.alertManualReview(notice);
-		} catch (RuntimeException alertFailure) {
-			log.error(
-				"payment-operation manual-review alert failed. operationUid={}",
-				notice.operationUid()
-			);
-		}
+		leaseService.markOutcomeUnknown(
+			execution, sanitizeCode(execution, code), sanitizeMessage(execution, message));
 	}
 
 	private boolean isCorrelatedApproval(PaymentExecution execution, ConfirmedPayment confirmed) {
@@ -161,21 +219,36 @@ public class PaymentOperationExecutor {
 			&& confirmed.approvedAt() != null;
 	}
 
+	private boolean isCorrelatedCancellation(
+		PaymentExecution execution,
+		CancelledPayment cancelled
+	) {
+		return cancelled != null
+			&& Objects.equals(execution.paymentKey(), cancelled.paymentKey())
+			&& Objects.equals(execution.orderId(), cancelled.orderId())
+			&& execution.amount() == cancelled.totalAmount()
+			&& cancelled.cancelAmount() == execution.amount()
+			&& cancelled.balanceAmount() == 0L
+			&& cancelled.status() == PaymentStatus.CANCELED;
+	}
+
 	private String sanitizeCode(PaymentExecution execution, String code) {
-		String redacted = code == null ? "" : code;
-		redacted = redact(redacted, execution.paymentKey());
-		redacted = redact(redacted, execution.orderId());
-		redacted = redact(redacted, execution.providerIdempotencyKey());
-		String sanitized = sanitizeText(redacted, FAILURE_CODE_MAX_LENGTH);
+		String sanitized = sanitizeText(
+			redactExecutionSecrets(execution, code), FAILURE_CODE_MAX_LENGTH);
 		return sanitized.isBlank() ? UNKNOWN_CODE : sanitized;
 	}
 
 	private String sanitizeMessage(PaymentExecution execution, String message) {
-		String redacted = message == null ? "" : message;
+		return sanitizeText(
+			redactExecutionSecrets(execution, message), FAILURE_MESSAGE_MAX_LENGTH);
+	}
+
+	private String redactExecutionSecrets(PaymentExecution execution, String value) {
+		String redacted = value == null ? "" : value;
 		redacted = redact(redacted, execution.paymentKey());
 		redacted = redact(redacted, execution.orderId());
 		redacted = redact(redacted, execution.providerIdempotencyKey());
-		return sanitizeText(redacted, FAILURE_MESSAGE_MAX_LENGTH);
+		return redacted;
 	}
 
 	private String sanitizeText(String value, int maxLength) {

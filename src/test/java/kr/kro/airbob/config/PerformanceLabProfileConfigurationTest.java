@@ -20,13 +20,23 @@ class PerformanceLabProfileConfigurationTest {
 
 		assertThat(properties.getProperty("payment.toss.enabled")).isEqualTo(false);
 		assertThat(properties.getProperty("google.api.enabled")).isEqualTo(false);
-		assertThat(properties.getProperty("slack.notification.enabled")).isEqualTo(false);
+		assertThat(properties.getProperty("operator-alert.kafka.auto-startup")).isEqualTo(false);
+		assertThat(properties.getProperty("operator-alert.slack.enabled")).isEqualTo(false);
 		assertThat(properties.getProperty("cloud.aws.s3.write-enabled")).isEqualTo(false);
 		assertThat(propertyValues(properties))
 			.noneMatch(value -> value.contains("tosspayments.com")
 				|| value.contains("googleapis.com")
 				|| value.contains("slack.com")
 				|| value.contains("${"));
+	}
+
+	@Test
+	void performanceLabDisablesTheReservationInventoryLifecycle() throws IOException {
+		EnumerablePropertySource<?> properties = loadPerformanceLabProperties();
+
+		assertThat(properties.getProperty("reservation.inventory.startup.enabled")).isEqualTo(false);
+		assertThat(properties.getProperty("reservation.inventory.seed.enabled")).isEqualTo(false);
+		assertThat(properties.getProperty("reservation.inventory.retention.enabled")).isEqualTo(false);
 	}
 
 	private EnumerablePropertySource<?> loadPerformanceLabProperties() throws IOException {

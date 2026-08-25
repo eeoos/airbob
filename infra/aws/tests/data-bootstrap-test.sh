@@ -7,6 +7,12 @@ lab_root="$repo_root/infra/aws/lab"
 bootstrap="$repo_root/infra/aws/scripts/bootstrap-data.sh"
 validator="$repo_root/infra/aws/scripts/verify-dataset-release.sh"
 dataset_readme="$repo_root/infra/aws/datasets/README.md"
+temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-data-bootstrap-test.XXXXXX")
+
+cleanup() {
+  rm -rf "$temp_dir"
+}
+trap cleanup EXIT HUP INT TERM
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -86,10 +92,25 @@ assert_contains "$bootstrap" 'redis_cli 6380 FLUSHDB'
 assert_contains "$bootstrap" 'index.number_of_replicas'
 assert_contains "$bootstrap" '"index.blocks.write":false'
 assert_contains "$bootstrap" 'include_global_state'
+assert_contains "$bootstrap" 'include_aliases:false'
+assert_contains "$bootstrap" 'feature_states:["none"]'
 assert_contains "$bootstrap" '/_search?scroll=2m'
 assert_contains "$bootstrap" 'dbIdsSha256'
 assert_contains "$bootstrap" 'esIdsSha256'
+assert_contains "$bootstrap" 'dbDocumentIdentityPairsSha256'
+assert_contains "$bootstrap" 'esDocumentIdentityPairsSha256'
+assert_contains "$bootstrap" 'BIN_TO_UUID(accommodation_uid)'
+assert_contains "$bootstrap" '[._id, (._source.accommodationId | tostring)] | @tsv'
 assert_contains "$bootstrap" 'contentFingerprintSha256'
+assert_contains "$bootstrap" 'logical_alias=$(jq -r '\''.logicalAlias'\'' "$snapshot_reference")'
+assert_contains "$bootstrap" 'snapshot_index=$(jq -r '\''.snapshotIndex'\'' "$snapshot_reference")'
+assert_contains "$bootstrap" 'restored_index="${logical_alias}-vdataset-${AIRBOB_DATASET_RELEASE}"'
+assert_contains "$bootstrap" '--arg sourceIndex "$snapshot_index"'
+assert_contains "$bootstrap" 'rename_pattern:'
+assert_contains "$bootstrap" 'rename_replacement:'
+assert_contains "$bootstrap" 'is_write_index: true'
+assert_contains "$bootstrap" '/_aliases'
+assert_contains "$bootstrap" '(keys == [$restoredIndex])'
 assert_contains "$bootstrap" 'migrationChecksumSha256'
 assert_contains "$bootstrap" 'zstd --decompress --stdout "$dump" | mysql_exec airbobdb'
 assert_contains "$bootstrap" 'information_schema.COLUMNS'
@@ -112,6 +133,13 @@ done
 assert_contains "$dataset_readme" '`LC_ALL=C sort`'
 assert_contains "$bootstrap" 'kafka-topics.sh'
 assert_contains "$bootstrap" 'kafka-configs.sh'
+for canonical_topic in \
+  PAYMENT_OPERATION.events PAYMENT_OPERATION.events.RETRY PAYMENT_OPERATION.events.DLT \
+  ACCOMMODATION_INDEX.events ACCOMMODATION_INDEX.events.RETRY ACCOMMODATION_INDEX.events.DLT \
+  ACCOMMODATION_CACHE.events ACCOMMODATION_CACHE.events.RETRY ACCOMMODATION_CACHE.events.DLT \
+  OPERATOR_ALERT.events OPERATOR_ALERT.events.RETRY OPERATOR_ALERT.events.DLT; do
+  assert_contains "$bootstrap" "$canonical_topic"
+done
 assert_contains "$bootstrap" '.tasks'
 assert_contains "$bootstrap" 'datasetManifestSha256'
 assert_contains "$bootstrap" '"$dataset_uri/benchmark/manifest.json" "$benchmark_manifest"'
@@ -128,6 +156,43 @@ fi
 if grep -F -- "--execute" "$bootstrap" | grep -Fq 'debezium_password'; then
   fail "Phase 3 bootstrap must not place the Debezium password in process arguments"
 fi
+fingerprint_line=$(grep -n 'Elasticsearch content fingerprint does not match the release' "$bootstrap" | cut -d: -f1)
+document_identity_line=$(grep -n 'document identity pair fingerprint does not match the release' "$bootstrap" | cut -d: -f1)
+alias_cutover_line=$(grep -n 'alias_update=$(curl' "$bootstrap" | cut -d: -f1)
+[[ -n "$fingerprint_line" && -n "$document_identity_line" && -n "$alias_cutover_line" \
+  && "$fingerprint_line" -lt "$alias_cutover_line" \
+  && "$document_identity_line" -lt "$alias_cutover_line" ]] \
+  || fail "Elasticsearch write alias must be cut over only after restored content verification"
+
+identity_function="$temp_dir/validate-document-identity-pairs.sh"
+awk '
+  /^validate_document_identity_pairs\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { exit }
+' "$bootstrap" > "$identity_function"
+[[ -s "$identity_function" ]] || fail "bootstrap document identity validator is missing"
+# shellcheck source=/dev/null
+source "$identity_function"
+database_pairs="$temp_dir/database-pairs.tsv"
+elasticsearch_pairs="$temp_dir/elasticsearch-pairs.tsv"
+wrong_elasticsearch_pairs="$temp_dir/wrong-elasticsearch-pairs.tsv"
+printf '%s\t%s\n' \
+  '11111111-1111-1111-1111-111111111111' 1 \
+  '22222222-2222-2222-2222-222222222222' 2 > "$database_pairs"
+cp "$database_pairs" "$elasticsearch_pairs"
+printf '%s\t%s\n' \
+  '99999999-9999-9999-9999-999999999999' 1 \
+  '22222222-2222-2222-2222-222222222222' 2 > "$wrong_elasticsearch_pairs"
+document_identity_sha=$(sha256sum "$database_pairs" | awk '{print $1}')
+validate_document_identity_pairs \
+  "$database_pairs" "$elasticsearch_pairs" \
+  "$document_identity_sha" "$document_identity_sha" 2 \
+  || fail "matching canonical document identity pairs were rejected"
+if validate_document_identity_pairs \
+  "$database_pairs" "$wrong_elasticsearch_pairs" \
+  "$document_identity_sha" "$document_identity_sha" 2; then
+  fail "bootstrap accepted an Elasticsearch _id mapped to the wrong accommodation"
+fi
 
 checks="$lab_root/checks.tf"
 aws_lab="$repo_root/infra/aws/scripts/aws-lab.sh"
@@ -135,8 +200,11 @@ discovery="$repo_root/load-test/k6/traffic/run-aws-discovery.sh"
 aggregator="$repo_root/load-test/k6/traffic/aggregate-traffic-results.mjs"
 assert_contains "$validator" ".mysql.flywayVersion == \"$latest_flyway_version\""
 assert_contains "$validator" ".mysql.expectedTableRows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$validator" 'has("accommodation_inventory_day")'
+assert_contains "$validator" 'has("reservation")'
 assert_contains "$checks" "local.dataset_manifest.mysql.flywayVersion == \"$latest_flyway_version\""
 assert_contains "$checks" "local.dataset_expected_table_rows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$checks" 'contains(keys(local.dataset_expected_table_rows), "accommodation_inventory_day")'
 assert_contains "$checks" "local.data_bootstrap_receipt.flywayVersion == \"$latest_flyway_version\""
 assert_contains "$aws_lab" ".mysql.flywayVersion == \"$latest_flyway_version\""
 assert_contains "$aws_lab" ".mysql.expectedTableRows.flyway_schema_history == $flyway_history_rows"
@@ -145,6 +213,8 @@ assert_contains "$discovery" '== "$expected_flyway_version" ]]'
 assert_contains "$discovery" '--arg flywayVersion "$expected_flyway_version"'
 assert_contains "$aggregator" "const CURRENT_FLYWAY_VERSION = '$latest_flyway_version';"
 assert_contains "$aggregator" 'metadata.flywayVersion === CURRENT_FLYWAY_VERSION'
+assert_contains "$bootstrap" 'published accommodation timezone contract failed'
+assert_contains "$bootstrap" "time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'"
 
 embedded_document_bytes=$((
   $(wc -c < "$bootstrap") +

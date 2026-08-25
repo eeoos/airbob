@@ -19,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 class AccommodationReindexScriptTest {
 
 	private static final String TARGET_INDEX = "accommodations-v20260816010101";
+	private static final String LOGSTASH_CONTAINER_ID = "0123456789abcdef0123456789abcdef";
 	private static final Path SCRIPT = Path.of("scripts/reindex-accommodations.sh").toAbsolutePath();
 
 	@TempDir
@@ -54,7 +55,10 @@ class AccommodationReindexScriptTest {
 				+ "\",\"alias\":\"accommodations\",\"is_write_index\":true}");
 		assertThat(docker)
 			.contains("exec -T mysql mysql --defaults-extra-file=/dev/stdin")
-			.contains("run --rm -e LOGSTASH_TARGET_INDEX=" + TARGET_INDEX + " logstash")
+			.contains("run -d -e LOGSTASH_TARGET_INDEX=" + TARGET_INDEX + " logstash")
+			.contains("logs " + LOGSTASH_CONTAINER_ID)
+			.contains("rm -f " + LOGSTASH_CONTAINER_ID)
+			.doesNotContain("compose down")
 			.doesNotContain("top-secret-password");
 		assertThat(Files.readString(tempDir.resolve("curl-invocations.log")))
 			.contains("--connect-timeout 5")
@@ -79,8 +83,58 @@ class AccommodationReindexScriptTest {
 		Execution execution = execute("logstash-failure", true);
 
 		assertThat(execution.exitCode()).isNotZero();
+		assertThat(execution.output())
+			.contains("simulated logstash output")
+			.contains("Logstash exited with code 42");
 		assertThat(Files.readString(tempDir.resolve("requests.log")))
 			.doesNotContain("POST /_aliases");
+		assertThat(Files.readString(tempDir.resolve("docker.log")))
+			.contains("inspect --format {{.State.ExitCode}} " + LOGSTASH_CONTAINER_ID)
+			.contains("rm -f " + LOGSTASH_CONTAINER_ID)
+			.doesNotContain("compose down");
+	}
+
+	@Test
+	@DisplayName("Logstash가 멈추면 제한 시간 뒤 정확한 컨테이너만 정리하고 alias를 유지한다")
+	void timesOutHungLogstashAndCleansUpOnlyCapturedContainer() throws Exception {
+		Execution execution = execute(
+			"logstash-hang",
+			true,
+			Map.of(
+				"LOGSTASH_MAX_RUNTIME_SECONDS", "1",
+				"LOGSTASH_POLL_INTERVAL_SECONDS", "0.05"
+			)
+		);
+
+		assertThat(execution.exitCode()).isNotZero();
+		assertThat(execution.output())
+			.contains("simulated logstash output")
+			.contains("Logstash exceeded maximum runtime of 1 seconds");
+		assertThat(Files.readString(tempDir.resolve("requests.log")))
+			.contains("PUT /" + TARGET_INDEX)
+			.doesNotContain("DELETE /" + TARGET_INDEX)
+			.doesNotContain("POST /_aliases");
+		assertThat(Files.readString(tempDir.resolve("docker.log")))
+			.contains("stop -t 10 " + LOGSTASH_CONTAINER_ID)
+			.contains("rm -f " + LOGSTASH_CONTAINER_ID)
+			.doesNotContain("compose down")
+			.doesNotContain("unrelated-container");
+	}
+
+	@Test
+	@DisplayName("Logstash가 성공하면 exit code와 로그를 수집한 뒤 정확한 컨테이너만 제거한다")
+	void removesExactLogstashContainerAfterSuccess() throws Exception {
+		Execution execution = execute("existing", true);
+
+		assertThat(execution.exitCode()).withFailMessage(execution.output()).isZero();
+		assertThat(execution.output()).contains("simulated logstash output");
+		assertThat(Files.readString(tempDir.resolve("docker.log")))
+			.contains("inspect --format {{.State.Running}} " + LOGSTASH_CONTAINER_ID)
+			.contains("inspect --format {{.State.ExitCode}} " + LOGSTASH_CONTAINER_ID)
+			.contains("logs " + LOGSTASH_CONTAINER_ID)
+			.contains("rm -f " + LOGSTASH_CONTAINER_ID)
+			.doesNotContain("compose down")
+			.doesNotContain("unrelated-container");
 	}
 
 	@Test
@@ -310,8 +364,22 @@ class AccommodationReindexScriptTest {
 		  else
 		    printf '2\n'
 		  fi
-		elif [[ "$FAKE_SCENARIO" == logstash-failure ]]; then
-		  exit 42
+		elif [[ " $* " == *" compose "* && " $* " == *" run "* ]]; then
+		  printf '0123456789abcdef0123456789abcdef\n'
+		elif [[ " $* " == *" inspect --format {{.State.Running}} "* ]]; then
+		  if [[ "$FAKE_SCENARIO" == logstash-hang ]]; then
+		    printf 'true\n'
+		  else
+		    printf 'false\n'
+		  fi
+		elif [[ " $* " == *" inspect --format {{.State.ExitCode}} "* ]]; then
+		  if [[ "$FAKE_SCENARIO" == logstash-failure ]]; then
+		    printf '42\n'
+		  else
+		    printf '0\n'
+		  fi
+		elif [[ " $* " == *" logs "* ]]; then
+		  printf 'simulated logstash output\n'
 		fi
 		""";
 

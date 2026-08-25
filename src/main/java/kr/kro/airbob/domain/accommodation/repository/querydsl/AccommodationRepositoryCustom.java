@@ -28,11 +28,10 @@ public interface AccommodationRepositoryCustom {
         Pageable pageable
     );
 
-    List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status);
+	List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status);
 
-    Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
-    Optional<Accommodation> findWithDetailsExceptHostAndDeletedById(Long accommodationId, Long hostId);
+	Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
 
-    Page<Accommodation> findForIndexing(Pageable pageable);
+	Page<Accommodation> findForIndexing(Pageable pageable);
 
 }

@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.payment.api;
 
 import java.util.UUID;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +25,8 @@ public class PaymentOperationController {
 		@PathVariable UUID operationId,
 		@CurrentMemberId Long memberId
 	) {
-		return ResponseEntity.ok(ApiResponse.success(paymentOperationQueryService.find(operationId, memberId)));
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.body(ApiResponse.success(paymentOperationQueryService.find(operationId, memberId)));
 	}
 }

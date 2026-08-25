@@ -13,8 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 쿠폰 발급용 단일 분산 락. 예약의 {@code ReservationLockManager} 와 동일하게
- * Pub/Sub 기반 Redisson 락을 쓰되, 쿠폰은 단일 키({@code coupon:{id}:lock}) 만 잠금.
+ * 성능 비교 프로필에서만 사용하는 쿠폰 발급용 단일 분산 락.
+ * 단일 키({@code coupon:{id}:lock})에 Pub/Sub 기반 Redisson 락을 적용한다.
  */
 @Slf4j
 @Component

@@ -6,5 +6,6 @@ public enum PaymentTransactionType {
 	FAIL,            // 결제 승인 실패
 	VIRTUAL_ISSUED,  // 가상계좌 발급
 	CANCEL,          // 전체 취소
-	PARTIAL_CANCEL   // 부분 취소
+	PARTIAL_CANCEL,  // 부분 취소
+	CANCEL_FAIL      // 결제 취소 최종 실패
 }

@@ -8,6 +8,11 @@ spring:
       traffic-benchmark:
         - performance-lab
 
+  task:
+    scheduling:
+      pool:
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
+
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
     hibernate:
@@ -20,6 +25,7 @@ spring:
 
   datasource:
     hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
       data-source-properties:
         connectionTimeZone: UTC
         forceConnectionTimeZoneToSession: true
@@ -48,24 +54,28 @@ spring:
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      properties:
-        spring.kafka.dead-letter-publishing.topic-name: PAYMENT.events.DLT
     listener:
       ack-mode: MANUAL
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 google:
   api:
     enabled: ${GOOGLE_API_ENABLED:true}
     key: ${GOOGLE_API_KEY}
 
-slack:
-  webhook:
-    url: ${SLACK_WEBHOOK_URL}
-  notification:
-    enabled: true
+operator-alert:
+  kafka:
+    group: ${OPERATOR_ALERT_GROUP:operator-alert-delivery-group}
+    auto-startup: ${OPERATOR_ALERT_KAFKA_AUTO_STARTUP:true}
+    attempts: ${OPERATOR_ALERT_KAFKA_ATTEMPTS:4}
+    backoff-ms: ${OPERATOR_ALERT_KAFKA_BACKOFF_MS:30000}
+  slack:
+    enabled: ${OPERATOR_ALERT_SLACK_ENABLED:true}
+    webhook-url: ${OPERATOR_ALERT_SLACK_WEBHOOK_URL:${SLACK_WEBHOOK_URL:}}
+    connect-timeout: ${OPERATOR_ALERT_SLACK_CONNECT_TIMEOUT:2s}
+    read-timeout: ${OPERATOR_ALERT_SLACK_READ_TIMEOUT:10s}
 
 payment:
   operation:
@@ -75,9 +85,10 @@ payment:
     max-attempts: ${PAYMENT_OPERATION_MAX_ATTEMPTS:5}
     retry-initial-delay: ${PAYMENT_OPERATION_RETRY_INITIAL_DELAY:10s}
     retry-max-delay: ${PAYMENT_OPERATION_RETRY_MAX_DELAY:5m}
-    recovery-publication-interval: ${PAYMENT_OPERATION_RECOVERY_PUBLICATION_INTERVAL:10s}
+    execution-fence-timeout: ${PAYMENT_OPERATION_EXECUTION_FENCE_TIMEOUT:15s}
+    execution-fence-network-timeout: ${PAYMENT_OPERATION_EXECUTION_FENCE_NETWORK_TIMEOUT:20s}
+    execution-fence-max-concurrency: ${PAYMENT_OPERATION_EXECUTION_FENCE_MAX_CONCURRENCY:2}
     kafka:
-      topic: ${PAYMENT_OPERATION_TOPIC:PAYMENT_OPERATION.events}
       group: ${PAYMENT_OPERATION_GROUP:payment-operation-execution-group}
       attempts: ${PAYMENT_OPERATION_KAFKA_ATTEMPTS:4}
       backoff-ms: ${PAYMENT_OPERATION_KAFKA_BACKOFF_MS:30000}
@@ -103,13 +114,45 @@ settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
 
 reservation:
+  inventory:
+    startup:
+      enabled: ${RESERVATION_INVENTORY_STARTUP_ENABLED:true}
+      batch-size: ${RESERVATION_INVENTORY_STARTUP_BATCH_SIZE:200}
+    seed:
+      enabled: ${RESERVATION_INVENTORY_SEED_ENABLED:true}
+      safety-buffer-days: ${RESERVATION_INVENTORY_SEED_SAFETY_BUFFER_DAYS:7}
+      batch-size: ${RESERVATION_INVENTORY_SEED_BATCH_SIZE:100}
+      max-batches-per-run: ${RESERVATION_INVENTORY_SEED_MAX_BATCHES_PER_RUN:10}
+      interval: ${RESERVATION_INVENTORY_SEED_INTERVAL:1h}
+    retention:
+      enabled: ${RESERVATION_INVENTORY_RETENTION_ENABLED:true}
+      past-free-days-to-keep: ${RESERVATION_INVENTORY_RETENTION_PAST_FREE_DAYS:30}
+      batch-size: ${RESERVATION_INVENTORY_RETENTION_BATCH_SIZE:1000}
+      max-batches-per-run: ${RESERVATION_INVENTORY_RETENTION_MAX_BATCHES_PER_RUN:10}
+      interval: ${RESERVATION_INVENTORY_RETENTION_INTERVAL:1h}
+  quote:
+    duration: ${RESERVATION_QUOTE_DURATION:5m}
+    retention: ${RESERVATION_QUOTE_RETENTION:30d}
+    cleanup-batch-size: ${RESERVATION_QUOTE_CLEANUP_BATCH_SIZE:500}
+    cleanup-interval: ${RESERVATION_QUOTE_CLEANUP_INTERVAL:10m}
+    max-cleanup-batches-per-run: ${RESERVATION_QUOTE_MAX_CLEANUP_BATCHES_PER_RUN:10}
+    cleanup-transaction-timeout-seconds: ${RESERVATION_QUOTE_CLEANUP_TRANSACTION_TIMEOUT_SECONDS:10}
+  hold:
+    duration: ${RESERVATION_HOLD_DURATION:15m}
+  payment-attempt:
+    minimum-remaining: ${RESERVATION_PAYMENT_ATTEMPT_MINIMUM_REMAINING:90s}
   expiration:
+    cleanup-batch-size: ${RESERVATION_EXPIRATION_CLEANUP_BATCH_SIZE:100}
+    cleanup-interval: ${RESERVATION_EXPIRATION_CLEANUP_INTERVAL:30s}
+    max-batches-per-run: ${RESERVATION_EXPIRATION_MAX_BATCHES_PER_RUN:10}
+    transaction-timeout-seconds: ${RESERVATION_EXPIRATION_TRANSACTION_TIMEOUT_SECONDS:10}
     history-batch-size: ${RESERVATION_HISTORY_BATCH_SIZE:100}
 
 accommodation:
   indexing:
+    bootstrap:
+      enabled: ${ACCOMMODATION_INDEX_BOOTSTRAP_ENABLED:true}
     kafka:
-      topic: ${ACCOMMODATION_INDEXING_TOPIC:ACCOMMODATION.events}
       group: ${ACCOMMODATION_INDEXING_GROUP:accommodation-indexing-group}
       auto-startup: ${ACCOMMODATION_INDEXING_AUTO_STARTUP:true}
       attempts: ${ACCOMMODATION_INDEXING_KAFKA_ATTEMPTS:4}
@@ -133,7 +176,6 @@ accommodation:
       password: ${ACCOMMODATION_DETAIL_CACHE_REDIS_PASSWORD:}
     invalidation:
       kafka:
-        topic: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_TOPIC:ACCOMMODATION_CACHE.events}
         group: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_GROUP:accommodation-detail-cache-invalidation-group}
         auto-startup: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP:true}
         attempts: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_ATTEMPTS:4}
@@ -143,3 +185,10 @@ benchmark:
   read-model:
     enabled: ${BENCHMARK_READ_MODEL_ENABLED:false}
     token: ${BENCHMARK_READ_MODEL_TOKEN:}
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: accommodationInventory

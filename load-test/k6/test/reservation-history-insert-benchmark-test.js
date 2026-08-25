@@ -68,9 +68,6 @@ function payload(datasetSize, overrides = {}, variant = 'BEFORE') {
       non_pending_expired_preserved: true,
       history_snapshots_preserved: true,
       history_audit_context_preserved: true,
-      hold_removals_matched: true,
-      hold_removal_calls: datasetSize,
-      redis_network_excluded: true,
       operation: operation(datasetSize, {}, variant),
       ...overrides,
     },
@@ -119,15 +116,6 @@ function summary(datasetSize) {
       bulk_write_jdbc_submitted_rows: { values: { count: 1, avg: 0, min: 0, med: 0, max: 0 } },
       bulk_write_jdbc_configured_batch_size: { values: { count: 0 } },
       bulk_write_jdbc_affected_rows: { values: { count: 0 } },
-      bulk_write_hold_removal_calls: {
-        values: {
-          count: 1,
-          avg: datasetSize,
-          min: datasetSize,
-          med: datasetSize,
-          max: datasetSize,
-        },
-      },
     },
     root_group: { name: '', checks: [], groups: [] },
     state: { isStdOutTTY: false, testRunDurationMs: 100 },
@@ -253,14 +241,6 @@ export default function () {
       'BEFORE',
       BENCHMARK,
     ),
-    'wrong hold calls or Redis mode are rejected': () => (
-      !matchesBulkWriteResponseContract(
-        payload(3, { hold_removal_calls: 2 }), 3, 'BEFORE', BENCHMARK,
-      )
-        && !matchesBulkWriteResponseContract(
-          payload(3, { redis_network_excluded: false }), 3, 'BEFORE', BENCHMARK,
-        )
-    ),
     'reservation artifact records its own metadata': () => (
       artifact.metadata.candidate === 'RESERVATION_HISTORY_INSERT'
         && artifact.metadata.endpoint
@@ -268,10 +248,8 @@ export default function () {
         && artifact.metadata.operation_name === 'expired-reservation-cleanup-before'
         && artifact.metadata.dataset_size === 2000
     ),
-    'reservation artifact makes Redis exclusion and logical hold calls explicit': () => (
-      artifact.database_observation.external_effects.redis_network_excluded === true
-        && artifact.database_observation.external_effects.hold_removal_mode === 'RECORDED_NO_IO'
-        && artifact.database_observation.external_effects.hold_removal_calls === 2000
+    'reservation artifact has no external Redis hold effects': () => (
+      !('external_effects' in artifact.database_observation)
     ),
     'reservation artifacts preserve optional JDBC medians': () => (
       artifact.database_observation.jdbc.configured_batch_size === null

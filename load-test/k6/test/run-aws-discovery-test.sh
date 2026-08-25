@@ -45,7 +45,7 @@ assert_contains "$runner" 'app_query_per_request_queries_sum'
 assert_contains "$runner" 'api.airbob.cloud'
 assert_contains "$runner" "--if-none-match '*'"
 assert_contains "$runner" "SELECT version FROM airbobdb.flyway_schema_history WHERE success = 1 ORDER BY installed_rank DESC LIMIT 1"
-assert_contains "$runner" '.flywayVersion == "17"'
+assert_contains "$runner" '.flywayVersion == "27"'
 assert_contains "$runner" 'expected_flyway_version=$(jq -er '\''.flywayVersion'\'' "$bootstrap_receipt")'
 assert_contains "$runner" '--arg flywayVersion "$expected_flyway_version"'
 assert_contains "$makefile" 'aws-discovery:'
@@ -137,11 +137,11 @@ benchmark_sha=$(sha256_file "$temp_dir/objects/benchmark.json")
 jq -n --arg sha "$benchmark_sha" '{source:{benchmarkManifestSha256:$sha}}' > "$temp_dir/objects/dataset.json"
 dataset_sha=$(sha256_file "$temp_dir/objects/dataset.json")
 printf '%s  %s\n' "$(printf 'd%.0s' {1..64})" airbob.sql.zst > "$temp_dir/objects/mysql-sha256.txt"
-jq -n --arg run phase3-test --arg release rehearsal-v17 --arg sha "$dataset_sha" \
-  '{schemaVersion:1,runId:$run,datasetRelease:$release,releaseKind:"pipeline-rehearsal",datasetManifestSha256:$sha,flywayVersion:"17",outboxState:"empty"}' \
+jq -n --arg run phase3-test --arg release rehearsal-v20 --arg sha "$dataset_sha" \
+  '{schemaVersion:1,runId:$run,datasetRelease:$release,releaseKind:"pipeline-rehearsal",datasetManifestSha256:$sha,flywayVersion:"27",outboxState:"empty"}' \
   > "$temp_dir/objects/receipt.json"
 jq -n --arg run phase3-test --arg bundle "$harness_commit" --arg digest "$image_digest" \
-  --arg release rehearsal-v17 --arg datasetSha "$dataset_sha" \
+  --arg release rehearsal-v20 --arg datasetSha "$dataset_sha" \
   '{schemaVersion:1,runId:$run,datasetRelease:$release,policy:"isolated-read",loadGeneratorEnabled:true,bundleCommit:$bundle,imageDigest:$digest,datasetManifestSha256:$datasetSha,fencingToken:41}' \
   > "$temp_dir/objects/operator.json"
 cp "$repo_root/infra/aws/lab/tests/fixtures/lab-contract.json" "$temp_dir/objects/lab-contract.json"
@@ -174,7 +174,7 @@ cp "$temp_dir/objects/idle-before.jsonl" "$temp_dir/objects/idle-after.jsonl"
 cp "$temp_dir/objects/idle-before.jsonl" "$temp_dir/objects/before.jsonl"
 write_snapshot "$temp_dir/objects/after.jsonl" 11 1100000000 11 11
 printf '%s\n' '{"schemaVersion":1,"startEpochMs":1000,"endEpochMs":11000}' > "$temp_dir/objects/window.json"
-printf '%s\n' '{"schemaVersion":1,"flywayVersion":"17"}' > "$temp_dir/objects/flyway-before.json"
+printf '%s\n' '{"schemaVersion":1,"flywayVersion":"27"}' > "$temp_dir/objects/flyway-before.json"
 cp "$temp_dir/objects/flyway-before.json" "$temp_dir/objects/flyway-after.json"
 jq -n --arg sha "$benchmark_sha" --arg commit "$app_commit" '
   {
@@ -253,7 +253,7 @@ case " $* " in
     printf '%s\n' '{"run_id":"phase3-test","deployment_phase":"data-ready","services":{"debezium":"i-11111111111111111","kafka":"i-22222222222222222","monitoring":"i-33333333333333333"}}'
     ;;
   *' output -json phase3_contract '*)
-    printf '%s\n' '{"release_kind":"pipeline-rehearsal","data_ready":true,"dataset_release":"rehearsal-v17","rds_instance_id":"airbob-phase3-test","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
+    printf '%s\n' '{"release_kind":"pipeline-rehearsal","data_ready":true,"dataset_release":"rehearsal-v20","rds_instance_id":"airbob-phase3-test","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
     ;;
   *' output -json phase4_contract '*)
     printf '%s\n' '{"app_enabled":true,"measurement_policy":"isolated-read","load_generator_enabled":true,"load_generator_instance_id":"i-44444444444444444","capacity":{"desired":1},"auto_scaling_group_name":"airbob-phase3-test-app","alb_arn":"arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-test/0123456789abcdef","alb_dns_name":"airbob-test.ap-northeast-2.elb.amazonaws.com"}'

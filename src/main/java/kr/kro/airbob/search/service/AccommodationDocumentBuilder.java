@@ -1,17 +1,14 @@
 package kr.kro.airbob.search.service;
 
 import java.time.ZoneOffset;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
-import kr.kro.airbob.domain.accommodation.entity.Address;
-import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -33,14 +30,17 @@ public class AccommodationDocumentBuilder {
 	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final BookingWindowProvider bookingWindowProvider;
 
-	public AccommodationDocument buildAccommodationDocument(String accommodationUidStr) {
-		UUID accommodationUid = UUID.fromString(accommodationUidStr);
-
+	public AccommodationDocument buildAccommodationDocument(UUID accommodationUid) {
 		Accommodation accommodation = accommodationRepository.findWithDetailsByAccommodationUid(accommodationUid)
 			.orElseThrow(AccommodationNotFoundException::new);
+		if (accommodation.getStatus() != AccommodationStatus.PUBLISHED) {
+			return AccommodationDocument.builder()
+				.id(accommodationUid.toString())
+				.status(accommodation.getStatus().name())
+				.build();
+		}
 
 		List<String> amenityTypes = getAccommodationAmenities(accommodationUid);
-		// List<String> imageUrls = getAccommodationImages(accommodationUid, accommodation.getThumbnailUrl());
 		List<AccommodationDocument.DateRange> reservationRanges = getReservationRanges(accommodation.getId());
 		AccommodationReviewSummary reviewSummary = getReviewSummary(accommodationUid);
 
@@ -111,73 +111,4 @@ public class AccommodationDocumentBuilder {
 			.toList();
 	}
 
-	public AccommodationDocument build(Accommodation accommodation,
-		AccommodationReviewSummary summary,
-		List<AccommodationAmenity> amenities) {
-		if (accommodation == null) {
-			return null;
-		}
-
-		AccommodationDocument.AccommodationDocumentBuilder builder = AccommodationDocument.builder();
-
-		builder.id(accommodation.getAccommodationUid().toString());
-
-		builder.accommodationId(accommodation.getId())
-			.name(accommodation.getName())
-			.description(accommodation.getDescription())
-			.basePrice(accommodation.getBasePrice())
-			.currency(accommodation.getCurrency())
-			.thumbnailUrl(accommodation.getThumbnailUrl())
-			.type(accommodation.getType())
-			.status(accommodation.getStatus().name())
-			.timeZoneId(accommodation.getTimeZoneId())
-			.createdAt(accommodation.getCreatedAt().toInstant(ZoneOffset.UTC));
-
-		Address address = accommodation.getAddress();
-		if (address != null) {
-
-			builder.country(address.getCountry())
-				.state(address.getState())
-				.city(address.getCity())
-				.district(address.getDistrict())
-				.street(address.getStreet())
-				.addressDetail(address.getDetail())
-				.postalCode(address.getPostalCode())
-				.location(AccommodationDocument.Location.builder()
-					.lat(address.getLatitude())
-					.lon(address.getLongitude())
-					.build());
-		}
-
-		OccupancyPolicy policy = accommodation.getOccupancyPolicy();
-		if (policy != null) {
-			builder.maxGuests(policy.getMaxOccupancy())
-				.maxInfants(policy.getInfantOccupancy())
-				.maxPets(policy.getPetOccupancy());
-		} else {
-			// ES에서 null 필터링 문제를 피하기 위해 기본값 0 설정
-			builder.maxGuests(0).maxInfants(0).maxPets(0);
-		}
-
-		List<String> amenityNames;
-		if (amenities != null && !amenities.isEmpty()) {
-			amenityNames = amenities.stream()
-				.map(AccommodationAmenity::getAmenityCode)
-				.collect(Collectors.toList());
-		} else {
-			amenityNames = Collections.emptyList();
-		}
-		builder.amenityTypes(amenityNames);
-
-		if (summary != null) {
-			builder.averageRating(summary.getAverageRating() != null ? summary.getAverageRating().doubleValue() : 0.0)
-				.reviewCount(summary.getTotalReviewCount() != null ? summary.getTotalReviewCount() : 0);
-		} else {
-			// 리뷰가 없는 숙소(summary=null)는 0점으로 초기화
-			builder.averageRating(0.0)
-				.reviewCount(0);
-		}
-
-		return builder.build();
-	}
 }

@@ -13,7 +13,8 @@ ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS=5
 ELASTICSEARCH_REQUEST_TIMEOUT_SECONDS=60
 ELASTICSEARCH_CLEANUP_RESERVE_SECONDS=300
 LEASE_TABLE=airbob-performance-lab-orchestration-lease
-SOURCE_INDEX=accommodations
+SOURCE_ALIAS=accommodations
+SOURCE_INDEX=''
 S3_CLIENT=airbob_dataset_producer
 WRITER_REPOSITORY=airbob-dataset-producer
 READER_REPOSITORY=airbob-dataset-readonly
@@ -103,6 +104,26 @@ set_source_write_block() {
   response=$(curl_json PUT "/$SOURCE_INDEX/_settings" \
     "{\"index\":{\"blocks.write\":$value}}") || return 1
   jq -e '.acknowledged == true' <<<"$response" >/dev/null
+}
+
+resolve_source_index() {
+  local response
+  response=$(curl_json GET "/_alias/$SOURCE_ALIAS") || return 1
+  jq -er --arg alias "$SOURCE_ALIAS" '
+    select(type == "object" and length == 1) |
+    to_entries[0] as $target |
+    select($target.key | test("^" + $alias + "-v[a-z0-9][a-z0-9._-]*$")) |
+    select(($target.value.aliases | type) == "object") |
+    select(($target.value.aliases | keys) == [$alias]) |
+    select($target.value.aliases[$alias].is_write_index == true) |
+    $target.key
+  ' <<<"$response"
+}
+
+assert_source_alias() {
+  local resolved_index
+  resolved_index=$(resolve_source_index) || return 1
+  [[ "$resolved_index" == "$SOURCE_INDEX" ]]
 }
 
 remove_keystore_credentials() {
@@ -433,13 +454,14 @@ jq -se \
       test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
     (.verifierContractInventorySha256 | sha256) and
     (.databaseFingerprintSubsetSha256 | sha256) and
-    .flywayVersion == "17" and
-    .flywayHistoryRows == 17 and
+    .flywayVersion == "27" and
+    .flywayHistoryRows == 27 and
     (.migrationChecksumSha256 | sha256) and
     (.schemaFingerprintSha256 | sha256) and
     .outboxState == "empty" and
     (.expectedTableRows | type == "object" and length > 0) and
-    .expectedTableRows.flyway_schema_history == 17 and
+    (.expectedTableRows | has("accommodation_inventory_day") and has("reservation")) and
+    .expectedTableRows.flyway_schema_history == 27 and
     .expectedTableRows.outbox == 0 and
     (.expectedTableRows.accommodation | type == "number" and floor == . and . >= 0) and
     all(.expectedTableRows | to_entries[];
@@ -448,7 +470,7 @@ jq -se \
     ) and
     (.capturedAt | fromdateiso8601 | type == "number")
   )
-' "$attestation_file" >/dev/null || fail 'dataset attestation does not bind the exact V17 ETL release'
+' "$attestation_file" >/dev/null || fail 'dataset attestation does not bind the exact V27 ETL release'
 
 expected_image_keys='["DEBEZIUM_IMAGE","ELASTICSEARCH_EXPORTER_IMAGE","ELASTICSEARCH_IMAGE","GRAFANA_IMAGE","KAFKA_IMAGE","NODE_EXPORTER_IMAGE","PROMETHEUS_IMAGE","REDIS_EXPORTER_IMAGE","REDIS_IMAGE"]'
 jq -se \
@@ -701,6 +723,8 @@ cluster_health=$(curl_json GET '/_cluster/health?wait_for_no_relocating_shards=t
 jq -e '.timed_out == false and .relocating_shards == 0 and .initializing_shards == 0' \
   <<<"$cluster_health" >/dev/null || fail 'local Elasticsearch cluster is not quiesced'
 
+SOURCE_INDEX=$(resolve_source_index) \
+  || fail 'accommodations must be a single managed write alias over one version index'
 source_settings=$(curl_json GET "/$SOURCE_INDEX/_settings?flat_settings=true&filter_path=*.settings.index.blocks.write") \
   || fail 'cannot inspect the source index write block'
 jq -e --arg index "$SOURCE_INDEX" \
@@ -767,6 +791,23 @@ capture_database_ids() {
   sort -n "$output" -o "$output"
 }
 
+capture_database_document_identity_pairs() {
+  local output=$1
+  mysql_exec --execute="
+    SELECT LOWER(BIN_TO_UUID(accommodation_uid)), id
+    FROM accommodation
+    WHERE status = 'PUBLISHED'
+    ORDER BY LOWER(BIN_TO_UUID(accommodation_uid)), id
+  " > "$output" \
+    || fail 'cannot read published accommodation document identities from local MySQL'
+  awk -F '\t' '
+    NF != 2 ||
+    $1 !~ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ ||
+    $2 !~ /^[1-9][0-9]*$/ { exit 1 }
+  ' "$output" || fail 'database document identity pair stream is invalid'
+  sort "$output" -o "$output"
+}
+
 capture_search_fingerprint() {
   local index=$1
   local label=$2
@@ -774,6 +815,7 @@ capture_search_fingerprint() {
   local count_file="$work_dir/$label.count"
   local mapping_file="$work_dir/$label.mapping.json"
   local ids_file="$work_dir/$label.ids.txt"
+  local document_identity_pairs_file="$work_dir/$label.document-identity-pairs.tsv"
   local content_file="$work_dir/$label.content.jsonl"
   local page_file="$work_dir/$label.page.json"
 
@@ -791,6 +833,7 @@ capture_search_fingerprint() {
   ' <<<"$mapping_response" > "$mapping_file" || fail 'Elasticsearch mapping response is invalid'
 
   : > "$ids_file"
+  : > "$document_identity_pairs_file"
   : > "$content_file"
   curl_json POST "/$index/_search?scroll=2m" \
     '{"size":1000,"sort":["_doc"],"_source":true}' > "$page_file" \
@@ -802,6 +845,8 @@ capture_search_fingerprint() {
       (._scroll_id | type == "string" and length > 0) and
       (.hits.hits | type == "array") and
       all(.hits.hits[];
+        (._id | type == "string" and
+          test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
         (._source | type == "object") and
         (._source.accommodationId | type == "number" and floor == . and . > 0)
       )
@@ -811,6 +856,8 @@ capture_search_fingerprint() {
     active_scroll_id=$scroll_id
     [[ "$page_hits" -gt 0 ]] || break
     jq -r '.hits.hits[]._source.accommodationId' "$page_file" >> "$ids_file"
+    jq -r '.hits.hits[] | [._id, (._source.accommodationId | tostring)] | @tsv' \
+      "$page_file" >> "$document_identity_pairs_file"
     jq -S -c '.hits.hits[]._source' "$page_file" >> "$content_file"
     scroll_body=$(jq -cn --arg scrollId "$scroll_id" '{scroll:"2m",scroll_id:$scrollId}')
     curl_json POST '/_search/scroll' "$scroll_body" > "$page_file.next" \
@@ -824,13 +871,24 @@ capture_search_fingerprint() {
 
   awk 'NF != 1 || $1 !~ /^[1-9][0-9]*$/ { exit 1 }' "$ids_file" \
     || fail 'Elasticsearch accommodation id stream is invalid'
+  awk -F '\t' '
+    NF != 2 ||
+    $1 !~ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ ||
+    $2 !~ /^[1-9][0-9]*$/ { exit 1 }
+  ' "$document_identity_pairs_file" \
+    || fail 'Elasticsearch document identity pair stream is invalid'
   sort -n "$ids_file" -o "$ids_file"
+  sort "$document_identity_pairs_file" -o "$document_identity_pairs_file"
   sort "$content_file" -o "$content_file"
   [[ "$(wc -l < "$ids_file" | tr -d '[:space:]')" == "$(cat "$count_file")" ]] \
     || fail 'Elasticsearch id count does not match the index count'
+  [[ "$(wc -l < "$document_identity_pairs_file" | tr -d '[:space:]')" == "$(cat "$count_file")" ]] \
+    || fail 'Elasticsearch document identity pair count does not match the index count'
 
   printf '%s\n' "$(sha256_file "$mapping_file")" > "$work_dir/$label.mapping.sha256"
   printf '%s\n' "$(sha256_file "$ids_file")" > "$work_dir/$label.ids.sha256"
+  printf '%s\n' "$(sha256_file "$document_identity_pairs_file")" \
+    > "$work_dir/$label.document-identity-pairs.sha256"
   printf '%s\n' "$(sha256_file "$content_file")" > "$work_dir/$label.content.sha256"
 }
 
@@ -839,18 +897,27 @@ verify_database_state "$expected_accommodation_rows"
 database_ids_pre="$work_dir/database-ids.pre.txt"
 capture_database_ids "$database_ids_pre"
 database_ids_pre_sha=$(sha256_file "$database_ids_pre")
+database_document_identity_pairs_pre="$work_dir/database-document-identity-pairs.pre.tsv"
+capture_database_document_identity_pairs "$database_document_identity_pairs_pre"
+database_document_identity_pairs_pre_sha=$(sha256_file "$database_document_identity_pairs_pre")
 
 source_frozen=true
 set_source_write_block true || fail 'cannot freeze the source Elasticsearch index'
+assert_source_alias || fail 'accommodations write alias changed while freezing its source index'
 capture_search_fingerprint "$SOURCE_INDEX" source-pre
 source_document_count=$(cat "$work_dir/source-pre.count")
 source_mapping_sha=$(cat "$work_dir/source-pre.mapping.sha256")
 source_es_ids_sha=$(cat "$work_dir/source-pre.ids.sha256")
+source_es_document_identity_pairs_sha=$(cat "$work_dir/source-pre.document-identity-pairs.sha256")
 source_content_sha=$(cat "$work_dir/source-pre.content.sha256")
 [[ "$database_ids_pre_sha" == "$source_es_ids_sha" ]] \
   || fail 'local database and Elasticsearch accommodation ids do not match'
 [[ "$(wc -l < "$database_ids_pre" | tr -d '[:space:]')" == "$source_document_count" ]] \
   || fail 'local database and Elasticsearch published accommodation counts do not match'
+[[ "$database_document_identity_pairs_pre_sha" == "$source_es_document_identity_pairs_sha" ]] \
+  || fail 'local database and Elasticsearch document identity pairs do not match'
+[[ "$(wc -l < "$database_document_identity_pairs_pre" | tr -d '[:space:]')" == "$source_document_count" ]] \
+  || fail 'local database and Elasticsearch document identity pair counts do not match'
 
 add_keystore_value() {
   local setting=$1
@@ -1055,6 +1122,8 @@ capture_search_fingerprint "$temporary_index" restored
   || fail 'restored snapshot mapping differs from the frozen source'
 [[ "$(cat "$work_dir/restored.ids.sha256")" == "$source_es_ids_sha" ]] \
   || fail 'restored snapshot ids differ from the frozen source'
+[[ "$(cat "$work_dir/restored.document-identity-pairs.sha256")" == "$source_es_document_identity_pairs_sha" ]] \
+  || fail 'restored snapshot document identity pairs differ from the frozen source'
 [[ "$(cat "$work_dir/restored.content.sha256")" == "$source_content_sha" ]] \
   || fail 'restored snapshot content differs from the frozen source'
 
@@ -1063,11 +1132,16 @@ database_ids_post="$work_dir/database-ids.post.txt"
 capture_database_ids "$database_ids_post"
 cmp -s "$database_ids_pre" "$database_ids_post" \
   || fail 'database accommodation ids changed during snapshot production'
+database_document_identity_pairs_post="$work_dir/database-document-identity-pairs.post.tsv"
+capture_database_document_identity_pairs "$database_document_identity_pairs_post"
+cmp -s "$database_document_identity_pairs_pre" "$database_document_identity_pairs_post" \
+  || fail 'database document identity pairs changed during snapshot production'
 capture_search_fingerprint "$SOURCE_INDEX" source-post
-for fingerprint_part in count mapping.sha256 ids.sha256 content.sha256; do
+for fingerprint_part in count mapping.sha256 ids.sha256 document-identity-pairs.sha256 content.sha256; do
   cmp -s "$work_dir/source-pre.$fingerprint_part" "$work_dir/source-post.$fingerprint_part" \
     || fail 'source Elasticsearch index changed during snapshot production'
 done
+assert_source_alias || fail 'accommodations write alias changed during snapshot production'
 
 snapshot_metadata_second=$(curl_json GET "/_snapshot/$READER_REPOSITORY/$snapshot_name") \
   || fail 'cannot repeat the completed snapshot metadata read'
@@ -1116,27 +1190,33 @@ jq -nS \
   --arg bucket "$dataset_bucket" \
   --arg basePath "$base_path" \
   --arg snapshot "$snapshot_name" \
-  --arg index "$SOURCE_INDEX" \
+  --arg logicalAlias "$SOURCE_ALIAS" \
+  --arg snapshotIndex "$SOURCE_INDEX" \
   --arg elasticsearchVersion "$ELASTICSEARCH_VERSION" \
   --arg imageDigest "$image_digest" \
   --argjson documentCount "$source_document_count" \
   --arg mappingSha256 "$source_mapping_sha" \
   --arg dbIdsSha256 "$database_ids_pre_sha" \
   --arg esIdsSha256 "$source_es_ids_sha" \
+  --arg dbDocumentIdentityPairsSha256 "$database_document_identity_pairs_pre_sha" \
+  --arg esDocumentIdentityPairsSha256 "$source_es_document_identity_pairs_sha" \
   --arg contentFingerprintSha256 "$source_content_sha" '
   {
-    schemaVersion:1,
+    schemaVersion:2,
     repository:$repository,
     bucket:$bucket,
     basePath:$basePath,
     snapshot:$snapshot,
-    index:$index,
+    logicalAlias:$logicalAlias,
+    snapshotIndex:$snapshotIndex,
     elasticsearchVersion:$elasticsearchVersion,
     imageDigest:$imageDigest,
     documentCount:$documentCount,
     mappingSha256:$mappingSha256,
     dbIdsSha256:$dbIdsSha256,
     esIdsSha256:$esIdsSha256,
+    dbDocumentIdentityPairsSha256:$dbDocumentIdentityPairsSha256,
+    esDocumentIdentityPairsSha256:$esDocumentIdentityPairsSha256,
     contentFingerprintSha256:$contentFingerprintSha256
   }
 ' > "$reference_temp"
@@ -1167,13 +1247,16 @@ jq -nS \
   --argjson snapshotFailedShards "$snapshot_failed_shards" \
   --arg snapshotMetadataSha256 "$snapshot_metadata_sha" \
   --arg snapshotReferenceSha256 "$snapshot_reference_sha" \
+  --arg snapshotIndex "$SOURCE_INDEX" \
   --argjson documentCount "$source_document_count" \
   --arg mappingSha256 "$source_mapping_sha" \
   --arg dbIdsSha256 "$database_ids_pre_sha" \
   --arg esIdsSha256 "$source_es_ids_sha" \
+  --arg dbDocumentIdentityPairsSha256 "$database_document_identity_pairs_pre_sha" \
+  --arg esDocumentIdentityPairsSha256 "$source_es_document_identity_pairs_sha" \
   --arg contentFingerprintSha256 "$source_content_sha" '
   {
-    schemaVersion:1,
+    schemaVersion:2,
     datasetRelease:$datasetRelease,
     datasetRunId:$datasetRunId,
     sourceReleasePayloadSha256:$sourceReleasePayloadSha256,
@@ -1201,7 +1284,7 @@ jq -nS \
       uuid:$snapshotUuid,
       state:"SUCCESS",
       version:$snapshotVersion,
-      indices:["accommodations"],
+      indices:[$snapshotIndex],
       includeGlobalState:false,
       totalShards:$snapshotTotalShards,
       successfulShards:$snapshotSuccessfulShards,
@@ -1214,31 +1297,39 @@ jq -nS \
       mappingSha256:$mappingSha256,
       dbIdsSha256:$dbIdsSha256,
       esIdsSha256:$esIdsSha256,
+      dbDocumentIdentityPairsSha256:$dbDocumentIdentityPairsSha256,
+      esDocumentIdentityPairsSha256:$esDocumentIdentityPairsSha256,
       contentFingerprintSha256:$contentFingerprintSha256
     }
   }
 ' > "$receipt_temp"
 chmod 600 "$receipt_temp"
 
-jq -e --arg release "$dataset_release" '
-  (keys | sort) == (["basePath", "bucket", "contentFingerprintSha256", "dbIdsSha256", "documentCount", "elasticsearchVersion", "esIdsSha256", "imageDigest", "index", "mappingSha256", "repository", "schemaVersion", "snapshot"] | sort) and
-  .schemaVersion == 1 and .basePath == ("elasticsearch/releases/" + $release) and
-  .dbIdsSha256 == .esIdsSha256
+jq -e --arg release "$dataset_release" --arg alias "$SOURCE_ALIAS" '
+  (keys | sort) == (["basePath", "bucket", "contentFingerprintSha256", "dbDocumentIdentityPairsSha256", "dbIdsSha256", "documentCount", "elasticsearchVersion", "esDocumentIdentityPairsSha256", "esIdsSha256", "imageDigest", "logicalAlias", "mappingSha256", "repository", "schemaVersion", "snapshot", "snapshotIndex"] | sort) and
+  .schemaVersion == 2 and .basePath == ("elasticsearch/releases/" + $release) and
+  .logicalAlias == $alias and
+  (.snapshotIndex | type == "string" and test("^" + $alias + "-v[a-z0-9][a-z0-9._-]*$")) and
+  .dbIdsSha256 == .esIdsSha256 and
+  .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256
 ' "$reference_temp" >/dev/null || fail 'generated snapshot reference violates its exact schema'
-jq -e --arg referenceSha "$snapshot_reference_sha" '
+jq -e --arg referenceSha "$snapshot_reference_sha" --arg snapshotIndex "$SOURCE_INDEX" '
   (keys | sort) == ([
     "createdAt", "datasetRelease", "datasetRunId", "producer", "repository", "schemaVersion",
     "snapshot", "sourceReleasePayloadSha256", "validation"
   ] | sort) and
+  .schemaVersion == 2 and
   (.datasetRunId | type == "string" and test("^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")) and
   (.sourceReleasePayloadSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
   (.producer | keys | sort) == (["client", "elasticsearchVersion", "imageDigest"] | sort) and
   (.repository | keys | sort) == (["basePath", "bucket", "inventory", "readerName", "verificationNodeCount", "writerName"] | sort) and
   (.repository.inventory | keys | sort) == (["algorithm", "entryCount", "sha256", "totalVersionBytes"] | sort) and
   (.snapshot | keys | sort) == (["failedShards", "includeGlobalState", "indices", "metadataSha256", "name", "state", "successfulShards", "totalShards", "uuid", "version"] | sort) and
-  (.validation | keys | sort) == (["contentFingerprintSha256", "dbIdsSha256", "documentCount", "esIdsSha256", "mappingSha256", "snapshotReferenceSha256"] | sort) and
+  .snapshot.indices == [$snapshotIndex] and
+  (.validation | keys | sort) == (["contentFingerprintSha256", "dbDocumentIdentityPairsSha256", "dbIdsSha256", "documentCount", "esDocumentIdentityPairsSha256", "esIdsSha256", "mappingSha256", "snapshotReferenceSha256"] | sort) and
   .validation.snapshotReferenceSha256 == $referenceSha and
-  .validation.dbIdsSha256 == .validation.esIdsSha256
+  .validation.dbIdsSha256 == .validation.esIdsSha256 and
+  .validation.dbDocumentIdentityPairsSha256 == .validation.esDocumentIdentityPairsSha256
 ' "$receipt_temp" >/dev/null || fail 'generated snapshot receipt violates its exact schema'
 snapshot_receipt_sha=$(sha256_file "$receipt_temp")
 

@@ -159,4 +159,8 @@ public class Accommodation extends BaseEntity {
 	public void updateThumbnailUrl(String imageUrl) {
 		this.thumbnailUrl = imageUrl;
 	}
+
+	public String bookingCurrency() {
+		return currency == null || currency.isBlank() ? "KRW" : currency;
+	}
 }

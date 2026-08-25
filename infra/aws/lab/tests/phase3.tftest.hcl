@@ -42,8 +42,8 @@ variables {
   verified_probe_instance_id = "i-0123456789abcdef0"
   bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
   bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  dataset_release            = "rehearsal-v17"
-  dataset_manifest_sha256    = "584acb815e7747c726d229df9e561783ee845df549bdda7b07fdf3b044c41487"
+  dataset_release            = "rehearsal-v20"
+  dataset_manifest_sha256    = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
   database_bootstrap         = "dump"
   rds_engine_version         = "8.0.40"
   app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -150,15 +150,15 @@ override_data {
     body = jsonencode({
       schemaVersion           = 1
       runId                   = "phase3-test"
-      datasetRelease          = "rehearsal-v17"
+      datasetRelease          = "rehearsal-v20"
       datasetRunId            = "20260816T001530Z-12345678"
       releaseKind             = "pipeline-rehearsal"
       databaseBootstrap       = "dump"
       dumpSha256              = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-      flywayVersion           = "17"
+      flywayVersion           = "27"
       migrationChecksumSha256 = "4444444444444444444444444444444444444444444444444444444444444444"
       schemaFingerprintSha256 = "5555555555555555555555555555555555555555555555555555555555555555"
-      datasetManifestSha256   = "584acb815e7747c726d229df9e561783ee845df549bdda7b07fdf3b044c41487"
+      datasetManifestSha256   = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
       rdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
       rdsEngineVersion        = "8.0.40"
       outboxState             = "empty"
@@ -196,31 +196,31 @@ run "restore_rds_only_from_matching_snapshot" {
 
   variables {
     database_bootstrap      = "snapshot"
-    rds_snapshot_identifier = "airbob-dataset-rehearsal-v17"
+    rds_snapshot_identifier = "airbob-dataset-rehearsal-v20"
   }
 
   override_data {
     target          = data.aws_db_snapshot.dataset[0]
     override_during = plan
     values = {
-      db_snapshot_identifier = "airbob-dataset-rehearsal-v17"
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
       engine                 = "mysql"
       engine_version         = "8.0.40"
       status                 = "available"
       encrypted              = true
       tags = {
-        DatasetRelease = "rehearsal-v17"
+        DatasetRelease = "rehearsal-v20"
         DatasetRunId   = "20260816T001530Z-12345678"
         DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion  = "17"
-        ManifestSha256 = "584acb815e7747c726d229df9e561783ee845df549bdda7b07fdf3b044c41487"
+        FlywayVersion  = "27"
+        ManifestSha256 = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
       }
     }
   }
 
   assert {
     condition = (
-      module.rds[0].contract.snapshot_identifier == "airbob-dataset-rehearsal-v17" &&
+      module.rds[0].contract.snapshot_identifier == "airbob-dataset-rehearsal-v20" &&
       output.phase3_contract.database_bootstrap == "snapshot"
     )
     error_message = "Snapshot mode must bind RDS creation to the prevalidated dataset snapshot."
@@ -237,7 +237,7 @@ run "attest_only_the_exact_ordered_data_receipt" {
   assert {
     condition = (
       output.phase3_contract.data_ready == true &&
-      output.phase3_contract.data_bootstrap_receipt_key == "data-bootstrap/phase3-test/rehearsal-v17.json"
+      output.phase3_contract.data_bootstrap_receipt_key == "data-bootstrap/phase3-test/rehearsal-v20.json"
     )
     error_message = "data-ready must require the exact receipt for this run, RDS, release, and ordered service state."
   }
@@ -251,7 +251,7 @@ run "reject_stale_flyway_release" {
     override_during = plan
     values = {
       body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
-        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, { flywayVersion = "12" })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, { flywayVersion = "19" })
       }))
     }
   }
@@ -270,7 +270,7 @@ run "reject_incomplete_flyway_history" {
         mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
           expectedTableRows = merge(
             jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
-            { flyway_schema_history = 16 },
+            { flyway_schema_history = 19 },
           )
         })
       }))
@@ -355,6 +355,7 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
       output.phase4_contract.capacity.desired == 1 &&
       output.phase4_contract.capacity.max == 4 &&
       output.phase4_contract.app_subnet_count == 2 &&
+      output.phase4_contract.app_availability_zones == tolist(["ap-northeast-2a", "ap-northeast-2c"]) &&
       output.phase4_contract.scaling_policy_count == 2 &&
       output.phase4_contract.request_count_per_target_per_minute == 1200 &&
       output.phase4_contract.cpu_target_percent == 50 &&
@@ -376,7 +377,7 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
       one([
         for statement in jsondecode(aws_iam_role_policy.measurement_data_plane["loadgen"].policy).Statement : statement
         if statement.Sid == "ReadSelectedBenchmarkManifest"
-      ]).Resource == "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/datasets/rehearsal-v17/benchmark/manifest.json" &&
+      ]).Resource == "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/datasets/rehearsal-v20/benchmark/manifest.json" &&
       alltrue([
         for policy in values(aws_iam_role_policy.measurement_data_plane) :
         one([
@@ -391,36 +392,6 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
       output.phase4_contract.refresh.auto_rollback == true
     )
     error_message = "Scaling mode must be two-AZ 1/1/4 with CPU and baseline-derived ALB request target tracking plus the public no-ingress load generator."
-  }
-}
-
-run "enable_two_az_distributed_lock_capacity_without_scaling_policies" {
-  command = plan
-
-  variables {
-    deployment_phase   = "data-ready"
-    app_enabled        = true
-    mode               = "distributed-lock"
-    measurement_policy = "isolated-read"
-  }
-
-  assert {
-    condition = (
-      output.phase4_contract.mode == "distributed-lock" &&
-      output.phase4_contract.measurement_policy == "isolated-read" &&
-      output.phase4_contract.capacity.min == 2 &&
-      output.phase4_contract.capacity.desired == 2 &&
-      output.phase4_contract.capacity.max == 2 &&
-      output.phase4_contract.app_subnet_count == 2 &&
-      output.phase4_contract.app_availability_zones == tolist(["ap-northeast-2a", "ap-northeast-2c"]) &&
-      output.phase4_contract.scaling_policy_count == 0 &&
-      output.phase4_contract.request_count_per_target_per_minute == null &&
-      output.phase4_contract.refresh.min_healthy_percentage == 100 &&
-      output.phase4_contract.refresh.max_healthy_percentage == 200 &&
-      length(output.phase4_contract.refresh.checkpoint_percentages) == 0 &&
-      output.phase4_contract.refresh.auto_rollback == true
-    )
-    error_message = "Distributed-lock mode must be two-AZ fixed 2/2/2 with isolated-read, no request target, and no scaling policy."
   }
 }
 
@@ -445,33 +416,6 @@ run "reject_integrated_smoke_in_scaling_mode" {
     app_enabled                         = true
     mode                                = "scaling"
     measurement_policy                  = "integrated-smoke"
-    request_count_per_target_per_minute = 1200
-  }
-
-  expect_failures = [check.app_capacity_contract]
-}
-
-run "reject_integrated_smoke_in_distributed_lock_mode" {
-  command = plan
-
-  variables {
-    deployment_phase   = "data-ready"
-    app_enabled        = true
-    mode               = "distributed-lock"
-    measurement_policy = "integrated-smoke"
-  }
-
-  expect_failures = [check.app_capacity_contract]
-}
-
-run "reject_request_target_in_distributed_lock_mode" {
-  command = plan
-
-  variables {
-    deployment_phase                    = "data-ready"
-    app_enabled                         = true
-    mode                                = "distributed-lock"
-    measurement_policy                  = "isolated-read"
     request_count_per_target_per_minute = 1200
   }
 

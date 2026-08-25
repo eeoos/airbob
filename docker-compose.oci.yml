@@ -68,14 +68,22 @@ services:
       - ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_KAFKA_ADMIN_AUTO_CREATE=false
+      - SPRING_KAFKA_LISTENER_MISSING_TOPICS_FATAL=true
     depends_on:
       mysql:
         condition: service_healthy
+      flyway-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
-      kafka:
+      kafka-topic-init:
+        condition: service_completed_successfully
+      debezium-connector-init:
+        condition: service_completed_successfully
+      debezium-connector-monitor:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
@@ -186,6 +194,9 @@ services:
       MYSQL_DATABASE: airbobdb
       MYSQL_USER: ${SPRING_DATASOURCE_USERNAME}
       MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
+      LOGSTASH_JDBC_USER: ${LOGSTASH_JDBC_USER:-logstash}
+      LOGSTASH_JDBC_PASSWORD: ${LOGSTASH_JDBC_PASSWORD:-logstash}
       TZ: UTC
     command:
       - --character-set-server=utf8mb4
@@ -198,8 +209,7 @@ services:
       - --enforce-gtid-consistency=ON
     volumes:
       - mysql-data:/var/lib/mysql
-      # init SQL은 최초 1회만 필요. 이미 초기화된 볼륨에서는 실행되지 않음
-      # 신규 배포 시: docker/mysql/init/ 내용을 수동 실행
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -211,6 +221,43 @@ services:
         limits:
           memory: 2G
     restart: unless-stopped
+    networks:
+      - airbob-network
+
+  flyway-migrate:
+    image: flyway/flyway:11.7.2
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true
+      FLYWAY_USER: ${SPRING_DATASOURCE_USERNAME}
+      FLYWAY_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_BASELINE_VERSION: "1"
+    volumes:
+      - ./src/main/resources/db/migration:/flyway/sql:ro
+    command: ["migrate"]
+    restart: "no"
+    networks:
+      - airbob-network
+
+  reservation-inventory-cutover-preflight:
+    image: mysql:8.0.33
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: airbobdb
+      MYSQL_USER: ${SPRING_DATASOURCE_USERNAME}
+      MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    volumes:
+      - ./scripts/preflight-reservation-inventory-cutover.sh:/preflight.sh:ro
+    entrypoint: ["/bin/sh", "/preflight.sh"]
+    restart: "no"
     networks:
       - airbob-network
 
@@ -231,6 +278,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: airbob-kafka-cluster
       # ARM64 메모리 최적화
@@ -252,17 +300,41 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
+  # Kafka topic bootstrap
+  # --------------------------------------------------------
+  kafka-topic-init:
+    image: apache/kafka:3.7.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_REPLICATION_FACTOR: 1
+    volumes:
+      - ./docker/kafka/init-topics.sh:/opt/airbob/init-topics.sh:ro
+    entrypoint: ["/bin/bash", "/opt/airbob/init-topics.sh"]
+    restart: "no"
+    networks:
+      - airbob-network
+
+  # --------------------------------------------------------
   # Debezium (Kafka Connect) - GHCR pre-built 이미지
-  # connect-distributed.properties가 이미지에 bake됨
+  # The reviewed worker configuration is bind-mounted during deployment.
   # --------------------------------------------------------
   debezium:
     image: ghcr.io/eeoos/airbob-debezium:latest
     container_name: debezium
+    volumes:
+      - ./docker/debezium/connect-distributed.properties:/opt/kafka/config/connect-distributed.properties:ro
+    env_file:
+      - .env.oci
     environment:
       KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      DEBEZIUM_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     healthcheck:
@@ -279,6 +351,58 @@ services:
     networks:
       - airbob-network
 
+  debezium-connector-init:
+    image: curlimages/curl:8.8.0
+    depends_on:
+      debezium:
+        condition: service_healthy
+      flyway-migrate:
+        condition: service_completed_successfully
+    environment:
+      CONNECT_URL: http://debezium:8083
+      CONNECTOR_NAME: airbob-outbox-connector
+    volumes:
+      - ./debezium-config/outbox-connector.json:/config/outbox-connector.json:ro
+      - ./docker/debezium/register-connector.sh:/opt/airbob/register-connector.sh:ro
+    entrypoint: ["/bin/sh", "/opt/airbob/register-connector.sh"]
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    restart: "no"
+    networks:
+      - airbob-network
+
+  debezium-connector-monitor:
+    image: curlimages/curl:8.8.0
+    container_name: airbob-debezium-connector-monitor
+    depends_on:
+      debezium-connector-init:
+        condition: service_completed_successfully
+    environment:
+      CONNECT_URL: http://debezium:8083
+      CONNECTOR_NAME: airbob-outbox-connector
+      CONNECTOR_MONITOR_STATE_FILE: /tmp/airbob-connector-monitor/state
+      CONNECTOR_MONITOR_INTERVAL_SECONDS: 30
+      CONNECTOR_MONITOR_HTTP_CONNECT_TIMEOUT_SECONDS: 5
+      CONNECTOR_MONITOR_HTTP_MAX_TIME_SECONDS: 10
+    volumes:
+      - ./docker/debezium/monitor-connector.sh:/opt/airbob/monitor-connector.sh:ro
+    entrypoint: ["/bin/sh", "/opt/airbob/monitor-connector.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -r /tmp/airbob-connector-monitor/state && grep -qx RUNNING /tmp/airbob-connector-monitor/state"]
+      interval: 30s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    restart: unless-stopped
+    networks:
+      - airbob-network
+
   # --------------------------------------------------------
   # Elasticsearch (with Nori Analyzer) - GHCR pre-built 이미지
   # --------------------------------------------------------
@@ -288,6 +412,7 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - action.auto_create_index=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - path.repo=/usr/share/elasticsearch/backup
     volumes:

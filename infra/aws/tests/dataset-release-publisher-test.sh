@@ -179,14 +179,14 @@ case " $* " in
             Sid:"DriftedWildcardWriter",
             Effect:"Allow",
             Action:"s3:Put*",
-            Resource:("arn:aws:s3:::" + $bucket + "/elasticsearch/releases/rehearsal-v17/*")
+            Resource:("arn:aws:s3:::" + $bucket + "/elasticsearch/releases/rehearsal-v20/*")
           }]
         elif $policyMode == "not-action" then
           .PolicyDocument.Statement += [{
             Sid:"DriftedNotActionWriter",
             Effect:"Allow",
             NotAction:["s3:GetObject","s3:ListBucket"],
-            Resource:("arn:aws:s3:::" + $bucket + "/elasticsearch/releases/rehearsal-v17/*")
+            Resource:("arn:aws:s3:::" + $bucket + "/elasticsearch/releases/rehearsal-v20/*")
           }]
         elif $policyMode == "extra-non-s3" then
           .PolicyDocument.Statement += [{
@@ -197,7 +197,7 @@ case " $* " in
           }]
         elif $policyMode == "active-seal-only" then
           (.PolicyDocument.Statement[] | select(.Sid == "SealElasticsearchSnapshotRelease").Resource) =
-            ("arn:aws:s3:::" + $bucket + "/elasticsearch/seals/rehearsal-v17.json")
+            ("arn:aws:s3:::" + $bucket + "/elasticsearch/seals/rehearsal-v20.json")
         elif $policyMode == "missing-seal-read" then
           (.PolicyDocument.Statement[] | select(.Sid == "ReadPublishedDatasetBytes").Resource) -=
             [("arn:aws:s3:::" + $bucket + "/elasticsearch/seals/*")]
@@ -353,7 +353,7 @@ EOF
 chmod 700 "$fake_bin/aws"
 
 bucket=airbob-performance-lab-dataset-942632789808
-release=rehearsal-v17
+release=rehearsal-v20
 prefix="datasets/$release"
 secret_fixture='publisher-secret-must-not-leak'
 
@@ -363,10 +363,10 @@ version_inventory_drift="$temp_dir/version-inventory-drift.json"
 cat > "$version_inventory" <<'JSON'
 {
   "IsTruncated": true,
-  "NextKeyMarker": "elasticsearch/releases/rehearsal-v17/index-0",
+  "NextKeyMarker": "elasticsearch/releases/rehearsal-v20/index-0",
   "NextVersionIdMarker": "version-1",
   "Versions": [{
-    "Key": "elasticsearch/releases/rehearsal-v17/index-0",
+    "Key": "elasticsearch/releases/rehearsal-v20/index-0",
     "VersionId": "version-1",
     "IsLatest": true,
     "Size": 4,
@@ -380,7 +380,7 @@ cat > "$version_inventory_second" <<'JSON'
 {
   "IsTruncated": false,
   "Versions": [{
-    "Key": "elasticsearch/releases/rehearsal-v17/snap-airbob-rehearsal-v17.dat",
+    "Key": "elasticsearch/releases/rehearsal-v20/snap-airbob-rehearsal-v20.dat",
     "VersionId": "version-2",
     "IsLatest": true,
     "Size": 5,
@@ -426,24 +426,27 @@ make_release() {
     mkdir -p "$root/elasticsearch"
     jq -n '
       {
-        schemaVersion:1,
+        schemaVersion:2,
         repository:"airbob-dataset-readonly",
         bucket:"airbob-performance-lab-dataset-942632789808",
-        basePath:"elasticsearch/releases/rehearsal-v17",
-        snapshot:"airbob-rehearsal-v17",
-        index:"accommodations",
+        basePath:"elasticsearch/releases/rehearsal-v20",
+        snapshot:"airbob-rehearsal-v20",
+        logicalAlias:"accommodations",
+        snapshotIndex:"accommodations-v20260817001530",
         elasticsearchVersion:"8.18.8",
         imageDigest:("sha256:" + ("a" * 64)),
         documentCount:10,
         mappingSha256:("b" * 64),
         dbIdsSha256:("c" * 64),
         esIdsSha256:("c" * 64),
+        dbDocumentIdentityPairsSha256:("9" * 64),
+        esDocumentIdentityPairsSha256:("9" * 64),
         contentFingerprintSha256:("d" * 64)
       }
     ' > "$root/elasticsearch/snapshot-reference.json"
     jq -n '
       {
-        datasetRelease:"rehearsal-v17",
+        datasetRelease:"rehearsal-v20",
         datasetRunId:"20260817T001530Z-12345678",
         releaseKind:"evidence",
         source:{canonicalPayloadSha256:("f" * 64)},
@@ -454,11 +457,14 @@ make_release() {
           elasticsearchVersion:"8.18.8",
           imageDigest:("sha256:" + ("a" * 64)),
           requiredPlugins:["analysis-nori","repository-s3"],
-          index:"accommodations",
+          logicalAlias:"accommodations",
+          snapshotIndex:"accommodations-v20260817001530",
           documentCount:10,
           mappingSha256:("b" * 64),
           databaseAccommodationIdsSha256:("c" * 64),
           elasticsearchAccommodationIdsSha256:("c" * 64),
+          databaseDocumentIdentityPairsSha256:("9" * 64),
+          elasticsearchDocumentIdentityPairsSha256:("9" * 64),
           contentFingerprintSha256:("d" * 64)
         }
       }
@@ -468,8 +474,8 @@ make_release() {
       --arg inventorySha "$inventory_sha" \
       --arg referenceSha "$snapshot_reference_sha" '
       {
-        schemaVersion:1,
-        datasetRelease:"rehearsal-v17",
+        schemaVersion:2,
+        datasetRelease:"rehearsal-v20",
         datasetRunId:"20260817T001530Z-12345678",
         sourceReleasePayloadSha256:("f" * 64),
         createdAt:"2026-08-17T00:00:00Z",
@@ -480,7 +486,7 @@ make_release() {
         },
         repository:{
           bucket:"airbob-performance-lab-dataset-942632789808",
-          basePath:"elasticsearch/releases/rehearsal-v17",
+          basePath:"elasticsearch/releases/rehearsal-v20",
           writerName:"airbob-dataset-producer",
           readerName:"airbob-dataset-readonly",
           verificationNodeCount:1,
@@ -492,11 +498,11 @@ make_release() {
           }
         },
         snapshot:{
-          name:"airbob-rehearsal-v17",
+          name:"airbob-rehearsal-v20",
           uuid:"snapshot-uuid",
           state:"SUCCESS",
           version:"8.18.8",
-          indices:["accommodations"],
+          indices:["accommodations-v20260817001530"],
           includeGlobalState:false,
           totalShards:1,
           successfulShards:1,
@@ -509,12 +515,14 @@ make_release() {
           mappingSha256:("b" * 64),
           dbIdsSha256:("c" * 64),
           esIdsSha256:("c" * 64),
+          dbDocumentIdentityPairsSha256:("9" * 64),
+          esDocumentIdentityPairsSha256:("9" * 64),
           contentFingerprintSha256:("d" * 64)
         }
       }
     ' > "$root/snapshot-receipt.json"
   else
-    jq -n '{datasetRelease:"rehearsal-v17",releaseKind:"pipeline-rehearsal",search:{enabled:false}}' \
+    jq -n '{datasetRelease:"rehearsal-v20",releaseKind:"pipeline-rehearsal",search:{enabled:false}}' \
       > "$root/manifest.json"
   fi
 }
@@ -825,6 +833,20 @@ jq '.validation.documentCount = 11' "$receipt" > "$tampered_receipt"
 reset_fake_s3
 expect_failure mismatched-search-receipt run_publisher \
   "$search_release" "$release" evidence "$bucket" "$tampered_receipt"
+
+mismatched_document_identity_receipt="$temp_dir/mismatched-document-identity-receipt.json"
+jq '.validation.esDocumentIdentityPairsSha256 = ("8" * 64)' \
+  "$receipt" > "$mismatched_document_identity_receipt"
+reset_fake_s3
+expect_failure mismatched-document-identity-receipt run_publisher \
+  "$search_release" "$release" evidence "$bucket" "$mismatched_document_identity_receipt"
+
+missing_document_identity_receipt="$temp_dir/missing-document-identity-receipt.json"
+jq 'del(.validation.dbDocumentIdentityPairsSha256)' \
+  "$receipt" > "$missing_document_identity_receipt"
+reset_fake_s3
+expect_failure missing-document-identity-receipt-schema run_publisher \
+  "$search_release" "$release" evidence "$bucket" "$missing_document_identity_receipt"
 
 wrong_source_receipt="$temp_dir/wrong-source-receipt.json"
 jq '.sourceReleasePayloadSha256 = ("e" * 64)' "$receipt" > "$wrong_source_receipt"

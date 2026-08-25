@@ -19,7 +19,7 @@ on:
         required: false
         default: performance
         type: choice
-        options: [performance, distributed-lock, scaling]
+        options: [performance, scaling]
       policy:
         description: Measurement policy used by up
         required: false

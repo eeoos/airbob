@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.flywaydb.core.Flyway;
@@ -13,6 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,11 +26,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -47,8 +45,6 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkFixtureService.Fixture;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService;
-import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkHoldService.HoldRemovalSnapshot;
 import kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBenchmarkService;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
@@ -70,10 +66,6 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
 		.withDatabaseName("airbob_bulk_write_benchmark");
 
-	@Container
-	private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
-		.withExposedPorts(6379);
-
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
 		Flyway.configure()
@@ -87,13 +79,10 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
 		registry.add("spring.datasource.username", MYSQL::getUsername);
 		registry.add("spring.datasource.password", MYSQL::getPassword);
-		registry.add("spring.data.redis.host", REDIS::getHost);
-		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
 	}
 
 	@Autowired private ReservationHistoryInsertBenchmarkService benchmarkService;
 	@Autowired private ReservationHistoryInsertBenchmarkFixtureService fixtureService;
-	@Autowired private ReservationHistoryInsertBenchmarkHoldService holdService;
 	@Autowired private ReservationHistoryInsertBeforeBenchmarkService beforeService;
 	@Autowired private ExpiredReservationCleanupService cleanupService;
 	@Autowired private ObjectMapper objectMapper;
@@ -105,6 +94,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
 	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean private S3Template s3Template;
+	@MockitoBean(name = "redissonClient") private RedissonClient redissonClient;
 
 	private UserInfo requestAdmin;
 
@@ -117,9 +107,9 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	@AfterEach
 	void tearDown() {
 		UserContext.clear();
-		holdService.clearRecording();
 		reset(historyRepository, jdbcTemplate);
 		jdbcTemplate.update("DELETE FROM reservation_history");
+		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		jdbcTemplate.update("DELETE FROM reservation");
 		jdbcTemplate.update("DELETE FROM accommodation");
 		jdbcTemplate.update("DELETE FROM member");
@@ -143,9 +133,6 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(response.nonPendingExpiredPreserved()).isTrue();
 		assertThat(response.historySnapshotsPreserved()).isTrue();
 		assertThat(response.historyAuditContextPreserved()).isTrue();
-		assertThat(response.holdRemovalsMatched()).isTrue();
-		assertThat(response.holdRemovalCalls()).isEqualTo(3);
-		assertThat(response.redisNetworkExcluded()).isTrue();
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 1)
 			.containsEntry(SqlQueryType.INSERT, 3)
@@ -159,6 +146,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(response.operation().jdbcAffectedRows()).isNull();
 
 		assertThat(countRows("reservation_history")).isZero();
+		assertThat(countRows("accommodation_inventory_day")).isZero();
 		assertThat(countRows("reservation")).isZero();
 		assertThat(countRows("accommodation")).isZero();
 		assertThat(countRows("member")).isZero();
@@ -173,7 +161,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("대상 0건은 Before 서비스 SELECT 1회만 실행하고 history나 hold 제거를 만들지 않는다")
+	@DisplayName("대상 0건은 Before 서비스 SELECT 1회만 실행하고 history를 만들지 않는다")
 	void supportsEmptyDataset() {
 		var response = benchmarkService.run(
 			new ReservationHistoryInsertBenchmarkRequest(Variant.BEFORE, 0)
@@ -181,7 +169,6 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 
 		assertThat(response.verifiedRows()).isZero();
 		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.holdRemovalCalls()).isZero();
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 1)
 			.containsEntry(SqlQueryType.INSERT, 0)
@@ -213,7 +200,6 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(response.operation().jdbcConfiguredBatchSize()).isEqualTo(2);
 		assertThat(response.operation().jdbcAffectedRows())
 			.satisfies(value -> assertThat(value == null || value == 3L).isTrue());
-		assertThat(response.holdRemovalCalls()).isEqualTo(3);
 		assertThat(response.verificationSucceeded()).isTrue();
 	}
 
@@ -227,7 +213,6 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(AopUtils.isAopProxy(cleanupService)).isTrue();
 		assertThat(response.verifiedRows()).isZero();
 		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.holdRemovalCalls()).isZero();
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 1)
 			.containsEntry(SqlQueryType.INSERT, 0)
@@ -240,29 +225,8 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("서로 다른 hold 대상은 Before 서비스 조회 순서와 무관하게 정확히 검증한다")
-	void verifiesDistinctHoldRemovalsWithoutDependingOnQueryOrder() {
-		Fixture fixture = fixtureService.createFixture(3);
-		assertThat(fixture.targets())
-			.extracting(target -> List.of(target.checkIn(), target.checkOut()))
-			.doesNotHaveDuplicates();
-		UserContext.clear();
-		holdService.startRecording();
-		beforeService.cleanupExpiredPendingReservations();
-		var recorded = holdService.finishRecording();
-		var reversed = new java.util.ArrayList<>(recorded.removals());
-		Collections.reverse(reversed);
-
-		var verification = fixtureService.verify(fixture, new HoldRemovalSnapshot(reversed));
-
-		assertThat(verification.holdRemovalsMatched()).isTrue();
-		fixtureService.cleanup(fixture);
-		UserContext.set(requestAdmin);
-	}
-
-	@Test
-	@DisplayName("두 번째 history 저장 실패는 DB 전체를 rollback하지만 첫 hold 제거 호출은 이미 발생한다")
-	void capturesCurrentRollbackAndExternalSideEffectBoundary() {
+	@DisplayName("두 번째 history 저장 실패는 예약과 history 변경을 모두 rollback한다")
+	void rollsBackBeforeServiceWhenHistorySaveFails() {
 		Fixture fixture = fixtureService.createFixture(3);
 		AtomicInteger saveInvocations = new AtomicInteger();
 		doAnswer(invocation -> {
@@ -274,19 +238,18 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 			return history;
 		}).when(historyRepository).save(any(ReservationHistory.class));
 		UserContext.clear();
-		holdService.startRecording();
 
 		assertThatThrownBy(beforeService::cleanupExpiredPendingReservations)
 			.isInstanceOf(IntentionalHistoryFailure.class);
-		var holdSnapshot = holdService.finishRecording();
 
-		assertThat(holdSnapshot.callCount()).isOne();
 		assertThat(countTargetStatus(fixture, "PAYMENT_PENDING")).isEqualTo(3);
 		assertThat(countHistories(fixture)).isZero();
+		assertThat(countTargetInventoryState(fixture, "HOLD")).isEqualTo(6);
 
 		fixtureService.cleanup(fixture);
 		fixtureService.cleanup(fixture);
 		assertThat(countRows("reservation_history")).isZero();
+		assertThat(countRows("accommodation_inventory_day")).isZero();
 		assertThat(countRows("reservation")).isZero();
 		assertThat(countRows("accommodation")).isZero();
 		assertThat(countRows("member")).isZero();
@@ -294,8 +257,8 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("AFTER 두 번째 JDBC chunk 실패는 첫 chunk와 dirty-check를 rollback하고 hold를 제거하지 않는다")
-	void rollsBackAfterSecondJdbcChunkFailureBeforeHoldRemoval() {
+	@DisplayName("AFTER 두 번째 JDBC chunk 실패는 첫 chunk와 dirty-check를 rollback한다")
+	void rollsBackAfterSecondJdbcChunkFailure() {
 		Fixture fixture = fixtureService.createFixture(3);
 		AtomicInteger historyBatches = new AtomicInteger();
 		doAnswer(invocation -> {
@@ -309,18 +272,16 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		);
 
 		UserContext.clear();
-		holdService.startRecording();
 		assertThatThrownBy(cleanupService::cleanupExpiredPendingReservations)
 			.isInstanceOf(DataIntegrityViolationException.class);
-		HoldRemovalSnapshot holds = holdService.finishRecording();
 
-		assertThat(holds.callCount()).isZero();
 		verify(jdbcTemplate, times(2)).batchUpdate(
 			argThat(sql -> sql.contains("INSERT INTO reservation_history")),
 			any(BatchPreparedStatementSetter.class)
 		);
 		assertThat(countTargetStatus(fixture, "PAYMENT_PENDING")).isEqualTo(3);
 		assertThat(countHistories(fixture)).isZero();
+		assertThat(countTargetInventoryState(fixture, "HOLD")).isEqualTo(6);
 
 		fixtureService.cleanup(fixture);
 		UserContext.set(requestAdmin);
@@ -345,6 +306,17 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 			Long.class,
 			fixture.targets().stream().map(target -> target.id()).toArray()
 		);
+	}
+
+	private long countTargetInventoryState(Fixture fixture, String state) {
+		String sql = "SELECT COUNT(*) FROM accommodation_inventory_day WHERE state = ? AND reservation_id IN ("
+			+ placeholders(fixture.targets().size()) + ")";
+		Object[] parameters = new Object[fixture.targets().size() + 1];
+		parameters[0] = state;
+		for (int index = 0; index < fixture.targets().size(); index++) {
+			parameters[index + 1] = fixture.targets().get(index).id();
+		}
+		return jdbcTemplate.queryForObject(sql, Long.class, parameters);
 	}
 
 	private String placeholders(int size) {

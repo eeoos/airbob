@@ -87,7 +87,7 @@ variable "primary_availability_zone" {
 }
 
 variable "secondary_availability_zone" {
-  description = "Second AZ used by distributed-lock and scaling modes."
+  description = "Second AZ used by scaling mode."
   type        = string
   default     = "ap-northeast-2c"
 
@@ -158,13 +158,13 @@ variable "app_enabled" {
 }
 
 variable "mode" {
-  description = "Application capacity mode: single-node performance, fixed two-node distributed-lock, or elastic scaling."
+  description = "Application capacity mode: single-node performance or elastic scaling."
   type        = string
   default     = "performance"
 
   validation {
-    condition     = contains(["performance", "distributed-lock", "scaling"], var.mode)
-    error_message = "mode must be performance, distributed-lock, or scaling."
+    condition     = contains(["performance", "scaling"], var.mode)
+    error_message = "mode must be performance or scaling."
   }
 }
 

@@ -61,7 +61,7 @@ token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 18
 [[ "$token" == 'fencing_token=7' ]] || fail "acquire did not return the atomic fencing token"
 measurement_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a measurement 180 5400)
 [[ "$measurement_token" == 'fencing_token=7' ]] || fail "measurement did not use the shared fencing-token lease"
-snapshot_token=$(run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v17 owner-a snapshot-1234abcd dataset-snapshot 180 8100)
+snapshot_token=$(run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v20 owner-a snapshot-1234abcd dataset-snapshot 180 8100)
 [[ "$snapshot_token" == 'fencing_token=7' ]] || fail "dataset snapshot did not use the shared fencing-token lease"
 if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 8100 >/dev/null 2>&1; then
   fail "non-snapshot command accepted the extended credential-fencing deadline"

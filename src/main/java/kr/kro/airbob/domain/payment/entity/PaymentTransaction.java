@@ -10,9 +10,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
+import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -72,24 +72,11 @@ public class PaymentTransaction extends BaseEntity {
 
 	// 취소 정보
 	private Long cancelAmount;
-	@Column(length = 200)
+	@Column(length = PaymentOperation.CANCELLATION_REASON_MAX_LENGTH)
 	private String cancelReason;
+	@Column(length = 64)
 	private String transactionKey;
 	private Instant canceledAt; // PG가 알려준 취소 시각
-
-	// 결제 승인 성공 (Payment 생성 직후, payment_id 연결)
-	public static PaymentTransaction confirm(TossPaymentResponse response, Reservation reservation, Payment payment) {
-		TossPaymentResponse.VirtualAccount virtualAccount = response.getVirtualAccount();
-		return baseFromResponse(response, reservation)
-			.paymentId(payment.getId())
-			.transactionType(PaymentTransactionType.CONFIRM)
-			.virtualBankCode(virtualAccount != null ? virtualAccount.getBankCode() : null)
-			.virtualAccountNumber(virtualAccount != null ? virtualAccount.getAccountNumber() : null)
-			.virtualCustomerName(virtualAccount != null ? virtualAccount.getCustomerName() : null)
-			.virtualDueDate(virtualAccount != null && virtualAccount.getDueDate() != null
-				? virtualAccount.getDueDate().toInstant() : null)
-			.build();
-	}
 
 	public static PaymentTransaction confirm(
 		ConfirmedPayment confirmed,
@@ -112,22 +99,6 @@ public class PaymentTransaction extends BaseEntity {
 			.virtualAccountNumber(virtualAccount != null ? virtualAccount.accountNumber() : null)
 			.virtualCustomerName(virtualAccount != null ? virtualAccount.customerName() : null)
 			.virtualDueDate(virtualAccount != null ? virtualAccount.dueDate() : null)
-			.build();
-	}
-
-	// 결제 승인 실패
-	public static PaymentTransaction fail(PaymentRequest.Confirm event, Reservation reservation,
-		String failureCode, String failureMessage) {
-		return PaymentTransaction.builder()
-			.reservationId(reservation.getId())
-			.transactionType(PaymentTransactionType.FAIL)
-			.status(PaymentStatus.ABORTED)
-			.amount(Long.valueOf(event.amount()))
-			.paymentKey(limitLength(event.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
-			.orderId(event.orderId())
-			.method(PaymentMethod.UNKNOWN)
-			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
-			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))
 			.build();
 	}
 
@@ -164,23 +135,50 @@ public class PaymentTransaction extends BaseEntity {
 			.build();
 	}
 
-	// 취소(전체/부분). 갱신된 Payment 상태로 type 결정.
-	public static PaymentTransaction cancel(TossPaymentResponse.Cancel cancelData, Payment payment) {
-		PaymentTransactionType type = payment.getStatus() == PaymentStatus.PARTIAL_CANCELED
-			? PaymentTransactionType.PARTIAL_CANCEL : PaymentTransactionType.CANCEL;
+	public static PaymentTransaction cancel(
+		CancelledPayment cancelled,
+		Reservation reservation,
+		Payment payment,
+		Long paymentOperationId
+	) {
 		return PaymentTransaction.builder()
-			.reservationId(payment.getReservation().getId())
+			.reservationId(reservation.getId())
 			.paymentId(payment.getId())
-			.transactionType(type)
+			.paymentOperationId(paymentOperationId)
+			.transactionType(PaymentTransactionType.CANCEL)
+			.status(cancelled.status())
+			.amount(cancelled.cancelAmount())
+			.paymentKey(limitLength(cancelled.paymentKey(), PAYMENT_KEY_MAX_LENGTH))
+			.orderId(cancelled.orderId())
+			.method(payment.getMethod())
+			.cancelAmount(cancelled.cancelAmount())
+			.cancelReason(cancelled.cancelReason())
+			.transactionKey(cancelled.transactionKey())
+			.canceledAt(cancelled.cancelledAt())
+			.build();
+	}
+
+	public static PaymentTransaction cancellationFailed(
+		PaymentOperation operation,
+		Reservation reservation,
+		Payment payment,
+		String failureCode,
+		String failureMessage
+	) {
+		return PaymentTransaction.builder()
+			.reservationId(reservation.getId())
+			.paymentId(payment.getId())
+			.paymentOperationId(operation.getId())
+			.transactionType(PaymentTransactionType.CANCEL_FAIL)
 			.status(payment.getStatus())
-			.amount(cancelData.getCancelAmount())
-			.paymentKey(payment.getPaymentKey())
+			.amount(operation.getExpectedAmount())
+			.paymentKey(limitLength(payment.getPaymentKey(), PAYMENT_KEY_MAX_LENGTH))
 			.orderId(payment.getOrderId())
 			.method(payment.getMethod())
-			.cancelAmount(cancelData.getCancelAmount())
-			.cancelReason(cancelData.getCancelReason())
-			.transactionKey(cancelData.getTransactionKey())
-			.canceledAt(cancelData.getCanceledAt() != null ? cancelData.getCanceledAt().toInstant() : null)
+			.cancelAmount(operation.getExpectedAmount())
+			.cancelReason(operation.getCancellationReason())
+			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
+			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))
 			.build();
 	}
 

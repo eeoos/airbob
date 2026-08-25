@@ -32,9 +32,7 @@ import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageDelet
 import kr.kro.airbob.domain.image.event.ImageStorageTransactionEvents.ImageUploaded;
 import kr.kro.airbob.domain.image.exception.ImageUploadException;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
-import kr.kro.airbob.search.event.AccommodationIndexingEvents.AccommodationUpdatedEvent;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 이미지 서비스 단위 테스트")
@@ -45,7 +43,7 @@ class AccommodationImageServiceTest {
 	@Mock private S3ImageUploader s3ImageUploader;
 	@Mock private ApplicationEventPublisher applicationEventPublisher;
 	@Mock private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Mock private OutboxEventPublisher outboxEventPublisher;
+	@Mock private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Captor private ArgumentCaptor<List<AccommodationImage>> imagesCaptor;
 
 	@InjectMocks
@@ -186,9 +184,7 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.uploadImages(1L, List.of(file), 2L);
 
-		verify(outboxEventPublisher).save(
-			EventType.ACCOMMODATION_UPDATED,
-			new AccommodationUpdatedEvent(accommodationUid.toString()));
+		verify(searchRefreshPublisher).requestRefresh(accommodationUid);
 	}
 
 	@Test
@@ -208,7 +204,7 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.uploadImages(1L, List.of(file), 2L);
 
-		verifyNoInteractions(outboxEventPublisher);
+		verifyNoInteractions(searchRefreshPublisher);
 	}
 
 	@Test
@@ -231,10 +227,8 @@ class AccommodationImageServiceTest {
 
 		accommodationImageService.deleteImage(1L, 10L, 2L);
 
-		var order = inOrder(outboxEventPublisher, applicationEventPublisher);
-		order.verify(outboxEventPublisher).save(
-			EventType.ACCOMMODATION_UPDATED,
-			new AccommodationUpdatedEvent(accommodationUid.toString()));
+		var order = inOrder(searchRefreshPublisher, applicationEventPublisher);
+		order.verify(searchRefreshPublisher).requestRefresh(accommodationUid);
 		order.verify(applicationEventPublisher).publishEvent(
 			new ImageDeletionRequested(current.getImageUrl()));
 	}

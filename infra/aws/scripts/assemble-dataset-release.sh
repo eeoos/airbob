@@ -285,18 +285,18 @@ while IFS= read -r migration_line; do
   ((migration_count += 1))
   [[ -z "$previous_migration_path" || "$migration_path" > "$previous_migration_path" ]] \
     || fail 'backend migration inventory is not bytewise path-sorted'
-  [[ "$migration_version" -ge 1 && "$migration_version" -le 17 ]] \
-    || fail 'backend migration inventory is outside V1-V17'
+  [[ "$migration_version" -ge 1 && "$migration_version" -le 27 ]] \
+    || fail 'backend migration inventory is outside V1-V27'
   [[ "$seen_migration_versions" != *" $migration_version "* ]] \
     || fail 'backend migration inventory contains a duplicate version'
   seen_migration_versions="${seen_migration_versions}${migration_version} "
   previous_migration_path=$migration_path
 done < "$staging_dir/backend-migrations.sha256"
-[[ $migration_count -eq 17 ]] \
-  || fail 'backend migration inventory must cover exactly V1-V17'
-for migration_version in {1..17}; do
+[[ $migration_count -eq 27 ]] \
+  || fail 'backend migration inventory must cover exactly V1-V27'
+for migration_version in {1..27}; do
   [[ "$seen_migration_versions" == *" $migration_version "* ]] \
-    || fail 'backend migration inventory is missing a V1-V17 migration'
+    || fail 'backend migration inventory is missing a V1-V27 migration'
 done
 
 require_small_text_file "$staging_dir/release-metadata.txt" 65536
@@ -360,10 +360,10 @@ done
 [[ "$metadata_traffic_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]] \
   || fail 'ETL traffic dataset run id is not canonical'
 [[ "$metadata_traffic_version" == traffic-v1 \
-  && "$metadata_traffic_flyway" == 17 \
+  && "$metadata_traffic_flyway" == 27 \
   && "$metadata_required_rows" == 201 \
-  && "$metadata_recovery" == reset-flyway-v1-v17-etl-reseed-before-traffic ]] \
-  || fail 'ETL release metadata does not satisfy the V17 traffic contract'
+  && "$metadata_recovery" == reset-flyway-v1-v27-etl-reseed-before-traffic ]] \
+  || fail 'ETL release metadata does not satisfy the V27 traffic contract'
 [[ "$metadata_traffic_migration_digest" =~ ^sha256:[0-9a-f]{64}$ ]] \
   || fail 'ETL traffic migration digest is invalid'
 
@@ -439,7 +439,7 @@ done
   && "$service_schema" == airbobdb \
   && "$benchmark_fixtures" == true \
   && "$traffic_fixtures" == true ]] \
-  || fail 'ETL provenance does not enable the required V17 fixture contract'
+  || fail 'ETL provenance does not enable the required V27 fixture contract'
 
 require_small_text_file "$staging_dir/benchmark-fixture.json" 1048576
 jq -se '
@@ -472,7 +472,7 @@ jq -se \
       (.anchorInstant | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") and (fromdateiso8601 | type == "number"))) and
     ((has("validUntilInstant") | not) or
       (.validUntilInstant | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") and (fromdateiso8601 | type == "number"))) and
-    .schema.flywayVersion == "17" and
+    .schema.flywayVersion == "27" and
     .schema.migrationDigest == $migrationDigest and
     ([.. | objects | keys[]] | all(
       test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
@@ -482,7 +482,7 @@ jq -se \
     ))
   )
 ' "$staging_dir/traffic-v1.json" >/dev/null \
-  || fail 'traffic manifest does not satisfy the V17 release metadata contract'
+  || fail 'traffic manifest does not satisfy the V27 release metadata contract'
 traffic_anchor_local=$(jq -r '.anchorTime' "$staging_dir/traffic-v1.json")
 traffic_timezone=$(jq -r '.timezone' "$staging_dir/traffic-v1.json")
 traffic_valid_until_local=$(jq -r '.validUntil' "$staging_dir/traffic-v1.json")
@@ -536,14 +536,15 @@ jq -se \
       test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
     (.verifierContractInventorySha256 | sha256) and
     (.databaseFingerprintSubsetSha256 | sha256) and
-    .flywayVersion == "17" and
-    .flywayHistoryRows == 17 and
+    .flywayVersion == "27" and
+    .flywayHistoryRows == 27 and
     (.migrationChecksumSha256 | sha256) and
     (.schemaFingerprintSha256 | sha256) and
     .outboxState == "empty" and
     (.expectedTableRows | type == "object" and length > 0) and
-    (.expectedTableRows | has("flyway_schema_history") and has("outbox") and has("accommodation")) and
-    .expectedTableRows.flyway_schema_history == 17 and
+    (.expectedTableRows | has("flyway_schema_history") and has("outbox") and has("accommodation") and
+      has("accommodation_inventory_day") and has("reservation")) and
+    .expectedTableRows.flyway_schema_history == 27 and
     .expectedTableRows.outbox == 0 and
     .expectedTableRows.accommodation >= $requiredRows and
     all(.expectedTableRows | to_entries[];
@@ -587,16 +588,20 @@ if [[ -n "$snapshot_reference_file" ]]; then
     length == 1 and
     (.[0] |
       exact_keys([
-        "schemaVersion", "repository", "bucket", "basePath", "snapshot", "index",
-        "elasticsearchVersion", "imageDigest", "documentCount", "mappingSha256",
-        "dbIdsSha256", "esIdsSha256", "contentFingerprintSha256"
+        "schemaVersion", "repository", "bucket", "basePath", "snapshot",
+        "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest",
+        "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256",
+        "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256",
+        "contentFingerprintSha256"
       ]) and
-      .schemaVersion == 1 and
+      .schemaVersion == 2 and
       .repository == "airbob-dataset-readonly" and
       .bucket == "airbob-performance-lab-dataset-942632789808" and
       .basePath == ("elasticsearch/releases/" + $release) and
       .snapshot == ("airbob-" + $release) and
-      .index == "accommodations" and
+      .logicalAlias == "accommodations" and
+      (.snapshotIndex | type == "string" and
+        test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
       .elasticsearchVersion == "8.18.8" and
       (.imageDigest | image_digest) and
       (.documentCount | type == "number" and floor == . and . > 0) and
@@ -604,6 +609,9 @@ if [[ -n "$snapshot_reference_file" ]]; then
       (.dbIdsSha256 | sha256) and
       (.esIdsSha256 | sha256) and
       .dbIdsSha256 == .esIdsSha256 and
+      (.dbDocumentIdentityPairsSha256 | sha256) and
+      (.esDocumentIdentityPairsSha256 | sha256) and
+      .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256 and
       (.contentFingerprintSha256 | sha256) and
       ([.. | objects | keys[]] | all(
         test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
@@ -622,11 +630,14 @@ if [[ -n "$snapshot_reference_file" ]]; then
       elasticsearchVersion: .elasticsearchVersion,
       imageDigest: .imageDigest,
       requiredPlugins: ["analysis-nori", "repository-s3"],
-      index: .index,
+      logicalAlias: .logicalAlias,
+      snapshotIndex: .snapshotIndex,
       documentCount: .documentCount,
       mappingSha256: .mappingSha256,
       databaseAccommodationIdsSha256: .dbIdsSha256,
       elasticsearchAccommodationIdsSha256: .esIdsSha256,
+      databaseDocumentIdentityPairsSha256: .dbDocumentIdentityPairsSha256,
+      elasticsearchDocumentIdentityPairsSha256: .esDocumentIdentityPairsSha256,
       contentFingerprintSha256: .contentFingerprintSha256
     }
   ' "$staging_dir/snapshot-reference.json")
@@ -702,7 +713,7 @@ jq -nS \
     mysql: {
       dumpKey: "mysql/airbob.sql.zst",
       dumpSha256: $dumpSha256,
-      flywayVersion: "17",
+      flywayVersion: "27",
       migrationChecksumSha256: $migrationChecksumSha256,
       schemaFingerprintSha256: $schemaFingerprintSha256,
       timezone: "UTC",
@@ -714,9 +725,18 @@ jq -nS \
     couponPreparation: [],
     kafka: {
       topics: [
-        {name: "PAYMENT.events", partitions: 1, retentionMs: 86400000},
-        {name: "RESERVATION.events", partitions: 1, retentionMs: 86400000},
-        {name: "ACCOMMODATIONS.events", partitions: 1, retentionMs: 86400000}
+        {name: "PAYMENT_OPERATION.events", partitions: 3, retentionMs: 86400000},
+        {name: "PAYMENT_OPERATION.events.RETRY", partitions: 3, retentionMs: 86400000},
+        {name: "PAYMENT_OPERATION.events.DLT", partitions: 3, retentionMs: 86400000},
+        {name: "ACCOMMODATION_INDEX.events", partitions: 3, retentionMs: 86400000},
+        {name: "ACCOMMODATION_INDEX.events.RETRY", partitions: 3, retentionMs: 86400000},
+        {name: "ACCOMMODATION_INDEX.events.DLT", partitions: 3, retentionMs: 86400000},
+        {name: "ACCOMMODATION_CACHE.events", partitions: 3, retentionMs: 86400000},
+        {name: "ACCOMMODATION_CACHE.events.RETRY", partitions: 3, retentionMs: 86400000},
+        {name: "ACCOMMODATION_CACHE.events.DLT", partitions: 3, retentionMs: 86400000},
+        {name: "OPERATOR_ALERT.events", partitions: 3, retentionMs: 86400000},
+        {name: "OPERATOR_ALERT.events.RETRY", partitions: 3, retentionMs: 86400000},
+        {name: "OPERATOR_ALERT.events.DLT", partitions: 3, retentionMs: 86400000}
       ]
     },
     search: $search

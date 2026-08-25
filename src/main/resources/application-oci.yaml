@@ -33,11 +33,7 @@ spring:
     socket-timeout: 30s
 
   kafka:
-    consumer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-      group-id: payment-service-group
-    producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 cloud:
   aws:
@@ -52,10 +48,6 @@ cloud:
       auto: false
   cloudfront:
     domain: ${CLOUDFRONT_DOMAIN}
-
-slack:
-  notification:
-    enabled: true # 알림 켜기
 
 accommodation:
   detail-cache:
@@ -79,6 +71,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,accommodationInventory
       show-details: never
 
   health:

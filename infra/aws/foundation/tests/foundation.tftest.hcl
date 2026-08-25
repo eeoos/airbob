@@ -254,7 +254,7 @@ variables {
   foundation_local_principal_arns        = ["arn:aws:iam::942632789808:user/foundation-test"]
   lab_local_principal_arns               = ["arn:aws:iam::942632789808:user/lab-test"]
   dataset_publisher_local_principal_arns = ["arn:aws:iam::942632789808:user/admin-eeoos"]
-  dataset_snapshot_writer_release        = "rehearsal-v17"
+  dataset_snapshot_writer_release        = "rehearsal-v20"
   local_principal_requires_mfa           = true
   expiry_observer_enabled                = false
   expiry_alert_email                     = null
@@ -364,10 +364,21 @@ run "foundation_contract" {
 
   assert {
     condition = (
-      length(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule) == 2 &&
+      aws_s3_bucket_lifecycle_configuration.release["dataset"].bucket == aws_s3_bucket.managed["dataset"].id &&
+      length(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule) == 1 &&
+      one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).id == "abort-incomplete-uploads" &&
+      one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).abort_incomplete_multipart_upload[0].days_after_initiation == 7 &&
+      length(one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).expiration) == 0 &&
+      length(one(aws_s3_bucket_lifecycle_configuration.release["dataset"].rule).noncurrent_version_expiration) == 0
+    )
+    error_message = "The dataset bucket may only abort incomplete multipart uploads; lifecycle expiration must never target snapshot-release or seal versions/delete markers."
+  }
+
+  assert {
+    condition = (
       length(aws_s3_bucket_lifecycle_configuration.release["bundle"].rule) == 2 &&
       one([
-        for rule in aws_s3_bucket_lifecycle_configuration.release["dataset"].rule : rule
+        for rule in aws_s3_bucket_lifecycle_configuration.release["bundle"].rule : rule
         if rule.id == "expire-noncurrent-versions"
       ]).noncurrent_version_expiration[0].noncurrent_days == 30 &&
       one([
@@ -379,7 +390,7 @@ run "foundation_contract" {
         if rule.id == "expire-tagged-summary-evidence"
       ]).expiration[0].days == 365
     )
-    error_message = "Dataset, bundle, and tagged evidence retention policies must remain explicit and bounded."
+    error_message = "Only explicitly safe bundle and tagged evidence data may have bounded retention."
   }
 
   assert {
@@ -777,7 +788,7 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
         if statement.Sid == "WriteElasticsearchSnapshotRepository"
-      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/rehearsal-v17/*" &&
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/releases/rehearsal-v20/*" &&
       one([
         for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
         if statement.Sid == "WriteElasticsearchSnapshotRepository"
@@ -801,7 +812,7 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
         if statement.Sid == "SealElasticsearchSnapshotRelease"
-      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/rehearsal-v17.json" &&
+      ]).Resource == "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/seals/rehearsal-v20.json" &&
       one([
         for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
         if statement.Sid == "SealElasticsearchSnapshotRelease"
@@ -825,7 +836,7 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.dataset_publisher_policy).Statement : statement
         if statement.Sid == "OwnDatasetSnapshotLease"
-      ]).Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["airbob-dataset-snapshot/rehearsal-v17"] &&
+      ]).Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["airbob-dataset-snapshot/rehearsal-v20"] &&
       !contains(jsondecode(local.role_trust_policies.dataset).Statement[*].Action, "sts:AssumeRoleWithWebIdentity")
     )
     error_message = "The local dataset publisher must conditionally write wrapper objects and limit native snapshot mutation to its release prefix."

@@ -2,6 +2,7 @@ import { check } from 'k6';
 
 import {
   buildGuestTarget,
+  GUEST_TARGETS,
   guestManifestGaps,
   matchesGuestTargetContract,
 } from '../traffic/guest-read.js';
@@ -29,6 +30,16 @@ const manifest = {
     accommodationIds: Array.from({ length: 100 }, (_, index) => 1001 + index),
   },
 };
+
+const expectedGuestTargets = [
+  'accommodation-detail',
+  'review-list',
+  'review-summary',
+  'guest-reservations',
+  'wishlist-list',
+  'wishlist-accommodations',
+  'recently-viewed',
+];
 
 function rejects(action) {
   try {
@@ -110,8 +121,20 @@ export default function () {
       recentlyViewed.path === '/api/v1/members/recently-viewed'
         && recentlyViewed.expectedRows === 20
     ),
-    'mixed, search, mutation, and unknown targets are rejected': () => (
-      ['mixed', 'search', 'reservation-create', 'unknown'].every((target) => rejects(() => (
+    'guest traffic exposes exactly the reviewed read target allowlist': () => (
+      GUEST_TARGETS.length === expectedGuestTargets.length
+        && expectedGuestTargets.every((target) => GUEST_TARGETS.includes(target))
+    ),
+    'mixed, search, inventory-dependent, mutation, and unknown targets are rejected': () => (
+      [
+        'mixed',
+        'search',
+        'accommodation-availability',
+        'reservation-quote',
+        'reservation-create',
+        'reservation-checkout',
+        'unknown',
+      ].every((target) => rejects(() => (
         buildGuestTarget(manifest, target, {})
       )))
     ),

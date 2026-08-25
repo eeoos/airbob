@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseKind": "pipeline-rehearsal",
-  "datasetRelease": "rehearsal-v17",
+  "datasetRelease": "rehearsal-v20",
   "datasetRunId": "20260816T001530Z-12345678",
   "source": {
     "datasetVersion": "nplus1-v1",
@@ -16,7 +16,7 @@
   "mysql": {
     "dumpKey": "mysql/airbob.sql.zst",
     "dumpSha256": "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2",
-    "flywayVersion": "17",
+    "flywayVersion": "27",
     "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
     "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
     "timezone": "UTC",
@@ -24,17 +24,28 @@
     "validUntil": "2099-12-31T00:00:00Z",
     "outboxPolicy": "absent",
     "expectedTableRows": {
-      "flyway_schema_history": 17,
+      "flyway_schema_history": 27,
       "outbox": 0,
-      "accommodation": 730702
+      "accommodation": 730702,
+      "accommodation_inventory_day": 0,
+      "reservation": 0
     }
   },
   "couponPreparation": [],
   "kafka": {
     "topics": [
-      { "name": "PAYMENT.events", "partitions": 1, "retentionMs": 86400000 },
-      { "name": "RESERVATION.events", "partitions": 1, "retentionMs": 86400000 },
-      { "name": "ACCOMMODATIONS.events", "partitions": 1, "retentionMs": 86400000 }
+      { "name": "PAYMENT_OPERATION.events", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "PAYMENT_OPERATION.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "PAYMENT_OPERATION.events.DLT", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATION_INDEX.events", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATION_INDEX.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATION_INDEX.events.DLT", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATION_CACHE.events", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATION_CACHE.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "ACCOMMODATION_CACHE.events.DLT", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "OPERATOR_ALERT.events", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "OPERATOR_ALERT.events.RETRY", "partitions": 3, "retentionMs": 86400000 },
+      { "name": "OPERATOR_ALERT.events.DLT", "partitions": 3, "retentionMs": 86400000 }
     ]
   },
   "search": { "enabled": false }

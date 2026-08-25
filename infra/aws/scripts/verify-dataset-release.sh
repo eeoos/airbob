@@ -79,7 +79,7 @@ common_jq='
   (.mysql | exact_keys(["dumpKey", "dumpSha256", "flywayVersion", "migrationChecksumSha256", "schemaFingerprintSha256", "timezone", "evaluationTime", "validUntil", "outboxPolicy", "expectedTableRows"])) and
   .mysql.dumpKey == "mysql/airbob.sql.zst" and
   (.mysql.dumpSha256 | sha256) and
-  .mysql.flywayVersion == "17" and
+  .mysql.flywayVersion == "27" and
   (.mysql.migrationChecksumSha256 | sha256) and
   (.mysql.schemaFingerprintSha256 | sha256) and
   .mysql.timezone == "UTC" and
@@ -89,16 +89,22 @@ common_jq='
   (.mysql.validUntil | fromdateiso8601) > now and
   (.mysql.outboxPolicy == "absent" or .mysql.outboxPolicy == "truncate-after-import") and
   (.mysql.expectedTableRows | type == "object") and
-  (.mysql.expectedTableRows | has("flyway_schema_history") and has("outbox") and has("accommodation")) and
-  .mysql.expectedTableRows.flyway_schema_history == 17 and
+  (.mysql.expectedTableRows | has("flyway_schema_history") and has("outbox") and has("accommodation") and
+    has("accommodation_inventory_day") and has("reservation")) and
+  .mysql.expectedTableRows.flyway_schema_history == 27 and
   all(.mysql.expectedTableRows | to_entries[]; (.key | test("^[a-z][a-z0-9_]{0,63}$")) and (.value | type == "number" and floor == . and . >= 0)) and
   (.couponPreparation | type == "array") and
   all(.couponPreparation[]; exact_keys(["couponId", "quantity"]) and (.couponId | type == "number" and floor == . and . > 0) and (.quantity | type == "number" and floor == . and . >= 0)) and
   ([.couponPreparation[].couponId] | length == (unique | length)) and
   (.kafka | exact_keys(["topics"])) and
-  (.kafka.topics | type == "array" and length == 3) and
-  ([.kafka.topics[].name] | sort) == ["ACCOMMODATIONS.events", "PAYMENT.events", "RESERVATION.events"] and
-  all(.kafka.topics[]; exact_keys(["name", "partitions", "retentionMs"]) and (.partitions | type == "number" and floor == . and . >= 1 and . <= 12) and (.retentionMs | type == "number" and floor == . and . >= 3600000)) and
+  (.kafka.topics | type == "array" and length == 12) and
+  ([.kafka.topics[].name] | sort) == [
+    "ACCOMMODATION_CACHE.events", "ACCOMMODATION_CACHE.events.DLT", "ACCOMMODATION_CACHE.events.RETRY",
+    "ACCOMMODATION_INDEX.events", "ACCOMMODATION_INDEX.events.DLT", "ACCOMMODATION_INDEX.events.RETRY",
+    "OPERATOR_ALERT.events", "OPERATOR_ALERT.events.DLT", "OPERATOR_ALERT.events.RETRY",
+    "PAYMENT_OPERATION.events", "PAYMENT_OPERATION.events.DLT", "PAYMENT_OPERATION.events.RETRY"
+  ] and
+  all(.kafka.topics[]; exact_keys(["name", "partitions", "retentionMs"]) and .partitions == 3 and .retentionMs == 86400000) and
   ([.. | objects | keys[]] | all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
 '
 
@@ -175,8 +181,8 @@ else
     .evidence.outbox.initialState == "empty" and
     (.evidence.outbox.highWatermark | type == "number" and floor == . and . >= 0) and
     (.evidence.kafkaCausalFence | exact_keys(["topic", "partitionOffsets"])) and
-    .evidence.kafkaCausalFence.topic == "ACCOMMODATIONS.events" and
-    (.evidence.kafkaCausalFence.partitionOffsets | type == "object" and length > 0) and
+    .evidence.kafkaCausalFence.topic == "ACCOMMODATION_INDEX.events" and
+    (.evidence.kafkaCausalFence.partitionOffsets | type == "object" and (keys | sort) == ["0", "1", "2"]) and
     all(.evidence.kafkaCausalFence.partitionOffsets | to_entries[]; (.key | test("^[0-9]+$")) and (.value | type == "number" and floor == . and . >= 0))
   ' "$manifest" >/dev/null || fail_manifest evidence
 fi
@@ -197,36 +203,48 @@ case "$search_enabled" in
       def sha256: type == "string" and test("^[0-9a-f]{64}$");
       def image_digest: type == "string" and test("^sha256:[0-9a-f]{64}$");
       .search |
-      exact_keys(["enabled", "snapshotReferenceKey", "repository", "elasticsearchVersion", "imageDigest", "requiredPlugins", "index", "documentCount", "mappingSha256", "databaseAccommodationIdsSha256", "elasticsearchAccommodationIdsSha256", "contentFingerprintSha256"]) and
+      exact_keys(["enabled", "snapshotReferenceKey", "repository", "elasticsearchVersion", "imageDigest", "requiredPlugins", "logicalAlias", "snapshotIndex", "documentCount", "mappingSha256", "databaseAccommodationIdsSha256", "elasticsearchAccommodationIdsSha256", "databaseDocumentIdentityPairsSha256", "elasticsearchDocumentIdentityPairsSha256", "contentFingerprintSha256"]) and
       .enabled == true and
       .snapshotReferenceKey == "elasticsearch/snapshot-reference.json" and
       .repository == "airbob-dataset-readonly" and
       .elasticsearchVersion == "8.18.8" and
       (.imageDigest | image_digest) and
       (.requiredPlugins | sort) == ["analysis-nori", "repository-s3"] and
-      .index == "accommodations" and
+      .logicalAlias == "accommodations" and
+      (.snapshotIndex | type == "string" and
+        test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
       (.documentCount | type == "number" and floor == . and . >= 0) and
       (.mappingSha256 | sha256) and
       (.databaseAccommodationIdsSha256 | sha256) and
       (.elasticsearchAccommodationIdsSha256 | sha256) and
       .databaseAccommodationIdsSha256 == .elasticsearchAccommodationIdsSha256 and
+      (.databaseDocumentIdentityPairsSha256 | sha256) and
+      (.elasticsearchDocumentIdentityPairsSha256 | sha256) and
+      .databaseDocumentIdentityPairsSha256 == .elasticsearchDocumentIdentityPairsSha256 and
       (.contentFingerprintSha256 | sha256)
     ' "$manifest" >/dev/null || fail_manifest search
     jq -e --slurpfile manifest "$manifest" '
       def exact_keys($wanted): (keys | sort) == ($wanted | sort);
-      exact_keys(["schemaVersion", "repository", "bucket", "basePath", "snapshot", "index", "elasticsearchVersion", "imageDigest", "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256", "contentFingerprintSha256"]) and
-      .schemaVersion == 1 and
+      exact_keys(["schemaVersion", "repository", "bucket", "basePath", "snapshot", "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest", "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256", "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256", "contentFingerprintSha256"]) and
+      .schemaVersion == 2 and
       .repository == $manifest[0].search.repository and
       (.bucket | type == "string" and test("^airbob-performance-lab-dataset-[0-9]{12}$")) and
       .basePath == ("elasticsearch/releases/" + $manifest[0].datasetRelease) and
       (.snapshot | type == "string" and test("^[a-z0-9._-]+$")) and
-      .index == $manifest[0].search.index and
+      .logicalAlias == "accommodations" and
+      .logicalAlias == $manifest[0].search.logicalAlias and
+      (.snapshotIndex | type == "string" and
+        test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
+      .snapshotIndex == $manifest[0].search.snapshotIndex and
       .elasticsearchVersion == $manifest[0].search.elasticsearchVersion and
       .imageDigest == $manifest[0].search.imageDigest and
       .documentCount == $manifest[0].search.documentCount and
       .mappingSha256 == $manifest[0].search.mappingSha256 and
       .dbIdsSha256 == $manifest[0].search.databaseAccommodationIdsSha256 and
       .esIdsSha256 == $manifest[0].search.elasticsearchAccommodationIdsSha256 and
+      .dbDocumentIdentityPairsSha256 == $manifest[0].search.databaseDocumentIdentityPairsSha256 and
+      .esDocumentIdentityPairsSha256 == $manifest[0].search.elasticsearchDocumentIdentityPairsSha256 and
+      .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256 and
       .contentFingerprintSha256 == $manifest[0].search.contentFingerprintSha256
     ' "$snapshot_reference" >/dev/null || fail_manifest snapshot-reference
     ;;

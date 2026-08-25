@@ -61,6 +61,10 @@ k6 run load-test/k6/test/traffic-benchmark-test.js
 - `wishlist-accommodations`
 - `recently-viewed`
 
+These are GET-only read targets. The allowlist intentionally excludes accommodation
+availability, reservation quote, checkout, and every reservation mutation; an unknown or
+mutation target is rejected before traffic starts.
+
 Paginated targets additionally require `PAGE_SIZE=1|20|50`; the selected size
 must not exceed the count guaranteed by the manifest. `recently-viewed` instead
 requires `RECENTLY_VIEWED_SIZE=1|20|50|100`, bounded by the manifest. All IDs,
@@ -121,7 +125,7 @@ The runner acquires the same DynamoDB lease used by `up`, `switch`, and
 `down`, then binds its committed source archive and the official k6 v1.5.0
 Linux amd64 archive to pinned SHA-256 values. It verifies the selected dataset
 wrapper, benchmark-manifest hash, bootstrap receipt, deployed ECR digest,
-Flyway V17, actual healthy app count, direct ALB health, and authoritative plus
+Flyway V27, actual healthy app count, direct ALB health, and authoritative plus
 public DNS convergence on the AWS weighted origin before traffic. Inspect and warm-up
 must pass before it opens a same-duration idle SQL window. Any ambient SQL,
 counter reset, digest eviction, or digest-text drift prevents measurement.

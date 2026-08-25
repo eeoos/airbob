@@ -38,7 +38,7 @@ import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.image.service.ImageStorageTransactionEventListener;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @SpringJUnitConfig(AccommodationImageServiceTransactionIntegrationTest.TestConfiguration.class)
 @DisplayName("숙소 이미지 서비스 트랜잭션 통합 테스트")
@@ -54,7 +54,7 @@ class AccommodationImageServiceTransactionIntegrationTest {
 	@Autowired private AccommodationRepository accommodationRepository;
 	@Autowired private S3ImageUploader s3ImageUploader;
 	@Autowired private AccommodationDetailCacheInvalidationPublisher cacheInvalidationPublisher;
-	@Autowired private OutboxEventPublisher outboxEventPublisher;
+	@Autowired private AccommodationSearchRefreshPublisher searchRefreshPublisher;
 	@Autowired private PlatformTransactionManager transactionManager;
 
 	@BeforeEach
@@ -64,7 +64,7 @@ class AccommodationImageServiceTransactionIntegrationTest {
 			accommodationRepository,
 			s3ImageUploader,
 			cacheInvalidationPublisher,
-			outboxEventPublisher
+			searchRefreshPublisher
 		);
 		assertThat(AopUtils.isAopProxy(accommodationImageService)).isTrue();
 	}
@@ -182,8 +182,8 @@ class AccommodationImageServiceTransactionIntegrationTest {
 		}
 
 		@Bean
-		OutboxEventPublisher outboxEventPublisher() {
-			return mock(OutboxEventPublisher.class);
+		AccommodationSearchRefreshPublisher searchRefreshPublisher() {
+			return mock(AccommodationSearchRefreshPublisher.class);
 		}
 
 		@Bean

@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.exception.InvalidInputException;
@@ -13,7 +14,7 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
-import kr.kro.airbob.domain.payment.event.PaymentOperationEvent.PaymentExecutionRequestedV1;
+import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionRequestedV1;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
@@ -21,10 +22,10 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
-import kr.kro.airbob.outbox.EventType;
-import kr.kro.airbob.outbox.OutboxEventPublisher;
+import kr.kro.airbob.messaging.outbox.application.OutboxWriter;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -32,12 +33,13 @@ import lombok.RequiredArgsConstructor;
 public class PaymentOperationCommandService {
 
 	private final ReservationRepository reservationRepository;
+	private final ReservationInventoryService inventoryService;
 	private final PaymentOperationRepository paymentOperationRepository;
 	private final ReservationHistoryRepository historyRepository;
-	private final OutboxEventPublisher outboxEventPublisher;
+	private final OutboxWriter outboxWriter;
 	private final Clock clock;
 
-	@Transactional
+	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Accepted requestConfirmation(PaymentRequest.Confirm request, Long memberId) {
 		UUID reservationUid = parseReservationUid(request.orderId());
 		Reservation reservation = reservationRepository.findByReservationUidWithLock(reservationUid)
@@ -48,6 +50,7 @@ public class PaymentOperationCommandService {
 		if (!reservation.matchesPaymentRequest(request.orderId(), request.amount().longValue())) {
 			throw new InvalidInputException("결제 승인 요청이 예약 정보와 일치하지 않습니다.");
 		}
+		reservation.validatePaymentAttempt(request.paymentAttemptId());
 
 		String deduplicationKey = "CONFIRM:" + reservationUid;
 		Optional<PaymentOperation> existing = paymentOperationRepository.findByDeduplicationKey(deduplicationKey);
@@ -59,13 +62,24 @@ public class PaymentOperationCommandService {
 		if (!reservation.startPayment(now)) {
 			throw new ExpiredReservationConfirmationException();
 		}
+		reservation.consumePaymentAttempt(request.paymentAttemptId(), now);
+		inventoryService.transitionHeldToOccupied(
+			reservation.getAccommodation().getId(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate(),
+			reservation.getId(),
+			now
+		);
 		PaymentOperation operation = PaymentOperation.createConfirmation(
 			reservation, memberId, request.paymentKey(), request.amount(), now);
 		paymentOperationRepository.save(operation);
 		historyRepository.save(ReservationHistory.ofSystem(
 			reservation, ChangeType.STATUS_CHANGE, "결제 승인 처리 시작", "PAYMENT_OPERATION"));
-		outboxEventPublisher.save(EventType.PAYMENT_EXECUTION_REQUESTED_V1,
-			new PaymentExecutionRequestedV1(operation.getOperationUid(), reservationUid));
+		outboxWriter.append(new PaymentOperationExecutionRequestedV1(
+			operation.getOperationUid(),
+			reservationUid,
+			operation.getDispatchGeneration()
+		));
 		return Accepted.from(operation);
 	}
 

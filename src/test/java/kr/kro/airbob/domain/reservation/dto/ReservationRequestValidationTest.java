@@ -47,4 +47,29 @@ class ReservationRequestValidationTest {
 				"guestCount"
 			);
 	}
+
+	@Test
+	@DisplayName("요청사항은 선택 입력이며 255자까지 허용한다")
+	void allowsOptionalRequestMessageUpTo255Characters() {
+		LocalDate checkIn = LocalDate.of(2026, 9, 1);
+		ReservationRequest.Create withoutMessage = new ReservationRequest.Create(
+			1L, checkIn, checkIn.plusDays(2), 2, null, null);
+		ReservationRequest.Create maxLengthMessage = new ReservationRequest.Create(
+			1L, checkIn, checkIn.plusDays(2), 2, null, "a".repeat(255));
+
+		assertThat(validator.validate(withoutMessage)).isEmpty();
+		assertThat(validator.validate(maxLengthMessage)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("요청사항이 255자를 초과하면 거부한다")
+	void rejectsRequestMessageOver255Characters() {
+		LocalDate checkIn = LocalDate.of(2026, 9, 1);
+		ReservationRequest.Create request = new ReservationRequest.Create(
+			1L, checkIn, checkIn.plusDays(2), 2, null, "a".repeat(256));
+
+		assertThat(validator.validate(request))
+			.extracting(violation -> violation.getPropertyPath().toString())
+			.containsExactly("requestMessage");
+	}
 }
