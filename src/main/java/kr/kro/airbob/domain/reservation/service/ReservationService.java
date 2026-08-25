@@ -23,16 +23,23 @@ public class ReservationService {
 	private final PaymentCancellationCommandService cancellationCommandService;
 	private final Clock clock;
 
-	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
+	public ReservationResponse.Ready createPendingReservation(
+		ReservationRequest.Create request,
+		Long memberId,
+		String idempotencyKey
+	) {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new InvalidReservationDateException();
 		}
 
-		Reservation reservation = transactionService.createPendingReservationInTx(
-			request,
-			memberId,
-			"사용자 예약 생성"
-		);
+		Reservation reservation = idempotencyKey == null
+			? transactionService.createPendingReservationInTx(request, memberId, "사용자 예약 생성")
+			: transactionService.createPendingReservationInTx(
+				request,
+				memberId,
+				idempotencyKey,
+				"사용자 예약 생성"
+			);
 		return ReservationResponse.Ready.from(reservation, clock.instant());
 	}
 

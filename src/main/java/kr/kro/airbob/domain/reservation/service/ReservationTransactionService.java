@@ -43,16 +43,22 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
+import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
+import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutEndpoint;
+import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
+import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -77,12 +83,50 @@ public class ReservationTransactionService {
 	private final CouponUsageService couponUsageService;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final ReservationHoldPolicy holdPolicy;
+	private final ReservationCheckoutRequestStore checkoutRequestStore;
 	private final Clock clock;
+
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public Reservation createPendingReservationInTx(
+		ReservationRequest.Create request,
+		Long memberId,
+		String idempotencyKey,
+		String reason
+	) {
+		ReservationCheckoutIdentity identity = ReservationCheckoutIdentity.from(
+			idempotencyKey, request);
+		Member guest = findActiveMember(memberId);
+		ReservationCheckoutRequestClaim claim = checkoutRequestStore.lockOrCreate(
+			memberId,
+			ReservationCheckoutEndpoint.RESERVATION_CREATE_V1,
+			identity,
+			clock.instant()
+		);
+		if (!claim.requestFingerprint().equals(identity.requestFingerprint())) {
+			throw new ReservationCheckoutIdempotencyConflictException();
+		}
+		if (claim.reservationId() != null) {
+			return reservationRepository.findCheckoutReplayByIdAndGuestId(
+				claim.reservationId(), memberId)
+				.orElseThrow(ReservationStateChangeException::new);
+		}
+
+		Reservation reservation = createPendingReservation(request, reason, guest);
+		checkoutRequestStore.complete(claim.id(), reservation.getId(), clock.instant());
+		return reservation;
+	}
 
 	// The accommodation row is the inventory mutex; avoid empty-range gap locks here.
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
-		Member guest = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE).orElseThrow(MemberNotFoundException::new);
+		return createPendingReservation(request, reason, findActiveMember(memberId));
+	}
+
+	private Reservation createPendingReservation(
+		ReservationRequest.Create request,
+		String reason,
+		Member guest
+	) {
 		Accommodation accommodation = accommodationRepository.findByIdAndStatusForUpdate(
 			request.accommodationId(), AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
@@ -115,7 +159,7 @@ public class ReservationTransactionService {
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
 		if (request.couponId() != null) {
 			long discount = couponUsageService.use(
-				memberId, request.couponId(), reservation.getId(), reservation.getTotalPrice());
+				guest.getId(), request.couponId(), reservation.getId(), reservation.getTotalPrice());
 			reservation.applyDiscount(discount);
 		}
 		if (!reservation.requiresPayment()) {
@@ -131,6 +175,11 @@ public class ReservationTransactionService {
 		log.info("예약 ID {} (UID: {}) {} 상태로 DB 저장 완료",
 			reservation.getId(), reservation.getReservationUid(), reservation.getStatus());
 		return reservation;
+	}
+
+	private Member findActiveMember(Long memberId) {
+		return memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
+			.orElseThrow(MemberNotFoundException::new);
 	}
 
 	private void validateOccupancy(Accommodation accommodation, int guestCount) {

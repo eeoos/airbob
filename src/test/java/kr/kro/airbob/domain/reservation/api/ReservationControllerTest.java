@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.reservation.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -7,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -30,6 +32,7 @@ import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,6 +59,54 @@ class ReservationControllerTest {
 	@AfterEach
 	void tearDown() {
 		UserContext.clear();
+	}
+
+	@Test
+	void creationUsesTheStandardIdempotencyHeaderAndKeepsTheV1SuccessStatus() throws Exception {
+		String idempotencyKey = "checkout-secret-key-that-must-not-be-returned";
+		ReservationRequest.Create request = new ReservationRequest.Create(
+			31L,
+			LocalDate.of(2026, 9, 10),
+			LocalDate.of(2026, 9, 12),
+			2,
+			null,
+			"늦은 체크인"
+		);
+
+		var result = mockMvc.perform(post("/api/v1/reservations")
+				.header("Idempotency-Key", idempotencyKey)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"accommodation_id":31,"check_in_date":"2026-09-10","check_out_date":"2026-09-12",\
+					 "guest_count":2,"coupon_id":null,"request_message":"늦은 체크인"}
+					"""))
+			.andExpect(status().isOk())
+			.andReturn();
+
+		assertThat(result.getResponse().getContentAsString()).doesNotContain(idempotencyKey);
+		then(reservationService).should()
+			.createPendingReservation(request, MEMBER_ID, idempotencyKey);
+	}
+
+	@Test
+	void creationWithoutTheNewHeaderKeepsTheExistingV1Contract() throws Exception {
+		ReservationRequest.Create request = new ReservationRequest.Create(
+			31L,
+			LocalDate.of(2026, 9, 10),
+			LocalDate.of(2026, 9, 12),
+			2
+		);
+
+		mockMvc.perform(post("/api/v1/reservations")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"accommodation_id":31,"check_in_date":"2026-09-10",\
+					 "check_out_date":"2026-09-12","guest_count":2}
+					"""))
+			.andExpect(status().isOk());
+
+		then(reservationService).should()
+			.createPendingReservation(request, MEMBER_ID, null);
 	}
 
 	@Test

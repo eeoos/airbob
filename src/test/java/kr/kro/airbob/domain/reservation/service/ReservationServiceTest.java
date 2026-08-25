@@ -34,6 +34,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 @DisplayName("ReservationService 테스트")
 class ReservationServiceTest {
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
+	private static final String IDEMPOTENCY_KEY = "reservation-service-test";
 
 	private ReservationService reservationService;
 
@@ -94,10 +95,12 @@ class ReservationServiceTest {
 		@Test
 		@DisplayName("예약 생성의 동시성 검증과 저장은 권위 트랜잭션에 위임한다")
 		void delegatesCreationToAuthoritativeTransaction() {
-			given(transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
+			given(transactionService.createPendingReservationInTx(
+				validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성"))
 				.willReturn(pendingReservation);
 
-			ReservationResponse.Ready result = reservationService.createPendingReservation(validRequest, memberId);
+			ReservationResponse.Ready result = reservationService.createPendingReservation(
+				validRequest, memberId, IDEMPOTENCY_KEY);
 
 			assertThat(result.reservationUid()).isEqualTo(pendingReservation.getReservationUid().toString());
 			assertThat(result.amount()).isEqualTo(pendingReservation.getTotalPrice());
@@ -107,7 +110,24 @@ class ReservationServiceTest {
 			assertThat(result.serverTime()).isEqualTo(NOW);
 			assertThat(result.holdExpiresAt()).isEqualTo(NOW.plusSeconds(15 * 60));
 			then(transactionService).should()
+				.createPendingReservationInTx(
+					validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성");
+		}
+
+		@Test
+		@DisplayName("멱등성 헤더가 없는 기존 V1 요청은 기존 권위 트랜잭션으로 호환된다")
+		void keepsTheLegacyV1CreationPathWhenTheHeaderIsMissing() {
+			given(transactionService.createPendingReservationInTx(
+				validRequest, memberId, "사용자 예약 생성"))
+				.willReturn(pendingReservation);
+
+			ReservationResponse.Ready result = reservationService.createPendingReservation(
+				validRequest, memberId, null);
+
+			assertThat(result.reservationUid()).isEqualTo(pendingReservation.getReservationUid().toString());
+			then(transactionService).should()
 				.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
+			then(transactionService).shouldHaveNoMoreInteractions();
 		}
 
 		@Test
@@ -124,10 +144,12 @@ class ReservationServiceTest {
 				.currency("KRW")
 				.expiresAt(NOW.plusSeconds(15 * 60))
 				.build();
-			given(transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
+			given(transactionService.createPendingReservationInTx(
+				validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성"))
 				.willReturn(complimentary);
 
-			ReservationResponse.Ready result = reservationService.createPendingReservation(validRequest, memberId);
+			ReservationResponse.Ready result = reservationService.createPendingReservation(
+				validRequest, memberId, IDEMPOTENCY_KEY);
 
 			assertThat(result.status()).isEqualTo(ReservationStatus.CONFIRMED);
 			assertThat(result.paymentRequired()).isFalse();
@@ -145,7 +167,8 @@ class ReservationServiceTest {
 				2
 			);
 
-			assertThatThrownBy(() -> reservationService.createPendingReservation(request, memberId))
+			assertThatThrownBy(() -> reservationService.createPendingReservation(
+				request, memberId, IDEMPOTENCY_KEY))
 				.isInstanceOf(InvalidReservationDateException.class);
 			then(transactionService).shouldHaveNoInteractions();
 		}
@@ -153,10 +176,12 @@ class ReservationServiceTest {
 		@Test
 		@DisplayName("DB 중복 예약 판정은 변경하지 않고 호출자에게 전달한다")
 		void propagatesReservationConflict() {
-			given(transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
+			given(transactionService.createPendingReservationInTx(
+				validRequest, memberId, IDEMPOTENCY_KEY, "사용자 예약 생성"))
 				.willThrow(new ReservationConflictException());
 
-			assertThatThrownBy(() -> reservationService.createPendingReservation(validRequest, memberId))
+			assertThatThrownBy(() -> reservationService.createPendingReservation(
+				validRequest, memberId, IDEMPOTENCY_KEY))
 				.isInstanceOf(ReservationConflictException.class);
 		}
 	}

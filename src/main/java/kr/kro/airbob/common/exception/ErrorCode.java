@@ -64,6 +64,7 @@ public enum ErrorCode {
 	RESERVATION_OCCUPANCY_EXCEEDED(HttpStatus.BAD_REQUEST, "R013", "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."),
 	RESERVATION_CHECK_IN_CLOSED(HttpStatus.CONFLICT, "R014", "숙소 체크인 시각 이후에는 예약할 수 없습니다."),
 	RESERVATION_CANCELLATION_DEADLINE_PASSED(HttpStatus.CONFLICT, "R015", "체크인 시각 이후에는 예약을 취소할 수 없습니다."),
+	RESERVATION_CHECKOUT_IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "R016", "동일한 멱등성 키로 다른 예약 요청을 처리할 수 없습니다."),
 
 
 	// payment

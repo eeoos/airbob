@@ -39,6 +39,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -64,6 +65,7 @@ class ReservationCheckInCutoffContractTest {
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private CouponUsageService couponUsageService;
 	@Mock private BookingWindowProvider bookingWindowProvider;
+	@Mock private ReservationCheckoutRequestStore checkoutRequestStore;
 
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
@@ -141,6 +143,7 @@ class ReservationCheckInCutoffContractTest {
 			couponUsageService,
 			bookingWindowProvider,
 			ReservationHoldPolicy.defaultPolicy(),
+			checkoutRequestStore,
 			Clock.fixed(now, ZoneOffset.UTC)
 		);
 	}

@@ -38,6 +38,19 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
 	Optional<Reservation> findByReservationUid(UUID reservationUid);
 
+	@Query("""
+		select reservation
+		from Reservation reservation
+		join fetch reservation.accommodation
+		join fetch reservation.guest
+		where reservation.id = :reservationId
+		  and reservation.guest.id = :guestId
+		""")
+	Optional<Reservation> findCheckoutReplayByIdAndGuestId(
+		@Param("reservationId") Long reservationId,
+		@Param("guestId") Long guestId
+	);
+
 	@Query("select reservation.accommodation.id from Reservation reservation where reservation.reservationUid = :reservationUid")
 	Optional<Long> findAccommodationIdByReservationUid(@Param("reservationUid") UUID reservationUid);
 

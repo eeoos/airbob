@@ -51,6 +51,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
+import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
@@ -85,6 +86,8 @@ class ReservationTransactionServiceTest {
 	private CouponUsageService couponUsageService;
 	@Mock
 	private BookingWindowProvider bookingWindowProvider;
+	@Mock
+	private ReservationCheckoutRequestStore checkoutRequestStore;
 	private ReservationHoldPolicy holdPolicy;
 
 	@Captor
@@ -115,6 +118,7 @@ class ReservationTransactionServiceTest {
 			couponUsageService,
 			bookingWindowProvider,
 			holdPolicy,
+			checkoutRequestStore,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		memberId = 1L;
