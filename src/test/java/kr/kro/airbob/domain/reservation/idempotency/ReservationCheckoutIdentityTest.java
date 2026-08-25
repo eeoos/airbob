@@ -57,7 +57,8 @@ class ReservationCheckoutIdentityTest {
 
 	@Test
 	void rejectsMissingReservationRequest() {
-		assertThatThrownBy(() -> ReservationCheckoutIdentity.from(IDEMPOTENCY_KEY, null))
+		assertThatThrownBy(() -> ReservationCheckoutIdentity.from(
+			IDEMPOTENCY_KEY, (ReservationRequest.Create)null))
 			.isInstanceOf(InvalidInputException.class);
 	}
 
@@ -125,6 +126,33 @@ class ReservationCheckoutIdentityTest {
 		);
 
 		assertThat(fingerprint(nullableFields)).isNotEqualTo(fingerprint(literalNulls));
+	}
+
+	@Test
+	void v2FingerprintIncludesQuoteUidAndCheckoutMessage() {
+		ReservationRequest.Checkout checkout = new ReservationRequest.Checkout(
+			java.util.UUID.fromString("fa1e54c6-201c-4d09-98b8-68eedfa921ae"),
+			"늦은 체크인 예정입니다"
+		);
+		ReservationRequest.Checkout changedQuote = new ReservationRequest.Checkout(
+			java.util.UUID.fromString("50a258ac-f741-47bc-a5eb-af7475f4336b"),
+			checkout.requestMessage()
+		);
+		ReservationRequest.Checkout changedMessage = new ReservationRequest.Checkout(
+			checkout.quoteUid(),
+			"조용한 방을 부탁드립니다"
+		);
+
+		String fingerprint = ReservationCheckoutIdentity.from(
+			IDEMPOTENCY_KEY, checkout).requestFingerprint();
+
+		assertThat(fingerprint).matches("[0-9a-f]{64}");
+		assertThat(ReservationCheckoutIdentity.from(
+			IDEMPOTENCY_KEY, checkout).requestFingerprint()).isEqualTo(fingerprint);
+		assertThat(ReservationCheckoutIdentity.from(
+			IDEMPOTENCY_KEY, changedQuote).requestFingerprint()).isNotEqualTo(fingerprint);
+		assertThat(ReservationCheckoutIdentity.from(
+			IDEMPOTENCY_KEY, changedMessage).requestFingerprint()).isNotEqualTo(fingerprint);
 	}
 
 	private static String fingerprint(ReservationRequest.Create request) {

@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +16,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.test.context.ActiveProfiles;
@@ -58,6 +62,8 @@ class CouponUsageConcurrencyTest {
 	private MemberCouponRepository memberCouponRepository;
 	@Autowired
 	private MemberRepository memberRepository;
+	@Autowired
+	private PlatformTransactionManager transactionManager;
 
 	@MockitoBean
 	private ElasticsearchClient elasticsearchClient;
@@ -171,5 +177,52 @@ class CouponUsageConcurrencyTest {
 		assertThat(success.get()).as("단 1회만 사용 성공해야 한다.").isEqualTo(1);
 		assertThat(alreadyUsed.get()).as("나머지는 모두 이미 사용됨 처리되어야 한다.").isEqualTo(THREAD_COUNT - 1);
 		assertThat(refreshed.isUsed()).as("쿠폰은 사용됨 상태여야 한다.").isTrue();
+	}
+
+	@Test
+	@DisplayName("checkout의 공유 정책 락이 끝날 때까지 관리자 쿠폰 변경 락은 대기한다")
+	void couponPolicyUpdateWaitsForCheckoutSharedLock() throws Exception {
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		CountDownLatch sharedLockAcquired = new CountDownLatch(1);
+		CountDownLatch releaseSharedLock = new CountDownLatch(1);
+		CountDownLatch updateLockAcquired = new CountDownLatch(1);
+		TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+		try {
+			CompletableFuture<Void> checkout = CompletableFuture.runAsync(() ->
+				transaction.executeWithoutResult(status -> {
+					couponRepository.findByIdForShare(coupon.getId()).orElseThrow();
+					sharedLockAcquired.countDown();
+					await(releaseSharedLock);
+				}), executor);
+			assertThat(sharedLockAcquired.await(5, TimeUnit.SECONDS)).isTrue();
+
+			CompletableFuture<Void> adminUpdate = CompletableFuture.runAsync(() ->
+				transaction.executeWithoutResult(status -> {
+					couponRepository.findByIdForUpdate(coupon.getId()).orElseThrow();
+					updateLockAcquired.countDown();
+				}), executor);
+
+			assertThat(updateLockAcquired.await(300, TimeUnit.MILLISECONDS)).isFalse();
+			releaseSharedLock.countDown();
+			checkout.get(5, TimeUnit.SECONDS);
+			adminUpdate.get(5, TimeUnit.SECONDS);
+			assertThat(updateLockAcquired.getCount()).isZero();
+		} finally {
+			releaseSharedLock.countDown();
+			executor.shutdownNow();
+			assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
+	}
+
+	private void await(CountDownLatch latch) {
+		try {
+			if (!latch.await(5, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("timed out waiting for coupon policy lock release");
+			}
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("interrupted while holding coupon policy lock", exception);
+		}
 	}
 }

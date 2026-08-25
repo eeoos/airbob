@@ -36,6 +36,17 @@ public interface ReservationRepositoryCustom {
 		Instant now
 	);
 
+	/**
+	 * Advisory snapshot for quotes only. It never guarantees inventory and must be
+	 * followed by the authoritative locking check during checkout.
+	 */
+	boolean existsConflictingReservationSnapshot(
+		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	);
+
 	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
 
 	boolean existsCompletedReservationByGuest(Long accommodationId, Long memberId);

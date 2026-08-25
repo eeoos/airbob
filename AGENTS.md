@@ -148,11 +148,13 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V20.
+- Current schema history is V1 through V23.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.
-  Do not rewrite them after deployment; later migrations must account for persisted data normally.
+  V21 added bounded expiry cleanup without narrowing legacy message storage, V22 added the hashed
+  checkout-idempotency ledger, and V23 added non-holding reservation quotes. These later migrations
+  preserve populated data and must not be rewritten after deployment.
 
 ## Testing expectations
 

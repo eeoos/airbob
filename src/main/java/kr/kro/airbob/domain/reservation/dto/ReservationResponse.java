@@ -7,6 +7,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
@@ -18,6 +19,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -25,6 +27,47 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReservationResponse {
+
+	@Builder
+	public record Quote(
+		UUID quoteUid,
+		Long accommodationId,
+		String orderName,
+		LocalDate checkIn,
+		LocalDate checkOut,
+		Integer guestCount,
+		Long nightlyPrice,
+		Long nights,
+		Long subtotal,
+		Long discountAmount,
+		Long amount,
+		String currency,
+		boolean paymentRequired,
+		boolean inventoryHeld,
+		Instant quoteExpiresAt,
+		Instant serverTime
+	) {
+		public static Quote from(ReservationQuote quote, Instant serverTime) {
+			return Quote.builder()
+				.quoteUid(quote.getQuoteUid())
+				.accommodationId(quote.getAccommodationId())
+				.orderName(quote.getOrderName())
+				.checkIn(quote.getCheckInDate())
+				.checkOut(quote.getCheckOutDate())
+				.guestCount(quote.getGuestCount())
+				.nightlyPrice(quote.getNightlyPrice())
+				.nights(quote.getNights())
+				.subtotal(quote.getSubtotal())
+				.discountAmount(quote.getDiscountAmount())
+				.amount(quote.getAmount())
+				.currency(quote.getCurrency())
+				.paymentRequired(quote.getAmount() > 0)
+				.inventoryHeld(false)
+				.quoteExpiresAt(quote.getExpiresAt())
+				.serverTime(serverTime)
+				.build();
+		}
+	}
 
 	@Builder
 	public record Ready(
@@ -129,6 +172,7 @@ public class ReservationResponse {
 		String timeZoneId,
 		LocalTime checkInTime,
 		LocalTime checkOutTime,
+		String requestMessage,
 		Boolean canWriteReview,
 		AccommodationResponse.AccommodationBasicInfo accommodation,
 		AddressResponse.AddressInfo address,
@@ -162,6 +206,7 @@ public class ReservationResponse {
 				.timeZoneId(reservation.getTimeZoneId())
 				.checkInTime(checkInDateTime.toLocalTime())
 				.checkOutTime(checkOutDateTime.toLocalTime())
+				.requestMessage(reservation.getMessage())
 				.canWriteReview(canWriteReview)
 				.accommodation(AccommodationResponse.AccommodationBasicInfo.from(accommodation))
 				.address(AddressResponse.AddressInfo.from(address))
@@ -240,6 +285,7 @@ public class ReservationResponse {
 		LocalDateTime checkInDateTime,
 		LocalDateTime checkOutDateTime,
 		String timeZoneId,
+		String requestMessage,
 
 		AccommodationResponse.AccommodationBasicInfo accommodation,
 		AddressResponse.AddressInfo address,
@@ -261,6 +307,7 @@ public class ReservationResponse {
 				.checkInDateTime(LocalDateTime.ofInstant(reservation.getCheckInAt(), timeZone))
 				.checkOutDateTime(LocalDateTime.ofInstant(reservation.getCheckOutAt(), timeZone))
 				.timeZoneId(reservation.getTimeZoneId())
+				.requestMessage(reservation.getMessage())
 				.accommodation(
 					AccommodationResponse.AccommodationBasicInfo.from(accommodation))
 				.address(AddressResponse.AddressInfo.from(address))

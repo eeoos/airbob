@@ -14,6 +14,8 @@ public class SchedulingConfig {
 	public static final String DEFAULT_TASK_SCHEDULER = "taskScheduler";
 	public static final String RESERVATION_CLEANUP_TASK_SCHEDULER =
 		"reservationCleanupTaskScheduler";
+	public static final String RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER =
+		"reservationQuoteCleanupTaskScheduler";
 
 	@Bean(name = DEFAULT_TASK_SCHEDULER, destroyMethod = "shutdown")
 	ThreadPoolTaskScheduler taskScheduler(
@@ -28,6 +30,11 @@ public class SchedulingConfig {
 	@Bean(name = RESERVATION_CLEANUP_TASK_SCHEDULER, destroyMethod = "shutdown")
 	ThreadPoolTaskScheduler reservationCleanupTaskScheduler() {
 		return taskScheduler(1, "reservation-cleanup-");
+	}
+
+	@Bean(name = RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER, destroyMethod = "shutdown")
+	ThreadPoolTaskScheduler reservationQuoteCleanupTaskScheduler() {
+		return taskScheduler(1, "reservation-quote-cleanup-");
 	}
 
 	private ThreadPoolTaskScheduler taskScheduler(int poolSize, String threadNamePrefix) {

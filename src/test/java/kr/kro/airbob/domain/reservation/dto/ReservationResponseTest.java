@@ -154,6 +154,7 @@ class ReservationResponseTest {
 			.totalPrice(200_000L)
 			.currency("KRW")
 			.status(ReservationStatus.CONFIRMED)
+			.message("유아용 침대를 준비해 주세요")
 			.expiresAt(Instant.parse("2026-03-01T00:00:00Z"))
 			.createdAt(createdAt)
 			.build();
@@ -177,10 +178,12 @@ class ReservationResponseTest {
 		assertThat(guestDetail.paymentAllowed()).isFalse();
 		assertThat(guestDetail.holdExpiresAt()).isNull();
 		assertThat(guestDetail.serverTime()).isEqualTo(SERVER_TIME);
+		assertThat(guestDetail.requestMessage()).isEqualTo("유아용 침대를 준비해 주세요");
 		assertThat(hostDetail.timeZoneId()).isEqualTo("America/New_York");
 		assertThat(hostDetail.checkInDateTime()).isEqualTo(localCheckIn);
 		assertThat(hostDetail.checkOutDateTime()).isEqualTo(localCheckOut);
 		assertThat(hostDetail.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));
+		assertThat(hostDetail.requestMessage()).isEqualTo("유아용 침대를 준비해 주세요");
 		assertThat(guestInfo.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));
 		assertThat(guestInfo.status()).isEqualTo(ReservationStatus.CONFIRMED);
 		assertThat(hostInfo.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));

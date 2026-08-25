@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,6 +39,13 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 	);
 
 	Optional<Accommodation> findByIdAndStatus(Long id, AccommodationStatus status);
+
+	@EntityGraph(attributePaths = "occupancyPolicy")
+	@Query("SELECT a FROM Accommodation a WHERE a.id = :id AND a.status = :status")
+	Optional<Accommodation> findQuoteSnapshotByIdAndStatus(
+		@Param("id") Long id,
+		@Param("status") AccommodationStatus status
+	);
 
 	@Query("""
 		SELECT new kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBookingProjection(a.timeZoneId)

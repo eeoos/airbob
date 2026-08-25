@@ -41,6 +41,7 @@ class SchedulingConfigTest {
 				assertThat(context).hasSingleBean(SchedulingConfig.class);
 				assertThat(context).hasBean(SchedulingConfig.DEFAULT_TASK_SCHEDULER);
 				assertThat(context).hasBean(SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER);
+				assertThat(context).hasBean(SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER);
 				ThreadPoolTaskScheduler defaultScheduler = context.getBean(
 					SchedulingConfig.DEFAULT_TASK_SCHEDULER,
 					ThreadPoolTaskScheduler.class
@@ -49,9 +50,14 @@ class SchedulingConfigTest {
 					SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER,
 					ThreadPoolTaskScheduler.class
 				);
+				ThreadPoolTaskScheduler quoteScheduler = context.getBean(
+					SchedulingConfig.RESERVATION_QUOTE_CLEANUP_TASK_SCHEDULER,
+					ThreadPoolTaskScheduler.class
+				);
 				assertThat(defaultScheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
 					.isEqualTo(4);
 				assertThat(scheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isOne();
+				assertThat(quoteScheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isOne();
 			});
 	}
 }

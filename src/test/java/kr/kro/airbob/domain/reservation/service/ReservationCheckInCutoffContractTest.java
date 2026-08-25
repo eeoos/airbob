@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -40,6 +41,7 @@ import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
+import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
@@ -66,6 +68,7 @@ class ReservationCheckInCutoffContractTest {
 	@Mock private CouponUsageService couponUsageService;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private ReservationCheckoutRequestStore checkoutRequestStore;
+	@Mock private ReservationQuoteRepository quoteRepository;
 
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
@@ -143,6 +146,7 @@ class ReservationCheckInCutoffContractTest {
 			couponUsageService,
 			bookingWindowProvider,
 			ReservationHoldPolicy.defaultPolicy(),
+			quoteRepository,
 			checkoutRequestStore,
 			Clock.fixed(now, ZoneOffset.UTC)
 		);
@@ -154,7 +158,8 @@ class ReservationCheckInCutoffContractTest {
 		given(accommodationRepository.findByIdAndStatusForUpdate(
 			request.accommodationId(), AccommodationStatus.PUBLISHED))
 			.willReturn(Optional.of(accommodation()));
-		given(bookingWindowProvider.currentFor(ACCOMMODATION_TIME_ZONE))
+		given(bookingWindowProvider.currentFor(
+			eq(ACCOMMODATION_TIME_ZONE), any(Instant.class)))
 			.willReturn(BookingWindow.startingOn(CHECK_IN_DATE));
 	}
 

@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MissingRequestCookieException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -75,6 +76,16 @@ public class GlobalExceptionHandler {
 	) {
 		log.warn("handleMissingRequestCookieException: {} - Required cookie '{}' is missing.",
 			e.getMessage(), e.getCookieName());
+		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
+		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
+	}
+
+	@ExceptionHandler(MissingRequestHeaderException.class)
+	protected ResponseEntity<ApiResponse<?>> handleMissingRequestHeaderException(
+		MissingRequestHeaderException exception
+	) {
+		log.warn("handleMissingRequestHeaderException: required header '{}' is missing",
+			exception.getHeaderName());
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.INVALID_INPUT_VALUE.getStatus());
 	}

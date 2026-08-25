@@ -26,6 +26,18 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
 
 	Optional<MemberCoupon> findByMemberIdAndCouponId(Long memberId, Long couponId);
 
+	@EntityGraph(attributePaths = "coupon")
+	@Query("""
+		select mc
+		from MemberCoupon mc
+		where mc.member.id = :memberId
+		  and mc.coupon.id = :couponId
+		""")
+	Optional<MemberCoupon> findByMemberIdAndCouponIdWithCoupon(
+		@Param("memberId") Long memberId,
+		@Param("couponId") Long couponId
+	);
+
 	/**
 	 * 미사용 상태일 때만 사용 처리한다. 영향 행이 0이면 이미 사용된 것 → 중복 사용 방지.
 	 */

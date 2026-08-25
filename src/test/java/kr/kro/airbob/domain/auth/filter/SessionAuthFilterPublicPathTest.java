@@ -18,6 +18,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class SessionAuthFilterPublicPathTest {
 
 	@Test
+	@DisplayName("예약 V2 견적과 checkout POST는 익명 요청을 거절한다")
+	void anonymousReservationV2PostsRequireAuthentication() throws Exception {
+		for (String path : new String[] {"/api/v2/reservation-quotes", "/api/v2/reservations"}) {
+			SessionAuthFilter filter = createFilter();
+			MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+			MockHttpServletResponse response = new MockHttpServletResponse();
+			MockFilterChain chain = new MockFilterChain();
+
+			filter.doFilter(request, response, chain);
+
+			assertThat(chain.getRequest()).as(path).isNull();
+			assertThat(response.getStatus()).as(path).isEqualTo(401);
+		}
+	}
+
+	@Test
 	@DisplayName("숙소 예약 가능 정보 GET은 익명 요청을 필터 체인에 전달한다")
 	void anonymousAccommodationAvailabilityGetPassesFilterChain() throws Exception {
 		SessionAuthFilter filter = createFilter();

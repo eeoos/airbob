@@ -49,6 +49,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededEx
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
+import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
@@ -88,6 +89,8 @@ class ReservationTransactionServiceTest {
 	private BookingWindowProvider bookingWindowProvider;
 	@Mock
 	private ReservationCheckoutRequestStore checkoutRequestStore;
+	@Mock
+	private ReservationQuoteRepository quoteRepository;
 	private ReservationHoldPolicy holdPolicy;
 
 	@Captor
@@ -118,6 +121,7 @@ class ReservationTransactionServiceTest {
 			couponUsageService,
 			bookingWindowProvider,
 			holdPolicy,
+			quoteRepository,
 			checkoutRequestStore,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
@@ -157,7 +161,7 @@ class ReservationTransactionServiceTest {
 			"조용한 방으로 부탁드립니다"
 		);
 
-		lenient().when(bookingWindowProvider.currentFor(TIME_ZONE_ID))
+		lenient().when(bookingWindowProvider.currentFor(TIME_ZONE_ID, NOW))
 			.thenReturn(BookingWindow.startingOn(WINDOW_START));
 	}
 
@@ -363,7 +367,7 @@ class ReservationTransactionServiceTest {
 			given(accommodationRepository.findByIdAndStatusForUpdate(
 				dstRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
-			given(bookingWindowProvider.currentFor(TIME_ZONE_ID))
+			given(bookingWindowProvider.currentFor(TIME_ZONE_ID, NOW))
 				.willReturn(BookingWindow.startingOn(LocalDate.of(2027, 3, 1)));
 			given(reservationRepository.existsConflictingReservation(
 				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
@@ -464,7 +468,7 @@ class ReservationTransactionServiceTest {
 				outsideRequest, memberId, "사용자 예약 생성"))
 				.isInstanceOf(ReservationOutsideBookingWindowException.class);
 
-			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID);
+			then(bookingWindowProvider).should().currentFor(TIME_ZONE_ID, NOW);
 			then(reservationRepository).shouldHaveNoInteractions();
 			then(historyRepository).shouldHaveNoInteractions();
 		}

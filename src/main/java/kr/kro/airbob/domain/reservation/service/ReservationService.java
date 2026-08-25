@@ -43,6 +43,20 @@ public class ReservationService {
 		return ReservationResponse.Ready.from(reservation, clock.instant());
 	}
 
+	public ReservationResponse.Ready createPendingReservation(
+		ReservationRequest.Checkout request,
+		Long memberId,
+		String idempotencyKey
+	) {
+		Reservation reservation = transactionService.createPendingReservationInTx(
+			request,
+			memberId,
+			idempotencyKey,
+			"견적 기반 예약 생성"
+		);
+		return ReservationResponse.Ready.from(reservation, clock.instant());
+	}
+
 	public Cancellation cancelReservation(
 		String reservationUid,
 		PaymentRequest.Cancel request,

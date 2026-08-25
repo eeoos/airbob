@@ -10,6 +10,7 @@ import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyUsedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotApplicableException;
 import kr.kro.airbob.domain.coupon.exception.MemberCouponNotFoundException;
+import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponUsageService {
 
 	private final MemberCouponRepository memberCouponRepository;
+	private final CouponRepository couponRepository;
 	private final CouponTimeProvider timeProvider;
 
 	/**
@@ -30,21 +32,15 @@ public class CouponUsageService {
 	 */
 	@Transactional
 	public long use(Long memberId, Long couponId, Long reservationId, long originalAmount) {
-		MemberCoupon memberCoupon = memberCouponRepository.findByMemberIdAndCouponId(memberId, couponId)
+		MemberCoupon memberCoupon = memberCouponRepository.findByMemberIdAndCouponId(
+			memberId, couponId)
 			.orElseThrow(MemberCouponNotFoundException::new);
-
-		Coupon coupon = memberCoupon.getCoupon();
+		// Checkout uses a shared policy lock: concurrent checkouts remain parallel while
+		// admin policy changes wait until this transaction has validated and consumed it.
+		Coupon coupon = couponRepository.findByIdForShare(couponId)
+			.orElseThrow(CouponNotApplicableException::new);
 		var now = timeProvider.now();
-
-		if (!coupon.isUsable(now)) {
-			throw new CouponNotApplicableException();
-		}
-
-		long discount = coupon.calculateDiscount(originalAmount);
-		if (discount <= 0) {
-			// 최소 결제 금액 미달 등으로 실제 할인이 없으면 쿠폰을 소모하지 않는다
-			throw new CouponNotApplicableException();
-		}
+		long discount = calculateApplicableDiscount(coupon, originalAmount, now);
 
 		int updated = memberCouponRepository.markUsed(memberCoupon.getId(), reservationId, now);
 		if (updated == 0) {
@@ -52,6 +48,21 @@ public class CouponUsageService {
 		}
 
 		return discount;
+	}
+
+	/**
+	 * Calculates the currently applicable discount without consuming or locking inventory.
+	 * Checkout always repeats the authoritative validation through {@link #use}.
+	 */
+	@Transactional(readOnly = true)
+	public long preview(Long memberId, Long couponId, long originalAmount) {
+		MemberCoupon memberCoupon = memberCouponRepository.findByMemberIdAndCouponIdWithCoupon(
+			memberId, couponId)
+			.orElseThrow(MemberCouponNotFoundException::new);
+		if (memberCoupon.isUsed()) {
+			throw new CouponAlreadyUsedException();
+		}
+		return calculateApplicableDiscount(memberCoupon.getCoupon(), originalAmount, timeProvider.now());
 	}
 
 	/**
@@ -76,5 +87,20 @@ public class CouponUsageService {
 	@Transactional
 	public void reuse(Long reservationId) {
 		memberCouponRepository.reuseByReservationId(reservationId, timeProvider.now());
+	}
+
+	private long calculateApplicableDiscount(
+		Coupon coupon,
+		long originalAmount,
+		java.time.LocalDateTime now
+	) {
+		if (!coupon.isUsable(now)) {
+			throw new CouponNotApplicableException();
+		}
+		long discount = coupon.calculateDiscount(originalAmount);
+		if (discount <= 0) {
+			throw new CouponNotApplicableException();
+		}
+		return discount;
 	}
 }

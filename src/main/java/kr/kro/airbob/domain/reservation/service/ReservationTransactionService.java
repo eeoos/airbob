@@ -42,6 +42,7 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
+import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedException;
@@ -49,12 +50,18 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateExceptio
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
+import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
+import kr.kro.airbob.domain.reservation.exception.ReservationQuoteExpiredException;
+import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutEndpoint;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
+import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
+import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
@@ -83,6 +90,7 @@ public class ReservationTransactionService {
 	private final CouponUsageService couponUsageService;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final ReservationHoldPolicy holdPolicy;
+	private final ReservationQuoteRepository quoteRepository;
 	private final ReservationCheckoutRequestStore checkoutRequestStore;
 	private final Clock clock;
 
@@ -116,6 +124,71 @@ public class ReservationTransactionService {
 		return reservation;
 	}
 
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public Reservation createPendingReservationInTx(
+		ReservationRequest.Checkout request,
+		Long memberId,
+		String idempotencyKey,
+		String reason
+	) {
+		ReservationCheckoutIdentity identity = ReservationCheckoutIdentity.from(
+			idempotencyKey, request);
+		Member guest = findActiveMember(memberId);
+		ReservationCheckoutRequestClaim claim = checkoutRequestStore.lockOrCreate(
+			memberId,
+			ReservationCheckoutEndpoint.RESERVATION_CHECKOUT_V2,
+			identity,
+			clock.instant()
+		);
+		if (!claim.requestFingerprint().equals(identity.requestFingerprint())) {
+			throw new ReservationCheckoutIdempotencyConflictException();
+		}
+		if (claim.reservationId() != null) {
+			return reservationRepository.findCheckoutReplayByIdAndGuestId(
+				claim.reservationId(), memberId)
+				.orElseThrow(ReservationStateChangeException::new);
+		}
+
+		ReservationQuote quote = quoteRepository.findByQuoteUidAndMemberIdForUpdate(
+			request.quoteUid(), memberId)
+			.orElseThrow(ReservationQuoteNotFoundException::new);
+		if (quote.isCheckedOut()) {
+			throw new ReservationQuoteAlreadyCheckedOutException();
+		}
+
+		Instant quoteCheckedAt = clock.instant();
+		if (quote.isExpiredAt(quoteCheckedAt)) {
+			throw new ReservationQuoteExpiredException();
+		}
+
+		ReservationRequest.Create createRequest = new ReservationRequest.Create(
+			quote.getAccommodationId(),
+			quote.getCheckInDate(),
+			quote.getCheckOutDate(),
+			quote.getGuestCount(),
+			quote.getCouponId(),
+			request.requestMessage()
+		);
+		Reservation reservation = createPendingReservation(createRequest, reason, guest);
+		Instant checkedOutAt = clock.instant();
+		if (quote.isExpiredAt(checkedOutAt)) {
+			throw new ReservationQuoteExpiredException();
+		}
+		ReservationStayPricePolicy.StayPrice currentPrice = ReservationStayPricePolicy.calculate(
+			reservation.getAccommodation().getBasePrice(),
+			reservation.getCheckInDate(),
+			reservation.getCheckOutDate()
+		);
+		if (!quote.matchesPricing(currentPrice, reservation.getDiscountAmount())
+			|| !quote.getCurrency().equals(reservation.getCurrency())) {
+			throw new ReservationQuoteStaleException();
+		}
+
+		quote.attachReservation(reservation.getId(), checkedOutAt);
+		checkoutRequestStore.complete(claim.id(), reservation.getId(), checkedOutAt);
+		return reservation;
+	}
+
 	// The accommodation row is the inventory mutex; avoid empty-range gap locks here.
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
@@ -134,12 +207,13 @@ public class ReservationTransactionService {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
 			throw new InvalidReservationDateException();
 		}
-		BookingWindow bookingWindow = bookingWindowProvider.currentFor(accommodation.getTimeZoneId());
+		Instant now = clock.instant();
+		BookingWindow bookingWindow = bookingWindowProvider.currentFor(
+			accommodation.getTimeZoneId(), now);
 		if (!bookingWindow.containsStay(request.checkInDate(), request.checkOutDate())) {
 			throw new ReservationOutsideBookingWindowException();
 		}
 
-		Instant now = clock.instant();
 		Instant checkInAt = Reservation.resolveCheckInAt(accommodation, request.checkInDate());
 		if (!now.isBefore(checkInAt)) {
 			throw new ReservationCheckInClosedException();
@@ -151,9 +225,18 @@ public class ReservationTransactionService {
 		}
 
 		String reservationCode = createReservationCode();
-
+		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
+			accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
 		Reservation reservation = Reservation.createPendingReservation(
-			accommodation, guest, request, reservationCode, now, holdPolicy);
+			accommodation,
+			guest,
+			request,
+			reservationCode,
+			now,
+			holdPolicy,
+			stayPrice,
+			accommodation.bookingCurrency()
+		);
 		reservationRepository.save(reservation);
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감

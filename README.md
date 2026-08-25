@@ -21,7 +21,7 @@
 ## Tech Stack
 
 - Java 21, Spring Boot 3.5.8, Spring Data JPA, QueryDSL
-- MySQL 8, Flyway V1~V20
+- MySQL 8, Flyway V1~V23
 - Redis: 세션, 최근 본 숙소, 쿠폰 재고, 조회 캐시
 - Apache Kafka, Debezium Outbox Event Router
 - Elasticsearch, Nori analyzer, versioned index alias

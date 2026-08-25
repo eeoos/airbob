@@ -16,18 +16,20 @@ public record ReservationCheckoutIdentity(
 	private static final int MAX_KEY_LENGTH = 128;
 	private static final String SAFE_KEY_PATTERN = "[A-Za-z0-9._:-]+";
 
-	public static ReservationCheckoutIdentity from(
-		String rawKey,
-		ReservationRequest.Create request
-	) {
+	public static ReservationCheckoutIdentity from(String rawKey, ReservationRequest.Create request) {
 		validateKey(rawKey);
 		if (request == null) {
 			throw new InvalidInputException("예약 요청은 필수입니다.");
 		}
-		return new ReservationCheckoutIdentity(
-			sha256(rawKey),
-			sha256(canonicalRequest(request))
-		);
+		return create(rawKey, canonicalCreateRequest(request));
+	}
+
+	public static ReservationCheckoutIdentity from(String rawKey, ReservationRequest.Checkout request) {
+		validateKey(rawKey);
+		if (request == null) {
+			throw new InvalidInputException("예약 요청은 필수입니다.");
+		}
+		return create(rawKey, canonicalCheckoutRequest(request));
 	}
 
 	private static void validateKey(String rawKey) {
@@ -39,13 +41,27 @@ public record ReservationCheckoutIdentity(
 		}
 	}
 
-	private static String canonicalRequest(ReservationRequest.Create request) {
+	private static ReservationCheckoutIdentity create(String rawKey, String canonicalRequest) {
+		return new ReservationCheckoutIdentity(
+			sha256(rawKey),
+			sha256(canonicalRequest)
+		);
+	}
+
+	private static String canonicalCreateRequest(ReservationRequest.Create request) {
 		StringBuilder canonical = new StringBuilder();
 		append(canonical, request.accommodationId());
 		append(canonical, request.checkInDate());
 		append(canonical, request.checkOutDate());
 		append(canonical, request.guestCount());
 		append(canonical, request.couponId());
+		append(canonical, request.requestMessage());
+		return canonical.toString();
+	}
+
+	private static String canonicalCheckoutRequest(ReservationRequest.Checkout request) {
+		StringBuilder canonical = new StringBuilder();
+		append(canonical, request.quoteUid());
 		append(canonical, request.requestMessage());
 		return canonical.toString();
 	}

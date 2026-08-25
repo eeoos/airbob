@@ -18,6 +18,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import jakarta.persistence.LockModeType;
@@ -60,6 +61,20 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			accommodationId, excludedReservationId, checkInDate, checkOutDate, now);
 	}
 
+	@Override
+	public boolean existsConflictingReservationSnapshot(
+		Long accommodationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	) {
+		Long conflictingReservationId = conflictingReservationQuery(
+			accommodationId, null, checkInDate, checkOutDate, now)
+			.fetchFirst();
+
+		return conflictingReservationId != null;
+	}
+
 	private boolean existsConflictingReservation(
 		Long accommodationId,
 		Long excludedReservationId,
@@ -67,7 +82,24 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		LocalDate checkOutDate,
 		Instant now
 	) {
-		Long conflictingReservationId = queryFactory
+		Long conflictingReservationId = conflictingReservationQuery(
+			accommodationId, excludedReservationId, checkInDate, checkOutDate, now)
+			// A preceding plain read can open a stale MySQL REPEATABLE READ snapshot.
+			// The inventory mutex is already held, so use a current read for the final decision.
+			.setLockMode(LockModeType.PESSIMISTIC_WRITE)
+			.fetchFirst();
+
+		return conflictingReservationId != null;
+	}
+
+	private JPAQuery<Long> conflictingReservationQuery(
+		Long accommodationId,
+		Long excludedReservationId,
+		LocalDate checkInDate,
+		LocalDate checkOutDate,
+		Instant now
+	) {
+		return queryFactory
 			.select(reservation.id)
 			.from(reservation)
 			.where(
@@ -76,13 +108,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 				inventoryOccupyingReservationStatus(now),
 				reservation.checkInDate.lt(checkOutDate),
 				reservation.checkOutDate.gt(checkInDate)
-			)
-			// A preceding plain read can open a stale MySQL REPEATABLE READ snapshot.
-			// The inventory mutex is already held, so use a current read for the final decision.
-			.setLockMode(LockModeType.PESSIMISTIC_WRITE)
-			.fetchFirst();
-
-		return conflictingReservationId != null;
+			);
 	}
 
 	@Override

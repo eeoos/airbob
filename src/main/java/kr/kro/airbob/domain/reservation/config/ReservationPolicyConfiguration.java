@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
+import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 
 @Configuration(proxyBeanMethods = false)
 public class ReservationPolicyConfiguration {
@@ -16,5 +17,12 @@ public class ReservationPolicyConfiguration {
 		@Value("${reservation.hold.duration}") Duration duration
 	) {
 		return new ReservationHoldPolicy(duration);
+	}
+
+	@Bean
+	public ReservationQuotePolicy reservationQuotePolicy(
+		@Value("${reservation.quote.duration}") Duration duration
+	) {
+		return new ReservationQuotePolicy(duration);
 	}
 }

@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -29,10 +28,10 @@ import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
-import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
 import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
+import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -101,7 +100,8 @@ public class Reservation extends BaseEntity {
 	@Column(nullable = false)
 	private ReservationStatus status;
 
-	@Column(length = 255)
+	// Keep the legacy 500-character storage contract; public checkout APIs accept at most 255.
+	@Column(length = 500)
 	private String message;
 
 	@Column(nullable = false)
@@ -129,14 +129,30 @@ public class Reservation extends BaseEntity {
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
 		ReservationRequest.Create request, String reservationCode, Instant now,
 		ReservationHoldPolicy holdPolicy) {
+		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
+			accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
+		return createPendingReservation(
+			accommodation,
+			guest,
+			request,
+			reservationCode,
+			now,
+			holdPolicy,
+			stayPrice,
+			accommodation.bookingCurrency()
+		);
+	}
+
+	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
+		ReservationRequest.Create request, String reservationCode, Instant now,
+		ReservationHoldPolicy holdPolicy, ReservationStayPricePolicy.StayPrice stayPrice,
+		String currency) {
 
 		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
 		Instant checkInAt = resolveStayInstant(
 			request.checkInDate(), accommodation.getCheckInTime(), timeZone);
 		Instant checkOutAt = resolveStayInstant(
 			request.checkOutDate(), accommodation.getCheckOutTime(), timeZone);
-		Long price = calculatePrice(accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
-
 		return Reservation.builder()
 			.accommodation(accommodation)
 			.guest(guest)
@@ -146,10 +162,8 @@ public class Reservation extends BaseEntity {
 			.checkOutAt(checkOutAt)
 			.timeZoneId(timeZone.getId())
 			.guestCount(request.guestCount())
-			.totalPrice(price)
-			// todo: 국제화를 고려하지 못하여 KRW로 하드코딩
-			// 이후 국제화 도입 필요
-			.currency("KRW")
+			.totalPrice(stayPrice.subtotal())
+			.currency(currency)
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.message(request.requestMessage())
 			.expiresAt(holdPolicy.expiresAtFrom(now))
@@ -160,6 +174,11 @@ public class Reservation extends BaseEntity {
 	public static Instant resolveCheckInAt(Accommodation accommodation, LocalDate checkInDate) {
 		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
 		return resolveStayInstant(checkInDate, accommodation.getCheckInTime(), timeZone);
+	}
+
+	public static Instant resolveCheckOutAt(Accommodation accommodation, LocalDate checkOutDate) {
+		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
+		return resolveStayInstant(checkOutDate, accommodation.getCheckOutTime(), timeZone);
 	}
 
 	private static Instant resolveStayInstant(LocalDate date, java.time.LocalTime time, ZoneId timeZone) {
@@ -179,15 +198,6 @@ public class Reservation extends BaseEntity {
 		long applied = Math.min(discount, this.totalPrice);
 		this.discountAmount = applied;
 		this.totalPrice -= applied;
-	}
-
-	private static Long calculatePrice(Long basePrice, LocalDate checkIn, LocalDate checkOut) {
-		long nights = ChronoUnit.DAYS.between(checkIn, checkOut);
-
-		if (nights <= 0) {
-			throw new InvalidReservationDateException();
-		}
-		return (basePrice * nights);
 	}
 
 	public void confirm() {

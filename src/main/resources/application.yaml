@@ -114,6 +114,13 @@ settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
 
 reservation:
+  quote:
+    duration: ${RESERVATION_QUOTE_DURATION:5m}
+    retention: ${RESERVATION_QUOTE_RETENTION:30d}
+    cleanup-batch-size: ${RESERVATION_QUOTE_CLEANUP_BATCH_SIZE:500}
+    cleanup-interval: ${RESERVATION_QUOTE_CLEANUP_INTERVAL:10m}
+    max-cleanup-batches-per-run: ${RESERVATION_QUOTE_MAX_CLEANUP_BATCHES_PER_RUN:10}
+    cleanup-transaction-timeout-seconds: ${RESERVATION_QUOTE_CLEANUP_TRANSACTION_TIMEOUT_SECONDS:10}
   hold:
     duration: ${RESERVATION_HOLD_DURATION:15m}
   expiration:

@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 import java.sql.Timestamp;
@@ -162,7 +164,8 @@ class ReservationConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		given(bookingWindowProvider.currentFor(TIME_ZONE_ID)).willReturn(BOOKING_WINDOW);
+		given(bookingWindowProvider.currentFor(eq(TIME_ZONE_ID), any(Instant.class)))
+			.willReturn(BOOKING_WINDOW);
 		jdbcTemplate.update("DELETE FROM reservation_checkout_request");
 		outboxRepository.deleteAllInBatch();
 		paymentTransactionRepository.deleteAllInBatch();
