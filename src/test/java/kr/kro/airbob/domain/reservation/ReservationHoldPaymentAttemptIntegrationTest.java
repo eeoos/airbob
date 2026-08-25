@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import java.time.Clock;
@@ -64,18 +65,31 @@ import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Accepted;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
+import kr.kro.airbob.domain.payment.entity.PaymentOperation;
+import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
+import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
+import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
+import kr.kro.airbob.domain.payment.service.PaymentOperationExecutor;
+import kr.kro.airbob.domain.payment.service.PaymentOperationQueryService;
+import kr.kro.airbob.domain.payment.service.TossPaymentsAdapter;
+import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ExpiredReservationConfirmationException;
+import kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException;
+import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationHoldReleaseNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
+import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptNotAllowedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationPaymentAttemptTooLateException;
+import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
@@ -132,10 +146,13 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Autowired private ReservationHoldCommandService holdCommandService;
 	@Autowired private ExpiredReservationCleanupService cleanupService;
 	@Autowired private PaymentOperationCommandService paymentCommandService;
+	@Autowired private PaymentOperationExecutor paymentOperationExecutor;
+	@Autowired private PaymentOperationQueryService paymentOperationQueryService;
 	@Autowired private ReservationQuoteRepository quoteRepository;
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private ReservationHistoryRepository historyRepository;
 	@Autowired private PaymentOperationRepository paymentOperationRepository;
+	@Autowired private PaymentTransactionRepository paymentTransactionRepository;
 	@Autowired private OutboxMessageRepository outboxRepository;
 	@Autowired private MemberRepository memberRepository;
 	@Autowired private AccommodationRepository accommodationRepository;
@@ -151,6 +168,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@MockitoBean private AccommodationSearchRepository accommodationSearchRepository;
 	@MockitoBean private io.awspring.cloud.s3.S3Template s3Template;
 	@MockitoBean private BookingWindowProvider bookingWindowProvider;
+	@MockitoBean private TossPaymentsAdapter paymentGateway;
 
 	private TransactionTemplate transactionTemplate;
 	private Member guest;
@@ -429,6 +447,149 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		assertThat(persisted.getPaymentAttemptUid()).isNull();
 	}
 
+	@Test
+	@DisplayName("결제 최종 거절은 기존 hold와 쿠폰을 풀고 새 견적과 새 키로만 동일 조건의 hold를 다시 만든다")
+	void definitiveDeclineReleasesOldHoldAndAllowsFreshCheckout() {
+		Coupon coupon = issueFixedCoupon(30_000);
+		ReservationRequest.Quote preservedQuoteRequest = new ReservationRequest.Quote(
+			accommodation.getId(),
+			FIRST_CHECK_IN,
+			FIRST_CHECK_IN.plusDays(3),
+			2,
+			coupon.getId()
+		);
+		String preservedRequestMessage = "유아용 침대를 준비해 주세요";
+		String oldCheckoutKey = "declined-checkout-old";
+		ReservationResponse.Quote oldQuote = createQuote(preservedQuoteRequest);
+		ReservationResponse.Ready oldReady = checkout(
+			oldQuote, oldCheckoutKey, preservedRequestMessage);
+		DeclinedPayment declinedPayment = decline(oldReady, "declined-old-payment-key");
+
+		Reservation oldReservation = reservation(oldReady.reservationUid());
+		PaymentOperation declinedOperation = paymentOperationRepository
+			.findByOperationUid(declinedPayment.accepted().operationId())
+			.orElseThrow();
+		PaymentOperationResponse.Detail polling = paymentOperationQueryService.find(
+			declinedPayment.accepted().operationId(), guest.getId());
+		MemberCoupon restoredCoupon = memberCoupon(coupon);
+
+		assertThat(declinedOperation.getStatus()).isEqualTo(PaymentOperationStatus.DECLINED);
+		assertThat(oldReservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(expiredHistoryCount(oldReservation.getId())).isOne();
+		assertThat(paymentTransactionRepository.findAll())
+			.extracting(transaction -> transaction.getTransactionType())
+			.containsExactly(PaymentTransactionType.FAIL);
+		assertThat(restoredCoupon.isUsed()).isFalse();
+		assertThat(restoredCoupon.getUsedAt()).isNull();
+		assertThat(restoredCoupon.getReservationId()).isEqualTo(oldReservation.getId());
+		assertThat(polling.status()).isEqualTo(PaymentOperationResponse.Status.FAILED);
+		assertThat(polling.nextAction())
+			.isEqualTo(PaymentOperationResponse.NextAction.START_NEW_CHECKOUT);
+		assertThat(polling.retryAfterSeconds()).isNull();
+		assertThat(polling.userFailureCode()).isEqualTo("PAYMENT_DECLINED");
+		assertThat(polling.serverTime()).isEqualTo(NOW);
+
+		long outboxCountAfterDecline = outboxRepository.count();
+		Accepted confirmationReplay = paymentCommandService.requestConfirmation(
+			declinedPayment.confirmRequest(), guest.getId());
+		ReservationResponse.Ready checkoutReplay = checkout(
+			oldQuote, oldCheckoutKey, preservedRequestMessage);
+
+		assertThat(confirmationReplay.operationId())
+			.isEqualTo(declinedPayment.accepted().operationId());
+		assertThat(confirmationReplay.status()).isEqualTo(PaymentOperationResponse.Status.FAILED);
+		assertThat(checkoutReplay.reservationUid()).isEqualTo(oldReady.reservationUid());
+		assertThat(checkoutReplay.status()).isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(paymentOperationRepository.count()).isOne();
+		assertThat(reservationRepository.count()).isOne();
+		assertThat(outboxRepository.count()).isEqualTo(outboxCountAfterDecline);
+		assertThatThrownBy(() -> holdCommandService.beginPaymentAttempt(
+			oldReady.reservationUid(), guest.getId()))
+			.isInstanceOf(ReservationPaymentAttemptNotAllowedException.class);
+		assertThatThrownBy(() -> checkout(
+			oldQuote, "declined-checkout-another-fresh", preservedRequestMessage))
+			.isInstanceOf(ReservationQuoteAlreadyCheckedOutException.class);
+
+		ReservationResponse.Quote freshQuote = createQuote(preservedQuoteRequest);
+		assertThat(freshQuote.quoteUid()).isNotEqualTo(oldQuote.quoteUid());
+		assertThat(freshQuote.accommodationId()).isEqualTo(preservedQuoteRequest.accommodationId());
+		assertThat(freshQuote.checkIn()).isEqualTo(preservedQuoteRequest.checkInDate());
+		assertThat(freshQuote.checkOut()).isEqualTo(preservedQuoteRequest.checkOutDate());
+		assertThat(freshQuote.guestCount()).isEqualTo(preservedQuoteRequest.guestCount());
+		assertThat(freshQuote.discountAmount()).isEqualTo(oldQuote.discountAmount());
+		assertThat(freshQuote.amount()).isEqualTo(oldQuote.amount());
+		assertThatThrownBy(() -> checkout(
+			freshQuote, oldCheckoutKey, preservedRequestMessage))
+			.isInstanceOf(ReservationCheckoutIdempotencyConflictException.class);
+
+		ReservationResponse.Ready freshReady = checkout(
+			freshQuote, "declined-checkout-fresh", preservedRequestMessage);
+		Reservation freshReservation = reservation(freshReady.reservationUid());
+		MemberCoupon reusedCoupon = memberCoupon(coupon);
+
+		assertThat(freshReady.reservationUid()).isNotEqualTo(oldReady.reservationUid());
+		assertThat(freshReady.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+		assertThat(freshReady.checkIn()).isEqualTo(oldReady.checkIn());
+		assertThat(freshReady.checkOut()).isEqualTo(oldReady.checkOut());
+		assertThat(freshReady.guestCount()).isEqualTo(oldReady.guestCount());
+		assertThat(freshReady.discountAmount()).isEqualTo(oldReady.discountAmount());
+		assertThat(freshReady.amount()).isEqualTo(oldReady.amount());
+		assertThat(freshReservation.getMessage()).isEqualTo(preservedRequestMessage);
+		assertThat(reusedCoupon.isUsed()).isTrue();
+		assertThat(reusedCoupon.getReservationId()).isEqualTo(freshReservation.getId());
+		assertThat(reservation(oldReady.reservationUid()).getStatus())
+			.isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(reservationRepository.count()).isEqualTo(2L);
+
+		ReservationResponse.PaymentAttemptReady freshAttempt = beginAttempt(freshReady);
+		PaymentRequest.Confirm oldTokenForFreshReservation = new PaymentRequest.Confirm(
+			"fresh-payment-with-old-token",
+			freshAttempt.orderId(),
+			Math.toIntExact(freshAttempt.amount()),
+			declinedPayment.attempt().paymentAttemptId()
+		);
+
+		assertThat(freshAttempt.paymentAttemptId())
+			.isNotEqualTo(declinedPayment.attempt().paymentAttemptId());
+		assertThatThrownBy(() -> paymentCommandService.requestConfirmation(
+			oldTokenForFreshReservation, guest.getId()))
+			.isInstanceOf(InvalidReservationPaymentAttemptException.class);
+		assertThat(paymentOperationRepository.count()).isOne();
+		Reservation unchangedFreshReservation = reservation(freshReady.reservationUid());
+		assertThat(unchangedFreshReservation.getStatus())
+			.isEqualTo(ReservationStatus.PAYMENT_PENDING);
+		assertThat(unchangedFreshReservation.getPaymentAttemptUid())
+			.isEqualTo(freshAttempt.paymentAttemptId());
+		assertThat(unchangedFreshReservation.getPaymentAttemptConsumedAt()).isNull();
+	}
+
+	@Test
+	@DisplayName("결제 거절 polling은 체크인 정확 시각과 그 이후에 새 checkout을 제안하지 않는다")
+	void declinedPollingAtAndAfterCheckInReturnsNone() {
+		ReservationResponse.Ready ready = createV2Hold(0, null, "decline-poll-cutoff");
+		DeclinedPayment declinedPayment = decline(ready, "decline-poll-cutoff-payment");
+		Reservation declinedReservation = reservation(ready.reservationUid());
+		long historyCount = historyRepository.count();
+		long outboxCount = outboxRepository.count();
+
+		clock.set(declinedReservation.getCheckInAt());
+		PaymentOperationResponse.Detail atCheckIn = paymentOperationQueryService.find(
+			declinedPayment.accepted().operationId(), guest.getId());
+		clock.set(declinedReservation.getCheckInAt().plusNanos(1));
+		PaymentOperationResponse.Detail afterCheckIn = paymentOperationQueryService.find(
+			declinedPayment.accepted().operationId(), guest.getId());
+
+		assertThat(atCheckIn.status()).isEqualTo(PaymentOperationResponse.Status.FAILED);
+		assertThat(atCheckIn.nextAction()).isEqualTo(PaymentOperationResponse.NextAction.NONE);
+		assertThat(afterCheckIn.status()).isEqualTo(PaymentOperationResponse.Status.FAILED);
+		assertThat(afterCheckIn.nextAction()).isEqualTo(PaymentOperationResponse.NextAction.NONE);
+		assertThat(reservation(ready.reservationUid()).getStatus())
+			.isEqualTo(ReservationStatus.EXPIRED);
+		assertThat(paymentOperationRepository.count()).isOne();
+		assertThat(historyRepository.count()).isEqualTo(historyCount);
+		assertThat(outboxRepository.count()).isEqualTo(outboxCount);
+	}
+
 	private void createFixture() {
 		Member host = memberRepository.save(
 			Member.builder().email("hold-host@test.com").nickname("hold-host").build());
@@ -468,18 +629,29 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 
 	private ReservationResponse.Ready createV2Hold(int stayOffsetDays, Long couponId, String idempotencyKey) {
 		LocalDate checkIn = FIRST_CHECK_IN.plusDays(stayOffsetDays);
-		ReservationResponse.Quote quote = quoteService.createQuote(new ReservationRequest.Quote(
+		ReservationResponse.Quote quote = createQuote(new ReservationRequest.Quote(
 			accommodation.getId(),
 			checkIn,
 			checkIn.plusDays(3),
 			2,
 			couponId
-		), guest.getId());
+		));
+		return checkout(quote, idempotencyKey, null);
+	}
+
+	private ReservationResponse.Quote createQuote(ReservationRequest.Quote request) {
+		return quoteService.createQuote(request, guest.getId());
+	}
+
+	private ReservationResponse.Ready checkout(
+		ReservationResponse.Quote quote,
+		String idempotencyKey,
+		String requestMessage
+	) {
 		return reservationService.createPendingReservation(
-			new ReservationRequest.Checkout(quote.quoteUid(), null),
+			new ReservationRequest.Checkout(quote.quoteUid(), requestMessage),
 			guest.getId(),
-			idempotencyKey
-		);
+			idempotencyKey);
 	}
 
 	private ReservationResponse.PaymentAttemptReady beginAttempt(ReservationResponse.Ready ready) {
@@ -496,6 +668,20 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			Math.toIntExact(attempt.amount()),
 			attempt.paymentAttemptId()
 		);
+	}
+
+	private DeclinedPayment decline(ReservationResponse.Ready ready, String paymentKey) {
+		ReservationResponse.PaymentAttemptReady attempt = beginAttempt(ready);
+		PaymentRequest.Confirm confirmRequest = confirmRequest(attempt, paymentKey);
+		Accepted accepted = paymentCommandService.requestConfirmation(confirmRequest, guest.getId());
+		PaymentOperation queued = paymentOperationRepository.findByOperationUid(accepted.operationId())
+			.orElseThrow();
+		given(paymentGateway.confirm(any())).willReturn(new PaymentGatewayResult.Declined(
+			"REJECT_CARD_PAYMENT", "issuer declined"));
+
+		paymentOperationExecutor.execute(accepted.operationId(), queued.getDispatchGeneration());
+
+		return new DeclinedPayment(accepted, attempt, confirmRequest);
 	}
 
 	private Reservation reservation(String reservationUid) {
@@ -566,6 +752,13 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 			Thread.currentThread().interrupt();
 			throw new IllegalStateException("transaction wait interrupted", exception);
 		}
+	}
+
+	private record DeclinedPayment(
+		Accepted accepted,
+		ReservationResponse.PaymentAttemptReady attempt,
+		PaymentRequest.Confirm confirmRequest
+	) {
 	}
 
 	@TestConfiguration(proxyBeanMethods = false)
