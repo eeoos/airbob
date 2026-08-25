@@ -48,6 +48,13 @@ public interface ReservationRepositoryCustom {
 		LocalDate windowEndExclusive
 	);
 
+	List<ReservationDateRange> findUnavailableReservationRangesByAccommodationId(
+		Long accommodationId,
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive,
+		Instant now
+	);
+
 	List<ReservationDateRange> findActiveReservationRangesByAccommodationUid(
 		UUID accommodationUid,
 		LocalDate windowStartInclusive,

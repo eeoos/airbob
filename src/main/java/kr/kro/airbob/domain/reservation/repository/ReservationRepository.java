@@ -23,6 +23,19 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	List<Reservation> findAllByStatusAndExpiresAtLessThanEqual(ReservationStatus status, Instant expiresAt);
 
+	@Query(value = """
+		select * from reservation
+		where status = 'PAYMENT_PENDING'
+		  and expires_at <= :cutoff
+		order by expires_at, id
+		limit :batchSize
+		for update skip locked
+		""", nativeQuery = true)
+	List<Reservation> findExpiredPendingBatchForCleanup(
+		@Param("cutoff") Instant cutoff,
+		@Param("batchSize") int batchSize
+	);
+
 	Optional<Reservation> findByReservationUid(UUID reservationUid);
 
 	@Query("select reservation.accommodation.id from Reservation reservation where reservation.reservationUid = :reservationUid")

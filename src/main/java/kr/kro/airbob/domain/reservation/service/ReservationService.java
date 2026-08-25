@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.reservation.service;
 
+import java.time.Clock;
+
 import org.springframework.stereotype.Service;
 
 import kr.kro.airbob.cursor.dto.CursorRequest;
@@ -19,6 +21,7 @@ public class ReservationService {
 
 	private final ReservationTransactionService transactionService;
 	private final PaymentCancellationCommandService cancellationCommandService;
+	private final Clock clock;
 
 	public ReservationResponse.Ready createPendingReservation(ReservationRequest.Create request, Long memberId) {
 		if (!request.checkOutDate().isAfter(request.checkInDate())) {
@@ -30,7 +33,7 @@ public class ReservationService {
 			memberId,
 			"사용자 예약 생성"
 		);
-		return ReservationResponse.Ready.from(reservation);
+		return ReservationResponse.Ready.from(reservation, clock.instant());
 	}
 
 	public Cancellation cancelReservation(

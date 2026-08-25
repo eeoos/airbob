@@ -553,6 +553,76 @@ class ReservationRepositoryQueryTest {
 		assertThat(sqlInspector.singleSelect()).contains(" for update");
 	}
 
+	@Test
+	@DisplayName("직접 availability는 미만료 결제 대기와 결제 처리 중 예약도 점유 구간으로 반환한다")
+	void unavailableRangesIncludeUnexpiredPendingAndProcessingReservations() {
+		Member member = memberRepository.save(Member.builder()
+			.email("availability-occupancy@test.com")
+			.nickname("availability-occupancy")
+			.build());
+		Accommodation target = saveAccommodation(member, "availability-occupancy-target");
+		Accommodation other = saveAccommodation(member, "availability-occupancy-other");
+		Instant now = Instant.parse("2030-01-01T00:00:00.123456Z");
+		LocalDate windowStart = LocalDate.of(2030, 2, 1);
+		LocalDate windowEndExclusive = LocalDate.of(2030, 3, 1);
+
+		ReservationDateRange confirmed = new ReservationDateRange(
+			windowStart.plusDays(1), windowStart.plusDays(2));
+		ReservationDateRange activePending = new ReservationDateRange(
+			windowStart.plusDays(3), windowStart.plusDays(4));
+		ReservationDateRange processing = new ReservationDateRange(
+			windowStart.plusDays(5), windowStart.plusDays(6));
+		ReservationDateRange cancellationPending = new ReservationDateRange(
+			windowStart.plusDays(7), windowStart.plusDays(8));
+		ReservationDateRange cancellationFailed = new ReservationDateRange(
+			windowStart.plusDays(9), windowStart.plusDays(10));
+
+		saveReservation(target, member, ReservationStatus.CONFIRMED,
+			confirmed.checkIn(), confirmed.checkOut());
+		saveReservation(target, member, ReservationStatus.PAYMENT_PENDING,
+			activePending.checkIn(), activePending.checkOut(),
+			activePending.checkIn().atTime(15, 0).toInstant(ZoneOffset.UTC),
+			activePending.checkOut().atTime(11, 0).toInstant(ZoneOffset.UTC),
+			now.plus(1, ChronoUnit.MICROS));
+		saveReservation(target, member, ReservationStatus.PAYMENT_PROCESSING,
+			processing.checkIn(), processing.checkOut(),
+			processing.checkIn().atTime(15, 0).toInstant(ZoneOffset.UTC),
+			processing.checkOut().atTime(11, 0).toInstant(ZoneOffset.UTC),
+			now.minus(1, ChronoUnit.MICROS));
+		saveReservation(target, member, ReservationStatus.CANCELLATION_PENDING,
+			cancellationPending.checkIn(), cancellationPending.checkOut());
+		saveReservation(target, member, ReservationStatus.CANCELLATION_FAILED,
+			cancellationFailed.checkIn(), cancellationFailed.checkOut());
+
+		// 만료 경계(expiresAt <= now)의 PAYMENT_PENDING은 배치가 돌기 전이어도 점유하지 않는다.
+		saveReservation(target, member, ReservationStatus.PAYMENT_PENDING,
+			windowStart.plusDays(11), windowStart.plusDays(12),
+			windowStart.plusDays(11).atTime(15, 0).toInstant(ZoneOffset.UTC),
+			windowStart.plusDays(12).atTime(11, 0).toInstant(ZoneOffset.UTC),
+			now);
+		saveReservation(target, member, ReservationStatus.CANCELLED,
+			windowStart.plusDays(13), windowStart.plusDays(14));
+		saveReservation(target, member, ReservationStatus.EXPIRED,
+			windowStart.plusDays(15), windowStart.plusDays(16));
+		saveReservation(other, member, ReservationStatus.PAYMENT_PROCESSING,
+			windowStart.plusDays(17), windowStart.plusDays(18));
+		reservationRepository.flush();
+
+		sqlInspector.clear();
+		List<ReservationDateRange> result = reservationRepository
+			.findUnavailableReservationRangesByAccommodationId(
+				target.getId(), windowStart, windowEndExclusive, now);
+
+		assertThat(result).containsExactlyInAnyOrder(
+			confirmed,
+			activePending,
+			processing,
+			cancellationPending,
+			cancellationFailed
+		);
+		assertDateRangeProjection(sqlInspector.singleSelect());
+	}
+
     @Test
     @DisplayName("ID 조회는 지정 기간과 겹치는 확정 예약만 날짜 구간으로 반환한다")
     void idQueryReturnsConfirmedReservationRangesOverlappingWindow() {

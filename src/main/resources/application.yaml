@@ -8,6 +8,11 @@ spring:
       traffic-benchmark:
         - performance-lab
 
+  task:
+    scheduling:
+      pool:
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
+
   jpa:
     database-platform: org.hibernate.dialect.MySQL8Dialect
     hibernate:
@@ -109,7 +114,13 @@ settlement:
   commission-rate: 0.03   # 호스트 정산 수수료율(net에 부과). 정산 레코드에 스냅샷됨
 
 reservation:
+  hold:
+    duration: ${RESERVATION_HOLD_DURATION:15m}
   expiration:
+    cleanup-batch-size: ${RESERVATION_EXPIRATION_CLEANUP_BATCH_SIZE:100}
+    cleanup-interval: ${RESERVATION_EXPIRATION_CLEANUP_INTERVAL:30s}
+    max-batches-per-run: ${RESERVATION_EXPIRATION_MAX_BATCHES_PER_RUN:10}
+    transaction-timeout-seconds: ${RESERVATION_EXPIRATION_TRANSACTION_TIMEOUT_SECONDS:10}
     history-batch-size: ${RESERVATION_HISTORY_BATCH_SIZE:100}
 
 accommodation:

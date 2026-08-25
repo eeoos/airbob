@@ -32,6 +32,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
+import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -100,6 +101,7 @@ public class Reservation extends BaseEntity {
 	@Column(nullable = false)
 	private ReservationStatus status;
 
+	@Column(length = 255)
 	private String message;
 
 	@Column(nullable = false)
@@ -114,6 +116,19 @@ public class Reservation extends BaseEntity {
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
 		ReservationRequest.Create request, String reservationCode, Instant now) {
+		return createPendingReservation(
+			accommodation,
+			guest,
+			request,
+			reservationCode,
+			now,
+			ReservationHoldPolicy.defaultPolicy()
+		);
+	}
+
+	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
+		ReservationRequest.Create request, String reservationCode, Instant now,
+		ReservationHoldPolicy holdPolicy) {
 
 		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
 		Instant checkInAt = resolveStayInstant(
@@ -136,10 +151,15 @@ public class Reservation extends BaseEntity {
 			// 이후 국제화 도입 필요
 			.currency("KRW")
 			.status(ReservationStatus.PAYMENT_PENDING)
-			// .message(request.message())
-			.expiresAt(now.plus(15, ChronoUnit.MINUTES))
+			.message(request.requestMessage())
+			.expiresAt(holdPolicy.expiresAtFrom(now))
 			.reservationCode(reservationCode)
 			.build();
+	}
+
+	public static Instant resolveCheckInAt(Accommodation accommodation, LocalDate checkInDate) {
+		ZoneId timeZone = ZoneId.of(accommodation.getTimeZoneId());
+		return resolveStayInstant(checkInDate, accommodation.getCheckInTime(), timeZone);
 	}
 
 	private static Instant resolveStayInstant(LocalDate date, java.time.LocalTime time, ZoneId timeZone) {
@@ -186,6 +206,19 @@ public class Reservation extends BaseEntity {
 
 	public boolean requiresPayment() {
 		return !Long.valueOf(0L).equals(this.totalPrice);
+	}
+
+	public ReservationStatus effectiveStatus(Instant now) {
+		if (this.status == ReservationStatus.PAYMENT_PENDING && isExpiredAt(now)) {
+			return ReservationStatus.EXPIRED;
+		}
+		return this.status;
+	}
+
+	public boolean isPaymentAllowedAt(Instant now) {
+		return this.status == ReservationStatus.PAYMENT_PENDING
+			&& requiresPayment()
+			&& !isExpiredAt(now);
 	}
 
 	public boolean startPayment(Instant now) {

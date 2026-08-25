@@ -1,5 +1,7 @@
 package kr.kro.airbob.domain.accommodation.service;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +46,7 @@ public class AccommodationQueryService {
 	private final BookingWindowProvider bookingWindowProvider;
 	private final AccommodationDetailReader accommodationDetailReader;
 	private final AccommodationDetailCache accommodationDetailCache;
+	private final Clock clock;
 
 	public AccommodationResponse.DetailInfo findAccommodation(Long accommodationId, Long viewerId) {
 		AccommodationDetailSnapshot snapshot = accommodationDetailCache.getOrLoad(
@@ -63,10 +66,11 @@ public class AccommodationQueryService {
 			.orElseThrow(AccommodationNotFoundException::new)
 			.timeZoneId();
 		BookingWindow bookingWindow = bookingWindowProvider.currentFor(timeZoneId);
+		Instant queriedAt = clock.instant();
 		LocalDate bookingWindowStart = bookingWindow.startInclusive();
 		LocalDate bookingWindowEndExclusive = bookingWindow.endExclusive();
 		List<AccommodationResponse.UnavailableDateRange> unavailableRanges = getUnavailableRanges(
-			accommodationId, bookingWindowStart, bookingWindowEndExclusive);
+			accommodationId, bookingWindowStart, bookingWindowEndExclusive, queriedAt);
 
 		return new AccommodationResponse.Availability(
 			bookingWindowStart,
@@ -140,13 +144,15 @@ public class AccommodationQueryService {
 	private List<AccommodationResponse.UnavailableDateRange> getUnavailableRanges(
 		Long accommodationId,
 		LocalDate windowStart,
-		LocalDate windowEndExclusive
+		LocalDate windowEndExclusive,
+		Instant queriedAt
 	) {
 		List<ReservationDateRange> reservationRanges = reservationRepository
-			.findActiveReservationRangesByAccommodationId(
+			.findUnavailableReservationRangesByAccommodationId(
 				accommodationId,
 				windowStart,
-				windowEndExclusive);
+				windowEndExclusive,
+				queriedAt);
 
 		List<AccommodationResponse.UnavailableDateRange> clippedRanges = reservationRanges.stream()
 			.map(range -> clipUnavailableRange(range, windowStart, windowEndExclusive))

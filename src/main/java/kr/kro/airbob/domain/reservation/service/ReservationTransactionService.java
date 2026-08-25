@@ -43,12 +43,14 @@ import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
+import kr.kro.airbob.domain.reservation.exception.ReservationCheckInClosedException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
@@ -74,6 +76,7 @@ public class ReservationTransactionService {
 	private final ReservationHistoryRepository historyRepository;
 	private final CouponUsageService couponUsageService;
 	private final BookingWindowProvider bookingWindowProvider;
+	private final ReservationHoldPolicy holdPolicy;
 	private final Clock clock;
 
 	// The accommodation row is the inventory mutex; avoid empty-range gap locks here.
@@ -93,6 +96,10 @@ public class ReservationTransactionService {
 		}
 
 		Instant now = clock.instant();
+		Instant checkInAt = Reservation.resolveCheckInAt(accommodation, request.checkInDate());
+		if (!now.isBefore(checkInAt)) {
+			throw new ReservationCheckInClosedException();
+		}
 
 		if (reservationRepository.existsConflictingReservation(
 			request.accommodationId(), request.checkInDate(), request.checkOutDate(), now)) {
@@ -102,7 +109,7 @@ public class ReservationTransactionService {
 		String reservationCode = createReservationCode();
 
 		Reservation reservation = Reservation.createPendingReservation(
-			accommodation, guest, request, reservationCode, now);
+			accommodation, guest, request, reservationCode, now, holdPolicy);
 		reservationRepository.save(reservation);
 
 		// 쿠폰 적용 (선택) — 같은 트랜잭션에서 사용 처리(중복 사용 방지) 후 결제 금액 차감
@@ -143,18 +150,19 @@ public class ReservationTransactionService {
 	@Transactional(readOnly = true)
 	public ReservationResponse.GuestReservationInfos findMyReservations(Long memberId,
 		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
+		Instant now = clock.instant();
 
 		Slice<Reservation> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			memberId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
 			filterType,
-			clock.instant(),
+			now,
 			PageRequest.of(0, cursorRequest.size())
 		);
 
 		List<ReservationResponse.GuestReservationInfo> reservationInfos = reservationSlice.getContent().stream()
-			.map(ReservationResponse.GuestReservationInfo::from)
+			.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now))
 			.collect(Collectors.toList());
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
@@ -181,7 +189,8 @@ public class ReservationTransactionService {
 		boolean canWriteReview = isCanWriteReview(memberId, reservation);
 
 		// mapstruct 적용
-		return ReservationResponse.GuestDetail.from(reservation, paymentInfo, canWriteReview);
+		return ReservationResponse.GuestDetail.from(
+			reservation, paymentInfo, canWriteReview, clock.instant());
 	}
 
 	@Transactional(readOnly = true)

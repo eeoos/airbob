@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -42,6 +43,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 @DisplayName("ExpiredReservationCleanupService 테스트")
 class ExpiredReservationCleanupServiceTest {
 	private static final Instant NOW = Instant.parse("2026-07-21T10:00:00Z");
+	private static final int CLEANUP_BATCH_SIZE = 100;
 
 	@Mock
 	private ReservationRepository reservationRepository;
@@ -60,7 +62,8 @@ class ExpiredReservationCleanupServiceTest {
 			reservationRepository,
 			batchWriter,
 			couponUsageService,
-			Clock.fixed(NOW, ZoneOffset.UTC)
+			Clock.fixed(NOW, ZoneOffset.UTC),
+			CLEANUP_BATCH_SIZE
 		);
 		first = pendingReservation(1L, 11L, LocalDate.of(2026, 8, 1));
 		second = pendingReservation(2L, 12L, LocalDate.of(2026, 8, 3));
@@ -69,9 +72,9 @@ class ExpiredReservationCleanupServiceTest {
 	@Test
 	@DisplayName("만료한 예약의 쿠폰을 이력 저장과 같은 트랜잭션에서 일괄 복원한다")
 	void restoresCouponsForEveryExpiredReservation() {
-		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
-			ReservationStatus.PAYMENT_PENDING,
-			NOW
+		given(reservationRepository.findExpiredPendingBatchForCleanup(
+			NOW,
+			CLEANUP_BATCH_SIZE
 		)).willReturn(List.of(first, second));
 
 		service.cleanupExpiredPendingReservations();
@@ -84,26 +87,26 @@ class ExpiredReservationCleanupServiceTest {
 	@Test
 	@DisplayName("만료 시각과 현재 시각이 같으면 만료 대상으로 조회한다")
 	void expiresReservationAtExactBoundary() {
-		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
-			ReservationStatus.PAYMENT_PENDING,
-			NOW
+		given(reservationRepository.findExpiredPendingBatchForCleanup(
+			NOW,
+			CLEANUP_BATCH_SIZE
 		)).willReturn(List.of(first));
 
 		int cleaned = service.cleanupExpiredPendingReservations();
 
 		assertThat(cleaned).isEqualTo(1);
-		then(reservationRepository).should().findAllByStatusAndExpiresAtLessThanEqual(
-			ReservationStatus.PAYMENT_PENDING,
-			NOW
+		then(reservationRepository).should().findExpiredPendingBatchForCleanup(
+			NOW,
+			CLEANUP_BATCH_SIZE
 		);
 	}
 
 	@Test
 	@DisplayName("만료된 예약 이력을 동일한 기준 시각으로 일괄 저장한다")
 	void writesExpiredHistoriesWithTheSameCutoff() {
-		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
-			eq(ReservationStatus.PAYMENT_PENDING),
-			any(Instant.class)
+		given(reservationRepository.findExpiredPendingBatchForCleanup(
+			any(Instant.class),
+			eq(CLEANUP_BATCH_SIZE)
 		)).willReturn(List.of(first, second));
 
 		int cleaned = service.cleanupExpiredPendingReservations();
@@ -115,9 +118,9 @@ class ExpiredReservationCleanupServiceTest {
 		assertThat(histories.getValue()).extracting(ReservationHistory::getStatus)
 			.containsOnly(ReservationStatus.EXPIRED);
 		ArgumentCaptor<Instant> cutoff = ArgumentCaptor.forClass(Instant.class);
-		then(reservationRepository).should().findAllByStatusAndExpiresAtLessThanEqual(
-			eq(ReservationStatus.PAYMENT_PENDING),
-			cutoff.capture()
+		then(reservationRepository).should().findExpiredPendingBatchForCleanup(
+			cutoff.capture(),
+			eq(CLEANUP_BATCH_SIZE)
 		);
 		assertThat(historyCreatedAt.getValue()).isEqualTo(cutoff.getValue());
 	}
@@ -125,7 +128,7 @@ class ExpiredReservationCleanupServiceTest {
 	@Test
 	@DisplayName("history batch 실패를 호출자에게 전달한다")
 	void propagatesHistoryBatchFailure() {
-		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(any(), any()))
+		given(reservationRepository.findExpiredPendingBatchForCleanup(any(), anyInt()))
 			.willReturn(List.of(first, second));
 		willThrow(new DataIntegrityViolationException("intentional"))
 			.given(batchWriter).writeAll(anyList(), any(Instant.class));
@@ -137,7 +140,7 @@ class ExpiredReservationCleanupServiceTest {
 	@Test
 	@DisplayName("만료된 예약이 없으면 history를 저장하거나 쿠폰을 복원하지 않는다")
 	void doesNothingWhenNoExpiredReservationsExist() {
-		given(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(any(), any()))
+		given(reservationRepository.findExpiredPendingBatchForCleanup(any(), anyInt()))
 			.willReturn(List.of());
 
 		int cleaned = service.cleanupExpiredPendingReservations();

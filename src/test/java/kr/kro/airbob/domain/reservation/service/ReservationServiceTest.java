@@ -3,8 +3,11 @@ package kr.kro.airbob.domain.reservation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -12,7 +15,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,8 +33,8 @@ import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationService 테스트")
 class ReservationServiceTest {
+	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
-	@InjectMocks
 	private ReservationService reservationService;
 
 	@Mock
@@ -47,6 +49,11 @@ class ReservationServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		reservationService = new ReservationService(
+			transactionService,
+			cancellationCommandService,
+			Clock.fixed(NOW, ZoneOffset.UTC)
+		);
 		memberId = 1L;
 		LocalDate checkInDate = LocalDate.of(2026, 8, 13);
 		validRequest = new ReservationRequest.Create(1L, checkInDate, checkInDate.plusDays(2), 2);
@@ -69,8 +76,14 @@ class ReservationServiceTest {
 			.reservationCode("ABC123")
 			.accommodation(accommodation)
 			.guest(guest)
+			.checkInDate(checkInDate)
+			.checkOutDate(checkInDate.plusDays(2))
+			.guestCount(2)
 			.status(ReservationStatus.PAYMENT_PENDING)
 			.totalPrice(200_000L)
+			.discountAmount(0L)
+			.currency("KRW")
+			.expiresAt(NOW.plusSeconds(15 * 60))
 			.build();
 	}
 
@@ -90,6 +103,9 @@ class ReservationServiceTest {
 			assertThat(result.amount()).isEqualTo(pendingReservation.getTotalPrice());
 			assertThat(result.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 			assertThat(result.paymentRequired()).isTrue();
+			assertThat(result.paymentAllowed()).isTrue();
+			assertThat(result.serverTime()).isEqualTo(NOW);
+			assertThat(result.holdExpiresAt()).isEqualTo(NOW.plusSeconds(15 * 60));
 			then(transactionService).should()
 				.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성");
 		}
@@ -104,6 +120,9 @@ class ReservationServiceTest {
 				.guest(pendingReservation.getGuest())
 				.status(ReservationStatus.CONFIRMED)
 				.totalPrice(0L)
+				.discountAmount(200_000L)
+				.currency("KRW")
+				.expiresAt(NOW.plusSeconds(15 * 60))
 				.build();
 			given(transactionService.createPendingReservationInTx(validRequest, memberId, "사용자 예약 생성"))
 				.willReturn(complimentary);
@@ -112,6 +131,7 @@ class ReservationServiceTest {
 
 			assertThat(result.status()).isEqualTo(ReservationStatus.CONFIRMED);
 			assertThat(result.paymentRequired()).isFalse();
+			assertThat(result.paymentAllowed()).isFalse();
 		}
 
 		@Test

@@ -62,6 +62,8 @@ public enum ErrorCode {
 	CANNOT_CONFIRM_EXPIRED_RESERVATION(HttpStatus.CONFLICT, "R011", "결제 유효 시간이 지난 예약은 확정할 수 없습니다."),
 	RESERVATION_LOCAL_TIME_INVALID(HttpStatus.BAD_REQUEST, "R012", "해당 날짜에는 숙소의 체크인 또는 체크아웃 시각이 존재하지 않습니다."),
 	RESERVATION_OCCUPANCY_EXCEEDED(HttpStatus.BAD_REQUEST, "R013", "예약 인원이 숙소의 최대 수용 인원을 초과했습니다."),
+	RESERVATION_CHECK_IN_CLOSED(HttpStatus.CONFLICT, "R014", "숙소 체크인 시각 이후에는 예약할 수 없습니다."),
+	RESERVATION_CANCELLATION_DEADLINE_PASSED(HttpStatus.CONFLICT, "R015", "체크인 시각 이후에는 예약을 취소할 수 없습니다."),
 
 
 	// payment

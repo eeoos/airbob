@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -47,6 +48,7 @@ import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindo
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
+import kr.kro.airbob.domain.reservation.policy.ReservationHoldPolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
@@ -57,7 +59,7 @@ import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 class ReservationTransactionServiceTest {
 	private static final String TIME_ZONE_ID = "America/New_York";
 	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 11);
-	private static final Instant NOW = Instant.parse("2026-08-14T15:00:00Z");
+	private static final Instant NOW = Instant.parse("2026-08-11T15:00:00Z");
 
 	private ReservationTransactionService transactionService;
 
@@ -83,6 +85,7 @@ class ReservationTransactionServiceTest {
 	private CouponUsageService couponUsageService;
 	@Mock
 	private BookingWindowProvider bookingWindowProvider;
+	private ReservationHoldPolicy holdPolicy;
 
 	@Captor
 	private ArgumentCaptor<Reservation> reservationCaptor;
@@ -98,6 +101,7 @@ class ReservationTransactionServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		holdPolicy = new ReservationHoldPolicy(Duration.ofMinutes(7));
 		transactionService = new ReservationTransactionService(
 			searchRefreshPublisher,
 			cursorPageInfoCreator,
@@ -110,6 +114,7 @@ class ReservationTransactionServiceTest {
 			historyRepository,
 			couponUsageService,
 			bookingWindowProvider,
+			holdPolicy,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
 		memberId = 1L;
@@ -143,7 +148,9 @@ class ReservationTransactionServiceTest {
 			1L,
 			LocalDate.of(2026, 8, 12),
 			LocalDate.of(2026, 8, 14),
-			2
+			2,
+			null,
+			"조용한 방으로 부탁드립니다"
 		);
 
 		lenient().when(bookingWindowProvider.currentFor(TIME_ZONE_ID))
@@ -279,7 +286,8 @@ class ReservationTransactionServiceTest {
 			assertThat(result.getCheckInAt()).isEqualTo(Instant.parse("2026-08-12T19:00:00Z"));
 			assertThat(result.getCheckOutAt()).isEqualTo(Instant.parse("2026-08-14T15:00:00Z"));
 			assertThat(result.getTimeZoneId()).isEqualTo(TIME_ZONE_ID);
-			assertThat(result.getExpiresAt()).isEqualTo(NOW.plusSeconds(15 * 60));
+			assertThat(result.getExpiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(7)));
+			assertThat(result.getMessage()).isEqualTo("조용한 방으로 부탁드립니다");
 			then(accommodationRepository).should().findByIdAndStatusForUpdate(
 				validRequest.accommodationId(), AccommodationStatus.PUBLISHED);
 
@@ -342,8 +350,8 @@ class ReservationTransactionServiceTest {
 		void conflictCheckUsesAccommodationZoneInstantsAcrossDst() {
 			ReservationRequest.Create dstRequest = new ReservationRequest.Create(
 				accommodation.getId(),
-				LocalDate.of(2026, 3, 7),
-				LocalDate.of(2026, 3, 9),
+				LocalDate.of(2027, 3, 13),
+				LocalDate.of(2027, 3, 15),
 				2
 			);
 			given(memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE))
@@ -352,7 +360,7 @@ class ReservationTransactionServiceTest {
 				dstRequest.accommodationId(), AccommodationStatus.PUBLISHED))
 				.willReturn(Optional.of(accommodation));
 			given(bookingWindowProvider.currentFor(TIME_ZONE_ID))
-				.willReturn(BookingWindow.startingOn(LocalDate.of(2026, 3, 1)));
+				.willReturn(BookingWindow.startingOn(LocalDate.of(2027, 3, 1)));
 			given(reservationRepository.existsConflictingReservation(
 				anyLong(), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 				.willReturn(false);
@@ -370,8 +378,8 @@ class ReservationTransactionServiceTest {
 			Reservation result = transactionService.createPendingReservationInTx(
 				dstRequest, memberId, "DST 경계 예약 생성");
 
-			Instant expectedCheckInAt = Instant.parse("2026-03-07T20:00:00Z");
-			Instant expectedCheckOutAt = Instant.parse("2026-03-09T15:00:00Z");
+			Instant expectedCheckInAt = Instant.parse("2027-03-13T20:00:00Z");
+			Instant expectedCheckOutAt = Instant.parse("2027-03-15T15:00:00Z");
 			then(reservationRepository).should().existsConflictingReservation(
 				accommodation.getId(), dstRequest.checkInDate(), dstRequest.checkOutDate(), NOW);
 			assertThat(result.getCheckInAt()).isEqualTo(expectedCheckInAt);

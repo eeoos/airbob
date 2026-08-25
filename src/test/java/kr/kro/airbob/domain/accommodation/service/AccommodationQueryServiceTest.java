@@ -3,6 +3,8 @@ package kr.kro.airbob.domain.accommodation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +37,7 @@ import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryReposito
 @DisplayName("숙소 조회 서비스 단위 테스트")
 class AccommodationQueryServiceTest {
 	private static final String DEFAULT_TIME_ZONE_ID = "Asia/Seoul";
+	private static final Instant AVAILABILITY_QUERIED_AT = Instant.parse("2026-08-12T00:00:00Z");
 	private static final LocalDate BOOKING_WINDOW_START = LocalDate.of(2026, 8, 12);
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
@@ -45,6 +48,7 @@ class AccommodationQueryServiceTest {
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private AccommodationDetailReader accommodationDetailReader;
 	@Mock private AccommodationDetailCache accommodationDetailCache;
+	@Mock private Clock clock;
 
 	@InjectMocks
 	private AccommodationQueryService accommodationQueryService;
@@ -107,8 +111,9 @@ class AccommodationQueryServiceTest {
 		ArgumentCaptor<LocalDate> windowStartCaptor = ArgumentCaptor.forClass(LocalDate.class);
 		ArgumentCaptor<LocalDate> windowEndCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
-		verify(reservationRepository).findActiveReservationRangesByAccommodationId(
-			eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture());
+		verify(reservationRepository).findUnavailableReservationRangesByAccommodationId(
+			eq(1L), windowStartCaptor.capture(), windowEndCaptor.capture(),
+			eq(AVAILABILITY_QUERIED_AT));
 		assertThat(windowEndCaptor.getValue()).isEqualTo(windowStartCaptor.getValue().plusMonths(3));
 		assertThat(response.bookingWindowStartInclusive())
 			.isEqualTo(windowStartCaptor.getValue());
@@ -125,8 +130,8 @@ class AccommodationQueryServiceTest {
 		Long accommodationId = 1L;
 		LocalDate today = BOOKING_WINDOW_START;
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(reservationRepository.findActiveReservationRangesByAccommodationId(
-			eq(accommodationId), any(LocalDate.class), any(LocalDate.class)))
+		when(reservationRepository.findUnavailableReservationRangesByAccommodationId(
+			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 			.thenReturn(List.of(new ReservationDateRange(
 				today.plusDays(1),
 				today.plusDays(4)
@@ -148,8 +153,8 @@ class AccommodationQueryServiceTest {
 		LocalDate windowStart = BOOKING_WINDOW_START;
 		LocalDate windowEndExclusive = windowStart.plusMonths(3);
 		givenPublishedAccommodationAvailability(accommodationId);
-		when(reservationRepository.findActiveReservationRangesByAccommodationId(
-			eq(accommodationId), any(LocalDate.class), any(LocalDate.class)))
+		when(reservationRepository.findUnavailableReservationRangesByAccommodationId(
+			eq(accommodationId), any(LocalDate.class), any(LocalDate.class), any(Instant.class)))
 			.thenReturn(List.of(
 				new ReservationDateRange(
 					windowEndExclusive.minusDays(1),
@@ -227,5 +232,6 @@ class AccommodationQueryServiceTest {
 			accommodationId, AccommodationStatus.PUBLISHED))
 			.thenReturn(Optional.of(new AccommodationBookingProjection(timeZoneId)));
 		when(bookingWindowProvider.currentFor(timeZoneId)).thenReturn(bookingWindow);
+		when(clock.instant()).thenReturn(AVAILABILITY_QUERIED_AT);
 	}
 }

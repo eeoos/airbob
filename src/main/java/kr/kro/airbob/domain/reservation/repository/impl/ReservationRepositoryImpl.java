@@ -135,8 +135,24 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	) {
-		return findActiveReservationRanges(
+		return findReservationRanges(
 			reservation.accommodation.id.eq(accommodationId),
+			activeReservationStatus(),
+			windowStartInclusive,
+			windowEndExclusive
+		);
+	}
+
+	@Override
+	public List<ReservationDateRange> findUnavailableReservationRangesByAccommodationId(
+		Long accommodationId,
+		LocalDate windowStartInclusive,
+		LocalDate windowEndExclusive,
+		Instant now
+	) {
+		return findReservationRanges(
+			reservation.accommodation.id.eq(accommodationId),
+			inventoryOccupyingReservationStatus(now),
 			windowStartInclusive,
 			windowEndExclusive
 		);
@@ -148,15 +164,17 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	) {
-		return findActiveReservationRanges(
+		return findReservationRanges(
 			reservation.accommodation.accommodationUid.eq(accommodationUid),
+			activeReservationStatus(),
 			windowStartInclusive,
 			windowEndExclusive
 		);
 	}
 
-	private List<ReservationDateRange> findActiveReservationRanges(
+	private List<ReservationDateRange> findReservationRanges(
 		BooleanExpression accommodationCondition,
+		BooleanExpression statusCondition,
 		LocalDate windowStartInclusive,
 		LocalDate windowEndExclusive
 	) {
@@ -168,7 +186,7 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 			.from(reservation)
 			.where(
 				accommodationCondition,
-				activeReservationStatus(),
+				statusCondition,
 				reservation.checkInDate.lt(windowEndExclusive),
 				reservation.checkOutDate.gt(windowStartInclusive)
 			)

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @DisplayName("스케줄러 설정 테스트")
 class SchedulingConfigTest {
@@ -36,6 +37,21 @@ class SchedulingConfigTest {
 	void enablesSchedulingInPerformanceLabProfile() {
 		profileContextRunner
 			.withPropertyValues("spring.profiles.active=performance-lab")
-			.run(context -> assertThat(context).hasSingleBean(SchedulingConfig.class));
+			.run(context -> {
+				assertThat(context).hasSingleBean(SchedulingConfig.class);
+				assertThat(context).hasBean(SchedulingConfig.DEFAULT_TASK_SCHEDULER);
+				assertThat(context).hasBean(SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER);
+				ThreadPoolTaskScheduler defaultScheduler = context.getBean(
+					SchedulingConfig.DEFAULT_TASK_SCHEDULER,
+					ThreadPoolTaskScheduler.class
+				);
+				ThreadPoolTaskScheduler scheduler = context.getBean(
+					SchedulingConfig.RESERVATION_CLEANUP_TASK_SCHEDULER,
+					ThreadPoolTaskScheduler.class
+				);
+				assertThat(defaultScheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
+					.isEqualTo(4);
+				assertThat(scheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isOne();
+			});
 	}
 }

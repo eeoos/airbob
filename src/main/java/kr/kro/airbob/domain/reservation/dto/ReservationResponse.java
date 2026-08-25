@@ -30,19 +30,39 @@ public class ReservationResponse {
 	public record Ready(
 		String reservationUid, // toss orderId
 		String orderName,
+		LocalDate checkIn,
+		LocalDate checkOut,
+		Integer guestCount,
+		Long subtotal,
+		Long discountAmount,
 		Long amount,
+		String currency,
 		ReservationStatus status,
 		boolean paymentRequired,
+		boolean paymentAllowed,
+		Instant holdExpiresAt,
+		Instant serverTime,
 		String customerEmail,
 		String customerName
 	) {
-		public static Ready from(Reservation reservation) {
+		public static Ready from(Reservation reservation, Instant serverTime) {
+			long discountAmount = reservation.getDiscountAmount() == null
+				? 0L : reservation.getDiscountAmount();
 			return Ready.builder()
 				.reservationUid(reservation.getReservationUid().toString())
 				.orderName(reservation.getAccommodation().getName())
+				.checkIn(reservation.getCheckInDate())
+				.checkOut(reservation.getCheckOutDate())
+				.guestCount(reservation.getGuestCount())
+				.subtotal(Math.addExact(reservation.getTotalPrice(), discountAmount))
+				.discountAmount(discountAmount)
 				.amount(reservation.getTotalPrice())
-				.status(reservation.getStatus())
+				.currency(reservation.getCurrency())
+				.status(reservation.effectiveStatus(serverTime))
 				.paymentRequired(reservation.requiresPayment())
+				.paymentAllowed(reservation.isPaymentAllowedAt(serverTime))
+				.holdExpiresAt(activeHoldExpiresAt(reservation))
+				.serverTime(serverTime)
 				.customerEmail(reservation.getGuest().getEmail())
 				.customerName(reservation.getGuest().getNickname())
 				.build();
@@ -62,7 +82,7 @@ public class ReservationResponse {
 
 		AccommodationResponse.AccommodationBasicInfo accommodation
 	) {
-		public static GuestReservationInfo from(Reservation reservation) {
+		public static GuestReservationInfo from(Reservation reservation, Instant serverTime) {
 
 			return GuestReservationInfo.builder()
 				.reservationId(reservation.getId())
@@ -70,7 +90,7 @@ public class ReservationResponse {
 				.checkInDate(reservation.getCheckInDate())
 				.checkOutDate(reservation.getCheckOutDate())
 				.timeZoneId(reservation.getTimeZoneId())
-				.status(reservation.getStatus())
+				.status(reservation.effectiveStatus(serverTime))
 				// .totalPrice(reservation.getTotalPrice())
 				.createdAt(toUtcInstant(reservation.getCreatedAt()))
 				.accommodation(
@@ -99,6 +119,9 @@ public class ReservationResponse {
 		String reservationUid,
 		String reservationCode,
 		ReservationStatus status,
+		boolean paymentAllowed,
+		Instant holdExpiresAt,
+		Instant serverTime,
 		Instant createdAt,
 		Integer guestCount,
 		LocalDateTime checkInDateTime,
@@ -116,7 +139,8 @@ public class ReservationResponse {
 	) {
 		public static GuestDetail from(Reservation reservation,
 			PaymentResponse.PaymentInfo paymentInfo,
-			boolean canWriteReview) {
+			boolean canWriteReview,
+			Instant serverTime) {
 			Accommodation accommodation = reservation.getAccommodation();
 			Address address = accommodation.getAddress();
 			Member host = accommodation.getMember();
@@ -127,7 +151,10 @@ public class ReservationResponse {
 			return GuestDetail.builder()
 				.reservationUid(reservation.getReservationUid().toString())
 				.reservationCode(reservation.getReservationCode())
-				.status(reservation.getStatus())
+				.status(reservation.effectiveStatus(serverTime))
+				.paymentAllowed(reservation.isPaymentAllowedAt(serverTime))
+				.holdExpiresAt(activeHoldExpiresAt(reservation))
+				.serverTime(serverTime)
 				.createdAt(toUtcInstant(reservation.getCreatedAt()))
 				.guestCount(reservation.getGuestCount())
 				.checkInDateTime(checkInDateTime)
@@ -143,6 +170,12 @@ public class ReservationResponse {
 				.payment(paymentInfo)
 				.build();
 		}
+	}
+
+	private static Instant activeHoldExpiresAt(Reservation reservation) {
+		return reservation.getStatus() == ReservationStatus.PAYMENT_PENDING
+			? reservation.getExpiresAt()
+			: null;
 	}
 
 

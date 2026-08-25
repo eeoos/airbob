@@ -28,6 +28,7 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.exception.ReservationCancellationDeadlinePassedException;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
@@ -79,8 +80,12 @@ public class PaymentCancellationCommandService {
 		if (!reservation.belongsToGuest(memberId)) {
 			throw new PaymentAccessDeniedException();
 		}
+		Instant now = clock.instant();
 
 		if (!reservation.requiresPayment()) {
+			if (reservation.getStatus() != ReservationStatus.CANCELLED) {
+				validateCancellationDeadline(reservation, now);
+			}
 			return cancelComplimentary(reservation, request);
 		}
 
@@ -91,13 +96,13 @@ public class PaymentCancellationCommandService {
 		if (replay != null) {
 			return replay;
 		}
+		validateCancellationDeadline(reservation, now);
 
 		Payment payment = paymentRepository.findByReservationIdWithLock(reservation.getId())
 			.orElseThrow(PaymentNotFoundException::new);
 		validateFullActiveBalance(payment, request.cancelAmount());
 
 		reservation.requestCancellation();
-		Instant now = clock.instant();
 		PaymentOperation operation = PaymentOperation.createCancellation(
 			reservation,
 			memberId,
@@ -119,6 +124,12 @@ public class PaymentCancellationCommandService {
 			operation.getDispatchGeneration()
 		));
 		return Cancellation.accepted(operation);
+	}
+
+	private void validateCancellationDeadline(Reservation reservation, Instant now) {
+		if (!now.isBefore(reservation.getCheckInAt())) {
+			throw new ReservationCancellationDeadlinePassedException();
+		}
 	}
 
 	private Cancellation cancelComplimentary(
@@ -155,11 +166,14 @@ public class PaymentCancellationCommandService {
 			return Cancellation.accepted(operation);
 		}
 		if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-			return latest
-				.filter(operation -> operation.getStatus() == PaymentOperationStatus.APPLIED)
-				.map(Cancellation::accepted)
+			PaymentOperation operation = latest
+				.filter(candidate -> candidate.getStatus() == PaymentOperationStatus.APPLIED)
 				.orElseThrow(() -> new PaymentOperationInvariantViolationException(
 					"paid cancelled reservation has no applied payment operation"));
+			if (!operation.matchesCancellation(request.cancelReason(), request.cancelAmount())) {
+				throw new PaymentOperationConflictException();
+			}
+			return Cancellation.accepted(operation);
 		}
 		if (reservation.getStatus() == ReservationStatus.CANCELLATION_FAILED
 			&& latest.map(PaymentOperation::getStatus)

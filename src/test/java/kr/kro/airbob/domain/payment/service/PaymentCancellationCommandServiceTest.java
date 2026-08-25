@@ -241,6 +241,7 @@ class PaymentCancellationCommandServiceTest {
 			.reservationUid(RESERVATION_UID)
 			.guest(Member.builder().id(GUEST_ID).build())
 			.accommodation(Accommodation.builder().accommodationUid(ACCOMMODATION_UID).build())
+			.checkInAt(NOW.plusSeconds(24 * 60 * 60))
 			.totalPrice(totalPrice)
 			.status(status)
 			.build();
