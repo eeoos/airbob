@@ -56,9 +56,6 @@ public class AccommodationDetailCache {
 	private static final String CACHE_KEY_PREFIX = "airbob:cache:accommodation-detail:v1:";
 	private static final String LOAD_PERMIT_KEY_PREFIX = "airbob:cache:accommodation-detail:load-permit:";
 	private static final String LOCK_KEY_PREFIX = "airbob:lock:accommodation-detail:";
-	private static final LocalLoadInvalidatedException LOCAL_LOAD_INVALIDATED =
-		new LocalLoadInvalidatedException();
-
 	// DB 조회를 시작할 때 발급한 토큰이 그대로인 경우에만 저장
 	// 조회 도중 무효화가 토큰을 삭제했다면 오래된 조회 결과는 캐시에 쓰지 않음
 	private static final DefaultRedisScript<Long> WRITE_IF_PERMITTED_SCRIPT = new DefaultRedisScript<>("""
@@ -146,7 +143,7 @@ public class AccommodationDetailCache {
 			}
 		}
 
-		// Redis miss라면 이미 진행 중인 fallback DB 조회에 합류해 추가 락과 조회를 피한다.
+		// Redis miss라면 이미 진행 중인 fallback DB 조회에 합류해 추가 락과 조회를 피함
 		CompletableFuture<AccommodationDetailSnapshot> localLoad = localLoads.get(accommodationId);
 		if (localLoad != null) {
 			return awaitLocalLoad(accommodationId, localLoad, loader);
@@ -278,10 +275,9 @@ public class AccommodationDetailCache {
 				source, reason, AccommodationDetailCacheMetricRecorder.OperationResult.ERROR);
 			throw exception;
 		} finally {
-			// Redis 무효화 시도가 끝난 뒤 당시 진행 중이던 로컬 조회만 폐기한다.
-			// 대기자는 Redis를 다시 읽지 않고 DB에서 한 번 직접 확인한다.
-			if (localLoad != null && localLoads.remove(accommodationId, localLoad)) {
-				localLoad.completeExceptionally(LOCAL_LOAD_INVALIDATED);
+			// 기존 요청은 진행 중인 조회로 끝내고, 이후 요청만 이전 조회에 합류하지 않게 연결을 끊는다.
+			if (localLoad != null) {
+				localLoads.remove(accommodationId, localLoad);
 			}
 		}
 	}
@@ -320,28 +316,17 @@ public class AccommodationDetailCache {
 		}
 
 		try {
-			AccommodationDetailSnapshot snapshot;
-			try {
-				snapshot = timedLoad(loader);
-			} catch (AccommodationNotFoundException exception) {
-				if (!newLoad.completeExceptionally(exception)) {
-					// 무효화와 겹친 404는 Redis를 우회해 최신 DB 상태를 한 번만 다시 확인
-					return timedUncachedLoad(loader);
-				}
-				metricRecorder.recordRequest(NEGATIVE_LOADED);
-				throw exception;
-			} catch (RuntimeException exception) {
-				// DB 장애는 데이터 변경 경쟁의 결과가 아니므로 재시도하지 않음
-				newLoad.completeExceptionally(exception);
-				throw exception;
-			}
-
-			if (!newLoad.complete(snapshot)) {
-				// 무효화가 먼저 Future를 폐기했으면 Redis를 우회해 한 번만 다시 조회
-				return timedUncachedLoad(loader);
-			}
+			AccommodationDetailSnapshot snapshot = timedLoad(loader);
+			newLoad.complete(snapshot);
 			metricRecorder.recordRequest(LOADED);
 			return snapshot;
+		} catch (AccommodationNotFoundException exception) {
+			newLoad.completeExceptionally(exception);
+			metricRecorder.recordRequest(NEGATIVE_LOADED);
+			throw exception;
+		} catch (RuntimeException exception) {
+			newLoad.completeExceptionally(exception);
+			throw exception;
 		} finally {
 			localLoads.remove(accommodationId, newLoad);
 		}
@@ -365,10 +350,6 @@ public class AccommodationDetailCache {
 			localLoads.remove(accommodationId, load);
 			return timedUncachedLoad(loader);
 		} catch (ExecutionException exception) {
-			if (exception.getCause() instanceof LocalLoadInvalidatedException) {
-				// 무효화 뒤에는 Redis의 이전 값을 다시 읽지 않고 DB를 직접 확인
-				return timedUncachedLoad(loader);
-			}
 			if (exception.getCause() instanceof AccommodationNotFoundException notFoundException) {
 				metricRecorder.recordRequest(NEGATIVE_COALESCED);
 				throw notFoundException;
@@ -598,13 +579,6 @@ public class AccommodationDetailCache {
 
 		private static <T> CacheLookup<T> failure() {
 			return new Failure<>();
-		}
-	}
-
-	// 실제 조회 실패가 아니라 무효화 이후 대기자가 DB를 다시 확인하도록 보내는 내부 신호
-	private static final class LocalLoadInvalidatedException extends RuntimeException {
-		private LocalLoadInvalidatedException() {
-			super(null, null, false, false);
 		}
 	}
 }

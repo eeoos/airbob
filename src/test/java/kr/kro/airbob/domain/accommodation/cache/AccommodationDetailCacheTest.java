@@ -556,58 +556,20 @@ class AccommodationDetailCacheTest {
 	}
 
 	@Test
-	@DisplayName("무효화 이후 요청은 진행 중이던 이전 JVM 조회 결과를 기다리지 않는다")
-	void evictionFencesInFlightLocalLoad() throws Exception {
+	@DisplayName("무효화는 기존 요청을 중단하지 않고 이후 요청을 진행 중 조회에서 분리한다")
+	void evictionDetachesInFlightLocalLoadForSubsequentRequest() throws Exception {
 		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
-		CountDownLatch staleLoadStarted = new CountDownLatch(1);
-		CountDownLatch releaseStaleLoad = new CountDownLatch(1);
-		AtomicInteger leaderLoads = new AtomicInteger();
-		CompletableFuture<AccommodationDetailSnapshot> staleLoad = CompletableFuture.supplyAsync(
-			() -> cache.getOrLoad(1L, () -> {
-				if (leaderLoads.incrementAndGet() == 1) {
-					staleLoadStarted.countDown();
-					await(releaseStaleLoad);
-					return snapshot(1L, "old");
-				}
-				return snapshot(1L, "new");
-			}));
-		assertThat(staleLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
-
-		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		AccommodationDetailSnapshot fresh = cache.getOrLoad(1L, () -> snapshot(1L, "new"));
-		releaseStaleLoad.countDown();
-
-		assertThat(fresh.name()).isEqualTo("new");
-		assertThat(staleLoad.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
-		assertThat(leaderLoads).hasValue(2);
-	}
-
-	@Test
-	@DisplayName("무효화 대기자는 Redis 삭제가 끝날 때까지 깨어나거나 이전 캐시를 재조회하지 않는다")
-	void evictionWakesFollowerAfterRedisInvalidationWithoutRedisReread() throws Exception {
-		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
-		CountDownLatch staleLoadStarted = new CountDownLatch(1);
-		CountDownLatch releaseStaleLoad = new CountDownLatch(1);
-		CountDownLatch invalidationStarted = new CountDownLatch(1);
-		CountDownLatch releaseInvalidation = new CountDownLatch(1);
-		doAnswer(invocation -> {
-			invalidationStarted.countDown();
-			await(releaseInvalidation);
-			return 1L;
-		}).when(redisClient).execute(
-			any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY)));
-
+		CountDownLatch oldLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseOldLoad = new CountDownLatch(1);
 		AtomicInteger leaderLoads = new AtomicInteger();
 		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
 			() -> cache.getOrLoad(1L, () -> {
-				if (leaderLoads.incrementAndGet() == 1) {
-					staleLoadStarted.countDown();
-					await(releaseStaleLoad);
-					return snapshot(1L, "old");
-				}
-				return snapshot(1L, "new");
+				leaderLoads.incrementAndGet();
+				oldLoadStarted.countDown();
+				await(releaseOldLoad);
+				return snapshot(1L, "old");
 			}));
-		assertThat(staleLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+		assertThat(oldLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
 		AtomicInteger followerLoads = new AtomicInteger();
 		AtomicReference<Thread> followerThread = new AtomicReference<>();
@@ -620,137 +582,78 @@ class AccommodationDetailCacheTest {
 		});
 		awaitWaiting(followerThread);
 
-		CompletableFuture<Void> eviction = CompletableFuture.runAsync(
-			() -> cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION));
-		assertThat(invalidationStarted.await(5, TimeUnit.SECONDS)).isTrue();
+		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+		AtomicInteger freshLoads = new AtomicInteger();
+		AccommodationDetailSnapshot fresh = cache.getOrLoad(1L, () -> {
+			freshLoads.incrementAndGet();
+			return snapshot(1L, "new");
+		});
+		releaseOldLoad.countDown();
 
-		assertThat(leader.isDone()).isFalse();
-		assertThat(follower.isDone()).isFalse();
-		verify(redisClient, times(2)).get(CACHE_KEY);
-
-		releaseInvalidation.countDown();
-		eviction.get(5, TimeUnit.SECONDS);
-		assertThat(follower.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
-
-		releaseStaleLoad.countDown();
-		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
-		assertThat(leaderLoads).hasValue(2);
-		assertThat(followerLoads).hasValue(1);
-		verify(redisClient, times(2)).get(CACHE_KEY);
+		assertThat(fresh.name()).isEqualTo("new");
+		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("old");
+		assertThat(follower.get(5, TimeUnit.SECONDS).name()).isEqualTo("old");
+		assertThat(leaderLoads).hasValue(1);
+		assertThat(followerLoads).hasValue(0);
+		assertThat(freshLoads).hasValue(1);
 	}
 
 	@Test
-	@DisplayName("무효화가 404 조회보다 먼저 완료되면 leader도 DB를 다시 조회한다")
-	void invalidatedNotFoundLeaderRetriesDatabaseLoad() throws Exception {
+	@DisplayName("무효화는 진행 중인 404 조회를 재시도시키지 않는다")
+	void evictionDoesNotRetryInFlightNotFoundLoad() throws Exception {
 		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
-		CountDownLatch firstLoadStarted = new CountDownLatch(1);
-		CountDownLatch releaseFirstLoad = new CountDownLatch(1);
-		AtomicInteger loads = new AtomicInteger();
-		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
+		CountDownLatch oldLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseOldLoad = new CountDownLatch(1);
+		AtomicInteger oldLoads = new AtomicInteger();
+		CompletableFuture<AccommodationDetailSnapshot> oldLoad = CompletableFuture.supplyAsync(
 			() -> cache.getOrLoad(1L, () -> {
-				if (loads.incrementAndGet() == 1) {
-					firstLoadStarted.countDown();
-					await(releaseFirstLoad);
-					throw new AccommodationNotFoundException();
-				}
-				return snapshot(1L, "published");
-			}));
-		assertThat(firstLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
-
-		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		releaseFirstLoad.countDown();
-
-		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("published");
-		assertThat(loads).hasValue(2);
-		verify(metricRecorder).recordRequest(
-			AccommodationDetailCacheMetricRecorder.RequestResult.LOADED);
-	}
-
-	@Test
-	@DisplayName("무효화와 겹친 일반 DB 예외는 재시도하지 않는다")
-	void invalidatedFailedLeaderDoesNotRetryDatabaseLoad() throws Exception {
-		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
-		CountDownLatch loadStarted = new CountDownLatch(1);
-		CountDownLatch releaseLoad = new CountDownLatch(1);
-		AtomicInteger loads = new AtomicInteger();
-		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
-			() -> cache.getOrLoad(1L, () -> {
-				loads.incrementAndGet();
-				loadStarted.countDown();
-				await(releaseLoad);
-				throw new IllegalStateException("database failure");
-			}));
-		assertThat(loadStarted.await(5, TimeUnit.SECONDS)).isTrue();
-
-		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		releaseLoad.countDown();
-
-		assertThatThrownBy(() -> leader.get(5, TimeUnit.SECONDS))
-			.isInstanceOf(ExecutionException.class)
-			.hasCauseInstanceOf(IllegalStateException.class);
-		assertThat(loads).hasValue(1);
-	}
-
-	@Test
-	@DisplayName("무효화 경쟁으로 인한 leader 재조회는 한 번으로 제한한다")
-	void invalidatedLeaderRetryIsBounded() throws Exception {
-		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
-		CountDownLatch firstLoadStarted = new CountDownLatch(1);
-		CountDownLatch releaseFirstLoad = new CountDownLatch(1);
-		CountDownLatch retryStarted = new CountDownLatch(1);
-		CountDownLatch releaseRetry = new CountDownLatch(1);
-		AtomicInteger loads = new AtomicInteger();
-		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
-			() -> cache.getOrLoad(1L, () -> {
-				int attempt = loads.incrementAndGet();
-				if (attempt == 1) {
-					firstLoadStarted.countDown();
-					await(releaseFirstLoad);
-					return snapshot(1L, "old");
-				}
-				retryStarted.countDown();
-				await(releaseRetry);
-				return snapshot(1L, "new");
-			}));
-		assertThat(firstLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
-
-		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		releaseFirstLoad.countDown();
-		assertThat(retryStarted.await(5, TimeUnit.SECONDS)).isTrue();
-		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		releaseRetry.countDown();
-
-		assertThat(leader.get(5, TimeUnit.SECONDS).name()).isEqualTo("new");
-		assertThat(loads).hasValue(2);
-	}
-
-	@Test
-	@DisplayName("무효화된 조회의 재시도가 404여도 추가로 재조회하지 않는다")
-	void invalidatedLeaderNotFoundRetryIsBounded() throws Exception {
-		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
-		CountDownLatch firstLoadStarted = new CountDownLatch(1);
-		CountDownLatch releaseFirstLoad = new CountDownLatch(1);
-		AtomicInteger loads = new AtomicInteger();
-		CompletableFuture<AccommodationDetailSnapshot> leader = CompletableFuture.supplyAsync(
-			() -> cache.getOrLoad(1L, () -> {
-				if (loads.incrementAndGet() == 1) {
-					firstLoadStarted.countDown();
-					await(releaseFirstLoad);
-					return snapshot(1L, "old");
-				}
+				oldLoads.incrementAndGet();
+				oldLoadStarted.countDown();
+				await(releaseOldLoad);
 				throw new AccommodationNotFoundException();
 			}));
-		assertThat(firstLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+		assertThat(oldLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
 		cache.evict(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
-		releaseFirstLoad.countDown();
+		AccommodationDetailSnapshot fresh = cache.getOrLoad(1L, () -> snapshot(1L, "published"));
+		releaseOldLoad.countDown();
 
-		assertThatThrownBy(() -> leader.get(5, TimeUnit.SECONDS))
+		assertThat(fresh.name()).isEqualTo("published");
+		assertThatThrownBy(() -> oldLoad.get(5, TimeUnit.SECONDS))
 			.isInstanceOf(ExecutionException.class)
 			.hasCauseInstanceOf(AccommodationNotFoundException.class);
-		assertThat(loads).hasValue(2);
-		verify(metricRecorder).recordRequest(
-			AccommodationDetailCacheMetricRecorder.RequestResult.NEGATIVE_LOADED);
+		assertThat(oldLoads).hasValue(1);
+	}
+
+	@Test
+	@DisplayName("Redis 무효화가 실패해도 기존 요청을 중단하지 않고 이후 요청을 분리한다")
+	void failedEvictionStillDetachesInFlightLocalLoad() throws Exception {
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		when(redisClient.execute(
+			any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY))))
+			.thenThrow(new IllegalStateException("redis unavailable"));
+		CountDownLatch oldLoadStarted = new CountDownLatch(1);
+		CountDownLatch releaseOldLoad = new CountDownLatch(1);
+		AtomicInteger oldLoads = new AtomicInteger();
+		CompletableFuture<AccommodationDetailSnapshot> oldLoad = CompletableFuture.supplyAsync(
+			() -> cache.getOrLoad(1L, () -> {
+				oldLoads.incrementAndGet();
+				oldLoadStarted.countDown();
+				await(releaseOldLoad);
+				return snapshot(1L, "old");
+			}));
+		assertThat(oldLoadStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+		assertThatThrownBy(() -> cache.evictOrThrow(
+			1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessage("redis unavailable");
+		AccommodationDetailSnapshot fresh = cache.getOrLoad(1L, () -> snapshot(1L, "new"));
+		releaseOldLoad.countDown();
+
+		assertThat(fresh.name()).isEqualTo("new");
+		assertThat(oldLoad.get(5, TimeUnit.SECONDS).name()).isEqualTo("old");
+		assertThat(oldLoads).hasValue(1);
 	}
 
 	@Test
