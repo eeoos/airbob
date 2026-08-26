@@ -8,7 +8,7 @@ import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 
 /**
- * 요청자별 찜 여부와 예약 가능 정보가 빠진 숙소 상세 공용 스냅샷
+ * 요청자별 찜 여부가 빠진 숙소 상세 공용 스냅샷
  */
 public record AccommodationDetailSnapshot(
 	long id,
