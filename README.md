@@ -37,6 +37,12 @@
 트랜잭션에서 만듭니다. 응답에는 서버 시각과 절대 만료시각이 포함되므로 클라이언트 타이머가
 재고의 권위가 되지 않습니다.
 
+공개 쓰기 API는 V1 하나로 통일했습니다. `POST /api/v1/reservation-quotes`로 견적을 만든 뒤
+`Idempotency-Key`와 `quote_uid`로 `POST /api/v1/reservations`를 호출합니다. 유료 예약은
+`POST /api/v1/reservations/{reservationUid}/payment-attempts`가 발급한 토큰을
+`POST /api/v1/payments/confirm`에 반드시 전달해야 합니다. 날짜·가격·쿠폰을 직접 받던 예약
+생성 body와 예약 전용 V2 경로는 제공하지 않습니다.
+
 숙박일 `[checkIn, checkOut)`은 `accommodation_inventory_day`의 날짜 행으로 미리 준비합니다.
 checkout은 요청한 날짜 행만 PK 순서로 `FOR UPDATE NOWAIT`하고, 모두 사용 가능할 때에만 한
 reservation owner에게 원자적으로 할당합니다. 결제 대기는 `HOLD(expiresAt)`, 결제 시작 이후와
@@ -61,8 +67,8 @@ sequenceDiagram
     participant DB as MySQL
 
     par 같은 숙소·날짜 요청
-        A->>API: 예약 생성
-        B->>API: 예약 생성
+        A->>API: quote 기반 checkout
+        B->>API: quote 기반 checkout
     end
     API->>DB: published accommodation FOR SHARE NOWAIT
     API->>DB: A - requested inventory days FOR UPDATE NOWAIT

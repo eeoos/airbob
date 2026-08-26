@@ -108,7 +108,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 @ActiveProfiles("test")
 @Import(ReservationHoldPaymentAttemptIntegrationTest.HoldClockConfiguration.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@DisplayName("실제 MySQL 예약 hold 해제와 V2 결제 시도 경계")
+@DisplayName("실제 MySQL 예약 hold 해제와 V1 결제 시도 경계")
 class ReservationHoldPaymentAttemptIntegrationTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
@@ -197,7 +197,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@DisplayName("hold 해제가 먼저 커밋되면 대기하던 결제 승인은 상태 변경 없이 거절된다")
 	void releaseCommitsFirst_confirmationIsRejected() throws Exception {
 		Coupon coupon = issueFixedCoupon(30_000);
-		ReservationResponse.Ready ready = createV2Hold(0, coupon.getId(), "release-wins");
+		ReservationResponse.Ready ready = createHold(0, coupon.getId(), "release-wins");
 		ReservationResponse.PaymentAttemptReady attempt = beginAttempt(ready);
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch releasePrepared = new CountDownLatch(1);
@@ -242,7 +242,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@DisplayName("결제 승인이 먼저 커밋되면 대기하던 hold 해제는 거절된다")
 	void confirmationCommitsFirst_releaseIsRejected() throws Exception {
 		Coupon coupon = issueFixedCoupon(30_000);
-		ReservationResponse.Ready ready = createV2Hold(0, coupon.getId(), "confirmation-wins");
+		ReservationResponse.Ready ready = createHold(0, coupon.getId(), "confirmation-wins");
 		ReservationResponse.PaymentAttemptReady attempt = beginAttempt(ready);
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch confirmationPrepared = new CountDownLatch(1);
@@ -287,7 +287,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@DisplayName("만료 cleanup이 먼저 잠그면 hold 해제는 커밋 뒤 멱등 응답으로 수렴한다")
 	void cleanupCommitsFirst_releaseReplaysExpiredState() throws Exception {
 		Coupon coupon = issueFixedCoupon(30_000);
-		ReservationResponse.Ready ready = createV2Hold(0, coupon.getId(), "cleanup-wins");
+		ReservationResponse.Ready ready = createHold(0, coupon.getId(), "cleanup-wins");
 		clock.set(ready.holdExpiresAt());
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch cleanupPrepared = new CountDownLatch(1);
@@ -328,7 +328,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Test
 	@DisplayName("동시 결제 시작 요청은 하나의 미소비 토큰으로 수렴한다")
 	void concurrentBeginConvergesOnOneToken() throws InterruptedException {
-		ReservationResponse.Ready ready = createV2Hold(0, null, "concurrent-begin");
+		ReservationResponse.Ready ready = createHold(0, null, "concurrent-begin");
 		int threadCount = 8;
 		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
 		CountDownLatch prepared = new CountDownLatch(threadCount);
@@ -372,8 +372,8 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Test
 	@DisplayName("최초 결제 시작은 정확히 90초 남으면 허용하고 89.999초면 거절하며 hold를 연장하지 않는다")
 	void beginHonorsExactCutoffWithoutExtendingHold() {
-		ReservationResponse.Ready exactBoundary = createV2Hold(0, null, "exact-boundary");
-		ReservationResponse.Ready belowBoundary = createV2Hold(7, null, "below-boundary");
+		ReservationResponse.Ready exactBoundary = createHold(0, null, "exact-boundary");
+		ReservationResponse.Ready belowBoundary = createHold(7, null, "below-boundary");
 
 		clock.set(exactBoundary.holdExpiresAt().minusSeconds(90));
 		ReservationResponse.PaymentAttemptReady issued = beginAttempt(exactBoundary);
@@ -393,9 +393,9 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("결제 승인 트랜잭션 롤백은 V2 토큰 소비도 되돌려 같은 토큰으로 재시도할 수 있다")
+	@DisplayName("결제 승인 트랜잭션 롤백은 결제 시도 토큰 소비도 되돌려 같은 토큰으로 재시도할 수 있다")
 	void confirmationRollbackLeavesAttemptReusable() {
-		ReservationResponse.Ready ready = createV2Hold(0, null, "confirm-rollback");
+		ReservationResponse.Ready ready = createHold(0, null, "confirm-rollback");
 		ReservationResponse.PaymentAttemptReady attempt = beginAttempt(ready);
 		PaymentRequest.Confirm request = confirmRequest(attempt, "rollback-payment-key");
 		jdbcTemplate.execute("""
@@ -432,7 +432,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Test
 	@DisplayName("hold API는 다른 회원의 예약과 존재하지 않는 예약을 같은 not-found로 숨긴다")
 	void holdCommandsDoNotRevealAnotherMembersReservation() {
-		ReservationResponse.Ready ready = createV2Hold(0, null, "privacy-hold");
+		ReservationResponse.Ready ready = createHold(0, null, "privacy-hold");
 		String unknownUid = UUID.randomUUID().toString();
 
 		assertThatThrownBy(() -> holdCommandService.releaseHold(ready.reservationUid(), outsider.getId()))
@@ -568,7 +568,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 	@Test
 	@DisplayName("결제 거절 polling은 체크인 정확 시각과 그 이후에 새 checkout을 제안하지 않는다")
 	void declinedPollingAtAndAfterCheckInReturnsNone() {
-		ReservationResponse.Ready ready = createV2Hold(0, null, "decline-poll-cutoff");
+		ReservationResponse.Ready ready = createHold(0, null, "decline-poll-cutoff");
 		DeclinedPayment declinedPayment = decline(ready, "decline-poll-cutoff-payment");
 		Reservation declinedReservation = reservation(ready.reservationUid());
 		long historyCount = historyRepository.count();
@@ -631,7 +631,7 @@ class ReservationHoldPaymentAttemptIntegrationTest {
 		return coupon;
 	}
 
-	private ReservationResponse.Ready createV2Hold(int stayOffsetDays, Long couponId, String idempotencyKey) {
+	private ReservationResponse.Ready createHold(int stayOffsetDays, Long couponId, String idempotencyKey) {
 		LocalDate checkIn = FIRST_CHECK_IN.plusDays(stayOffsetDays);
 		ReservationResponse.Quote quote = createQuote(new ReservationRequest.Quote(
 			accommodation.getId(),

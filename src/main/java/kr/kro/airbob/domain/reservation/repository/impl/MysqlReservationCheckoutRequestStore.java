@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
-import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutEndpoint;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestClaim;
 import kr.kro.airbob.domain.reservation.repository.ReservationCheckoutRequestStore;
 
 @Repository
 public class MysqlReservationCheckoutRequestStore implements ReservationCheckoutRequestStore {
+	private static final String ENDPOINT = "RESERVATION_CHECKOUT_V1";
 	private static final String INSERT_OR_LOCK = """
 		INSERT INTO reservation_checkout_request (
 		  member_id, endpoint, key_hash, request_fingerprint,
@@ -45,7 +45,6 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 	@Transactional(propagation = Propagation.MANDATORY)
 	public ReservationCheckoutRequestClaim lockOrCreate(
 		long memberId,
-		ReservationCheckoutEndpoint endpoint,
 		ReservationCheckoutIdentity identity,
 		Instant createdAt
 	) {
@@ -53,7 +52,7 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 		jdbcTemplate.update(
 			INSERT_OR_LOCK,
 			memberId,
-			endpoint.name(),
+			ENDPOINT,
 			identity.keyHash(),
 			identity.requestFingerprint(),
 			timestamp,
@@ -71,7 +70,7 @@ public class MysqlReservationCheckoutRequestStore implements ReservationCheckout
 				);
 			},
 			memberId,
-			endpoint.name(),
+			ENDPOINT,
 			identity.keyHash()
 		);
 	}

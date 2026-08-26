@@ -33,7 +33,7 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -75,7 +75,7 @@ class ReservationCheckInCutoffContractTest {
 	@Test
 	void rejectsANewReservationAtTheAccommodationLocalCheckInInstant() {
 		ReservationTransactionService service = serviceAt(CHECK_IN_AT);
-		ReservationRequest.Create request = request();
+		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 
 		Throwable thrown = catchThrowable(() -> service.createPendingReservationInTx(
@@ -90,7 +90,7 @@ class ReservationCheckInCutoffContractTest {
 	@Test
 	void rejectsANewReservationAfterTheAccommodationLocalCheckInInstant() {
 		ReservationTransactionService service = serviceAt(CHECK_IN_AT.plusSeconds(1));
-		ReservationRequest.Create request = request();
+		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 
 		Throwable thrown = catchThrowable(() -> service.createPendingReservationInTx(
@@ -105,7 +105,7 @@ class ReservationCheckInCutoffContractTest {
 	@Test
 	void rejectsAPastCheckInAfterTheAccommodationLocalDateHasRolledOver() {
 		ReservationTransactionService service = serviceAt(CHECK_IN_AT.plusSeconds(10 * 60 * 60));
-		ReservationRequest.Create request = request();
+		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 
 		Throwable thrown = catchThrowable(() -> service.createPendingReservationInTx(
@@ -118,7 +118,7 @@ class ReservationCheckInCutoffContractTest {
 	@Test
 	void allowsANewReservationImmediatelyBeforeTheAccommodationLocalCheckInInstant() {
 		ReservationTransactionService service = serviceAt(CHECK_IN_AT.minusNanos(1));
-		ReservationRequest.Create request = request();
+		ReservationCreateCommand request = request();
 		stubValidMemberAccommodationAndWindow(request);
 		given(reservationRepository.existsByReservationCode(any(String.class))).willReturn(false);
 
@@ -152,7 +152,7 @@ class ReservationCheckInCutoffContractTest {
 		);
 	}
 
-	private void stubValidMemberAccommodationAndWindow(ReservationRequest.Create request) {
+	private void stubValidMemberAccommodationAndWindow(ReservationCreateCommand request) {
 		given(memberRepository.findByIdAndStatus(GUEST_ID, MemberStatus.ACTIVE))
 			.willReturn(Optional.of(guest()));
 		given(accommodationRepository.findBookingSnapshotForShare(
@@ -163,8 +163,8 @@ class ReservationCheckInCutoffContractTest {
 			.willReturn(BookingWindow.startingOn(CHECK_IN_DATE));
 	}
 
-	private ReservationRequest.Create request() {
-		return new ReservationRequest.Create(
+	private ReservationCreateCommand request() {
+		return new ReservationCreateCommand(
 			ACCOMMODATION_ID,
 			CHECK_IN_DATE,
 			CHECK_OUT_DATE,

@@ -65,9 +65,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 		bean.addUrlPatterns(
 			"/api/v1/*",
-			"/api/v2/reservation-quotes",
-			"/api/v2/reservations",
-			"/api/v2/reservations/*",
 			"/api/v2/accommodations/*",
 			"/api/v2/members/*",
 			"/api/v2/admin/*",

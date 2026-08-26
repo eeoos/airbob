@@ -35,12 +35,13 @@ import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("예약 V2 견적·checkout API 테스트")
-class ReservationCheckoutV2ControllerTest {
+@DisplayName("예약 견적·checkout API 테스트")
+class ReservationCheckoutControllerTest {
 
 	private static final long MEMBER_ID = 7L;
 	private static final String QUOTE_UID = "fa1e54c6-201c-4d09-98b8-68eedfa921ae";
@@ -48,6 +49,7 @@ class ReservationCheckoutV2ControllerTest {
 
 	@Mock private ReservationQuoteService quoteService;
 	@Mock private ReservationService reservationService;
+	@Mock private ReservationHoldCommandService holdCommandService;
 
 	private MockMvc mockMvc;
 
@@ -59,7 +61,7 @@ class ReservationCheckoutV2ControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationCheckoutV2Controller(quoteService, reservationService))
+			new ReservationController(quoteService, reservationService, holdCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
@@ -72,7 +74,7 @@ class ReservationCheckoutV2ControllerTest {
 	}
 
 	@Test
-	@DisplayName("POST /api/v2/reservation-quotes는 재고를 잡지 않는 5분 견적을 201로 반환한다")
+	@DisplayName("POST /api/v1/reservation-quotes는 재고를 잡지 않는 5분 견적을 201로 반환한다")
 	void createsNoHoldQuote() throws Exception {
 		ReservationRequest.Quote request = new ReservationRequest.Quote(
 			31L,
@@ -101,7 +103,7 @@ class ReservationCheckoutV2ControllerTest {
 		);
 		given(quoteService.createQuote(request, MEMBER_ID)).willReturn(response);
 
-		mockMvc.perform(post("/api/v2/reservation-quotes")
+		mockMvc.perform(post("/api/v1/reservation-quotes")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{"accommodation_id":31,"check_in_date":"2026-09-10",\
@@ -125,7 +127,7 @@ class ReservationCheckoutV2ControllerTest {
 	}
 
 	@Test
-	@DisplayName("POST /api/v2/reservations는 quote와 요청사항만 받아 표준 멱등성 키로 checkout한다")
+	@DisplayName("POST /api/v1/reservations는 quote와 요청사항만 받아 표준 멱등성 키로 checkout한다")
 	void checksOutQuoteWithRequestMessageAndIdempotencyKey() throws Exception {
 		String idempotencyKey = "quote-checkout-key-2026";
 		ReservationRequest.Checkout request = new ReservationRequest.Checkout(
@@ -151,7 +153,7 @@ class ReservationCheckoutV2ControllerTest {
 		given(reservationService.createPendingReservation(request, MEMBER_ID, idempotencyKey))
 			.willReturn(response);
 
-		var result = mockMvc.perform(post("/api/v2/reservations")
+		var result = mockMvc.perform(post("/api/v1/reservations")
 				.header("Idempotency-Key", idempotencyKey)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
@@ -172,7 +174,7 @@ class ReservationCheckoutV2ControllerTest {
 	}
 
 	@Test
-	@DisplayName("V2 checkout body에는 견적 식별자와 예약 요청사항 외 가격·날짜 입력이 없다")
+	@DisplayName("checkout body에는 견적 식별자와 예약 요청사항 외 가격·날짜 입력이 없다")
 	void checkoutBodyContainsOnlyQuoteUidAndRequestMessage() {
 		assertThat(Arrays.stream(ReservationRequest.Checkout.class.getRecordComponents())
 			.map(component -> component.getName()))
@@ -180,9 +182,9 @@ class ReservationCheckoutV2ControllerTest {
 	}
 
 	@Test
-	@DisplayName("V2 checkout은 Idempotency-Key가 없으면 400으로 거절한다")
+	@DisplayName("checkout은 Idempotency-Key가 없으면 400으로 거절한다")
 	void rejectsMissingIdempotencyKey() throws Exception {
-		mockMvc.perform(post("/api/v2/reservations")
+		mockMvc.perform(post("/api/v1/reservations")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{"quote_uid":"fa1e54c6-201c-4d09-98b8-68eedfa921ae"}
@@ -195,9 +197,9 @@ class ReservationCheckoutV2ControllerTest {
 	}
 
 	@Test
-	@DisplayName("V2 checkout은 UUID가 아닌 quote 식별자를 400으로 거절한다")
+	@DisplayName("checkout은 UUID가 아닌 quote 식별자를 400으로 거절한다")
 	void rejectsMalformedQuoteUid() throws Exception {
-		mockMvc.perform(post("/api/v2/reservations")
+		mockMvc.perform(post("/api/v1/reservations")
 				.header("Idempotency-Key", "malformed-quote-key")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
@@ -205,6 +207,39 @@ class ReservationCheckoutV2ControllerTest {
 					"""))
 			.andExpect(status().isBadRequest());
 
+		then(reservationService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("기존 직접 생성 body는 V1 checkout 계약에서 400으로 거절한다")
+	void rejectsLegacyDirectCreateBody() throws Exception {
+		mockMvc.perform(post("/api/v1/reservations")
+				.header("Idempotency-Key", "legacy-direct-create")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"accommodation_id":31,"check_in_date":"2026-09-10",\
+					 "check_out_date":"2026-09-13","guest_count":2}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false));
+
+		then(reservationService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("예약 V2 견적과 checkout 경로는 존재하지 않는다")
+	void reservationV2RoutesDoNotExist() throws Exception {
+		mockMvc.perform(post("/api/v2/reservation-quotes")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(post("/api/v2/reservations")
+				.header("Idempotency-Key", "removed-v2-checkout")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isNotFound());
+
+		then(quoteService).shouldHaveNoInteractions();
 		then(reservationService).shouldHaveNoInteractions();
 	}
 }

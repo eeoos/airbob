@@ -38,6 +38,7 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -90,7 +91,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 @ActiveProfiles("test")
 @Import(ReservationQuoteFlowIntegrationTest.QuoteFlowClockConfiguration.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@DisplayName("실제 MySQL 예약 견적·V2 checkout 흐름")
+@DisplayName("실제 MySQL 예약 견적·V1 checkout 흐름")
 class ReservationQuoteFlowIntegrationTest {
 
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
@@ -139,6 +140,7 @@ class ReservationQuoteFlowIntegrationTest {
 	@Autowired private MemberCouponRepository memberCouponRepository;
 	@Autowired private PlatformTransactionManager transactionManager;
 	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired private RequestMappingHandlerMapping requestMappingHandlerMapping;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
 	@MockitoBean private ElasticsearchOperations elasticsearchOperations;
@@ -189,7 +191,26 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("V2 checkout은 견적을 재검증한 뒤 정확히 15분 결제 hold를 시작한다")
+	@DisplayName("실제 애플리케이션에는 V1 예약 쓰기 경로만 등록된다")
+	void applicationRegistersOnlyV1ReservationWriteRoutes() {
+		assertThat(requestMappingHandlerMapping.getHandlerMethods().keySet())
+			.flatExtracting(mapping -> mapping.getPatternValues())
+			.contains(
+				"/api/v1/reservation-quotes",
+				"/api/v1/reservations",
+				"/api/v1/reservations/{reservationUid}/hold",
+				"/api/v1/reservations/{reservationUid}/payment-attempts"
+			)
+			.doesNotContain(
+				"/api/v2/reservation-quotes",
+				"/api/v2/reservations",
+				"/api/v2/reservations/{reservationUid}/hold",
+				"/api/v2/reservations/{reservationUid}/payment-attempts"
+			);
+	}
+
+	@Test
+	@DisplayName("V1 checkout은 견적을 재검증한 뒤 정확히 15분 결제 hold를 시작한다")
 	void checkoutStartsFifteenMinutePaymentHold() {
 		Coupon coupon = issueFixedCoupon(30_000);
 		ReservationResponse.Quote quote = createQuote(coupon.getId());
@@ -214,6 +235,14 @@ class ReservationQuoteFlowIntegrationTest {
 			Timestamp.class,
 			persisted.getReservationId()).toInstant())
 			.isEqualTo(NOW.plusSeconds(15 * 60));
+		assertThat(jdbcTemplate.queryForMap("""
+			SELECT payment_attempt_required, payment_attempt_uid, payment_attempt_consumed_at
+			FROM reservation
+			WHERE id = ?
+			""", persisted.getReservationId()))
+			.containsEntry("payment_attempt_required", true)
+			.containsEntry("payment_attempt_uid", null)
+			.containsEntry("payment_attempt_consumed_at", null);
 	}
 
 	@Test
@@ -309,9 +338,9 @@ class ReservationQuoteFlowIntegrationTest {
 		ReservationResponse.Quote quote = createQuote(coupon.getId());
 		Member competitor = memberRepository.save(
 			Member.builder().email("quote-competitor@test.com").nickname("quote-competitor").build());
+		ReservationResponse.Quote competitorQuote = createQuote(competitor, null);
 		reservationService.createPendingReservation(
-			new ReservationRequest.Create(
-				accommodation.getId(), CHECK_IN, CHECK_OUT, 2, null, null),
+			new ReservationRequest.Checkout(competitorQuote.quoteUid(), null),
 			competitor.getId(),
 			"competing-reservation"
 		);
@@ -323,7 +352,9 @@ class ReservationQuoteFlowIntegrationTest {
 		assertThat(persisted.getReservationId()).isNull();
 		assertThat(persisted.getCheckedOutAt()).isNull();
 		assertThat(memberCoupon(coupon).isUsed()).isFalse();
-		assertThat(checkoutRequestCount()).isZero();
+		assertThat(checkoutRequestCount())
+			.as("실패한 checkout 키는 롤백되고 경쟁 checkout 키만 남아야 한다")
+			.isOne();
 		assertThat(reservationRepository.count()).isOne();
 		assertThat(historyRepository.count()).isOne();
 	}
@@ -391,6 +422,31 @@ class ReservationQuoteFlowIntegrationTest {
 		assertThat(historyRepository.count()).isOne();
 		assertThat(checkoutRequestCount()).isOne();
 		assertThat(quote(quote.quoteUid()).getReservationId()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("같은 멱등성 키도 회원이 다르면 각 회원의 quote와 예약으로 격리된다")
+	void idempotencyKeyIsScopedByMember() {
+		Member otherGuest = memberRepository.save(
+			Member.builder().email("quote-other@test.com").nickname("quote-other").build());
+		ReservationResponse.Quote firstQuote = createQuote(null);
+		LocalDate otherCheckIn = CHECK_OUT.plusDays(1);
+		ReservationResponse.Quote secondQuote = createQuote(
+			otherGuest, otherCheckIn, otherCheckIn.plusDays(2), null);
+		String sharedKey = "same-key-different-members";
+
+		ReservationResponse.Ready first = reservationService.createPendingReservation(
+			new ReservationRequest.Checkout(firstQuote.quoteUid(), null),
+			guest.getId(),
+			sharedKey);
+		ReservationResponse.Ready second = reservationService.createPendingReservation(
+			new ReservationRequest.Checkout(secondQuote.quoteUid(), null),
+			otherGuest.getId(),
+			sharedKey);
+
+		assertThat(second.reservationUid()).isNotEqualTo(first.reservationUid());
+		assertThat(reservationRepository.count()).isEqualTo(2L);
+		assertThat(checkoutRequestCount()).isEqualTo(2L);
 	}
 
 	@Test
@@ -479,13 +535,26 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	private ReservationResponse.Quote createQuote(Long couponId) {
+		return createQuote(guest, couponId);
+	}
+
+	private ReservationResponse.Quote createQuote(Member member, Long couponId) {
+		return createQuote(member, CHECK_IN, CHECK_OUT, couponId);
+	}
+
+	private ReservationResponse.Quote createQuote(
+		Member member,
+		LocalDate checkIn,
+		LocalDate checkOut,
+		Long couponId
+	) {
 		return quoteService.createQuote(new ReservationRequest.Quote(
 			accommodation.getId(),
-			CHECK_IN,
-			CHECK_OUT,
+			checkIn,
+			checkOut,
 			2,
 			couponId
-		), guest.getId());
+		), member.getId());
 	}
 
 	private ReservationResponse.Ready checkout(
@@ -518,7 +587,7 @@ class ReservationQuoteFlowIntegrationTest {
 
 	private long checkoutRequestCount() {
 		return jdbcTemplate.queryForObject(
-			"SELECT COUNT(*) FROM reservation_checkout_request WHERE endpoint = 'RESERVATION_CHECKOUT_V2'",
+			"SELECT COUNT(*) FROM reservation_checkout_request WHERE endpoint = 'RESERVATION_CHECKOUT_V1'",
 			Long.class);
 	}
 

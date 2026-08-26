@@ -2,7 +2,10 @@ package kr.kro.airbob.domain.reservation.api;
 
 import java.net.URI;
 
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +25,8 @@ import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Cancellation;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
+import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
+import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 
@@ -30,16 +35,48 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api")
 public class ReservationController {
 
+	private final ReservationQuoteService quoteService;
 	private final ReservationService reservationService;
+	private final ReservationHoldCommandService holdCommandService;
+
+	@PostMapping("/v1/reservation-quotes")
+	public ResponseEntity<ApiResponse<ReservationResponse.Quote>> createQuote(
+		@Valid @RequestBody ReservationRequest.Quote request,
+		@CurrentMemberId Long memberId
+	) {
+		ReservationResponse.Quote response = quoteService.createQuote(request, memberId);
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+	}
 
 	@PostMapping("/v1/reservations")
-	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> createReservation(
-		@Valid @RequestBody ReservationRequest.Create request,
-		@RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
-		@CurrentMemberId Long memberId) {
+	public ResponseEntity<ApiResponse<ReservationResponse.Ready>> checkout(
+		@Valid @RequestBody ReservationRequest.Checkout request,
+		@RequestHeader(name = "Idempotency-Key") String idempotencyKey,
+		@CurrentMemberId Long memberId
+	) {
 		ReservationResponse.Ready response = reservationService.createPendingReservation(
 			request, memberId, idempotencyKey);
 		return ResponseEntity.ok(ApiResponse.success(response));
+	}
+
+	@DeleteMapping("/v1/reservations/{reservationUid}/hold")
+	public ResponseEntity<ApiResponse<ReservationResponse.HoldRelease>> releaseHold(
+		@PathVariable String reservationUid,
+		@CurrentMemberId Long memberId
+	) {
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.body(ApiResponse.success(holdCommandService.releaseHold(reservationUid, memberId)));
+	}
+
+	@PostMapping("/v1/reservations/{reservationUid}/payment-attempts")
+	public ResponseEntity<ApiResponse<ReservationResponse.PaymentAttemptReady>> beginPaymentAttempt(
+		@PathVariable String reservationUid,
+		@CurrentMemberId Long memberId
+	) {
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.body(ApiResponse.success(holdCommandService.beginPaymentAttempt(reservationUid, memberId)));
 	}
 
 	@PostMapping("/v1/reservations/{reservationUid}")

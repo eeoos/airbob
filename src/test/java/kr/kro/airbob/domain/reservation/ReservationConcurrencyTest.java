@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static kr.kro.airbob.domain.reservation.service.ReservationTransactionTestDriver.createPendingReservation;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -64,10 +65,10 @@ import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.payment.service.PaymentCancellationCommandService;
 import kr.kro.airbob.domain.payment.service.PaymentOperationCommandService;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
-import kr.kro.airbob.domain.reservation.exception.ReservationCheckoutIdempotencyConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
@@ -78,6 +79,8 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
+import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
+import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationTransactionService;
 import kr.kro.airbob.messaging.outbox.infrastructure.jpa.OutboxMessageRepository;
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
@@ -97,6 +100,10 @@ class ReservationConcurrencyTest {
 
 	@Autowired
 	private ReservationService reservationService;
+	@Autowired
+	private ReservationHoldCommandService reservationHoldCommandService;
+	@Autowired
+	private ReservationQuoteService quoteService;
 	@Autowired
 	private ReservationTransactionService transactionService;
 	@Autowired
@@ -172,6 +179,7 @@ class ReservationConcurrencyTest {
 		given(bookingWindowProvider.currentFor(eq(TIME_ZONE_ID), any(Instant.class)))
 			.willReturn(BOOKING_WINDOW);
 		jdbcTemplate.update("DELETE FROM reservation_checkout_request");
+		jdbcTemplate.update("DELETE FROM reservation_quote");
 		outboxRepository.deleteAllInBatch();
 		paymentTransactionRepository.deleteAllInBatch();
 		paymentRepository.deleteAllInBatch();
@@ -211,6 +219,7 @@ class ReservationConcurrencyTest {
 	@AfterEach
 	void tearDown() {
 		jdbcTemplate.update("DELETE FROM reservation_checkout_request");
+		jdbcTemplate.update("DELETE FROM reservation_quote");
 		outboxRepository.deleteAllInBatch();
 		paymentTransactionRepository.deleteAllInBatch();
 		paymentRepository.deleteAllInBatch();
@@ -230,10 +239,10 @@ class ReservationConcurrencyTest {
 	void occupancyLimitIsEnforcedByTheAuthoritativeTransaction() {
 		LocalDate checkIn = WINDOW_START.plusDays(30);
 
-		assertThatThrownBy(() -> reservationService.createPendingReservation(
-			new ReservationRequest.Create(accommodation.getId(), checkIn, checkIn.plusDays(2), 3),
+		assertThatThrownBy(() -> createPendingReservation(transactionService,
+			new ReservationCreateCommand(accommodation.getId(), checkIn, checkIn.plusDays(2), 3),
 			guests.getFirst().getId(),
-			"occupancy-limit"))
+			"occupancy limit"))
 			.isInstanceOf(ReservationOccupancyExceededException.class);
 
 		assertThat(reservationRepository.count()).isZero();
@@ -247,18 +256,15 @@ class ReservationConcurrencyTest {
 		Coupon coupon = issueFixedCoupon(guest, 200_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
 
-		var ready = reservationService.createPendingReservation(
-			new ReservationRequest.Create(
+		Reservation confirmed = createPendingReservation(transactionService,
+			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
-			"complimentary-flow");
+			"complimentary flow");
 
-		Reservation confirmed = reservationRepository.findByReservationUid(UUID.fromString(ready.reservationUid()))
-			.orElseThrow();
-		assertThat(ready.amount()).isZero();
-		assertThat(ready.status()).isEqualTo(ReservationStatus.CONFIRMED);
-		assertThat(ready.paymentRequired()).isFalse();
+		assertThat(confirmed.getTotalPrice()).isZero();
 		assertThat(confirmed.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(confirmed.requiresPayment()).isFalse();
 		assertThat(paymentOperationRepository.count()).isZero();
 		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
 		assertThat(outboxRepository.findAll()).extracting(row -> row.getEventType())
@@ -266,7 +272,7 @@ class ReservationConcurrencyTest {
 				AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType());
 
 		reservationService.cancelReservation(
-			ready.reservationUid(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());
+			confirmed.getReservationUid().toString(), new PaymentRequest.Cancel("0원 예약 취소", null), guest.getId());
 
 		Reservation cancelled = reservationRepository.findByReservationUid(confirmed.getReservationUid()).orElseThrow();
 		assertThat(cancelled.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
@@ -281,13 +287,11 @@ class ReservationConcurrencyTest {
 		Member guest = guests.getFirst();
 		Coupon coupon = issueFixedCoupon(guest, 200_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
-		var ready = reservationService.createPendingReservation(
-			new ReservationRequest.Create(
+		Reservation confirmed = createPendingReservation(transactionService,
+			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
-			"complimentary-cancel-rollback");
-		Reservation confirmed = reservationRepository.findByReservationUid(
-			UUID.fromString(ready.reservationUid())).orElseThrow();
+			"complimentary cancel rollback");
 		long historyCount = historyRepository.count();
 		outboxRepository.deleteAllInBatch();
 		jdbcTemplate.execute("""
@@ -299,7 +303,7 @@ class ReservationConcurrencyTest {
 
 		try {
 			assertThatThrownBy(() -> reservationService.cancelReservation(
-				ready.reservationUid(),
+				confirmed.getReservationUid().toString(),
 				new PaymentRequest.Cancel("0원 취소 롤백", null),
 				guest.getId()))
 				.isInstanceOf(DataAccessException.class);
@@ -329,13 +333,11 @@ class ReservationConcurrencyTest {
 		Member guest = guests.getFirst();
 		Coupon coupon = issueFixedCoupon(guest, 50_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
-		var ready = reservationService.createPendingReservation(
-			new ReservationRequest.Create(
+		Reservation pending = createPendingReservation(transactionService,
+			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
-			"expiry-coupon-restore");
-		Reservation pending = reservationRepository.findByReservationUid(UUID.fromString(ready.reservationUid()))
-			.orElseThrow();
+			"expiry coupon restore");
 		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
 		jdbcTemplate.update(
 			"UPDATE reservation SET expires_at = ? WHERE id = ?",
@@ -355,13 +357,11 @@ class ReservationConcurrencyTest {
 		Member guest = guests.getFirst();
 		Coupon coupon = issueFixedCoupon(guest, 50_000);
 		LocalDate checkIn = WINDOW_START.plusDays(30);
-		var ready = reservationService.createPendingReservation(
-			new ReservationRequest.Create(
+		Reservation pending = createPendingReservation(transactionService,
+			new ReservationCreateCommand(
 				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId()),
 			guest.getId(),
-			"expiry-rollback");
-		Reservation pending = reservationRepository.findByReservationUid(UUID.fromString(ready.reservationUid()))
-			.orElseThrow();
+			"expiry rollback");
 		jdbcTemplate.update(
 			"UPDATE reservation SET expires_at = ? WHERE id = ?",
 			Timestamp.from(Instant.now().minusSeconds(5)),
@@ -410,18 +410,21 @@ class ReservationConcurrencyTest {
 	@DisplayName("같은 결제 승인 요청이 동시에 도착해도 하나의 결제 작업과 이벤트를 공유한다")
 	void concurrentPaymentApprovalClaimsOnce() throws InterruptedException {
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
-		Reservation pendingReservation = transactionService.createPendingReservationInTx(
-			new ReservationRequest.Create(
+		Reservation pendingReservation = createPendingReservation(transactionService,
+			new ReservationCreateCommand(
 				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
 			guests.getFirst().getId(),
 			"결제 승인 선점 동시성 테스트"
 		);
+		var paymentAttempt = reservationHoldCommandService.beginPaymentAttempt(
+			pendingReservation.getReservationUid().toString(), guests.getFirst().getId());
 		outboxRepository.deleteAllInBatch();
 
 		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
 			"payment-key",
 			pendingReservation.getReservationUid().toString(),
-			pendingReservation.getTotalPrice().intValue()
+			pendingReservation.getTotalPrice().intValue(),
+			paymentAttempt.paymentAttemptId()
 		);
 		ExecutorService executorService = Executors.newFixedThreadPool(2);
 		CountDownLatch readyLatch = new CountDownLatch(2);
@@ -468,8 +471,8 @@ class ReservationConcurrencyTest {
 	void concurrentPaymentCancellationReturnsTheSameOperation() throws InterruptedException {
 		Member guest = guests.getFirst();
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
-		Reservation reservation = transactionService.createPendingReservationInTx(
-			new ReservationRequest.Create(
+		Reservation reservation = createPendingReservation(transactionService,
+			new ReservationCreateCommand(
 				accommodation.getId(), checkInDate, checkInDate.plusDays(2), 2),
 			guest.getId(),
 			"결제 취소 동시성 테스트"
@@ -550,22 +553,23 @@ class ReservationConcurrencyTest {
 
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
+		List<ReservationRequest.Checkout> checkoutRequests = new ArrayList<>();
+		for (int i = 0; i < SAME_DATE_REQUEST_COUNT; i++) {
+			Member guest = guests.get(i % guests.size());
+			var quote = quoteService.createQuote(new ReservationRequest.Quote(
+				accommodation.getId(), checkInDate, checkOutDate, 2, null), guest.getId());
+			checkoutRequests.add(new ReservationRequest.Checkout(quote.quoteUid(), null));
+		}
 
 		// when
 		for (int i = 0; i < SAME_DATE_REQUEST_COUNT; i++) {
 			final Member guest = guests.get(i % guests.size());
+			final ReservationRequest.Checkout request = checkoutRequests.get(i);
 			final String idempotencyKey = "inventory-contention-" + i;
 			executorService.submit(() -> {
 				try {
 					readyLatch.countDown();
 					startLatch.await();
-
-					ReservationRequest.Create request = new ReservationRequest.Create(
-						accommodation.getId(),
-						checkInDate,
-						checkOutDate,
-						2
-					);
 
 					reservationService.createPendingReservation(
 						request, guest.getId(), idempotencyKey);
@@ -625,255 +629,6 @@ class ReservationConcurrencyTest {
 	}
 
 	@Test
-	@DisplayName("같은 회원의 동일한 checkout 재시도는 기존 예약의 현재 Ready를 반환하고 부수효과를 재사용한다")
-	void identicalCheckoutReplayReturnsTheExistingReservationWithoutDuplicateSideEffects() {
-		Member guest = guests.getFirst();
-		Coupon coupon = issueFixedCoupon(guest, 300_000);
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		ReservationRequest.Create request = new ReservationRequest.Create(
-			accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId(), "아기 침대 요청");
-		String key = "same-checkout-replay";
-
-		var first = reservationService.createPendingReservation(request, guest.getId(), key);
-		var replay = reservationService.createPendingReservation(request, guest.getId(), key);
-
-		assertThat(replay.reservationUid()).isEqualTo(first.reservationUid());
-		assertThat(replay.amount()).isEqualTo(first.amount());
-		assertThat(replay.status()).isEqualTo(first.status());
-		assertThat(reservationRepository.count()).isOne();
-		assertThat(historyRepository.count()).isOne();
-		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
-		assertThat(outboxRepository.findAll()).extracting(row -> row.getEventType())
-			.containsExactly(AccommodationSearchRefreshRequestedV1.DESCRIPTOR.eventType());
-		String keyHash = jdbcTemplate.queryForObject(
-			"SELECT key_hash FROM reservation_checkout_request WHERE member_id = ?",
-			String.class,
-			guest.getId());
-		String requestFingerprint = jdbcTemplate.queryForObject(
-			"SELECT request_fingerprint FROM reservation_checkout_request WHERE member_id = ?",
-			String.class,
-			guest.getId());
-		assertThat(keyHash).matches("[0-9a-f]{64}").doesNotContain(key);
-		assertThat(requestFingerprint).matches("[0-9a-f]{64}").doesNotContain("아기 침대 요청");
-	}
-
-	@Test
-	@DisplayName("만료 후 동일 checkout을 재시도하면 새 예약 없이 기존 예약의 현재 만료 상태를 반환한다")
-	void checkoutReplayReturnsTheCurrentEffectiveReservationState() {
-		Member guest = guests.getFirst();
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		ReservationRequest.Create request = new ReservationRequest.Create(
-			accommodation.getId(), checkIn, checkIn.plusDays(2), 2, null, "만료 상태 재조회");
-		String key = "expired-checkout-replay";
-		var first = reservationService.createPendingReservation(request, guest.getId(), key);
-		jdbcTemplate.update(
-			"UPDATE reservation SET expires_at = ? WHERE reservation_uid = UUID_TO_BIN(?)",
-			Timestamp.from(Instant.now().minusSeconds(1)),
-			first.reservationUid());
-
-		var replay = reservationService.createPendingReservation(request, guest.getId(), key);
-
-		assertThat(replay.reservationUid()).isEqualTo(first.reservationUid());
-		assertThat(replay.status()).isEqualTo(ReservationStatus.EXPIRED);
-		assertThat(replay.paymentAllowed()).isFalse();
-		assertThat(replay.serverTime()).isAfterOrEqualTo(first.serverTime());
-		assertThat(reservationRepository.count()).isOne();
-		assertThat(historyRepository.count()).isOne();
-	}
-
-	@Test
-	@DisplayName("같은 checkout 키라도 요청사항·쿠폰·날짜·인원·숙소 중 하나가 다르면 409다")
-	void sameKeyWithDifferentFingerprintConflicts() {
-		Member guest = guests.getFirst();
-		Coupon coupon = issueFixedCoupon(guest, 10_000);
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		ReservationRequest.Create original = new ReservationRequest.Create(
-			accommodation.getId(), checkIn, checkIn.plusDays(2), 1, null, "조용한 방");
-		String key = "fingerprint-contract";
-		var first = reservationService.createPendingReservation(original, guest.getId(), key);
-		jdbcTemplate.update("UPDATE reservation SET status = 'EXPIRED' WHERE reservation_uid = UUID_TO_BIN(?)",
-			first.reservationUid());
-
-		Member anotherHost = memberRepository.save(
-			Member.builder().email("fingerprint-host@test.com").nickname("host").build());
-		Accommodation anotherAccommodation = accommodationRepository.save(Accommodation.builder()
-			.name("Another Accommodation").basePrice(100000L)
-			.address(Address.builder().country("KR").build())
-			.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(2).build())
-			.member(anotherHost).checkInTime(LocalTime.of(15, 0)).checkOutTime(LocalTime.of(11, 0))
-			.timeZoneId(TIME_ZONE_ID).status(AccommodationStatus.PUBLISHED).build());
-		seedInventory(anotherAccommodation);
-
-		List<ReservationRequest.Create> changedRequests = List.of(
-			new ReservationRequest.Create(accommodation.getId(), checkIn, checkIn.plusDays(2), 1, null, "높은 층"),
-			new ReservationRequest.Create(accommodation.getId(), checkIn, checkIn.plusDays(2), 1, coupon.getId(), "조용한 방"),
-			new ReservationRequest.Create(accommodation.getId(), checkIn.plusDays(1), checkIn.plusDays(3), 1, null, "조용한 방"),
-			new ReservationRequest.Create(accommodation.getId(), checkIn, checkIn.plusDays(3), 1, null, "조용한 방"),
-			new ReservationRequest.Create(accommodation.getId(), checkIn, checkIn.plusDays(2), 2, null, "조용한 방"),
-			new ReservationRequest.Create(anotherAccommodation.getId(), checkIn, checkIn.plusDays(2), 1, null, "조용한 방")
-		);
-
-		for (ReservationRequest.Create changed : changedRequests) {
-			assertThatThrownBy(() -> reservationService.createPendingReservation(changed, guest.getId(), key))
-				.isInstanceOf(ReservationCheckoutIdempotencyConflictException.class);
-		}
-		assertThat(reservationRepository.count()).isOne();
-		assertThat(memberCoupon(guest, coupon).isUsed()).isFalse();
-	}
-
-	@Test
-	@DisplayName("같은 회원·키로 서로 다른 checkout이 동시에 오면 하나만 성공하고 다른 하나는 409다")
-	void concurrentDifferentPayloadsWithTheSameKeyConvergeOnOneConflict() throws InterruptedException {
-		Member guest = guests.getFirst();
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		List<ReservationRequest.Create> requests = List.of(
-			new ReservationRequest.Create(
-				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, null, "조용한 방"),
-			new ReservationRequest.Create(
-				accommodation.getId(), checkIn, checkIn.plusDays(2), 2, null, "높은 층")
-		);
-		String key = "concurrent-fingerprint-conflict";
-		ExecutorService executor = Executors.newFixedThreadPool(2);
-		CountDownLatch ready = new CountDownLatch(2);
-		CountDownLatch start = new CountDownLatch(1);
-		CountDownLatch done = new CountDownLatch(2);
-		AtomicInteger successes = new AtomicInteger();
-		AtomicInteger conflicts = new AtomicInteger();
-		List<Throwable> unexpectedFailures = java.util.Collections.synchronizedList(new ArrayList<>());
-
-		for (ReservationRequest.Create request : requests) {
-			executor.submit(() -> {
-				try {
-					ready.countDown();
-					start.await();
-					reservationService.createPendingReservation(request, guest.getId(), key);
-					successes.incrementAndGet();
-				} catch (ReservationCheckoutIdempotencyConflictException expected) {
-					conflicts.incrementAndGet();
-				} catch (Throwable unexpected) {
-					unexpectedFailures.add(unexpected);
-				} finally {
-					done.countDown();
-				}
-			});
-		}
-
-		assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-		start.countDown();
-		assertThat(done.await(15, TimeUnit.SECONDS)).isTrue();
-		executor.shutdownNow();
-
-		assertThat(unexpectedFailures).isEmpty();
-		assertThat(successes).hasValue(1);
-		assertThat(conflicts).hasValue(1);
-		assertThat(reservationRepository.count()).isOne();
-		assertThat(historyRepository.count()).isOne();
-	}
-
-	@Test
-	@DisplayName("동일 checkout 10개 동시 요청은 하나의 예약 UID로 수렴한다")
-	void concurrentIdenticalCheckoutRequestsConvergeOnOneReservation() throws InterruptedException {
-		int threadCount = 10;
-		Member guest = guests.getFirst();
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		ReservationRequest.Create request = new ReservationRequest.Create(
-			accommodation.getId(), checkIn, checkIn.plusDays(2), 2, null, "동시 재시도");
-		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-		CountDownLatch ready = new CountDownLatch(threadCount);
-		CountDownLatch start = new CountDownLatch(1);
-		CountDownLatch done = new CountDownLatch(threadCount);
-		List<String> reservationUids = java.util.Collections.synchronizedList(new ArrayList<>());
-		List<Throwable> failures = java.util.Collections.synchronizedList(new ArrayList<>());
-
-		for (int i = 0; i < threadCount; i++) {
-			executor.submit(() -> {
-				try {
-					ready.countDown();
-					start.await();
-					reservationUids.add(reservationService
-						.createPendingReservation(request, guest.getId(), "concurrent-same-checkout")
-						.reservationUid());
-				} catch (Throwable failure) {
-					failures.add(failure);
-				} finally {
-					done.countDown();
-				}
-			});
-		}
-
-		assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-		start.countDown();
-		assertThat(done.await(15, TimeUnit.SECONDS)).isTrue();
-		executor.shutdownNow();
-
-		assertThat(failures).isEmpty();
-		assertThat(reservationUids).hasSize(threadCount).containsOnly(reservationUids.getFirst());
-		assertThat(reservationService
-			.createPendingReservation(request, guest.getId(), "concurrent-same-checkout")
-			.reservationUid()).isEqualTo(reservationUids.getFirst());
-		assertThat(reservationRepository.count()).isOne();
-		assertThat(historyRepository.count()).isOne();
-	}
-
-	@Test
-	@DisplayName("실패한 checkout 트랜잭션은 키를 소비하지 않아 같은 요청을 재시도할 수 있다")
-	void failedCheckoutTransactionDoesNotConsumeTheKey() {
-		Member guest = guests.getFirst();
-		Coupon coupon = issueFixedCoupon(guest, 10_000);
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		ReservationRequest.Create request = new ReservationRequest.Create(
-			accommodation.getId(), checkIn, checkIn.plusDays(2), 2, coupon.getId(), "rollback retry");
-		String key = "rollback-does-not-consume";
-		jdbcTemplate.execute("""
-			CREATE TRIGGER reservation_checkout_reject_history
-			BEFORE INSERT ON reservation_history
-			FOR EACH ROW
-			SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced checkout failure'
-			""");
-
-		try {
-			assertThatThrownBy(() -> reservationService.createPendingReservation(request, guest.getId(), key))
-				.isInstanceOf(DataAccessException.class);
-		} finally {
-			jdbcTemplate.execute("DROP TRIGGER IF EXISTS reservation_checkout_reject_history");
-		}
-		assertThat(reservationRepository.count()).isZero();
-		assertThat(historyRepository.count()).isZero();
-		assertThat(memberCoupon(guest, coupon).isUsed()).isFalse();
-
-		var retried = reservationService.createPendingReservation(request, guest.getId(), key);
-
-		assertThat(retried.reservationUid()).isNotBlank();
-		assertThat(reservationRepository.count()).isOne();
-		assertThat(historyRepository.count()).isOne();
-		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
-	}
-
-	@Test
-	@DisplayName("같은 키는 회원 scope가 다르면 다른 예약을 만들며 기존 예약을 노출하지 않는다")
-	void idempotencyKeyIsScopedByMember() {
-		LocalDate checkIn = WINDOW_START.plusDays(35);
-		ReservationRequest.Create request = new ReservationRequest.Create(
-			accommodation.getId(), checkIn, checkIn.plusDays(2), 1, null, "member scope");
-		String key = "same-raw-key-for-two-members";
-		var first = reservationService.createPendingReservation(request, guests.get(0).getId(), key);
-		jdbcTemplate.update("UPDATE reservation SET status = 'EXPIRED' WHERE reservation_uid = UUID_TO_BIN(?)",
-			first.reservationUid());
-		jdbcTemplate.update("""
-			UPDATE accommodation_inventory_day
-			SET state = 'FREE', reservation_id = NULL, hold_expires_at = NULL
-			WHERE reservation_id = (
-			  SELECT id FROM reservation WHERE reservation_uid = UUID_TO_BIN(?)
-			)
-			""", first.reservationUid());
-
-		var second = reservationService.createPendingReservation(request, guests.get(1).getId(), key);
-
-		assertThat(second.reservationUid()).isNotEqualTo(first.reservationUid());
-		assertThat(reservationRepository.count()).isEqualTo(2);
-	}
-
-	@Test
 	@DisplayName("서비스 계층을 우회해도 DB 권위 트랜잭션이 중복 예약을 막는다")
 	void authoritativeTransactionPreventsDuplicateReservations() throws InterruptedException {
 		// given
@@ -890,7 +645,7 @@ class ReservationConcurrencyTest {
 		LocalDate checkInDate = WINDOW_START.plusDays(30);
 		LocalDate checkOutDate = checkInDate.plusDays(2);
 
-		ReservationRequest.Create request = new ReservationRequest.Create(
+		ReservationCreateCommand request = new ReservationCreateCommand(
 			accommodation.getId(),
 			checkInDate,
 			checkOutDate,
@@ -905,7 +660,8 @@ class ReservationConcurrencyTest {
 					readyLatch.countDown();
 					startLatch.await();
 
-					transactionService.createPendingReservationInTx(request, guest.getId(), "DB 권위 트랜잭션 테스트");
+					createPendingReservation(transactionService,
+						request, guest.getId(), "DB 권위 트랜잭션 테스트");
 					successCount.incrementAndGet();
 				} catch (ReservationConflictException | ReservationInventoryBusyException e) {
 					expectedFailCount.incrementAndGet();
@@ -978,10 +734,10 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				reservationService.createPendingReservation(
-					new ReservationRequest.Create(accommodation.getId(), checkInDate, checkOutDate, 2),
+				createPendingReservation(transactionService,
+					new ReservationCreateCommand(accommodation.getId(), checkInDate, checkOutDate, 2),
 					guestA.getId(),
-					"different-accommodation-a"
+					"different accommodation A"
 				);
 				successCount.incrementAndGet();
 			} catch (Exception e) {
@@ -996,10 +752,10 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				reservationService.createPendingReservation(
-					new ReservationRequest.Create(accommodation2.getId(), checkInDate, checkOutDate, 2),
+				createPendingReservation(transactionService,
+					new ReservationCreateCommand(accommodation2.getId(), checkInDate, checkOutDate, 2),
 					guestB.getId(),
-					"different-accommodation-b"
+					"different accommodation B"
 				);
 				successCount.incrementAndGet();
 			} catch (Exception e) {
@@ -1044,14 +800,14 @@ class ReservationConcurrencyTest {
 		AtomicInteger unexpectedFailCount = new AtomicInteger(0);
 
 		LocalDate baseDate = WINDOW_START.plusDays(30);
-		ReservationRequest.Create requestA = new ReservationRequest.Create(
+		ReservationCreateCommand requestA = new ReservationCreateCommand(
 			accommodation.getId(),
 			baseDate.plusDays(1),
 			baseDate.plusDays(3),
 			2
 		);
 
-		ReservationRequest.Create requestB = new ReservationRequest.Create(
+		ReservationCreateCommand requestB = new ReservationCreateCommand(
 			accommodation.getId(),
 			baseDate,
 			baseDate.plusDays(2),
@@ -1066,8 +822,8 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				reservationService.createPendingReservation(
-					requestA, guestA.getId(), "overlap-request-a");
+				createPendingReservation(transactionService,
+					requestA, guestA.getId(), "overlap request A");
 				successCount.incrementAndGet();
 			} catch (ReservationConflictException | ReservationInventoryBusyException e) {
 				failCount.incrementAndGet();
@@ -1083,8 +839,8 @@ class ReservationConcurrencyTest {
 			try {
 				readyLatch.countDown();
 				startLatch.await();
-				reservationService.createPendingReservation(
-					requestB, guestB.getId(), "overlap-request-b");
+				createPendingReservation(transactionService,
+					requestB, guestB.getId(), "overlap request B");
 				successCount.incrementAndGet();
 			} catch (ReservationConflictException | ReservationInventoryBusyException e) {
 				failCount.incrementAndGet();

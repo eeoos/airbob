@@ -27,7 +27,7 @@ import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationPaymentAttemptException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
@@ -129,7 +129,7 @@ public class Reservation extends BaseEntity {
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
-		ReservationRequest.Create request, String reservationCode, Instant now) {
+		ReservationCreateCommand request, String reservationCode, Instant now) {
 		return createPendingReservation(
 			accommodation,
 			guest,
@@ -141,7 +141,7 @@ public class Reservation extends BaseEntity {
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
-		ReservationRequest.Create request, String reservationCode, Instant now,
+		ReservationCreateCommand request, String reservationCode, Instant now,
 		ReservationHoldPolicy holdPolicy) {
 		ReservationStayPricePolicy.StayPrice stayPrice = ReservationStayPricePolicy.calculate(
 			accommodation.getBasePrice(), request.checkInDate(), request.checkOutDate());
@@ -158,7 +158,7 @@ public class Reservation extends BaseEntity {
 	}
 
 	public static Reservation createPendingReservation(Accommodation accommodation, Member guest,
-		ReservationRequest.Create request, String reservationCode, Instant now,
+		ReservationCreateCommand request, String reservationCode, Instant now,
 		ReservationHoldPolicy holdPolicy, ReservationStayPricePolicy.StayPrice stayPrice,
 		String currency) {
 
@@ -272,9 +272,6 @@ public class Reservation extends BaseEntity {
 	}
 
 	public void validatePaymentAttempt(UUID paymentAttemptUid) {
-		if (!this.paymentAttemptRequired) {
-			return;
-		}
 		if (this.paymentAttemptUid == null
 			|| !this.paymentAttemptUid.equals(paymentAttemptUid)) {
 			throw new InvalidReservationPaymentAttemptException();
@@ -282,9 +279,6 @@ public class Reservation extends BaseEntity {
 	}
 
 	public boolean consumePaymentAttempt(UUID paymentAttemptUid, Instant consumedAt) {
-		if (!this.paymentAttemptRequired) {
-			return false;
-		}
 		validatePaymentAttempt(paymentAttemptUid);
 		if (this.paymentAttemptConsumedAt != null) {
 			return false;

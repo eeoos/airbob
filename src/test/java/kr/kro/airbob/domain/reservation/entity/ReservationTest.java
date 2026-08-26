@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeException;
 import kr.kro.airbob.domain.reservation.exception.InvalidReservationStatusException;
@@ -76,7 +76,7 @@ class ReservationTest {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 26);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 29);
-			ReservationRequest.Create request = new ReservationRequest.Create(1L, checkInDate, checkOutDate, 2);
+			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
@@ -91,7 +91,7 @@ class ReservationTest {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 26);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 27);
-			ReservationRequest.Create request = new ReservationRequest.Create(1L, checkInDate, checkOutDate, 2);
+			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
@@ -106,7 +106,7 @@ class ReservationTest {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 1);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 31);
-			ReservationRequest.Create request = new ReservationRequest.Create(1L, checkInDate, checkOutDate, 2);
+			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
@@ -120,7 +120,7 @@ class ReservationTest {
 		void 예외_당일_체크아웃() {
 			// given
 			LocalDate sameDate = LocalDate.of(2025, 1, 26);
-			ReservationRequest.Create request = new ReservationRequest.Create(1L, sameDate, sameDate, 2);
+			ReservationCreateCommand request = new ReservationCreateCommand(1L, sameDate, sameDate, 2);
 
 			// when & then
 			assertThatThrownBy(() -> Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW))
@@ -135,7 +135,7 @@ class ReservationTest {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 28);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 26);
-			ReservationRequest.Create request = new ReservationRequest.Create(1L, checkInDate, checkOutDate, 2);
+			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when & then
 			assertThatThrownBy(() -> Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW))
@@ -447,7 +447,7 @@ class ReservationTest {
 				.checkOutTime(LocalTime.of(1, 30))
 				.timeZoneId("America/New_York")
 				.build();
-			ReservationRequest.Create request = new ReservationRequest.Create(
+			ReservationCreateCommand request = new ReservationCreateCommand(
 				1L,
 				LocalDate.of(2026, 3, 8),
 				LocalDate.of(2026, 3, 9),
@@ -471,7 +471,7 @@ class ReservationTest {
 				.checkOutTime(LocalTime.of(0, 30))
 				.timeZoneId("America/New_York")
 				.build();
-			ReservationRequest.Create request = new ReservationRequest.Create(
+			ReservationCreateCommand request = new ReservationCreateCommand(
 				1L,
 				LocalDate.of(2026, 11, 1),
 				LocalDate.of(2026, 11, 2),
@@ -494,7 +494,7 @@ class ReservationTest {
 				.checkOutTime(LocalTime.of(11, 0))
 				.timeZoneId("America/New_York")
 				.build();
-			ReservationRequest.Create request = new ReservationRequest.Create(
+			ReservationCreateCommand request = new ReservationCreateCommand(
 				1L,
 				LocalDate.of(2026, 3, 7),
 				LocalDate.of(2026, 3, 9),
@@ -517,7 +517,7 @@ class ReservationTest {
 		@DisplayName("createPendingReservation 호출 시 PAYMENT_PENDING 상태로 생성된다")
 		void 정상_예약_생성_상태확인() {
 			// given
-			ReservationRequest.Create request = createValidRequest();
+			ReservationCreateCommand request = createValidRequest();
 
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
@@ -532,7 +532,7 @@ class ReservationTest {
 			// given
 			LocalDate checkInDate = LocalDate.of(2025, 1, 26);
 			LocalDate checkOutDate = LocalDate.of(2025, 1, 28);
-			ReservationRequest.Create request = new ReservationRequest.Create(1L, checkInDate, checkOutDate, 2);
+			ReservationCreateCommand request = new ReservationCreateCommand(1L, checkInDate, checkOutDate, 2);
 
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
@@ -549,7 +549,7 @@ class ReservationTest {
 		@DisplayName("createPendingReservation 호출 시 만료시간이 15분 후로 설정된다")
 		void 만료시간_설정() {
 			// given
-			ReservationRequest.Create request = createValidRequest();
+			ReservationCreateCommand request = createValidRequest();
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
 
@@ -561,7 +561,7 @@ class ReservationTest {
 		@DisplayName("createPendingReservation 호출 시 예약코드가 설정된다")
 		void 예약코드_설정() {
 			// given
-			ReservationRequest.Create request = createValidRequest();
+			ReservationCreateCommand request = createValidRequest();
 			String reservationCode = "XYZ789";
 
 			// when
@@ -575,7 +575,7 @@ class ReservationTest {
 		@DisplayName("createPendingReservation 호출 시 통화가 KRW로 설정된다")
 		void 통화_설정() {
 			// given
-			ReservationRequest.Create request = createValidRequest();
+			ReservationCreateCommand request = createValidRequest();
 
 			// when
 			Reservation reservation = Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
@@ -589,7 +589,7 @@ class ReservationTest {
 		void 게스트수_설정() {
 			// given
 			int guestCount = 4;
-			ReservationRequest.Create request = new ReservationRequest.Create(
+			ReservationCreateCommand request = new ReservationCreateCommand(
 				1L, LocalDate.of(2025, 1, 26), LocalDate.of(2025, 1, 28), guestCount);
 
 			// when
@@ -601,12 +601,12 @@ class ReservationTest {
 	}
 
 	private Reservation createPendingReservation() {
-		ReservationRequest.Create request = createValidRequest();
+		ReservationCreateCommand request = createValidRequest();
 		return Reservation.createPendingReservation(accommodation, guest, request, "ABC123", NOW);
 	}
 
 	private Reservation processingReservationWithExpiry(Instant expiresAt) {
-		ReservationRequest.Create request = createValidRequest();
+		ReservationCreateCommand request = createValidRequest();
 		Instant acceptedAt = expiresAt.minusSeconds(1);
 		Reservation reservation = Reservation.createPendingReservation(
 			accommodation, guest, request, "ABC123", expiresAt.minusSeconds(15 * 60));
@@ -614,8 +614,8 @@ class ReservationTest {
 		return reservation;
 	}
 
-	private ReservationRequest.Create createValidRequest() {
-		return new ReservationRequest.Create(
+	private ReservationCreateCommand createValidRequest() {
+		return new ReservationCreateCommand(
 			1L,
 			LocalDate.of(2025, 1, 26),
 			LocalDate.of(2025, 1, 28),

@@ -11,6 +11,7 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import kr.kro.airbob.common.dto.ApiResponse;
@@ -67,6 +68,13 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(NoResourceFoundException.class)
 	public ResponseEntity<ApiResponse<?>> handleNoResourceFoundException(NoResourceFoundException e) {
 		log.warn("No Resource Found: {}", e.getResourcePath());
+		final ErrorResponse response = ErrorResponse.of(ErrorCode.RESOURCE_NOT_FOUND);
+		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.RESOURCE_NOT_FOUND.getStatus());
+	}
+
+	@ExceptionHandler(NoHandlerFoundException.class)
+	public ResponseEntity<ApiResponse<?>> handleNoHandlerFoundException(NoHandlerFoundException e) {
+		log.warn("No Handler Found: method={}, path={}", e.getHttpMethod(), e.getRequestURL());
 		final ErrorResponse response = ErrorResponse.of(ErrorCode.RESOURCE_NOT_FOUND);
 		return new ResponseEntity<>(ApiResponse.error(response), ErrorCode.RESOURCE_NOT_FOUND.getStatus());
 	}

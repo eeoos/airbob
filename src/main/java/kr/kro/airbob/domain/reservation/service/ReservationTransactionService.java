@@ -34,6 +34,7 @@ import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
+import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -55,7 +56,6 @@ import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundExcept
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
 import kr.kro.airbob.domain.reservation.exception.ReservationStateChangeException;
-import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutEndpoint;
 import kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentity;
 import kr.kro.airbob.domain.reservation.inventory.MysqlNowaitFailureClassifier;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -99,36 +99,6 @@ public class ReservationTransactionService {
 
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public Reservation createPendingReservationInTx(
-		ReservationRequest.Create request,
-		Long memberId,
-		String idempotencyKey,
-		String reason
-	) {
-		ReservationCheckoutIdentity identity = ReservationCheckoutIdentity.from(
-			idempotencyKey, request);
-		Member guest = findActiveMember(memberId);
-		ReservationCheckoutRequestClaim claim = checkoutRequestStore.lockOrCreate(
-			memberId,
-			ReservationCheckoutEndpoint.RESERVATION_CREATE_V1,
-			identity,
-			clock.instant()
-		);
-		if (!claim.requestFingerprint().equals(identity.requestFingerprint())) {
-			throw new ReservationCheckoutIdempotencyConflictException();
-		}
-		if (claim.reservationId() != null) {
-			return reservationRepository.findCheckoutReplayByIdAndGuestId(
-				claim.reservationId(), memberId)
-				.orElseThrow(ReservationStateChangeException::new);
-		}
-
-		Reservation reservation = createPendingReservation(request, reason, guest);
-		checkoutRequestStore.complete(claim.id(), reservation.getId(), clock.instant());
-		return reservation;
-	}
-
-	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public Reservation createPendingReservationInTx(
 		ReservationRequest.Checkout request,
 		Long memberId,
 		String idempotencyKey,
@@ -139,7 +109,6 @@ public class ReservationTransactionService {
 		Member guest = findActiveMember(memberId);
 		ReservationCheckoutRequestClaim claim = checkoutRequestStore.lockOrCreate(
 			memberId,
-			ReservationCheckoutEndpoint.RESERVATION_CHECKOUT_V2,
 			identity,
 			clock.instant()
 		);
@@ -164,7 +133,7 @@ public class ReservationTransactionService {
 			throw new ReservationQuoteExpiredException();
 		}
 
-		ReservationRequest.Create createRequest = new ReservationRequest.Create(
+		ReservationCreateCommand createRequest = new ReservationCreateCommand(
 			quote.getAccommodationId(),
 			quote.getCheckInDate(),
 			quote.getCheckOutDate(),
@@ -173,9 +142,6 @@ public class ReservationTransactionService {
 			request.requestMessage()
 		);
 		Reservation reservation = createPendingReservation(createRequest, reason, guest);
-		if (reservation.requiresPayment()) {
-			reservation.requirePaymentAttempt();
-		}
 		Instant checkedOutAt = clock.instant();
 		if (quote.isExpiredAt(checkedOutAt)) {
 			throw new ReservationQuoteExpiredException();
@@ -196,12 +162,12 @@ public class ReservationTransactionService {
 	}
 
 	@Transactional(isolation = Isolation.READ_COMMITTED)
-	public Reservation createPendingReservationInTx(ReservationRequest.Create request, Long memberId, String reason) {
+	Reservation createPendingReservationInTx(ReservationCreateCommand request, Long memberId, String reason) {
 		return createPendingReservation(request, reason, findActiveMember(memberId));
 	}
 
 	private Reservation createPendingReservation(
-		ReservationRequest.Create request,
+		ReservationCreateCommand request,
 		String reason,
 		Member guest
 	) {
@@ -254,6 +220,7 @@ public class ReservationTransactionService {
 			reservation.confirmComplimentary();
 			inventoryService.claimLockedForBooked(lockedInventory, reservation.getId());
 		} else {
+			reservation.requirePaymentAttempt();
 			inventoryService.claimLockedForPending(
 				lockedInventory, reservation.getId(), reservation.getExpiresAt());
 		}

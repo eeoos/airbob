@@ -12,7 +12,6 @@ import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
-import kr.kro.airbob.domain.reservation.exception.InvalidReservationDateException;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -22,26 +21,6 @@ public class ReservationService {
 	private final ReservationTransactionService transactionService;
 	private final PaymentCancellationCommandService cancellationCommandService;
 	private final Clock clock;
-
-	public ReservationResponse.Ready createPendingReservation(
-		ReservationRequest.Create request,
-		Long memberId,
-		String idempotencyKey
-	) {
-		if (!request.checkOutDate().isAfter(request.checkInDate())) {
-			throw new InvalidReservationDateException();
-		}
-
-		Reservation reservation = idempotencyKey == null
-			? transactionService.createPendingReservationInTx(request, memberId, "사용자 예약 생성")
-			: transactionService.createPendingReservationInTx(
-				request,
-				memberId,
-				idempotencyKey,
-				"사용자 예약 생성"
-			);
-		return ReservationResponse.Ready.from(reservation, clock.instant());
-	}
 
 	public ReservationResponse.Ready createPendingReservation(
 		ReservationRequest.Checkout request,

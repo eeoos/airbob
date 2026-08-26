@@ -34,16 +34,20 @@ import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
+import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
+import kr.kro.airbob.domain.reservation.service.ReservationService;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("V2 예약 보유 API 테스트")
-class ReservationHoldV2ControllerTest {
+@DisplayName("예약 보유 API 테스트")
+class ReservationHoldControllerTest {
 
 	private static final long MEMBER_ID = 7L;
 	private static final String RESERVATION_UID = "8ff131af-946c-4fe1-889d-e7cd7deaeec0";
 	private static final Instant NOW = Instant.parse("2026-08-25T03:00:00Z");
 
 	@Mock private ReservationHoldCommandService holdCommandService;
+	@Mock private ReservationQuoteService quoteService;
+	@Mock private ReservationService reservationService;
 
 	private MockMvc mockMvc;
 
@@ -55,7 +59,7 @@ class ReservationHoldV2ControllerTest {
 			.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new ReservationHoldV2Controller(holdCommandService))
+			new ReservationController(quoteService, reservationService, holdCommandService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
@@ -74,7 +78,7 @@ class ReservationHoldV2ControllerTest {
 			RESERVATION_UID, ReservationStatus.EXPIRED, true, NOW);
 		given(holdCommandService.releaseHold(RESERVATION_UID, MEMBER_ID)).willReturn(response);
 
-		mockMvc.perform(delete("/api/v2/reservations/{reservationUid}/hold", RESERVATION_UID))
+		mockMvc.perform(delete("/api/v1/reservations/{reservationUid}/hold", RESERVATION_UID))
 			.andExpect(status().isOk())
 			.andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
 			.andExpect(jsonPath("$.data.reservation_uid").value(RESERVATION_UID))
@@ -101,7 +105,7 @@ class ReservationHoldV2ControllerTest {
 		given(holdCommandService.beginPaymentAttempt(RESERVATION_UID, MEMBER_ID)).willReturn(response);
 
 		mockMvc.perform(post(
-				"/api/v2/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
+				"/api/v1/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
 			.andExpect(status().isOk())
 			.andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
 			.andExpect(jsonPath("$.data.payment_attempt_id").value(paymentAttemptId.toString()))
@@ -115,5 +119,17 @@ class ReservationHoldV2ControllerTest {
 			.andExpect(jsonPath("$.data.payment_attempt_consumed_at").doesNotExist());
 
 		then(holdCommandService).should().beginPaymentAttempt(RESERVATION_UID, MEMBER_ID);
+	}
+
+	@Test
+	@DisplayName("예약 V2 hold와 payment-attempt 경로는 존재하지 않는다")
+	void reservationV2HoldRoutesDoNotExist() throws Exception {
+		mockMvc.perform(delete("/api/v2/reservations/{reservationUid}/hold", RESERVATION_UID))
+			.andExpect(status().isNotFound());
+		mockMvc.perform(post(
+				"/api/v2/reservations/{reservationUid}/payment-attempts", RESERVATION_UID))
+			.andExpect(status().isNotFound());
+
+		then(holdCommandService).shouldHaveNoInteractions();
 	}
 }

@@ -56,9 +56,10 @@ class PaymentControllerTest {
 	@Test
 	void confirmPaymentReturnsTheExactServiceResponseInAnAcceptedEnvelope() {
 		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
+		UUID paymentAttemptId = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
-		PaymentRequest.Confirm request = new PaymentRequest.Confirm("payment-key", reservationUid.toString(), 100_000);
-		org.assertj.core.api.Assertions.assertThat(request.paymentAttemptId()).isNull();
+		PaymentRequest.Confirm request = new PaymentRequest.Confirm(
+			"payment-key", reservationUid.toString(), 100_000, paymentAttemptId);
 		Accepted accepted = new Accepted(operationUid, Status.PENDING,
 			"/api/v1/payment-operations/" + operationUid);
 		given(commandService.requestConfirmation(eq(request), eq(10L))).willReturn(accepted);
@@ -71,7 +72,7 @@ class PaymentControllerTest {
 	}
 
 	@Test
-	void confirmPaymentForwardsTheOptionalPaymentAttemptId() {
+	void confirmPaymentForwardsTheRequiredPaymentAttemptId() {
 		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
 		UUID paymentAttemptId = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
@@ -92,6 +93,7 @@ class PaymentControllerTest {
 	@Test
 	void confirmPaymentAcceptsTheAuthenticatedRequestAtThePublicRoute() throws Exception {
 		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
+		UUID paymentAttemptId = UUID.fromString("b72b0711-c957-44ee-a9ee-19aa2c6d93a5");
 		UUID operationUid = UUID.fromString("6735cde3-c4c3-4f44-9a56-54cc2bf75baa");
 		Accepted accepted = new Accepted(operationUid, Status.PENDING,
 			"/api/v1/payment-operations/" + operationUid);
@@ -100,11 +102,25 @@ class PaymentControllerTest {
 		mockMvc.perform(post("/api/v1/payments/confirm")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
-					{"paymentKey":"payment-key","orderId":"%s","amount":100000}
-					""".formatted(reservationUid)))
+					{"paymentKey":"payment-key","orderId":"%s","amount":100000,"paymentAttemptId":"%s"}
+					""".formatted(reservationUid, paymentAttemptId)))
 			.andExpect(status().isAccepted())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.operationId").value(operationUid.toString()))
 			.andExpect(jsonPath("$.data.statusUrl").value("/api/v1/payment-operations/" + operationUid));
+	}
+
+	@Test
+	void confirmPaymentRejectsMissingPaymentAttemptBeforeCallingTheService() throws Exception {
+		UUID reservationUid = UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf");
+
+		mockMvc.perform(post("/api/v1/payments/confirm")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"paymentKey":"payment-key","orderId":"%s","amount":100000}
+					""".formatted(reservationUid)))
+			.andExpect(status().isBadRequest());
+
+		then(commandService).shouldHaveNoInteractions();
 	}
 }

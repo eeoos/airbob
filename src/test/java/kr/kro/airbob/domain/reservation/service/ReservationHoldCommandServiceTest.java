@@ -36,7 +36,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("V2 예약 보유 명령 서비스 테스트")
+@DisplayName("예약 보유 명령 서비스 테스트")
 class ReservationHoldCommandServiceTest {
 
 	private static final long MEMBER_ID = 7L;
@@ -119,7 +119,7 @@ class ReservationHoldCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("남은 시간이 정확히 90초인 V2 유료 예약은 토큰을 발급한다")
+	@DisplayName("남은 시간이 정확히 90초인 유료 예약은 토큰을 발급한다")
 	void issuesAttemptAtMinimumBoundary() {
 		Reservation reservation = reservation(
 			ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(90), true);
@@ -168,8 +168,8 @@ class ReservationHoldCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("소비된 토큰과 기존 V1 예약은 새 결제 시도를 발급하지 않는다")
-	void rejectsConsumedOrLegacyAttempt() {
+	@DisplayName("소비된 토큰과 토큰 발급 대상이 아닌 예약은 새 결제 시도를 발급하지 않는다")
+	void rejectsConsumedOrIneligibleAttempt() {
 		Reservation consumed = reservation(
 			ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(900), true);
 		UUID attemptId = UUID.randomUUID();
@@ -181,11 +181,11 @@ class ReservationHoldCommandServiceTest {
 			consumed.getReservationUid().toString(), MEMBER_ID))
 			.isInstanceOf(ReservationPaymentAttemptNotAllowedException.class);
 
-		Reservation legacy = reservation(
+		Reservation ineligible = reservation(
 			ReservationStatus.PAYMENT_PENDING, NOW.plusSeconds(900), false);
-		givenLocked(legacy);
+		givenLocked(ineligible);
 		assertThatThrownBy(() -> service.beginPaymentAttempt(
-			legacy.getReservationUid().toString(), MEMBER_ID))
+			ineligible.getReservationUid().toString(), MEMBER_ID))
 			.isInstanceOf(ReservationPaymentAttemptNotAllowedException.class);
 	}
 
