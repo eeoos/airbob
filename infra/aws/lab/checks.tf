@@ -71,11 +71,8 @@ locals {
     false,
   )
 
-  dataset_manifest_keys = local.dataset_release_kind == "evidence" ? toset([
-    "schemaVersion", "releaseKind", "datasetRelease", "datasetRunId", "source", "mysql",
-    "couponPreparation", "kafka", "search", "evidence",
-    ]) : toset([
-    "schemaVersion", "releaseKind", "datasetRelease", "datasetRunId", "source", "mysql",
+  dataset_manifest_keys = toset([
+    "schemaVersion", "releaseKind", "datasetRelease", "datasetRunId", "releaseTuple", "source", "mysql",
     "couponPreparation", "kafka", "search",
   ])
   dataset_kafka_topics = toset([
@@ -92,34 +89,137 @@ locals {
     "OPERATOR_ALERT.events.RETRY",
     "OPERATOR_ALERT.events.DLT",
   ])
+  dataset_profile_contracts = {
+    "production-skew-v1" = {
+      production_spec_key = "benchmark/production-skew-v1.json"
+      dump_storage_gib    = 20
+      budgets = {
+        accommodations  = 50000
+        members         = 200000
+        reservations    = 2500000
+        reviews         = 1000000
+        activeWishlists = 400000
+        wishlistLinks   = 1500000
+      }
+    }
+    "production-skew-large-v1" = {
+      production_spec_key = "benchmark/production-skew-large-v1.json"
+      dump_storage_gib    = 100
+      budgets = {
+        accommodations  = 200000
+        members         = 800000
+        reservations    = 10000000
+        reviews         = 4000000
+        activeWishlists = 1600000
+        wishlistLinks   = 6000000
+      }
+    }
+  }
+  dataset_profile_version  = try(local.dataset_manifest.releaseTuple.profileVersion, "")
+  dataset_profile_contract = try(local.dataset_profile_contracts[local.dataset_profile_version], null)
+  dataset_dump_storage_gib = try(local.dataset_profile_contract.dump_storage_gib, 20)
+  dataset_final_table_minimum_rows = {
+    accommodation          = try(local.dataset_profile_contract.budgets.accommodations, -1)
+    member                 = try(local.dataset_profile_contract.budgets.members, -1)
+    reservation            = try(local.dataset_profile_contract.budgets.reservations, -1)
+    review                 = try(local.dataset_profile_contract.budgets.reviews, -1)
+    wishlist               = try(local.dataset_profile_contract.budgets.activeWishlists, -1)
+    wishlist_accommodation = try(local.dataset_profile_contract.budgets.wishlistLinks, -1)
+  }
+  dataset_production_spec = local.services_enabled ? try(
+    jsondecode(nonsensitive(data.aws_s3_object.dataset_production_spec[0].body)),
+    null,
+  ) : null
+  dataset_production_spec_budgets = try({
+    accommodations  = local.dataset_production_spec.targets.accommodations.rowBudget
+    members         = local.dataset_production_spec.targets.members.rowBudget
+    reservations    = local.dataset_production_spec.targets.reservations.rowBudget
+    reviews         = local.dataset_production_spec.targets.reviews.rowBudget
+    activeWishlists = local.dataset_production_spec.targets.activeWishlists.rowBudget
+    wishlistLinks   = local.dataset_production_spec.targets.wishlistLinks.rowBudget
+  }, {})
   dataset_release_valid = !local.services_enabled || try(
     sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
     toset(keys(local.dataset_manifest)) == local.dataset_manifest_keys &&
-    local.dataset_manifest.schemaVersion == 1 &&
+    local.dataset_manifest.schemaVersion == 2 &&
     local.dataset_manifest.datasetRelease == var.dataset_release &&
-    contains(["pipeline-rehearsal", "evidence"], local.dataset_release_kind) &&
+    local.dataset_release_kind == "pipeline-rehearsal" &&
     can(regex("^([a-z0-9][a-z0-9._-]{2,63}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})$", local.dataset_manifest.datasetRunId)) &&
+    toset(keys(local.dataset_manifest.releaseTuple)) == toset([
+      "datasetVersion", "worldVersion", "calibrationVersion", "profileVersion", "generatorVersion",
+      "dumpSha256", "migrationChecksumSha256", "schemaFingerprintSha256", "manifestSha256",
+      "validatorSha256", "calibrationSha256", "specSha256", "qualificationSha256",
+      "databaseFingerprintSha256", "attestationSha256", "finalWorldFingerprintSha256",
+      "baseWorldFingerprintSha256", "distributionFingerprintSha256", "targetFingerprintSha256",
+      "inventoryFingerprintSha256",
+    ]) &&
+    local.dataset_manifest.releaseTuple.datasetVersion == "benchmark-dataset-v2" &&
+    local.dataset_manifest.releaseTuple.worldVersion == "world-v2" &&
+    local.dataset_manifest.releaseTuple.calibrationVersion == "source-calibration-v1" &&
+    contains(keys(local.dataset_profile_contracts), local.dataset_profile_version) &&
+    local.dataset_manifest.releaseTuple.generatorVersion == "production-skew-generator-v1" &&
+    alltrue([for key, value in local.dataset_manifest.releaseTuple : endswith(key, "Sha256") ? can(regex("^[0-9a-f]{64}$", value)) : true]) &&
     toset(keys(local.dataset_manifest.source)) == toset([
-      "datasetVersion", "etlCommit", "seed", "profile", "manifestVersion",
-      "canonicalPayloadSha256", "benchmarkManifestKey", "benchmarkManifestSha256",
+      "datasetVersion", "worldVersion", "etlCommit", "seed", "profile", "manifestVersion",
+      "canonicalPayloadSha256", "legacyBenchmarkManifestKey", "legacyBenchmarkManifestSha256",
+      "benchmarkDatasetManifestKey", "benchmarkDatasetManifestSha256", "validatorKey", "validatorSha256",
+      "calibrationKey", "calibrationSha256", "productionSpecKey", "productionSpecSha256",
+      "generationQualificationKey", "generationQualificationSha256", "databaseFingerprintKey",
+      "databaseFingerprintSha256", "attestationKey", "attestationSha256", "sourceInventorySha256",
     ]) &&
     can(regex("^[0-9a-f]{40}$", local.dataset_manifest.source.etlCommit)) &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.canonicalPayloadSha256)) &&
-    local.dataset_manifest.source.benchmarkManifestKey == "benchmark/manifest.json" &&
-    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.benchmarkManifestSha256)) &&
+    local.dataset_manifest.source.datasetVersion == "benchmark-dataset-v2" &&
+    local.dataset_manifest.source.worldVersion == "world-v2" &&
+    local.dataset_manifest.source.legacyBenchmarkManifestKey == "benchmark/manifest.json" &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.legacyBenchmarkManifestSha256)) &&
+    local.dataset_manifest.source.benchmarkDatasetManifestKey == "benchmark/dataset-manifest.json" &&
+    can(regex("^[0-9a-f]{64}$", local.dataset_manifest.source.benchmarkDatasetManifestSha256)) &&
+    local.dataset_manifest.source.validatorKey == "benchmark/validate-benchmark-dataset-v2.jq" &&
+    local.dataset_manifest.source.calibrationKey == "benchmark/source-calibration-v1.json" &&
+    local.dataset_manifest.source.productionSpecKey == local.dataset_profile_contract.production_spec_key &&
+    data.aws_s3_object.dataset_production_spec[0].key == "${local.dataset_prefix}/${local.dataset_profile_contract.production_spec_key}" &&
+    sha256(nonsensitive(data.aws_s3_object.dataset_production_spec[0].body)) == local.dataset_manifest.source.productionSpecSha256 &&
+    local.dataset_production_spec.profileVersion == local.dataset_profile_version &&
+    local.dataset_production_spec.provenance.generatorVersion == local.dataset_manifest.releaseTuple.generatorVersion &&
+    local.dataset_production_spec_budgets == local.dataset_profile_contract.budgets &&
+    alltrue([
+      for target in values(local.dataset_production_spec.targets) :
+      try(target.rowBudget, null) == null || try(
+        target.tolerance.absoluteRows == 0 && target.tolerance.relativePercent == 0,
+        false,
+      )
+    ]) &&
+    local.dataset_manifest.source.generationQualificationKey == "benchmark/generation-qualification-v1.json" &&
+    local.dataset_manifest.source.databaseFingerprintKey == "mysql/database-fingerprint.tsv" &&
+    local.dataset_manifest.source.attestationKey == "attestation/restore.json" &&
+    local.dataset_manifest.releaseTuple.manifestSha256 == local.dataset_manifest.source.benchmarkDatasetManifestSha256 &&
+    local.dataset_manifest.releaseTuple.validatorSha256 == local.dataset_manifest.source.validatorSha256 &&
+    local.dataset_manifest.releaseTuple.calibrationSha256 == local.dataset_manifest.source.calibrationSha256 &&
+    local.dataset_manifest.releaseTuple.specSha256 == local.dataset_manifest.source.productionSpecSha256 &&
+    local.dataset_manifest.releaseTuple.qualificationSha256 == local.dataset_manifest.source.generationQualificationSha256 &&
+    local.dataset_manifest.releaseTuple.databaseFingerprintSha256 == local.dataset_manifest.source.databaseFingerprintSha256 &&
+    local.dataset_manifest.releaseTuple.attestationSha256 == local.dataset_manifest.source.attestationSha256 &&
     local.dataset_manifest.mysql.dumpKey == "mysql/airbob.sql.zst" &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.dumpSha256)) &&
     local.dataset_manifest.mysql.flywayVersion == "27" &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.migrationChecksumSha256)) &&
     can(regex("^[0-9a-f]{64}$", local.dataset_manifest.mysql.schemaFingerprintSha256)) &&
     local.dataset_manifest.mysql.timezone == "UTC" &&
-    contains(["absent", "truncate-after-import"], local.dataset_manifest.mysql.outboxPolicy) &&
+    local.dataset_manifest.mysql.outboxPolicy == "absent" &&
     contains(keys(local.dataset_expected_table_rows), "flyway_schema_history") &&
     local.dataset_expected_table_rows.flyway_schema_history == 27 &&
     contains(keys(local.dataset_expected_table_rows), "outbox") &&
     contains(keys(local.dataset_expected_table_rows), "accommodation") &&
     contains(keys(local.dataset_expected_table_rows), "accommodation_inventory_day") &&
     contains(keys(local.dataset_expected_table_rows), "reservation") &&
+    alltrue([
+      for table, minimum_rows in local.dataset_final_table_minimum_rows : try(
+        local.dataset_expected_table_rows[table] >= minimum_rows &&
+        floor(local.dataset_expected_table_rows[table]) == local.dataset_expected_table_rows[table],
+        false,
+      )
+    ]) &&
     length(local.dataset_manifest.kafka.topics) == 12 &&
     toset([for topic in local.dataset_manifest.kafka.topics : topic.name]) == local.dataset_kafka_topics &&
     alltrue([
@@ -128,10 +228,42 @@ locals {
       topic.partitions == 3 &&
       topic.retentionMs == 86400000
     ]) &&
+    local.dataset_manifest.releaseTuple.dumpSha256 == local.dataset_manifest.mysql.dumpSha256 &&
+    local.dataset_manifest.releaseTuple.migrationChecksumSha256 == local.dataset_manifest.mysql.migrationChecksumSha256 &&
+    local.dataset_manifest.releaseTuple.schemaFingerprintSha256 == local.dataset_manifest.mysql.schemaFingerprintSha256 &&
     (
-      (local.dataset_release_kind == "pipeline-rehearsal" && local.dataset_manifest.source.datasetVersion == "nplus1-v1") ||
-      (local.dataset_release_kind == "evidence" && local.dataset_manifest.source.datasetVersion == "traffic-v1" && local.dataset_search_enabled)
+      (!local.dataset_search_enabled && toset(keys(local.dataset_manifest.search)) == toset(["enabled"])) ||
+      (local.dataset_search_enabled &&
+        toset(keys(local.dataset_manifest.search)) == toset([
+          "enabled", "snapshotReferenceKey", "repository", "elasticsearchVersion", "imageDigest",
+          "requiredPlugins", "logicalAlias", "snapshotIndex", "documentCount", "mappingSha256",
+          "databaseAccommodationIdsSha256", "elasticsearchAccommodationIdsSha256",
+          "databaseDocumentIdentityPairsSha256", "elasticsearchDocumentIdentityPairsSha256",
+          "contentFingerprintSha256",
+        ]) &&
+        local.dataset_manifest.search.snapshotReferenceKey == "elasticsearch/snapshot-reference.json" &&
+        local.dataset_manifest.search.repository == "airbob-dataset-readonly" &&
+        local.dataset_manifest.search.requiredPlugins == ["analysis-nori", "repository-s3"] &&
+        local.dataset_manifest.search.logicalAlias == "accommodations" &&
+        can(regex("^sha256:[0-9a-f]{64}$", local.dataset_manifest.search.imageDigest)) &&
+        can(regex("^[a-z0-9][a-z0-9._-]{2,254}$", local.dataset_manifest.search.snapshotIndex)) &&
+        local.dataset_manifest.search.documentCount >= 0 &&
+        floor(local.dataset_manifest.search.documentCount) == local.dataset_manifest.search.documentCount &&
+        local.dataset_manifest.search.databaseAccommodationIdsSha256 == local.dataset_manifest.search.elasticsearchAccommodationIdsSha256 &&
+        local.dataset_manifest.search.databaseDocumentIdentityPairsSha256 == local.dataset_manifest.search.elasticsearchDocumentIdentityPairsSha256 &&
+        alltrue([
+          for value in [
+            local.dataset_manifest.search.mappingSha256,
+            local.dataset_manifest.search.databaseAccommodationIdsSha256,
+            local.dataset_manifest.search.elasticsearchAccommodationIdsSha256,
+            local.dataset_manifest.search.databaseDocumentIdentityPairsSha256,
+            local.dataset_manifest.search.elasticsearchDocumentIdentityPairsSha256,
+            local.dataset_manifest.search.contentFingerprintSha256,
+          ] : can(regex("^[0-9a-f]{64}$", value))
+      ]))
     ) &&
+    length(regexall("(?i)\\\"[^\\\"]*(password|passwd|secret|credential|authorization|token|session.?id|cookie|api.?key|access.?key|private.?key|service.?account|raw.?pii)[^\\\"]*\\\"[[:space:]]*:", jsonencode(local.dataset_manifest))) == 0 &&
+    length(regexall("(?i)-----BEGIN[[:space:]].*PRIVATE KEY-----|(AKIA|ASIA)[0-9A-Z]{16}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", jsonencode(local.dataset_manifest))) == 0 &&
     (
       !local.dataset_search_enabled ||
       local.dataset_manifest.search.imageDigest == split("@", var.infra_image_references["ELASTICSEARCH_IMAGE"])[1]
@@ -143,6 +275,7 @@ locals {
     data.aws_db_snapshot.dataset[0].engine == "mysql" &&
     data.aws_db_snapshot.dataset[0].engine_version == var.rds_engine_version &&
     data.aws_db_snapshot.dataset[0].encrypted &&
+    data.aws_db_snapshot.dataset[0].allocated_storage >= local.dataset_dump_storage_gib &&
     data.aws_db_snapshot.dataset[0].tags.DatasetRelease == var.dataset_release &&
     data.aws_db_snapshot.dataset[0].tags.DatasetRunId == local.dataset_manifest.datasetRunId &&
     data.aws_db_snapshot.dataset[0].tags.DumpSha256 == local.dataset_manifest.mysql.dumpSha256 &&
@@ -159,11 +292,15 @@ locals {
     toset(keys(local.data_bootstrap_receipt)) == toset([
       "schemaVersion", "runId", "datasetRelease", "datasetRunId", "releaseKind",
       "databaseBootstrap", "dumpSha256", "flywayVersion", "migrationChecksumSha256",
-      "schemaFingerprintSha256", "datasetManifestSha256",
+      "schemaFingerprintSha256", "datasetManifestSha256", "validatorSha256",
+      "benchmarkDatasetManifestSha256", "calibrationSha256", "productionSpecSha256",
+      "qualificationSha256", "databaseFingerprintSha256", "restoreAttestationSha256",
+      "finalWorldFingerprintSha256", "baseWorldFingerprintSha256", "distributionFingerprintSha256",
+      "targetFingerprintSha256", "inventoryFingerprintSha256", "semanticAttestationSha256",
       "rdsResourceId", "rdsEngineVersion", "outboxState", "redisState", "kafkaTopics",
       "connectorState", "searchState", "verifiedAt",
     ]) &&
-    local.data_bootstrap_receipt.schemaVersion == 1 &&
+    local.data_bootstrap_receipt.schemaVersion == 2 &&
     local.data_bootstrap_receipt.runId == var.run_id &&
     local.data_bootstrap_receipt.datasetRelease == var.dataset_release &&
     local.data_bootstrap_receipt.datasetRunId == local.dataset_manifest.datasetRunId &&
@@ -174,6 +311,19 @@ locals {
     local.data_bootstrap_receipt.migrationChecksumSha256 == local.dataset_manifest.mysql.migrationChecksumSha256 &&
     local.data_bootstrap_receipt.schemaFingerprintSha256 == local.dataset_manifest.mysql.schemaFingerprintSha256 &&
     local.data_bootstrap_receipt.datasetManifestSha256 == var.dataset_manifest_sha256 &&
+    local.data_bootstrap_receipt.validatorSha256 == local.dataset_manifest.releaseTuple.validatorSha256 &&
+    local.data_bootstrap_receipt.benchmarkDatasetManifestSha256 == local.dataset_manifest.releaseTuple.manifestSha256 &&
+    local.data_bootstrap_receipt.calibrationSha256 == local.dataset_manifest.releaseTuple.calibrationSha256 &&
+    local.data_bootstrap_receipt.productionSpecSha256 == local.dataset_manifest.releaseTuple.specSha256 &&
+    local.data_bootstrap_receipt.qualificationSha256 == local.dataset_manifest.releaseTuple.qualificationSha256 &&
+    local.data_bootstrap_receipt.databaseFingerprintSha256 == local.dataset_manifest.releaseTuple.databaseFingerprintSha256 &&
+    local.data_bootstrap_receipt.restoreAttestationSha256 == local.dataset_manifest.releaseTuple.attestationSha256 &&
+    local.data_bootstrap_receipt.finalWorldFingerprintSha256 == local.dataset_manifest.releaseTuple.finalWorldFingerprintSha256 &&
+    local.data_bootstrap_receipt.baseWorldFingerprintSha256 == local.dataset_manifest.releaseTuple.baseWorldFingerprintSha256 &&
+    local.data_bootstrap_receipt.distributionFingerprintSha256 == local.dataset_manifest.releaseTuple.distributionFingerprintSha256 &&
+    local.data_bootstrap_receipt.targetFingerprintSha256 == local.dataset_manifest.releaseTuple.targetFingerprintSha256 &&
+    local.data_bootstrap_receipt.inventoryFingerprintSha256 == local.dataset_manifest.releaseTuple.inventoryFingerprintSha256 &&
+    can(regex("^[0-9a-f]{64}$", local.data_bootstrap_receipt.semanticAttestationSha256)) &&
     local.data_bootstrap_receipt.rdsResourceId == module.rds[0].resource_id &&
     local.data_bootstrap_receipt.rdsEngineVersion == var.rds_engine_version &&
     local.data_bootstrap_receipt.outboxState == "empty" &&
@@ -203,6 +353,13 @@ check "phase_transition" {
   assert {
     condition     = local.network_receipt_valid && local.probe_clearance_valid
     error_message = "Later phases require exact egress and probe-termination receipts for this VPC, run, AMI, and probe."
+  }
+}
+
+check "bootstrap_document_budget" {
+  assert {
+    condition     = !local.services_enabled || length(local.bootstrap_data_command) <= 45000
+    error_message = "The compressed data-bootstrap SSM command must remain at or below 45KB."
   }
 }
 

@@ -1,0 +1,792 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "benchmark-dataset-v1",
+  "world": {
+    "version": "world-v1",
+    "profile": "LARGE",
+    "seed": 20260817,
+    "anchorTime": "2026-08-17T09:00:00",
+    "validUntil": "2099-12-31T09:00:00",
+    "timezone": "Asia/Seoul",
+    "flywayVersion": 27,
+    "claimScope": "controlled-synthetic-workload",
+    "tableRows": {
+      "accommodation": 201,
+      "accommodation_inventory_day": 0,
+      "member": 3,
+      "payment_transaction": 0,
+      "reservation": 0,
+      "review": 0,
+      "wishlist": 0
+    },
+    "observedDistributions": [
+      {
+        "id": "accommodation-type-skew",
+        "axis": "VALUE_SKEW",
+        "totalRows": 0,
+        "distinctKeys": 0,
+        "maxRowsPerKey": 0,
+        "bucketUnit": "ROWS",
+        "buckets": {
+          "empty": 0
+        }
+      },
+      {
+        "id": "payment-recency",
+        "axis": "RECENCY",
+        "totalRows": 0,
+        "distinctKeys": 0,
+        "maxRowsPerKey": 0,
+        "bucketUnit": "ROWS",
+        "buckets": {
+          "empty": 0
+        }
+      },
+      {
+        "id": "reservation-guest-skew",
+        "axis": "VALUE_SKEW",
+        "totalRows": 0,
+        "distinctKeys": 0,
+        "maxRowsPerKey": 0,
+        "bucketUnit": "ROWS",
+        "buckets": {
+          "empty": 0
+        }
+      },
+      {
+        "id": "review-fanout",
+        "axis": "FAN_OUT",
+        "totalRows": 0,
+        "distinctKeys": 0,
+        "maxRowsPerKey": 0,
+        "bucketUnit": "ROWS",
+        "buckets": {
+          "empty": 0
+        }
+      },
+      {
+        "id": "wishlist-accommodation-skew",
+        "axis": "VALUE_SKEW",
+        "totalRows": 0,
+        "distinctKeys": 0,
+        "maxRowsPerKey": 0,
+        "bucketUnit": "ROWS",
+        "buckets": {
+          "empty": 0
+        }
+      },
+      {
+        "id": "wishlist-fanout",
+        "axis": "FAN_OUT",
+        "totalRows": 0,
+        "distinctKeys": 0,
+        "maxRowsPerKey": 0,
+        "bucketUnit": "ROWS",
+        "buckets": {
+          "empty": 0
+        }
+      }
+    ]
+  },
+  "capsules": [
+    {
+      "capsuleId": "world-distribution-v1",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": [
+        "accommodation",
+        "member",
+        "payment_transaction",
+        "reservation",
+        "review",
+        "wishlist"
+      ],
+      "distributions": [
+        {
+          "id": "query-selectivity",
+          "axis": "SELECTIVITY",
+          "shape": "SELECTIVITY_BUCKETS",
+          "buckets": [
+            0,
+            20,
+            201
+          ],
+          "parameters": {}
+        },
+        {
+          "id": "time-locality",
+          "axis": "RECENCY",
+          "shape": "RECENT_HEAVY",
+          "buckets": [],
+          "parameters": {
+            "totalDays": 365,
+            "recentDays": 7,
+            "recentTrafficPercent": 70
+          }
+        },
+        {
+          "id": "value-skew-80-20",
+          "axis": "VALUE_SKEW",
+          "shape": "HOTSET",
+          "buckets": [],
+          "parameters": {
+            "totalKeys": 100,
+            "hotKeys": 20,
+            "hotTrafficPercent": 80
+          }
+        }
+      ],
+      "accountPool": {
+        "capacity": 0,
+        "emails": []
+      },
+      "targets": [
+        {
+          "id": "background-accommodations",
+          "expectedRows": 201,
+          "resourceIds": []
+        }
+      ],
+      "runtime": {
+        "owner": "AWS_LAB",
+        "setup": "restore-immutable-snapshot",
+        "resetPolicy": "restore-snapshot"
+      }
+    },
+    {
+      "capsuleId": "nplus1-v1",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": [
+        "accommodation",
+        "payment",
+        "reservation",
+        "review",
+        "wishlist",
+        "wishlist_accommodation"
+      ],
+      "distributions": [
+        {
+          "id": "relationship-fanout",
+          "axis": "FAN_OUT",
+          "shape": "CARDINALITY_BUCKETS",
+          "buckets": [
+            1,
+            20,
+            50,
+            100,
+            101,
+            201
+          ],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 1,
+        "emails": [
+          "benchmark-nplus1@airbob.cloud"
+        ]
+      },
+      "targets": [
+        {
+          "id": "review-hotspot",
+          "expectedRows": 201,
+          "resourceIds": [
+            1
+          ]
+        },
+        {
+          "id": "accommodation-detail",
+          "expectedRows": 201,
+          "resourceIds": [
+            2
+          ]
+        },
+        {
+          "id": "wishlist-primary",
+          "expectedRows": 201,
+          "resourceIds": [
+            3
+          ]
+        },
+        {
+          "id": "recently-viewed",
+          "expectedRows": 100,
+          "resourceIds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100
+          ]
+        }
+      ],
+      "runtime": {
+        "owner": "K6_HARNESS",
+        "setup": "prepare-recently-viewed-zset",
+        "resetPolicy": "replace-run-account-zset"
+      }
+    },
+    {
+      "capsuleId": "cache-detail-v1",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": [
+        "accommodation",
+        "accommodation_amenity",
+        "accommodation_image",
+        "accommodation_review_summary",
+        "address",
+        "member",
+        "occupancy_policy"
+      ],
+      "distributions": [
+        {
+          "id": "detail-uniform",
+          "axis": "VALUE_SKEW",
+          "shape": "UNIFORM",
+          "buckets": [],
+          "parameters": {
+            "totalKeys": 200
+          }
+        },
+        {
+          "id": "detail-hotset-80-20",
+          "axis": "VALUE_SKEW",
+          "shape": "HOTSET",
+          "buckets": [],
+          "parameters": {
+            "totalKeys": 200,
+            "hotKeys": 40,
+            "hotTrafficPercent": 80
+          }
+        }
+      ],
+      "accountPool": {
+        "capacity": 0,
+        "emails": []
+      },
+      "targets": [
+        {
+          "id": "detail-pool",
+          "expectedRows": 200,
+          "resourceIds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132,
+            133,
+            134,
+            135,
+            136,
+            137,
+            138,
+            139,
+            140,
+            141,
+            142,
+            143,
+            144,
+            145,
+            146,
+            147,
+            148,
+            149,
+            150,
+            151,
+            152,
+            153,
+            154,
+            155,
+            156,
+            157,
+            158,
+            159,
+            160,
+            161,
+            162,
+            163,
+            164,
+            165,
+            166,
+            167,
+            168,
+            169,
+            170,
+            171,
+            172,
+            173,
+            174,
+            175,
+            176,
+            177,
+            178,
+            179,
+            180,
+            181,
+            182,
+            183,
+            184,
+            185,
+            186,
+            187,
+            188,
+            189,
+            190,
+            191,
+            192,
+            193,
+            194,
+            195,
+            196,
+            197,
+            198,
+            199,
+            200
+          ]
+        },
+        {
+          "id": "same-key",
+          "expectedRows": 1,
+          "resourceIds": [
+            1
+          ]
+        }
+      ],
+      "runtime": {
+        "owner": "AWS_LAB",
+        "setup": "flush-dedicated-cache-redis",
+        "resetPolicy": "restore-cache-state-per-run"
+      }
+    },
+    {
+      "capsuleId": "index-query-v1",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": [
+        "accommodation",
+        "accommodation_amenity",
+        "accommodation_review_summary",
+        "address",
+        "occupancy_policy",
+        "reservation"
+      ],
+      "distributions": [
+        {
+          "id": "search-selectivity",
+          "axis": "SELECTIVITY",
+          "shape": "SELECTIVITY_BUCKETS",
+          "buckets": [
+            0,
+            10,
+            100,
+            200
+          ],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 0,
+        "emails": []
+      },
+      "targets": [
+        {
+          "id": "search-broad",
+          "expectedRows": 200,
+          "resourceIds": [
+            1
+          ],
+          "query": {
+            "kind": "ACCOMMODATION_SEARCH_V1",
+            "destination": "",
+            "minPrice": 0,
+            "maxPrice": 1000000,
+            "adultOccupancy": 1,
+            "childOccupancy": 0,
+            "infantOccupancy": 0,
+            "petOccupancy": 0,
+            "topLeftLat": 38,
+            "topLeftLng": 126,
+            "bottomRightLat": 36,
+            "bottomRightLng": 128,
+            "page": 0
+          }
+        },
+        {
+          "id": "search-medium",
+          "expectedRows": 100,
+          "resourceIds": [
+            2
+          ],
+          "query": {
+            "kind": "ACCOMMODATION_SEARCH_V1",
+            "destination": "",
+            "minPrice": 0,
+            "maxPrice": 200000,
+            "adultOccupancy": 2,
+            "childOccupancy": 0,
+            "infantOccupancy": 0,
+            "petOccupancy": 0,
+            "topLeftLat": 38,
+            "topLeftLng": 126,
+            "bottomRightLat": 36,
+            "bottomRightLng": 128,
+            "page": 0
+          }
+        },
+        {
+          "id": "search-narrow",
+          "expectedRows": 10,
+          "resourceIds": [
+            3
+          ],
+          "query": {
+            "kind": "ACCOMMODATION_SEARCH_V1",
+            "destination": "",
+            "minPrice": 50000,
+            "maxPrice": 100000,
+            "adultOccupancy": 2,
+            "childOccupancy": 0,
+            "infantOccupancy": 0,
+            "petOccupancy": 0,
+            "topLeftLat": 38,
+            "topLeftLng": 126,
+            "bottomRightLat": 36,
+            "bottomRightLng": 128,
+            "page": 0
+          }
+        },
+        {
+          "id": "search-no-hit",
+          "expectedRows": 0,
+          "resourceIds": [],
+          "query": {
+            "kind": "ACCOMMODATION_SEARCH_V1",
+            "destination": "",
+            "minPrice": 2147483647,
+            "maxPrice": 2147483647,
+            "adultOccupancy": 1,
+            "childOccupancy": 0,
+            "infantOccupancy": 0,
+            "petOccupancy": 0,
+            "topLeftLat": 38,
+            "topLeftLng": 126,
+            "bottomRightLat": 36,
+            "bottomRightLng": 128,
+            "page": 0
+          }
+        }
+      ],
+      "runtime": {
+        "owner": "AWS_LAB",
+        "setup": "rebuild-versioned-index",
+        "resetPolicy": "restore-index-snapshot"
+      }
+    },
+    {
+      "capsuleId": "bulk-expiration-history-v1",
+      "schemaVersion": 1,
+      "mutability": "RUN_LOCAL_WRITE",
+      "touchedTables": [
+        "accommodation",
+        "accommodation_inventory_day",
+        "member",
+        "member_coupon",
+        "reservation",
+        "reservation_history"
+      ],
+      "distributions": [
+        {
+          "id": "expiration-cardinality",
+          "axis": "FAN_OUT",
+          "shape": "CARDINALITY_BUCKETS",
+          "buckets": [
+            0,
+            100,
+            1000,
+            2000
+          ],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 0,
+        "emails": []
+      },
+      "targets": [
+        {
+          "id": "expired-payment-pending",
+          "expectedRows": 2000,
+          "resourceIds": []
+        }
+      ],
+      "runtime": {
+        "owner": "AIRBOB_APPLICATION",
+        "setup": "create-isolated-expired-holds",
+        "resetPolicy": "delete-run-fixture"
+      }
+    },
+    {
+      "capsuleId": "coupon-accounts-v1",
+      "schemaVersion": 1,
+      "mutability": "RUN_LOCAL_WRITE",
+      "touchedTables": [
+        "coupon",
+        "member",
+        "member_coupon"
+      ],
+      "distributions": [
+        {
+          "id": "request-to-stock",
+          "axis": "CONTENTION",
+          "shape": "CONTENTION_RATIOS",
+          "buckets": [
+            1000,
+            5000,
+            30000
+          ],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 5,
+        "emails": [
+          "coupon-benchmark-00001@airbob.cloud",
+          "coupon-benchmark-00002@airbob.cloud",
+          "coupon-benchmark-00003@airbob.cloud",
+          "coupon-benchmark-00004@airbob.cloud",
+          "coupon-benchmark-00005@airbob.cloud"
+        ]
+      },
+      "targets": [],
+      "runtime": {
+        "owner": "K6_HARNESS",
+        "setup": "prepare-fresh-coupon-stock",
+        "resetPolicy": "fresh-campaign-per-variant-round"
+      }
+    }
+  ]
+}

@@ -21,18 +21,17 @@
 # 3. 각 variant 요청을 한 번 실행해 워밍업한 뒤 같은 크기로 여러 번 실행한다.
 # 4. HTTP Client 전체 시간이 아니라 data.operation.server_operation_ms를 확인한다.
 # 5. verification_succeeded=true, verified_rows=datasetSize인지 함께 확인한다.
-# 6. redis_network_excluded=true, hold_removal_calls=datasetSize인지 확인한다.
+# 6. 요청별 fixture 검증이 성공했고 JDBC/Hibernate 관측값이 아래 계약과 일치하는지 확인한다.
 #
 # 요청 1회당 예상 Hibernate SQL 수:
 # - N=0: SELECT=1, INSERT=0, UPDATE=0, DELETE=0, TOTAL=1
-# - N>0: SELECT=1, INSERT=N, UPDATE=N, DELETE=0, TOTAL=2N+1
-# - AFTER N=1000, batch size=100: SELECT=1, INSERT=0, UPDATE=1000, DELETE=0,
-#   TOTAL=1001, JDBC batch calls=10, submitted rows=1000
+# - BEFORE N>0: SELECT=1, INSERT=N, UPDATE=N, DELETE=0, TOTAL=2N+1
+# - AFTER N=1000, batch size=100: SELECT=1, INSERT=0, UPDATE=1001, DELETE=0,
+#   TOTAL=1002, JDBC batch calls=10, submitted rows=1000
 #
 # server_operation_ms는 순수 INSERT 시간이 아니라 만료 대상 SELECT, history write,
 # reservation status UPDATE, flush, transaction commit을 포함한 scheduler 전체 처리 시간이다.
 # fixture 준비·결과 검증·정리는 server_operation_ms에 포함되지 않는다.
-# hold 제거는 호출 대상과 횟수만 기록하며 Redis 네트워크 I/O는 측정에서 제외한다.
 # 각 요청은 자신이 만든 fixture만 정리한다.
 # 이 파일은 수동 확인용이다. 재현 가능한 통계와 JSON artifact가 필요하면 k6 스크립트를 사용한다.
 

@@ -45,7 +45,7 @@ resource "aws_db_instance" "this" {
   engine_version = var.engine_version
   instance_class = "db.t3.micro"
 
-  allocated_storage           = var.bootstrap_mode == "dump" ? 20 : null
+  allocated_storage           = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
   storage_type                = "gp3"
   storage_encrypted           = true
   snapshot_identifier         = var.bootstrap_mode == "snapshot" ? var.snapshot_identifier : null

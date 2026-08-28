@@ -35,6 +35,13 @@ esac
 
 expected_keys=(
   SPRING_PROFILES_ACTIVE
+  SPRING_KAFKA_LISTENER_AUTO_STARTUP
+  OPERATOR_ALERT_KAFKA_AUTO_STARTUP
+  ACCOMMODATION_INDEXING_AUTO_STARTUP
+  ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP
+  RESERVATION_INVENTORY_STARTUP_ENABLED
+  RESERVATION_INVENTORY_SEED_ENABLED
+  RESERVATION_INVENTORY_RETENTION_ENABLED
   TOSS_PAYMENTS_ENABLED
   GOOGLE_API_ENABLED
   AWS_S3_WRITE_ENABLED
@@ -66,7 +73,7 @@ while IFS= read -r key || [[ -n "$key" ]]; do
 done < "$allowlist_file"
 
 if [[ "${#allowed_keys[@]}" -ne "${#expected_keys[@]}" ]]; then
-  printf 'runtime env allowlist does not contain exactly 19 keys\n' >&2
+  printf 'runtime env allowlist does not contain the exact required keys\n' >&2
   exit 1
 fi
 
@@ -164,6 +171,31 @@ for guard in \
 do
   [[ "$(value_for "$guard")" == false ]] || {
     printf 'runtime env external-effect guard must be false\n' >&2
+    exit 1
+  }
+done
+
+for guard in \
+  RESERVATION_INVENTORY_STARTUP_ENABLED \
+  RESERVATION_INVENTORY_SEED_ENABLED \
+  RESERVATION_INVENTORY_RETENTION_ENABLED
+do
+  [[ "$(value_for "$guard")" == false ]] || {
+    printf 'runtime env inventory lifecycle guard must be false\n' >&2
+    exit 1
+  }
+done
+
+listener_expected=true
+[[ "$policy" != isolated-read ]] || listener_expected=false
+for guard in \
+  SPRING_KAFKA_LISTENER_AUTO_STARTUP \
+  OPERATOR_ALERT_KAFKA_AUTO_STARTUP \
+  ACCOMMODATION_INDEXING_AUTO_STARTUP \
+  ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP
+do
+  [[ "$(value_for "$guard")" == "$listener_expected" ]] || {
+    printf 'runtime env listener lifecycle guard does not match the selected policy\n' >&2
     exit 1
   }
 done

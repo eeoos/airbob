@@ -7,14 +7,18 @@ locals {
     bundle_sha256   = var.bundle_sha256
   })
   bootstrap_data_command = local.services_enabled ? join("\n", [
+    "set -euo pipefail",
+    "umask 077",
     "install -d -m 700 /opt/airbob/bootstrap-helpers",
-    "cat > /opt/airbob/bootstrap-helpers/verify-dataset-release.sh <<'AIRBOB_DATASET_VALIDATOR'",
-    file("${path.module}/../scripts/verify-dataset-release.sh"),
-    "AIRBOB_DATASET_VALIDATOR",
     "cat > /opt/airbob/bootstrap-helpers/coupon_prepare.lua <<'AIRBOB_COUPON_LUA'",
     file("${path.module}/../../../src/main/resources/lua/coupon_prepare.lua"),
     "AIRBOB_COUPON_LUA",
-    "chmod 700 /opt/airbob/bootstrap-helpers/verify-dataset-release.sh",
+    "cat > /opt/airbob/bootstrap-helpers/bootstrap-data.sh.gz.b64 <<'AIRBOB_BOOTSTRAP_DATA'",
+    base64gzip(file("${path.module}/../scripts/bootstrap-data.sh")),
+    "AIRBOB_BOOTSTRAP_DATA",
+    "base64 --decode /opt/airbob/bootstrap-helpers/bootstrap-data.sh.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/bootstrap-data.sh",
+    "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/bootstrap-data.sh")}' /opt/airbob/bootstrap-helpers/bootstrap-data.sh | sha256sum --check --status",
+    "chmod 700 /opt/airbob/bootstrap-helpers/bootstrap-data.sh",
     "chmod 600 /opt/airbob/bootstrap-helpers/coupon_prepare.lua",
     "export AIRBOB_REGION='${var.aws_region}'",
     "export AIRBOB_RUN_ID='${var.run_id}'",
@@ -29,9 +33,8 @@ locals {
     "export AIRBOB_RDS_MASTER_SECRET_ARN='${module.rds[0].master_secret_arn}'",
     "export AIRBOB_DEBEZIUM_SECRET_ARN='${aws_secretsmanager_secret.debezium[0].arn}'",
     "export AIRBOB_ELASTICSEARCH_IMAGE_DIGEST='${split("@", var.infra_image_references["ELASTICSEARCH_IMAGE"])[1]}'",
-    "export AIRBOB_DATASET_VALIDATOR=/opt/airbob/bootstrap-helpers/verify-dataset-release.sh",
     "export AIRBOB_COUPON_LUA_FILE=/opt/airbob/bootstrap-helpers/coupon_prepare.lua",
-    file("${path.module}/../scripts/bootstrap-data.sh"),
+    "/opt/airbob/bootstrap-helpers/bootstrap-data.sh",
   ]) : ""
 }
 

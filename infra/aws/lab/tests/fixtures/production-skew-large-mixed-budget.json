@@ -1,0 +1,50 @@
+{
+  "profileVersion": "production-skew-large-v1",
+  "provenance": {
+    "generatorVersion": "production-skew-generator-v1"
+  },
+  "targets": {
+    "accommodations": {
+      "rowBudget": 50000,
+      "tolerance": {
+        "absoluteRows": 0,
+        "relativePercent": 0
+      }
+    },
+    "members": {
+      "rowBudget": 800000,
+      "tolerance": {
+        "absoluteRows": 0,
+        "relativePercent": 0
+      }
+    },
+    "reservations": {
+      "rowBudget": 10000000,
+      "tolerance": {
+        "absoluteRows": 0,
+        "relativePercent": 0
+      }
+    },
+    "reviews": {
+      "rowBudget": 4000000,
+      "tolerance": {
+        "absoluteRows": 0,
+        "relativePercent": 0
+      }
+    },
+    "activeWishlists": {
+      "rowBudget": 1600000,
+      "tolerance": {
+        "absoluteRows": 0,
+        "relativePercent": 0
+      }
+    },
+    "wishlistLinks": {
+      "rowBudget": 6000000,
+      "tolerance": {
+        "absoluteRows": 0,
+        "relativePercent": 0
+      }
+    }
+  }
+}

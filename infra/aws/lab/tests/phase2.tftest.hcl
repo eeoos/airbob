@@ -104,7 +104,7 @@ run "reject_unapproved_image_reference_set" {
     bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
     bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     dataset_release            = "rehearsal-v20"
-    dataset_manifest_sha256    = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
+    dataset_manifest_sha256    = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
     database_bootstrap         = "dump"
     rds_engine_version         = "8.0.40"
     app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -168,7 +168,7 @@ run "services_require_both_receipts_and_immutable_release" {
     bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
     bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     dataset_release            = "rehearsal-v20"
-    dataset_manifest_sha256    = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
+    dataset_manifest_sha256    = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
     database_bootstrap         = "dump"
     rds_engine_version         = "8.0.40"
     app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -182,6 +182,28 @@ run "services_require_both_receipts_and_immutable_release" {
       ELASTICSEARCH_EXPORTER_IMAGE = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/elasticsearch-exporter@sha256:6123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       PROMETHEUS_IMAGE             = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/prometheus@sha256:7123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       GRAFANA_IMAGE                = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/grafana@sha256:8123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  }
+
+  override_resource {
+    target          = module.rds[0].aws_db_instance.this
+    override_during = plan
+    values = {
+      address     = "airbob-phase2-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
+      resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+      master_user_secret = [{
+        kms_key_id    = "arn:aws:kms:ap-northeast-2:942632789808:key/11111111-2222-3333-4444-555555555555"
+        secret_arn    = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test"
+        secret_status = "active"
+      }]
+    }
+  }
+
+  override_resource {
+    target          = aws_secretsmanager_secret.debezium[0]
+    override_during = plan
+    values = {
+      arn = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:airbob/phase2-test/debezium"
     }
   }
 
@@ -264,6 +286,14 @@ run "services_require_both_receipts_and_immutable_release" {
     override_during = plan
     values = {
       body = file("tests/fixtures/dataset-manifest.json")
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-v1.json")
     }
   }
 

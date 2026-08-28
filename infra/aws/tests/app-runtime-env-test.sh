@@ -24,10 +24,19 @@ trap 'exit 143' TERM
 write_valid_env() {
   profile=$1
   output=$2
+  listener_auto_startup=true
+  [[ "$profile" != aws,traffic-benchmark ]] || listener_auto_startup=false
   cat > "$output" <<EOF
 # Blank lines and full-line comments are not keys.
 
 SPRING_PROFILES_ACTIVE=$profile
+SPRING_KAFKA_LISTENER_AUTO_STARTUP=$listener_auto_startup
+OPERATOR_ALERT_KAFKA_AUTO_STARTUP=$listener_auto_startup
+ACCOMMODATION_INDEXING_AUTO_STARTUP=$listener_auto_startup
+ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP=$listener_auto_startup
+RESERVATION_INVENTORY_STARTUP_ENABLED=false
+RESERVATION_INVENTORY_SEED_ENABLED=false
+RESERVATION_INVENTORY_RETENTION_ENABLED=false
 TOSS_PAYMENTS_ENABLED=false
 GOOGLE_API_ENABLED=false
 AWS_S3_WRITE_ENABLED=false
@@ -132,11 +141,29 @@ for guard in \
   TOSS_PAYMENTS_ENABLED \
   GOOGLE_API_ENABLED \
   AWS_S3_WRITE_ENABLED \
-  OPERATOR_ALERT_SLACK_ENABLED
+  OPERATOR_ALERT_SLACK_ENABLED \
+  RESERVATION_INVENTORY_STARTUP_ENABLED \
+  RESERVATION_INVENTORY_SEED_ENABLED \
+  RESERVATION_INVENTORY_RETENTION_ENABLED
 do
   fixture="$temp_dir/non-false-$guard.env"
   replace_key "$guard" true "$valid_env" "$fixture"
   expect_failure "$guard not set to false" "$fixture" integrated-smoke
+done
+
+for guard in \
+  SPRING_KAFKA_LISTENER_AUTO_STARTUP \
+  OPERATOR_ALERT_KAFKA_AUTO_STARTUP \
+  ACCOMMODATION_INDEXING_AUTO_STARTUP \
+  ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP
+do
+  fixture="$temp_dir/isolated-listener-$guard.env"
+  replace_key "$guard" true "$isolated_env" "$fixture"
+  expect_failure "$guard enabled for isolated-read" "$fixture" isolated-read
+
+  fixture="$temp_dir/integrated-listener-$guard.env"
+  replace_key "$guard" false "$valid_env" "$fixture"
+  expect_failure "$guard disabled for integrated-smoke" "$fixture" integrated-smoke
 done
 
 for mutation in \
@@ -220,9 +247,6 @@ for key in \
   SLACK_WEBHOOK_URL \
   AWS_ACCESS_KEY_ID \
   AWS_SECRET_ACCESS_KEY \
-  RESERVATION_INVENTORY_STARTUP_ENABLED \
-  RESERVATION_INVENTORY_SEED_ENABLED \
-  RESERVATION_INVENTORY_RETENTION_ENABLED \
   ARBITRARY_METADATA
 do
   fixture="$temp_dir/extra-$key.env"
@@ -233,6 +257,13 @@ done
 
 for key in \
   SPRING_PROFILES_ACTIVE \
+  SPRING_KAFKA_LISTENER_AUTO_STARTUP \
+  OPERATOR_ALERT_KAFKA_AUTO_STARTUP \
+  ACCOMMODATION_INDEXING_AUTO_STARTUP \
+  ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP \
+  RESERVATION_INVENTORY_STARTUP_ENABLED \
+  RESERVATION_INVENTORY_SEED_ENABLED \
+  RESERVATION_INVENTORY_RETENTION_ENABLED \
   TOSS_PAYMENTS_ENABLED \
   GOOGLE_API_ENABLED \
   AWS_S3_WRITE_ENABLED \

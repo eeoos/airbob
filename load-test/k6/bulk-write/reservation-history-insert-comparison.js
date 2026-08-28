@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
+import crypto from 'k6/crypto';
 import { Rate, Trend } from 'k6/metrics';
 
 import { loginBenchmarkAccount } from '../lib/benchmark-fixture.js';
@@ -13,6 +14,11 @@ import {
   matchesBulkWriteResponseContract,
   parseBulkWriteRunConfig,
 } from '../lib/bulk-write-benchmark.js';
+import {
+  findCapsuleTarget,
+  findExperimentCapsule,
+  parseBenchmarkDatasetManifest,
+} from '../lib/benchmark-dataset-manifest.js';
 
 function requiredCredential(raw, name, trim = false) {
   if (typeof raw !== 'string' || raw.trim().length === 0) {
@@ -23,6 +29,79 @@ function requiredCredential(raw, name, trim = false) {
 
 const BENCHMARK = RESERVATION_HISTORY_INSERT_BENCHMARK;
 const RUN = parseBulkWriteRunConfig(__ENV, BENCHMARK);
+const BENCHMARK_DATASET_MANIFEST = requiredCredential(
+  __ENV.BENCHMARK_DATASET_MANIFEST,
+  'BENCHMARK_DATASET_MANIFEST',
+  true,
+);
+const BENCHMARK_DATASET_RAW = open(BENCHMARK_DATASET_MANIFEST);
+const BENCHMARK_DATASET = parseBenchmarkDatasetManifest(BENCHMARK_DATASET_RAW);
+const DATASET_CAPSULE = findExperimentCapsule(
+  BENCHMARK_DATASET,
+  BENCHMARK.datasetCapsuleId,
+);
+const DATASET_TARGET = findCapsuleTarget(DATASET_CAPSULE, BENCHMARK.datasetTargetId);
+
+function arraysEqual(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function requireDatasetContract(condition, message) {
+  if (!condition) {
+    throw new Error(`BENCHMARK_DATASET_MANIFEST ${message}`);
+  }
+}
+
+const touchedTables = [...DATASET_CAPSULE.touchedTables].sort();
+const expectedTouchedTables = [
+  'accommodation',
+  'accommodation_inventory_day',
+  'member',
+  'member_coupon',
+  'reservation',
+  'reservation_history',
+].sort();
+const cardinality = DATASET_CAPSULE.distributions.find(
+  (distribution) => distribution.id === 'expiration-cardinality',
+);
+requireDatasetContract(DATASET_CAPSULE.mutability === 'RUN_LOCAL_WRITE', 'bulk capsule must be RUN_LOCAL_WRITE');
+requireDatasetContract(arraysEqual(touchedTables, expectedTouchedTables), 'bulk capsule touched tables are invalid');
+requireDatasetContract(
+  DATASET_CAPSULE.accountPool.capacity === 0 && DATASET_CAPSULE.accountPool.emails.length === 0,
+  'bulk capsule must not declare an account pool',
+);
+requireDatasetContract(
+  DATASET_CAPSULE.runtime.owner === 'AIRBOB_APPLICATION'
+    && DATASET_CAPSULE.runtime.setup === 'create-isolated-expired-holds'
+    && DATASET_CAPSULE.runtime.resetPolicy === 'delete-run-fixture',
+  'bulk capsule runtime is invalid',
+);
+requireDatasetContract(
+  DATASET_CAPSULE.targets.length === 1
+    && DATASET_TARGET.expectedRows === BENCHMARK.maximumDatasetSize
+    && DATASET_TARGET.resourceIds.length === 0,
+  'bulk capsule target is invalid',
+);
+requireDatasetContract(
+  DATASET_CAPSULE.distributions.length === 1
+    && cardinality !== undefined
+    && cardinality.axis === 'FAN_OUT'
+    && cardinality.shape === 'CARDINALITY_BUCKETS'
+    && arraysEqual(cardinality.buckets, [0, 100, 1000, 2000])
+    && Object.keys(cardinality.parameters).length === 0,
+  'bulk capsule cardinality distribution is invalid',
+);
+requireDatasetContract(
+  cardinality.buckets.includes(RUN.datasetSize),
+  `does not allow DATASET_SIZE=${RUN.datasetSize}`,
+);
+const DATASET_CONTRACT = Object.freeze({
+  datasetVersion: BENCHMARK_DATASET.datasetVersion,
+  worldVersion: BENCHMARK_DATASET.world.version,
+  capsuleId: DATASET_CAPSULE.capsuleId,
+  targetId: DATASET_TARGET.id,
+  manifestSha256: crypto.sha256(BENCHMARK_DATASET_RAW, 'hex'),
+});
 const BENCHMARK_EMAIL = requiredCredential(__ENV.BENCHMARK_EMAIL, 'BENCHMARK_EMAIL', true);
 const TEST_PASSWORD = requiredCredential(__ENV.TEST_PASSWORD, 'TEST_PASSWORD');
 const TAGS = {
@@ -30,6 +109,7 @@ const TAGS = {
   dataset_size: String(RUN.datasetSize),
   phase: RUN.phase,
   variant: RUN.variant,
+  dataset_capsule: DATASET_CONTRACT.capsuleId,
 };
 
 const sampleSuccess = new Rate('bulk_write_sample_success');
@@ -139,7 +219,7 @@ function format(value, digits = 2) {
 
 export function handleSummary(data) {
   const artifact = buildBulkWriteArtifact({
-    config: RUN,
+    config: { ...RUN, benchmarkDataset: DATASET_CONTRACT },
     k6Summary: data,
     sensitiveValues: [RUN.benchmarkToken, BENCHMARK_EMAIL, TEST_PASSWORD],
   }, BENCHMARK);

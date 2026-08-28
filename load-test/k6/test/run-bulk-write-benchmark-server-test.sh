@@ -113,7 +113,7 @@ touch "$temp_dir/release"
 wait "$launcher_pid"
 output="$(cat "$output_path")"
 
-safe_boot_args='--spring.profiles.active=dev,bulk-write-benchmark --spring.jpa.properties.hibernate.show_sql=false --spring.jpa.properties.hibernate.format_sql=false --logging.level.org.hibernate.SQL=OFF --logging.level.org.hibernate.orm.jdbc.bind=OFF --logging.level.org.hibernate.type.descriptor.sql=OFF --logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService=OFF'
+safe_boot_args='--spring.profiles.active=dev,bulk-write-benchmark --reservation.expiration.cleanup-batch-size=2000 --spring.jpa.properties.hibernate.show_sql=false --spring.jpa.properties.hibernate.format_sql=false --logging.level.org.hibernate.SQL=OFF --logging.level.org.hibernate.orm.jdbc.bind=OFF --logging.level.org.hibernate.type.descriptor.sql=OFF --logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService=OFF'
 expected="$(printf '%s\n' \
   'enabled=true' \
   'arg=bootRun' \

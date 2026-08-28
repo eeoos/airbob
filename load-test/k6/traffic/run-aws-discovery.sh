@@ -74,11 +74,15 @@ run_label=${RUN_LABEL:-${target}-r${round}-o${run_order}}
   || fail "RUN_ID is required and must be canonical"
 [[ "$target" == accommodation-detail ]] \
   || fail "TARGET must equal accommodation-detail for the first AWS discovery slice"
-for value_name in rate minimum_samples round run_order expected_sql_calls; do
+for value_name in rate minimum_samples round run_order; do
   value=${!value_name}
   [[ "$value" =~ ^[1-9][0-9]*$ ]] || fail "$value_name must be a positive integer"
   [[ ${#value} -le 9 ]] || fail "$value_name exceeds the bounded discovery contract"
 done
+[[ "$expected_sql_calls" =~ ^(0|[1-9][0-9]*)$ ]] \
+  || fail 'expected_sql_calls must be a nonnegative integer'
+[[ ${#expected_sql_calls} -le 9 ]] \
+  || fail 'expected_sql_calls exceeds the bounded discovery contract'
 [[ "$duration" =~ ^[1-9][0-9]{0,3}s$ ]] || fail "DURATION must be 1-9999 whole seconds for discovery"
 [[ "$warmup_duration" =~ ^[1-9][0-9]{0,2}s$ ]] || fail "WARMUP_DURATION must be 1-999 whole seconds"
 [[ "$run_label" =~ ^[a-z0-9][a-z0-9-]{2,79}$ ]] || fail "RUN_LABEL is not canonical"

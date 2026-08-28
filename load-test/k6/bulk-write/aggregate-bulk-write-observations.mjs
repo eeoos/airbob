@@ -25,7 +25,9 @@ const BENCHMARKS = Object.freeze({
     endpoint: '/api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
     operationPrefix: 'expired-reservation-cleanup',
     maximumDatasetSize: 2000,
-    externalEffects: true,
+    externalEffects: false,
+    datasetCapsuleId: 'bulk-expiration-history-v1',
+    datasetTargetId: 'expired-payment-pending',
   }),
   WISHLIST_DELETE: Object.freeze({
     candidate: 'WISHLIST_DELETE',
@@ -86,6 +88,13 @@ const AMENITY_METADATA_KEYS = [
   'measurement',
   'workload_class',
   'active_amenity_code_count',
+];
+const DATASET_METADATA_KEYS = [
+  'benchmark_dataset_version',
+  'benchmark_world_version',
+  'benchmark_dataset_capsule_id',
+  'benchmark_dataset_target_id',
+  'benchmark_dataset_manifest_sha256',
 ];
 const TREND_KEYS = ['count', 'avg', 'min', 'median', 'p90', 'p95', 'p99', 'max'];
 const RATE_KEYS = ['attempted', 'successful', 'failed', 'success_rate'];
@@ -168,15 +177,19 @@ function benchmarkDefinition(candidate) {
 }
 
 function metadataKeys(definition) {
-  return definition.measurements
-    ? [...METADATA_KEYS, ...AMENITY_METADATA_KEYS]
-    : METADATA_KEYS;
+  return [
+    ...METADATA_KEYS,
+    ...(definition.datasetCapsuleId === undefined ? [] : DATASET_METADATA_KEYS),
+    ...(definition.measurements ? AMENITY_METADATA_KEYS : []),
+  ];
 }
 
 function sharedMetadataKeys(definition) {
-  return definition.measurements
-    ? [...SHARED_METADATA_KEYS, ...AMENITY_METADATA_KEYS]
-    : SHARED_METADATA_KEYS;
+  return [
+    ...SHARED_METADATA_KEYS,
+    ...(definition.datasetCapsuleId === undefined ? [] : DATASET_METADATA_KEYS),
+    ...(definition.measurements ? AMENITY_METADATA_KEYS : []),
+  ];
 }
 
 function boundedContains(value, { keyPredicate = () => false, stringPredicate = () => false }) {
@@ -349,6 +362,17 @@ function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
   );
   requireCondition(metadata.samples === 1, 'source must contain exactly one sample');
   requireCondition(metadata.endpoint === definition.endpoint, 'source endpoint is invalid');
+  if (definition.datasetCapsuleId !== undefined) {
+    requireCondition(
+      metadata.benchmark_dataset_version === 'benchmark-dataset-v2'
+        && metadata.benchmark_world_version === 'world-v2'
+        && metadata.benchmark_dataset_capsule_id === definition.datasetCapsuleId
+        && metadata.benchmark_dataset_target_id === definition.datasetTargetId
+        && typeof metadata.benchmark_dataset_manifest_sha256 === 'string'
+        && /^[0-9a-f]{64}$/.test(metadata.benchmark_dataset_manifest_sha256),
+      'source benchmark dataset binding is invalid',
+    );
+  }
   if (definition.measurements) {
     requireCondition(
       metadata.measurement === 'FULL_REPLACEMENT' || metadata.measurement === 'DELETE_ONLY',
@@ -627,10 +651,10 @@ function validateDatabaseObservation(source, definition) {
       requireCondition(
         sql.SELECT === 1
           && sql.INSERT === 0
-          && sql.UPDATE === datasetSize
+          && sql.UPDATE === (datasetSize === 0 ? 0 : datasetSize + 1)
           && sql.DELETE === 0
           && sql.OTHER === 0
-          && sql.TOTAL === 1 + datasetSize,
+          && sql.TOTAL === (datasetSize === 0 ? 1 : datasetSize + 2),
         'source AFTER Hibernate observation is invalid',
       );
     }
@@ -848,6 +872,11 @@ function sharedMetadata(metadata, parentLabel, sampleCount, definition) {
     mysql_version: metadata.mysql_version,
     rewrite_batched_statements: metadata.rewrite_batched_statements,
     request_timeout: metadata.request_timeout,
+    ...(definition.datasetCapsuleId === undefined
+      ? {}
+      : Object.fromEntries(
+        DATASET_METADATA_KEYS.map((key) => [key, metadata[key]]),
+      )),
     ...(definition.measurements
       ? {
         measurement: metadata.measurement,

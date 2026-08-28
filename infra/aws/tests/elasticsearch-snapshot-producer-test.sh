@@ -3,8 +3,14 @@ set -euo pipefail
 umask 077
 
 repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
-producer="$repo_root/infra/aws/scripts/produce-elasticsearch-snapshot.sh"
+producer_source="$repo_root/infra/aws/scripts/produce-elasticsearch-snapshot.sh"
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-es-snapshot-producer-test.XXXXXX")
+producer_root="$temp_dir/producer/infra/aws/scripts"
+mkdir -p "$producer_root"
+cp "$producer_source" "$producer_root/produce-elasticsearch-snapshot.sh"
+cp "$repo_root/infra/aws/scripts/orchestration-lease.sh" "$producer_root/orchestration-lease.sh"
+cp "$repo_root/infra/aws/scripts/validate-benchmark-dataset-v2.jq" "$producer_root/validate-benchmark-dataset-v2.jq"
+producer="$producer_root/produce-elasticsearch-snapshot.sh"
 fixture_password='mysql-producer-password-do-not-log'
 access_key='ASIAABCDEFGHIJKLMNOP'
 secret_key='temporary-secret-key-do-not-log'
@@ -42,11 +48,52 @@ stat_mode() {
   fi
 }
 
+write_checksums() {
+  local root=$1
+  local file_name
+
+  : > "$root/SHA256SUMS"
+  for file_name in \
+    PROVENANCE.txt \
+    airbob-production-seed.sql.gz \
+    backend-migrations.sha256 \
+    benchmark-dataset-v2.json \
+    benchmark-fixture.json \
+    database-fingerprint.tsv \
+    etl-code.sha256 \
+    generation-qualification-v1.json \
+    production-skew-v1.json \
+    release-metadata.txt \
+    source-calibration-v1.json \
+    source.sha256 \
+    traffic-v1.json; do
+    printf '%s  %s\n' "$(sha256_file "$root/$file_name")" "$file_name" \
+      >> "$root/SHA256SUMS"
+  done
+}
+
 write_database_fingerprint() {
   cat > "$1" <<'EOF'
+dataset_final_world_fingerprint	eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+dataset_base_world_fingerprint	0000000000000000000000000000000000000000000000000000000000000000
+dataset_distribution_fingerprint	dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dataset_target_fingerprint	ace11b7713606a877a12bed71a7c52aebca77851a169c6e25176c137fb77d9ac
+dataset_inventory_fingerprint	ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 foreign_key_checks_global	1
 foreign_key_checks_session	1
 orphan_total	0
+review_summary_missing_count	0
+review_summary_stale_count	0
+review_summary_extra_count	0
+review_summary_symmetric_mismatch_count	0
+wishlist_accommodation_count_mismatch_count	0
+wishlist_representative_mismatch_count	0
+wishlist_denormalized_symmetric_mismatch_count	0
+daily_revenue_stats_missing_count	0
+daily_revenue_stats_stale_count	0
+daily_revenue_stats_extra_count	0
+daily_revenue_stats_symmetric_mismatch_count	0
+accommodation_inventory_day_row_count	0
 traffic_admin_account_count	3
 traffic_admin_role_mismatch_count	0
 traffic_cohort_account_count	27
@@ -85,6 +132,7 @@ write_release() {
   local repository=$2
   local commit=$3
   local file_name
+  local benchmark_dataset_sha calibration_sha spec_sha qualification_sha traffic_sha fingerprint_sha
 
   mkdir -p "$root"
   printf 'format=airbob-production-seed-provenance-v1\netl_head=%s\n' "$commit" \
@@ -92,28 +140,63 @@ write_release() {
   printf '%s\n' 'canonical gzip bytes' | gzip -n > "$root/airbob-production-seed.sql.gz"
   printf '%s\n' 'backend migrations' > "$root/backend-migrations.sha256"
   printf '%s\n' '{"datasetVersion":"nplus1-v1"}' > "$root/benchmark-fixture.json"
+  printf '%s\n' '{"calibrationVersion":"source-calibration-v1"}' > "$root/source-calibration-v1.json"
+  jq -nS '{profileVersion:"production-skew-v1",provenance:{generatorVersion:"production-skew-generator-v1",prngAlgorithm:"sha256-splitmix64-counter-v1",seedDerivation:"length-prefixed(profile-version, global-seed, relation-domain, stable-external-key, counter)",globalSeed:20260826,anchor:"2026-07-31T15:00:00Z",timezone:"Asia/Seoul"},targets:{accommodations:{rowBudget:50000,tolerance:{absoluteRows:0,relativePercent:0}},members:{rowBudget:200000,tolerance:{absoluteRows:0,relativePercent:0}},reservations:{rowBudget:2500000,tolerance:{absoluteRows:0,relativePercent:0}},reviews:{rowBudget:1000000,tolerance:{absoluteRows:0,relativePercent:0}},activeWishlists:{rowBudget:400000,tolerance:{absoluteRows:0,relativePercent:0}},wishlistLinks:{rowBudget:1500000,tolerance:{absoluteRows:0,relativePercent:0}}}}' > "$root/production-skew-v1.json"
+  jq -nS '{version:"generation-qualification-v1",canonicalScale:true,generatedBudgets:{accommodations:50000,activeWishlists:400000,members:200000,reservations:2500000,reviews:1000000,wishlistLinks:1500000}}' > "$root/generation-qualification-v1.json"
+  calibration_sha=$(sha256_file "$root/source-calibration-v1.json")
+  spec_sha=$(sha256_file "$root/production-skew-v1.json")
+  jq --arg calibration "$calibration_sha" --arg spec "$spec_sha" '
+    .world.provenance.calibrationSha256=$calibration|.world.provenance.specSha256=$spec|
+    .world.provenance.sourceInventorySha256=("a"*64)
+  ' "$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json" > "$root/benchmark-dataset-v2.json"
+  benchmark_dataset_sha=$(sha256_file "$root/benchmark-dataset-v2.json")
   write_database_fingerprint "$root/database-fingerprint.tsv"
   : > "$root/etl-code.sha256"
-  for file_name in scripts/verify-production-seed.sql scripts/verify-traffic-v1.sql; do
-    git -C "$repository" show "$commit:$file_name" > "$temp_dir/etl-contract"
-    printf '%s  %s\n' "$(sha256_file "$temp_dir/etl-contract")" "$file_name" \
-      >> "$root/etl-code.sha256"
-  done
-  printf '%s  %s\n' \
-    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
-    'src/main/java/Unrelated.java' >> "$root/etl-code.sha256"
-  cat > "$root/release-metadata.txt" <<'EOF'
-format=airbob-production-seed-release-v1
+  printf '%s  %s\n' "$('printf' '%s\n' verifier | sha256sum | awk '{print $1}')" scripts/verify-production-seed.sql > "$root/etl-code.sha256"
+  qualification_sha=$(sha256_file "$root/generation-qualification-v1.json")
+  fingerprint_sha=$(sha256_file "$root/database-fingerprint.tsv")
+  cat > "$root/release-metadata.txt" <<EOF
+format=airbob-production-seed-release-v2
 release_id=production-seed-20260817t000000z
 dump=airbob-production-seed.sql.gz
+dump_sha256=$(sha256_file "$root/airbob-production-seed.sql.gz")
 manifest=benchmark-fixture.json
+manifest_sha256=$(sha256_file "$root/benchmark-fixture.json")
+benchmark_dataset_manifest=benchmark-dataset-v2.json
+benchmark_dataset_manifest_sha256=$benchmark_dataset_sha
+benchmark_dataset_version=benchmark-dataset-v2
+world_version=world-v2
+production_spec=production-skew-v1.json
+production_spec_sha256=$spec_sha
+source_calibration=source-calibration-v1.json
+source_calibration_sha256=$calibration_sha
+source_catalog_inventory_fingerprint=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+generation_qualification=generation-qualification-v1.json
+generation_qualification_sha256=$qualification_sha
+canonical_scale=true
+configured_batch_size=1000
+jvm_max_heap_bytes=12884901888
 traffic_manifest=traffic-v1.json
-traffic_manifest_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+traffic_manifest_sha256=TRAFFIC_SHA
 traffic_dataset_version=traffic-v1
 traffic_dataset_run_id=20260817T001530Z-12345678
 traffic_flyway_version=27
 traffic_migration_digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 fingerprint=database-fingerprint.tsv
+fingerprint_sha256=$fingerprint_sha
+final_world_fingerprint=$(jq -r '.world.fingerprints["final-world"]' "$root/benchmark-dataset-v2.json")
+base_world_fingerprint=$(jq -r '.world.fingerprints["base-world"]' "$root/benchmark-dataset-v2.json")
+distribution_fingerprint=$(jq -r '.world.provenance.assertionSha256' "$root/benchmark-dataset-v2.json")
+target_fingerprint=$(jq -r '.targetFingerprint' "$root/benchmark-dataset-v2.json")
+inventory_fingerprint=$(jq -r '.world.fingerprints["final-inventory"]' "$root/benchmark-dataset-v2.json")
+etl_code_inventory=etl-code.sha256
+etl_code_inventory_sha256=$(sha256_file "$root/etl-code.sha256")
+source_inventory=source.sha256
+source_inventory_sha256=SOURCE_SHA
+backend_migration_inventory=backend-migrations.sha256
+backend_migration_inventory_sha256=$(sha256_file "$root/backend-migrations.sha256")
+provenance=PROVENANCE.txt
+provenance_sha256=$(sha256_file "$root/PROVENANCE.txt")
 required_rows=201
 recovery=reset-flyway-v1-v27-etl-reseed-before-traffic
 EOF
@@ -128,43 +211,42 @@ EOF
     }
   ' > "$root/traffic-v1.json"
 
-  : > "$root/SHA256SUMS"
-  for file_name in \
-    PROVENANCE.txt \
-    airbob-production-seed.sql.gz \
-    backend-migrations.sha256 \
-    benchmark-fixture.json \
-    database-fingerprint.tsv \
-    etl-code.sha256 \
-    release-metadata.txt \
-    source.sha256 \
-    traffic-v1.json; do
-    printf '%s  %s\n' "$(sha256_file "$root/$file_name")" "$file_name" >> "$root/SHA256SUMS"
-  done
+  traffic_sha=$(sha256_file "$root/traffic-v1.json")
+  sed "s/TRAFFIC_SHA/$traffic_sha/;s/SOURCE_SHA/$(sha256_file "$root/source.sha256")/" \
+    "$root/release-metadata.txt" > "$root/release-metadata.next"
+  mv "$root/release-metadata.next" "$root/release-metadata.txt"
+
+  write_checksums "$root"
 }
 
 write_attestation() {
   local release=$1
   local output=$2
   local commit=$3
-  local release_sha dump_sha fingerprint_sha contract_inventory_sha subset_sha
+  local release_sha dump_sha fingerprint_sha contract_inventory_sha expected_rows
   release_sha=$(sha256_file "$release/SHA256SUMS")
   dump_sha=$(awk '$2 == "airbob-production-seed.sql.gz" { print $1 }' "$release/SHA256SUMS")
   fingerprint_sha=$(awk '$2 == "database-fingerprint.tsv" { print $1 }' "$release/SHA256SUMS")
   awk '$2 == "scripts/verify-production-seed.sql" || $2 == "scripts/verify-traffic-v1.sql"' \
     "$release/etl-code.sha256" > "$temp_dir/verifier-contract-inventory.sha256"
   contract_inventory_sha=$(sha256_file "$temp_dir/verifier-contract-inventory.sha256")
-  subset_sha=$(sha256_file "$release/database-fingerprint.tsv")
-  jq -n \
+  expected_rows=$(jq -c '.world.tableRows+{flyway_schema_history:27,outbox:0}' "$release/benchmark-dataset-v2.json")
+  jq -nS \
     --arg releaseSha "$release_sha" \
     --arg dumpSha "$dump_sha" \
     --arg fingerprintSha "$fingerprint_sha" \
     --arg sourceEtlCommit "$commit" \
     --arg verifierContractInventorySha256 "$contract_inventory_sha" \
-    --arg databaseFingerprintSubsetSha256 "$subset_sha" '
+    --arg finalWorld "$(jq -r '.world.fingerprints["final-world"]' "$release/benchmark-dataset-v2.json")" \
+    --arg baseWorld "$(jq -r '.world.fingerprints["base-world"]' "$release/benchmark-dataset-v2.json")" \
+    --arg distributionAssertion "$(jq -r '.world.provenance.assertionSha256' "$release/benchmark-dataset-v2.json")" \
+    --arg distributionSpec "$(sha256_file "$release/production-skew-v1.json")" \
+    --arg target "$(jq -r '.targetFingerprint' "$release/benchmark-dataset-v2.json")" \
+    --arg inventory "$(jq -r '.world.fingerprints["final-inventory"]' "$release/benchmark-dataset-v2.json")" \
+    --argjson expectedRows "$expected_rows" '
     {
-      schemaVersion: 3,
-      databaseRestoreMethod: "gzip-to-empty-airbobdb-v1",
+      schemaVersion: 4,
+      databaseRestoreMethod: "gzip-to-empty-airbobdb-v2",
       sourceReleasePayloadSha256: $releaseSha,
       sourceDumpSha256: $dumpSha,
       restoredDumpSha256: $dumpSha,
@@ -172,19 +254,21 @@ write_attestation() {
       sourceEtlCommit: $sourceEtlCommit,
       databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
       verifierContractInventorySha256: $verifierContractInventorySha256,
-      databaseFingerprintSubsetSha256: $databaseFingerprintSubsetSha256,
+      databaseFingerprintSha256: $fingerprintSha,
+      verificationOutputSha256: ("8"*64),
+      finalWorldFingerprintSha256: $finalWorld,
+      baseWorldFingerprintSha256: $baseWorld,
+      distributionEvidenceSha256: ("d"*64),
+      distributionAssertionSha256: $distributionAssertion,
+      distributionSpecSha256: $distributionSpec,
+      targetFingerprintSha256: $target,
+      inventoryFingerprintSha256: $inventory,
       flywayVersion: "27",
       flywayHistoryRows: 27,
       migrationChecksumSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       schemaFingerprintSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       outboxState: "empty",
-      expectedTableRows: {
-        accommodation: 2,
-        accommodation_inventory_day: 0,
-        flyway_schema_history: 27,
-        outbox: 0,
-        reservation: 0
-      },
+      expectedTableRows: $expectedRows,
       capturedAt: "2026-08-17T03:04:05Z"
     }
   ' > "$output"
@@ -452,7 +536,7 @@ case "$query" in
   *'production-contract-marker'*'traffic-contract-marker'*)
     cat "${FAKE_DATABASE_FINGERPRINT:?}"
     ;;
-  'SELECT COUNT(*) FROM accommodation') printf '%s\n' 2 ;;
+  'SELECT COUNT(*) FROM accommodation') printf '%s\n' 50000 ;;
   'SELECT COUNT(*) FROM outbox') printf '%s\n' 0 ;;
   *'BIN_TO_UUID(accommodation_uid)'*)
     printf '%s\t%s\n' \
@@ -466,6 +550,22 @@ case "$query" in
 esac
 EOF
   chmod 700 "$fake_bin/mysql"
+}
+
+write_fake_lineage_verifier() {
+  cat > "$producer_root/verify-etl-release-database.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$#" -eq 1 && -d "$1" && "${AIRBOB_DATASET_DB_PASSWORD:-}" == "${FAKE_MYSQL_PASSWORD:?}" \
+  && "${AIRBOB_DATASET_RELEASE_PROFILE:-}" == production-skew-v1 ]]
+printf '%s\n' 'semantic-lineage-verifier' >> "${FAKE_MYSQL_LOG:?}"
+jq '{schemaVersion:2,sourceEtlCommit,databaseServerUuid,verifierContractInventorySha256,
+  databaseFingerprintSha256,verificationOutputSha256,finalWorldFingerprintSha256,
+  baseWorldFingerprintSha256,distributionEvidenceSha256,distributionAssertionSha256,
+  distributionSpecSha256,targetFingerprintSha256,
+  inventoryFingerprintSha256}' "${FAKE_CANONICAL_ATTESTATION:?}"
+EOF
+  chmod 700 "$producer_root/verify-etl-release-database.sh"
 }
 
 write_fake_curl() {
@@ -703,6 +803,7 @@ EOF
 run_producer() {
   local reference=$1
   local receipt=$2
+  local producer_release=${PRODUCER_RELEASE:-$release}
   shift 2
   : > "$aws_log"
   : > "$docker_log"
@@ -738,7 +839,8 @@ run_producer() {
     FAKE_ES_IMAGE_REF="$elasticsearch_image_ref" \
     FAKE_MYSQL_LOG="$mysql_log" \
     FAKE_MYSQL_PASSWORD="$fixture_password" \
-    FAKE_DATABASE_FINGERPRINT="$release/database-fingerprint.tsv" \
+    FAKE_CANONICAL_ATTESTATION="$attestation" \
+    FAKE_DATABASE_FINGERPRINT="$producer_release/database-fingerprint.tsv" \
     FAKE_CURL_TIMEOUT="${FAKE_CURL_TIMEOUT:-false}" \
     FAKE_CURL_LOG="$curl_log" \
     FAKE_CURL_STATE="$curl_state" \
@@ -746,9 +848,9 @@ run_producer() {
     FAKE_HEARTBEAT_ATTEMPT_MARKER="$heartbeat_attempt_marker" \
     FAKE_ES_URL=http://127.0.0.1:9200 \
     FAKE_DATASET_RUN_ID=20260817T001530Z-12345678 \
-    FAKE_SOURCE_PAYLOAD_SHA="$(sha256_file "$release/SHA256SUMS")" \
+    FAKE_SOURCE_PAYLOAD_SHA="$(sha256_file "$producer_release/SHA256SUMS")" \
     "$@" \
-    "$producer" "$release" "${PRODUCER_ATTESTATION:-$attestation}" \
+    "$producer" "$producer_release" "${PRODUCER_ATTESTATION:-$attestation}" \
     "${PRODUCER_IMAGE_RELEASE:-$image_release}" rehearsal-v20 "$reference" "$receipt"
 }
 
@@ -786,14 +888,15 @@ event_log="$temp_dir/events.log"
 seal_object="$temp_dir/snapshot-seal.json"
 elasticsearch_image_ref='942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/elasticsearch@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 
-write_etl_repository "$etl_repository"
-source_etl_commit=$(git -C "$etl_repository" rev-parse HEAD)
+mkdir -p "$etl_repository"
+source_etl_commit=0123456789abcdef0123456789abcdef01234567
 write_release "$release" "$etl_repository" "$source_etl_commit"
 write_attestation "$release" "$attestation" "$source_etl_commit"
 write_image_release "$image_release"
 write_fake_aws
 write_fake_docker
 write_fake_mysql
+write_fake_lineage_verifier
 write_fake_curl
 write_fake_sleep
 write_fake_ln
@@ -809,6 +912,29 @@ expect_failure test-clock-override run_producer \
   || fail 'test clock override reached AWS or local data services'
 [[ ! -e "$clock_override_reference" && ! -e "$clock_override_receipt" ]] \
   || fail 'test clock override wrote snapshot outputs'
+
+mismatched_benchmark_dataset_release="$temp_dir/mismatched-benchmark-dataset-release"
+mismatched_benchmark_dataset_attestation="$temp_dir/mismatched-benchmark-dataset-attestation.json"
+cp -R "$release" "$mismatched_benchmark_dataset_release"
+sed 's/^benchmark_dataset_manifest_sha256=.*/benchmark_dataset_manifest_sha256=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff/' \
+  "$mismatched_benchmark_dataset_release/release-metadata.txt" \
+  > "$mismatched_benchmark_dataset_release/release-metadata.next"
+mv "$mismatched_benchmark_dataset_release/release-metadata.next" \
+  "$mismatched_benchmark_dataset_release/release-metadata.txt"
+write_checksums "$mismatched_benchmark_dataset_release"
+write_attestation "$mismatched_benchmark_dataset_release" \
+  "$mismatched_benchmark_dataset_attestation" "$source_etl_commit"
+mismatched_benchmark_dataset_reference="$temp_dir/mismatched-benchmark-dataset-reference.json"
+mismatched_benchmark_dataset_receipt="$temp_dir/mismatched-benchmark-dataset-receipt.json"
+PRODUCER_RELEASE="$mismatched_benchmark_dataset_release" \
+PRODUCER_ATTESTATION="$mismatched_benchmark_dataset_attestation" \
+  expect_failure mismatched-benchmark-dataset-sha run_producer \
+    "$mismatched_benchmark_dataset_reference" "$mismatched_benchmark_dataset_receipt"
+grep -Fq 'benchmark dataset manifest digest does not match the source release' \
+  "$temp_dir/mismatched-benchmark-dataset-sha.stderr" \
+  || fail 'mismatched benchmark dataset SHA did not reach the exact metadata binding gate'
+[[ ! -s "$aws_log" && ! -s "$curl_log" && ! -s "$docker_log" && ! -s "$mysql_log" ]] \
+  || fail 'mismatched benchmark dataset SHA reached AWS or local data services'
 
 run_producer "$reference" "$receipt" >/dev/null
 [[ -f "$seal_object" ]] || fail 'successful snapshot did not publish its immutable seal'
@@ -1089,6 +1215,21 @@ PRODUCER_ATTESTATION="$v2_attestation" expect_failure v2-attestation \
 [[ ! -e "$v2_attestation_reference" && ! -e "$v2_attestation_receipt" ]] \
   || fail 'v2 attestation wrote producer outputs'
 
+for missing_proof in distributionAssertionSha256 distributionSpecSha256; do
+  missing_proof_attestation="$temp_dir/missing-$missing_proof-attestation.json"
+  missing_proof_reference="$temp_dir/missing-$missing_proof-reference.json"
+  missing_proof_receipt="$temp_dir/missing-$missing_proof-receipt.json"
+  jq --arg field "$missing_proof" 'del(.[$field])' \
+    "$attestation" > "$missing_proof_attestation"
+  PRODUCER_ATTESTATION="$missing_proof_attestation" \
+    expect_failure "missing-$missing_proof" \
+    run_producer "$missing_proof_reference" "$missing_proof_receipt"
+  [[ ! -e "$missing_proof_reference" && ! -e "$missing_proof_receipt" ]] \
+    || fail 'missing distribution proof wrote producer outputs'
+  [[ ! -s "$aws_log" && ! -s "$curl_log" && ! -s "$docker_log" && ! -s "$mysql_log" ]] \
+    || fail 'missing distribution proof reached mutation or live verification'
+done
+
 wrong_restore_method_attestation="$temp_dir/wrong-restore-method-attestation.json"
 jq '.databaseRestoreMethod = "unreviewed-restore-v1"' \
   "$attestation" > "$wrong_restore_method_attestation"
@@ -1119,15 +1260,27 @@ lineage_fields=(
   sourceEtlCommit
   databaseServerUuid
   verifierContractInventorySha256
-  databaseFingerprintSubsetSha256
+  databaseFingerprintSha256
+  finalWorldFingerprintSha256
+  baseWorldFingerprintSha256
+  distributionAssertionSha256
+  distributionSpecSha256
+  targetFingerprintSha256
+  inventoryFingerprintSha256
 )
 lineage_values=(
   ffffffffffffffffffffffffffffffffffffffff
   11112233-4455-6677-8899-aabbccddeeff
   9999999999999999999999999999999999999999999999999999999999999999
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 )
-for lineage_index in 0 1 2 3; do
+for lineage_index in "${!lineage_fields[@]}"; do
   lineage_field=${lineage_fields[$lineage_index]}
   lineage_value=${lineage_values[$lineage_index]}
   lineage_attestation="$temp_dir/lineage-$lineage_field-attestation.json"
@@ -1144,13 +1297,19 @@ for lineage_index in 0 1 2 3; do
     || fail 'lineage mismatch reached the S3 snapshot repository'
   [[ ! -s "$curl_log" && ! -s "$docker_log" ]] \
     || fail 'lineage mismatch reached Elasticsearch mutation'
-  [[ -s "$mysql_log" ]] \
-    || fail 'lineage mismatch did not reach live database verification'
-  grep -Fq 'live database lineage differs from the dataset attestation' \
-    "$temp_dir/lineage-$lineage_field.stderr" \
-    || fail 'lineage mismatch did not reach the live receipt comparison gate'
-  grep -Fq 'SET #owner = :released' "$aws_log" \
-    || fail 'lineage mismatch did not release its clean lease'
+  case "$lineage_field" in
+    databaseServerUuid|verifierContractInventorySha256)
+      [[ -s "$mysql_log" ]] || fail 'live-only lineage mismatch did not reach database verification'
+      grep -Fq 'live database lineage differs from the dataset attestation' "$temp_dir/lineage-$lineage_field.stderr" \
+        || fail 'live-only lineage mismatch missed the receipt comparison gate'
+      grep -Fq 'SET #owner = :released' "$aws_log" || fail 'live-only lineage mismatch did not release its clean lease'
+      ;;
+    *)
+      [[ ! -s "$mysql_log" ]] || fail 'release-tuple mismatch reached live database verification'
+      grep -Fq 'schema-4 semantic attestation does not bind the exact v2 ETL release tuple' "$temp_dir/lineage-$lineage_field.stderr" \
+        || fail 'release-tuple mismatch missed the pre-lease semantic gate'
+      ;;
+  esac
 done
 
 multi_image_release="$temp_dir/multi-image-release.json"

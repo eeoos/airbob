@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import exec from 'k6/execution';
+import crypto from 'k6/crypto';
 import { SharedArray } from 'k6/data';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
@@ -15,6 +16,11 @@ import {
   requireSessionCapacity,
   summarizeCouponBenchmarkMetrics,
 } from './lib/coupon-benchmark-fixture.js';
+import {
+  findExperimentCapsule,
+  parseBenchmarkDatasetManifest,
+  requireAccountCapacity,
+} from './lib/benchmark-dataset-manifest.js';
 
 function requiredEnvironment(name) {
   return parseRequiredText(__ENV[name], name);
@@ -30,6 +36,7 @@ function parseBaseUrl(raw) {
 
 const BASE_URL = parseBaseUrl(requiredEnvironment('BASE_URL'));
 const SESSION_FIXTURE = requiredEnvironment('SESSION_FIXTURE');
+const BENCHMARK_DATASET_MANIFEST = requiredEnvironment('BENCHMARK_DATASET_MANIFEST');
 const VARIANT = parseVariant(requiredEnvironment('VARIANT'));
 const PHASE = parsePhase(__ENV.PHASE || 'measure');
 const COUPON_ID = parsePositiveInteger(requiredEnvironment('COUPON_ID'), 'COUPON_ID');
@@ -68,10 +75,15 @@ if (MAX_VUS < PRE_ALLOCATED_VUS) {
   throw new Error('MAX_VUS must be greater than or equal to PRE_ALLOCATED_VUS');
 }
 
+const benchmarkDatasetRaw = open(BENCHMARK_DATASET_MANIFEST);
+const benchmarkDataset = parseBenchmarkDatasetManifest(benchmarkDatasetRaw);
+const couponAccountCapsule = findExperimentCapsule(benchmarkDataset, 'coupon-accounts-v1');
+const BENCHMARK_DATASET_MANIFEST_SHA256 = crypto.sha256(benchmarkDatasetRaw, 'hex');
 const sessions = new SharedArray('coupon-member-sessions', () => (
-  parseCouponSessionFixture(open(SESSION_FIXTURE))
+  parseCouponSessionFixture(open(SESSION_FIXTURE), BENCHMARK_DATASET_MANIFEST_SHA256)
 ));
 const REQUIRED_SESSIONS = requireSessionCapacity(sessions, RATE, DURATION_SECONDS);
+requireAccountCapacity(couponAccountCapsule, REQUIRED_SESSIONS);
 
 const issueDuration = new Trend('coupon_issue_duration', true);
 const successDuration = new Trend('coupon_issue_success_duration', true);
@@ -209,6 +221,11 @@ export function handleSummary(data) {
       maxVUs: MAX_VUS,
       requiredUniqueSessions: REQUIRED_SESSIONS,
       fixtureSessionCount: sessions.length,
+      datasetVersion: benchmarkDataset.datasetVersion,
+      worldVersion: benchmarkDataset.world.version,
+      couponAccountCapsule: couponAccountCapsule.capsuleId,
+      couponAccountCapacity: couponAccountCapsule.accountPool.capacity,
+      benchmarkDatasetManifestSha256: BENCHMARK_DATASET_MANIFEST_SHA256,
     },
     performance: benchmark,
     outcomes,

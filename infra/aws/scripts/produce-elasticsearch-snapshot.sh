@@ -274,10 +274,13 @@ receipt_output=$6
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
 lease_script="$script_dir/orchestration-lease.sh"
 lineage_verifier="$script_dir/verify-etl-release-database.sh"
+semantic_validator="$script_dir/validate-benchmark-dataset-v2.jq"
 [[ -x "$lease_script" && ! -L "$lease_script" ]] \
   || fail 'the shared orchestration lease helper is missing or unsafe'
 [[ -x "$lineage_verifier" && ! -L "$lineage_verifier" ]] \
   || fail 'the ETL release database verifier is missing or unsafe'
+[[ -f "$semantic_validator" && ! -L "$semantic_validator" ]] \
+  || fail 'the benchmark-dataset-v2 semantic validator is missing or unsafe'
 
 for required_command in aws jq curl docker mysql sort awk mktemp date find basename dirname cmp wc tr \
   chmod ln rm gzip mv cat sleep; do
@@ -348,15 +351,39 @@ receipt_output=$(resolve_output_path "$receipt_output")
 case "$snapshot_reference_output" in "$etl_release_dir"/*) fail 'snapshot output must be outside the ETL release' ;; esac
 case "$receipt_output" in "$etl_release_dir"/*) fail 'snapshot output must be outside the ETL release' ;; esac
 
+[[ -f "$etl_release_dir/release-metadata.txt" && ! -L "$etl_release_dir/release-metadata.txt" ]] \
+  || fail 'ETL release metadata is missing or unsafe'
+metadata_value() {
+  awk -F= -v target="$1" \
+    '$1 == target { count++; value=substr($0, index($0, "=") + 1) } END { if (count == 1) print value }' \
+    "$etl_release_dir/release-metadata.txt"
+}
+production_spec_name=$(metadata_value production_spec)
+case "$production_spec_name" in
+  production-skew-v1.json)
+    profile_version=production-skew-v1
+    expected_budgets='{"accommodations":50000,"activeWishlists":400000,"members":200000,"reservations":2500000,"reviews":1000000,"wishlistLinks":1500000}'
+    ;;
+  production-skew-large-v1.json)
+    profile_version=production-skew-large-v1
+    expected_budgets='{"accommodations":200000,"activeWishlists":1600000,"members":800000,"reservations":10000000,"reviews":4000000,"wishlistLinks":6000000}'
+    ;;
+  *) fail 'ETL metadata selects an unsupported production profile' ;;
+esac
+
 source_files=(
   PROVENANCE.txt
   SHA256SUMS
   airbob-production-seed.sql.gz
   backend-migrations.sha256
+  benchmark-dataset-v2.json
   benchmark-fixture.json
   database-fingerprint.tsv
   etl-code.sha256
+  generation-qualification-v1.json
+  "$production_spec_name"
   release-metadata.txt
+  source-calibration-v1.json
   source.sha256
   traffic-v1.json
 )
@@ -364,10 +391,14 @@ checksummed_files=(
   PROVENANCE.txt
   airbob-production-seed.sql.gz
   backend-migrations.sha256
+  benchmark-dataset-v2.json
   benchmark-fixture.json
   database-fingerprint.tsv
   etl-code.sha256
+  generation-qualification-v1.json
+  "$production_spec_name"
   release-metadata.txt
+  source-calibration-v1.json
   source.sha256
   traffic-v1.json
 )
@@ -384,8 +415,8 @@ verify_source_release() {
   done
   gzip -t "$etl_release_dir/airbob-production-seed.sql.gz" >/dev/null 2>&1 \
     || fail 'ETL database dump is not a valid gzip stream'
-  [[ "$(wc -l < "$etl_release_dir/SHA256SUMS" | tr -d '[:space:]')" == 9 ]] \
-    || fail 'ETL checksum inventory must contain exactly nine entries'
+  [[ "$(wc -l < "$etl_release_dir/SHA256SUMS" | tr -d '[:space:]')" == 13 ]] \
+    || fail 'ETL checksum inventory must contain exactly thirteen entries'
   local line_number=0
   while IFS= read -r checksum_line; do
     ((line_number += 1))
@@ -408,14 +439,70 @@ attestation_sha=$(sha256_file "$attestation_file")
 image_release_sha=$(sha256_file "$image_release_file")
 
 expected_metadata_keys=$(printf '%s\n' \
-  format release_id dump manifest traffic_manifest traffic_manifest_sha256 \
-  traffic_dataset_version traffic_dataset_run_id traffic_flyway_version \
-  traffic_migration_digest fingerprint required_rows recovery)
+  format release_id dump dump_sha256 manifest manifest_sha256 benchmark_dataset_manifest \
+  benchmark_dataset_manifest_sha256 benchmark_dataset_version world_version production_spec \
+  production_spec_sha256 source_calibration source_calibration_sha256 source_catalog_inventory_fingerprint \
+  generation_qualification generation_qualification_sha256 canonical_scale configured_batch_size \
+  jvm_max_heap_bytes traffic_manifest traffic_manifest_sha256 traffic_dataset_version traffic_dataset_run_id \
+  traffic_flyway_version traffic_migration_digest fingerprint fingerprint_sha256 final_world_fingerprint \
+  base_world_fingerprint distribution_fingerprint target_fingerprint inventory_fingerprint etl_code_inventory \
+  etl_code_inventory_sha256 source_inventory source_inventory_sha256 backend_migration_inventory \
+  backend_migration_inventory_sha256 provenance provenance_sha256 required_rows recovery)
+[[ "$(wc -l < "$etl_release_dir/release-metadata.txt" | tr -d '[:space:]')" == 43 ]] \
+  || fail 'ETL release metadata must contain exactly forty-three entries'
 actual_metadata_keys=$(awk -F= 'NF >= 2 { print $1 }' "$etl_release_dir/release-metadata.txt")
 [[ "$actual_metadata_keys" == "$expected_metadata_keys" ]] \
   || fail 'ETL release metadata keys or ordering are invalid'
-dataset_run_id=$(awk -F= '$1 == "traffic_dataset_run_id" { print substr($0, index($0, "=") + 1) }' \
-  "$etl_release_dir/release-metadata.txt")
+[[ "$(metadata_value format)" == airbob-production-seed-release-v2 \
+  && "$(metadata_value benchmark_dataset_manifest)" == benchmark-dataset-v2.json \
+  && "$(metadata_value benchmark_dataset_version)" == benchmark-dataset-v2 \
+  && "$(metadata_value world_version)" == world-v2 \
+  && "$(metadata_value source_calibration)" == source-calibration-v1.json \
+  && "$(metadata_value production_spec)" == "$production_spec_name" \
+  && "$(metadata_value generation_qualification)" == generation-qualification-v1.json \
+  && "$(metadata_value canonical_scale)" == true \
+  && "$(metadata_value configured_batch_size)" == 1000 \
+  && "$(metadata_value jvm_max_heap_bytes)" == 12884901888 ]] \
+  || fail 'ETL metadata does not name the exact benchmark-dataset-v2 release tuple'
+[[ "$(metadata_value production_spec_sha256)" == "$(awk -v target="$production_spec_name" '$2 == target { count++; value=$1 } END { if (count == 1) print value }' "$etl_release_dir/SHA256SUMS")" ]] \
+  || fail 'ETL metadata production spec digest is not checksum-bound'
+benchmark_dataset_manifest_sha=$(metadata_value benchmark_dataset_manifest_sha256)
+[[ "$benchmark_dataset_manifest_sha" =~ ^[0-9a-f]{64}$ \
+  && "$benchmark_dataset_manifest_sha" == "$(awk '$2 == "benchmark-dataset-v2.json" { print $1 }' "$etl_release_dir/SHA256SUMS")" ]] \
+  || fail 'ETL benchmark dataset manifest digest does not match the source release'
+jq -e -f "$semantic_validator" "$etl_release_dir/benchmark-dataset-v2.json" >/dev/null \
+  || fail 'benchmark-dataset-v2 semantic contract failed before snapshot production'
+jq -e \
+  --arg profile "$profile_version" \
+  --arg calibration "$(metadata_value source_calibration_sha256)" \
+  --arg spec "$(metadata_value production_spec_sha256)" \
+  --arg sourceInventory "$(metadata_value source_catalog_inventory_fingerprint)" \
+  --arg finalWorld "$(metadata_value final_world_fingerprint)" \
+  --arg baseWorld "$(metadata_value base_world_fingerprint)" \
+  --arg distribution "$(metadata_value distribution_fingerprint)" \
+  --arg target "$(metadata_value target_fingerprint)" \
+  --arg inventory "$(metadata_value inventory_fingerprint)" '
+  .datasetVersion=="benchmark-dataset-v2" and .world.version=="world-v2" and
+  .world.provenance.profileVersion==$profile and
+  .world.provenance.calibrationSha256==$calibration and .world.provenance.specSha256==$spec and
+  .world.provenance.sourceInventorySha256==$sourceInventory and
+  .world.fingerprints["final-world"]==$finalWorld and .world.fingerprints["base-world"]==$baseWorld and
+  .world.provenance.assertionSha256==$distribution and .targetFingerprint==$target and
+  .world.fingerprints["final-inventory"]==$inventory
+' "$etl_release_dir/benchmark-dataset-v2.json" >/dev/null \
+  || fail 'benchmark-dataset-v2 does not bind the exact release fingerprints'
+jq -e --arg profile "$profile_version" --argjson budgets "$expected_budgets" '
+  .profileVersion==$profile and .provenance.generatorVersion=="production-skew-generator-v1" and
+  .provenance.prngAlgorithm=="sha256-splitmix64-counter-v1" and
+  .provenance.seedDerivation=="length-prefixed(profile-version, global-seed, relation-domain, stable-external-key, counter)" and
+  .provenance.globalSeed==20260826 and .provenance.anchor=="2026-07-31T15:00:00Z" and .provenance.timezone=="Asia/Seoul" and
+  (.targets|{accommodations:.accommodations.rowBudget,members:.members.rowBudget,reservations:.reservations.rowBudget,reviews:.reviews.rowBudget,activeWishlists:.activeWishlists.rowBudget,wishlistLinks:.wishlistLinks.rowBudget})==$budgets and
+  ([.targets[]|select(.rowBudget!=null)|.tolerance]|all(.absoluteRows==0 and .relativePercent==0))
+' "$etl_release_dir/$production_spec_name" >/dev/null || fail 'production distribution profile contract failed'
+jq -e --argjson budgets "$expected_budgets" '
+  .version=="generation-qualification-v1" and .canonicalScale==true and .generatedBudgets==$budgets
+' "$etl_release_dir/generation-qualification-v1.json" >/dev/null || fail 'generation qualification profile budgets drifted'
+dataset_run_id=$(metadata_value traffic_dataset_run_id)
 [[ "$dataset_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]] \
   || fail 'ETL traffic dataset run id is not canonical'
 jq -se --arg runId "$dataset_run_id" '
@@ -430,30 +517,43 @@ jq -se --arg runId "$dataset_run_id" '
 jq -se \
   --arg sourcePayload "$source_payload_sha" \
   --arg sourceDump "$source_dump_sha" \
-  --arg sourceFingerprint "$source_database_fingerprint_sha" '
+  --arg sourceFingerprint "$source_database_fingerprint_sha" \
+  --arg sourceEtlCommit "$(awk -F= '$1=="etl_head"{print $2}' "$etl_release_dir/PROVENANCE.txt")" \
+  --arg finalWorld "$(metadata_value final_world_fingerprint)" \
+  --arg baseWorld "$(metadata_value base_world_fingerprint)" \
+  --arg distributionAssertion "$(metadata_value distribution_fingerprint)" \
+  --arg distributionSpec "$(metadata_value production_spec_sha256)" \
+  --arg target "$(metadata_value target_fingerprint)" \
+  --arg inventory "$(metadata_value inventory_fingerprint)" '
   def sha256: type == "string" and test("^[0-9a-f]{64}$");
   length == 1 and
   (.[0] |
     (keys | sort) == ([
-      "capturedAt", "expectedTableRows", "flywayHistoryRows", "flywayVersion",
-      "migrationChecksumSha256", "outboxState", "schemaFingerprintSha256",
-      "schemaVersion", "sourceDatabaseFingerprintSha256", "sourceDumpSha256",
-      "restoredDumpSha256", "databaseRestoreMethod",
-      "sourceReleasePayloadSha256", "sourceEtlCommit", "databaseServerUuid",
-      "verifierContractInventorySha256", "databaseFingerprintSubsetSha256"
+      "schemaVersion","sourceReleasePayloadSha256","sourceDumpSha256","restoredDumpSha256",
+      "databaseRestoreMethod","sourceDatabaseFingerprintSha256","sourceEtlCommit","databaseServerUuid",
+      "verifierContractInventorySha256","databaseFingerprintSha256","verificationOutputSha256",
+      "finalWorldFingerprintSha256","baseWorldFingerprintSha256","distributionEvidenceSha256",
+      "distributionAssertionSha256","distributionSpecSha256",
+      "targetFingerprintSha256","inventoryFingerprintSha256","flywayVersion","flywayHistoryRows",
+      "migrationChecksumSha256","schemaFingerprintSha256","outboxState","expectedTableRows","capturedAt"
     ] | sort) and
-    .schemaVersion == 3 and
-    .databaseRestoreMethod == "gzip-to-empty-airbobdb-v1" and
+    .schemaVersion == 4 and
+    .databaseRestoreMethod == "gzip-to-empty-airbobdb-v2" and
     .sourceReleasePayloadSha256 == $sourcePayload and
     .sourceDumpSha256 == $sourceDump and
     .restoredDumpSha256 == $sourceDump and
     .restoredDumpSha256 == .sourceDumpSha256 and
     .sourceDatabaseFingerprintSha256 == $sourceFingerprint and
-    (.sourceEtlCommit | type == "string" and test("^[0-9a-f]{40}$")) and
+    .sourceEtlCommit == $sourceEtlCommit and
     (.databaseServerUuid | type == "string" and
       test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
     (.verifierContractInventorySha256 | sha256) and
-    (.databaseFingerprintSubsetSha256 | sha256) and
+    .databaseFingerprintSha256 == $sourceFingerprint and (.verificationOutputSha256 | sha256) and
+    .finalWorldFingerprintSha256 == $finalWorld and .baseWorldFingerprintSha256 == $baseWorld and
+    (.distributionEvidenceSha256 | sha256) and
+    .distributionAssertionSha256 == $distributionAssertion and
+    .distributionSpecSha256 == $distributionSpec and .targetFingerprintSha256 == $target and
+    .inventoryFingerprintSha256 == $inventory and
     .flywayVersion == "27" and
     .flywayHistoryRows == 27 and
     (.migrationChecksumSha256 | sha256) and
@@ -463,6 +563,7 @@ jq -se \
     (.expectedTableRows | has("accommodation_inventory_day") and has("reservation")) and
     .expectedTableRows.flyway_schema_history == 27 and
     .expectedTableRows.outbox == 0 and
+    .expectedTableRows.accommodation_inventory_day == 0 and
     (.expectedTableRows.accommodation | type == "number" and floor == . and . >= 0) and
     all(.expectedTableRows | to_entries[];
       (.key | test("^[a-z][a-z0-9_]{0,63}$")) and
@@ -470,7 +571,7 @@ jq -se \
     ) and
     (.capturedAt | fromdateiso8601 | type == "number")
   )
-' "$attestation_file" >/dev/null || fail 'dataset attestation does not bind the exact V27 ETL release'
+' "$attestation_file" >/dev/null || fail 'schema-4 semantic attestation does not bind the exact v2 ETL release tuple'
 
 expected_image_keys='["DEBEZIUM_IMAGE","ELASTICSEARCH_EXPORTER_IMAGE","ELASTICSEARCH_IMAGE","GRAFANA_IMAGE","KAFKA_IMAGE","NODE_EXPORTER_IMAGE","PROMETHEUS_IMAGE","REDIS_EXPORTER_IMAGE","REDIS_IMAGE"]'
 jq -se \
@@ -667,20 +768,32 @@ lease_acquired=true
 start_lease_guards
 assert_snapshot_lease || fail 'dataset snapshot lease was lost before repository inspection'
 
-lineage_receipt=$(AIRBOB_DATASET_DB_PASSWORD="$database_password" \
+lineage_receipt=$(AIRBOB_DATASET_RELEASE_PROFILE="$profile_version" \
+  AIRBOB_DATASET_DB_PASSWORD="$database_password" \
   "$lineage_verifier" "$etl_release_dir") \
   || fail 'live database does not match the attested ETL release'
 jq -se --slurpfile attestation "$attestation_file" '
   length == 1 and
   (.[0] | keys | sort) == ([
-    "schemaVersion", "sourceEtlCommit", "databaseServerUuid",
-    "verifierContractInventorySha256", "databaseFingerprintSubsetSha256"
+    "schemaVersion","sourceEtlCommit","databaseServerUuid","verifierContractInventorySha256",
+    "databaseFingerprintSha256","verificationOutputSha256","finalWorldFingerprintSha256",
+    "baseWorldFingerprintSha256","distributionEvidenceSha256","distributionAssertionSha256",
+    "distributionSpecSha256","targetFingerprintSha256",
+    "inventoryFingerprintSha256"
   ] | sort) and
-  .[0].schemaVersion == 1 and
+  .[0].schemaVersion == 2 and
   .[0].sourceEtlCommit == $attestation[0].sourceEtlCommit and
   .[0].databaseServerUuid == $attestation[0].databaseServerUuid and
   .[0].verifierContractInventorySha256 == $attestation[0].verifierContractInventorySha256 and
-  .[0].databaseFingerprintSubsetSha256 == $attestation[0].databaseFingerprintSubsetSha256
+  .[0].databaseFingerprintSha256 == $attestation[0].databaseFingerprintSha256 and
+  .[0].verificationOutputSha256 == $attestation[0].verificationOutputSha256 and
+  .[0].finalWorldFingerprintSha256 == $attestation[0].finalWorldFingerprintSha256 and
+  .[0].baseWorldFingerprintSha256 == $attestation[0].baseWorldFingerprintSha256 and
+  .[0].distributionEvidenceSha256 == $attestation[0].distributionEvidenceSha256 and
+  .[0].distributionAssertionSha256 == $attestation[0].distributionAssertionSha256 and
+  .[0].distributionSpecSha256 == $attestation[0].distributionSpecSha256 and
+  .[0].targetFingerprintSha256 == $attestation[0].targetFingerprintSha256 and
+  .[0].inventoryFingerprintSha256 == $attestation[0].inventoryFingerprintSha256
 ' <<<"$lineage_receipt" >/dev/null \
   || fail 'live database lineage differs from the dataset attestation'
 database_server_uuid=$(jq -r '.databaseServerUuid' <<<"$lineage_receipt")
@@ -754,6 +867,7 @@ done
 mysql_exec() {
   MYSQL_PWD="$database_password" mysql \
     --protocol=TCP \
+    --default-character-set=utf8mb4 \
     --host="$AIRBOB_DATASET_DB_HOST" \
     --port="$AIRBOB_DATASET_DB_PORT" \
     --user="$AIRBOB_DATASET_DB_USER" \

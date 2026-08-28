@@ -3,64 +3,40 @@ set -euo pipefail
 umask 077
 export LC_ALL=C
 
-fail() {
-  printf '%s\n' "$1" >&2
-  exit 1
-}
-
+fail() { printf 'dataset release assembly failed: %s\n' "$1" >&2; exit 1; }
 usage() {
-  printf 'usage: %s ETL_RELEASE_DIR ATTESTATION_JSON OUTPUT_ROOT DATASET_RELEASE EVALUATION_TIME VALID_UNTIL [SNAPSHOT_REFERENCE_JSON]\n' \
-    "${0##*/}" >&2
+  printf 'usage: %s ETL_RELEASE_DIR ATTESTATION_JSON OUTPUT_ROOT DATASET_RELEASE EVALUATION_TIME VALID_UNTIL [SNAPSHOT_REFERENCE_JSON]\n' "${0##*/}" >&2
   exit 64
 }
-
 sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$1" | awk '{print $1}'
-  else
-    fail 'a SHA-256 implementation is required'
-  fi
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  else fail 'a SHA-256 implementation is required'; fi
 }
-
-sha256_stream() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | awk '{print $1}'
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | awk '{print $1}'
-  else
-    fail 'a SHA-256 implementation is required'
-  fi
-}
-
-stat_uid() {
-  if stat -f '%u' "$1" >/dev/null 2>&1; then
-    stat -f '%u' "$1"
-  else
-    stat -c '%u' "$1"
-  fi
-}
-
-stat_mode() {
-  if stat -f '%Lp' "$1" >/dev/null 2>&1; then
-    stat -f '%Lp' "$1"
-  else
-    stat -c '%a' "$1"
-  fi
-}
-
+stat_uid() { stat -f '%u' "$1" 2>/dev/null || stat -c '%u' "$1"; }
+stat_mode() { stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; }
+require_file() { [[ -f "$1" && ! -L "$1" ]] || fail "artifact is missing or unsafe: ${1##*/}"; }
 contains_secret_marker() {
-  printf '%s\n' "$1" \
-    | grep -Eqi 'password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account'
+  printf '%s\n' "$1" | grep -Eqi 'password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account'
 }
-
+scan_sensitive_file() {
+  local file=$1 email emails status
+  if grep -Eiq -- '-----BEGIN .*PRIVATE KEY-----|(AKIA|ASIA)[0-9A-Z]{16}|(password|secret|credential|authorization)[[:space:]]*[:=][[:space:]]*[^[:space:]",}]+|raw_pii|raw-reviewer|reviewer_name|"comments"' "$file"; then
+    return 1
+  else status=$?; [[ "$status" -eq 1 ]] || return 1; fi
+  if emails=$(grep -Eio -- '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' "$file"); then
+    emails=$(printf '%s' "$emails" | tr '[:upper:]' '[:lower:]') || return 1
+  else status=$?; [[ "$status" -eq 1 ]] || return 1; emails=''; fi
+  while IFS= read -r email; do
+    [[ -z "$email" || "$email" == benchmark-nplus1@airbob.cloud || "$email" == benchmark-nplus1-helper@airbob.cloud \
+      || "$email" =~ ^coupon-benchmark-[0-9]{5,6}@airbob\.cloud$ \
+      || "$email" =~ ^benchmark-read-model-wishlist-(hot|median|cold|empty)@airbob\.cloud$ \
+      || "$email" == benchmark-read-model-revenue-admin@airbob.cloud \
+      || "$email" =~ ^(host|member)-[0-9a-f]+@benchmark\.airbob\.local$ ]] || return 1
+  done <<<"$emails"
+}
 local_timestamp_to_utc() {
-  local local_timestamp=$1
-  local timezone=$2
-  local epoch
-  local round_trip
-
+  local local_timestamp=$1 timezone=$2 epoch round_trip
   if date -u -d '@0' '+%s' >/dev/null 2>&1; then
     epoch=$(TZ="$timezone" date -d "$local_timestamp" '+%s') || return 1
     round_trip=$(TZ="$timezone" date -d "@$epoch" '+%Y-%m-%dT%H:%M:%S') || return 1
@@ -74,56 +50,7 @@ local_timestamp_to_utc() {
   fi
 }
 
-require_small_text_file() {
-  local file=$1
-  local maximum=$2
-  local size
-  size=$(wc -c < "$file" | tr -d '[:space:]')
-  [[ "$size" =~ ^[0-9]+$ && "$size" -le "$maximum" ]] \
-    || fail 'source metadata exceeds its size limit'
-  cmp -s "$file" <(tr -d '\000' < "$file") \
-    || fail 'source metadata contains a NUL byte'
-}
-
-cleanup_staging() {
-  local staged_name
-  [[ ${incomplete_created:-false} == true ]] || return 0
-  [[ -n ${staging_dir:-} && -d ${staging_dir:-} && ! -L ${staging_dir:-} ]] || return 0
-  for staged_name in "${source_files[@]}" attestation.json snapshot-reference.json; do
-    rm -f "$staging_dir/$staged_name" >/dev/null 2>&1 || true
-  done
-  rmdir "$staging_dir" >/dev/null 2>&1 || true
-}
-
-on_exit() {
-  local status=$?
-  trap - EXIT HUP INT TERM
-  if [[ $status -ne 0 ]]; then
-    cleanup_staging
-    if [[ ${incomplete_created:-false} == true \
-      && -n ${incomplete_dir:-} \
-      && -d ${incomplete_dir:-} \
-      && ! -L ${incomplete_dir:-} ]]; then
-      rm -f "$incomplete_dir/.manifest.json.tmp" >/dev/null 2>&1 || true
-      printf '%s\n' 'dataset assembly failed; incomplete release was not published' >&2
-    fi
-  fi
-  if [[ ${lock_acquired:-false} == true \
-    && -n ${release_lock_dir:-} \
-    && -d ${release_lock_dir:-} \
-    && ! -L ${release_lock_dir:-} ]]; then
-    rmdir "$release_lock_dir" >/dev/null 2>&1 || true
-  fi
-  exit "$status"
-}
-incomplete_created=false
-lock_acquired=false
-trap on_exit EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
-[[ $# -eq 6 || $# -eq 7 ]] || usage
+[[ "$#" -eq 6 || "$#" -eq 7 ]] || usage
 etl_release_dir=$1
 attestation_file=$2
 output_root=$3
@@ -132,666 +59,334 @@ evaluation_time=$5
 valid_until=$6
 snapshot_reference_file=${7:-}
 
-for required_command in jq gzip zstd stat id cp cmp tr grep find sort awk wc date; do
-  command -v "$required_command" >/dev/null 2>&1 \
-    || fail "required local command is unavailable: $required_command"
+for command_name in jq gzip zstd stat id cp tr grep find sort awk date mkdir mv; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "required command is unavailable: $command_name"
 done
+[[ "$dataset_release" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ ]] || fail 'dataset release must be a lowercase safe name'
+[[ "$evaluation_time" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail 'evaluation time is invalid'
+[[ "$valid_until" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail 'valid-until is invalid'
+jq -en --arg start "$evaluation_time" --arg finish "$valid_until" \
+  '($start|fromdateiso8601) < ($finish|fromdateiso8601) and ($finish|fromdateiso8601) > now' >/dev/null \
+  || fail 'dataset evaluation window is invalid or expired'
 
-[[ "$dataset_release" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ ]] \
-  || fail 'dataset release must be a lowercase safe name'
-[[ "$evaluation_time" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
-  || fail 'evaluation time must be an RFC3339 UTC timestamp'
-[[ "$valid_until" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
-  || fail 'valid-until must be an RFC3339 UTC timestamp'
-jq -en \
-  --arg evaluationTime "$evaluation_time" \
-  --arg validUntil "$valid_until" '
-    ($evaluationTime | fromdateiso8601) < ($validUntil | fromdateiso8601) and
-    ($validUntil | fromdateiso8601) > now
-  ' >/dev/null || fail 'dataset evaluation window is invalid or expired'
-
-[[ -d "$etl_release_dir" && ! -L "$etl_release_dir" ]] \
-  || fail 'ETL source release directory is missing or unsafe'
-[[ -f "$attestation_file" && ! -L "$attestation_file" ]] \
-  || fail 'dataset attestation is missing or unsafe'
-if [[ -n "$snapshot_reference_file" ]]; then
-  [[ -f "$snapshot_reference_file" && ! -L "$snapshot_reference_file" ]] \
-    || fail 'Elasticsearch snapshot reference is missing or unsafe'
-fi
-[[ -d "$output_root" && ! -L "$output_root" ]] \
-  || fail 'dataset output root is missing or unsafe'
-
+[[ -d "$etl_release_dir" && ! -L "$etl_release_dir" ]] || fail 'ETL release directory is missing or unsafe'
+require_file "$attestation_file"
+[[ -z "$snapshot_reference_file" ]] || require_file "$snapshot_reference_file"
+[[ -d "$output_root" && ! -L "$output_root" ]] || fail 'output root is missing or unsafe'
 etl_release_dir=$(CDPATH= cd -P -- "$etl_release_dir" && pwd -P)
-attestation_parent=$(CDPATH= cd -P -- "$(dirname -- "$attestation_file")" && pwd -P)
-attestation_file="$attestation_parent/$(basename -- "$attestation_file")"
-if [[ -n "$snapshot_reference_file" ]]; then
-  snapshot_reference_parent=$(CDPATH= cd -P -- "$(dirname -- "$snapshot_reference_file")" && pwd -P)
-  snapshot_reference_file="$snapshot_reference_parent/$(basename -- "$snapshot_reference_file")"
-fi
+attestation_file=$(CDPATH= cd -P -- "$(dirname -- "$attestation_file")" && pwd -P)/$(basename -- "$attestation_file")
+[[ -z "$snapshot_reference_file" ]] || snapshot_reference_file=$(CDPATH= cd -P -- "$(dirname -- "$snapshot_reference_file")" && pwd -P)/$(basename -- "$snapshot_reference_file")
 output_root=$(CDPATH= cd -P -- "$output_root" && pwd -P)
+[[ "$output_root" != / && "$output_root" != "$etl_release_dir" ]] || fail 'output root is unsafe'
+[[ "$(stat_uid "$output_root")" == "$(id -u)" && "$(stat_mode "$output_root")" == 700 ]] || fail 'output root ownership or mode is unsafe'
 
-[[ "$output_root" != / && "$output_root" != "$etl_release_dir" ]] \
-  || fail 'dataset output root is unsafe'
-[[ "$(stat_uid "$output_root")" == "$(id -u)" ]] \
-  || fail 'dataset output root must be owned by the caller'
-[[ "$(stat_mode "$output_root")" == 700 ]] \
-  || fail 'dataset output root must have mode 0700'
+script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+semantic_validator="$script_dir/validate-benchmark-dataset-v2.jq"
+release_validator="$script_dir/verify-dataset-release.sh"
+require_file "$semantic_validator"
+[[ -x "$release_validator" && ! -L "$release_validator" ]] || fail 'release validator is missing or unsafe'
+
+require_file "$etl_release_dir/release-metadata.txt"
+production_spec_name=$(awk -F= '$1=="production_spec"{count++;value=substr($0,index($0,"=")+1)} END{if(count==1)print value}' "$etl_release_dir/release-metadata.txt")
+case "$production_spec_name" in
+  production-skew-v1.json)
+    profile_version=production-skew-v1
+    expected_budgets='{"accommodations":50000,"activeWishlists":400000,"members":200000,"reservations":2500000,"reviews":1000000,"wishlistLinks":1500000}'
+    ;;
+  production-skew-large-v1.json)
+    profile_version=production-skew-large-v1
+    expected_budgets='{"accommodations":200000,"activeWishlists":1600000,"members":800000,"reservations":10000000,"reviews":4000000,"wishlistLinks":6000000}'
+    ;;
+  *) fail 'release metadata selects an unsupported production profile' ;;
+esac
+production_spec_key="benchmark/$production_spec_name"
 
 source_files=(
-  PROVENANCE.txt
-  SHA256SUMS
-  airbob-production-seed.sql.gz
-  backend-migrations.sha256
-  benchmark-fixture.json
-  traffic-v1.json
-  database-fingerprint.tsv
-  etl-code.sha256
-  release-metadata.txt
-  source.sha256
+  PROVENANCE.txt SHA256SUMS airbob-production-seed.sql.gz backend-migrations.sha256
+  benchmark-dataset-v2.json benchmark-fixture.json database-fingerprint.tsv etl-code.sha256
+  generation-qualification-v1.json "$production_spec_name" release-metadata.txt
+  source-calibration-v1.json source.sha256 traffic-v1.json
 )
-shopt -s nullglob dotglob
-source_entries=("$etl_release_dir"/*)
-[[ ${#source_entries[@]} -eq ${#source_files[@]} ]] \
-  || fail 'ETL source release must contain exactly ten files'
-for source_name in "${source_files[@]}"; do
-  [[ -f "$etl_release_dir/$source_name" && ! -L "$etl_release_dir/$source_name" ]] \
-    || fail 'ETL source release contains a missing or unsafe file'
-done
+actual_source_files=$(find "$etl_release_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; | sort)
+expected_source_files=$(printf '%s\n' "${source_files[@]}" | sort)
+[[ "$actual_source_files" == "$expected_source_files" ]] || fail 'ETL source release must contain the exact v2 inventory'
+for source_name in "${source_files[@]}"; do require_file "$etl_release_dir/$source_name"; done
 
 final_dir="$output_root/$dataset_release"
 incomplete_dir="$output_root/$dataset_release.incomplete"
-release_lock_dir="$output_root/.$dataset_release.assemble.lock"
-if ! mkdir -m 700 "$release_lock_dir"; then
-  fail 'another assembler owns the dataset release lock'
-fi
-lock_acquired=true
-[[ ! -e "$final_dir" && ! -L "$final_dir" ]] \
-  || fail 'final dataset release already exists'
-[[ ! -e "$incomplete_dir" && ! -L "$incomplete_dir" ]] \
-  || fail 'incomplete dataset release already exists'
-mkdir -m 700 "$incomplete_dir" || fail 'unable to create the incomplete dataset release'
-incomplete_created=true
-[[ "$(stat_uid "$incomplete_dir")" == "$(id -u)" && "$(stat_mode "$incomplete_dir")" == 700 ]] \
-  || fail 'incomplete dataset release ownership or mode is unsafe'
-staging_dir="$incomplete_dir/.staging"
-mkdir -m 700 "$staging_dir"
-
-for source_name in "${source_files[@]}"; do
-  cp "$etl_release_dir/$source_name" "$staging_dir/$source_name"
-  chmod 600 "$staging_dir/$source_name"
-  [[ -f "$staging_dir/$source_name" && ! -L "$staging_dir/$source_name" ]] \
-    || fail 'unable to stage an ETL source release file safely'
-done
-cp "$attestation_file" "$staging_dir/attestation.json"
-chmod 600 "$staging_dir/attestation.json"
-[[ -f "$staging_dir/attestation.json" && ! -L "$staging_dir/attestation.json" ]] \
-  || fail 'unable to stage the dataset attestation safely'
-if [[ -n "$snapshot_reference_file" ]]; then
-  cp "$snapshot_reference_file" "$staging_dir/snapshot-reference.json"
-  chmod 600 "$staging_dir/snapshot-reference.json"
-  [[ -f "$staging_dir/snapshot-reference.json" && ! -L "$staging_dir/snapshot-reference.json" ]] \
-    || fail 'unable to stage the Elasticsearch snapshot reference safely'
-fi
-
-expected_checksum_files=(
-  PROVENANCE.txt
-  airbob-production-seed.sql.gz
-  backend-migrations.sha256
-  benchmark-fixture.json
-  database-fingerprint.tsv
-  etl-code.sha256
-  release-metadata.txt
-  source.sha256
-  traffic-v1.json
-)
-source_dump_sha=''
-source_database_fingerprint_sha=''
-traffic_manifest_sha=''
-exec 3< "$staging_dir/SHA256SUMS"
-for source_name in "${expected_checksum_files[@]}"; do
-  checksum_line=''
-  IFS= read -r checksum_line <&3 \
-    || fail 'ETL SHA256SUMS must contain nine canonical newline-terminated entries'
-  [[ "$checksum_line" =~ ^([0-9a-f]{64})\ \ ([A-Za-z0-9._-]+)$ ]] \
-    || fail 'ETL SHA256SUMS contains a malformed entry'
-  checksum_digest=${BASH_REMATCH[1]}
-  checksum_name=${BASH_REMATCH[2]}
-  [[ "$checksum_name" == "$source_name" ]] \
-    || fail 'ETL SHA256SUMS entries are not canonical or complete'
-  [[ "$(sha256_file "$staging_dir/$source_name")" == "$checksum_digest" ]] \
-    || fail 'ETL source release checksum verification failed'
-  case "$source_name" in
-    airbob-production-seed.sql.gz) source_dump_sha=$checksum_digest ;;
-    database-fingerprint.tsv) source_database_fingerprint_sha=$checksum_digest ;;
-    traffic-v1.json) traffic_manifest_sha=$checksum_digest ;;
-  esac
-done
-extra_checksum_line=''
-if IFS= read -r extra_checksum_line <&3; then
-  fail 'ETL SHA256SUMS contains an unexpected extra entry'
-fi
-exec 3<&-
-canonical_payload_sha=$(sha256_file "$staging_dir/SHA256SUMS")
-
-require_small_text_file "$staging_dir/backend-migrations.sha256" 1048576
-migration_count=0
-previous_migration_path=''
-seen_migration_versions=' '
-while IFS= read -r migration_line; do
-  [[ "$migration_line" =~ ^[0-9a-f]{64}\ \ (\./V([0-9]+)__[A-Za-z0-9][A-Za-z0-9._-]*\.sql)$ ]] \
-    || fail 'backend migration inventory contains a malformed entry'
-  migration_path=${BASH_REMATCH[1]}
-  migration_version=${BASH_REMATCH[2]}
-  ((migration_count += 1))
-  [[ -z "$previous_migration_path" || "$migration_path" > "$previous_migration_path" ]] \
-    || fail 'backend migration inventory is not bytewise path-sorted'
-  [[ "$migration_version" -ge 1 && "$migration_version" -le 27 ]] \
-    || fail 'backend migration inventory is outside V1-V27'
-  [[ "$seen_migration_versions" != *" $migration_version "* ]] \
-    || fail 'backend migration inventory contains a duplicate version'
-  seen_migration_versions="${seen_migration_versions}${migration_version} "
-  previous_migration_path=$migration_path
-done < "$staging_dir/backend-migrations.sha256"
-[[ $migration_count -eq 27 ]] \
-  || fail 'backend migration inventory must cover exactly V1-V27'
-for migration_version in {1..27}; do
-  [[ "$seen_migration_versions" == *" $migration_version "* ]] \
-    || fail 'backend migration inventory is missing a V1-V27 migration'
-done
-
-require_small_text_file "$staging_dir/release-metadata.txt" 65536
-metadata_keys=(
-  format
-  release_id
-  dump
-  manifest
-  traffic_manifest
-  traffic_manifest_sha256
-  traffic_dataset_version
-  traffic_dataset_run_id
-  traffic_flyway_version
-  traffic_migration_digest
-  fingerprint
-  required_rows
-  recovery
-)
-metadata_lines=()
-while IFS= read -r metadata_line; do
-  metadata_lines+=("$metadata_line")
-done < "$staging_dir/release-metadata.txt"
-[[ ${#metadata_lines[@]} -eq ${#metadata_keys[@]} ]] \
-  || fail 'ETL release metadata must contain exactly thirteen canonical lines'
-for metadata_index in "${!metadata_keys[@]}"; do
-  metadata_key=${metadata_keys[$metadata_index]}
-  metadata_line=${metadata_lines[$metadata_index]}
-  [[ "$metadata_line" == "$metadata_key="* ]] \
-    || fail 'ETL release metadata keys or ordering are invalid'
-  metadata_value=${metadata_line#*=}
-  [[ -n "$metadata_value" ]] || fail 'ETL release metadata contains a blank value'
-  contains_secret_marker "$metadata_key" && fail 'ETL release metadata contains a secret-like key'
-  contains_secret_marker "$metadata_value" && fail 'ETL release metadata contains a secret-like value'
-  case "$metadata_key" in
-    format) metadata_format=$metadata_value ;;
-    release_id) source_release_id=$metadata_value ;;
-    dump) metadata_dump=$metadata_value ;;
-    manifest) metadata_manifest=$metadata_value ;;
-    traffic_manifest) metadata_traffic_manifest=$metadata_value ;;
-    traffic_manifest_sha256) metadata_traffic_sha=$metadata_value ;;
-    traffic_dataset_version) metadata_traffic_version=$metadata_value ;;
-    traffic_dataset_run_id) metadata_traffic_run_id=$metadata_value ;;
-    traffic_flyway_version) metadata_traffic_flyway=$metadata_value ;;
-    traffic_migration_digest) metadata_traffic_migration_digest=$metadata_value ;;
-    fingerprint) metadata_fingerprint=$metadata_value ;;
-    required_rows) metadata_required_rows=$metadata_value ;;
-    recovery) metadata_recovery=$metadata_value ;;
-  esac
-done
-[[ "$metadata_format" == airbob-production-seed-release-v1 ]] \
-  || fail 'ETL release metadata format is unsupported'
-[[ "$source_release_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] \
-  || fail 'ETL source release id is unsafe'
-[[ "$metadata_dump" == airbob-production-seed.sql.gz \
-  && "$metadata_manifest" == benchmark-fixture.json \
-  && "$metadata_traffic_manifest" == traffic-v1.json \
-  && "$metadata_fingerprint" == database-fingerprint.tsv ]] \
-  || fail 'ETL release metadata names an unexpected artifact'
-[[ "$metadata_traffic_sha" == "$traffic_manifest_sha" ]] \
-  || fail 'ETL traffic manifest checksum binding failed'
-[[ "$metadata_traffic_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]] \
-  || fail 'ETL traffic dataset run id is not canonical'
-[[ "$metadata_traffic_version" == traffic-v1 \
-  && "$metadata_traffic_flyway" == 27 \
-  && "$metadata_required_rows" == 201 \
-  && "$metadata_recovery" == reset-flyway-v1-v27-etl-reseed-before-traffic ]] \
-  || fail 'ETL release metadata does not satisfy the V27 traffic contract'
-[[ "$metadata_traffic_migration_digest" =~ ^sha256:[0-9a-f]{64}$ ]] \
-  || fail 'ETL traffic migration digest is invalid'
-
-require_small_text_file "$staging_dir/PROVENANCE.txt" 1048576
-provenance_lines=()
-while IFS= read -r provenance_line; do
-  provenance_lines+=("$provenance_line")
-done < "$staging_dir/PROVENANCE.txt"
-[[ ${#provenance_lines[@]} -ge 16 ]] \
-  || fail 'ETL provenance envelope is incomplete'
-[[ "${provenance_lines[0]}" == format=airbob-production-seed-provenance-v1 ]] \
-  || fail 'ETL provenance format is unsupported'
-[[ "${provenance_lines[1]}" =~ ^etl_head=([0-9a-f]{40})$ ]] \
-  || fail 'ETL provenance commit is invalid'
-etl_commit=${BASH_REMATCH[1]}
-[[ "${provenance_lines[2]}" =~ ^backend_head=[0-9a-f]{40}$ ]] \
-  || fail 'ETL provenance backend commit is invalid'
-for provenance_index in 3 4 5 6; do
-  provenance_line=${provenance_lines[$provenance_index]}
-  case "$provenance_index" in
-    3) provenance_key=java ;;
-    4) provenance_key=gradle ;;
-    5) provenance_key=mysql ;;
-    6) provenance_key=mysqldump ;;
-  esac
-  [[ "$provenance_line" == "$provenance_key="* && "$provenance_line" != "$provenance_key=" ]] \
-    || fail 'ETL provenance toolchain envelope is invalid'
-  contains_secret_marker "${provenance_line#*=}" \
-    && fail 'ETL provenance contains a secret-like value'
-done
-[[ "${provenance_lines[7]}" == porcelain_status_begin \
-  && -z "${provenance_lines[8]}" \
-  && "${provenance_lines[9]}" == porcelain_status_end \
-  && "${provenance_lines[10]}" == backend_porcelain_status_begin \
-  && -z "${provenance_lines[11]}" \
-  && "${provenance_lines[12]}" == backend_porcelain_status_end \
-  && "${provenance_lines[13]}" == options_begin \
-  && "${provenance_lines[${#provenance_lines[@]}-1]}" == options_end ]] \
-  || fail 'ETL provenance block envelope is invalid or dirty'
-seen_provenance_keys=$'format\netl_head\nbackend_head\njava\ngradle\nmysql\nmysqldump\n'
-profile=''
-service_schema=''
-benchmark_fixtures=''
-traffic_fixtures=''
-provenance_traffic_seed=''
-provenance_traffic_anchor=''
-provenance_traffic_valid_until=''
-provenance_traffic_timezone=''
-for ((provenance_index = 14; provenance_index < ${#provenance_lines[@]} - 1; provenance_index += 1)); do
-  provenance_line=${provenance_lines[$provenance_index]}
-  [[ "$provenance_line" =~ ^([a-z][a-z0-9_]*)=(.+)$ ]] \
-    || fail 'ETL provenance contains a malformed option'
-  provenance_key=${BASH_REMATCH[1]}
-  provenance_value=${BASH_REMATCH[2]}
-  if printf '%s' "$seen_provenance_keys" | grep -Fxq "$provenance_key"; then
-    fail 'ETL provenance contains a duplicate key'
+lock_dir="$output_root/.$dataset_release.assemble.lock"
+mkdir -m 700 "$lock_dir" || fail 'another assembler owns the release lock'
+owned_lock=true
+owned_incomplete=false
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  if [[ "$status" -ne 0 && "$owned_incomplete" == true && -d "$incomplete_dir" && ! -L "$incomplete_dir" ]]; then
+    find "$incomplete_dir" -depth -mindepth 1 -delete >/dev/null 2>&1 || true
+    rmdir "$incomplete_dir" >/dev/null 2>&1 || true
   fi
-  seen_provenance_keys="${seen_provenance_keys}${provenance_key}"$'\n'
-  contains_secret_marker "$provenance_key" && fail 'ETL provenance contains a secret-like key'
-  contains_secret_marker "$provenance_value" && fail 'ETL provenance contains a secret-like value'
-  case "$provenance_key" in
-    profile) profile=$provenance_value ;;
-    service_schema) service_schema=$provenance_value ;;
-    benchmark_fixtures) benchmark_fixtures=$provenance_value ;;
-    traffic_fixtures) traffic_fixtures=$provenance_value ;;
-    traffic_seed) provenance_traffic_seed=$provenance_value ;;
-    traffic_anchor_time) provenance_traffic_anchor=$provenance_value ;;
-    traffic_valid_until) provenance_traffic_valid_until=$provenance_value ;;
-    traffic_timezone) provenance_traffic_timezone=$provenance_value ;;
-  esac
+  [[ "$owned_lock" != true ]] || rmdir "$lock_dir" >/dev/null 2>&1 || true
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+[[ ! -e "$final_dir" && ! -L "$final_dir" && ! -e "$incomplete_dir" && ! -L "$incomplete_dir" ]] || fail 'release destination already exists'
+mkdir -m 700 "$incomplete_dir"
+owned_incomplete=true
+staging="$incomplete_dir/.staging"
+mkdir -m 700 "$staging"
+for source_name in "${source_files[@]}"; do cp "$etl_release_dir/$source_name" "$staging/$source_name"; chmod 600 "$staging/$source_name"; done
+cp "$attestation_file" "$staging/attestation.json"
+cp "$semantic_validator" "$staging/validate-benchmark-dataset-v2.jq"
+chmod 600 "$staging/attestation.json" "$staging/validate-benchmark-dataset-v2.jq"
+if [[ -n "$snapshot_reference_file" ]]; then cp "$snapshot_reference_file" "$staging/snapshot-reference.json"; chmod 600 "$staging/snapshot-reference.json"; fi
+
+checksummed_files=(
+  PROVENANCE.txt airbob-production-seed.sql.gz backend-migrations.sha256 benchmark-dataset-v2.json
+  benchmark-fixture.json database-fingerprint.tsv etl-code.sha256 generation-qualification-v1.json
+  "$production_spec_name" release-metadata.txt source-calibration-v1.json source.sha256 traffic-v1.json
+)
+exec 3< "$staging/SHA256SUMS"
+for source_name in "${checksummed_files[@]}"; do
+  checksum_line=''
+  IFS= read -r checksum_line <&3 || fail 'SHA256SUMS is short'
+  [[ "$checksum_line" =~ ^([0-9a-f]{64})\ \ ([A-Za-z0-9._-]+)$ && "${BASH_REMATCH[2]}" == "$source_name" ]] || fail 'SHA256SUMS is not canonical'
+  [[ "$(sha256_file "$staging/$source_name")" == "${BASH_REMATCH[1]}" ]] || fail "source checksum mismatch: $source_name"
 done
-[[ "$profile" == large \
-  && "$service_schema" == airbobdb \
-  && "$benchmark_fixtures" == true \
-  && "$traffic_fixtures" == true ]] \
-  || fail 'ETL provenance does not enable the required V27 fixture contract'
+if IFS= read -r _ <&3; then fail 'SHA256SUMS contains extra entries'; fi
+exec 3<&-
+canonical_payload_sha=$(sha256_file "$staging/SHA256SUMS")
+checksum_digest() {
+  local target=$1
+  awk -v target="$target" '$2 == target { count++; value=$1 } END { if (count == 1) print value }' "$staging/SHA256SUMS"
+}
 
-require_small_text_file "$staging_dir/benchmark-fixture.json" 1048576
-jq -se '
-  length == 1 and
-  (.[0] |
-    .datasetVersion == "nplus1-v1" and
-    ([.. | objects | keys[]] | all(
-      test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-    )) and
-    ([.. | strings] | all(
-      test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-    ))
-  )
-' "$staging_dir/benchmark-fixture.json" >/dev/null \
-  || fail 'benchmark fixture does not satisfy the nplus1-v1 contract'
+metadata_keys=(
+  format release_id dump dump_sha256 manifest manifest_sha256 benchmark_dataset_manifest
+  benchmark_dataset_manifest_sha256 benchmark_dataset_version world_version production_spec
+  production_spec_sha256 source_calibration source_calibration_sha256
+  source_catalog_inventory_fingerprint generation_qualification generation_qualification_sha256
+  canonical_scale configured_batch_size jvm_max_heap_bytes traffic_manifest traffic_manifest_sha256
+  traffic_dataset_version traffic_dataset_run_id traffic_flyway_version traffic_migration_digest
+  fingerprint fingerprint_sha256 final_world_fingerprint base_world_fingerprint
+  distribution_fingerprint target_fingerprint inventory_fingerprint etl_code_inventory
+  etl_code_inventory_sha256 source_inventory source_inventory_sha256 backend_migration_inventory
+  backend_migration_inventory_sha256 provenance provenance_sha256 required_rows recovery
+)
+metadata_index=0
+while IFS= read -r metadata_line; do
+  [[ "$metadata_index" -lt "${#metadata_keys[@]}" ]] || fail 'release metadata has extra entries'
+  metadata_key=${metadata_keys[$metadata_index]}
+  [[ "$metadata_line" == "$metadata_key="* ]] || fail 'release metadata key order is invalid'
+  metadata_value=${metadata_line#*=}
+  [[ -n "$metadata_value" ]] || fail 'release metadata contains a blank value'
+  contains_secret_marker "$metadata_key" && fail 'release metadata contains a secret-like key'
+  contains_secret_marker "$metadata_value" && fail 'release metadata contains a secret-like value'
+  metadata_index=$((metadata_index + 1))
+done < "$staging/release-metadata.txt"
+[[ "$metadata_index" -eq "${#metadata_keys[@]}" ]] || fail 'release metadata is incomplete'
+metadata_value() {
+  local target=$1
+  awk -F= -v target="$target" '$1 == target { count++; value=substr($0,index($0,"=")+1) } END { if (count == 1) print value }' "$staging/release-metadata.txt"
+}
+provenance_value() {
+  local target=$1
+  awk -F= -v target="$target" '$1 == target { count++; value=substr($0,index($0,"=")+1) } END { if (count == 1) print value }' "$staging/PROVENANCE.txt"
+}
 
-require_small_text_file "$staging_dir/traffic-v1.json" 8388608
-jq -se \
-  --arg runId "$metadata_traffic_run_id" \
-  --arg migrationDigest "$metadata_traffic_migration_digest" '
-  length == 1 and
-  (.[0] |
-    .datasetVersion == "traffic-v1" and
-    .datasetRunId == $runId and
-    (.seed | type == "number" and floor == . and . > 0) and
-    (.anchorTime | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$")) and
-    .timezone == "Asia/Seoul" and
-    (.validUntil | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$")) and
-    ((has("anchorInstant") | not) or
-      (.anchorInstant | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") and (fromdateiso8601 | type == "number"))) and
-    ((has("validUntilInstant") | not) or
-      (.validUntilInstant | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") and (fromdateiso8601 | type == "number"))) and
-    .schema.flywayVersion == "27" and
-    .schema.migrationDigest == $migrationDigest and
-    ([.. | objects | keys[]] | all(
-      test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-    )) and
-    ([.. | strings] | all(
-      test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-    ))
-  )
-' "$staging_dir/traffic-v1.json" >/dev/null \
-  || fail 'traffic manifest does not satisfy the V27 release metadata contract'
-traffic_anchor_local=$(jq -r '.anchorTime' "$staging_dir/traffic-v1.json")
-traffic_timezone=$(jq -r '.timezone' "$staging_dir/traffic-v1.json")
-traffic_valid_until_local=$(jq -r '.validUntil' "$staging_dir/traffic-v1.json")
-traffic_seed=$(jq -r '.seed' "$staging_dir/traffic-v1.json")
-[[ "$provenance_traffic_seed" == "$traffic_seed" \
-  && "$provenance_traffic_anchor" == "$traffic_anchor_local" \
-  && "$provenance_traffic_valid_until" == "$traffic_valid_until_local" \
-  && "$provenance_traffic_timezone" == "$traffic_timezone" ]] \
-  || fail 'ETL provenance contradicts the traffic manifest contract'
-converted_traffic_anchor=$(local_timestamp_to_utc "$traffic_anchor_local" "$traffic_timezone") \
-  || fail 'traffic manifest anchor time or timezone is invalid'
-converted_traffic_valid_until=$(local_timestamp_to_utc "$traffic_valid_until_local" "$traffic_timezone") \
-  || fail 'traffic manifest valid-until time or timezone is invalid'
-declared_traffic_anchor=$(jq -r '.anchorInstant // empty' "$staging_dir/traffic-v1.json")
-declared_traffic_valid_until=$(jq -r '.validUntilInstant // empty' "$staging_dir/traffic-v1.json")
-[[ -z "$declared_traffic_anchor" || "$declared_traffic_anchor" == "$converted_traffic_anchor" ]] \
-  || fail 'traffic local timestamps do not match their canonical UTC instants'
-[[ -z "$declared_traffic_valid_until" \
-  || "$declared_traffic_valid_until" == "$converted_traffic_valid_until" ]] \
-  || fail 'traffic local timestamps do not match their canonical UTC instants'
+[[ "$(metadata_value format)" == airbob-production-seed-release-v2 ]] || fail 'release metadata format is not v2'
+[[ "$(metadata_value dump)" == airbob-production-seed.sql.gz && "$(metadata_value manifest)" == benchmark-fixture.json && \
+   "$(metadata_value benchmark_dataset_manifest)" == benchmark-dataset-v2.json && "$(metadata_value benchmark_dataset_version)" == benchmark-dataset-v2 && \
+   "$(metadata_value world_version)" == world-v2 && "$(metadata_value production_spec)" == "$production_spec_name" && \
+   "$(metadata_value source_calibration)" == source-calibration-v1.json && "$(metadata_value generation_qualification)" == generation-qualification-v1.json && \
+   "$(metadata_value traffic_manifest)" == traffic-v1.json && "$(metadata_value fingerprint)" == database-fingerprint.tsv ]] || fail 'release metadata names a v1 or unsupported payload'
+[[ "$(metadata_value canonical_scale)" == true && "$(metadata_value configured_batch_size)" == 1000 && \
+   "$(metadata_value jvm_max_heap_bytes)" == 12884901888 && "$(metadata_value traffic_flyway_version)" == 27 && \
+   "$(metadata_value required_rows)" == 201 ]] || fail 'release metadata qualification is unsupported'
+for binding in \
+  "dump_sha256:airbob-production-seed.sql.gz" "manifest_sha256:benchmark-fixture.json" \
+  "benchmark_dataset_manifest_sha256:benchmark-dataset-v2.json" "production_spec_sha256:$production_spec_name" \
+  "source_calibration_sha256:source-calibration-v1.json" "generation_qualification_sha256:generation-qualification-v1.json" \
+  "traffic_manifest_sha256:traffic-v1.json" "fingerprint_sha256:database-fingerprint.tsv" \
+  "etl_code_inventory_sha256:etl-code.sha256" "source_inventory_sha256:source.sha256" \
+  "backend_migration_inventory_sha256:backend-migrations.sha256" "provenance_sha256:PROVENANCE.txt"; do
+  key=${binding%%:*}; file=${binding#*:}
+  [[ "$(metadata_value "$key")" == "$(checksum_digest "$file")" ]] || fail "metadata checksum binding failed: $key"
+done
 
-require_small_text_file "$staging_dir/attestation.json" 8388608
-jq -se \
-  --arg sourceReleasePayloadSha256 "$canonical_payload_sha" \
-  --arg sourceDumpSha256 "$source_dump_sha" \
-  --arg sourceDatabaseFingerprintSha256 "$source_database_fingerprint_sha" \
-  --arg sourceEtlCommit "$etl_commit" \
-  --argjson requiredRows "$metadata_required_rows" '
-  def exact_keys($wanted): (keys | sort) == ($wanted | sort);
-  def sha256: type == "string" and test("^[0-9a-f]{64}$");
-  def utc: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
-  length == 1 and
-  (.[0] |
-    exact_keys([
-      "schemaVersion", "sourceReleasePayloadSha256", "sourceDumpSha256",
-      "restoredDumpSha256", "databaseRestoreMethod",
-      "sourceDatabaseFingerprintSha256", "sourceEtlCommit", "databaseServerUuid",
-      "verifierContractInventorySha256", "databaseFingerprintSubsetSha256",
-      "flywayVersion", "flywayHistoryRows", "migrationChecksumSha256",
-      "schemaFingerprintSha256", "outboxState", "expectedTableRows", "capturedAt"
-    ]) and
-    .schemaVersion == 3 and
-    .databaseRestoreMethod == "gzip-to-empty-airbobdb-v1" and
-    .sourceReleasePayloadSha256 == $sourceReleasePayloadSha256 and
-    .sourceDumpSha256 == $sourceDumpSha256 and
-    .restoredDumpSha256 == $sourceDumpSha256 and
-    .restoredDumpSha256 == .sourceDumpSha256 and
-    .sourceDatabaseFingerprintSha256 == $sourceDatabaseFingerprintSha256 and
-    .sourceEtlCommit == $sourceEtlCommit and
-    (.databaseServerUuid | type == "string" and
-      test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
-    (.verifierContractInventorySha256 | sha256) and
-    (.databaseFingerprintSubsetSha256 | sha256) and
-    .flywayVersion == "27" and
-    .flywayHistoryRows == 27 and
-    (.migrationChecksumSha256 | sha256) and
-    (.schemaFingerprintSha256 | sha256) and
-    .outboxState == "empty" and
-    (.expectedTableRows | type == "object" and length > 0) and
-    (.expectedTableRows | has("flyway_schema_history") and has("outbox") and has("accommodation") and
-      has("accommodation_inventory_day") and has("reservation")) and
-    .expectedTableRows.flyway_schema_history == 27 and
-    .expectedTableRows.outbox == 0 and
-    .expectedTableRows.accommodation >= $requiredRows and
-    all(.expectedTableRows | to_entries[];
-      (.key | test("^[a-z][a-z0-9_]{0,63}$")) and
-      (.value | type == "number" and floor == . and . >= 0)
-    ) and
-    (.capturedAt | utc) and
-    (.capturedAt | fromdateiso8601 | type == "number") and
-    ([.. | objects | keys[]] | all(
-      test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-    ))
-  )
-' "$staging_dir/attestation.json" >/dev/null \
-  || fail 'dataset attestation does not satisfy or bind the source release contract'
+[[ "$(provenance_value release_profile)" == "$profile_version" && \
+   "$(provenance_value distribution_profile)" == "$profile_version" && \
+   "$(provenance_value production_spec)" == "$production_spec_name" && \
+   "$(provenance_value budget_accommodations)" == "$(jq -r '.accommodations' <<<"$expected_budgets")" && \
+   "$(provenance_value budget_members)" == "$(jq -r '.members' <<<"$expected_budgets")" && \
+   "$(provenance_value budget_reservations)" == "$(jq -r '.reservations' <<<"$expected_budgets")" && \
+   "$(provenance_value budget_reviews)" == "$(jq -r '.reviews' <<<"$expected_budgets")" && \
+   "$(provenance_value budget_active_wishlists)" == "$(jq -r '.activeWishlists' <<<"$expected_budgets")" && \
+   "$(provenance_value budget_wishlist_links)" == "$(jq -r '.wishlistLinks' <<<"$expected_budgets")" ]] \
+  || fail 'provenance profile, specification, or budget contract failed'
 
-migration_checksum_sha=$(jq -r '.migrationChecksumSha256' "$staging_dir/attestation.json")
-schema_fingerprint_sha=$(jq -r '.schemaFingerprintSha256' "$staging_dir/attestation.json")
-expected_table_rows=$(jq -cS '.expectedTableRows' "$staging_dir/attestation.json")
-attestation_captured_at=$(jq -r '.capturedAt' "$staging_dir/attestation.json")
-jq -en \
-  --arg trafficAnchor "$converted_traffic_anchor" \
-  --arg sourceValidUntil "$converted_traffic_valid_until" \
-  --arg attestationCapturedAt "$attestation_captured_at" \
-  --arg evaluationTime "$evaluation_time" \
-  --arg suppliedValidUntil "$valid_until" '
-    $suppliedValidUntil == $sourceValidUntil and
-    ($trafficAnchor | fromdateiso8601) <= ($attestationCapturedAt | fromdateiso8601) and
-    ($attestationCapturedAt | fromdateiso8601) <= ($evaluationTime | fromdateiso8601) and
-    ($evaluationTime | fromdateiso8601) < ($sourceValidUntil | fromdateiso8601) and
-    ($sourceValidUntil | fromdateiso8601) > now
-  ' >/dev/null || fail 'supplied timestamps do not match the attested traffic validity window'
+jq -e -f "$staging/validate-benchmark-dataset-v2.jq" "$staging/benchmark-dataset-v2.json" >/dev/null || fail 'benchmark dataset semantic validation failed'
+jq -e --arg profile "$profile_version" --arg calibrationSha "$(metadata_value source_calibration_sha256)" --arg specSha "$(metadata_value production_spec_sha256)" \
+  --arg sourceInventory "$(metadata_value source_catalog_inventory_fingerprint)" --arg finalWorld "$(metadata_value final_world_fingerprint)" \
+  --arg baseWorld "$(metadata_value base_world_fingerprint)" --arg distribution "$(metadata_value distribution_fingerprint)" \
+  --arg target "$(metadata_value target_fingerprint)" --arg inventory "$(metadata_value inventory_fingerprint)" \
+  --argjson budgets "$expected_budgets" '
+  .schemaVersion == 2 and .datasetVersion == "benchmark-dataset-v2" and .world.version == "world-v2" and
+  .world.provenance.profileVersion == $profile and
+  .world.provenance.calibrationSha256 == $calibrationSha and .world.provenance.specSha256 == $specSha and
+  .world.provenance.sourceInventorySha256 == $sourceInventory and .world.fingerprints["final-world"] == $finalWorld and
+  .world.fingerprints["base-world"] == $baseWorld and .world.provenance.assertionSha256 == $distribution and
+  .targetFingerprint == $target and .world.fingerprints["final-inventory"] == $inventory and
+  (.world.scopeRanges | keys) == ["accommodation","member","payment","payment-transaction","reservation","review","wishlist","wishlist-accommodation"] and
+  all(.world.scopeRanges | to_entries[]; .key == .value.id and .value.minimumId > 0 and
+    .value.maximumId >= .value.minimumId and .value.rowCount == (.value.maximumId - .value.minimumId + 1)) and
+  (.world.scopeRanges | {
+    accommodations: .accommodation.rowCount,
+    members: .member.rowCount,
+    reservations: .reservation.rowCount,
+    reviews: .review.rowCount,
+    activeWishlists: .wishlist.rowCount,
+    wishlistLinks: .["wishlist-accommodation"].rowCount
+  }) == $budgets and
+  ((.world.tableRows | {
+    accommodations: .accommodation,
+    members: .member,
+    reservations: .reservation,
+    reviews: .review,
+    activeWishlists: .wishlist,
+    wishlistLinks: .wishlist_accommodation
+  }) as $finalRows | all($finalRows | to_entries[]; .value >= $budgets[.key]))
+' "$staging/benchmark-dataset-v2.json" >/dev/null || fail 'benchmark manifest release tuple or contiguous base scopes drifted'
+scan_sensitive_file "$staging/source-calibration-v1.json" || fail 'source calibration contains unapproved identity, prose, email, or secret material'
+jq -e --arg inventory "$(metadata_value source_catalog_inventory_fingerprint)" \
+  --argjson budgets "$expected_budgets" '
+  .calibrationVersion=="source-calibration-v1" and .catalogVersion=="source-catalog-v1" and .inventorySha256==$inventory and
+  (.sourceInventory|type=="array" and length>0 and all(.[];
+    (.canonicalPath|type=="string" and length>0 and (startswith("/")|not) and (test("(^|/)\\.\\.(/|$)")|not)) and
+    (.byteSize|type=="number" and floor==. and .>=0) and (.sha256|test("^[0-9a-f]{64}$")) and
+    (.role=="LISTINGS" or .role=="REVIEWS" or .role=="AMENITIES"))) and
+  ([.sourceInventory[].canonicalPath]|unique|length)==(.sourceInventory|length) and
+  (.cohorts|type=="array" and length>0) and
+  .aggregate.counts.uniqueListings >= $budgets.accommodations and
+  .syntheticReviewTemplatePolicy.reviewerIdentityPolicy=="EXCLUDED" and
+  .syntheticReviewTemplatePolicy.reviewProsePolicy=="EXCLUDED" and
+  .syntheticReviewTemplatePolicy.templatePolicy=="VERSIONED_COHORT_TEMPLATE" and
+  ([paths as $p|($p[-1]|tostring|ascii_downcase)|select(.!="revieweridentitypolicy" and .!="reviewprosepolicy")|select(test("reviewer(name|id)|comments|rawreview|raw-review"))]|length==0)
+' "$staging/source-calibration-v1.json" >/dev/null || fail 'source calibration aggregate-only contract failed'
+jq -e --arg profile "$profile_version" --argjson budgets "$expected_budgets" '
+  .profileVersion==$profile and .provenance.generatorVersion=="production-skew-generator-v1" and
+  .provenance.prngAlgorithm=="sha256-splitmix64-counter-v1" and
+  .provenance.seedDerivation=="length-prefixed(profile-version, global-seed, relation-domain, stable-external-key, counter)" and
+  .provenance.globalSeed==20260826 and .provenance.anchor=="2026-07-31T15:00:00Z" and .provenance.timezone=="Asia/Seoul" and
+  (.targets|{accommodations:.accommodations.rowBudget,members:.members.rowBudget,reservations:.reservations.rowBudget,reviews:.reviews.rowBudget,activeWishlists:.activeWishlists.rowBudget,wishlistLinks:.wishlistLinks.rowBudget})==$budgets and
+  ([.targets[]|select(.rowBudget!=null)|.tolerance]|all(.absoluteRows==0 and .relativePercent==0))
+' "$staging/$production_spec_name" >/dev/null || fail 'tracked production-skew specification contract failed'
+jq -e --argjson budgets "$expected_budgets" '
+  (keys|sort)==["canonicalScale","configuredBatchSize","configuredLimits","generatedBudgets","jvmMaxHeapBytes","retainedMaxima","version"] and
+  .version=="generation-qualification-v1" and .canonicalScale==true and .configuredBatchSize==1000 and .jvmMaxHeapBytes==12884901888 and
+  .generatedBudgets==$budgets and
+  .configuredLimits=={completedStayCandidates:30000,completedStays:1000,paymentTransactions:1000,payments:1000,reservations:1000,reviews:30000,wishlistLinks:100000,wishlists:1000} and
+  (.retainedMaxima|keys|sort)==(.configuredLimits|keys|sort) and
+  (.configuredLimits as $l|[.retainedMaxima|to_entries[]|(.value|type=="number" and floor==. and .>0) and (.value<=$l[.key])]|all)
+' "$staging/generation-qualification-v1.json" >/dev/null || fail 'generation qualification receipt contract failed'
+jq -e '.datasetVersion == "nplus1-v1" and .requiredRows == (.maxRequestedSize + 1)' "$staging/benchmark-fixture.json" >/dev/null || fail 'legacy nplus1 contract failed'
+
+traffic_anchor=$(jq -r '.anchorTime' "$staging/traffic-v1.json")
+traffic_valid_until=$(jq -r '.validUntil' "$staging/traffic-v1.json")
+traffic_timezone=$(jq -r '.timezone' "$staging/traffic-v1.json")
+traffic_run_id=$(jq -r '.datasetRunId' "$staging/traffic-v1.json")
+[[ "$traffic_run_id" == "$(metadata_value traffic_dataset_run_id)" && "$traffic_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]] || fail 'traffic run identity drifted'
+converted_anchor=$(local_timestamp_to_utc "$traffic_anchor" "$traffic_timezone") || fail 'traffic anchor is invalid'
+converted_valid_until=$(local_timestamp_to_utc "$traffic_valid_until" "$traffic_timezone") || fail 'traffic validity is invalid'
+[[ "$converted_valid_until" == "$valid_until" ]] || fail 'supplied validity does not match traffic manifest'
+
+attestation_sha=$(sha256_file "$staging/attestation.json")
+jq -e --arg payload "$canonical_payload_sha" --arg dump "$(checksum_digest airbob-production-seed.sql.gz)" \
+  --arg fingerprint "$(checksum_digest database-fingerprint.tsv)" --arg etlCommit "$(awk -F= '$1=="etl_head"{print $2}' "$staging/PROVENANCE.txt")" \
+  --arg finalWorld "$(metadata_value final_world_fingerprint)" --arg baseWorld "$(metadata_value base_world_fingerprint)" \
+  --arg distributionAssertion "$(metadata_value distribution_fingerprint)" \
+  --arg distributionSpec "$(metadata_value production_spec_sha256)" \
+  --arg target "$(metadata_value target_fingerprint)" --arg inventory "$(metadata_value inventory_fingerprint)" '
+  (keys|sort)==(["schemaVersion","sourceReleasePayloadSha256","sourceDumpSha256","restoredDumpSha256","databaseRestoreMethod","sourceDatabaseFingerprintSha256","sourceEtlCommit","databaseServerUuid","verifierContractInventorySha256","databaseFingerprintSha256","verificationOutputSha256","finalWorldFingerprintSha256","baseWorldFingerprintSha256","distributionEvidenceSha256","distributionAssertionSha256","distributionSpecSha256","targetFingerprintSha256","inventoryFingerprintSha256","flywayVersion","flywayHistoryRows","migrationChecksumSha256","schemaFingerprintSha256","outboxState","expectedTableRows","capturedAt"]|sort) and
+  .schemaVersion == 4 and .databaseRestoreMethod == "gzip-to-empty-airbobdb-v2" and
+  .sourceReleasePayloadSha256 == $payload and .sourceDumpSha256 == $dump and .restoredDumpSha256 == $dump and
+  .sourceDatabaseFingerprintSha256 == $fingerprint and .databaseFingerprintSha256 == $fingerprint and
+  .sourceEtlCommit == $etlCommit and .finalWorldFingerprintSha256 == $finalWorld and
+  .baseWorldFingerprintSha256 == $baseWorld and
+  (.distributionEvidenceSha256|test("^[0-9a-f]{64}$")) and
+  .distributionAssertionSha256 == $distributionAssertion and
+  .distributionSpecSha256 == $distributionSpec and .targetFingerprintSha256 == $target and
+  .inventoryFingerprintSha256 == $inventory and .flywayVersion == "27" and .flywayHistoryRows == 27 and
+  .outboxState == "empty" and .expectedTableRows.accommodation_inventory_day == 0
+' "$staging/attestation.json" >/dev/null || fail 'attestation does not bind the source v2 release'
+captured_at=$(jq -r '.capturedAt' "$staging/attestation.json")
+jq -en --arg anchor "$converted_anchor" --arg captured "$captured_at" --arg evaluation "$evaluation_time" --arg finish "$valid_until" \
+  '($anchor|fromdateiso8601) <= ($captured|fromdateiso8601) and ($captured|fromdateiso8601) <= ($evaluation|fromdateiso8601) and ($evaluation|fromdateiso8601) < ($finish|fromdateiso8601)' >/dev/null || fail 'attestation timestamp is outside the release window'
 
 search_json='{"enabled":false}'
 if [[ -n "$snapshot_reference_file" ]]; then
-  require_small_text_file "$staging_dir/snapshot-reference.json" 1048576
-  jq -se \
-    --arg release "$dataset_release" '
-    def exact_keys($wanted): (keys | sort) == ($wanted | sort);
-    def sha256: type == "string" and test("^[0-9a-f]{64}$");
-    def image_digest: type == "string" and test("^sha256:[0-9a-f]{64}$");
-    length == 1 and
-    (.[0] |
-      exact_keys([
-        "schemaVersion", "repository", "bucket", "basePath", "snapshot",
-        "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest",
-        "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256",
-        "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256",
-        "contentFingerprintSha256"
-      ]) and
-      .schemaVersion == 2 and
-      .repository == "airbob-dataset-readonly" and
-      .bucket == "airbob-performance-lab-dataset-942632789808" and
-      .basePath == ("elasticsearch/releases/" + $release) and
-      .snapshot == ("airbob-" + $release) and
-      .logicalAlias == "accommodations" and
-      (.snapshotIndex | type == "string" and
-        test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
-      .elasticsearchVersion == "8.18.8" and
-      (.imageDigest | image_digest) and
-      (.documentCount | type == "number" and floor == . and . > 0) and
-      (.mappingSha256 | sha256) and
-      (.dbIdsSha256 | sha256) and
-      (.esIdsSha256 | sha256) and
-      .dbIdsSha256 == .esIdsSha256 and
-      (.dbDocumentIdentityPairsSha256 | sha256) and
-      (.esDocumentIdentityPairsSha256 | sha256) and
-      .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256 and
-      (.contentFingerprintSha256 | sha256) and
-      ([.. | objects | keys[]] | all(
-        test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-      )) and
-      ([.. | strings] | all(
-        test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not
-      ))
-    )
-  ' "$staging_dir/snapshot-reference.json" >/dev/null \
-    || fail 'Elasticsearch snapshot reference does not satisfy the release contract'
-  search_json=$(jq -cS '
-    {
-      enabled: true,
-      snapshotReferenceKey: "elasticsearch/snapshot-reference.json",
-      repository: .repository,
-      elasticsearchVersion: .elasticsearchVersion,
-      imageDigest: .imageDigest,
-      requiredPlugins: ["analysis-nori", "repository-s3"],
-      logicalAlias: .logicalAlias,
-      snapshotIndex: .snapshotIndex,
-      documentCount: .documentCount,
-      mappingSha256: .mappingSha256,
-      databaseAccommodationIdsSha256: .dbIdsSha256,
-      elasticsearchAccommodationIdsSha256: .esIdsSha256,
-      databaseDocumentIdentityPairsSha256: .dbDocumentIdentityPairsSha256,
-      elasticsearchDocumentIdentityPairsSha256: .esDocumentIdentityPairsSha256,
-      contentFingerprintSha256: .contentFingerprintSha256
-    }
-  ' "$staging_dir/snapshot-reference.json")
+  jq -e --arg release "$dataset_release" '
+    .schemaVersion == 2 and .repository == "airbob-dataset-readonly" and
+    .basePath == ("elasticsearch/releases/" + $release) and .logicalAlias == "accommodations" and
+    .dbIdsSha256 == .esIdsSha256 and .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256
+  ' "$staging/snapshot-reference.json" >/dev/null || fail 'snapshot reference contract failed'
+  search_json=$(jq -cS '{enabled:true,snapshotReferenceKey:"elasticsearch/snapshot-reference.json",repository:.repository,elasticsearchVersion:.elasticsearchVersion,imageDigest:.imageDigest,requiredPlugins:["analysis-nori","repository-s3"],logicalAlias:.logicalAlias,snapshotIndex:.snapshotIndex,documentCount:.documentCount,mappingSha256:.mappingSha256,databaseAccommodationIdsSha256:.dbIdsSha256,elasticsearchAccommodationIdsSha256:.esIdsSha256,databaseDocumentIdentityPairsSha256:.dbDocumentIdentityPairsSha256,elasticsearchDocumentIdentityPairsSha256:.esDocumentIdentityPairsSha256,contentFingerprintSha256:.contentFingerprintSha256}' "$staging/snapshot-reference.json")
 fi
 
-mkdir -m 700 "$incomplete_dir/benchmark" "$incomplete_dir/mysql"
-if [[ -n "$snapshot_reference_file" ]]; then
-  mkdir -m 700 "$incomplete_dir/elasticsearch"
-  cp "$staging_dir/snapshot-reference.json" "$incomplete_dir/elasticsearch/snapshot-reference.json"
-  chmod 600 "$incomplete_dir/elasticsearch/snapshot-reference.json"
-  cmp -s "$staging_dir/snapshot-reference.json" "$incomplete_dir/elasticsearch/snapshot-reference.json" \
-    || fail 'Elasticsearch snapshot reference byte copy failed'
-fi
-cp "$staging_dir/benchmark-fixture.json" "$incomplete_dir/benchmark/manifest.json"
-chmod 600 "$incomplete_dir/benchmark/manifest.json"
-benchmark_manifest_sha=$(sha256_file "$incomplete_dir/benchmark/manifest.json")
-[[ "$benchmark_manifest_sha" == "$(sha256_file "$staging_dir/benchmark-fixture.json")" ]] \
-  || fail 'benchmark fixture byte copy failed'
-
-source_sql_sha=$(gzip -dc "$staging_dir/airbob-production-seed.sql.gz" | sha256_stream) \
-  || fail 'ETL source database dump is not valid gzip'
-gzip -dc "$staging_dir/airbob-production-seed.sql.gz" \
-  | zstd --threads=1 --no-progress --quiet --stdout \
-    > "$incomplete_dir/mysql/airbob.sql.zst" \
-  || fail 'unable to convert the ETL dump to zstd'
-chmod 600 "$incomplete_dir/mysql/airbob.sql.zst"
-[[ -s "$incomplete_dir/mysql/airbob.sql.zst" ]] \
-  || fail 'assembled zstd database dump is empty'
-released_sql_sha=$(zstd --quiet --decompress --stdout \
-  "$incomplete_dir/mysql/airbob.sql.zst" | sha256_stream) \
-  || fail 'assembled database dump is not valid zstd'
-[[ "$source_sql_sha" =~ ^[0-9a-f]{64}$ \
-  && "$source_sql_sha" != e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 \
-  && "$source_sql_sha" == "$released_sql_sha" ]] \
-  || fail 'gzip to zstd conversion did not preserve the SQL bytes'
-
+mkdir -m 700 "$incomplete_dir/attestation" "$incomplete_dir/benchmark" "$incomplete_dir/mysql"
+cp "$staging/attestation.json" "$incomplete_dir/attestation/restore.json"
+cp "$staging/benchmark-fixture.json" "$incomplete_dir/benchmark/manifest.json"
+cp "$staging/benchmark-dataset-v2.json" "$incomplete_dir/benchmark/dataset-manifest.json"
+cp "$staging/source-calibration-v1.json" "$incomplete_dir/benchmark/source-calibration-v1.json"
+cp "$staging/$production_spec_name" "$incomplete_dir/benchmark/$production_spec_name"
+cp "$staging/generation-qualification-v1.json" "$incomplete_dir/benchmark/generation-qualification-v1.json"
+cp "$staging/validate-benchmark-dataset-v2.jq" "$incomplete_dir/benchmark/validate-benchmark-dataset-v2.jq"
+cp "$staging/database-fingerprint.tsv" "$incomplete_dir/mysql/database-fingerprint.tsv"
+if [[ -n "$snapshot_reference_file" ]]; then mkdir -m 700 "$incomplete_dir/elasticsearch"; cp "$staging/snapshot-reference.json" "$incomplete_dir/elasticsearch/snapshot-reference.json"; fi
+gzip -dc "$staging/airbob-production-seed.sql.gz" | zstd --threads=1 --no-progress --quiet --stdout > "$incomplete_dir/mysql/airbob.sql.zst" || fail 'dump conversion failed'
 dump_sha=$(sha256_file "$incomplete_dir/mysql/airbob.sql.zst")
 printf '%s  airbob.sql.zst\n' "$dump_sha" > "$incomplete_dir/mysql/sha256.txt"
-chmod 600 "$incomplete_dir/mysql/sha256.txt"
+chmod 600 "$incomplete_dir"/{attestation,benchmark,mysql}/*
+[[ -z "$snapshot_reference_file" ]] || chmod 600 "$incomplete_dir/elasticsearch/snapshot-reference.json"
 
-cleanup_staging
-staging_dir=''
-
+benchmark_manifest_sha=$(sha256_file "$incomplete_dir/benchmark/manifest.json")
+dataset_manifest_sha=$(sha256_file "$incomplete_dir/benchmark/dataset-manifest.json")
+validator_sha=$(sha256_file "$incomplete_dir/benchmark/validate-benchmark-dataset-v2.jq")
+expected_rows=$(jq -cS '.expectedTableRows' "$incomplete_dir/attestation/restore.json")
+etl_commit=$(jq -r '.sourceEtlCommit' "$incomplete_dir/attestation/restore.json")
+migration_sha=$(jq -r '.migrationChecksumSha256' "$incomplete_dir/attestation/restore.json")
+schema_sha=$(jq -r '.schemaFingerprintSha256' "$incomplete_dir/attestation/restore.json")
 jq -nS \
-  --arg datasetRelease "$dataset_release" \
-  --arg datasetRunId "$metadata_traffic_run_id" \
-  --arg etlCommit "$etl_commit" \
-  --arg profile "$profile" \
-  --arg canonicalPayloadSha256 "$canonical_payload_sha" \
-  --arg benchmarkManifestSha256 "$benchmark_manifest_sha" \
-  --arg dumpSha256 "$dump_sha" \
-  --arg migrationChecksumSha256 "$migration_checksum_sha" \
-  --arg schemaFingerprintSha256 "$schema_fingerprint_sha" \
-  --arg evaluationTime "$evaluation_time" \
-  --arg validUntil "$valid_until" \
-  --argjson search "$search_json" \
-  --argjson expectedTableRows "$expected_table_rows" '
+  --arg release "$dataset_release" --arg runId "$traffic_run_id" --arg etlCommit "$etl_commit" \
+  --arg payload "$canonical_payload_sha" --arg legacySha "$benchmark_manifest_sha" --arg manifestSha "$dataset_manifest_sha" \
+  --arg validatorSha "$validator_sha" --arg calibrationSha "$(metadata_value source_calibration_sha256)" \
+  --arg profileVersion "$profile_version" --arg productionSpecKey "$production_spec_key" \
+  --arg specSha "$(metadata_value production_spec_sha256)" --arg qualificationSha "$(metadata_value generation_qualification_sha256)" \
+  --arg fingerprintSha "$(metadata_value fingerprint_sha256)" --arg attestationSha "$attestation_sha" \
+  --arg sourceInventory "$(metadata_value source_catalog_inventory_fingerprint)" --arg dumpSha "$dump_sha" \
+  --arg migrationSha "$migration_sha" --arg schemaSha "$schema_sha" --arg evaluation "$evaluation_time" --arg validUntil "$valid_until" \
+  --arg finalWorld "$(metadata_value final_world_fingerprint)" --arg baseWorld "$(metadata_value base_world_fingerprint)" \
+  --arg distribution "$(metadata_value distribution_fingerprint)" --arg target "$(metadata_value target_fingerprint)" \
+  --arg inventory "$(metadata_value inventory_fingerprint)" --argjson expectedRows "$expected_rows" --argjson search "$search_json" '
   {
-    schemaVersion: 1,
-    releaseKind: "pipeline-rehearsal",
-    datasetRelease: $datasetRelease,
-    datasetRunId: $datasetRunId,
-    source: {
-      datasetVersion: "nplus1-v1",
-      etlCommit: $etlCommit,
-      seed: "airbob-production-seed-v1",
-      profile: $profile,
-      manifestVersion: "benchmark-fixture-v1",
-      canonicalPayloadSha256: $canonicalPayloadSha256,
-      benchmarkManifestKey: "benchmark/manifest.json",
-      benchmarkManifestSha256: $benchmarkManifestSha256
-    },
-    mysql: {
-      dumpKey: "mysql/airbob.sql.zst",
-      dumpSha256: $dumpSha256,
-      flywayVersion: "27",
-      migrationChecksumSha256: $migrationChecksumSha256,
-      schemaFingerprintSha256: $schemaFingerprintSha256,
-      timezone: "UTC",
-      evaluationTime: $evaluationTime,
-      validUntil: $validUntil,
-      outboxPolicy: "absent",
-      expectedTableRows: $expectedTableRows
-    },
-    couponPreparation: [],
-    kafka: {
-      topics: [
-        {name: "PAYMENT_OPERATION.events", partitions: 3, retentionMs: 86400000},
-        {name: "PAYMENT_OPERATION.events.RETRY", partitions: 3, retentionMs: 86400000},
-        {name: "PAYMENT_OPERATION.events.DLT", partitions: 3, retentionMs: 86400000},
-        {name: "ACCOMMODATION_INDEX.events", partitions: 3, retentionMs: 86400000},
-        {name: "ACCOMMODATION_INDEX.events.RETRY", partitions: 3, retentionMs: 86400000},
-        {name: "ACCOMMODATION_INDEX.events.DLT", partitions: 3, retentionMs: 86400000},
-        {name: "ACCOMMODATION_CACHE.events", partitions: 3, retentionMs: 86400000},
-        {name: "ACCOMMODATION_CACHE.events.RETRY", partitions: 3, retentionMs: 86400000},
-        {name: "ACCOMMODATION_CACHE.events.DLT", partitions: 3, retentionMs: 86400000},
-        {name: "OPERATOR_ALERT.events", partitions: 3, retentionMs: 86400000},
-        {name: "OPERATOR_ALERT.events.RETRY", partitions: 3, retentionMs: 86400000},
-        {name: "OPERATOR_ALERT.events.DLT", partitions: 3, retentionMs: 86400000}
-      ]
-    },
-    search: $search
+    schemaVersion:2, releaseKind:"pipeline-rehearsal", datasetRelease:$release, datasetRunId:$runId,
+    releaseTuple:{datasetVersion:"benchmark-dataset-v2",worldVersion:"world-v2",calibrationVersion:"source-calibration-v1",profileVersion:$profileVersion,generatorVersion:"production-skew-generator-v1",dumpSha256:$dumpSha,migrationChecksumSha256:$migrationSha,schemaFingerprintSha256:$schemaSha,manifestSha256:$manifestSha,validatorSha256:$validatorSha,calibrationSha256:$calibrationSha,specSha256:$specSha,qualificationSha256:$qualificationSha,databaseFingerprintSha256:$fingerprintSha,attestationSha256:$attestationSha,finalWorldFingerprintSha256:$finalWorld,baseWorldFingerprintSha256:$baseWorld,distributionFingerprintSha256:$distribution,targetFingerprintSha256:$target,inventoryFingerprintSha256:$inventory},
+    source:{datasetVersion:"benchmark-dataset-v2",worldVersion:"world-v2",etlCommit:$etlCommit,seed:"airbob-production-seed-v2",profile:"large",manifestVersion:"benchmark-dataset-v2",canonicalPayloadSha256:$payload,legacyBenchmarkManifestKey:"benchmark/manifest.json",legacyBenchmarkManifestSha256:$legacySha,benchmarkDatasetManifestKey:"benchmark/dataset-manifest.json",benchmarkDatasetManifestSha256:$manifestSha,validatorKey:"benchmark/validate-benchmark-dataset-v2.jq",validatorSha256:$validatorSha,calibrationKey:"benchmark/source-calibration-v1.json",calibrationSha256:$calibrationSha,productionSpecKey:$productionSpecKey,productionSpecSha256:$specSha,generationQualificationKey:"benchmark/generation-qualification-v1.json",generationQualificationSha256:$qualificationSha,databaseFingerprintKey:"mysql/database-fingerprint.tsv",databaseFingerprintSha256:$fingerprintSha,attestationKey:"attestation/restore.json",attestationSha256:$attestationSha,sourceInventorySha256:$sourceInventory},
+    mysql:{dumpKey:"mysql/airbob.sql.zst",dumpSha256:$dumpSha,flywayVersion:"27",migrationChecksumSha256:$migrationSha,schemaFingerprintSha256:$schemaSha,timezone:"UTC",evaluationTime:$evaluation,validUntil:$validUntil,outboxPolicy:"absent",expectedTableRows:$expectedRows},
+    couponPreparation:[], kafka:{topics:["PAYMENT_OPERATION.events","PAYMENT_OPERATION.events.RETRY","PAYMENT_OPERATION.events.DLT","ACCOMMODATION_INDEX.events","ACCOMMODATION_INDEX.events.RETRY","ACCOMMODATION_INDEX.events.DLT","ACCOMMODATION_CACHE.events","ACCOMMODATION_CACHE.events.RETRY","ACCOMMODATION_CACHE.events.DLT","OPERATOR_ALERT.events","OPERATOR_ALERT.events.RETRY","OPERATOR_ALERT.events.DLT"]|map({name:.,partitions:3,retentionMs:86400000})}, search:$search
   }
-' > "$incomplete_dir/.manifest.json.tmp"
-chmod 600 "$incomplete_dir/.manifest.json.tmp"
-mv "$incomplete_dir/.manifest.json.tmp" "$incomplete_dir/manifest.json"
+' > "$incomplete_dir/manifest.json"
+chmod 600 "$incomplete_dir/manifest.json"
+find "$staging" -depth -mindepth 1 -delete
+rmdir "$staging"
 
-script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
-validator="$script_dir/verify-dataset-release.sh"
-[[ -x "$validator" && ! -L "$validator" ]] \
-  || fail 'dataset release validator is missing or unsafe'
-"$validator" "$incomplete_dir" "$dataset_release" pipeline-rehearsal >/dev/null \
-  || fail 'assembled dataset release failed local verification'
-
-actual_inventory=$(CDPATH= cd -P -- "$incomplete_dir" && find . -mindepth 1 -print | sort)
-expected_inventory_entries=(
-  './benchmark'
-  './benchmark/manifest.json'
-)
-if [[ -n "$snapshot_reference_file" ]]; then
-  expected_inventory_entries+=(
-    './elasticsearch'
-    './elasticsearch/snapshot-reference.json'
-  )
-fi
-expected_inventory_entries+=(
-  './manifest.json'
-  './mysql'
-  './mysql/airbob.sql.zst'
-  './mysql/sha256.txt'
-)
-expected_inventory=$(printf '%s\n' "${expected_inventory_entries[@]}")
-[[ "$actual_inventory" == "$expected_inventory" ]] \
-  || fail 'assembled dataset release contains an unexpected artifact'
-output_files=(
-  "$incomplete_dir/manifest.json" \
-  "$incomplete_dir/benchmark/manifest.json" \
-  "$incomplete_dir/mysql/airbob.sql.zst" \
-  "$incomplete_dir/mysql/sha256.txt"
-)
-if [[ -n "$snapshot_reference_file" ]]; then
-  output_files+=("$incomplete_dir/elasticsearch/snapshot-reference.json")
-fi
-for output_file in "${output_files[@]}"; do
-  [[ -f "$output_file" && ! -L "$output_file" ]] \
-    || fail 'assembled dataset release contains an unsafe artifact'
-done
-
-[[ ! -e "$final_dir" && ! -L "$final_dir" ]] \
-  || fail 'final dataset release appeared before atomic promotion'
+"$release_validator" "$incomplete_dir" "$dataset_release" pipeline-rehearsal >/dev/null || fail 'assembled release failed v2 verification'
+[[ ! -e "$final_dir" && ! -L "$final_dir" ]] || fail 'final release appeared before promotion'
 mv "$incomplete_dir" "$final_dir"
-incomplete_dir=''
-incomplete_created=false
-rmdir "$release_lock_dir" || fail 'unable to release the dataset assembly lock'
-lock_acquired=false
+owned_incomplete=false
+rmdir "$lock_dir"
+owned_lock=false
 trap - EXIT HUP INT TERM
 printf '%s\n' 'dataset release assembled and verified'

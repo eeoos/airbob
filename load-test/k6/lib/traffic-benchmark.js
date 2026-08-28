@@ -1,5 +1,6 @@
 import crypto from 'k6/crypto';
 
+import { parseBenchmarkDatasetManifest } from './benchmark-dataset-manifest.js';
 import { parseBenchmarkManifest } from './benchmark-manifest.js';
 import {
   parseDurationSeconds,
@@ -43,20 +44,36 @@ function canonicalTarget(raw, targetNames) {
   return value;
 }
 
-export function parseTrafficRunConfig(environment, manifestRaw, targetNames) {
+function parseLegacyResultPath(raw, canonicalPath) {
+  const resultPath = raw || canonicalPath;
   requireCondition(
-    manifestRaw instanceof ArrayBuffer
-      || typeof manifestRaw === 'string',
-    'BENCHMARK_MANIFEST content is required',
+    resultPath === canonicalPath,
+    'K6_RESULT_PATH must match the canonical traffic artifact path',
+  );
+  return resultPath;
+}
+
+function parseDatasetResultPath(raw, canonicalPath) {
+  requireCondition(
+    raw === undefined || raw === canonicalPath,
+    'K6_RESULT_PATH must match the canonical traffic artifact path',
+  );
+  return canonicalPath;
+}
+
+function parseTrafficRunConfigCore(environment, manifestRaw, targetNames, contract) {
+  requireCondition(
+    manifestRaw instanceof ArrayBuffer || typeof manifestRaw === 'string',
+    contract.manifestContentError,
   );
   const manifestText = typeof manifestRaw === 'string'
     ? manifestRaw
     : String.fromCharCode(...new Uint8Array(manifestRaw));
-  const manifest = parseBenchmarkManifest(manifestText);
+  const manifest = contract.parseManifest(manifestText);
   const mode = parseRequiredText(environment.MODE, 'MODE');
   requireCondition(['inspect', 'warmup', 'measure'].includes(mode), 'MODE is invalid');
   const role = parseRequiredText(environment.ROLE, 'ROLE');
-  requireCondition(role === 'guest', 'ROLE must be guest for the first vertical slice');
+  requireCondition(role === 'guest', contract.roleError);
   const target = canonicalTarget(environment.TARGET, targetNames);
   const rate = parsePositiveInteger(environment.RATE, 'RATE');
   const duration = parseRequiredText(environment.DURATION, 'DURATION');
@@ -84,11 +101,9 @@ export function parseTrafficRunConfig(environment, manifestRaw, targetNames) {
     environment.APP_INSTANCE_COUNT,
     'APP_INSTANCE_COUNT',
   );
-  const defaultResultPath = `build/k6/traffic/${runLabel}.json`;
-  const resultPath = environment.K6_RESULT_PATH || defaultResultPath;
-  requireCondition(
-    resultPath === defaultResultPath,
-    'K6_RESULT_PATH must match the canonical traffic artifact path',
+  const resultPath = contract.parseResultPath(
+    environment.K6_RESULT_PATH,
+    `build/k6/traffic/${runLabel}.json`,
   );
 
   return {
@@ -109,9 +124,31 @@ export function parseTrafficRunConfig(environment, manifestRaw, targetNames) {
     resultPath,
     manifest,
     manifestSha256: crypto.sha256(manifestText, 'hex'),
-    releaseKind: 'pipeline-rehearsal',
-    claimScope: 'pipeline-only',
+    releaseKind: contract.releaseKind,
+    claimScope: contract.claimScope(manifest),
   };
+}
+
+export function parseTrafficRunConfig(environment, manifestRaw, targetNames) {
+  return parseTrafficRunConfigCore(environment, manifestRaw, targetNames, {
+    manifestContentError: 'BENCHMARK_MANIFEST content is required',
+    parseManifest: parseBenchmarkManifest,
+    roleError: 'ROLE must be guest for the first vertical slice',
+    parseResultPath: parseLegacyResultPath,
+    releaseKind: 'pipeline-rehearsal',
+    claimScope: () => 'pipeline-only',
+  });
+}
+
+export function parseDatasetTrafficRunConfig(environment, manifestRaw, targetNames) {
+  return parseTrafficRunConfigCore(environment, manifestRaw, targetNames, {
+    manifestContentError: 'BENCHMARK_DATASET_MANIFEST content is required',
+    parseManifest: parseBenchmarkDatasetManifest,
+    roleError: 'ROLE must be guest for dataset read experiments',
+    parseResultPath: parseDatasetResultPath,
+    releaseKind: 'pipeline-rehearsal',
+    claimScope: () => 'pipeline-only',
+  });
 }
 
 function arrivalRateScenario(config, exec) {

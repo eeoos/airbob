@@ -145,6 +145,14 @@ assert.deepEqual(
 );
 assert.equal(JSON.stringify(valid).includes('password'), false);
 
+const zeroSql = aggregateTrafficResult(fixture({
+  metadata: { ...fixture().metadata, expectedSqlCallsPerRequest: 0 },
+  after: fixture().before,
+}));
+assert.equal(zeroSql.validity.status, 'valid');
+assert.equal(zeroSql.sql.attribution.expectedCalls, 0);
+assert.equal(zeroSql.sql.attribution.observedCalls, 0);
+
 const ambientAfter = snapshot([
   { digest: '1'.repeat(64), text: 'SELECT * FROM accommodation WHERE id = ?', count: 11, timerWait: 1_500_000_000, rowsExamined: 11, rowsSent: 11 },
   { digest: '2'.repeat(64), text: 'SELECT * FROM image WHERE accommodation_id = ?', count: 20, timerWait: 2_000_000_000, rowsExamined: 40, rowsSent: 20 },

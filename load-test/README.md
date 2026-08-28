@@ -16,7 +16,7 @@
 5. 한 실행의 각 요청에는 서로 다른 회원의 유효한 `SESSION_ID`를 하나씩 사용한다. 한 회원의 세션 토큰을 여러 개 넣는 것도 중복 요청이므로 허용하지 않는다.
 6. 애플리케이션 빌드, 인스턴스 수, DB/Redis 위치, RATE/DURATION, 쿠폰 수량을 두 전략에서 동일하게 유지한다.
 
-이 브랜치는 과거 V1~V33을 하나의 V1로 압축한 Flyway baseline 계보를 사용한다. 측정 DB는 현재 브랜치의 schema history와 일치해야 한다. 압축 전 `flyway_schema_history`가 남은 RDS에 별도 이전 계획 없이 연결하지 않는다.
+측정 DB는 현재 브랜치의 Flyway V1~V27 schema history와 정확히 일치해야 한다. V25는 예약이 0행인 상태에서만 적용할 수 있으므로, 빈 DB에 V1~V27을 먼저 적용한 뒤 ETL dataset을 적재한다.
 
 ## 애플리케이션 실행 조건
 
@@ -54,18 +54,37 @@ WHERE c.is_active = TRUE
 
 ## 1. 고유 회원 세션 fixture 준비
 
-예제 파일을 복사한 뒤 실제 세션으로 교체한다.
+ETL release의 `coupon-accounts-v1` capsule은 서로 다른 로그인 계정과 capacity를 제공한다. 측정 직전에 이 계정들로 로그인해 mode `0600` 세션 파일을 만든다. 비밀번호는 manifest에 들어가지 않으며, ETL 적재 때 사용한 값과 같은 비밀번호 파일을 전달해야 한다.
 
 ```bash
-cp load-test/fixtures/coupon-sessions.example.json \
-  load-test/fixtures/coupon-sessions.json
+export BASE_URL="${BASE_URL:-https://api.airbob.cloud}"
+export BENCHMARK_DATASET_MANIFEST="$(pwd)/build/benchmark-dataset-v1.json"
+export SESSION_FIXTURE="$(pwd)/load-test/fixtures/coupon-sessions.json"
+
+umask 077
+read -rsp 'Coupon benchmark account password: ' COUPON_ACCOUNT_PASSWORD
+printf '%s' "${COUPON_ACCOUNT_PASSWORD}" > build/coupon-account-password
+unset COUPON_ACCOUNT_PASSWORD
+
+node load-test/k6/coupon/prepare-coupon-sessions.js \
+  --base-url "${BASE_URL}" \
+  --manifest "${BENCHMARK_DATASET_MANIFEST}" \
+  --password-file "$(pwd)/build/coupon-account-password" \
+  --session-output "${SESSION_FIXTURE}" \
+  --required-capacity 15001 \
+  --concurrency 20
+
+rm build/coupon-account-password
 ```
 
-형식은 다음과 같다.
+`15001`은 `RATE=500`, `DURATION=30s`일 때 필요한 `ceil(500 × 30) + 1`이다. ETL의 `--coupon-account-capacity`도 이 값 이상이어야 하며, capsule과 k6가 각각 capacity 부족을 네트워크 요청 전에 거부한다. 더 작은 기본 실행(`100 RPS × 30s`)에는 `3001`이 필요하다.
+
+생성되는 파일 형식은 다음과 같다.
 
 ```json
 {
-  "datasetVersion": "coupon-issuance-v1",
+  "datasetVersion": "coupon-issuance-v2",
+  "benchmarkDatasetManifestSha256": "<benchmark-dataset-v1.json SHA-256>",
   "sessions": [
     "member-1-session-id",
     "member-2-session-id"
@@ -74,7 +93,9 @@ cp load-test/fixtures/coupon-sessions.example.json \
 ```
 
 - 실제 파일은 `.gitignore`에 포함되어 있다. 비밀번호나 세션을 커밋하지 않는다.
-- 각 값은 서로 다른 회원에 연결되어야 한다. 스크립트는 토큰 문자열 중복은 검사하지만 토큰이 같은 회원을 가리키는지는 알 수 없다.
+- preparer는 V27 world, 여섯 observed distribution, 모든 capsule 분포 계약을 로그인 전에 검증하고, capsule의 고유 이메일과 capacity, 응답 세션 중복, 비밀번호 파일과 출력 파일의 권한을 fail-closed로 검사한다.
+- 로그인 요청과 JSON 본문 읽기는 제한 시간 안에 끝나야 한다. 동시 로그인 중 하나가 실패하면 새 계정 할당을 멈추고 진행 중 요청을 기다린 뒤, 이미 발급된 세션에 logout을 best-effort로 수행하고 fixture를 남기지 않는다. logout은 HTTP 200만 성공으로 인정하며, HTTP 오류나 timeout이 있으면 실패 건수만 경고한 뒤 원래 준비 오류로 종료한다.
+- 기존 `SESSION_FIXTURE`를 덮어쓰지 않으므로 새 측정 전 이전 파일을 안전하게 폐기한 뒤 실행한다. 로컬 loopback 서버에서만 준비할 때는 `AIRBOB_SESSION_PREPARATION_TEST_MODE=1`과 `http://127.0.0.1:<port>`를 함께 사용한다.
 - 현재 애플리케이션 세션 TTL은 1시간이다. 기존 회원 준비/로그인 절차로 실행 직전에 새로 만들고, 전체 측정이 1시간을 넘으면 다시 발급한다.
 - 한 실행에 필요한 최소 세션 수는 k6 경계 스케줄 1건을 포함한 `ceil(RATE × DURATION(초)) + 1`이다. 부족하면 네트워크 요청을 보내기 전에 실행을 중단한다.
 - `SESSION_FIXTURE`에는 k6 스크립트 기준 상대 경로가 아니라 절대 경로를 넣는다.
@@ -109,8 +130,9 @@ curl -sS -X POST \
 공통 값을 먼저 준비한다.
 
 ```bash
-export BASE_URL=http://localhost:8080
+export BASE_URL="${BASE_URL:-https://api.airbob.cloud}"
 export SESSION_FIXTURE="$(pwd)/load-test/fixtures/coupon-sessions.json"
+export BENCHMARK_DATASET_MANIFEST="$(pwd)/build/benchmark-dataset-v1.json"
 export APP_VERSION="$(git rev-parse --short HEAD)"
 export APP_INSTANCE_COUNT=1
 mkdir -p build/k6
@@ -313,30 +335,79 @@ Wishlist DELETE와 ReservationHistory INSERT 비교는 운영 DB와 분리된 �
 
 ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상태 변경, 쿠폰 복원, history 쓰기만 비교한다. 예약용 외부 임시 재고나 분산 락은 측정 범위에 없으며, 앞의 쿠폰 발급 lock/Lua 비교와는 서로 다른 실험이다.
 
+이 실험은 공용 AWS world를 수정하지 않는다. `bulk-expiration-history-v1`은 전용
+`*_bulk_write_benchmark` 스키마에서 요청마다 fixture를 생성·검증·삭제하는 로컬
+쓰기 프로토콜이다. 서버 guard와 fixture preflight는 AWS/OCI profile, 다른 스키마,
+기존 만료 대상 예약을 거부한다. launcher는 manifest의 최대 bucket과 맞도록 한 번의
+cleanup 상한을 2,000으로 고정한다.
+
 ```bash
 read -rsp 'Bulk write benchmark token: ' BENCHMARK_BULK_WRITE_TOKEN
+printf '\n'
 export BENCHMARK_BULK_WRITE_TOKEN
 export BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA=airbob_bulk_write_benchmark
+export JDBC_REWRITE_BATCHED_STATEMENTS=true
+export BENCHMARK_DATASET_MANIFEST="$(pwd)/build/benchmark-dataset-v1.json"
 load-test/k6/bulk-write/run-bulk-write-benchmark-server.sh
 ```
 
-launcher는 자격 증명을 명령 인자나 출력에 넣지 않고 자식 환경으로만 전달한다. 또한 `BENCHMARK_BULK_WRITE_ENABLED=true`, profile 순서 `dev,bulk-write-benchmark`, Hibernate `show_sql`/`format_sql`과 SQL/bind/동결 BEFORE logger의 `OFF`를 강제한다. 설정 우회를 막기 위해 추가 Gradle 인자를 받지 않는다. 측정 뒤 서버를 중지하고 실행 셸에서 두 `BENCHMARK_BULK_WRITE_*` 값을 해제한다.
+launcher는 자격 증명을 명령 인자나 출력에 넣지 않고 자식 환경으로만 전달한다. 또한 `BENCHMARK_BULK_WRITE_ENABLED=true`, profile 순서 `dev,bulk-write-benchmark`, Hibernate `show_sql`/`format_sql`과 SQL/bind/동결 BEFORE logger의 `OFF`를 강제한다. 설정 우회를 막기 위해 추가 Gradle 인자를 받지 않는다. 측정 뒤 서버를 중지하고 실행 셸에서 `unset BENCHMARK_BULK_WRITE_TOKEN BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA JDBC_REWRITE_BATCHED_STATEMENTS BENCHMARK_DATASET_MANIFEST`를 실행한다.
 
 ### Bulk write raw observation 측정
 
 통계용 측정은 단일 k6 실행에서 여러 표본을 모으지 않는다. 같은 공개 실험 메타데이터와 자격 증명 환경 변수를 준비한 뒤 candidate별 wrapper가 표본마다 `SAMPLES=1`인 격리된 child artifact를 순서대로 만든다. `RUN_LABEL`은 영문자·숫자·점·밑줄·하이픈만 사용하고 결과 경로는 실행 전에 존재하지 않아야 한다.
 
-ReservationHistory INSERT는 다음과 같이 실행한다.
+ReservationHistory INSERT 부하 발생기 셸에서는 먼저 다음 공통 계약을 준비한다.
+`SCHEMA_LABEL`, `JVM_VERSION`, `MYSQL_VERSION`은 임의 설명이 아니라 각각 benchmark
+서버의 `SELECT DATABASE()`, `java -version`, `SELECT VERSION()` 결과와 대조한 공개
+표식이다. `REWRITE_BATCHED_STATEMENTS`는 위 서버의
+`JDBC_REWRITE_BATCHED_STATEMENTS`와 반드시 같은 값이어야 한다. 로그인 비밀번호와
+서버 토큰은 명령행이나 파일에 하드코딩하지 않고 숨김 입력으로만 받는다.
+
+```bash
+export DATASET_SIZE=2000
+export APP_COMMIT="$(git rev-parse HEAD)"
+export APP_INSTANCE_COUNT=1
+export SCHEMA_LABEL=airbob_bulk_write_benchmark
+read -rp 'JVM version label from benchmark server (java -version): ' JVM_VERSION
+export JVM_VERSION
+read -rp 'MySQL version label from SELECT VERSION(): ' MYSQL_VERSION
+export MYSQL_VERSION
+export REWRITE_BATCHED_STATEMENTS=true
+export BENCHMARK_DATASET_MANIFEST="$(pwd)/build/benchmark-dataset-v1.json"
+read -rp 'Benchmark account email: ' BENCHMARK_EMAIL
+export BENCHMARK_EMAIL
+read -rsp 'Benchmark account password: ' TEST_PASSWORD
+printf '\n'
+export TEST_PASSWORD
+read -rsp 'Bulk write benchmark token: ' BENCHMARK_BULK_WRITE_TOKEN
+printf '\n'
+export BENCHMARK_BULK_WRITE_TOKEN
+```
+
+`APP_COMMIT`은 축약 SHA가 아닌 배포한 앱과 일치하는 40자리 commit이어야 한다.
+위 명령은 현재 checkout의 full commit을 사용하므로, 다른 이미지를 측정한다면 해당
+이미지의 full commit으로 바꾼다. 공통 계약을 준비한 뒤 AFTER 표본은 다음과 같이
+실행한다.
 
 ```bash
 export PHASE=measure
 export VARIANT=AFTER
+export ROUND=1
 export RUN_ORDER=2
 export RAW_OBSERVATION_SAMPLES=10
 export RUN_LABEL=reservation-after-n2000-r1
 export RAW_OBSERVATION_RESULT_PATH=build/k6/bulk-write/reservation-after-n2000-r1-observations.json
 load-test/k6/bulk-write/run-reservation-history-insert-observations.sh
 ```
+
+위 예는 `ROUND=1`의 AB 순서에서 두 번째(`AFTER`, `RUN_ORDER=2`) block이다. 같은
+round의 첫 번째 block은 `BEFORE`, `RUN_ORDER=1`로 실행한다. 다음 paired round에서
+순서 효과를 상쇄하려면 BA로 뒤집어 `AFTER`에 `RUN_ORDER=1`, `BEFORE`에
+`RUN_ORDER=2`를 부여한다. 한 block이 만드는 모든 child 표본은 같은 `ROUND`와
+`RUN_ORDER`를 공유한다. 모든 필요한 block을 마친 뒤 부하 발생기 셸에서
+`unset BENCHMARK_EMAIL TEST_PASSWORD BENCHMARK_BULK_WRITE_TOKEN`으로 자격 증명을
+제거한다.
 
 Wishlist DELETE는 같은 방식으로 별도 wrapper를 사용한다.
 

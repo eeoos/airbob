@@ -28,10 +28,12 @@ function rejects(action) {
 }
 
 export default function () {
+  const manifestSha256 = 'a'.repeat(64);
   const sessions = parseCouponSessionFixture(JSON.stringify({
-    datasetVersion: 'coupon-issuance-v1',
+    datasetVersion: 'coupon-issuance-v2',
+    benchmarkDatasetManifestSha256: manifestSha256,
     sessions: ['session-a', 'session-b', 'session-c'],
-  }));
+  }), manifestSha256);
   const summary = summarizeCouponBenchmarkMetrics({
     metrics: {
       http_reqs: { values: { count: 10, rate: 5 } },
@@ -70,19 +72,27 @@ export default function () {
       buildCouponIssueTarget('lua', 1).path === '/api/v1/coupons/1/issue'
     ),
     'valid fixture returns sessions': (value) => value.length === 3,
-    'malformed fixture is rejected': () => rejects(() => parseCouponSessionFixture('{')),
+    'malformed fixture is rejected': () => rejects(() => parseCouponSessionFixture('{', manifestSha256)),
     'wrong dataset version is rejected': () => rejects(() => parseCouponSessionFixture(JSON.stringify({
-      datasetVersion: 'coupon-issuance-v2',
+      datasetVersion: 'coupon-issuance-v1',
+      benchmarkDatasetManifestSha256: manifestSha256,
       sessions: ['session-a'],
-    }))),
+    }), manifestSha256)),
+    'manifest drift is rejected': () => rejects(() => parseCouponSessionFixture(JSON.stringify({
+      datasetVersion: 'coupon-issuance-v2',
+      benchmarkDatasetManifestSha256: 'b'.repeat(64),
+      sessions: ['session-a'],
+    }), manifestSha256)),
     'blank sessions are rejected': () => rejects(() => parseCouponSessionFixture(JSON.stringify({
-      datasetVersion: 'coupon-issuance-v1',
+      datasetVersion: 'coupon-issuance-v2',
+      benchmarkDatasetManifestSha256: manifestSha256,
       sessions: [''],
-    }))),
+    }), manifestSha256)),
     'duplicate sessions are rejected': () => rejects(() => parseCouponSessionFixture(JSON.stringify({
-      datasetVersion: 'coupon-issuance-v1',
+      datasetVersion: 'coupon-issuance-v2',
+      benchmarkDatasetManifestSha256: manifestSha256,
       sessions: ['session-a', 'session-a'],
-    }))),
+    }), manifestSha256)),
     'lock variant is accepted': () => parseVariant('lock') === 'lock',
     'lua variant is accepted': () => parseVariant('lua') === 'lua',
     'unknown variant is rejected': () => rejects(() => parseVariant('enum-strategy')),

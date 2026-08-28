@@ -82,9 +82,11 @@ promotion is a separate publisher/admin command and remains outside the lab
 role and lab destroy graph.
 
 The local search-data path now uses the exact digest-pinned Elasticsearch image
-from the `infra-image-release-<full-commit>` workflow artifact. A version-3
+from the `infra-image-release-<full-commit>` workflow artifact. A schema-4
 database attestation reruns the exact verifier SQL from the source ETL commit
-and binds the restored MySQL server UUID and approved fingerprint subset. One
+twice and binds the restored MySQL server UUID, final/base/distribution/target/
+inventory fingerprints, the manifest distribution-assertion seal, the tracked distribution-spec
+digest, and all 15 read-model target results. One
 local producer then acquires the release-specific DynamoDB lease and uses a
 temporarily enabled, exact-prefix IAM grant to write a native snapshot directly
 to the initially empty `elasticsearch/releases/<dataset-release>/` S3 prefix.
@@ -119,6 +121,17 @@ inventory, writes wrapper payloads with no-overwrite semantics, and writes
 and cannot publish a snapshot. The dedicated local MFA role, temporary grant,
 and bucket policy exist in Terraform but are unapplied, and neither a V27
 wrapper nor native snapshot currently exists in the dataset bucket.
+
+Phase 3 treats the wrapper object SHA-256 as its trust anchor. It accepts only
+the fixed schema-2 `benchmark-dataset-v2` / `world-v2` envelope, downloads the
+standalone jq validator plus the manifest, calibration, tracked production spec,
+qualification receipt, DB fingerprint, and restore attestation from fixed keys
+with bounded AWS CLI timeouts, verifies every digest, and runs semantic validation
+before reading a secret. After restore it recomputes reconciliation, all 15 target
+rows/result hashes, and the live final/base/target/inventory fingerprints twice
+before any RDS setting, Elasticsearch, Redis, Kafka, or Debezium mutation. The
+schema-2 bootstrap receipt binds that live semantic receipt. The compressed SSM
+command is hard-capped at 45KB and no longer embeds the aggregate release verifier.
 
 Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
 data bootstrap is in progress. An exact `data-ready` receipt is required before
@@ -262,7 +275,15 @@ isolated-read:    SPRING_PROFILES_ACTIVE=aws,traffic-benchmark
 
 `integrated-smoke` retains the application's other internal schedulers and Kafka flow while blocking external Toss, Google, Slack, and ordinary S3 write side effects. The `performance-lab` profile hard-codes reservation inventory startup, rolling seed, and retention to disabled. The immutable lab manifest therefore keeps `accommodation_inventory_day=0` even for the 730,702-accommodation dataset instead of generating tens of millions of date rows. Reservation availability, quote, and checkout calls intentionally fail closed with HTTP 503 / `R026`; this profile is not a reservation-mutation target.
 
-`isolated-read` adds the general scheduler and Kafka listener isolation policy. `application-traffic-benchmark.yaml` includes `performance-lab` through a Spring profile group, so it inherits both the external side-effect block and the disabled reservation-inventory lifecycle. The exact traffic allowlist uses only GET targets for accommodation detail, reviews, past guest reservations, wishlists, and recently viewed data. It contains neither availability nor quote/checkout/reservation mutation targets. Normal `aws` and `oci` application profiles do not disable the inventory lifecycle and retain mandatory startup coverage.
+`isolated-read` adds the general scheduler and Kafka listener isolation policy, then includes only
+`read-model-benchmark`; it does not activate `performance-lab`. The start contract therefore sets
+the Kafka listener, reservation inventory startup/seed/retention, search bootstrap, Toss, Google,
+Slack, and S3-write flags explicitly to `false`. The token-protected runtime assertion endpoint
+checks those settings and live listener state before and after every read-model measurement window.
+The exact traffic allowlist uses only GET targets for accommodation detail, reviews, past guest
+reservations, wishlists, and recently viewed data. It contains neither availability nor
+quote/checkout/reservation mutation targets. Normal `aws` and `oci` application profiles do not
+disable the inventory lifecycle and retain mandatory startup coverage.
 
 ## Redis and cache experiment boundary
 
@@ -274,4 +295,4 @@ the same normalized host and port.
 
 For the same-image cache A/B experiment, change only `ACCOMMODATION_DETAIL_CACHE_ENABLED=true|false`. When disabled, accommodation-detail cache reads and eviction bypass the cache clients; the two-endpoint topology remains configured.
 
-Cache reset means `FLUSHDB` on the dedicated accommodation-detail cache Redis only. It must not flush the general Redis, which holds general application data such as sessions and locks. No HTTP cache-reset endpoint exists.
+Cache reset means `FLUSHDB` on the dedicated accommodation-detail cache Redis only. It must not flush the general Redis, which holds general application data such as sessions and locks. No HTTP cache-reset endpoint exists. On the Redis host, redirect `infra/aws/scripts/reset-accommodation-cache.sh MANIFEST_SHA RUN_LABEL CACHE_ENABLED VARIANT` to a mode-`0600` receipt file and export that path as `CACHE_RESET_RECEIPT`. The script uses the digest-pinned Redis image, addresses only `redis-cache.lab.airbob.internal:6380`, applies a 30-second process deadline to each reset command, proves `DBSIZE=0`, and emits the digest-bound receipt consumed by `load-test/k6/traffic/dataset-read.js`. A warm measure then prefetches every manifest-declared target id before timed traffic and records completed/expected warm-key coverage without adding those requests to the custom latency metric.

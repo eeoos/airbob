@@ -286,12 +286,24 @@ jq -se \
   --arg release "$expected_release" \
   --arg kind "$expected_kind" '
     length == 1 and
+    .[0].schemaVersion == 2 and
     .[0].datasetRelease == $release and
     .[0].releaseKind == $kind and
+    .[0].releaseTuple.datasetVersion == "benchmark-dataset-v2" and
+    .[0].releaseTuple.worldVersion == "world-v2" and
     (.[0].search.enabled == true or .[0].search.enabled == false)
   ' "$manifest_source" >/dev/null \
   || fail 'dataset manifest does not match the requested release tuple'
 search_enabled=$(jq -r '.search.enabled' "$manifest_source")
+profile_version=$(jq -er '.releaseTuple.profileVersion | select(type=="string")' "$manifest_source") \
+  || fail 'dataset production profile is missing'
+case "$profile_version" in
+  production-skew-v1) production_spec_key=benchmark/production-skew-v1.json ;;
+  production-skew-large-v1) production_spec_key=benchmark/production-skew-large-v1.json ;;
+  *) fail 'dataset production profile is unsupported' ;;
+esac
+[[ "$(jq -r '.source.productionSpecKey' "$manifest_source")" == "$production_spec_key" ]] \
+  || fail 'dataset profile/spec key binding is invalid'
 
 expected_entries="$temp_dir/expected-local-entries.txt"
 expected_files="$temp_dir/expected-local-files.txt"
@@ -300,17 +312,32 @@ case "$search_enabled" in
     [[ -z "$snapshot_receipt" ]] \
       || fail 'snapshot receipt is forbidden when search is disabled'
     printf '%s\n' \
+      attestation \
+      attestation/restore.json \
       benchmark \
+      benchmark/dataset-manifest.json \
+      benchmark/generation-qualification-v1.json \
       benchmark/manifest.json \
+      "$production_spec_key" \
+      benchmark/source-calibration-v1.json \
+      benchmark/validate-benchmark-dataset-v2.jq \
       manifest.json \
       mysql \
       mysql/airbob.sql.zst \
+      mysql/database-fingerprint.tsv \
       mysql/sha256.txt \
       | LC_ALL=C sort > "$expected_entries"
     printf '%s\n' \
+      attestation/restore.json \
+      benchmark/dataset-manifest.json \
+      benchmark/generation-qualification-v1.json \
       benchmark/manifest.json \
+      "$production_spec_key" \
+      benchmark/source-calibration-v1.json \
+      benchmark/validate-benchmark-dataset-v2.jq \
       manifest.json \
       mysql/airbob.sql.zst \
+      mysql/database-fingerprint.tsv \
       mysql/sha256.txt \
       > "$expected_files"
     ;;
@@ -320,20 +347,35 @@ case "$search_enabled" in
     [[ -f "$snapshot_receipt" && ! -L "$snapshot_receipt" ]] \
       || fail 'snapshot receipt is missing or unsafe'
     printf '%s\n' \
+      attestation \
+      attestation/restore.json \
       benchmark \
+      benchmark/dataset-manifest.json \
+      benchmark/generation-qualification-v1.json \
       benchmark/manifest.json \
+      "$production_spec_key" \
+      benchmark/source-calibration-v1.json \
+      benchmark/validate-benchmark-dataset-v2.jq \
       elasticsearch \
       elasticsearch/snapshot-reference.json \
       manifest.json \
       mysql \
       mysql/airbob.sql.zst \
+      mysql/database-fingerprint.tsv \
       mysql/sha256.txt \
       | LC_ALL=C sort > "$expected_entries"
     printf '%s\n' \
+      attestation/restore.json \
+      benchmark/dataset-manifest.json \
+      benchmark/generation-qualification-v1.json \
       benchmark/manifest.json \
+      "$production_spec_key" \
+      benchmark/source-calibration-v1.json \
+      benchmark/validate-benchmark-dataset-v2.jq \
       elasticsearch/snapshot-reference.json \
       manifest.json \
       mysql/airbob.sql.zst \
+      mysql/database-fingerprint.tsv \
       mysql/sha256.txt \
       > "$expected_files"
     ;;
@@ -348,7 +390,7 @@ done < <(find "$release_dir" -mindepth 1 -print | LC_ALL=C sort) \
 cmp -s "$expected_entries" "$actual_entries" \
   || fail 'dataset release must contain the exact approved inventory'
 
-mkdir -m 700 "$stage_dir/benchmark" "$stage_dir/mysql"
+mkdir -m 700 "$stage_dir/attestation" "$stage_dir/benchmark" "$stage_dir/mysql"
 [[ "$search_enabled" != true ]] || mkdir -m 700 "$stage_dir/elasticsearch"
 while IFS= read -r relative_path; do
   source_path="$release_dir/$relative_path"
@@ -623,9 +665,16 @@ verify_snapshot_inventory() {
 dataset_prefix="datasets/$expected_release"
 marker_key="$dataset_prefix/manifest.json"
 payload_files=(
+  attestation/restore.json
   mysql/airbob.sql.zst
+  mysql/database-fingerprint.tsv
   mysql/sha256.txt
+  benchmark/dataset-manifest.json
+  benchmark/generation-qualification-v1.json
   benchmark/manifest.json
+  "$production_spec_key"
+  benchmark/source-calibration-v1.json
+  benchmark/validate-benchmark-dataset-v2.jq
 )
 [[ "$search_enabled" != true ]] \
   || payload_files+=(elasticsearch/snapshot-reference.json)

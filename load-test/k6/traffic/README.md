@@ -143,3 +143,48 @@ Use a fresh `RUN_LABEL` for every attempt. Input and output objects are created
 at immutable run-scoped paths, and existing remote staging is never replaced.
 This harness has fake-AWS and mock-Terraform coverage but has not yet produced
 live AWS performance evidence.
+
+## Composite dataset read experiments
+
+`dataset-read.js` consumes `benchmark-dataset-v1.json` directly. It never falls
+back to a hard-coded accommodation or search query and writes the composite
+manifest SHA-256, capsule id, and capsule target into every measurement
+artifact. Running this script directly produces only
+`pipeline-rehearsal` / `pipeline-only` output. A future controlled AWS runner
+must perform the promotion checks before an artifact may be called evidence.
+
+Supported slices are:
+
+- `TARGET=cache-detail`, using `cache-detail-v1` target `same-key` or
+  `detail-pool`. The pool supports uniform and declared 80:20 hotset traffic.
+- `TARGET=index-query`, using one of `search-broad`, `search-medium`,
+  `search-narrow`, or `search-no-hit`. Bounds, price, occupancy, page, and the
+  exact dataset row count all come from the typed target query. The API keeps
+  Elasticsearch's default 10,000-hit reporting bound, so the artifact records
+  both the manifest truth and the expected API-reported total.
+
+Cache A/B accepts only `CACHE_VARIANT=disabled|warm`; `CACHE_ENABLED` must be
+the matching `false|true` value. Before either variant, run
+`infra/aws/scripts/reset-accommodation-cache.sh` on the Redis host. It flushes
+port 6380 only, proves `DBSIZE=0`, and emits the JSON supplied through
+`CACHE_RESET_RECEIPT`. The k6 init phase binds that receipt to the run label,
+variant, cache toggle, capsule, and composite manifest digest before sending a
+request. The general Redis on port 6379 is never reset.
+
+```bash
+umask 077
+manifest_sha=$(sha256sum "$BENCHMARK_DATASET_MANIFEST" | awk '{print $1}')
+export CACHE_RESET_RECEIPT="$(pwd)/build/k6/traffic/${RUN_LABEL}-cache-reset.json"
+infra/aws/scripts/reset-accommodation-cache.sh \
+  "$manifest_sha" "$RUN_LABEL" "$CACHE_ENABLED" "$CACHE_VARIANT" \
+  > "$CACHE_RESET_RECEIPT"
+```
+
+Example inspect commands and receipt construction are executable in
+`load-test/k6/test/dataset-read-inspect-test.sh`. For a `warm` measure run, k6
+prefetches every resource id declared by the selected target before timed
+traffic. Prefetch requests never enter `traffic_client_duration`; their
+completed/expected key coverage is bound into the artifact, and incomplete
+coverage invalidates it. `MODE=warmup` remains available as a separate load
+phase. Actual AWS latency claims still require the controlled runner, repeated
+A/A plus A/B rounds, and immutable evidence upload.

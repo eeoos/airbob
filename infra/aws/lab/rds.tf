@@ -5,6 +5,7 @@ module "rds" {
   name                = "airbob-${var.run_id}"
   engine_version      = var.rds_engine_version
   bootstrap_mode      = var.database_bootstrap
+  dump_storage_gib    = local.dataset_dump_storage_gib
   snapshot_identifier = var.database_bootstrap == "snapshot" ? var.rds_snapshot_identifier : null
   subnet_ids = [
     module.network.private_subnet_ids.primary,

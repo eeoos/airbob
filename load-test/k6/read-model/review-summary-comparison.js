@@ -1,48 +1,44 @@
 import {
-  buildReadModelPath,
-  buildReadModelRequestName,
-  parsePositiveInteger,
-  parseRequiredText,
+  buildReadModelTarget,
+  parseReadModelEvidenceContext,
   parseReadModelRunConfig,
+  parseRequiredText,
 } from '../lib/read-model-benchmark.js';
 import { createReadModelBenchmark } from '../lib/read-model-runner.js';
 
-const DOMAIN = 'review';
-const RUN = parseReadModelRunConfig(__ENV, 'review-summary');
-const ACCOMMODATION_ID = parsePositiveInteger(
-  parseRequiredText(__ENV.REVIEW_ACCOMMODATION_ID, 'REVIEW_ACCOMMODATION_ID'),
-  'REVIEW_ACCOMMODATION_ID',
+const MANIFEST_PATH = parseRequiredText(
+  __ENV.BENCHMARK_DATASET_MANIFEST,
+  'BENCHMARK_DATASET_MANIFEST',
 );
-const EXPECTED_COUNT = parsePositiveInteger(
-  parseRequiredText(__ENV.EXPECTED_REVIEW_COUNT, 'EXPECTED_REVIEW_COUNT'),
-  'EXPECTED_REVIEW_COUNT',
+const CONTEXT_PATH = parseRequiredText(
+  __ENV.READ_MODEL_EVIDENCE_CONTEXT,
+  'READ_MODEL_EVIDENCE_CONTEXT',
 );
-const BEFORE_PATH = buildReadModelPath({
-  domain: DOMAIN,
-  variant: 'before',
-  accommodationId: ACCOMMODATION_ID,
-});
-const AFTER_PATH = buildReadModelPath({
-  domain: DOMAIN,
-  variant: 'after',
-  accommodationId: ACCOMMODATION_ID,
-});
-
+const TARGET = buildReadModelTarget(
+  open(MANIFEST_PATH),
+  parseRequiredText(__ENV.TARGET_ID, 'TARGET_ID'),
+);
+if (TARGET.domain !== 'review') {
+  throw new Error('TARGET_ID must select REVIEW_SUMMARY_V1');
+}
+const CONTEXT = parseReadModelEvidenceContext(
+  open(CONTEXT_PATH),
+  TARGET,
+  __ENV.VARIANT,
+);
+const RUN = parseReadModelRunConfig(__ENV, TARGET, CONTEXT);
 const benchmark = createReadModelBenchmark({
   ...RUN,
-  domain: DOMAIN,
-  beforePath: BEFORE_PATH,
-  afterPath: AFTER_PATH,
-  requestName: buildReadModelRequestName(DOMAIN, RUN.variant),
-  expectedCount: EXPECTED_COUNT,
-  metadata: {
-    ...RUN.metadata,
-    accommodation_id: ACCOMMODATION_ID,
-    count_unit: 'published_reviews',
-  },
+  measurementSummary: RUN.mode === 'assemble'
+    ? JSON.parse(open(parseRequiredText(
+      __ENV.READ_MODEL_MEASUREMENT_SUMMARY,
+      'READ_MODEL_MEASUREMENT_SUMMARY',
+    )))
+    : null,
 });
 
 export const options = benchmark.options;
+export function assemble() { benchmark.assemble(); }
 export function setup() { return benchmark.setup(); }
 export function warmup(data) { benchmark.warmup(data); }
 export function measure(data) { benchmark.measure(data); }

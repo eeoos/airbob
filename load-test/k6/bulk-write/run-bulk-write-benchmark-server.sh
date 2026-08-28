@@ -30,7 +30,7 @@ if [[ "$test_mode" == '0' \
   printf 'trusted Gradle wrapper is unavailable\n' >&2
   exit 2
 fi
-boot_args='--spring.profiles.active=dev,bulk-write-benchmark --spring.jpa.properties.hibernate.show_sql=false --spring.jpa.properties.hibernate.format_sql=false --logging.level.org.hibernate.SQL=OFF --logging.level.org.hibernate.orm.jdbc.bind=OFF --logging.level.org.hibernate.type.descriptor.sql=OFF --logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService=OFF'
+boot_args='--spring.profiles.active=dev,bulk-write-benchmark --reservation.expiration.cleanup-batch-size=2000 --spring.jpa.properties.hibernate.show_sql=false --spring.jpa.properties.hibernate.format_sql=false --logging.level.org.hibernate.SQL=OFF --logging.level.org.hibernate.orm.jdbc.bind=OFF --logging.level.org.hibernate.type.descriptor.sql=OFF --logging.level.kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkService=OFF'
 
 cd -- "$repo_root"
 export BENCHMARK_BULK_WRITE_ENABLED=true
