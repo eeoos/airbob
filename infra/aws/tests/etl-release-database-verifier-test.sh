@@ -475,6 +475,9 @@ do
   expect_failure "${fingerprint_id}-semantic-drift" run_isolated_verifier \
     "$temp_dir/${fingerprint_id}-drift.json" FAKE_FINGERPRINT_DRIFT="$fingerprint_id"
 done
+grep -Fq 'fingerprint component differs from restored canonical rows: final-address' \
+  "$temp_dir/final-address-semantic-drift.err" \
+  || fail 'semantic fingerprint drift was not attributed to its component'
 
 safe_manifest="$temp_dir/safe-manifest.json"
 cp "$temp_dir/release/benchmark-dataset-v2.json" "$safe_manifest"

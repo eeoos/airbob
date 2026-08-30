@@ -228,7 +228,9 @@ zero_metrics=(review_summary_missing_count review_summary_stale_count review_sum
 for metric in "${zero_metrics[@]}"; do [[ "$(metric_value "$metric")" == 0 ]] || fail "semantic restore gate failed: $metric"; done
 [[ "$(metric_value foreign_key_checks_global)" == 1 && "$(metric_value foreign_key_checks_session)" == 1 ]] || fail 'foreign-key enforcement is disabled'
 
-# Java fingerprints each row as -2 followed by signed int32 length + bytes for every field.
+# ETL projects temporal and DOUBLE values through MySQL CAST AS CHAR before JDBC reads them. The
+# verifier mirrors that database-canonical text and fingerprints each row as -2 followed by signed
+# int32 length + bytes for every field.
 text_field() { printf "IF(%s IS NULL,'FFFFFFFF',CONCAT(LPAD(HEX(OCTET_LENGTH(CAST(%s AS CHAR))),8,'0'),HEX(CAST(%s AS CHAR))))" "$1" "$1" "$1"; }
 binary_field() { printf "IF(%s IS NULL,'FFFFFFFF',CONCAT(LPAD(HEX(OCTET_LENGTH(%s)),8,'0'),HEX(%s)))" "$1" "$1" "$1"; }
 row_hex() {
@@ -246,11 +248,16 @@ fingerprint_result="$work_dir/fingerprints.tsv"
 fingerprint_table() {
   local id=$1 table=$2 predicate=$3 order=$4 expected_rows=$5
   shift 5
-  local row_expression actual_rows digest
+  local row_expression actual_rows digest expected_digest
   row_expression=$(row_hex "$@")
   actual_rows=$(mysql_scalar "rows-${id//-/_}" "/* airbob_fingerprint_count:$id */ SELECT COUNT(*) FROM $table WHERE $predicate;")
   [[ "$actual_rows" == "$expected_rows" ]] || fail "fingerprint scope row count drifted: $id"
   digest=$(mysql_hash "$id" "/* airbob_fingerprint:$id */ SELECT $row_expression FROM $table WHERE $predicate ORDER BY $order;")
+  expected_digest=$(jq -er --arg id "$id" \
+    '.world.fingerprints[$id] | select(type=="string" and test("^[0-9a-f]{64}$"))' \
+    "$manifest") || fail "manifest fingerprint component is missing or malformed: $id"
+  [[ "$digest" == "$expected_digest" ]] \
+    || fail "fingerprint component differs from restored canonical rows: $id"
   printf '%s\t%s\n' "$id" "$digest" >> "$fingerprint_result"
 }
 manifest="$release_dir/benchmark-dataset-v2.json"

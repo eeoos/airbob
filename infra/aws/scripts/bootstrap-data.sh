@@ -490,10 +490,16 @@ row_hex() {
 }
 fingerprint_table() {
   local id=$1 table=$2 predicate=$3 order=$4 expected=$5; shift 5
-  local rows digest
+  local rows digest expected_digest
   rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM $table WHERE $predicate")
   [[ "$rows" == "$expected" ]] || { printf 'fingerprint row count drifted: %s\n' "$id" >&2; return 1; }
   digest=$(mysql_result_hash "SELECT $(row_hex "$@") FROM $table WHERE $predicate ORDER BY $order")
+  expected_digest=$(jq -er --arg id "$id" \
+    '.world.fingerprints[$id] | select(type=="string" and test("^[0-9a-f]{64}$"))' \
+    "$benchmark_dataset_manifest") \
+    || { printf 'manifest fingerprint component is missing or malformed: %s\n' "$id" >&2; return 1; }
+  [[ "$digest" == "$expected_digest" ]] \
+    || { printf 'fingerprint component differs from restored canonical rows: %s\n' "$id" >&2; return 1; }
   printf '%s\t%s\n' "$id" "$digest" >> "$live_fingerprint_rows"
 }
 table_rows() { jq -er --arg key "$1" '.world.tableRows[$key]|select(type=="number" and floor==. and .>=0)' "$benchmark_dataset_manifest"; }
