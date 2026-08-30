@@ -187,6 +187,25 @@ function requireCanonicalIntegerMap(value, path, allowEmpty = true) {
   });
 }
 
+function requireObservationLabel(value, path) {
+  requireCondition(
+    typeof value === 'string'
+      && /^[\x20-\x7e]+$/.test(value)
+      && /[\x21-\x7e]/.test(value),
+    `${path} must be a non-blank printable ASCII observation label`,
+  );
+}
+
+function requireObservationIntegerMap(value, path, allowEmpty = true) {
+  requireObject(value, path);
+  const entries = Object.entries(value);
+  requireCondition(allowEmpty || entries.length > 0, `${path} must not be empty`);
+  entries.forEach(([key, count]) => {
+    requireObservationLabel(key, `${path} key`);
+    requireNonNegativeInteger(count, `${path}.${key}`);
+  });
+}
+
 function sumSafe(values, path) {
   let sum = 0;
   values.forEach((value) => {
@@ -263,12 +282,15 @@ function validateScopedObservedDistribution(distribution, mapKey) {
       && distribution.p99 <= distribution.maximum,
     `${path} percentiles are not monotonic`,
   );
-  requireCondition(['ROWS', 'KEYS'].includes(distribution.bucketUnit), `${path}.bucketUnit is invalid`);
-  requireCanonicalIntegerMap(distribution.buckets, `${path}.buckets`);
+  requireCondition(
+    ['ROWS', 'KEYS', 'INTERSECTIONS'].includes(distribution.bucketUnit),
+    `${path}.bucketUnit is invalid`,
+  );
+  requireObservationIntegerMap(distribution.buckets, `${path}.buckets`);
   requireCanonicalIntegerMap(distribution.rankRows, `${path}.rankRows`);
   requireObject(distribution.shares, `${path}.shares`);
   Object.entries(distribution.shares).forEach(([key, share]) => {
-    requireCanonicalId(key, `${path}.shares key`);
+    requireObservationLabel(key, `${path}.shares key`);
     requireCondition(Number.isFinite(share) && share >= 0 && share <= 1, `${path}.shares.${key} is invalid`);
   });
 }

@@ -104,9 +104,9 @@
         "p95": 10,
         "p99": 20,
         "maximum": 40,
-        "bucketUnit": "ROWS",
-        "buckets": { "cold": 4, "hot": 5, "zero": 1 },
-        "shares": { "top": 0.4 },
+        "bucketUnit": "INTERSECTIONS",
+        "buckets": { "PUBLISHED|hot": 4, "reservation-review": 1, "source_valid": 5 },
+        "shares": { "PUBLISHED|hot": 0.4, "reservation-review": 0.1, "source_valid": 0.5 },
         "rankRows": { "top": 40 }
       },
       "wishlist-active": {

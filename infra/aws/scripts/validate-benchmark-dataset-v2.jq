@@ -118,6 +118,18 @@ def canonical_integer_map($allow_empty):
   and ($allow_empty or length > 0)
   and all(to_entries[]; (.key | canonical_id) and (.value | nonnegative_integer));
 
+def observation_label:
+  type == "string"
+  and length > 0
+  and (explode as $characters
+    | all($characters[]; . >= 32 and . <= 126)
+    and any($characters[]; . > 32 and . <= 126));
+
+def observation_integer_map($allow_empty):
+  type == "object"
+  and ($allow_empty or length > 0)
+  and all(to_entries[]; (.key | observation_label) and (.value | nonnegative_integer));
+
 def valid_observed_distribution:
   . as $distribution
   |
@@ -174,12 +186,12 @@ def valid_scoped_observation($map_key):
   and (.maximum | nonnegative_integer)
   and (.zeroKeys <= .keyCount)
   and (.p50 <= .p95 and .p95 <= .p99 and .p99 <= .maximum)
-  and (.bucketUnit == "ROWS" or .bucketUnit == "KEYS")
-  and (.buckets | canonical_integer_map(true))
+  and (.bucketUnit == "ROWS" or .bucketUnit == "KEYS" or .bucketUnit == "INTERSECTIONS")
+  and (.buckets | observation_integer_map(true))
   and (.rankRows | canonical_integer_map(true))
   and (.shares | type == "object")
   and all(.shares | to_entries[];
-    (.key | canonical_id)
+    (.key | observation_label)
     and (.value | type == "number" and isfinite and . >= 0 and . <= 1));
 
 def valid_scope_range($map_key):
