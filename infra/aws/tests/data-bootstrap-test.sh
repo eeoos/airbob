@@ -5,6 +5,7 @@ umask 077
 repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
 lab_root="$repo_root/infra/aws/lab"
 bootstrap="$repo_root/infra/aws/scripts/bootstrap-data.sh"
+restore_verifier="$repo_root/infra/aws/scripts/verify-etl-release-database.sh"
 validator="$repo_root/infra/aws/scripts/verify-dataset-release.sh"
 dataset_readme="$repo_root/infra/aws/datasets/README.md"
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-data-bootstrap-test.XXXXXX")
@@ -40,6 +41,7 @@ done
 
 required_files=(
   "$bootstrap"
+  "$restore_verifier"
   "$validator"
   "$dataset_readme"
   "$repo_root/infra/aws/scripts/promote-rds-snapshot.sh"
@@ -235,6 +237,7 @@ assert_contains "$bootstrap" 'target_fingerprint=$(recompute_target_fingerprint)
 assert_contains "$bootstrap" 'then "<null>"'
 assert_contains "$bootstrap" 'cat "$live_fingerprint_receipt"'
 assert_contains "$bootstrap" 'second live fingerprint attestation failed'
+assert_contains "$bootstrap" 'dataset release requires verified production fingerprints'
 assert_contains "$bootstrap" '$a[0].distributionAssertionSha256'
 assert_contains "$bootstrap" '$a[0].distributionSpecSha256'
 assert_contains "$bootstrap" '.capsuleId=="read-model-v2" or .capsuleId=="index-query-v1"'
@@ -246,6 +249,40 @@ assert_contains "$bootstrap" 'Retention=summary'
 assert_contains "$bootstrap" 'trap cleanup EXIT'
 assert_contains "$bootstrap" '<<AIRBOB_DEBEZIUM_SQL'
 assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" mysql'
+for component_id in \
+  final-accommodation final-address final-occupancy-policy \
+  final-accommodation-image final-accommodation-amenity final-member \
+  final-reservation final-review final-review-image final-wishlist \
+  final-wishlist-accommodation final-payment final-payment-transaction \
+  final-review-summary final-daily-revenue final-inventory \
+  base-accommodation base-member base-reservation base-review base-wishlist \
+  base-wishlist-accommodation base-payment base-payment-transaction
+do
+  assert_contains "$bootstrap" "$component_id"
+  assert_contains "$restore_verifier" "$component_id"
+done
+for semantic_field in \
+  a.address_id a.occupancy_policy_id m.thumbnail_image_url \
+  a.latitude a.longitude a.postal_code a.city a.country a.detail a.district a.street a.state \
+  o.infant_occupancy o.max_occupancy o.pet_occupancy \
+  ai.accommodation_id ai.image_url aa.accommodation_id aa.amenity_code aa.count \
+  ri.review_id ri.image_url
+do
+  assert_contains "$bootstrap" "$semantic_field"
+  assert_contains "$restore_verifier" "$semantic_field"
+done
+extract_fingerprint_components() {
+  awk '
+    /^[[:space:]]*fingerprint_table final-/ {print $2}
+    /^[[:space:]]*base_fingerprint [^[:space:]]+ base-/ {print $3}
+  ' "$1"
+}
+restore_components=$(extract_fingerprint_components "$restore_verifier")
+bootstrap_components=$(extract_fingerprint_components "$bootstrap")
+[[ "$restore_components" == "$bootstrap_components" ]] \
+  || fail "restore and bootstrap fingerprint component order differs"
+[[ "$(printf '%s\n' "$restore_components" | wc -l | tr -d '[:space:]')" == 24 ]] \
+  || fail "restore and bootstrap must enumerate exactly 24 component fingerprints"
 if grep -Fq 'export MYSQL_PWD' "$bootstrap"; then
   fail "Phase 3 bootstrap must scope MYSQL_PWD to MySQL client processes"
 fi

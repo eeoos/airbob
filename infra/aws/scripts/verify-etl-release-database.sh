@@ -111,6 +111,9 @@ semantic_validator="$script_dir/validate-benchmark-dataset-v2.jq"
 require_file "$semantic_validator"
 jq -e -f "$semantic_validator" "$release_dir/benchmark-dataset-v2.json" >/dev/null \
   || fail 'benchmark-dataset-v2 semantics failed before manifest-derived SQL'
+jq -e '.world.provenance.verificationPassed == true' \
+  "$release_dir/benchmark-dataset-v2.json" >/dev/null \
+  || fail 'ETL release requires verified production fingerprints'
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-v2-database-verifier.XXXXXX") || fail 'cannot create workspace'
 cleanup() { unset MYSQL_PWD database_password; rm -rf "$work_dir"; }
 trap cleanup EXIT
@@ -278,19 +281,29 @@ jq -e --argjson budgets "$expected_budgets" '
   all($budgets|to_entries[];$finalRows[.key]>=.value)
 ' "$manifest" >/dev/null || fail 'manifest rows do not satisfy the selected production profile budgets'
 
-accommodation_fields=(a.id text a.base_price text a.created_at text a.member_id text a.description text a.name text a.thumbnail_url text a.type text a.check_in_time text a.check_out_time text a.time_zone_id text a.status text a.currency text a.accommodation_uid binary)
-member_fields=(m.id text m.created_at text m.email text m.nickname text m.role text m.status text)
+accommodation_fields=(a.id text a.base_price text a.created_at text a.member_id text a.description text a.name text a.thumbnail_url text a.type text a.check_in_time text a.check_out_time text a.time_zone_id text a.status text a.currency text a.accommodation_uid binary a.address_id text a.occupancy_policy_id text)
+address_fields=(a.id text a.latitude text a.longitude text a.postal_code text a.city text a.country text a.detail text a.district text a.street text a.state text)
+occupancy_policy_fields=(o.id text o.infant_occupancy text o.max_occupancy text o.pet_occupancy text)
+accommodation_image_fields=(ai.id text ai.accommodation_id text ai.image_url text)
+accommodation_amenity_fields=(aa.id text aa.accommodation_id text aa.amenity_code text aa.count text)
+member_fields=(m.id text m.created_at text m.email text m.nickname text m.role text m.status text m.thumbnail_image_url text)
 reservation_fields=(r.id text r.reservation_uid binary r.accommodation_id text r.guest_id text r.check_in_date text r.check_out_date text r.check_in_at text r.check_out_at text r.time_zone_id text r.guest_count text r.total_price text r.discount_amount text r.status text r.message text r.reservation_code text r.created_at text r.expires_at text r.currency text)
 review_fields=(r.id text r.rating text r.accommodation_id text r.created_at text r.member_id text r.content text r.status text)
+review_image_fields=(ri.id text ri.review_id text ri.image_url text)
 wishlist_fields=(w.id text w.name text w.created_at text w.member_id text w.status text w.accommodation_count text w.representative_accommodation_id text)
 wishlist_link_fields=(wa.id text wa.memo text wa.created_at text wa.wishlist_id text wa.accommodation_id text)
 payment_fields=(p.id text p.payment_uid binary p.payment_key text p.order_id text p.amount text p.method text p.approved_at text p.created_at text p.reservation_id text p.status text p.balance_amount text)
 transaction_fields=(pt.id text pt.reservation_id text pt.payment_id text pt.transaction_type text pt.status text pt.amount text pt.payment_key text pt.order_id text pt.method text pt.failure_code text pt.cancel_amount text pt.cancel_reason text pt.transaction_key text pt.canceled_at text pt.created_at text)
 
 fingerprint_table final-accommodation 'accommodation a' '1=1' a.id "$(table_rows accommodation)" "${accommodation_fields[@]}"
+fingerprint_table final-address 'address a' '1=1' a.id "$(table_rows address)" "${address_fields[@]}"
+fingerprint_table final-occupancy-policy 'occupancy_policy o' '1=1' o.id "$(table_rows occupancy_policy)" "${occupancy_policy_fields[@]}"
+fingerprint_table final-accommodation-image 'accommodation_image ai' '1=1' ai.id "$(table_rows accommodation_image)" "${accommodation_image_fields[@]}"
+fingerprint_table final-accommodation-amenity 'accommodation_amenity aa' '1=1' aa.id "$(table_rows accommodation_amenity)" "${accommodation_amenity_fields[@]}"
 fingerprint_table final-member 'member m' '1=1' m.id "$(table_rows member)" "${member_fields[@]}"
 fingerprint_table final-reservation 'reservation r' '1=1' r.id "$(table_rows reservation)" "${reservation_fields[@]}"
 fingerprint_table final-review 'review r' '1=1' r.id "$(table_rows review)" "${review_fields[@]}"
+fingerprint_table final-review-image 'review_image ri' '1=1' ri.id "$(table_rows review_image)" "${review_image_fields[@]}"
 fingerprint_table final-wishlist 'wishlist w' '1=1' w.id "$(table_rows wishlist)" "${wishlist_fields[@]}"
 fingerprint_table final-wishlist-accommodation 'wishlist_accommodation wa' '1=1' wa.id "$(table_rows wishlist_accommodation)" "${wishlist_link_fields[@]}"
 fingerprint_table final-payment 'payment p' '1=1' p.id "$(table_rows payment)" "${payment_fields[@]}"

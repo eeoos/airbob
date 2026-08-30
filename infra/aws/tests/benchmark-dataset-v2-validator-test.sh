@@ -23,6 +23,18 @@ command -v node >/dev/null 2>&1 || fail 'node is required'
 jq -e -f "$validator" "$fixture" >/dev/null \
   || fail 'jq rejected the canonical v2 fixture'
 
+jq '
+  .world.provenance.verificationPassed=false |
+  .world.provenance.sourceInventorySha256=null |
+  .world.provenance.calibrationVersion=null |
+  .world.provenance.calibrationSha256=null |
+  .world.provenance.assertionSha256=null |
+  .world.scopedObservedDistributions={} |
+  .world.scopeRanges={} |
+  .world.fingerprints={}
+' "$fixture" | jq -e -f "$validator" >/dev/null \
+  || fail 'jq rejected a closed unverified normal world'
+
 if jq -e -f "$validator" "$legacy_fixture" >/dev/null 2>&1; then
   fail 'jq accepted a v1 fixture'
 fi
@@ -51,6 +63,17 @@ const canonical = JSON.parse(canonicalRaw);
 const malformedCases = JSON.parse(fs.readFileSync(corpusPath, 'utf8'));
 
 parseBenchmarkDatasetManifest(canonicalRaw);
+
+const normal = JSON.parse(canonicalRaw);
+normal.world.provenance.verificationPassed = false;
+normal.world.provenance.sourceInventorySha256 = null;
+normal.world.provenance.calibrationVersion = null;
+normal.world.provenance.calibrationSha256 = null;
+normal.world.provenance.assertionSha256 = null;
+normal.world.scopedObservedDistributions = {};
+normal.world.scopeRanges = {};
+normal.world.fingerprints = {};
+parseBenchmarkDatasetManifest(JSON.stringify(normal));
 
 let legacyRejected = false;
 try {

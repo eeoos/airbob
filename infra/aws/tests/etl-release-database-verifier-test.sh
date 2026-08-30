@@ -21,7 +21,7 @@ combined_hash() {
   output="$temp_dir/$prefix.bin"
   : > "$output"
   if [[ "$prefix" == final ]]; then
-    ids=(final-accommodation final-daily-revenue final-inventory final-member final-payment final-payment-transaction final-reservation final-review final-review-summary final-wishlist final-wishlist-accommodation)
+    ids=(final-accommodation final-accommodation-amenity final-accommodation-image final-address final-daily-revenue final-inventory final-member final-occupancy-policy final-payment final-payment-transaction final-reservation final-review final-review-image final-review-summary final-wishlist final-wishlist-accommodation)
   else
     ids=(base-accommodation base-member base-payment base-payment-transaction base-reservation base-review base-wishlist base-wishlist-accommodation)
   fi
@@ -85,7 +85,7 @@ write_manifest() {
   spec_sha=$(sha256_file "$spec_file")
   profile=$(jq -er '.profileVersion' "$spec_file")
   budgets=$(jq -c '{accommodations:.targets.accommodations.rowBudget,members:.targets.members.rowBudget,reservations:.targets.reservations.rowBudget,reviews:.targets.reviews.rowBudget,activeWishlists:.targets.activeWishlists.rowBudget,wishlistLinks:.targets.wishlistLinks.rowBudget}' "$spec_file")
-  jq -nS --slurpfile base "$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json" --arg finalWorld "$final_world" --arg baseWorld "$base_world" --arg inventory "$empty_hash" --arg reviewHash "$review_hash" --arg emptyHash "$empty_hash" --arg searchBroadHash "$search_broad_hash" --arg searchMediumHash "$search_medium_hash" --arg searchNarrowHash "$search_narrow_hash" --arg specSha "$spec_sha" --arg profile "$profile" --argjson budgets "$budgets" '
+  jq -nS --slurpfile base "$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json" --arg finalWorld "$final_world" --arg baseWorld "$base_world" --arg inventory "$empty_hash" --arg rowHash "$row_hash" --arg reviewHash "$review_hash" --arg emptyHash "$empty_hash" --arg searchBroadHash "$search_broad_hash" --arg searchMediumHash "$search_medium_hash" --arg searchNarrowHash "$search_narrow_hash" --arg specSha "$spec_sha" --arg profile "$profile" --argjson budgets "$budgets" '
     def account($id;$email;$role):{memberId:$id,email:$email,role:$role,status:"ACTIVE"};
     def review($id;$accommodation):{id:$id,expectedRows:0,resourceIds:[$accommodation],query:{kind:"REVIEW_SUMMARY_V1",accommodationId:$accommodation},expectedResultHash:$reviewHash};
     def wishlist($id;$member):{id:$id,expectedRows:0,resourceIds:[$member],query:{kind:"WISHLIST_PAGE_V1",memberId:$member,size:50,lastId:(if $id=="wishlist-hot-deep" then 1 else null end),lastCreatedAt:(if $id=="wishlist-hot-deep" then "2026-01-01T00:00:00" else null end),accommodationId:null,totalActiveRows:0},expectedResultHash:$emptyHash,account:account($member;("wishlist-"+($member|tostring)+"@airbob.cloud");"MEMBER")};
@@ -98,7 +98,7 @@ write_manifest() {
     ] as $targets |
     [search("search-broad";3;[1];0;300;$searchBroadHash),search("search-medium";2;[1];0;200;$searchMediumHash),search("search-narrow";1;[1];0;100;$searchNarrowHash),search("search-no-hit";0;[];999;999;$emptyHash)] as $searchTargets |
     $base[0] |
-    .world.tableRows={accommodation:$budgets.accommodations,accommodation_inventory_day:0,accommodation_review_summary:1,daily_revenue_stats:1,member:$budgets.members,payment:1,payment_transaction:1,reservation:$budgets.reservations,review:$budgets.reviews,wishlist:$budgets.activeWishlists,wishlist_accommodation:$budgets.wishlistLinks} |
+    .world.tableRows={accommodation:$budgets.accommodations,accommodation_amenity:1,accommodation_image:1,accommodation_inventory_day:0,accommodation_review_summary:1,address:1,daily_revenue_stats:1,member:$budgets.members,occupancy_policy:1,payment:1,payment_transaction:1,reservation:$budgets.reservations,review:$budgets.reviews,review_image:1,wishlist:$budgets.activeWishlists,wishlist_accommodation:$budgets.wishlistLinks} |
     .world.scopeRanges={
       accommodation:{id:"accommodation",minimumId:1,maximumId:$budgets.accommodations,rowCount:$budgets.accommodations},
       member:{id:"member",minimumId:1,maximumId:$budgets.members,rowCount:$budgets.members},
@@ -109,7 +109,19 @@ write_manifest() {
       wishlist:{id:"wishlist",minimumId:1,maximumId:$budgets.activeWishlists,rowCount:$budgets.activeWishlists},
       "wishlist-accommodation":{id:"wishlist-accommodation",minimumId:1,maximumId:$budgets.wishlistLinks,rowCount:$budgets.wishlistLinks}
     } |
-    .world.fingerprints={"final-world":$finalWorld,"base-world":$baseWorld,"final-inventory":$inventory} |
+    .world.fingerprints={
+      "base-accommodation":$rowHash,"base-member":$rowHash,"base-payment":$rowHash,
+      "base-payment-transaction":$rowHash,"base-reservation":$rowHash,"base-review":$rowHash,
+      "base-wishlist":$rowHash,"base-wishlist-accommodation":$rowHash,"base-world":$baseWorld,
+      "final-accommodation":$rowHash,"final-accommodation-amenity":$rowHash,
+      "final-accommodation-image":$rowHash,"final-address":$rowHash,
+      "final-daily-revenue":$rowHash,"final-inventory":$inventory,"final-member":$rowHash,
+      "final-occupancy-policy":$rowHash,"final-payment":$rowHash,
+      "final-payment-transaction":$rowHash,"final-reservation":$rowHash,"final-review":$rowHash,
+      "final-review-image":$rowHash,"final-review-summary":$rowHash,
+      "final-wishlist":$rowHash,"final-wishlist-accommodation":$rowHash,
+      "final-world":$finalWorld
+    } |
     .world.provenance.profileVersion=$profile |
     .world.provenance.specSha256=$specSha |
     .capsules=[.capsules[]|select(.capsuleId=="read-model-v2" or .capsuleId=="index-query-v1")] |
@@ -217,14 +229,20 @@ write_fake_mysql() {
     '[[ "${MYSQL_PWD:-}" == verifier-test-password-do-not-log ]] || exit 91' \
     'query=$(cat)' \
     'printf "%s\n-- query end --\n" "$query" >> "$FAKE_QUERY_LOG"' \
+    'if [[ -n "${FAKE_FINGERPRINT_DRIFT:-}" && "$query" == *"airbob_fingerprint:$FAKE_FINGERPRINT_DRIFT"* ]]; then printf "FFFFFFFE0000000131\n"; exit 0; fi' \
     'case "$query" in' \
     '  *"@@server_uuid"*) if [[ "$query" == *"DATABASE()"* ]]; then printf "%s\t%s\t+00:00\n" 00112233-4455-6677-8899-aabbccddeeff "$AIRBOB_DATASET_DB_NAME"; else printf "%s\t1\t1\n" 00112233-4455-6677-8899-aabbccddeeff; fi ;;' \
     '  *"production-contract-marker"*) count=0; [[ ! -f "$FAKE_VERIFY_COUNTER" ]] || count=$(cat "$FAKE_VERIFY_COUNTER"); count=$((count+1)); printf "%s\n" "$count" > "$FAKE_VERIFY_COUNTER"; if [[ "${FAKE_VERIFY_DRIFT:-false}" == true && "$count" -gt 1 ]]; then sed "s/review_summary_missing_count.0/review_summary_missing_count.1/" "$FAKE_VERIFICATION"; else cat "$FAKE_VERIFICATION"; fi ;;' \
     '  *"airbob_fingerprint_count:final-inventory"*) printf "0\n" ;;' \
+    '  *"airbob_fingerprint_count:final-accommodation-amenity"*) jq -r ".world.tableRows.accommodation_amenity" "$FAKE_MANIFEST" ;;' \
+    '  *"airbob_fingerprint_count:final-accommodation-image"*) jq -r ".world.tableRows.accommodation_image" "$FAKE_MANIFEST" ;;' \
+    '  *"airbob_fingerprint_count:final-address"*) jq -r ".world.tableRows.address" "$FAKE_MANIFEST" ;;' \
+    '  *"airbob_fingerprint_count:final-occupancy-policy"*) jq -r ".world.tableRows.occupancy_policy" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-accommodation"*) jq -r ".world.tableRows.accommodation" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-member"*) jq -r ".world.tableRows.member" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-reservation"*) jq -r ".world.tableRows.reservation" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-review-summary"*) printf "1\n" ;;' \
+    '  *"airbob_fingerprint_count:final-review-image"*) jq -r ".world.tableRows.review_image" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-review"*) jq -r ".world.tableRows.review" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-wishlist-accommodation"*) jq -r ".world.tableRows.wishlist_accommodation" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:final-wishlist"*) jq -r ".world.tableRows.wishlist" "$FAKE_MANIFEST" ;;' \
@@ -294,6 +312,21 @@ commit=$(git -C "$temp_dir/etl" rev-parse HEAD)
 write_release "$temp_dir/release" "$temp_dir/etl" "$commit"
 write_fake_mysql
 run_verifier "$temp_dir/receipt.json"
+for fingerprint_id in \
+  final-address final-occupancy-policy final-accommodation-image \
+  final-accommodation-amenity final-review-image
+do
+  grep -Fq "airbob_fingerprint:$fingerprint_id" "$temp_dir/mysql-queries.log" \
+    || fail "restore verifier omitted fingerprint component: $fingerprint_id"
+done
+for fingerprint_field in \
+  'a.address_id' 'a.occupancy_policy_id' 'm.thumbnail_image_url' \
+  'a.latitude' 'a.longitude' 'o.max_occupancy' 'ai.image_url' \
+  'aa.amenity_code' 'aa.count' 'ri.review_id' 'ri.image_url'
+do
+  grep -Fq "$fingerprint_field" "$temp_dir/mysql-queries.log" \
+    || fail "restore verifier omitted semantic field: $fingerprint_field"
+done
 for selector_sql in \
   'join address addr on addr.id=a.address_id' \
   'join occupancy_policy op on op.id=a.occupancy_policy_id' \
@@ -379,6 +412,37 @@ expect_failure unsafe-temporary-schema run_isolated_verifier \
 grep -Fq 'then "<null>"' "$verifier" || fail 'wishlist canonical null fields are not literal <null>'
 canonical_manifest="$temp_dir/canonical-manifest.json"
 cp "$temp_dir/release/benchmark-dataset-v2.json" "$canonical_manifest"
+jq '
+  .world.provenance.verificationPassed=false |
+  .world.provenance.sourceInventorySha256=null |
+  .world.provenance.calibrationVersion=null |
+  .world.provenance.calibrationSha256=null |
+  .world.provenance.assertionSha256=null |
+  .world.scopedObservedDistributions={} |
+  .world.scopeRanges={} |
+  .world.fingerprints={}
+' "$canonical_manifest" > "$temp_dir/release/benchmark-dataset-v2.json"
+expect_failure unverified-release-manifest run_isolated_verifier \
+  "$temp_dir/unverified-release.json"
+grep -Fq 'ETL release requires verified production fingerprints' \
+  "$temp_dir/unverified-release-manifest.err" \
+  || fail 'release-only verifier did not enforce verified fingerprint provenance'
+cp "$canonical_manifest" "$temp_dir/release/benchmark-dataset-v2.json"
+
+jq '
+  del(.world.tableRows.address,.world.tableRows.occupancy_policy,
+      .world.tableRows.accommodation_image,.world.tableRows.accommodation_amenity,
+      .world.tableRows.review_image) |
+  .world.fingerprints={
+    "base-world":.world.fingerprints["base-world"],
+    "final-inventory":.world.fingerprints["final-inventory"],
+    "final-world":.world.fingerprints["final-world"]
+  }
+' "$canonical_manifest" > "$temp_dir/release/benchmark-dataset-v2.json"
+expect_failure rebound-eleven-table-manifest run_isolated_verifier \
+  "$temp_dir/rebound-eleven-table.json"
+cp "$canonical_manifest" "$temp_dir/release/benchmark-dataset-v2.json"
+
 jq '.targetFingerprint=("0"*64)' "$canonical_manifest" > "$temp_dir/release/benchmark-dataset-v2.json"
 expect_failure empty-null-target-fingerprint run_verifier "$temp_dir/empty-null.json"
 cp "$canonical_manifest" "$temp_dir/release/benchmark-dataset-v2.json"
@@ -402,6 +466,15 @@ expect_failure isolated-snapshot-drift run_isolated_verifier \
 expect_failure search-address-occupancy-drift run_isolated_verifier \
   "$temp_dir/search-drift.json" FAKE_SEARCH_ADDRESS_OCCUPANCY_DRIFT=true
 expect_failure second-pass-drift run_verifier "$temp_dir/pass-drift.json" FAKE_VERIFY_DRIFT=true
+
+for fingerprint_id in \
+  final-address final-occupancy-policy final-accommodation-image \
+  final-accommodation-amenity final-review-image final-accommodation \
+  base-accommodation final-member base-member
+do
+  expect_failure "${fingerprint_id}-semantic-drift" run_isolated_verifier \
+    "$temp_dir/${fingerprint_id}-drift.json" FAKE_FINGERPRINT_DRIFT="$fingerprint_id"
+done
 
 safe_manifest="$temp_dir/safe-manifest.json"
 cp "$temp_dir/release/benchmark-dataset-v2.json" "$safe_manifest"

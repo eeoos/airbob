@@ -219,6 +219,8 @@ download_sha attestation/restore.json "$attestation" "$(jq -r '.releaseTuple.att
 # Only execute the release validator after its bytes are bound to the trusted wrapper.
 jq -e -f "$semantic_validator" "$benchmark_dataset_manifest" >/dev/null \
   || { printf '%s\n' 'benchmark-dataset-v2 semantic validation failed' >&2; exit 1; }
+jq -e '.world.provenance.verificationPassed == true' "$benchmark_dataset_manifest" >/dev/null \
+  || { printf '%s\n' 'dataset release requires verified production fingerprints' >&2; exit 1; }
 validate_source_calibration "$calibration" "$expected_budgets" \
   || { printf '%s\n' 'source calibration aggregate-only contract failed' >&2; exit 1; }
 jq -e --arg profile "$profile_version" --argjson budgets "$expected_budgets" '
@@ -515,19 +517,29 @@ base_fingerprint() {
 }
 live_restore_fingerprints() {
   jq -e '(.world.scopeRanges|keys)==["accommodation","member","payment","payment-transaction","reservation","review","wishlist","wishlist-accommodation"] and all(.world.scopeRanges|to_entries[];.key==.value.id and .value.minimumId>0 and .value.maximumId>=.value.minimumId and .value.rowCount==(.value.maximumId-.value.minimumId+1))' "$benchmark_dataset_manifest" >/dev/null || return 1
-  local accommodation=(a.id text a.base_price text a.created_at text a.member_id text a.description text a.name text a.thumbnail_url text a.type text a.check_in_time text a.check_out_time text a.time_zone_id text a.status text a.currency text a.accommodation_uid binary)
-  local member=(m.id text m.created_at text m.email text m.nickname text m.role text m.status text)
+  local accommodation=(a.id text a.base_price text a.created_at text a.member_id text a.description text a.name text a.thumbnail_url text a.type text a.check_in_time text a.check_out_time text a.time_zone_id text a.status text a.currency text a.accommodation_uid binary a.address_id text a.occupancy_policy_id text)
+  local address=(a.id text a.latitude text a.longitude text a.postal_code text a.city text a.country text a.detail text a.district text a.street text a.state text)
+  local occupancy_policy=(o.id text o.infant_occupancy text o.max_occupancy text o.pet_occupancy text)
+  local accommodation_image=(ai.id text ai.accommodation_id text ai.image_url text)
+  local accommodation_amenity=(aa.id text aa.accommodation_id text aa.amenity_code text aa.count text)
+  local member=(m.id text m.created_at text m.email text m.nickname text m.role text m.status text m.thumbnail_image_url text)
   local reservation=(r.id text r.reservation_uid binary r.accommodation_id text r.guest_id text r.check_in_date text r.check_out_date text r.check_in_at text r.check_out_at text r.time_zone_id text r.guest_count text r.total_price text r.discount_amount text r.status text r.message text r.reservation_code text r.created_at text r.expires_at text r.currency text)
   local review=(r.id text r.rating text r.accommodation_id text r.created_at text r.member_id text r.content text r.status text)
+  local review_image=(ri.id text ri.review_id text ri.image_url text)
   local wishlist=(w.id text w.name text w.created_at text w.member_id text w.status text w.accommodation_count text w.representative_accommodation_id text)
   local wishlist_link=(wa.id text wa.memo text wa.created_at text wa.wishlist_id text wa.accommodation_id text)
   local payment=(p.id text p.payment_uid binary p.payment_key text p.order_id text p.amount text p.method text p.approved_at text p.created_at text p.reservation_id text p.status text p.balance_amount text)
   local transaction=(pt.id text pt.reservation_id text pt.payment_id text pt.transaction_type text pt.status text pt.amount text pt.payment_key text pt.order_id text pt.method text pt.failure_code text pt.cancel_amount text pt.cancel_reason text pt.transaction_key text pt.canceled_at text pt.created_at text)
   live_fingerprint_rows="$work_root/live-fingerprint-rows.tsv"; : > "$live_fingerprint_rows"
   fingerprint_table final-accommodation 'accommodation a' '1=1' a.id "$(table_rows accommodation)" "${accommodation[@]}"
+  fingerprint_table final-address 'address a' '1=1' a.id "$(table_rows address)" "${address[@]}"
+  fingerprint_table final-occupancy-policy 'occupancy_policy o' '1=1' o.id "$(table_rows occupancy_policy)" "${occupancy_policy[@]}"
+  fingerprint_table final-accommodation-image 'accommodation_image ai' '1=1' ai.id "$(table_rows accommodation_image)" "${accommodation_image[@]}"
+  fingerprint_table final-accommodation-amenity 'accommodation_amenity aa' '1=1' aa.id "$(table_rows accommodation_amenity)" "${accommodation_amenity[@]}"
   fingerprint_table final-member 'member m' '1=1' m.id "$(table_rows member)" "${member[@]}"
   fingerprint_table final-reservation 'reservation r' '1=1' r.id "$(table_rows reservation)" "${reservation[@]}"
   fingerprint_table final-review 'review r' '1=1' r.id "$(table_rows review)" "${review[@]}"
+  fingerprint_table final-review-image 'review_image ri' '1=1' ri.id "$(table_rows review_image)" "${review_image[@]}"
   fingerprint_table final-wishlist 'wishlist w' '1=1' w.id "$(table_rows wishlist)" "${wishlist[@]}"
   fingerprint_table final-wishlist-accommodation 'wishlist_accommodation wa' '1=1' wa.id "$(table_rows wishlist_accommodation)" "${wishlist_link[@]}"
   fingerprint_table final-payment 'payment p' '1=1' p.id "$(table_rows payment)" "${payment[@]}"

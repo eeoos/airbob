@@ -12,12 +12,49 @@ const SHAPES = [
 ];
 const REQUIRED_TABLES = [
   'accommodation',
+  'accommodation_amenity',
+  'accommodation_image',
   'accommodation_inventory_day',
+  'accommodation_review_summary',
+  'address',
+  'daily_revenue_stats',
   'member',
+  'occupancy_policy',
+  'payment',
   'payment_transaction',
   'reservation',
   'review',
+  'review_image',
   'wishlist',
+  'wishlist_accommodation',
+];
+const REQUIRED_FINGERPRINTS = [
+  'base-accommodation',
+  'base-member',
+  'base-payment',
+  'base-payment-transaction',
+  'base-reservation',
+  'base-review',
+  'base-wishlist',
+  'base-wishlist-accommodation',
+  'base-world',
+  'final-accommodation',
+  'final-accommodation-amenity',
+  'final-accommodation-image',
+  'final-address',
+  'final-daily-revenue',
+  'final-inventory',
+  'final-member',
+  'final-occupancy-policy',
+  'final-payment',
+  'final-payment-transaction',
+  'final-reservation',
+  'final-review',
+  'final-review-image',
+  'final-review-summary',
+  'final-wishlist',
+  'final-wishlist-accommodation',
+  'final-world',
 ];
 const REQUIRED_OBSERVED_DISTRIBUTIONS = [
   'accommodation-type-skew',
@@ -247,7 +284,7 @@ function validateProvenance(provenance, world) {
     'anchor', 'timezone', 'sourceInventorySha256', 'calibrationVersion',
     'calibrationSha256', 'specSha256', 'verificationPassed', 'assertionSha256',
   ], path);
-  ['profileVersion', 'generatorVersion', 'prngAlgorithm', 'calibrationVersion']
+  ['profileVersion', 'generatorVersion', 'prngAlgorithm']
     .forEach((key) => requireCanonicalId(provenance[key], `${path}.${key}`));
   requireCondition(
     typeof provenance.seedDerivation === 'string'
@@ -260,9 +297,19 @@ function validateProvenance(provenance, world) {
   requireCanonicalInstant(provenance.anchor, `${path}.anchor`);
   requireTimezone(provenance.timezone, `${path}.timezone`);
   requireCondition(provenance.timezone === world.timezone, `${path}.timezone must equal world.timezone`);
-  requireCondition(provenance.verificationPassed === true, `${path}.verificationPassed must be true`);
-  ['sourceInventorySha256', 'calibrationSha256', 'specSha256', 'assertionSha256']
-    .forEach((key) => requireSha256(provenance[key], `${path}.${key}`));
+  requireSha256(provenance.specSha256, `${path}.specSha256`);
+  requireCondition(
+    typeof provenance.verificationPassed === 'boolean',
+    `${path}.verificationPassed must be boolean`,
+  );
+  if (provenance.verificationPassed) {
+    requireCanonicalId(provenance.calibrationVersion, `${path}.calibrationVersion`);
+    ['sourceInventorySha256', 'calibrationSha256', 'assertionSha256']
+      .forEach((key) => requireSha256(provenance[key], `${path}.${key}`));
+  } else {
+    ['sourceInventorySha256', 'calibrationVersion', 'calibrationSha256', 'assertionSha256']
+      .forEach((key) => requireCondition(provenance[key] === null, `${path}.${key} must be null`));
+  }
 }
 
 function validateScopedObservedDistribution(distribution, mapKey) {
@@ -326,15 +373,11 @@ function validateWorld(world) {
   requireCondition(world.flywayVersion === 27, 'world.flywayVersion must equal 27');
   requireCondition(world.claimScope === 'controlled-synthetic-workload', 'world.claimScope is invalid');
 
-  requireObject(world.tableRows, 'world.tableRows');
+  requireExactKeys(world.tableRows, REQUIRED_TABLES, 'world.tableRows');
   Object.entries(world.tableRows).forEach(([table, count]) => {
     requireCanonicalTable(table, 'world.tableRows key');
     requireNonNegativeInteger(count, `world.tableRows.${table}`);
   });
-  REQUIRED_TABLES.forEach((table) => requireCondition(
-    Object.prototype.hasOwnProperty.call(world.tableRows, table),
-    `world.tableRows is missing ${table}`,
-  ));
   requireCondition(world.tableRows.accommodation_inventory_day === 0, 'world.tableRows.accommodation_inventory_day must equal 0');
 
   requireArray(world.observedDistributions, 'world.observedDistributions');
@@ -347,21 +390,23 @@ function validateWorld(world) {
   ));
 
   validateProvenance(world.provenance, world);
-  requireObject(world.scopedObservedDistributions, 'world.scopedObservedDistributions');
-  requireCondition(Object.keys(world.scopedObservedDistributions).length > 0, 'world.scopedObservedDistributions must not be empty');
-  Object.entries(world.scopedObservedDistributions)
-    .forEach(([key, value]) => validateScopedObservedDistribution(value, key));
-  requireExactKeys(world.scopeRanges, REQUIRED_SCOPE_RANGES, 'world.scopeRanges');
-  Object.entries(world.scopeRanges).forEach(([key, value]) => validateScopeRange(value, key));
-  requireObject(world.fingerprints, 'world.fingerprints');
-  ['final-world', 'final-inventory', 'base-world'].forEach((key) => requireSha256(
-    world.fingerprints[key],
-    `world.fingerprints.${key}`,
-  ));
-  Object.entries(world.fingerprints).forEach(([key, value]) => {
-    requireCanonicalId(key, 'world.fingerprints key');
-    requireSha256(value, `world.fingerprints.${key}`);
-  });
+  if (world.provenance.verificationPassed) {
+    requireObject(world.scopedObservedDistributions, 'world.scopedObservedDistributions');
+    requireCondition(Object.keys(world.scopedObservedDistributions).length > 0, 'world.scopedObservedDistributions must not be empty');
+    Object.entries(world.scopedObservedDistributions)
+      .forEach(([key, value]) => validateScopedObservedDistribution(value, key));
+    requireExactKeys(world.scopeRanges, REQUIRED_SCOPE_RANGES, 'world.scopeRanges');
+    Object.entries(world.scopeRanges).forEach(([key, value]) => validateScopeRange(value, key));
+    requireExactKeys(world.fingerprints, REQUIRED_FINGERPRINTS, 'world.fingerprints');
+    Object.entries(world.fingerprints).forEach(([key, value]) => {
+      requireCanonicalId(key, 'world.fingerprints key');
+      requireSha256(value, `world.fingerprints.${key}`);
+    });
+  } else {
+    requireExactKeys(world.scopedObservedDistributions, [], 'world.scopedObservedDistributions');
+    requireExactKeys(world.scopeRanges, [], 'world.scopeRanges');
+    requireExactKeys(world.fingerprints, [], 'world.fingerprints');
+  }
 }
 
 function validateBuckets(distribution, path, allowZero) {

@@ -11,12 +11,49 @@ def shapes: [
 ];
 def required_tables: [
   "accommodation",
+  "accommodation_amenity",
+  "accommodation_image",
   "accommodation_inventory_day",
+  "accommodation_review_summary",
+  "address",
+  "daily_revenue_stats",
   "member",
+  "occupancy_policy",
+  "payment",
   "payment_transaction",
   "reservation",
   "review",
-  "wishlist"
+  "review_image",
+  "wishlist",
+  "wishlist_accommodation"
+];
+def required_fingerprints: [
+  "base-accommodation",
+  "base-member",
+  "base-payment",
+  "base-payment-transaction",
+  "base-reservation",
+  "base-review",
+  "base-wishlist",
+  "base-wishlist-accommodation",
+  "base-world",
+  "final-accommodation",
+  "final-accommodation-amenity",
+  "final-accommodation-image",
+  "final-address",
+  "final-daily-revenue",
+  "final-inventory",
+  "final-member",
+  "final-occupancy-policy",
+  "final-payment",
+  "final-payment-transaction",
+  "final-reservation",
+  "final-review",
+  "final-review-image",
+  "final-review-summary",
+  "final-wishlist",
+  "final-wishlist-accommodation",
+  "final-world"
 ];
 def required_observed: [
   "accommodation-type-skew",
@@ -157,7 +194,6 @@ def valid_provenance($world):
   and (.profileVersion | canonical_id)
   and (.generatorVersion | canonical_id)
   and (.prngAlgorithm | canonical_id)
-  and (.calibrationVersion | canonical_id)
   and (.seedDerivation | type == "string" and length > 0
     and (explode | all(.[]; . >= 32 and . != 127)))
   and (.globalSeed | safe_integer(-max_safe_integer))
@@ -165,11 +201,19 @@ def valid_provenance($world):
   and (.anchor | canonical_instant)
   and (.timezone | canonical_timezone)
   and (.timezone == $world.timezone)
-  and (.verificationPassed == true)
-  and (.sourceInventorySha256 | sha256)
-  and (.calibrationSha256 | sha256)
   and (.specSha256 | sha256)
-  and (.assertionSha256 | sha256);
+  and (.verificationPassed == true or .verificationPassed == false)
+  and (if .verificationPassed then
+    (.sourceInventorySha256 | sha256)
+    and (.calibrationVersion | canonical_id)
+    and (.calibrationSha256 | sha256)
+    and (.assertionSha256 | sha256)
+  else
+    .sourceInventorySha256 == null
+    and .calibrationVersion == null
+    and .calibrationSha256 == null
+    and .assertionSha256 == null
+  end);
 
 def valid_scoped_observation($map_key):
   exact_keys([
@@ -219,9 +263,8 @@ def valid_world:
   and (.timezone | canonical_timezone)
   and (.flywayVersion == 27)
   and (.claimScope == "controlled-synthetic-workload")
-  and (.tableRows | type == "object")
+  and (.tableRows | exact_keys(required_tables))
   and all(.tableRows | to_entries[]; (.key | canonical_table) and (.value | nonnegative_integer))
-  and (required_tables as $tables | all($tables[]; . as $table | $world.tableRows | has($table)))
   and (.tableRows.accommodation_inventory_day == 0)
   and (.observedDistributions | type == "array" and length > 0)
   and all(.observedDistributions[]; valid_observed_distribution)
@@ -230,19 +273,22 @@ def valid_world:
     | required_observed as $required
     | all($required[]; . as $id | $ids | index($id) != null))
   and (.provenance | valid_provenance($world))
-  and (.scopedObservedDistributions | type == "object" and length > 0)
-  and all(.scopedObservedDistributions | to_entries[]; . as $entry
-    | ($entry.key | canonical_id)
-    and ($entry.value | valid_scoped_observation($entry.key)))
-  and (.scopeRanges | exact_keys(required_scope_ranges))
-  and all(.scopeRanges | to_entries[]; . as $entry
-    | ($entry.key | canonical_id)
-    and ($entry.value | valid_scope_range($entry.key)))
-  and (.fingerprints | type == "object")
-  and (.fingerprints["final-world"] | sha256)
-  and (.fingerprints["final-inventory"] | sha256)
-  and (.fingerprints["base-world"] | sha256)
-  and all(.fingerprints | to_entries[]; (.key | canonical_id) and (.value | sha256));
+  and (if .provenance.verificationPassed then
+    (.scopedObservedDistributions | type == "object" and length > 0)
+    and all(.scopedObservedDistributions | to_entries[]; . as $entry
+      | ($entry.key | canonical_id)
+      and ($entry.value | valid_scoped_observation($entry.key)))
+    and (.scopeRanges | exact_keys(required_scope_ranges))
+    and all(.scopeRanges | to_entries[]; . as $entry
+      | ($entry.key | canonical_id)
+      and ($entry.value | valid_scope_range($entry.key)))
+    and (.fingerprints | exact_keys(required_fingerprints))
+    and all(.fingerprints | to_entries[]; (.key | canonical_id) and (.value | sha256))
+  else
+    (.scopedObservedDistributions | exact_keys([]))
+    and (.scopeRanges | exact_keys([]))
+    and (.fingerprints | exact_keys([]))
+  end);
 
 def valid_buckets($allow_zero):
   type == "array"

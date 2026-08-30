@@ -43,6 +43,19 @@ function applyMalformedCase(source, malformedCase) {
   return copy;
 }
 
+function asUnverifiedNormalWorld(source) {
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.world.provenance.verificationPassed = false;
+  copy.world.provenance.sourceInventorySha256 = null;
+  copy.world.provenance.calibrationVersion = null;
+  copy.world.provenance.calibrationSha256 = null;
+  copy.world.provenance.assertionSha256 = null;
+  copy.world.scopedObservedDistributions = {};
+  copy.world.scopeRanges = {};
+  copy.world.fingerprints = {};
+  return copy;
+}
+
 export default function () {
   const canonicalSource = JSON.parse(canonicalRaw);
   const manifest = parseBenchmarkDatasetManifest(canonicalRaw);
@@ -54,6 +67,10 @@ export default function () {
       value.schemaVersion === 2
         && value.datasetVersion === 'benchmark-dataset-v2'
         && value.world.version === 'world-v2'
+    ),
+    'closed unverified normal world is accepted': () => (
+      parseBenchmarkDatasetManifest(JSON.stringify(asUnverifiedNormalWorld(canonicalSource)))
+        .world.provenance.verificationPassed === false
     ),
     'coupon capacity can be required without changing legacy targets': () => (
       requireAccountCapacity(coupon, 2) === 2 && coupon.targets.length === 0
