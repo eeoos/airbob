@@ -12,6 +12,29 @@ object below `datasets/<datasetRelease>/`, verify it locally, and upload
 `manifest.json` last as the completion marker. The lab selects both the release
 name and the exact manifest SHA-256; it never searches for a latest release.
 
+## Closed source contract and landing order
+
+The current source contract accepts exactly 16 `world.tableRows` keys:
+`accommodation`, `address`, `occupancy_policy`, `accommodation_image`,
+`accommodation_amenity`, `member`, `reservation`, `review`, `review_image`, `wishlist`,
+`wishlist_accommodation`, `payment`, `payment_transaction`, `accommodation_review_summary`,
+`daily_revenue_stats`, and `accommodation_inventory_day`.
+
+A verified production-skew source accepts exactly 26 fingerprint keys: one `final-*` component for
+each of those 16 tables (using `final-review-summary`, `final-daily-revenue`, and
+`final-inventory` for the final three semantic names), the eight `base-*` components for
+accommodation, member, reservation, review, wishlist, wishlist-accommodation, payment, and
+payment-transaction, plus `final-world` and `base-world`. Release paths require
+`verificationPassed=true`; unverified normal worlds have empty fingerprints and scopes and are not
+release inputs.
+
+An 11-table pre-fix manifest or release remains invalid after any checksum or metadata rebinding.
+Land the Airbob verifier commit first, then generate a fresh release ID from clean ETL and Airbob
+worktrees and a newly migrated empty V27 database. The ETL provenance pins the exact Airbob
+`backend_head`. Source verification, isolated restored-dump verification, attestation, assembly,
+and bootstrap live verification must consume identical immutable source bytes. Passwords are
+environment-only; local Compose receives only paths to distinct owner-only secret files.
+
 ## Release layout
 
 ```text

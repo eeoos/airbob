@@ -7,6 +7,36 @@ activity signal을 보존하면서 예약, 리뷰, 위시리스트, 결제 원�
 복제본이 아니다. 분포 수치는 versioned synthetic hypothesis이며, 성능 결과도
 "production-inspired workload에서의 측정"으로만 표현해야 한다.
 
+## Closed v2 integrity boundary
+
+`world.tableRows` is an exact 16-key inventory:
+
+```text
+accommodation, address, occupancy_policy, accommodation_image,
+accommodation_amenity, member, reservation, review, review_image,
+wishlist, wishlist_accommodation, payment, payment_transaction,
+accommodation_review_summary, daily_revenue_stats, accommodation_inventory_day
+```
+
+For a verified production-skew release, `world.fingerprints` is also closed. It contains the 16
+final keys `final-accommodation`, `final-address`, `final-occupancy-policy`,
+`final-accommodation-image`, `final-accommodation-amenity`, `final-member`,
+`final-reservation`, `final-review`, `final-review-image`, `final-wishlist`,
+`final-wishlist-accommodation`, `final-payment`, `final-payment-transaction`,
+`final-review-summary`, `final-daily-revenue`, and `final-inventory`; the eight base keys
+`base-accommodation`, `base-member`, `base-reservation`, `base-review`, `base-wishlist`,
+`base-wishlist-accommodation`, `base-payment`, and `base-payment-transaction`; and the two
+composites `final-world` and `base-world`. Missing or extra keys are invalid. Unverified normal
+worlds use empty fingerprint/scope maps and are not releasable; every release consumer additionally
+requires `verificationPassed=true`.
+
+The earlier 11-table v2 shape is a pre-fix artifact, not a compatible v2 variant. Rebinding its
+hashes or checksums does not repair it. Commit the Airbob independent verifier first, then generate
+a new release ID from a clean V27 database and clean ETL checkout pinned to that Airbob
+`backend_head`. Source verification, isolated restore verification, attestation, assembly, and
+bootstrap must verify the same immutable bytes. Credentials are environment-only; Compose receives
+owner-only secret-file paths, never password values in `.env`, arguments, artifacts, or logs.
+
 > 현재 상태, 2026-08-27: release 및 evidence 계약은 구현 후보 상태다. reviewed full CSV로
 > 만든 canonical release, AWS publication, isolated RDS restore, persistent RDS snapshot과
 > baseline artifact는 아직 이 문서에 증명되지 않았다. 아래 표의 `미수집` 항목이 실제
