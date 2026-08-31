@@ -20,8 +20,8 @@
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Immutable V27 dataset assembly and publication | Local DB/search assembly, native ES snapshot producer, and manifest-last publisher implemented (static/mock tests only; publisher role/policy unapplied and nothing published) |
-| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V27 release published or restored) |
+| Immutable V27 dataset assembly and publication | V27 source release, isolated-restore schema-4 attestation, and DB-only local assembly executed; native ES snapshot/search-enabled assembly and manifest-last S3 publication remain unexecuted, and the publisher role/policy delta is unapplied |
+| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V27 release published to or restored in AWS) |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
 | Route 53 cutover | Gabia delegation completed; Route 53 serves the verified OCI weight-100 record, while the AWS alias remains pending |
@@ -57,10 +57,14 @@ foundation and OCI-only Route 53 record are now authoritative after the Gabia
 delegation. The public API origin is unchanged: Route 53 still sends all
 traffic to OCI at `140.245.76.140`, and the public `/health` probe remains
 healthy. The AWS alias is absent. The ephemeral lab has not been created, data
-has not been restored, and no performance results have been established. The
-historical ETL dump is Flyway V12 while the application is V27, so the Phase 3
-validator intentionally refuses it; a newly generated immutable V27 release is
-a prerequisite for the first live rehearsal.
+has not been restored in AWS, and no performance results have been established.
+The historical Flyway V12 dump remains intentionally rejected. Local
+qualification produced the immutable V27 source release
+`production-seed-20260830T223254Z`, its schema-4 isolated-restore attestation,
+and the DB-only rehearsal wrapper
+`production-seed-20260830t223254z-db-rehearsal`; the native Elasticsearch
+snapshot, search-enabled wrapper, immutable S3 publication, and first live AWS
+rehearsal remain pending.
 
 That release must apply V1–V27 while the source schema is empty and all V24 or
 older writers are stopped. V25 intentionally rejects non-empty reservation
