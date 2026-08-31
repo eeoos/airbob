@@ -27,7 +27,11 @@ combined_hash() {
   fi
   for id in "${ids[@]}"; do
     digest=$row_hash
-    [[ "$id" != final-inventory ]] || digest=$inventory_hash
+    case "$id" in
+      final-address) digest=$address_hash ;;
+      final-occupancy-policy) digest=$occupancy_policy_hash ;;
+      final-inventory) digest=$inventory_hash ;;
+    esac
     append_field "$output" "$id"; append_field "$output" "$digest"
   done
   sha256_file "$output"
@@ -42,6 +46,13 @@ ordered_ids_hash() {
 
 printf 'fffffffe' | xxd -r -p > "$temp_dir/one-row.bin"
 row_hash=$(sha256_file "$temp_dir/one-row.bin")
+printf 'fffffffd' | xxd -r -p > "$temp_dir/address-row.bin"
+address_hash=$(sha256_file "$temp_dir/address-row.bin")
+printf 'fffffffc' | xxd -r -p > "$temp_dir/occupancy-policy-row.bin"
+occupancy_policy_hash=$(sha256_file "$temp_dir/occupancy-policy-row.bin")
+[[ "$row_hash" != "$address_hash" && "$address_hash" != "$occupancy_policy_hash" \
+  && "$row_hash" != "$occupancy_policy_hash" ]] \
+  || fail 'representative SQL-derived component digests must be distinct'
 : > "$temp_dir/empty.bin"
 empty_hash=$(sha256_file "$temp_dir/empty.bin")
 printf '000000013000000004302e3030' | xxd -r -p > "$temp_dir/review-result.bin"
@@ -85,7 +96,7 @@ write_manifest() {
   spec_sha=$(sha256_file "$spec_file")
   profile=$(jq -er '.profileVersion' "$spec_file")
   budgets=$(jq -c '{accommodations:.targets.accommodations.rowBudget,members:.targets.members.rowBudget,reservations:.targets.reservations.rowBudget,reviews:.targets.reviews.rowBudget,activeWishlists:.targets.activeWishlists.rowBudget,wishlistLinks:.targets.wishlistLinks.rowBudget}' "$spec_file")
-  jq -nS --slurpfile base "$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json" --arg finalWorld "$final_world" --arg baseWorld "$base_world" --arg inventory "$empty_hash" --arg rowHash "$row_hash" --arg reviewHash "$review_hash" --arg emptyHash "$empty_hash" --arg searchBroadHash "$search_broad_hash" --arg searchMediumHash "$search_medium_hash" --arg searchNarrowHash "$search_narrow_hash" --arg specSha "$spec_sha" --arg profile "$profile" --argjson budgets "$budgets" '
+  jq -nS --slurpfile base "$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json" --arg finalWorld "$final_world" --arg baseWorld "$base_world" --arg inventory "$empty_hash" --arg rowHash "$row_hash" --arg addressHash "$address_hash" --arg occupancyPolicyHash "$occupancy_policy_hash" --arg reviewHash "$review_hash" --arg emptyHash "$empty_hash" --arg searchBroadHash "$search_broad_hash" --arg searchMediumHash "$search_medium_hash" --arg searchNarrowHash "$search_narrow_hash" --arg specSha "$spec_sha" --arg profile "$profile" --argjson budgets "$budgets" '
     def account($id;$email;$role):{memberId:$id,email:$email,role:$role,status:"ACTIVE"};
     def review($id;$accommodation):{id:$id,expectedRows:0,resourceIds:[$accommodation],query:{kind:"REVIEW_SUMMARY_V1",accommodationId:$accommodation},expectedResultHash:$reviewHash};
     def wishlist($id;$member):{id:$id,expectedRows:0,resourceIds:[$member],query:{kind:"WISHLIST_PAGE_V1",memberId:$member,size:50,lastId:(if $id=="wishlist-hot-deep" then 1 else null end),lastCreatedAt:(if $id=="wishlist-hot-deep" then "2026-01-01T00:00:00" else null end),accommodationId:null,totalActiveRows:0},expectedResultHash:$emptyHash,account:account($member;("wishlist-"+($member|tostring)+"@airbob.cloud");"MEMBER")};
@@ -114,9 +125,9 @@ write_manifest() {
       "base-payment-transaction":$rowHash,"base-reservation":$rowHash,"base-review":$rowHash,
       "base-wishlist":$rowHash,"base-wishlist-accommodation":$rowHash,"base-world":$baseWorld,
       "final-accommodation":$rowHash,"final-accommodation-amenity":$rowHash,
-      "final-accommodation-image":$rowHash,"final-address":$rowHash,
+      "final-accommodation-image":$rowHash,"final-address":$addressHash,
       "final-daily-revenue":$rowHash,"final-inventory":$inventory,"final-member":$rowHash,
-      "final-occupancy-policy":$rowHash,"final-payment":$rowHash,
+      "final-occupancy-policy":$occupancyPolicyHash,"final-payment":$rowHash,
       "final-payment-transaction":$rowHash,"final-reservation":$rowHash,"final-review":$rowHash,
       "final-review-image":$rowHash,"final-review-summary":$rowHash,
       "final-wishlist":$rowHash,"final-wishlist-accommodation":$rowHash,
@@ -254,7 +265,12 @@ write_fake_mysql() {
     '  *"airbob_fingerprint_count:base-wishlist"*) jq -r ".world.scopeRanges.wishlist.rowCount" "$FAKE_MANIFEST" ;;' \
     '  *"airbob_fingerprint_count:"*) printf "1\n" ;;' \
     '  *"airbob_fingerprint:final-inventory"*) : ;;' \
-    '  *"airbob_fingerprint:"*) printf "FFFFFFFE\n" ;;' \
+    '  *"airbob_fingerprint:"*)' \
+    '    case "$query" in' \
+    '      *"FROM address a "*) printf "FFFFFFFD\n" ;;' \
+    '      *"FROM occupancy_policy o "*) printf "FFFFFFFC\n" ;;' \
+    '      *) printf "FFFFFFFE\n" ;;' \
+    '    esac ;;' \
     '  *"airbob_target_account:"*) printf "1\n" ;;' \
     '  *"airbob_target_result:review-"*) if [[ "${FAKE_TARGET_DRIFT:-false}" == true ]]; then printf "000000013100000004302e3030\n"; else printf "000000013000000004302e3030\n"; fi ;;' \
     '  *"airbob_target_result:"*) : ;;' \
@@ -275,18 +291,22 @@ write_fake_mysql() {
   chmod 700 "$temp_dir/bin/mysql"
 }
 
-run_verifier() {
-  local output=$1; shift
+run_verifier_script() {
+  local verifier_script=$1 output=$2; shift 2
   : > "$temp_dir/verify-counter"
   env PATH="$temp_dir/bin:$PATH" AIRBOB_DATASET_ETL_REPOSITORY="$temp_dir/etl" \
     AIRBOB_DATASET_DB_HOST=127.0.0.1 AIRBOB_DATASET_DB_PORT=3307 AIRBOB_DATASET_DB_USER=verify \
     AIRBOB_DATASET_DB_PASSWORD="$fixture_password" AIRBOB_DATASET_DB_NAME=airbobdb AIRBOB_DATASET_DB_QUIESCED=true \
     FAKE_VERIFICATION="$temp_dir/verification.tsv" FAKE_VERIFY_COUNTER="$temp_dir/verify-counter" FAKE_QUERY_LOG="$temp_dir/mysql-queries.log" \
     FAKE_MANIFEST="$temp_dir/release/benchmark-dataset-v2.json" \
-    "$@" "$verifier" "$temp_dir/release" > "$output"
+    "$@" "$verifier_script" "$temp_dir/release" > "$output"
 }
-run_isolated_verifier() {
+run_verifier() {
   local output=$1; shift
+  run_verifier_script "$verifier" "$output" "$@"
+}
+run_isolated_verifier_script() {
+  local verifier_script=$1 output=$2; shift 2
   : > "$temp_dir/verify-counter"
   env PATH="$temp_dir/bin:$PATH" AIRBOB_DATASET_ETL_REPOSITORY="$temp_dir/etl" \
     AIRBOB_DATASET_DB_HOST=127.0.0.1 AIRBOB_DATASET_DB_PORT=3307 AIRBOB_DATASET_DB_USER=verify \
@@ -295,7 +315,11 @@ run_isolated_verifier() {
     AIRBOB_DATASET_DB_QUIESCED=true AIRBOB_DATASET_DB_VERIFICATION_MODE=isolated-temporary-schema \
     FAKE_VERIFICATION="$temp_dir/verification.tsv" FAKE_VERIFY_COUNTER="$temp_dir/verify-counter" FAKE_QUERY_LOG="$temp_dir/mysql-queries.log" \
     FAKE_MANIFEST="$temp_dir/release/benchmark-dataset-v2.json" \
-    "$@" "$verifier" "$temp_dir/release" > "$output"
+    "$@" "$verifier_script" "$temp_dir/release" > "$output"
+}
+run_isolated_verifier() {
+  local output=$1; shift
+  run_isolated_verifier_script "$verifier" "$output" "$@"
 }
 expect_failure() {
   local label=$1; shift
@@ -354,6 +378,28 @@ jq -e --arg final "$final_world" --arg base "$base_world" --arg inventory "$empt
   (keys|sort)==(["schemaVersion","sourceEtlCommit","databaseServerUuid","verifierContractInventorySha256","databaseFingerprintSha256","verificationOutputSha256","finalWorldFingerprintSha256","baseWorldFingerprintSha256","distributionEvidenceSha256","distributionAssertionSha256","distributionSpecSha256","targetFingerprintSha256","inventoryFingerprintSha256"]|sort) and
   .schemaVersion==2 and .finalWorldFingerprintSha256==$final and .baseWorldFingerprintSha256==$base and .inventoryFingerprintSha256==$inventory and .targetFingerprintSha256==$target and .distributionAssertionSha256==$assertion and .distributionSpecSha256==$spec
 ' "$temp_dir/receipt.json" >/dev/null || fail 'receipt does not bind recomputed fingerprints'
+jq -e --arg address "$address_hash" --arg occupancy "$occupancy_policy_hash" '
+  .world.fingerprints["final-address"]==$address and
+  .world.fingerprints["final-occupancy-policy"]==$occupancy and
+  .world.fingerprints["final-address"]!=.world.fingerprints["final-occupancy-policy"]
+' "$temp_dir/release/benchmark-dataset-v2.json" >/dev/null \
+  || fail 'representative component fixtures do not retain distinct SQL-derived digests'
+
+swapped_verifier_dir="$temp_dir/swapped-verifier"
+swapped_verifier="$swapped_verifier_dir/verify-etl-release-database.sh"
+mkdir -p "$swapped_verifier_dir"
+cp "$repo_root/infra/aws/scripts/validate-benchmark-dataset-v2.jq" "$swapped_verifier_dir/"
+sed \
+  -e 's/^fingerprint_table final-address /fingerprint_table final-component-swap /' \
+  -e 's/^fingerprint_table final-occupancy-policy /fingerprint_table final-address /' \
+  -e 's/^fingerprint_table final-component-swap /fingerprint_table final-occupancy-policy /' \
+  "$verifier" > "$swapped_verifier"
+chmod 700 "$swapped_verifier"
+expect_failure component-id-query-swap run_isolated_verifier_script \
+  "$swapped_verifier" "$temp_dir/component-id-query-swap.json"
+grep -Fq 'fingerprint component differs from restored canonical rows: final-occupancy-policy' \
+  "$temp_dir/component-id-query-swap.err" \
+  || fail 'component ID/query swap was not rejected by the component digest binding'
 
 mv "$temp_dir/release/release-metadata.txt" "$temp_dir/release-metadata.saved"
 run_isolated_verifier "$temp_dir/isolated-receipt.json"
