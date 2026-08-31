@@ -165,9 +165,11 @@ locals {
         Sid    = "ManagedBucketRead"
         Effect = "Allow"
         Action = [
+          "s3:GetAccelerateConfiguration",
           "s3:GetBucket*",
           "s3:GetEncryptionConfiguration",
           "s3:GetLifecycleConfiguration",
+          "s3:GetObjectLockConfiguration",
           "s3:GetReplicationConfiguration",
           "s3:ListBucket",
         ]
