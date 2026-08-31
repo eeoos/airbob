@@ -24,6 +24,13 @@ trap 'exit 143' TERM
 
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 assert_contains() { grep -Fq -- "$2" "$1" || fail "$1 does not contain: $2"; }
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
 
 for executable in "$operator" "$orphan_scanner" "$expiry_cleanup" "$policy_verifier"; do
   [[ -x "$executable" && ! -L "$executable" ]] || fail "$executable is missing or unsafe"
@@ -60,6 +67,9 @@ assert_contains "$operator" 'run manifest expiry is invalid'
 assert_contains "$operator" 'dataset completion manifest is unavailable'
 assert_contains "$operator" 'dataset completion manifest is invalid'
 assert_contains "$operator" 'verify_public_aws_smoke'
+assert_contains "$operator" 'verify_direct_aws_smoke'
+assert_contains "$operator" 'legacyBenchmarkManifestSha256'
+assert_contains "$operator" 'search-narrow'
 assert_contains "$operator" 'for attempt in 1 2 3'
 assert_contains "$operator" 'Terraform state run changed before lease acquisition'
 assert_contains "$operator" 'refusing to replace an active lab; run status or down first'
@@ -205,6 +215,10 @@ case " $* " in
     [[ -n "$destination" ]] || exit 1
     if [[ "$*" == *'runs/'*'/operator.json'* ]]; then
       cat "${FAKE_RUN_MANIFEST:?}" > "$destination"
+    elif [[ "$*" == *'/benchmark/dataset-manifest.json'* ]]; then
+      cat "${FAKE_BENCHMARK_DATASET_MANIFEST:?}" > "$destination"
+    elif [[ "$*" == *'/benchmark/manifest.json'* ]]; then
+      cat "${FAKE_BENCHMARK_MANIFEST:?}" > "$destination"
     elif [[ "$*" == *'datasets/'*'/manifest.json'* ]]; then
       cat "${FAKE_DATASET_MANIFEST:?}" > "$destination"
     elif [[ "$*" == *'.sha256'* ]]; then
@@ -265,15 +279,66 @@ EOF
 cat > "$temp_dir/operator-bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "${FAKE_PUBLIC_SMOKE_FAILURE:-false}" != true ]] || exit 22
-printf '%s\n' '{"status":"UP"}'
+printf 'curl %s\n' "$*" >> "${FAKE_OPERATOR_LOG:?}"
+if [[ "${FAKE_PUBLIC_SMOKE_FAILURE:-false}" == true && " $* " != *' --connect-to '* ]]; then
+  exit 22
+fi
+case "$*" in
+  *'/actuator/health'*) printf '%s\n' '{"status":"UP"}' ;;
+  *'/api/v1/accommodations/200001'*) printf '%s\n' '{"success":true,"data":{"id":200001}}' ;;
+  *'/api/v1/search/accommodations'*)
+    printf '%s\n' '{"success":true,"data":{"stay_search_result_listing":[{"id":101706}],"page_info":{"current_page":0,"total_elements":1,"total_pages":1}}}'
+    ;;
+  *) printf 'unexpected fake smoke request: %s\n' "$*" >&2; exit 22 ;;
+esac
 EOF
 chmod 700 "$temp_dir/operator-bin/aws" "$temp_dir/operator-bin/terraform" \
   "$temp_dir/operator-bin/curl"
 
+cat > "$temp_dir/benchmark-manifest.json" <<'JSON'
+{
+  "datasetVersion": "nplus1-v1",
+  "hostAccommodations": { "detailAccommodationId": 200001 }
+}
+JSON
+cat > "$temp_dir/benchmark-dataset-manifest.json" <<'JSON'
+{
+  "schemaVersion": 2,
+  "datasetVersion": "benchmark-dataset-v2",
+  "world": { "version": "world-v2" },
+  "capsules": [{
+    "capsuleId": "index-query-v1",
+    "mutability": "READ_ONLY",
+    "targets": [{
+      "id": "search-narrow",
+      "expectedRows": 1,
+      "resourceIds": [101706],
+      "query": {
+        "kind": "ACCOMMODATION_SEARCH_V1",
+        "destination": "",
+        "minPrice": 0,
+        "maxPrice": 4383,
+        "adultOccupancy": 1,
+        "childOccupancy": 0,
+        "infantOccupancy": 0,
+        "petOccupancy": 0,
+        "topLeftLat": 60.03054680000001,
+        "topLeftLng": -124.42150910000001,
+        "bottomRightLat": -43.440580000000004,
+        "bottomRightLng": 153.63548000000003,
+        "page": 0
+      },
+      "expectedResultHash": "41672a3dd4e44ee6138dba8c0dea8ab83cfd8717dd61555a13eac357af676489"
+    }]
+  }]
+}
+JSON
+legacy_manifest_sha=$(sha256_file "$temp_dir/benchmark-manifest.json")
+benchmark_dataset_manifest_sha=$(sha256_file "$temp_dir/benchmark-dataset-manifest.json")
+
 cat > "$temp_dir/dataset-manifest.json" <<'JSON'
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "releaseKind": "pipeline-rehearsal",
   "datasetRelease": "fixture-v20",
   "mysql": {
@@ -285,14 +350,30 @@ cat > "$temp_dir/dataset-manifest.json" <<'JSON'
       "accommodation_inventory_day": 0,
       "reservation": 0
     }
-  }
+  },
+  "source": {
+    "legacyBenchmarkManifestKey": "benchmark/manifest.json",
+    "legacyBenchmarkManifestSha256": "placeholder",
+    "benchmarkDatasetManifestKey": "benchmark/dataset-manifest.json",
+    "benchmarkDatasetManifestSha256": "placeholder"
+  },
+  "releaseTuple": { "manifestSha256": "placeholder" },
+  "search": { "enabled": false }
 }
 JSON
+jq --arg legacySha "$legacy_manifest_sha" --arg compositeSha "$benchmark_dataset_manifest_sha" '
+  .source.legacyBenchmarkManifestSha256 = $legacySha |
+  .source.benchmarkDatasetManifestSha256 = $compositeSha |
+  .releaseTuple.manifestSha256 = $compositeSha
+' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest.next"
+mv "$temp_dir/dataset-manifest.next" "$temp_dir/dataset-manifest.json"
+dataset_wrapper_sha=$(sha256_file "$temp_dir/dataset-manifest.json")
 
 jq -n \
   --arg runId lab-partial-down \
   --argjson expiresAt 2000000000 \
-  '{schemaVersion:1,runId:$runId,expiresAt:$expiresAt,fencingToken:41,mode:"performance",policy:"isolated-read",cacheEnabled:false,requestTarget:"",loadGeneratorEnabled:false,amiId:"ami-0123456789abcdef0",ociOriginIpv4:"203.0.113.10",databaseBootstrap:"dump",rdsSnapshotIdentifier:"",rdsEngineVersion:"8.0.42",bundleCommit:"cccccccccccccccccccccccccccccccccccccccc",bundleSha256:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",datasetRelease:"fixture-v20",datasetManifestSha256:"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",appImageReference:"942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",infraImageReferences:{},verifiedProbeInstanceId:"i-0123456789abcdef0"}' \
+  --arg datasetManifestSha256 "$dataset_wrapper_sha" \
+  '{schemaVersion:1,runId:$runId,expiresAt:$expiresAt,fencingToken:41,mode:"performance",policy:"isolated-read",cacheEnabled:false,requestTarget:"",loadGeneratorEnabled:false,amiId:"ami-0123456789abcdef0",ociOriginIpv4:"203.0.113.10",databaseBootstrap:"dump",rdsSnapshotIdentifier:"",rdsEngineVersion:"8.0.42",bundleCommit:"cccccccccccccccccccccccccccccccccccccccc",bundleSha256:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",datasetRelease:"fixture-v20",datasetManifestSha256:$datasetManifestSha256,appImageReference:"942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",infraImageReferences:{},verifiedProbeInstanceId:"i-0123456789abcdef0"}' \
   > "$temp_dir/run-manifest.json"
 
 run_fake_up() {
@@ -305,6 +386,8 @@ run_fake_up() {
     FAKE_LAB_CONTRACT="$temp_dir/lab-contract.json" \
     FAKE_RUN_MANIFEST="$temp_dir/run-manifest.json" \
     FAKE_DATASET_MANIFEST="${FAKE_DATASET_MANIFEST:-$temp_dir/dataset-manifest.json}" \
+    FAKE_BENCHMARK_MANIFEST="${FAKE_BENCHMARK_MANIFEST:-$temp_dir/benchmark-manifest.json}" \
+    FAKE_BENCHMARK_DATASET_MANIFEST="${FAKE_BENCHMARK_DATASET_MANIFEST:-$temp_dir/benchmark-dataset-manifest.json}" \
     FAKE_OPERATOR_TEMP_PREFIX="${TMPDIR:-/tmp}/airbob-lab." \
     FAKE_STATE_EXISTS="${FAKE_STATE_EXISTS:-false}" FAKE_STATE_RUN_ID="${FAKE_STATE_RUN_ID:-lab-partial-down}" \
     MODE="$capacity_mode" POLICY="$measurement_policy" REQUEST_TARGET="$request_target" \
@@ -362,6 +445,30 @@ if grep -Eq '^lease acquire |s3api put-object|dynamodb (put-item|update-item|del
   fail "V19 dataset rejection reached an AWS mutation"
 fi
 
+jq '.schemaVersion = 1' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-v1.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-v1.json" \
+  run_fake_up lab-v1-dataset >"$temp_dir/v1.out" 2>"$temp_dir/v1.err"; then
+  fail "operator accepted a legacy V1 dataset completion manifest"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
+  fail "legacy V1 dataset rejection reached Terraform plan/apply or network verification"
+fi
+if grep -Eq '^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' "$temp_dir/operator-execution.log"; then
+  fail "legacy V1 dataset rejection reached an AWS mutation"
+fi
+
+jq '.releaseKind = "evidence"' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-evidence.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-evidence.json" \
+  run_fake_up lab-evidence-dataset >"$temp_dir/evidence.out" 2>"$temp_dir/evidence.err"; then
+  fail "operator accepted a non-deployable evidence release"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network |^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' \
+  "$temp_dir/operator-execution.log"; then
+  fail "evidence release rejection reached an AWS mutation"
+fi
+
 jq '.mysql.expectedTableRows.flyway_schema_history = 19' "$temp_dir/dataset-manifest.json" \
   > "$temp_dir/dataset-manifest-history-v19.json"
 : > "$temp_dir/operator-execution.log"
@@ -398,6 +505,17 @@ if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.
   fail "secret-bearing dataset rejection reached Terraform plan/apply or network verification"
 fi
 
+jq '.hostAccommodations.detailAccommodationId = 200002' "$temp_dir/benchmark-manifest.json" \
+  > "$temp_dir/benchmark-manifest-tampered.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_BENCHMARK_MANIFEST="$temp_dir/benchmark-manifest-tampered.json" \
+  run_fake_up lab-tampered-smoke-input >"$temp_dir/tampered-smoke.out" 2>"$temp_dir/tampered-smoke.err"; then
+  fail "operator accepted a representative smoke input outside the release digest"
+fi
+if grep -Eq '^lease acquire |terraform .* (plan|apply)|^network |^dns ' "$temp_dir/operator-execution.log"; then
+  fail "tampered smoke input rejection reached an infrastructure mutation"
+fi
+
 : > "$temp_dir/operator-execution.log"
 run_fake_up lab-fake-success >/dev/null
 expected_order='phase network app=false
@@ -420,6 +538,21 @@ EOF
 grep -Fq 'lease release ' "$temp_dir/operator-execution.log" || fail "successful up did not release its lease"
 grep -Fq 'runs/lab-fake-success/terraform-outputs.redacted.json' "$temp_dir/operator-execution.log" \
   || fail "successful up did not save redacted Terraform outputs"
+direct_detail_line=$(grep -n -m1 'api/v1/accommodations/200001' "$temp_dir/operator-execution.log" | cut -d: -f1)
+dns_stage_line=$(grep -n -m1 '^dns stage oci' "$temp_dir/operator-execution.log" | cut -d: -f1)
+dns_switch_line=$(grep -n -m1 '^dns switch aws' "$temp_dir/operator-execution.log" | cut -d: -f1)
+public_detail_line=$(grep -n 'api/v1/accommodations/200001' "$temp_dir/operator-execution.log" | tail -1 | cut -d: -f1)
+[[ "$direct_detail_line" -lt "$dns_stage_line" && "$dns_switch_line" -lt "$public_detail_line" ]] \
+  || fail "representative MySQL smoke did not bracket the AWS DNS switch"
+
+jq '.search.enabled = true' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-search.json"
+: > "$temp_dir/operator-execution.log"
+FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-search.json" \
+  run_fake_up lab-search-smoke >/dev/null
+[[ "$(grep -c 'api/v1/search/accommodations' "$temp_dir/operator-execution.log")" == 4 ]] \
+  || fail "search-enabled up did not run one direct and three public Elasticsearch API smokes"
+grep -Fq -- '--data-urlencode maxPrice=4383' "$temp_dir/operator-execution.log" \
+  || fail "search smoke did not use the manifest-bound typed query"
 
 : > "$temp_dir/operator-execution.log"
 if env FAKE_PERSISTENT_DELETE=true \
@@ -450,6 +583,25 @@ grep -Fq 'failures/lab-fake-failure/operator-42.json' "$temp_dir/operator-execut
   || fail "failure path did not save bounded operator evidence"
 grep -Fq 'runs/lab-fake-failure/terraform-outputs.redacted.json' "$temp_dir/operator-execution.log" \
   || fail "failure path did not save bounded Terraform output evidence before cleanup"
+
+: > "$temp_dir/operator-execution.log"
+if env PATH="$temp_dir/operator-bin:$PATH" AWS_REGION=ap-northeast-2 \
+  FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LAB_CONTRACT="$temp_dir/lab-contract.json" \
+  FAKE_RUN_MANIFEST="$temp_dir/run-manifest.json" \
+  FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest.json" \
+  FAKE_BENCHMARK_MANIFEST="$temp_dir/benchmark-manifest.json" \
+  FAKE_BENCHMARK_DATASET_MANIFEST="$temp_dir/benchmark-dataset-manifest.json" \
+  FAKE_OPERATOR_TEMP_PREFIX="${TMPDIR:-/tmp}/airbob-lab." \
+  FAKE_STATE_EXISTS=true FAKE_STATE_RUN_ID=lab-partial-down \
+  FAKE_PUBLIC_SMOKE_FAILURE=true TARGET=aws RUN_ID=lab-partial-down \
+  "$fixture_scripts/aws-lab.sh" switch >/dev/null 2>&1; then
+  fail "manual AWS switch hid a post-cutover public smoke failure"
+fi
+grep -Fq 'dns switch aws' "$temp_dir/operator-execution.log" \
+  || fail "manual AWS switch did not reach the requested target"
+grep -Fq 'dns switch oci' "$temp_dir/operator-execution.log" \
+  || fail "manual AWS switch smoke failure did not roll DNS back to OCI"
 
 : > "$temp_dir/operator-execution.log"
 if ! env PATH="$temp_dir/operator-bin:$PATH" AWS_REGION=ap-northeast-2 \

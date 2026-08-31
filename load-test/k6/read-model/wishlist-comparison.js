@@ -1,59 +1,58 @@
 import { loginBenchmarkAccount } from '../lib/benchmark-fixture.js';
 import {
-  buildReadModelPath,
-  buildReadModelRequestName,
-  parsePositiveInteger,
-  parseRequiredText,
+  buildReadModelTarget,
+  parseReadModelEvidenceContext,
   parseReadModelRunConfig,
+  parseRequiredText,
 } from '../lib/read-model-benchmark.js';
 import { createReadModelBenchmark } from '../lib/read-model-runner.js';
 
-const DOMAIN = 'wishlist';
-const RUN = parseReadModelRunConfig(__ENV, 'wishlist');
-const BENCHMARK_EMAIL = parseRequiredText(__ENV.BENCHMARK_EMAIL, 'BENCHMARK_EMAIL');
-const TEST_PASSWORD = parseRequiredText(__ENV.TEST_PASSWORD, 'TEST_PASSWORD');
-const PAGE_SIZE = parsePositiveInteger(__ENV.PAGE_SIZE || '50', 'PAGE_SIZE');
-const EXPECTED_COUNT = parsePositiveInteger(
-  parseRequiredText(__ENV.EXPECTED_ROWS, 'EXPECTED_ROWS'),
-  'EXPECTED_ROWS',
+const MANIFEST_PATH = parseRequiredText(
+  __ENV.BENCHMARK_DATASET_MANIFEST,
+  'BENCHMARK_DATASET_MANIFEST',
 );
-if (EXPECTED_COUNT > PAGE_SIZE) {
-  throw new Error('EXPECTED_ROWS must not exceed PAGE_SIZE');
+const CONTEXT_PATH = parseRequiredText(
+  __ENV.READ_MODEL_EVIDENCE_CONTEXT,
+  'READ_MODEL_EVIDENCE_CONTEXT',
+);
+const TARGET = buildReadModelTarget(
+  open(MANIFEST_PATH),
+  parseRequiredText(__ENV.TARGET_ID, 'TARGET_ID'),
+);
+if (TARGET.domain !== 'wishlist') {
+  throw new Error('TARGET_ID must select WISHLIST_PAGE_V1');
 }
-
-const BEFORE_PATH = buildReadModelPath({
-  domain: DOMAIN,
-  variant: 'before',
-  size: PAGE_SIZE,
-});
-const AFTER_PATH = buildReadModelPath({
-  domain: DOMAIN,
-  variant: 'after',
-  size: PAGE_SIZE,
-});
-
+const CONTEXT = parseReadModelEvidenceContext(
+  open(CONTEXT_PATH),
+  TARGET,
+  __ENV.VARIANT,
+);
+const RUN = parseReadModelRunConfig(__ENV, TARGET, CONTEXT);
+const ACCOUNT_PASSWORD = RUN.mode === 'assemble'
+  ? null
+  : parseRequiredText(
+    __ENV.BENCHMARK_ACCOUNT_PASSWORD,
+    'BENCHMARK_ACCOUNT_PASSWORD',
+  );
 const benchmark = createReadModelBenchmark({
   ...RUN,
-  domain: DOMAIN,
-  beforePath: BEFORE_PATH,
-  afterPath: AFTER_PATH,
-  requestName: buildReadModelRequestName(DOMAIN, RUN.variant),
-  expectedCount: EXPECTED_COUNT,
+  measurementSummary: RUN.mode === 'assemble'
+    ? JSON.parse(open(parseRequiredText(
+      __ENV.READ_MODEL_MEASUREMENT_SUMMARY,
+      'READ_MODEL_MEASUREMENT_SUMMARY',
+    )))
+    : null,
   setup: () => ({
     sessionId: loginBenchmarkAccount({
       baseUrl: RUN.baseUrl,
-      email: BENCHMARK_EMAIL,
-      password: TEST_PASSWORD,
+      email: TARGET.account.email,
+      password: ACCOUNT_PASSWORD,
     }),
   }),
-  metadata: {
-    ...RUN.metadata,
-    count_unit: 'returned_wishlists',
-    page_size: PAGE_SIZE,
-  },
 });
 
 export const options = benchmark.options;
+export function assemble() { benchmark.assemble(); }
 export function setup() { return benchmark.setup(); }
 export function warmup(data) { benchmark.warmup(data); }
 export function measure(data) { benchmark.measure(data); }

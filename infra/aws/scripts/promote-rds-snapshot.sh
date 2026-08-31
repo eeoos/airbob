@@ -18,6 +18,15 @@ region=${AIRBOB_REGION:-ap-northeast-2}
 for input_file in "$manifest" "$receipt"; do
   [[ -f "$input_file" && ! -L "$input_file" ]] || { printf '%s\n' 'snapshot promotion input is missing or unsafe' >&2; exit 1; }
 done
+[[ ! -e "$output_json" && ! -L "$output_json" ]] \
+  || { printf '%s\n' 'snapshot promotion receipt output already exists' >&2; exit 1; }
+output_parent=${output_json%/*}
+output_name=${output_json##*/}
+[[ "$output_parent" != "$output_json" ]] || output_parent=.
+[[ -d "$output_parent" && ! -L "$output_parent" && -n "$output_name" ]] \
+  || { printf '%s\n' 'snapshot promotion receipt parent is missing or unsafe' >&2; exit 1; }
+output_parent=$(CDPATH= cd -P -- "$output_parent" && pwd -P)
+output_json="$output_parent/$output_name"
 [[ "$rds_instance_id" =~ ^airbob-[a-z0-9][a-z0-9-]{1,54}[a-z0-9]$ && "$rds_instance_id" != *--* ]] \
   || { printf '%s\n' 'unsafe RDS instance identifier' >&2; exit 1; }
 [[ "$snapshot_id" =~ ^airbob-dataset-[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$ && "$snapshot_id" != *--* ]] \
@@ -44,37 +53,99 @@ schema_fingerprint=$(jq -r '.mysql.schemaFingerprintSha256' "$manifest")
 release_kind=$(jq -r '.releaseKind' "$manifest")
 search_state=$(jq -r 'if .search.enabled then "restored" else "skipped" end' "$manifest")
 kafka_topics=$(jq -c '.kafka.topics' "$manifest")
+validator_sha=$(jq -r '.releaseTuple.validatorSha256' "$manifest")
+benchmark_dataset_manifest_sha=$(jq -r '.releaseTuple.manifestSha256' "$manifest")
+calibration_sha=$(jq -r '.releaseTuple.calibrationSha256' "$manifest")
+production_spec_sha=$(jq -r '.releaseTuple.specSha256' "$manifest")
+qualification_sha=$(jq -r '.releaseTuple.qualificationSha256' "$manifest")
+database_fingerprint_sha=$(jq -r '.releaseTuple.databaseFingerprintSha256' "$manifest")
+restore_attestation_sha=$(jq -r '.releaseTuple.attestationSha256' "$manifest")
+final_world_fingerprint_sha=$(jq -r '.releaseTuple.finalWorldFingerprintSha256' "$manifest")
+base_world_fingerprint_sha=$(jq -r '.releaseTuple.baseWorldFingerprintSha256' "$manifest")
+distribution_fingerprint_sha=$(jq -r '.releaseTuple.distributionFingerprintSha256' "$manifest")
+target_fingerprint_sha=$(jq -r '.releaseTuple.targetFingerprintSha256' "$manifest")
+inventory_fingerprint_sha=$(jq -r '.releaseTuple.inventoryFingerprintSha256' "$manifest")
 
 jq -e \
   --arg release "$dataset_release" --arg runId "$dataset_run_id" --arg dumpSha "$dump_sha" \
   --arg flyway "$flyway_version" --arg migrationChecksum "$migration_checksum" \
   --arg schemaFingerprint "$schema_fingerprint" --arg manifestSha "$manifest_sha" \
   --arg releaseKind "$release_kind" --arg searchState "$search_state" \
+  --arg validatorSha "$validator_sha" \
+  --arg benchmarkDatasetManifestSha "$benchmark_dataset_manifest_sha" \
+  --arg calibrationSha "$calibration_sha" --arg productionSpecSha "$production_spec_sha" \
+  --arg qualificationSha "$qualification_sha" --arg databaseFingerprintSha "$database_fingerprint_sha" \
+  --arg restoreAttestationSha "$restore_attestation_sha" \
+  --arg finalWorldFingerprintSha "$final_world_fingerprint_sha" \
+  --arg baseWorldFingerprintSha "$base_world_fingerprint_sha" \
+  --arg distributionFingerprintSha "$distribution_fingerprint_sha" \
+  --arg targetFingerprintSha "$target_fingerprint_sha" \
+  --arg inventoryFingerprintSha "$inventory_fingerprint_sha" \
   --argjson kafkaTopics "$kafka_topics" '
+  def sha256: type == "string" and test("^[0-9a-f]{64}$");
   (keys | sort) == ([
     "schemaVersion", "runId", "datasetRelease", "datasetRunId", "releaseKind",
     "databaseBootstrap", "dumpSha256", "flywayVersion", "migrationChecksumSha256",
-    "schemaFingerprintSha256", "datasetManifestSha256", "rdsResourceId",
+    "schemaFingerprintSha256", "datasetManifestSha256", "validatorSha256",
+    "benchmarkDatasetManifestSha256", "calibrationSha256", "productionSpecSha256",
+    "qualificationSha256", "databaseFingerprintSha256", "restoreAttestationSha256",
+    "finalWorldFingerprintSha256", "baseWorldFingerprintSha256",
+    "distributionFingerprintSha256", "targetFingerprintSha256",
+    "inventoryFingerprintSha256", "semanticAttestationSha256", "rdsResourceId",
     "rdsEngineVersion", "outboxState", "redisState", "kafkaTopics",
     "connectorState", "searchState", "verifiedAt"
   ] | sort) and
-  .schemaVersion == 1 and
+  .schemaVersion == 2 and
+  (.runId | type == "string" and test("^[a-z0-9][a-z0-9-]{2,31}$") and
+    (endswith("-") | not) and (contains("--") | not)) and
+  (.datasetRelease | type == "string" and test("^[a-z0-9][a-z0-9._-]{2,63}$")) and
+  (.datasetRunId | type == "string" and test("^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")) and
   .datasetRelease == $release and
   .datasetRunId == $runId and
-  .releaseKind == $releaseKind and
+  .releaseKind == $releaseKind and .releaseKind == "pipeline-rehearsal" and
   (.databaseBootstrap == "dump" or .databaseBootstrap == "snapshot") and
+  ([
+    .dumpSha256, .migrationChecksumSha256, .schemaFingerprintSha256,
+    .datasetManifestSha256, .validatorSha256, .benchmarkDatasetManifestSha256,
+    .calibrationSha256, .productionSpecSha256, .qualificationSha256,
+    .databaseFingerprintSha256, .restoreAttestationSha256,
+    .finalWorldFingerprintSha256, .baseWorldFingerprintSha256,
+    .distributionFingerprintSha256, .targetFingerprintSha256,
+    .inventoryFingerprintSha256, .semanticAttestationSha256
+  ] | all(.[]; sha256)) and
   .dumpSha256 == $dumpSha and
-  .flywayVersion == $flyway and
+  .flywayVersion == $flyway and .flywayVersion == "27" and
   .migrationChecksumSha256 == $migrationChecksum and
   .schemaFingerprintSha256 == $schemaFingerprint and
   .datasetManifestSha256 == $manifestSha and
+  .validatorSha256 == $validatorSha and
+  .benchmarkDatasetManifestSha256 == $benchmarkDatasetManifestSha and
+  .calibrationSha256 == $calibrationSha and
+  .productionSpecSha256 == $productionSpecSha and
+  .qualificationSha256 == $qualificationSha and
+  .databaseFingerprintSha256 == $databaseFingerprintSha and
+  .restoreAttestationSha256 == $restoreAttestationSha and
+  .finalWorldFingerprintSha256 == $finalWorldFingerprintSha and
+  .baseWorldFingerprintSha256 == $baseWorldFingerprintSha and
+  .distributionFingerprintSha256 == $distributionFingerprintSha and
+  .targetFingerprintSha256 == $targetFingerprintSha and
+  .inventoryFingerprintSha256 == $inventoryFingerprintSha and
+  (.rdsResourceId | type == "string" and test("^db-[A-Z0-9]{24}$")) and
+  (.rdsEngineVersion | type == "string" and test("^8\\.0\\.[0-9]+$")) and
   .outboxState == "empty" and
   (.redisState == "empty" or .redisState == "coupon-prepared") and
   .kafkaTopics == $kafkaTopics and
   .connectorState == "RUNNING" and
   .searchState == $searchState and
-  (.verifiedAt | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+  (.verifiedAt | type == "string" and
+    test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") and
+    (fromdateiso8601 | type == "number"))
 ' "$receipt" >/dev/null || { printf '%s\n' 'data bootstrap receipt cannot promote a snapshot' >&2; exit 1; }
+
+source_lab_run_id=$(jq -r '.runId' "$receipt")
+source_rds_resource_id=$(jq -r '.rdsResourceId' "$receipt")
+[[ "$rds_instance_id" == "airbob-$source_lab_run_id" ]] \
+  || { printf '%s\n' 'RDS instance identifier does not match the bootstrap receipt run' >&2; exit 1; }
 
 instance_json=$(aws --region "$region" rds describe-db-instances --db-instance-identifier "$rds_instance_id")
 jq -e --arg resourceId "$(jq -r '.rdsResourceId' "$receipt")" --arg engineVersion "$(jq -r '.rdsEngineVersion' "$receipt")" '
@@ -101,13 +172,18 @@ if ! aws --region "$region" rds describe-db-snapshots --db-snapshot-identifier "
       "Key=DatasetRunId,Value=$dataset_run_id" \
       "Key=DumpSha256,Value=$dump_sha" \
       "Key=FlywayVersion,Value=$flyway_version" \
-      "Key=ManifestSha256,Value=$manifest_sha" >/dev/null
+      "Key=ManifestSha256,Value=$manifest_sha" \
+      "Key=SourceLabRunId,Value=$source_lab_run_id" \
+      "Key=SourceRdsResourceId,Value=$source_rds_resource_id" \
+      Key=PromotionReceiptSchemaVersion,Value=1 >/dev/null
 fi
 aws --region "$region" rds wait db-snapshot-available --db-snapshot-identifier "$snapshot_id"
 snapshot_json=$(aws --region "$region" rds describe-db-snapshots --db-snapshot-identifier "$snapshot_id")
 jq -e \
   --arg snapshot "$snapshot_id" --arg release "$dataset_release" --arg runId "$dataset_run_id" \
-  --arg dumpSha "$dump_sha" --arg flyway "$flyway_version" --arg manifestSha "$manifest_sha" '
+  --arg dumpSha "$dump_sha" --arg flyway "$flyway_version" --arg manifestSha "$manifest_sha" \
+  --arg sourceInstance "$rds_instance_id" --arg sourceResourceId "$(jq -r '.rdsResourceId' "$receipt")" \
+  --arg sourceRunId "$source_lab_run_id" --arg engineVersion "$(jq -r '.rdsEngineVersion' "$receipt")" '
   .DBSnapshots as $snapshots |
   $snapshots[0] as $candidate |
   ($candidate.TagList | map({key: .Key, value: .Value}) | from_entries) as $tags |
@@ -115,16 +191,32 @@ jq -e \
   $candidate.DBSnapshotIdentifier == $snapshot and
   $candidate.Status == "available" and
   $candidate.Engine == "mysql" and
+  $candidate.EngineVersion == $engineVersion and
+  $candidate.DBInstanceIdentifier == $sourceInstance and
+  $candidate.DbiResourceId == $sourceResourceId and
   $candidate.Encrypted == true and
   $tags.DatasetRelease == $release and
   $tags.DatasetRunId == $runId and
   $tags.DumpSha256 == $dumpSha and
   $tags.FlywayVersion == $flyway and
   $tags.ManifestSha256 == $manifestSha and
+  $tags.SourceLabRunId == $sourceRunId and
+  $tags.SourceRdsResourceId == $sourceResourceId and
+  $tags.PromotionReceiptSchemaVersion == "1" and
+  $tags.Project == "airbob" and
+  $tags.Environment == "performance-lab" and
+  $tags.Stack == "dataset" and
+  $tags.ManagedBy == "dataset-publisher" and
   $tags.Persistence == "persistent"
-' <<<"$snapshot_json" >/dev/null || { printf '%s\n' 'created RDS snapshot tags do not match the release tuple' >&2; exit 1; }
+' <<<"$snapshot_json" >/dev/null || { printf '%s\n' 'RDS snapshot source identity or tags do not match the release tuple' >&2; exit 1; }
 
 created_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+receipt_temp=$(mktemp "$output_parent/.${output_name}.XXXXXX") \
+  || { printf '%s\n' 'cannot create temporary snapshot promotion receipt' >&2; exit 1; }
+cleanup() {
+  rm -f "$receipt_temp"
+}
+trap cleanup EXIT HUP INT TERM
 jq -n \
   --arg snapshotIdentifier "$snapshot_id" --arg datasetRelease "$dataset_release" \
   --arg datasetRunId "$dataset_run_id" --arg dumpSha256 "$dump_sha" \
@@ -142,6 +234,11 @@ jq -n \
     persistence: "persistent",
     createdAt: $createdAt
   }
-' > "$output_json"
+' > "$receipt_temp"
+chmod 600 "$receipt_temp"
+ln "$receipt_temp" "$output_json" 2>/dev/null \
+  || { printf '%s\n' 'snapshot promotion receipt output appeared before publication' >&2; exit 1; }
+rm -f "$receipt_temp"
+trap - EXIT HUP INT TERM
 
 printf '%s\n' 'RDS snapshot promotion candidate verified'

@@ -1,169 +1,268 @@
-# 반정규화 read model before/after k6 측정
+# Manifest-bound read-model benchmark
 
-세 비교는 준비 조건이 달라 별도 스크립트로 실행한다.
+이 harness는 `benchmark-dataset-v2`의 `read-model-v2` capsule을 그대로 실행한다. 숙소 ID,
+page size, cursor, 회원 이메일, 매출 날짜와 예상 행 수를 셸에서 정하지 않는다. 실행자는
+`TARGET_ID` 하나만 선택하고 k6가 manifest의 tagged query와 account binding을 강제한다.
 
-- 리뷰 통계: 공개 API, 숙소 ID와 실제 리뷰 수 필요
-- 위시리스트 대표 이미지: 회원 세션 필요
-- 일별 매출 통계: ADMIN 세션과 날짜 범위 필요
+지원 query kind는 다음 세 가지다.
 
-각 스크립트에서 `VARIANT=before`는 토큰으로 보호된 v2 원본 집계 API를, `VARIANT=after`는 실제 운영용 v1 반정규화 API를 측정한다. 측정 전 setup에서만 두 API를 한 번씩 호출해 전체 비즈니스 응답이 같은지 확인하고, 실제 warmup/measure 부하는 선택한 variant 하나에만 보낸다.
+| query kind | target 예 | 비교 경로 |
+|---|---|---|
+| `REVIEW_SUMMARY_V1` | `review-hot`, `review-median`, `review-cold`, `review-empty` | v2 raw summary ↔ v1 summary table |
+| `WISHLIST_PAGE_V1` | hot/median/cold/empty first page, `wishlist-hot-deep` | v2 N+1 path ↔ v1 denormalized path |
+| `REVENUE_RANGE_V1` | recent 1d/7d, medium, broad, empty, refund boundary | v2 ledger ↔ v1 daily stats |
 
-## 1. 측정 전 조건
+위시리스트와 매출 계정은 target의 ACTIVE MEMBER/ADMIN binding을 사용한다. 비밀번호만
+`BENCHMARK_ACCOUNT_PASSWORD` 환경 변수로 실행 프로세스에 주입한다. 이메일, 비밀번호,
+session과 benchmark token은 결과 artifact에 포함하지 않는다.
 
-애플리케이션은 before API가 활성화되도록 `read-model-benchmark` 프로필과 토큰을 사용해 실행한다.
+## Fail-closed setup
+
+각 measurement의 setup은 before와 after를 한 번씩 호출한 뒤 다음 조건을 모두 확인한다.
+
+1. HTTP 및 domain response contract가 유효하다.
+2. 두 canonical business payload가 같다. 매출의 `source=raw|stats` 차이만 제외한다.
+3. observed row count가 manifest `expectedRows`와 같다. 0-row target도 유효하다.
+4. 두 결과의 canonical SHA-256이 manifest `expectedResultHash`와 같다.
+
+결과 hash는 ETL selector와 같은 length-prefixed field stream이다. 각 UTF-8 field 앞에
+4-byte big-endian 길이를 넣는다. 위시리스트 `created_at`은 UTC Instant를
+`YYYY-MM-DDTHH:mm:ss.ffffff`로 정규화한다. setup이 실패하면 warmup과 measurement는
+시작하지 않는다. runtime recompute endpoint는 호출하지 않는다.
+
+warmup과 setup/login/ANALYZE/EXPLAIN은 headline에서 제외된다. 실제 headline에는 선택한
+variant의 `phase=measure` latency만 들어간다. 오류나 dropped iteration이 하나라도 있으면
+artifact는 `invalid`다.
+
+## Required run context
+
+모든 evidence run은 `READ_MODEL_EVIDENCE_CONTEXT`로 mode-0600 JSON 파일을 받는다. schema는
+`read-model-run-context-v1`이며 다음을 결속한다.
+
+- immutable release tuple과 raw manifest byte SHA-256
+- provisioning `run_id`, resource fencing-token SHA-256, measurement-lease fencing-token SHA-256
+- target ID, query parameter hash, expected rows/result hash, PII-free account reference
+- app commit/image/build, runtime revision, EC2 instance ID와 single-instance count
+- clone ID, pre/post DB fingerprint, MySQL exact patch
+- ANALYZE receipt, optimizer/statistics/histogram snapshot SHA-256
+- one Performance Schema statement event window와 raw JSON/TREE EXPLAIN
+- 각 window 직전/직후 fresh challenge에 응답한 runtime assertion과 scheduler, Kafka listener,
+  inventory lifecycle, external side-effect가 모두 꺼진 관찰값
+- app session에 적용된 일반 read-model treatment (`candidate_index=null`)
+
+context의 unknown/missing field, manifest digest mismatch, target drift, DB fingerprint drift,
+statistics/histogram drift, auto statistics recalculation 또는 writer lifecycle 활성화는 모두
+init 단계에서 거부된다.
+
+## Local inspect and short rehearsal
+
+실제 v2 manifest와 private evidence context를 사용한다. 아래 값은 manual query parameter가
+아니라 artifact 경로와 target 선택뿐이다.
 
 ```bash
+export BENCHMARK_DATASET_MANIFEST=/absolute/path/benchmark-dataset-v2.json
+export READ_MODEL_EVIDENCE_CONTEXT=/absolute/path/review-hot-context.json
+export TARGET_ID=review-hot
+export VARIANT=before
 read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
 echo
 export BENCHMARK_READ_MODEL_TOKEN
-SPRING_PROFILES_ACTIVE=dev,read-model-benchmark ./gradlew bootRun
-```
 
-k6를 실행하는 터미널에도 같은 `BENCHMARK_READ_MODEL_TOKEN`을 입력한다. after를 측정할 때도 setup의 before 동등성 검증에 토큰이 필요하다. 토큰은 결과 JSON에 기록되지 않는다.
+k6 inspect --include-system-env-vars \
+  load-test/k6/read-model/review-summary-comparison.js
 
-```bash
-read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
-echo
-export BENCHMARK_READ_MODEL_TOKEN
-
-export BASE_URL=http://localhost:8080
-export DATASET_LABEL=synthetic-read-model-v1
-export APP_VERSION="$(git rev-parse --short HEAD)"
-export APP_INSTANCE_COUNT=1
-export RATE=5
-export WARMUP_DURATION=30s
-export MEASURE_DURATION=1m
-mkdir -p build/k6/read-model
-```
-
-같은 스크립트를 AWS에 보낼 때는 코드 변경 없이 API origin만 바꾼다.
-
-```bash
-export BASE_URL=https://api.airbob.cloud
-```
-
-AWS에서 before(v2)를 호출하려면 배포 애플리케이션에도 `read-model-benchmark` 프로필과 `BENCHMARK_READ_MODEL_TOKEN`이 설정돼 있어야 한다. after(v1) API는 운영 경로지만, 이 k6 스크립트는 setup에서 before/after 동등성을 먼저 검사하므로 after 측정에도 before API가 필요하다.
-
-먼저 [denormalization-discovery.http](../../http/denormalization-discovery.http)로 fixture와 계정이 올바른지 눈으로 확인한다. 부하 테스트의 `EXPECTED_*` 값도 여기서 확인한 값으로 설정한다. k6 setup은 리뷰 수·평균, 위시리스트 ID/개수/대표 이미지/페이지 정보, 매출 날짜별 금액·건수를 before와 after 사이에서 다시 완전 비교한다. 하나라도 다르면 측정을 시작하지 않는다.
-
-고정해야 할 조건은 애플리케이션 빌드·인스턴스 수·DB 데이터·RATE·워밍업·측정 시간이다. 각 실행은 `constant-arrival-rate`를 사용하며 30초 워밍업, 5초 종료 여유, 5초 안정화 뒤 측정한다. 측정 결과에는 avg, p50, p90, p95, p99, max, 성공률, 실제 RPS와 dropped iteration이 저장된다. k6 지표에서는 setup이 제외되지만 Prometheus 요청 카운터에는 variant별 동등성 확인 요청이 1건씩 추가된다.
-
-## 2. 리뷰 통계
-
-`EXPECTED_REVIEW_COUNT`는 해당 숙소의 게시된 리뷰 총수다. after의 `accommodation_review_summary`가 같은 데이터로 백필되어 있어야 한다.
-
-```bash
-export REVIEW_ACCOMMODATION_ID=101
-export EXPECTED_REVIEW_COUNT=10000
-
-VARIANT=before ROUND=1 RUN_ORDER=1 \
-K6_RESULT_PATH=build/k6/read-model/review-before-r1.json \
-k6 run load-test/k6/read-model/review-summary-comparison.js
-
-VARIANT=after ROUND=1 RUN_ORDER=2 \
-K6_RESULT_PATH=build/k6/read-model/review-after-r1.json \
-k6 run load-test/k6/read-model/review-summary-comparison.js
-```
-
-검증 계약은 `total_count == EXPECTED_REVIEW_COUNT`와 `0 <= average_rating <= 5`다.
-
-## 3. 위시리스트 대표 숙소 이미지
-
-로그인 계정은 측정용 회원 하나로 고정한다. `EXPECTED_ROWS`는 첫 페이지가 실제로 반환하는 위시리스트 수이며 `PAGE_SIZE`보다 클 수 없다. 대표 이미지 조회 효과를 보기 위해 fixture의 각 위시리스트에 숙소와 이미지가 연결되어 있는 편이 좋다.
-
-```bash
-export BENCHMARK_EMAIL=benchmark-nplus1@airbob.cloud
-read -rsp 'Benchmark member password: ' TEST_PASSWORD
-echo
-export TEST_PASSWORD
-export PAGE_SIZE=50
-export EXPECTED_ROWS=50
-
-VARIANT=before ROUND=1 RUN_ORDER=1 \
-K6_RESULT_PATH=build/k6/read-model/wishlist-before-r1.json \
-k6 run load-test/k6/read-model/wishlist-comparison.js
-
-VARIANT=after ROUND=1 RUN_ORDER=2 \
-K6_RESULT_PATH=build/k6/read-model/wishlist-after-r1.json \
-k6 run load-test/k6/read-model/wishlist-comparison.js
-
-unset TEST_PASSWORD
-```
-
-스크립트는 로그인으로 받은 `SESSION_ID`를 사용하며 세션 값과 비밀번호를 결과에 기록하지 않는다. 각 행의 `wishlist_item_count`와 `thumbnail_image_url` 타입, `page_info.current_size`도 함께 검증한다.
-
-## 4. 일별 매출 통계
-
-관리자 계정을 별도로 사용한다. `EXPECTED_ROWS`는 날짜 구간의 일수가 아니라 실제 집계 결과가 있는 날짜 수다. after 실행 전 같은 구간을 `/api/v1/admin/stats/revenue/recompute`로 백필해 원본 settlement와 `daily_revenue_stats`를 맞춘다.
-
-```bash
-export ADMIN_EMAIL=admin@airbob.cloud
-read -rsp 'Admin password: ' ADMIN_PASSWORD
-echo
-export ADMIN_PASSWORD
-export REVENUE_FROM=2026-01-01
-export REVENUE_TO=2026-03-31
-export EXPECTED_ROWS=90
-
-VARIANT=before ROUND=1 RUN_ORDER=1 \
-K6_RESULT_PATH=build/k6/read-model/revenue-before-r1.json \
-k6 run load-test/k6/read-model/revenue-stats-comparison.js
-
-VARIANT=after ROUND=1 RUN_ORDER=2 \
-K6_RESULT_PATH=build/k6/read-model/revenue-after-r1.json \
-k6 run load-test/k6/read-model/revenue-stats-comparison.js
-
-unset ADMIN_PASSWORD
-```
-
-before는 응답 `source=raw`, after는 `source=stats`여야 하며 날짜 범위, 결과 행 수와 각 금액·건수 필드를 검증한다.
-
-## 5. 반복 순서와 결과 해석
-
-한 번의 숫자로 결론 내리지 말고 최소 3라운드를 권장한다. 순서 편향을 줄이기 위해 다음처럼 교차한다.
-
-| 라운드 | 첫 실행 | 두 번째 실행 |
-|---:|---|---|
-| 1 | before (`RUN_ORDER=1`) | after (`RUN_ORDER=2`) |
-| 2 | after (`RUN_ORDER=1`) | before (`RUN_ORDER=2`) |
-| 3 | before (`RUN_ORDER=1`) | after (`RUN_ORDER=2`) |
-
-비교할 핵심 값은 각 라운드의 p50/p95/p99와 실제 RPS다. `successful != attempted`, `error_rate > 0`, `dropped_iterations > 0`인 실행은 성능 결과로 사용하지 않는다. 절대 지연시간뿐 아니라 다음 서버 지표도 같은 실행 구간에서 함께 본다.
-
-- Grafana `http.server.requests`: v1/v2 URI별 서버 p95와 요청 수
-- `app.query.per_request` (`app_query_per_request_queries_sum/count`): 요청당 SELECT 수
-- HikariCP active/pending connection
-- JVM CPU, GC pause, heap 사용량
-
-k6는 사용자 관점 지연과 부하 무결성의 기준으로, Prometheus/Grafana는 쿼리 수와 서버 자원 사용의 근거로 사용한다. 포트폴리오에는 데이터셋 크기, RATE, 앱 인스턴스 수, 라운드 중앙값을 결과와 함께 적는다.
-
-## 6. 측정 후 애플리케이션 teardown
-
-k6 클라이언트 셸의 토큰을 지우는 것만으로는 before API가 비활성화되지 않는다. 측정이 끝나면 서버에서 benchmark 프로필과 토큰을 제거한다.
-
-### 로컬
-
-`read-model-benchmark` 프로필로 실행한 JVM을 먼저 중지한다. 애플리케이션 실행 셸에서 활성 프로필의 `read-model-benchmark`와 애플리케이션 측 `BENCHMARK_READ_MODEL_TOKEN`을 제거하고, 필요하면 benchmark 프로필 없이 평소 방식으로 다시 시작한다.
-
-```bash
-# read-model-benchmark JVM을 Ctrl-C로 중지한 뒤 애플리케이션 실행 셸에서 실행
-unset BENCHMARK_READ_MODEL_TOKEN
-SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
-```
-
-### AWS
-
-격리된 benchmark 인스턴스의 애플리케이션 프로필에서 `read-model-benchmark`를 제거하고, 서버의 token secret과 `BENCHMARK_READ_MODEL_TOKEN` 환경 변수 바인딩도 제거한다. 그 설정으로 인스턴스를 다시 배포한 다음 v2 리뷰 benchmark 경로가 `404`인지 확인한다.
-
-```bash
-curl -i \
-  -H "X-Benchmark-Token: ${BENCHMARK_READ_MODEL_TOKEN}" \
-  "${BASE_URL}/api/v2/accommodations/${REVIEW_ACCOMMODATION_ID}/reviews/summary"
-# 기대 결과: HTTP/1.1 404
-```
-
-마지막으로 다음 명령은 서버 teardown과 별개로 k6 클라이언트 셸의 토큰만 제거한다.
-
-```bash
+BASE_URL=http://localhost:8080 RATE=1 WARMUP_DURATION=1s MEASURE_DURATION=2s \
+  k6 run --address '' --include-system-env-vars \
+  load-test/k6/read-model/review-summary-comparison.js
 unset BENCHMARK_READ_MODEL_TOKEN
 ```
+
+위시리스트나 매출은 manifest account의 비밀번호를 추가로 환경 변수에 넣는다.
+
+```bash
+read -rsp 'Synthetic benchmark account password: ' BENCHMARK_ACCOUNT_PASSWORD
+echo
+export BENCHMARK_ACCOUNT_PASSWORD
+# TARGET_ID에 맞춰 wishlist-comparison.js 또는 revenue-stats-comparison.js 실행
+unset BENCHMARK_ACCOUNT_PASSWORD
+```
+
+일반 사용에서는 `READ_MODEL_MODE=evidence`가 setup/parity/measure 후 곧바로
+`read-model-evidence-v1`을 만든다. AWS runner는 statement window를 측정 뒤 결속하기 위해
+두 단계로 실행한다.
+
+- `READ_MODEL_MODE=measure`: parity와 실제 부하를 실행해 private metric summary를 남긴다.
+- `READ_MODEL_MODE=assemble`: 요청을 전혀 보내지 않고 post-window MySQL evidence와 metric
+  summary를 결합한다.
+
+최종 artifact는 별도 adapter 없이
+`aggregate-read-model-observations.mjs`의 입력이다.
+
+## AWS protocol plan
+
+AWS 실행 전 plan mode로 release/clone/target/window fence와 순서를 확인한다.
+
+```bash
+READ_MODEL_DISCOVERY_MODE=plan \
+RUN_ID=read-model-20260827 \
+RELEASE_ID=production-seed-20260827t000000z \
+CLONE_ID=clone-a \
+TARGET_ID=review-hot \
+BENCHMARK_DATASET_MANIFEST=/absolute/path/benchmark-dataset-v2.json \
+  load-test/k6/read-model/run-aws-read-model-discovery.sh | jq .
+```
+
+read-model comparison plan은 같은 after variant의 paired A/A 세 block을 먼저 실행하고,
+`AB/BA/AB` 세 block으로 before/after를 교차한다. A/A envelope가
+`AA_MAX_RELATIVE_DELTA`를 넘으면 A/B artifact를 publish하지 않는다.
+허용치는 기본 0.10이며 0.10보다 크게 완화할 수 없다. plan과 A/A·A/B aggregate의
+`metadata.aa_max_relative_delta`가 같은 수치를 보존하므로, 다른 기준으로 만든 A/A artifact를
+candidate gate에 재사용할 수 없다.
+
+## AWS isolated-read run
+
+runner는 DB에 접근 가능한 격리된 AWS load-generator에서 실행한다. MySQL credential은
+`mysql_config_editor` login path에만 둔다. benchmark token과 synthetic account password는
+각각 mode-0600 파일로 전달하며 runner가 자식 k6 환경에만 주입한다. raw/summary S3 object에
+credential을 쓰지 않는다.
+
+필수 입력은 다음과 같다.
+
+- `RELEASE_TUPLE_JSON`: `read-model-evidence-v1`의 exact snake_case release tuple
+- `APP_BUILD_JSON`: exact commit/image/build, `instance_count=1`, runtime revision, app instance ID,
+  provisioning resource fencing-token SHA-256
+- `BENCHMARK_TOKEN_FILE`: isolated app의 read-model token, mode 0600
+- account target인 경우 `BENCHMARK_ACCOUNT_PASSWORD_FILE`, mode 0600
+- `MYSQL_LOGIN_PATH`, `AWS_EVIDENCE_BUCKET`, HTTPS `BASE_URL`
+- orchestration lease table/lock/owner와 선택한 release/clone/target
+
+summary object는 load-generator IAM과 같은
+`measurements/<run-id>/read-model/<target-id>/` prefix에만 쓴다. 다른
+`AWS_EVIDENCE_PREFIX`는 S3 호출 전에 거부한다.
+
+app host의 `/run/airbob/read-model-benchmark-token`은 load-generator로 자동 전달되지 않는다.
+실제 AWS read-model run 전에는 승인된 SSM/Secrets Manager `SecureString` handoff가 같은 값을
+load-generator의 mode-0600 `BENCHMARK_TOKEN_FILE`에 직접 기록해야 한다. 값이 Run Command
+parameter/output, S3 object, shell history 또는 transcript에 나타나면 안 되며, 두 host에서는
+원문 대신 SHA-256만 비교한다. 현재 repository는 이 cross-host secret handoff를 provision하지
+않으므로 이 prerequisite가 별도 승인·구현되기 전 실제 AWS K6 수집은 pending이다. 파일을
+수동 복사하거나 command output으로 token을 읽어 우회하지 않는다.
+
+runner는 정적 lifecycle JSON을 받지 않는다. orchestration measurement lease의 fencing-token
+SHA-256은 lease evidence로만 기록하고 앱에 보내지 않는다. 앱 endpoint에는
+`APP_BUILD_JSON`의 provisioning resource-fence digest를 보내며, 두 digest가 달라도 각자 자기
+경계에 정확히 결속되면 유효하다. 각 window 직전과 직후에는 새 challenge digest로
+token-protected runtime assertion endpoint를 호출해 run/resource fence/revision/instance/profile과
+모든 writer flag를 exact 검증한다. stale response나 한 번 받은 response의 재사용은 다음
+challenge에서 실패한다.
+
+runner는 data load와 candidate build가 끝난 뒤 한 번만 `ANALYZE TABLE`을 실행한다.
+`innodb_stats_auto_recalc`가 이미 꺼져 있지 않으면 시작하지 않는다. 일반 12-window run의
+extended table checksum은 `run-start`, `after-AA`, `final` 경계에서만 총 3회 실행한다. A/A
+6개 window를 모두 측정한 뒤 start/after-AA fingerprint가 같은 경우에만 조립하고, A/B 6개도
+after-AA/final fingerprint가 같은 경우에만 조립한다. 따라서 A/A artifact의 모든 window는
+run-start → after-AA bracket에, A/B artifact의 모든 window는 after-AA → final bracket에
+결속된다. 경계 drift는 summary S3 publish 전에 run 전체를 무효화한다. 대형 테이블을 window
+전후마다 다시 스캔하지 않아 측정 대상의 buffer-pool/cache 상태를 checksum 작업으로 반복
+교란하지 않는다.
+
+각 window마다 다음 증거는 계속 분리 수집한다.
+
+- optimizer statistics와 histogram pre/post snapshot
+- closed Performance Schema timer/event window
+- `EXPLAIN FORMAT=JSON`과 `EXPLAIN ANALYZE FORMAT=TREE` 원문
+- non-instrumented k6 latency
+
+fingerprint bracket drift, optimizer/statistics/histogram drift 또는 오류/drop이 있으면 publish
+전에 실패한다. 최종 S3 write는 orchestration lease를 다시 확인하고
+`--if-none-match '*'`로 immutable하게 수행한다. invisible-index candidate raw mode는 선행
+A/A fingerprint와 현재 clone을 대조하고 candidate capture 전후 checksum을 각각 한 번씩
+유지한다.
+
+## Invisible-index candidate rehearsal
+
+이 harness는 index를 만들거나 삭제하지 않으며 migration을 결정하지 않는다. 별도 clone에
+후보가 이미 하나의 invisible index로 준비된 경우 candidate plan은 inventory와 선행 A/A
+noise gate를 검증한 뒤 raw MySQL capture 절차만 연다.
+
+```bash
+READ_MODEL_DISCOVERY_MODE=plan \
+RUN_ID=review-index-20260827 \
+RELEASE_ID=production-seed-20260827t000000z \
+CLONE_ID=clone-review-candidate \
+TARGET_ID=review-hot \
+CANDIDATE_INDEX=idx_review_status_accommodation \
+INVISIBLE_INDEX_INVENTORY=/absolute/path/invisible-index-inventory.json \
+AA_NOISE_OBSERVATION=/absolute/path/review-hot-aa-observations.json \
+BENCHMARK_DATASET_MANIFEST=/absolute/path/benchmark-dataset-v2.json \
+  load-test/k6/read-model/run-aws-read-model-discovery.sh | jq .
+```
+
+선행 artifact는 exact six-window/three-pair observation에서 재구성 가능한
+`AA_NOISE`여야 한다. 같은 release/target/clone/app runtime/query parameter를 결속하고,
+candidate run 시작 시 live DB fingerprint가 A/A pre/post fingerprint와 같아야 하며 모든
+maximum relative delta가 `AA_MAX_RELATIVE_DELTA` 이하여야 한다. 한 clone에 invisible 후보가
+0개 또는 2개 이상이거나 이름이 다르면 실패한다.
+
+현재 앱 Hikari session에 `use_invisible_indexes`를 켜고 끄는 격리 contract는 없다. 그러므로
+candidate plan은 `application_k6_latency_supported=false`,
+`application_performance_publication_supported=false`,
+`raw_evidence_publication_supported=true`를 반환한다. 앱 latency를 candidate 효과로 표시하면
+안 된다.
+
+candidate를 지정한 `run` mode는 K6를 호출하지 않는다. 동일 typed query를 direct MySQL
+session에서 `index-baseline`(`use_invisible_indexes=off`)과
+`index-candidate`(`use_invisible_indexes=on`)로 실행해 다음을 하나의
+`read-model-candidate-raw-evidence-v1`에 남긴다.
+
+```bash
+READ_MODEL_DISCOVERY_MODE=run \
+RUN_ID=review-index-20260827 \
+RELEASE_ID=production-seed-20260827t000000z \
+CLONE_ID=clone-review-candidate \
+TARGET_ID=review-hot \
+CANDIDATE_INDEX=idx_review_status_accommodation \
+INVISIBLE_INDEX_INVENTORY=/secure/invisible-index-inventory.json \
+AA_NOISE_OBSERVATION=/secure/review-hot-aa-observations.json \
+BENCHMARK_DATASET_MANIFEST=/secure/benchmark-dataset-v2.json \
+RELEASE_TUPLE_JSON=/secure/release-tuple.json \
+APP_BUILD_JSON=/secure/app-build.json \
+BENCHMARK_TOKEN_FILE=/secure/read-model-token \
+MYSQL_LOGIN_PATH=airbob-benchmark \
+BASE_URL=https://isolated-read.example.invalid \
+AWS_EVIDENCE_BUCKET=airbob-performance-lab-evidence-example \
+load-test/k6/read-model/run-aws-read-model-discovery.sh
+```
+
+- 두 treatment의 pre/post optimizer/statistics/histogram 원문과 hash
+- 동일 query SHA-256, evidence query role, JSON/TREE EXPLAIN 원문
+- pre/post database fingerprint, one-time ANALYZE receipt, four live runtime assertion receipts
+- structured chosen-plan 판정과 선행 A/A artifact SHA-256
+
+raw artifact만 `Retention=raw`로 immutable publish한다. candidate가 chosen plan에 없으면 raw
+artifact는 `not-chosen` 사유를 보존한 뒤 runner가 실패하며, 성능 headline이나
+`read-model-evidence-v1`은 만들지 않는다. Wishlist endpoint는 여러 SQL을 실행하므로 이
+harness는 manifest cursor를 포함한 `WISHLIST_PAGE_SELECT`를 대표 statement로 고정한다.
+before revenue는 CONFIRM gross와 CANCEL/PARTIAL_CANCEL refund를 합치는 repository UNION
+rollup을 그대로 사용한다. 실제 앱-session treatment, column order, 성능 결론과 V28+
+migration은 별도 evidence review와 후속 계획에서 결정한다.
+
+## Runtime isolation and teardown
+
+AWS `isolated-read` app만 active profile `aws,traffic-benchmark`에
+`read-model-benchmark`를 include한다. `performance-lab` profile은 활성화하지 않는다.
+start contract가 scheduler를 profile로 차단하고 Kafka listener, inventory
+startup/seed/retention, search bootstrap, Toss, Google, S3 write, Slack delivery를 explicit
+environment flag로 끈다. live endpoint는 정확한 active profile set
+`aws,read-model-benchmark,traffic-benchmark`와 실제/설정 writer state를 매 window 전후 확인한다.
+app instance는 하나여야 한다.
+
+base runtime env는 기존 exact verifier를 먼저 통과하고, isolated 전용 profile/token 및
+search bootstrap/listener 차단 값을 append한 뒤 별도의 exact count와 token-file equality
+check를 통과해야 한다. non-isolated
+시작은 이전 `/run/airbob/read-model-benchmark-token`을 제거하고 app env에 profile/token이
+없음을 검증한다.
+
+실험이 끝나면 isolated app을 폐기하거나 read-model profile/token 없이 다시 배포한다.
+일반 serving profile에서 v2 before endpoint가 404인지 확인한다. write capsule을 실행했다면
+read-model evidence를 이어서 수집하지 말고 base snapshot을 다시 restore한다.

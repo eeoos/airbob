@@ -68,10 +68,17 @@ done
 
 assert_contains "$toolchain_contract" 'AIRBOB_TERRAFORM_VERSION=1.15.5'
 assert_contains "$toolchain_contract" 'AIRBOB_AWS_PROVIDER_VERSION=6.55.0'
+assert_contains "$toolchain_contract" 'AIRBOB_DOCKER_COMPOSE_VERSION=2.40.2'
+assert_contains "$toolchain_contract" 'AIRBOB_DOCKER_COMPOSE_LINUX_AMD64_SHA256=6c964d9655cd629ef43c5dc75d9612c2da319237debee54a7aef217e9f362b88'
 assert_contains "$toolchain_contract" 'AIRBOB_AWS_ACCOUNT_ID=942632789808'
 assert_contains "$toolchain_contract" 'AIRBOB_DATASET_PUBLISHER_PRINCIPAL_ARN=arn:aws:iam::942632789808:user/admin-eeoos'
 assert_contains "$toolchain_contract" 'AIRBOB_AWS_REGION=ap-northeast-2'
 assert_contains "$toolchain_contract" 'AIRBOB_STATE_KEY_FOUNDATION=airbob/foundation/terraform.tfstate'
+assert_contains "$repo_root/.github/workflows/ci.yml" 'name: Install pinned Docker Compose'
+assert_contains "$repo_root/.github/workflows/ci.yml" 'AIRBOB_DOCKER_COMPOSE_LINUX_AMD64_SHA256'
+assert_contains "$repo_root/.github/workflows/ci.yml" 'DOCKER_CONFIG=%s'
+assert_contains "$repo_root/infra/aws/lab/locals.tf" 'docker_compose_version = "2.40.2"'
+assert_contains "$repo_root/infra/aws/lab/locals.tf" 'docker_compose_sha256  = "6c964d9655cd629ef43c5dc75d9612c2da319237debee54a7aef217e9f362b88"'
 
 assert_contains "$foundation_root/backend.tf" 'backend "s3" {}'
 assert_not_contains "$foundation_root/backend.tf" 'backend "local"'

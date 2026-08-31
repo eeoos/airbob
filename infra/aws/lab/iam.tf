@@ -165,10 +165,13 @@ resource "aws_iam_role_policy" "measurement_data_plane" {
       [
         for statement in [
           {
-            Sid      = "ReadSelectedBenchmarkManifest"
-            Effect   = "Allow"
-            Action   = ["s3:GetObject", "s3:GetObjectVersion"]
-            Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/benchmark/manifest.json"
+            Sid    = "ReadSelectedBenchmarkManifest"
+            Effect = "Allow"
+            Action = ["s3:GetObject", "s3:GetObjectVersion"]
+            Resource = [
+              "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/benchmark/manifest.json",
+              "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/benchmark/dataset-manifest.json",
+            ]
           },
         ] : statement if each.key == "loadgen"
       ],
@@ -250,6 +253,12 @@ resource "aws_iam_role_policy" "data_bootstrap" {
             "s3:RequestObjectTag/Retention" = "summary"
           }
         }
+      },
+      {
+        Sid      = "ReadDataBootstrapReceipt"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = "arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/data-bootstrap/${var.run_id}/*"
       },
     ]
   })

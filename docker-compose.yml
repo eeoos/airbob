@@ -205,11 +205,13 @@ services:
       elasticsearch:
         condition: service_healthy
     environment:
-      - LOGSTASH_JDBC_URL=jdbc:mysql://mysql:3306/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-      - LOGSTASH_JDBC_USER=${LOGSTASH_JDBC_USER:-logstash}
-      - LOGSTASH_JDBC_PASSWORD=${LOGSTASH_JDBC_PASSWORD:-logstash}
-      - LOGSTASH_ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - LS_JAVA_OPTS=-Xms512m -Xmx512m
+      LOGSTASH_JDBC_URL: ${LOGSTASH_JDBC_URL:-jdbc:mysql://mysql:3306/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+      LOGSTASH_JDBC_USER: ${LOGSTASH_JDBC_USER:-logstash}
+      LOGSTASH_JDBC_PASSWORD: ${LOGSTASH_JDBC_PASSWORD:-logstash}
+      LOGSTASH_ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      LS_JAVA_OPTS: -Xms512m -Xmx512m
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
       - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro

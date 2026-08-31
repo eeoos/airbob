@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   RESERVATION_HISTORY_INSERT_BENCHMARK,
@@ -15,8 +16,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const TOKEN = '0123456789abcdef0123456789abcdef';
 const BENCHMARK = RESERVATION_HISTORY_INSERT_BENCHMARK;
@@ -123,7 +129,8 @@ function summary(datasetSize) {
 }
 
 export default function () {
-  const config = parseBulkWriteRunConfig({
+  const config = {
+    ...parseBulkWriteRunConfig({
     BASE_URL: 'http://localhost:8080',
     VARIANT: 'BEFORE',
     PHASE: 'measure',
@@ -138,13 +145,21 @@ export default function () {
     JVM_VERSION: '21.0.7',
     MYSQL_VERSION: '8.0.42',
     REWRITE_BATCHED_STATEMENTS: 'false',
-  }, BENCHMARK);
+    }, BENCHMARK),
+    benchmarkDataset: {
+      datasetVersion: 'benchmark-dataset-v2',
+      worldVersion: 'world-v2',
+      capsuleId: 'bulk-expiration-history-v1',
+      targetId: 'expired-payment-pending',
+      manifestSha256: 'a'.repeat(64),
+    },
+  };
   const benchmarkOptions = buildBulkWriteOptions(config, BENCHMARK);
   const valid = payload(3);
   const zero = payload(0);
   const afterOperation = operation(3, {
     hibernate_statements_by_type: {
-      SELECT: 1, INSERT: 0, UPDATE: 3, DELETE: 0, OTHER: 0, TOTAL: 4,
+      SELECT: 1, INSERT: 0, UPDATE: 4, DELETE: 0, OTHER: 0, TOTAL: 5,
     },
     jdbc_batch_calls: 2,
     jdbc_submitted_rows: 3,
@@ -170,6 +185,12 @@ export default function () {
       ...summary(3),
       metrics: {
         ...summary(3).metrics,
+        bulk_write_hibernate_update_statements: {
+          values: { count: 1, avg: 4, min: 4, med: 4, max: 4 },
+        },
+        bulk_write_hibernate_total_statements: {
+          values: { count: 1, avg: 5, min: 5, med: 5, max: 5 },
+        },
         bulk_write_jdbc_batch_calls: { values: { count: 1, avg: 2, min: 2, med: 2, max: 2 } },
         bulk_write_jdbc_submitted_rows: { values: { count: 1, avg: 3, min: 3, med: 3, max: 3 } },
         bulk_write_jdbc_configured_batch_size: { values: { count: 1, avg: 2, min: 2, med: 2, max: 2 } },
@@ -247,6 +268,9 @@ export default function () {
           === '/api/v2/admin/benchmarks/bulk-write/reservation-history-insert'
         && artifact.metadata.operation_name === 'expired-reservation-cleanup-before'
         && artifact.metadata.dataset_size === 2000
+        && artifact.metadata.benchmark_dataset_capsule_id === 'bulk-expiration-history-v1'
+        && artifact.metadata.benchmark_dataset_target_id === 'expired-payment-pending'
+        && artifact.metadata.benchmark_dataset_manifest_sha256 === 'a'.repeat(64)
     ),
     'reservation artifact has no external Redis hold effects': () => (
       !('external_effects' in artifact.database_observation)
@@ -258,4 +282,5 @@ export default function () {
         && afterArtifact.database_observation.jdbc.affected_rows === 3
     ),
   });
+  contractTestCompleted.add(1);
 }

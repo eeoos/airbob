@@ -12,15 +12,46 @@ object below `datasets/<datasetRelease>/`, verify it locally, and upload
 `manifest.json` last as the completion marker. The lab selects both the release
 name and the exact manifest SHA-256; it never searches for a latest release.
 
+## Closed source contract and landing order
+
+The current source contract accepts exactly 16 `world.tableRows` keys:
+`accommodation`, `address`, `occupancy_policy`, `accommodation_image`,
+`accommodation_amenity`, `member`, `reservation`, `review`, `review_image`, `wishlist`,
+`wishlist_accommodation`, `payment`, `payment_transaction`, `accommodation_review_summary`,
+`daily_revenue_stats`, and `accommodation_inventory_day`.
+
+A verified production-skew source accepts exactly 26 fingerprint keys: one `final-*` component for
+each of those 16 tables (using `final-review-summary`, `final-daily-revenue`, and
+`final-inventory` for the final three semantic names), the eight `base-*` components for
+accommodation, member, reservation, review, wishlist, wishlist-accommodation, payment, and
+payment-transaction, plus `final-world` and `base-world`. Release paths require
+`verificationPassed=true`; unverified normal worlds have empty fingerprints and scopes and are not
+release inputs.
+
+An 11-table pre-fix manifest or release remains invalid after any checksum or metadata rebinding.
+Land the Airbob verifier commit first, then generate a fresh release ID from clean ETL and Airbob
+worktrees and a newly migrated empty V27 database. The ETL provenance pins the exact Airbob
+`backend_head`. Source verification, isolated restored-dump verification, attestation, assembly,
+and bootstrap live verification must consume identical immutable source bytes. Passwords are
+environment-only; local Compose receives only paths to distinct owner-only secret files.
+
 ## Release layout
 
 ```text
 datasets/<release>/
 ├── manifest.json
+├── attestation/
+│   └── restore.json
 ├── benchmark/
-│   └── manifest.json
+│   ├── manifest.json                 # legacy workload input
+│   ├── dataset-manifest.json         # benchmark-dataset-v2 world + capsules
+│   ├── validate-benchmark-dataset-v2.jq
+│   ├── source-calibration-v1.json
+│   ├── production-skew-v1.json | production-skew-large-v1.json  # exactly one
+│   └── generation-qualification-v1.json
 ├── mysql/
 │   ├── airbob.sql.zst
+│   ├── database-fingerprint.tsv
 │   └── sha256.txt
 └── elasticsearch/                 # search-enabled releases only
     └── snapshot-reference.json
@@ -31,24 +62,51 @@ newline. The SQL dump is canonical. An RDS snapshot is an optional rebuild
 cache and must be bound to the release with `DatasetRelease`, `DatasetRunId`,
 `DumpSha256`, `FlywayVersion`, and `ManifestSha256` tags.
 
-`pipeline-rehearsal` accepts the existing `nplus1-v1` producer identity and may
-disable search. `evidence` requires `traffic-v1`, a search snapshot, database
-and Elasticsearch fingerprints, and the causal-fence fields enforced by
-`verify-dataset-release.sh`. Both kinds require the current application
-Flyway version, currently V27. An older dump must be regenerated through the
-producer; changing only its label or manifest is invalid.
+The current trusted producer emits only `pipeline-rehearsal`, carrying the exact
+`benchmark-dataset-v2` / `world-v2` source tuple and optionally disabling search.
+`verify-dataset-release.sh` rejects `evidence` before reading a wrapper because no reviewed exact
+evidence producer exists. A search-enabled rehearsal must not be relabeled as evidence. Releases
+require the current application Flyway version, currently V27. An older dump must be regenerated
+through the producer; changing only its label or manifest is invalid.
 
 `benchmark/manifest.json` is the immutable, secret-free workload input. The
-wrapper records its fixed key and SHA-256 as `source.benchmarkManifestKey` and
-`source.benchmarkManifestSha256`; `manifest.json` remains the completion marker
+wrapper records its fixed key and SHA-256 as `source.legacyBenchmarkManifestKey` and
+`source.legacyBenchmarkManifestSha256`; `manifest.json` remains the completion marker
 and is uploaded only after this artifact. A rehearsal manifest must satisfy the
 same `nplus1-v1` invariants consumed by k6, including the benchmark account,
 row capacities, target ids, and unique recently-viewed ids. The digest binds
 the exact bytes, so consumers must not reformat the file after publication.
 
+`benchmark/dataset-manifest.json` is additive and does not replace the legacy
+manifest. It carries `benchmark-dataset-v2`, the deterministic `world-v2`
+population envelope, observed distributions, and versioned experiment
+capsules. The wrapper binds its exact bytes through
+`source.benchmarkDatasetManifestKey` and
+`source.benchmarkDatasetManifestSha256`. Assembly and restore fail closed when
+the file is missing, its digest changes, its profile or V27 lineage conflicts
+with the wrapper, any declared world table count differs from the attested
+database, or `accommodation_inventory_day` is not exactly zero.
+
+The public composite contains exactly four capsules:
+
+1. `nplus1-v1`
+2. `read-model-v2`
+3. `index-query-v1`
+4. `coupon-accounts-v1`
+
+Search targets carry the complete bounds/price/occupancy request; untyped
+fields, dates, and currently unused amenity/accommodation-type filters are not
+accepted. The manifest row count remains the dataset truth; the production
+search API retains Elasticsearch's default 10,000-hit reporting bound. Cache
+targets bind the 200-key uniform and 80:20 hotset populations, and warm
+measurement artifacts must prove prefetch coverage for every selected target
+resource id.
+The bulk capsule is metadata for an isolated local write fixture, not permission
+to mutate the immutable AWS world.
+
 ## Assemble a pipeline-rehearsal release
 
-The V27 ETL producer hands off one directory with exactly these ten regular,
+The V27 ETL producer hands off one directory with exactly these fourteen regular,
 non-symlink files:
 
 ```text
@@ -56,16 +114,24 @@ PROVENANCE.txt
 SHA256SUMS
 airbob-production-seed.sql.gz
 backend-migrations.sha256
+benchmark-dataset-v2.json
 benchmark-fixture.json
 database-fingerprint.tsv
 etl-code.sha256
+generation-qualification-v1.json
+production-skew-v1.json | production-skew-large-v1.json  # exactly one
 release-metadata.txt
+source-calibration-v1.json
 source.sha256
 traffic-v1.json
 ```
 
-`SHA256SUMS` contains exactly nine canonical, filename-sorted entries—one for
-every file except itself. The source release metadata binds the `traffic-v1`
+`SHA256SUMS` contains exactly thirteen canonical, filename-sorted entries—one for
+every file except itself. The profile selects exactly one spec file: `production-skew-v1` binds
+`production-skew-v1.json` and budgets 50k/200k/2.5m/1m/400k/1.5m, while
+`production-skew-large-v1` binds `production-skew-large-v1.json` and budgets
+200k/800k/10m/4m/1.6m/6m. A third profile, both spec files, a mixed filename, or rebound budgets
+fail the exact inventory and semantic gates. The source release metadata binds the `traffic-v1`
 manifest, its canonical ETL dataset run id, Flyway V27, and the
 `reset-flyway-v1-v27-etl-reseed-before-traffic` recovery contract. The traffic
 migration digest is the digest of the successful `flyway_schema_history`
@@ -78,6 +144,13 @@ migrations. The provenance must select the `large` profile and
 enable both benchmark and traffic fixtures. Its service schema, traffic seed,
 anchor, validity window, and timezone must agree with `airbobdb` and the
 traffic manifest rather than merely being present.
+
+The exact 43-line `release-metadata.txt` additionally names `benchmark-dataset-v2.json` and
+binds its SHA-256. The composite manifest must use the same upper-cased ETL
+profile and the same anchor, validity window, and timezone as `traffic-v1`.
+Its declared table-row subset is checked against the live database attestation,
+so changing only the composite JSON or release label cannot create a valid
+release.
 
 Prepare a standalone local MySQL server with an existing but completely empty
 `airbobdb` schema. Stop every application, ETL process, scheduler, and CDC
@@ -136,14 +209,16 @@ or broad everyday administrator credential. Revoke the restore grant after a
 successful capture. Capture and snapshot production must reuse the same host,
 port, and MySQL server UUID, with both global read-only variables still on.
 
-The generated schema-version-3 attestation records
-`databaseRestoreMethod=gzip-to-empty-airbobdb-v1` and requires
+The generated schema-version-4 attestation records
+`databaseRestoreMethod=gzip-to-empty-airbobdb-v2` and requires
 `restoredDumpSha256` to equal `sourceDumpSha256`. This binds the database under
 inspection to the exact verified gzip imported into the initially empty schema
-on the recorded MySQL server UUID. It also binds the source ETL commit, exact
-two-file verifier-contract inventory, approved database-fingerprint subset,
-successful Flyway lineage, full schema fingerprint, outbox state, and every
-base-table count while the server remains read-only and quiesced.
+on the recorded MySQL server UUID. It also binds the source ETL commit,
+provenance verifier inventory and output, live final/base/distribution/target/
+inventory fingerprints, the manifest distribution-assertion seal, the exact tracked
+production-spec SHA-256, all 15 read-model target results, successful Flyway lineage, full schema
+fingerprint, outbox state, and every table count across two stable read-only passes. A missing or
+rebound assertion/spec digest is invalid.
 
 For a database-only rehearsal, create a caller-owned output directory with
 mode `0700` and assemble the release without a snapshot reference. Both
@@ -170,10 +245,11 @@ infra/aws/scripts/assemble-dataset-release.sh \
 
 The assembler snapshots its inputs into a private `<release>.incomplete`
 directory, verifies the exact ETL inventory, checksums, provenance, V27
-metadata, traffic manifest, and live-database attestation, and converts the
+metadata, both benchmark manifests, traffic manifest, and live-database
+attestation, and converts the
 gzip SQL bytes with single-threaded zstd. The resulting compressed bytes are
 SHA-256-bound by the wrapper; cross-machine byte identity is not claimed
-without the same reviewed toolchain. It copies the benchmark manifest
+without the same reviewed toolchain. It copies both benchmark manifests
 byte-for-byte, writes `manifest.json` last, runs
 `verify-dataset-release.sh`, and only then atomically renames the directory to
 the final release name. Existing final or incomplete destinations are never
@@ -239,8 +315,11 @@ duration_seconds = 7200
 
 Confirm that the profile resolves to
 `arn:aws:sts::942632789808:assumed-role/airbob-dataset-publisher/...`, then run
-the producer against the writer-free restored MySQL database and quiesced local
-`accommodations` index. Do not place the database password on the command line:
+the full reindex and producer against the writer-free restored MySQL database.
+The reindex must use that exact attested host and port, not the unrelated Compose
+`mysql` service. Its reviewed source commit must equal the `gitCommit` in the
+selected infrastructure image release. Do not place the database password on
+the command line:
 
 ```bash
 export AWS_PROFILE=airbob-dataset-publisher
@@ -255,9 +334,21 @@ export AIRBOB_DATASET_DB_NAME=airbobdb
 export AIRBOB_DATASET_DB_QUIESCED=true
 export AIRBOB_DATASET_ES_URL=http://127.0.0.1:9200
 export AIRBOB_DATASET_ES_CONTAINER=elasticsearch
-export AIRBOB_DATASET_ES_QUIESCED=true
 read -rs AIRBOB_DATASET_DB_PASSWORD
 export AIRBOB_DATASET_DB_PASSWORD
+
+export MYSQL_SOURCE_MODE=external
+export MYSQL_HOST="$AIRBOB_DATASET_DB_HOST"
+export MYSQL_PORT="$AIRBOB_DATASET_DB_PORT"
+export REINDEX_SOURCE_COMMIT="$(jq -er '.gitCommit' "$AIRBOB_INFRA_IMAGE_RELEASE")"
+export LOGSTASH_JDBC_URL='jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true'
+export LOGSTASH_JDBC_USER="$AIRBOB_DATASET_DB_USER"
+export LOGSTASH_JDBC_PASSWORD="$AIRBOB_DATASET_DB_PASSWORD"
+CONFIRM_INDEXING_CONSUMER_PAUSED=true \
+CONFIRM_MYSQL_SOURCE_QUIESCED=true \
+  scripts/reindex-accommodations.sh
+unset LOGSTASH_JDBC_PASSWORD
+export AIRBOB_DATASET_ES_QUIESCED=true
 
 aws sts get-caller-identity
 infra/aws/scripts/produce-elasticsearch-snapshot.sh \
@@ -269,6 +360,13 @@ infra/aws/scripts/produce-elasticsearch-snapshot.sh \
   /secure/path/snapshot-producer-receipt.json
 unset AIRBOB_DATASET_DB_PASSWORD
 ```
+
+The script runs Logstash with `--no-deps`, so it cannot silently start the
+Compose MySQL and index a different database. It compares the published-row
+count on the external source before and after loading, validates the new index,
+and atomically creates or moves the single write alias. Only after this succeeds
+is the local `accommodations` alias considered quiesced input for the snapshot
+producer.
 
 Only one producer may own a release. Before its first S3 inventory call, the
 producer acquires the protected DynamoDB row
@@ -381,8 +479,16 @@ and reruns the full validator before any write. For a search-enabled release it
 also binds the reference, manifest, and producer receipt, then regenerates the
 complete S3 object-version inventory before the wrapper upload and immediately
 before the completion marker. Payload objects are uploaded with AES256 and
-no-overwrite semantics in this order: MySQL dump, checksum, benchmark manifest,
-and optional snapshot reference. `manifest.json` is the last write.
+no-overwrite semantics. The restore attestation, dump, DB fingerprint, checksum,
+composite and legacy manifests, standalone validator, calibration, tracked spec,
+qualification receipt, and optional snapshot reference are all published and
+read back first. `manifest.json` is the last write. Phase 3 verifies the external
+wrapper SHA, downloads the fixed digest-bound semantic artifacts with bounded
+timeouts, and executes the verified validator before requesting any secret.
+
+For dump bootstrap, Terraform allocates gp3 storage from the same closed profile contract:
+20 GiB for `production-skew-v1` and 100 GiB for `production-skew-large-v1`. Snapshot bootstrap does
+not override allocated storage and inherits the promoted snapshot's capacity.
 
 Publication never repairs or replaces a completed release and never deletes a
 remote object. A retry may reuse an incomplete prefix only when every existing
@@ -505,7 +611,8 @@ infra/aws/scripts/verify-dataset-release.sh \
 
 Use `evidence` as the final argument for a measurement release. The validator
 rejects missing or extra manifest keys, the enumerated secret markers in
-benchmark key names or string values, duplicate coupon ids, stale Flyway
-lineage, expired evaluation windows, checksum drift, and mismatched search
-snapshot metadata. It validates a fixed finite schema and marker family; it is
+benchmark key names or string values, a missing or malformed composite
+benchmark manifest, composite/wrapper SHA or table-count drift, duplicate
+coupon ids, stale Flyway lineage, expired evaluation windows, checksum drift,
+and mismatched search snapshot metadata. It validates a fixed finite schema and marker family; it is
 not general DLP or proof that the data is representative.

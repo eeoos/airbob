@@ -231,6 +231,83 @@ assert_lease() {
     "$fencing_token" "$run_id" "$action" >/dev/null
 }
 
+validate_operator_dataset_manifest() {
+  local dataset_manifest=$1 expected_release=$2
+  jq -e --arg expectedRelease "$expected_release" '
+    .schemaVersion == 2 and
+    .datasetRelease == $expectedRelease and
+    .releaseKind == "pipeline-rehearsal" and
+    .mysql.flywayVersion == "27" and
+    .mysql.expectedTableRows.flyway_schema_history == 27 and
+    .source.legacyBenchmarkManifestKey == "benchmark/manifest.json" and
+    (.source.legacyBenchmarkManifestSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+    .source.benchmarkDatasetManifestKey == "benchmark/dataset-manifest.json" and
+    (.source.benchmarkDatasetManifestSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+    .releaseTuple.manifestSha256 == .source.benchmarkDatasetManifestSha256 and
+    (.search.enabled | type == "boolean") and
+    ([.. | objects | keys[]] |
+      all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
+  ' "$dataset_manifest" >/dev/null
+}
+
+load_release_smoke_inputs() {
+  local dataset_manifest=$1
+  local legacy_manifest="$temp_dir/benchmark-manifest.json"
+  local composite_manifest="$temp_dir/benchmark-dataset-manifest.json"
+  local legacy_manifest_sha composite_manifest_sha
+
+  aws s3api get-object --bucket "$dataset_bucket" \
+    --key "datasets/$dataset_release/benchmark/manifest.json" "$legacy_manifest" \
+    --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "legacy benchmark manifest is unavailable"
+  legacy_manifest_sha=$(sha256_file "$legacy_manifest")
+  [[ "$legacy_manifest_sha" == "$(jq -r '.source.legacyBenchmarkManifestSha256' "$dataset_manifest")" ]] \
+    || fail "legacy benchmark manifest digest does not match the release"
+  smoke_accommodation_id=$(jq -er '
+    select(.datasetVersion == "nplus1-v1") |
+    .hostAccommodations.detailAccommodationId |
+    select(type == "number" and floor == . and . > 0)
+  ' "$legacy_manifest") || fail "legacy benchmark manifest has no representative accommodation"
+  [[ "$smoke_accommodation_id" =~ ^[1-9][0-9]{0,18}$ ]] \
+    || fail "representative accommodation ID is invalid"
+
+  smoke_search_enabled=$(jq -r '.search.enabled' "$dataset_manifest")
+  smoke_search_target="$temp_dir/search-smoke-target.json"
+  if [[ "$smoke_search_enabled" == true ]]; then
+    aws s3api get-object --bucket "$dataset_bucket" \
+      --key "datasets/$dataset_release/benchmark/dataset-manifest.json" "$composite_manifest" \
+      --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "benchmark dataset manifest is unavailable"
+    composite_manifest_sha=$(sha256_file "$composite_manifest")
+    [[ "$composite_manifest_sha" == "$(jq -r '.source.benchmarkDatasetManifestSha256' "$dataset_manifest")" ]] \
+      || fail "benchmark dataset manifest digest does not match the release"
+    jq -ce '
+      select(.schemaVersion == 2 and .datasetVersion == "benchmark-dataset-v2" and
+        .world.version == "world-v2") |
+      [.capsules[] |
+        select(.capsuleId == "index-query-v1" and .mutability == "READ_ONLY") |
+        .targets[] | select(.id == "search-narrow")] as $targets |
+      select(($targets | length) == 1) | $targets[0] |
+      select(.expectedRows == 1 and
+        (.resourceIds | type == "array" and length == 1 and
+          .[0] > 0 and .[0] == (.[0] | floor)) and
+        (.expectedResultHash | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.query | keys) == [
+          "adultOccupancy", "bottomRightLat", "bottomRightLng", "childOccupancy",
+          "destination", "infantOccupancy", "kind", "maxPrice", "minPrice", "page",
+          "petOccupancy", "topLeftLat", "topLeftLng"
+        ] and
+        .query.kind == "ACCOMMODATION_SEARCH_V1" and
+        (.query.destination | type == "string") and
+        ([.query.minPrice, .query.maxPrice, .query.adultOccupancy, .query.childOccupancy,
+          .query.infantOccupancy, .query.petOccupancy, .query.page] |
+          all(.[]; type == "number" and floor == . and . >= 0)) and
+        .query.adultOccupancy >= 1 and .query.minPrice <= .query.maxPrice and
+        ([.query.topLeftLat, .query.topLeftLng, .query.bottomRightLat, .query.bottomRightLng] |
+          all(.[]; type == "number")))
+    ' "$composite_manifest" > "$smoke_search_target" \
+      || fail "benchmark dataset manifest has no exact search smoke target"
+  fi
+}
+
 resolve_release_inputs() {
   local checksum_file="$temp_dir/bundle.sha256" dataset_manifest="$temp_dir/dataset-manifest.json"
   app_digest=${IMAGE_DIGEST:-}
@@ -250,16 +327,10 @@ resolve_release_inputs() {
   aws s3api get-object --bucket "$dataset_bucket" \
     --key "datasets/$dataset_release/manifest.json" "$dataset_manifest" \
     --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "dataset completion manifest is unavailable"
-  jq -e --arg expectedRelease "$dataset_release" '
-    .schemaVersion == 1 and
-    .datasetRelease == $expectedRelease and
-    (.releaseKind == "pipeline-rehearsal" or .releaseKind == "evidence") and
-    .mysql.flywayVersion == "27" and
-    .mysql.expectedTableRows.flyway_schema_history == 27 and
-    ([.. | objects | keys[]] |
-      all(test("password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account"; "i") | not))
-  ' "$dataset_manifest" >/dev/null || fail "dataset completion manifest is invalid"
+  validate_operator_dataset_manifest "$dataset_manifest" "$dataset_release" \
+    || fail "dataset completion manifest is invalid"
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
+  load_release_smoke_inputs "$dataset_manifest"
 
   app_repository=$(jq -er '.ecr_repositories.APP_IMAGE.url' <<<"$lab_contract")
   app_image_reference="$app_repository@$app_digest"
@@ -427,13 +498,68 @@ wait_for_application() {
   fail "application refresh/target-health gate exceeded 15 minutes"
 }
 
+verify_aws_application_smoke() {
+  local route=$1 health_payload detail_payload search_payload
+  local expected_search_id expected_search_rows
+  local -a curl_arguments search_arguments
+  curl_arguments=(--fail --silent --show-error --max-time 15)
+  case "$route" in
+    direct) curl_arguments+=(--connect-to "api.airbob.cloud:443:$aws_alb_dns_name:443") ;;
+    public) ;;
+    *) fail "AWS application smoke route is invalid" ;;
+  esac
+
+  health_payload=$(curl "${curl_arguments[@]}" "https://api.airbob.cloud/actuator/health") \
+    || fail "$route AWS health smoke failed"
+  jq -e '.status == "UP"' <<<"$health_payload" >/dev/null \
+    || fail "$route AWS health smoke returned an invalid contract"
+
+  detail_payload=$(curl "${curl_arguments[@]}" \
+    "https://api.airbob.cloud/api/v1/accommodations/$smoke_accommodation_id") \
+    || fail "$route AWS MySQL accommodation smoke failed"
+  jq -e --argjson expectedId "$smoke_accommodation_id" \
+    '.success == true and .data.id == $expectedId' <<<"$detail_payload" >/dev/null \
+    || fail "$route AWS MySQL accommodation smoke returned an invalid contract"
+
+  if [[ "$smoke_search_enabled" == true ]]; then
+    expected_search_id=$(jq -r '.resourceIds[0]' "$smoke_search_target")
+    expected_search_rows=$(jq -r '.expectedRows' "$smoke_search_target")
+    search_arguments=("${curl_arguments[@]}" --get
+      --data-urlencode "destination=$(jq -r '.query.destination' "$smoke_search_target")"
+      --data-urlencode "minPrice=$(jq -r '.query.minPrice' "$smoke_search_target")"
+      --data-urlencode "maxPrice=$(jq -r '.query.maxPrice' "$smoke_search_target")"
+      --data-urlencode "adultOccupancy=$(jq -r '.query.adultOccupancy' "$smoke_search_target")"
+      --data-urlencode "childOccupancy=$(jq -r '.query.childOccupancy' "$smoke_search_target")"
+      --data-urlencode "infantOccupancy=$(jq -r '.query.infantOccupancy' "$smoke_search_target")"
+      --data-urlencode "petOccupancy=$(jq -r '.query.petOccupancy' "$smoke_search_target")"
+      --data-urlencode "topLeftLat=$(jq -r '.query.topLeftLat' "$smoke_search_target")"
+      --data-urlencode "topLeftLng=$(jq -r '.query.topLeftLng' "$smoke_search_target")"
+      --data-urlencode "bottomRightLat=$(jq -r '.query.bottomRightLat' "$smoke_search_target")"
+      --data-urlencode "bottomRightLng=$(jq -r '.query.bottomRightLng' "$smoke_search_target")"
+      --data-urlencode "page=$(jq -r '.query.page' "$smoke_search_target")")
+    search_payload=$(curl "${search_arguments[@]}" \
+      "https://api.airbob.cloud/api/v1/search/accommodations") \
+      || fail "$route AWS Elasticsearch search smoke failed"
+    jq -e --argjson expectedId "$expected_search_id" --argjson expectedRows "$expected_search_rows" '
+      .success == true and
+      (.data.stay_search_result_listing | type == "array" and length == 1) and
+      .data.stay_search_result_listing[0].id == $expectedId and
+      .data.page_info.current_page == 0 and
+      .data.page_info.total_elements == $expectedRows and
+      .data.page_info.total_pages == 1
+    ' <<<"$search_payload" >/dev/null \
+      || fail "$route AWS Elasticsearch search smoke returned an invalid contract"
+  fi
+}
+
+verify_direct_aws_smoke() {
+  verify_aws_application_smoke direct
+}
+
 verify_public_aws_smoke() {
   local attempt
   for attempt in 1 2 3; do
-    curl --fail --silent --show-error --max-time 15 \
-      "https://api.airbob.cloud/actuator/health" \
-      | jq -e '.status == "UP"' >/dev/null \
-      || fail "public AWS smoke check failed"
+    verify_aws_application_smoke public
     [[ "$attempt" -eq 3 ]] || sleep 5
   done
 }
@@ -550,6 +676,8 @@ case "$action" in
     target_group_arn=$(jq -er '.target_group_arn' <<<"$phase4")
     asg_name=$(jq -er '.auto_scaling_group_name' <<<"$phase4")
     wait_for_application
+    current_stage=application-smoke
+    verify_direct_aws_smoke
     current_stage=dns-stage
     invoke_dns_controller stage oci >/dev/null
     current_stage=dns-switch
@@ -589,6 +717,9 @@ case "$action" in
     bundle_sha256=$(jq -er '.bundleSha256' "$manifest")
     dataset_release=$(jq -er '.datasetRelease' "$manifest")
     dataset_manifest_sha256=$(jq -er '.datasetManifestSha256' "$manifest")
+    [[ "$dataset_release" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ \
+      && "$dataset_manifest_sha256" =~ ^[0-9a-f]{64}$ ]] \
+      || fail "run manifest dataset identity is invalid"
     app_image_reference=$(jq -er '.appImageReference' "$manifest")
     infra_image_references=$(jq -c '.infraImageReferences' "$manifest")
     probe_instance_id=$(jq -er '.verifiedProbeInstanceId' "$manifest")
@@ -600,7 +731,28 @@ case "$action" in
       [[ -n "$aws_alb_arn" && -n "$aws_alb_dns_name" ]] || fail "switch requires an active lab ALB"
       target=${TARGET:-}
       [[ "$target" == aws || "$target" == oci ]] || fail "TARGET must be aws or oci"
+      if [[ "$target" == aws ]]; then
+        switch_dataset_manifest="$temp_dir/dataset-manifest.json"
+        aws s3api get-object --bucket "$dataset_bucket" \
+          --key "datasets/$dataset_release/manifest.json" "$switch_dataset_manifest" \
+          --region "$AWS_REGION" --no-cli-pager >/dev/null \
+          || fail "dataset completion manifest is unavailable for AWS switch smoke"
+        [[ "$(sha256_file "$switch_dataset_manifest")" == "$dataset_manifest_sha256" ]] \
+          || fail "AWS switch dataset manifest differs from the provisioned run"
+        validate_operator_dataset_manifest "$switch_dataset_manifest" "$dataset_release" \
+          || fail "AWS switch dataset completion manifest is invalid"
+        load_release_smoke_inputs "$switch_dataset_manifest"
+        current_stage=dns-switch
+        up_in_progress=true
+      fi
       invoke_dns_controller switch "$target"
+      if [[ "$target" == aws ]]; then
+        dns_switched=true
+        current_stage=public-application-smoke
+        verify_public_aws_smoke
+        up_in_progress=false
+        dns_switched=false
+      fi
       exit 0
     fi
     force=${FORCE:-false}

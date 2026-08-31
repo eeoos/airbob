@@ -95,12 +95,15 @@ output "phase3_contract" {
     dataset_release            = var.dataset_release
     dataset_run_id             = try(local.dataset_manifest.datasetRunId, null)
     release_kind               = local.dataset_release_kind
+    profile_version            = local.dataset_profile_version
+    production_spec_key        = try(local.dataset_profile_contract.production_spec_key, null)
     database_bootstrap         = var.database_bootstrap
     rds_instance_id            = local.services_enabled ? module.rds[0].id : null
     rds_resource_id            = local.services_enabled ? module.rds[0].resource_id : null
     rds_endpoint               = local.services_enabled ? module.rds[0].address : null
     rds_engine_version         = var.rds_engine_version
     rds_parameter_group        = local.services_enabled ? module.rds[0].parameter_group_name : null
+    rds_configured_storage_gib = local.services_enabled ? module.rds[0].contract.configured_storage_gib : null
     search_enabled             = local.dataset_search_enabled
     data_ready                 = local.data_ready && local.data_bootstrap_receipt_valid
     data_bootstrap_receipt_key = local.data_ready ? "data-bootstrap/${var.run_id}/${var.dataset_release}.json" : null

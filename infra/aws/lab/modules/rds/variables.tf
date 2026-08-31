@@ -15,6 +15,15 @@ variable "bootstrap_mode" {
   }
 }
 
+variable "dump_storage_gib" {
+  type = number
+
+  validation {
+    condition     = contains([20, 100], var.dump_storage_gib)
+    error_message = "dump_storage_gib must be one of the closed dataset-profile capacities: 20 or 100 GiB."
+  }
+}
+
 variable "snapshot_identifier" {
   type    = string
   default = null

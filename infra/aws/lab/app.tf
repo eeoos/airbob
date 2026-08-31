@@ -15,6 +15,8 @@ locals {
   }))
 
   app_runtime_contract = local.services_enabled ? join("\n", [
+    "AIRBOB_RUN_ID=${var.run_id}",
+    "AIRBOB_RESOURCE_FENCING_TOKEN_SHA256=${sha256(tostring(var.fencing_token))}",
     "AIRBOB_MEASUREMENT_POLICY=${var.measurement_policy}",
     "AIRBOB_CACHE_ENABLED=${var.accommodation_detail_cache_enabled}",
     "AIRBOB_RDS_ENDPOINT=${module.rds[0].address}",

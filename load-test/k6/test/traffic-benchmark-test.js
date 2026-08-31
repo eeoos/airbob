@@ -1,7 +1,9 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   buildTrafficOptions,
+  parseDatasetTrafficRunConfig,
   parseTrafficRunConfig,
   summarizeTrafficMetrics,
 } from '../lib/traffic-benchmark.js';
@@ -9,8 +11,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const manifest = {
   datasetVersion: 'nplus1-v1',
@@ -38,6 +45,25 @@ const manifest = {
 };
 
 const manifestRaw = JSON.stringify(manifest);
+const datasetManifestFixture = JSON.parse(
+  open('../../../infra/aws/tests/fixtures/benchmark-dataset-v2.json'),
+);
+const legacyDatasetManifestFixture = JSON.parse(
+  open('../../../infra/aws/tests/fixtures/benchmark-dataset-v1.json'),
+);
+const datasetNplusCapsules = datasetManifestFixture.capsules.filter(
+  (capsule) => capsule.capsuleId === 'nplus1-v1',
+);
+const legacyNplusCapsules = legacyDatasetManifestFixture.capsules.filter(
+  (capsule) => capsule.capsuleId === 'nplus1-v1',
+);
+if (datasetNplusCapsules.length !== 1 || legacyNplusCapsules.length !== 1) {
+  throw new Error('benchmark fixtures must each contain exactly one nplus1-v1 capsule');
+}
+datasetManifestFixture.capsules = datasetManifestFixture.capsules.map((capsule) => (
+  capsule.capsuleId === 'nplus1-v1' ? legacyNplusCapsules[0] : capsule
+));
+const datasetManifestRaw = JSON.stringify(datasetManifestFixture);
 const commonEnvironment = {
   MODE: 'measure',
   ROLE: 'guest',
@@ -62,12 +88,35 @@ function rejects(action) {
   }
 }
 
+function errorMessage(action) {
+  try {
+    action();
+    return null;
+  } catch (error) {
+    return error.message;
+  }
+}
+
 function metric(values) {
   return { values };
 }
 
 export default function () {
   const config = parseTrafficRunConfig(commonEnvironment, manifestRaw, targetNames);
+  const legacyDefaultPath = parseTrafficRunConfig(
+    { ...commonEnvironment, K6_RESULT_PATH: '' },
+    manifestRaw,
+    targetNames,
+  );
+  const datasetConfig = parseDatasetTrafficRunConfig(
+    commonEnvironment,
+    datasetManifestRaw,
+    targetNames,
+  );
+  const datasetExactPath = parseDatasetTrafficRunConfig({
+    ...commonEnvironment,
+    K6_RESULT_PATH: `build/k6/traffic/${commonEnvironment.RUN_LABEL}.json`,
+  }, datasetManifestRaw, targetNames);
   const measureOptions = buildTrafficOptions(config);
   const inspectOptions = buildTrafficOptions({ ...config, mode: 'inspect' });
   const warmupOptions = buildTrafficOptions({ ...config, mode: 'warmup' });
@@ -109,6 +158,38 @@ export default function () {
     'pipeline rehearsal cannot claim representative performance': (value) => (
       value.releaseKind === 'pipeline-rehearsal'
         && value.claimScope === 'pipeline-only'
+    ),
+    'standalone dataset run remains rehearsal-only with manifest provenance': () => (
+      datasetConfig.releaseKind === 'pipeline-rehearsal'
+        && datasetConfig.claimScope === 'pipeline-only'
+        && /^[0-9a-f]{64}$/.test(datasetConfig.manifestSha256)
+        && datasetExactPath.manifestSha256 === datasetConfig.manifestSha256
+    ),
+    'legacy empty result path defaults but dataset requires undefined or exact': () => (
+      legacyDefaultPath.resultPath === `build/k6/traffic/${commonEnvironment.RUN_LABEL}.json`
+        && datasetConfig.resultPath === legacyDefaultPath.resultPath
+        && datasetExactPath.resultPath === legacyDefaultPath.resultPath
+        && errorMessage(() => parseDatasetTrafficRunConfig({
+          ...commonEnvironment,
+          K6_RESULT_PATH: '',
+        }, datasetManifestRaw, targetNames))
+          === 'K6_RESULT_PATH must match the canonical traffic artifact path'
+    ),
+    'role errors remain contract specific': () => (
+      errorMessage(() => parseTrafficRunConfig(
+        { ...commonEnvironment, ROLE: 'admin' }, manifestRaw, targetNames,
+      )) === 'ROLE must be guest for the first vertical slice'
+        && errorMessage(() => parseDatasetTrafficRunConfig(
+          { ...commonEnvironment, ROLE: 'admin' }, datasetManifestRaw, targetNames,
+        )) === 'ROLE must be guest for dataset read experiments'
+    ),
+    'manifest content errors remain contract specific': () => (
+      errorMessage(() => parseTrafficRunConfig(
+        commonEnvironment, undefined, targetNames,
+      )) === 'BENCHMARK_MANIFEST content is required'
+        && errorMessage(() => parseDatasetTrafficRunConfig(
+          commonEnvironment, undefined, targetNames,
+        )) === 'BENCHMARK_DATASET_MANIFEST content is required'
     ),
     'single guest target and provenance are recorded': (value) => (
       value.role === 'guest'
@@ -208,4 +289,5 @@ export default function () {
         && !serialized.includes('token')
     ),
   });
+  contractTestCompleted.add(1);
 }

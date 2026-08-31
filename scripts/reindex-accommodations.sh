@@ -16,6 +16,13 @@ ES_ALIAS="${ES_ALIAS:-accommodations}"
 ES_TARGET_INDEX="${ES_TARGET_INDEX:-${ES_ALIAS}-v$(date -u +%Y%m%d%H%M%S)}"
 MYSQL_SERVICE="${MYSQL_SERVICE:-mysql}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-airbobdb}"
+MYSQL_SOURCE_MODE="${MYSQL_SOURCE_MODE:-compose}"
+MYSQL_BIN="${MYSQL_BIN:-mysql}"
+GIT_BIN="${GIT_BIN:-git}"
+MYSQL_HOST="${MYSQL_HOST:-}"
+MYSQL_PORT="${MYSQL_PORT:-}"
+REINDEX_SOURCE_COMMIT="${REINDEX_SOURCE_COMMIT:-}"
+LOGSTASH_JDBC_URL="${LOGSTASH_JDBC_URL:-}"
 LOGSTASH_JDBC_USER="${LOGSTASH_JDBC_USER:-logstash}"
 LOGSTASH_JDBC_PASSWORD="${LOGSTASH_JDBC_PASSWORD:-logstash}"
 ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS="${ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS:-5}"
@@ -50,6 +57,36 @@ command -v "$JQ_BIN" >/dev/null 2>&1 || fail "jq executable not found: $JQ_BIN"
 [[ "$LOGSTASH_POLL_INTERVAL_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ &&
 	"$LOGSTASH_POLL_INTERVAL_SECONDS" =~ [1-9] ]] ||
 	fail "LOGSTASH_POLL_INTERVAL_SECONDS must be greater than zero"
+case "$MYSQL_SOURCE_MODE" in
+	compose) ;;
+	external)
+		[[ "${CONFIRM_MYSQL_SOURCE_QUIESCED:-false}" == "true" ]] ||
+			fail "set CONFIRM_MYSQL_SOURCE_QUIESCED=true for an attested external MySQL source"
+		[[ "$MYSQL_DATABASE" == airbobdb ]] || fail "external dataset source must use airbobdb"
+		[[ "$MYSQL_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}$ ]] ||
+			fail "MYSQL_HOST is invalid for external source mode"
+		[[ "$MYSQL_PORT" =~ ^[0-9]{1,5}$ ]] || fail "MYSQL_PORT is invalid for external source mode"
+		((10#$MYSQL_PORT >= 1 && 10#$MYSQL_PORT <= 65535)) ||
+			fail "MYSQL_PORT is invalid for external source mode"
+		[[ "$LOGSTASH_JDBC_URL" =~ ^jdbc:mysql://[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}:[0-9]{1,5}/airbobdb\?serverTimezone=UTC\&useSSL=false\&allowPublicKeyRetrieval=true$ ]] ||
+			fail "LOGSTASH_JDBC_URL must name the container-reachable external airbobdb source"
+		command -v "$MYSQL_BIN" >/dev/null 2>&1 || fail "mysql executable not found: $MYSQL_BIN"
+		command -v "$GIT_BIN" >/dev/null 2>&1 || fail "git executable not found: $GIT_BIN"
+		[[ "$REINDEX_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] ||
+			fail "REINDEX_SOURCE_COMMIT must be one reviewed full Airbob commit"
+		"$GIT_BIN" -C "$PROJECT_DIR" cat-file -e "$REINDEX_SOURCE_COMMIT^{commit}" 2>/dev/null ||
+			fail "REINDEX_SOURCE_COMMIT is not available in this repository"
+		[[ "$("$GIT_BIN" -C "$PROJECT_DIR" rev-parse HEAD)" == "$REINDEX_SOURCE_COMMIT" ]] ||
+			fail "external dataset reindex must run from REINDEX_SOURCE_COMMIT"
+		"$GIT_BIN" -C "$PROJECT_DIR" diff --quiet "$REINDEX_SOURCE_COMMIT" -- \
+			scripts/reindex-accommodations.sh docker-compose.yml \
+			logstash/pipeline/airbob.conf logstash/config/logstash.yml \
+			logstash/config/jdbc/mysql-connector-j-8.0.33.jar \
+			src/main/resources/elasticsearch/accommodations-index.json ||
+			fail "external dataset reindex inputs differ from REINDEX_SOURCE_COMMIT"
+		;;
+	*) fail "MYSQL_SOURCE_MODE must be compose or external" ;;
+esac
 target_prefix="${ES_ALIAS}-v"
 target_version="${ES_TARGET_INDEX#"$target_prefix"}"
 [[ "$ES_TARGET_INDEX" == "$target_prefix"* && "$target_version" =~ ^[0-9]{14}$ ]] ||
@@ -104,10 +141,14 @@ fi
 
 validate_config_value "$LOGSTASH_JDBC_USER"
 validate_config_value "$LOGSTASH_JDBC_PASSWORD"
+validate_config_value "$LOGSTASH_JDBC_URL"
 printf '[client]\nuser="%s"\npassword="%s"\n' \
 	"$(escape_config_value "$LOGSTASH_JDBC_USER")" \
 	"$(escape_config_value "$LOGSTASH_JDBC_PASSWORD")" > "$MYSQL_CLIENT_CONFIG"
 chmod 600 "$MYSQL_CLIENT_CONFIG"
+if [[ "$MYSQL_SOURCE_MODE" == external ]]; then
+	export LOGSTASH_JDBC_URL LOGSTASH_JDBC_USER LOGSTASH_JDBC_PASSWORD
+fi
 
 api_request() {
 	local method="$1"
@@ -176,12 +217,21 @@ read_current_index() {
 
 mysql_published_count() {
 	local count
-	count="$(
-		"$DOCKER_BIN" compose -f "$COMPOSE_FILE" exec -T "$MYSQL_SERVICE" \
-			mysql --defaults-extra-file=/dev/stdin --batch --skip-column-names "$MYSQL_DATABASE" \
-			-e "SELECT COUNT(*) FROM accommodation WHERE status = 'PUBLISHED' AND accommodation_uid IS NOT NULL;" \
-			< "$MYSQL_CLIENT_CONFIG"
-	)"
+	if [[ "$MYSQL_SOURCE_MODE" == external ]]; then
+		count="$(
+			"$MYSQL_BIN" --defaults-extra-file="$MYSQL_CLIENT_CONFIG" \
+				--protocol=TCP --host="$MYSQL_HOST" --port="$MYSQL_PORT" \
+				--batch --skip-column-names "$MYSQL_DATABASE" \
+				--execute="SELECT COUNT(*) FROM accommodation WHERE status = 'PUBLISHED' AND accommodation_uid IS NOT NULL;"
+		)"
+	else
+		count="$(
+			"$DOCKER_BIN" compose -f "$COMPOSE_FILE" exec -T "$MYSQL_SERVICE" \
+				mysql --defaults-extra-file=/dev/stdin --batch --skip-column-names "$MYSQL_DATABASE" \
+				-e "SELECT COUNT(*) FROM accommodation WHERE status = 'PUBLISHED' AND accommodation_uid IS NOT NULL;" \
+				< "$MYSQL_CLIENT_CONFIG"
+		)"
+	fi
 	count="$(printf '%s' "$count" | tr -d '[:space:]')"
 	[[ "$count" =~ ^[0-9]+$ ]] || fail "could not read published accommodation count from MySQL"
 	printf '%s' "$count"
@@ -208,7 +258,7 @@ run_logstash_with_watchdog() {
 	local exit_code
 
 	container_id="$(
-		"$DOCKER_BIN" compose -f "$COMPOSE_FILE" --profile reindex run -d \
+		"$DOCKER_BIN" compose -f "$COMPOSE_FILE" --profile reindex run --no-deps -d \
 			-e "LOGSTASH_TARGET_INDEX=$ES_TARGET_INDEX" logstash
 	)" || fail "could not start Logstash reindex container"
 	container_id="$(printf '%s' "$container_id" | tr -d '[:space:]')"

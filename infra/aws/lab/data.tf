@@ -61,6 +61,16 @@ data "aws_s3_object" "dataset_manifest" {
   key    = local.dataset_manifest_key
 }
 
+data "aws_s3_object" "dataset_production_spec" {
+  count = local.services_enabled ? 1 : 0
+
+  bucket = local.lab_contract.dataset_bucket_name
+  key = "${local.dataset_prefix}/${try(
+    local.dataset_profile_contract.production_spec_key,
+    "benchmark/unsupported-profile.json",
+  )}"
+}
+
 data "aws_db_snapshot" "dataset" {
   count = local.services_enabled && var.database_bootstrap == "snapshot" ? 1 : 0
 

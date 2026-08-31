@@ -90,6 +90,23 @@ class SessionAuthFilterPublicPathTest {
 	}
 
 	@Test
+	@DisplayName("read-model 런타임 검증 POST는 세션 없이 벤치마크 토큰 검증 단계로 전달한다")
+	void anonymousReadModelRuntimeAssertionPostPassesFilterChain() throws Exception {
+		SessionAuthFilter filter = createFilter();
+		MockHttpServletRequest request = new MockHttpServletRequest(
+			"POST",
+			"/api/v2/benchmark/read-model/runtime-assertion"
+		);
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		filter.doFilter(request, response, chain);
+
+		assertThat(chain.getRequest()).isSameAs(request);
+		assertThat(response.getStatus()).isEqualTo(200);
+	}
+
+	@Test
 	@DisplayName("삭제된 CPU burn 경로는 더 이상 익명 공개 경로가 아니다")
 	void staleCpuBurnPathRequiresAuthentication() throws Exception {
 		SessionAuthFilter filter = createFilter();

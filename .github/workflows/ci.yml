@@ -28,6 +28,22 @@ jobs:
           terraform_version: 1.15.5
           terraform_wrapper: false
 
+      - name: Install pinned Docker Compose
+        run: |
+          source infra/aws/toolchain.env
+          compose_config="$RUNNER_TEMP/docker-config"
+          compose_plugin="$compose_config/cli-plugins/docker-compose"
+          install -d -m 700 "$(dirname "$compose_plugin")"
+          curl --fail --silent --show-error --location --retry 5 \
+            --output "$compose_plugin" \
+            "https://github.com/docker/compose/releases/download/v${AIRBOB_DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64"
+          printf '%s  %s\n' "$AIRBOB_DOCKER_COMPOSE_LINUX_AMD64_SHA256" "$compose_plugin" \
+            | sha256sum --check --status
+          chmod 755 "$compose_plugin"
+          printf 'DOCKER_CONFIG=%s\n' "$compose_config" >> "$GITHUB_ENV"
+          [[ "$(DOCKER_CONFIG="$compose_config" docker compose version --short)" \
+            == "$AIRBOB_DOCKER_COMPOSE_VERSION" ]]
+
       - name: Verify AWS service bundle contracts
         run: |
           bash infra/aws/tests/service-bundle-verifier-test.sh
@@ -55,12 +71,15 @@ jobs:
           bash infra/aws/tests/elasticsearch-snapshot-producer-test.sh
           bash infra/aws/tests/dataset-release-assembler-test.sh
           bash infra/aws/tests/dataset-release-publisher-test.sh
+          bash infra/aws/tests/dataset-release-test.sh
+          bash infra/aws/tests/rds-snapshot-promotion-test.sh
 
       - name: Verify AWS performance-lab operator contracts
         run: |
           bash infra/aws/tests/orchestration-lease-test.sh
           bash infra/aws/tests/aws-dns-cutover-test.sh
           bash infra/aws/tests/aws-lab-operator-test.sh
+          bash infra/aws/tests/reset-accommodation-cache-test.sh
           bash infra/aws/tests/expiry-cleanup-test.sh
           bash infra/aws/tests/measurement-policy-test.sh
 
@@ -76,11 +95,21 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           printf '%s\n' "$RUNNER_TEMP/k6-v${AIRBOB_K6_VERSION}-linux-amd64" >> "$GITHUB_PATH"
 
+      - name: Verify benchmark dataset validator agreement
+        env:
+          K6_NO_USAGE_REPORT: 'true'
+        run: bash infra/aws/tests/benchmark-dataset-v2-validator-test.sh
+
       - name: Verify AWS traffic discovery contracts
         env:
           K6_NO_USAGE_REPORT: 'true'
         run: |
           k6 run --address '' load-test/k6/test/traffic-benchmark-test.js
+          k6 run --address '' load-test/k6/test/benchmark-dataset-manifest-test.js
+          k6 run --address '' load-test/k6/test/coupon-benchmark-fixture-test.js
+          k6 run --address '' load-test/k6/test/dataset-read-target-test.js
+          k6 run --address '' load-test/k6/test/read-model-benchmark-test.js
+          k6 run --address '' load-test/k6/test/reservation-history-insert-benchmark-test.js
           MODE=inspect ROLE=guest TARGET=accommodation-detail \
             RATE=1 DURATION=1s MIN_COMPLETED_SAMPLES=1 \
             ROUND=1 RUN_ORDER=1 RUN_LABEL=guest-test \
@@ -89,7 +118,14 @@ jobs:
             BENCHMARK_MANIFEST="$PWD/load-test/k6/test/fixtures/nplus1-v1.json" \
             k6 run --address '' load-test/k6/test/guest-read-traffic-test.js
           node load-test/k6/test/prepare-benchmark-sessions-test.js
+          node load-test/k6/test/prepare-coupon-sessions-test.js
+          node load-test/k6/test/bulk-write-observations-test.mjs
+          node load-test/k6/test/read-model-observations-test.mjs
           node load-test/k6/test/traffic-result-aggregation-test.mjs
+          bash load-test/k6/test/dataset-read-inspect-test.sh
+          bash load-test/k6/test/reservation-history-insert-comparison-inspect-test.sh
+          bash load-test/k6/test/run-aws-read-model-discovery-test.sh
+          bash load-test/k6/test/run-bulk-write-benchmark-server-test.sh
           bash load-test/k6/test/run-aws-discovery-test.sh
 
       - name: Build and Test

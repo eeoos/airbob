@@ -1,0 +1,616 @@
+{
+  "schemaVersion": 2,
+  "datasetVersion": "benchmark-dataset-v2",
+  "world": {
+    "version": "world-v2",
+    "profile": "LARGE",
+    "seed": 20260826,
+    "anchorTime": "2026-08-01T00:00:00",
+    "validUntil": "2027-08-01T00:00:00",
+    "timezone": "Asia/Seoul",
+    "flywayVersion": 27,
+    "claimScope": "controlled-synthetic-workload",
+    "tableRows": {
+      "accommodation": 50000,
+      "accommodation_amenity": 100000,
+      "accommodation_image": 50000,
+      "accommodation_inventory_day": 0,
+      "accommodation_review_summary": 50000,
+      "address": 50000,
+      "daily_revenue_stats": 365,
+      "member": 200000,
+      "occupancy_policy": 50000,
+      "payment": 2250000,
+      "payment_transaction": 2750000,
+      "reservation": 2500000,
+      "review": 1000000,
+      "review_image": 100000,
+      "wishlist": 400000,
+      "wishlist_accommodation": 1500000
+    },
+    "observedDistributions": [
+      {
+        "id": "accommodation-type-skew",
+        "axis": "VALUE_SKEW",
+        "totalRows": 100,
+        "distinctKeys": 10,
+        "maxRowsPerKey": 40,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 20, "hot": 80 }
+      },
+      {
+        "id": "payment-recency",
+        "axis": "RECENCY",
+        "totalRows": 100,
+        "distinctKeys": 10,
+        "maxRowsPerKey": 40,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 20, "hot": 80 }
+      },
+      {
+        "id": "reservation-guest-skew",
+        "axis": "VALUE_SKEW",
+        "totalRows": 100,
+        "distinctKeys": 10,
+        "maxRowsPerKey": 40,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 20, "hot": 80 }
+      },
+      {
+        "id": "review-fanout",
+        "axis": "FAN_OUT",
+        "totalRows": 100,
+        "distinctKeys": 10,
+        "maxRowsPerKey": 40,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 20, "hot": 80 }
+      },
+      {
+        "id": "wishlist-accommodation-skew",
+        "axis": "VALUE_SKEW",
+        "totalRows": 100,
+        "distinctKeys": 10,
+        "maxRowsPerKey": 40,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 20, "hot": 80 }
+      },
+      {
+        "id": "wishlist-fanout",
+        "axis": "FAN_OUT",
+        "totalRows": 100,
+        "distinctKeys": 10,
+        "maxRowsPerKey": 40,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 20, "hot": 80 }
+      }
+    ],
+    "provenance": {
+      "profileVersion": "production-skew-v1",
+      "generatorVersion": "production-skew-generator-v1",
+      "prngAlgorithm": "sha256-splitmix64-counter-v1",
+      "seedDerivation": "length-prefixed stable entity seed",
+      "globalSeed": 20260826,
+      "anchor": "2026-07-31T15:00:00Z",
+      "timezone": "Asia/Seoul",
+      "sourceInventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "calibrationVersion": "source-calibration-v1",
+      "calibrationSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "specSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "verificationPassed": true,
+      "assertionSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "scopedObservedDistributions": {
+      "review-published": {
+        "id": "review-published",
+        "totalRows": 100,
+        "keyCount": 10,
+        "zeroKeys": 1,
+        "p50": 1,
+        "p95": 10,
+        "p99": 20,
+        "maximum": 40,
+        "bucketUnit": "INTERSECTIONS",
+        "buckets": { "PUBLISHED|hot": 4, "reservation-review": 1, "source_valid": 5 },
+        "shares": { "PUBLISHED|hot": 0.4, "reservation-review": 0.1, "source_valid": 0.5 },
+        "rankRows": { "top": 40 }
+      },
+      "wishlist-active": {
+        "id": "wishlist-active",
+        "totalRows": 64,
+        "keyCount": 4,
+        "zeroKeys": 1,
+        "p50": 1,
+        "p95": 10,
+        "p99": 64,
+        "maximum": 64,
+        "bucketUnit": "ROWS",
+        "buckets": { "cold": 1, "hot": 1, "median": 1, "zero": 1 },
+        "shares": { "hot": 0.8533333333333334 },
+        "rankRows": { "hot": 64 }
+      }
+    },
+    "scopeRanges": {
+      "accommodation": {
+        "id": "accommodation",
+        "minimumId": 1,
+        "maximumId": 50000,
+        "rowCount": 50000
+      },
+      "member": {
+        "id": "member",
+        "minimumId": 1,
+        "maximumId": 200000,
+        "rowCount": 200000
+      },
+      "payment": {
+        "id": "payment",
+        "minimumId": 1,
+        "maximumId": 2250000,
+        "rowCount": 2250000
+      },
+      "payment-transaction": {
+        "id": "payment-transaction",
+        "minimumId": 1,
+        "maximumId": 2750000,
+        "rowCount": 2750000
+      },
+      "reservation": {
+        "id": "reservation",
+        "minimumId": 1,
+        "maximumId": 2500000,
+        "rowCount": 2500000
+      },
+      "review": {
+        "id": "review",
+        "minimumId": 1,
+        "maximumId": 1000000,
+        "rowCount": 1000000
+      },
+      "wishlist": {
+        "id": "wishlist",
+        "minimumId": 1,
+        "maximumId": 400000,
+        "rowCount": 400000
+      },
+      "wishlist-accommodation": {
+        "id": "wishlist-accommodation",
+        "minimumId": 1,
+        "maximumId": 1500000,
+        "rowCount": 1500000
+      }
+    },
+    "fingerprints": {
+      "base-accommodation": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-member": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-payment": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-payment-transaction": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-reservation": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-review": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-wishlist": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-wishlist-accommodation": "1111111111111111111111111111111111111111111111111111111111111111",
+      "base-world": "0000000000000000000000000000000000000000000000000000000000000000",
+      "final-accommodation": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-accommodation-amenity": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-accommodation-image": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-address": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-daily-revenue": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-inventory": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "final-member": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-occupancy-policy": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-payment": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-payment-transaction": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-reservation": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-review": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-review-image": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-review-summary": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-wishlist": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-wishlist-accommodation": "1111111111111111111111111111111111111111111111111111111111111111",
+      "final-world": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  },
+  "capsules": [
+    {
+      "capsuleId": "nplus1-v1",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": ["accommodation", "review"],
+      "distributions": [
+        {
+          "id": "relationship-fanout",
+          "axis": "FAN_OUT",
+          "shape": "CARDINALITY_BUCKETS",
+          "buckets": [1, 20, 50, 100, 201],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 1,
+        "emails": ["benchmark-nplus1@airbob.cloud"]
+      },
+      "targets": [
+        { "id": "review-hotspot", "expectedRows": 201, "resourceIds": [901] }
+      ],
+      "runtime": {
+        "owner": "K6_HARNESS",
+        "setup": "prepare-recently-viewed-zset",
+        "resetPolicy": "replace-run-account-zset"
+      }
+    },
+    {
+      "capsuleId": "read-model-v2",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": [
+        "accommodation",
+        "accommodation_review_summary",
+        "daily_revenue_stats",
+        "member",
+        "payment_transaction",
+        "review",
+        "wishlist",
+        "wishlist_accommodation"
+      ],
+      "distributions": [
+        {
+          "id": "review-target-cardinality",
+          "axis": "SELECTIVITY",
+          "shape": "SELECTIVITY_BUCKETS",
+          "buckets": [0, 1, 10, 100],
+          "parameters": {}
+        },
+        {
+          "id": "wishlist-target-cardinality",
+          "axis": "SELECTIVITY",
+          "shape": "SELECTIVITY_BUCKETS",
+          "buckets": [0, 1, 10, 64],
+          "parameters": {}
+        },
+        {
+          "id": "revenue-result-cardinality",
+          "axis": "SELECTIVITY",
+          "shape": "SELECTIVITY_BUCKETS",
+          "buckets": [0, 1, 7, 20, 50],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 5,
+        "emails": [
+          "benchmark-read-model-wishlist-hot@airbob.cloud",
+          "benchmark-read-model-wishlist-median@airbob.cloud",
+          "benchmark-read-model-wishlist-cold@airbob.cloud",
+          "benchmark-read-model-wishlist-empty@airbob.cloud",
+          "benchmark-read-model-revenue-admin@airbob.cloud"
+        ]
+      },
+      "targets": [
+        {
+          "id": "review-hot",
+          "expectedRows": 100,
+          "resourceIds": [101],
+          "query": { "kind": "REVIEW_SUMMARY_V1", "accommodationId": 101 },
+          "expectedResultHash": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "id": "review-median",
+          "expectedRows": 10,
+          "resourceIds": [102],
+          "query": { "kind": "REVIEW_SUMMARY_V1", "accommodationId": 102 },
+          "expectedResultHash": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "id": "review-cold",
+          "expectedRows": 1,
+          "resourceIds": [103],
+          "query": { "kind": "REVIEW_SUMMARY_V1", "accommodationId": 103 },
+          "expectedResultHash": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "id": "review-empty",
+          "expectedRows": 0,
+          "resourceIds": [104],
+          "query": { "kind": "REVIEW_SUMMARY_V1", "accommodationId": 104 },
+          "expectedResultHash": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "id": "wishlist-hot",
+          "expectedRows": 50,
+          "resourceIds": [201],
+          "query": {
+            "kind": "WISHLIST_PAGE_V1",
+            "memberId": 201,
+            "size": 50,
+            "lastId": null,
+            "lastCreatedAt": null,
+            "accommodationId": null,
+            "totalActiveRows": 64
+          },
+          "expectedResultHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "account": {
+            "memberId": 201,
+            "email": "benchmark-read-model-wishlist-hot@airbob.cloud",
+            "role": "MEMBER",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "wishlist-median",
+          "expectedRows": 10,
+          "resourceIds": [202],
+          "query": {
+            "kind": "WISHLIST_PAGE_V1",
+            "memberId": 202,
+            "size": 50,
+            "lastId": null,
+            "lastCreatedAt": null,
+            "accommodationId": null,
+            "totalActiveRows": 10
+          },
+          "expectedResultHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "account": {
+            "memberId": 202,
+            "email": "benchmark-read-model-wishlist-median@airbob.cloud",
+            "role": "MEMBER",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "wishlist-cold",
+          "expectedRows": 1,
+          "resourceIds": [203],
+          "query": {
+            "kind": "WISHLIST_PAGE_V1",
+            "memberId": 203,
+            "size": 50,
+            "lastId": null,
+            "lastCreatedAt": null,
+            "accommodationId": null,
+            "totalActiveRows": 1
+          },
+          "expectedResultHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "account": {
+            "memberId": 203,
+            "email": "benchmark-read-model-wishlist-cold@airbob.cloud",
+            "role": "MEMBER",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "wishlist-empty",
+          "expectedRows": 0,
+          "resourceIds": [204],
+          "query": {
+            "kind": "WISHLIST_PAGE_V1",
+            "memberId": 204,
+            "size": 50,
+            "lastId": null,
+            "lastCreatedAt": null,
+            "accommodationId": null,
+            "totalActiveRows": 0
+          },
+          "expectedResultHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "account": {
+            "memberId": 204,
+            "email": "benchmark-read-model-wishlist-empty@airbob.cloud",
+            "role": "MEMBER",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "wishlist-hot-deep",
+          "expectedRows": 14,
+          "resourceIds": [201],
+          "query": {
+            "kind": "WISHLIST_PAGE_V1",
+            "memberId": 201,
+            "size": 50,
+            "lastId": 999,
+            "lastCreatedAt": "2026-07-31T23:59:59",
+            "accommodationId": null,
+            "totalActiveRows": 64
+          },
+          "expectedResultHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "account": {
+            "memberId": 201,
+            "email": "benchmark-read-model-wishlist-hot@airbob.cloud",
+            "role": "MEMBER",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "revenue-recent-1d",
+          "expectedRows": 1,
+          "resourceIds": [],
+          "query": {
+            "kind": "REVENUE_RANGE_V1",
+            "from": "2026-07-30",
+            "to": "2026-07-30",
+            "dayBoundary": "UTC"
+          },
+          "expectedResultHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "account": {
+            "memberId": 205,
+            "email": "benchmark-read-model-revenue-admin@airbob.cloud",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "revenue-recent-7d",
+          "expectedRows": 7,
+          "resourceIds": [],
+          "query": {
+            "kind": "REVENUE_RANGE_V1",
+            "from": "2026-07-24",
+            "to": "2026-07-30",
+            "dayBoundary": "UTC"
+          },
+          "expectedResultHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "account": {
+            "memberId": 205,
+            "email": "benchmark-read-model-revenue-admin@airbob.cloud",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "revenue-medium",
+          "expectedRows": 20,
+          "resourceIds": [],
+          "query": {
+            "kind": "REVENUE_RANGE_V1",
+            "from": "2026-07-01",
+            "to": "2026-07-30",
+            "dayBoundary": "UTC"
+          },
+          "expectedResultHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "account": {
+            "memberId": 205,
+            "email": "benchmark-read-model-revenue-admin@airbob.cloud",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "revenue-broad",
+          "expectedRows": 50,
+          "resourceIds": [],
+          "query": {
+            "kind": "REVENUE_RANGE_V1",
+            "from": "2025-08-01",
+            "to": "2026-07-30",
+            "dayBoundary": "UTC"
+          },
+          "expectedResultHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "account": {
+            "memberId": 205,
+            "email": "benchmark-read-model-revenue-admin@airbob.cloud",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "revenue-empty",
+          "expectedRows": 0,
+          "resourceIds": [],
+          "query": {
+            "kind": "REVENUE_RANGE_V1",
+            "from": "2026-08-02",
+            "to": "2026-08-02",
+            "dayBoundary": "UTC"
+          },
+          "expectedResultHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "account": {
+            "memberId": 205,
+            "email": "benchmark-read-model-revenue-admin@airbob.cloud",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+          }
+        },
+        {
+          "id": "revenue-refund-boundary",
+          "expectedRows": 1,
+          "resourceIds": [],
+          "query": {
+            "kind": "REVENUE_RANGE_V1",
+            "from": "2026-06-01",
+            "to": "2026-06-01",
+            "dayBoundary": "UTC"
+          },
+          "expectedResultHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "account": {
+            "memberId": 205,
+            "email": "benchmark-read-model-revenue-admin@airbob.cloud",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+          }
+        }
+      ],
+      "runtime": {
+        "owner": "K6_HARNESS",
+        "setup": "verify-canonical-response-hashes",
+        "resetPolicy": "restore-snapshot"
+      }
+    },
+    {
+      "capsuleId": "index-query-v1",
+      "schemaVersion": 1,
+      "mutability": "READ_ONLY",
+      "touchedTables": [
+        "accommodation",
+        "accommodation_amenity",
+        "accommodation_review_summary",
+        "address",
+        "occupancy_policy",
+        "reservation"
+      ],
+      "distributions": [
+        {
+          "id": "search-selectivity",
+          "axis": "SELECTIVITY",
+          "shape": "SELECTIVITY_BUCKETS",
+          "buckets": [0, 1, 10, 100],
+          "parameters": {}
+        }
+      ],
+      "accountPool": { "capacity": 0, "emails": [] },
+      "targets": [
+        {
+          "id": "search-medium",
+          "expectedRows": 10,
+          "resourceIds": [301],
+          "query": {
+            "kind": "ACCOMMODATION_SEARCH_V1",
+            "destination": "",
+            "minPrice": 0,
+            "maxPrice": 200000,
+            "adultOccupancy": 2,
+            "childOccupancy": 0,
+            "infantOccupancy": 0,
+            "petOccupancy": 0,
+            "topLeftLat": 38,
+            "topLeftLng": 126,
+            "bottomRightLat": 36,
+            "bottomRightLng": 128,
+            "page": 0
+          },
+          "expectedResultHash": "5555555555555555555555555555555555555555555555555555555555555555"
+        }
+      ],
+      "runtime": {
+        "owner": "AWS_LAB",
+        "setup": "rebuild-versioned-index",
+        "resetPolicy": "restore-index-snapshot"
+      }
+    },
+    {
+      "capsuleId": "coupon-accounts-v1",
+      "schemaVersion": 1,
+      "mutability": "RUN_LOCAL_WRITE",
+      "touchedTables": ["coupon", "member", "member_coupon"],
+      "distributions": [
+        {
+          "id": "request-to-stock",
+          "axis": "CONTENTION",
+          "shape": "CONTENTION_RATIOS",
+          "buckets": [1000, 5000, 30000],
+          "parameters": {}
+        }
+      ],
+      "accountPool": {
+        "capacity": 2,
+        "emails": [
+          "coupon-benchmark-00001@airbob.cloud",
+          "coupon-benchmark-00002@airbob.cloud"
+        ]
+      },
+      "targets": [],
+      "runtime": {
+        "owner": "K6_HARNESS",
+        "setup": "prepare-fresh-coupon-stock",
+        "resetPolicy": "fresh-campaign-per-variant-round"
+      }
+    }
+  ],
+  "targetFingerprint": "ace11b7713606a877a12bed71a7c52aebca77851a169c6e25176c137fb77d9ac"
+}

@@ -64,6 +64,25 @@ assert_contains "$lab_root/modules/load-generator/main.tf" 'instance_type       
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'verify-app-runtime-env.sh'
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'secretsmanager get-secret-value'
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'docker compose'
+assert_contains "$lab_root/templates/start-app.sh.tftpl" 'latest/meta-data/instance-id'
+[[ "$(grep -Fc -- '--connect-timeout 2 --max-time 5' "$lab_root/templates/start-app.sh.tftpl")" -eq 2 ]] \
+  || fail "application IMDS calls must keep bounded connect and total timeouts"
+assert_contains "$lab_root/templates/start-app.sh.tftpl" 'curl --connect-timeout 2 --max-time 10'
+[[ "$(grep -Fc -- 'wget -qO- -T 5 -t 1' "$lab_root/templates/start-app.sh.tftpl")" -eq 3 ]] \
+  || fail "container IMDS calls must keep bounded retries and timeouts"
+assert_contains "$lab_root/templates/start-app.sh.tftpl" 'AIRBOB_RUNTIME_REVISION='
+assert_contains "$lab_root/templates/start-app.sh.tftpl" 'AIRBOB_APP_INSTANCE_ID='
+for isolated_guard in \
+  SPRING_KAFKA_LISTENER_AUTO_STARTUP \
+  OPERATOR_ALERT_KAFKA_AUTO_STARTUP \
+  ACCOMMODATION_INDEXING_AUTO_STARTUP \
+  ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP \
+  RESERVATION_INVENTORY_STARTUP_ENABLED \
+  RESERVATION_INVENTORY_SEED_ENABLED \
+  RESERVATION_INVENTORY_RETENTION_ENABLED; do
+  assert_contains "$lab_root/templates/start-app.sh.tftpl" "$isolated_guard"
+  assert_contains "$repo_root/infra/aws/scripts/verify-app-runtime-env.sh" "$isolated_guard"
+done
 assert_contains "$lab_root/monitoring.tf" 'AWS/ApplicationELB'
 assert_contains "$lab_root/monitoring.tf" 'AWS/AutoScaling'
 assert_contains "$lab_root/monitoring.tf" 'CPUCreditBalance'

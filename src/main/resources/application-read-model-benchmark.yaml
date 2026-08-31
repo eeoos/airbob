@@ -2,3 +2,7 @@ benchmark:
   read-model:
     enabled: true
     token: ${BENCHMARK_READ_MODEL_TOKEN}
+    run-id: ${AIRBOB_RUN_ID:}
+    resource-fencing-token-sha256: ${AIRBOB_RESOURCE_FENCING_TOKEN_SHA256:}
+    runtime-revision: ${AIRBOB_RUNTIME_REVISION:}
+    app-instance-id: ${AIRBOB_APP_INSTANCE_ID:}

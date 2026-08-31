@@ -1,796 +1,637 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
+export LC_ALL=C
 
-script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
-repo_root=$(CDPATH= cd -P -- "$script_dir/../../.." && pwd -P)
+repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
 assembler="$repo_root/infra/aws/scripts/assemble-dataset-release.sh"
-validator="$repo_root/infra/aws/scripts/verify-dataset-release.sh"
-benchmark_fixture="$repo_root/load-test/k6/test/fixtures/nplus1-v1.json"
-temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-dataset-assembler-test.XXXXXX")
+release_validator="$repo_root/infra/aws/scripts/verify-dataset-release.sh"
+semantic_validator="$repo_root/infra/aws/scripts/validate-benchmark-dataset-v2.jq"
+dataset_fixture="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json"
+legacy_fixture="$repo_root/load-test/k6/test/fixtures/nplus1-v1.json"
+temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-v2-assembler-test.XXXXXX")
 
 cleanup() {
   local status=$?
-  trap - EXIT HUP INT TERM
-  rm -rf "$temp_dir"
+  trap - EXIT
+  if [[ "${AIRBOB_KEEP_TEST_TMP:-false}" == true ]]; then
+    printf 'kept test workspace: %s\n' "$temp_dir" >&2
+  else
+    rm -rf "$temp_dir"
+  fi
   exit "$status"
 }
 trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+fail() { printf 'dataset release assembler test failed: %s\n' "$1" >&2; exit 1; }
+sha256_file() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
 
-fail() {
-  printf '%s\n' "$1" >&2
-  exit 1
-}
-
-sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
-  else
-    shasum -a 256 "$1" | awk '{print $1}'
-  fi
-}
+stat_functions="$temp_dir/stat-functions.sh"
+awk '
+  /^stat_(uid|mode)\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { capture = 0 }
+' "$assembler" > "$stat_functions"
+[[ "$(grep -Ec '^stat_(uid|mode)\(\)' "$stat_functions")" == 2 ]] \
+  || fail 'assembler stat helpers are missing'
+# shellcheck source=/dev/null
+source "$stat_functions"
+stat_probe="$temp_dir/stat-probe"
+fake_bin="$temp_dir/fake-bin"
+mkdir -m 700 "$stat_probe" "$fake_bin"
+cat > "$fake_bin/stat" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  -c)
+    case "$2" in
+      %u) id -u ;;
+      %a) printf '700\n' ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  -f)
+    printf 'GNU filesystem report emitted before an operand error\n'
+    exit 1
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod 700 "$fake_bin/stat"
+stat_uid_value=$(PATH="$fake_bin:$PATH"; hash -r; stat_uid "$stat_probe")
+stat_mode_value=$(PATH="$fake_bin:$PATH"; hash -r; stat_mode "$stat_probe")
+[[ "$stat_uid_value" == "$(id -u)" && "$stat_mode_value" == 700 ]] \
+  || fail 'assembler stat fallback accepted partial output from a failed dialect'
 
 write_checksums() {
-  local release_dir=$1
-  local release_name
-  : > "$release_dir/SHA256SUMS"
-  for release_name in \
-    PROVENANCE.txt \
-    airbob-production-seed.sql.gz \
-    backend-migrations.sha256 \
-    benchmark-fixture.json \
-    database-fingerprint.tsv \
-    etl-code.sha256 \
-    release-metadata.txt \
-    source.sha256 \
-    traffic-v1.json
-  do
-    printf '%s  %s\n' \
-      "$(sha256_file "$release_dir/$release_name")" \
-      "$release_name" >> "$release_dir/SHA256SUMS"
+  local root=$1 spec_name=$2 file
+  : > "$root/SHA256SUMS"
+  for file in PROVENANCE.txt airbob-production-seed.sql.gz backend-migrations.sha256 \
+    benchmark-dataset-v2.json benchmark-fixture.json database-fingerprint.tsv etl-code.sha256 \
+    generation-qualification-v1.json "$spec_name" release-metadata.txt \
+    source-calibration-v1.json source.sha256 traffic-v1.json; do
+    printf '%s  %s\n' "$(sha256_file "$root/$file")" "$file" >> "$root/SHA256SUMS"
   done
 }
 
-write_attestation() {
-  local release_dir=$1
-  local attestation=$2
-  local accommodation_rows=${3:-201}
-  jq -nS \
-    --arg sourceReleasePayloadSha256 "$(sha256_file "$release_dir/SHA256SUMS")" \
-    --arg sourceDumpSha256 "$(sha256_file "$release_dir/airbob-production-seed.sql.gz")" \
-    --arg sourceDatabaseFingerprintSha256 "$(sha256_file "$release_dir/database-fingerprint.tsv")" \
-    --argjson accommodationRows "$accommodation_rows" '
-    {
-      schemaVersion: 3,
-      databaseRestoreMethod: "gzip-to-empty-airbobdb-v1",
-      sourceReleasePayloadSha256: $sourceReleasePayloadSha256,
-      sourceDumpSha256: $sourceDumpSha256,
-      restoredDumpSha256: $sourceDumpSha256,
-      sourceDatabaseFingerprintSha256: $sourceDatabaseFingerprintSha256,
-      sourceEtlCommit: "0123456789abcdef0123456789abcdef01234567",
-      databaseServerUuid: "00112233-4455-6677-8899-aabbccddeeff",
-      verifierContractInventorySha256: "7777777777777777777777777777777777777777777777777777777777777777",
-      databaseFingerprintSubsetSha256: "8888888888888888888888888888888888888888888888888888888888888888",
-      flywayVersion: "27",
-      flywayHistoryRows: 27,
-      migrationChecksumSha256: "4444444444444444444444444444444444444444444444444444444444444444",
-      schemaFingerprintSha256: "5555555555555555555555555555555555555555555555555555555555555555",
-      outboxState: "empty",
-      expectedTableRows: {
-        accommodation: $accommodationRows,
-        accommodation_inventory_day: 0,
-        flyway_schema_history: 27,
-        member: 3,
-        outbox: 0,
-        reservation: 0
-      },
-      capturedAt: "2026-08-17T00:00:00Z"
-    }
-  ' > "$attestation"
-}
-
-write_snapshot_reference() {
-  local output_file=$1
-  local release_name=$2
-  jq -nS --arg release "$release_name" '
-    {
-      schemaVersion: 2,
-      repository: "airbob-dataset-readonly",
-      bucket: "airbob-performance-lab-dataset-942632789808",
-      basePath: ("elasticsearch/releases/" + $release),
-      snapshot: ("airbob-" + $release),
-      logicalAlias: "accommodations",
-      snapshotIndex: "accommodations-vsource-20260817",
-      elasticsearchVersion: "8.18.8",
-      imageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      documentCount: 201,
-      mappingSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      dbIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      esIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      dbDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-      esDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-      contentFingerprintSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-    }
-  ' > "$output_file"
-  chmod 600 "$output_file"
-}
-
-refresh_traffic_binding() {
-  local release_dir=$1
-  local traffic_sha
-  traffic_sha=$(sha256_file "$release_dir/traffic-v1.json")
-  sed "s/^traffic_manifest_sha256=.*/traffic_manifest_sha256=$traffic_sha/" \
-    "$release_dir/release-metadata.txt" > "$release_dir/release-metadata.next"
-  mv "$release_dir/release-metadata.next" "$release_dir/release-metadata.txt"
-  write_checksums "$release_dir"
-}
-
-write_source_release() {
-  local release_dir=$1
-  local release_id=${2:-production-seed-20260817t000000z}
-  local traffic_run_id=${3:-20260817T001530Z-12345678}
-  local migration_path
-  local migration_name
-  local traffic_sha
-
-  mkdir -m 700 -p "$release_dir"
-  printf '%s\n' \
-    'CREATE DATABASE IF NOT EXISTS airbobdb;' \
-    'USE airbobdb;' \
-    'INSERT INTO accommodation(id) VALUES (1);' \
-    | gzip -n > "$release_dir/airbob-production-seed.sql.gz"
-  cp "$benchmark_fixture" "$release_dir/benchmark-fixture.json"
-  : > "$release_dir/backend-migrations.sha256"
-  while IFS= read -r migration_path; do
-    migration_name=${migration_path##*/}
-    printf '%s  ./%s\n' \
-      "$(sha256_file "$migration_path")" \
-      "$migration_name" >> "$release_dir/backend-migrations.sha256"
-  done < <(find "$repo_root/src/main/resources/db/migration" -maxdepth 1 -type f -name 'V*.sql' | LC_ALL=C sort)
-  printf '%s\n' \
-    'format_version	1' \
-    'flyway_applied_count	27' \
-    'outbox_count	0' \
-    > "$release_dir/database-fingerprint.tsv"
-  printf '%s\n' \
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  build.gradle' \
-    > "$release_dir/etl-code.sha256"
-  printf '%s\n' \
-    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  source.csv' \
-    > "$release_dir/source.sha256"
-
-  jq -nS --arg runId "$traffic_run_id" '
-    {
-      datasetVersion: "traffic-v1",
-      datasetRunId: $runId,
-      seed: 20260817,
-      anchorTime: "2026-08-17T09:00:00",
-      timezone: "Asia/Seoul",
-      validUntil: "2099-12-31T09:00:00",
-      schema: {
-        flywayVersion: "27",
-        migrationDigest: "sha256:6666666666666666666666666666666666666666666666666666666666666666"
-      }
-    }
-  ' > "$release_dir/traffic-v1.json"
-  traffic_sha=$(sha256_file "$release_dir/traffic-v1.json")
-
-  cat > "$release_dir/PROVENANCE.txt" <<'EOF'
-format=airbob-production-seed-provenance-v1
-etl_head=0123456789abcdef0123456789abcdef01234567
-backend_head=89abcdef0123456789abcdef0123456789abcdef
-java=openjdk version 21
-gradle=Gradle 8.4
-mysql=mysql Ver 8.0.46
-mysqldump=mysqldump Ver 8.0.46
-porcelain_status_begin
-
-porcelain_status_end
-backend_porcelain_status_begin
-
-backend_porcelain_status_end
-options_begin
-profile=large
-service_schema=airbobdb
-etl_schema=airbob_etl
-benchmark_fixtures=true
-traffic_fixtures=true
-traffic_seed=20260817
-traffic_anchor_time=2026-08-17T09:00:00
-traffic_valid_until=2099-12-31T09:00:00
-traffic_timezone=Asia/Seoul
-options_end
-EOF
-
-  cat > "$release_dir/release-metadata.txt" <<EOF
-format=airbob-production-seed-release-v1
-release_id=$release_id
+write_metadata() {
+  local root=$1 spec_name=$2
+  local manifest_sha calibration_sha spec_sha qualification_sha fingerprint_sha traffic_sha
+  manifest_sha=$(sha256_file "$root/benchmark-dataset-v2.json")
+  calibration_sha=$(sha256_file "$root/source-calibration-v1.json")
+  spec_sha=$(sha256_file "$root/$spec_name")
+  qualification_sha=$(sha256_file "$root/generation-qualification-v1.json")
+  fingerprint_sha=$(sha256_file "$root/database-fingerprint.tsv")
+  traffic_sha=$(sha256_file "$root/traffic-v1.json")
+  cat > "$root/release-metadata.txt" <<EOF
+format=airbob-production-seed-release-v2
+release_id=production-seed-20260817t000000z
 dump=airbob-production-seed.sql.gz
+dump_sha256=$(sha256_file "$root/airbob-production-seed.sql.gz")
 manifest=benchmark-fixture.json
+manifest_sha256=$(sha256_file "$root/benchmark-fixture.json")
+benchmark_dataset_manifest=benchmark-dataset-v2.json
+benchmark_dataset_manifest_sha256=$manifest_sha
+benchmark_dataset_version=benchmark-dataset-v2
+world_version=world-v2
+production_spec=$spec_name
+production_spec_sha256=$spec_sha
+source_calibration=source-calibration-v1.json
+source_calibration_sha256=$calibration_sha
+source_catalog_inventory_fingerprint=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+generation_qualification=generation-qualification-v1.json
+generation_qualification_sha256=$qualification_sha
+canonical_scale=true
+configured_batch_size=1000
+jvm_max_heap_bytes=12884901888
 traffic_manifest=traffic-v1.json
 traffic_manifest_sha256=$traffic_sha
 traffic_dataset_version=traffic-v1
-traffic_dataset_run_id=$traffic_run_id
+traffic_dataset_run_id=20260817T001530Z-12345678
 traffic_flyway_version=27
 traffic_migration_digest=sha256:6666666666666666666666666666666666666666666666666666666666666666
 fingerprint=database-fingerprint.tsv
+fingerprint_sha256=$fingerprint_sha
+final_world_fingerprint=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+base_world_fingerprint=0000000000000000000000000000000000000000000000000000000000000000
+distribution_fingerprint=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+target_fingerprint=ace11b7713606a877a12bed71a7c52aebca77851a169c6e25176c137fb77d9ac
+inventory_fingerprint=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+etl_code_inventory=etl-code.sha256
+etl_code_inventory_sha256=$(sha256_file "$root/etl-code.sha256")
+source_inventory=source.sha256
+source_inventory_sha256=$(sha256_file "$root/source.sha256")
+backend_migration_inventory=backend-migrations.sha256
+backend_migration_inventory_sha256=$(sha256_file "$root/backend-migrations.sha256")
+provenance=PROVENANCE.txt
+provenance_sha256=$(sha256_file "$root/PROVENANCE.txt")
 required_rows=201
 recovery=reset-flyway-v1-v27-etl-reseed-before-traffic
 EOF
-
-  write_checksums "$release_dir"
-  chmod 600 "$release_dir"/*
 }
 
-make_output_root() {
-  local output_root=$1
-  mkdir -m 700 -p "$output_root"
-  chmod 700 "$output_root"
+write_attestation() {
+  local root=$1 output=$2 spec_name=$3
+  local expected_rows
+  expected_rows=$(jq -cS '.world.tableRows + {flyway_schema_history:27,outbox:0}' "$root/benchmark-dataset-v2.json")
+  jq -nS \
+    --arg payload "$(sha256_file "$root/SHA256SUMS")" \
+    --arg dump "$(sha256_file "$root/airbob-production-seed.sql.gz")" \
+    --arg fingerprint "$(sha256_file "$root/database-fingerprint.tsv")" \
+    --arg assertion "$(jq -r '.world.provenance.assertionSha256' "$root/benchmark-dataset-v2.json")" \
+    --arg spec "$(sha256_file "$root/$spec_name")" \
+    --argjson expectedRows "$expected_rows" '
+    {
+      schemaVersion:4,sourceReleasePayloadSha256:$payload,sourceDumpSha256:$dump,
+      restoredDumpSha256:$dump,databaseRestoreMethod:"gzip-to-empty-airbobdb-v2",
+      sourceDatabaseFingerprintSha256:$fingerprint,
+      sourceEtlCommit:"0123456789abcdef0123456789abcdef01234567",
+      databaseServerUuid:"00112233-4455-6677-8899-aabbccddeeff",
+      verifierContractInventorySha256:("7"*64),databaseFingerprintSha256:$fingerprint,
+      verificationOutputSha256:("8"*64),finalWorldFingerprintSha256:("e"*64),
+      baseWorldFingerprintSha256:("0"*64),distributionEvidenceSha256:("d"*64),
+      distributionAssertionSha256:$assertion,distributionSpecSha256:$spec,
+      targetFingerprintSha256:"ace11b7713606a877a12bed71a7c52aebca77851a169c6e25176c137fb77d9ac",
+      inventoryFingerprintSha256:("f"*64),flywayVersion:"27",flywayHistoryRows:27,
+      migrationChecksumSha256:("4"*64),schemaFingerprintSha256:("5"*64),
+      outboxState:"empty",expectedTableRows:$expectedRows,capturedAt:"2026-08-17T00:00:00Z"
+    }
+  ' > "$output"
+}
+
+write_source_release() {
+  local root=$1 profile=${2:-production-skew-v1} path name calibration_sha spec_sha spec_name budgets unique_listings
+  case "$profile" in
+    production-skew-v1)
+      spec_name=production-skew-v1.json
+      budgets='{"accommodations":50000,"activeWishlists":400000,"members":200000,"reservations":2500000,"reviews":1000000,"wishlistLinks":1500000}'
+      unique_listings=50000
+      ;;
+    production-skew-large-v1)
+      spec_name=production-skew-large-v1.json
+      budgets='{"accommodations":200000,"activeWishlists":1600000,"members":800000,"reservations":10000000,"reviews":4000000,"wishlistLinks":6000000}'
+      unique_listings=200000
+      ;;
+    *) fail "unsupported fixture profile: $profile" ;;
+  esac
+  mkdir -m 700 -p "$root"
+  printf '%s\n' 'CREATE DATABASE IF NOT EXISTS airbobdb;' 'USE airbobdb;' 'SELECT 1;' | gzip -n > "$root/airbob-production-seed.sql.gz"
+  cp "$legacy_fixture" "$root/benchmark-fixture.json"
+  jq -nS --argjson uniqueListings "$unique_listings" '{calibrationVersion:"source-calibration-v1",catalogVersion:"source-catalog-v1",inventorySha256:("a"*64),sourceInventory:[{canonicalPath:"inside-airbnb/listings.csv",byteSize:1,sha256:("9"*64),role:"LISTINGS"}],cohorts:[{id:"seoul"}],aggregate:{counts:{uniqueListings:$uniqueListings}},syntheticReviewTemplatePolicy:{reviewerIdentityPolicy:"EXCLUDED",reviewProsePolicy:"EXCLUDED",templatePolicy:"VERSIONED_COHORT_TEMPLATE"}}' > "$root/source-calibration-v1.json"
+  jq -nS --arg profile "$profile" --argjson budgets "$budgets" '{profileVersion:$profile,provenance:{generatorVersion:"production-skew-generator-v1",prngAlgorithm:"sha256-splitmix64-counter-v1",seedDerivation:"length-prefixed(profile-version, global-seed, relation-domain, stable-external-key, counter)",globalSeed:20260826,anchor:"2026-07-31T15:00:00Z",timezone:"Asia/Seoul"},targets:{accommodations:{rowBudget:$budgets.accommodations,tolerance:{absoluteRows:0,relativePercent:0}},members:{rowBudget:$budgets.members,tolerance:{absoluteRows:0,relativePercent:0}},reservations:{rowBudget:$budgets.reservations,tolerance:{absoluteRows:0,relativePercent:0}},reviews:{rowBudget:$budgets.reviews,tolerance:{absoluteRows:0,relativePercent:0}},activeWishlists:{rowBudget:$budgets.activeWishlists,tolerance:{absoluteRows:0,relativePercent:0}},wishlistLinks:{rowBudget:$budgets.wishlistLinks,tolerance:{absoluteRows:0,relativePercent:0}}}}' > "$root/$spec_name"
+  jq -nS --argjson budgets "$budgets" '{version:"generation-qualification-v1",canonicalScale:true,configuredBatchSize:1000,jvmMaxHeapBytes:12884901888,generatedBudgets:$budgets,configuredLimits:{completedStayCandidates:30000,completedStays:1000,paymentTransactions:1000,payments:1000,reservations:1000,reviews:30000,wishlistLinks:100000,wishlists:1000},retainedMaxima:{completedStayCandidates:30000,completedStays:1000,paymentTransactions:1000,payments:1000,reservations:1000,reviews:30000,wishlistLinks:100000,wishlists:1000}}' > "$root/generation-qualification-v1.json"
+  calibration_sha=$(sha256_file "$root/source-calibration-v1.json")
+  spec_sha=$(sha256_file "$root/$spec_name")
+  jq --arg profile "$profile" --arg calibration "$calibration_sha" --arg spec "$spec_sha" --argjson budgets "$budgets" '
+    .world.provenance.profileVersion=$profile |
+    .world.provenance.calibrationSha256=$calibration |
+    .world.provenance.specSha256=$spec |
+    (if $profile=="production-skew-large-v1" then
+      .world.tableRows.accommodation=$budgets.accommodations |
+      .world.tableRows.member=$budgets.members |
+      .world.tableRows.reservation=$budgets.reservations |
+      .world.tableRows.review=$budgets.reviews |
+      .world.tableRows.wishlist=$budgets.activeWishlists |
+      .world.tableRows.wishlist_accommodation=$budgets.wishlistLinks |
+      .world.tableRows.payment=9000000 |
+      .world.tableRows.payment_transaction=11000000
+    else . end) |
+    .world.scopeRanges={
+      accommodation:{id:"accommodation",minimumId:1,maximumId:.world.tableRows.accommodation,rowCount:.world.tableRows.accommodation},
+      member:{id:"member",minimumId:1,maximumId:.world.tableRows.member,rowCount:.world.tableRows.member},
+      reservation:{id:"reservation",minimumId:1,maximumId:.world.tableRows.reservation,rowCount:.world.tableRows.reservation},
+      review:{id:"review",minimumId:1,maximumId:.world.tableRows.review,rowCount:.world.tableRows.review},
+      wishlist:{id:"wishlist",minimumId:1,maximumId:.world.tableRows.wishlist,rowCount:.world.tableRows.wishlist},
+      "wishlist-accommodation":{id:"wishlist-accommodation",minimumId:1,maximumId:.world.tableRows.wishlist_accommodation,rowCount:.world.tableRows.wishlist_accommodation},
+      payment:{id:"payment",minimumId:1,maximumId:.world.tableRows.payment,rowCount:.world.tableRows.payment},
+      "payment-transaction":{id:"payment-transaction",minimumId:1,maximumId:.world.tableRows.payment_transaction,rowCount:.world.tableRows.payment_transaction}
+    }
+  ' "$dataset_fixture" > "$root/benchmark-dataset-v2.json"
+  jq -nS '{datasetVersion:"traffic-v1",datasetRunId:"20260817T001530Z-12345678",seed:20260826,anchorTime:"2026-08-01T00:00:00",validUntil:"2027-08-01T00:00:00",timezone:"Asia/Seoul",schema:{flywayVersion:"27",migrationDigest:("sha256:"+("6"*64))}}' > "$root/traffic-v1.json"
+  cat > "$root/PROVENANCE.txt" <<EOF
+format=airbob-production-seed-provenance-v2
+etl_head=0123456789abcdef0123456789abcdef01234567
+backend_head=89abcdef0123456789abcdef0123456789abcdef
+release_profile=$profile
+distribution_profile=$profile
+production_spec=$spec_name
+budget_accommodations=$(jq -r '.accommodations' <<<"$budgets")
+budget_members=$(jq -r '.members' <<<"$budgets")
+budget_reservations=$(jq -r '.reservations' <<<"$budgets")
+budget_reviews=$(jq -r '.reviews' <<<"$budgets")
+budget_active_wishlists=$(jq -r '.activeWishlists' <<<"$budgets")
+budget_wishlist_links=$(jq -r '.wishlistLinks' <<<"$budgets")
+options_begin
+profile=large
+world_version=world-v2
+options_end
+EOF
+  : > "$root/backend-migrations.sha256"
+  while IFS= read -r path; do name=${path##*/}; printf '%s  ./%s\n' "$(sha256_file "$path")" "$name" >> "$root/backend-migrations.sha256"; done < <(find "$repo_root/src/main/resources/db/migration" -type f -name 'V*.sql' | sort)
+  printf '%s  %s\n' "$(sha256_file "$semantic_validator")" 'infra/aws/scripts/validate-benchmark-dataset-v2.jq' > "$root/etl-code.sha256"
+  printf '%s  %s\n' "$(printf source | { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi; } | awk '{print $1}')" source.csv > "$root/source.sha256"
+  cat > "$root/database-fingerprint.tsv" <<'EOF'
+dataset_final_world_fingerprint	eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+dataset_base_world_fingerprint	0000000000000000000000000000000000000000000000000000000000000000
+dataset_distribution_fingerprint	dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dataset_target_fingerprint	ace11b7713606a877a12bed71a7c52aebca77851a169c6e25176c137fb77d9ac
+dataset_inventory_fingerprint	ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+world_accommodation_inventory_day_row_count	0
+review_summary_missing_count	0
+review_summary_stale_count	0
+review_summary_extra_count	0
+review_summary_symmetric_mismatch_count	0
+wishlist_accommodation_count_mismatch_count	0
+wishlist_representative_mismatch_count	0
+wishlist_denormalized_symmetric_mismatch_count	0
+daily_revenue_stats_missing_count	0
+daily_revenue_stats_stale_count	0
+daily_revenue_stats_extra_count	0
+daily_revenue_stats_symmetric_mismatch_count	0
+accommodation_inventory_day_row_count	0
+orphan_total	0
+EOF
+  write_metadata "$root" "$spec_name"
+  write_checksums "$root" "$spec_name"
+  chmod 600 "$root"/*
 }
 
 expect_failure() {
-  local label=$1
-  local output_root=$2
-  local dataset_release=$3
-  shift 3
-  if "$@" >"$temp_dir/$label.out" 2>&1; then
-    fail "expected assembler failure: $label"
-  fi
-  [[ ! -e "$output_root/$dataset_release" && ! -L "$output_root/$dataset_release" ]] \
-    || fail "failed assembly published a final release: $label"
-  if grep -Eq 'hunter2|CREATE DATABASE|INSERT INTO' "$temp_dir/$label.out"; then
-    fail "assembler leaked source or secret content: $label"
-  fi
+  local label=$1 output_root=$2
+  shift 2
+  if "$@" > "$temp_dir/$label.out" 2>&1; then fail "expected rejection: $label"; fi
+  [[ ! -e "$output_root/rehearsal-v20" ]] || fail "failed assembly published: $label"
 }
 
-[[ -f "$assembler" && ! -L "$assembler" && -x "$assembler" ]] \
-  || fail 'dataset release assembler is missing or not executable'
-[[ -x "$validator" ]] || fail 'dataset release validator is missing or not executable'
-command -v jq >/dev/null 2>&1 || fail 'jq is required'
-command -v zstd >/dev/null 2>&1 || fail 'zstd is required'
-
-source_release="$temp_dir/etl-release"
+[[ -x "$assembler" && -x "$release_validator" && -f "$semantic_validator" ]] || fail 'release scripts are unavailable'
+bash -n "$assembler"
+source_release="$temp_dir/source"
 attestation="$temp_dir/attestation.json"
-output_one="$temp_dir/output-one"
-output_two="$temp_dir/output-two"
-dataset_release=rehearsal-v20
-evaluation_time=2026-08-18T00:00:00Z
-valid_until=2099-12-31T00:00:00Z
+output_root="$temp_dir/output"
+mkdir -m 700 "$output_root"
 write_source_release "$source_release"
-write_attestation "$source_release" "$attestation"
-make_output_root "$output_one"
-make_output_root "$output_two"
-
-"$assembler" \
-  "$source_release" "$attestation" "$output_one" "$dataset_release" \
-  "$evaluation_time" "$valid_until" >/dev/null
-
-release_one="$output_one/$dataset_release"
-[[ -d "$release_one" && ! -L "$release_one" ]] || fail 'final dataset release was not created'
-[[ ! -e "$output_one/$dataset_release.incomplete" ]] || fail 'successful assembly retained incomplete output'
-actual_inventory=$(cd "$release_one" && find . -mindepth 1 -print | LC_ALL=C sort)
+write_attestation "$source_release" "$attestation" production-skew-v1.json
+"$assembler" "$source_release" "$attestation" "$output_root" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z >/dev/null
+release="$output_root/rehearsal-v20"
+"$release_validator" "$release" rehearsal-v20 pipeline-rehearsal >/dev/null
 expected_inventory=$(printf '%s\n' \
-  './benchmark' \
-  './benchmark/manifest.json' \
-  './manifest.json' \
-  './mysql' \
-  './mysql/airbob.sql.zst' \
-  './mysql/sha256.txt')
-[[ "$actual_inventory" == "$expected_inventory" ]] || fail 'assembled release inventory is not exact'
-cmp -s "$source_release/benchmark-fixture.json" "$release_one/benchmark/manifest.json" \
-  || fail 'assembler changed benchmark manifest bytes'
-gzip -dc "$source_release/airbob-production-seed.sql.gz" > "$temp_dir/source.sql"
-zstd -q -dc "$release_one/mysql/airbob.sql.zst" > "$temp_dir/released.sql"
-cmp -s "$temp_dir/source.sql" "$temp_dir/released.sql" \
-  || fail 'gzip to zstd conversion changed SQL bytes'
-"$validator" "$release_one" "$dataset_release" pipeline-rehearsal >/dev/null
+  './attestation' './attestation/restore.json' './benchmark' './benchmark/dataset-manifest.json' \
+  './benchmark/generation-qualification-v1.json' './benchmark/manifest.json' \
+  './benchmark/production-skew-v1.json' './benchmark/source-calibration-v1.json' \
+  './benchmark/validate-benchmark-dataset-v2.jq' './manifest.json' './mysql' \
+  './mysql/airbob.sql.zst' './mysql/database-fingerprint.tsv' './mysql/sha256.txt' | sort)
+[[ "$(cd "$release" && find . -mindepth 1 -print | sort)" == "$expected_inventory" ]] || fail 'assembled v2 inventory is not exact'
+jq -e '.schemaVersion==2 and .releaseTuple.datasetVersion=="benchmark-dataset-v2" and .source.validatorKey=="benchmark/validate-benchmark-dataset-v2.jq"' "$release/manifest.json" >/dev/null || fail 'wrapper v2 tuple is missing'
 
-canonical_payload_sha=$(sha256_file "$source_release/SHA256SUMS")
-benchmark_sha=$(sha256_file "$source_release/benchmark-fixture.json")
-dump_sha=$(sha256_file "$release_one/mysql/airbob.sql.zst")
-jq -e \
-  --arg canonicalPayloadSha256 "$canonical_payload_sha" \
-  --arg benchmarkManifestSha256 "$benchmark_sha" \
-  --arg dumpSha256 "$dump_sha" \
-  --arg evaluationTime "$evaluation_time" \
-  --arg validUntil "$valid_until" '
-  (keys | sort) == ([
-    "schemaVersion", "releaseKind", "datasetRelease", "datasetRunId", "source",
-    "mysql", "couponPreparation", "kafka", "search"
-  ] | sort) and
-  .schemaVersion == 1 and
-  .releaseKind == "pipeline-rehearsal" and
-  .datasetRelease == "rehearsal-v20" and
-  .datasetRunId == "20260817T001530Z-12345678" and
-  .source == {
-    datasetVersion: "nplus1-v1",
-    etlCommit: "0123456789abcdef0123456789abcdef01234567",
-    seed: "airbob-production-seed-v1",
-    profile: "large",
-    manifestVersion: "benchmark-fixture-v1",
-    canonicalPayloadSha256: $canonicalPayloadSha256,
-    benchmarkManifestKey: "benchmark/manifest.json",
-    benchmarkManifestSha256: $benchmarkManifestSha256
-  } and
-  .mysql.dumpKey == "mysql/airbob.sql.zst" and
-  .mysql.dumpSha256 == $dumpSha256 and
-  .mysql.flywayVersion == "27" and
-  .mysql.migrationChecksumSha256 == "4444444444444444444444444444444444444444444444444444444444444444" and
-  .mysql.schemaFingerprintSha256 == "5555555555555555555555555555555555555555555555555555555555555555" and
-  .mysql.timezone == "UTC" and
-  .mysql.evaluationTime == $evaluationTime and
-  .mysql.validUntil == $validUntil and
-  .mysql.outboxPolicy == "absent" and
-  .mysql.expectedTableRows == {
-    accommodation: 201,
-    accommodation_inventory_day: 0,
-    flyway_schema_history: 27,
-    member: 3,
-    outbox: 0,
-    reservation: 0
-  } and
-  .couponPreparation == [] and
-  ([.kafka.topics[].name] | sort) == [
-    "ACCOMMODATION_CACHE.events", "ACCOMMODATION_CACHE.events.DLT", "ACCOMMODATION_CACHE.events.RETRY",
-    "ACCOMMODATION_INDEX.events", "ACCOMMODATION_INDEX.events.DLT", "ACCOMMODATION_INDEX.events.RETRY",
-    "OPERATOR_ALERT.events", "OPERATOR_ALERT.events.DLT", "OPERATOR_ALERT.events.RETRY",
-    "PAYMENT_OPERATION.events", "PAYMENT_OPERATION.events.DLT", "PAYMENT_OPERATION.events.RETRY"
-  ] and
-  all(.kafka.topics[]; .partitions == 3 and .retentionMs == 86400000) and
-  .search == {enabled: false}
-' "$release_one/manifest.json" >/dev/null || fail 'assembled manifest does not match the pipeline contract'
-[[ "$(cat "$release_one/mysql/sha256.txt")" == "$dump_sha  airbob.sql.zst" ]] \
-  || fail 'assembled MySQL checksum file is not canonical'
-
+# Search-enabled assembly accepts only the producer's closed snapshot-reference
+# schema, and the standalone verifier binds every repeated component back to
+# the trusted wrapper rather than accepting an internally consistent swap.
 snapshot_reference="$temp_dir/snapshot-reference.json"
-search_output="$temp_dir/search-output"
-write_snapshot_reference "$snapshot_reference" "$dataset_release"
-make_output_root "$search_output"
-"$assembler" \
-  "$source_release" "$attestation" "$search_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until" "$snapshot_reference" >/dev/null
-search_release="$search_output/$dataset_release"
-search_inventory=$(cd "$search_release" && find . -mindepth 1 -print | LC_ALL=C sort)
-expected_search_inventory=$(printf '%s\n' \
-  './benchmark' \
-  './benchmark/manifest.json' \
-  './elasticsearch' \
-  './elasticsearch/snapshot-reference.json' \
-  './manifest.json' \
-  './mysql' \
-  './mysql/airbob.sql.zst' \
-  './mysql/sha256.txt')
-[[ "$search_inventory" == "$expected_search_inventory" ]] \
-  || fail 'search-enabled release inventory is not exact'
-cmp -s "$snapshot_reference" "$search_release/elasticsearch/snapshot-reference.json" \
-  || fail 'assembler changed snapshot reference bytes'
-jq -e '
-  .releaseKind == "pipeline-rehearsal" and
-  .search == {
-    enabled: true,
-    snapshotReferenceKey: "elasticsearch/snapshot-reference.json",
-    repository: "airbob-dataset-readonly",
-    elasticsearchVersion: "8.18.8",
-    imageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    requiredPlugins: ["analysis-nori", "repository-s3"],
-    logicalAlias: "accommodations",
-    snapshotIndex: "accommodations-vsource-20260817",
-    documentCount: 201,
-    mappingSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    databaseAccommodationIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    elasticsearchAccommodationIdsSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    databaseDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-    elasticsearchDocumentIdentityPairsSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-    contentFingerprintSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+jq -nS '
+  {
+    schemaVersion:2,repository:"airbob-dataset-readonly",
+    bucket:"airbob-performance-lab-dataset-942632789808",
+    basePath:"elasticsearch/releases/rehearsal-search-v20",
+    snapshot:"airbob-rehearsal-search-v20",logicalAlias:"accommodations",
+    snapshotIndex:"accommodations-vfixture",elasticsearchVersion:"8.18.8",
+    imageDigest:("sha256:" + ("5" * 64)),documentCount:200201,
+    mappingSha256:("1" * 64),dbIdsSha256:("2" * 64),esIdsSha256:("2" * 64),
+    dbDocumentIdentityPairsSha256:("3" * 64),
+    esDocumentIdentityPairsSha256:("3" * 64),contentFingerprintSha256:("4" * 64)
   }
-' "$search_release/manifest.json" >/dev/null \
-  || fail 'search-enabled manifest is not bound to its snapshot reference'
-"$validator" "$search_release" "$dataset_release" pipeline-rehearsal >/dev/null
-
-wrong_snapshot_reference="$temp_dir/wrong-snapshot-reference.json"
-jq '.basePath = "elasticsearch/releases/another-release"' \
-  "$snapshot_reference" > "$wrong_snapshot_reference"
-wrong_snapshot_output="$temp_dir/wrong-snapshot-output"
-make_output_root "$wrong_snapshot_output"
-expect_failure mismatched-snapshot-release "$wrong_snapshot_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$wrong_snapshot_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until" "$wrong_snapshot_reference"
-
-mismatched_document_identity_reference="$temp_dir/mismatched-document-identity-reference.json"
-jq '.esDocumentIdentityPairsSha256 = ("f" * 64)' \
-  "$snapshot_reference" > "$mismatched_document_identity_reference"
-mismatched_document_identity_output="$temp_dir/mismatched-document-identity-output"
-make_output_root "$mismatched_document_identity_output"
-expect_failure mismatched-document-identity-pairs \
-  "$mismatched_document_identity_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$mismatched_document_identity_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until" \
-  "$mismatched_document_identity_reference"
-
-missing_document_identity_reference="$temp_dir/missing-document-identity-reference.json"
-jq 'del(.dbDocumentIdentityPairsSha256)' \
-  "$snapshot_reference" > "$missing_document_identity_reference"
-missing_document_identity_output="$temp_dir/missing-document-identity-output"
-make_output_root "$missing_document_identity_output"
-expect_failure missing-document-identity-schema \
-  "$missing_document_identity_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$missing_document_identity_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until" \
-  "$missing_document_identity_reference"
-
-legacy_snapshot_reference="$temp_dir/legacy-snapshot-reference.json"
-jq '.schemaVersion = 1 | .index = .logicalAlias | del(.logicalAlias, .snapshotIndex)' \
-  "$snapshot_reference" > "$legacy_snapshot_reference"
-legacy_snapshot_output="$temp_dir/legacy-snapshot-output"
-make_output_root "$legacy_snapshot_output"
-expect_failure legacy-snapshot-schema "$legacy_snapshot_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$legacy_snapshot_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until" "$legacy_snapshot_reference"
-
-unsafe_snapshot_reference="$temp_dir/unsafe-snapshot-reference.json"
-jq '.snapshotIndex = .logicalAlias' "$snapshot_reference" > "$unsafe_snapshot_reference"
-unsafe_snapshot_output="$temp_dir/unsafe-snapshot-output"
-make_output_root "$unsafe_snapshot_output"
-expect_failure logical-alias-as-snapshot-index "$unsafe_snapshot_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$unsafe_snapshot_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until" "$unsafe_snapshot_reference"
-
-multi_snapshot_reference="$temp_dir/multi-snapshot-reference.json"
-{
-  printf '%s\n' '{"password":"hunter2"}'
-  cat "$snapshot_reference"
-} > "$multi_snapshot_reference"
-multi_snapshot_output="$temp_dir/multi-snapshot-output"
-make_output_root "$multi_snapshot_output"
-expect_failure multi-document-snapshot "$multi_snapshot_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$multi_snapshot_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until" "$multi_snapshot_reference"
-
-"$assembler" \
-  "$source_release" "$attestation" "$output_two" "$dataset_release" \
-  "$evaluation_time" "$valid_until" >/dev/null
-release_two="$output_two/$dataset_release"
-cmp -s "$release_one/manifest.json" "$release_two/manifest.json" \
-  || fail 'same inputs did not produce a deterministic manifest'
-cmp -s "$release_one/mysql/airbob.sql.zst" "$release_two/mysql/airbob.sql.zst" \
-  || fail 'same toolchain repeat was not byte-stable'
-cmp -s "$release_one/mysql/sha256.txt" "$release_two/mysql/sha256.txt" \
-  || fail 'same inputs did not produce a deterministic dump checksum'
-
-preserved_manifest_sha=$(sha256_file "$release_one/manifest.json")
-if "$assembler" \
-  "$source_release" "$attestation" "$output_one" "$dataset_release" \
-  "$evaluation_time" "$valid_until" >/dev/null 2>&1
-then
-  fail 'assembler overwrote an existing dataset release'
+' > "$snapshot_reference"
+search_output="$temp_dir/search-output"
+mkdir -m 700 "$search_output"
+"$assembler" "$source_release" "$attestation" "$search_output" rehearsal-search-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z "$snapshot_reference" >/dev/null
+search_release="$search_output/rehearsal-search-v20"
+"$release_validator" "$search_release" rehearsal-search-v20 pipeline-rehearsal >/dev/null
+jq -e '
+  .search.enabled == true and
+  .search.databaseAccommodationIdsSha256 == ("2" * 64) and
+  .search.databaseDocumentIdentityPairsSha256 == ("3" * 64)
+' "$search_release/manifest.json" >/dev/null || fail 'search wrapper did not bind distinct snapshot components'
+swapped_search_release="$temp_dir/swapped-search-release"
+cp -R "$search_release" "$swapped_search_release"
+jq '
+  .dbIdsSha256=.dbDocumentIdentityPairsSha256 |
+  .esIdsSha256=.esDocumentIdentityPairsSha256
+' "$swapped_search_release/elasticsearch/snapshot-reference.json" \
+  > "$swapped_search_release/elasticsearch/snapshot-reference.next"
+mv "$swapped_search_release/elasticsearch/snapshot-reference.next" \
+  "$swapped_search_release/elasticsearch/snapshot-reference.json"
+if "$release_validator" "$swapped_search_release" rehearsal-search-v20 pipeline-rehearsal \
+  >/dev/null 2>&1; then
+  fail 'standalone verifier accepted swapped snapshot reference components'
 fi
-[[ "$(sha256_file "$release_one/manifest.json")" == "$preserved_manifest_sha" ]] \
-  || fail 'overwrite refusal changed the existing release'
 
-multi_benchmark_source="$temp_dir/multi-benchmark-source"
-multi_benchmark_attestation="$temp_dir/multi-benchmark-attestation.json"
-cp -R "$source_release" "$multi_benchmark_source"
-{
-  printf '%s\n' '{"password":"hunter2"}'
-  cat "$source_release/benchmark-fixture.json"
-} > "$multi_benchmark_source/benchmark-fixture.json"
-write_checksums "$multi_benchmark_source"
-write_attestation "$multi_benchmark_source" "$multi_benchmark_attestation"
-multi_benchmark_output="$temp_dir/multi-benchmark-output"
-make_output_root "$multi_benchmark_output"
-expect_failure multi-document-benchmark "$multi_benchmark_output" "$dataset_release" \
-  "$assembler" "$multi_benchmark_source" "$multi_benchmark_attestation" \
-  "$multi_benchmark_output" "$dataset_release" "$evaluation_time" "$valid_until"
+# The standalone verifier must reject an otherwise checksum-rebound wrapper
+# whose contiguous base scope no longer equals the selected profile budget.
+rebound_underfilled_release="$temp_dir/rebound-underfilled-release"
+cp -R "$release" "$rebound_underfilled_release"
+jq '.world.scopeRanges.review.maximumId=999999 | .world.scopeRanges.review.rowCount=999999' \
+  "$rebound_underfilled_release/benchmark/dataset-manifest.json" > "$rebound_underfilled_release/next"
+mv "$rebound_underfilled_release/next" "$rebound_underfilled_release/benchmark/dataset-manifest.json"
+rebound_manifest_sha=$(sha256_file "$rebound_underfilled_release/benchmark/dataset-manifest.json")
+jq --arg sha "$rebound_manifest_sha" \
+  '.releaseTuple.manifestSha256=$sha | .source.benchmarkDatasetManifestSha256=$sha' \
+  "$rebound_underfilled_release/manifest.json" > "$rebound_underfilled_release/next"
+mv "$rebound_underfilled_release/next" "$rebound_underfilled_release/manifest.json"
+if "$release_validator" "$rebound_underfilled_release" rehearsal-v20 pipeline-rehearsal >/dev/null 2>&1; then
+  fail 'checksum-rebound underfilled base scope passed standalone release verification'
+fi
 
-multi_traffic_source="$temp_dir/multi-traffic-source"
-multi_traffic_attestation="$temp_dir/multi-traffic-attestation.json"
-cp -R "$source_release" "$multi_traffic_source"
-{
-  printf '%s\n' '{"password":"hunter2"}'
-  cat "$source_release/traffic-v1.json"
-} > "$multi_traffic_source/traffic-v1.json"
-refresh_traffic_binding "$multi_traffic_source"
-write_attestation "$multi_traffic_source" "$multi_traffic_attestation"
-multi_traffic_output="$temp_dir/multi-traffic-output"
-make_output_root "$multi_traffic_output"
-expect_failure multi-document-traffic "$multi_traffic_output" "$dataset_release" \
-  "$assembler" "$multi_traffic_source" "$multi_traffic_attestation" \
-  "$multi_traffic_output" "$dataset_release" "$evaluation_time" "$valid_until"
+# The companion large profile keeps the same 14-file/13-checksum shape while
+# selecting its own closed spec filename and exact 4x budgets.
+large_source="$temp_dir/source-large"
+large_attestation="$temp_dir/attestation-large.json"
+large_output="$temp_dir/output-large"
+mkdir -m 700 "$large_output"
+write_source_release "$large_source" production-skew-large-v1
+write_attestation "$large_source" "$large_attestation" production-skew-large-v1.json
+[[ "$(find "$large_source" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d '[:space:]')" == 14 ]] \
+  || fail 'large source inventory is not fourteen files'
+[[ "$(wc -l < "$large_source/SHA256SUMS" | tr -d '[:space:]')" == 13 ]] \
+  || fail 'large source checksum inventory is not thirteen entries'
+"$assembler" "$large_source" "$large_attestation" "$large_output" rehearsal-large-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z >/dev/null
+large_release="$large_output/rehearsal-large-v20"
+"$release_validator" "$large_release" rehearsal-large-v20 pipeline-rehearsal >/dev/null
+jq -e '
+  .releaseTuple.profileVersion=="production-skew-large-v1" and
+  .source.productionSpecKey=="benchmark/production-skew-large-v1.json"
+' "$large_release/manifest.json" >/dev/null || fail 'large wrapper profile/spec binding is invalid'
+[[ -f "$large_release/benchmark/production-skew-large-v1.json" \
+  && ! -e "$large_release/benchmark/production-skew-v1.json" ]] \
+  || fail 'large assembled inventory selected the wrong spec filename'
 
-multi_attestation="$temp_dir/multi-attestation.json"
-{
-  printf '%s\n' '{"password":"hunter2"}'
-  cat "$attestation"
-} > "$multi_attestation"
-multi_attestation_output="$temp_dir/multi-attestation-output"
-make_output_root "$multi_attestation_output"
-expect_failure multi-document-attestation "$multi_attestation_output" "$dataset_release" \
-  "$assembler" "$source_release" "$multi_attestation" \
-  "$multi_attestation_output" "$dataset_release" "$evaluation_time" "$valid_until"
+# A fully checksum-rebound large release still needs enough distinct source listings
+# to satisfy the large accommodation budget.
+large_source_underflow="$temp_dir/large-source-underflow"
+cp -R "$large_source" "$large_source_underflow"
+jq '.aggregate.counts.uniqueListings=199999' \
+  "$large_source_underflow/source-calibration-v1.json" > "$large_source_underflow/next"
+mv "$large_source_underflow/next" "$large_source_underflow/source-calibration-v1.json"
+large_underflow_calibration_sha=$(sha256_file "$large_source_underflow/source-calibration-v1.json")
+jq --arg sha "$large_underflow_calibration_sha" '.world.provenance.calibrationSha256=$sha' \
+  "$large_source_underflow/benchmark-dataset-v2.json" > "$large_source_underflow/next"
+mv "$large_source_underflow/next" "$large_source_underflow/benchmark-dataset-v2.json"
+write_metadata "$large_source_underflow" production-skew-large-v1.json
+write_checksums "$large_source_underflow" production-skew-large-v1.json
+write_attestation "$large_source_underflow" "$temp_dir/large-source-underflow-attestation.json" \
+  production-skew-large-v1.json
+mkdir -m 700 "$temp_dir/large-source-underflow-output"
+expect_failure large-source-underflow "$temp_dir/large-source-underflow-output" "$assembler" \
+  "$large_source_underflow" "$temp_dir/large-source-underflow-attestation.json" \
+  "$temp_dir/large-source-underflow-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-v2_attestation="$temp_dir/v2-attestation.json"
-jq '.schemaVersion = 2' "$attestation" > "$v2_attestation"
-v2_attestation_output="$temp_dir/v2-attestation-output"
-make_output_root "$v2_attestation_output"
-expect_failure v2-attestation "$v2_attestation_output" "$dataset_release" \
-  "$assembler" "$source_release" "$v2_attestation" \
-  "$v2_attestation_output" "$dataset_release" "$evaluation_time" "$valid_until"
+# A renamed spec, a checksum-rebound budget, and a third checksum-rebound
+# profile must all fail even when every mutable digest is recomputed.
+mixed_filename="$temp_dir/mixed-large-filename"
+cp -R "$large_source" "$mixed_filename"
+mv "$mixed_filename/production-skew-large-v1.json" "$mixed_filename/production-skew-v1.json"
+write_metadata "$mixed_filename" production-skew-v1.json
+write_checksums "$mixed_filename" production-skew-v1.json
+write_attestation "$mixed_filename" "$temp_dir/mixed-large-filename-attestation.json" production-skew-v1.json
+mkdir -m 700 "$temp_dir/mixed-large-filename-output"
+expect_failure mixed-large-filename "$temp_dir/mixed-large-filename-output" "$assembler" "$mixed_filename" \
+  "$temp_dir/mixed-large-filename-attestation.json" "$temp_dir/mixed-large-filename-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-wrong_restore_method_attestation="$temp_dir/wrong-restore-method-attestation.json"
-jq '.databaseRestoreMethod = "unreviewed-restore-v1"' \
-  "$attestation" > "$wrong_restore_method_attestation"
-wrong_restore_method_output="$temp_dir/wrong-restore-method-output"
-make_output_root "$wrong_restore_method_output"
-expect_failure wrong-restore-method "$wrong_restore_method_output" "$dataset_release" \
-  "$assembler" "$source_release" "$wrong_restore_method_attestation" \
-  "$wrong_restore_method_output" "$dataset_release" "$evaluation_time" "$valid_until"
+large_budget_rebound="$temp_dir/large-budget-rebound"
+cp -R "$large_source" "$large_budget_rebound"
+jq '.targets.reviews.rowBudget=3999999' "$large_budget_rebound/production-skew-large-v1.json" > "$large_budget_rebound/next"
+mv "$large_budget_rebound/next" "$large_budget_rebound/production-skew-large-v1.json"
+large_budget_spec_sha=$(sha256_file "$large_budget_rebound/production-skew-large-v1.json")
+jq --arg sha "$large_budget_spec_sha" '.world.provenance.specSha256=$sha' \
+  "$large_budget_rebound/benchmark-dataset-v2.json" > "$large_budget_rebound/next"
+mv "$large_budget_rebound/next" "$large_budget_rebound/benchmark-dataset-v2.json"
+write_metadata "$large_budget_rebound" production-skew-large-v1.json
+write_checksums "$large_budget_rebound" production-skew-large-v1.json
+write_attestation "$large_budget_rebound" "$temp_dir/large-budget-rebound-attestation.json" production-skew-large-v1.json
+mkdir -m 700 "$temp_dir/large-budget-rebound-output"
+expect_failure large-budget-rebound "$temp_dir/large-budget-rebound-output" "$assembler" "$large_budget_rebound" \
+  "$temp_dir/large-budget-rebound-attestation.json" "$temp_dir/large-budget-rebound-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-mismatched_restored_dump_attestation="$temp_dir/mismatched-restored-dump-attestation.json"
-jq '.restoredDumpSha256 = "9999999999999999999999999999999999999999999999999999999999999999"' \
-  "$attestation" > "$mismatched_restored_dump_attestation"
-mismatched_restored_dump_output="$temp_dir/mismatched-restored-dump-output"
-make_output_root "$mismatched_restored_dump_output"
-expect_failure mismatched-restored-dump "$mismatched_restored_dump_output" "$dataset_release" \
-  "$assembler" "$source_release" "$mismatched_restored_dump_attestation" \
-  "$mismatched_restored_dump_output" "$dataset_release" "$evaluation_time" "$valid_until"
+third_profile_rebound="$temp_dir/third-profile-rebound"
+cp -R "$large_source" "$third_profile_rebound"
+jq '.profileVersion="production-skew-huge-v1"' "$third_profile_rebound/production-skew-large-v1.json" > "$third_profile_rebound/next"
+mv "$third_profile_rebound/next" "$third_profile_rebound/production-skew-large-v1.json"
+third_spec_sha=$(sha256_file "$third_profile_rebound/production-skew-large-v1.json")
+jq --arg sha "$third_spec_sha" '.world.provenance.profileVersion="production-skew-huge-v1"|.world.provenance.specSha256=$sha' \
+  "$third_profile_rebound/benchmark-dataset-v2.json" > "$third_profile_rebound/next"
+mv "$third_profile_rebound/next" "$third_profile_rebound/benchmark-dataset-v2.json"
+write_metadata "$third_profile_rebound" production-skew-large-v1.json
+write_checksums "$third_profile_rebound" production-skew-large-v1.json
+write_attestation "$third_profile_rebound" "$temp_dir/third-profile-rebound-attestation.json" production-skew-large-v1.json
+mkdir -m 700 "$temp_dir/third-profile-rebound-output"
+expect_failure third-profile-rebound "$temp_dir/third-profile-rebound-output" "$assembler" "$third_profile_rebound" \
+  "$temp_dir/third-profile-rebound-attestation.json" "$temp_dir/third-profile-rebound-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-mismatched_etl_attestation="$temp_dir/mismatched-etl-attestation.json"
-jq '.sourceEtlCommit = "ffffffffffffffffffffffffffffffffffffffff"' \
-  "$attestation" > "$mismatched_etl_attestation"
-mismatched_etl_output="$temp_dir/mismatched-etl-output"
-make_output_root "$mismatched_etl_output"
-expect_failure mismatched-etl-attestation "$mismatched_etl_output" "$dataset_release" \
-  "$assembler" "$source_release" "$mismatched_etl_attestation" \
-  "$mismatched_etl_output" "$dataset_release" "$evaluation_time" "$valid_until"
+# PROVENANCE is a semantic receipt, not an opaque checksummed note. Rebinding
+# every mutable checksum after changing one selected-profile budget must fail.
+provenance_duplicate="$temp_dir/provenance-duplicate"
+cp -R "$large_source" "$provenance_duplicate"
+printf '%s\n' 'release_profile=production-skew-large-v1' >> "$provenance_duplicate/PROVENANCE.txt"
+write_metadata "$provenance_duplicate" production-skew-large-v1.json
+write_checksums "$provenance_duplicate" production-skew-large-v1.json
+write_attestation "$provenance_duplicate" "$temp_dir/provenance-duplicate-attestation.json" \
+  production-skew-large-v1.json
+mkdir -m 700 "$temp_dir/provenance-duplicate-output"
+expect_failure provenance-duplicate "$temp_dir/provenance-duplicate-output" "$assembler" \
+  "$provenance_duplicate" "$temp_dir/provenance-duplicate-attestation.json" \
+  "$temp_dir/provenance-duplicate-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-extended_source="$temp_dir/extended-source"
-extended_attestation="$temp_dir/extended-attestation.json"
-cp -R "$source_release" "$extended_source"
-jq '
-  .validUntil = "2027-12-31T09:00:00" |
-  .validUntilInstant = "2027-12-31T00:00:00Z"
-' "$extended_source/traffic-v1.json" > "$extended_source/traffic-v1.next"
-mv "$extended_source/traffic-v1.next" "$extended_source/traffic-v1.json"
-refresh_traffic_binding "$extended_source"
-write_attestation "$extended_source" "$extended_attestation"
-extended_output="$temp_dir/extended-output"
-make_output_root "$extended_output"
-expect_failure source-validity-extension "$extended_output" "$dataset_release" \
-  "$assembler" "$extended_source" "$extended_attestation" "$extended_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
+provenance_budget_rebound="$temp_dir/provenance-budget-rebound"
+cp -R "$large_source" "$provenance_budget_rebound"
+sed 's/^budget_reviews=4000000$/budget_reviews=3999999/' \
+  "$provenance_budget_rebound/PROVENANCE.txt" > "$provenance_budget_rebound/next"
+mv "$provenance_budget_rebound/next" "$provenance_budget_rebound/PROVENANCE.txt"
+write_metadata "$provenance_budget_rebound" production-skew-large-v1.json
+write_checksums "$provenance_budget_rebound" production-skew-large-v1.json
+write_attestation "$provenance_budget_rebound" "$temp_dir/provenance-budget-rebound-attestation.json" \
+  production-skew-large-v1.json
+mkdir -m 700 "$temp_dir/provenance-budget-rebound-output"
+expect_failure provenance-budget-rebound "$temp_dir/provenance-budget-rebound-output" "$assembler" \
+  "$provenance_budget_rebound" "$temp_dir/provenance-budget-rebound-attestation.json" \
+  "$temp_dir/provenance-budget-rebound-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-mismatched_validity_output="$temp_dir/mismatched-validity-output"
-make_output_root "$mismatched_validity_output"
-expect_failure supplied-validity-mismatch "$mismatched_validity_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$mismatched_validity_output" \
-  "$dataset_release" "$evaluation_time" 2099-12-30T00:00:00Z
+# Schema-4 attestation must carry both distribution proof seals, without omission or rebinding.
+for proof_case in missing-assertion missing-spec drift-assertion drift-spec; do
+  proof_attestation="$temp_dir/$proof_case-attestation.json"
+  case "$proof_case" in
+    missing-assertion) jq 'del(.distributionAssertionSha256)' "$attestation" > "$proof_attestation" ;;
+    missing-spec) jq 'del(.distributionSpecSha256)' "$attestation" > "$proof_attestation" ;;
+    drift-assertion) jq '.distributionAssertionSha256=("f"*64)' "$attestation" > "$proof_attestation" ;;
+    drift-spec) jq '.distributionSpecSha256=("f"*64)' "$attestation" > "$proof_attestation" ;;
+  esac
+  proof_output="$temp_dir/$proof_case-output"
+  mkdir -m 700 "$proof_output"
+  expect_failure "$proof_case" "$proof_output" "$assembler" "$source_release" \
+    "$proof_attestation" "$proof_output" rehearsal-v20 \
+    2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
+done
 
-instant_mismatch_source="$temp_dir/instant-mismatch-source"
-instant_mismatch_attestation="$temp_dir/instant-mismatch-attestation.json"
-cp -R "$source_release" "$instant_mismatch_source"
-jq '
-  .anchorInstant = "2026-08-17T01:00:00Z" |
-  .validUntilInstant = "2099-12-31T00:00:00Z"
-' "$instant_mismatch_source/traffic-v1.json" > "$instant_mismatch_source/traffic-v1.next"
-mv "$instant_mismatch_source/traffic-v1.next" "$instant_mismatch_source/traffic-v1.json"
-refresh_traffic_binding "$instant_mismatch_source"
-write_attestation "$instant_mismatch_source" "$instant_mismatch_attestation"
-instant_mismatch_output="$temp_dir/instant-mismatch-output"
-make_output_root "$instant_mismatch_output"
-expect_failure optional-instant-mismatch "$instant_mismatch_output" "$dataset_release" \
-  "$assembler" "$instant_mismatch_source" "$instant_mismatch_attestation" \
-  "$instant_mismatch_output" "$dataset_release" "$evaluation_time" "$valid_until"
+# Evidence publication stays closed until a dedicated producer emits its exact causal contract.
+if "$release_validator" "$release" rehearsal-v20 evidence > "$temp_dir/evidence-kind.out" 2>&1; then
+  fail 'pipeline rehearsal was accepted as evidence'
+fi
+grep -Fq 'evidence release kind has no trusted producer' "$temp_dir/evidence-kind.out" \
+  || fail 'evidence kind did not fail at the producer gate'
 
-late_attestation="$temp_dir/late-attestation.json"
-jq '.capturedAt = "2026-08-19T00:00:00Z"' "$attestation" > "$late_attestation"
-late_attestation_output="$temp_dir/late-attestation-output"
-make_output_root "$late_attestation_output"
-expect_failure captured-after-evaluation "$late_attestation_output" "$dataset_release" \
-  "$assembler" "$source_release" "$late_attestation" "$late_attestation_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until"
+# The trusted wrapper is exact and recursively secret-free before any nested value is consumed.
+for wrapper_case in search-extra nested-secret; do
+  mutated="$temp_dir/wrapper-$wrapper_case"
+  cp -R "$release" "$mutated"
+  case "$wrapper_case" in
+    search-extra)
+      jq '.search.unboundField=true' "$mutated/manifest.json" > "$mutated/manifest.next"
+      ;;
+    nested-secret)
+      jq '.couponPreparation=[{metadata:{apiCredential:"must-not-publish"}}]' \
+        "$mutated/manifest.json" > "$mutated/manifest.next"
+      ;;
+  esac
+  mv "$mutated/manifest.next" "$mutated/manifest.json"
+  if "$release_validator" "$mutated" rehearsal-v20 pipeline-rehearsal >/dev/null 2>&1; then
+    fail "unsafe wrapper passed: $wrapper_case"
+  fi
+done
 
-locked_output="$temp_dir/locked-output"
-make_output_root "$locked_output"
-mkdir -m 700 "$locked_output/.$dataset_release.assemble.lock"
-printf '%s\n' owner > "$locked_output/.$dataset_release.assemble.lock/owner"
-mkdir -m 700 "$locked_output/$dataset_release.incomplete"
-printf '%s\n' preserve-me > "$locked_output/$dataset_release.incomplete/.manifest.json.tmp"
-expect_failure concurrent-owner "$locked_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$locked_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-[[ "$(cat "$locked_output/.$dataset_release.assemble.lock/owner")" == owner \
-  && "$(cat "$locked_output/$dataset_release.incomplete/.manifest.json.tmp")" == preserve-me ]] \
-  || fail 'concurrent assembler changed another process owner state'
+# Rebinding only the copied attestation and its wrapper file digest cannot break source payload lineage.
+rebound_attestation_payload="$temp_dir/rebound-attestation-payload"
+cp -R "$release" "$rebound_attestation_payload"
+jq '.sourceReleasePayloadSha256=("a"*64)' \
+  "$rebound_attestation_payload/attestation/restore.json" > "$rebound_attestation_payload/attestation/next"
+mv "$rebound_attestation_payload/attestation/next" \
+  "$rebound_attestation_payload/attestation/restore.json"
+rebound_attestation_sha=$(sha256_file "$rebound_attestation_payload/attestation/restore.json")
+jq --arg sha "$rebound_attestation_sha" \
+  '.source.attestationSha256=$sha|.releaseTuple.attestationSha256=$sha' \
+  "$rebound_attestation_payload/manifest.json" > "$rebound_attestation_payload/manifest.next"
+mv "$rebound_attestation_payload/manifest.next" "$rebound_attestation_payload/manifest.json"
+if "$release_validator" "$rebound_attestation_payload" rehearsal-v20 pipeline-rehearsal \
+  >/dev/null 2>&1; then
+  fail 'checksum-rebound attestation source payload drift passed'
+fi
 
-preexisting_output="$temp_dir/preexisting-output"
-make_output_root "$preexisting_output"
-mkdir -m 700 "$preexisting_output/$dataset_release.incomplete"
-printf '%s\n' preserve-me > "$preexisting_output/$dataset_release.incomplete/.manifest.json.tmp"
-expect_failure preexisting-incomplete "$preexisting_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$preexisting_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-[[ "$(cat "$preexisting_output/$dataset_release.incomplete/.manifest.json.tmp")" == preserve-me ]] \
-  || fail 'assembler changed a pre-existing incomplete release it did not own'
-[[ ! -e "$preexisting_output/.$dataset_release.assemble.lock" ]] \
-  || fail 'assembler retained its lock after refusing a pre-existing incomplete release'
+# Byte tamper is rejected even before semantic validation.
+for relative in benchmark/dataset-manifest.json benchmark/source-calibration-v1.json \
+  benchmark/production-skew-v1.json benchmark/validate-benchmark-dataset-v2.jq mysql/airbob.sql.zst; do
+  mutated="$temp_dir/tamper-${relative//\//-}"
+  cp -R "$release" "$mutated"
+  printf x >> "$mutated/$relative"
+  if "$release_validator" "$mutated" rehearsal-v20 pipeline-rehearsal >/dev/null 2>&1; then
+    fail "byte tamper passed: $relative"
+  fi
+done
 
-tampered_source="$temp_dir/tampered-source"
-cp -R "$source_release" "$tampered_source"
-printf '%s' tampered >> "$tampered_source/traffic-v1.json"
-tampered_output="$temp_dir/tampered-output"
-make_output_root "$tampered_output"
-expect_failure tampered "$tampered_output" "$dataset_release" \
-  "$assembler" "$tampered_source" "$attestation" "$tampered_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
+# Rebinding a validator to a permissive program still fails against the trusted code contract.
+rebound_validator="$temp_dir/rebound-validator"
+cp -R "$release" "$rebound_validator"
+printf '%s\n' '.' > "$rebound_validator/benchmark/validate-benchmark-dataset-v2.jq"
+rebound_sha=$(sha256_file "$rebound_validator/benchmark/validate-benchmark-dataset-v2.jq")
+jq --arg sha "$rebound_sha" '.source.validatorSha256=$sha|.releaseTuple.validatorSha256=$sha' \
+  "$rebound_validator/manifest.json" > "$rebound_validator/manifest.next"
+mv "$rebound_validator/manifest.next" "$rebound_validator/manifest.json"
+if "$release_validator" "$rebound_validator" rehearsal-v20 pipeline-rehearsal >/dev/null 2>&1; then
+  fail 'checksum-rebound permissive validator passed'
+fi
 
-short_checksums="$temp_dir/short-checksums"
-cp -R "$source_release" "$short_checksums"
-sed '$d' "$short_checksums/SHA256SUMS" > "$short_checksums/SHA256SUMS.next"
-mv "$short_checksums/SHA256SUMS.next" "$short_checksums/SHA256SUMS"
-short_output="$temp_dir/short-output"
-make_output_root "$short_output"
-expect_failure checksum-count "$short_output" "$dataset_release" \
-  "$assembler" "$short_checksums" "$attestation" "$short_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
+# Rebinding plausible-looking semantic artifacts cannot weaken tracked U6 contracts.
+for semantic_case in calibration spec qualification; do
+  rebound="$temp_dir/rebound-$semantic_case"
+  cp -R "$release" "$rebound"
+  case "$semantic_case" in
+    calibration)
+      file=benchmark/source-calibration-v1.json
+      jq '.syntheticReviewTemplatePolicy.reviewerIdentityPolicy="INCLUDED"|.reviewer_name="source-person"' "$rebound/$file" > "$rebound/next"
+      wrapper_update='.source.calibrationSha256=$sha|.releaseTuple.calibrationSha256=$sha'
+      ;;
+    spec)
+      file=benchmark/production-skew-v1.json
+      jq '.provenance.globalSeed=20260827' "$rebound/$file" > "$rebound/next"
+      wrapper_update='.source.productionSpecSha256=$sha|.releaseTuple.specSha256=$sha'
+      ;;
+    qualification)
+      file=benchmark/generation-qualification-v1.json
+      jq '.retainedMaxima.reservations=1001' "$rebound/$file" > "$rebound/next"
+      wrapper_update='.source.generationQualificationSha256=$sha|.releaseTuple.qualificationSha256=$sha'
+      ;;
+  esac
+  mv "$rebound/next" "$rebound/$file"
+  rebound_sha=$(sha256_file "$rebound/$file")
+  jq --arg sha "$rebound_sha" "$wrapper_update" "$rebound/manifest.json" > "$rebound/next"
+  mv "$rebound/next" "$rebound/manifest.json"
+  if "$release_validator" "$rebound" rehearsal-v20 pipeline-rehearsal >/dev/null 2>&1; then
+    fail "checksum-rebound $semantic_case drift passed"
+  fi
+done
 
-v19_source="$temp_dir/v19-source"
-v19_attestation="$temp_dir/v19-attestation.json"
-cp -R "$source_release" "$v19_source"
-jq '.schema.flywayVersion = "19"' "$v19_source/traffic-v1.json" > "$v19_source/traffic-v1.next"
-mv "$v19_source/traffic-v1.next" "$v19_source/traffic-v1.json"
-v19_traffic_sha=$(sha256_file "$v19_source/traffic-v1.json")
-sed \
-  -e "s/^traffic_manifest_sha256=.*/traffic_manifest_sha256=$v19_traffic_sha/" \
-  -e 's/^traffic_flyway_version=27$/traffic_flyway_version=19/' \
-  -e 's/reset-flyway-v1-v27/reset-flyway-v1-v19/' \
-  "$v19_source/release-metadata.txt" > "$v19_source/release-metadata.next"
-mv "$v19_source/release-metadata.next" "$v19_source/release-metadata.txt"
-write_checksums "$v19_source"
-write_attestation "$v19_source" "$v19_attestation"
-jq '.flywayVersion = "19" | .flywayHistoryRows = 19 | .expectedTableRows.flyway_schema_history = 19' \
-  "$v19_attestation" > "$v19_attestation.next"
-mv "$v19_attestation.next" "$v19_attestation"
-v19_output="$temp_dir/v19-output"
-make_output_root "$v19_output"
-expect_failure v19 "$v19_output" "$dataset_release" \
-  "$assembler" "$v19_source" "$v19_attestation" "$v19_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
+bad_qualification="$temp_dir/bad-qualification"
+cp -R "$source_release" "$bad_qualification"
+jq '.retainedMaxima.reservations=1001' "$bad_qualification/generation-qualification-v1.json" > "$bad_qualification/next"
+mv "$bad_qualification/next" "$bad_qualification/generation-qualification-v1.json"
+write_metadata "$bad_qualification" production-skew-v1.json
+write_checksums "$bad_qualification" production-skew-v1.json
+write_attestation "$bad_qualification" "$temp_dir/bad-qualification-attestation.json" production-skew-v1.json
+mkdir -m 700 "$temp_dir/bad-qualification-output"
+expect_failure qualification-rebind "$temp_dir/bad-qualification-output" "$assembler" "$bad_qualification" \
+  "$temp_dir/bad-qualification-attestation.json" "$temp_dir/bad-qualification-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-mismatch_attestation="$temp_dir/mismatch-attestation.json"
-jq '.sourceDumpSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' \
-  "$attestation" > "$mismatch_attestation"
-mismatch_output="$temp_dir/mismatch-output"
-make_output_root "$mismatch_output"
-expect_failure attestation-source-mismatch "$mismatch_output" "$dataset_release" \
-  "$assembler" "$source_release" "$mismatch_attestation" "$mismatch_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
+# v1-name/v2-payload and a non-contiguous base scope fail before publication.
+bad_name="$temp_dir/bad-name"
+cp -R "$source_release" "$bad_name"
+mv "$bad_name/benchmark-dataset-v2.json" "$bad_name/benchmark-dataset-v1.json"
+mkdir -m 700 "$temp_dir/bad-name-output"
+expect_failure v1-name "$temp_dir/bad-name-output" "$assembler" "$bad_name" "$attestation" \
+  "$temp_dir/bad-name-output" rehearsal-v20 2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-low_capacity_attestation="$temp_dir/low-capacity-attestation.json"
-write_attestation "$source_release" "$low_capacity_attestation" 200
-low_capacity_output="$temp_dir/low-capacity-output"
-make_output_root "$low_capacity_output"
-expect_failure insufficient-accommodation-capacity \
-  "$low_capacity_output" "$dataset_release" \
-  "$assembler" "$source_release" "$low_capacity_attestation" "$low_capacity_output" \
-  "$dataset_release" "$evaluation_time" "$valid_until"
+noncontiguous="$temp_dir/noncontiguous"
+cp -R "$source_release" "$noncontiguous"
+jq '.world.scopeRanges.accommodation.rowCount -= 1' "$noncontiguous/benchmark-dataset-v2.json" > "$noncontiguous/next"
+mv "$noncontiguous/next" "$noncontiguous/benchmark-dataset-v2.json"
+write_metadata "$noncontiguous" production-skew-v1.json
+write_checksums "$noncontiguous" production-skew-v1.json
+write_attestation "$noncontiguous" "$temp_dir/noncontiguous-attestation.json" production-skew-v1.json
+mkdir -m 700 "$temp_dir/noncontiguous-output"
+expect_failure noncontiguous "$temp_dir/noncontiguous-output" "$assembler" "$noncontiguous" \
+  "$temp_dir/noncontiguous-attestation.json" "$temp_dir/noncontiguous-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-symlink_source="$temp_dir/symlink-source"
-cp -R "$source_release" "$symlink_source"
-mv "$symlink_source/source.sha256" "$temp_dir/source.inventory"
-ln -s "$temp_dir/source.inventory" "$symlink_source/source.sha256"
-symlink_output="$temp_dir/symlink-output"
-make_output_root "$symlink_output"
-expect_failure source-symlink "$symlink_output" "$dataset_release" \
-  "$assembler" "$symlink_source" "$attestation" "$symlink_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
+# A contiguous, checksum-rebound base scope is still invalid when it falls
+# below the exact selected-profile budget.
+underfilled_scope="$temp_dir/underfilled-scope"
+cp -R "$source_release" "$underfilled_scope"
+jq '.world.scopeRanges.review.maximumId=999999 | .world.scopeRanges.review.rowCount=999999' \
+  "$underfilled_scope/benchmark-dataset-v2.json" > "$underfilled_scope/next"
+mv "$underfilled_scope/next" "$underfilled_scope/benchmark-dataset-v2.json"
+write_metadata "$underfilled_scope" production-skew-v1.json
+write_checksums "$underfilled_scope" production-skew-v1.json
+write_attestation "$underfilled_scope" "$temp_dir/underfilled-scope-attestation.json" production-skew-v1.json
+mkdir -m 700 "$temp_dir/underfilled-scope-output"
+expect_failure underfilled-scope "$temp_dir/underfilled-scope-output" "$assembler" "$underfilled_scope" \
+  "$temp_dir/underfilled-scope-attestation.json" "$temp_dir/underfilled-scope-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
-secret_source="$temp_dir/secret-source"
-secret_attestation="$temp_dir/secret-attestation.json"
-cp -R "$source_release" "$secret_source"
-sed 's/^options_end$/database_password=hunter2\noptions_end/' \
-  "$secret_source/PROVENANCE.txt" > "$secret_source/PROVENANCE.next"
-mv "$secret_source/PROVENANCE.next" "$secret_source/PROVENANCE.txt"
-write_checksums "$secret_source"
-write_attestation "$secret_source" "$secret_attestation"
-secret_output="$temp_dir/secret-output"
-make_output_root "$secret_output"
-expect_failure secret-provenance "$secret_output" "$dataset_release" \
-  "$assembler" "$secret_source" "$secret_attestation" "$secret_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-
-secret_value_source="$temp_dir/secret-value-source"
-secret_value_attestation="$temp_dir/secret-value-attestation.json"
-cp -R "$source_release" "$secret_value_source"
-jq '.notes = "aws_secret_access_key=hunter2"' \
-  "$secret_value_source/benchmark-fixture.json" \
-  > "$secret_value_source/benchmark-fixture.next"
-mv "$secret_value_source/benchmark-fixture.next" \
-  "$secret_value_source/benchmark-fixture.json"
-write_checksums "$secret_value_source"
-write_attestation "$secret_value_source" "$secret_value_attestation"
-secret_value_output="$temp_dir/secret-value-output"
-make_output_root "$secret_value_output"
-expect_failure secret-benchmark-value "$secret_value_output" "$dataset_release" \
-  "$assembler" "$secret_value_source" "$secret_value_attestation" \
-  "$secret_value_output" "$dataset_release" "$evaluation_time" "$valid_until"
-
-duplicate_source="$temp_dir/duplicate-source"
-duplicate_attestation="$temp_dir/duplicate-attestation.json"
-cp -R "$source_release" "$duplicate_source"
-awk '/^backend_head=/{print "etl_head=0123456789abcdef0123456789abcdef01234567"} {print}' \
-  "$duplicate_source/PROVENANCE.txt" > "$duplicate_source/PROVENANCE.next"
-mv "$duplicate_source/PROVENANCE.next" "$duplicate_source/PROVENANCE.txt"
-write_checksums "$duplicate_source"
-write_attestation "$duplicate_source" "$duplicate_attestation"
-duplicate_output="$temp_dir/duplicate-output"
-make_output_root "$duplicate_output"
-expect_failure duplicate-provenance-key "$duplicate_output" "$dataset_release" \
-  "$assembler" "$duplicate_source" "$duplicate_attestation" "$duplicate_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-
-invalid_run_source="$temp_dir/invalid-run-source"
-invalid_run_attestation="$temp_dir/invalid-run-attestation.json"
-write_source_release "$invalid_run_source" production-seed-20260817t000000z traffic-20260817-001
-write_attestation "$invalid_run_source" "$invalid_run_attestation"
-invalid_run_output="$temp_dir/invalid-run-output"
-make_output_root "$invalid_run_output"
-expect_failure invalid-traffic-run-id "$invalid_run_output" "$dataset_release" \
-  "$assembler" "$invalid_run_source" "$invalid_run_attestation" "$invalid_run_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-
-run_mismatch_source="$temp_dir/run-mismatch-source"
-run_mismatch_attestation="$temp_dir/run-mismatch-attestation.json"
-cp -R "$source_release" "$run_mismatch_source"
-sed 's/^traffic_dataset_run_id=.*/traffic_dataset_run_id=20260817T001530Z-87654321/' \
-  "$run_mismatch_source/release-metadata.txt" > "$run_mismatch_source/release-metadata.next"
-mv "$run_mismatch_source/release-metadata.next" "$run_mismatch_source/release-metadata.txt"
-write_checksums "$run_mismatch_source"
-write_attestation "$run_mismatch_source" "$run_mismatch_attestation"
-run_mismatch_output="$temp_dir/run-mismatch-output"
-make_output_root "$run_mismatch_output"
-expect_failure traffic-run-mismatch "$run_mismatch_output" "$dataset_release" \
-  "$assembler" "$run_mismatch_source" "$run_mismatch_attestation" "$run_mismatch_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-
-provenance_mismatch_source="$temp_dir/provenance-mismatch-source"
-provenance_mismatch_attestation="$temp_dir/provenance-mismatch-attestation.json"
-cp -R "$source_release" "$provenance_mismatch_source"
-sed 's/^traffic_timezone=Asia\/Seoul$/traffic_timezone=UTC/' \
-  "$provenance_mismatch_source/PROVENANCE.txt" \
-  > "$provenance_mismatch_source/PROVENANCE.next"
-mv "$provenance_mismatch_source/PROVENANCE.next" \
-  "$provenance_mismatch_source/PROVENANCE.txt"
-write_checksums "$provenance_mismatch_source"
-write_attestation "$provenance_mismatch_source" "$provenance_mismatch_attestation"
-provenance_mismatch_output="$temp_dir/provenance-mismatch-output"
-make_output_root "$provenance_mismatch_output"
-expect_failure provenance-traffic-mismatch "$provenance_mismatch_output" "$dataset_release" \
-  "$assembler" "$provenance_mismatch_source" "$provenance_mismatch_attestation" \
-  "$provenance_mismatch_output" "$dataset_release" "$evaluation_time" "$valid_until"
-
-extra_source="$temp_dir/extra-source"
-cp -R "$source_release" "$extra_source"
-printf '%s\n' unexpected > "$extra_source/extra.txt"
-extra_output="$temp_dir/extra-output"
-make_output_root "$extra_output"
-expect_failure extra-source-file "$extra_output" "$dataset_release" \
-  "$assembler" "$extra_source" "$attestation" "$extra_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-
-unsafe_output="$temp_dir/unsafe-output"
-mkdir -m 755 "$unsafe_output"
-chmod 755 "$unsafe_output"
-expect_failure unsafe-output-root "$unsafe_output" "$dataset_release" \
-  "$assembler" "$source_release" "$attestation" "$unsafe_output" "$dataset_release" \
-  "$evaluation_time" "$valid_until"
-
-path_output="$temp_dir/path-output"
-make_output_root "$path_output"
-expect_failure unsafe-release-path "$path_output" ../escape \
-  "$assembler" "$source_release" "$attestation" "$path_output" ../escape \
-  "$evaluation_time" "$valid_until"
+# Final table totals are independently fenced because read-only benchmark
+# overlays may add rows, but can never make a canonical base budget disappear.
+underfilled_final="$temp_dir/underfilled-final"
+cp -R "$source_release" "$underfilled_final"
+jq '.world.tableRows.review=999999' \
+  "$underfilled_final/benchmark-dataset-v2.json" > "$underfilled_final/next"
+mv "$underfilled_final/next" "$underfilled_final/benchmark-dataset-v2.json"
+write_metadata "$underfilled_final" production-skew-v1.json
+write_checksums "$underfilled_final" production-skew-v1.json
+write_attestation "$underfilled_final" "$temp_dir/underfilled-final-attestation.json" production-skew-v1.json
+mkdir -m 700 "$temp_dir/underfilled-final-output"
+expect_failure underfilled-final "$temp_dir/underfilled-final-output" "$assembler" "$underfilled_final" \
+  "$temp_dir/underfilled-final-attestation.json" "$temp_dir/underfilled-final-output" rehearsal-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z
 
 printf '%s\n' 'dataset release assembler tests passed'

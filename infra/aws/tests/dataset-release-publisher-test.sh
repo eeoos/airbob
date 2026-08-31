@@ -56,7 +56,20 @@ jq -e --arg release "$release" --arg kind "$kind" \
   "$root/manifest.json" >/dev/null
 [[ -f "$root/mysql/airbob.sql.zst" ]]
 [[ -f "$root/mysql/sha256.txt" ]]
+[[ -f "$root/mysql/database-fingerprint.tsv" ]]
+[[ -f "$root/attestation/restore.json" ]]
 [[ -f "$root/benchmark/manifest.json" ]]
+[[ -f "$root/benchmark/dataset-manifest.json" ]]
+jq -e '.datasetVersion=="benchmark-dataset-v2" and .world.version=="world-v2"' "$root/benchmark/dataset-manifest.json" >/dev/null
+[[ -f "$root/benchmark/validate-benchmark-dataset-v2.jq" ]]
+[[ -f "$root/benchmark/source-calibration-v1.json" ]]
+spec_key=$(jq -r '.source.productionSpecKey' "$root/manifest.json")
+case "$spec_key" in
+  benchmark/production-skew-v1.json|benchmark/production-skew-large-v1.json) ;;
+  *) exit 1 ;;
+esac
+[[ -f "$root/$spec_key" ]]
+[[ -f "$root/benchmark/generation-qualification-v1.json" ]]
 if [[ "$(jq -r '.search.enabled' "$root/manifest.json")" == true ]]; then
   [[ -f "$root/elasticsearch/snapshot-reference.json" ]]
 fi
@@ -416,11 +429,19 @@ make_release() {
   local root=$1
   local search_enabled=$2
   local dump_sha snapshot_reference_sha
-  mkdir -p "$root/mysql" "$root/benchmark"
+  mkdir -p "$root/attestation" "$root/mysql" "$root/benchmark"
   printf '%s\n' 'canonical-dump-bytes' > "$root/mysql/airbob.sql.zst"
   dump_sha=$(sha256_file "$root/mysql/airbob.sql.zst")
   printf '%s  airbob.sql.zst\n' "$dump_sha" > "$root/mysql/sha256.txt"
   printf '%s\n' '{"datasetVersion":"fixture-v1"}' > "$root/benchmark/manifest.json"
+  cp "$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json" \
+    "$root/benchmark/dataset-manifest.json"
+  printf '%s\n' '.' > "$root/benchmark/validate-benchmark-dataset-v2.jq"
+  printf '%s\n' '{"calibrationVersion":"source-calibration-v1"}' > "$root/benchmark/source-calibration-v1.json"
+  printf '%s\n' '{"profileVersion":"production-skew-v1"}' > "$root/benchmark/production-skew-v1.json"
+  printf '%s\n' '{"version":"generation-qualification-v1"}' > "$root/benchmark/generation-qualification-v1.json"
+  printf '%s\n' 'dataset_final_world_fingerprint fixture' > "$root/mysql/database-fingerprint.tsv"
+  printf '%s\n' '{"schemaVersion":4}' > "$root/attestation/restore.json"
 
   if [[ "$search_enabled" == true ]]; then
     mkdir -p "$root/elasticsearch"
@@ -446,10 +467,12 @@ make_release() {
     ' > "$root/elasticsearch/snapshot-reference.json"
     jq -n '
       {
+        schemaVersion:2,
         datasetRelease:"rehearsal-v20",
         datasetRunId:"20260817T001530Z-12345678",
         releaseKind:"evidence",
-        source:{canonicalPayloadSha256:("f" * 64)},
+        releaseTuple:{datasetVersion:"benchmark-dataset-v2",worldVersion:"world-v2",profileVersion:"production-skew-v1"},
+        source:{canonicalPayloadSha256:("f" * 64),productionSpecKey:"benchmark/production-skew-v1.json"},
         search:{
           enabled:true,
           snapshotReferenceKey:"elasticsearch/snapshot-reference.json",
@@ -522,7 +545,7 @@ make_release() {
       }
     ' > "$root/snapshot-receipt.json"
   else
-    jq -n '{datasetRelease:"rehearsal-v20",releaseKind:"pipeline-rehearsal",search:{enabled:false}}' \
+    jq -n '{schemaVersion:2,datasetRelease:"rehearsal-v20",releaseKind:"pipeline-rehearsal",releaseTuple:{datasetVersion:"benchmark-dataset-v2",worldVersion:"world-v2",profileVersion:"production-skew-v1"},source:{productionSpecKey:"benchmark/production-skew-v1.json"},search:{enabled:false}}' \
       > "$root/manifest.json"
   fi
 }
@@ -599,9 +622,16 @@ assert_no_dataset_writes() {
 rehearsal="$temp_dir/rehearsal"
 make_release "$rehearsal" false
 expected_rehearsal_inventory=$(printf '%s\n' \
+  "$prefix/attestation/restore.json" \
+  "$prefix/benchmark/dataset-manifest.json" \
+  "$prefix/benchmark/generation-qualification-v1.json" \
   "$prefix/benchmark/manifest.json" \
+  "$prefix/benchmark/production-skew-v1.json" \
+  "$prefix/benchmark/source-calibration-v1.json" \
+  "$prefix/benchmark/validate-benchmark-dataset-v2.jq" \
   "$prefix/manifest.json" \
   "$prefix/mysql/airbob.sql.zst" \
+  "$prefix/mysql/database-fingerprint.tsv" \
   "$prefix/mysql/sha256.txt" | LC_ALL=C sort)
 
 reset_fake_s3
@@ -611,6 +641,9 @@ happy_output=$(run_publisher "$rehearsal" "$release" pipeline-rehearsal "$bucket
 [[ "$happy_output" == *"manifest_sha256=$(sha256_file "$rehearsal/manifest.json")"* ]] \
   || fail 'happy publication did not return the manifest SHA-256'
 assert_remote_inventory "$expected_rehearsal_inventory"
+last_dataset_write=$(grep -E '^aws s3 cp .*s3://.*/datasets/' "$call_log" | tail -1)
+[[ "$last_dataset_write" == *"/manifest.json s3://$bucket/$prefix/manifest.json "* ]] \
+  || fail 'manifest.json was not the last immutable completion-marker write'
 
 before_idempotent=$(grep -Fc 'aws s3 cp ' "$call_log" || true)
 run_publisher "$rehearsal" "$release" pipeline-rehearsal "$bucket" >/dev/null
@@ -777,10 +810,17 @@ jq -nS \
   }
 ' > "$snapshot_seal"
 expected_search_inventory=$(printf '%s\n' \
+  "$prefix/attestation/restore.json" \
+  "$prefix/benchmark/dataset-manifest.json" \
+  "$prefix/benchmark/generation-qualification-v1.json" \
   "$prefix/benchmark/manifest.json" \
+  "$prefix/benchmark/production-skew-v1.json" \
+  "$prefix/benchmark/source-calibration-v1.json" \
+  "$prefix/benchmark/validate-benchmark-dataset-v2.jq" \
   "$prefix/elasticsearch/snapshot-reference.json" \
   "$prefix/manifest.json" \
   "$prefix/mysql/airbob.sql.zst" \
+  "$prefix/mysql/database-fingerprint.tsv" \
   "$prefix/mysql/sha256.txt" | LC_ALL=C sort)
 
 reset_fake_s3

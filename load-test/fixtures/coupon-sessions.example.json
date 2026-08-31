@@ -1,5 +1,6 @@
 {
-  "datasetVersion": "coupon-issuance-v1",
+  "datasetVersion": "coupon-issuance-v2",
+  "benchmarkDatasetManifestSha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "sessions": [
     "replace-with-session-id-for-member-1",
     "replace-with-session-id-for-member-2",

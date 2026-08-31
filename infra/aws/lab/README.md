@@ -126,7 +126,11 @@ AIRBOB_REGION=ap-northeast-2 \
 
 That command creates and validates a persistent snapshot candidate; it does
 not grant the ephemeral lab role authority to retain data or update a
-persistent release inventory.
+persistent release inventory. `promotion.json` is create-only. The promoter
+requires `airbob-<run-id>` to match the exact bootstrap receipt, then stamps the
+validated source run, source RDS resource ID, and promotion schema onto the
+snapshot. Snapshot bootstrap rejects a snapshot that merely copies the dataset
+tuple without those promotion markers.
 
 The SSM bootstrap is fail-closed and ordered: RDS readiness/import and Flyway
 plus schema fingerprints, optional Elasticsearch restore, both Redis resets

@@ -78,10 +78,10 @@ function sourceArtifact({
     : {
       SELECT: 1,
       INSERT: 0,
-      UPDATE: datasetSize,
+      UPDATE: isAfterEmpty ? 0 : datasetSize + 1,
       DELETE: 0,
       OTHER: 0,
-      TOTAL: 1 + datasetSize,
+      TOTAL: isAfterEmpty ? 1 : datasetSize + 2,
     };
   const batchCalls = isBefore || isAfterEmpty ? 0 : 1;
   const submittedRows = isBefore || isAfterEmpty ? 0 : datasetSize;
@@ -99,7 +99,6 @@ function sourceArtifact({
     bulk_write_verified_rows: metric(datasetSize),
     bulk_write_jdbc_batch_calls: metric(batchCalls),
     bulk_write_jdbc_submitted_rows: metric(submittedRows),
-    bulk_write_hold_removal_calls: metric(datasetSize),
   };
   SQL_TYPES.forEach((type) => {
     metrics[`bulk_write_hibernate_${type.toLowerCase()}_statements`] = metric(sql[type]);
@@ -138,6 +137,11 @@ function sourceArtifact({
       mysql_version: '8.0.42',
       rewrite_batched_statements: true,
       request_timeout: '30s',
+      benchmark_dataset_version: 'benchmark-dataset-v2',
+      benchmark_world_version: 'world-v2',
+      benchmark_dataset_capsule_id: 'bulk-expiration-history-v1',
+      benchmark_dataset_target_id: 'expired-payment-pending',
+      benchmark_dataset_manifest_sha256: 'a'.repeat(64),
     },
     performance: {
       samples: successfulRate,
@@ -161,11 +165,6 @@ function sourceArtifact({
         affected_rows: exactAffectedRows,
         affected_rows_known_samples: knownAffectedRows,
         affected_rows_unknown_samples: 1 - knownAffectedRows,
-      },
-      external_effects: {
-        hold_removal_calls: datasetSize,
-        hold_removal_mode: 'RECORDED_NO_IO',
-        redis_network_excluded: true,
       },
     },
     k6_summary: {
@@ -208,6 +207,13 @@ function wishlistSourceArtifact({
   artifact.metadata.variant = variant;
   artifact.metadata.endpoint = '/api/v2/admin/benchmarks/bulk-write/wishlist-delete';
   artifact.metadata.operation_name = `wishlist-delete-${variant.toLowerCase()}`;
+  [
+    'benchmark_dataset_version',
+    'benchmark_world_version',
+    'benchmark_dataset_capsule_id',
+    'benchmark_dataset_target_id',
+    'benchmark_dataset_manifest_sha256',
+  ].forEach((key) => delete artifact.metadata[key]);
   artifact.performance.hibernate_statements_by_type = clone(hibernate);
   artifact.database_observation.hibernate_statements_by_type = clone(hibernate);
   artifact.database_observation.jdbc = {
@@ -423,6 +429,8 @@ test('aggregates ten ordered observations and recomputes nearest-rank p50/p95', 
     assert.equal(companion.metadata.run_label, parentLabel);
     assert.equal(companion.metadata.run_order, 2);
     assert.equal(companion.metadata.samples, 10);
+    assert.equal(companion.metadata.benchmark_dataset_capsule_id, 'bulk-expiration-history-v1');
+    assert.equal(companion.metadata.benchmark_dataset_manifest_sha256, 'a'.repeat(64));
     assert.equal(companion.observations.length, 10);
     assert.deepEqual(
       companion.observations.map((observation) => observation.sample_index),
@@ -438,6 +446,7 @@ test('aggregates ten ordered observations and recomputes nearest-rank p50/p95', 
     );
     assert.equal(companion.observations[0].source_path, sources[0]);
     assert.equal(companion.observations[0].k6_summary, undefined);
+    assert.equal(companion.observations[0].external_effects, undefined);
     assert.equal(JSON.stringify(companion).includes('must not be copied'), false);
     assert.deepEqual(companion.statistics.server_operation_ms, {
       count: 10,
@@ -889,6 +898,13 @@ test('accepts a present well-formed zero-count representation for optional metri
 });
 
 const invalidCases = [
+  {
+    name: 'legacy benchmark dataset version',
+    mutate: (artifact) => {
+      artifact.metadata.benchmark_dataset_version = 'benchmark-dataset-v1';
+      artifact.metadata.benchmark_world_version = 'world-v1';
+    },
+  },
   {
     name: 'multi-sample source',
     mutate: (artifact) => { artifact.metadata.samples = 2; },

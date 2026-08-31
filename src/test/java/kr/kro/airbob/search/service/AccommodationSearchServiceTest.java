@@ -7,15 +7,18 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import java.time.LocalDate;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,6 +29,11 @@ import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.query_dsl.RangeRelation;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
+import co.elastic.clients.elasticsearch.core.search.TotalHits;
+import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
 
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
@@ -133,6 +141,50 @@ class AccommodationSearchServiceTest {
 		))
 			.isInstanceOf(SearchUnavailableException.class);
 		verifyNoInteractions(wishlistRepository);
+	}
+
+	@Test
+	@DisplayName("1만 건을 넘는 검색은 Elasticsearch 기본 상한을 유지한다")
+	@SuppressWarnings("unchecked")
+	void keepsDefaultTotalHitsBoundBeyondElasticsearchThreshold() throws IOException {
+		AccommodationSearchRequest.AccommodationSearchRequestDto request =
+			new AccommodationSearchRequest.AccommodationSearchRequestDto();
+		request.setDestination("Seoul");
+		AccommodationDocument document = AccommodationDocument.builder()
+			.id("accommodation-1")
+			.accommodationId(1L)
+			.name("숙소")
+			.basePrice(100_000L)
+			.currency("KRW")
+			.type("ENTIRE_PLACE")
+			.location(AccommodationDocument.Location.builder().lat(37.5).lon(127.0).build())
+			.averageRating(5.0)
+			.reviewCount(10)
+			.build();
+		Hit<AccommodationDocument> hit = mock(Hit.class);
+		HitsMetadata<AccommodationDocument> hits = mock(HitsMetadata.class);
+		SearchResponse<AccommodationDocument> response = mock(SearchResponse.class);
+		given(hit.source()).willReturn(document);
+		given(hits.hits()).willReturn(List.of(hit));
+		given(hits.total()).willReturn(TotalHits.of(total -> total
+			.value(10_000L)
+			.relation(TotalHitsRelation.Gte)));
+		given(response.hits()).willReturn(hits);
+		given(esClient.search(any(SearchRequest.class), eq(AccommodationDocument.class)))
+			.willReturn(response);
+
+		var result = accommodationSearchService.searchAccommodations(
+			request,
+			new AccommodationSearchRequest.MapBoundsDto(),
+			PageRequest.of(0, 18),
+			null
+		);
+
+		ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+		verify(esClient).search(requestCaptor.capture(), eq(AccommodationDocument.class));
+		assertThat(requestCaptor.getValue().trackTotalHits()).isNull();
+		assertThat(result.pageInfo().totalElements()).isEqualTo(10_000L);
+		assertThat(result.pageInfo().totalPages()).isEqualTo(556);
 	}
 
 	private AccommodationSearchRequest.AccommodationSearchRequestDto dateRequest(

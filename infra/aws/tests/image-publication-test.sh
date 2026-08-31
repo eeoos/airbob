@@ -39,6 +39,18 @@ assert_not_contains() {
   fi
 }
 
+assert_arg_before_first_from() {
+  local dockerfile=$1
+  local argument=$2
+  local argument_line
+  local first_from_line
+  argument_line=$(awk -v prefix="ARG $argument=" 'index($0, prefix) == 1 { print NR; exit }' "$dockerfile")
+  first_from_line=$(awk '$1 == "FROM" { print NR; exit }' "$dockerfile")
+  [[ "$argument_line" =~ ^[1-9][0-9]*$ && "$first_from_line" =~ ^[1-9][0-9]*$ \
+    && "$argument_line" -lt "$first_from_line" ]] \
+    || fail "$dockerfile must declare FROM argument $argument before its first stage"
+}
+
 for required_file in \
   "$spec_file" \
   "$publisher" \
@@ -163,9 +175,13 @@ done < <(jq -r '([.app] + .infra)[] | .dockerfile as $dockerfile | .buildArgs | 
 assert_contains "$repo_root/docker/aws-mirror/Dockerfile" 'ARG UPSTREAM_IMAGE'
 assert_not_contains "$repo_root/docker/aws-mirror/Dockerfile" '^ARG[[:space:]]+UPSTREAM_IMAGE='
 assert_contains "$repo_root/docker/kafka/Dockerfile" 'jmx_prometheus_javaagent.jar'
+assert_arg_before_first_from "$repo_root/docker/kafka/Dockerfile" ALPINE_IMAGE
+assert_arg_before_first_from "$repo_root/docker/kafka/Dockerfile" KAFKA_BASE_IMAGE
 assert_contains "$repo_root/docker/kafka/Dockerfile" "$(jq -r '.artifacts.jmxExporter.version' "$spec_file")"
 assert_contains "$repo_root/docker/kafka/Dockerfile" "$(jq -r '.artifacts.jmxExporter.sha256' "$spec_file")"
 assert_contains "$repo_root/docker/debezium/Dockerfile" 'jmx_prometheus_javaagent.jar'
+assert_arg_before_first_from "$repo_root/docker/debezium/Dockerfile" ALPINE_IMAGE
+assert_arg_before_first_from "$repo_root/docker/debezium/Dockerfile" KAFKA_BASE_IMAGE
 assert_contains "$repo_root/docker/debezium/Dockerfile" "$(jq -r '.artifacts.jmxExporter.sha256' "$spec_file")"
 assert_contains "$repo_root/docker/debezium/Dockerfile" "$(jq -r '.artifacts.debezium.version' "$spec_file")"
 assert_contains "$repo_root/docker/debezium/Dockerfile" "$(jq -r '.artifacts.debezium.sha256' "$spec_file")"

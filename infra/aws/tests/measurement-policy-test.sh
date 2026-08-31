@@ -75,6 +75,10 @@ run_verifier isolated-read >/dev/null
 [[ "$(grep -Fc 'ssm send-command' "$temp_dir/aws.log")" -eq 2 ]] \
   || fail "isolated read did not execute both Debezium/DB and Kafka gates"
 grep -Fq 'airbob-outbox-connector/pause' "$temp_dir/aws.log" || fail "isolated read did not pause Debezium"
+[[ "$(grep -Fo -- '--connect-timeout 5 --max-time 15' "$temp_dir/aws.log" | wc -l | tr -d ' ')" -eq 2 ]] \
+  || fail "isolated read did not bound both Debezium HTTP requests"
+grep -Fq -- '--connect-timeout=10' "$temp_dir/aws.log" \
+  || fail "isolated read did not bound the RDS client connection"
 grep -Fq 'kafka-get-offsets.sh' "$temp_dir/aws.log" || fail "isolated read did not sample Kafka offsets"
 jq -e '.policy == "isolated-read" and .connectorState == "PAUSED" and .dbState == "idle" and .kafkaState == "idle"' \
   "$temp_dir/receipts/9.json" >/dev/null || fail "isolated policy receipt is invalid"

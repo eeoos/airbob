@@ -107,6 +107,8 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   requestName: 'POST /api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
   operationPrefix: 'expired-reservation-cleanup',
   maximumDatasetSize: 2000,
+  datasetCapsuleId: 'bulk-expiration-history-v1',
+  datasetTargetId: 'expired-payment-pending',
   supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
   dataFields: Object.freeze(RESERVATION_HISTORY_DATA_FIELDS),
   matchesData: (data, datasetSize, variant) => {
@@ -129,8 +131,9 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
       && datasetSize > 0
       && counts.SELECT === 1
       && counts.INSERT === 0
-      && counts.UPDATE === datasetSize
-      && counts.TOTAL === datasetSize + 1
+      // Expiration updates N reservations and restores eligible coupons with one bulk UPDATE.
+      && counts.UPDATE === datasetSize + 1
+      && counts.TOTAL === datasetSize + 2
       && operation.jdbc_submitted_rows === datasetSize
       && operation.jdbc_batch_calls
         === Math.ceil(datasetSize / operation.jdbc_configured_batch_size)
@@ -641,6 +644,42 @@ function isNonNegativeInteger(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
+function benchmarkDatasetMetadata(config, definition) {
+  if (definition.datasetCapsuleId === undefined) {
+    return {};
+  }
+  const dataset = config.benchmarkDataset;
+  requireCondition(isObject(dataset), 'benchmark dataset contract is required');
+  const datasetVersion = parseRequiredPublicText(
+    dataset.datasetVersion,
+    'benchmark dataset version',
+  );
+  const worldVersion = parseRequiredPublicText(
+    dataset.worldVersion,
+    'benchmark world version',
+  );
+  requireCondition(
+    dataset.capsuleId === definition.datasetCapsuleId,
+    'benchmark dataset capsule does not match the benchmark',
+  );
+  requireCondition(
+    dataset.targetId === definition.datasetTargetId,
+    'benchmark dataset target does not match the benchmark',
+  );
+  requireCondition(
+    typeof dataset.manifestSha256 === 'string'
+      && /^[0-9a-f]{64}$/.test(dataset.manifestSha256),
+    'benchmark dataset manifest SHA-256 is invalid',
+  );
+  return {
+    benchmark_dataset_version: datasetVersion,
+    benchmark_world_version: worldVersion,
+    benchmark_dataset_capsule_id: dataset.capsuleId,
+    benchmark_dataset_target_id: dataset.targetId,
+    benchmark_dataset_manifest_sha256: dataset.manifestSha256,
+  };
+}
+
 function matchesJdbcOperation(value) {
   if (!isNonNegativeInteger(value.jdbc_batch_calls)
       || !isNonNegativeInteger(value.jdbc_submitted_rows)) {
@@ -929,6 +968,7 @@ export function buildBulkWriteArtifact({
     mysql_version: parseRequiredPublicText(config.mysqlVersion, 'MYSQL_VERSION'),
     rewrite_batched_statements: config.rewriteBatchedStatements,
     request_timeout: parseRequiredPublicText(config.requestTimeout, 'REQUEST_TIMEOUT'),
+    ...benchmarkDatasetMetadata(config, definition),
   };
   if (definition.supportedMeasurements !== undefined) {
     requireCondition(

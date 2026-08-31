@@ -43,7 +43,7 @@ variables {
   bundle_commit              = "0123456789abcdef0123456789abcdef01234567"
   bundle_sha256              = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   dataset_release            = "rehearsal-v20"
-  dataset_manifest_sha256    = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
+  dataset_manifest_sha256    = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
   database_bootstrap         = "dump"
   rds_engine_version         = "8.0.40"
   app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -86,6 +86,14 @@ override_resource {
       secret_arn    = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test"
       secret_status = "active"
     }]
+  }
+}
+
+override_resource {
+  target          = aws_secretsmanager_secret.debezium[0]
+  override_during = plan
+  values = {
+    arn = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:airbob/phase3-test/debezium"
   }
 }
 
@@ -144,29 +152,50 @@ override_data {
 }
 
 override_data {
+  target          = data.aws_s3_object.dataset_production_spec[0]
+  override_during = plan
+  values = {
+    body = file("tests/fixtures/production-skew-v1.json")
+  }
+}
+
+override_data {
   target          = data.aws_s3_object.data_bootstrap_receipt[0]
   override_during = plan
   values = {
     body = jsonencode({
-      schemaVersion           = 1
-      runId                   = "phase3-test"
-      datasetRelease          = "rehearsal-v20"
-      datasetRunId            = "20260816T001530Z-12345678"
-      releaseKind             = "pipeline-rehearsal"
-      databaseBootstrap       = "dump"
-      dumpSha256              = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-      flywayVersion           = "27"
-      migrationChecksumSha256 = "4444444444444444444444444444444444444444444444444444444444444444"
-      schemaFingerprintSha256 = "5555555555555555555555555555555555555555555555555555555555555555"
-      datasetManifestSha256   = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
-      rdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-      rdsEngineVersion        = "8.0.40"
-      outboxState             = "empty"
-      redisState              = "empty"
-      kafkaTopics             = jsondecode(file("tests/fixtures/dataset-manifest.json")).kafka.topics
-      connectorState          = "RUNNING"
-      searchState             = "skipped"
-      verifiedAt              = "2030-01-01T00:30:00Z"
+      schemaVersion                  = 2
+      runId                          = "phase3-test"
+      datasetRelease                 = "rehearsal-v20"
+      datasetRunId                   = "20260816T001530Z-12345678"
+      releaseKind                    = "pipeline-rehearsal"
+      databaseBootstrap              = "dump"
+      dumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+      flywayVersion                  = "27"
+      migrationChecksumSha256        = "4444444444444444444444444444444444444444444444444444444444444444"
+      schemaFingerprintSha256        = "5555555555555555555555555555555555555555555555555555555555555555"
+      datasetManifestSha256          = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+      validatorSha256                = "7777777777777777777777777777777777777777777777777777777777777777"
+      benchmarkDatasetManifestSha256 = "6666666666666666666666666666666666666666666666666666666666666666"
+      calibrationSha256              = "8888888888888888888888888888888888888888888888888888888888888888"
+      productionSpecSha256           = "bbba284a93ff00637928f5cfcf046cce1aab1f848bc31fd467f809d01d73fcdd"
+      qualificationSha256            = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      databaseFingerprintSha256      = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      restoreAttestationSha256       = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      finalWorldFingerprintSha256    = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      baseWorldFingerprintSha256     = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      distributionFingerprintSha256  = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      targetFingerprintSha256        = "0000000000000000000000000000000000000000000000000000000000000000"
+      inventoryFingerprintSha256     = "1111111111111111111111111111111111111111111111111111111111111111"
+      semanticAttestationSha256      = "2222222222222222222222222222222222222222222222222222222222222222"
+      rdsResourceId                  = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+      rdsEngineVersion               = "8.0.40"
+      outboxState                    = "empty"
+      redisState                     = "empty"
+      kafkaTopics                    = jsondecode(file("tests/fixtures/dataset-manifest.json")).kafka.topics
+      connectorState                 = "RUNNING"
+      searchState                    = "skipped"
+      verifiedAt                     = "2030-01-01T00:30:00Z"
     })
   }
 }
@@ -182,13 +211,247 @@ run "create_dump_backed_rds_and_ordered_bootstrap" {
       module.rds[0].contract.snapshot_identifier == null &&
       module.rds[0].contract.manage_master_user_password == true &&
       module.rds[0].contract.backup_retention_period >= 1 &&
+      module.rds[0].contract.configured_storage_gib == 20 &&
+      module.rds[0].contract.storage_type == "gp3" &&
       aws_secretsmanager_secret.debezium[0].recovery_window_in_days == 0 &&
       output.phase3_contract.database_bootstrap == "dump" &&
+      output.phase3_contract.profile_version == "production-skew-v1" &&
+      output.phase3_contract.production_spec_key == "benchmark/production-skew-v1.json" &&
+      output.phase3_contract.rds_configured_storage_gib == 20 &&
       output.phase3_contract.release_kind == "pipeline-rehearsal" &&
       output.phase3_contract.search_enabled == false
     )
     error_message = "Dump mode must create the exact Single-AZ RDS and ordered secret-safe bootstrap contract."
   }
+}
+
+run "accept_large_profile_with_large_spec_and_budgets" {
+  command = plan
+
+  variables {
+    dataset_manifest_sha256 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-large-v1"
+          specSha256     = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey    = "benchmark/production-skew-large-v1.json"
+          productionSpecSha256 = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
+          expectedTableRows = merge(
+            jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
+            {
+              accommodation          = 200000
+              member                 = 800000
+              reservation            = 10000000
+              review                 = 4000000
+              wishlist               = 1600000
+              wishlist_accommodation = 6000000
+            },
+          )
+        })
+      }))
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-large-v1.json")
+    }
+  }
+
+  assert {
+    condition = (
+      data.aws_s3_object.dataset_production_spec[0].key ==
+      "datasets/rehearsal-v20/benchmark/production-skew-large-v1.json" &&
+      module.rds[0].contract.instance_class == "db.t3.micro" &&
+      module.rds[0].contract.configured_storage_gib == 100 &&
+      module.rds[0].contract.storage_type == "gp3" &&
+      output.phase3_contract.profile_version == "production-skew-large-v1" &&
+      output.phase3_contract.production_spec_key == "benchmark/production-skew-large-v1.json" &&
+      output.phase3_contract.rds_configured_storage_gib == 100
+    )
+    error_message = "The large profile must select its immutable specification and 100-GiB gp3 dump capacity without changing instance class."
+  }
+}
+
+run "reject_unsupported_third_profile" {
+  command = plan
+
+  variables {
+    dataset_manifest_sha256 = "232fe77160e9e011ff9624c6320cf8285c04949218327fabb62c370bbe7a6a11"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-v2"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey = "benchmark/production-skew-v2.json"
+        })
+      }))
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
+}
+
+run "reject_large_profile_with_canonical_spec_key" {
+  command = plan
+
+  variables {
+    dataset_manifest_sha256 = "7f0abfa75ad04e0db810583f72e88d3d7fe542c3dea683d75699e5941c375060"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-large-v1"
+          specSha256     = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey    = "benchmark/production-skew-v1.json"
+          productionSpecSha256 = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
+          expectedTableRows = merge(
+            jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
+            {
+              accommodation          = 200000
+              member                 = 800000
+              reservation            = 10000000
+              review                 = 4000000
+              wishlist               = 1600000
+              wishlist_accommodation = 6000000
+            },
+          )
+        })
+      }))
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-large-v1.json")
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
+}
+
+run "reject_large_profile_with_canonical_budget" {
+  command = plan
+
+  variables {
+    dataset_manifest_sha256 = "8c53124766334722cb337c038e5e1e141b239e3547b3509865f8b5f7413067d2"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-large-v1"
+          specSha256     = "1e88a0d73b688479241895d807f7e24d456363668a4aa767c0140079fe699073"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey    = "benchmark/production-skew-large-v1.json"
+          productionSpecSha256 = "1e88a0d73b688479241895d807f7e24d456363668a4aa767c0140079fe699073"
+        })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
+          expectedTableRows = merge(
+            jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
+            {
+              accommodation          = 200000
+              member                 = 800000
+              reservation            = 10000000
+              review                 = 4000000
+              wishlist               = 1600000
+              wishlist_accommodation = 6000000
+            },
+          )
+        })
+      }))
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-large-mixed-budget.json")
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
+}
+
+run "reject_large_profile_with_underfilled_final_table" {
+  command = plan
+
+  variables {
+    dataset_manifest_sha256 = "f67572e6fea04a9121f7520e50dc85f2d31932b5530fdcdf9138c3d71f2ea807"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-large-v1"
+          specSha256     = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey    = "benchmark/production-skew-large-v1.json"
+          productionSpecSha256 = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
+          expectedTableRows = merge(
+            jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
+            {
+              accommodation          = 200000
+              member                 = 800000
+              reservation            = 9999999
+              review                 = 4000000
+              wishlist               = 1600000
+              wishlist_accommodation = 6000000
+            },
+          )
+        })
+      }))
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-large-v1.json")
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
 }
 
 run "restore_rds_only_from_matching_snapshot" {
@@ -208,12 +471,21 @@ run "restore_rds_only_from_matching_snapshot" {
       engine_version         = "8.0.40"
       status                 = "available"
       encrypted              = true
+      allocated_storage      = 20
       tags = {
-        DatasetRelease = "rehearsal-v20"
-        DatasetRunId   = "20260816T001530Z-12345678"
-        DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion  = "27"
-        ManifestSha256 = "83135a34c9d3f10c661d0aecabf6bf65972f19f09b34c76c84d5c7e54a9b347e"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "1"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
       }
     }
   }
@@ -221,10 +493,208 @@ run "restore_rds_only_from_matching_snapshot" {
   assert {
     condition = (
       module.rds[0].contract.snapshot_identifier == "airbob-dataset-rehearsal-v20" &&
+      module.rds[0].contract.configured_storage_gib == null &&
+      output.phase3_contract.rds_configured_storage_gib == null &&
       output.phase3_contract.database_bootstrap == "snapshot"
     )
-    error_message = "Snapshot mode must bind RDS creation to the prevalidated dataset snapshot."
+    error_message = "Snapshot mode must bind RDS creation to the prevalidated snapshot without overriding inherited storage."
   }
+}
+
+run "reject_snapshot_outside_promotion_contract" {
+  command = plan
+
+  variables {
+    database_bootstrap      = "snapshot"
+    rds_snapshot_identifier = "airbob-dataset-rehearsal-v20"
+  }
+
+  override_data {
+    target          = data.aws_db_snapshot.dataset[0]
+    override_during = plan
+    values = {
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
+      engine                 = "mysql"
+      engine_version         = "8.0.40"
+      status                 = "available"
+      encrypted              = true
+      allocated_storage      = 20
+      tags = {
+        DatasetRelease = "rehearsal-v20"
+        DatasetRunId   = "20260816T001530Z-12345678"
+        DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion  = "27"
+        ManifestSha256 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+      }
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
+}
+
+run "restore_large_profile_from_snapshot_with_sufficient_storage" {
+  command = plan
+
+  variables {
+    database_bootstrap      = "snapshot"
+    rds_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
+    dataset_manifest_sha256 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-large-v1"
+          specSha256     = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey    = "benchmark/production-skew-large-v1.json"
+          productionSpecSha256 = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
+          expectedTableRows = merge(
+            jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
+            {
+              accommodation          = 200000
+              member                 = 800000
+              reservation            = 10000000
+              review                 = 4000000
+              wishlist               = 1600000
+              wishlist_accommodation = 6000000
+            },
+          )
+        })
+      }))
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-large-v1.json")
+    }
+  }
+
+  override_data {
+    target          = data.aws_db_snapshot.dataset[0]
+    override_during = plan
+    values = {
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
+      engine                 = "mysql"
+      engine_version         = "8.0.40"
+      status                 = "available"
+      encrypted              = true
+      allocated_storage      = 100
+      tags = {
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "1"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      data.aws_db_snapshot.dataset[0].allocated_storage == 100 &&
+      module.rds[0].contract.snapshot_identifier == "airbob-dataset-rehearsal-v20-large" &&
+      module.rds[0].contract.configured_storage_gib == null &&
+      output.phase3_contract.profile_version == "production-skew-large-v1" &&
+      output.phase3_contract.database_bootstrap == "snapshot"
+    )
+    error_message = "The large profile snapshot must inherit at least 100 GiB while preserving snapshot-backed RDS creation."
+  }
+}
+
+run "reject_large_profile_snapshot_with_canonical_storage" {
+  command = plan
+
+  variables {
+    database_bootstrap      = "snapshot"
+    rds_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
+    dataset_manifest_sha256 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_manifest[0]
+    override_during = plan
+    values = {
+      body = jsonencode(merge(jsondecode(file("tests/fixtures/dataset-manifest.json")), {
+        releaseTuple = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).releaseTuple, {
+          profileVersion = "production-skew-large-v1"
+          specSha256     = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        source = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).source, {
+          productionSpecKey    = "benchmark/production-skew-large-v1.json"
+          productionSpecSha256 = "d32255ed92251be03f2eeeb81269ed5e9742baced384dfb3e47b5886bae9dc50"
+        })
+        mysql = merge(jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql, {
+          expectedTableRows = merge(
+            jsondecode(file("tests/fixtures/dataset-manifest.json")).mysql.expectedTableRows,
+            {
+              accommodation          = 200000
+              member                 = 800000
+              reservation            = 10000000
+              review                 = 4000000
+              wishlist               = 1600000
+              wishlist_accommodation = 6000000
+            },
+          )
+        })
+      }))
+    }
+  }
+
+  override_data {
+    target          = data.aws_s3_object.dataset_production_spec[0]
+    override_during = plan
+    values = {
+      body = file("tests/fixtures/production-skew-large-v1.json")
+    }
+  }
+
+  override_data {
+    target          = data.aws_db_snapshot.dataset[0]
+    override_during = plan
+    values = {
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
+      engine                 = "mysql"
+      engine_version         = "8.0.40"
+      status                 = "available"
+      encrypted              = true
+      allocated_storage      = 20
+      tags = {
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "1"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+      }
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
 }
 
 run "attest_only_the_exact_ordered_data_receipt" {
@@ -374,10 +844,13 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
         for statement in jsondecode(aws_iam_role_policy.measurement_data_plane["monitoring"].policy).Statement : statement
         if statement.Sid == "ReadMeasurementInputs"
       ]) == 0 &&
-      one([
+      toset(one([
         for statement in jsondecode(aws_iam_role_policy.measurement_data_plane["loadgen"].policy).Statement : statement
         if statement.Sid == "ReadSelectedBenchmarkManifest"
-      ]).Resource == "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/datasets/rehearsal-v20/benchmark/manifest.json" &&
+        ]).Resource) == toset([
+        "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/datasets/rehearsal-v20/benchmark/manifest.json",
+        "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/datasets/rehearsal-v20/benchmark/dataset-manifest.json",
+      ]) &&
       alltrue([
         for policy in values(aws_iam_role_policy.measurement_data_plane) :
         one([

@@ -46,6 +46,10 @@ function positiveInteger(value) {
   return Number.isSafeInteger(value) && value > 0;
 }
 
+function nonNegativeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
 function canonicalSha256(value) {
   return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 }
@@ -192,7 +196,7 @@ function metadataContract(metadata) {
     && metadata.flywayVersion === CURRENT_FLYWAY_VERSION
     && positiveInteger(metadata.appInstanceCount)
     && metadata.target === 'accommodation-detail'
-    && positiveInteger(metadata.expectedSqlCallsPerRequest)
+    && nonNegativeInteger(metadata.expectedSqlCallsPerRequest)
     && hasExactKeys(metadata.window, ['startEpochMs', 'endEpochMs'])
     && Number.isSafeInteger(metadata.window.startEpochMs)
     && Number.isSafeInteger(metadata.window.endEpochMs)

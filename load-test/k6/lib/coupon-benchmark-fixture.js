@@ -1,4 +1,4 @@
-const DATASET_VERSION = 'coupon-issuance-v1';
+const DATASET_VERSION = 'coupon-issuance-v2';
 
 function requireCondition(condition, message) {
   if (!condition) {
@@ -14,7 +14,7 @@ export function parseRequiredText(raw, name) {
   return raw.trim();
 }
 
-export function parseCouponSessionFixture(raw) {
+export function parseCouponSessionFixture(raw, expectedManifestSha256) {
   let fixture;
   try {
     fixture = JSON.parse(raw);
@@ -29,6 +29,15 @@ export function parseCouponSessionFixture(raw) {
   requireCondition(
     fixture.datasetVersion === DATASET_VERSION,
     `SESSION_FIXTURE.datasetVersion must equal ${DATASET_VERSION}`,
+  );
+  requireCondition(
+    typeof expectedManifestSha256 === 'string'
+      && /^[0-9a-f]{64}$/.test(expectedManifestSha256),
+    'expected benchmark dataset manifest SHA-256 is invalid',
+  );
+  requireCondition(
+    fixture.benchmarkDatasetManifestSha256 === expectedManifestSha256,
+    'SESSION_FIXTURE does not match BENCHMARK_DATASET_MANIFEST',
   );
   requireCondition(
     Array.isArray(fixture.sessions) && fixture.sessions.length > 0,

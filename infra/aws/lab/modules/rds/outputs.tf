@@ -34,6 +34,7 @@ output "contract" {
     snapshot_identifier         = var.bootstrap_mode == "snapshot" ? var.snapshot_identifier : null
     manage_master_user_password = aws_db_instance.this.manage_master_user_password
     backup_retention_period     = aws_db_instance.this.backup_retention_period
+    configured_storage_gib      = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
     storage_type                = aws_db_instance.this.storage_type
     storage_encrypted           = aws_db_instance.this.storage_encrypted
   }
