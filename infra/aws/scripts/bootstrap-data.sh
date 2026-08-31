@@ -103,6 +103,37 @@ validate_snapshot_reference() {
   ' "$snapshot_reference" >/dev/null
 }
 
+publish_immutable_receipt() {
+  local receipt_file=$1
+  local receipt_bucket=$2
+  local receipt_key=$3
+  local readback_file=$4
+
+  [[ -f "$receipt_file" && ! -L "$receipt_file" \
+    && "$receipt_bucket" =~ ^airbob-performance-lab-evidence-[0-9]{12}$ \
+    && "$receipt_key" =~ ^data-bootstrap/[a-z0-9][a-z0-9-]{2,31}/[a-z0-9][a-z0-9._-]{2,63}\.json$ ]] \
+    || return 1
+  rm -f "$readback_file"
+  aws --region "$AIRBOB_REGION" s3api put-object \
+    --bucket "$receipt_bucket" \
+    --key "$receipt_key" \
+    --body "$receipt_file" \
+    --tagging Retention=summary \
+    --content-type application/json \
+    --server-side-encryption AES256 \
+    --if-none-match '*' \
+    --no-cli-pager >/dev/null 2>&1 || true
+  aws --region "$AIRBOB_REGION" s3api get-object \
+    --bucket "$receipt_bucket" \
+    --key "$receipt_key" \
+    --no-cli-pager "$readback_file" >/dev/null 2>&1 \
+    || return 1
+  [[ -f "$readback_file" && ! -L "$readback_file" ]] \
+    && cmp -s "$receipt_file" "$readback_file" \
+    || return 1
+  rm -f "$readback_file"
+}
+
 required_environment=(
   AIRBOB_REGION AIRBOB_RUN_ID AIRBOB_DATASET_BUCKET AIRBOB_EVIDENCE_BUCKET
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
@@ -1104,6 +1135,7 @@ cleanup
 
 verified_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 receipt="$work_root/data-bootstrap-receipt.json"
+receipt_readback="$work_root/data-bootstrap-receipt.readback.json"
 jq -n \
   --arg runId "$AIRBOB_RUN_ID" \
   --arg datasetRelease "$AIRBOB_DATASET_RELEASE" \
@@ -1169,9 +1201,9 @@ jq -n \
     searchState: $searchState,
     verifiedAt: $verifiedAt
   }' > "$receipt"
-aws --region "$AIRBOB_REGION" s3api put-object \
-  --bucket "$AIRBOB_EVIDENCE_BUCKET" \
-  --key "data-bootstrap/$AIRBOB_RUN_ID/$AIRBOB_DATASET_RELEASE.json" \
-  --body "$receipt" --tagging Retention=summary >/dev/null
+publish_immutable_receipt \
+  "$receipt" "$AIRBOB_EVIDENCE_BUCKET" \
+  "data-bootstrap/$AIRBOB_RUN_ID/$AIRBOB_DATASET_RELEASE.json" "$receipt_readback" \
+  || { printf '%s\n' 'immutable data bootstrap receipt publication could not be verified' >&2; exit 1; }
 
 printf '%s\n' 'data bootstrap verified'

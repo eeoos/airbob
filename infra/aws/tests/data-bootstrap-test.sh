@@ -94,6 +94,8 @@ assert_contains "$bootstrap" '.value >= $budgets[.key]'
 assert_contains "$lab_root/ssm.tf" 'resource "aws_ssm_association" "data_bootstrap"'
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "data_bootstrap_gate"'
 assert_contains "$lab_root/iam.tf" 'ManageEphemeralDebeziumCredentialValue'
+assert_contains "$lab_root/iam.tf" 'ReadDataBootstrapReceipt'
+assert_contains "$lab_root/iam.tf" '["s3:GetObject", "s3:GetObjectVersion"]'
 assert_contains "$lab_root/iam.tf" 'elasticsearch/releases/${var.dataset_release}/*'
 assert_contains "$repo_root/infra/aws/foundation/lab-compute.tf" 'BootstrapSecrets'
 assert_contains "$repo_root/infra/aws/foundation/lab-compute.tf" 'WriteBootstrapEvidence'
@@ -258,6 +260,10 @@ assert_contains "$bootstrap" 'JOIN occupancy_policy op ON op.id=a.occupancy_poli
 assert_contains "$bootstrap" 'final live target attestation failed'
 assert_contains "$bootstrap" 'live targets drifted after the semantic gate'
 assert_contains "$bootstrap" 'Retention=summary'
+assert_contains "$bootstrap" 'publish_immutable_receipt'
+assert_contains "$bootstrap" "--if-none-match '*'"
+assert_contains "$bootstrap" '--server-side-encryption AES256'
+assert_contains "$bootstrap" 'immutable data bootstrap receipt publication could not be verified'
 assert_contains "$bootstrap" 'trap cleanup EXIT'
 assert_contains "$bootstrap" '<<AIRBOB_DEBEZIUM_SQL'
 assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" mysql'
@@ -401,6 +407,98 @@ for reference_drift in database-id component-swap bucket extra-field; do
     fail "bootstrap accepted snapshot reference drift: $reference_drift"
   fi
 done
+
+receipt_publication_function="$temp_dir/publish-immutable-receipt.sh"
+awk '
+  /^publish_immutable_receipt\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { exit }
+' "$bootstrap" > "$receipt_publication_function"
+[[ -s "$receipt_publication_function" ]] || fail "bootstrap immutable receipt publisher is missing"
+receipt_fixture="$temp_dir/bootstrap-receipt.json"
+receipt_readback="$temp_dir/bootstrap-receipt.readback.json"
+receipt_store="$temp_dir/bootstrap-receipt.remote.json"
+receipt_log="$temp_dir/bootstrap-receipt-aws.log"
+printf '%s\n' '{"schemaVersion":2,"verified":true}' > "$receipt_fixture"
+(
+  # shellcheck source=/dev/null
+  source "$receipt_publication_function"
+  aws() {
+    local argument body='' destination=''
+    printf '%s\n' "$*" >> "$receipt_log"
+    case "$*" in
+      *'s3api put-object'*)
+        while [[ "$#" -gt 0 ]]; do
+          argument=$1
+          shift
+          if [[ "$argument" == --body ]]; then body=$1; shift; fi
+        done
+        if [[ -e "$receipt_store" ]]; then return 1; fi
+        cp "$body" "$receipt_store"
+        ;;
+      *'s3api get-object'*)
+        destination=${!#}
+        cp "$receipt_store" "$destination"
+        ;;
+      *) return 1 ;;
+    esac
+  }
+  export AIRBOB_REGION=ap-northeast-2
+  publish_immutable_receipt \
+    "$receipt_fixture" airbob-performance-lab-evidence-942632789808 \
+    data-bootstrap/phase3-test/rehearsal-v20.json "$receipt_readback"
+) || fail "bootstrap could not publish and read back a new immutable receipt"
+cmp -s "$receipt_fixture" "$receipt_store" || fail "immutable receipt store differs from the producer bytes"
+grep -Fq -- '--if-none-match *' "$receipt_log" || fail "receipt publication is not create-only"
+grep -Fq -- '--server-side-encryption AES256' "$receipt_log" || fail "receipt publication is not encrypted"
+grep -Fq -- 's3api get-object' "$receipt_log" || fail "receipt publication did not perform readback"
+
+printf '%s\n' '{"schemaVersion":2,"verified":false}' > "$receipt_fixture"
+if (
+  # shellcheck source=/dev/null
+  source "$receipt_publication_function"
+  aws() {
+    local destination=''
+    case "$*" in
+      *'s3api put-object'*) return 1 ;;
+      *'s3api get-object'*) destination=${!#}; cp "$receipt_store" "$destination" ;;
+      *) return 1 ;;
+    esac
+  }
+  export AIRBOB_REGION=ap-northeast-2
+  publish_immutable_receipt \
+    "$receipt_fixture" airbob-performance-lab-evidence-942632789808 \
+    data-bootstrap/phase3-test/rehearsal-v20.json "$receipt_readback"
+); then
+  fail "bootstrap silently overwrote or accepted a different receipt at the immutable key"
+fi
+
+rm -f "$receipt_store"
+printf '%s\n' '{"schemaVersion":2,"verified":true}' > "$receipt_fixture"
+(
+  # shellcheck source=/dev/null
+  source "$receipt_publication_function"
+  aws() {
+    local argument body='' destination=''
+    case "$*" in
+      *'s3api put-object'*)
+        while [[ "$#" -gt 0 ]]; do
+          argument=$1
+          shift
+          if [[ "$argument" == --body ]]; then body=$1; shift; fi
+        done
+        cp "$body" "$receipt_store"
+        return 1
+        ;;
+      *'s3api get-object'*) destination=${!#}; cp "$receipt_store" "$destination" ;;
+      *) return 1 ;;
+    esac
+  }
+  export AIRBOB_REGION=ap-northeast-2
+  publish_immutable_receipt \
+    "$receipt_fixture" airbob-performance-lab-evidence-942632789808 \
+    data-bootstrap/phase3-test/rehearsal-v20.json "$receipt_readback"
+) || fail "bootstrap did not recover an ambiguous successful receipt write by exact readback"
 
 connector_config_function="$temp_dir/verify-connector-runtime-config.sh"
 awk '
