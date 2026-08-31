@@ -1,4 +1,5 @@
 ARG ALPINE_IMAGE=docker.io/library/alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+ARG KAFKA_BASE_IMAGE=docker.io/apache/kafka@sha256:41c20d65b0a2180b9deca056d47540771752e69fe9225d5748dd65a25a9675d7
 FROM ${ALPINE_IMAGE} AS downloader
 
 RUN apk add --no-cache ca-certificates curl
@@ -11,7 +12,6 @@ RUN mkdir -p /opt/jmx \
       "https://github.com/prometheus/jmx_exporter/releases/download/${JMX_EXPORTER_VERSION}/jmx_prometheus_javaagent-${JMX_EXPORTER_VERSION}.jar" \
     && printf '%s  %s\n' "${JMX_EXPORTER_SHA256}" /opt/jmx/jmx_prometheus_javaagent.jar | sha256sum -c -
 
-ARG KAFKA_BASE_IMAGE=docker.io/apache/kafka@sha256:41c20d65b0a2180b9deca056d47540771752e69fe9225d5748dd65a25a9675d7
 FROM ${KAFKA_BASE_IMAGE}
 
 USER root
