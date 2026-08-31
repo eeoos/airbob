@@ -97,6 +97,41 @@ ELASTICSEARCH_USERNAME=...
 ELASTICSEARCH_PASSWORD=...
 ```
 
+## Attested External MySQL Reindex
+
+Dataset snapshot production must index the same writer-free MySQL server that produced the
+schema-4 attestation. `MYSQL_SOURCE_MODE=external` makes the host-side count checks use that exact
+host and port and makes the one-shot Logstash container use an explicit container-reachable JDBC
+URL. It never starts or queries the Compose `mysql` service. The mode also requires the reviewed
+Airbob commit and refuses modified reindex, pipeline, JDBC driver, Logstash, Compose, or mapping
+inputs.
+
+On Docker Desktop, a host-published MySQL port is reachable from the container as
+`host.docker.internal`. Keep every MySQL writer stopped and use the same read-only account as the
+attestation:
+
+```bash
+export MYSQL_SOURCE_MODE=external
+export MYSQL_HOST=127.0.0.1
+export MYSQL_PORT=3307
+export REINDEX_SOURCE_COMMIT=<reviewed-full-airbob-commit>
+export LOGSTASH_JDBC_URL='jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true'
+export LOGSTASH_JDBC_USER=airbob_attestor
+read -rs LOGSTASH_JDBC_PASSWORD
+export LOGSTASH_JDBC_PASSWORD
+
+CONFIRM_INDEXING_CONSUMER_PAUSED=true \
+CONFIRM_MYSQL_SOURCE_QUIESCED=true \
+  ./scripts/reindex-accommodations.sh
+
+unset LOGSTASH_JDBC_PASSWORD
+```
+
+`REINDEX_SOURCE_COMMIT` should be the `gitCommit` in the selected immutable infrastructure image
+release. The script verifies that commit is `HEAD` and that every content-producing reindex input
+still matches it. A Linux Docker engine must also make its host-published MySQL port reachable at
+the configured JDBC hostname; the Compose service supplies the standard `host-gateway` mapping.
+
 Elasticsearch API의 기본 연결 제한은 5초, 요청 전체 제한은 30초다.
 `ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS`와 `ELASTICSEARCH_MAX_TIME_SECONDS`로 조정할 수 있다.
 
@@ -108,7 +143,7 @@ LOGSTASH_MAX_RUNTIME_SECONDS=3600
 LOGSTASH_POLL_INTERVAL_SECONDS=2
 ```
 
-스크립트는 `docker compose run -d`가 반환한 컨테이너 ID를 검증한 뒤 그 ID만
+스크립트는 `docker compose run --no-deps -d`가 반환한 컨테이너 ID를 검증한 뒤 그 ID만
 `inspect`, `logs`, `stop`, `rm` 대상으로 사용한다. Logstash가 제한 시간을 넘기거나
 0이 아닌 코드로 종료되면 로그를 출력하고 비정상 종료한다. 이때 alias는 기존 인덱스를
 계속 가리키며 실패한 버전 인덱스는 원인 조사와 재실행을 위해 보존된다. 스크립트를

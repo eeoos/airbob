@@ -28,12 +28,16 @@ class AccommodationReindexScriptTest {
 	private Path fakeCurl;
 	private Path fakeDocker;
 	private Path fakeJq;
+	private Path fakeMysql;
+	private Path fakeGit;
 
 	@BeforeEach
 	void setUp() throws IOException {
 		fakeCurl = executable("fake-curl", FAKE_CURL);
 		fakeDocker = executable("fake-docker", FAKE_DOCKER);
 		fakeJq = executable("fake-jq", FAKE_JQ);
+		fakeMysql = executable("fake-mysql", FAKE_MYSQL);
+		fakeGit = executable("fake-git", FAKE_GIT);
 		Files.writeString(tempDir.resolve("compose.yml"), "services: {}\n");
 	}
 
@@ -55,7 +59,7 @@ class AccommodationReindexScriptTest {
 				+ "\",\"alias\":\"accommodations\",\"is_write_index\":true}");
 		assertThat(docker)
 			.contains("exec -T mysql mysql --defaults-extra-file=/dev/stdin")
-			.contains("run -d -e LOGSTASH_TARGET_INDEX=" + TARGET_INDEX + " logstash")
+			.contains("run --no-deps -d -e LOGSTASH_TARGET_INDEX=" + TARGET_INDEX + " logstash")
 			.contains("logs " + LOGSTASH_CONTAINER_ID)
 			.contains("rm -f " + LOGSTASH_CONTAINER_ID)
 			.doesNotContain("compose down")
@@ -64,6 +68,80 @@ class AccommodationReindexScriptTest {
 			.contains("--connect-timeout 5")
 			.contains("--max-time 30")
 			.doesNotContain("top-secret-password");
+	}
+
+	@Test
+	@DisplayName("외부 검증 MySQL을 명시하면 Compose MySQL 대신 같은 호스트와 포트로 건수와 색인 입력을 고정한다")
+	void reindexesFromExplicitExternalMysqlSource() throws Exception {
+		Execution execution = execute(
+			"existing",
+			true,
+			Map.of(
+				"MYSQL_SOURCE_MODE", "external",
+				"CONFIRM_MYSQL_SOURCE_QUIESCED", "true",
+				"MYSQL_HOST", "127.0.0.1",
+				"MYSQL_PORT", "3307",
+				"REINDEX_SOURCE_COMMIT", "cccccccccccccccccccccccccccccccccccccccc",
+				"LOGSTASH_JDBC_URL",
+				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
+			)
+		);
+
+		assertThat(execution.exitCode()).withFailMessage(execution.output()).isZero();
+		assertThat(Files.readString(tempDir.resolve("mysql.log")))
+			.contains("--protocol=TCP --host=127.0.0.1 --port=3307")
+			.doesNotContain("top-secret-password");
+		assertThat(Files.readString(tempDir.resolve("docker.log")))
+			.contains("jdbc:mysql://host.docker.internal:3307/airbobdb")
+			.contains("run --no-deps -d")
+			.doesNotContain("exec -T mysql");
+		assertThat(Files.readString(tempDir.resolve("git.log")))
+			.contains("cat-file -e cccccccccccccccccccccccccccccccccccccccc^{commit}")
+			.contains("diff --quiet cccccccccccccccccccccccccccccccccccccccc -- scripts/reindex-accommodations.sh");
+	}
+
+	@Test
+	@DisplayName("외부 MySQL의 writer-free 확인 없이는 인덱스나 데이터베이스를 조회하지 않는다")
+	void requiresQuiescedConfirmationForExternalMysql() throws Exception {
+		Execution execution = execute(
+			"existing",
+			true,
+			Map.of(
+				"MYSQL_SOURCE_MODE", "external",
+				"MYSQL_HOST", "127.0.0.1",
+				"MYSQL_PORT", "3307",
+				"LOGSTASH_JDBC_URL",
+				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
+			)
+		);
+
+		assertThat(execution.exitCode()).isNotZero();
+		assertThat(execution.output()).contains("CONFIRM_MYSQL_SOURCE_QUIESCED=true");
+		assertThat(tempDir.resolve("mysql.log")).doesNotExist();
+		assertThat(tempDir.resolve("requests.log")).doesNotExist();
+	}
+
+	@Test
+	@DisplayName("외부 데이터셋 재색인은 검토된 Airbob 커밋과 다른 작업 트리에서 시작하지 않는다")
+	void rejectsExternalReindexFromDifferentCommit() throws Exception {
+		Execution execution = execute(
+			"existing",
+			true,
+			Map.of(
+				"MYSQL_SOURCE_MODE", "external",
+				"CONFIRM_MYSQL_SOURCE_QUIESCED", "true",
+				"MYSQL_HOST", "127.0.0.1",
+				"MYSQL_PORT", "3307",
+				"REINDEX_SOURCE_COMMIT", "dddddddddddddddddddddddddddddddddddddddd",
+				"LOGSTASH_JDBC_URL",
+				"jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
+			)
+		);
+
+		assertThat(execution.exitCode()).isNotZero();
+		assertThat(execution.output()).contains("must run from REINDEX_SOURCE_COMMIT");
+		assertThat(tempDir.resolve("mysql.log")).doesNotExist();
+		assertThat(tempDir.resolve("requests.log")).doesNotExist();
 	}
 
 	@Test
@@ -247,6 +325,9 @@ class AccommodationReindexScriptTest {
 		environment.put("CURL_BIN", fakeCurl.toString());
 		environment.put("DOCKER_BIN", fakeDocker.toString());
 		environment.put("JQ_BIN", fakeJq.toString());
+		environment.put("MYSQL_BIN", fakeMysql.toString());
+		environment.put("GIT_BIN", fakeGit.toString());
+		environment.put("FAKE_REINDEX_COMMIT", "cccccccccccccccccccccccccccccccccccccccc");
 		environment.put("ELASTICSEARCH_URL", "http://elasticsearch:9200");
 		environment.put("ES_TARGET_INDEX", TARGET_INDEX);
 		environment.put("COMPOSE_FILE", tempDir.resolve("compose.yml").toString());
@@ -353,6 +434,7 @@ class AccommodationReindexScriptTest {
 		#!/bin/bash
 		set -euo pipefail
 		printf '%s\n' "$*" >> "$FAKE_STATE_DIR/docker.log"
+		[[ -z "${LOGSTASH_JDBC_URL:-}" ]] || printf 'jdbc=%s\n' "$LOGSTASH_JDBC_URL" >> "$FAKE_STATE_DIR/docker.log"
 		if [[ " $* " == *" exec "* ]]; then
 		  count_calls_file="$FAKE_STATE_DIR/count-calls"
 		  count_calls=0
@@ -380,6 +462,31 @@ class AccommodationReindexScriptTest {
 		  fi
 		elif [[ " $* " == *" logs "* ]]; then
 		  printf 'simulated logstash output\n'
+		fi
+		""";
+
+	private static final String FAKE_MYSQL = """
+		#!/bin/bash
+		set -euo pipefail
+		printf '%s\n' "$*" >> "$FAKE_STATE_DIR/mysql.log"
+		count_calls_file="$FAKE_STATE_DIR/count-calls"
+		count_calls=0
+		[[ -f "$count_calls_file" ]] && count_calls="$(cat "$count_calls_file")"
+		count_calls=$((count_calls + 1))
+		printf '%s' "$count_calls" > "$count_calls_file"
+		if [[ "$FAKE_SCENARIO" == published-count-changed && "$count_calls" -gt 1 ]]; then
+		  printf '3\n'
+		else
+		  printf '2\n'
+		fi
+		""";
+
+	private static final String FAKE_GIT = """
+		#!/bin/bash
+		set -euo pipefail
+		printf '%s\n' "$*" >> "$FAKE_STATE_DIR/git.log"
+		if [[ " $* " == *" rev-parse HEAD "* ]]; then
+		  printf '%s\n' "$FAKE_REINDEX_COMMIT"
 		fi
 		""";
 

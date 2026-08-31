@@ -315,8 +315,11 @@ duration_seconds = 7200
 
 Confirm that the profile resolves to
 `arn:aws:sts::942632789808:assumed-role/airbob-dataset-publisher/...`, then run
-the producer against the writer-free restored MySQL database and quiesced local
-`accommodations` index. Do not place the database password on the command line:
+the full reindex and producer against the writer-free restored MySQL database.
+The reindex must use that exact attested host and port, not the unrelated Compose
+`mysql` service. Its reviewed source commit must equal the `gitCommit` in the
+selected infrastructure image release. Do not place the database password on
+the command line:
 
 ```bash
 export AWS_PROFILE=airbob-dataset-publisher
@@ -331,9 +334,21 @@ export AIRBOB_DATASET_DB_NAME=airbobdb
 export AIRBOB_DATASET_DB_QUIESCED=true
 export AIRBOB_DATASET_ES_URL=http://127.0.0.1:9200
 export AIRBOB_DATASET_ES_CONTAINER=elasticsearch
-export AIRBOB_DATASET_ES_QUIESCED=true
 read -rs AIRBOB_DATASET_DB_PASSWORD
 export AIRBOB_DATASET_DB_PASSWORD
+
+export MYSQL_SOURCE_MODE=external
+export MYSQL_HOST="$AIRBOB_DATASET_DB_HOST"
+export MYSQL_PORT="$AIRBOB_DATASET_DB_PORT"
+export REINDEX_SOURCE_COMMIT="$(jq -er '.gitCommit' "$AIRBOB_INFRA_IMAGE_RELEASE")"
+export LOGSTASH_JDBC_URL='jdbc:mysql://host.docker.internal:3307/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true'
+export LOGSTASH_JDBC_USER="$AIRBOB_DATASET_DB_USER"
+export LOGSTASH_JDBC_PASSWORD="$AIRBOB_DATASET_DB_PASSWORD"
+CONFIRM_INDEXING_CONSUMER_PAUSED=true \
+CONFIRM_MYSQL_SOURCE_QUIESCED=true \
+  scripts/reindex-accommodations.sh
+unset LOGSTASH_JDBC_PASSWORD
+export AIRBOB_DATASET_ES_QUIESCED=true
 
 aws sts get-caller-identity
 infra/aws/scripts/produce-elasticsearch-snapshot.sh \
@@ -345,6 +360,13 @@ infra/aws/scripts/produce-elasticsearch-snapshot.sh \
   /secure/path/snapshot-producer-receipt.json
 unset AIRBOB_DATASET_DB_PASSWORD
 ```
+
+The script runs Logstash with `--no-deps`, so it cannot silently start the
+Compose MySQL and index a different database. It compares the published-row
+count on the external source before and after loading, validates the new index,
+and atomically creates or moves the single write alias. Only after this succeeds
+is the local `accommodations` alias considered quiesced input for the snapshot
+producer.
 
 Only one producer may own a release. Before its first S3 inventory call, the
 producer acquires the protected DynamoDB row
