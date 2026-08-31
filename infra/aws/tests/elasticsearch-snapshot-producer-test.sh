@@ -4,6 +4,15 @@ umask 077
 
 repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
 producer_source="$repo_root/infra/aws/scripts/produce-elasticsearch-snapshot.sh"
+dataset_runbook="$repo_root/infra/aws/datasets/README.md"
+[[ -f "$dataset_runbook" && ! -L "$dataset_runbook" ]] \
+  || { printf '%s\n' 'dataset snapshot runbook is missing or unsafe' >&2; exit 1; }
+grep -Fq 'duration_seconds = 3600' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the role-chaining duration' >&2; exit 1; }
+grep -Fq '3,300 seconds (55 minutes)' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the credential headroom contract' >&2; exit 1; }
+grep -Fq '300-second cleanup reserve' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the cleanup reserve' >&2; exit 1; }
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-es-snapshot-producer-test.XXXXXX")
 producer_root="$temp_dir/producer/infra/aws/scripts"
 mkdir -p "$producer_root"
@@ -316,7 +325,9 @@ if [[ "$1 $2" == 'sts get-caller-identity' ]]; then
 fi
 
 if [[ "$1 $2" == 'configure export-credentials' ]]; then
-  expiration=$(jq -nr 'now + 7200 | todateiso8601')
+  credential_lifetime_seconds=${FAKE_CREDENTIAL_LIFETIME_SECONDS:-3590}
+  expiration=$(jq -nr --argjson lifetime "$credential_lifetime_seconds" \
+    'now + $lifetime | todateiso8601')
   [[ "${FAKE_EXPIRED_CREDENTIALS:-false}" == true ]] && expiration='2020-01-01T00:00:00Z'
   jq -n \
     --arg access "${FAKE_ACCESS_KEY:?}" \
@@ -1177,6 +1188,23 @@ expired_receipt="$temp_dir/expired-receipt.json"
 expect_failure expired-credentials run_producer "$expired_reference" "$expired_receipt" FAKE_EXPIRED_CREDENTIALS=true
 [[ ! -e "$expired_reference" && ! -e "$expired_receipt" ]] \
   || fail 'expired credential rejection wrote output files'
+
+insufficient_headroom_reference="$temp_dir/insufficient-headroom-reference.json"
+insufficient_headroom_receipt="$temp_dir/insufficient-headroom-receipt.json"
+expect_failure insufficient-credential-headroom run_producer \
+  "$insufficient_headroom_reference" "$insufficient_headroom_receipt" \
+  FAKE_CREDENTIAL_LIFETIME_SECONDS=3290
+grep -Fq 'temporary AWS credentials do not have 55 minutes of expiry headroom' \
+  "$temp_dir/insufficient-credential-headroom.stderr" \
+  || fail 'insufficient credential headroom missed the closed rejection reason'
+[[ ! -e "$insufficient_headroom_reference" && ! -e "$insufficient_headroom_receipt" ]] \
+  || fail 'insufficient credential headroom wrote output files'
+! grep -Fq 'dynamodb update-item' "$aws_log" \
+  || fail 'insufficient credential headroom reached the snapshot lease'
+! grep -Fq 's3api' "$aws_log" \
+  || fail 'insufficient credential headroom reached S3'
+[[ ! -s "$curl_log" && ! -s "$docker_log" && ! -s "$mysql_log" ]] \
+  || fail 'insufficient credential headroom reached local data services'
 
 wrong_role_reference="$temp_dir/wrong-role-reference.json"
 wrong_role_receipt="$temp_dir/wrong-role-receipt.json"
