@@ -94,6 +94,7 @@ jobs:
             BENCHMARK_MANIFEST="$PWD/load-test/k6/test/fixtures/nplus1-v1.json" \
             k6 run --address '' load-test/k6/test/guest-read-traffic-test.js
           node load-test/k6/test/prepare-benchmark-sessions-test.js
+          node load-test/k6/test/prepare-coupon-sessions-test.js
           node load-test/k6/test/traffic-result-aggregation-test.mjs
           bash load-test/k6/test/run-aws-discovery-test.sh
 

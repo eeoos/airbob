@@ -24,7 +24,7 @@ chmodSync(password, 0o600);
 
 const canonicalFixture = JSON.parse(readFileSync(resolve(
   __dirname,
-  '../../../infra/aws/tests/fixtures/benchmark-dataset-v1.json',
+  '../../../infra/aws/tests/fixtures/benchmark-dataset-v2.json',
 ), 'utf8'));
 const couponCapsule = canonicalFixture.capsules.find(
   (capsule) => capsule.capsuleId === 'coupon-accounts-v1',
