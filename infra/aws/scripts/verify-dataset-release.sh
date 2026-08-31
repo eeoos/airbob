@@ -332,6 +332,7 @@ jq -e --slurpfile wrapper "$manifest" --slurpfile dataset "$dataset_manifest" '
     "migrationChecksumSha256","schemaFingerprintSha256","outboxState","expectedTableRows","capturedAt"
   ] | sort) and
   .schemaVersion == 4 and .databaseRestoreMethod == "gzip-to-empty-airbobdb-v2" and
+  .sourceReleasePayloadSha256 == $wrapper[0].source.canonicalPayloadSha256 and
   .sourceDumpSha256 == .restoredDumpSha256 and
   .sourceDatabaseFingerprintSha256 == $wrapper[0].source.databaseFingerprintSha256 and
   .sourceEtlCommit == $wrapper[0].source.etlCommit and

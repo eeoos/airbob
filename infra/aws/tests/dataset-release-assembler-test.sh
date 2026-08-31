@@ -424,6 +424,23 @@ for wrapper_case in search-extra nested-secret; do
   fi
 done
 
+# Rebinding only the copied attestation and its wrapper file digest cannot break source payload lineage.
+rebound_attestation_payload="$temp_dir/rebound-attestation-payload"
+cp -R "$release" "$rebound_attestation_payload"
+jq '.sourceReleasePayloadSha256=("a"*64)' \
+  "$rebound_attestation_payload/attestation/restore.json" > "$rebound_attestation_payload/attestation/next"
+mv "$rebound_attestation_payload/attestation/next" \
+  "$rebound_attestation_payload/attestation/restore.json"
+rebound_attestation_sha=$(sha256_file "$rebound_attestation_payload/attestation/restore.json")
+jq --arg sha "$rebound_attestation_sha" \
+  '.source.attestationSha256=$sha|.releaseTuple.attestationSha256=$sha' \
+  "$rebound_attestation_payload/manifest.json" > "$rebound_attestation_payload/manifest.next"
+mv "$rebound_attestation_payload/manifest.next" "$rebound_attestation_payload/manifest.json"
+if "$release_validator" "$rebound_attestation_payload" rehearsal-v20 pipeline-rehearsal \
+  >/dev/null 2>&1; then
+  fail 'checksum-rebound attestation source payload drift passed'
+fi
+
 # Byte tamper is rejected even before semantic validation.
 for relative in benchmark/dataset-manifest.json benchmark/source-calibration-v1.json \
   benchmark/production-skew-v1.json benchmark/validate-benchmark-dataset-v2.jq mysql/airbob.sql.zst; do

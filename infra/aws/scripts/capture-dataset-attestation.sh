@@ -247,6 +247,10 @@ jq -nS \
    outboxState:"empty",expectedTableRows:$expectedTableRows,capturedAt:$capturedAt}
 ' > "$output_temp"
 ln "$output_temp" "$output_json" 2>/dev/null || fail 'attestation output already exists or cannot be created'
+if ! rm -f "$output_temp"; then
+  rm -f "$output_json" 2>/dev/null || true
+  fail 'attestation temporary output cannot be removed after promotion'
+fi
 output_temp=''
 trap - EXIT HUP INT TERM
 cleanup

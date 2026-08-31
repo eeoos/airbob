@@ -33,7 +33,12 @@ done
 first_verify=$(grep -n 'lineage_verifier.*release_dir.*lineage_one' "$capture" | head -1 | cut -d: -f1)
 second_verify=$(grep -n 'lineage_verifier.*release_dir.*lineage_two' "$capture" | head -1 | cut -d: -f1)
 output_link=$(grep -n 'ln "$output_temp" "$output_json"' "$capture" | head -1 | cut -d: -f1)
-[[ -n "$first_verify" && -n "$second_verify" && -n "$output_link" && "$first_verify" -lt "$second_verify" && "$second_verify" -lt "$output_link" ]] \
+output_temp_unlink=$(grep -n 'rm -f "$output_temp"' "$capture" | tail -1 | cut -d: -f1)
+output_temp_clear=$(grep -n "output_temp=''" "$capture" | tail -1 | cut -d: -f1)
+[[ -n "$first_verify" && -n "$second_verify" && -n "$output_link" \
+  && -n "$output_temp_unlink" && -n "$output_temp_clear" \
+  && "$first_verify" -lt "$second_verify" && "$second_verify" -lt "$output_link" \
+  && "$output_link" -lt "$output_temp_unlink" && "$output_temp_unlink" -lt "$output_temp_clear" ]] \
   || fail 'attestation is published before both semantic verification passes'
 if grep -Fq 'output_temp="$work_dir/' "$capture"; then
   fail 'attestation temporary output can cross filesystems before hard-link promotion'

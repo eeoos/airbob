@@ -52,6 +52,7 @@ assert_contains "$release_validator" 'benchmark/generation-qualification-v1.json
 assert_contains "$release_validator" 'mysql/database-fingerprint.tsv'
 assert_contains "$release_validator" 'attestation/restore.json'
 assert_contains "$release_validator" '.schemaVersion == 4'
+assert_contains "$release_validator" '.sourceReleasePayloadSha256 == $wrapper[0].source.canonicalPayloadSha256'
 assert_contains "$release_validator" '.distributionAssertionSha256'
 assert_contains "$release_validator" '.distributionSpecSha256'
 assert_contains "$release_validator" 'dataset_target_fingerprint'
