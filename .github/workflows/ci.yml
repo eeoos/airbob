@@ -28,6 +28,22 @@ jobs:
           terraform_version: 1.15.5
           terraform_wrapper: false
 
+      - name: Install pinned Docker Compose
+        run: |
+          source infra/aws/toolchain.env
+          compose_config="$RUNNER_TEMP/docker-config"
+          compose_plugin="$compose_config/cli-plugins/docker-compose"
+          install -d -m 700 "$(dirname "$compose_plugin")"
+          curl --fail --silent --show-error --location --retry 5 \
+            --output "$compose_plugin" \
+            "https://github.com/docker/compose/releases/download/v${AIRBOB_DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64"
+          printf '%s  %s\n' "$AIRBOB_DOCKER_COMPOSE_LINUX_AMD64_SHA256" "$compose_plugin" \
+            | sha256sum --check --status
+          chmod 755 "$compose_plugin"
+          printf 'DOCKER_CONFIG=%s\n' "$compose_config" >> "$GITHUB_ENV"
+          [[ "$(DOCKER_CONFIG="$compose_config" docker compose version --short)" \
+            == "$AIRBOB_DOCKER_COMPOSE_VERSION" ]]
+
       - name: Verify AWS service bundle contracts
         run: |
           bash infra/aws/tests/service-bundle-verifier-test.sh
