@@ -76,6 +76,11 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           printf '%s\n' "$RUNNER_TEMP/k6-v${AIRBOB_K6_VERSION}-linux-amd64" >> "$GITHUB_PATH"
 
+      - name: Verify benchmark dataset validator agreement
+        env:
+          K6_NO_USAGE_REPORT: 'true'
+        run: bash infra/aws/tests/benchmark-dataset-v2-validator-test.sh
+
       - name: Verify AWS traffic discovery contracts
         env:
           K6_NO_USAGE_REPORT: 'true'

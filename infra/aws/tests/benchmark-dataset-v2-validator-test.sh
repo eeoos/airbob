@@ -16,6 +16,9 @@ fail() {
 
 command -v jq >/dev/null 2>&1 || fail 'jq is required'
 command -v node >/dev/null 2>&1 || fail 'node is required'
+k6_bin=${K6_BIN:-k6}
+[[ -n "$k6_bin" ]] || fail 'K6_BIN must not be blank'
+command -v "$k6_bin" >/dev/null 2>&1 || fail "k6 is required: $k6_bin"
 [[ -f "$validator" ]] || fail 'jq validator is missing'
 [[ -f "$fixture" ]] || fail 'canonical v2 fixture is missing'
 [[ -f "$corpus" ]] || fail 'shared malformed corpus is missing'
@@ -111,10 +114,8 @@ for (const malformedCase of malformedCases) {
 }
 NODE
 
-if command -v k6 >/dev/null 2>&1; then
-  k6 run --address '' --quiet "$k6_test" >/dev/null \
-    || fail 'k6 ESM validator agreement test failed'
-fi
+"$k6_bin" run --address '' --quiet "$k6_test" >/dev/null \
+  || fail 'k6 ESM validator agreement test failed'
 
 printf 'benchmark dataset v2 validators accepted canonical fixture and rejected %s malformed cases\n' \
   "$case_count"
