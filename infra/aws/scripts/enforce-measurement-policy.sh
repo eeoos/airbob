@@ -51,9 +51,11 @@ kafka_state=integrated
 if [[ "$policy" == isolated-read ]]; then
   debezium_command=$(cat <<EOF
 set -euo pipefail
-curl --fail --silent --show-error --request PUT 'http://127.0.0.1:8083/connectors/airbob-outbox-connector/pause' >/dev/null
+curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+  --request PUT 'http://127.0.0.1:8083/connectors/airbob-outbox-connector/pause' >/dev/null
 for attempt in \$(seq 1 30); do
-  status=\$(curl --fail --silent --show-error 'http://127.0.0.1:8083/connectors/airbob-outbox-connector/status')
+  status=\$(curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+    'http://127.0.0.1:8083/connectors/airbob-outbox-connector/status')
   if jq -e '.connector.state == "PAUSED" and (.tasks | length == 1) and all(.tasks[]; .state == "PAUSED")' <<<"\$status" >/dev/null; then
     break
   fi
@@ -68,7 +70,7 @@ chmod 600 "\$secret_file"
 username=\$(jq -er '.username' "\$secret_file")
 password=\$(jq -er '.password' "\$secret_file")
 mysql_idle() {
-  MYSQL_PWD="\$password" mysql --protocol=TCP --host='$rds_endpoint' --port=3306 --user="\$username" --ssl --batch --raw --skip-column-names airbobdb --execute="\$1"
+  MYSQL_PWD="\$password" mysql --protocol=TCP --connect-timeout=10 --host='$rds_endpoint' --port=3306 --user="\$username" --ssl --batch --raw --skip-column-names airbobdb --execute="\$1"
 }
 test "\$(mysql_idle 'SELECT COUNT(*) FROM outbox')" = 0
 threads_before=\$(mysql_idle "SHOW GLOBAL STATUS LIKE 'Threads_running'" | awk '{print \$2}')
