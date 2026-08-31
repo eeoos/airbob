@@ -928,14 +928,25 @@ run "foundation_contract" {
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "FoundationIdentityReadOnly"
       ]).Action, "iam:ListAttachedRolePolicies") &&
-      contains(one([
+      toset(one([
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "FoundationIdentityReadOnly"
-      ]).Resource, aws_iam_role.expiry_observer.arn) &&
-      contains(one([
-        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
-        if statement.Sid == "FoundationIdentityReadOnly"
-      ]).Resource, aws_iam_role.dns_controller.arn) &&
+        ]).Resource) == toset(concat(
+        [
+          "arn:aws:iam::942632789808:oidc-provider/token.actions.githubusercontent.com",
+          "arn:aws:iam::942632789808:role/airbob-foundation-admin",
+          "arn:aws:iam::942632789808:role/airbob-lab-operator",
+          "arn:aws:iam::942632789808:role/airbob-image-publisher",
+          "arn:aws:iam::942632789808:role/airbob-dataset-publisher",
+          "arn:aws:iam::942632789808:role/airbob-dns-controller",
+          "arn:aws:iam::942632789808:role/airbob-performance-lab-expiry-observer",
+          "arn:aws:iam::942632789808:policy/airbob-performance-lab-host-boundary",
+        ],
+        [
+          for policy in values(local.lab_operator_managed_policies) :
+          "arn:aws:iam::942632789808:policy/${policy.name}"
+        ],
+      )) &&
       toset(one([
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "ExpiryObserverLambdaReadOnly"
