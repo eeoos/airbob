@@ -164,7 +164,9 @@ aws --region "$region" rds wait db-snapshot-available --db-snapshot-identifier "
 snapshot_json=$(aws --region "$region" rds describe-db-snapshots --db-snapshot-identifier "$snapshot_id")
 jq -e \
   --arg snapshot "$snapshot_id" --arg release "$dataset_release" --arg runId "$dataset_run_id" \
-  --arg dumpSha "$dump_sha" --arg flyway "$flyway_version" --arg manifestSha "$manifest_sha" '
+  --arg dumpSha "$dump_sha" --arg flyway "$flyway_version" --arg manifestSha "$manifest_sha" \
+  --arg sourceInstance "$rds_instance_id" --arg sourceResourceId "$(jq -r '.rdsResourceId' "$receipt")" \
+  --arg engineVersion "$(jq -r '.rdsEngineVersion' "$receipt")" '
   .DBSnapshots as $snapshots |
   $snapshots[0] as $candidate |
   ($candidate.TagList | map({key: .Key, value: .Value}) | from_entries) as $tags |
@@ -172,6 +174,9 @@ jq -e \
   $candidate.DBSnapshotIdentifier == $snapshot and
   $candidate.Status == "available" and
   $candidate.Engine == "mysql" and
+  $candidate.EngineVersion == $engineVersion and
+  $candidate.DBInstanceIdentifier == $sourceInstance and
+  $candidate.DbiResourceId == $sourceResourceId and
   $candidate.Encrypted == true and
   $tags.DatasetRelease == $release and
   $tags.DatasetRunId == $runId and
@@ -179,7 +184,7 @@ jq -e \
   $tags.FlywayVersion == $flyway and
   $tags.ManifestSha256 == $manifestSha and
   $tags.Persistence == "persistent"
-' <<<"$snapshot_json" >/dev/null || { printf '%s\n' 'created RDS snapshot tags do not match the release tuple' >&2; exit 1; }
+' <<<"$snapshot_json" >/dev/null || { printf '%s\n' 'RDS snapshot source identity or tags do not match the release tuple' >&2; exit 1; }
 
 created_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 jq -n \

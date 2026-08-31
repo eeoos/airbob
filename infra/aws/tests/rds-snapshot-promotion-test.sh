@@ -97,8 +97,12 @@ JSON
     ;;
   *"rds describe-db-snapshots"*)
     [[ -f "$FAKE_SNAPSHOT_CREATED" ]] || exit 1
-    jq -n --arg manifestSha "$FAKE_MANIFEST_SHA" '{DBSnapshots:[{
-      DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",Status:"available",Engine:"mysql",Encrypted:true,
+    jq -n --arg manifestSha "$FAKE_MANIFEST_SHA" \
+      --arg sourceInstance "${FAKE_SNAPSHOT_INSTANCE_ID:-airbob-phase3-test}" \
+      --arg sourceResourceId "${FAKE_SNAPSHOT_RESOURCE_ID:-db-ABCDEFGHIJKLMNOPQRSTUVWX}" \
+      --arg engineVersion "${FAKE_SNAPSHOT_ENGINE_VERSION:-8.0.40}" '{DBSnapshots:[{
+      DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",Status:"available",Engine:"mysql",
+      EngineVersion:$engineVersion,DBInstanceIdentifier:$sourceInstance,DbiResourceId:$sourceResourceId,Encrypted:true,
       TagList:[
         {Key:"DatasetRelease",Value:"rehearsal-v20"},
         {Key:"DatasetRunId",Value:"20260816T001530Z-12345678"},
@@ -192,6 +196,29 @@ if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED=
 fi
 [[ ! -e "$tmp_dir/tampered.json" ]]
 [[ ! -s "$tmp_dir/aws.log" ]] || { printf '%s\n' 'snapshot promotion contacted AWS before validating the manifest tuple' >&2; exit 1; }
+
+for snapshot_source_case in resource-id instance-id engine-version; do
+  snapshot_environment=(
+    FAKE_SNAPSHOT_RESOURCE_ID=db-ABCDEFGHIJKLMNOPQRSTUVWX
+    FAKE_SNAPSHOT_INSTANCE_ID=airbob-phase3-test
+    FAKE_SNAPSHOT_ENGINE_VERSION=8.0.40
+  )
+  case "$snapshot_source_case" in
+    resource-id) snapshot_environment[0]=FAKE_SNAPSHOT_RESOURCE_ID=db-ZYXWVUTSRQPONMLKJIHGFEDC ;;
+    instance-id) snapshot_environment[1]=FAKE_SNAPSHOT_INSTANCE_ID=airbob-other-source ;;
+    engine-version) snapshot_environment[2]=FAKE_SNAPSHOT_ENGINE_VERSION=8.0.41 ;;
+  esac
+  if env PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" \
+    FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" FAKE_MANIFEST_SHA="$manifest_sha" \
+    AIRBOB_REGION=ap-northeast-2 "${snapshot_environment[@]}" \
+    "$script" "$manifest" "$tmp_dir/receipt.json" \
+    airbob-phase3-test airbob-dataset-rehearsal-v20 \
+    "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1; then
+    printf 'snapshot promotion accepted source identity drift: %s\n' "$snapshot_source_case" >&2
+    exit 1
+  fi
+  [[ ! -e "$tmp_dir/source-drift-$snapshot_source_case.json" ]]
+done
 
 for unsafe_identifier_pair in \
   'airbob-phase3-test-|airbob-dataset-rehearsal-v20' \
