@@ -328,9 +328,30 @@ jq -en --arg anchor "$converted_anchor" --arg captured "$captured_at" --arg eval
 search_json='{"enabled":false}'
 if [[ -n "$snapshot_reference_file" ]]; then
   jq -e --arg release "$dataset_release" '
+    def sha: type == "string" and test("^[0-9a-f]{64}$");
+    (keys | sort) == ([
+      "schemaVersion", "repository", "bucket", "basePath", "snapshot",
+      "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest",
+      "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256",
+      "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256",
+      "contentFingerprintSha256"
+    ] | sort) and
     .schemaVersion == 2 and .repository == "airbob-dataset-readonly" and
-    .basePath == ("elasticsearch/releases/" + $release) and .logicalAlias == "accommodations" and
-    .dbIdsSha256 == .esIdsSha256 and .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256
+    .bucket == "airbob-performance-lab-dataset-942632789808" and
+    .basePath == ("elasticsearch/releases/" + $release) and
+    .snapshot == ("airbob-" + $release) and
+    .logicalAlias == "accommodations" and
+    (.snapshotIndex | type == "string" and test("^accommodations-v[a-z0-9][a-z0-9._-]*$")) and
+    .elasticsearchVersion == "8.18.8" and
+    (.imageDigest | type == "string" and test("^sha256:[0-9a-f]{64}$")) and
+    (.documentCount | type == "number" and floor == . and . >= 0) and
+    all([
+      .mappingSha256, .dbIdsSha256, .esIdsSha256,
+      .dbDocumentIdentityPairsSha256, .esDocumentIdentityPairsSha256,
+      .contentFingerprintSha256
+    ][]; sha) and
+    .dbIdsSha256 == .esIdsSha256 and
+    .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256
   ' "$staging/snapshot-reference.json" >/dev/null || fail 'snapshot reference contract failed'
   search_json=$(jq -cS '{enabled:true,snapshotReferenceKey:"elasticsearch/snapshot-reference.json",repository:.repository,elasticsearchVersion:.elasticsearchVersion,imageDigest:.imageDigest,requiredPlugins:["analysis-nori","repository-s3"],logicalAlias:.logicalAlias,snapshotIndex:.snapshotIndex,documentCount:.documentCount,mappingSha256:.mappingSha256,databaseAccommodationIdsSha256:.dbIdsSha256,elasticsearchAccommodationIdsSha256:.esIdsSha256,databaseDocumentIdentityPairsSha256:.dbDocumentIdentityPairsSha256,elasticsearchDocumentIdentityPairsSha256:.esDocumentIdentityPairsSha256,contentFingerprintSha256:.contentFingerprintSha256}' "$staging/snapshot-reference.json")
 fi

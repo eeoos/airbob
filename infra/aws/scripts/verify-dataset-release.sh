@@ -388,14 +388,33 @@ if [[ "$search_enabled" == true ]]; then
   snapshot_reference="$release_dir/elasticsearch/snapshot-reference.json"
   require_regular_file "$snapshot_reference"
   jq -e --slurpfile wrapper "$manifest" '
+    def sha: type == "string" and test("^[0-9a-f]{64}$");
+    ($wrapper | length) == 1 and
+    (keys | sort) == ([
+      "schemaVersion", "repository", "bucket", "basePath", "snapshot",
+      "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest",
+      "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256",
+      "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256",
+      "contentFingerprintSha256"
+    ] | sort) and
     .schemaVersion == 2 and .repository == $wrapper[0].search.repository and
+    .bucket == "airbob-performance-lab-dataset-942632789808" and
     .basePath == ("elasticsearch/releases/" + $wrapper[0].datasetRelease) and
+    .snapshot == ("airbob-" + $wrapper[0].datasetRelease) and
     .logicalAlias == $wrapper[0].search.logicalAlias and .snapshotIndex == $wrapper[0].search.snapshotIndex and
     .elasticsearchVersion == $wrapper[0].search.elasticsearchVersion and
     .imageDigest == $wrapper[0].search.imageDigest and .documentCount == $wrapper[0].search.documentCount and
     .mappingSha256 == $wrapper[0].search.mappingSha256 and
-    .dbIdsSha256 == .esIdsSha256 and .dbDocumentIdentityPairsSha256 == .esDocumentIdentityPairsSha256 and
-    .contentFingerprintSha256 == $wrapper[0].search.contentFingerprintSha256
+    .dbIdsSha256 == $wrapper[0].search.databaseAccommodationIdsSha256 and
+    .esIdsSha256 == $wrapper[0].search.elasticsearchAccommodationIdsSha256 and
+    .dbDocumentIdentityPairsSha256 == $wrapper[0].search.databaseDocumentIdentityPairsSha256 and
+    .esDocumentIdentityPairsSha256 == $wrapper[0].search.elasticsearchDocumentIdentityPairsSha256 and
+    .contentFingerprintSha256 == $wrapper[0].search.contentFingerprintSha256 and
+    all([
+      .mappingSha256, .dbIdsSha256, .esIdsSha256,
+      .dbDocumentIdentityPairsSha256, .esDocumentIdentityPairsSha256,
+      .contentFingerprintSha256
+    ][]; sha)
   ' "$snapshot_reference" >/dev/null || fail 'Elasticsearch snapshot reference contradicts wrapper'
 else
   [[ "$expected_kind" == pipeline-rehearsal && ! -e "$release_dir/elasticsearch/snapshot-reference.json" ]] \

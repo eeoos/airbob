@@ -55,6 +55,54 @@ validate_empty_topic_offsets() {
   ' <<<"$offsets"
 }
 
+validate_snapshot_reference() {
+  local snapshot_reference=$1
+  local wrapper=$2
+  local expected_bucket=$3
+  local expected_release=$4
+
+  [[ -f "$snapshot_reference" && ! -L "$snapshot_reference" \
+    && -f "$wrapper" && ! -L "$wrapper" ]] || return 1
+  jq -e \
+    --slurpfile wrapper "$wrapper" \
+    --arg bucket "$expected_bucket" \
+    --arg release "$expected_release" '
+    def sha: type == "string" and test("^[0-9a-f]{64}$");
+    ($wrapper | length) == 1 and
+    (keys | sort) == ([
+      "schemaVersion", "repository", "bucket", "basePath", "snapshot",
+      "logicalAlias", "snapshotIndex", "elasticsearchVersion", "imageDigest",
+      "documentCount", "mappingSha256", "dbIdsSha256", "esIdsSha256",
+      "dbDocumentIdentityPairsSha256", "esDocumentIdentityPairsSha256",
+      "contentFingerprintSha256"
+    ] | sort) and
+    .schemaVersion == 2 and
+    $wrapper[0].datasetRelease == $release and
+    $wrapper[0].search.enabled == true and
+    .repository == $wrapper[0].search.repository and
+    .bucket == $bucket and
+    .basePath == ("elasticsearch/releases/" + $release) and
+    .snapshot == ("airbob-" + $release) and
+    .logicalAlias == $wrapper[0].search.logicalAlias and
+    .snapshotIndex == $wrapper[0].search.snapshotIndex and
+    .elasticsearchVersion == $wrapper[0].search.elasticsearchVersion and
+    .imageDigest == $wrapper[0].search.imageDigest and
+    .documentCount == $wrapper[0].search.documentCount and
+    .mappingSha256 == $wrapper[0].search.mappingSha256 and
+    .dbIdsSha256 == $wrapper[0].search.databaseAccommodationIdsSha256 and
+    .esIdsSha256 == $wrapper[0].search.elasticsearchAccommodationIdsSha256 and
+    .dbDocumentIdentityPairsSha256 == $wrapper[0].search.databaseDocumentIdentityPairsSha256 and
+    .esDocumentIdentityPairsSha256 == $wrapper[0].search.elasticsearchDocumentIdentityPairsSha256 and
+    .contentFingerprintSha256 == $wrapper[0].search.contentFingerprintSha256 and
+    (.documentCount | type == "number" and floor == . and . >= 0) and
+    all([
+      .mappingSha256, .dbIdsSha256, .esIdsSha256,
+      .dbDocumentIdentityPairsSha256, .esDocumentIdentityPairsSha256,
+      .contentFingerprintSha256
+    ][]; sha)
+  ' "$snapshot_reference" >/dev/null
+}
+
 required_environment=(
   AIRBOB_REGION AIRBOB_RUN_ID AIRBOB_DATASET_BUCKET AIRBOB_EVIDENCE_BUCKET
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
@@ -318,6 +366,10 @@ fi
 if [[ "$search_enabled" == true ]]; then
   install -d -m 700 "$release_root/elasticsearch"
   aws_cp "$dataset_uri/elasticsearch/snapshot-reference.json" "$release_root/elasticsearch/snapshot-reference.json"
+  validate_snapshot_reference \
+    "$release_root/elasticsearch/snapshot-reference.json" "$manifest" \
+    "$AIRBOB_DATASET_BUCKET" "$AIRBOB_DATASET_RELEASE" \
+    || { printf '%s\n' 'Elasticsearch snapshot reference contradicts the trusted wrapper' >&2; exit 1; }
 fi
 [[ "$(jq -r '.search.imageDigest // empty' "$manifest")" == "$AIRBOB_ELASTICSEARCH_IMAGE_DIGEST" || "$search_enabled" == false ]] \
   || { printf '%s\n' 'dataset Elasticsearch image digest mismatch' >&2; exit 1; }

@@ -172,6 +172,10 @@ assert_contains "$bootstrap" 'esDocumentIdentityPairsSha256'
 assert_contains "$bootstrap" 'BIN_TO_UUID(accommodation_uid)'
 assert_contains "$bootstrap" '[._id, (._source.accommodationId | tostring)] | @tsv'
 assert_contains "$bootstrap" 'contentFingerprintSha256'
+assert_contains "$bootstrap" 'validate_snapshot_reference'
+assert_contains "$bootstrap" 'Elasticsearch snapshot reference contradicts the trusted wrapper'
+assert_contains "$bootstrap" '.dbIdsSha256 == $wrapper[0].search.databaseAccommodationIdsSha256'
+assert_contains "$bootstrap" '.esDocumentIdentityPairsSha256 == $wrapper[0].search.elasticsearchDocumentIdentityPairsSha256'
 assert_contains "$bootstrap" 'logical_alias=$(jq -r '\''.logicalAlias'\'' "$snapshot_reference")'
 assert_contains "$bootstrap" 'snapshot_index=$(jq -r '\''.snapshotIndex'\'' "$snapshot_reference")'
 assert_contains "$bootstrap" 'restored_index="${logical_alias}-vdataset-${AIRBOB_DATASET_RELEASE}"'
@@ -337,6 +341,66 @@ if validate_document_identity_pairs \
   "$document_identity_sha" "$document_identity_sha" 2; then
   fail "bootstrap accepted an Elasticsearch _id mapped to the wrong accommodation"
 fi
+
+snapshot_reference_function="$temp_dir/validate-snapshot-reference.sh"
+awk '
+  /^validate_snapshot_reference\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { exit }
+' "$bootstrap" > "$snapshot_reference_function"
+[[ -s "$snapshot_reference_function" ]] || fail "bootstrap snapshot reference validator is missing"
+# shellcheck source=/dev/null
+source "$snapshot_reference_function"
+snapshot_wrapper="$temp_dir/search-wrapper.json"
+snapshot_reference="$temp_dir/snapshot-reference.json"
+jq -nS '
+  {
+    datasetRelease:"rehearsal-search-v20",
+    search:{
+      enabled:true,repository:"airbob-dataset-readonly",logicalAlias:"accommodations",
+      snapshotIndex:"accommodations-vfixture",elasticsearchVersion:"8.18.8",
+      imageDigest:("sha256:" + ("5" * 64)),documentCount:200201,
+      mappingSha256:("1" * 64),databaseAccommodationIdsSha256:("2" * 64),
+      elasticsearchAccommodationIdsSha256:("2" * 64),
+      databaseDocumentIdentityPairsSha256:("3" * 64),
+      elasticsearchDocumentIdentityPairsSha256:("3" * 64),
+      contentFingerprintSha256:("4" * 64)
+    }
+  }
+' > "$snapshot_wrapper"
+jq -nS '
+  {
+    schemaVersion:2,repository:"airbob-dataset-readonly",
+    bucket:"airbob-performance-lab-dataset-942632789808",
+    basePath:"elasticsearch/releases/rehearsal-search-v20",
+    snapshot:"airbob-rehearsal-search-v20",logicalAlias:"accommodations",
+    snapshotIndex:"accommodations-vfixture",elasticsearchVersion:"8.18.8",
+    imageDigest:("sha256:" + ("5" * 64)),documentCount:200201,
+    mappingSha256:("1" * 64),dbIdsSha256:("2" * 64),esIdsSha256:("2" * 64),
+    dbDocumentIdentityPairsSha256:("3" * 64),
+    esDocumentIdentityPairsSha256:("3" * 64),contentFingerprintSha256:("4" * 64)
+  }
+' > "$snapshot_reference"
+validate_snapshot_reference \
+  "$snapshot_reference" "$snapshot_wrapper" \
+  airbob-performance-lab-dataset-942632789808 rehearsal-search-v20 \
+  || fail "bootstrap rejected the exact wrapper-bound snapshot reference"
+for reference_drift in database-id component-swap bucket extra-field; do
+  case "$reference_drift" in
+    database-id) jq '.dbIdsSha256=("9"*64)' "$snapshot_reference" > "$snapshot_reference.next" ;;
+    component-swap)
+      jq '.dbIdsSha256=.dbDocumentIdentityPairsSha256 | .esIdsSha256=.esDocumentIdentityPairsSha256' \
+        "$snapshot_reference" > "$snapshot_reference.next"
+      ;;
+    bucket) jq '.bucket="attacker-controlled-bucket"' "$snapshot_reference" > "$snapshot_reference.next" ;;
+    extra-field) jq '.unbound=true' "$snapshot_reference" > "$snapshot_reference.next" ;;
+  esac
+  if validate_snapshot_reference \
+    "$snapshot_reference.next" "$snapshot_wrapper" \
+    airbob-performance-lab-dataset-942632789808 rehearsal-search-v20; then
+    fail "bootstrap accepted snapshot reference drift: $reference_drift"
+  fi
+done
 
 connector_config_function="$temp_dir/verify-connector-runtime-config.sh"
 awk '

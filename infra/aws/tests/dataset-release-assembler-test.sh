@@ -246,6 +246,48 @@ expected_inventory=$(printf '%s\n' \
 [[ "$(cd "$release" && find . -mindepth 1 -print | sort)" == "$expected_inventory" ]] || fail 'assembled v2 inventory is not exact'
 jq -e '.schemaVersion==2 and .releaseTuple.datasetVersion=="benchmark-dataset-v2" and .source.validatorKey=="benchmark/validate-benchmark-dataset-v2.jq"' "$release/manifest.json" >/dev/null || fail 'wrapper v2 tuple is missing'
 
+# Search-enabled assembly accepts only the producer's closed snapshot-reference
+# schema, and the standalone verifier binds every repeated component back to
+# the trusted wrapper rather than accepting an internally consistent swap.
+snapshot_reference="$temp_dir/snapshot-reference.json"
+jq -nS '
+  {
+    schemaVersion:2,repository:"airbob-dataset-readonly",
+    bucket:"airbob-performance-lab-dataset-942632789808",
+    basePath:"elasticsearch/releases/rehearsal-search-v20",
+    snapshot:"airbob-rehearsal-search-v20",logicalAlias:"accommodations",
+    snapshotIndex:"accommodations-vfixture",elasticsearchVersion:"8.18.8",
+    imageDigest:("sha256:" + ("5" * 64)),documentCount:200201,
+    mappingSha256:("1" * 64),dbIdsSha256:("2" * 64),esIdsSha256:("2" * 64),
+    dbDocumentIdentityPairsSha256:("3" * 64),
+    esDocumentIdentityPairsSha256:("3" * 64),contentFingerprintSha256:("4" * 64)
+  }
+' > "$snapshot_reference"
+search_output="$temp_dir/search-output"
+mkdir -m 700 "$search_output"
+"$assembler" "$source_release" "$attestation" "$search_output" rehearsal-search-v20 \
+  2026-08-18T00:00:00Z 2027-07-31T15:00:00Z "$snapshot_reference" >/dev/null
+search_release="$search_output/rehearsal-search-v20"
+"$release_validator" "$search_release" rehearsal-search-v20 pipeline-rehearsal >/dev/null
+jq -e '
+  .search.enabled == true and
+  .search.databaseAccommodationIdsSha256 == ("2" * 64) and
+  .search.databaseDocumentIdentityPairsSha256 == ("3" * 64)
+' "$search_release/manifest.json" >/dev/null || fail 'search wrapper did not bind distinct snapshot components'
+swapped_search_release="$temp_dir/swapped-search-release"
+cp -R "$search_release" "$swapped_search_release"
+jq '
+  .dbIdsSha256=.dbDocumentIdentityPairsSha256 |
+  .esIdsSha256=.esDocumentIdentityPairsSha256
+' "$swapped_search_release/elasticsearch/snapshot-reference.json" \
+  > "$swapped_search_release/elasticsearch/snapshot-reference.next"
+mv "$swapped_search_release/elasticsearch/snapshot-reference.next" \
+  "$swapped_search_release/elasticsearch/snapshot-reference.json"
+if "$release_validator" "$swapped_search_release" rehearsal-search-v20 pipeline-rehearsal \
+  >/dev/null 2>&1; then
+  fail 'standalone verifier accepted swapped snapshot reference components'
+fi
+
 # The standalone verifier must reject an otherwise checksum-rebound wrapper
 # whose contiguous base scope no longer equals the selected profile budget.
 rebound_underfilled_release="$temp_dir/rebound-underfilled-release"
