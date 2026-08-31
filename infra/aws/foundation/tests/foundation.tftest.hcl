@@ -912,6 +912,18 @@ run "foundation_contract" {
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "StateBucketPostureRead"
       ]).Action, "s3:GetBucketPublicAccessBlock") &&
+      toset(one([
+        for statement in jsondecode(local.foundation_admin_policy).Statement : statement
+        if statement.Sid == "ManagedBucketRead"
+        ]).Action) == toset([
+        "s3:GetAccelerateConfiguration",
+        "s3:GetBucket*",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:GetObjectLockConfiguration",
+        "s3:GetReplicationConfiguration",
+        "s3:ListBucket",
+      ]) &&
       contains(one([
         for statement in jsondecode(local.foundation_admin_policy).Statement : statement
         if statement.Sid == "FoundationIdentityReadOnly"
