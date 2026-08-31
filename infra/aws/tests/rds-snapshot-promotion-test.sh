@@ -4,6 +4,7 @@ umask 077
 
 repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
 script="$repo_root/infra/aws/scripts/promote-rds-snapshot.sh"
+bootstrap="$repo_root/infra/aws/scripts/bootstrap-data.sh"
 manifest="$repo_root/infra/aws/lab/tests/fixtures/dataset-manifest.json"
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-snapshot-test.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
@@ -18,7 +19,7 @@ fi
 
 cat > "$tmp_dir/receipt.json" <<'JSON'
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "runId": "phase3-test",
   "datasetRelease": "rehearsal-v20",
   "datasetRunId": "20260816T001530Z-12345678",
@@ -28,6 +29,19 @@ cat > "$tmp_dir/receipt.json" <<'JSON'
   "flywayVersion": "27",
   "migrationChecksumSha256": "4444444444444444444444444444444444444444444444444444444444444444",
   "schemaFingerprintSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+  "validatorSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+  "benchmarkDatasetManifestSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+  "calibrationSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+  "productionSpecSha256": "bbba284a93ff00637928f5cfcf046cce1aab1f848bc31fd467f809d01d73fcdd",
+  "qualificationSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "databaseFingerprintSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "restoreAttestationSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "finalWorldFingerprintSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "baseWorldFingerprintSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "distributionFingerprintSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "targetFingerprintSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "inventoryFingerprintSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "semanticAttestationSha256": "2222222222222222222222222222222222222222222222222222222222222222",
   "rdsResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWX",
   "rdsEngineVersion": "8.0.40",
   "outboxState": "empty",
@@ -54,6 +68,22 @@ JSON
 jq --arg manifestSha "$manifest_sha" '.datasetManifestSha256 = $manifestSha' \
   "$tmp_dir/receipt.json" > "$tmp_dir/receipt.next"
 mv "$tmp_dir/receipt.next" "$tmp_dir/receipt.json"
+
+producer_receipt_keys=$(
+  awk '
+    /receipt="\$work_root\/data-bootstrap-receipt.json"/ { in_receipt = 1 }
+    in_receipt && /schemaVersion: 2,/ { capture = 1 }
+    capture { print }
+    capture && /verifiedAt: \$verifiedAt/ { exit }
+  ' "$bootstrap" \
+    | sed -nE 's/^[[:space:]]*([A-Za-z][A-Za-z0-9]*):.*/\1/p' \
+    | sort
+)
+fixture_receipt_keys=$(jq -r 'keys[]' "$tmp_dir/receipt.json" | sort)
+[[ "$producer_receipt_keys" == "$fixture_receipt_keys" ]] || {
+  printf '%s\n' 'data bootstrap producer and snapshot promotion fixture receipt keys differ' >&2
+  exit 1
+}
 
 cat > "$fake_bin/aws" <<'SH'
 #!/usr/bin/env bash
@@ -119,6 +149,35 @@ if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED=
   exit 1
 fi
 [[ ! -e "$tmp_dir/rejected.json" ]]
+
+for rejected_receipt_case in legacy-schema missing-semantic extra-field tuple-drift; do
+  case "$rejected_receipt_case" in
+    legacy-schema)
+      jq '.schemaVersion = 1' "$tmp_dir/receipt.json" > "$tmp_dir/rejected-receipt.json"
+      ;;
+    missing-semantic)
+      jq 'del(.semanticAttestationSha256)' "$tmp_dir/receipt.json" > "$tmp_dir/rejected-receipt.json"
+      ;;
+    extra-field)
+      jq '.unexpected = true' "$tmp_dir/receipt.json" > "$tmp_dir/rejected-receipt.json"
+      ;;
+    tuple-drift)
+      jq '.validatorSha256 = ("9" * 64)' "$tmp_dir/receipt.json" > "$tmp_dir/rejected-receipt.json"
+      ;;
+  esac
+  : > "$tmp_dir/aws.log"
+  if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
+    FAKE_MANIFEST_SHA="$manifest_sha" AIRBOB_REGION=ap-northeast-2 \
+    "$script" "$manifest" "$tmp_dir/rejected-receipt.json" \
+    airbob-phase3-test airbob-dataset-rehearsal-v20 "$tmp_dir/rejected-$rejected_receipt_case.json" \
+    >/dev/null 2>&1; then
+    printf 'snapshot promotion accepted rejected receipt case: %s\n' "$rejected_receipt_case" >&2
+    exit 1
+  fi
+  [[ ! -s "$tmp_dir/aws.log" ]] \
+    || { printf 'snapshot promotion contacted AWS for rejected receipt case: %s\n' "$rejected_receipt_case" >&2; exit 1; }
+  [[ ! -e "$tmp_dir/rejected-$rejected_receipt_case.json" ]]
+done
 
 cp "$manifest" "$tmp_dir/tampered-manifest.json"
 jq '.source.seed = "different-seed"' "$tmp_dir/tampered-manifest.json" > "$tmp_dir/tampered.next"

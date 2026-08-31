@@ -44,36 +44,93 @@ schema_fingerprint=$(jq -r '.mysql.schemaFingerprintSha256' "$manifest")
 release_kind=$(jq -r '.releaseKind' "$manifest")
 search_state=$(jq -r 'if .search.enabled then "restored" else "skipped" end' "$manifest")
 kafka_topics=$(jq -c '.kafka.topics' "$manifest")
+validator_sha=$(jq -r '.releaseTuple.validatorSha256' "$manifest")
+benchmark_dataset_manifest_sha=$(jq -r '.releaseTuple.manifestSha256' "$manifest")
+calibration_sha=$(jq -r '.releaseTuple.calibrationSha256' "$manifest")
+production_spec_sha=$(jq -r '.releaseTuple.specSha256' "$manifest")
+qualification_sha=$(jq -r '.releaseTuple.qualificationSha256' "$manifest")
+database_fingerprint_sha=$(jq -r '.releaseTuple.databaseFingerprintSha256' "$manifest")
+restore_attestation_sha=$(jq -r '.releaseTuple.attestationSha256' "$manifest")
+final_world_fingerprint_sha=$(jq -r '.releaseTuple.finalWorldFingerprintSha256' "$manifest")
+base_world_fingerprint_sha=$(jq -r '.releaseTuple.baseWorldFingerprintSha256' "$manifest")
+distribution_fingerprint_sha=$(jq -r '.releaseTuple.distributionFingerprintSha256' "$manifest")
+target_fingerprint_sha=$(jq -r '.releaseTuple.targetFingerprintSha256' "$manifest")
+inventory_fingerprint_sha=$(jq -r '.releaseTuple.inventoryFingerprintSha256' "$manifest")
 
 jq -e \
   --arg release "$dataset_release" --arg runId "$dataset_run_id" --arg dumpSha "$dump_sha" \
   --arg flyway "$flyway_version" --arg migrationChecksum "$migration_checksum" \
   --arg schemaFingerprint "$schema_fingerprint" --arg manifestSha "$manifest_sha" \
   --arg releaseKind "$release_kind" --arg searchState "$search_state" \
+  --arg validatorSha "$validator_sha" \
+  --arg benchmarkDatasetManifestSha "$benchmark_dataset_manifest_sha" \
+  --arg calibrationSha "$calibration_sha" --arg productionSpecSha "$production_spec_sha" \
+  --arg qualificationSha "$qualification_sha" --arg databaseFingerprintSha "$database_fingerprint_sha" \
+  --arg restoreAttestationSha "$restore_attestation_sha" \
+  --arg finalWorldFingerprintSha "$final_world_fingerprint_sha" \
+  --arg baseWorldFingerprintSha "$base_world_fingerprint_sha" \
+  --arg distributionFingerprintSha "$distribution_fingerprint_sha" \
+  --arg targetFingerprintSha "$target_fingerprint_sha" \
+  --arg inventoryFingerprintSha "$inventory_fingerprint_sha" \
   --argjson kafkaTopics "$kafka_topics" '
+  def sha256: type == "string" and test("^[0-9a-f]{64}$");
   (keys | sort) == ([
     "schemaVersion", "runId", "datasetRelease", "datasetRunId", "releaseKind",
     "databaseBootstrap", "dumpSha256", "flywayVersion", "migrationChecksumSha256",
-    "schemaFingerprintSha256", "datasetManifestSha256", "rdsResourceId",
+    "schemaFingerprintSha256", "datasetManifestSha256", "validatorSha256",
+    "benchmarkDatasetManifestSha256", "calibrationSha256", "productionSpecSha256",
+    "qualificationSha256", "databaseFingerprintSha256", "restoreAttestationSha256",
+    "finalWorldFingerprintSha256", "baseWorldFingerprintSha256",
+    "distributionFingerprintSha256", "targetFingerprintSha256",
+    "inventoryFingerprintSha256", "semanticAttestationSha256", "rdsResourceId",
     "rdsEngineVersion", "outboxState", "redisState", "kafkaTopics",
     "connectorState", "searchState", "verifiedAt"
   ] | sort) and
-  .schemaVersion == 1 and
+  .schemaVersion == 2 and
+  (.runId | type == "string" and test("^[a-z0-9][a-z0-9-]{2,31}$") and
+    (endswith("-") | not) and (contains("--") | not)) and
+  (.datasetRelease | type == "string" and test("^[a-z0-9][a-z0-9._-]{2,63}$")) and
+  (.datasetRunId | type == "string" and test("^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$")) and
   .datasetRelease == $release and
   .datasetRunId == $runId and
-  .releaseKind == $releaseKind and
+  .releaseKind == $releaseKind and .releaseKind == "pipeline-rehearsal" and
   (.databaseBootstrap == "dump" or .databaseBootstrap == "snapshot") and
+  ([
+    .dumpSha256, .migrationChecksumSha256, .schemaFingerprintSha256,
+    .datasetManifestSha256, .validatorSha256, .benchmarkDatasetManifestSha256,
+    .calibrationSha256, .productionSpecSha256, .qualificationSha256,
+    .databaseFingerprintSha256, .restoreAttestationSha256,
+    .finalWorldFingerprintSha256, .baseWorldFingerprintSha256,
+    .distributionFingerprintSha256, .targetFingerprintSha256,
+    .inventoryFingerprintSha256, .semanticAttestationSha256
+  ] | all(.[]; sha256)) and
   .dumpSha256 == $dumpSha and
-  .flywayVersion == $flyway and
+  .flywayVersion == $flyway and .flywayVersion == "27" and
   .migrationChecksumSha256 == $migrationChecksum and
   .schemaFingerprintSha256 == $schemaFingerprint and
   .datasetManifestSha256 == $manifestSha and
+  .validatorSha256 == $validatorSha and
+  .benchmarkDatasetManifestSha256 == $benchmarkDatasetManifestSha and
+  .calibrationSha256 == $calibrationSha and
+  .productionSpecSha256 == $productionSpecSha and
+  .qualificationSha256 == $qualificationSha and
+  .databaseFingerprintSha256 == $databaseFingerprintSha and
+  .restoreAttestationSha256 == $restoreAttestationSha and
+  .finalWorldFingerprintSha256 == $finalWorldFingerprintSha and
+  .baseWorldFingerprintSha256 == $baseWorldFingerprintSha and
+  .distributionFingerprintSha256 == $distributionFingerprintSha and
+  .targetFingerprintSha256 == $targetFingerprintSha and
+  .inventoryFingerprintSha256 == $inventoryFingerprintSha and
+  (.rdsResourceId | type == "string" and test("^db-[A-Z0-9]{24}$")) and
+  (.rdsEngineVersion | type == "string" and test("^8\\.0\\.[0-9]+$")) and
   .outboxState == "empty" and
   (.redisState == "empty" or .redisState == "coupon-prepared") and
   .kafkaTopics == $kafkaTopics and
   .connectorState == "RUNNING" and
   .searchState == $searchState and
-  (.verifiedAt | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+  (.verifiedAt | type == "string" and
+    test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") and
+    (fromdateiso8601 | type == "number"))
 ' "$receipt" >/dev/null || { printf '%s\n' 'data bootstrap receipt cannot promote a snapshot' >&2; exit 1; }
 
 instance_json=$(aws --region "$region" rds describe-db-instances --db-instance-identifier "$rds_instance_id")
