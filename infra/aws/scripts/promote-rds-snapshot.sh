@@ -18,6 +18,15 @@ region=${AIRBOB_REGION:-ap-northeast-2}
 for input_file in "$manifest" "$receipt"; do
   [[ -f "$input_file" && ! -L "$input_file" ]] || { printf '%s\n' 'snapshot promotion input is missing or unsafe' >&2; exit 1; }
 done
+[[ ! -e "$output_json" && ! -L "$output_json" ]] \
+  || { printf '%s\n' 'snapshot promotion receipt output already exists' >&2; exit 1; }
+output_parent=${output_json%/*}
+output_name=${output_json##*/}
+[[ "$output_parent" != "$output_json" ]] || output_parent=.
+[[ -d "$output_parent" && ! -L "$output_parent" && -n "$output_name" ]] \
+  || { printf '%s\n' 'snapshot promotion receipt parent is missing or unsafe' >&2; exit 1; }
+output_parent=$(CDPATH= cd -P -- "$output_parent" && pwd -P)
+output_json="$output_parent/$output_name"
 [[ "$rds_instance_id" =~ ^airbob-[a-z0-9][a-z0-9-]{1,54}[a-z0-9]$ && "$rds_instance_id" != *--* ]] \
   || { printf '%s\n' 'unsafe RDS instance identifier' >&2; exit 1; }
 [[ "$snapshot_id" =~ ^airbob-dataset-[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$ && "$snapshot_id" != *--* ]] \
@@ -133,6 +142,11 @@ jq -e \
     (fromdateiso8601 | type == "number"))
 ' "$receipt" >/dev/null || { printf '%s\n' 'data bootstrap receipt cannot promote a snapshot' >&2; exit 1; }
 
+source_lab_run_id=$(jq -r '.runId' "$receipt")
+source_rds_resource_id=$(jq -r '.rdsResourceId' "$receipt")
+[[ "$rds_instance_id" == "airbob-$source_lab_run_id" ]] \
+  || { printf '%s\n' 'RDS instance identifier does not match the bootstrap receipt run' >&2; exit 1; }
+
 instance_json=$(aws --region "$region" rds describe-db-instances --db-instance-identifier "$rds_instance_id")
 jq -e --arg resourceId "$(jq -r '.rdsResourceId' "$receipt")" --arg engineVersion "$(jq -r '.rdsEngineVersion' "$receipt")" '
   .DBInstances | length == 1 and
@@ -158,7 +172,10 @@ if ! aws --region "$region" rds describe-db-snapshots --db-snapshot-identifier "
       "Key=DatasetRunId,Value=$dataset_run_id" \
       "Key=DumpSha256,Value=$dump_sha" \
       "Key=FlywayVersion,Value=$flyway_version" \
-      "Key=ManifestSha256,Value=$manifest_sha" >/dev/null
+      "Key=ManifestSha256,Value=$manifest_sha" \
+      "Key=SourceLabRunId,Value=$source_lab_run_id" \
+      "Key=SourceRdsResourceId,Value=$source_rds_resource_id" \
+      Key=PromotionReceiptSchemaVersion,Value=1 >/dev/null
 fi
 aws --region "$region" rds wait db-snapshot-available --db-snapshot-identifier "$snapshot_id"
 snapshot_json=$(aws --region "$region" rds describe-db-snapshots --db-snapshot-identifier "$snapshot_id")
@@ -166,7 +183,7 @@ jq -e \
   --arg snapshot "$snapshot_id" --arg release "$dataset_release" --arg runId "$dataset_run_id" \
   --arg dumpSha "$dump_sha" --arg flyway "$flyway_version" --arg manifestSha "$manifest_sha" \
   --arg sourceInstance "$rds_instance_id" --arg sourceResourceId "$(jq -r '.rdsResourceId' "$receipt")" \
-  --arg engineVersion "$(jq -r '.rdsEngineVersion' "$receipt")" '
+  --arg sourceRunId "$source_lab_run_id" --arg engineVersion "$(jq -r '.rdsEngineVersion' "$receipt")" '
   .DBSnapshots as $snapshots |
   $snapshots[0] as $candidate |
   ($candidate.TagList | map({key: .Key, value: .Value}) | from_entries) as $tags |
@@ -183,10 +200,23 @@ jq -e \
   $tags.DumpSha256 == $dumpSha and
   $tags.FlywayVersion == $flyway and
   $tags.ManifestSha256 == $manifestSha and
+  $tags.SourceLabRunId == $sourceRunId and
+  $tags.SourceRdsResourceId == $sourceResourceId and
+  $tags.PromotionReceiptSchemaVersion == "1" and
+  $tags.Project == "airbob" and
+  $tags.Environment == "performance-lab" and
+  $tags.Stack == "dataset" and
+  $tags.ManagedBy == "dataset-publisher" and
   $tags.Persistence == "persistent"
 ' <<<"$snapshot_json" >/dev/null || { printf '%s\n' 'RDS snapshot source identity or tags do not match the release tuple' >&2; exit 1; }
 
 created_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+receipt_temp=$(mktemp "$output_parent/.${output_name}.XXXXXX") \
+  || { printf '%s\n' 'cannot create temporary snapshot promotion receipt' >&2; exit 1; }
+cleanup() {
+  rm -f "$receipt_temp"
+}
+trap cleanup EXIT HUP INT TERM
 jq -n \
   --arg snapshotIdentifier "$snapshot_id" --arg datasetRelease "$dataset_release" \
   --arg datasetRunId "$dataset_run_id" --arg dumpSha256 "$dump_sha" \
@@ -204,6 +234,11 @@ jq -n \
     persistence: "persistent",
     createdAt: $createdAt
   }
-' > "$output_json"
+' > "$receipt_temp"
+chmod 600 "$receipt_temp"
+ln "$receipt_temp" "$output_json" 2>/dev/null \
+  || { printf '%s\n' 'snapshot promotion receipt output appeared before publication' >&2; exit 1; }
+rm -f "$receipt_temp"
+trap - EXIT HUP INT TERM
 
 printf '%s\n' 'RDS snapshot promotion candidate verified'

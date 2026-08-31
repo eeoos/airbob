@@ -104,11 +104,18 @@ JSON
       DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",Status:"available",Engine:"mysql",
       EngineVersion:$engineVersion,DBInstanceIdentifier:$sourceInstance,DbiResourceId:$sourceResourceId,Encrypted:true,
       TagList:[
+        {Key:"Project",Value:"airbob"},
+        {Key:"Environment",Value:"performance-lab"},
+        {Key:"Stack",Value:"dataset"},
+        {Key:"ManagedBy",Value:"dataset-publisher"},
         {Key:"DatasetRelease",Value:"rehearsal-v20"},
         {Key:"DatasetRunId",Value:"20260816T001530Z-12345678"},
         {Key:"DumpSha256",Value:"94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"},
         {Key:"FlywayVersion",Value:"27"},
         {Key:"ManifestSha256",Value:$manifestSha},
+        {Key:"SourceLabRunId",Value:"phase3-test"},
+        {Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWX"},
+        {Key:"PromotionReceiptSchemaVersion",Value:"1"},
         {Key:"Persistence",Value:"persistent"}
       ]
     }]}'
@@ -141,6 +148,20 @@ jq -e --arg manifestSha "$manifest_sha" '
 ' "$tmp_dir/promotion.json" >/dev/null
 grep -Fq 'Key=Persistence,Value=persistent' "$tmp_dir/aws.log"
 grep -Fq 'Key=DatasetRelease,Value=rehearsal-v20' "$tmp_dir/aws.log"
+grep -Fq 'Key=SourceLabRunId,Value=phase3-test' "$tmp_dir/aws.log"
+grep -Fq 'Key=SourceRdsResourceId,Value=db-ABCDEFGHIJKLMNOPQRSTUVWX' "$tmp_dir/aws.log"
+grep -Fq 'Key=PromotionReceiptSchemaVersion,Value=1' "$tmp_dir/aws.log"
+
+: > "$tmp_dir/aws.log"
+if PATH="$fake_bin:$PATH" FAKE_AWS_LOG="$tmp_dir/aws.log" FAKE_SNAPSHOT_CREATED="$tmp_dir/snapshot-created" \
+  FAKE_MANIFEST_SHA="$manifest_sha" AIRBOB_REGION=ap-northeast-2 \
+  "$script" "$manifest" "$tmp_dir/receipt.json" \
+  airbob-phase3-test airbob-dataset-rehearsal-v20 "$tmp_dir/promotion.json" >/dev/null 2>&1; then
+  printf '%s\n' 'snapshot promotion overwrote an existing immutable receipt' >&2
+  exit 1
+fi
+[[ ! -s "$tmp_dir/aws.log" ]] \
+  || { printf '%s\n' 'snapshot promotion contacted AWS before rejecting an existing receipt' >&2; exit 1; }
 
 cp "$tmp_dir/receipt.json" "$tmp_dir/bad-receipt.json"
 jq '.connectorState = "PAUSED"' "$tmp_dir/bad-receipt.json" > "$tmp_dir/bad.next"
@@ -221,6 +242,7 @@ for snapshot_source_case in resource-id instance-id engine-version; do
 done
 
 for unsafe_identifier_pair in \
+  'airbob-other-run|airbob-dataset-rehearsal-v20' \
   'airbob-phase3-test-|airbob-dataset-rehearsal-v20' \
   'airbob-phase3--test|airbob-dataset-rehearsal-v20' \
   'airbob-phase3-test|airbob-dataset-rehearsal-v20-' \

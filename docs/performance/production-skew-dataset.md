@@ -390,6 +390,12 @@ infra/aws/scripts/promote-rds-snapshot.sh \
   /secure/path/snapshot-promotion.json
 ```
 
+The source instance must be exactly `airbob-<receipt.runId>`. The command refuses an existing
+output path and atomically publishes a mode-0600 promotion receipt only after the available,
+encrypted snapshot repeats the source run and RDS resource ID in its promotion tags. Snapshot-mode
+Terraform accepts only that tagged promotion contract in addition to the release/run/dump/Flyway/
+manifest tuple; a manually tagged tuple without the promotion markers is rejected.
+
 Do not run a write capsule before collecting read-model evidence. If any write experiment has run,
 restore the immutable base snapshot again.
 

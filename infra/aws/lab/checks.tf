@@ -276,6 +276,14 @@ locals {
     data.aws_db_snapshot.dataset[0].engine_version == var.rds_engine_version &&
     data.aws_db_snapshot.dataset[0].encrypted &&
     data.aws_db_snapshot.dataset[0].allocated_storage >= local.dataset_dump_storage_gib &&
+    can(regex("^[a-z0-9][a-z0-9-]{2,31}$", data.aws_db_snapshot.dataset[0].tags.SourceLabRunId)) &&
+    can(regex("^db-[A-Z0-9]{24}$", data.aws_db_snapshot.dataset[0].tags.SourceRdsResourceId)) &&
+    data.aws_db_snapshot.dataset[0].tags.PromotionReceiptSchemaVersion == "1" &&
+    data.aws_db_snapshot.dataset[0].tags.Project == "airbob" &&
+    data.aws_db_snapshot.dataset[0].tags.Environment == "performance-lab" &&
+    data.aws_db_snapshot.dataset[0].tags.Stack == "dataset" &&
+    data.aws_db_snapshot.dataset[0].tags.ManagedBy == "dataset-publisher" &&
+    data.aws_db_snapshot.dataset[0].tags.Persistence == "persistent" &&
     data.aws_db_snapshot.dataset[0].tags.DatasetRelease == var.dataset_release &&
     data.aws_db_snapshot.dataset[0].tags.DatasetRunId == local.dataset_manifest.datasetRunId &&
     data.aws_db_snapshot.dataset[0].tags.DumpSha256 == local.dataset_manifest.mysql.dumpSha256 &&

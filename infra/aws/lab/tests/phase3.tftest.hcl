@@ -473,11 +473,19 @@ run "restore_rds_only_from_matching_snapshot" {
       encrypted              = true
       allocated_storage      = 20
       tags = {
-        DatasetRelease = "rehearsal-v20"
-        DatasetRunId   = "20260816T001530Z-12345678"
-        DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion  = "27"
-        ManifestSha256 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "1"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
       }
     }
   }
@@ -491,6 +499,37 @@ run "restore_rds_only_from_matching_snapshot" {
     )
     error_message = "Snapshot mode must bind RDS creation to the prevalidated snapshot without overriding inherited storage."
   }
+}
+
+run "reject_snapshot_outside_promotion_contract" {
+  command = plan
+
+  variables {
+    database_bootstrap      = "snapshot"
+    rds_snapshot_identifier = "airbob-dataset-rehearsal-v20"
+  }
+
+  override_data {
+    target          = data.aws_db_snapshot.dataset[0]
+    override_during = plan
+    values = {
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
+      engine                 = "mysql"
+      engine_version         = "8.0.40"
+      status                 = "available"
+      encrypted              = true
+      allocated_storage      = 20
+      tags = {
+        DatasetRelease = "rehearsal-v20"
+        DatasetRunId   = "20260816T001530Z-12345678"
+        DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion  = "27"
+        ManifestSha256 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+      }
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
 }
 
 run "restore_large_profile_from_snapshot_with_sufficient_storage" {
@@ -551,11 +590,19 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
       encrypted              = true
       allocated_storage      = 100
       tags = {
-        DatasetRelease = "rehearsal-v20"
-        DatasetRunId   = "20260816T001530Z-12345678"
-        DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion  = "27"
-        ManifestSha256 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "1"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
       }
     }
   }
@@ -630,11 +677,19 @@ run "reject_large_profile_snapshot_with_canonical_storage" {
       encrypted              = true
       allocated_storage      = 20
       tags = {
-        DatasetRelease = "rehearsal-v20"
-        DatasetRunId   = "20260816T001530Z-12345678"
-        DumpSha256     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion  = "27"
-        ManifestSha256 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "1"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
       }
     }
   }

@@ -79,7 +79,11 @@ Debezium `no_data` connector. A separate `data-ready` Terraform transition
 accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords
 are resolved only on the host from Secrets Manager. Persistent RDS snapshot
 promotion is a separate publisher/admin command and remains outside the lab
-role and lab destroy graph.
+role and lab destroy graph. The promoter requires the source instance to match
+the bootstrap receipt run, writes its local receipt with create-only semantics,
+and projects the validated source run/resource identity plus promotion schema
+onto the persistent snapshot. Snapshot-mode Terraform rejects snapshots that
+only copy dataset tuple tags without those promotion markers.
 
 The local search-data path now uses the exact digest-pinned Elasticsearch image
 from the `infra-image-release-<full-commit>` workflow artifact. A schema-4
