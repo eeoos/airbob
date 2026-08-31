@@ -44,6 +44,29 @@ ordered_ids_hash() {
   sha256_file "$output"
 }
 
+java_double_hex_function="$temp_dir/java-double-hex.sh"
+awk '
+  /^java_double_hex\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { exit }
+' "$verifier" > "$java_double_hex_function"
+[[ -s "$java_double_hex_function" ]] || fail 'Java double hex canonicalizer is missing'
+# shellcheck source=/dev/null
+source "$java_double_hex_function"
+for java_double_case in \
+  '0|0x0.0p0' \
+  '-0.0|-0x0.0p0' \
+  '0.1|0x1.999999999999ap-4' \
+  '38|0x1.3p5' \
+  '2.2250738585072014e-308|0x1.0p-1022' \
+  '4.9406564584124654e-324|0x0.0000000000001p-1022'
+do
+  java_double_input=${java_double_case%%|*}
+  java_double_expected=${java_double_case#*|}
+  [[ "$(java_double_hex "$java_double_input")" == "$java_double_expected" ]] \
+    || fail "Java double hex canonicalization drifted for $java_double_input"
+done
+
 printf 'fffffffe' | xxd -r -p > "$temp_dir/one-row.bin"
 row_hash=$(sha256_file "$temp_dir/one-row.bin")
 printf 'fffffffd' | xxd -r -p > "$temp_dir/address-row.bin"

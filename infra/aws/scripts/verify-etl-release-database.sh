@@ -358,11 +358,31 @@ inventory_fingerprint=$(awk -F $'\t' '$1=="final-inventory"{print $2}' "$fingerp
 [[ "$inventory_fingerprint" == "$(jq -r '.world.fingerprints["final-inventory"]' "$manifest")" ]] || fail 'inventory fingerprint differs from restored rows'
 
 java_double_hex() {
-  local result
-  printf -v result '%a' "$1"
-  result=${result/p+/p}
-  [[ "$result" == *.*p* ]] || result=${result/p/.0p}
-  printf '%s' "$result"
+  jq -nr --argjson value "$1" '
+    def hex_digit($value):
+      "0123456789abcdef"[$value:($value + 1)];
+    def fraction_hex($value):
+      reduce range(0; 13) as $unused
+        ({remainder: $value, digits: ""};
+          (.remainder * 16) as $scaled
+          | ($scaled | floor) as $digit
+          | .remainder = ($scaled - $digit)
+          | .digits += hex_digit($digit))
+      | .digits
+      | sub("0+$"; "")
+      | if length == 0 then "0" else . end;
+    ($value | fabs) as $absolute
+    | (if copysign(1; $value) < 0 then "-" else "" end) as $sign
+    | if $absolute == 0 then
+        $sign + "0x0.0p0"
+      elif $absolute < ldexp(1; -1022) then
+        $sign + "0x0." + fraction_hex(ldexp($absolute; 1022)) + "p-1022"
+      else
+        ($absolute | frexp) as $parts
+        | $sign + "0x1." + fraction_hex(($parts[0] * 2) - 1)
+          + "p" + (($parts[1] - 1) | tostring)
+      end
+  '
 }
 join_unit_fields() {
   local delimiter=$'\x1f' first=true field
