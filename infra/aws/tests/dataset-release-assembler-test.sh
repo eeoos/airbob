@@ -25,6 +25,42 @@ trap cleanup EXIT
 fail() { printf 'dataset release assembler test failed: %s\n' "$1" >&2; exit 1; }
 sha256_file() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
 
+stat_functions="$temp_dir/stat-functions.sh"
+awk '
+  /^stat_(uid|mode)\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { capture = 0 }
+' "$assembler" > "$stat_functions"
+[[ "$(grep -Ec '^stat_(uid|mode)\(\)' "$stat_functions")" == 2 ]] \
+  || fail 'assembler stat helpers are missing'
+# shellcheck source=/dev/null
+source "$stat_functions"
+stat_probe="$temp_dir/stat-probe"
+fake_bin="$temp_dir/fake-bin"
+mkdir -m 700 "$stat_probe" "$fake_bin"
+cat > "$fake_bin/stat" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  -c)
+    case "$2" in
+      %u) id -u ;;
+      %a) printf '700\n' ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  -f)
+    printf 'GNU filesystem report emitted before an operand error\n'
+    exit 1
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod 700 "$fake_bin/stat"
+stat_uid_value=$(PATH="$fake_bin:$PATH"; hash -r; stat_uid "$stat_probe")
+stat_mode_value=$(PATH="$fake_bin:$PATH"; hash -r; stat_mode "$stat_probe")
+[[ "$stat_uid_value" == "$(id -u)" && "$stat_mode_value" == 700 ]] \
+  || fail 'assembler stat fallback accepted partial output from a failed dialect'
+
 write_checksums() {
   local root=$1 spec_name=$2 file
   : > "$root/SHA256SUMS"

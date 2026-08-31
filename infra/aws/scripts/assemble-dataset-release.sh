@@ -13,8 +13,14 @@ sha256_file() {
   elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
   else fail 'a SHA-256 implementation is required'; fi
 }
-stat_uid() { stat -f '%u' "$1" 2>/dev/null || stat -c '%u' "$1"; }
-stat_mode() { stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; }
+stat_uid() {
+  local value
+  if value=$(stat -f '%u' "$1" 2>/dev/null); then printf '%s' "$value"; else stat -c '%u' "$1"; fi
+}
+stat_mode() {
+  local value
+  if value=$(stat -f '%Lp' "$1" 2>/dev/null); then printf '%s' "$value"; else stat -c '%a' "$1"; fi
+}
 require_file() { [[ -f "$1" && ! -L "$1" ]] || fail "artifact is missing or unsafe: ${1##*/}"; }
 contains_secret_marker() {
   printf '%s\n' "$1" | grep -Eqi 'password|passwd|secret|credential|token|session|access.?key|private.?key|service.?account'
