@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   findCapsuleTarget,
@@ -10,8 +11,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const canonicalRaw = open('../../../infra/aws/tests/fixtures/benchmark-dataset-v2.json');
 const malformedCases = JSON.parse(open('./fixtures/benchmark-dataset-v2-malformed.json'));
@@ -94,4 +100,5 @@ export default function () {
     'unknown capsule is rejected': () => rejects(() => findExperimentCapsule(manifest, 'missing-v1')),
     'malformed JSON is sanitized': () => rejects(() => parseBenchmarkDatasetManifest('{')),
   });
+  contractTestCompleted.add(1);
 }

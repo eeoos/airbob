@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   RESERVATION_HISTORY_INSERT_BENCHMARK,
@@ -15,8 +16,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const TOKEN = '0123456789abcdef0123456789abcdef';
 const BENCHMARK = RESERVATION_HISTORY_INSERT_BENCHMARK;
@@ -276,4 +282,5 @@ export default function () {
         && afterArtifact.database_observation.jdbc.affected_rows === 3
     ),
   });
+  contractTestCompleted.add(1);
 }

@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 import {
   buildCouponIssueTarget,
   classifyCouponIssueResponse,
@@ -15,8 +16,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 function rejects(action) {
   try {
@@ -123,4 +129,5 @@ export default function () {
       summary.duration['p(99)'] === 10 && summary.successDuration['p(99)'] === 50
     ),
   });
+  contractTestCompleted.add(1);
 }

@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   buildGuestTarget,
@@ -10,8 +11,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const manifest = {
   datasetVersion: 'nplus1-v1',
@@ -221,4 +227,5 @@ export default function () {
         && gaps.includes('target-cardinality-popularity')
     ),
   });
+  contractTestCompleted.add(1);
 }

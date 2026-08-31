@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   buildTrafficOptions,
@@ -10,8 +11,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const manifest = {
   datasetVersion: 'nplus1-v1',
@@ -39,7 +45,25 @@ const manifest = {
 };
 
 const manifestRaw = JSON.stringify(manifest);
-const datasetManifestRaw = open('../../../infra/aws/tests/fixtures/benchmark-dataset-v1.json');
+const datasetManifestFixture = JSON.parse(
+  open('../../../infra/aws/tests/fixtures/benchmark-dataset-v2.json'),
+);
+const legacyDatasetManifestFixture = JSON.parse(
+  open('../../../infra/aws/tests/fixtures/benchmark-dataset-v1.json'),
+);
+const datasetNplusCapsules = datasetManifestFixture.capsules.filter(
+  (capsule) => capsule.capsuleId === 'nplus1-v1',
+);
+const legacyNplusCapsules = legacyDatasetManifestFixture.capsules.filter(
+  (capsule) => capsule.capsuleId === 'nplus1-v1',
+);
+if (datasetNplusCapsules.length !== 1 || legacyNplusCapsules.length !== 1) {
+  throw new Error('benchmark fixtures must each contain exactly one nplus1-v1 capsule');
+}
+datasetManifestFixture.capsules = datasetManifestFixture.capsules.map((capsule) => (
+  capsule.capsuleId === 'nplus1-v1' ? legacyNplusCapsules[0] : capsule
+));
+const datasetManifestRaw = JSON.stringify(datasetManifestFixture);
 const commonEnvironment = {
   MODE: 'measure',
   ROLE: 'guest',
@@ -265,4 +289,5 @@ export default function () {
         && !serialized.includes('token')
     ),
   });
+  contractTestCompleted.add(1);
 }

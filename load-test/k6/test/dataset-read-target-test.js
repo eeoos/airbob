@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   applyCacheWarmCoverageValidity,
@@ -12,8 +13,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const ids = Array.from({ length: 200 }, (_, index) => index + 1);
 const query = {
@@ -233,4 +239,5 @@ export default function () {
         && incompleteArtifact.validity.reasons.includes('cache-warm-coverage-incomplete')
     ),
   });
+  contractTestCompleted.add(1);
 }

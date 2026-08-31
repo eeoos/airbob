@@ -1,4 +1,5 @@
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
 import {
   buildCanonicalResultHash,
@@ -22,8 +23,13 @@ import {
 export const options = {
   vus: 1,
   iterations: 1,
-  thresholds: { checks: ['rate==1'] },
+  thresholds: {
+    checks: ['rate==1'],
+    contract_test_completed: ['count==1'],
+  },
 };
+
+const contractTestCompleted = new Counter('contract_test_completed');
 
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
@@ -531,4 +537,5 @@ export default function () {
         && !JSON.stringify(evidenceArtifact).includes('@airbob.cloud')
     ),
   });
+  contractTestCompleted.add(1);
 }
