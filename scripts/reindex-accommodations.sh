@@ -163,7 +163,13 @@ api_request() {
 		-sS
 		--connect-timeout "$ELASTICSEARCH_CONNECT_TIMEOUT_SECONDS"
 		--max-time "$ELASTICSEARCH_MAX_TIME_SECONDS"
-		-X "$method"
+	)
+	if [[ "$method" == HEAD ]]; then
+		arguments+=(--head)
+	else
+		arguments+=(-X "$method")
+	fi
+	arguments+=(
 		-o "$response_file"
 		-w "%{http_code}"
 	)
