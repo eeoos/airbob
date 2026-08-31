@@ -61,6 +61,9 @@ done
 
 /bin/bash -n "$bootstrap"
 /bin/bash -n "$validator"
+if grep -En '\$\(result_field[[:space:]]+\\"' "$bootstrap" >/dev/null; then
+  fail "bootstrap SQL must precompute result_field expressions that require double quotes"
+fi
 
 assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)'
 assert_contains "$lab_root/modules/rds/main.tf" 'instance_class = "db.t3.micro"'

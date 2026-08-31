@@ -681,7 +681,7 @@ live_restore_fingerprints() {
     && "$inventory_fingerprint" == "$(jq -r '.releaseTuple.inventoryFingerprintSha256' "$manifest")" ]]
 }
 verify_targets() {
-  local receipt=$1 target id kind expected_rows expected_hash actual_rows actual_hash account member_id size cursor_id cursor_time from to predicate ledger sql
+  local receipt=$1 target id kind expected_rows expected_hash actual_rows actual_hash account member_id size cursor_id cursor_time from to predicate ledger sql wishlist_created_at_field
   local adult child infant pet total_occupancy top_left_lat top_left_lng bottom_right_lat bottom_right_lng minimum_price maximum_price search_scope
   : > "$receipt"
   while IFS= read -r target; do
@@ -706,7 +706,8 @@ verify_targets() {
         [[ "$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM wishlist WHERE member_id=$member_id AND status='ACTIVE'")" == "$(jq -r '.query.totalActiveRows' <<<"$target")" ]] \
           || { printf 'wishlist totalActiveRows drifted: %s\n' "$id" >&2; return 1; }
         actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT w.id FROM wishlist w WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size) x")
-        sql="SELECT CONCAT($(result_field 'w.id'),$(result_field 'w.name'),$(result_field \"DATE_FORMAT(w.created_at,'%Y-%m-%dT%H:%i:%s.%f')\"),$(result_field 'w.accommodation_count'),$(result_field 'a.thumbnail_url')) FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size"
+        wishlist_created_at_field=$(result_field "DATE_FORMAT(w.created_at,'%Y-%m-%dT%H:%i:%s.%f')")
+        sql="SELECT CONCAT($(result_field 'w.id'),$(result_field 'w.name'),${wishlist_created_at_field},$(result_field 'w.accommodation_count'),$(result_field 'a.thumbnail_url')) FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size"
         ;;
       REVENUE_RANGE_V1)
         from=$(jq -r '.query.from' <<<"$target"); to=$(jq -r '.query.to' <<<"$target")
