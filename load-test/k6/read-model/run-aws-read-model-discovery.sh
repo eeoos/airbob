@@ -409,7 +409,8 @@ capture_runtime_assertion() {
   benchmark_token=$(tr -d '\r\n' < "$token_file")
   [[ "$benchmark_token" =~ ^[0-9a-f]{64}$ ]] || fail 'benchmark token file is invalid'
   if printf 'header = "X-Benchmark-Token: %s"\n' "$benchmark_token" \
-    | curl --config - --fail --silent --show-error --request POST \
+    | curl --config - --connect-timeout 5 --max-time 30 \
+      --fail --silent --show-error --request POST \
       --header 'Content-Type: application/json' --data-binary "@$request" \
       "$base_url/api/v2/benchmark/read-model/runtime-assertion" > "$output"; then
     :

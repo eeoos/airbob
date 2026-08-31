@@ -8,6 +8,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.mock.env.MockEnvironment;
 
 import kr.kro.airbob.common.exception.BaseException;
@@ -70,6 +71,44 @@ class ReadModelRuntimeAssertionServiceTest {
 		assertThat(response.schedulerEnabled()).isTrue();
 		assertThat(response.inventoryLifecycleEnabled()).isTrue();
 		assertThat(response.externalSideEffectsEnabled()).isTrue();
+	}
+
+	@Test
+	void reportsAListenerThatIsRunningDespiteDisabledAutoStartup() {
+		ApplicationContext context = mock(ApplicationContext.class);
+		given(context.getBeansOfType(kr.kro.airbob.config.SchedulingConfig.class))
+			.willReturn(Map.of());
+		KafkaListenerEndpointRegistry registry = mock(KafkaListenerEndpointRegistry.class);
+		MessageListenerContainer listener = mock(MessageListenerContainer.class);
+		given(listener.isRunning()).willReturn(true);
+		given(registry.getListenerContainers()).willReturn(java.util.List.of(listener));
+		ReadModelRuntimeAssertionService service = new ReadModelRuntimeAssertionService(
+			isolatedReadEnvironment(), context, registry,
+			RUN_ID, DIGEST, RUNTIME_REVISION, INSTANCE_ID
+		);
+
+		var response = service.assertRuntime(new ReadModelRuntimeAssertionService.Request(
+			RUN_ID, DIGEST, "c".repeat(64)
+		));
+
+		assertThat(response.kafkaListenerEnabled()).isTrue();
+	}
+
+	@Test
+	void acceptsAnAbsentKafkaRegistryWhenAllListenerPropertiesAreDisabled() {
+		ApplicationContext context = mock(ApplicationContext.class);
+		given(context.getBeansOfType(kr.kro.airbob.config.SchedulingConfig.class))
+			.willReturn(Map.of());
+		ReadModelRuntimeAssertionService service = new ReadModelRuntimeAssertionService(
+			isolatedReadEnvironment(), context, null,
+			RUN_ID, DIGEST, RUNTIME_REVISION, INSTANCE_ID
+		);
+
+		var response = service.assertRuntime(new ReadModelRuntimeAssertionService.Request(
+			RUN_ID, DIGEST, "c".repeat(64)
+		));
+
+		assertThat(response.kafkaListenerEnabled()).isFalse();
 	}
 
 	@Test

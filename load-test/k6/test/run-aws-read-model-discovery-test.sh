@@ -591,6 +591,8 @@ cat > "$raw_bin/curl" <<'CURL'
 set -euo pipefail
 config=''
 request=''
+connect_timeout=''
+max_time=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
@@ -602,10 +604,20 @@ while [[ $# -gt 0 ]]; do
       shift
       request=${1#@}
       ;;
+    --connect-timeout)
+      shift
+      connect_timeout=$1
+      ;;
+    --max-time)
+      shift
+      max_time=$1
+      ;;
   esac
   shift
 done
 [[ -f "$request" ]]
+[[ "$connect_timeout" == 5 ]]
+[[ "$max_time" == 30 ]]
 grep -Fq "X-Benchmark-Token: $FAKE_BENCHMARK_TOKEN" <<<"$config"
 response=$(jq -c \
   --arg revision "$FAKE_RUNTIME_REVISION" --arg instance "$FAKE_APP_INSTANCE_ID" '

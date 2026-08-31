@@ -63,10 +63,10 @@ case "$cache_enabled" in true|false) ;; *) printf '%s\n' 'invalid cache experime
 [[ "$resource_fencing_token_sha256" =~ ^[0-9a-f]{64}$ ]]
 
 region=$(cat /etc/airbob/region)
-metadata_token=$(curl --fail --silent --show-error --request PUT \
+metadata_token=$(curl --connect-timeout 2 --max-time 5 --fail --silent --show-error --request PUT \
   --header 'X-aws-ec2-metadata-token-ttl-seconds: 60' \
   http://169.254.169.254/latest/api/token)
-app_instance_id=$(curl --fail --silent --show-error \
+app_instance_id=$(curl --connect-timeout 2 --max-time 5 --fail --silent --show-error \
   --header "X-aws-ec2-metadata-token: $metadata_token" \
   http://169.254.169.254/latest/meta-data/instance-id)
 unset metadata_token
@@ -172,13 +172,14 @@ docker compose --env-file /etc/airbob/images.env -f "$compose_file" config --qui
 docker compose --env-file /etc/airbob/images.env -f "$compose_file" \
   up --detach --force-recreate --wait --wait-timeout 600
 [[ "$(docker compose --env-file /etc/airbob/images.env -f "$compose_file" ps --status running --services | wc -l | tr -d ' ')" == 2 ]]
-curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health >/dev/null
+curl --connect-timeout 2 --max-time 10 --fail --silent --show-error \
+  http://127.0.0.1:8080/actuator/health >/dev/null
 
 docker compose --env-file /etc/airbob/images.env -f "$compose_file" exec --no-TTY app sh -ec '
-  token=$(wget -qO- --method=PUT --header="X-aws-ec2-metadata-token-ttl-seconds: 60" http://169.254.169.254/latest/api/token)
-  role=$(wget -qO- --header="X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+  token=$(wget -qO- -T 5 -t 1 --method=PUT --header="X-aws-ec2-metadata-token-ttl-seconds: 60" http://169.254.169.254/latest/api/token)
+  role=$(wget -qO- -T 5 -t 1 --header="X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
   test -n "$role"
-  wget -qO- --header="X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$role" | grep -q '"Code"[[:space:]]*:[[:space:]]*"Success"'
+  wget -qO- -T 5 -t 1 --header="X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$role" | grep -q '"Code"[[:space:]]*:[[:space:]]*"Success"'
 '
 
 printf '%s\n' "$runtime_revision" > /var/lib/airbob/app-runtime-revision

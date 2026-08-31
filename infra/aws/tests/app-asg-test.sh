@@ -65,6 +65,11 @@ assert_contains "$lab_root/templates/start-app.sh.tftpl" 'verify-app-runtime-env
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'secretsmanager get-secret-value'
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'docker compose'
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'latest/meta-data/instance-id'
+[[ "$(grep -Fc -- '--connect-timeout 2 --max-time 5' "$lab_root/templates/start-app.sh.tftpl")" -eq 2 ]] \
+  || fail "application IMDS calls must keep bounded connect and total timeouts"
+assert_contains "$lab_root/templates/start-app.sh.tftpl" 'curl --connect-timeout 2 --max-time 10'
+[[ "$(grep -Fc -- 'wget -qO- -T 5 -t 1' "$lab_root/templates/start-app.sh.tftpl")" -eq 3 ]] \
+  || fail "container IMDS calls must keep bounded retries and timeouts"
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'AIRBOB_RUNTIME_REVISION='
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'AIRBOB_APP_INSTANCE_ID='
 for isolated_guard in \
