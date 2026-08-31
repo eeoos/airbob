@@ -224,16 +224,22 @@ locals {
         Sid    = "FoundationIdentityReadOnly"
         Effect = "Allow"
         Action = ["iam:GetOpenIDConnectProvider", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListPolicyTags", "iam:ListPolicyVersions", "iam:ListRolePolicies", "iam:ListRoleTags"]
-        Resource = [
-          aws_iam_openid_connect_provider.github.arn,
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.dataset}",
-          "arn:aws:iam::${var.account_id}:role/${local.dns_controller_role_name}",
-          aws_iam_role.expiry_observer.arn,
-          aws_iam_policy.lab_host_boundary.arn,
-        ]
+        Resource = concat(
+          [
+            aws_iam_openid_connect_provider.github.arn,
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.dataset}",
+            "arn:aws:iam::${var.account_id}:role/${local.dns_controller_role_name}",
+            aws_iam_role.expiry_observer.arn,
+            aws_iam_policy.lab_host_boundary.arn,
+          ],
+          [
+            for policy in values(local.lab_operator_managed_policies) :
+            "arn:aws:iam::${var.account_id}:policy/${policy.name}"
+          ],
+        )
       },
       {
         Sid    = "ExpiryObserverLambdaReadOnly"
