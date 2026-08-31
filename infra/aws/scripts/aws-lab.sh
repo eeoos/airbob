@@ -251,9 +251,9 @@ resolve_release_inputs() {
     --key "datasets/$dataset_release/manifest.json" "$dataset_manifest" \
     --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "dataset completion manifest is unavailable"
   jq -e --arg expectedRelease "$dataset_release" '
-    .schemaVersion == 1 and
+    .schemaVersion == 2 and
     .datasetRelease == $expectedRelease and
-    (.releaseKind == "pipeline-rehearsal" or .releaseKind == "evidence") and
+    .releaseKind == "pipeline-rehearsal" and
     .mysql.flywayVersion == "27" and
     .mysql.expectedTableRows.flyway_schema_history == 27 and
     ([.. | objects | keys[]] |

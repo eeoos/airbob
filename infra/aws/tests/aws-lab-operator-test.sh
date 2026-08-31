@@ -273,7 +273,7 @@ chmod 700 "$temp_dir/operator-bin/aws" "$temp_dir/operator-bin/terraform" \
 
 cat > "$temp_dir/dataset-manifest.json" <<'JSON'
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "releaseKind": "pipeline-rehearsal",
   "datasetRelease": "fixture-v20",
   "mysql": {
@@ -360,6 +360,30 @@ if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.
 fi
 if grep -Eq '^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' "$temp_dir/operator-execution.log"; then
   fail "V19 dataset rejection reached an AWS mutation"
+fi
+
+jq '.schemaVersion = 1' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-v1.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-v1.json" \
+  run_fake_up lab-v1-dataset >"$temp_dir/v1.out" 2>"$temp_dir/v1.err"; then
+  fail "operator accepted a legacy V1 dataset completion manifest"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network ' "$temp_dir/operator-execution.log"; then
+  fail "legacy V1 dataset rejection reached Terraform plan/apply or network verification"
+fi
+if grep -Eq '^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' "$temp_dir/operator-execution.log"; then
+  fail "legacy V1 dataset rejection reached an AWS mutation"
+fi
+
+jq '.releaseKind = "evidence"' "$temp_dir/dataset-manifest.json" > "$temp_dir/dataset-manifest-evidence.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-evidence.json" \
+  run_fake_up lab-evidence-dataset >"$temp_dir/evidence.out" 2>"$temp_dir/evidence.err"; then
+  fail "operator accepted a non-deployable evidence release"
+fi
+if grep -Eq 'terraform .* (plan|apply)|^network |^lease acquire |s3api put-object|dynamodb (put-item|update-item|delete-item)' \
+  "$temp_dir/operator-execution.log"; then
+  fail "evidence release rejection reached an AWS mutation"
 fi
 
 jq '.mysql.expectedTableRows.flyway_schema_history = 19' "$temp_dir/dataset-manifest.json" \
