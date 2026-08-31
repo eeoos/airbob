@@ -115,6 +115,9 @@ BENCHMARK_DATASET_MANIFEST=/absolute/path/benchmark-dataset-v2.json \
 read-model comparison plan은 같은 after variant의 paired A/A 세 block을 먼저 실행하고,
 `AB/BA/AB` 세 block으로 before/after를 교차한다. A/A envelope가
 `AA_MAX_RELATIVE_DELTA`를 넘으면 A/B artifact를 publish하지 않는다.
+허용치는 기본 0.10이며 0.10보다 크게 완화할 수 없다. plan과 A/A·A/B aggregate의
+`metadata.aa_max_relative_delta`가 같은 수치를 보존하므로, 다른 기준으로 만든 A/A artifact를
+candidate gate에 재사용할 수 없다.
 
 ## AWS isolated-read run
 

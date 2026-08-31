@@ -104,6 +104,7 @@ jq -e '
   .clone_id == "clone-a" and
   .target_id == "review-hot" and
   .candidate_index == null and
+  .maximum_aa_relative_delta == 0.10 and
   (.windows | length) == 12 and
   ([.windows[].window_id] | unique | length) == 12 and
   [.windows[].design] == [
@@ -123,6 +124,10 @@ jq -e '
   ([.windows[] | .clone_id] | unique) == ["clone-a"] and
   ([.windows[] | .target_id] | unique) == ["review-hot"]
 ' "$temp_dir/plan.json" >/dev/null
+
+assert_rejected 'an A/A threshold above the fixed policy cap' \
+  env "${common_environment[@]}" AA_MAX_RELATIVE_DELTA=0.101 "$runner"
+assert_contains "$temp_dir/rejected.out" 'must not exceed 0.10'
 
 printf '%s\n' '[{"name":"idx_review_status_accommodation","visible":false}]' \
   > "$temp_dir/one-candidate.json"
@@ -261,6 +266,14 @@ jq -e '
   [.raw_mysql_captures[].treatment] == ["index-baseline", "index-candidate"] and
   [.raw_mysql_captures[].optimizer_switch_use_invisible_indexes] == [false, true]
 ' "$temp_dir/candidate-plan.json" >/dev/null
+
+assert_rejected 'an A/A artifact captured under a different threshold' \
+  env "${common_environment[@]}" AA_MAX_RELATIVE_DELTA=0.05 \
+  CANDIDATE_INDEX=idx_review_status_accommodation \
+  INVISIBLE_INDEX_INVENTORY="$temp_dir/one-candidate.json" \
+  AA_NOISE_OBSERVATION="$temp_dir/valid-aa.json" \
+  "$runner"
+assert_contains "$temp_dir/rejected.out" 'AA noise artifact is unbound'
 
 wishlist_digest_pattern='FROM[[:space:]]+`?WISHLIST`?[[:space:]]'
 jq -ne --arg pattern "$wishlist_digest_pattern" '

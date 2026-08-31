@@ -116,6 +116,7 @@ const ROLE_ORDER = Object.freeze({
 });
 const EXCLUDED_PHASES = ['setup', 'login', 'analyze', 'explain'];
 const METRICS = ['p50', 'p95', 'p99'];
+const DEFAULT_AA_MAX_RELATIVE_DELTA = 0.10;
 
 function sensitiveEnvironmentKey(key) {
   const normalized = key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -892,12 +893,23 @@ function buildHeadline(sources, design) {
   };
 }
 
-export function aggregateReadModelEvidence(sources) {
+function validatedAaMaxRelativeDelta(value) {
+  requireCondition(
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 0.10,
+    'A/A maximum relative delta must be between 0 and 0.10',
+  );
+  return value;
+}
+
+export function aggregateReadModelEvidence(sources, options = {}) {
   requireCondition(
     Array.isArray(sources) && sources.length >= 2 && sources.length <= MAX_SOURCE_COUNT,
     'source count/pair contract is invalid',
   );
   sources.forEach(validateSource);
+  const aaMaxRelativeDelta = validatedAaMaxRelativeDelta(
+    options.aaMaxRelativeDelta ?? DEFAULT_AA_MAX_RELATIVE_DELTA,
+  );
   const reference = sources[0].metadata;
   sources.slice(1).forEach((source) => validateSharedMetadata(reference, source.metadata));
   const blockCount = validateCompletePairs(sources, reference.design);
@@ -928,6 +940,7 @@ export function aggregateReadModelEvidence(sources) {
     metadata: {
       generated_at: generatedAt,
       ...sharedMetadata(reference),
+      aa_max_relative_delta: aaMaxRelativeDelta,
       observation_count: sortedSources.length,
       block_count: blockCount,
     },
@@ -1017,7 +1030,9 @@ export function validateAaObservationArtifact(artifact) {
       },
     };
   });
-  const reconstructed = aggregateReadModelEvidence(sources);
+  const reconstructed = aggregateReadModelEvidence(sources, {
+    aaMaxRelativeDelta: artifact.metadata.aa_max_relative_delta,
+  });
   requireCondition(
     canonicalJson(reconstructed) === canonicalJson(artifact),
     'AA observation artifact is not reconstructable from its exact observations',
@@ -1169,7 +1184,17 @@ function parseArguments(args) {
     'output and at least two source artifacts are required',
   );
   const outputPath = args[1];
-  const sourcePaths = args.slice(2);
+  let aaMaxRelativeDelta = DEFAULT_AA_MAX_RELATIVE_DELTA;
+  let sourceOffset = 2;
+  if (args[2] === '--aa-max-relative-delta') {
+    requireCondition(
+      typeof args[3] === 'string' && /^0\.[0-9]{1,3}$/.test(args[3]),
+      'A/A maximum relative delta argument is invalid',
+    );
+    aaMaxRelativeDelta = validatedAaMaxRelativeDelta(Number(args[3]));
+    sourceOffset = 4;
+  }
+  const sourcePaths = args.slice(sourceOffset);
   requireCondition(
     typeof outputPath === 'string'
       && /^build\/k6\/read-model\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}-observations\.json$/.test(outputPath)
@@ -1194,7 +1219,7 @@ function parseArguments(args) {
   );
   requireTrustedArtifactRoot();
   requireCondition(!pathEntryExists(absoluteArtifactPath(outputPath)), 'output path already exists');
-  return { outputPath, sourcePaths };
+  return { outputPath, sourcePaths, aaMaxRelativeDelta };
 }
 
 function writeArtifact(outputPath, artifact) {
@@ -1251,10 +1276,10 @@ function main(args) {
     validateAaObservationArtifact(readStandaloneJson(args[1]));
     return;
   }
-  const { outputPath, sourcePaths } = parseArguments(args);
+  const { outputPath, sourcePaths, aaMaxRelativeDelta } = parseArguments(args);
   const byteBudget = { total: 0 };
   const sources = sourcePaths.map((sourcePath) => readSource(sourcePath, byteBudget));
-  const aggregate = aggregateReadModelEvidence(sources);
+  const aggregate = aggregateReadModelEvidence(sources, { aaMaxRelativeDelta });
   writeArtifact(outputPath, aggregate);
 }
 

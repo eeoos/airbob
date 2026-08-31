@@ -150,6 +150,9 @@ AA / AA / AA / AB / BA / AB
 Each label is one paired block. The three A/A pairs run the materialized `after` variant twice to
 measure noise. Only after all p50/p95/p99 maximum absolute relative deltas fit
 `AA_MAX_RELATIVE_DELTA` does the runner execute three crossed before/after pairs.
+The threshold defaults to 0.10 and cannot be raised above 0.10. The plan and both aggregate
+artifacts bind the exact applied value as `metadata.aa_max_relative_delta`; an A/A artifact captured
+under a different threshold cannot authorize a candidate or the subsequent A/B publication.
 
 ### 2. Freeze optimizer state
 

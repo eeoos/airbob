@@ -339,6 +339,7 @@ test('read-model A/B aggregation binds provenance and preserves raw evidence', (
   ];
   const result = aggregator.aggregateReadModelEvidence(sources);
   assert.equal(result.schema_version, 'read-model-observations-v1');
+  assert.equal(result.metadata.aa_max_relative_delta, 0.10);
   assert.equal(result.eligibility.status, 'valid');
   assert.equal(result.eligibility.headline_allowed, true);
   assert.equal(result.headline.paired_effects.length, 2);
@@ -364,9 +365,14 @@ test('A/A design produces a noise envelope instead of an improvement claim', () 
   sources[0].metadata.variant = 'after';
   sources[1].metadata.pair_role = 'AA_B';
   sources[1].metadata.variant = 'after';
-  const result = aggregator.aggregateReadModelEvidence(sources);
+  const result = aggregator.aggregateReadModelEvidence(sources, { aaMaxRelativeDelta: 0.05 });
+  assert.equal(result.metadata.aa_max_relative_delta, 0.05);
   assert.equal(result.headline.kind, 'AA_NOISE_ENVELOPE');
   assert.equal(result.headline.maximum_absolute_relative_delta.p50, 0.5);
+  assert.throws(
+    () => aggregator.aggregateReadModelEvidence(sources, { aaMaxRelativeDelta: 0.101 }),
+    /between 0 and 0.10/,
+  );
 });
 
 test('candidate AA validator requires an exact reconstructable six-window artifact', () => {
@@ -572,10 +578,13 @@ test('CLI publishes atomically inside the fixed artifact boundary', () => {
       return relative;
     });
     const output = 'build/k6/read-model/review-hot-observations.json';
-    const result = runCli(repository, ['--output', output, ...paths]);
+    const result = runCli(repository, [
+      '--output', output, '--aa-max-relative-delta', '0.05', ...paths,
+    ]);
     assert.equal(result.status, 0, result.stderr);
     const published = JSON.parse(readFileSync(resolve(repository, output), 'utf8'));
     assert.equal(published.eligibility.status, 'valid');
+    assert.equal(published.metadata.aa_max_relative_delta, 0.05);
     assert.equal(lstatSync(resolve(repository, output)).mode & 0o777, 0o600);
     assert.deepEqual(
       lstatSync(artifactDirectory).isSymbolicLink(),
@@ -585,6 +594,13 @@ test('CLI publishes atomically inside the fixed artifact boundary', () => {
     const second = runCli(repository, ['--output', output, ...paths]);
     assert.notEqual(second.status, 0);
     assert.match(second.stderr, /already exists/);
+
+    const invalidOutput = 'build/k6/read-model/invalid-threshold-observations.json';
+    const invalidThreshold = runCli(repository, [
+      '--output', invalidOutput, '--aa-max-relative-delta', '0.101', ...paths,
+    ]);
+    assert.notEqual(invalidThreshold.status, 0);
+    assert.match(invalidThreshold.stderr, /between 0 and 0.10/);
   } finally {
     rmSync(repository, { recursive: true, force: true });
   }

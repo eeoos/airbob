@@ -37,6 +37,9 @@ run_slug='^[a-z0-9][a-z0-9-]{2,31}$'
 [[ "$target_id" =~ $lower_slug ]] || fail 'TARGET_ID is invalid'
 [[ "$index_variant" == before || "$index_variant" == after ]] || fail 'INDEX_VARIANT is invalid'
 [[ "$noise_limit" =~ ^0\.[0-9]{1,3}$ ]] || fail 'AA_MAX_RELATIVE_DELTA is invalid'
+noise_millis=${noise_limit#0.}
+while [[ "${#noise_millis}" -lt 3 ]]; do noise_millis+=0; done
+((10#$noise_millis <= 100)) || fail 'AA_MAX_RELATIVE_DELTA must not exceed 0.10'
 
 for legacy_name in \
   REVIEW_ACCOMMODATION_ID EXPECTED_REVIEW_COUNT BENCHMARK_EMAIL ADMIN_EMAIL \
@@ -105,6 +108,7 @@ if [[ -n "$candidate_index" ]]; then
     length == 1 and .[0].schema_version == "read-model-observations-v1" and
     .[0].eligibility.status == "valid" and
     .[0].metadata.design == "AA_NOISE" and
+    .[0].metadata.aa_max_relative_delta == $limit and
     .[0].metadata.release_tuple.release_id == $release and
     .[0].metadata.release_tuple.dataset_manifest_sha256 == $manifestSha and
     .[0].metadata.database.clone_id == $clone and
@@ -130,7 +134,8 @@ render_plan() {
   if [[ "$candidate_requested" != true ]]; then
     jq -n \
       --arg release "$release_id" --arg clone "$clone_id" --arg target "$target_id" \
-      --argjson candidate "$candidate_json" --arg candidateGate "$candidate_gate" '
+      --argjson candidate "$candidate_json" --arg candidateGate "$candidate_gate" \
+      --argjson noiseLimit "$noise_limit" '
       def window($design;$block;$window;$role;$variant;$order): {
         release_id:$release, clone_id:$clone, target_id:$target,
         design:$design, block_id:$block, window_id:$window,
@@ -142,6 +147,7 @@ render_plan() {
         release_id:$release, clone_id:$clone, target_id:$target,
         candidate_index:$candidate, candidate_gate:$candidateGate,
         protocol:"AA-AA-AA-AB-BA-AB",
+        maximum_aa_relative_delta:$noiseLimit,
         windows:[
           window("AA_NOISE";"aa-01";"aa-01-a";"AA_A";"after";1),
           window("AA_NOISE";"aa-01";"aa-01-b";"AA_B";"after";2),
@@ -1119,9 +1125,11 @@ for pending in "${pending_windows[@]}"; do
     "$run_start_fingerprint" "$after_aa_fingerprint")")
 done
 aa_output="build/k6/read-model/$run_id-$target_id-aa-observations.json"
-node "$aggregator" --output "$aa_output" "${evidence_sources[@]:0:6}"
+node "$aggregator" --output "$aa_output" --aa-max-relative-delta "$noise_limit" \
+  "${evidence_sources[@]:0:6}"
 jq -e --argjson limit "$noise_limit" '
   .eligibility.status == "valid" and .headline.kind == "AA_NOISE_ENVELOPE" and
+  .metadata.aa_max_relative_delta == $limit and
   ([.headline.maximum_absolute_relative_delta[]] | all(. <= $limit))
 ' "$repo_root/$aa_output" >/dev/null || fail 'A/A noise exceeds the publication gate'
 pending_windows=()
@@ -1136,10 +1144,14 @@ for pending in "${pending_windows[@]}"; do
     "$after_aa_fingerprint" "$final_fingerprint")")
 done
 comparison_output="build/k6/read-model/$run_id-$target_id-read-model-observations.json"
-node "$aggregator" --output "$comparison_output" "${evidence_sources[@]:6:6}"
+node "$aggregator" --output "$comparison_output" --aa-max-relative-delta "$noise_limit" \
+  "${evidence_sources[@]:6:6}"
 outputs=("$aa_output" "$comparison_output")
 
 for artifact in "${outputs[@]}"; do
+  jq -e --argjson limit "$noise_limit" '.metadata.aa_max_relative_delta == $limit' \
+    "$repo_root/$artifact" >/dev/null \
+    || fail 'read-model artifact lost its A/A publication threshold binding'
   assert_lease
   aws s3api put-object --bucket "$evidence_bucket" --key "$evidence_prefix/${artifact##*/}" \
     --body "$repo_root/$artifact" --tagging Retention=summary --server-side-encryption AES256 \
