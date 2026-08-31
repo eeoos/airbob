@@ -536,7 +536,14 @@
       "capsuleId": "index-query-v1",
       "schemaVersion": 1,
       "mutability": "READ_ONLY",
-      "touchedTables": ["accommodation", "address", "occupancy_policy"],
+      "touchedTables": [
+        "accommodation",
+        "accommodation_amenity",
+        "accommodation_review_summary",
+        "address",
+        "occupancy_policy",
+        "reservation"
+      ],
       "distributions": [
         {
           "id": "search-selectivity",
@@ -572,7 +579,7 @@
       ],
       "runtime": {
         "owner": "AWS_LAB",
-        "setup": "restore-index-snapshot",
+        "setup": "rebuild-versioned-index",
         "resetPolicy": "restore-index-snapshot"
       }
     },

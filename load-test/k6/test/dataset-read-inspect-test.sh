@@ -4,8 +4,10 @@ set -euo pipefail
 test_dir=$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repo_root=$(CDPATH= cd -P -- "$test_dir/../../.." && pwd -P)
 script="$repo_root/load-test/k6/traffic/dataset-read.js"
-manifest="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v1.json"
+base_manifest="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json"
+legacy_capsule_fixture="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v1.json"
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dataset-read-inspect.XXXXXX")
+manifest="$temp_dir/benchmark-dataset-v2.json"
 server_pid=''
 cleanup() {
   if [[ -n "$server_pid" ]]; then
@@ -15,6 +17,14 @@ cleanup() {
   rm -rf -- "$temp_dir"
 }
 trap cleanup EXIT
+
+jq --slurpfile legacy "$legacy_capsule_fixture" '
+  ($legacy[0].capsules | map(select(.capsuleId == "cache-detail-v1"))) as $capsules |
+  if ($capsules | length) == 1
+  then .capsules += $capsules
+  else error("cache-detail-v1 capsule fixture is not exact")
+  end
+' "$base_manifest" > "$manifest"
 
 if command -v sha256sum >/dev/null 2>&1; then
   manifest_sha=$(sha256sum "$manifest" | awk '{print $1}')

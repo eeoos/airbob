@@ -4,7 +4,19 @@ set -euo pipefail
 test_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd -- "$test_dir/../../.." && pwd -P)"
 script="$repo_root/load-test/k6/bulk-write/reservation-history-insert-comparison.js"
-manifest="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v1.json"
+base_manifest="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json"
+legacy_capsule_fixture="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v1.json"
+temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/reservation-history-inspect.XXXXXX")
+trap 'rm -rf -- "$temp_dir"' EXIT
+manifest="$temp_dir/benchmark-dataset-v2.json"
+
+jq --slurpfile legacy "$legacy_capsule_fixture" '
+  ($legacy[0].capsules | map(select(.capsuleId == "bulk-expiration-history-v1"))) as $capsules |
+  if ($capsules | length) == 1
+  then .capsules += $capsules
+  else error("bulk-expiration-history-v1 capsule fixture is not exact")
+  end
+' "$base_manifest" > "$manifest"
 
 BASE_URL=http://localhost:8080 \
 VARIANT=BEFORE \
