@@ -42,6 +42,19 @@ verify_connector_runtime_config() {
   ' "$runtime_config" >/dev/null
 }
 
+validate_empty_topic_offsets() {
+  local expected_topic=$1
+  local expected_partitions=$2
+  local offsets=$3
+
+  [[ -n "$expected_topic" && "$expected_topic" != *:* \
+    && "$expected_partitions" =~ ^[1-9][0-9]*$ && -n "$offsets" ]] || return 1
+  awk -F: -v topic="$expected_topic" -v expected="$expected_partitions" '
+    NF != 3 || $1 != topic || $2 !~ /^[0-9]+$/ || $2 >= expected || seen[$2]++ || $3 != 0 { exit 1 }
+    END { if (NR != expected || length(seen) != expected) exit 1 }
+  ' <<<"$offsets"
+}
+
 required_environment=(
   AIRBOB_REGION AIRBOB_RUN_ID AIRBOB_DATASET_BUCKET AIRBOB_EVIDENCE_BUCKET
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
@@ -984,8 +997,7 @@ while IFS=$'\t' read -r topic partitions retention_ms; do
     || { printf 'Kafka retention contract failed: %s\n' "$topic" >&2; exit 1; }
   topic_offsets=$("${kafka_exec[@]}" /opt/kafka/bin/kafka-get-offsets.sh \
     --bootstrap-server kafka.lab.airbob.internal:9092 --topic "$topic" --time -1)
-  if [[ -z "$topic_offsets" ]] || ! awk -F: -v expected="$partitions" \
-    'NF != 3 || $3 != 0 { exit 1 } END { if (NR != expected) exit 1 }' <<<"$topic_offsets"; then
+  if ! validate_empty_topic_offsets "$topic" "$partitions" "$topic_offsets"; then
     printf 'Kafka topic is not empty or complete: %s\n' "$topic" >&2
     exit 1
   fi
@@ -1020,6 +1032,15 @@ curl_http --fail --silent --show-error \
 chmod 600 "$connector_runtime_config"
 verify_connector_runtime_config "$connector_payload" "$connector_runtime_config" \
   || { printf '%s\n' 'Debezium runtime connector config differs from the approved no-data contract' >&2; exit 1; }
+while IFS=$'\t' read -r topic partitions; do
+  topic_offsets=$("${kafka_exec[@]}" /opt/kafka/bin/kafka-get-offsets.sh \
+    --bootstrap-server kafka.lab.airbob.internal:9092 --topic "$topic" --time -1)
+  validate_empty_topic_offsets "$topic" "$partitions" "$topic_offsets" \
+    || { printf 'Kafka topic changed while starting Debezium: %s\n' "$topic" >&2; exit 1; }
+done < <(jq -r '.kafka.topics[] | [.name, .partitions] | @tsv' "$manifest")
+final_outbox_count=$(mysql_exec airbobdb --execute='SELECT COUNT(*) FROM outbox')
+[[ "$final_outbox_count" == 0 ]] \
+  || { printf '%s\n' 'dataset outbox changed while starting Debezium' >&2; exit 1; }
 
 targets_final="$work_root/semantic-targets-final.tsv"
 verify_targets "$targets_final" \

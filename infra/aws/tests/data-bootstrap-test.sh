@@ -213,6 +213,8 @@ done
 assert_contains "$bootstrap" '.tasks'
 assert_contains "$bootstrap" 'verify_connector_runtime_config "$connector_payload" "$connector_runtime_config"'
 assert_contains "$bootstrap" 'Debezium runtime connector config differs from the approved no-data contract'
+assert_contains "$bootstrap" 'Kafka topic changed while starting Debezium:'
+assert_contains "$bootstrap" 'dataset outbox changed while starting Debezium'
 assert_contains "$bootstrap" 'datasetManifestSha256'
 assert_contains "$bootstrap" 'download_sha benchmark/manifest.json "$benchmark_manifest"'
 assert_contains "$bootstrap" 'download_sha benchmark/dataset-manifest.json "$benchmark_dataset_manifest"'
@@ -368,6 +370,41 @@ for connector_drift_case in snapshot-mode outbox-table predicate extra-field mis
     fail "runtime connector config accepted drift: $connector_drift_case"
   fi
 done
+
+topic_offset_function="$temp_dir/validate-empty-topic-offsets.sh"
+awk '
+  /^validate_empty_topic_offsets\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { exit }
+' "$bootstrap" > "$topic_offset_function"
+[[ -s "$topic_offset_function" ]] || fail "bootstrap Kafka offset validator is missing"
+# shellcheck source=/dev/null
+source "$topic_offset_function"
+validate_empty_topic_offsets PAYMENT_OPERATION.events 3 $'PAYMENT_OPERATION.events:0:0\nPAYMENT_OPERATION.events:1:0\nPAYMENT_OPERATION.events:2:0' \
+  || fail "complete empty Kafka offsets were rejected"
+if validate_empty_topic_offsets PAYMENT_OPERATION.events 3 $'PAYMENT_OPERATION.events:0:0\nPAYMENT_OPERATION.events:1:1\nPAYMENT_OPERATION.events:2:0'; then
+  fail "Kafka offset validator accepted a non-empty partition"
+fi
+if validate_empty_topic_offsets PAYMENT_OPERATION.events 3 $'PAYMENT_OPERATION.events:0:0\nPAYMENT_OPERATION.events:1:0'; then
+  fail "Kafka offset validator accepted an incomplete partition set"
+fi
+if validate_empty_topic_offsets PAYMENT_OPERATION.events 3 $'PAYMENT_OPERATION.events:0:0\nPAYMENT_OPERATION.events:0:0\nPAYMENT_OPERATION.events:2:0'; then
+  fail "Kafka offset validator accepted a duplicate partition"
+fi
+if validate_empty_topic_offsets PAYMENT_OPERATION.events 3 $'OTHER.events:0:0\nPAYMENT_OPERATION.events:1:0\nPAYMENT_OPERATION.events:2:0'; then
+  fail "Kafka offset validator accepted another topic"
+fi
+if validate_empty_topic_offsets PAYMENT_OPERATION.events 3 ''; then
+  fail "Kafka offset validator accepted a missing offset stream"
+fi
+
+runtime_connector_line=$(grep -n 'verify_connector_runtime_config "$connector_payload"' "$bootstrap" | cut -d: -f1)
+final_topic_line=$(grep -n 'Kafka topic changed while starting Debezium:' "$bootstrap" | cut -d: -f1)
+final_outbox_line=$(grep -n 'final_outbox_count=' "$bootstrap" | cut -d: -f1)
+receipt_line=$(grep -n 'receipt="$work_root/data-bootstrap-receipt.json"' "$bootstrap" | cut -d: -f1)
+[[ "$runtime_connector_line" -lt "$final_topic_line" && "$final_topic_line" -lt "$final_outbox_line" \
+  && "$final_outbox_line" -lt "$receipt_line" ]] \
+  || fail "Debezium runtime config, final Kafka/outbox checks, and receipt are out of order"
 
 checks="$lab_root/checks.tf"
 aws_lab="$repo_root/infra/aws/scripts/aws-lab.sh"
