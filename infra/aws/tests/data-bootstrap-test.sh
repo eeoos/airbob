@@ -211,6 +211,8 @@ for canonical_topic in \
   assert_contains "$bootstrap" "$canonical_topic"
 done
 assert_contains "$bootstrap" '.tasks'
+assert_contains "$bootstrap" 'verify_connector_runtime_config "$connector_payload" "$connector_runtime_config"'
+assert_contains "$bootstrap" 'Debezium runtime connector config differs from the approved no-data contract'
 assert_contains "$bootstrap" 'datasetManifestSha256'
 assert_contains "$bootstrap" 'download_sha benchmark/manifest.json "$benchmark_manifest"'
 assert_contains "$bootstrap" 'download_sha benchmark/dataset-manifest.json "$benchmark_dataset_manifest"'
@@ -333,6 +335,39 @@ if validate_document_identity_pairs \
   "$document_identity_sha" "$document_identity_sha" 2; then
   fail "bootstrap accepted an Elasticsearch _id mapped to the wrong accommodation"
 fi
+
+connector_config_function="$temp_dir/verify-connector-runtime-config.sh"
+awk '
+  /^verify_connector_runtime_config\(\) \{/ { capture = 1 }
+  capture { print }
+  capture && /^}/ { exit }
+' "$bootstrap" > "$connector_config_function"
+[[ -s "$connector_config_function" ]] || fail "bootstrap runtime connector config validator is missing"
+# shellcheck source=/dev/null
+source "$connector_config_function"
+expected_connector_config="$temp_dir/expected-connector.json"
+runtime_connector_config="$temp_dir/runtime-connector.json"
+jq '
+  .["database.hostname"] = "rds.example.internal" |
+  .["database.user"] = "airbob_debezium" |
+  .["database.password"] = "expected-secret"
+' "$repo_root/infra/aws/bundles/debezium/connector.aws.json.tmpl" > "$expected_connector_config"
+jq '.["database.password"] = "masked-or-different-runtime-value"' \
+  "$expected_connector_config" > "$runtime_connector_config"
+verify_connector_runtime_config "$expected_connector_config" "$runtime_connector_config" \
+  || fail "runtime connector config rejected an exact non-secret contract"
+for connector_drift_case in snapshot-mode outbox-table predicate extra-field missing-password; do
+  case "$connector_drift_case" in
+    snapshot-mode) jq '.["snapshot.mode"] = "initial"' "$expected_connector_config" ;;
+    outbox-table) jq '.["table.include.list"] = "airbobdb.reservation"' "$expected_connector_config" ;;
+    predicate) jq '.["transforms.outbox.predicate"] = "OtherPredicate"' "$expected_connector_config" ;;
+    extra-field) jq '.["consumer.override.auto.offset.reset"] = "earliest"' "$expected_connector_config" ;;
+    missing-password) jq 'del(.["database.password"])' "$expected_connector_config" ;;
+  esac > "$runtime_connector_config"
+  if verify_connector_runtime_config "$expected_connector_config" "$runtime_connector_config"; then
+    fail "runtime connector config accepted drift: $connector_drift_case"
+  fi
+done
 
 checks="$lab_root/checks.tf"
 aws_lab="$repo_root/infra/aws/scripts/aws-lab.sh"

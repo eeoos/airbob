@@ -27,6 +27,21 @@ validate_document_identity_pairs() {
     && "$actual_database_sha" == "$actual_elasticsearch_sha" ]]
 }
 
+verify_connector_runtime_config() {
+  local expected_config=$1
+  local runtime_config=$2
+
+  [[ -f "$expected_config" && ! -L "$expected_config" \
+    && -f "$runtime_config" && ! -L "$runtime_config" ]] || return 1
+  jq -e --slurpfile expected "$expected_config" '
+    ($expected | length) == 1 and
+    type == "object" and
+    (.["database.password"] | type == "string" and length > 0) and
+    ($expected[0]["database.password"] | type == "string" and length > 0) and
+    (del(.["database.password"]) == ($expected[0] | del(.["database.password"])))
+  ' "$runtime_config" >/dev/null
+}
+
 required_environment=(
   AIRBOB_REGION AIRBOB_RUN_ID AIRBOB_DATASET_BUCKET AIRBOB_EVIDENCE_BUCKET
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
@@ -81,9 +96,10 @@ dataset_uri="s3://$AIRBOB_DATASET_BUCKET/datasets/$AIRBOB_DATASET_RELEASE"
 master_secret_file="$secret_root/rds-master.json"
 debezium_secret_file="$secret_root/debezium.json"
 connector_payload="$secret_root/connector.json"
+connector_runtime_config="$secret_root/connector-runtime.json"
 cleanup() {
   unset MYSQL_PWD master_password debezium_password
-  rm -f "$master_secret_file" "$debezium_secret_file" "$connector_payload"
+  rm -f "$master_secret_file" "$debezium_secret_file" "$connector_payload" "$connector_runtime_config"
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -999,6 +1015,11 @@ for attempt in $(seq 1 60); do
   [[ "$attempt" -lt 60 ]] || { printf '%s\n' 'Debezium connector did not become RUNNING' >&2; exit 1; }
   sleep 5
 done
+curl_http --fail --silent --show-error \
+  'http://127.0.0.1:8083/connectors/airbob-outbox-connector/config' > "$connector_runtime_config"
+chmod 600 "$connector_runtime_config"
+verify_connector_runtime_config "$connector_payload" "$connector_runtime_config" \
+  || { printf '%s\n' 'Debezium runtime connector config differs from the approved no-data contract' >&2; exit 1; }
 
 targets_final="$work_root/semantic-targets-final.tsv"
 verify_targets "$targets_final" \
