@@ -125,13 +125,14 @@ The separate bundle bucket retains its bounded 30-day noncurrent version
 cleanup, and evidence expiration remains restricted to explicitly tagged
 objects.
 
-After apply, configure a local AWS CLI profile whose `source_profile` is the
-approved IAM user, whose `role_arn` is
-`arn:aws:iam::942632789808:role/airbob-dataset-publisher`, and whose
-`mfa_serial` is that user's real MFA device ARN. The publisher and snapshot
-producer both reject direct IAM-user credentials and require the resulting
-`assumed-role/airbob-dataset-publisher/...` session. Commands and complete
-retry semantics are documented in `infra/aws/datasets/README.md`.
+After apply, authenticate the approved IAM user and configure the local AWS CLI
+publisher profile documented in `infra/aws/datasets/README.md`. An `aws login`
+source produces a role-chained session, so that profile requests 3,600 seconds
+and starts each production attempt with a unique role-session name. The
+publisher and snapshot producer both reject direct IAM-user credentials and
+require the resulting `assumed-role/airbob-dataset-publisher/...` session.
+Commands, credential headroom, and complete retry semantics are documented in
+the dataset runbook.
 
 ## DNS and ACM are a two-pass operation
 

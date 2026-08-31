@@ -4,7 +4,7 @@ umask 077
 export LC_ALL=C
 
 ELASTICSEARCH_VERSION=8.18.8
-CREDENTIAL_HEADROOM_SECONDS=3600
+CREDENTIAL_HEADROOM_SECONDS=3300
 CREDENTIAL_SHUTDOWN_HEADROOM_SECONDS=300
 LEASE_DEADLINE_GRACE_SECONDS=900
 LEASE_HEARTBEAT_INTERVAL_SECONDS=60
@@ -625,7 +625,7 @@ expiration_epoch=$(jq -er '.Expiration | sub("\\+00:00$"; "Z") | fromdateiso8601
   || fail 'temporary AWS credential expiration is invalid'
 current_epoch=$(date -u '+%s')
 [[ "$expiration_epoch" =~ ^[0-9]+$ && "$expiration_epoch" -ge $((current_epoch + CREDENTIAL_HEADROOM_SECONDS)) ]] \
-  || fail 'temporary AWS credentials do not have one hour of expiry headroom'
+  || fail 'temporary AWS credentials do not have 55 minutes of expiry headroom'
 credential_remaining_seconds=$((expiration_epoch - current_epoch))
 credential_watchdog_seconds=$((credential_remaining_seconds - CREDENTIAL_SHUTDOWN_HEADROOM_SECONDS))
 lease_deadline_seconds=$((credential_remaining_seconds + LEASE_DEADLINE_GRACE_SECONDS))
