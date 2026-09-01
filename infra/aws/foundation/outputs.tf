@@ -44,12 +44,17 @@ output "foundation_admin_role_arn" {
 }
 
 output "lab_operator_role_arn" {
-  description = "OIDC/local role with foundation-base lab permissions only."
+  description = "OIDC/local role for direct-only lab operation without public DNS state or controller access."
   value       = aws_iam_role.lab_operator.arn
 }
 
+output "lab_cutover_operator_role_arn" {
+  description = "OIDC/local role with direct lab permissions plus the exact public DNS cutover extension."
+  value       = aws_iam_role.lab_cutover_operator.arn
+}
+
 output "dns_controller_role_arn" {
-  description = "Role assumable only by the lab operator for fenced public DNS-state changes."
+  description = "Role assumable only by the lab cutover operator for fenced public DNS-state changes."
   value       = aws_iam_role.dns_controller.arn
 }
 

@@ -72,6 +72,12 @@ assert_contains "$lab_root/templates/start-app.sh.tftpl" 'curl --connect-timeout
   || fail "container IMDS calls must keep bounded retries and timeouts"
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'AIRBOB_RUNTIME_REVISION='
 assert_contains "$lab_root/templates/start-app.sh.tftpl" 'AIRBOB_APP_INSTANCE_ID='
+assert_contains "$lab_root/templates/start-app.sh.tftpl" "spring_profiles='aws,performance-lab,test'"
+assert_contains "$lab_root/templates/start-app.sh.tftpl" "spring_profiles='aws,traffic-benchmark'"
+assert_contains "$repo_root/infra/aws/scripts/verify-app-runtime-env.sh" \
+  "required_profile='aws,performance-lab,test'"
+assert_contains "$repo_root/infra/aws/scripts/verify-app-runtime-env.sh" \
+  "required_profile='aws,traffic-benchmark'"
 for isolated_guard in \
   SPRING_KAFKA_LISTENER_AUTO_STARTUP \
   OPERATOR_ALERT_KAFKA_AUTO_STARTUP \

@@ -9,7 +9,93 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  change-scope:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      oci_required: ${{ steps.scope.outputs.oci_required }}
+    steps:
+      - name: Checkout exact push history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Classify OCI-relevant changes
+        id: scope
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          readonly ZERO_SHA=0000000000000000000000000000000000000000
+          readonly SHA_PATTERN='^[0-9a-f]{40}$'
+
+          fail_scope() {
+            printf 'invalid or unverifiable push scope: %s\n' "$1" >&2
+            exit 2
+          }
+
+          [[ -n "$BEFORE_SHA" && "$BEFORE_SHA" =~ $SHA_PATTERN && "$BEFORE_SHA" != "$ZERO_SHA" ]] \
+            || fail_scope 'before SHA'
+          [[ -n "$AFTER_SHA" && "$AFTER_SHA" =~ $SHA_PATTERN && "$AFTER_SHA" != "$ZERO_SHA" ]] \
+            || fail_scope 'after SHA'
+          [[ "$AFTER_SHA" == "$GITHUB_SHA" ]] || fail_scope 'GitHub SHA mismatch'
+
+          git fetch --no-tags --prune origin '+refs/heads/main:refs/remotes/origin/main' \
+            || fail_scope 'main history fetch'
+
+          resolved_before=$(git rev-parse --verify "${BEFORE_SHA}^{commit}") \
+            || fail_scope 'before commit'
+          resolved_after=$(git rev-parse --verify "${AFTER_SHA}^{commit}") \
+            || fail_scope 'after commit'
+          resolved_head=$(git rev-parse --verify 'HEAD^{commit}') \
+            || fail_scope 'checked-out commit'
+          [[ "$resolved_before" == "$BEFORE_SHA" ]] || fail_scope 'before commit mismatch'
+          [[ "$resolved_after" == "$AFTER_SHA" ]] || fail_scope 'after commit mismatch'
+          [[ "$resolved_head" == "$AFTER_SHA" ]] || fail_scope 'checked-out commit mismatch'
+
+          # docker/aws-mirror/** and docker/elasticsearch/** are released by
+          # infra-images.yml, not here, avoiding an uncoordinated cross-workflow race.
+          scope_paths=(
+            'src/main/**'
+            'build.gradle'
+            'settings.gradle'
+            'gradlew'
+            'gradlew.bat'
+            'gradle/**'
+            'gradle.properties'
+            'docker/app/**'
+            'infra/aws/images/release.json'
+            'docker-compose.oci.yml'
+            'debezium-config/**'
+            'docker/debezium/**'
+            'docker/kafka/**'
+            'docker/mysql/init/**'
+            'logstash/**'
+            'monitoring/**'
+            'nginx/**'
+            'scripts/**'
+          )
+
+          if git diff --quiet "$BEFORE_SHA" "$AFTER_SHA" -- "${scope_paths[@]}"; then
+            oci_required=false
+          else
+            diff_status=$?
+            if [[ "$diff_status" -ne 1 ]]; then
+              printf 'git diff failed with status %s\n' "$diff_status" >&2
+              exit "$diff_status"
+            fi
+            oci_required=true
+          fi
+
+          printf 'oci_required=%s\n' "$oci_required" >> "$GITHUB_OUTPUT"
+
   build-app:
+    needs: change-scope
+    if: needs.change-scope.result == 'success' && needs.change-scope.outputs.oci_required == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

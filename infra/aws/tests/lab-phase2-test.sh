@@ -5,6 +5,20 @@ umask 077
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -P -- "$script_dir/../../.." && pwd -P)
 lab_root="$repo_root/infra/aws/lab"
+temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-lab-contract-test.XXXXXX")
+export TF_DATA_DIR="$temp_dir/terraform-data"
+mkdir -p "$TF_DATA_DIR"
+
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  rm -rf "$temp_dir"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -26,6 +40,18 @@ assert_not_contains() {
 }
 
 [[ -d "$lab_root" && ! -L "$lab_root" ]] || fail "lab root is missing or unsafe"
+
+dump_make_contract=$(make -s -n -C "$repo_root" aws-up)
+grep -Fq 'TTL_HOURS="5"' <<<"$dump_make_contract" \
+  || fail "make aws-up must default dump bootstrap to the safe five-hour TTL"
+grep -Fq 'DATABASE_BOOTSTRAP="dump"' <<<"$dump_make_contract" \
+  || fail "make aws-up must default to dump bootstrap"
+
+snapshot_make_contract=$(make -s -n -C "$repo_root" aws-up DATABASE_BOOTSTRAP=snapshot)
+grep -Fq 'TTL_HOURS="2"' <<<"$snapshot_make_contract" \
+  || fail "make aws-up must pass the exact two-hour TTL for snapshot bootstrap"
+grep -Fq 'DATABASE_BOOTSTRAP="snapshot"' <<<"$snapshot_make_contract" \
+  || fail "make aws-up must preserve explicit snapshot bootstrap"
 
 required_files=(
   network.tf security.tf iam.tf service-hosts.tf private-dns.tf ssm.tf checks.tf

@@ -104,6 +104,12 @@ locals {
         }
       },
       {
+        Sid      = "DenyHostAuthoritativeEvidenceWrites"
+        Effect   = "Deny"
+        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = local.authoritative_evidence_resources
+      },
+      {
         Sid    = "MonitoringReadOnly"
         Effect = "Allow"
         Action = [
@@ -128,16 +134,12 @@ locals {
         "iam:GetRole",
         "iam:GetRolePolicy",
         "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfiles",
         "iam:ListInstanceProfilesForRole",
         "iam:ListRolePolicies",
+        "iam:ListRoles",
         "iam:ListRoleTags",
-        "ssm:DescribeAssociation",
-        "ssm:DescribeDocument",
-        "ssm:GetDocument",
-        "ssm:ListAssociationVersions",
-        "ssm:ListAssociations",
-        "ssm:ListDocuments",
-        "ssm:ListTagsForResource",
+        "tag:GetResources",
       ]
       Resource = "*"
     },
@@ -451,9 +453,21 @@ locals {
       }
     },
     {
-      Sid      = "ReadCommandResults"
-      Effect   = "Allow"
-      Action   = ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:ListCommands"]
+      Sid    = "ReadCommandResults"
+      Effect = "Allow"
+      Action = [
+        "ssm:DescribeAssociation",
+        "ssm:DescribeDocument",
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetCommandInvocation",
+        "ssm:GetDocument",
+        "ssm:ListAssociationVersions",
+        "ssm:ListAssociations",
+        "ssm:ListCommandInvocations",
+        "ssm:ListCommands",
+        "ssm:ListDocuments",
+        "ssm:ListTagsForResource",
+      ]
       Resource = "*"
     },
     {
@@ -556,6 +570,7 @@ locals {
           "rds:DescribeDBSnapshots",
           "rds:DescribeDBSubnetGroups",
           "rds:ListTagsForResource",
+          "secretsmanager:ListSecrets",
         ]
         Resource = "*"
       },

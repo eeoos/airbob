@@ -9,6 +9,8 @@ toolchain_contract="$repo_root/infra/aws/toolchain.env"
 backend_helper="$repo_root/infra/aws/scripts/prepare-terraform-backend.sh"
 bootstrap_script="$repo_root/infra/aws/scripts/bootstrap-state.sh"
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-foundation-test.XXXXXX")
+export TF_DATA_DIR="$temp_dir/terraform-data"
+mkdir -p "$TF_DATA_DIR"
 
 cleanup() {
   local status=$?
@@ -90,7 +92,17 @@ assert_contains "$backend_helper" '"$bootstrap_preflight" status'
 assert_not_contains "$backend_helper" 'dynamodb_table'
 assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_policy" "lab_operator" {'
 assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy_attachment" "lab_operator" {'
+assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role" "lab_cutover_operator" {'
+assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy_attachment" "lab_cutover_operator" {'
+assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy" "lab_cutover_operator_extension" {'
 assert_contains "$foundation_root/iam.tf" 'policy_arn = aws_iam_policy.lab_operator[each.key].arn'
+[[ "$(grep -Fc 'policy_arn = aws_iam_policy.lab_operator[each.key].arn' "$foundation_root/iam.tf")" -eq 2 ]] \
+  || fail "both Lab operator roles must attach the exact same five managed policies"
+assert_contains "$foundation_root/iam.tf" 'name                 = local.role_names.lab_cutover'
+assert_contains "$foundation_root/iam.tf" 'role   = aws_iam_role.lab_cutover_operator.id'
+assert_contains "$foundation_root/iam.tf" 'max_session_duration = 18000'
+assert_contains "$foundation_root/dns-controller.tf" 'Principal = { AWS = "arn:aws:iam::${var.account_id}:role/${local.role_names.lab_cutover}" }'
+assert_contains "$foundation_root/outputs.tf" 'output "lab_cutover_operator_role_arn" {'
 assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role" "dataset_publisher" {'
 assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy" "dataset_publisher" {'
 assert_contains "$foundation_root/data.tf" 'data "aws_s3_objects" "dataset_snapshot_seal_plan" {'
@@ -105,12 +117,18 @@ assert_contains "$foundation_root/data.tf" 'A dataset release sealed during appl
 assert_contains "$foundation_root/iam.tf" 'depends_on = [data.aws_s3_objects.dataset_snapshot_seal_apply]'
 assert_contains "$foundation_root/variables.tf" 'arn:aws:iam::942632789808:user/admin-eeoos'
 assert_contains "$foundation_root/iam.tf" '"s3:if-none-match"'
+assert_contains "$foundation_root/iam.tf" 'Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]'
+assert_contains "$foundation_root/iam.tf" 'Action = ["s3:GetObject", "s3:GetObjectVersion"]'
 assert_contains "$foundation_root/iam.tf" '"s3:x-amz-acl"'
 assert_contains "$foundation_root/iam.tf" 'bucket-owner-full-control'
 assert_contains "$foundation_root/storage.tf" 'DenyDatasetReleaseOverwrite'
 assert_contains "$foundation_root/storage.tf" 'DenyDatasetReleaseDeletion'
 assert_contains "$foundation_root/storage.tf" 'DenySnapshotSealOverwrite'
 assert_contains "$foundation_root/storage.tf" 'DenySnapshotSealDeletion'
+assert_contains "$foundation_root/storage.tf" 'create_only_evidence_resources'
+assert_contains "$foundation_root/storage.tf" '/measurements/*/teardown-*.json'
+assert_contains "$foundation_root/storage.tf" '/data-bootstrap/*'
+assert_contains "$foundation_root/storage.tf" '/runs/*/operator.json'
 assert_file_not_contains "$foundation_root/iam.tf" '^resource "aws_iam_role_policy" "lab_operator"'
 assert_file_not_contains "$foundation_root/lab-compute.tf" '^resource "aws_iam_role_policy" "lab_(compute|data_compute|app_compute)"'
 assert_file_not_contains "$foundation_root/expiry-observer.tf" 'reserved_concurrent_executions'
@@ -150,7 +168,11 @@ assert_file_not_contains "$foundation_root/iam.tf" 'iam:(PutRolePolicy|DeleteRol
 assert_contains "$foundation_root/lab-compute.tf" 'resource "aws_iam_policy" "lab_host_boundary"'
 assert_contains "$foundation_root/lab-compute.tf" '"iam:PermissionsBoundary"'
 assert_contains "$foundation_root/lab-compute.tf" 'role/airbob-lab-host-*'
-assert_file_not_contains "$foundation_root/lab-compute.tf" 'role/airbob-(foundation-admin|lab-operator|image-publisher|dataset-publisher)'
+assert_contains "$foundation_root/lab-compute.tf" '"iam:ListInstanceProfiles",'
+assert_contains "$foundation_root/lab-compute.tf" '"iam:ListRoles",'
+assert_contains "$foundation_root/lab-compute.tf" '"secretsmanager:ListSecrets",'
+assert_contains "$foundation_root/lab-compute.tf" '"ssm:DescribeInstanceInformation",'
+assert_file_not_contains "$foundation_root/lab-compute.tf" 'role/airbob-(foundation-admin|lab-operator|lab-cutover-operator|image-publisher|dataset-publisher)'
 assert_file_not_contains "$foundation_root/lab-compute.tf" 'iam:(UpdateAssumeRolePolicy|PutRolePermissionsBoundary|DeleteRolePermissionsBoundary)'
 assert_file_not_contains "$foundation_root/lab-compute.tf" 'route53:ChangeResourceRecordSetsNormalizedRecordNames.*api\.airbob\.cloud'
 assert_file_not_contains "$foundation_root/lab-compute.tf" 'route53:(CreateHostedZone|DeleteHostedZone|ChangeTagsForResource)'
@@ -168,11 +190,21 @@ assert_contains "$foundation_root/expiry-observer.tf" 'try(!aws_sns_topic_subscr
 assert_file_not_contains "$foundation_root/expiry-observer.tf" 'alias/aws/sns'
 assert_file_not_contains "$foundation_root/lambda/expiry_observer.py" 'delete_|terminate_|stop_|change_resource|start_build|put_item|update_item'
 
-lab_policy_source=$(sed -n '/^  lab_operator_policy = jsonencode({$/,/^  image_publisher_policy = jsonencode({$/p' "$foundation_root/iam.tf")
+lab_policy_source=$(sed -n '/^  lab_operator_policy = jsonencode({$/,/^  lab_cutover_operator_extension_policy = jsonencode({$/p' "$foundation_root/iam.tf")
 [[ -n "$lab_policy_source" ]] || fail "lab operator policy source is missing"
 if printf '%s\n' "$lab_policy_source" | grep -Eq 'local\.state_keys\.foundation|airbob/foundation/terraform\.tfstate|FoundationState'; then
   fail "lab operator policy must not read the foundation Terraform state"
 fi
+if printf '%s\n' "$lab_policy_source" | grep -Eq 'lab_cutover_operator_dns_state_key|AssumeDnsController|sts:(AssumeRole|TagSession)'; then
+  fail "direct lab operator policy must not access public DNS state or assume the DNS controller"
+fi
+
+cutover_policy_source=$(sed -n '/^  lab_cutover_operator_extension_policy = jsonencode({$/,/^  image_publisher_policy = jsonencode({$/p' "$foundation_root/iam.tf")
+[[ -n "$cutover_policy_source" ]] || fail "lab cutover operator extension policy source is missing"
+printf '%s\n' "$cutover_policy_source" | grep -Fq 'local.lab_cutover_operator_dns_state_key' \
+  || fail "lab cutover operator must access only the dedicated DNS state key set"
+printf '%s\n' "$cutover_policy_source" | grep -Fq 'Sid      = "AssumeDnsController"' \
+  || fail "lab cutover operator must retain the exact DNS controller extension"
 
 fixture_root="$temp_dir/repo"
 fake_bin="$temp_dir/bin"
