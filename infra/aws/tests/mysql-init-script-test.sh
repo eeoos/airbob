@@ -28,7 +28,6 @@ trap 'exit 143' TERM
   || fail 'init script is missing or unsafe'
 [[ -x "$init_script" ]] \
   || fail 'init script must be executable instead of relying on entrypoint sourcing'
-bash -n "$init_script"
 grep -Fq 'bash infra/aws/tests/mysql-init-script-test.sh' "$ci_workflow" \
   || fail 'CI does not execute the MySQL init contract test'
 
@@ -67,10 +66,19 @@ fi
   || fail 'standalone execution did not use the approved local socket arguments'
 [[ "$(<"$mock_state/password")" == "$root_password" ]] \
   || fail 'standalone execution did not pass the root password through MYSQL_PWD'
-grep -Fq "CREATE USER IF NOT EXISTS 'debezium'@'%' IDENTIFIED BY '$debezium_password';" \
-  "$mock_state/stdin.sql" || fail 'Debezium user SQL is missing'
-grep -Fq "CREATE USER IF NOT EXISTS 'logstash'@'%' IDENTIFIED BY '$logstash_password';" \
-  "$mock_state/stdin.sql" || fail 'Logstash user SQL is missing'
+expected_sql_fragments=(
+  "CREATE USER IF NOT EXISTS 'debezium'@'%' IDENTIFIED BY '$debezium_password';"
+  "ALTER USER 'debezium'@'%' IDENTIFIED BY '$debezium_password';"
+  "GRANT SELECT ON \`airbobdb\`.* TO 'debezium'@'%';"
+  "GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'debezium'@'%';"
+  "CREATE USER IF NOT EXISTS 'logstash'@'%' IDENTIFIED BY '$logstash_password';"
+  "ALTER USER 'logstash'@'%' IDENTIFIED BY '$logstash_password';"
+  "GRANT SELECT ON \`airbobdb\`.* TO 'logstash'@'%';"
+)
+for expected_sql_fragment in "${expected_sql_fragments[@]}"; do
+  grep -Fq "$expected_sql_fragment" "$mock_state/stdin.sql" \
+    || fail "infrastructure-user SQL is missing: $expected_sql_fragment"
+done
 if grep -Fq "$root_password" "$mock_state/argv" \
   || grep -Fq "$root_password" "$mock_state/stdin.sql" \
   || grep -Fq "$root_password" "$output"
