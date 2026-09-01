@@ -724,17 +724,26 @@ case "$method $url" in
     fi
     snapshot_state='SUCCESS'
     successful_shards=1
+    snapshot_index_version='8.18.0-8.18.8'
+    snapshot_index_version_id=8525000
     if [[ "${FAKE_SNAPSHOT_FAIL:-false}" == true ]]; then
       snapshot_state='PARTIAL'
       successful_shards=0
     fi
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_DRIFT:-false}" != true ]] \
+      || snapshot_index_version='8.18.0-8.18.7'
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_ID_DRIFT:-false}" != true ]] \
+      || snapshot_index_version_id=8524000
     jq -n \
       --arg state "$snapshot_state" \
       --argjson successful "$successful_shards" \
+      --arg snapshotIndexVersion "$snapshot_index_version" \
+      --argjson snapshotIndexVersionId "$snapshot_index_version_id" \
       --arg runId "${FAKE_DATASET_RUN_ID:?}" \
       --arg sourceSha "${FAKE_SOURCE_PAYLOAD_SHA:?}" '
       {snapshot:{
-        snapshot:"airbob-rehearsal-v20",uuid:"uuid-1",state:$state,version:"8.18.8",
+        snapshot:"airbob-rehearsal-v20",uuid:"uuid-1",state:$state,
+        version:$snapshotIndexVersion,version_id:$snapshotIndexVersionId,
         indices:["accommodations-v20260817001530"],include_global_state:false,feature_states:[],
         metadata:{
           datasetRelease:"rehearsal-v20",datasetRunId:$runId,
@@ -750,9 +759,17 @@ case "$method $url" in
     ;;
   "GET ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/airbob-rehearsal-v20")
     metadata_release='rehearsal-v20'
+    snapshot_index_version='8.18.0-8.18.8'
+    snapshot_index_version_id=8525000
     [[ "${FAKE_SNAPSHOT_METADATA_DRIFT:-false}" != true ]] || metadata_release='other-v20'
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_DRIFT:-false}" != true ]] \
+      || snapshot_index_version='8.18.0-8.18.7'
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_ID_DRIFT:-false}" != true ]] \
+      || snapshot_index_version_id=8524000
     jq -n \
       --arg metadataRelease "$metadata_release" \
+      --arg snapshotIndexVersion "$snapshot_index_version" \
+      --argjson snapshotIndexVersionId "$snapshot_index_version_id" \
       --arg runId "${FAKE_DATASET_RUN_ID:?}" \
       --arg sourceSha "${FAKE_SOURCE_PAYLOAD_SHA:?}" '
       {
@@ -760,7 +777,8 @@ case "$method $url" in
           snapshot:"airbob-rehearsal-v20",
           uuid:"uuid-1",
           repository:"airbob-dataset-readonly",
-          version:"8.18.8",
+          version:$snapshotIndexVersion,
+          version_id:$snapshotIndexVersionId,
           indices:["accommodations-v20260817001530"],
           include_global_state:false,
           feature_states:[],
@@ -1003,7 +1021,8 @@ jq -cS -n --arg sourcePayloadSha "$source_payload_sha" '
     snapshot:"airbob-rehearsal-v20",
     uuid:"uuid-1",
     repository:"airbob-dataset-readonly",
-    version:"8.18.8",
+    version:"8.18.0-8.18.8",
+    version_id:8525000,
     indices:["accommodations-v20260817001530"],
     include_global_state:false,
     feature_states:[],
@@ -1052,7 +1071,7 @@ jq -e \
   .snapshot.name == "airbob-rehearsal-v20" and
   .snapshot.uuid == "uuid-1" and
   .snapshot.state == "SUCCESS" and
-  .snapshot.version == "8.18.8" and
+  .snapshot.version == "8.18.0-8.18.8" and
   .snapshot.indices == ["accommodations-v20260817001530"] and
   .snapshot.includeGlobalState == false and
   .snapshot.totalShards == 1 and
@@ -1434,6 +1453,22 @@ grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settin
   || fail 'snapshot failure did not unfreeze the source index'
 [[ $(grep -c '<remove> <s3.client.airbob_dataset_producer.' "$docker_log") -eq 3 ]] \
   || fail 'snapshot failure did not remove temporary credentials'
+
+snapshot_version_drift_reference="$temp_dir/snapshot-version-drift-reference.json"
+snapshot_version_drift_receipt="$temp_dir/snapshot-version-drift-receipt.json"
+expect_failure snapshot-index-version-drift run_producer \
+  "$snapshot_version_drift_reference" "$snapshot_version_drift_receipt" \
+  FAKE_SNAPSHOT_INDEX_VERSION_DRIFT=true
+[[ ! -e "$snapshot_version_drift_reference" && ! -e "$snapshot_version_drift_receipt" ]] \
+  || fail 'mismatched snapshot index version wrote producer outputs'
+
+snapshot_version_id_drift_reference="$temp_dir/snapshot-version-id-drift-reference.json"
+snapshot_version_id_drift_receipt="$temp_dir/snapshot-version-id-drift-receipt.json"
+expect_failure snapshot-index-version-id-drift run_producer \
+  "$snapshot_version_id_drift_reference" "$snapshot_version_id_drift_receipt" \
+  FAKE_SNAPSHOT_INDEX_VERSION_ID_DRIFT=true
+[[ ! -e "$snapshot_version_id_drift_reference" && ! -e "$snapshot_version_id_drift_receipt" ]] \
+  || fail 'mismatched snapshot index version id wrote producer outputs'
 
 heartbeat_reference="$temp_dir/heartbeat-failure-reference.json"
 heartbeat_receipt="$temp_dir/heartbeat-failure-receipt.json"

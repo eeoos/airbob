@@ -524,7 +524,7 @@ make_release() {
           name:"airbob-rehearsal-v20",
           uuid:"snapshot-uuid",
           state:"SUCCESS",
-          version:"8.18.8",
+          version:"8.18.0-8.18.8",
           indices:["accommodations-v20260817001530"],
           includeGlobalState:false,
           totalShards:1,
@@ -893,6 +893,18 @@ jq '.sourceReleasePayloadSha256 = ("e" * 64)' "$receipt" > "$wrong_source_receip
 reset_fake_s3
 expect_failure mismatched-source-release run_publisher \
   "$search_release" "$release" evidence "$bucket" "$wrong_source_receipt"
+
+wrong_snapshot_version_receipt="$temp_dir/wrong-snapshot-version-receipt.json"
+jq '.snapshot.version = "8.18.8"' "$receipt" > "$wrong_snapshot_version_receipt"
+wrong_snapshot_version_receipt_sha=$(sha256_file "$wrong_snapshot_version_receipt")
+wrong_snapshot_version_seal="$temp_dir/wrong-snapshot-version-seal.json"
+jq --arg receiptSha "$wrong_snapshot_version_receipt_sha" \
+  '.snapshotReceiptSha256 = $receiptSha' "$snapshot_seal" > "$wrong_snapshot_version_seal"
+reset_fake_s3
+install_snapshot_seal "$wrong_snapshot_version_seal"
+expect_failure mismatched-snapshot-index-version run_publisher \
+  "$search_release" "$release" evidence "$bucket" "$wrong_snapshot_version_receipt"
+assert_no_dataset_writes
 
 reset_fake_s3
 install_snapshot_seal "$snapshot_seal"

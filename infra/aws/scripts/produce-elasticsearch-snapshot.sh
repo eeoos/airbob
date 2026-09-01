@@ -4,6 +4,9 @@ umask 077
 export LC_ALL=C
 
 ELASTICSEARCH_VERSION=8.18.8
+# SnapshotInfo.version serializes IndexVersion.toReleaseVersion(), not the node product version.
+ELASTICSEARCH_SNAPSHOT_INDEX_VERSION=8.18.0-8.18.8
+ELASTICSEARCH_SNAPSHOT_INDEX_VERSION_ID=8525000
 CREDENTIAL_HEADROOM_SECONDS=3300
 CREDENTIAL_SHUTDOWN_HEADROOM_SECONDS=300
 LEASE_DEADLINE_GRACE_SECONDS=900
@@ -1105,7 +1108,8 @@ snapshot_create=$(curl_json PUT \
 jq -e \
   --arg snapshot "$snapshot_name" \
   --arg index "$SOURCE_INDEX" \
-  --arg version "$ELASTICSEARCH_VERSION" \
+  --arg version "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION" \
+  --argjson versionId "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION_ID" \
   --arg release "$dataset_release" \
   --arg runId "$dataset_run_id" \
   --arg sourcePayloadSha256 "$source_payload_sha" \
@@ -1114,6 +1118,7 @@ jq -e \
   (.snapshot.uuid | type == "string" and length > 0) and
   .snapshot.state == "SUCCESS" and
   .snapshot.version == $version and
+  .snapshot.version_id == $versionId and
   .snapshot.indices == [$index] and
   .snapshot.include_global_state == false and
   (.snapshot.feature_states // []) == [] and
@@ -1163,7 +1168,8 @@ snapshot_metadata_response=$(curl_json GET "/_snapshot/$READER_REPOSITORY/$snaps
 jq -e \
   --arg snapshot "$snapshot_name" \
   --arg index "$SOURCE_INDEX" \
-  --arg version "$ELASTICSEARCH_VERSION" \
+  --arg version "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION" \
+  --argjson versionId "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION_ID" \
   --arg release "$dataset_release" \
   --arg runId "$dataset_run_id" \
   --arg sourcePayloadSha256 "$source_payload_sha" \
@@ -1173,6 +1179,7 @@ jq -e \
   (.snapshots[0].uuid | type == "string" and length > 0) and
   .snapshots[0].state == "SUCCESS" and
   .snapshots[0].version == $version and
+  .snapshots[0].version_id == $versionId and
   .snapshots[0].indices == [$index] and
   .snapshots[0].include_global_state == false and
   (.snapshots[0].feature_states // []) == [] and
