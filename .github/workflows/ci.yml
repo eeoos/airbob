@@ -51,6 +51,9 @@ jobs:
           bash infra/aws/tests/all-service-bundles-test.sh
           bash infra/aws/tests/package-service-bundles-test.sh
 
+      - name: Verify local MySQL initialization contract
+        run: bash infra/aws/tests/mysql-init-script-test.sh
+
       - name: Verify immutable AWS image publication contracts
         run: bash infra/aws/tests/image-publication-test.sh
 
