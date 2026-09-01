@@ -131,8 +131,9 @@ source produces a role-chained session, so that profile requests 3,600 seconds
 and starts each production attempt with a unique role-session name. The
 publisher and snapshot producer both reject direct IAM-user credentials and
 require the resulting `assumed-role/airbob-dataset-publisher/...` session.
-Commands, credential headroom, and complete retry semantics are documented in
-the dataset runbook.
+The publisher profile must remain unresolved until the snapshot producer has
+completed its AWS-free live lineage verification. Commands, credential
+headroom, and complete retry semantics are documented in the dataset runbook.
 
 ## DNS and ACM are a two-pass operation
 
