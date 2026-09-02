@@ -66,6 +66,7 @@ run "network_creates_probe_without_services" {
       output.phase2_contract.instance_types.debezium == "t3.medium" &&
       output.phase2_contract.instance_types.elasticsearch == "t3.medium" &&
       output.phase2_contract.instance_types.monitoring == "t3.small" &&
+      toset(keys(aws_iam_instance_profile.host)) == toset(["nat", "probe"]) &&
       alltrue([
         for role in values(aws_iam_role.host) :
         role.permissions_boundary == "arn:aws:iam::942632789808:policy/airbob-performance-lab-host-boundary"
@@ -309,7 +310,10 @@ run "services_require_both_receipts_and_immutable_release" {
     condition = (
       output.phase2_contract.deployment_phase == "services" &&
       !output.phase2_contract.probe_enabled &&
+      length(module.egress_probe.instance_ids) == 0 &&
       length(aws_iam_role_policy.data_plane) == 5 &&
+      contains(keys(aws_iam_instance_profile.host), "probe") &&
+      length(aws_iam_role_policy.probe_egress) == 0 &&
       length(output.phase2_contract.services) == 5 &&
       alltrue([
         for role in values(aws_iam_role.host) :
