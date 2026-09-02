@@ -2517,7 +2517,18 @@ run "foundation_contract" {
       toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "ReadOperatorEvidence"
-      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion"]) &&
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadDatasetAndBundles"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "ReadDatasetAndBundles"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["dataset"].arn}/*",
+        "${aws_s3_bucket.managed["bundle"].arn}/*",
+      ]) &&
       toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "ReadOperatorEvidence"
@@ -2532,6 +2543,20 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_operator_policy).Statement : [
           for resource in try(tolist(statement.Resource), [statement.Resource]) : resource
           if contains(try(tolist(statement.Action), [statement.Action]), "s3:GetObjectVersion") &&
+          statement.Sid != "ReadDatasetAndBundles" &&
+          startswith(resource, "${aws_s3_bucket.managed["evidence"].arn}/")
+        ]
+        ])) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+      ]) &&
+      toset(flatten([
+        for statement in jsondecode(local.lab_operator_policy).Statement : [
+          for resource in try(tolist(statement.Resource), [statement.Resource]) : resource
+          if contains(try(tolist(statement.Action), [statement.Action]), "s3:GetObjectTagging") &&
           statement.Sid != "ReadDatasetAndBundles" &&
           startswith(resource, "${aws_s3_bucket.managed["evidence"].arn}/")
         ]

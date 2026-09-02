@@ -467,7 +467,7 @@ locals {
       {
         Sid    = "ReadDatasetAndBundles"
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Action = ["s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion"]
         Resource = [
           "${aws_s3_bucket.managed["dataset"].arn}/*",
           "${aws_s3_bucket.managed["bundle"].arn}/*",
@@ -496,7 +496,7 @@ locals {
       {
         Sid    = "ReadOperatorEvidence"
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Action = ["s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion"]
         Resource = [
           "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
           "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
