@@ -51,7 +51,7 @@ resource "aws_ssm_document" "start_service" {
       action = "aws:runShellScript"
       name   = "startAndVerify"
       inputs = {
-        timeoutSeconds = "1200"
+        timeoutSeconds = "2400"
         runCommand     = [local.start_service_document]
       }
     }]
@@ -65,7 +65,7 @@ resource "aws_ssm_association" "core_services" {
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-${each.key}"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = 2700
   apply_only_at_cron_interval      = false
 
   targets {
@@ -83,7 +83,7 @@ resource "aws_ssm_association" "debezium" {
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-debezium"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = 2700
 
   targets {
     key    = "InstanceIds"
@@ -100,7 +100,7 @@ resource "aws_ssm_association" "monitoring" {
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-monitoring"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = 2700
 
   targets {
     key    = "InstanceIds"

@@ -1322,14 +1322,13 @@ locals {
         Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0"
       },
       {
-        Sid    = "UseTaggedConfigurationForDumpLabDb"
+        Sid    = "UseRunBoundConfigurationForDumpLabDb"
         Effect = "Allow"
         Action = "rds:CreateDBInstance"
         Resource = [
-          "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-lab-*",
-          "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-lab-*",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-$${aws:RequestTag/RunId}",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-$${aws:RequestTag/RunId}",
         ]
-        Condition = local.lab_ephemeral_resource_tag_condition
       },
       ], [for statement in [
         {
@@ -1376,14 +1375,13 @@ locals {
           Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0"
         },
         {
-          Sid    = "UseTaggedConfigurationForRestoreLabDb"
+          Sid    = "UseRunBoundConfigurationForRestoreLabDb"
           Effect = "Allow"
           Action = "rds:RestoreDBInstanceFromDBSnapshot"
           Resource = [
-            "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-lab-*",
-            "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-lab-*",
+            "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-$${aws:RequestTag/RunId}",
+            "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-$${aws:RequestTag/RunId}",
           ]
-          Condition = local.lab_ephemeral_resource_tag_condition
         },
     ] : statement if var.approved_rds_snapshot_identifier != ""])
   })
