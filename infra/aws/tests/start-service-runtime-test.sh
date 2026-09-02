@@ -51,6 +51,10 @@ extract_function() {
 
 helper_file="$temp_dir/start-service-helpers.sh"
 helper_functions=(
+  diagnostic_timeout
+  diagnostic_compose
+  configure_monitoring_resource_override
+  verify_monitoring_resource_contract
   report_failure
   redis_memory_metric
   verify_redis_memory_info
@@ -67,6 +71,43 @@ for function_name in "${helper_functions[@]}"; do
     || fail "failed to extract $function_name from the rendered template"
 done
 bash -n "$helper_file"
+
+monitoring_override="$temp_dir/monitoring-resource.override.yml"
+monitoring_output=$(
+  HELPER_FILE="$helper_file" MONITORING_OVERRIDE="$monitoring_override" bash <<'CASE'
+set -Eeuo pipefail
+source "$HELPER_FILE"
+compose_files=(-f /opt/airbob/release/infra/aws/bundles/monitoring/compose.yml)
+configure_monitoring_resource_override "$MONITORING_OVERRIDE"
+compose() {
+  [[ "$*" == 'config --format json' ]]
+  printf '%s\n' '{"services":{"grafana":{"mem_limit":536870912,"memswap_limit":536870912}}}'
+}
+verify_monitoring_resource_contract
+printf 'compose_files=%s\n' "${compose_files[*]}"
+CASE
+)
+assert_contains "$monitoring_output" 'Monitoring resource contract: grafana_memory_limit_bytes=536870912 grafana_memory_swap_limit_bytes=536870912'
+assert_contains "$monitoring_output" "compose_files=-f /opt/airbob/release/infra/aws/bundles/monitoring/compose.yml -f $monitoring_override"
+assert_contains "$(cat "$monitoring_override")" 'mem_limit: 512M'
+assert_contains "$(cat "$monitoring_override")" 'memswap_limit: 512M'
+
+set +e
+drifted_monitoring_output=$(
+  HELPER_FILE="$helper_file" bash <<'CASE' 2>&1
+set -Eeuo pipefail
+source "$HELPER_FILE"
+compose() {
+  printf '%s\n' '{"services":{"grafana":{"mem_limit":402653184,"memswap_limit":402653184}}}'
+}
+verify_monitoring_resource_contract
+CASE
+)
+drifted_monitoring_status=$?
+set -e
+[[ "$drifted_monitoring_status" -eq 1 ]] \
+  || fail "drifted monitoring memory contract exited $drifted_monitoring_status instead of 1"
+assert_not_contains "$drifted_monitoring_output" 'Monitoring resource contract:'
 
 immediate_log="$temp_dir/http-immediate.log"
 immediate_output=$(
@@ -223,6 +264,8 @@ assert_contains "$nonnumeric_redis_output" 'Redis memory INFO did not provide ev
 diagnostic_compose_file="$temp_dir/compose.yml"
 diagnostic_log="$temp_dir/compose-bootstrap.log"
 diagnostic_calls="$temp_dir/diagnostic-compose-calls.log"
+diagnostic_docker_calls="$temp_dir/diagnostic-docker-calls.log"
+diagnostic_timeout_calls="$temp_dir/diagnostic-timeout-calls.log"
 sentinel_secret='AIRBOB_SENTINEL_SECRET_DO_NOT_PRINT'
 printf 'password: %s\n' "$sentinel_secret" > "$diagnostic_compose_file"
 printf '%s\n' 'safe detached startup progress' > "$diagnostic_log"
@@ -232,6 +275,8 @@ diagnostic_output=$(
   COMPOSE_FILE="$diagnostic_compose_file" \
   BOOTSTRAP_LOG="$diagnostic_log" \
   COMPOSE_CALLS="$diagnostic_calls" \
+  DOCKER_CALLS="$diagnostic_docker_calls" \
+  TIMEOUT_CALLS="$diagnostic_timeout_calls" \
   SENTINEL_SECRET="$sentinel_secret" \
   bash <<'CASE' 2>&1
 set -Eeuo pipefail
@@ -240,13 +285,25 @@ service=redis
 stage=compose-start
 compose_file=$COMPOSE_FILE
 compose_bootstrap_log=$BOOTSTRAP_LOG
-docker() { :; }
-compose() {
-  printf '%s\n' "$*" >> "$COMPOSE_CALLS"
-  if [[ "$*" == 'ps --all' ]]; then
+compose_files=(-f "$compose_file")
+timeout() {
+  [[ "$1" == --kill-after=2s && "$2" == 10s ]]
+  printf '%s %s\n' "$1" "$2" >> "$TIMEOUT_CALLS"
+  shift 2
+  "$@"
+}
+docker() {
+  printf '%s\n' "$*" >> "$DOCKER_CALLS"
+  if [[ "$1" == inspect ]]; then
+    printf '%s\n' 'Container runtime state: name=/redis status=restarting exit_code=137 oom_killed=true restart_count=3 memory_limit_bytes=536870912 memory_swap_limit_bytes=536870912'
+  elif [[ "$1" == compose && "$*" == *' ps --quiet --all' ]]; then
+    printf '%s\n' 'ps --quiet --all' >> "$COMPOSE_CALLS"
+    printf '%s\n' 'diagnostic-container-id'
+  elif [[ "$1" == compose && "$*" == *' ps --all' ]]; then
+    printf '%s\n' 'ps --all' >> "$COMPOSE_CALLS"
     printf '%s\n' 'NAME STATUS' 'redis running'
   else
-    printf 'unexpected secret-bearing diagnostic: %s\n' "$SENTINEL_SECRET"
+    printf 'unexpected secret-bearing Docker diagnostic: %s\n' "$SENTINEL_SECRET"
   fi
 }
 report_failure 37 4242
@@ -261,8 +318,13 @@ assert_contains "$diagnostic_output" 'Recent Docker Compose bootstrap output:'
 assert_contains "$diagnostic_output" 'safe detached startup progress'
 assert_contains "$diagnostic_output" 'Docker Compose container state:'
 assert_contains "$diagnostic_output" 'redis running'
+assert_contains "$diagnostic_output" 'Container runtime state: name=/redis status=restarting exit_code=137 oom_killed=true restart_count=3 memory_limit_bytes=536870912 memory_swap_limit_bytes=536870912'
 assert_not_contains "$diagnostic_output" "$sentinel_secret"
-[[ "$(cat "$diagnostic_calls")" == 'ps --all' ]] \
+[[ "$(cat "$diagnostic_calls")" == $'ps --quiet --all\nps --all' ]] \
   || fail "failure diagnostic invoked a secret-bearing Compose command"
+assert_contains "$(cat "$diagnostic_docker_calls")" 'inspect --format'
+assert_contains "$(cat "$diagnostic_docker_calls")" 'diagnostic-container-id'
+[[ "$(wc -l < "$diagnostic_timeout_calls" | tr -d ' ')" == 3 ]] \
+  || fail "failure diagnostics were not bounded by exactly three timeout calls"
 
 printf '%s\n' 'start-service runtime helper tests passed'

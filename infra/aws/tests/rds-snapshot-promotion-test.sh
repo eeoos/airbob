@@ -191,8 +191,11 @@ jq -nS \
         engineVersion: "8.0.40",
         allocatedStorageGiB: 100,
         storageType: "gp3",
+        iops: 3000,
+        storageThroughputMiBps: 125,
         multiAz: false,
         storageEncrypted: true,
+        publiclyAccessible: false,
         availabilityZone: "ap-northeast-2a",
         parameterGroups: ["airbob-lab-phase3-test"]
       },
@@ -306,9 +309,20 @@ case "$*" in
     printf '%s\n' '{}'
     ;;
   *"rds describe-db-instances"*)
-    cat <<'JSON'
-{"DBInstances":[{"DBInstanceStatus":"available","Engine":"mysql","EngineVersion":"8.0.40","DbiResourceId":"db-ABCDEFGHIJKLMNOPQRSTUVWX","MultiAZ":false,"StorageEncrypted":true}]}
-JSON
+    jq -n \
+      --arg class "${FAKE_INSTANCE_CLASS:-db.t3.micro}" \
+      --arg storageType "${FAKE_INSTANCE_STORAGE_TYPE:-gp3}" \
+      --argjson allocatedStorage "${FAKE_INSTANCE_ALLOCATED_STORAGE:-100}" \
+      --argjson iops "${FAKE_INSTANCE_IOPS:-3000}" \
+      --argjson throughput "${FAKE_INSTANCE_STORAGE_THROUGHPUT:-125}" \
+      --argjson publiclyAccessible "${FAKE_INSTANCE_PUBLICLY_ACCESSIBLE:-false}" '
+      {DBInstances:[{
+        DBInstanceStatus:"available", Engine:"mysql", EngineVersion:"8.0.40",
+        DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX", DBInstanceClass:$class,
+        AllocatedStorage:$allocatedStorage, StorageType:$storageType, Iops:$iops,
+        StorageThroughput:$throughput, MultiAZ:false, StorageEncrypted:true,
+        PubliclyAccessible:$publiclyAccessible
+      }]}'
     ;;
   *"rds describe-db-snapshots"*)
     [[ -f "$FAKE_SNAPSHOT_CREATED" ]] || exit 1
@@ -316,12 +330,18 @@ JSON
       --arg sourceInstance "${FAKE_SNAPSHOT_INSTANCE_ID:-airbob-lab-phase3-test}" \
       --arg sourceResourceId "${FAKE_SNAPSHOT_RESOURCE_ID:-db-ABCDEFGHIJKLMNOPQRSTUVWX}" \
       --arg engineVersion "${FAKE_SNAPSHOT_ENGINE_VERSION:-8.0.40}" \
+      --arg storageType "${FAKE_SNAPSHOT_STORAGE_TYPE:-gp3}" \
+      --argjson allocatedStorage "${FAKE_SNAPSHOT_ALLOCATED_STORAGE:-100}" \
+      --argjson iops "${FAKE_SNAPSHOT_IOPS:-3000}" \
+      --argjson throughput "${FAKE_SNAPSHOT_STORAGE_THROUGHPUT:-125}" \
       --arg dataVersionSha "${FAKE_TAG_DATA_VERSION_SHA:-$FAKE_DATA_VERSION_SHA}" \
       --arg dataSha "${FAKE_TAG_DATA_SHA:-$FAKE_DATA_SHA}" \
       --arg readinessVersionSha "${FAKE_TAG_READINESS_VERSION_SHA:-$FAKE_READINESS_VERSION_SHA}" \
       --arg readinessSha "${FAKE_TAG_READINESS_SHA:-$FAKE_READINESS_SHA}" '{DBSnapshots:[{
       DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",Status:"available",Engine:"mysql",
-      EngineVersion:$engineVersion,DBInstanceIdentifier:$sourceInstance,DbiResourceId:$sourceResourceId,Encrypted:true,
+      EngineVersion:$engineVersion,DBInstanceIdentifier:$sourceInstance,DbiResourceId:$sourceResourceId,
+      AllocatedStorage:$allocatedStorage,StorageType:$storageType,Iops:$iops,
+      StorageThroughput:$throughput,Encrypted:true,
       TagList:[
         {Key:"Project",Value:"airbob"},
         {Key:"Environment",Value:"performance-lab"},
@@ -447,7 +467,7 @@ expect_local_reject missing-readiness \
   "$readiness_version_id" airbob-lab-phase3-test airbob-dataset-rehearsal-v20 "$tmp_dir/rejected-missing.json"
 
 for readiness_case in failed-health failed-detail failed-search wrong-data-version wrong-data-sha \
-  wrong-run wrong-rds snapshot-bootstrap extra-field projection-drift; do
+  wrong-run wrong-rds wrong-iops wrong-throughput public-rds snapshot-bootstrap extra-field projection-drift; do
   case "$readiness_case" in
     failed-health) jq '.smoke.health.passed = false' "$tmp_dir/direct-readiness.json" ;;
     failed-detail) jq '.smoke.accommodationDetail.passed = false' "$tmp_dir/direct-readiness.json" ;;
@@ -456,6 +476,9 @@ for readiness_case in failed-health failed-detail failed-search wrong-data-versi
     wrong-data-sha) jq '.bootstrap.receipt.sha256 = ("9" * 64)' "$tmp_dir/direct-readiness.json" ;;
     wrong-run) jq '.runId = "lab-other-run"' "$tmp_dir/direct-readiness.json" ;;
     wrong-rds) jq '.actual.rds.resourceId = "db-ZYXWVUTSRQPONMLKJIHGFEDC"' "$tmp_dir/direct-readiness.json" ;;
+    wrong-iops) jq '.actual.rds.iops = 3001' "$tmp_dir/direct-readiness.json" ;;
+    wrong-throughput) jq '.actual.rds.storageThroughputMiBps = 126' "$tmp_dir/direct-readiness.json" ;;
+    public-rds) jq '.actual.rds.publiclyAccessible = true' "$tmp_dir/direct-readiness.json" ;;
     snapshot-bootstrap) jq '.bootstrap.mode = "snapshot"' "$tmp_dir/direct-readiness.json" ;;
     extra-field) jq '.unexpected = true' "$tmp_dir/direct-readiness.json" ;;
     projection-drift) jq '.comparisonProjectionSha256 = ("8" * 64)' "$tmp_dir/direct-readiness.json" ;;
@@ -511,7 +534,27 @@ if grep -Fq 'rds describe-db-instances' "$tmp_dir/aws.log"; then
   fail 'immutable S3 readiness byte drift reached RDS inspection'
 fi
 
-for snapshot_source_case in resource-id instance-id engine-version; do
+for instance_shape_case in class allocated-storage storage-type iops storage-throughput public; do
+  : > "$tmp_dir/aws.log"
+  case "$instance_shape_case" in
+    class) FAKE_INSTANCE_CLASS=db.t3.small \
+      run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    allocated-storage) FAKE_INSTANCE_ALLOCATED_STORAGE=101 \
+      run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    storage-type) FAKE_INSTANCE_STORAGE_TYPE=gp2 \
+      run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    iops) FAKE_INSTANCE_IOPS=3001 \
+      run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    storage-throughput) FAKE_INSTANCE_STORAGE_THROUGHPUT=126 \
+      run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    public) FAKE_INSTANCE_PUBLICLY_ACCESSIBLE=true \
+      run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+  esac
+  [[ "$accepted" == false ]] || fail "snapshot promotion accepted source RDS shape drift: $instance_shape_case"
+  [[ ! -e "$tmp_dir/instance-drift-$instance_shape_case.json" ]]
+done
+
+for snapshot_source_case in resource-id instance-id engine-version allocated-storage storage-type iops storage-throughput; do
   : > "$tmp_dir/aws.log"
   case "$snapshot_source_case" in
     resource-id) FAKE_SNAPSHOT_RESOURCE_ID=db-ZYXWVUTSRQPONMLKJIHGFEDC \
@@ -519,6 +562,14 @@ for snapshot_source_case in resource-id instance-id engine-version; do
     instance-id) FAKE_SNAPSHOT_INSTANCE_ID=airbob-other-source \
       run_promotion "${base_args[@]}" "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
     engine-version) FAKE_SNAPSHOT_ENGINE_VERSION=8.0.41 \
+      run_promotion "${base_args[@]}" "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    allocated-storage) FAKE_SNAPSHOT_ALLOCATED_STORAGE=101 \
+      run_promotion "${base_args[@]}" "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    storage-type) FAKE_SNAPSHOT_STORAGE_TYPE=gp2 \
+      run_promotion "${base_args[@]}" "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    iops) FAKE_SNAPSHOT_IOPS=3001 \
+      run_promotion "${base_args[@]}" "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
+    storage-throughput) FAKE_SNAPSHOT_STORAGE_THROUGHPUT=126 \
       run_promotion "${base_args[@]}" "$tmp_dir/source-drift-$snapshot_source_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
   esac
   [[ "$accepted" == false ]] || fail "snapshot promotion accepted source identity drift: $snapshot_source_case"

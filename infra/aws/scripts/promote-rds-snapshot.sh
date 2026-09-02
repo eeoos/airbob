@@ -250,13 +250,15 @@ jq -e \
   (.actual.ami.shape.virtualizationType | type == "string" and length > 0) and
   (.actual.rds | exact_keys([
     "identifier", "resourceId", "class", "engine", "engineVersion", "allocatedStorageGiB",
-    "storageType", "multiAz", "storageEncrypted", "availabilityZone", "parameterGroups"
+    "storageType", "iops", "storageThroughputMiBps", "multiAz", "storageEncrypted",
+    "publiclyAccessible", "availabilityZone", "parameterGroups"
   ])) and
   .actual.rds.identifier == $rdsIdentifier and .actual.rds.resourceId == $rdsResourceId and
   .actual.rds.class == "db.t3.micro" and .actual.rds.engine == "mysql" and
   .actual.rds.engineVersion == $rdsEngineVersion and .actual.rds.allocatedStorageGiB == 100 and
-  .actual.rds.storageType == "gp3" and .actual.rds.multiAz == false and
-  .actual.rds.storageEncrypted == true and
+  .actual.rds.storageType == "gp3" and .actual.rds.iops == 3000 and
+  .actual.rds.storageThroughputMiBps == 125 and .actual.rds.multiAz == false and
+  .actual.rds.storageEncrypted == true and .actual.rds.publiclyAccessible == false and
   (.actual.rds.availabilityZone | type == "string" and test("^ap-northeast-2[a-z]$")) and
   (.actual.rds.parameterGroups | type == "array" and length == 1 and
     all(.[]; type == "string" and length > 0)) and
@@ -371,8 +373,14 @@ jq -e --arg resourceId "$source_rds_resource_id" --arg engineVersion "$(jq -r '.
   .[0].Engine == "mysql" and
   .[0].EngineVersion == $engineVersion and
   .[0].DbiResourceId == $resourceId and
+  .[0].DBInstanceClass == "db.t3.micro" and
+  .[0].AllocatedStorage == 100 and
+  .[0].StorageType == "gp3" and
+  .[0].Iops == 3000 and
+  .[0].StorageThroughput == 125 and
   .[0].MultiAZ == false and
-  .[0].StorageEncrypted == true
+  .[0].StorageEncrypted == true and
+  .[0].PubliclyAccessible == false
 ' <<<"$instance_json" >/dev/null || { printf '%s\n' 'RDS instance is not eligible for dataset snapshot promotion' >&2; exit 1; }
 
 if ! aws --region "$region" rds describe-db-snapshots --db-snapshot-identifier "$snapshot_id" >/dev/null 2>&1; then
@@ -421,6 +429,10 @@ jq -e \
   $candidate.EngineVersion == $engineVersion and
   $candidate.DBInstanceIdentifier == $sourceInstance and
   $candidate.DbiResourceId == $sourceResourceId and
+  $candidate.AllocatedStorage == 100 and
+  $candidate.StorageType == "gp3" and
+  $candidate.Iops == 3000 and
+  $candidate.StorageThroughput == 125 and
   $candidate.Encrypted == true and
   $tags.DatasetRelease == $release and
   $tags.DatasetRunId == $runId and

@@ -6,6 +6,7 @@ set -euo pipefail
 export AWS_ACCESS_KEY_ID=ASIAEXPLICITFIXTURE
 export AWS_SECRET_ACCESS_KEY=explicit-fixture-secret
 export AWS_SESSION_TOKEN=explicit-fixture-session
+export AIRBOB_AWS_CREDENTIAL_EXPIRATION=2099-01-01T00:00:00Z
 
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -P -- "$script_dir/../../.." && pwd -P)
@@ -68,7 +69,9 @@ assert_contains "$operator" '"$lease_script" release'
 assert_contains "$operator" 'DEFAULT_COMMAND_DEADLINE_SECONDS=5400'
 assert_contains "$operator" 'DUMP_UP_COMMAND_DEADLINE_SECONDS=14400'
 assert_contains "$operator" 'DEFAULT_CREDENTIAL_SESSION_SECONDS=7200'
+assert_contains "$operator" 'SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800'
 assert_contains "$operator" 'DUMP_UP_CREDENTIAL_SESSION_SECONDS=18000'
+assert_contains "$operator" 'SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600'
 assert_contains "$operator" 'DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=3600'
 assert_contains "$operator" 'DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=2400'
 assert_contains "$operator" 'LAB_ROLE_MAX_SESSION_SECONDS=18000'
@@ -76,6 +79,11 @@ assert_contains "$operator" 'TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS=300
 assert_contains "$operator" 'TERRAFORM_LOCK_CREDENTIAL_EXPIRY_BARRIER_SECONDS=$(('
 assert_contains "$operator" 'active Lab role must use one explicit static STS environment credential tuple'
 assert_contains "$operator" 'assumed Lab role returned an incomplete static STS environment credential tuple'
+assert_contains "$operator" 'up requires the exact static STS credential expiration'
+assert_contains "$operator" 'static STS credential lifetime cannot cover the up deadline and cleanup allowance'
+assert_contains "$workflow" 'id: aws_credentials'
+assert_contains "$workflow" 'output-credentials: true'
+assert_contains "$workflow" 'AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ steps.aws_credentials.outputs.aws-expiration }}'
 assert_contains "$operator" 'run_supervised_mutation'
 assert_contains "$operator" 'kill -TERM -- "-$child_pgid"'
 assert_contains "$operator" 'kill -KILL -- "-$child_pgid"'
@@ -261,8 +269,8 @@ assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '5'"
-assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || 120 }}"
-assert_contains "$workflow" "inputs.database_bootstrap == 'dump' && 18000 || 7200"
+assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 165 || 120 }}"
+assert_contains "$workflow" "inputs.database_bootstrap == 'dump' && 18000 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200"
 assert_contains "$workflow" 'https://checkip.amazonaws.com'
 assert_contains "$workflow" "printf 'ALB_INGRESS_CIDR=%s/32"
 assert_contains "$workflow" 'live_address=$(curl --fail --silent --show-error --max-time 10 https://checkip.amazonaws.com)'
@@ -329,10 +337,13 @@ fi
 default_deadline=$(awk -F= '$1 == "DEFAULT_COMMAND_DEADLINE_SECONDS" { print $2 }' "$operator")
 dump_deadline=$(awk -F= '$1 == "DUMP_UP_COMMAND_DEADLINE_SECONDS" { print $2 }' "$operator")
 default_session=$(awk -F= '$1 == "DEFAULT_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
+snapshot_session=$(awk -F= '$1 == "SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
 dump_session=$(awk -F= '$1 == "DUMP_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
 workflow_seconds=$((120 * 60))
+snapshot_workflow_seconds=$((165 * 60))
 dump_workflow_seconds=$((270 * 60))
 ssm_seconds=7200
+snapshot_cleanup_seconds=$(awk -F= '$1 == "SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 pre_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 post_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 dump_ttl_seconds=$((5 * 3600))
@@ -340,7 +351,10 @@ dump_ttl_seconds=$((5 * 3600))
   || fail "data bootstrap SSM document timeout is not exactly 7200 seconds"
 assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 7200'
 ((default_deadline == 5400 && default_deadline < default_session && default_session == workflow_seconds)) \
-  || fail "snapshot/down deadline, credential, and workflow timeout hierarchy is invalid"
+  || fail "default command deadline, credential, and non-up workflow timeout hierarchy is invalid"
+((default_deadline + snapshot_cleanup_seconds < snapshot_workflow_seconds &&
+  snapshot_workflow_seconds < snapshot_session)) \
+  || fail "snapshot up deadline, cleanup allowance, workflow, and credential hierarchy is invalid"
 ((ssm_seconds + pre_bootstrap_seconds + post_bootstrap_seconds < dump_deadline &&
   dump_deadline < dump_workflow_seconds && dump_workflow_seconds < dump_session &&
   dump_session == dump_ttl_seconds)) \
@@ -368,7 +382,7 @@ cat > "$temp_dir/readiness-a.json" <<'JSON'
   "networkClearance": {"key":"network-clearance/lab-dump/i-old.json","versionId":"network-v1","sha256":"5555555555555555555555555555555555555555555555555555555555555555","lastModified":"2026-09-01T00:01:00Z","projectionSha256":"6666666666666666666666666666666666666666666666666666666666666666"},
   "actual": {
     "ami":{"id":"ami-0123456789abcdef0","shape":{"imageId":"ami-0123456789abcdef0","architecture":"x86_64"}},
-    "rds":{"identifier":"airbob-lab-dump","resourceId":"db-OLD","class":"db.t3.micro","engine":"mysql","engineVersion":"8.0.42","allocatedStorageGiB":100,"storageType":"gp3","multiAz":false,"storageEncrypted":true,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-lab-dump"]},
+    "rds":{"identifier":"airbob-lab-dump","resourceId":"db-OLD","class":"db.t3.micro","engine":"mysql","engineVersion":"8.0.42","allocatedStorageGiB":100,"storageType":"gp3","iops":3000,"storageThroughputMiBps":125,"multiAz":false,"storageEncrypted":true,"publiclyAccessible":false,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-lab-dump"]},
     "rdsParameterGroupFamily":"mysql8.0",
     "alb":{"arn":"arn:old","dnsName":"old.elb.amazonaws.com","targetGroupArn":"tg-old","autoScalingGroupName":"asg-old","securityGroupId":"sg-old","shape":{"arn":"arn:old","dnsName":"old.elb.amazonaws.com","scheme":"internet-facing","type":"application","ipAddressType":"ipv4","availabilityZones":["ap-northeast-2a","ap-northeast-2c"],"securityGroups":["sg-old"]},"observedIngress":[{"ruleId":"sgr-old","groupId":"sg-old","isEgress":false,"ipProtocol":"tcp","fromPort":443,"toPort":443,"cidrIpv4":"198.51.100.10/32","cidrIpv6":null,"prefixListId":null,"referencedGroupId":null}]},
     "autoScalingGroup":{"name":"asg-old","min":1,"desired":1,"max":1}
@@ -481,6 +495,17 @@ fi
 grep -Fq 'active Lab role must use one explicit static STS environment credential tuple' \
   "$temp_dir/non-static-credentials.err" \
   || fail "missing static STS tuple did not fail with the credential-source invariant"
+
+if env AIRBOB_AWS_CREDENTIAL_EXPIRATION=2000-01-01T00:00:00Z \
+  PATH="$temp_dir/bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  FAKE_CALL_LOG="$temp_dir/aws.log" FAKE_TERRAFORM_LOG="$temp_dir/terraform.log" \
+  FAKE_LAB_CONTRACT="$temp_dir/lab-contract.json" "$operator" up \
+  >"$temp_dir/expired-credentials.out" 2>"$temp_dir/expired-credentials.err"; then
+  fail "up accepted an already-expired assumed-role credential tuple"
+fi
+grep -Fq 'static STS credential lifetime cannot cover the up deadline and cleanup allowance' \
+  "$temp_dir/expired-credentials.err" \
+  || fail "expired assumed-role credentials did not fail the up credential budget"
 
 # Execute the full operator against hermetic fake CLIs/helpers. This verifies
 # orchestration order and post-cutover rollback without touching AWS.
@@ -846,7 +871,19 @@ case " $* " in
     ;;
   *' ec2 describe-images '*) printf '%s\n' '{"imageId":"ami-0123456789abcdef0","creationDate":"2026-08-31T00:00:00Z","architecture":"x86_64","rootDeviceType":"ebs","virtualizationType":"hvm"}' ;;
   *' rds describe-db-instances '*'MasterUserSecret.SecretArn'*) printf '%s\n' 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test' ;;
-  *' rds describe-db-instances '*) printf '%s\n' '{"identifier":"airbob-fake","resourceId":"db-ABCDEFGHIJKL01234","class":"db.t3.micro","engine":"mysql","engineVersion":"8.0.42","allocatedStorageGiB":100,"storageType":"gp3","multiAz":false,"storageEncrypted":true,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-fake"]}' ;;
+  *' rds describe-db-instances '*)
+    jq -nc \
+      --argjson iops "${FAKE_RDS_IOPS:-3000}" \
+      --argjson throughput "${FAKE_RDS_STORAGE_THROUGHPUT:-125}" \
+      --argjson publiclyAccessible "${FAKE_RDS_PUBLICLY_ACCESSIBLE:-false}" '
+      {
+        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKL01234", class:"db.t3.micro",
+        engine:"mysql", engineVersion:"8.0.42", allocatedStorageGiB:100, storageType:"gp3",
+        iops:$iops, storageThroughputMiBps:$throughput, multiAz:false, storageEncrypted:true,
+        publiclyAccessible:$publiclyAccessible, availabilityZone:"ap-northeast-2a",
+        parameterGroups:["airbob-fake"]
+      }'
+    ;;
   *' rds describe-db-parameter-groups '*) printf '%s\n' mysql8.0 ;;
   *' elbv2 describe-load-balancers '*)
     if [[ "${FAKE_ALB_SECURITY_GROUP_DRIFT:-false}" == true ]]; then
@@ -2043,6 +2080,9 @@ jq -e '
   .bootstrap.rdsSnapshotIdentifier == null and
   .bootstrap.rdsSnapshotSourceRunId == null and
   .bootstrap.rdsSnapshotSourceResourceId == null and
+  .actual.rds.iops == 3000 and
+  .actual.rds.storageThroughputMiBps == 125 and
+  .actual.rds.publiclyAccessible == false and
   .actual.alb.securityGroupId == "sg-0123456789abcdef0" and
   .actual.alb.shape.securityGroups == ["sg-0123456789abcdef0"] and
   (.actual.alb.observedIngress | length) == 1 and
@@ -2057,9 +2097,21 @@ grep -Fq -- '--key network-clearance/lab-direct-ready/i-0123456789abcdef0.json -
   "$temp_dir/operator-execution.log" \
   || fail "direct readiness did not fetch the exact network-clearance receipt version"
 
-for live_shape_drift in extra-security-group ingress-cidr ingress-ipv6 ingress-extra asg-capacity; do
+for live_shape_drift in rds-iops rds-throughput rds-public extra-security-group ingress-cidr ingress-ipv6 ingress-extra asg-capacity; do
   : > "$temp_dir/operator-execution.log"
   case "$live_shape_drift" in
+    rds-iops)
+      FAKE_RDS_IOPS=3001 FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+        run_fake_up "lab-drift-$live_shape_drift" >/dev/null 2>&1 && accepted=true || accepted=false
+      ;;
+    rds-throughput)
+      FAKE_RDS_STORAGE_THROUGHPUT=126 FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+        run_fake_up "lab-drift-$live_shape_drift" >/dev/null 2>&1 && accepted=true || accepted=false
+      ;;
+    rds-public)
+      FAKE_RDS_PUBLICLY_ACCESSIBLE=true FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+        run_fake_up "lab-drift-$live_shape_drift" >/dev/null 2>&1 && accepted=true || accepted=false
+      ;;
     extra-security-group)
       FAKE_ALB_SECURITY_GROUP_DRIFT=true FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
         run_fake_up "lab-drift-$live_shape_drift" >/dev/null 2>&1 && accepted=true || accepted=false

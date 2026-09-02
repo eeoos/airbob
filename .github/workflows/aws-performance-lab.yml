@@ -112,7 +112,7 @@ jobs:
   operate:
     runs-on: ubuntu-latest
     environment: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}
-    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || 120 }}
+    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 165 || 120 }}
     permissions:
       contents: read
       id-token: write
@@ -148,12 +148,14 @@ jobs:
           printf '%s\n' "$aws_cli_bin" >> "$GITHUB_PATH"
 
       - name: Configure short-lived AWS credentials
+        id: aws_credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
           role-to-assume: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && vars.AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN || vars.AWS_LAB_OPERATOR_ROLE_ARN }}
           aws-region: ap-northeast-2
           role-session-name: airbob-lab-${{ github.run_id }}
-          role-duration-seconds: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 18000 || 7200 }}
+          role-duration-seconds: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 18000 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200 }}
+          output-credentials: true
 
       - name: Verify operator credential scope
         env:
@@ -234,6 +236,7 @@ jobs:
           RDS_SNAPSHOT_IDENTIFIER: ${{ inputs.rds_snapshot_identifier }}
           RDS_SNAPSHOT_SOURCE_RUN_ID: ${{ inputs.rds_snapshot_source_run_id }}
           RDS_SNAPSHOT_SOURCE_RESOURCE_ID: ${{ inputs.rds_snapshot_source_resource_id }}
+          AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ steps.aws_credentials.outputs.aws-expiration }}
           AWS_LAB_OPERATOR_SCOPE: ${{ (inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'cutover' || 'direct' }}
           RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
         run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"

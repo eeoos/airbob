@@ -221,6 +221,8 @@ run "create_dump_backed_rds_and_ordered_bootstrap" {
       module.rds[0].contract.backup_retention_period >= 1 &&
       module.rds[0].contract.configured_storage_gib == 20 &&
       module.rds[0].contract.storage_type == "gp3" &&
+      module.rds[0].contract.iops == 3000 &&
+      module.rds[0].contract.storage_throughput_mibps == 125 &&
       aws_secretsmanager_secret.debezium[0].recovery_window_in_days == 0 &&
       output.phase3_contract.database_bootstrap == "dump" &&
       output.phase3_contract.profile_version == "production-skew-v1" &&
@@ -294,6 +296,8 @@ run "accept_large_profile_with_large_spec_and_budgets" {
       module.rds[0].contract.instance_class == "db.t3.micro" &&
       module.rds[0].contract.configured_storage_gib == 100 &&
       module.rds[0].contract.storage_type == "gp3" &&
+      module.rds[0].contract.iops == 3000 &&
+      module.rds[0].contract.storage_throughput_mibps == 125 &&
       output.phase3_contract.profile_version == "production-skew-large-v1" &&
       output.phase3_contract.production_spec_key == "benchmark/production-skew-large-v1.json" &&
       output.phase3_contract.rds_configured_storage_gib == 100
@@ -491,6 +495,8 @@ run "restore_rds_only_from_matching_snapshot" {
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
+      storage_type           = "gp3"
+      iops                   = 3000
       tags = {
         Project                        = "airbob"
         Environment                    = "performance-lab"
@@ -519,11 +525,112 @@ run "restore_rds_only_from_matching_snapshot" {
     condition = (
       module.rds[0].contract.snapshot_identifier == "airbob-dataset-rehearsal-v20" &&
       module.rds[0].contract.configured_storage_gib == null &&
+      module.rds[0].contract.storage_type == null &&
+      module.rds[0].contract.iops == null &&
+      module.rds[0].contract.storage_throughput_mibps == null &&
       output.phase3_contract.rds_configured_storage_gib == null &&
       output.phase3_contract.database_bootstrap == "snapshot"
     )
     error_message = "Snapshot mode must bind RDS creation to the prevalidated snapshot without overriding inherited storage."
   }
+}
+
+run "reject_snapshot_with_non_gp3_storage" {
+  command = plan
+
+  variables {
+    database_bootstrap              = "snapshot"
+    rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
+    rds_snapshot_source_run_id      = "lab-phase3-test"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+  }
+
+  override_data {
+    target          = data.aws_db_snapshot.dataset[0]
+    override_during = plan
+    values = {
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
+      engine                 = "mysql"
+      engine_version         = "8.0.40"
+      status                 = "available"
+      encrypted              = true
+      allocated_storage      = 20
+      storage_type           = "gp2"
+      iops                   = 3000
+      tags = {
+        Project                        = "airbob"
+        Environment                    = "performance-lab"
+        Stack                          = "dataset"
+        ManagedBy                      = "dataset-publisher"
+        Persistence                    = "persistent"
+        SourceLabRunId                 = "lab-phase3-test"
+        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion  = "2"
+        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
+        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
+        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        DatasetRelease                 = "rehearsal-v20"
+        DatasetRunId                   = "20260816T001530Z-12345678"
+        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                  = "27"
+        ManifestSha256                 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+      }
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
+}
+
+run "reject_snapshot_above_baseline_iops" {
+  command = plan
+
+  variables {
+    database_bootstrap              = "snapshot"
+    rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
+    rds_snapshot_source_run_id      = "lab-phase3-test"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+  }
+
+  override_data {
+    target          = data.aws_db_snapshot.dataset[0]
+    override_during = plan
+    values = {
+      db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
+      engine                 = "mysql"
+      engine_version         = "8.0.40"
+      status                 = "available"
+      encrypted              = true
+      allocated_storage      = 20
+      storage_type           = "gp3"
+      iops                   = 3001
+      tags = {
+        Project                        = "airbob"
+        Environment                    = "performance-lab"
+        Stack                          = "dataset"
+        ManagedBy                      = "dataset-publisher"
+        Persistence                    = "persistent"
+        SourceLabRunId                 = "lab-phase3-test"
+        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion  = "2"
+        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
+        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
+        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        DatasetRelease                 = "rehearsal-v20"
+        DatasetRunId                   = "20260816T001530Z-12345678"
+        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                  = "27"
+        ManifestSha256                 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+      }
+    }
+  }
+
+  expect_failures = [check.dataset_release, terraform_data.dataset_release_gate]
 }
 
 run "reject_snapshot_inputs_for_dump_bootstrap" {
@@ -576,6 +683,8 @@ run "reject_snapshot_with_different_source_identity" {
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
+      storage_type           = "gp3"
+      iops                   = 3000
       tags = {
         Project                        = "airbob"
         Environment                    = "performance-lab"
@@ -623,6 +732,8 @@ run "reject_snapshot_outside_promotion_contract" {
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
+      storage_type           = "gp3"
+      iops                   = 3000
       tags = {
         DatasetRelease = "rehearsal-v20"
         DatasetRunId   = "20260816T001530Z-12345678"
@@ -707,6 +818,8 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
       status                 = "available"
       encrypted              = true
       allocated_storage      = 100
+      storage_type           = "gp3"
+      iops                   = 3000
       tags = {
         Project                        = "airbob"
         Environment                    = "performance-lab"
@@ -734,8 +847,13 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
   assert {
     condition = (
       data.aws_db_snapshot.dataset[0].allocated_storage == 100 &&
+      data.aws_db_snapshot.dataset[0].storage_type == "gp3" &&
+      data.aws_db_snapshot.dataset[0].iops == 3000 &&
       module.rds[0].contract.snapshot_identifier == "airbob-dataset-rehearsal-v20-large" &&
       module.rds[0].contract.configured_storage_gib == null &&
+      module.rds[0].contract.storage_type == null &&
+      module.rds[0].contract.iops == null &&
+      module.rds[0].contract.storage_throughput_mibps == null &&
       output.phase3_contract.profile_version == "production-skew-large-v1" &&
       output.phase3_contract.database_bootstrap == "snapshot"
     )
@@ -743,7 +861,7 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
   }
 }
 
-run "reject_large_profile_snapshot_with_canonical_storage" {
+run "reject_large_profile_snapshot_above_dataset_storage" {
   command = plan
 
   variables {
@@ -814,7 +932,9 @@ run "reject_large_profile_snapshot_with_canonical_storage" {
       engine_version         = "8.0.40"
       status                 = "available"
       encrypted              = true
-      allocated_storage      = 20
+      allocated_storage      = 101
+      storage_type           = "gp3"
+      iops                   = 3000
       tags = {
         Project                        = "airbob"
         Environment                    = "performance-lab"

@@ -183,6 +183,13 @@ at 24, and scheduled cleanup becomes eligible at `expiresAt`; the minute-17/47
 schedule bounds pickup to one 30-minute interval. The load generator defaults to
 disabled.
 
+Snapshot `up` keeps the 90-minute operator deadline but uses a 165-minute job
+and a three-hour short-lived role session. This leaves a bounded one-hour
+post-failure teardown allowance without extending the two-hour resource TTL.
+The operator receives the exact STS expiration and rejects `up` before any
+mutation when the remaining lifetime cannot cover its deadline, cleanup
+allowance, and clock-skew margin.
+
 Snapshot replay additionally requires `DATABASE_BOOTSTRAP=snapshot`, the exact
 promoted snapshot identifier, `RDS_SNAPSHOT_SOURCE_RUN_ID`, and
 `RDS_SNAPSHOT_SOURCE_RESOURCE_ID`. The latter two must equal the immutable

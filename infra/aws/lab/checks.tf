@@ -276,7 +276,9 @@ locals {
     data.aws_db_snapshot.dataset[0].engine == "mysql" &&
     data.aws_db_snapshot.dataset[0].engine_version == var.rds_engine_version &&
     data.aws_db_snapshot.dataset[0].encrypted &&
-    data.aws_db_snapshot.dataset[0].allocated_storage >= local.dataset_dump_storage_gib &&
+    data.aws_db_snapshot.dataset[0].allocated_storage == local.dataset_dump_storage_gib &&
+    data.aws_db_snapshot.dataset[0].storage_type == "gp3" &&
+    data.aws_db_snapshot.dataset[0].iops == 3000 &&
     data.aws_db_snapshot.dataset[0].tags.SourceLabRunId == var.rds_snapshot_source_run_id &&
     data.aws_db_snapshot.dataset[0].tags.SourceRdsResourceId == var.rds_snapshot_source_resource_id &&
     data.aws_db_snapshot.dataset[0].tags.PromotionReceiptSchemaVersion == "2" &&
