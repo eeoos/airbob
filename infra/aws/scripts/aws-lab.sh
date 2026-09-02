@@ -5,7 +5,9 @@ umask 077
 DEFAULT_COMMAND_DEADLINE_SECONDS=5400
 DUMP_UP_COMMAND_DEADLINE_SECONDS=14400
 DEFAULT_CREDENTIAL_SESSION_SECONDS=7200
+SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800
 DUMP_UP_CREDENTIAL_SESSION_SECONDS=18000
+SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600
 DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=3600
 DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=2400
 LAB_ROLE_MAX_SESSION_SECONDS=18000
@@ -15,6 +17,7 @@ TERRAFORM_LOCK_CREDENTIAL_EXPIRY_BARRIER_SECONDS=$((
 ))
 COMMAND_DEADLINE_SECONDS=$DEFAULT_COMMAND_DEADLINE_SECONDS
 CREDENTIAL_SESSION_SECONDS=$DEFAULT_CREDENTIAL_SESSION_SECONDS
+UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS=0
 INSTANCE_REFRESH_TIMEOUT_SECONDS=900
 HEARTBEAT_TTL_SECONDS=180
 HEARTBEAT_INTERVAL_SECONDS=60
@@ -143,9 +146,15 @@ policy_verifier="$script_dir/enforce-measurement-policy.sh"
 comparison_projection_filter="$script_dir/readiness-comparison-projection.jq"
 toolchain_contract="$repo_root/infra/aws/toolchain.env"
 
-if [[ "$action" == up && "${DATABASE_BOOTSTRAP:-dump}" == dump ]]; then
-  COMMAND_DEADLINE_SECONDS=$DUMP_UP_COMMAND_DEADLINE_SECONDS
-  CREDENTIAL_SESSION_SECONDS=$DUMP_UP_CREDENTIAL_SESSION_SECONDS
+if [[ "$action" == up ]]; then
+  if [[ "${DATABASE_BOOTSTRAP:-dump}" == dump ]]; then
+    COMMAND_DEADLINE_SECONDS=$DUMP_UP_COMMAND_DEADLINE_SECONDS
+    CREDENTIAL_SESSION_SECONDS=$DUMP_UP_CREDENTIAL_SESSION_SECONDS
+    UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS=$DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS
+  else
+    CREDENTIAL_SESSION_SECONDS=$SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS
+    UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS=$SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
+  fi
 fi
 
 # Short timing values are accepted only by the copied hermetic test fixture.
@@ -222,20 +231,39 @@ ensure_lab_role() {
     --role-arn "$lab_role_arn" \
     --role-session-name "airbob-lab-${GITHUB_RUN_ID:-local}-$(date +%s)" \
     --duration-seconds "$CREDENTIAL_SESSION_SECONDS" \
-    --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+    --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken,Expiration]' \
     --output text --region "$AWS_REGION") || fail "cannot assume the lab operator role"
-  read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN <<EOF
+  read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AIRBOB_AWS_CREDENTIAL_EXPIRATION <<EOF
 $credentials
 EOF
-  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AIRBOB_AWS_CREDENTIAL_EXPIRATION
   [[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" && \
-    -n "$AWS_SESSION_TOKEN" ]] \
+    -n "$AWS_SESSION_TOKEN" && -n "$AIRBOB_AWS_CREDENTIAL_EXPIRATION" ]] \
     || fail "assumed Lab role returned an incomplete static STS environment credential tuple"
   caller_arn=$(aws sts get-caller-identity --query Arn --output text --region "$AWS_REGION")
   [[ "$caller_arn" == arn:aws:sts::$AIRBOB_AWS_ACCOUNT_ID:assumed-role/"$lab_role_name"/* ]] \
     || fail "lab operations require credentials from the selected operator scope"
 }
 ensure_lab_role
+
+validate_up_credential_budget() {
+  local expiration=${AIRBOB_AWS_CREDENTIAL_EXPIRATION:-}
+  local expiration_epoch now_epoch required_remaining_seconds remaining_seconds
+
+  [[ "$action" == up ]] || return 0
+  [[ -n "$expiration" ]] \
+    || fail "up requires the exact static STS credential expiration"
+  expiration_epoch=$(aws_utc_timestamp_epoch "$expiration") \
+    || fail "static STS credential expiration is not a real UTC instant"
+  now_epoch=$(date -u +%s)
+  required_remaining_seconds=$(($COMMAND_DEADLINE_SECONDS +
+    $UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS +
+    $TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS))
+  remaining_seconds=$((expiration_epoch - now_epoch))
+  ((remaining_seconds >= required_remaining_seconds)) \
+    || fail "static STS credential lifetime cannot cover the up deadline and cleanup allowance"
+}
+validate_up_credential_budget
 
 account_id=$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")
 [[ "$account_id" == "$AIRBOB_AWS_ACCOUNT_ID" ]] || fail "active AWS account is outside the lab boundary"
@@ -1578,12 +1606,13 @@ publish_direct_readiness() {
     --query 'Images[0].{imageId:ImageId,creationDate:CreationDate,architecture:Architecture,rootDeviceType:RootDeviceType,virtualizationType:VirtualizationType}' \
     --output json --region "$AWS_REGION" --no-cli-pager) || fail "cannot attest the selected AMI"
   rds_shape=$(aws rds describe-db-instances --db-instance-identifier "$rds_instance_id" \
-    --query 'DBInstances[0].{identifier:DBInstanceIdentifier,resourceId:DbiResourceId,class:DBInstanceClass,engine:Engine,engineVersion:EngineVersion,allocatedStorageGiB:AllocatedStorage,storageType:StorageType,multiAz:MultiAZ,storageEncrypted:StorageEncrypted,availabilityZone:AvailabilityZone,parameterGroups:DBParameterGroups[].DBParameterGroupName}' \
+    --query 'DBInstances[0].{identifier:DBInstanceIdentifier,resourceId:DbiResourceId,class:DBInstanceClass,engine:Engine,engineVersion:EngineVersion,allocatedStorageGiB:AllocatedStorage,storageType:StorageType,iops:Iops,storageThroughputMiBps:StorageThroughput,multiAz:MultiAZ,storageEncrypted:StorageEncrypted,publiclyAccessible:PubliclyAccessible,availabilityZone:AvailabilityZone,parameterGroups:DBParameterGroups[].DBParameterGroupName}' \
     --output json --region "$AWS_REGION" --no-cli-pager) || fail "cannot attest the restored RDS shape"
   jq -e --arg id "$rds_instance_id" --arg resource "$rds_resource_id" --arg version "$rds_engine_version" '
     .identifier == $id and .resourceId == $resource and .class == "db.t3.micro" and
     .engine == "mysql" and .engineVersion == $version and .allocatedStorageGiB == 100 and
-    .storageType == "gp3" and .multiAz == false and .storageEncrypted == true
+    .storageType == "gp3" and .iops == 3000 and .storageThroughputMiBps == 125 and
+    .multiAz == false and .storageEncrypted == true and .publiclyAccessible == false
   ' <<<"$rds_shape" >/dev/null || fail "actual RDS shape differs from the low-cost qualification contract"
   rds_parameter_group_name=$(jq -er '.parameterGroups | select(length == 1) | .[0]' <<<"$rds_shape") \
     || fail "actual RDS parameter-group shape is invalid"

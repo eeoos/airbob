@@ -1,3 +1,9 @@
+locals {
+  dump_storage_type                      = "gp3"
+  dump_baseline_iops                     = 3000
+  dump_baseline_storage_throughput_mibps = 125
+}
+
 resource "aws_db_subnet_group" "this" {
   name       = var.name
   subnet_ids = var.subnet_ids
@@ -46,7 +52,7 @@ resource "aws_db_instance" "this" {
   instance_class = "db.t3.micro"
 
   allocated_storage           = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
-  storage_type                = "gp3"
+  storage_type                = var.bootstrap_mode == "dump" ? local.dump_storage_type : null
   storage_encrypted           = true
   snapshot_identifier         = var.bootstrap_mode == "snapshot" ? var.snapshot_identifier : null
   db_name                     = var.bootstrap_mode == "dump" ? "airbobdb" : null

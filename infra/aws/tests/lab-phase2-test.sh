@@ -121,6 +121,15 @@ assert_contains "$start_service_template" 'trap '\''report_failure "$?" "$LINENO
 assert_contains "$start_service_template" 'compose pull --quiet > "$compose_bootstrap_log" 2>&1'
 assert_contains "$start_service_template" 'compose up --detach --wait --wait-timeout 600 >> "$compose_bootstrap_log" 2>&1'
 assert_contains "$start_service_template" 'Recent Docker Compose bootstrap output:'
+assert_contains "$start_service_template" 'Container runtime state: name={{.Name}} status={{.State.Status}} exit_code={{.State.ExitCode}} oom_killed={{.State.OOMKilled}} restart_count={{.RestartCount}} memory_limit_bytes={{.HostConfig.Memory}} memory_swap_limit_bytes={{.HostConfig.MemorySwap}}'
+assert_contains "$start_service_template" 'monitoring_resource_override=/etc/airbob/monitoring-resource.override.yml'
+assert_contains "$start_service_template" 'mem_limit: 512M'
+assert_contains "$start_service_template" 'memswap_limit: 512M'
+assert_contains "$start_service_template" 'configure_monitoring_resource_override "$monitoring_resource_override"'
+assert_contains "$start_service_template" 'verify_monitoring_resource_contract'
+assert_contains "$start_service_template" "[[ \"\$(jq -er '.services.grafana.mem_limit' <<<\"\$effective_config\")\" == 536870912 ]]"
+assert_contains "$start_service_template" "[[ \"\$(jq -er '.services.grafana.memswap_limit' <<<\"\$effective_config\")\" == 536870912 ]]"
+assert_contains "$start_service_template" 'Monitoring resource contract: grafana_memory_limit_bytes=536870912 grafana_memory_swap_limit_bytes=536870912'
 assert_contains "$start_service_template" 'Redis container memory: checkpoint=%s container=%s id=%s limit_bytes=%s peak_bytes=%s oom=%s oom_kill=%s docker_oom_killed=%s'
 assert_contains "$start_service_template" 'used_memory=%s used_memory_rss=%s mem_fragmentation_ratio=%s mem_fragmentation_bytes=%s allocator_frag_ratio=%s allocator_frag_bytes=%s'
 assert_contains "$start_service_template" 'missing-or-nonnumeric'
@@ -151,6 +160,10 @@ bash -n "$start_service_template"
 rds_module=$(sed -n '/^module "rds" {$/,/^}$/p' "$lab_root/rds.tf")
 grep -Fq 'aws_ssm_association.core_services,' <<<"$rds_module" \
   || fail "RDS creation must wait for successful core service associations"
+rds_instance_source="$lab_root/modules/rds/main.tf"
+if grep -Eq '^[[:space:]]+(iops|storage_throughput)[[:space:]]*=' "$rds_instance_source"; then
+  fail "sub-400-GiB MySQL gp3 must use the implicit 3000-IOPS/125-MiBps baseline"
+fi
 ssm_contract="$lab_root/ssm.tf"
 [[ "$(grep -Fc 'timeoutSeconds = "2400"' "$ssm_contract")" -eq 1 ]] \
   || fail "the shared Phase 2 service command must have exactly one 2400-second execution timeout"

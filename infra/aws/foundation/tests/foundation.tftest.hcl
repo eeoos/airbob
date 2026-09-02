@@ -1830,11 +1830,26 @@ run "foundation_contract" {
           },
         ) &&
         statement.Condition.Null == local.lab_ephemeral_create_tag_condition.Null &&
-        statement.Condition.NumericEqualsIfExists == { "rds:Piops" = 0 } &&
         statement.Condition.NumericLessThanEqualsIfExists == { "rds:StorageSize" = 100 } &&
         statement.Condition["ForAllValues:StringEquals"] == local.lab_rds_request_tag_condition["ForAllValues:StringEquals"]
         if contains(["CreateBoundedDumpLabDbInstance", "RestoreBoundedSnapshotLabDbInstance"], statement.Sid)
       ]) &&
+      one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "CreateBoundedDumpLabDbInstance"
+      ]).Condition.NumericEquals == { "rds:Piops" = 3000 } &&
+      try(one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "CreateBoundedDumpLabDbInstance"
+      ]).Condition.NumericEqualsIfExists, null) == null &&
+      one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "RestoreBoundedSnapshotLabDbInstance"
+      ]).Condition.NumericEqualsIfExists == { "rds:Piops" = 3000 } &&
+      try(one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "RestoreBoundedSnapshotLabDbInstance"
+      ]).Condition.NumericEquals, null) == null &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "CreateBoundedDumpLabDbInstance"
@@ -1937,7 +1952,7 @@ run "foundation_contract" {
         "DenyMultiAzLabRdsChange",
         "DenyNonMysqlLabRdsEngineChange",
         "DenyOversizedLabRdsChange",
-        "DenyProvisionedIopsLabRdsChange",
+        "DenyAboveBaselineIopsLabRdsChange",
         "DenyUnboundedLabRdsClassChange",
         "DenyUnencryptedLabRdsChange",
         "DenyUnmanagedMasterPasswordChange",
@@ -1965,8 +1980,16 @@ run "foundation_contract" {
       ]).Condition.NumericGreaterThan["rds:StorageSize"] == 100 &&
       one([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
-        if statement.Sid == "DenyProvisionedIopsLabRdsChange"
-      ]).Condition.NumericGreaterThan["rds:Piops"] == 0 &&
+        if statement.Sid == "DenyAboveBaselineIopsLabRdsChange"
+      ]).Condition.NumericGreaterThan["rds:Piops"] == 3000 &&
+      !(3000 > one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "DenyAboveBaselineIopsLabRdsChange"
+      ]).Condition.NumericGreaterThan["rds:Piops"]) &&
+      3001 > one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "DenyAboveBaselineIopsLabRdsChange"
+      ]).Condition.NumericGreaterThan["rds:Piops"] &&
       alltrue([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : alltrue([
           for resource in try(tolist(statement.Resource), [statement.Resource]) :

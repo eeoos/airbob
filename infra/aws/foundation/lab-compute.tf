@@ -1306,8 +1306,8 @@ locals {
           BoolIfExists = {
             "rds:MultiAz" = "false"
           }
-          NumericEqualsIfExists = {
-            "rds:Piops" = 0
+          NumericEquals = {
+            "rds:Piops" = 3000
           }
           NumericLessThanEqualsIfExists = {
             "rds:StorageSize" = 100
@@ -1354,7 +1354,7 @@ locals {
               "rds:Vpc"              = "true"
             }
             NumericEqualsIfExists = {
-              "rds:Piops" = 0
+              "rds:Piops" = 3000
             }
             NumericLessThanEqualsIfExists = {
               "rds:StorageSize" = 100
@@ -1503,13 +1503,13 @@ locals {
         }
       },
       {
-        Sid      = "DenyProvisionedIopsLabRdsChange"
+        Sid      = "DenyAboveBaselineIopsLabRdsChange"
         Effect   = "Deny"
         Action   = "rds:ModifyDBInstance"
         Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:db:*"
         Condition = {
           NumericGreaterThan = {
-            "rds:Piops" = 0
+            "rds:Piops" = 3000
           }
         }
       },
