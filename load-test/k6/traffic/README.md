@@ -106,8 +106,10 @@ they must become part of `traffic-v1` before representative AWS conclusions.
 ## First AWS discovery run
 
 `run-aws-discovery.sh` operates only an already-running `isolated-read` lab with
-its load generator enabled. Local Make and the protected GitHub workflow call
-the same script. The first slice accepts only the public
+its load generator enabled. It is intentionally not exposed by the AWS Lab
+qualification workflow; invoke it explicitly through local Make only after
+repeatability qualification is complete and performance work is authorized.
+The first slice accepts only the public
 `accommodation-detail` target, so it neither reads nor creates a session.
 
 ```bash

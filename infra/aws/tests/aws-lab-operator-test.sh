@@ -219,6 +219,7 @@ for target in aws-up aws-status aws-switch aws-down; do
 done
 
 assert_contains "$workflow" 'workflow_dispatch:'
+assert_contains "$workflow" 'options: [up, status, switch, down]'
 assert_contains "$workflow" 'schedule:'
 assert_contains "$workflow" "cron: '17,47 * * * *'"
 assert_contains "$workflow" 'group: aws-performance-lab'
@@ -238,6 +239,24 @@ assert_contains "$workflow" "printf 'ALB_INGRESS_CIDR=%s/32"
 assert_contains "$workflow" 'live_address=$(curl --fail --silent --show-error --max-time 10 https://checkip.amazonaws.com)'
 assert_contains "$workflow" 'requested_address=${BASH_REMATCH[1]}'
 assert_contains "$workflow" '[[ "$requested_address" == "$live_address" ]]'
+workflow_dispatch_input_count=$(awk '
+  /^  workflow_dispatch:/ { in_dispatch=1; next }
+  in_dispatch && /^concurrency:/ { exit }
+  in_dispatch && /^      [[:alnum:]_]+:$/ { count++ }
+  END { print count + 0 }
+' "$workflow")
+((workflow_dispatch_input_count <= 25)) \
+  || fail "AWS lab workflow_dispatch exposes $workflow_dispatch_input_count inputs; GitHub permits at most 25"
+for removed_measurement_input in \
+  benchmark_target rate duration warmup_duration minimum_completed_samples \
+  round run_order app_commit expected_sql_calls_per_request; do
+  if grep -Eq "^      ${removed_measurement_input}:$|inputs\\.${removed_measurement_input}([^a-zA-Z0-9_]|$)" "$workflow"; then
+    fail "AWS lab qualification workflow still exposes performance input: $removed_measurement_input"
+  fi
+done
+if grep -Eq "inputs\\.action (==|!=) 'measure'|Run shared AWS discovery harness|run-aws-discovery\\.sh" "$workflow"; then
+  fail "AWS lab qualification workflow still exposes the performance measurement harness"
+fi
 if grep -Fq 'env.AIRBOB_ALB_INGRESS_CIDR' "$workflow"; then
   fail "workflow must consume the ingress CIDR from GITHUB_ENV, not a static expression context"
 fi
