@@ -110,8 +110,10 @@ mock_provider "aws" {
     target          = aws_s3_bucket.managed
     override_during = plan
     values = {
-      arn = "arn:aws:s3:::airbob-mocked-foundation-bucket"
-      id  = "airbob-mocked-foundation-bucket"
+      # Use the longest deterministic production bucket ARN so IAM policy-size
+      # assertions cannot pass only because the mock resource is shorter.
+      arn = "arn:aws:s3:::airbob-performance-lab-evidence-942632789808"
+      id  = "airbob-performance-lab-evidence-942632789808"
     }
   }
 
@@ -119,8 +121,8 @@ mock_provider "aws" {
     target          = aws_ecr_repository.infrastructure
     override_during = plan
     values = {
-      arn            = "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/mock"
-      repository_url = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/mock"
+      arn            = "arn:aws:ecr:ap-northeast-2:942632789808:repository/airbob-infra/elasticsearch-exporter"
+      repository_url = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/elasticsearch-exporter"
     }
   }
 
@@ -494,6 +496,13 @@ run "foundation_contract" {
       length(local.role_trust_policies.dataset) <= 2048 &&
       length(local.foundation_admin_policy) <= 10240 &&
       length(local.lab_operator_managed_policies) == 5 &&
+      length(aws_s3_bucket.managed["evidence"].arn) >= length("arn:aws:s3:::${var.dataset_bucket_name}") &&
+      length(aws_s3_bucket.managed["evidence"].arn) >= length("arn:aws:s3:::${var.evidence_bucket_name}") &&
+      length(aws_s3_bucket.managed["evidence"].arn) >= length("arn:aws:s3:::${var.bundle_bucket_name}") &&
+      alltrue([
+        for repository_name in values(local.infra_ecr_repositories) :
+        length(aws_ecr_repository.infrastructure["elasticsearch_exporter"].arn) >= length("arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${repository_name}")
+      ]) &&
       alltrue([
         for policy in values(local.lab_operator_managed_policies) :
         length(policy.document) <= 6144
@@ -1017,7 +1026,11 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
         if statement.Sid == "DenyMutableAuthoritativeEvidence"
-      ]).Condition.StringNotEquals["s3:if-none-match"] == "*" &&
+      ]).Condition.Null["s3:if-none-match"] == "true" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Condition.Bool["s3:ObjectCreationOperation"] == "true" &&
       toset(one([
         for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
         if statement.Sid == "DenyMutableAuthoritativeEvidence"
@@ -1036,14 +1049,19 @@ run "foundation_contract" {
         for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
         if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
       ]).Effect == "Deny" &&
-      one([
+      toset(one([
         for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
         if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
-      ]).Action == "s3:PutObjectTagging" &&
-      one([
+        ]).Action) == toset([
+        "s3:DeleteObjectTagging",
+        "s3:DeleteObjectVersionTagging",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+      ]) &&
+      toset(one([
         for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
         if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
-      ]).Condition.BoolIfExists["s3:ObjectCreationOperation"] == "false" &&
+      ]).Condition.StringEquals["s3:ExistingObjectTag/Retention"]) == toset(["raw", "summary"]) &&
       toset(one([
         for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
         if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
@@ -1255,42 +1273,13 @@ run "foundation_contract" {
         "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
         "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
       ]) &&
-      one([
+      length([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyMutableAuthoritativeEvidence"
-      ]).Effect == "Deny" &&
-      one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyMutableAuthoritativeEvidence"
-      ]).Action == "s3:PutObject" &&
-      toset(one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyMutableAuthoritativeEvidence"
-        ]).Resource) == toset([
-        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
-        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
-        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
-      ]) &&
-      one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyMutableAuthoritativeEvidence"
-      ]).Condition.StringNotEquals["s3:if-none-match"] == "*"
-      && one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
-      ]).Action == "s3:PutObjectTagging"
-      && one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
-      ]).Condition.BoolIfExists["s3:ObjectCreationOperation"] == "false"
-      && toset(one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
-        ]).Resource) == toset([
-        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
-        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
-        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
-      ])
+        if contains([
+          "DenyMutableAuthoritativeEvidence",
+          "DenyPostCreationAuthoritativeEvidenceTagging",
+        ], statement.Sid)
+      ]) == 0
       && toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "WriteTaggedEvidence"

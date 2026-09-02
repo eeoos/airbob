@@ -98,6 +98,8 @@ assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy" "lab_c
 assert_contains "$foundation_root/iam.tf" 'policy_arn = aws_iam_policy.lab_operator[each.key].arn'
 [[ "$(grep -Fc 'policy_arn = aws_iam_policy.lab_operator[each.key].arn' "$foundation_root/iam.tf")" -eq 2 ]] \
   || fail "both Lab operator roles must attach the exact same five managed policies"
+assert_contains "$foundation_root/iam.tf" 'depends_on = [aws_s3_bucket_policy.managed["evidence"]]'
+assert_contains "$foundation_root/iam.tf" 'condition     = length(each.value.document) <= 6144'
 assert_contains "$foundation_root/iam.tf" 'name                 = local.role_names.lab_cutover'
 assert_contains "$foundation_root/iam.tf" 'role   = aws_iam_role.lab_cutover_operator.id'
 assert_contains "$foundation_root/iam.tf" 'max_session_duration = 18000'
