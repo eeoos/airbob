@@ -2849,6 +2849,69 @@ case " $* " in
       printf '%s\n' None
     fi
     ;;
+  *' resourcegroupstaggingapi get-resources '*)
+    case "${FAKE_SCANNER_ORPHAN:-}" in
+      tagging-tombstone)
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+          arn:aws:ec2:ap-northeast-2:942632789808:instance/i-terminated \
+          arn:aws:ec2:ap-northeast-2:942632789808:instance/i-absent \
+          arn:aws:ec2:ap-northeast-2:942632789808:volume/vol-deleted \
+          arn:aws:ec2:ap-northeast-2:942632789808:subnet/subnet-deleted \
+          arn:aws:ec2:ap-northeast-2:942632789808:vpc-endpoint/vpce-deleted \
+          arn:aws:ec2:ap-northeast-2:942632789808:security-group-rule/sgr-deleted
+        ;;
+      tagging-persistent)
+        printf '%s\n' arn:aws:ec2:ap-northeast-2:942632789808:instance/i-live
+        ;;
+      tagging-liveness-failure)
+        printf '%s\n' arn:aws:ec2:ap-northeast-2:942632789808:instance/i-unreadable
+        ;;
+      tagging-live-volume)
+        printf '%s\n' arn:aws:ec2:ap-northeast-2:942632789808:volume/vol-live
+        ;;
+      tagging-volume-failure)
+        printf '%s\n' arn:aws:ec2:ap-northeast-2:942632789808:volume/vol-unreadable
+        ;;
+      tagging-unsupported)
+        printf '%s\n' arn:aws:ec2:ap-northeast-2:942632789808:vpc/vpc-deleted
+        ;;
+      tagging-foreign)
+        printf '%s\n' arn:aws:ec2:ap-northeast-2:111111111111:instance/i-foreign
+        ;;
+      tagging-malformed)
+        printf '%s\n' not-an-arn
+        ;;
+      *) printf '%s\n' None ;;
+    esac
+    ;;
+  *' ec2 describe-instances '*'--instance-ids i-terminated'*) printf '%s\n' terminated ;;
+  *' ec2 describe-instances '*'--instance-ids i-absent'*) printf '%s\n' None ;;
+  *' ec2 describe-instances '*'--instance-ids i-live'*) printf '%s\n' running ;;
+  *' ec2 describe-instances '*'--instance-ids i-unreadable'*)
+    printf '%s\n' 'An error occurred (AccessDenied) when calling DescribeInstances' >&2
+    exit 254
+    ;;
+  *' ec2 describe-volumes '*'--volume-ids vol-deleted'*)
+    printf '%s\n' 'An error occurred (InvalidVolume.NotFound) when calling DescribeVolumes' >&2
+    exit 254
+    ;;
+  *' ec2 describe-volumes '*'--volume-ids vol-live'*) printf '%s\n' '{}' ;;
+  *' ec2 describe-volumes '*'--volume-ids vol-unreadable'*)
+    printf '%s\n' 'An error occurred (AccessDenied) when calling DescribeVolumes' >&2
+    exit 254
+    ;;
+  *' ec2 describe-subnets '*'--subnet-ids subnet-deleted'*)
+    printf '%s\n' 'An error occurred (InvalidSubnetID.NotFound) when calling DescribeSubnets' >&2
+    exit 254
+    ;;
+  *' ec2 describe-vpc-endpoints '*'--vpc-endpoint-ids vpce-deleted'*)
+    printf '%s\n' 'An error occurred (InvalidVpcEndpointId.NotFound) when calling DescribeVpcEndpoints' >&2
+    exit 254
+    ;;
+  *' ec2 describe-security-group-rules '*'--security-group-rule-ids sgr-deleted'*)
+    printf '%s\n' 'An error occurred (InvalidSecurityGroupRuleId.NotFound) when calling DescribeSecurityGroupRules' >&2
+    exit 254
+    ;;
   *) printf '%s\n' None ;;
 esac
 EOF
@@ -2884,6 +2947,67 @@ global_tag_query=$(grep -m1 'resourcegroupstaggingapi get-resources' "$temp_dir/
 global_association_query=$(grep -m1 'ssm list-associations' "$temp_dir/scanner-global.log")
 [[ "$global_association_query" == *'--query Associations[].AssociationId'* ]] \
   || fail "global orphan scan did not require account-wide zero SSM associations"
+: > "$temp_dir/scanner-global.log"
+env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=tagging-tombstone \
+  "$orphan_scanner" lab-scan >/dev/null
+grep -Fq 'ec2 describe-instances --instance-ids i-terminated' "$temp_dir/scanner-global.log" \
+  || fail "global orphan scanner did not verify a tag tombstone with the native service API"
+grep -Fq 'ec2 describe-instances --instance-ids i-absent' "$temp_dir/scanner-global.log" \
+  || fail "global orphan scanner did not accept a native empty instance result as deleted"
+for native_tombstone_query in \
+  'ec2 describe-volumes --volume-ids vol-deleted' \
+  'ec2 describe-subnets --subnet-ids subnet-deleted' \
+  'ec2 describe-vpc-endpoints --vpc-endpoint-ids vpce-deleted' \
+  'ec2 describe-security-group-rules --security-group-rule-ids sgr-deleted'; do
+  grep -Fq "$native_tombstone_query" "$temp_dir/scanner-global.log" \
+    || fail "global orphan scanner skipped native tombstone query: $native_tombstone_query"
+done
+: > "$temp_dir/scanner-global.log"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=tagging-persistent \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "global orphan scanner accepted a live resource returned by the tagging API"
+fi
+: > "$temp_dir/scanner-global.log"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=tagging-liveness-failure \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "global orphan scanner treated a failed tag-liveness query as deleted"
+fi
+: > "$temp_dir/scanner-global.log"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=tagging-live-volume \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "global orphan scanner accepted a live non-instance resource"
+fi
+: > "$temp_dir/scanner-global.log"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=tagging-volume-failure \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "global orphan scanner treated a failed non-instance liveness query as deleted"
+fi
+: > "$temp_dir/scanner-global.log"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=tagging-unsupported \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "global orphan scanner accepted an unsupported tagged-resource ARN"
+fi
+for fail_closed_fixture in tagging-foreign tagging-malformed; do
+  : > "$temp_dir/scanner-global.log"
+  if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+    AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+    FAKE_SCANNER_ORPHAN="$fail_closed_fixture" \
+    "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+    fail "global orphan scanner accepted fail-closed fixture: $fail_closed_fixture"
+  fi
+done
 if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
   AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
   FAKE_SCANNER_ORPHAN=ssm-association \
