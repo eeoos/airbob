@@ -1772,15 +1772,19 @@ run "foundation_contract" {
       ]).Condition, null) == null &&
       toset(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseTaggedConfigurationForDumpLabDb"
+        if statement.Sid == "UseRunBoundConfigurationForDumpLabDb"
         ]).Resource) == toset([
-        "arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-lab-*",
-        "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-lab-*",
+        "arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-$${aws:RequestTag/RunId}",
+        "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-$${aws:RequestTag/RunId}",
       ]) &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseTaggedConfigurationForDumpLabDb"
-      ]).Condition == local.lab_ephemeral_resource_tag_condition &&
+        if statement.Sid == "UseRunBoundConfigurationForDumpLabDb"
+      ]).Action == "rds:CreateDBInstance" &&
+      try(one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "UseRunBoundConfigurationForDumpLabDb"
+      ]).Condition, null) == null &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "RestoreBoundedSnapshotLabDbInstance"
@@ -1803,15 +1807,19 @@ run "foundation_contract" {
       ]).Condition, null) == null &&
       toset(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseTaggedConfigurationForRestoreLabDb"
+        if statement.Sid == "UseRunBoundConfigurationForRestoreLabDb"
         ]).Resource) == toset([
-        "arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-lab-*",
-        "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-lab-*",
+        "arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-$${aws:RequestTag/RunId}",
+        "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-$${aws:RequestTag/RunId}",
       ]) &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseTaggedConfigurationForRestoreLabDb"
-      ]).Condition == local.lab_ephemeral_resource_tag_condition &&
+        if statement.Sid == "UseRunBoundConfigurationForRestoreLabDb"
+      ]).Action == "rds:RestoreDBInstanceFromDBSnapshot" &&
+      try(one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "UseRunBoundConfigurationForRestoreLabDb"
+      ]).Condition, null) == null &&
       alltrue([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement :
         statement.Condition.StringEquals == merge(

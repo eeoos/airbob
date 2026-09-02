@@ -1,28 +1,62 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 umask 077
 
+stage=initialization
+service=unknown
+compose_file=
+compose_bootstrap_log=
+
+compose() {
+  docker compose --env-file /etc/airbob/images.env -f "$compose_file" "$@"
+}
+
+report_failure() {
+  local exit_code=$1
+  local failed_line=$2
+
+  trap - ERR
+  printf 'Phase 2 service bootstrap failed: service=%s stage=%s exit=%s line=%s\n' \
+    "$service" "$stage" "$exit_code" "$failed_line" >&2
+  if [[ -n "$compose_bootstrap_log" && -s "$compose_bootstrap_log" ]]; then
+    # This file contains only detached pull/start progress, never rendered config or container logs.
+    printf '%s\n' 'Recent Docker Compose bootstrap output:' >&2
+    tail -n 80 "$compose_bootstrap_log" >&2 || true
+  fi
+  if [[ -n "$compose_file" && -f "$compose_file" ]] && command -v docker >/dev/null 2>&1; then
+    printf '%s\n' 'Docker Compose container state:' >&2
+    compose ps --all >&2 || true
+  fi
+  exit "$exit_code"
+}
+
+trap 'report_failure "$?" "$LINENO"' ERR
+
+stage=service-release-wait
 for attempt in $(seq 1 120); do
   [[ -f /var/lib/airbob/release-ready ]] && break
   if [[ "$attempt" -eq 120 ]]; then
     printf '%s\n' 'service bundle bootstrap did not become ready' >&2
-    exit 1
+    report_failure 1 "$LINENO"
   fi
   sleep 5
 done
 
+stage=service-identity
 service=$(cat /etc/airbob/service-name)
 case "$service" in
   redis|kafka|debezium|elasticsearch|monitoring) ;;
-  *) printf '%s\n' 'unsupported Phase 2 service' >&2; exit 1 ;;
+  *) printf '%s\n' 'unsupported Phase 2 service' >&2; report_failure 1 "$LINENO" ;;
 esac
 
 compose_file="/opt/airbob/release/infra/aws/bundles/$service/compose.yml"
 [[ -f "$compose_file" && ! -L "$compose_file" ]]
 registry=$(awk -F= 'NF == 2 { print $2; exit }' /etc/airbob/images.env | cut -d/ -f1)
 [[ "$registry" == '${account_id}.dkr.ecr.${region}.amazonaws.com' ]]
+stage=registry-authentication
 aws --region '${region}' ecr get-login-password | docker login --username AWS --password-stdin "$registry" >/dev/null
 
+stage=service-environment
 export MONITORING_ENV_FILE=/etc/airbob/monitoring.env
 if [[ "$service" == monitoring && ! -f "$MONITORING_ENV_FILE" ]]; then
   password=$(openssl rand -base64 36 | tr -d '\n')
@@ -31,18 +65,29 @@ if [[ "$service" == monitoring && ! -f "$MONITORING_ENV_FILE" ]]; then
   unset password
 fi
 
+stage=host-kernel-configuration
+if [[ "$service" == redis ]]; then
+  printf '%s\n' 'vm.overcommit_memory=1' > /etc/sysctl.d/99-airbob-redis.conf
+  sysctl --system >/dev/null
+  [[ "$(sysctl -n vm.overcommit_memory)" == 1 ]]
+fi
+
 if [[ "$service" == elasticsearch ]]; then
   printf '%s\n' 'vm.max_map_count=1048576' > /etc/sysctl.d/99-airbob-elasticsearch.conf
   sysctl --system >/dev/null
   [[ "$(sysctl -n vm.max_map_count)" == 1048576 ]]
 fi
 
-docker compose --env-file /etc/airbob/images.env -f "$compose_file" config --quiet
-docker compose --env-file /etc/airbob/images.env -f "$compose_file" up --detach --wait --wait-timeout 600
+stage=compose-configuration
+compose config --quiet
 
-compose() {
-  docker compose --env-file /etc/airbob/images.env -f "$compose_file" "$@"
-}
+compose_bootstrap_log="/var/lib/airbob/$service-compose-bootstrap.log"
+install -m 600 /dev/null "$compose_bootstrap_log"
+stage=compose-pull
+compose pull --quiet > "$compose_bootstrap_log" 2>&1 || report_failure "$?" "$LINENO"
+stage=compose-start
+compose up --detach --wait --wait-timeout 600 >> "$compose_bootstrap_log" 2>&1 \
+  || report_failure "$?" "$LINENO"
 
 container_cgroup_file() {
   local container_id=$1
@@ -50,16 +95,151 @@ container_cgroup_file() {
   find /sys/fs/cgroup -type f -path "*$container_id*" -name "$filename" -print -quit
 }
 
-verify_redis_memory_gate() {
-  local available_kib
-  local total_swap_kib
-  local free_swap_kib
+memory_event_counter() {
+  local events_file=$1
+  local counter=$2
+
+  awk -v counter="$counter" '
+    $1 == counter { print $2; found=1; exit }
+    END { if (!found) print "missing" }
+  ' "$events_file"
+}
+
+verify_container_memory_gate() {
+  local checkpoint=$1
   local redis_service
   local container_id
+  local oom_killed
   local memory_limit
   local peak_file
   local events_file
   local peak
+  local oom_events
+  local oom_kill_events
+
+  for redis_service in redis redis-cache redis-exporter-general redis-exporter-cache node-exporter; do
+    stage="redis-$checkpoint-$redis_service-container-memory"
+    container_id=$(compose ps --quiet "$redis_service")
+    if [[ -z "$container_id" ]]; then
+      printf 'Redis container memory evidence unavailable: checkpoint=%s container=%s\n' \
+        "$checkpoint" "$redis_service" >&2
+      return 1
+    fi
+    oom_killed=$(docker inspect --format '{{.State.OOMKilled}}' "$container_id")
+    memory_limit=$(docker inspect --format '{{.HostConfig.Memory}}' "$container_id")
+    peak_file=$(container_cgroup_file "$container_id" memory.peak)
+    events_file=$(container_cgroup_file "$container_id" memory.events)
+    if [[ -z "$peak_file" || -z "$events_file" ]]; then
+      printf 'Redis cgroup memory evidence unavailable: checkpoint=%s container=%s\n' \
+        "$checkpoint" "$redis_service" >&2
+      return 1
+    fi
+    peak=$(cat "$peak_file")
+    oom_events=$(memory_event_counter "$events_file" oom)
+    oom_kill_events=$(memory_event_counter "$events_file" oom_kill)
+    printf 'Redis container memory: checkpoint=%s container=%s id=%s limit_bytes=%s peak_bytes=%s oom=%s oom_kill=%s docker_oom_killed=%s\n' \
+      "$checkpoint" "$redis_service" "$(cut -c 1-12 <<<"$container_id")" \
+      "$memory_limit" "$peak" "$oom_events" "$oom_kill_events" "$oom_killed"
+    if [[ ! "$memory_limit" =~ ^[0-9]+$ || ! "$peak" =~ ^[0-9]+$ ||
+          ! "$oom_events" =~ ^[0-9]+$ || ! "$oom_kill_events" =~ ^[0-9]+$ ]]; then
+      printf 'Redis container memory evidence is nonnumeric: checkpoint=%s container=%s\n' \
+        "$checkpoint" "$redis_service" >&2
+      return 1
+    fi
+    [[ "$oom_killed" == false ]]
+    [[ "$memory_limit" -gt 0 ]]
+    [[ "$peak" -lt $((memory_limit * 80 / 100)) ]]
+    [[ "$oom_events" -eq 0 && "$oom_kill_events" -eq 0 ]]
+  done
+}
+
+redis_memory_metric() {
+  local memory_info=$1
+  local metric=$2
+  local numeric_pattern=$3
+
+  awk -F: -v metric="$metric" -v numeric_pattern="$numeric_pattern" '
+    $1 == metric {
+      gsub("\\r", "", $2)
+      if ($2 ~ numeric_pattern) print $2
+      exit
+    }
+  ' <<<"$memory_info"
+}
+
+verify_redis_memory_info() {
+  local checkpoint=$1
+  local redis_service=$2
+  local memory_info
+  local used_memory
+  local used_memory_rss
+  local fragmentation_ratio
+  local fragmentation_bytes
+  local allocator_fragmentation_ratio
+  local allocator_fragmentation_bytes
+
+  stage="redis-$checkpoint-$redis_service-memory-info"
+  memory_info=$(compose exec --no-TTY "$redis_service" redis-cli INFO memory)
+  used_memory=$(redis_memory_metric "$memory_info" used_memory '^[0-9]+$')
+  used_memory_rss=$(redis_memory_metric "$memory_info" used_memory_rss '^[0-9]+$')
+  fragmentation_ratio=$(redis_memory_metric "$memory_info" mem_fragmentation_ratio '^[0-9]+([.][0-9]+)?$')
+  fragmentation_bytes=$(redis_memory_metric "$memory_info" mem_fragmentation_bytes '^-?[0-9]+$')
+  allocator_fragmentation_ratio=$(redis_memory_metric "$memory_info" allocator_frag_ratio '^[0-9]+([.][0-9]+)?$')
+  allocator_fragmentation_bytes=$(redis_memory_metric "$memory_info" allocator_frag_bytes '^-?[0-9]+$')
+  printf 'Redis memory info: checkpoint=%s container=%s used_memory=%s used_memory_rss=%s mem_fragmentation_ratio=%s mem_fragmentation_bytes=%s allocator_frag_ratio=%s allocator_frag_bytes=%s\n' \
+    "$checkpoint" "$redis_service" \
+    "$${used_memory:-missing-or-nonnumeric}" "$${used_memory_rss:-missing-or-nonnumeric}" \
+    "$${fragmentation_ratio:-missing-or-nonnumeric}" "$${fragmentation_bytes:-missing-or-nonnumeric}" \
+    "$${allocator_fragmentation_ratio:-missing-or-nonnumeric}" "$${allocator_fragmentation_bytes:-missing-or-nonnumeric}"
+  if [[ -z "$used_memory" || -z "$used_memory_rss" ||
+        -z "$fragmentation_ratio" || -z "$fragmentation_bytes" ||
+        -z "$allocator_fragmentation_ratio" || -z "$allocator_fragmentation_bytes" ]]; then
+    printf 'Redis memory INFO did not provide every required numeric field: checkpoint=%s container=%s\n' \
+      "$checkpoint" "$redis_service" >&2
+    return 1
+  fi
+}
+
+wait_for_http_5s() {
+  local check_name=$1
+  local url=$2
+  local deadline=$3
+  local retry_seconds=5
+  local started_at=$SECONDS
+  local timeout_seconds=$((deadline - started_at))
+  local remaining
+  local request_timeout
+  local sleep_seconds
+
+  while ((SECONDS < deadline)); do
+    remaining=$((deadline - SECONDS))
+    request_timeout=$retry_seconds
+    ((remaining < request_timeout)) && request_timeout=$remaining
+    if curl --fail --silent --show-error --connect-timeout "$request_timeout" \
+      --max-time "$request_timeout" "$url" >/dev/null 2>&1; then
+      printf 'Service endpoint ready: service=%s check=%s elapsed_seconds=%s\n' \
+        "$service" "$check_name" "$((SECONDS - started_at))"
+      return 0
+    fi
+    remaining=$((deadline - SECONDS))
+    ((remaining > 0)) || break
+    sleep_seconds=$retry_seconds
+    ((remaining < sleep_seconds)) && sleep_seconds=$remaining
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Service endpoint did not become ready: service=%s check=%s timeout_seconds=%s\n' \
+    "$service" "$check_name" "$timeout_seconds" >&2
+  return 1
+}
+
+verify_redis_memory_gate() {
+  local available_kib
+  local total_swap_kib
+  local free_swap_kib
+  local kernel_log
+  local redis_service
+  local redis_log
   local rewrite_response
   local rewrite_state
 
@@ -69,7 +249,8 @@ verify_redis_memory_gate() {
   free_swap_kib=$(awk '/^SwapFree:/ { print $2 }' /proc/meminfo)
   [[ "$total_swap_kib" -eq "$free_swap_kib" ]]
   [[ "$(awk '$1 == "pswpin" || $1 == "pswpout" { total += $2 } END { print total + 0 }' /proc/vmstat)" -eq 0 ]]
-  if journalctl --dmesg --no-pager | grep -Eq 'Out of memory|Killed process'; then
+  kernel_log=$(journalctl --dmesg --no-pager)
+  if grep -Eq 'Out of memory|Killed process' <<<"$kernel_log"; then
     printf '%s\n' 'host kernel reported an OOM event' >&2
     return 1
   fi
@@ -77,23 +258,9 @@ verify_redis_memory_gate() {
   head -c 33554432 /dev/zero | compose exec --no-TTY redis redis-cli -x SET __airbob_bootstrap_memory_probe >/dev/null
   head -c 16777216 /dev/zero | compose exec --no-TTY redis-cache redis-cli -x SET __airbob_bootstrap_memory_probe >/dev/null
 
-  for redis_service in redis redis-cache redis-exporter-general redis-exporter-cache node-exporter; do
-    container_id=$(compose ps --quiet "$redis_service")
-    [[ -n "$container_id" ]]
-    [[ "$(docker inspect --format '{{.State.OOMKilled}}' "$container_id")" == false ]]
-    memory_limit=$(docker inspect --format '{{.HostConfig.Memory}}' "$container_id")
-    [[ "$memory_limit" -gt 0 ]]
-    peak_file=$(container_cgroup_file "$container_id" memory.peak)
-    events_file=$(container_cgroup_file "$container_id" memory.events)
-    [[ -n "$peak_file" && -n "$events_file" ]]
-    peak=$(cat "$peak_file")
-    [[ "$peak" -lt $((memory_limit * 80 / 100)) ]]
-    [[ "$(awk '$1 == "oom" || $1 == "oom_kill" { total += $2 } END { print total + 0 }' "$events_file")" -eq 0 ]]
-  done
-
+  verify_container_memory_gate after-probe
   for redis_service in redis redis-cache; do
-    compose exec --no-TTY "$redis_service" redis-cli INFO memory \
-      | awk -F: '/^mem_fragmentation_ratio:/ { gsub("\\r", "", $2); if ($2 < 1 || $2 >= 2) exit 1; found=1 } END { exit(found ? 0 : 1) }'
+    verify_redis_memory_info after-probe "$redis_service"
   done
 
   rewrite_response=$(compose exec --no-TTY redis redis-cli --raw BGREWRITEAOF | tr -d '\r')
@@ -109,18 +276,13 @@ verify_redis_memory_gate() {
   done
   available_kib=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
   [[ "$available_kib" -ge 262144 ]]
-  for redis_service in redis redis-cache redis-exporter-general redis-exporter-cache node-exporter; do
-    container_id=$(compose ps --quiet "$redis_service")
-    memory_limit=$(docker inspect --format '{{.HostConfig.Memory}}' "$container_id")
-    peak_file=$(container_cgroup_file "$container_id" memory.peak)
-    events_file=$(container_cgroup_file "$container_id" memory.events)
-    [[ -n "$peak_file" && -n "$events_file" ]]
-    peak=$(cat "$peak_file")
-    [[ "$peak" -lt $((memory_limit * 80 / 100)) ]]
-    [[ "$(awk '$1 == "oom" || $1 == "oom_kill" { total += $2 } END { print total + 0 }' "$events_file")" -eq 0 ]]
+  verify_container_memory_gate after-bgrewriteaof
+  for redis_service in redis redis-cache; do
+    verify_redis_memory_info after-bgrewriteaof "$redis_service"
   done
   for redis_service in redis redis-cache; do
-    if compose logs "$redis_service" 2>&1 | grep -Eq 'fork.*(fail|Cannot allocate)|Can.t save in background'; then
+    redis_log=$(compose logs "$redis_service" 2>&1)
+    if grep -Eq 'fork.*(fail|Cannot allocate)|Can.t save in background' <<<"$redis_log"; then
       printf '%s\n' 'Redis reported a fork failure' >&2
       return 1
     fi
@@ -133,26 +295,34 @@ verify_redis_memory_gate() {
 
 case "$service" in
   redis)
+    stage=redis-service-verification
     [[ "$(compose ps --status running --services | wc -l | tr -d ' ')" == 5 ]]
     compose exec --no-TTY redis redis-cli ping | grep -Fxq PONG
     compose exec --no-TTY redis-cache redis-cli ping | grep -Fxq PONG
     verify_redis_memory_gate
     ;;
   kafka)
+    stage=kafka-service-verification
     [[ "$(compose ps --status running --services | wc -l | tr -d ' ')" == 2 ]]
     curl --fail --silent --show-error http://127.0.0.1:7071/metrics >/dev/null
     ;;
   debezium)
+    stage=debezium-service-verification
     [[ "$(compose ps --status running --services | wc -l | tr -d ' ')" == 2 ]]
     curl --fail --silent --show-error http://127.0.0.1:8083/ >/dev/null
     curl --fail --silent --show-error http://127.0.0.1:9404/metrics >/dev/null
     ;;
   elasticsearch)
+    stage=elasticsearch-container-verification
     [[ "$(compose ps --status running --services | wc -l | tr -d ' ')" == 3 ]]
-    curl --fail --silent --show-error http://127.0.0.1:9200/_cluster/health >/dev/null
-    curl --fail --silent --show-error http://127.0.0.1:9114/metrics >/dev/null
+    elasticsearch_readiness_deadline=$((SECONDS + 600))
+    stage=elasticsearch-cluster-readiness
+    wait_for_http_5s cluster-health http://127.0.0.1:9200/_cluster/health "$elasticsearch_readiness_deadline"
+    stage=elasticsearch-exporter-readiness
+    wait_for_http_5s exporter-metrics http://127.0.0.1:9114/metrics "$elasticsearch_readiness_deadline"
     ;;
   monitoring)
+    stage=monitoring-service-verification
     [[ "$(compose ps --status running --services | wc -l | tr -d ' ')" == 3 ]]
     general_ip=$(getent ahostsv4 redis-general.lab.airbob.internal | awk 'NR == 1 { print $1 }')
     cache_ip=$(getent ahostsv4 redis-cache.lab.airbob.internal | awk 'NR == 1 { print $1 }')
@@ -187,6 +357,7 @@ case "$service" in
     ;;
 esac
 
+stage=evidence-publication
 token=$(curl --fail --silent --show-error --request PUT --header 'X-aws-ec2-metadata-token-ttl-seconds: 60' http://169.254.169.254/latest/api/token)
 instance_id=$(curl --fail --silent --show-error --header "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id)
 verified_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
@@ -204,4 +375,5 @@ aws --region '${region}' s3api put-object \
   --body "$evidence_file" \
   --tagging Retention=summary >/dev/null
 
+stage=complete
 printf '%s\n' 'healthy' > "/var/lib/airbob/$service-health"

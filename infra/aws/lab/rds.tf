@@ -20,6 +20,7 @@ module "rds" {
     terraform_data.probe_clearance_gate,
     terraform_data.dataset_release_gate,
     aws_route.private_nat,
+    aws_ssm_association.core_services,
   ]
 }
 

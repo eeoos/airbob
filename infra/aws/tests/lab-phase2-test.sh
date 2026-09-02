@@ -112,9 +112,54 @@ assert_contains "$lab_root/private-dns.tf" 'resource "aws_route53_zone_associati
 if grep -Fq 'resource "aws_route53_zone" "private"' "$lab_root/private-dns.tf"; then
   fail "the ephemeral lab must not own the protected private hosted zone"
 fi
-assert_contains "$lab_root/templates/start-service.sh.tftpl" 'BGREWRITEAOF'
-assert_contains "$lab_root/templates/start-service.sh.tftpl" 'vm.max_map_count=1048576'
-assert_contains "$lab_root/templates/start-service.sh.tftpl" 'node-exporter-monitoring'
+start_service_template="$lab_root/templates/start-service.sh.tftpl"
+assert_contains "$start_service_template" 'BGREWRITEAOF'
+assert_contains "$start_service_template" 'vm.max_map_count=1048576'
+assert_contains "$start_service_template" 'node-exporter-monitoring'
+assert_contains "$start_service_template" 'set -Eeuo pipefail'
+assert_contains "$start_service_template" 'trap '\''report_failure "$?" "$LINENO"'\'' ERR'
+assert_contains "$start_service_template" 'compose pull --quiet > "$compose_bootstrap_log" 2>&1'
+assert_contains "$start_service_template" 'compose up --detach --wait --wait-timeout 600 >> "$compose_bootstrap_log" 2>&1'
+assert_contains "$start_service_template" 'Recent Docker Compose bootstrap output:'
+assert_contains "$start_service_template" 'Redis container memory: checkpoint=%s container=%s id=%s limit_bytes=%s peak_bytes=%s oom=%s oom_kill=%s docker_oom_killed=%s'
+assert_contains "$start_service_template" 'used_memory=%s used_memory_rss=%s mem_fragmentation_ratio=%s mem_fragmentation_bytes=%s allocator_frag_ratio=%s allocator_frag_bytes=%s'
+assert_contains "$start_service_template" 'missing-or-nonnumeric'
+assert_contains "$start_service_template" 'mem_fragmentation_ratio '\''^[0-9]+([.][0-9]+)?$'\'''
+assert_contains "$start_service_template" 'mem_fragmentation_bytes '\''^-?[0-9]+$'\'''
+assert_contains "$start_service_template" 'allocator_frag_ratio '\''^[0-9]+([.][0-9]+)?$'\'''
+assert_contains "$start_service_template" 'allocator_frag_bytes '\''^-?[0-9]+$'\'''
+assert_contains "$start_service_template" 'kernel_log=$(journalctl --dmesg --no-pager)'
+assert_contains "$start_service_template" 'redis_log=$(compose logs "$redis_service" 2>&1)'
+assert_contains "$start_service_template" 'local retry_seconds=5'
+assert_contains "$start_service_template" 'elasticsearch_readiness_deadline=$((SECONDS + 600))'
+assert_contains "$start_service_template" 'wait_for_http_5s cluster-health http://127.0.0.1:9200/_cluster/health "$elasticsearch_readiness_deadline"'
+assert_contains "$start_service_template" 'wait_for_http_5s exporter-metrics http://127.0.0.1:9114/metrics "$elasticsearch_readiness_deadline"'
+if grep -Fq '$2 < 1 || $2 >= 2' "$start_service_template"; then
+  fail "Redis fragmentation telemetry must not impose a synthetic pass/fail ratio range"
+fi
+redis_sysctl_block=$(sed -n '/^if \[\[ "$service" == redis \]\]; then$/,/^fi$/p' \
+  "$start_service_template")
+grep -Fq "printf '%s\\n' 'vm.overcommit_memory=1'" <<<"$redis_sysctl_block" \
+  || fail "the Redis host must persist vm.overcommit_memory=1"
+grep -Fq '[[ "$(sysctl -n vm.overcommit_memory)" == 1 ]]' <<<"$redis_sysctl_block" \
+  || fail "the Redis host must verify vm.overcommit_memory=1"
+[[ "$(grep -Fc 'vm.overcommit_memory' "$start_service_template")" -eq 2 ]] \
+  || fail "vm.overcommit_memory may be configured and verified only in the Redis host block"
+bash -n "$start_service_template"
+"$repo_root/infra/aws/tests/start-service-runtime-test.sh"
+
+rds_module=$(sed -n '/^module "rds" {$/,/^}$/p' "$lab_root/rds.tf")
+grep -Fq 'aws_ssm_association.core_services,' <<<"$rds_module" \
+  || fail "RDS creation must wait for successful core service associations"
+ssm_contract="$lab_root/ssm.tf"
+[[ "$(grep -Fc 'timeoutSeconds = "2400"' "$ssm_contract")" -eq 1 ]] \
+  || fail "the shared Phase 2 service command must have exactly one 2400-second execution timeout"
+[[ "$(grep -Fc 'wait_for_success_timeout_seconds = 2700' "$ssm_contract")" -eq 3 ]] \
+  || fail "core, Debezium, and monitoring associations must allow the 2400-second command to report its result"
+[[ "$(grep -Fc 'timeoutSeconds = "7200"' "$ssm_contract")" -eq 1 ]] \
+  || fail "the data-bootstrap command timeout must remain unchanged"
+[[ "$(grep -Fc 'wait_for_success_timeout_seconds = 7200' "$ssm_contract")" -eq 1 ]] \
+  || fail "the data-bootstrap association timeout must remain unchanged"
 assert_contains "$lab_root/templates/host-user-data.sh.tftpl" 'if ! command -v curl >/dev/null 2>&1; then'
 assert_contains "$lab_root/templates/host-user-data.sh.tftpl" 'dnf install -y curl-minimal'
 assert_contains "$lab_root/templates/host-user-data.sh.tftpl" 'dnf install -y jq tar gzip openssl'
