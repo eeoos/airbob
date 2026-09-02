@@ -42,7 +42,11 @@ if [[ "$scan_scope" == global ]]; then
   dashboard_prefix=airbob-lab-
   dashboard_query="DashboardEntries[?starts_with(DashboardName, 'airbob-lab-')].DashboardName"
   alarm_prefixes=(airbob-lab-)
-  association_query="Associations[?starts_with(AssociationName, 'airbob-lab-')].AssociationId"
+  # SSM association ARNs contain only a generated UUID, so IAM cannot scope
+  # create-time AddTagsToResource to the airbob-lab name namespace. Keep this
+  # short-lived account surface exclusive: a clean global gate requires zero
+  # associations of any name before a run and after teardown.
+  association_query="Associations[].AssociationId"
   document_query="DocumentIdentifiers[?starts_with(Name, 'airbob-lab-')].Name"
 else
   explicit_tag_filters=("Name=tag:RunId,Values=$run_id")
@@ -202,6 +206,24 @@ jq -e '
   .private_dns_zone_name == "lab.airbob.internal"
 ' <<<"$lab_contract" >/dev/null || fail "foundation lab contract is invalid for the private DNS orphan scan"
 private_dns_zone_id=$(jq -er '.private_dns_zone_id' <<<"$lab_contract")
+if ! private_dns_anchor_vpc_id=$(aws ec2 describe-vpcs \
+  --filters Name=tag:Name,Values=airbob-private-dns-anchor Name=cidr-block,Values=10.255.255.240/28 \
+  --query 'Vpcs[].VpcId' --output text --region "$AWS_REGION" --no-cli-pager); then
+  fail "cannot identify the protected private-DNS anchor VPC"
+fi
+[[ "$private_dns_anchor_vpc_id" =~ ^vpc-[0-9a-f]+$ ]] \
+  || fail "private-DNS anchor VPC identity is missing or ambiguous"
+if ! private_dns_zone=$(aws route53 get-hosted-zone \
+  --id "$private_dns_zone_id" --output json --region "$AWS_REGION" --no-cli-pager); then
+  fail "cannot inspect private-DNS VPC associations"
+fi
+jq -e --arg zone "$private_dns_zone_id" --arg vpc "$private_dns_anchor_vpc_id" \
+  --arg region "$AWS_REGION" '
+    (.HostedZone.Id | ltrimstr("/hostedzone/")) == $zone and
+    (.VPCs | type == "array" and length == 1) and
+    .VPCs[0].VPCId == $vpc and .VPCs[0].VPCRegion == $region
+  ' <<<"$private_dns_zone" >/dev/null \
+  || fail "private-DNS zone must retain only its protected anchor VPC association"
 if ! private_dns_records=$(aws route53 list-resource-record-sets \
   --hosted-zone-id "$private_dns_zone_id" --output json \
   --region "$AWS_REGION" --no-cli-pager); then

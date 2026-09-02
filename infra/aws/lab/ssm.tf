@@ -57,7 +57,7 @@ resource "aws_ssm_document" "start_service" {
     }]
   })
 
-  tags = local.ephemeral_tags
+  tags = merge(local.ephemeral_tags, { Service = "service-bootstrap" })
 }
 
 resource "aws_ssm_association" "core_services" {
@@ -134,7 +134,7 @@ resource "aws_ssm_document" "bootstrap_data" {
     }]
   })
 
-  tags = local.ephemeral_tags
+  tags = merge(local.ephemeral_tags, { Service = "data-bootstrap" })
 }
 
 resource "aws_ssm_association" "data_bootstrap" {

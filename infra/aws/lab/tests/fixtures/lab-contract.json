@@ -19,6 +19,7 @@
   "api_certificate_arn": "arn:aws:acm:ap-northeast-2:942632789808:certificate/11111111-2222-3333-4444-555555555555",
   "private_dns_zone_id": "Z0987654321PRIVATE",
   "private_dns_zone_name": "lab.airbob.internal",
+  "approved_rds_snapshot_identifier": "airbob-dataset-rehearsal-v20",
   "ecr_repositories": {
     "APP_IMAGE": {
       "url": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo",

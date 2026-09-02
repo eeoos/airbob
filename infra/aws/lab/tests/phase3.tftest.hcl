@@ -231,6 +231,15 @@ run "create_dump_backed_rds_and_ordered_bootstrap" {
     )
     error_message = "Dump mode must create the exact Single-AZ RDS and ordered secret-safe bootstrap contract."
   }
+
+  assert {
+    condition = alltrue([
+      length(trimspace(aws_ssm_document.start_service[0].tags["Service"])) > 0,
+      length(trimspace(aws_ssm_document.bootstrap_data[0].tags["Service"])) > 0,
+      length(trimspace(aws_ssm_document.start_app[0].tags["Service"])) > 0,
+    ])
+    error_message = "Every lab-owned SSM document must carry a nonempty Service tag at creation time."
+  }
 }
 
 run "accept_large_profile_with_large_spec_and_budgets" {
@@ -639,6 +648,18 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
   }
 
   override_data {
+    target          = data.aws_ssm_parameter.foundation_contract
+    override_during = plan
+    values = {
+      name = "/airbob/performance-lab/foundation/lab-contract"
+      type = "String"
+      value = jsonencode(merge(jsondecode(file("tests/fixtures/lab-contract.json")), {
+        approved_rds_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
+      }))
+    }
+  }
+
+  override_data {
     target          = data.aws_s3_object.dataset_manifest[0]
     override_during = plan
     values = {
@@ -731,6 +752,19 @@ run "reject_large_profile_snapshot_with_canonical_storage" {
     rds_snapshot_source_run_id      = "lab-phase3-test"
     rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
     dataset_manifest_sha256         = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+  }
+
+
+  override_data {
+    target          = data.aws_ssm_parameter.foundation_contract
+    override_during = plan
+    values = {
+      name = "/airbob/performance-lab/foundation/lab-contract"
+      type = "String"
+      value = jsonencode(merge(jsondecode(file("tests/fixtures/lab-contract.json")), {
+        approved_rds_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
+      }))
+    }
   }
 
   override_data {

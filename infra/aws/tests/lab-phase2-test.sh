@@ -88,6 +88,15 @@ assert_contains "$lab_root/modules/service-ec2/main.tf" 'http_put_response_hop_l
 assert_contains "$lab_root/modules/service-ec2/main.tf" 'delete_on_termination'
 assert_contains "$lab_root/modules/service-ec2/main.tf" 'credit_specification'
 assert_contains "$lab_root/modules/service-ec2/main.tf" 'cpu_credits = "unlimited"'
+assert_not_contains "$lab_root/modules/app-asg" 'mixed_instances_policy|instance_requirements'
+for instance_module in nat-instance service-ec2 load-generator; do
+  instance_source="$lab_root/modules/$instance_module/main.tf"
+  assert_contains "$instance_source" 'volume_tags = merge(var.tags'
+  root_block_source=$(sed -n '/^[[:space:]]*root_block_device {$/,/^[[:space:]]*}$/p' "$instance_source")
+  if grep -Eq '^[[:space:]]+tags[[:space:]]*=' <<<"$root_block_source"; then
+    fail "$instance_module must tag its root volume in RunInstances instead of a post-create CreateTags call"
+  fi
+done
 assert_contains "$lab_root/security.tf" 'module "security"'
 assert_contains "$lab_root/modules/security/main.tf" 'tags              = var.tags'
 assert_contains "$lab_root/iam.tf" 'resource "aws_iam_role_policy" "probe_egress"'

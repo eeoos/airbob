@@ -99,6 +99,8 @@ assert_contains "$operator" 'AIRBOB_OPERATOR_TEST_HARNESS'
 assert_contains "$operator" 'operator test timing overrides are outside the hermetic fake harness'
 assert_contains "$operator" 'dump bootstrap requires TTL_HOURS of at least 5'
 assert_contains "$operator" 'snapshot bootstrap requires explicit TTL_HOURS=2'
+assert_contains "$operator" 'snapshot bootstrap requires the exact Foundation-approved RDS snapshot'
+assert_contains "$operator" 'Lab plans must use one bounded launch template and no mixed-instance override'
 assert_contains "$operator" 'dump bootstrap forbids every RDS snapshot source identity'
 assert_contains "$operator" 'RDS_SNAPSHOT_SOURCE_RUN_ID'
 assert_contains "$operator" 'RDS_SNAPSHOT_SOURCE_RESOURCE_ID'
@@ -160,6 +162,9 @@ assert_contains "$operator" 'measurements/$run_id/teardown-start.json'
 assert_contains "$operator" 'measurements/$run_id/teardown-finalize.json'
 assert_contains "$operator" 'measurements/state-clean/$state_version_hash.json'
 assert_contains "$operator" 'plan -destroy -refresh=false'
+assert_contains "$operator" 'aws ec2 describe-instances'
+assert_contains "$operator" '--disable-api-termination Value=false'
+assert_contains "$operator" '--disable-api-stop Value=false'
 assert_contains "$operator" 'state rm -lock-timeout=5m'
 assert_contains "$operator" 'empty Terraform state is not the direct successor of teardown finalize'
 assert_contains "$operator" "--if-none-match '*'"
@@ -204,6 +209,8 @@ assert_contains "$orphan_scanner" 'describe-instance-information'
 assert_contains "$orphan_scanner" "starts_with(Name, 'airbob-\$run_id')"
 assert_contains "$orphan_scanner" '/airbob/performance-lab/foundation/lab-contract'
 assert_contains "$orphan_scanner" 'private_dns_zone_id'
+assert_contains "$orphan_scanner" 'route53 get-hosted-zone'
+assert_contains "$orphan_scanner" 'airbob-private-dns-anchor'
 assert_contains "$orphan_scanner" 'redis-general.lab.airbob.internal.'
 assert_contains "$orphan_scanner" 'monitoring.lab.airbob.internal.'
 assert_contains "$orphan_scanner" 'assert_aws_empty'
@@ -374,7 +381,7 @@ cat > "$temp_dir/readiness-a.json" <<'JSON'
 JSON
 jq '
   .runId="lab-snapshot" | .fencingToken=99 |
-  .bootstrap.mode="snapshot" | .bootstrap.rdsSnapshotIdentifier="airbob-dataset-fixture" |
+  .bootstrap.mode="snapshot" | .bootstrap.rdsSnapshotIdentifier="airbob-dataset-rehearsal-v20" |
   .bootstrap.rdsSnapshotSourceRunId="lab-dump" |
   .bootstrap.rdsSnapshotSourceResourceId="db-ABCDEFGHIJKLMNOPQRSTUVWX" |
   .bootstrap.receipt.key="data-bootstrap/lab-snapshot/fixture-v20.json" |
@@ -811,6 +818,31 @@ case " $* " in
         *) exit 70 ;;
       esac
     fi
+    ;;
+  *' route53 get-hosted-zone '*)
+    if [[ "${FAKE_SCANNER_ORPHAN:-}" == private-dns-association ]]; then
+      printf '%s\n' '{"HostedZone":{"Id":"/hostedzone/Z0987654321PRIVATE"},"VPCs":[{"VPCId":"vpc-0123456789abcdef0","VPCRegion":"ap-northeast-2"},{"VPCId":"vpc-fedcba9876543210","VPCRegion":"ap-northeast-2"}]}'
+    else
+      printf '%s\n' '{"HostedZone":{"Id":"/hostedzone/Z0987654321PRIVATE"},"VPCs":[{"VPCId":"vpc-0123456789abcdef0","VPCRegion":"ap-northeast-2"}]}'
+    fi
+    ;;
+  *' ec2 describe-vpcs '*'Name=tag:Name,Values=airbob-private-dns-anchor'*)
+    printf '%s\n' vpc-0123456789abcdef0
+    ;;
+  *' ec2 describe-instances '*)
+    if [[ -n "${FAKE_PROTECTED_INSTANCE_ID:-}" ]]; then
+      printf '%s\n' "$FAKE_PROTECTED_INSTANCE_ID"
+    else
+      printf '%s\n' None
+    fi
+    ;;
+  *' ec2 modify-instance-attribute '*)
+    [[ -n "${FAKE_PROTECTED_INSTANCE_ID:-}" ]] || exit 70
+    [[ " $* " == *" --instance-id $FAKE_PROTECTED_INSTANCE_ID "* ]] || exit 70
+    case " $* " in
+      *' --disable-api-termination Value=false '*|*' --disable-api-stop Value=false '*) ;;
+      *) exit 70 ;;
+    esac
     ;;
   *' ec2 describe-images '*) printf '%s\n' '{"imageId":"ami-0123456789abcdef0","creationDate":"2026-08-31T00:00:00Z","architecture":"x86_64","rootDeviceType":"ebs","virtualizationType":"hvm"}' ;;
   *' rds describe-db-instances '*'MasterUserSecret.SecretArn'*) printf '%s\n' 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test' ;;
@@ -1270,6 +1302,7 @@ run_fake_down() {
     FAKE_FIRST_PHASE_IDENTITY_DELETE="${FAKE_FIRST_PHASE_IDENTITY_DELETE:-false}" \
     FAKE_FIRST_PHASE_PERSISTENT_DELETE="${FAKE_FIRST_PHASE_PERSISTENT_DELETE:-false}" \
     FAKE_INITIAL_IDENTITY_ONLY="${FAKE_INITIAL_IDENTITY_ONLY:-false}" \
+    FAKE_PROTECTED_INSTANCE_ID="${FAKE_PROTECTED_INSTANCE_ID:-}" \
     FAKE_NO_ALB="${FAKE_NO_ALB:-true}" \
     FAKE_IMMUTABLE_UNREADABLE_KEY="${FAKE_IMMUTABLE_UNREADABLE_KEY:-}" \
     FAKE_TEARDOWN_FINALIZE_PUT_FAILURE="${FAKE_TEARDOWN_FINALIZE_PUT_FAILURE:-false}" \
@@ -1636,7 +1669,7 @@ for dump_snapshot_input in identifier source-run source-resource; do
   : > "$temp_dir/operator-execution.log"
   case "$dump_snapshot_input" in
     identifier)
-      FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-fixture \
+      FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
         run_fake_up "lab-dump-$dump_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
       ;;
     source-run)
@@ -1656,7 +1689,7 @@ done
 
 : > "$temp_dir/operator-execution.log"
 if FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_TTL_HOURS=3 \
-  FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-fixture \
+  FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
   run_fake_up lab-long-snapshot-ttl >/dev/null 2>&1; then
   fail "snapshot up accepted a TTL other than its explicit two-hour window"
 fi
@@ -1672,12 +1705,12 @@ for missing_snapshot_input in identifier source-run source-resource; do
         run_fake_up "lab-snap-no-$missing_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
       ;;
     source-run)
-      FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-fixture \
+      FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
         FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID= \
         run_fake_up "lab-snap-no-$missing_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
       ;;
     source-resource)
-      FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-fixture \
+      FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
         FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID= \
         run_fake_up "lab-snap-no-$missing_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
       ;;
@@ -1694,7 +1727,7 @@ for invalid_snapshot_input in identifier source-run source-resource; do
   invalid_source_run=lab-Invalid
   invalid_source_resource=db-ABCDEFGHIJKLMNOPQRSTUVW
   FAKE_DATABASE_BOOTSTRAP=snapshot \
-    FAKE_RDS_SNAPSHOT_IDENTIFIER="$([[ "$invalid_snapshot_input" == identifier ]] && printf '%s' "$invalid_identifier" || printf '%s' airbob-dataset-fixture)" \
+    FAKE_RDS_SNAPSHOT_IDENTIFIER="$([[ "$invalid_snapshot_input" == identifier ]] && printf '%s' "$invalid_identifier" || printf '%s' airbob-dataset-rehearsal-v20)" \
     FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID="$([[ "$invalid_snapshot_input" == source-run ]] && printf '%s' "$invalid_source_run" || printf '%s' lab-repeat-dump)" \
     FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID="$([[ "$invalid_snapshot_input" == source-resource ]] && printf '%s' "$invalid_source_resource" || printf '%s' db-ABCDEFGHIJKLMNOPQRSTUVWX)" \
     run_fake_up "lab-snap-bad-$invalid_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
@@ -1703,6 +1736,18 @@ for invalid_snapshot_input in identifier source-run source-resource; do
     fail "non-canonical snapshot source acquired the orchestration lease: $invalid_snapshot_input"
   fi
 done
+
+: > "$temp_dir/operator-execution.log"
+if FAKE_DATABASE_BOOTSTRAP=snapshot \
+  FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-unapproved \
+  FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID=lab-repeat-dump \
+  FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID=db-ABCDEFGHIJKLMNOPQRSTUVWX \
+  run_fake_up lab-snap-unapproved >/dev/null 2>&1; then
+  fail "snapshot up accepted a canonical but unapproved RDS snapshot"
+fi
+if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
+  fail "unapproved RDS snapshot reached lease acquisition"
+fi
 
 : > "$temp_dir/operator-execution.log"
 if FAKE_DATASET_VERSION= run_fake_up lab-missing-dataset-version >/dev/null 2>&1; then
@@ -2038,7 +2083,7 @@ FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   run_fake_up lab-repeat-dump false 203.0.113.10 performance integrated-smoke >/dev/null
 printf '%s\n' 0 > "$temp_dir/snapshot-time-counter"
 FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
-  FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-fixture \
+  FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
   FAKE_TIME_STEP_SECONDS=60 FAKE_TIME_COUNTER="$temp_dir/snapshot-time-counter" \
   run_fake_up lab-repeat-snapshot false 203.0.113.10 performance integrated-smoke >/dev/null
 grep -Eq '^lease acquire .* lab-repeat-dump up 180 14400$' "$temp_dir/operator-execution.log" \
@@ -2060,7 +2105,7 @@ jq -e '
   (.timing.resourceToDirectReadySeconds | type == "number" and . >= 0)
 ' "$dump_readiness" >/dev/null || fail "dump-mode fake readiness source/timing is invalid"
 jq -e '
-  .bootstrap.mode == "snapshot" and .bootstrap.rdsSnapshotIdentifier == "airbob-dataset-fixture" and
+  .bootstrap.mode == "snapshot" and .bootstrap.rdsSnapshotIdentifier == "airbob-dataset-rehearsal-v20" and
   .bootstrap.rdsSnapshotSourceRunId == "lab-repeat-dump" and
   .bootstrap.rdsSnapshotSourceResourceId == "db-ABCDEFGHIJKLMNOPQRSTUVWX" and
   (.timing.resourceToDataReadySeconds | type == "number" and . >= 0) and
@@ -2395,10 +2440,12 @@ jq -e '
 jq '.runId="lab-first-apply"' "$temp_dir/run-manifest.json" \
   > "$temp_dir/run-manifest.first-apply.json"
 : > "$temp_dir/operator-execution.log"
-first_apply_state='{"version":4,"serial":2,"resources":[{"type":"terraform_data","name":"run_identity"},{"type":"aws_vpc","name":"partial"}]}'
+protected_instance_id=i-0fedcba9876543210
+first_apply_state='{"version":4,"serial":2,"resources":[{"type":"terraform_data","name":"run_identity"},{"type":"aws_vpc","name":"partial"},{"type":"aws_instance","name":"protected","instances":[{"attributes":{"id":"i-0fedcba9876543210"}}]}]}'
 FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.first-apply.json" \
   FAKE_STATE_RUN_ID=lab-first-apply FAKE_STATE_FENCING_TOKEN=41 \
   FAKE_STATE_VERSION_ID=state-version-first-apply FAKE_STATE_CONTENT="$first_apply_state" \
+  FAKE_PROTECTED_INSTANCE_ID="$protected_instance_id" \
   FAKE_RUN_IDENTITY_OUTPUT_MISSING=true FAKE_PHASE2_OUTPUT_MISSING=true \
   run_fake_down lab-first-apply > "$temp_dir/first-apply-down.out"
 grep -Eq '^terraform .* show -json$' "$temp_dir/operator-execution.log" \
@@ -2408,6 +2455,22 @@ if grep -Fq 'output -json phase2_contract' "$temp_dir/operator-execution.log"; t
 fi
 grep -Eq '^terraform .* apply .*destroy-resources.tfplan' "$temp_dir/operator-execution.log" \
   || fail "first-apply recovery did not destroy the partial non-empty state"
+grep -Fq "Name=tag:RunId,Values=lab-first-apply Name=tag:FencingToken,Values=41" \
+  "$temp_dir/operator-execution.log" \
+  || fail "first-apply recovery did not scope the shutdown-protection inventory to the exact run fence"
+termination_clear="aws ec2 modify-instance-attribute --instance-id $protected_instance_id --disable-api-termination Value=false --region ap-northeast-2 --no-cli-pager"
+stop_clear="aws ec2 modify-instance-attribute --instance-id $protected_instance_id --disable-api-stop Value=false --region ap-northeast-2 --no-cli-pager"
+[[ "$(grep -Fc "$termination_clear" "$temp_dir/operator-execution.log")" -eq 1 ]] \
+  || fail "first-apply recovery did not clear termination protection exactly once"
+[[ "$(grep -Fc "$stop_clear" "$temp_dir/operator-execution.log")" -eq 1 ]] \
+  || fail "first-apply recovery did not clear stop protection exactly once"
+termination_clear_line=$(grep -Fn "$termination_clear" "$temp_dir/operator-execution.log" | cut -d: -f1)
+stop_clear_line=$(grep -Fn "$stop_clear" "$temp_dir/operator-execution.log" | cut -d: -f1)
+destroy_plan_line=$(grep -En '^terraform .* plan .*destroy-resources\.tfplan' "$temp_dir/operator-execution.log" | head -1 | cut -d: -f1)
+destroy_apply_line=$(grep -En '^terraform .* apply .*destroy-resources\.tfplan' "$temp_dir/operator-execution.log" | head -1 | cut -d: -f1)
+[[ "$termination_clear_line" -lt "$destroy_plan_line" && "$stop_clear_line" -lt "$destroy_plan_line" &&
+  "$termination_clear_line" -lt "$destroy_apply_line" && "$stop_clear_line" -lt "$destroy_apply_line" ]] \
+  || fail "first-apply recovery did not clear both shutdown protections before destroy plan/apply"
 grep -Fqx 'orphans lab-first-apply scope=global' "$temp_dir/operator-execution.log" \
   || fail "first-apply recovery skipped the global orphan scan"
 printf '%s' state-version-first-apply-empty > "$temp_dir/first-apply-version.txt"
@@ -2748,6 +2811,16 @@ case " $* " in
   *' ssm get-parameter '*)
     printf '%s\n' '{"schemaVersion":1,"private_dns_zone_id":"Z0987654321PRIVATE","private_dns_zone_name":"lab.airbob.internal"}'
     ;;
+  *' ec2 describe-vpcs '*'Name=tag:Name,Values=airbob-private-dns-anchor'*)
+    printf '%s\n' vpc-0123456789abcdef0
+    ;;
+  *' route53 get-hosted-zone '*)
+    if [[ "${FAKE_SCANNER_ORPHAN:-}" == private-dns-association ]]; then
+      printf '%s\n' '{"HostedZone":{"Id":"/hostedzone/Z0987654321PRIVATE"},"VPCs":[{"VPCId":"vpc-0123456789abcdef0","VPCRegion":"ap-northeast-2"},{"VPCId":"vpc-fedcba9876543210","VPCRegion":"ap-northeast-2"}]}'
+    else
+      printf '%s\n' '{"HostedZone":{"Id":"/hostedzone/Z0987654321PRIVATE"},"VPCs":[{"VPCId":"vpc-0123456789abcdef0","VPCRegion":"ap-northeast-2"}]}'
+    fi
+    ;;
   *' route53 list-resource-record-sets '*)
     if [[ "${FAKE_SCANNER_ORPHAN:-}" == private-dns ]]; then
       printf '%s\n' '{"ResourceRecordSets":[{"Name":"kafka.lab.airbob.internal.","Type":"A","TTL":30,"ResourceRecords":[{"Value":"10.0.1.5"}]}]}'
@@ -2769,6 +2842,13 @@ case " $* " in
       printf '%s\n' None
     fi
     ;;
+  *' ssm list-associations '*)
+    if [[ "${FAKE_SCANNER_ORPHAN:-}" == ssm-association ]]; then
+      printf '%s\n' association-foreign-fixture
+    else
+      printf '%s\n' None
+    fi
+    ;;
   *) printf '%s\n' None ;;
 esac
 EOF
@@ -2786,7 +2866,7 @@ for command in \
   'secretsmanager list-secrets' 'cloudwatch list-dashboards' 'cloudwatch describe-alarms' \
   'iam list-roles' 'iam list-instance-profiles' \
   'ssm get-parameter' 'ssm list-associations' 'ssm list-documents' 'ssm describe-instance-information' \
-  'route53 list-resource-record-sets'; do
+  'route53 get-hosted-zone' 'route53 list-resource-record-sets'; do
   grep -Fq "$command" "$temp_dir/scanner.log" || fail "orphan scanner skipped: $command"
 done
 : > "$temp_dir/scanner-global.log"
@@ -2801,6 +2881,15 @@ global_tag_query=$(grep -m1 'resourcegroupstaggingapi get-resources' "$temp_dir/
   || fail "global orphan scan omitted the lab-wide ephemeral tag boundary"
 [[ "$global_tag_query" != *'Key=RunId,Values='* ]] \
   || fail "global orphan scan incorrectly narrowed the tagged-resource query by RunId"
+global_association_query=$(grep -m1 'ssm list-associations' "$temp_dir/scanner-global.log")
+[[ "$global_association_query" == *'--query Associations[].AssociationId'* ]] \
+  || fail "global orphan scan did not require account-wide zero SSM associations"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  AIRBOB_SCAN_SCOPE=global FAKE_SCANNER_LOG="$temp_dir/scanner-global.log" \
+  FAKE_SCANNER_ORPHAN=ssm-association \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "global orphan scanner accepted a foreign SSM association"
+fi
 if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
   FAKE_SCANNER_LOG="$temp_dir/scanner.log" FAKE_SCANNER_ORPHAN=ssm-document \
   "$orphan_scanner" lab-scan >/dev/null 2>&1; then
@@ -2820,6 +2909,13 @@ if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
   FAKE_SCANNER_LOG="$temp_dir/scanner.log" FAKE_SCANNER_ORPHAN=private-dns \
   "$orphan_scanner" lab-scan >/dev/null 2>&1; then
   fail "orphan scanner accepted one of the six private lab A records"
+fi
+
+: > "$temp_dir/scanner.log"
+if env PATH="$temp_dir/scanner-bin:/usr/bin:/bin" AWS_REGION=ap-northeast-2 \
+  FAKE_SCANNER_LOG="$temp_dir/scanner.log" FAKE_SCANNER_ORPHAN=private-dns-association \
+  "$orphan_scanner" lab-scan >/dev/null 2>&1; then
+  fail "orphan scanner accepted a foreign private-DNS VPC association"
 fi
 
 : > "$temp_dir/scanner.log"

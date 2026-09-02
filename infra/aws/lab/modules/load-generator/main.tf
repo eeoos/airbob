@@ -21,8 +21,9 @@ resource "aws_instance" "this" {
     delete_on_termination = true
     volume_type           = "gp3"
     volume_size           = 30
-    tags                  = merge(var.tags, { Name = "${var.name_prefix}-loadgen-root", Service = "loadgen" })
   }
+
+  volume_tags = merge(var.tags, { Name = "${var.name_prefix}-loadgen-root", Service = "loadgen" })
 
   tags = merge(var.tags, {
     Name    = "${var.name_prefix}-loadgen"

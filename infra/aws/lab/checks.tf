@@ -271,6 +271,7 @@ locals {
     false,
   )
   dataset_snapshot_valid = !local.services_enabled || var.database_bootstrap != "snapshot" || try(
+    local.lab_contract.approved_rds_snapshot_identifier == var.rds_snapshot_identifier &&
     data.aws_db_snapshot.dataset[0].status == "available" &&
     data.aws_db_snapshot.dataset[0].engine == "mysql" &&
     data.aws_db_snapshot.dataset[0].engine_version == var.rds_engine_version &&
