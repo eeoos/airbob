@@ -126,6 +126,27 @@ jobs:
           terraform_version: 1.15.5
           terraform_wrapper: false
 
+      - name: Install pinned AWS CLI
+        run: |
+          set -euo pipefail
+          source infra/aws/toolchain.env
+          aws_cli_archive="$RUNNER_TEMP/awscli-exe-linux-x86_64-${AIRBOB_AWS_CLI_VERSION}.zip"
+          aws_cli_extract="$RUNNER_TEMP/aws-cli-installer"
+          aws_cli_install="$RUNNER_TEMP/aws-cli"
+          aws_cli_bin="$RUNNER_TEMP/aws-cli-bin"
+          curl --fail --silent --show-error --location --retry 5 \
+            --output "$aws_cli_archive" \
+            "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AIRBOB_AWS_CLI_VERSION}.zip"
+          printf '%s  %s\n' "$AIRBOB_AWS_CLI_LINUX_X86_64_SHA256" "$aws_cli_archive" \
+            | sha256sum --check --status
+          unzip -q "$aws_cli_archive" -d "$aws_cli_extract"
+          "$aws_cli_extract/aws/install" --install-dir "$aws_cli_install" --bin-dir "$aws_cli_bin"
+          aws_cli_version_output=$("$aws_cli_bin/aws" --version 2>&1)
+          aws_cli_version=${aws_cli_version_output#aws-cli/}
+          aws_cli_version=${aws_cli_version%% *}
+          [[ "$aws_cli_version" == "$AIRBOB_AWS_CLI_VERSION" ]]
+          printf '%s\n' "$aws_cli_bin" >> "$GITHUB_PATH"
+
       - name: Configure short-lived AWS credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
@@ -139,6 +160,10 @@ jobs:
           EXPECTED_ROLE_NAME: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'airbob-lab-cutover-operator' || 'airbob-lab-operator' }}
         run: |
           set -euo pipefail
+          [[ "$(command -v aws)" == "$RUNNER_TEMP/aws-cli-bin/aws" ]] || {
+            echo 'AWS CLI path does not resolve to the pinned runner installation' >&2
+            exit 1
+          }
           caller_arn=$(aws sts get-caller-identity --query Arn --output text --no-cli-pager)
           [[ "$caller_arn" =~ ^arn:aws:sts::942632789808:assumed-role/${EXPECTED_ROLE_NAME}/[A-Za-z0-9+=,.@_-]+$ ]] || {
             echo 'AWS credentials do not match the required Lab operator scope' >&2
