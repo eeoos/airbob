@@ -591,6 +591,7 @@ locals {
       Effect = "Allow"
       Action = [
         "ssm:DeleteDocument",
+        "ssm:DescribeDocumentPermission",
         "ssm:UpdateDocument",
         "ssm:UpdateDocumentDefaultVersion",
       ]
@@ -922,6 +923,7 @@ locals {
       Effect = "Allow"
       Action = [
         "cloudwatch:DeleteAlarms",
+        "cloudwatch:ListTagsForResource",
         "cloudwatch:TagResource",
         "cloudwatch:UntagResource",
       ]
@@ -943,6 +945,7 @@ locals {
           "iam:AWSServiceName" = [
             "autoscaling.amazonaws.com",
             "elasticloadbalancing.amazonaws.com",
+            "rds.amazonaws.com",
           ]
         }
       }
@@ -1530,6 +1533,7 @@ locals {
           "secretsmanager:CreateSecret",
           "secretsmanager:DeleteSecret",
           "secretsmanager:DescribeSecret",
+          "secretsmanager:GetResourcePolicy",
           "secretsmanager:TagResource",
           "secretsmanager:UntagResource",
         ]
