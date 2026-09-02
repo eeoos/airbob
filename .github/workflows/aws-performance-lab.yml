@@ -149,7 +149,7 @@ jobs:
 
       - name: Configure short-lived AWS credentials
         id: aws_credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c
         with:
           role-to-assume: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && vars.AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN || vars.AWS_LAB_OPERATOR_ROLE_ARN }}
           aws-region: ap-northeast-2
