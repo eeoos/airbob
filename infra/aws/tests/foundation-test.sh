@@ -102,6 +102,7 @@ assert_contains "$foundation_root/iam.tf" 'name                 = local.role_nam
 assert_contains "$foundation_root/iam.tf" 'role   = aws_iam_role.lab_cutover_operator.id'
 assert_contains "$foundation_root/iam.tf" 'max_session_duration = 18000'
 assert_contains "$foundation_root/dns-controller.tf" 'Principal = { AWS = "arn:aws:iam::${var.account_id}:role/${local.role_names.lab_cutover}" }'
+assert_contains "$foundation_root/dns-controller.tf" 'depends_on           = [aws_iam_role.lab_cutover_operator]'
 assert_contains "$foundation_root/outputs.tf" 'output "lab_cutover_operator_role_arn" {'
 assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role" "dataset_publisher" {'
 assert_contains "$foundation_root/iam.tf" 'resource "aws_iam_role_policy" "dataset_publisher" {'
