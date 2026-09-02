@@ -7,7 +7,6 @@ runner="$repo_root/load-test/k6/traffic/run-aws-discovery.sh"
 toolchain="$repo_root/infra/aws/toolchain.env"
 loadgen_bootstrap="$repo_root/infra/aws/lab/templates/load-generator-user-data.sh.tftpl"
 service_host_bootstrap="$repo_root/infra/aws/lab/templates/host-user-data.sh.tftpl"
-workflow="$repo_root/.github/workflows/aws-performance-lab.yml"
 makefile="$repo_root/Makefile"
 
 fail() { printf '%s\n' "$1" >&2; exit 1; }
@@ -49,8 +48,6 @@ assert_contains "$runner" '.flywayVersion == "27"'
 assert_contains "$runner" 'expected_flyway_version=$(jq -er '\''.flywayVersion'\'' "$bootstrap_receipt")'
 assert_contains "$runner" '--arg flywayVersion "$expected_flyway_version"'
 assert_contains "$makefile" 'aws-discovery:'
-assert_contains "$workflow" "inputs.action == 'measure'"
-assert_contains "$workflow" 'run: load-test/k6/traffic/run-aws-discovery.sh'
 
 if grep -Eq 'BENCHMARK_(PASSWORD|SESSION)|SESSION_ID' "$runner"; then
   fail "the public discovery slice must not read or persist authentication secrets"

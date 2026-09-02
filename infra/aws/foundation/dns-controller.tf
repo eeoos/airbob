@@ -104,6 +104,7 @@ resource "aws_iam_role" "dns_controller" {
   name                 = local.dns_controller_role_name
   assume_role_policy   = local.dns_controller_trust_policy
   max_session_duration = 3600
+  depends_on           = [aws_iam_role.lab_cutover_operator]
 
   lifecycle {
     prevent_destroy = true
