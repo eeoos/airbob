@@ -236,7 +236,7 @@ jobs:
           RDS_SNAPSHOT_IDENTIFIER: ${{ inputs.rds_snapshot_identifier }}
           RDS_SNAPSHOT_SOURCE_RUN_ID: ${{ inputs.rds_snapshot_source_run_id }}
           RDS_SNAPSHOT_SOURCE_RESOURCE_ID: ${{ inputs.rds_snapshot_source_resource_id }}
-          AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ steps.aws_credentials.outputs.aws-expiration }}
+          AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ fromJSON(steps.aws_credentials.outputs.aws-expiration) }}
           AWS_LAB_OPERATOR_SCOPE: ${{ (inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'cutover' || 'direct' }}
           RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
         run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"
