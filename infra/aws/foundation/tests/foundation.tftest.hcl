@@ -767,9 +767,27 @@ run "foundation_contract" {
         if statement.Sid == "ManageNamedLabAlarms"
         ]).Action) == toset([
         "cloudwatch:DeleteAlarms",
+        "cloudwatch:ListTagsForResource",
         "cloudwatch:TagResource",
         "cloudwatch:UntagResource",
       ]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
+        if statement.Sid == "DescribeLabApplicationInfrastructure"
+        ]).Action) == toset([
+        "autoscaling:Describe*",
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:GetDashboard",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListDashboards",
+        "cloudwatch:ListMetrics",
+        "elasticloadbalancing:Describe*",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
+        if statement.Sid == "DescribeLabApplicationInfrastructure"
+      ]).Resource == "*" &&
       one([
         for statement in jsondecode(local.lab_safety_mutation_policy).Statement : statement
         if statement.Sid == "PutActionlessLabMetricAlarm"
@@ -959,6 +977,17 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "ManageEphemeralLabSecretMetadata"
       ]).Resource == "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:airbob/lab-*/debezium-*" &&
+      toset(one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "ManageEphemeralLabSecretMetadata"
+        ]).Action) == toset([
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetResourcePolicy",
+        "secretsmanager:TagResource",
+        "secretsmanager:UntagResource",
+      ]) &&
       toset(one([
         for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
         if statement.Sid == "ReadLabDebeziumSecret"
@@ -1655,6 +1684,19 @@ run "foundation_contract" {
       ]) &&
       toset(one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
+        if statement.Sid == "ManageTaggedLabDocument"
+        ]).Action) == toset([
+        "ssm:DeleteDocument",
+        "ssm:DescribeDocumentPermission",
+        "ssm:UpdateDocument",
+        "ssm:UpdateDocumentDefaultVersion",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
+        if statement.Sid == "ManageTaggedLabDocument"
+      ]).Resource == "arn:aws:ssm:ap-northeast-2:942632789808:document/airbob-lab-*" &&
+      toset(one([
+        for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
         if statement.Sid == "UseLabAssociationTargets"
         ]).Action) == toset([
         "ssm:CreateAssociation",
@@ -1673,6 +1715,28 @@ run "foundation_contract" {
       ])
     )
     error_message = "SSM document and association creation must authorize create-time tagging separately under exact names, tag keys, and the complete ephemeral tag contract."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(local.lab_safety_mutation_policy).Statement : statement
+        if statement.Sid == "CreateRequiredServiceLinkedRoles"
+      ]).Action == "iam:CreateServiceLinkedRole" &&
+      one([
+        for statement in jsondecode(local.lab_safety_mutation_policy).Statement : statement
+        if statement.Sid == "CreateRequiredServiceLinkedRoles"
+      ]).Resource == "*" &&
+      toset(one([
+        for statement in jsondecode(local.lab_safety_mutation_policy).Statement : statement
+        if statement.Sid == "CreateRequiredServiceLinkedRoles"
+        ]).Condition.StringEquals["iam:AWSServiceName"]) == toset([
+        "autoscaling.amazonaws.com",
+        "elasticloadbalancing.amazonaws.com",
+        "rds.amazonaws.com",
+      ])
+    )
+    error_message = "Service-linked role creation must remain limited to the three AWS services required by the Lab."
   }
 
   assert {
