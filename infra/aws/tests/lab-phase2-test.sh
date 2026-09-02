@@ -83,6 +83,10 @@ assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "probe_clearanc
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "service_release_gate"'
 assert_contains "$lab_root/modules/network/main.tf" 'resource "aws_vpc_endpoint" "s3"'
 assert_contains "$lab_root/modules/nat-instance/main.tf" 'source_dest_check'
+nat_lifecycle=$(sed -n '/^[[:space:]]*lifecycle {$/,/^[[:space:]]*}$/p' \
+  "$lab_root/modules/nat-instance/main.tf")
+grep -Fq 'ignore_changes = [associate_public_ip_address]' <<<"$nat_lifecycle" \
+  || fail "the NAT instance must ignore the provider's EIP-backed public-address refresh drift"
 assert_contains "$repo_root/infra/aws/foundation/lab-compute.tf" '"ec2:ModifyInstanceAttribute"'
 assert_contains "$lab_root/modules/service-ec2/main.tf" 'http_put_response_hop_limit = 2'
 assert_contains "$lab_root/modules/service-ec2/main.tf" 'delete_on_termination'

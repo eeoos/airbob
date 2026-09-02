@@ -571,17 +571,42 @@ capture_terraform_state_inventory() {
   jq '
     def modules: ., (.child_modules[]? | modules);
     [.values.root_module? | modules | .resources[]? |
-      {address,mode,type,name}
-    ]
+      {address,mode,type,name,deposedKey:(.deposed_key? // null)}
+    ] |
+    group_by(.address) |
+    map(
+      . as $objects |
+      ($objects | map({mode,type,name}) | unique) as $identities |
+      ($objects | map(select(.deposedKey == null)) | length) as $currentCount |
+      ($objects | map(.deposedKey) | map(select(. != null))) as $deposedKeys |
+      {
+        address: $objects[0].address,
+        mode: $objects[0].mode,
+        type: $objects[0].type,
+        name: $objects[0].name,
+        stateObjectCount: ($objects | length),
+        identityVariantCount: ($identities | length),
+        currentObjectCount: $currentCount,
+        deposedKeys: $deposedKeys
+      }
+    )
   ' "$state_json" > "$inventory_file"
   jq -e --slurpfile listed "$listed_json" '
     all(.[];
       (.address | type == "string" and length > 0) and
       (.mode == "managed" or .mode == "data") and
       (.type | type == "string" and length > 0) and
-      (.name | type == "string" and length > 0)
+      (.name | type == "string" and length > 0) and
+      (.stateObjectCount | type == "number" and floor == . and . >= 1) and
+      .identityVariantCount == 1 and
+      (.currentObjectCount | type == "number" and floor == . and . >= 0 and . <= 1) and
+      (.deposedKeys | type == "array") and
+      all(.deposedKeys[]; type == "string" and length > 0) and
+      (.deposedKeys | length) == (.deposedKeys | unique | length) and
+      .stateObjectCount == (.currentObjectCount + (.deposedKeys | length))
     ) and
     ([.[].address] | length) == ([.[].address] | unique | length) and
+    ($listed[0] | length) == ($listed[0] | unique | length) and
     ([.[].address] | sort) == ($listed[0] | sort)
   ' "$inventory_file" >/dev/null \
     || fail "Terraform state list and JSON inventory differ"
@@ -1246,6 +1271,16 @@ apply_lab() {
     -chdir="$lab_root" show -json "$plan_file" > "$plan_json" || return 1
   jq -e '
     [.resource_changes[]? |
+      select(
+        .address == "module.nat.aws_instance.this" or
+        .address == "module.nat.aws_eip.this"
+      ) |
+      select(.change.actions | index("delete") != null)
+    ] | length == 0
+  ' "$plan_json" >/dev/null \
+    || fail "ordinary Lab plans must not replace or delete the singleton NAT instance or EIP"
+  jq -e '
+    [.resource_changes[]? |
       select(.change.actions | index("delete")) |
       select(
         (.change.before.tags.Persistence? // "") == "persistent" or
@@ -1342,12 +1377,25 @@ destroy_lab() {
     jq -e --slurpfile targets "$targets_file" '
       ($targets[0] | sort) as $expected |
       [.resource_changes[]? | select(.change.actions != ["no-op"])] as $changes |
-      ([ $changes[] | .address ] | sort) == $expected and
+      ($changes | group_by(.address)) as $changeGroups |
+      ($expected | length) == ($expected | unique | length) and
+      ([ $changes[] | .address ] | unique | sort) == $expected and
       all($changes[];
         .address != "terraform_data.run_identity" and
+        .mode == "managed" and
+        (.type | type == "string" and length > 0) and
+        (.name | type == "string" and length > 0) and
         .change.actions == ["delete"] and
         (.change.before.tags.Persistence? // "") != "persistent" and
-        (.change.before.tags_all.Persistence? // "") != "persistent"
+        (.change.before.tags_all.Persistence? // "") != "persistent" and
+        ((.deposed? // null) == null or (.deposed | type == "string" and length > 0))
+      ) and
+      all($changeGroups[];
+        . as $objects |
+        ([ $objects[] | select((.deposed? // null) != null) | .deposed ]) as $deposedKeys |
+        ($objects | map({mode,type,name}) | unique | length) == 1 and
+        ([ $objects[] | select((.deposed? // null) == null) ] | length) <= 1 and
+        ($deposedKeys | length) == ($deposedKeys | unique | length)
       )
     ' "$resource_plan_json" >/dev/null \
       || fail "first destroy plan must delete every ephemeral non-identity state address and preserve persistent resources and run identity"
