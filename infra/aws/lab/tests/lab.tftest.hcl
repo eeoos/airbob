@@ -40,10 +40,12 @@ mock_provider "aws" {
 }
 
 variables {
-  run_id        = "contract-test"
-  expires_at    = "1893456000"
-  fencing_token = 42
-  ami_id        = "ami-0123456789abcdef0"
+  run_id           = "lab-contract-test"
+  expires_at       = "1893456000"
+  fencing_token    = 42
+  ami_id           = "ami-0123456789abcdef0"
+  dns_mode         = "direct-only"
+  alb_ingress_cidr = "8.8.8.8/32"
 }
 
 run "validate_persistent_boundary_with_network_phase" {
@@ -55,11 +57,82 @@ run "validate_persistent_boundary_with_network_phase" {
       output.state_boundaries.foundation == "airbob/foundation/terraform.tfstate" &&
       output.state_boundaries.dns == "airbob/dns/terraform.tfstate" &&
       output.state_boundaries.lab == "airbob/lab/terraform.tfstate" &&
+      terraform_data.run_identity.input.run_id == "lab-contract-test" &&
+      terraform_data.run_identity.input.resource_fencing_token == 42 &&
       output.persistent_resource_contract.api_fqdn == "api.airbob.cloud" &&
-      length(output.persistent_resource_contract.ecr_repositories) == 10
+      length(output.persistent_resource_contract.ecr_repositories) == 10 &&
+      module.security.alb_https_ingress_cidr == "8.8.8.8/32"
     )
-    error_message = "The lab state must validate the exact persistent contract without reading foundation state."
+    error_message = "The lab state must bind its run/fence identity, exact persistent contract, and direct-only ALB /32 ingress."
   }
+}
+
+run "accept_cutover_with_public_alb_ingress" {
+  command = plan
+
+  variables {
+    dns_mode         = "cutover"
+    alb_ingress_cidr = "0.0.0.0/0"
+  }
+
+  assert {
+    condition     = module.security.alb_https_ingress_cidr == "0.0.0.0/0"
+    error_message = "Explicit cutover mode must retain public ALB HTTPS ingress."
+  }
+}
+
+run "reject_direct_only_public_alb_ingress" {
+  command = plan
+
+  variables {
+    dns_mode         = "direct-only"
+    alb_ingress_cidr = "0.0.0.0/0"
+  }
+
+  expect_failures = [var.alb_ingress_cidr]
+}
+
+run "reject_direct_only_private_alb_ingress" {
+  command = plan
+
+  variables {
+    dns_mode         = "direct-only"
+    alb_ingress_cidr = "10.42.0.1/32"
+  }
+
+  expect_failures = [var.alb_ingress_cidr]
+}
+
+run "reject_direct_only_non_host_alb_ingress" {
+  command = plan
+
+  variables {
+    dns_mode         = "direct-only"
+    alb_ingress_cidr = "8.8.8.8/31"
+  }
+
+  expect_failures = [var.alb_ingress_cidr]
+}
+
+run "reject_cutover_restricted_alb_ingress" {
+  command = plan
+
+  variables {
+    dns_mode         = "cutover"
+    alb_ingress_cidr = "8.8.8.8/32"
+  }
+
+  expect_failures = [var.alb_ingress_cidr]
+}
+
+run "reject_unknown_dns_mode" {
+  command = plan
+
+  variables {
+    dns_mode = "disabled"
+  }
+
+  expect_failures = [var.dns_mode]
 }
 
 run "reject_unsupported_contract_schema" {

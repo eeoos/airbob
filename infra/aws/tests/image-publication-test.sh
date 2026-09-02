@@ -215,6 +215,209 @@ assert_not_contains "$repo_root/.github/workflows/infra-images.yml" 'airbob-infr
 assert_contains "$repo_root/.github/workflows/infra-images.yml" 'infra/aws/scripts/verify-published-image.sh'
 assert_contains "$repo_root/.github/workflows/infra-images.yml" 'ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest'
 
+cd_workflow="$repo_root/.github/workflows/cd.yml"
+cat > "$temp_dir/expected-oci-paths" <<'EOF'
+src/main/**
+build.gradle
+settings.gradle
+gradlew
+gradlew.bat
+gradle/**
+gradle.properties
+docker/app/**
+infra/aws/images/release.json
+docker-compose.oci.yml
+debezium-config/**
+docker/debezium/**
+docker/kafka/**
+docker/mysql/init/**
+logstash/**
+monitoring/**
+nginx/**
+scripts/**
+EOF
+sed -n '/^          scope_paths=(/,/^          )/p' "$cd_workflow" \
+  | sed -n "s/^            '\(.*\)'$/\1/p" > "$temp_dir/classifier-oci-paths"
+cmp -s "$temp_dir/expected-oci-paths" "$temp_dir/classifier-oci-paths" \
+  || fail "CD change classifier must use the exact reviewed OCI allowlist"
+if sed -n '/^on:$/,/^concurrency:/p' "$cd_workflow" \
+  | grep -Eq '^[[:space:]]+paths:'
+then
+  fail "CD must run its fail-closed classifier on every main push"
+fi
+for rejected_path in \
+  '.github/workflows/cd.yml' \
+  'docs/**' \
+  'infra/aws/**' \
+  'src/test/**'
+do
+  if grep -Fx -- "$rejected_path" "$temp_dir/classifier-oci-paths" >/dev/null; then
+    fail "CD classifier allowlist contains a non-runtime path: $rejected_path"
+  fi
+done
+assert_contains "$cd_workflow" '# docker/aws-mirror/** and docker/elasticsearch/** are released by'
+assert_contains "$cd_workflow" '# infra-images.yml, not here, avoiding an uncoordinated cross-workflow race.'
+assert_contains "$cd_workflow" 'fetch-depth: 0'
+assert_contains "$cd_workflow" "readonly SHA_PATTERN='^[0-9a-f]{40}$'"
+assert_contains "$cd_workflow" 'git fetch --no-tags --prune origin'
+assert_contains "$cd_workflow" 'resolved_before=$(git rev-parse --verify "${BEFORE_SHA}^{commit}")'
+assert_contains "$cd_workflow" 'resolved_after=$(git rev-parse --verify "${AFTER_SHA}^{commit}")'
+assert_contains "$cd_workflow" 'resolved_head=$(git rev-parse --verify '\''HEAD^{commit}'\'')'
+assert_contains "$cd_workflow" "if: needs.change-scope.result == 'success' && needs.change-scope.outputs.oci_required == 'true'"
+
+awk '
+  /^        id: scope$/ { found_scope = 1; next }
+  found_scope && /^        run: \|$/ { capture = 1; next }
+  capture && /^          / { sub(/^          /, ""); print; next }
+  capture && /^$/ { print; next }
+  capture { exit }
+' "$cd_workflow" > "$temp_dir/change-scope.sh"
+bash -n "$temp_dir/change-scope.sh" || fail "CD change classifier is not valid Bash"
+assert_contains "$temp_dir/change-scope.sh" '[[ -n "$BEFORE_SHA"'
+assert_contains "$temp_dir/change-scope.sh" '[[ -n "$AFTER_SHA"'
+assert_contains "$temp_dir/change-scope.sh" 'if [[ "$diff_status" -ne 1 ]]; then'
+
+scope_origin="$temp_dir/scope-origin.git"
+scope_repo="$temp_dir/scope-repo"
+git init --bare -q "$scope_origin"
+git init -q "$scope_repo"
+git -C "$scope_repo" config user.name 'Airbob Contract Test'
+git -C "$scope_repo" config user.email 'airbob-contract-test@example.invalid'
+git -C "$scope_repo" remote add origin "$scope_origin"
+printf '%s\n' base > "$scope_repo/README.md"
+git -C "$scope_repo" add README.md
+git -C "$scope_repo" commit -q -m base
+scope_base=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/src/main/java"
+printf '%s\n' 'final class ScopeContract {}' > "$scope_repo/src/main/java/ScopeContract.java"
+git -C "$scope_repo" add src/main/java/ScopeContract.java
+git -C "$scope_repo" commit -q -m app
+scope_app=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/docs"
+printf '%s\n' docs > "$scope_repo/docs/only.md"
+git -C "$scope_repo" add docs/only.md
+git -C "$scope_repo" commit -q -m docs
+scope_docs=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/.github/workflows"
+printf '%s\n' 'name: fixture' > "$scope_repo/.github/workflows/cd.yml"
+git -C "$scope_repo" add .github/workflows/cd.yml
+git -C "$scope_repo" commit -q -m workflow
+scope_workflow=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/infra/aws/lab"
+printf '%s\n' fixture > "$scope_repo/infra/aws/lab/main.tf"
+git -C "$scope_repo" add infra/aws/lab/main.tf
+git -C "$scope_repo" commit -q -m aws-infra
+scope_aws=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/src/test/java"
+printf '%s\n' 'final class ScopeTest {}' > "$scope_repo/src/test/java/ScopeTest.java"
+git -C "$scope_repo" add src/test/java/ScopeTest.java
+git -C "$scope_repo" commit -q -m tests
+scope_tests=$(git -C "$scope_repo" rev-parse HEAD)
+
+mkdir -p "$scope_repo/infra/aws/images"
+printf '%s\n' '{}' > "$scope_repo/infra/aws/images/release.json"
+git -C "$scope_repo" add infra/aws/images/release.json
+git -C "$scope_repo" commit -q -m image-release
+scope_release=$(git -C "$scope_repo" rev-parse HEAD)
+
+printf '%s\n' 'services: {}' > "$scope_repo/docker-compose.oci.yml"
+git -C "$scope_repo" add docker-compose.oci.yml
+git -C "$scope_repo" commit -q -m oci-assets
+scope_oci=$(git -C "$scope_repo" rev-parse HEAD)
+git -C "$scope_repo" push -q origin HEAD:refs/heads/main
+
+run_scope_success() {
+  local before_sha=$1
+  local after_sha=$2
+  local expected=$3
+  : > "$temp_dir/scope-output"
+  git -C "$scope_repo" checkout -q --detach "$after_sha"
+  (
+    cd "$scope_repo"
+    BEFORE_SHA="$before_sha" \
+      AFTER_SHA="$after_sha" \
+      GITHUB_SHA="$after_sha" \
+      GITHUB_OUTPUT="$temp_dir/scope-output" \
+      bash "$temp_dir/change-scope.sh" >/dev/null 2>&1
+  ) || fail "CD change classifier rejected a valid $expected case"
+  [[ "$(cat "$temp_dir/scope-output")" == "oci_required=$expected" ]] \
+    || fail "CD change classifier produced the wrong result for $before_sha..$after_sha"
+}
+
+run_scope_failure() {
+  local before_sha=$1
+  local after_sha=$2
+  local case_name=$3
+  local github_sha=${4:-$after_sha}
+  : > "$temp_dir/scope-output"
+  git -C "$scope_repo" checkout -q --detach "$after_sha" 2>/dev/null \
+    || git -C "$scope_repo" checkout -q --detach "$scope_oci"
+  if (
+    cd "$scope_repo"
+    BEFORE_SHA="$before_sha" \
+      AFTER_SHA="$after_sha" \
+      GITHUB_SHA="$github_sha" \
+      GITHUB_OUTPUT="$temp_dir/scope-output" \
+      bash "$temp_dir/change-scope.sh" >/dev/null 2>&1
+  ); then
+    fail "CD change classifier failed open for $case_name"
+  fi
+  [[ ! -s "$temp_dir/scope-output" ]] \
+    || fail "CD change classifier emitted a decision after $case_name failure"
+}
+
+run_scope_success "$scope_base" "$scope_app" true
+run_scope_success "$scope_app" "$scope_docs" false
+run_scope_success "$scope_docs" "$scope_workflow" false
+run_scope_success "$scope_workflow" "$scope_aws" false
+run_scope_success "$scope_aws" "$scope_tests" false
+run_scope_success "$scope_tests" "$scope_release" true
+run_scope_success "$scope_release" "$scope_oci" true
+run_scope_failure '' "$scope_release" 'missing before SHA'
+run_scope_failure 0000000000000000000000000000000000000000 "$scope_release" 'zero before SHA'
+run_scope_failure '$(touch unsafe)' "$scope_release" 'unsafe before SHA'
+run_scope_failure "$scope_tests" '' 'missing after SHA'
+run_scope_failure "$scope_tests" 0000000000000000000000000000000000000000 'zero after SHA'
+run_scope_failure "$scope_tests" '$(touch unsafe)' 'unsafe after SHA'
+run_scope_failure "$scope_tests" "$scope_release" 'mismatched GitHub SHA' "$scope_tests"
+
+git -C "$scope_repo" remote set-url origin "$temp_dir/missing-origin.git"
+run_scope_failure "$scope_tests" "$scope_release" 'fetch failure'
+git -C "$scope_repo" remote set-url origin "$scope_origin"
+
+real_git=$(command -v git)
+mkdir -p "$temp_dir/failing-git"
+cat > "$temp_dir/failing-git/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == diff ]]; then
+  exit 70
+fi
+exec "${REAL_GIT:?}" "$@"
+EOF
+chmod 700 "$temp_dir/failing-git/git"
+: > "$temp_dir/scope-output"
+git -C "$scope_repo" checkout -q --detach "$scope_release"
+if (
+  cd "$scope_repo"
+  PATH="$temp_dir/failing-git:$PATH" \
+    REAL_GIT="$real_git" \
+    BEFORE_SHA="$scope_tests" \
+    AFTER_SHA="$scope_release" \
+    GITHUB_SHA="$scope_release" \
+    GITHUB_OUTPUT="$temp_dir/scope-output" \
+    bash "$temp_dir/change-scope.sh" >/dev/null 2>&1
+); then
+  fail "CD change classifier failed open after git diff failure"
+fi
+[[ ! -s "$temp_dir/scope-output" ]] \
+  || fail "CD change classifier emitted a decision after git diff failure"
+
 sed -n '/^  deploy-oci:/,$p' "$repo_root/.github/workflows/cd.yml" > "$temp_dir/deploy-oci.yml"
 assert_contains "$temp_dir/deploy-oci.yml" 'needs: publish-oci-image'
 assert_not_contains "$temp_dir/deploy-oci.yml" 'publish-ecr-image|AWS_IMAGE_PUBLISHER_ROLE_ARN'

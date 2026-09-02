@@ -192,6 +192,19 @@ variable "github_lab_subject" {
   }
 }
 
+variable "github_lab_cutover_subject" {
+  description = "Exact GitHub OIDC subject observed for the separately protected aws-performance-lab-cutover environment."
+  type        = string
+
+  validation {
+    condition = contains([
+      "repo:eeoos/airbob:environment:aws-performance-lab-cutover",
+      "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab-cutover",
+    ], var.github_lab_cutover_subject)
+    error_message = "github_lab_cutover_subject must be the exact reviewed legacy or immutable Airbob cutover subject."
+  }
+}
+
 variable "github_image_subject" {
   description = "Exact GitHub OIDC subject observed for the protected aws-image-publisher environment."
   type        = string
@@ -206,7 +219,7 @@ variable "github_image_subject" {
 }
 
 variable "github_oidc_subjects_reviewed" {
-  description = "Explicit acknowledgement that all three exact subjects were checked against the repository OIDC configuration."
+  description = "Explicit acknowledgement that all four exact subjects were checked against the repository OIDC configuration."
   type        = bool
   default     = false
 

@@ -23,9 +23,19 @@ on:
       policy:
         description: Measurement policy used by up
         required: false
-        default: isolated-read
+        default: integrated-smoke
         type: choice
         options: [isolated-read, integrated-smoke]
+      dns_mode:
+        description: Public DNS behavior; select cutover for cutover up/switch/down authorization
+        required: false
+        default: direct-only
+        type: choice
+        options: [direct-only, cutover]
+      alb_ingress_cidr:
+        description: Exact operator IPv4 /32 required by direct-only up
+        required: false
+        type: string
       app_image_digest:
         description: Immutable ECR sha256 digest used by up
         required: false
@@ -34,6 +44,41 @@ on:
         description: Immutable dataset release used by up
         required: false
         type: string
+      dataset_manifest_version_id:
+        description: Audited S3 VersionId of the dataset completion marker
+        required: false
+        type: string
+      bundle_commit:
+        description: Full immutable runtime commit shared by app and service images
+        required: false
+        type: string
+      bundle_manifest_version_id:
+        description: Audited S3 VersionId of the service-bundle completion manifest
+        required: false
+        type: string
+      database_bootstrap:
+        description: RDS bootstrap source used by up
+        required: false
+        default: dump
+        type: choice
+        options: [dump, snapshot]
+      rds_snapshot_identifier:
+        description: Dataset-bound manual RDS snapshot required by snapshot bootstrap
+        required: false
+        type: string
+      rds_snapshot_source_run_id:
+        description: Exact dump-mode Lab run that produced the promoted snapshot
+        required: false
+        type: string
+      rds_snapshot_source_resource_id:
+        description: Exact source RDS resource ID recorded by snapshot promotion
+        required: false
+        type: string
+      load_generator_enabled:
+        description: Explicit qualification override; false avoids the c6i.xlarge load generator
+        required: false
+        default: false
+        type: boolean
       request_target:
         description: Scaling ALB requests-per-target-per-minute target
         required: false
@@ -45,9 +90,9 @@ on:
         type: choice
         options: [oci, aws]
       ttl_hours:
-        description: Ephemeral resource TTL, maximum 24 hours
+        description: Ephemeral resource TTL; dump up requires at least 5 hours, snapshot up uses an explicit 2 hours
         required: false
-        default: '6'
+        default: '5'
         type: string
       keep_on_failure:
         description: Preserve a failed pre-cutover lab for diagnosis
@@ -55,7 +100,7 @@ on:
         default: false
         type: boolean
       force:
-        description: Force expired down only after the two-hour grace period
+        description: Force expired down at or after the declared expiry
         required: false
         default: false
         type: boolean
@@ -111,8 +156,8 @@ concurrency:
 jobs:
   operate:
     runs-on: ubuntu-latest
-    environment: aws-performance-lab
-    timeout-minutes: 95
+    environment: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}
+    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || 120 }}
     permissions:
       contents: read
       id-token: write
@@ -129,10 +174,59 @@ jobs:
       - name: Configure short-lived AWS credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
         with:
-          role-to-assume: ${{ vars.AWS_LAB_OPERATOR_ROLE_ARN }}
+          role-to-assume: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && vars.AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN || vars.AWS_LAB_OPERATOR_ROLE_ARN }}
           aws-region: ap-northeast-2
           role-session-name: airbob-lab-${{ github.run_id }}
-          role-duration-seconds: 7200
+          role-duration-seconds: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 18000 || 7200 }}
+
+      - name: Verify operator credential scope
+        env:
+          EXPECTED_ROLE_NAME: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'airbob-lab-cutover-operator' || 'airbob-lab-operator' }}
+        run: |
+          set -euo pipefail
+          caller_arn=$(aws sts get-caller-identity --query Arn --output text --no-cli-pager)
+          [[ "$caller_arn" =~ ^arn:aws:sts::942632789808:assumed-role/${EXPECTED_ROLE_NAME}/[A-Za-z0-9+=,.@_-]+$ ]] || {
+            echo 'AWS credentials do not match the required Lab operator scope' >&2
+            exit 1
+          }
+
+      - name: Resolve direct-only operator ingress /32
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'up' && inputs.dns_mode == 'direct-only'
+        env:
+          REQUESTED_CIDR: ${{ inputs.alb_ingress_cidr || vars.AWS_LAB_OPERATOR_CIDR }}
+        run: |
+          set -euo pipefail
+          live_address=$(curl --fail --silent --show-error --max-time 10 https://checkip.amazonaws.com)
+          if [[ -n "$REQUESTED_CIDR" ]]; then
+            [[ "$REQUESTED_CIDR" =~ ^([^/]+)/32$ ]] || { echo 'operator CIDR must be one /32' >&2; exit 1; }
+            requested_address=${BASH_REMATCH[1]}
+            [[ "$requested_address" == "$live_address" ]] || {
+              echo 'operator CIDR override does not match this runner public address' >&2
+              exit 1
+            }
+          fi
+          address=$live_address
+          [[ "$address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'operator address is not IPv4' >&2; exit 1; }
+          IFS=. read -r first second third fourth <<< "$address"
+          for octet in "$first" "$second" "$third" "$fourth"; do
+            [[ "$octet" == 0 || "$octet" != 0* ]] || { echo 'operator address is not canonical' >&2; exit 1; }
+            ((10#$octet <= 255)) || { echo 'operator address octet is invalid' >&2; exit 1; }
+          done
+          if ((first == 0 || first == 10 || first == 127 || first >= 224)) ||
+             ((first == 100 && second >= 64 && second <= 127)) ||
+             ((first == 169 && second == 254)) ||
+             ((first == 172 && second >= 16 && second <= 31)) ||
+             ((first == 192 && (
+               (second == 0 && (third == 0 || third == 2)) ||
+               (second == 88 && third == 99) ||
+               second == 168
+             ))) ||
+             ((first == 198 && (second == 18 || second == 19 || (second == 51 && third == 100)))) ||
+             ((first == 203 && second == 0 && third == 113)); then
+            echo 'operator address is not public IPv4' >&2
+            exit 1
+          fi
+          printf 'ALB_INGRESS_CIDR=%s/32\n' "$address" >> "$GITHUB_ENV"
 
       - name: Run shared lab operator
         if: github.event_name == 'workflow_dispatch' && inputs.action != 'measure'
@@ -140,8 +234,11 @@ jobs:
           AWS_REGION: ap-northeast-2
           MODE: ${{ inputs.mode }}
           POLICY: ${{ inputs.policy }}
+          DNS_MODE: ${{ inputs.dns_mode }}
           IMAGE_DIGEST: ${{ inputs.app_image_digest }}
           DATASET_RELEASE: ${{ inputs.dataset_release }}
+          DATASET_MANIFEST_VERSION_ID: ${{ inputs.dataset_manifest_version_id }}
+          BUNDLE_MANIFEST_VERSION_ID: ${{ inputs.bundle_manifest_version_id }}
           REQUEST_TARGET: ${{ inputs.request_target }}
           TARGET: ${{ inputs.target }}
           TTL_HOURS: ${{ inputs.ttl_hours }}
@@ -151,9 +248,13 @@ jobs:
           OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
           RDS_ENGINE_VERSION: ${{ vars.AWS_LAB_RDS_ENGINE_VERSION }}
           CACHE_ENABLED: ${{ vars.AWS_LAB_CACHE_ENABLED || 'true' }}
-          LOAD_GENERATOR_ENABLED: ${{ vars.AWS_LAB_LOAD_GENERATOR_ENABLED || 'true' }}
-          BUNDLE_COMMIT: ${{ github.sha }}
-          DATABASE_BOOTSTRAP: dump
+          LOAD_GENERATOR_ENABLED: ${{ inputs.load_generator_enabled }}
+          BUNDLE_COMMIT: ${{ inputs.bundle_commit }}
+          DATABASE_BOOTSTRAP: ${{ inputs.database_bootstrap }}
+          RDS_SNAPSHOT_IDENTIFIER: ${{ inputs.rds_snapshot_identifier }}
+          RDS_SNAPSHOT_SOURCE_RUN_ID: ${{ inputs.rds_snapshot_source_run_id }}
+          RDS_SNAPSHOT_SOURCE_RESOURCE_ID: ${{ inputs.rds_snapshot_source_resource_id }}
+          AWS_LAB_OPERATOR_SCOPE: ${{ (inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'cutover' || 'direct' }}
           RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
         run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"
 
@@ -179,4 +280,5 @@ jobs:
         env:
           AWS_REGION: ap-northeast-2
           OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
+          AWS_LAB_OPERATOR_SCOPE: cutover
         run: infra/aws/scripts/cleanup-expired-lab.sh

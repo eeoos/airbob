@@ -4,6 +4,17 @@ locals {
     evidence = var.evidence_bucket_name
     bundle   = var.bundle_bucket_name
   }
+
+  authoritative_evidence_resources = [
+    "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
+    "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
+    "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
+  ]
+
+  create_only_evidence_resources = concat(local.authoritative_evidence_resources, [
+    "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+    "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+  ])
 }
 
 resource "aws_s3_bucket" "managed" {
@@ -143,6 +154,32 @@ resource "aws_s3_bucket_policy" "managed" {
           Resource  = "${each.value.arn}/elasticsearch/seals/*"
         },
       ] : statement if each.key == "dataset"],
+      [for statement in [
+        {
+          Sid       = "DenyMutableAuthoritativeEvidence"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:PutObject"
+          Resource  = local.create_only_evidence_resources
+          Condition = {
+            StringNotEquals = {
+              "s3:if-none-match" = "*"
+            }
+          }
+        },
+        {
+          Sid       = "DenyPostCreationAuthoritativeEvidenceTagging"
+          Effect    = "Deny"
+          Principal = "*"
+          Action    = "s3:PutObjectTagging"
+          Resource  = local.create_only_evidence_resources
+          Condition = {
+            BoolIfExists = {
+              "s3:ObjectCreationOperation" = "false"
+            }
+          }
+        },
+      ] : statement if each.key == "evidence"],
     )
   })
 

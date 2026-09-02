@@ -62,6 +62,7 @@ case "$action" in
       || fail "heartbeat TTL must be 60-900 seconds"
     deadline_limit=5400
     [[ "$command_name" != dataset-snapshot ]] || deadline_limit=9000
+    [[ "$command_name" != up ]] || deadline_limit=14400
     [[ "$deadline_seconds" =~ ^[1-9][0-9]{2,4}$ && "$deadline_seconds" -le "$deadline_limit" ]] \
       || fail "command deadline exceeds the approved limit"
     expires_epoch=$((now_epoch + heartbeat_ttl))

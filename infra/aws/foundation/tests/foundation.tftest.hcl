@@ -249,6 +249,7 @@ variables {
   dnssec_ds_reviewed                     = true
   github_foundation_subject              = "repo:eeoos/airbob:environment:aws-foundation"
   github_lab_subject                     = "repo:eeoos/airbob:environment:aws-performance-lab"
+  github_lab_cutover_subject             = "repo:eeoos/airbob:environment:aws-performance-lab-cutover"
   github_image_subject                   = "repo:eeoos/airbob:environment:aws-image-publisher"
   github_oidc_subjects_reviewed          = true
   foundation_local_principal_arns        = ["arn:aws:iam::942632789808:user/foundation-test"]
@@ -442,6 +443,7 @@ run "foundation_contract" {
     condition = (
       local.github_role_trust.foundation["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-foundation" &&
       local.github_role_trust.lab["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-performance-lab" &&
+      local.github_role_trust.lab_cutover["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-performance-lab-cutover" &&
       local.github_role_trust.image["token.actions.githubusercontent.com:sub"] == "repo:eeoos/airbob:environment:aws-image-publisher" &&
       alltrue([
         for trust in values(local.github_role_trust) :
@@ -451,7 +453,8 @@ run "foundation_contract" {
         ])
       ]) &&
       aws_iam_role.foundation_admin.max_session_duration == 7200 &&
-      aws_iam_role.lab_operator.max_session_duration == 7200 &&
+      aws_iam_role.lab_operator.max_session_duration == 18000 &&
+      aws_iam_role.lab_cutover_operator.max_session_duration == 18000 &&
       aws_iam_role.image_publisher.max_session_duration == 7200 &&
       aws_iam_role.dataset_publisher.max_session_duration == 7200 &&
       aws_iam_role.dns_controller.max_session_duration == 3600 &&
@@ -463,6 +466,14 @@ run "foundation_contract" {
         for statement in jsondecode(local.role_trust_policies.lab).Statement : statement
         if statement.Sid == "ApprovedLocalPrincipals"
       ]).Principal.AWS == ["arn:aws:iam::942632789808:user/lab-test"] &&
+      one([
+        for statement in jsondecode(local.role_trust_policies.lab_cutover).Statement : statement
+        if statement.Sid == "ApprovedLocalPrincipals"
+      ]).Principal.AWS == ["arn:aws:iam::942632789808:user/lab-test"] &&
+      aws_iam_role.lab_operator.assume_role_policy == local.role_trust_policies.lab &&
+      aws_iam_role.lab_cutover_operator.assume_role_policy == local.role_trust_policies.lab_cutover &&
+      local.github_role_trust.lab["token.actions.githubusercontent.com:sub"] != local.github_role_trust.lab_cutover["token.actions.githubusercontent.com:sub"] &&
+      aws_iam_role.lab_cutover_operator.name == "airbob-lab-cutover-operator" &&
       jsondecode(local.role_trust_policies.dataset).Statement == [{
         Sid       = "ApprovedLocalPrincipals"
         Effect    = "Allow"
@@ -478,6 +489,7 @@ run "foundation_contract" {
     condition = (
       length(local.role_trust_policies.foundation) <= 2048 &&
       length(local.role_trust_policies.lab) <= 2048 &&
+      length(local.role_trust_policies.lab_cutover) <= 2048 &&
       length(local.role_trust_policies.image) <= 2048 &&
       length(local.role_trust_policies.dataset) <= 2048 &&
       length(local.foundation_admin_policy) <= 10240 &&
@@ -486,32 +498,41 @@ run "foundation_contract" {
         for policy in values(local.lab_operator_managed_policies) :
         length(policy.document) <= 6144
       ]) &&
+      length(local.lab_cutover_operator_extension_policy) <= 10240 &&
       length(local.lab_host_boundary_policy) <= 6144 &&
       length(local.image_publisher_policy) <= 10240 &&
       length(local.dataset_publisher_policy) <= 10240 &&
       length(local.dns_controller_policy) <= 10240
     )
-    error_message = "Role trust, inline policies, and managed policies must remain within default AWS IAM document-size quotas."
+    error_message = format(
+      "Role trust, inline policies, and managed policies must remain within default AWS IAM document-size quotas: %s",
+      jsonencode({ for key, policy in local.lab_operator_managed_policies : key => length(policy.document) }),
+    )
   }
 
   assert {
     condition = (
       toset(keys(aws_iam_policy.lab_operator)) == toset(keys(local.lab_operator_managed_policies)) &&
       toset(keys(aws_iam_role_policy_attachment.lab_operator)) == toset(keys(local.lab_operator_managed_policies)) &&
+      toset(keys(aws_iam_role_policy_attachment.lab_cutover_operator)) == toset(keys(local.lab_operator_managed_policies)) &&
       alltrue([
         for key, policy in local.lab_operator_managed_policies :
         aws_iam_policy.lab_operator[key].name == policy.name &&
         aws_iam_policy.lab_operator[key].policy == policy.document &&
-        aws_iam_role_policy_attachment.lab_operator[key].role == aws_iam_role.lab_operator.name
-      ])
+        aws_iam_role_policy_attachment.lab_operator[key].role == aws_iam_role.lab_operator.name &&
+        aws_iam_role_policy_attachment.lab_cutover_operator[key].role == aws_iam_role.lab_cutover_operator.name
+      ]) &&
+      aws_iam_role_policy.lab_cutover_operator_extension.name == "airbob-lab-cutover-operator-extension" &&
+      aws_iam_role_policy.lab_cutover_operator_extension.policy == local.lab_cutover_operator_extension_policy
     )
-    error_message = "Lab operator permissions must use five bounded customer-managed policies attached to the exact role."
+    error_message = "Direct and cutover operators must share the same five bounded Lab policies, with only the cutover extension attached inline."
   }
 
 
   assert {
     condition = (
-      jsondecode(local.dns_controller_trust_policy).Statement[0].Principal.AWS == "arn:aws:iam::942632789808:role/airbob-lab-operator" &&
+      jsondecode(local.dns_controller_trust_policy).Statement[0].Sid == "LabCutoverOperatorOnly" &&
+      jsondecode(local.dns_controller_trust_policy).Statement[0].Principal.AWS == "arn:aws:iam::942632789808:role/airbob-lab-cutover-operator" &&
       toset(jsondecode(local.dns_controller_trust_policy).Statement[0].Action) == toset(["sts:AssumeRole", "sts:TagSession"]) &&
       one([
         for statement in jsondecode(local.dns_controller_policy).Statement : statement
@@ -522,11 +543,20 @@ run "foundation_contract" {
         if statement.Sid == "ChangeApiARecords"
       ]).Condition["ForAllValues:StringEquals"]["route53:ChangeResourceRecordSetsNormalizedRecordNames"] == ["api.airbob.cloud"] &&
       one([
-        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
         if statement.Sid == "AssumeDnsController"
-      ]).Resource == aws_iam_role.dns_controller.arn
+      ]).Resource == aws_iam_role.dns_controller.arn &&
+      toset(one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "AssumeDnsController"
+      ]).Action) == toset(["sts:AssumeRole", "sts:TagSession"]) &&
+      length([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if contains(try(tolist(statement.Action), [statement.Action]), "sts:AssumeRole") ||
+        contains(try(tolist(statement.Action), [statement.Action]), "sts:TagSession")
+      ]) == 0
     )
-    error_message = "Only the lab operator may assume the session-tagged controller that mutates the exact public API A records."
+    error_message = "Only the cutover operator may assume the session-tagged controller that mutates the exact public API A records."
   }
 
   assert {
@@ -574,6 +604,60 @@ run "foundation_contract" {
       ]).Resource == "*"
     )
     error_message = "The lab operator must be able to create only RDS-managed master secrets and describe their AWS-managed KMS key."
+  }
+
+  assert {
+    condition = (
+      toset(one([
+        for statement in jsondecode(local.lab_compute_ec2_iam_policy).Statement : statement
+        if statement.Sid == "DescribeLabInfrastructure"
+        ]).Action) == toset([
+        "ec2:Describe*",
+        "iam:GetInstanceProfile",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfiles",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRoles",
+        "iam:ListRolePolicies",
+        "iam:ListRoleTags",
+        "tag:GetResources",
+      ]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
+        if statement.Sid == "ReadCommandResults"
+        ]).Action) == toset([
+        "ssm:DescribeAssociation",
+        "ssm:DescribeDocument",
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetCommandInvocation",
+        "ssm:GetDocument",
+        "ssm:ListAssociationVersions",
+        "ssm:ListAssociations",
+        "ssm:ListCommandInvocations",
+        "ssm:ListCommands",
+        "ssm:ListDocuments",
+        "ssm:ListTagsForResource",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
+        if statement.Sid == "ReadCommandResults"
+      ]).Resource == "*" &&
+      one([
+        for statement in jsondecode(local.lab_compute_ec2_iam_policy).Statement : statement
+        if statement.Sid == "DescribeLabInfrastructure"
+      ]).Resource == "*" &&
+      contains(one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "DescribeLabRds"
+      ]).Action, "secretsmanager:ListSecrets") &&
+      one([
+        for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
+        if statement.Sid == "DescribeLabRds"
+      ]).Resource == "*"
+    )
+    error_message = "The lab operator orphan inventory must retain only the read-only global discovery actions required by IAM, Secrets Manager, and SSM scans."
   }
 
   assert {
@@ -653,6 +737,34 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
         if statement.Sid == "WriteBootstrapEvidence"
       ]).Condition.StringEquals["s3:RequestObjectTag/Retention"]) == toset(["raw", "summary"]) &&
+      one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "DenyHostAuthoritativeEvidenceWrites"
+      ]).Effect == "Deny" &&
+      toset(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "DenyHostAuthoritativeEvidenceWrites"
+      ]).Action) == toset(["s3:PutObject", "s3:PutObjectTagging"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "DenyHostAuthoritativeEvidenceWrites"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
+      ]) &&
+      !contains(keys(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "DenyHostAuthoritativeEvidenceWrites"
+      ])), "Condition") &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "s3:DeleteObject") &&
+      !contains(flatten([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ]), "s3:DeleteObjectVersion") &&
       toset(one([
         for statement in jsondecode(local.lab_compute_policy).Statement : statement
         if statement.Sid == "ReadNetworkReceipts"
@@ -704,6 +816,18 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_compute_policy).Statement :
         try(tolist(statement.Action), [statement.Action])
       ]), "route53:DeleteHostedZone") &&
+      toset(one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "ReadPersistentPrivateZone"
+        ]).Action) == toset([
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets",
+        "route53:ListTagsForResource",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_compute_policy).Statement : statement
+        if statement.Sid == "ReadPersistentPrivateZone"
+      ]).Resource == aws_route53_zone.private.arn &&
       one([
         for statement in jsondecode(local.lab_compute_policy).Statement : statement
         if statement.Sid == "ChangePrivateServiceRecords"
@@ -878,6 +1002,79 @@ run "foundation_contract" {
 
   assert {
     condition = (
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Principal == "*" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Effect == "Deny" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Action == "s3:PutObject" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Condition.StringNotEquals["s3:if-none-match"] == "*" &&
+      toset(one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+      ]) &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+      ]).Principal == "*" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+      ]).Effect == "Deny" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+      ]).Action == "s3:PutObjectTagging" &&
+      one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+      ]).Condition.BoolIfExists["s3:ObjectCreationOperation"] == "false" &&
+      toset(one([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+      ]) &&
+      length([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["evidence"].policy).Statement : statement
+        if statement.Effect == "Allow" && anytrue([
+          for action in try(tolist(statement.Action), [statement.Action]) :
+          contains(["s3:DeleteObject", "s3:DeleteObjectVersion"], action)
+        ])
+      ]) == 0 &&
+      length([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["dataset"].policy).Statement : statement
+        if contains(["DenyMutableAuthoritativeEvidence", "DenyPostCreationAuthoritativeEvidenceTagging"], statement.Sid)
+      ]) == 0 &&
+      length([
+        for statement in jsondecode(aws_s3_bucket_policy.managed["bundle"].policy).Statement : statement
+        if contains(["DenyMutableAuthoritativeEvidence", "DenyPostCreationAuthoritativeEvidenceTagging"], statement.Sid)
+      ]) == 0
+    )
+    error_message = "The evidence bucket must centrally reject missing or wrong create-only headers and post-creation authoritative receipt retagging."
+  }
+
+  assert {
+    condition = (
       !contains(flatten([
         for statement in jsondecode(local.foundation_admin_policy).Statement :
         try(tolist(statement.Action), [statement.Action])
@@ -936,6 +1133,7 @@ run "foundation_contract" {
           "arn:aws:iam::942632789808:oidc-provider/token.actions.githubusercontent.com",
           "arn:aws:iam::942632789808:role/airbob-foundation-admin",
           "arn:aws:iam::942632789808:role/airbob-lab-operator",
+          "arn:aws:iam::942632789808:role/airbob-lab-cutover-operator",
           "arn:aws:iam::942632789808:role/airbob-image-publisher",
           "arn:aws:iam::942632789808:role/airbob-dataset-publisher",
           "arn:aws:iam::942632789808:role/airbob-dns-controller",
@@ -1015,21 +1213,115 @@ run "foundation_contract" {
 
   assert {
     condition = (
-      one([
+      toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "ReadOperatorEvidence"
-      ]).Action == "s3:GetObject" &&
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion"]) &&
       toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "ReadOperatorEvidence"
         ]).Resource) == toset([
         "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
         "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+      ]) &&
+      toset(flatten([
+        for statement in jsondecode(local.lab_operator_policy).Statement : [
+          for resource in try(tolist(statement.Resource), [statement.Resource]) : resource
+          if contains(try(tolist(statement.Action), [statement.Action]), "s3:GetObjectVersion") &&
+          statement.Sid != "ReadDatasetAndBundles" &&
+          startswith(resource, "${aws_s3_bucket.managed["evidence"].arn}/")
+        ]
+        ])) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+      ]) &&
+      toset(flatten([
+        for statement in jsondecode(local.lab_operator_policy).Statement : [
+          for resource in try(tolist(statement.Resource), [statement.Resource]) : resource
+          if contains(try(tolist(statement.Action), [statement.Action]), "s3:GetObject") &&
+          statement.Sid != "ReadDatasetAndBundles" &&
+          startswith(resource, "${aws_s3_bucket.managed["evidence"].arn}/")
+        ]
+        ])) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Effect == "Deny" &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Action == "s3:PutObject" &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyMutableAuthoritativeEvidence"
+      ]).Condition.StringNotEquals["s3:if-none-match"] == "*"
+      && one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+      ]).Action == "s3:PutObjectTagging"
+      && one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+      ]).Condition.BoolIfExists["s3:ObjectCreationOperation"] == "false"
+      && toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DenyPostCreationAuthoritativeEvidenceTagging"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/direct-readiness.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/*/teardown-*.json",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurements/state-clean/*.json",
       ])
       && toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
-        if statement.Sid == "OrchestrationLease"
-      ]).Action) == toset(["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DescribeTable"])
+        if statement.Sid == "WriteTaggedEvidence"
+      ]).Action) == toset(["s3:PutObject", "s3:PutObjectTagging"])
+      && toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "WriteTaggedEvidence"
+      ]).Condition.StringEquals["s3:RequestObjectTag/Retention"]) == toset(["raw", "summary"])
+      && length([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if contains(try(tolist(statement.Action), [statement.Action]), "s3:DeleteObject") && anytrue([
+          for resource in try(tolist(statement.Resource), [statement.Resource]) :
+          startswith(resource, "${aws_s3_bucket.managed["evidence"].arn}/")
+        ])
+      ]) == 0
+      && toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OwnOrchestrationLease"
+      ]).Action) == toset(["dynamodb:GetItem", "dynamodb:UpdateItem"])
+      && one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OwnOrchestrationLease"
+      ]).Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == ["airbob-performance-lab"]
+      && one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DescribeOrchestrationLeaseTable"
+      ]).Action == "dynamodb:DescribeTable"
+      && !contains(keys(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "DescribeOrchestrationLeaseTable"
+      ])), "Condition")
     )
     error_message = "The lab operator must resume from the narrow run manifest and mutate the lease without deleting its fencing history."
   }
@@ -1053,9 +1345,29 @@ run "foundation_contract" {
       toset(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
         if statement.Sid == "OperationalState"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OperationalState"
         ]).Resource) == toset([
-        "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/dns/terraform.tfstate",
         "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/lab/terraform.tfstate",
+      ]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OperationalStateLocks"
+        ]).Resource) == toset([
+        "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/lab/terraform.tfstate.tflock",
+      ]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OperationalStateList"
+      ]).Action) == toset(["s3:ListBucket", "s3:ListBucketVersions"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_operator_policy).Statement : statement
+        if statement.Sid == "OperationalStateList"
+        ]).Condition.StringLike["s3:prefix"]) == toset([
+        "airbob/lab/terraform.tfstate",
+        "airbob/lab/terraform.tfstate.tflock",
       ]) &&
       !contains(one([
         for statement in jsondecode(local.lab_operator_policy).Statement : statement
@@ -1103,9 +1415,71 @@ run "foundation_contract" {
       !contains(flatten([
         for statement in jsondecode(local.lab_operator_policy).Statement :
         try(tolist(statement.Action), [statement.Action])
-      ]), "route53:ChangeResourceRecordSets")
+      ]), "route53:ChangeResourceRecordSets") &&
+      !contains(flatten([
+        for policy in values(local.lab_operator_managed_policies) : flatten([
+          for statement in jsondecode(policy.document).Statement :
+          try(tolist(statement.Action), [statement.Action])
+        ])
+      ]), "sts:AssumeRole") &&
+      !contains(flatten([
+        for policy in values(local.lab_operator_managed_policies) : flatten([
+          for statement in jsondecode(policy.document).Statement :
+          try(tolist(statement.Action), [statement.Action])
+        ])
+      ]), "sts:TagSession") &&
+      !contains(flatten([
+        for policy in values(local.lab_operator_managed_policies) : flatten([
+          for statement in jsondecode(policy.document).Statement :
+          try(tolist(statement.Resource), [statement.Resource])
+        ])
+      ]), "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/dns/terraform.tfstate") &&
+      !contains(flatten([
+        for policy in values(local.lab_operator_managed_policies) : flatten([
+          for statement in jsondecode(policy.document).Statement :
+          try(tolist(statement.Resource), [statement.Resource])
+        ])
+      ]), "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/dns/terraform.tfstate.tflock")
     )
-    error_message = "Lab permissions must support tagged evidence and read-only DNS/ALB refresh without direct Route 53 mutation."
+    error_message = "The direct Lab operator must retain Lab state, private DNS mutation, and public DNS reads without any public DNS state or controller privilege."
+  }
+
+  assert {
+    condition = (
+      length(jsondecode(local.lab_cutover_operator_extension_policy).Statement) == 4 &&
+      toset(one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "DnsState"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]) &&
+      one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "DnsState"
+      ]).Resource == "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/dns/terraform.tfstate" &&
+      toset(one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "DnsStateLock"
+      ]).Action) == toset(["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]) &&
+      one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "DnsStateLock"
+      ]).Resource == "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808/airbob/dns/terraform.tfstate.tflock" &&
+      one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "DnsStateList"
+      ]).Resource == "arn:aws:s3:::airbob-performance-lab-tfstate-942632789808" &&
+      toset(one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "DnsStateList"
+        ]).Condition.StringLike["s3:prefix"]) == toset([
+        "airbob/dns/terraform.tfstate",
+        "airbob/dns/terraform.tfstate.tflock",
+      ]) &&
+      one([
+        for statement in jsondecode(local.lab_cutover_operator_extension_policy).Statement : statement
+        if statement.Sid == "AssumeDnsController"
+      ]).Resource == aws_iam_role.dns_controller.arn
+    )
+    error_message = "The cutover-only extension must contain exactly the DNS state, lock, list, and fenced controller grants."
   }
 
   assert {
@@ -1502,19 +1876,31 @@ run "immutable_protected_environment_subjects" {
   command = plan
 
   variables {
-    github_foundation_subject = "repo:eeoos@119295425/airbob@1056501820:environment:aws-foundation"
-    github_lab_subject        = "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab"
-    github_image_subject      = "repo:eeoos@119295425/airbob@1056501820:environment:aws-image-publisher"
+    github_foundation_subject  = "repo:eeoos@119295425/airbob@1056501820:environment:aws-foundation"
+    github_lab_subject         = "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab"
+    github_lab_cutover_subject = "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab-cutover"
+    github_image_subject       = "repo:eeoos@119295425/airbob@1056501820:environment:aws-image-publisher"
   }
 
   assert {
     condition = (
       local.github_role_trust.foundation["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-foundation" &&
       local.github_role_trust.lab["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab" &&
+      local.github_role_trust.lab_cutover["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab-cutover" &&
       local.github_role_trust.image["token.actions.githubusercontent.com:sub"] == "repo:eeoos@119295425/airbob@1056501820:environment:aws-image-publisher"
     )
-    error_message = "Immutable subjects must bind all three protected GitHub environments."
+    error_message = "Immutable subjects must bind all four protected GitHub environments."
   }
+}
+
+run "reject_shared_lab_cutover_subject" {
+  command = plan
+
+  variables {
+    github_lab_cutover_subject = "repo:eeoos/airbob:environment:aws-performance-lab"
+  }
+
+  expect_failures = [var.github_lab_cutover_subject]
 }
 
 run "reject_main_branch_image_subject_without_environment" {

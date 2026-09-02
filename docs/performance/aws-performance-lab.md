@@ -11,60 +11,32 @@
 | Six service-host Compose/config contracts | Implemented (configuration only) |
 | Debezium worker and connector template | Implemented (unrendered, enumerated sensitive-marker gate) |
 | Prometheus AWS target definitions | Implemented (static/config validation only) |
-| Verified nineteen-file bundle package | Implemented (local package + immutable S3 publication workflow; not executed) |
-| Immutable app/infra image construction and publication | Implemented (workflow/config only; no ECR publication executed) |
+| Verified nineteen-file bundle package | Published immutably for runtime commit `1537e845b2b6f3cda915dfaf202a1592db7d73cf` |
+| Immutable app/infra image construction and publication | Published to ECR and digest-pinned for the same runtime commit |
 | Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; local repository-s3 producer contract implemented, live proof pending |
 | Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration implemented; not executed |
 | Terraform persistent foundation | Applied baseline in account `942632789808`, including the protected private DNS anchor and issued API ACM certificate; last applied state was drift-free, dataset-publisher delta is unapplied |
-| Terraform DNS/lab state boundaries | Route 53-authoritative OCI-only DNS state applied; Phase 2-4 ephemeral lab root remains unapplied |
+| Terraform DNS/lab state boundaries | Route 53-authoritative OCI-only DNS state applied; the ephemeral lab is currently absent |
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
-| Lease/fencing controller and scheduled GitHub expiry cleanup | Implemented (configuration/fake-CLI tests only; AWS-native sweeper and live execution remain pending) |
+| Lease/fencing controller and scheduled GitHub expiry cleanup | Direct-only/cutover modes, immutable readiness/teardown receipts, resumable cleanup, and expiry-at-TTL behavior implemented and hermetically tested; live qualification pending |
 | Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
-| Immutable V27 dataset assembly and publication | V27 source release, isolated-restore schema-4 attestation, and DB-only local assembly executed; native ES snapshot/search-enabled assembly and manifest-last S3 publication remain unexecuted, and the publisher role/policy delta is unapplied |
-| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented (configuration/static and mock tests only; no V27 release published to or restored in AWS) |
+| Immutable V27 dataset assembly and publication | Final manifest-last release `production-seed-20260830t223254z-search-rehearsal-r3` is published with MySQL dump and sealed native Elasticsearch snapshot |
+| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented and locally verified; first AWS restore remains pending |
 | Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
 | Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
-| Route 53 cutover | Gabia delegation completed; Route 53 serves the verified OCI weight-100 record, while the AWS alias remains pending |
+| Route 53 cutover | Route 53 serves the exact OCI-only weight-100 record; qualification uses direct-only mode and does not stage an AWS alias |
 | AWS discovery and SQL-digest harness | Implemented for public accommodation detail (fake-AWS tests only; not executed) |
-| AWS performance evidence | Not collected |
+| AWS repeatability evidence | Not collected; dump-mode then promoted-snapshot qualification is the current stop boundary |
 
-The repository now supplies application guards and statically verified service
-bundle/config contracts. The bundle package contains only the reviewed nineteen
-configuration files; runtime env files and the fixed forbidden secret-bearing
-path families are excluded. The content gate rejects the enumerated password,
-secret, token, credential, API/access/private-key, service-account, and private
-key marker families except for six exact reviewed placeholder/guard lines. It
-does not prove that arbitrary secret material hidden under a benign key is
-absent. The persistent foundation and OCI-only weighted-DNS state are applied;
-the last applied state was drift-free, while the new dataset-publisher delta
-remains unapplied. The Phase 2 lab destruction boundary remains statically
-tested but unapplied. Applying the lab root now declares billable
-NAT/probe or dependency-service EC2/EBS/EIP resources according to its explicit
-phase. The foundation additionally declares one persistent private hosted zone
-(standard monthly hosted-zone charge) and a subnet-free anchor VPC with no
-hourly VPC charge. A disabled-by-default observer discovers the lab by stable
-identity tags, reports missing/invalid lifecycle tags, and can alert through a
-customer-KMS-encrypted CloudWatch/SNS path after explicit email confirmation.
-It cannot mutate DNS,
-start cleanup, or delete resources. The repository now defines digest-pinned
-multi-architecture app/infra builds, exact ECR publication manifests, OIDC-only
-publisher workflows, and CI-side image runtime checks, but none has been run
-against ECR yet. The OCI compatibility job alone retains mutable GHCR `latest`
-tags for the two custom images; AWS consumers accept only ECR digest references.
-The repository can now publish the bundle package immutably and enforce Phase 2
-host prerequisites through SSM, but neither path has run against AWS. The live
-foundation and OCI-only Route 53 record are now authoritative after the Gabia
-delegation. The public API origin is unchanged: Route 53 still sends all
-traffic to OCI at `140.245.76.140`, and the public `/health` probe remains
-healthy. The AWS alias is absent. The ephemeral lab has not been created, data
-has not been restored in AWS, and no performance results have been established.
-The historical Flyway V12 dump remains intentionally rejected. Local
-qualification produced the immutable V27 source release
-`production-seed-20260830T223254Z`, its schema-4 isolated-restore attestation,
-and the DB-only rehearsal wrapper
-`production-seed-20260830t223254z-db-rehearsal`; the native Elasticsearch
-snapshot, search-enabled wrapper, immutable S3 publication, and first live AWS
-rehearsal remain pending.
+The final runtime tuple is now published, but the first live AWS Lab restore has
+not run. The selected release is
+`production-seed-20260830t223254z-search-rehearsal-r3`; its completion marker,
+MySQL dump, and native Elasticsearch snapshot are immutable inputs and must not
+be regenerated by Lab operation. OCI remains the public origin and the AWS
+alias is absent. Applying the Lab creates billable EC2/EBS/EIP/RDS/ALB resources,
+so qualification uses the minimum fixed topology, a five-hour dump/two-hour
+snapshot expiry backstop, no load generator, and immediate teardown. No
+performance experiment or result is part of this repeatability qualification.
 
 That release must apply V1–V27 while the source schema is empty and all V24 or
 older writers are stopped. V25 intentionally rejects non-empty reservation
@@ -84,10 +56,12 @@ accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords
 are resolved only on the host from Secrets Manager. Persistent RDS snapshot
 promotion is a separate publisher/admin command and remains outside the lab
 role and lab destroy graph. The promoter requires the source instance to match
-the bootstrap receipt run, writes its local receipt with create-only semantics,
-and projects the validated source run/resource identity plus promotion schema
-onto the persistent snapshot. Snapshot-mode Terraform rejects snapshots that
-only copy dataset tuple tags without those promotion markers.
+the bootstrap receipt run and requires the exact S3 VersionIds and byte-for-byte
+readback of both the data-bootstrap and final direct-readiness receipts. It
+writes its local receipt with create-only semantics and projects the validated
+source run/resource identity, both receipt hashes, and promotion schema onto the
+persistent snapshot. Snapshot-mode Terraform rejects snapshots that only copy
+dataset tuple tags without those promotion markers.
 
 The local search-data path now uses the exact digest-pinned Elasticsearch image
 from the `infra-image-release-<full-commit>` workflow artifact. A schema-4
@@ -167,69 +141,135 @@ Local operation and the protected GitHub workflow both call
 `infra/aws/scripts/aws-lab.sh`. Every mutating operation acquires the one-row
 DynamoDB lease, increments its fencing token, heartbeats it, and rechecks the
 exact owner/token/run/command before every Terraform or DNS mutation. Status is
-read-only and does not acquire or update the lease. Public DNS is changed only
-after assuming `airbob-dns-controller`; the general lab role cannot write the
-public hosted zone.
+read-only. `DNS_MODE=direct-only` is the default and never invokes the DNS
+controller. It verifies the exact Route 53 OCI-only record plus direct and
+public OCI `/health` before creation, after direct ALB smoke, and before and
+after teardown. The post-smoke check is required in both modes; direct-readiness
+is published from that fresh observation before an optional cutover stages any
+AWS record. The default `airbob-lab-operator` has neither public-DNS state
+access nor permission to assume the controller. DNS writes remain available
+only to the separate `airbob-lab-cutover-operator` in explicit `cutover`
+operations, which then assumes the isolated `airbob-dns-controller` role.
 
 The local interface is:
 
 ```bash
 make aws-up \
   MODE=performance \
-  POLICY=isolated-read \
+  POLICY=integrated-smoke \
+  DNS_MODE=direct-only \
+  ALB_INGRESS_CIDR=<operator-public-ip>/32 \
   IMAGE_DIGEST=sha256:<64-hex> \
+  BUNDLE_COMMIT=<published-runtime-commit> \
+  BUNDLE_MANIFEST_VERSION_ID=<audited-s3-version-id> \
   DATASET_RELEASE=<published-v27-release> \
+  DATASET_MANIFEST_VERSION_ID=<audited-s3-version-id> \
   AMI_ID=<reviewed-al2023-x86_64-ami> \
   OCI_ORIGIN_IPV4=<reviewed-oci-ip> \
   RDS_ENGINE_VERSION=8.0.<reviewed-patch>
 
 make aws-status
-make aws-switch TARGET=oci
-make aws-down
+make aws-down RUN_ID=<run-id>
 ```
 
-Scaling additionally requires `REQUEST_TARGET=<baseline requests/target/min>`.
-`REQUEST_TARGET` is rejected in performance mode. The selected application's
-AZ list, including scaling's two-AZ placement, remains in the redacted Phase 4
-Terraform output evidence.
-`TTL_HOURS` defaults to 6 and is limited to 24. The default dump bootstrap can
-be changed to a prevalidated snapshot only with both
-`DATABASE_BOOTSTRAP=snapshot` and its exact snapshot identifier. The bundle
-commit defaults to the checked-out full Git commit; the operator resolves its
-nine ECR image digests, bundle checksum, application digest, and dataset
-manifest SHA before creating a VPC. It never discovers or guesses the AMI, OCI
-origin, RDS patch, application digest, or dataset release.
+Direct-only accepts exactly one canonical `/32`; cutover deliberately uses
+`0.0.0.0/0` for public traffic compatibility. The protected workflow always
+resolves and validates the hosted runner's single public IPv4 from
+`checkip.amazonaws.com`. An explicit/environment CIDR is accepted only when it
+is the exact same `/32`, then that live `/32` is exported. `aws-switch` is rejected for a
+direct-only run. `TTL_HOURS` defaults to 5 because dump bootstrap requires at
+least five hours, while snapshot replay may explicitly use 2. It remains capped
+at 24, and scheduled cleanup becomes eligible at `expiresAt`; the minute-17/47
+schedule bounds pickup to one 30-minute interval. The load generator defaults to
+disabled.
+
+Snapshot replay additionally requires `DATABASE_BOOTSTRAP=snapshot`, the exact
+promoted snapshot identifier, `RDS_SNAPSHOT_SOURCE_RUN_ID`, and
+`RDS_SNAPSHOT_SOURCE_RESOURCE_ID`. The latter two must equal the immutable
+promotion tags from the just-qualified dump run; dump mode requires every
+snapshot-source input to be empty. Runtime `BUNDLE_COMMIT` is explicit and is
+separate from the clean reviewed execution `HEAD`. Before creating a VPC, the
+operator fetches the supplied dataset and bundle completion-manifest S3
+VersionIds, hashes those exact bytes, requires the app digest to equal the ECR
+digest tagged by the runtime commit, resolves all nine infra digests, and binds
+an allowlisted operator-tree hash.
 
 `up` performs four ordered Terraform transitions (`network`, `probe-cleared`,
-`services`, `data-ready`). Between the last two transitions, `isolated-read`
-pauses the Debezium connector, requires an empty outbox/idle DB threads, and
-proves Kafka end offsets remain stable over the idle window. It then waits at
-most 15 minutes for the ASG refresh and all
-desired ALB targets, probes OCI with `--resolve` and AWS with `--connect-to` to
-preserve SNI, stages AWS at weight zero, and then switches weights. A failed
-public AWS smoke attempts OCI rollback. Every lab plan is inspected before
-apply and rejects any deletion carrying `Persistence=persistent`. `up` also
-refuses to replace an existing lab state; inspect it with `aws-status` and run
-`aws-down` before starting a different run. Unless `KEEP_ON_FAILURE=true`, a
-failed pre-cutover run records bounded failure and redacted Terraform-output
-evidence before destroying the lab-only state. `down` first restores and
-verifies OCI, repeatedly checks the public API for two TTL intervals (120
-seconds), removes the AWS alias, records the final non-sensitive Terraform
-outputs, destroys only the lab state, and checks tagged plus explicit
-EC2/RDS/ALB/EBS/EIP/ASG orphans. `FORCE=true` is rejected until two hours after
-the run expiry.
+`services`, `data-ready`). Qualification uses `integrated-smoke`, keeps
+Debezium RUNNING, waits at most 15 minutes for the ASG refresh and healthy ALB
+targets, then validates direct health/detail/search through `--connect-to`.
+Every run ID is globally single-use: the create-only operator manifest is
+published and read back before the first Terraform mutation. The data-bootstrap
+receipt is also create-only at both the host uploader and evidence-bucket policy,
+so a reused run cannot replace the database/search/cache/stream attestation.
+`measurements/<run>/direct-readiness.json` is create-only and read-back verified.
+It binds lineage, images, bundle, data-bootstrap object identity, actual
+AMI/RDS/ALB shape, the one attached ALB security group and its sole TCP/443
+ingress rule, live ASG min/desired/max capacity, the exact versioned
+network-clearance receipt and its SHA,
+OCI posture, smoke outcomes, timestamps, and a canonical comparison projection.
+The clearance receipt must match schema/run/VPC/probe and attest a terminated
+probe; its normalized semantic hash is retained by the comparison projection.
+That projection normalizes run/fence/snapshot source,
+runner `/32`, generated AWS coordinates and parameter-group names, and timing,
+while retaining fixed security, capacity, lineage, and outcome contracts.
 
-Before the first live run, apply the reviewed dataset-publisher foundation
-change, publish the full-commit images and bundle, download the matching
-immutable infrastructure image-release artifact, and publish a compatible V27
-dataset. The DNS delegation and ACM issuance are already complete. Protect the
-GitHub Environment `aws-performance-lab` and define
-`AWS_LAB_OPERATOR_ROLE_ARN`, `AWS_LAB_AMI_ID`,
-`OCI_ORIGIN_IPV4`, and `AWS_LAB_RDS_ENGINE_VERSION`. The workflow uses OIDC
+State is never deleted. A new run may reuse the fixed backend only if Terraform
+state is empty and `measurements/state-clean/<sha256(state-VersionId)>.json`
+binds that exact state VersionId/object SHA to OCI authority and a global
+zero-orphan scan. A genuinely absent initial state also requires a fresh global
+zero-orphan scan before the run manifest or first Terraform mutation. Reuse
+also loads the exact versioned teardown-start journal,
+checks its run/fence/DNS/state binding, and repeats the account-wide tagged and
+name-only Lab orphan scan. `down`
+writes `measurements/<run>/teardown-start.json` while the old run is
+still active, destroys it, requires empty state, rechecks OCI and explicit
+compute/network/load-balancing/RDS/IAM/SSM/secret/monitoring orphans plus the
+six exact private-zone service A records, then
+publishes the final state-addressed receipt. If final publication fails after
+destroy, rerun `aws-down RUN_ID=<old-run>` to revalidate and finalize without
+another apply or destroy. Long Terraform, DNS-controller, and remote mutation
+commands run in an owned process group. Heartbeat loss or the command deadline
+terminates that whole group before releasing the fence; cleanup never waits for
+a stale child to finish mutating AWS. If a killed Terraform process leaves the
+native S3 lock, the same lease preserves it. A later operator may run Terraform's
+ID-checking `force-unlock` only after a new DynamoDB lease proves the closed
+Terraform 1.15.5 LockInfo predates that lease and still matches the exact Lab
+backend. It also reads both exact Lab IAM roles, requires their live
+`MaxSessionDuration` to remain 18,000 seconds, binds the lock's S3-server
+`LastModified` and `VersionId`, and creates a create-only S3 clock receipt before
+requiring at least 18,300 seconds of AWS-authoritative elapsed time. The lock
+bytes and S3 identity must remain unchanged through the final pre-unlock read.
+Terraform inherits the operator's
+explicit `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` tuple;
+the environment credential provider treats that tuple as static and cannot
+refresh it after the parent dies. An already-assumed Lab session without all
+three explicit values is rejected before Terraform starts. The Lab
+backend/provider must not add a
+profile, credential process, web-identity source, or role-assumption path that
+would let a surviving child renew credentials. The operator never deletes
+`.tflock` directly. Automatic failure cleanup will not start destroy
+unless a fresh OCI observation and create-only/read-back teardown-start journal
+both succeed; otherwise it preserves the resources for explicit recovery.
+Failed OCI or orphan gates cannot mark state clean.
+
+Before the first live run, apply the reviewed exact-prefix Lab-role receipt
+policy delta and freeze the clean execution commit/tree receipt. Keep
+`dataset_snapshot_writer_release = null` as a later Terraform variable override;
+never apply a stale local tfvars value that reselects an already sealed native
+snapshot writer prefix. The immutable
+images, bundle, and final V27 search-enabled dataset are already published. The
+DNS delegation and ACM issuance are complete. Protect the distinct GitHub
+Environments `aws-performance-lab` and `aws-performance-lab-cutover`; their
+different OIDC subjects are part of the IAM boundary. Define
+`AWS_LAB_OPERATOR_ROLE_ARN` only in the direct environment and
+`AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN` only in the cutover environment, while
+copying the reviewed `AWS_LAB_AMI_ID`, `OCI_ORIGIN_IPV4`, and
+`AWS_LAB_RDS_ENGINE_VERSION` values to both. The workflow uses OIDC
 only, has a fixed concurrency group with in-progress cancellation disabled,
-and calls the same operator script. The dataset-publisher foundation delta,
-image and bundle publication, V27 dataset publication, and the operator's live
-AWS execution all remain pending.
+and calls the same operator script. The two live qualification runs remain
+pending. Stop after dump restore/promotion/teardown and snapshot
+replay/teardown evidence; do not start any performance experiment.
 
 The local packager binds every archive member's regular-file type and bytes to
 the named current `HEAD`. It also materializes the aggregate validator, its
@@ -241,9 +281,9 @@ trusted `PATH`/toolchain. The three files cannot appear atomically as one
 filesystem transaction, so consumers must treat the release manifest as the
 completion marker and verify its archive name, checksum, commit, and exact file
 list before using the archive. The SHA-256 protects integrity of the produced
-archive; it is not an authenticity signature. Remote upload is implemented
-with an immutable-key/manifest-last contract but has not been executed;
-repository/S3 runtime trust remains unproven. The fixed-corpus sensitive-key gate complements,
+archive; it is not an authenticity signature. The selected runtime bundle was
+uploaded with the immutable-key/manifest-last contract; consumers still verify
+its exact VersionId and content digest. The fixed-corpus sensitive-key gate complements,
 but does not replace, repository secret scanning and human review for
 benign-looking keys.
 
@@ -277,11 +317,28 @@ required.
 ## Application profile matrix
 
 ```text
-integrated-smoke: SPRING_PROFILES_ACTIVE=aws,performance-lab
-isolated-read:    SPRING_PROFILES_ACTIVE=aws,traffic-benchmark
+integrated-smoke: SPRING_PROFILES_ACTIVE=aws,performance-lab,test
+isolated-read:    SPRING_PROFILES_ACTIVE=aws,traffic-benchmark + SPRING_PROFILES_INCLUDE=read-model-benchmark
 ```
 
-`integrated-smoke` retains the application's other internal schedulers and Kafka flow while blocking external Toss, Google, Slack, and ordinary S3 write side effects. The `performance-lab` profile hard-codes reservation inventory startup, rolling seed, and retention to disabled. The immutable lab manifest therefore keeps `accommodation_inventory_day=0` even for the 730,702-accommodation dataset instead of generating tens of millions of date rows. Reservation availability, quote, and checkout calls intentionally fail closed with HTTP 503 / `R026`; this profile is not a reservation-mutation target.
+The additional `test` profile in `integrated-smoke` is a narrowly audited safety guard for the
+fixed immutable application image: among that image's main classes it excludes only
+`SchedulingConfig`. The integrated-smoke environment explicitly overrides the test resource's
+Kafka defaults and requires all four listener controls to be `true`, so Kafka infrastructure and
+consumers remain enabled while scheduled writers cannot change the restored dataset before RDS
+snapshot promotion. Runtime validation requires this exact profile set; a different image digest
+must re-audit the profile meaning before reuse.
+
+`integrated-smoke` retains the application's Kafka flow while suppressing its `@Scheduled` writers
+and blocking external Toss, Google, Slack, and ordinary S3 write side effects. The
+`performance-lab` profile
+hard-codes reservation inventory startup, rolling seed, and retention to disabled. The immutable
+lab manifest therefore keeps `accommodation_inventory_day=0` for the 200,201-accommodation
+dataset instead of generating date rows. Reservation availability, quote, and
+checkout calls intentionally fail closed with HTTP 503 / `R026`; this profile is not a
+reservation-mutation target. The promoted snapshot is accepted only if snapshot-mode bootstrap
+recomputes the same MySQL rows and fingerprints, so any unexpected scheduler write fails the second
+qualification instead of being treated as repeatable data.
 
 `isolated-read` adds the general scheduler and Kafka listener isolation policy, then includes only
 `read-model-benchmark`; it does not activate `performance-lab`. The start contract therefore sets

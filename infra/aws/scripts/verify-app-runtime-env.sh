@@ -22,7 +22,7 @@ allowlist_file="$script_dir/../bundles/app/required-runtime-env.txt"
 
 case "$policy" in
   integrated-smoke)
-    required_profile='aws,performance-lab'
+    required_profile='aws,performance-lab,test'
     ;;
   isolated-read)
     required_profile='aws,traffic-benchmark'

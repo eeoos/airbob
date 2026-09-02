@@ -40,10 +40,12 @@ mock_provider "aws" {
 }
 
 variables {
-  run_id        = "phase2-test"
-  expires_at    = "1893456000"
-  fencing_token = 42
-  ami_id        = "ami-0123456789abcdef0"
+  run_id           = "lab-phase2-test"
+  expires_at       = "1893456000"
+  fencing_token    = 42
+  ami_id           = "ami-0123456789abcdef0"
+  dns_mode         = "direct-only"
+  alb_ingress_cidr = "8.8.8.8/32"
 }
 
 run "network_creates_probe_without_services" {
@@ -51,6 +53,8 @@ run "network_creates_probe_without_services" {
 
   assert {
     condition = (
+      terraform_data.run_identity.input.run_id == "lab-phase2-test" &&
+      terraform_data.run_identity.input.resource_fencing_token == 42 &&
       output.phase2_contract.deployment_phase == "network" &&
       output.phase2_contract.probe_enabled &&
       length(output.phase2_contract.services) == 0 &&
@@ -61,7 +65,11 @@ run "network_creates_probe_without_services" {
       output.phase2_contract.instance_types.kafka == "t3.medium" &&
       output.phase2_contract.instance_types.debezium == "t3.medium" &&
       output.phase2_contract.instance_types.elasticsearch == "t3.medium" &&
-      output.phase2_contract.instance_types.monitoring == "t3.small"
+      output.phase2_contract.instance_types.monitoring == "t3.small" &&
+      alltrue([
+        for role in values(aws_iam_role.host) :
+        role.permissions_boundary == "arn:aws:iam::942632789808:policy/airbob-performance-lab-host-boundary"
+      ])
     )
     error_message = "The network phase must create only the disposable probe and fixed Phase 2 topology contract."
   }
@@ -189,7 +197,7 @@ run "services_require_both_receipts_and_immutable_release" {
     target          = module.rds[0].aws_db_instance.this
     override_during = plan
     values = {
-      address     = "airbob-phase2-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
+      address     = "airbob-lab-phase2-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
       resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
       master_user_secret = [{
         kms_key_id    = "arn:aws:kms:ap-northeast-2:942632789808:key/11111111-2222-3333-4444-555555555555"
@@ -203,7 +211,7 @@ run "services_require_both_receipts_and_immutable_release" {
     target          = aws_secretsmanager_secret.debezium[0]
     override_during = plan
     values = {
-      arn = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:airbob/phase2-test/debezium"
+      arn = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:airbob/lab-phase2-test/debezium"
     }
   }
 
@@ -229,7 +237,7 @@ run "services_require_both_receipts_and_immutable_release" {
     values = {
       body = jsonencode({
         schemaVersion       = 1
-        runId               = "phase2-test"
+        runId               = "lab-phase2-test"
         vpcId               = "vpc-0123456789abcdef0"
         primaryRouteTableId = "rtb-0123456789abcdef0"
         probeInstanceId     = "i-0123456789abcdef0"
@@ -249,7 +257,7 @@ run "services_require_both_receipts_and_immutable_release" {
     values = {
       body = jsonencode({
         schemaVersion   = 1
-        runId           = "phase2-test"
+        runId           = "lab-phase2-test"
         vpcId           = "vpc-0123456789abcdef0"
         probeInstanceId = "i-0123456789abcdef0"
         instanceState   = "terminated"
@@ -303,6 +311,29 @@ run "services_require_both_receipts_and_immutable_release" {
       !output.phase2_contract.probe_enabled &&
       length(aws_iam_role_policy.data_plane) == 5 &&
       length(output.phase2_contract.services) == 5 &&
+      alltrue([
+        for role in values(aws_iam_role.host) :
+        role.permissions_boundary == "arn:aws:iam::942632789808:policy/airbob-performance-lab-host-boundary"
+      ]) &&
+      alltrue([
+        for policy in values(aws_iam_role_policy.data_plane) :
+        toset(one([
+          for statement in jsondecode(policy.policy).Statement : statement
+          if statement.Sid == "WritePhase2Evidence"
+        ]).Action) == toset(["s3:PutObject", "s3:PutObjectTagging"]) &&
+        one([
+          for statement in jsondecode(policy.policy).Statement : statement
+          if statement.Sid == "WritePhase2Evidence"
+        ]).Condition.StringEquals["s3:RequestObjectTag/Retention"] == "summary"
+      ]) &&
+      toset(one([
+        for statement in jsondecode(aws_iam_role_policy.data_bootstrap[0].policy).Statement : statement
+        if statement.Sid == "WriteDataBootstrapReceipt"
+      ]).Action) == toset(["s3:PutObject", "s3:PutObjectTagging"]) &&
+      one([
+        for statement in jsondecode(aws_iam_role_policy.data_bootstrap[0].policy).Statement : statement
+        if statement.Sid == "WriteDataBootstrapReceipt"
+      ]).Condition.StringEquals["s3:RequestObjectTag/Retention"] == "summary" &&
       output.phase2_contract.redis_topology.general == "redis-general.lab.airbob.internal:6379" &&
       output.phase2_contract.redis_topology.cache == "redis-cache.lab.airbob.internal:6380" &&
       output.phase2_contract.private_dns_zone_id == "Z0987654321PRIVATE"

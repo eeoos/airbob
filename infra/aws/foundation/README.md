@@ -166,9 +166,19 @@ The foundation deliberately does not own the weighted OCI/AWS
 does not include either record or the hosted zone in its Terraform destroy
 graph. Route 53 IAM can restrict writes to the API A name/type/actions but
 cannot distinguish the OCI and AWS weighted set identifiers or values. The
-general lab role therefore has read-only DNS access and no direct
-`ChangeResourceRecordSets` permission. Before any live DNS mutation, a later
-lease-held controller must receive a separate narrow role and verify both
+default `airbob-lab-operator` is therefore direct-only: it can read the public
+zone, mutate the six private Lab service records, and write only the Lab state.
+It cannot write the DNS state or assume the public DNS controller. The separate
+`airbob-lab-cutover-operator` uses the distinct protected
+`aws-performance-lab-cutover` OIDC subject (while retaining the same reviewed
+MFA-local principals) and the same five Lab policies, plus one exact inline extension for the DNS state key,
+its lock file, and session-tagged assumption of `airbob-dns-controller`.
+Both Lab roles keep `MaxSessionDuration = 18000`; their shared base policy may
+read IAM definitions for the global Lab orphan scan, while stale-lock recovery
+queries only those two exact role names. Recovery binds the lock and its
+create-only clock receipt to S3-server timestamps and waits out that maximum
+plus the safety margin before invoking Terraform's own `force-unlock`.
+Before any live DNS mutation, that lease-held controller must verify both
 weighted records, the fencing token, and OCI health before and after every
 change, including rollback. Its tests must prove `down` leaves OCI at weight
 100.
@@ -198,11 +208,12 @@ artifacts at or above the 5 GiB single-request limit before upload. An
 unconditioned, evidence-bucket-only abort permission exists solely to clean up
 an accidentally initiated multipart upload.
 
-The lab operator's effective permissions are attached as five
-customer-managed policies. Each document stays within the 6,144-character
-managed-policy quota and the role remains below the default ten-policy
-attachment quota. Do not collapse them into inline policies: their aggregate
-size exceeds the 10,240-character per-role inline-policy quota.
+Both Lab operator roles receive the same five customer-managed policies. Each
+document stays within the 6,144-character managed-policy quota and each role
+remains below the default ten-policy attachment quota. Only the cutover role
+receives the small inline public-DNS extension. Do not collapse the five shared
+policies into inline policies: their aggregate size exceeds the 10,240-character
+per-role inline-policy quota.
 
 ## Expiry observer is alert-only
 

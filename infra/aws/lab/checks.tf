@@ -276,9 +276,15 @@ locals {
     data.aws_db_snapshot.dataset[0].engine_version == var.rds_engine_version &&
     data.aws_db_snapshot.dataset[0].encrypted &&
     data.aws_db_snapshot.dataset[0].allocated_storage >= local.dataset_dump_storage_gib &&
-    can(regex("^[a-z0-9][a-z0-9-]{2,31}$", data.aws_db_snapshot.dataset[0].tags.SourceLabRunId)) &&
-    can(regex("^db-[A-Z0-9]{24}$", data.aws_db_snapshot.dataset[0].tags.SourceRdsResourceId)) &&
-    data.aws_db_snapshot.dataset[0].tags.PromotionReceiptSchemaVersion == "1" &&
+    data.aws_db_snapshot.dataset[0].tags.SourceLabRunId == var.rds_snapshot_source_run_id &&
+    data.aws_db_snapshot.dataset[0].tags.SourceRdsResourceId == var.rds_snapshot_source_resource_id &&
+    data.aws_db_snapshot.dataset[0].tags.PromotionReceiptSchemaVersion == "2" &&
+    data.aws_db_snapshot.dataset[0].tags.DataBootstrapKey == "data-bootstrap/${var.rds_snapshot_source_run_id}/${var.dataset_release}.json" &&
+    can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DataBootstrapVersionIdSha256)) &&
+    can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DataBootstrapSha256)) &&
+    data.aws_db_snapshot.dataset[0].tags.DirectReadinessKey == "measurements/${var.rds_snapshot_source_run_id}/direct-readiness.json" &&
+    can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DirectReadinessVersionIdSha256)) &&
+    can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DirectReadinessSha256)) &&
     data.aws_db_snapshot.dataset[0].tags.Project == "airbob" &&
     data.aws_db_snapshot.dataset[0].tags.Environment == "performance-lab" &&
     data.aws_db_snapshot.dataset[0].tags.Stack == "dataset" &&

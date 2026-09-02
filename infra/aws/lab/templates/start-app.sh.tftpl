@@ -46,7 +46,7 @@ runtime_revision=$(contract_value AIRBOB_RUNTIME_REVISION)
 
 case "$policy" in
   integrated-smoke)
-    spring_profiles='aws,performance-lab'
+    spring_profiles='aws,performance-lab,test'
     listener_auto_startup=true
     ;;
   isolated-read)

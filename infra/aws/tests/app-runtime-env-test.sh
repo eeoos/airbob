@@ -116,7 +116,7 @@ expect_failure() {
   fi
 }
 
-write_valid_env 'aws,performance-lab' "$valid_env"
+write_valid_env 'aws,performance-lab,test' "$valid_env"
 expect_success 'integrated-smoke runtime env with cache disabled' "$valid_env" integrated-smoke
 
 integrated_cache_enabled_env="$temp_dir/integrated-cache-enabled.env"
@@ -130,6 +130,13 @@ expect_success 'isolated-read runtime env with cache disabled' "$isolated_env" i
 isolated_cache_enabled_env="$temp_dir/isolated-cache-enabled.env"
 replace_key ACCOMMODATION_DETAIL_CACHE_ENABLED true "$isolated_env" "$isolated_cache_enabled_env"
 expect_success 'isolated-read runtime env with cache enabled' "$isolated_cache_enabled_env" isolated-read
+
+scheduler_enabled_integrated_env="$temp_dir/scheduler-enabled-integrated.env"
+write_valid_env 'aws,performance-lab' "$scheduler_enabled_integrated_env"
+expect_failure \
+  'integrated-smoke runtime env without the scheduler guard profile' \
+  "$scheduler_enabled_integrated_env" \
+  integrated-smoke
 expect_failure 'integrated profile under isolated-read policy' "$valid_env" isolated-read
 expect_failure 'isolated profile under integrated-smoke policy' "$isolated_env" integrated-smoke
 expect_failure 'unknown policy' "$valid_env" unknown-policy

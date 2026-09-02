@@ -26,11 +26,11 @@ variable "run_id" {
 
   validation {
     condition = (
-      can(regex("^[a-z0-9][a-z0-9-]{2,31}$", var.run_id)) &&
+      can(regex("^lab-[a-z0-9][a-z0-9-]{0,27}$", var.run_id)) &&
       !endswith(var.run_id, "-") &&
       !strcontains(var.run_id, "--")
     )
-    error_message = "run_id must be 3-32 lower-case letters, digits, or hyphens, start and end with an alphanumeric character, and contain no consecutive hyphens."
+    error_message = "run_id must start with lab-, contain 5-32 lower-case letters, digits, or hyphens, end with an alphanumeric character, and contain no consecutive hyphens."
   }
 }
 
@@ -62,6 +62,79 @@ variable "deployment_phase" {
   validation {
     condition     = contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)
     error_message = "deployment_phase must be network, probe-cleared, services, or data-ready."
+  }
+}
+
+variable "dns_mode" {
+  description = "Explicit public-origin posture: direct-only leaves Route 53 on OCI, while cutover enables the existing DNS workflow."
+  type        = string
+
+  validation {
+    condition     = contains(["direct-only", "cutover"], var.dns_mode)
+    error_message = "dns_mode must be direct-only or cutover."
+  }
+}
+
+variable "alb_ingress_cidr" {
+  description = "HTTPS source CIDR: one canonical public IPv4 /32 in direct-only mode, or exactly 0.0.0.0/0 in cutover mode."
+  type        = string
+
+  validation {
+    condition = (
+      var.dns_mode == "cutover"
+      ? var.alb_ingress_cidr == "0.0.0.0/0"
+      : try(
+        can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}/32$", var.alb_ingress_cidr)) &&
+        var.alb_ingress_cidr == "${cidrhost(var.alb_ingress_cidr, 0)}/32" &&
+        tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) >= 1 &&
+        tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) <= 223 &&
+        !contains([10, 127], tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0])) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 100 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) >= 64 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) <= 127
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 169 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) == 254
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 172 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) >= 16 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) <= 31
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 192 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) == 168
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 192 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) == 0 &&
+          contains([0, 2], tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[2]))
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 192 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) == 88 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[2]) == 99
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 198 &&
+          contains([18, 19], tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]))
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 198 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) == 51 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[2]) == 100
+        ) &&
+        !(
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[0]) == 203 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[1]) == 0 &&
+          tonumber(split(".", split("/", var.alb_ingress_cidr)[0])[2]) == 113
+        ),
+        false,
+      )
+    )
+    error_message = "direct-only requires one canonical public IPv4 /32; cutover requires exactly 0.0.0.0/0."
   }
 }
 
@@ -257,14 +330,45 @@ variable "rds_snapshot_identifier" {
 
   validation {
     condition = (
-      var.database_bootstrap != "snapshot" ||
-      (
+      var.database_bootstrap == "snapshot" ? (
         can(regex("^airbob-dataset-[a-z0-9][a-z0-9-]{2,47}$", var.rds_snapshot_identifier)) &&
         !endswith(var.rds_snapshot_identifier, "-") &&
         !strcontains(var.rds_snapshot_identifier, "--")
-      )
+      ) : var.rds_snapshot_identifier == ""
     )
-    error_message = "snapshot bootstrap requires a valid airbob-dataset-* RDS snapshot identifier without trailing or consecutive hyphens."
+    error_message = "snapshot bootstrap requires a valid airbob-dataset-* RDS snapshot identifier without trailing or consecutive hyphens; every other bootstrap mode requires it to be empty."
+  }
+}
+
+variable "rds_snapshot_source_run_id" {
+  description = "Exact canonical Lab run ID recorded on the promoted RDS snapshot used for snapshot bootstrap."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.database_bootstrap == "snapshot" ? (
+        can(regex("^lab-[a-z0-9][a-z0-9-]{0,27}$", var.rds_snapshot_source_run_id)) &&
+        !endswith(var.rds_snapshot_source_run_id, "-") &&
+        !strcontains(var.rds_snapshot_source_run_id, "--")
+      ) : var.rds_snapshot_source_run_id == ""
+    )
+    error_message = "snapshot bootstrap requires the canonical lab-* source run ID; every other bootstrap mode requires it to be empty."
+  }
+}
+
+variable "rds_snapshot_source_resource_id" {
+  description = "Exact immutable RDS resource ID recorded on the promoted snapshot used for snapshot bootstrap."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.database_bootstrap == "snapshot"
+      ? can(regex("^db-[A-Z0-9]{24}$", var.rds_snapshot_source_resource_id))
+      : var.rds_snapshot_source_resource_id == ""
+    )
+    error_message = "snapshot bootstrap requires the exact db-* source RDS resource ID; every other bootstrap mode requires it to be empty."
   }
 }
 
