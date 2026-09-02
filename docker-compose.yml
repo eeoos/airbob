@@ -113,7 +113,7 @@ services:
       DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
       DEBEZIUM_DATABASE_PASSWORD: ${DEBEZIUM_DATABASE_PASSWORD:-dbz}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/"]
       interval: 30s
       timeout: 10s
       retries: 5

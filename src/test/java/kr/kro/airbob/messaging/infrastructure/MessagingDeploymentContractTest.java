@@ -173,6 +173,16 @@ class MessagingDeploymentContractTest {
 	}
 
 	@Test
+	@DisplayName("로컬 Debezium healthcheck는 runtime 이미지에 포함된 HTTP 도구를 사용한다")
+	void usesAvailableDebeziumHealthcheckTool() throws IOException {
+		String debezium = serviceBlock(read("docker-compose.yml"), "debezium");
+
+		assertThat(debezium)
+			.contains("test: [\"CMD\", \"wget\", \"-q\", \"--spider\", \"http://localhost:8083/\"]")
+			.doesNotContain("test: [\"CMD\", \"curl\"");
+	}
+
+	@Test
 	@DisplayName("애플리케이션은 하나의 bootstrap 주소와 canonical String payload serializer를 사용한다")
 	void normalizesKafkaClientProperties() throws IOException {
 		String application = read("src/main/resources/application.yaml");
