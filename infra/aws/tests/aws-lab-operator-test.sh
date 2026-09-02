@@ -16,6 +16,7 @@ expiry_cleanup="$repo_root/infra/aws/scripts/cleanup-expired-lab.sh"
 policy_verifier="$repo_root/infra/aws/scripts/enforce-measurement-policy.sh"
 comparison_projection_filter="$repo_root/infra/aws/scripts/readiness-comparison-projection.jq"
 workflow="$repo_root/.github/workflows/aws-performance-lab.yml"
+toolchain_contract="$repo_root/infra/aws/toolchain.env"
 ssm_contract="$repo_root/infra/aws/lab/ssm.tf"
 run_identity_contract="$repo_root/infra/aws/lab/run-identity.tf"
 foundation_iam="$repo_root/infra/aws/foundation/iam.tf"
@@ -47,6 +48,8 @@ for executable in "$operator" "$lease_script" "$orphan_scanner" "$expiry_cleanup
   [[ -x "$executable" && ! -L "$executable" ]] || fail "$executable is missing or unsafe"
 done
 [[ -f "$workflow" && ! -L "$workflow" ]] || fail "AWS lab workflow is missing or unsafe"
+[[ -f "$toolchain_contract" && ! -L "$toolchain_contract" ]] \
+  || fail "AWS toolchain contract is missing or unsafe"
 [[ -f "$makefile" && ! -L "$makefile" ]] || fail "root Makefile is missing or unsafe"
 for contract_file in "$ssm_contract" "$run_identity_contract" "$foundation_iam"; do
   [[ -f "$contract_file" && ! -L "$contract_file" ]] || fail "$contract_file is missing or unsafe"
@@ -228,6 +231,24 @@ assert_contains "$workflow" 'cancel-in-progress: false'
 assert_contains "$workflow" 'id-token: write'
 assert_contains "$workflow" "environment: \${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}"
 assert_contains "$workflow" 'aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502'
+assert_contains "$toolchain_contract" 'AIRBOB_AWS_CLI_VERSION=2.34.64'
+assert_contains "$toolchain_contract" 'AIRBOB_AWS_CLI_LINUX_X86_64_SHA256=ae97157f36526c36673fbc71756a921d9ff238542cba9c88f6568cd80e88d1d4'
+assert_contains "$workflow" '- name: Install pinned AWS CLI'
+assert_contains "$workflow" 'source infra/aws/toolchain.env'
+assert_contains "$workflow" 'awscli-exe-linux-x86_64-${AIRBOB_AWS_CLI_VERSION}.zip'
+assert_contains "$workflow" '"$AIRBOB_AWS_CLI_LINUX_X86_64_SHA256"'
+assert_contains "$workflow" 'sha256sum --check --status'
+assert_contains "$workflow" '"$aws_cli_bin/aws" --version'
+assert_contains "$workflow" '== "$AIRBOB_AWS_CLI_VERSION"'
+assert_contains "$workflow" '"$GITHUB_PATH"'
+assert_contains "$workflow" '[[ "$(command -v aws)" == "$RUNNER_TEMP/aws-cli-bin/aws" ]]'
+aws_cli_install_line=$(grep -nF -- '- name: Install pinned AWS CLI' "$workflow" | cut -d: -f1)
+credential_line=$(grep -nF -- '- name: Configure short-lived AWS credentials' "$workflow" | cut -d: -f1)
+operator_line=$(grep -nF -- '- name: Run shared lab operator' "$workflow" | cut -d: -f1)
+[[ "$aws_cli_install_line" =~ ^[0-9]+$ && "$credential_line" =~ ^[0-9]+$ && "$operator_line" =~ ^[0-9]+$ ]] \
+  || fail "AWS CLI install, credential, or operator workflow step is ambiguous"
+((aws_cli_install_line < credential_line && credential_line < operator_line)) \
+  || fail "pinned AWS CLI must be installed before credentials and operator execution"
 assert_contains "$workflow" 'infra/aws/scripts/aws-lab.sh'
 assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
