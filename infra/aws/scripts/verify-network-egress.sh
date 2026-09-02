@@ -61,6 +61,8 @@ put_receipt() {
     --key "$key" \
     --body "$body" \
     --tagging Retention=summary \
+    --content-type application/json \
+    --server-side-encryption AES256 \
     --no-cli-pager >/dev/null
 }
 

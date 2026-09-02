@@ -193,6 +193,10 @@ jq -e '.schemaVersion == 1 and .s3Gateway == "verified" and .ecrApi == "verified
   || fail "egress receipt does not attest every required path"
 grep -Fq 'ec2 create-tags' "$temp_dir/aws-calls.log" || fail "verified probe was not tagged"
 grep -Fq 'ssm send-command' "$temp_dir/aws-calls.log" || fail "active SSM egress command was not sent"
+grep -Fq -- '--content-type application/json' "$temp_dir/aws-calls.log" \
+  || fail "egress receipt was not published as human-readable JSON"
+grep -Fq -- '--server-side-encryption AES256' "$temp_dir/aws-calls.log" \
+  || fail "egress receipt did not request AES256 encryption"
 
 : > "$temp_dir/aws-calls.log"
 ssm_registration_state="$temp_dir/ssm-registration"
@@ -387,6 +391,7 @@ fi
 [[ "$(tr '\n' ' ' < "$temp_dir/sleep-calls.log")" == '10 5 ' ]] \
   || fail "shared deadline test did not spend one bounded budget across both readiness phases"
 
+: > "$temp_dir/aws-calls.log"
 cleared_output=$(run_verifier "$verifier" cleared \
   phase2-test \
   vpc-0123456789abcdef0 \
@@ -397,6 +402,10 @@ cleared_output=$(run_verifier "$verifier" cleared \
 jq -e '.schemaVersion == 1 and .instanceState == "terminated"' \
   "$receipt_dir/network-clearance/phase2-test/i-0123456789abcdef0.json" >/dev/null \
   || fail "probe clearance receipt is invalid"
+grep -Fq -- '--content-type application/json' "$temp_dir/aws-calls.log" \
+  || fail "probe clearance receipt was not published as human-readable JSON"
+grep -Fq -- '--server-side-encryption AES256' "$temp_dir/aws-calls.log" \
+  || fail "probe clearance receipt did not request AES256 encryption"
 
 if run_verifier FAKE_ACCOUNT=111111111111 "$verifier" cleared \
   phase2-test vpc-0123456789abcdef0 i-0123456789abcdef0 \
