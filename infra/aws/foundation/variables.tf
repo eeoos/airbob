@@ -287,6 +287,24 @@ variable "dataset_snapshot_writer_release" {
   }
 }
 
+variable "approved_rds_snapshot_identifier" {
+  description = "The one promoted dataset-bound RDS snapshot the Lab operator may restore; empty revokes snapshot restore."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.approved_rds_snapshot_identifier == "" ||
+      (
+        can(regex("^airbob-dataset-[a-z0-9][a-z0-9-]{2,47}$", var.approved_rds_snapshot_identifier)) &&
+        !endswith(var.approved_rds_snapshot_identifier, "-") &&
+        !strcontains(var.approved_rds_snapshot_identifier, "--")
+      )
+    )
+    error_message = "approved_rds_snapshot_identifier must be empty or one canonical airbob-dataset-* snapshot identifier."
+  }
+}
+
 variable "local_principal_requires_mfa" {
   description = "Whether foundation and lab local STS AssumeRole calls must present MFA. The dataset publisher always requires MFA."
   type        = bool

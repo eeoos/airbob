@@ -1254,10 +1254,52 @@ apply_lab() {
     ] | length == 0
   ' "$plan_json" >/dev/null \
     || fail "persistent resource deletion is outside the lab-state boundary"
+  jq -e '
+    all(
+      .resource_changes[]? |
+      select(.type == "aws_autoscaling_group" and .change.after != null);
+      ((.change.after.mixed_instances_policy? // []) | length) == 0 and
+      ((.change.after.launch_template? // []) | length) == 1 and
+      .change.after.max_size <= 4
+    )
+  ' "$plan_json" >/dev/null \
+    || fail "Lab plans must use one bounded launch template and no mixed-instance override"
   assert_lease
   run_supervised_mutation "Terraform lab apply" \
     terraform -chdir="$lab_root" apply -input=false -lock-timeout=5m \
     -auto-approve "$plan_file" >/dev/null || return 1
+}
+
+clear_lab_instance_shutdown_protection() {
+  local instance_ids instance_id
+  assert_lease
+  instance_ids=$(aws ec2 describe-instances \
+    --filters \
+      Name=tag:Project,Values=airbob \
+      Name=tag:Environment,Values=performance-lab \
+      Name=tag:Stack,Values=lab \
+      Name=tag:ManagedBy,Values=terraform \
+      Name=tag:Persistence,Values=ephemeral \
+      Name=tag-key,Values=ExpiresAt \
+      Name=tag:RunId,Values="$run_id" \
+      Name=tag:FencingToken,Values="$resource_fencing_token" \
+      Name=instance-state-name,Values=pending,running,stopping,stopped \
+    --query 'Reservations[].Instances[].InstanceId' --output text \
+    --region "$AWS_REGION" --no-cli-pager) \
+    || fail "cannot inventory Lab instances before clearing shutdown protection"
+  if [[ -n "$instance_ids" && "$instance_ids" != None ]]; then
+    for instance_id in $instance_ids; do
+      [[ "$instance_id" =~ ^i-[0-9a-f]{8,17}$ ]] \
+        || fail "shutdown-protection inventory returned an invalid instance ID"
+      assert_lease
+      aws ec2 modify-instance-attribute --instance-id "$instance_id" \
+        --disable-api-termination Value=false --region "$AWS_REGION" --no-cli-pager \
+        || fail "cannot clear Lab instance termination protection"
+      aws ec2 modify-instance-attribute --instance-id "$instance_id" \
+        --disable-api-stop Value=false --region "$AWS_REGION" --no-cli-pager \
+        || fail "cannot clear Lab instance stop protection"
+    done
+  fi
 }
 
 destroy_lab() {
@@ -1273,6 +1315,7 @@ destroy_lab() {
   assert_lease
   prepare_lab_backend
   recover_prior_terraform_lock
+  clear_lab_instance_shutdown_protection
   capture_terraform_state_inventory "$before_inventory"
   jq -e '
     [.[] | select(.address == "terraform_data.run_identity" and
@@ -1990,6 +2033,13 @@ case "$action" in
     fi
     [[ "$rds_engine_version" =~ ^8\.0\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"
     validate_snapshot_bootstrap_inputs
+    approved_rds_snapshot_identifier=$(jq -er '.approved_rds_snapshot_identifier // ""' <<<"$lab_contract") \
+      || fail "foundation lab contract has no approved RDS snapshot field"
+    if [[ "$database_bootstrap" == snapshot ]]; then
+      [[ -n "$approved_rds_snapshot_identifier" && \
+        "$rds_snapshot_identifier" == "$approved_rds_snapshot_identifier" ]] \
+        || fail "snapshot bootstrap requires the exact Foundation-approved RDS snapshot"
+    fi
     now_epoch=$(date +%s)
     expires_at=$((now_epoch + ttl_hours * 3600))
     run_id=${RUN_ID:-lab-$(date -u +%Y%m%d%H%M%S)-${GITHUB_RUN_ID:-local}}

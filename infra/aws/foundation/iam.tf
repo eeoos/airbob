@@ -28,11 +28,31 @@ locals {
     }
     compute_ec2_iam = {
       name     = "airbob-lab-operator-compute-ec2-iam"
-      document = local.lab_compute_ec2_iam_policy
+      document = local.lab_compute_ec2_core_policy
     }
     compute_ssm_dns = {
       name     = "airbob-lab-operator-compute-ssm-dns"
       document = local.lab_compute_ssm_dns_policy
+    }
+    safety_mutations = {
+      name     = "airbob-lab-operator-safety-mutations"
+      document = local.lab_safety_mutation_policy
+    }
+    network_core_create = {
+      name     = "airbob-lab-operator-network-core-create"
+      document = local.lab_network_core_create_policy
+    }
+    network_dependent_create = {
+      name     = "airbob-lab-operator-network-dependent-create"
+      document = local.lab_network_dependent_create_policy
+    }
+    run_instances = {
+      name     = "airbob-lab-operator-run-instances"
+      document = local.lab_run_instances_policy
+    }
+    rds_provision = {
+      name     = "airbob-lab-operator-rds-provision"
+      document = local.lab_rds_provision_policy
     }
     data_compute = {
       name     = "airbob-lab-operator-data-compute"
@@ -40,7 +60,7 @@ locals {
     }
     app_compute = {
       name     = "airbob-lab-operator-app-compute"
-      document = local.lab_app_compute_policy
+      document = local.lab_app_compute_core_policy
     }
   }
 
@@ -186,7 +206,7 @@ locals {
           "s3:GetBucket*",
           "s3:GetEncryptionConfiguration",
           "s3:GetLifecycleConfiguration",
-          "s3:GetObjectLockConfiguration",
+          "s3:GetBucketObjectLockConfiguration",
           "s3:GetReplicationConfiguration",
           "s3:ListBucket",
         ]
@@ -837,7 +857,7 @@ resource "aws_iam_policy" "lab_operator" {
 
     precondition {
       condition     = length(each.value.document) <= 6144
-      error_message = "Lab operator managed policy ${each.key} exceeds the AWS 6,144-character quota."
+      error_message = "Lab operator managed policy ${each.key} is ${length(each.value.document)} characters and exceeds the AWS 6,144-character quota."
     }
   }
 }
