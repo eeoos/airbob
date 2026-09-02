@@ -146,7 +146,8 @@ assert_contains "$operator" 'direct-only runs cannot switch DNS'
 assert_contains "$operator" 'verify_oci_authority'
 assert_contains "$operator" 'curl -4 --fail'
 assert_contains "$operator" '[.ResourceRecordSets[] | select(.Name == $fqdn)]'
-if grep -Fq -- '--starting-record-type A' "$operator"; then
+assert_contains "$operator" '--start-record-name api.airbob.cloud'
+if grep -Fq -- '--start-record-type A' "$operator"; then
   fail "OCI authority verification still reads only Route 53 A records"
 fi
 assert_contains "$operator" 'actual ALB ingress is not exactly TCP/443 from the requested IPv4 CIDR'
@@ -758,6 +759,8 @@ case " $* " in
     ;;
   *' ecr describe-images '*) ;;
   *' route53 list-resource-record-sets '*)
+    [[ " $* " == *' --start-record-name api.airbob.cloud '* ]] || exit 252
+    [[ " $* " != *' --starting-record-name '* ]] || exit 252
     oci_verify_count=0
     if [[ -n "${FAKE_OCI_COUNTER_FILE:-}" ]]; then
       [[ ! -f "$FAKE_OCI_COUNTER_FILE" ]] || oci_verify_count=$(cat "$FAKE_OCI_COUNTER_FILE")

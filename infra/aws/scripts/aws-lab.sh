@@ -1390,7 +1390,7 @@ verify_oci_authority() {
   dns_zone_id=$(jq -er '.zone_id' <<<"$dns_contract")
   exact_fqdn="$(jq -er '.api_fqdn' <<<"$dns_contract")."
   records=$(aws route53 list-resource-record-sets --hosted-zone-id "$dns_zone_id" \
-    --starting-record-name api.airbob.cloud \
+    --start-record-name api.airbob.cloud \
     --output json --region "$AWS_REGION" --no-cli-pager) \
     || fail "cannot read the public API DNS records"
   jq -e --arg fqdn "$exact_fqdn" --arg oci "$oci_origin_ipv4" '
