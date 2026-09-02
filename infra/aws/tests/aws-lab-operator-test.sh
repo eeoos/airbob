@@ -245,7 +245,7 @@ assert_contains "$workflow" 'group: aws-performance-lab'
 assert_contains "$workflow" 'cancel-in-progress: false'
 assert_contains "$workflow" 'id-token: write'
 assert_contains "$workflow" "environment: \${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}"
-assert_contains "$workflow" 'aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502'
+assert_contains "$workflow" 'aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c'
 assert_contains "$toolchain_contract" 'AIRBOB_AWS_CLI_VERSION=2.34.64'
 assert_contains "$toolchain_contract" 'AIRBOB_AWS_CLI_LINUX_X86_64_SHA256=ae97157f36526c36673fbc71756a921d9ff238542cba9c88f6568cd80e88d1d4'
 assert_contains "$workflow" '- name: Install pinned AWS CLI'
