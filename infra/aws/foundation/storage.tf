@@ -162,8 +162,11 @@ resource "aws_s3_bucket_policy" "managed" {
           Action    = "s3:PutObject"
           Resource  = local.create_only_evidence_resources
           Condition = {
-            StringNotEquals = {
-              "s3:if-none-match" = "*"
+            Null = {
+              "s3:if-none-match" = "true"
+            }
+            Bool = {
+              "s3:ObjectCreationOperation" = "true"
             }
           }
         },
@@ -171,11 +174,16 @@ resource "aws_s3_bucket_policy" "managed" {
           Sid       = "DenyPostCreationAuthoritativeEvidenceTagging"
           Effect    = "Deny"
           Principal = "*"
-          Action    = "s3:PutObjectTagging"
-          Resource  = local.create_only_evidence_resources
+          Action = [
+            "s3:DeleteObjectTagging",
+            "s3:DeleteObjectVersionTagging",
+            "s3:PutObjectTagging",
+            "s3:PutObjectVersionTagging",
+          ]
+          Resource = local.create_only_evidence_resources
           Condition = {
-            BoolIfExists = {
-              "s3:ObjectCreationOperation" = "false"
+            StringEquals = {
+              "s3:ExistingObjectTag/Retention" = ["raw", "summary"]
             }
           }
         },

@@ -486,28 +486,6 @@ locals {
         ]
       },
       {
-        Sid      = "DenyMutableAuthoritativeEvidence"
-        Effect   = "Deny"
-        Action   = "s3:PutObject"
-        Resource = local.authoritative_evidence_resources
-        Condition = {
-          StringNotEquals = {
-            "s3:if-none-match" = "*"
-          }
-        }
-      },
-      {
-        Sid      = "DenyPostCreationAuthoritativeEvidenceTagging"
-        Effect   = "Deny"
-        Action   = "s3:PutObjectTagging"
-        Resource = local.authoritative_evidence_resources
-        Condition = {
-          BoolIfExists = {
-            "s3:ObjectCreationOperation" = "false"
-          }
-        }
-      },
-      {
         Sid      = "AbortEvidenceMultipartUpload"
         Effect   = "Allow"
         Action   = "s3:AbortMultipartUpload"
@@ -852,8 +830,15 @@ resource "aws_iam_policy" "lab_operator" {
   name   = each.value.name
   policy = each.value.document
 
+  depends_on = [aws_s3_bucket_policy.managed["evidence"]]
+
   lifecycle {
     prevent_destroy = true
+
+    precondition {
+      condition     = length(each.value.document) <= 6144
+      error_message = "Lab operator managed policy ${each.key} exceeds the AWS 6,144-character quota."
+    }
   }
 }
 
