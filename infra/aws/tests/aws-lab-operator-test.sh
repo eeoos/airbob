@@ -944,7 +944,11 @@ case " $* " in
       [[ ( "$state_phase" != active && ! -f "$data_retained_marker" ) || -f "$data_removed_marker" ]] \
         || printf '%s\n' 'data.aws_caller_identity.current'
       printf '%s\n' 'terraform_data.run_identity'
-      [[ "$state_phase" != active ]] || printf '%s\n' 'module.network.aws_vpc.this'
+      if [[ "$state_phase" == active ]]; then
+        printf '%s\n' 'module.network.aws_vpc.this'
+        [[ "${FAKE_STATE_LIST_DUPLICATE:-false}" != true ]] \
+          || printf '%s\n' 'module.network.aws_vpc.this'
+      fi
     fi
     ;;
   *' state rm '*)
@@ -995,11 +999,24 @@ case " $* " in
     else
       jq -nc --arg run_id "${FAKE_STATE_RUN_ID:-lab-partial-down}" \
         --argjson resource_fencing_token "${FAKE_STATE_FENCING_TOKEN:-41}" \
-        --argjson include_data "$( [[ -f "$data_removed_marker" ]] && printf false || printf true )" '
+        --argjson include_data "$( [[ -f "$data_removed_marker" ]] && printf false || printf true )" \
+        --arg object_scenario "${FAKE_STATE_OBJECT_SCENARIO:-current}" '
+          def current_vpc:
+            {address:"module.network.aws_vpc.this",mode:"managed",type:"aws_vpc",name:"this",values:{id:"vpc-0123456789abcdef0"}};
+          def deposed_vpc:
+            current_vpc + {deposed_key:"deadbeef",values:{id:"vpc-0fedcba9876543210"}};
+          def vpc_objects:
+            if $object_scenario == "current" then [current_vpc]
+            elif $object_scenario == "current-deposed" then [current_vpc, deposed_vpc]
+            elif $object_scenario == "deposed-only" then [deposed_vpc]
+            elif $object_scenario == "conflicting-identity" then
+              [current_vpc, (deposed_vpc + {type:"aws_subnet"})]
+            else error("unsupported fake state-object scenario")
+            end;
           {values:{root_module:{
             resources:((if $include_data then [{address:"data.aws_caller_identity.current",mode:"data",type:"aws_caller_identity",name:"current",values:{account_id:"942632789808"}}] else [] end) +
               [{address:"terraform_data.run_identity",mode:"managed",type:"terraform_data",name:"run_identity",values:{output:{run_id:$run_id,resource_fencing_token:$resource_fencing_token}}}]),
-            child_modules:[{address:"module.network",resources:[{address:"module.network.aws_vpc.this",mode:"managed",type:"aws_vpc",name:"this",values:{id:"vpc-0123456789abcdef0"}}]}]
+            child_modules:[{address:"module.network",resources:vpc_objects}]
           }}}'
     fi
     ;;
@@ -1009,6 +1026,14 @@ case " $* " in
         printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","change":{"actions":["delete"]}},{"address":"terraform_data.run_identity","mode":"managed","type":"terraform_data","name":"run_identity","change":{"actions":["delete"]}}]}'
       elif [[ "${FAKE_FIRST_PHASE_PERSISTENT_DELETE:-false}" == true ]]; then
         printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","change":{"actions":["delete"],"before":{"tags":{"Persistence":"persistent"}}}}]}'
+      elif [[ "${FAKE_DESTROY_CHANGE_SCENARIO:-current}" == current-deposed ]]; then
+        printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","change":{"actions":["delete"]}},{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","deposed":"deadbeef","change":{"actions":["delete"]}}]}'
+      elif [[ "${FAKE_DESTROY_CHANGE_SCENARIO:-current}" == deposed-only ]]; then
+        printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","deposed":"deadbeef","change":{"actions":["delete"]}}]}'
+      elif [[ "${FAKE_DESTROY_CHANGE_SCENARIO:-current}" == duplicate-deposed ]]; then
+        printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","deposed":"deadbeef","change":{"actions":["delete"]}},{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","deposed":"deadbeef","change":{"actions":["delete"]}}]}'
+      elif [[ "${FAKE_DESTROY_CHANGE_SCENARIO:-current}" == duplicate-current ]]; then
+        printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","change":{"actions":["delete"]}},{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","change":{"actions":["delete"]}}]}'
       else
         printf '%s\n' '{"resource_changes":[{"address":"module.network.aws_vpc.this","mode":"managed","type":"aws_vpc","name":"this","change":{"actions":["delete"]}}]}'
       fi
@@ -1016,6 +1041,8 @@ case " $* " in
       printf '%s\n' '{"resource_changes":[{"address":"terraform_data.run_identity","mode":"managed","type":"terraform_data","name":"run_identity","change":{"actions":["delete"]}}]}'
     elif [[ "${FAKE_PERSISTENT_DELETE:-false}" == true ]]; then
       printf '%s\n' '{"resource_changes":[{"change":{"actions":["delete"],"before":{"tags":{"Persistence":"persistent"}}}}]}'
+    elif [[ "${FAKE_NAT_REPLACEMENT:-false}" == true ]]; then
+      printf '%s\n' '{"resource_changes":[{"address":"module.nat.aws_instance.this","mode":"managed","type":"aws_instance","name":"this","change":{"actions":["delete","create"],"before":{"id":"i-0123456789abcdef0"},"after":{"id":null}}},{"address":"module.nat.aws_eip.this","mode":"managed","type":"aws_eip","name":"this","change":{"actions":["delete","create"],"before":{"id":"eipalloc-0123456789abcdef0"},"after":{"id":null}}}]}'
     else
       printf '%s\n' '{"resource_changes":[]}'
     fi
@@ -1240,6 +1267,7 @@ run_fake_up() {
     FAKE_IDENTITY_APPLY_FAILURE="${FAKE_IDENTITY_APPLY_FAILURE:-false}" \
     FAKE_RUN_IDENTITY_OUTPUT_MISSING="${FAKE_RUN_IDENTITY_OUTPUT_MISSING:-false}" \
     FAKE_PHASE2_OUTPUT_MISSING="${FAKE_PHASE2_OUTPUT_MISSING:-false}" \
+    FAKE_NAT_REPLACEMENT="${FAKE_NAT_REPLACEMENT:-false}" \
     FAKE_APP_TAGGED_DIGEST="${FAKE_APP_TAGGED_DIGEST:-}" \
     FAKE_DATABASE_BOOTSTRAP="${FAKE_DATABASE_BOOTSTRAP:-dump}" \
     FAKE_TIME_STEP_SECONDS="${FAKE_TIME_STEP_SECONDS:-}" \
@@ -2335,6 +2363,22 @@ FAKE_DATASET_MANIFEST="$temp_dir/dataset-manifest-search.json" \
 grep -Fq -- '--data-urlencode maxPrice=4383' "$temp_dir/operator-execution.log" \
   || fail "search smoke did not use the manifest-bound typed query"
 
+# Ordinary create/transition plans must never replace or delete the singleton
+# NAT data path. The explicit teardown path has its own separately inspected
+# destroy plan.
+: > "$temp_dir/operator-execution.log"
+if FAKE_NAT_REPLACEMENT=true run_fake_up lab-nat-replacement >/dev/null 2>&1; then
+  fail "ordinary Lab plan accepted a NAT instance/EIP replacement"
+fi
+grep -Eq '^terraform .* show -json .*lab.tfplan' "$temp_dir/operator-execution.log" \
+  || fail "NAT replacement fixture did not inspect the ordinary Lab plan"
+if grep -Eq '^terraform .* apply .*lab.tfplan' "$temp_dir/operator-execution.log"; then
+  fail "ordinary NAT replacement plan reached Terraform apply"
+fi
+if grep -Fq 'dns ' "$temp_dir/operator-execution.log"; then
+  fail "ordinary NAT replacement rejection reached DNS mutation"
+fi
+
 : > "$temp_dir/operator-execution.log"
 if env FAKE_PERSISTENT_DELETE=true \
   PATH="$temp_dir/operator-bin:$PATH" AWS_REGION=ap-northeast-2 \
@@ -2433,6 +2477,81 @@ jq -e '
   .teardownFinalize.key == "measurements/lab-partial-down/teardown-finalize.json" and
   (.teardownFinalize.versionId | type == "string" and length > 0)
 ' "$state_clean_store" >/dev/null || fail "clean-state receipt does not bind teardown finalize"
+
+# Terraform renders one values resource object per current/deposed instance,
+# while `state list` emits the resource address once. Cleanup must preserve
+# that address for an exact targeted destroy without treating replacement
+# history as a corrupt state inventory.
+for state_shape in current-deposed deposed-only; do
+  deposed_run="lab-state-${state_shape}"
+  jq --arg run "$deposed_run" '.runId=$run' "$temp_dir/run-manifest.json" \
+    > "$temp_dir/run-manifest.${state_shape}.json"
+  : > "$temp_dir/operator-execution.log"
+  FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.${state_shape}.json" \
+    FAKE_STATE_RUN_ID="$deposed_run" FAKE_STATE_VERSION_ID="state-version-${state_shape}" \
+    FAKE_STATE_OBJECT_SCENARIO="$state_shape" FAKE_DESTROY_CHANGE_SCENARIO="$state_shape" \
+    run_fake_down "$deposed_run" >/dev/null
+  grep -Eq '^terraform .* apply .*destroy-resources.tfplan' "$temp_dir/operator-execution.log" \
+    || fail "${state_shape} state did not reach the exact resource destroy apply"
+  grep -Fqx "orphans $deposed_run scope=global" "$temp_dir/operator-execution.log" \
+    || fail "${state_shape} state cleanup skipped the global orphan scan"
+done
+
+# Duplicate state objects are legitimate only when they describe the same
+# resource identity. A conflicting type at the same address must stop before
+# Terraform can plan or apply a destroy.
+jq '.runId="lab-state-conflicting-duplicate"' "$temp_dir/run-manifest.json" \
+  > "$temp_dir/run-manifest.conflicting-duplicate.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.conflicting-duplicate.json" \
+  FAKE_STATE_RUN_ID=lab-state-conflicting-duplicate \
+  FAKE_STATE_VERSION_ID=state-version-conflicting-duplicate \
+  FAKE_STATE_OBJECT_SCENARIO=conflicting-identity \
+  run_fake_down lab-state-conflicting-duplicate >/dev/null 2>&1; then
+  fail "cleanup accepted conflicting resource identities at one state address"
+fi
+if grep -Eq 'plan .*destroy-resources.tfplan|apply .*destroy-resources.tfplan' \
+  "$temp_dir/operator-execution.log"; then
+  fail "conflicting duplicate state objects reached a Terraform destroy mutation"
+fi
+
+# The state-list side is also a set contract. Repeated addresses from that
+# command are rejected before a destroy plan is trusted.
+jq '.runId="lab-state-list-duplicate"' "$temp_dir/run-manifest.json" \
+  > "$temp_dir/run-manifest.state-list-duplicate.json"
+: > "$temp_dir/operator-execution.log"
+if FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.state-list-duplicate.json" \
+  FAKE_STATE_RUN_ID=lab-state-list-duplicate \
+  FAKE_STATE_VERSION_ID=state-version-list-duplicate \
+  FAKE_STATE_LIST_DUPLICATE=true run_fake_down lab-state-list-duplicate >/dev/null 2>&1; then
+  fail "cleanup accepted duplicate addresses from Terraform state list"
+fi
+if grep -Eq 'plan .*destroy-resources.tfplan|apply .*destroy-resources.tfplan' \
+  "$temp_dir/operator-execution.log"; then
+  fail "duplicate Terraform state-list addresses reached a destroy mutation"
+fi
+
+# A destroy plan may repeat an address only for one optional current object
+# plus uniquely keyed deposed objects. Ambiguous duplicate current/deposed
+# records must be rejected before apply.
+for unsafe_plan_shape in duplicate-current duplicate-deposed; do
+  unsafe_run="lab-plan-${unsafe_plan_shape}"
+  jq --arg run "$unsafe_run" '.runId=$run' "$temp_dir/run-manifest.json" \
+    > "$temp_dir/run-manifest.${unsafe_plan_shape}.json"
+  : > "$temp_dir/operator-execution.log"
+  if FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.${unsafe_plan_shape}.json" \
+    FAKE_STATE_RUN_ID="$unsafe_run" FAKE_STATE_VERSION_ID="state-version-${unsafe_plan_shape}" \
+    FAKE_STATE_OBJECT_SCENARIO=current-deposed \
+    FAKE_DESTROY_CHANGE_SCENARIO="$unsafe_plan_shape" \
+    run_fake_down "$unsafe_run" >/dev/null 2>&1; then
+    fail "cleanup accepted an ambiguous ${unsafe_plan_shape} destroy plan"
+  fi
+  grep -Eq 'show -json .*destroy-resources.tfplan' "$temp_dir/operator-execution.log" \
+    || fail "${unsafe_plan_shape} fixture did not inspect the destroy plan JSON"
+  if grep -Eq 'apply .*destroy-resources.tfplan' "$temp_dir/operator-execution.log"; then
+    fail "ambiguous ${unsafe_plan_shape} destroy plan reached Terraform apply"
+  fi
+done
 
 # The first network apply may fail before phase2_contract exists. An explicit
 # RUN_ID must recover from the separately persisted terraform_data identity;

@@ -19,6 +19,14 @@ resource "aws_instance" "this" {
     cpu_credits = "unlimited"
   }
 
+  lifecycle {
+    # Associating the separately managed EIP makes DescribeInstances report a
+    # public address even though the subnet and launch request both disable
+    # automatic public IPv4 assignment. The provider then refreshes this
+    # ForceNew attribute to true between Lab phases and would replace the NAT.
+    ignore_changes = [associate_public_ip_address]
+  }
+
   root_block_device {
     encrypted             = true
     delete_on_termination = true
