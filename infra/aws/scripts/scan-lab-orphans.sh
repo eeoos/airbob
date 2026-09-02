@@ -79,20 +79,6 @@ tag_filters=(
   "Key=Persistence,Values=ephemeral"
 )
 [[ "$scan_scope" == global ]] || tag_filters+=("Key=RunId,Values=$run_id")
-if ! resources=$(aws resourcegroupstaggingapi get-resources \
-  --tag-filters "${tag_filters[@]}" \
-  --query 'ResourceTagMappingList[].ResourceARN' \
-  --output text \
-  --region "$AWS_REGION" \
-  --no-cli-pager); then
-  fail "cannot complete the tagged-resource orphan scan"
-fi
-
-if [[ -n "$resources" && "$resources" != None ]]; then
-  printf '%s\n' "orphaned ephemeral resources remain for RunId=$run_id" >&2
-  tr '\t' '\n' <<<"$resources" >&2
-  exit 1
-fi
 
 assert_empty() {
   local label=$1 result=$2
@@ -243,5 +229,83 @@ private_dns_orphans=$(jq -er '
   map(.Name) | join("\t")
 ' <<<"$private_dns_records") || fail "private-DNS orphan response is invalid"
 assert_empty private-DNS "$private_dns_orphans"
+
+# GetResources can retain entries after EC2 deletion. Treat only an exact
+# service-native NotFound (or the EC2 terminal instance state) as a tombstone;
+# unknown ARN families and every live resource remain fail-closed.
+ec2_resource_exists() {
+  local not_found_code=$1 response
+  shift
+  if response=$(aws "$@" 2>&1); then
+    return 0
+  fi
+  if [[ "$response" == *"($not_found_code)"* ]]; then
+    return 1
+  fi
+  [[ -z "$response" ]] || printf '%s\n' "$response" >&2
+  fail "cannot verify a tagged EC2 resource returned by the orphan scan"
+}
+
+tagged_resource_is_live() {
+  local resource_arn=$1 resource_id instance_state
+  resource_id=${resource_arn##*/}
+  case "$resource_arn" in
+    "arn:aws:ec2:$AWS_REGION:$account_id:instance/"i-*)
+      if instance_state=$(aws ec2 describe-instances --instance-ids "$resource_id" \
+        --query 'Reservations[0].Instances[0].State.Name' --output text \
+        --region "$AWS_REGION" --no-cli-pager 2>&1); then
+        case "$instance_state" in
+          terminated|None|'') return 1 ;;
+          pending|running|shutting-down|stopping|stopped) return 0 ;;
+          *) fail "tagged EC2 instance returned an unexpected state" ;;
+        esac
+      fi
+      [[ "$instance_state" == *'(InvalidInstanceID.NotFound)'* ]] && return 1
+      [[ -z "$instance_state" ]] || printf '%s\n' "$instance_state" >&2
+      fail "cannot verify a tagged EC2 instance returned by the orphan scan"
+      ;;
+    "arn:aws:ec2:$AWS_REGION:$account_id:volume/"vol-*)
+      ec2_resource_exists InvalidVolume.NotFound ec2 describe-volumes --volume-ids "$resource_id" \
+        --region "$AWS_REGION" --no-cli-pager
+      ;;
+    "arn:aws:ec2:$AWS_REGION:$account_id:subnet/"subnet-*)
+      ec2_resource_exists InvalidSubnetID.NotFound ec2 describe-subnets --subnet-ids "$resource_id" \
+        --region "$AWS_REGION" --no-cli-pager
+      ;;
+    "arn:aws:ec2:$AWS_REGION:$account_id:vpc-endpoint/"vpce-*)
+      ec2_resource_exists InvalidVpcEndpointId.NotFound ec2 describe-vpc-endpoints \
+        --vpc-endpoint-ids "$resource_id" --region "$AWS_REGION" --no-cli-pager
+      ;;
+    "arn:aws:ec2:$AWS_REGION:$account_id:security-group-rule/"sgr-*)
+      ec2_resource_exists InvalidSecurityGroupRuleId.NotFound ec2 describe-security-group-rules \
+        --security-group-rule-ids "$resource_id" --region "$AWS_REGION" --no-cli-pager
+      ;;
+    *) return 0 ;;
+  esac
+}
+
+if ! resources=$(aws resourcegroupstaggingapi get-resources \
+  --tag-filters "${tag_filters[@]}" \
+  --query 'ResourceTagMappingList[].ResourceARN' \
+  --output text \
+  --region "$AWS_REGION" \
+  --no-cli-pager); then
+  fail "cannot complete the tagged-resource orphan scan"
+fi
+
+live_tagged_resources=()
+if [[ -n "$resources" && "$resources" != None ]]; then
+  while IFS= read -r resource_arn; do
+    [[ -z "$resource_arn" ]] && continue
+    if tagged_resource_is_live "$resource_arn"; then
+      live_tagged_resources+=("$resource_arn")
+    fi
+  done < <(tr '\t' '\n' <<<"$resources")
+fi
+if ((${#live_tagged_resources[@]} > 0)); then
+  printf '%s\n' "orphaned ephemeral resources remain for RunId=$run_id" >&2
+  printf '%s\n' "${live_tagged_resources[@]}" >&2
+  exit 1
+fi
 
 printf 'orphan_scan=clean run_id=%s scope=%s\n' "$run_id" "$scan_scope"

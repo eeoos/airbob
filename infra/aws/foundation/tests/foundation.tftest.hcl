@@ -1466,6 +1466,22 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_run_instances_policy).Statement : statement
         if statement.Sid == "CreatePrimaryNetworkInterfaces"
       ])), "Condition")
+      && one([
+        for statement in jsondecode(local.lab_run_instances_policy).Statement : statement
+        if statement.Sid == "DisassociateAddressFromPrimaryEni"
+      ]).Action == "ec2:DisassociateAddress"
+      && one([
+        for statement in jsondecode(local.lab_run_instances_policy).Statement : statement
+        if statement.Sid == "DisassociateAddressFromPrimaryEni"
+      ]).Effect == "Allow"
+      && one([
+        for statement in jsondecode(local.lab_run_instances_policy).Statement : statement
+        if statement.Sid == "DisassociateAddressFromPrimaryEni"
+      ]).Resource == "arn:aws:ec2:ap-northeast-2:942632789808:network-interface/*"
+      && !contains(keys(one([
+        for statement in jsondecode(local.lab_run_instances_policy).Statement : statement
+        if statement.Sid == "DisassociateAddressFromPrimaryEni"
+      ])), "Condition")
       && alltrue([
         for policy in values(local.lab_operator_managed_policies) : alltrue([
           for statement in jsondecode(policy.document).Statement :
@@ -1482,7 +1498,7 @@ run "foundation_contract" {
         if statement.Sid == "MutateTaggedEc2Lab"
       ]).Action, "ec2:RunInstances")
     )
-    error_message = "RunInstances must be absent from wildcard statements and authorize only the reviewed AMI, tagged outputs, tagged network dependencies, and primary ENI resources."
+    error_message = "RunInstances must be absent from wildcard statements and authorize only the reviewed AMI, tagged outputs, tagged network dependencies, and primary ENI resources; EIP cleanup may additionally target the provider-created primary ENI."
   }
 
   assert {

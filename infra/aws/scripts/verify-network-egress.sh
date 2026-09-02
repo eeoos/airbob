@@ -103,7 +103,10 @@ case "$action" in
 
     remote_command=$(cat <<EOF
 set -euo pipefail
-test -f /var/lib/airbob/probe-ready
+if [[ ! -f /var/lib/airbob/probe-ready ]]; then
+  printf '%s\n' 'AIRBOB_PROBE_NOT_READY' >&2
+  exit 75
+fi
 aws --region '$AWS_REGION' s3api get-bucket-location --bucket '$evidence_bucket' >/dev/null
 probe_api() {
   code=\$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --connect-timeout 5 --max-time 15 "\$1")
@@ -116,16 +119,125 @@ printf '%s\n' 'AIRBOB_EGRESS_OK s3=verified ecr=verified ssm=verified secretsman
 EOF
 )
     parameters=$(jq -nc --arg command "$remote_command" '{commands: [$command]}')
-    command_id=$(aws ssm send-command \
-      --instance-ids "$probe_instance_id" \
-      --document-name AWS-RunShellScript \
-      --comment "Airbob Phase 2 egress verification" \
-      --parameters "$parameters" \
-      --query 'Command.CommandId' \
-      --output text)
-    [[ "$command_id" =~ ^[0-9a-f-]{36}$ ]] || fail "SSM did not return a command id"
-    aws ssm wait command-executed --command-id "$command_id" --instance-id "$probe_instance_id"
-    invocation=$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$probe_instance_id" --output json)
+    probe_ready_deadline=$(($(date +%s) + 600))
+
+    probe_deadline_open() {
+      local now
+      now=$(date +%s)
+      ((now < probe_ready_deadline))
+    }
+
+    sleep_with_probe_budget() {
+      local requested_seconds=$1 now remaining_seconds
+      now=$(date +%s)
+      remaining_seconds=$((probe_ready_deadline - now))
+      ((remaining_seconds > 0)) || return 1
+      if ((requested_seconds > remaining_seconds)); then
+        requested_seconds=$remaining_seconds
+      fi
+      sleep "$requested_seconds"
+    }
+
+    ssm_online=false
+    while probe_deadline_open; do
+      if ! ssm_ping_status=$(aws ssm describe-instance-information \
+        --filters "Key=InstanceIds,Values=$probe_instance_id" \
+        --query 'InstanceInformationList[0].PingStatus' \
+        --output text); then
+        fail "could not query probe SSM registration"
+      fi
+      probe_deadline_open || break
+      case "$ssm_ping_status" in
+        Online)
+          ssm_online=true
+          break
+          ;;
+        None|ConnectionLost|Inactive|'')
+          sleep_with_probe_budget 10 || break
+          ;;
+        *) fail "probe returned an unexpected SSM ping status" ;;
+      esac
+    done
+    [[ "$ssm_online" == true ]] || fail "probe did not register with SSM within 10 minutes"
+
+    invocation=''
+    command_succeeded=false
+    while probe_deadline_open; do
+      send_error_file="$temp_dir/ssm-send-error"
+      if command_id=$(aws ssm send-command \
+        --instance-ids "$probe_instance_id" \
+        --document-name AWS-RunShellScript \
+        --comment "Airbob Phase 2 egress verification" \
+        --parameters "$parameters" \
+        --query 'Command.CommandId' \
+        --output text 2>"$send_error_file"); then
+        :
+      else
+        send_error=$(<"$send_error_file")
+        if [[ "$send_error" == *'(InvalidInstanceId)'* || \
+          "$send_error" == *'(TargetNotConnected)'* ]]; then
+          sleep_with_probe_budget 5 || break
+          continue
+        fi
+        [[ -z "$send_error" ]] || printf '%s\n' "$send_error" >&2
+        fail "could not send probe egress command"
+      fi
+      [[ "$command_id" =~ ^[0-9a-f-]{36}$ ]] || fail "SSM did not return a command id"
+      probe_deadline_open || break
+
+      resend_for_probe_marker=false
+      while probe_deadline_open; do
+        invocation_error_file="$temp_dir/ssm-invocation-error"
+        if invocation=$(aws ssm get-command-invocation \
+          --command-id "$command_id" --instance-id "$probe_instance_id" \
+          --output json 2>"$invocation_error_file"); then
+          probe_deadline_open || break
+          if ! invocation_status=$(jq -er '.Status' <<<"$invocation"); then
+            fail "SSM returned an invalid command invocation"
+          fi
+          case "$invocation_status" in
+            Pending|InProgress|Delayed)
+              sleep_with_probe_budget 5 || break
+              ;;
+            Success)
+              command_succeeded=true
+              break
+              ;;
+            Failed)
+              if jq -e '
+                .ResponseCode == 75 and
+                ((.StandardErrorContent // "") | contains("AIRBOB_PROBE_NOT_READY"))
+              ' <<<"$invocation" >/dev/null; then
+                invocation=''
+                resend_for_probe_marker=true
+                break
+              fi
+              fail "egress verification command failed"
+              ;;
+            Cancelled|Cancelling|TimedOut)
+              fail "egress verification command failed"
+              ;;
+            *) fail "SSM returned an unexpected command status" ;;
+          esac
+        else
+          invocation_error=$(<"$invocation_error_file")
+          if [[ "$invocation_error" == *'(InvocationDoesNotExist)'* ]]; then
+            sleep_with_probe_budget 5 || break
+            continue
+          fi
+          [[ -z "$invocation_error" ]] || printf '%s\n' "$invocation_error" >&2
+          fail "could not read probe command invocation"
+        fi
+      done
+
+      [[ "$command_succeeded" == false ]] || break
+      if [[ "$resend_for_probe_marker" == true ]]; then
+        sleep_with_probe_budget 10 || break
+        continue
+      fi
+      break
+    done
+    [[ "$command_succeeded" == true ]] || fail "probe did not become ready within 10 minutes"
     jq -e '.Status == "Success"' <<<"$invocation" >/dev/null || fail "egress verification command failed"
     marker=$(jq -r '.StandardOutputContent' <<<"$invocation")
     [[ "$marker" == *'AIRBOB_EGRESS_OK s3=verified ecr=verified ssm=verified secretsmanager=verified'* ]] \

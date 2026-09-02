@@ -1244,6 +1244,12 @@ locals {
         Action   = "ec2:RunInstances"
         Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:network-interface/*"
       },
+      {
+        Sid      = "DisassociateAddressFromPrimaryEni"
+        Effect   = "Allow"
+        Action   = "ec2:DisassociateAddress"
+        Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:network-interface/*"
+      },
       ], [
       for statement in local.lab_compute_ec2_iam_statements : statement
       if contains([
