@@ -1100,6 +1100,12 @@ run "enable_two_az_scaling_capacity_with_two_target_tracking_policies" {
       output.phase4_contract.load_generator_enabled == true &&
       output.phase4_contract.load_generator_instance_type == "c6i.xlarge" &&
       output.phase4_contract.load_generator_public_ipv4 == true &&
+      length(local.dependency_instance_metrics) == length(module.service_hosts.instance_ids) * 4 &&
+      length(local.load_generator_metrics) == 2 &&
+      alltrue([
+        for metric in concat(local.dependency_instance_metrics, local.load_generator_metrics) :
+        try(length(metric) == 5 && metric[0] == "AWS/EC2" && metric[2] == "InstanceId" && metric[4].stat != "", false)
+      ]) &&
       alltrue([
         for role in values(aws_iam_role.host) :
         role.permissions_boundary == "arn:aws:iam::942632789808:policy/airbob-performance-lab-host-boundary"
