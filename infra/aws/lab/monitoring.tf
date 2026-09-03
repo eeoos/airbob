@@ -1,19 +1,19 @@
 locals {
-  dependency_instance_metrics = flatten([
+  dependency_instance_metrics = concat([], [
     for service, instance_id in module.service_hosts.instance_ids : [
       ["AWS/EC2", "CPUUtilization", "InstanceId", instance_id, { label = "${service} CPU", stat = "Average" }],
       ["AWS/EC2", "CPUCreditBalance", "InstanceId", instance_id, { label = "${service} credits", stat = "Minimum", yAxis = "right" }],
       ["AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", instance_id, { label = "${service} surplus", stat = "Maximum", yAxis = "right" }],
       ["AWS/EC2", "CPUSurplusCreditsCharged", "InstanceId", instance_id, { label = "${service} charged", stat = "Sum", yAxis = "right" }],
     ]
-  ])
+  ]...)
 
-  load_generator_metrics = flatten([
+  load_generator_metrics = concat([], [
     for generator in module.load_generator : [
       ["AWS/EC2", "CPUUtilization", "InstanceId", generator.instance_id, { label = "loadgen CPU", stat = "Average" }],
       ["AWS/EC2", "NetworkOut", "InstanceId", generator.instance_id, { label = "loadgen network out", stat = "Sum", yAxis = "right" }],
     ]
-  ])
+  ]...)
 }
 
 resource "aws_cloudwatch_dashboard" "lab" {

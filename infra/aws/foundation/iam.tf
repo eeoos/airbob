@@ -797,7 +797,7 @@ resource "aws_iam_role" "foundation_admin" {
 resource "aws_iam_role" "lab_operator" {
   name                 = local.role_names.lab
   assume_role_policy   = local.role_trust_policies.lab
-  max_session_duration = 18000
+  max_session_duration = 21600
 
   lifecycle {
     prevent_destroy = true
@@ -807,7 +807,7 @@ resource "aws_iam_role" "lab_operator" {
 resource "aws_iam_role" "lab_cutover_operator" {
   name                 = local.role_names.lab_cutover
   assume_role_policy   = local.role_trust_policies.lab_cutover
-  max_session_duration = 18000
+  max_session_duration = 21600
 
   lifecycle {
     prevent_destroy = true

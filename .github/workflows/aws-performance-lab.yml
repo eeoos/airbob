@@ -90,9 +90,9 @@ on:
         type: choice
         options: [oci, aws]
       ttl_hours:
-        description: Ephemeral resource TTL; dump up requires at least 5 hours, snapshot up uses an explicit 2 hours
+        description: Ephemeral resource TTL; dump up requires at least 6 hours, snapshot up uses an explicit 2 hours
         required: false
-        default: '5'
+        default: '6'
         type: string
       keep_on_failure:
         description: Preserve a failed pre-cutover lab for diagnosis
@@ -112,7 +112,7 @@ jobs:
   operate:
     runs-on: ubuntu-latest
     environment: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}
-    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 299 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}
+    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 359 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}
     permissions:
       contents: read
       id-token: write
@@ -126,7 +126,7 @@ jobs:
           WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120
           workflow_ceiling_seconds=7200
           if [[ "$ACTION" == up && "$DATABASE_BOOTSTRAP" == dump ]]; then
-            workflow_ceiling_seconds=17940
+            workflow_ceiling_seconds=21540
           elif [[ "$ACTION" == up && "$DATABASE_BOOTSTRAP" == snapshot ]]; then
             workflow_ceiling_seconds=10200
           fi
@@ -171,7 +171,7 @@ jobs:
           role-to-assume: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && vars.AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN || vars.AWS_LAB_OPERATOR_ROLE_ARN }}
           aws-region: ap-northeast-2
           role-session-name: airbob-lab-${{ github.run_id }}
-          role-duration-seconds: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 18000 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200 }}
+          role-duration-seconds: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 21600 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200 }}
           output-credentials: true
 
       - name: Verify operator credential scope

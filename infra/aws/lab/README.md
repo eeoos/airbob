@@ -219,27 +219,29 @@ Every resource must retain the ephemeral identity/expiry tags and remain
 destroyable by the fenced operator; persistent resources continue to enter
 only through the validated SSM contract. Applying `network`, `services`, or
 `data-ready` creates billable EC2/EBS/EIP/RDS/ALB resources. Use the Phase 5
-wrapper and immediate teardown; dump bootstrap requires a minimum five-hour
+wrapper and immediate teardown; dump bootstrap requires a minimum six-hour
 TTL, while snapshot bootstrap continues to use an explicit two-hour TTL. Dump
-up uses a 14,400-second command watchdog. Its normal execution envelope covers
-the 9,000-second SSM restore command, a 9,300-second association waiter that
-reserves 300 seconds for result propagation, 2,400 seconds before bootstrap,
-and 2,400 seconds after bootstrap (`9,300 + 2,400 + 2,400 = 14,100`). A failed
+up uses an 18,000-second command watchdog. Its budget model allocates
+the 12,600-second SSM restore command, a 12,900-second association waiter that
+reserves 300 seconds for result propagation, 1,800 seconds before bootstrap,
+and 3,000 seconds after bootstrap (`12,900 + 1,800 + 3,000 = 17,700`). The
+pre/post figures are planning allocations inside the single fail-closed outer
+watchdog, not independent stage timers. A failed
 dump up stops that command watchdog and starts a distinct 2,400-second
 failure-cleanup watchdog. The orchestration lease spans both periods and has
-a 17,100-second absolute deadline: command, cleanup, and a 300-second
-lease-transition margin (`14,400 + 2,400 + 300`). That transition margin
+a 20,700-second absolute deadline: command, cleanup, and a 300-second
+lease-transition margin (`18,000 + 2,400 + 300`). That transition margin
 absorbs bounded lease-acquisition and handler-handoff skew so heartbeats and
 lease assertions remain valid throughout cleanup. The hard workflow ceiling is
-17,940 seconds (299 minutes), but the first step subtracts an explicit
-120-second workflow-initialization reserve and records a safe 17,820-second
+21,540 seconds (359 minutes), but the first step subtracts an explicit
+120-second workflow-initialization reserve and records a safe 21,420-second
 deadline. Immediately after immutable release validation, and before lease
 acquisition or Terraform mutation, the operator requires at least the
-17,100-second lease plus a 300-second finalization margin. This leaves up to
+20,700-second lease plus a 300-second finalization margin. This leaves up to
 420 seconds after the first step for setup and release validation
-(`420 + 17,100 + 300 = 17,820`). The 18,000-second static credential must still
+(`420 + 20,700 + 300 = 21,420`). The 21,600-second static credential must still
 have at least the lease deadline plus its existing 300-second safety margin at
-that gate (17,400 seconds total). Lease acquisition itself is bounded to 120
+that gate (21,000 seconds total). Lease acquisition itself is bounded to 120
 seconds; DynamoDB calls use 10-second connect and 20-second read timeouts with
 three standard-mode attempts. Every invocation appends a process/temp nonce to
 its bounded owner identity. If the acquire process ends without a token, the
@@ -257,7 +259,7 @@ operator marks the exact lease releasable and rechecks both workflow and
 credential budgets before starting heartbeat or publishing the run manifest.
 The 60-second recovery ceiling fits inside the existing 300-second workflow
 finalization and credential safety margins. The dump resource-expiry tag
-remains at least five hours.
+remains at least six hours.
 
 Snapshot up retains a 5,400-second command watchdog and uses a distinct
 3,600-second failure-cleanup watchdog. With the same transition margin, its
@@ -344,6 +346,6 @@ S3 deletion. The current lease preserves a lock it could have created; a later
 lease may invoke Terraform `force-unlock` only after the exact LockInfo ID,
 version, backend path, byte stability, and `Created < AcquiredAt` fence all pass.
 It additionally fixes the current S3 lock `VersionId` and server `LastModified`,
-writes a create-only S3 clock receipt, waits 18,300 seconds of server-observed
+writes a create-only S3 clock receipt, waits 21,900 seconds of server-observed
 elapsed time, and rechecks the unchanged bytes and S3 identity immediately
 before Terraform performs the ID-checked unlock.

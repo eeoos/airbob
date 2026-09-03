@@ -64,8 +64,8 @@ run_lease() {
 : > "$temp_dir/calls.log"
 token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 5400)
 [[ "$token" == 'fencing_token=7' ]] || fail "acquire did not return the atomic fencing token"
-dump_up_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 17100)
-[[ "$dump_up_token" == 'fencing_token=7' ]] || fail "dump up did not accept the approved 17100-second lease deadline"
+dump_up_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 20700)
+[[ "$dump_up_token" == 'fencing_token=7' ]] || fail "dump up did not accept the approved 20700-second lease deadline"
 measurement_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a measurement 180 5400)
 [[ "$measurement_token" == 'fencing_token=7' ]] || fail "measurement did not use the shared fencing-token lease"
 snapshot_token=$(run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v20 owner-a snapshot-1234abcd dataset-snapshot 180 9000)
@@ -79,7 +79,7 @@ fi
 if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a switch 180 8100 >/dev/null 2>&1; then
   fail "non-up command accepted the extended credential-fencing deadline"
 fi
-if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 17101 >/dev/null 2>&1; then
+if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 20701 >/dev/null 2>&1; then
   fail "up accepted a deadline beyond the dump ceiling"
 fi
 grep -Fq 'attribute_not_exists(#owner) OR #owner = :released OR (#expires < :now AND #deadline < :now)' "$temp_dir/calls.log" \

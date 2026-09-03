@@ -54,8 +54,8 @@ assert_not_contains() {
 [[ -d "$lab_root" && ! -L "$lab_root" ]] || fail "lab root is missing or unsafe"
 
 dump_make_contract=$(make -s -n -C "$repo_root" aws-up)
-grep -Fq 'TTL_HOURS="5"' <<<"$dump_make_contract" \
-  || fail "make aws-up must default dump bootstrap to the safe five-hour TTL"
+grep -Fq 'TTL_HOURS="6"' <<<"$dump_make_contract" \
+  || fail "make aws-up must default dump bootstrap to the safe six-hour TTL"
 grep -Fq 'DATABASE_BOOTSTRAP="dump"' <<<"$dump_make_contract" \
   || fail "make aws-up must default to dump bootstrap"
 
@@ -181,9 +181,9 @@ ssm_contract="$lab_root/ssm.tf"
   || fail "the shared Phase 2 service command must have exactly one 2400-second execution timeout"
 [[ "$(grep -Fc 'wait_for_success_timeout_seconds = 2700' "$ssm_contract")" -eq 3 ]] \
   || fail "core, Debezium, and monitoring associations must allow the 2400-second command to report its result"
-[[ "$(grep -Fc 'timeoutSeconds = "9000"' "$ssm_contract")" -eq 1 ]] \
-  || fail "the data-bootstrap command timeout must be exactly 9000 seconds"
-[[ "$(grep -Fc 'wait_for_success_timeout_seconds = 9300' "$ssm_contract")" -eq 1 ]] \
+[[ "$(grep -Fc 'timeoutSeconds = "12600"' "$ssm_contract")" -eq 1 ]] \
+  || fail "the data-bootstrap command timeout must be exactly 12600 seconds"
+[[ "$(grep -Fc 'wait_for_success_timeout_seconds = 12900' "$ssm_contract")" -eq 1 ]] \
   || fail "the data-bootstrap association must allow 300 seconds for result propagation"
 host_user_data_template="$lab_root/templates/host-user-data.sh.tftpl"
 assert_contains "$host_user_data_template" 'if ! command -v curl >/dev/null 2>&1; then'

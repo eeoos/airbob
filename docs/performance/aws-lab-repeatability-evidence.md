@@ -186,7 +186,7 @@ probe (`t3.nano`), Redis and monitoring (`2 x t3.small`), Kafka, Debezium, and E
 `db.t3.micro` RDS with 100-GiB gp3 storage, EBS volumes, public IPv4/EIP, and supporting
 CloudWatch, Secrets Manager, S3, ECR, and SSM activity. The `c6i.xlarge` load generator is disabled;
 there is no NAT Gateway, no Multi-AZ RDS, no scaling fleet, and no standby Lab. Dump mode uses a
-five-hour TTL because its SSM bootstrap may run for up to 2.5 hours after bounded
+six-hour TTL because its SSM bootstrap may run for up to 3.5 hours after bounded
 network/RDS/service setup and must still leave a separate teardown reserve; snapshot mode retains a
 two-hour TTL. These are failure backstops, not scheduled lifetimes: normal teardown runs immediately
 after evidence or promotion.
@@ -202,8 +202,8 @@ rate of `$0.3235/hour`: `t3.nano` `$0.0065`, `t3.micro` `$0.013`, two `t3.small`
 EC2 gp3 is about `$0.0233/hour` at `$0.0912/GB-month`; the RDS instance plus 100-GiB gp3 is
 about `$0.0440/hour` at `$0.026/hour` and `$0.131/GB-month`; the ALB base is
 `$0.0225/hour` plus `$0.008/LCU-hour`; and a conservative four in-use public IPv4 addresses add
-`$0.020/hour`. At the conservative five-hour dump plus two-hour snapshot failure ceilings, the
-two-run base-resource estimate is about `$3.05` before fractional LCU usage, T3 surplus CPU credits,
+`$0.020/hour`. At the conservative six-hour dump plus two-hour snapshot failure ceilings, the
+two-run base-resource estimate is about `$3.47` before fractional LCU usage, T3 surplus CPU credits,
 CloudWatch/Secrets/S3 requests, tax, and propagation delays. This is a planning estimate, not a
 bill; successful runs are torn down as soon as their required evidence is durable.
 
@@ -228,7 +228,7 @@ References: [EC2 On-Demand billing](https://docs.aws.amazon.com/AWSEC2/latest/Us
 | Policy | `integrated-smoke` | `integrated-smoke` |
 | Cache | Enabled | Enabled |
 | Load generator | Disabled | Disabled |
-| TTL | 5 hours | 2 hours |
+| TTL | 6 hours | 2 hours |
 | DNS mode | `direct-only` | `direct-only` |
 | AMI | `ami-00b5b2470beafd65f` | Identical |
 | MySQL patch | `8.0.46` | Identical |
@@ -258,7 +258,7 @@ its termination grace may leave the native S3 lock; the current lease must prese
 newer fenced lease may recover only the exact prior LockInfo through Terraform `force-unlock` before
 continuing teardown. That recovery uses the lock object's S3 `VersionId` and
 server `LastModified` plus a create-only S3 clock receipt, not either runner's
-local clock, and requires 18,300 seconds of AWS-observed elapsed time.
+local clock, and requires 21,900 seconds of AWS-observed elapsed time.
 
 ## Snapshot-mode qualification and teardown
 
