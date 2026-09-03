@@ -35,6 +35,11 @@ cat > "$temp_dir/bin/aws" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'aws %s\n' "$*" >> "${FAKE_CALL_LOG:?}"
+[[ "${AWS_RETRY_MODE:-}" == standard && "${AWS_MAX_ATTEMPTS:-}" == 3 ]] \
+  || { printf '%s\n' 'unbounded fake AWS retry contract' >&2; exit 1; }
+[[ " $* " == *' --cli-connect-timeout 10 '* && \
+  " $* " == *' --cli-read-timeout 20 '* ]] \
+  || { printf '%s\n' 'unbounded fake AWS timeout contract' >&2; exit 1; }
 
 case " $* " in
   *' dynamodb update-item '*)
@@ -59,16 +64,22 @@ run_lease() {
 : > "$temp_dir/calls.log"
 token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 5400)
 [[ "$token" == 'fencing_token=7' ]] || fail "acquire did not return the atomic fencing token"
-dump_up_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 14400)
-[[ "$dump_up_token" == 'fencing_token=7' ]] || fail "dump up did not accept the approved 14400-second deadline"
+dump_up_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 17100)
+[[ "$dump_up_token" == 'fencing_token=7' ]] || fail "dump up did not accept the approved 17100-second lease deadline"
 measurement_token=$(run_lease "$lease_script" acquire lease-table lock-a owner-a run-a measurement 180 5400)
 [[ "$measurement_token" == 'fencing_token=7' ]] || fail "measurement did not use the shared fencing-token lease"
-snapshot_token=$(run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v20 owner-a snapshot-1234abcd dataset-snapshot 180 8100)
-[[ "$snapshot_token" == 'fencing_token=7' ]] || fail "dataset snapshot did not use the shared fencing-token lease"
+snapshot_token=$(run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v20 owner-a snapshot-1234abcd dataset-snapshot 180 9000)
+[[ "$snapshot_token" == 'fencing_token=7' ]] || fail "dataset snapshot did not accept its approved 9000-second ceiling"
+if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a measurement 180 5401 >/dev/null 2>&1; then
+  fail "non-up command accepted a deadline above 5400 seconds"
+fi
+if run_lease "$lease_script" acquire lease-table airbob-dataset-snapshot/rehearsal-v20 owner-a snapshot-1234abcd dataset-snapshot 180 9001 >/dev/null 2>&1; then
+  fail "dataset snapshot accepted a deadline above 9000 seconds"
+fi
 if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a switch 180 8100 >/dev/null 2>&1; then
   fail "non-up command accepted the extended credential-fencing deadline"
 fi
-if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 14401 >/dev/null 2>&1; then
+if run_lease "$lease_script" acquire lease-table lock-a owner-a run-a up 180 17101 >/dev/null 2>&1; then
   fail "up accepted a deadline beyond the dump ceiling"
 fi
 grep -Fq 'attribute_not_exists(#owner) OR #owner = :released OR (#expires < :now AND #deadline < :now)' "$temp_dir/calls.log" \
@@ -81,6 +92,8 @@ run_lease "$lease_script" heartbeat lease-table lock-a owner-a 7 run-a up 180 >/
 run_lease "$lease_script" release lease-table lock-a owner-a 7 run-a up >/dev/null
 grep -Fq '#owner = :owner AND #token = :token AND #run = :run AND #command = :command' "$temp_dir/calls.log" \
   || fail "lease mutation is not fenced by exact owner/token/run/command"
+grep -Fq '#heartbeat <= :now AND #expires >= :now AND #deadline >= :now' "$temp_dir/calls.log" \
+  || fail "heartbeat update does not reject stale timestamps or expired lease windows"
 heartbeat_call=$(grep -F 'SET #heartbeat = :now, #expires = :expires' "$temp_dir/calls.log")
 release_call=$(grep -F 'SET #owner = :released, #heartbeat = :now, #expires = :zero, #deadline = :zero' "$temp_dir/calls.log")
 if [[ "$heartbeat_call" == *'#acquired'* || "$release_call" == *'#acquired'* ]]; then

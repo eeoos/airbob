@@ -321,6 +321,11 @@ printf 'aws' >> "${FAKE_AWS_LOG:?}"
 printf ' <%s>' "$@" >> "$FAKE_AWS_LOG"
 printf '\n' >> "$FAKE_AWS_LOG"
 
+while [[ "${1:-}" == --cli-connect-timeout || "${1:-}" == --cli-read-timeout ]]; do
+  [[ "$#" -ge 2 ]] || exit 1
+  shift 2
+done
+
 if [[ "$1 $2" == 'sts get-caller-identity' ]]; then
   printf '%s\n' 'caller-identity' >> "${FAKE_EVENT_LOG:?}"
   if [[ "${FAKE_WRONG_ROLE:-false}" == true ]]; then

@@ -183,12 +183,47 @@ at 24, and scheduled cleanup becomes eligible at `expiresAt`; the minute-17/47
 schedule bounds pickup to one 30-minute interval. The load generator defaults to
 disabled.
 
-Snapshot `up` keeps the 90-minute operator deadline but uses a 165-minute job
-and a three-hour short-lived role session. This leaves a bounded one-hour
-post-failure teardown allowance without extending the two-hour resource TTL.
-The operator receives the exact STS expiration and rejects `up` before any
-mutation when the remaining lifetime cannot cover its deadline, cleanup
-allowance, and clock-skew margin.
+The protected workflow records an absolute job deadline before checkout and
+subtracts a 120-second runner-initialization reserve from the hard job limit.
+Just before lease acquisition, `up` rejects the run unless the remaining
+workflow budget covers the command-plus-cleanup-transition lease and a
+300-second finalization margin. Lease acquisition itself has an independent
+120-second process-group deadline. After a token is returned, `up` repeats the
+workflow and credential checks before starting its heartbeat, publishing the
+run manifest, or making any Terraform mutation. The dump ceiling reserves 540
+seconds and the snapshot ceiling 600 seconds for runner initialization,
+checkout, tool installation, credential setup, immutable release validation,
+and bounded lease acquisition. Dump
+`up` uses a 14,400-second command watchdog, a separate 2,400-second failure
+cleanup watchdog, a 300-second lease-transition margin, a 17,100-second lease,
+a 299-minute job, and a five-hour
+short-lived role session/TTL. Its data-bootstrap SSM command is bounded at
+9,000 seconds and its association waiter at 9,300 seconds so result propagation
+cannot race the command timeout.
+
+Snapshot `up` keeps the 90-minute command watchdog, uses a 3,600-second
+failure-cleanup watchdog, the same transition margin, and a 9,300-second lease.
+It uses a 170-minute job and three-hour short-lived role session without
+extending the two-hour resource TTL. The operator receives the exact STS
+expiration and rejects `up` before any mutation when the remaining credential
+lifetime cannot cover its lease deadline and 300-second safety margin.
+
+Lease calls use bounded AWS CLI connection/read timeouts and standard retries.
+Acquisition has a 120-second outer process-group deadline; every subsequent
+lease control call has a 30-second one. Each invocation has a unique owner
+suffix. If acquisition commits but returns no token, the operator spends at
+most 60 seconds accepting only that invocation's exact untouched lease shape,
+releases it, and always stops before manifest or Terraform mutation.
+
+Automatic failure cleanup first stops and reaps the bounded heartbeat loop,
+then clears its one-shot failure marker, renews and asserts the exact lease,
+installs the cleanup trap, and restarts periodic renewal before destroy. The
+worst-case control handoff is 91 seconds, inside the 300-second transition
+margin. Heartbeat timestamps are monotonic, so a delayed request cannot
+shorten a newer lease. Marker, renewal, or validation failure preserves the
+Lab for fenced recovery and cannot publish a clean-state receipt. Non-`up`
+command watchdogs start before lease acquisition, so acquisition cannot shift
+their lease-relative deadline.
 
 Snapshot replay additionally requires `DATABASE_BOOTSTRAP=snapshot`, the exact
 promoted snapshot identifier, `RDS_SNAPSHOT_SOURCE_RUN_ID`, and

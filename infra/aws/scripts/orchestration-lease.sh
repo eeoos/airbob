@@ -22,6 +22,11 @@ shift 3
 [[ "$lock_id" =~ ^[A-Za-z0-9_.:/-]{3,255}$ ]] || fail "lease lock id is not canonical"
 command -v aws >/dev/null 2>&1 || fail "AWS CLI is required"
 
+aws_dynamodb() {
+  AWS_RETRY_MODE=standard AWS_MAX_ATTEMPTS=3 \
+    aws --cli-connect-timeout 10 --cli-read-timeout 20 dynamodb "$@"
+}
+
 now_epoch=$(date +%s)
 [[ "$now_epoch" =~ ^[1-9][0-9]{9}$ ]] || fail "current epoch is not canonical"
 
@@ -39,7 +44,7 @@ name_json='{"#token":"FencingToken","#owner":"Owner","#run":"RunId","#command":"
 acquire_name_json='{"#token":"FencingToken","#owner":"Owner","#run":"RunId","#command":"Command","#acquired":"AcquiredAt","#heartbeat":"HeartbeatAt","#expires":"ExpiresAt","#deadline":"CommandDeadline"}'
 
 read_item() {
-  aws dynamodb get-item \
+  aws_dynamodb get-item \
     --table-name "$table" \
     --key "$key_json" \
     --consistent-read \
@@ -62,14 +67,14 @@ case "$action" in
       || fail "heartbeat TTL must be 60-900 seconds"
     deadline_limit=5400
     [[ "$command_name" != dataset-snapshot ]] || deadline_limit=9000
-    [[ "$command_name" != up ]] || deadline_limit=14400
+    [[ "$command_name" != up ]] || deadline_limit=17100
     [[ "$deadline_seconds" =~ ^[1-9][0-9]{2,4}$ && "$deadline_seconds" -le "$deadline_limit" ]] \
       || fail "command deadline exceeds the approved limit"
     expires_epoch=$((now_epoch + heartbeat_ttl))
     deadline_epoch=$((now_epoch + deadline_seconds))
     value_json=$(printf '{":zero":{"N":"0"},":one":{"N":"1"},":released":{"S":"released"},":owner":{"S":"%s"},":run":{"S":"%s"},":command":{"S":"%s"},":now":{"N":"%s"},":expires":{"N":"%s"},":deadline":{"N":"%s"}}' \
       "$owner" "$run_id" "$command_name" "$now_epoch" "$expires_epoch" "$deadline_epoch")
-    token=$(aws dynamodb update-item \
+    token=$(aws_dynamodb update-item \
       --table-name "$table" \
       --key "$key_json" \
       --update-expression 'SET #token = if_not_exists(#token, :zero) + :one, #owner = :owner, #run = :run, #command = :command, #acquired = :now, #heartbeat = :now, #expires = :expires, #deadline = :deadline' \
@@ -111,10 +116,10 @@ EOF
     expires_epoch=$((now_epoch + heartbeat_ttl))
     value_json=$(printf '{":owner":{"S":"%s"},":token":{"N":"%s"},":run":{"S":"%s"},":command":{"S":"%s"},":now":{"N":"%s"},":expires":{"N":"%s"}}' \
       "$owner" "$token" "$run_id" "$command_name" "$now_epoch" "$expires_epoch")
-    aws dynamodb update-item \
+    aws_dynamodb update-item \
       --table-name "$table" --key "$key_json" \
       --update-expression 'SET #heartbeat = :now, #expires = :expires' \
-      --condition-expression '#owner = :owner AND #token = :token AND #run = :run AND #command = :command AND #expires >= :now AND #deadline >= :now' \
+      --condition-expression '#owner = :owner AND #token = :token AND #run = :run AND #command = :command AND #heartbeat <= :now AND #expires >= :now AND #deadline >= :now' \
       --expression-attribute-names "$name_json" --expression-attribute-values "$value_json" \
       --region "$AWS_REGION" --no-cli-pager >/dev/null \
       || fail "orchestration lease heartbeat was fenced out"
@@ -126,7 +131,7 @@ EOF
     [[ "$token" =~ ^[1-9][0-9]*$ ]] || fail "fencing token is not canonical"
     value_json=$(printf '{":released":{"S":"released"},":owner":{"S":"%s"},":token":{"N":"%s"},":run":{"S":"%s"},":command":{"S":"%s"},":zero":{"N":"0"},":now":{"N":"%s"}}' \
       "$owner" "$token" "$run_id" "$command_name" "$now_epoch")
-    aws dynamodb update-item \
+    aws_dynamodb update-item \
       --table-name "$table" --key "$key_json" \
       --update-expression 'SET #owner = :released, #heartbeat = :now, #expires = :zero, #deadline = :zero' \
       --condition-expression '#owner = :owner AND #token = :token AND #run = :run AND #command = :command' \

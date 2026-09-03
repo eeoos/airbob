@@ -62,25 +62,95 @@ assert_contains "$operator" 'case "$action" in up|status|switch|down)'
 assert_contains "$operator" 'AWS_LAB_OPERATOR_SCOPE must be direct or cutover'
 assert_contains "$operator" 'airbob-lab-cutover-operator'
 assert_contains "$operator" 'active Lab credentials do not match AWS_LAB_OPERATOR_SCOPE'
-assert_contains "$operator" '"$lease_script" acquire'
-assert_contains "$operator" '"$lease_script" heartbeat'
-assert_contains "$operator" '"$lease_script" assert'
-assert_contains "$operator" '"$lease_script" release'
+assert_contains "$operator" '"$lease_script" "$@"'
+assert_contains "$operator" 'acquire "$lease_table"'
+assert_contains "$operator" 'heartbeat "$lease_table"'
+assert_contains "$operator" 'assert "$lease_table"'
+assert_contains "$operator" 'release_lease_bounded_best_effort'
+assert_contains "$operator" 'lease-final-release.timeout'
 assert_contains "$operator" 'DEFAULT_COMMAND_DEADLINE_SECONDS=5400'
 assert_contains "$operator" 'DUMP_UP_COMMAND_DEADLINE_SECONDS=14400'
 assert_contains "$operator" 'DEFAULT_CREDENTIAL_SESSION_SECONDS=7200'
 assert_contains "$operator" 'SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800'
 assert_contains "$operator" 'DUMP_UP_CREDENTIAL_SESSION_SECONDS=18000'
 assert_contains "$operator" 'SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600'
-assert_contains "$operator" 'DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=3600'
+assert_contains "$operator" 'DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=2400'
 assert_contains "$operator" 'DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=2400'
+assert_contains "$operator" 'DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400'
 assert_contains "$operator" 'LAB_ROLE_MAX_SESSION_SECONDS=18000'
 assert_contains "$operator" 'TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS=300'
+assert_contains "$operator" 'WORKFLOW_FINALIZATION_MARGIN_SECONDS=300'
+assert_contains "$operator" 'LEASE_TRANSITION_MARGIN_SECONDS=300'
+assert_contains "$operator" 'LEASE_ACQUIRE_MAX_SECONDS=120'
+assert_contains "$operator" 'LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=60'
+assert_contains "$operator" 'LEASE_CONTROL_CALL_MAX_SECONDS=30'
+assert_contains "$operator" 'HEARTBEAT_LOOP_STOP_MAX_SECONDS=$((LEASE_CONTROL_CALL_MAX_SECONDS + 1))'
+assert_contains "$operator" 'FAILURE_CLEANUP_LEASE_HANDOFF_MAX_SECONDS=$(('
 assert_contains "$operator" 'TERRAFORM_LOCK_CREDENTIAL_EXPIRY_BARRIER_SECONDS=$(('
+assert_contains "$operator" 'LEASE_DEADLINE_SECONDS + TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS'
+assert_contains "$operator" 'LEASE_DEADLINE_SECONDS + WORKFLOW_FINALIZATION_MARGIN_SECONDS'
+assert_contains "$operator" '"$run_id" "$lease_command" "$HEARTBEAT_TTL_SECONDS" "$LEASE_DEADLINE_SECONDS"'
+assert_contains "$operator" 'stop_watchdog "$command_watchdog_pid"'
+assert_contains "$operator" 'stop_watchdog "$cleanup_watchdog_pid"'
+assert_contains "$operator" 'start_failure_cleanup_watchdog'
+assert_contains "$operator" 'kill -ALRM "$parent_pid"'
+assert_contains "$operator" 'failure cleanup watchdog armed for %s seconds'
 assert_contains "$operator" 'active Lab role must use one explicit static STS environment credential tuple'
 assert_contains "$operator" 'assumed Lab role returned an incomplete static STS environment credential tuple'
 assert_contains "$operator" 'up requires the exact static STS credential expiration'
-assert_contains "$operator" 'static STS credential lifetime cannot cover the up deadline and cleanup allowance'
+assert_contains "$operator" 'static STS credential lifetime cannot cover the lease deadline and safety margin'
+assert_contains "$operator" 'GitHub Actions up requires AIRBOB_WORKFLOW_DEADLINE_EPOCH'
+assert_contains "$operator" 'workflow deadline epoch is not canonical'
+assert_contains "$operator" 'workflow lifetime cannot cover the lease deadline and finalization margin'
+assert_contains "$operator" 'orchestration lease acquisition exceeded the bounded deadline'
+assert_contains "$operator" 'orchestration lease acquisition timed out without one recoverable exact lease'
+assert_contains "$operator" 'run_bounded_lease_acquire'
+assert_contains "$operator" 'run_bounded_lease_command'
+assert_contains "$operator" 'bounded_lease_command_capture_ready=false'
+assert_contains "$operator" 'cannot prepare bounded lease command capture files'
+assert_contains "$operator" 'recover_tokenless_lease_acquire'
+assert_contains "$operator" 'lease_status_matches_failed_acquire'
+assert_contains "$operator" 'kill -KILL -- "-$lease_command_pid"'
+assert_contains "$operator" 'actual_heartbeat == actual_acquired && actual_expiry == expected_expiry'
+assert_contains "$operator" 'actual_deadline == expected_deadline'
+assert_contains "$operator" 'start_command_watchdog'
+assert_contains "$operator" 'failure cleanup lease renewal failed; resources remain preserved'
+assert_contains "$operator" 'failure cleanup lease validation failed; resources remain preserved'
+assert_contains "$operator" 'failure cleanup lease renewed; heartbeat continuity verified'
+assert_contains "$operator" 'start_heartbeat_loop'
+assert_contains "$operator" 'stop_heartbeat_loop'
+assert_contains "$operator" 'renew_cleanup_lease'
+assert_contains "$operator" 'publish_heartbeat_failure'
+assert_contains "$operator" 'set -o noclobber'
+assert_contains "$operator" 'kill -TERM "$pid"'
+assert_contains "$operator" 'watchdog_sleep "$HEARTBEAT_LOOP_STOP_MAX_SECONDS"'
+if grep -Fq 'heartbeat_stop_file' "$operator"; then
+  fail "heartbeat loop stop still depends on a writable marker file"
+fi
+if grep -Fq '${heartbeat_failure_file}.next' "$operator"; then
+  fail "heartbeat failure publication still uses a cleanup-racy staging file"
+fi
+awk '
+  /^cleanup\(\) \{/ { in_cleanup=1 }
+  in_cleanup { print }
+  in_cleanup && /^trap cleanup EXIT$/ { exit }
+' "$operator" > "$temp_dir/operator-cleanup-contract.sh"
+cleanup_stop_line=$(grep -n -m1 '    stop_heartbeat_loop' "$temp_dir/operator-cleanup-contract.sh" | cut -d: -f1)
+cleanup_clear_line=$(grep -n -m1 '    if ! clear_heartbeat_failure_marker' "$temp_dir/operator-cleanup-contract.sh" | cut -d: -f1)
+cleanup_renew_line=$(grep -n -m1 '    if ! renew_cleanup_lease' "$temp_dir/operator-cleanup-contract.sh" | cut -d: -f1)
+cleanup_assert_line=$(grep -n -m1 '    if ! assert_cleanup_lease' "$temp_dir/operator-cleanup-contract.sh" | cut -d: -f1)
+cleanup_trap_line=$(grep -n -m1 'orchestration heartbeat failed during operator cleanup' "$temp_dir/operator-cleanup-contract.sh" | cut -d: -f1)
+cleanup_restart_line=$(grep -n -m1 '    start_heartbeat_loop' "$temp_dir/operator-cleanup-contract.sh" | cut -d: -f1)
+[[ "$cleanup_stop_line" =~ ^[0-9]+$ && "$cleanup_clear_line" =~ ^[0-9]+$ && \
+  "$cleanup_renew_line" =~ ^[0-9]+$ && "$cleanup_assert_line" =~ ^[0-9]+$ && \
+  "$cleanup_trap_line" =~ ^[0-9]+$ && "$cleanup_restart_line" =~ ^[0-9]+$ ]] \
+  || fail "automatic cleanup lease handoff steps are ambiguous"
+((cleanup_stop_line < cleanup_clear_line && cleanup_clear_line < cleanup_renew_line && \
+  cleanup_renew_line < cleanup_assert_line && cleanup_assert_line < cleanup_trap_line && \
+  cleanup_trap_line < cleanup_restart_line)) \
+  || fail "automatic cleanup does not quiesce, renew, assert, trap, and restart in order"
+assert_contains "$lease_script" 'AWS_RETRY_MODE=standard AWS_MAX_ATTEMPTS=3'
+assert_contains "$lease_script" 'aws --cli-connect-timeout 10 --cli-read-timeout 20 dynamodb'
 assert_contains "$workflow" 'id: aws_credentials'
 assert_contains "$workflow" 'output-credentials: true'
 assert_contains "$workflow" 'AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ fromJSON(steps.aws_credentials.outputs.aws-expiration) }}'
@@ -260,22 +330,67 @@ assert_contains "$workflow" '[[ "$(command -v aws)" == "$RUNNER_TEMP/aws-cli-bin
 aws_cli_install_line=$(grep -nF -- '- name: Install pinned AWS CLI' "$workflow" | cut -d: -f1)
 credential_line=$(grep -nF -- '- name: Configure short-lived AWS credentials' "$workflow" | cut -d: -f1)
 operator_line=$(grep -nF -- '- name: Run shared lab operator' "$workflow" | cut -d: -f1)
-[[ "$aws_cli_install_line" =~ ^[0-9]+$ && "$credential_line" =~ ^[0-9]+$ && "$operator_line" =~ ^[0-9]+$ ]] \
-  || fail "AWS CLI install, credential, or operator workflow step is ambiguous"
-((aws_cli_install_line < credential_line && credential_line < operator_line)) \
-  || fail "pinned AWS CLI must be installed before credentials and operator execution"
+deadline_line=$(grep -nF -- '- name: Record workflow deadline' "$workflow" | cut -d: -f1)
+checkout_line=$(grep -nF -- '- name: Checkout' "$workflow" | cut -d: -f1)
+[[ "$deadline_line" =~ ^[0-9]+$ && "$checkout_line" =~ ^[0-9]+$ && \
+  "$aws_cli_install_line" =~ ^[0-9]+$ && "$credential_line" =~ ^[0-9]+$ && \
+  "$operator_line" =~ ^[0-9]+$ ]] \
+  || fail "deadline, checkout, AWS CLI, credential, or operator workflow step is ambiguous"
+((deadline_line < checkout_line && checkout_line < aws_cli_install_line && \
+  aws_cli_install_line < credential_line && credential_line < operator_line)) \
+  || fail "workflow deadline must be recorded before checkout and operator setup"
 assert_contains "$workflow" 'infra/aws/scripts/aws-lab.sh'
 assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '5'"
-assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 165 || 120 }}"
+assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 299 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}"
 assert_contains "$workflow" "inputs.database_bootstrap == 'dump' && 18000 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200"
+assert_contains "$workflow" '- name: Record workflow deadline'
+assert_contains "$workflow" 'WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120'
+assert_contains "$workflow" 'workflow_ceiling_seconds=7200'
+assert_contains "$workflow" 'workflow_ceiling_seconds=17940'
+assert_contains "$workflow" 'workflow_ceiling_seconds=10200'
+assert_contains "$workflow" 'workflow_ceiling_seconds - WORKFLOW_INITIALIZATION_RESERVE_SECONDS'
+assert_contains "$workflow" "printf 'AIRBOB_WORKFLOW_DEADLINE_EPOCH=%s\\n'"
 assert_contains "$workflow" 'https://checkip.amazonaws.com'
 assert_contains "$workflow" "printf 'ALB_INGRESS_CIDR=%s/32"
 assert_contains "$workflow" 'live_address=$(curl --fail --silent --show-error --max-time 10 https://checkip.amazonaws.com)'
 assert_contains "$workflow" 'requested_address=${BASH_REMATCH[1]}'
 assert_contains "$workflow" '[[ "$requested_address" == "$live_address" ]]'
+awk '
+  /- name: Record workflow deadline/ { found=1 }
+  found && /^        run: \|/ { body=1; next }
+  body && /^      - name:/ { exit }
+  body { sub(/^          /, ""); print }
+' "$workflow" > "$temp_dir/record-workflow-deadline.sh"
+bash -n "$temp_dir/record-workflow-deadline.sh"
+mkdir -p "$temp_dir/deadline-bin"
+cat > "$temp_dir/deadline-bin/date" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == '-u +%s' ]] || exit 70
+printf '%s\n' 1900000000
+EOF
+chmod 700 "$temp_dir/deadline-bin/date"
+for deadline_case in dump snapshot other; do
+  action=up
+  bootstrap=$deadline_case
+  expected_seconds=10080
+  if [[ "$deadline_case" == dump ]]; then
+    expected_seconds=17820
+  elif [[ "$deadline_case" == other ]]; then
+    action=down
+    bootstrap=dump
+    expected_seconds=7080
+  fi
+  : > "$temp_dir/github-deadline-env"
+  env PATH="$temp_dir/deadline-bin:$PATH" ACTION="$action" DATABASE_BOOTSTRAP="$bootstrap" \
+    GITHUB_ENV="$temp_dir/github-deadline-env" bash "$temp_dir/record-workflow-deadline.sh"
+  grep -Fqx "AIRBOB_WORKFLOW_DEADLINE_EPOCH=$((1900000000 + expected_seconds))" \
+    "$temp_dir/github-deadline-env" \
+    || fail "workflow deadline step used the wrong $deadline_case ceiling"
+done
 workflow_dispatch_input_count=$(awk '
   /^  workflow_dispatch:/ { in_dispatch=1; next }
   in_dispatch && /^concurrency:/ { exit }
@@ -340,29 +455,59 @@ default_session=$(awk -F= '$1 == "DEFAULT_CREDENTIAL_SESSION_SECONDS" { print $2
 snapshot_session=$(awk -F= '$1 == "SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
 dump_session=$(awk -F= '$1 == "DUMP_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
 workflow_seconds=$((120 * 60))
-snapshot_workflow_seconds=$((165 * 60))
-dump_workflow_seconds=$((270 * 60))
-ssm_seconds=7200
+snapshot_workflow_seconds=$((170 * 60))
+dump_workflow_seconds=$((299 * 60))
+workflow_initialization_reserve_seconds=120
+snapshot_recorded_deadline_seconds=$((snapshot_workflow_seconds - workflow_initialization_reserve_seconds))
+dump_recorded_deadline_seconds=$((dump_workflow_seconds - workflow_initialization_reserve_seconds))
+snapshot_post_step_setup_seconds=480
+dump_post_step_setup_seconds=420
+ssm_command_seconds=9000
+ssm_waiter_seconds=9300
 snapshot_cleanup_seconds=$(awk -F= '$1 == "SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 pre_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 post_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
+dump_failure_cleanup_seconds=$(awk -F= '$1 == "DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
+credential_margin_seconds=$(awk -F= '$1 == "TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS" { print $2 }' "$operator")
+workflow_finalization_seconds=$(awk -F= '$1 == "WORKFLOW_FINALIZATION_MARGIN_SECONDS" { print $2 }' "$operator")
+lease_transition_seconds=$(awk -F= '$1 == "LEASE_TRANSITION_MARGIN_SECONDS" { print $2 }' "$operator")
+lease_control_call_seconds=$(awk -F= '$1 == "LEASE_CONTROL_CALL_MAX_SECONDS" { print $2 }' "$operator")
+heartbeat_stop_seconds=$((lease_control_call_seconds + 1))
 dump_ttl_seconds=$((5 * 3600))
-[[ "$(grep -Fc 'timeoutSeconds = "7200"' "$ssm_contract")" -eq 1 ]] \
-  || fail "data bootstrap SSM document timeout is not exactly 7200 seconds"
-assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 7200'
+[[ "$(grep -Fc 'timeoutSeconds = "9000"' "$ssm_contract")" -eq 1 ]] \
+  || fail "data bootstrap SSM document timeout is not exactly 9000 seconds"
+assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 9300'
+((ssm_command_seconds + 300 == ssm_waiter_seconds)) \
+  || fail "data bootstrap association must preserve 300 seconds for result propagation"
+((heartbeat_stop_seconds == 31 && \
+  heartbeat_stop_seconds + lease_control_call_seconds + lease_control_call_seconds <= lease_transition_seconds)) \
+  || fail "bounded heartbeat stop, cleanup renewal, and assertion exceed the lease transition margin"
 ((default_deadline == 5400 && default_deadline < default_session && default_session == workflow_seconds)) \
   || fail "default command deadline, credential, and non-up workflow timeout hierarchy is invalid"
-((default_deadline + snapshot_cleanup_seconds < snapshot_workflow_seconds &&
-  snapshot_workflow_seconds < snapshot_session)) \
-  || fail "snapshot up deadline, cleanup allowance, workflow, and credential hierarchy is invalid"
-((ssm_seconds + pre_bootstrap_seconds + post_bootstrap_seconds < dump_deadline &&
-  dump_deadline < dump_workflow_seconds && dump_workflow_seconds < dump_session &&
+snapshot_lease_seconds=$((default_deadline + snapshot_cleanup_seconds + lease_transition_seconds))
+dump_lease_seconds=$((dump_deadline + dump_failure_cleanup_seconds + lease_transition_seconds))
+((snapshot_lease_seconds == 9300 &&
+  snapshot_recorded_deadline_seconds == 10080 &&
+  snapshot_post_step_setup_seconds + snapshot_lease_seconds + workflow_finalization_seconds == snapshot_recorded_deadline_seconds &&
+  snapshot_lease_seconds + credential_margin_seconds <= snapshot_session)) \
+  || fail "snapshot command, cleanup, lease, workflow, and credential hierarchy is invalid"
+((ssm_waiter_seconds + pre_bootstrap_seconds + post_bootstrap_seconds < dump_deadline &&
+  dump_lease_seconds == 17100 &&
+  dump_recorded_deadline_seconds == 17820 &&
+  dump_post_step_setup_seconds + dump_lease_seconds + workflow_finalization_seconds == dump_recorded_deadline_seconds &&
+  dump_lease_seconds + credential_margin_seconds <= dump_session &&
+  dump_workflow_seconds < dump_session &&
   dump_session == dump_ttl_seconds)) \
-  || fail "dump pre/bootstrap/post, operator, workflow, credential, and TTL hierarchy is invalid"
+  || fail "dump bootstrap, command, cleanup, lease, workflow, credential, and TTL hierarchy is invalid"
 ((dump_deadline < 5 * 3600)) \
   || fail "dump operator deadline must remain inside the minimum ephemeral TTL"
 if env AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
   AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=2 AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+  AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=1 \
+  AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=2 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_TTL_SECONDS=3 \
   AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 "$operator" status >/dev/null 2>&1; then
   fail "tracked operator checkout accepted hermetic-only timing overrides"
 fi
@@ -503,7 +648,7 @@ if env AIRBOB_AWS_CREDENTIAL_EXPIRATION=2000-01-01T00:00:00Z \
   >"$temp_dir/expired-credentials.out" 2>"$temp_dir/expired-credentials.err"; then
   fail "up accepted an already-expired assumed-role credential tuple"
 fi
-grep -Fq 'static STS credential lifetime cannot cover the up deadline and cleanup allowance' \
+grep -Fq 'static STS credential lifetime cannot cover the lease deadline and safety margin' \
   "$temp_dir/expired-credentials.err" \
   || fail "expired assumed-role credentials did not fail the up credential budget"
 
@@ -531,12 +676,133 @@ cat > "$fixture_scripts/orchestration-lease.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'lease %s\n' "$*" >> "${FAKE_OPERATOR_LOG:?}"
+state_file=${FAKE_LEASE_STATE_FILE:-${FAKE_OPERATOR_LOG:?}.lease-state}
+now_epoch=${FAKE_LEASE_NOW_EPOCH:-$(/bin/date +%s)}
+
+read_lease() {
+  [[ -s "$state_file" ]] || exit 70
+  IFS=$'\t' read -r state_owner state_token state_run state_command \
+    state_acquired state_heartbeat state_expires state_deadline < "$state_file"
+}
+
+assert_identity() {
+  local owner=$1 token=$2 run_id=$3 command_name=$4
+  [[ "$state_owner" == "$owner" && "$state_token" == "$token" && \
+    "$state_run" == "$run_id" && "$state_command" == "$command_name" ]] || exit 70
+}
+
+assert_live_window() {
+  local operation=$1
+  printf 'lease deadline-check %s %s %s %s %s\n' \
+    "$operation" "$now_epoch" "$state_heartbeat" "$state_expires" "$state_deadline" \
+    >> "${FAKE_OPERATOR_LOG:?}"
+  ((state_heartbeat <= now_epoch && now_epoch <= state_expires && \
+    now_epoch <= state_deadline)) || exit 70
+}
+
+fail_configured_heartbeat() {
+  local failure_count=${FAKE_HEARTBEAT_FAIL_COUNT:-} call_count=0 outcome
+  local failure_sequence=${FAKE_HEARTBEAT_FAILURE_SEQUENCE:-}
+  local -a failure_outcomes
+  [[ "${FAKE_HEARTBEAT_FAILURE:-false}" != true ]] || return 0
+  [[ -n "$failure_count$failure_sequence" ]] || return 1
+  [[ ! -f "${FAKE_HEARTBEAT_COUNTER_FILE:?}" ]] \
+    || call_count=$(cat "$FAKE_HEARTBEAT_COUNTER_FILE")
+  call_count=$((call_count + 1))
+  printf '%s\n' "$call_count" > "$FAKE_HEARTBEAT_COUNTER_FILE"
+  if [[ -n "$failure_sequence" ]]; then
+    IFS=, read -r -a failure_outcomes <<< "$failure_sequence"
+    outcome=${failure_outcomes[call_count - 1]:-success}
+    [[ "$outcome" == fail || "$outcome" == success ]] || exit 70
+    [[ "$outcome" == fail ]]
+    return
+  fi
+  [[ "$failure_count" =~ ^[1-9][0-9]*$ ]] || exit 70
+  ((call_count <= failure_count))
+}
+
 case "$1" in
-  acquire) printf '%s\n' 'fencing_token=42' ;;
-  heartbeat)
-    [[ "${FAKE_HEARTBEAT_FAILURE:-false}" != true ]] || exit 70
+  acquire)
+    expires_epoch=$((now_epoch + $7))
+    deadline_epoch=$((now_epoch + $8))
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$4" 42 "$5" "$6" "$now_epoch" "$now_epoch" "$expires_epoch" "$deadline_epoch" \
+      > "$state_file"
+    printf 'lease stored-window %s %s %s\n' "$now_epoch" "$expires_epoch" "$deadline_epoch" \
+      >> "${FAKE_OPERATOR_LOG:?}"
+    signal_parent=${FAKE_LEASE_SIGNAL_PARENT_AFTER_COMMIT:-}
+    [[ -z "$signal_parent" || "$signal_parent" == TERM ]] || exit 70
+    [[ -z "$signal_parent" ]] || kill -TERM "$PPID"
+    acquire_delay=${FAKE_LEASE_ACQUIRE_DELAY_SECONDS:-0}
+    [[ "$acquire_delay" =~ ^[0-9]+$ ]] || exit 70
+    ((acquire_delay == 0)) || sleep "$acquire_delay"
+    [[ -z "${FAKE_POST_ACQUIRE_CLOCK_MARKER:-}" ]] \
+      || : > "$FAKE_POST_ACQUIRE_CLOCK_MARKER"
+    [[ "${FAKE_LEASE_ACQUIRE_LOSE_RESPONSE:-false}" != true ]] || exit 70
+    printf '%s\n' 'fencing_token=42'
+    acquire_post_response_delay=${FAKE_LEASE_ACQUIRE_POST_RESPONSE_DELAY_SECONDS:-0}
+    [[ "$acquire_post_response_delay" =~ ^[0-9]+$ ]] || exit 70
+    ((acquire_post_response_delay == 0)) || sleep "$acquire_post_response_delay"
+    [[ -z "${FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER:-}" ]] \
+      || : > "$FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER"
     ;;
-  status) printf '%s\n' 'released 41 old up 0 0' ;;
+  assert)
+    assert_delay=${FAKE_LEASE_ASSERT_DELAY_SECONDS:-0}
+    [[ "$assert_delay" =~ ^[0-9]+$ ]] || exit 70
+    ((assert_delay == 0)) || sleep "$assert_delay"
+    read_lease
+    assert_identity "$4" "$5" "$6" "$7"
+    assert_live_window assert
+    [[ -z "${FAKE_LEASE_ASSERT_COMPLETION_MARKER:-}" ]] \
+      || : > "$FAKE_LEASE_ASSERT_COMPLETION_MARKER"
+    ;;
+  heartbeat)
+    read_lease
+    assert_identity "$4" "$5" "$6" "$7"
+    assert_live_window heartbeat
+    [[ -z "${FAKE_HEARTBEAT_STARTED_FILE:-}" ]] \
+      || : > "$FAKE_HEARTBEAT_STARTED_FILE"
+    heartbeat_delay=${FAKE_HEARTBEAT_DELAY_SECONDS:-0}
+    [[ "$heartbeat_delay" =~ ^[0-9]+$ ]] || exit 70
+    ((heartbeat_delay == 0)) || sleep "$heartbeat_delay"
+    fail_configured_heartbeat && exit 70
+    state_heartbeat=$now_epoch
+    state_expires=$((now_epoch + $8))
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$state_owner" "$state_token" "$state_run" "$state_command" \
+      "$state_acquired" "$state_heartbeat" "$state_expires" "$state_deadline" > "$state_file"
+    ;;
+  release)
+    read_lease
+    assert_identity "$4" "$5" "$6" "$7"
+    printf 'released\t%s\t%s\t%s\t%s\t%s\t0\t0\n' \
+      "$state_token" "$state_run" "$state_command" "$state_acquired" "$now_epoch" \
+      > "$state_file"
+    release_delay=${FAKE_LEASE_RELEASE_DELAY_SECONDS:-0}
+    [[ "$release_delay" =~ ^[0-9]+$ ]] || exit 70
+    ((release_delay == 0)) || sleep "$release_delay"
+    [[ -z "${FAKE_LEASE_RELEASE_COMPLETION_MARKER:-}" ]] \
+      || : > "$FAKE_LEASE_RELEASE_COMPLETION_MARKER"
+    ;;
+  status)
+    status_count=1
+    if [[ -n "${FAKE_LEASE_STATUS_COUNTER_FILE:-}" ]]; then
+      status_count=0
+      [[ ! -f "$FAKE_LEASE_STATUS_COUNTER_FILE" ]] \
+        || status_count=$(cat "$FAKE_LEASE_STATUS_COUNTER_FILE")
+      status_count=$((status_count + 1))
+      printf '%s\n' "$status_count" > "$FAKE_LEASE_STATUS_COUNTER_FILE"
+    fi
+    invisible_count=${FAKE_LEASE_STATUS_INVISIBLE_COUNT:-0}
+    [[ "$invisible_count" =~ ^[0-9]+$ ]] || exit 70
+    ((status_count > invisible_count)) || exit 70
+    read_lease
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${FAKE_LEASE_STATUS_OWNER_OVERRIDE:-$state_owner}" "$state_token" \
+      "$state_run" "$state_command" \
+      "${FAKE_LEASE_STATUS_ACQUIRED_AT_OVERRIDE:-$state_acquired}" \
+      "$state_heartbeat" "$state_expires" "$state_deadline"
+    ;;
 esac
 EOF
 cat > "$fixture_scripts/aws-dns-controller.sh" <<'EOF'
@@ -567,6 +833,63 @@ set -euo pipefail
 printf 'policy %s\n' "$*" >> "${FAKE_OPERATOR_LOG:?}"
 EOF
 chmod 700 "$fixture_scripts"/*.sh
+
+# The hermetic lease models the same absolute-deadline fence as DynamoDB.
+# Heartbeat/assert fail after expiry, but exact-owner release remains possible
+# so a timed-out operator never strands the fencing record.
+: > "$temp_dir/operator-execution.log"
+fake_lease_state="$temp_dir/direct-fake-lease-state"
+env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000000 \
+  "$fixture_scripts/orchestration-lease.sh" acquire lease-table lock-a owner-a run-a up 5 20 \
+  >/dev/null
+env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000004 \
+  "$fixture_scripts/orchestration-lease.sh" heartbeat lease-table lock-a owner-a 42 run-a up 5 \
+  >/dev/null
+grep -Fq $'owner-a\t42\trun-a\tup\t1900000000\t1900000004\t1900000009\t1900000020' "$fake_lease_state" \
+  || fail "hermetic lease heartbeat did not renew ExpiresAt without extending CommandDeadline"
+if env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000003 \
+  "$fixture_scripts/orchestration-lease.sh" heartbeat lease-table lock-a owner-a 42 run-a up 5 \
+  >/dev/null 2>&1; then
+  fail "hermetic lease accepted a stale heartbeat timestamp"
+fi
+grep -Fq $'owner-a\t42\trun-a\tup\t1900000000\t1900000004\t1900000009\t1900000020' "$fake_lease_state" \
+  || fail "stale hermetic heartbeat regressed the lease window"
+env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000008 \
+  "$fixture_scripts/orchestration-lease.sh" assert lease-table lock-a owner-a 42 run-a up \
+  >/dev/null
+if env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000010 \
+  "$fixture_scripts/orchestration-lease.sh" assert lease-table lock-a owner-a 42 run-a up \
+  >/dev/null 2>&1; then
+  fail "hermetic lease assert accepted an expired heartbeat window"
+fi
+if env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000010 \
+  "$fixture_scripts/orchestration-lease.sh" heartbeat lease-table lock-a owner-a 42 run-a up 5 \
+  >/dev/null 2>&1; then
+  fail "hermetic lease heartbeat revived an expired heartbeat window"
+fi
+env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000010 \
+  "$fixture_scripts/orchestration-lease.sh" release lease-table lock-a owner-a 42 run-a up \
+  >/dev/null
+grep -Fq $'released\t42\trun-a\tup\t1900000000\t1900000010\t0\t0' "$fake_lease_state" \
+  || fail "hermetic lease release did not remain possible after expiry"
+
+env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000100 \
+  "$fixture_scripts/orchestration-lease.sh" acquire lease-table lock-a owner-a run-a up 20 5 \
+  >/dev/null
+if env FAKE_OPERATOR_LOG="$temp_dir/operator-execution.log" \
+  FAKE_LEASE_STATE_FILE="$fake_lease_state" FAKE_LEASE_NOW_EPOCH=1900000106 \
+  "$fixture_scripts/orchestration-lease.sh" assert lease-table lock-a owner-a 42 run-a up \
+  >/dev/null 2>&1; then
+  fail "hermetic lease assert accepted an expired command deadline"
+fi
 
 cat > "$temp_dir/operator-bin/aws" <<'EOF'
 #!/usr/bin/env bash
@@ -937,9 +1260,14 @@ data_retained_marker="$FAKE_S3_STORE/data-retained-$fake_run"
 state_phase=active
 [[ ! -f "$identity_marker" && "${FAKE_INITIAL_IDENTITY_ONLY:-false}" != true ]] || state_phase=identity
 [[ ! -f "$destroyed_marker" ]] || state_phase=empty
-if [[ "${FAKE_BLOCK_TERRAFORM_APPLY:-}" == run-identity && \
-  " $* " == *' apply '*'/run-identity.tfplan '* ]]; then
-  if [[ "${FAKE_CREATE_TFLOCK:-false}" == true ]]; then
+block_apply=${FAKE_BLOCK_TERRAFORM_APPLY:-}
+if [[ ( ( "$block_apply" == run-identity || \
+    "$block_apply" == run-identity,destroy-resources ) && \
+    " $* " == *' apply '*'/run-identity.tfplan '* ) || \
+  ( ( "$block_apply" == destroy-resources || \
+    "$block_apply" == run-identity,destroy-resources ) && \
+    " $* " == *' apply '*'/destroy-resources.tfplan '* ) ]]; then
+  if [[ "$block_apply" == run-identity && "${FAKE_CREATE_TFLOCK:-false}" == true ]]; then
     jq -nc --arg created "${FAKE_TFLOCK_CREATED:?}" \
       '{ID:"11111111-2222-3333-4444-555555555555",Operation:"OperationTypeApply",Info:"",Who:"runner@fake-host",Version:"1.15.5",Created:$created,Path:"airbob-performance-lab-tfstate-942632789808/airbob/lab/terraform.tfstate"}' \
       > "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock"
@@ -955,6 +1283,10 @@ if [[ "${FAKE_BLOCK_TERRAFORM_APPLY:-}" == run-identity && \
   printf 'blocking-leader=%s descendant=%s\n' "$$" "$blocking_descendant" \
     >> "${FAKE_BLOCKING_MUTATION_LOG:?}"
   trap 'wait "$blocking_descendant"' TERM
+  if [[ "${FAKE_SIGNAL_PARENT_WHEN_BLOCKING:-false}" == true ]]; then
+    printf '%s\n' parent-signal=USR2 >> "${FAKE_BLOCKING_MUTATION_LOG:?}"
+    kill -USR2 "$PPID"
+  fi
   wait "$blocking_descendant"
 fi
 for argument in "$@"; do
@@ -1019,6 +1351,13 @@ case " $* " in
     ;;
   *' apply '*'/destroy-resources.tfplan '*)
     [[ "${FAKE_DESTROY_FAILURE:-false}" != true ]] || exit 70
+    destroy_delay_seconds=${FAKE_DESTROY_APPLY_DELAY_SECONDS:-0}
+    [[ "$destroy_delay_seconds" =~ ^[0-9]+$ ]] || exit 70
+    ((destroy_delay_seconds == 0)) || sleep "$destroy_delay_seconds"
+    if [[ "${FAKE_SIGNAL_STALE_WATCHDOG_DURING_DESTROY:-false}" == true ]]; then
+      printf '%s\n' 'stale-command-watchdog-signal' >> "${FAKE_OPERATOR_LOG:?}"
+      kill -USR2 "$PPID"
+    fi
     touch "$identity_marker" "$data_retained_marker"
     ;;
   *' show -json '*'/run-identity.tfplan '*)
@@ -1113,6 +1452,11 @@ cat > "$temp_dir/operator-bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'curl %s\n' "$*" >> "${FAKE_OPERATOR_LOG:?}"
+if [[ "$*" == *'/actuator/health'* && " $* " == *' --connect-to '* ]]; then
+  direct_smoke_delay=${FAKE_DIRECT_SMOKE_DELAY_SECONDS:-0}
+  [[ "$direct_smoke_delay" =~ ^[0-9]+$ ]] || exit 70
+  ((direct_smoke_delay == 0)) || sleep "$direct_smoke_delay"
+fi
 if [[ "${FAKE_PUBLIC_SMOKE_FAILURE:-false}" == true && "$*" == *'/actuator/health'* && " $* " != *' --connect-to '* ]]; then
   exit 22
 fi
@@ -1141,7 +1485,13 @@ EOF
 cat > "$temp_dir/operator-bin/date" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ -z "${FAKE_TIME_STEP_SECONDS:-}" ]]; then
+if [[ "$*" == '-u +%s' && -n "${FAKE_POST_ACQUIRE_CLOCK_OFFSET_SECONDS:-}" ]]; then
+  clock_now=$(/bin/date -u +%s)
+  [[ ! -e "${FAKE_POST_ACQUIRE_CLOCK_MARKER:?}" ]] \
+    || clock_now=$((clock_now + FAKE_POST_ACQUIRE_CLOCK_OFFSET_SECONDS))
+  printf '%s\n' "$clock_now"
+  exit 0
+elif [[ -z "${FAKE_TIME_STEP_SECONDS:-}" ]]; then
   exec /bin/date "$@"
 fi
 if [[ "$*" == '+%s' ]]; then
@@ -1282,9 +1632,16 @@ run_fake_up() {
     FAKE_OCI_COUNTER_FILE="${FAKE_OCI_COUNTER_FILE:-}" FAKE_OCI_FAIL_AT="${FAKE_OCI_FAIL_AT:-}" \
     FAKE_OCI_RECORD_DRIFT="${FAKE_OCI_RECORD_DRIFT:-none}" \
     FAKE_DIRECT_SMOKE_FAILURE="${FAKE_DIRECT_SMOKE_FAILURE:-false}" \
+    FAKE_DIRECT_SMOKE_DELAY_SECONDS="${FAKE_DIRECT_SMOKE_DELAY_SECONDS:-0}" \
     FAKE_HEARTBEAT_FAILURE="${FAKE_HEARTBEAT_FAILURE:-false}" \
+    FAKE_HEARTBEAT_FAIL_COUNT="${FAKE_HEARTBEAT_FAIL_COUNT:-}" \
+    FAKE_HEARTBEAT_FAILURE_SEQUENCE="${FAKE_HEARTBEAT_FAILURE_SEQUENCE:-}" \
+    FAKE_HEARTBEAT_COUNTER_FILE="${FAKE_HEARTBEAT_COUNTER_FILE:-$temp_dir/heartbeat-counter-unused}" \
+    FAKE_HEARTBEAT_DELAY_SECONDS="${FAKE_HEARTBEAT_DELAY_SECONDS:-0}" \
+    FAKE_HEARTBEAT_STARTED_FILE="${FAKE_HEARTBEAT_STARTED_FILE:-}" \
     FAKE_BLOCK_TERRAFORM_APPLY="${FAKE_BLOCK_TERRAFORM_APPLY:-}" \
     FAKE_BLOCKING_MUTATION_LOG="${FAKE_BLOCKING_MUTATION_LOG:-$temp_dir/blocking-mutation-unused.log}" \
+    FAKE_SIGNAL_PARENT_WHEN_BLOCKING="${FAKE_SIGNAL_PARENT_WHEN_BLOCKING:-false}" \
     FAKE_ALB_SECURITY_GROUP_DRIFT="${FAKE_ALB_SECURITY_GROUP_DRIFT:-false}" \
     FAKE_ALB_INGRESS_DRIFT="${FAKE_ALB_INGRESS_DRIFT:-none}" \
     FAKE_ASG_CAPACITY_DRIFT="${FAKE_ASG_CAPACITY_DRIFT:-false}" \
@@ -1296,6 +1653,8 @@ run_fake_up() {
     FAKE_TEARDOWN_START_PUT_FAILURE="${FAKE_TEARDOWN_START_PUT_FAILURE:-false}" \
     FAKE_TEARDOWN_FINALIZE_PUT_FAILURE="${FAKE_TEARDOWN_FINALIZE_PUT_FAILURE:-false}" \
     FAKE_DESTROY_FAILURE="${FAKE_DESTROY_FAILURE:-false}" \
+    FAKE_DESTROY_APPLY_DELAY_SECONDS="${FAKE_DESTROY_APPLY_DELAY_SECONDS:-0}" \
+    FAKE_SIGNAL_STALE_WATCHDOG_DURING_DESTROY="${FAKE_SIGNAL_STALE_WATCHDOG_DURING_DESTROY:-false}" \
     FAKE_IDENTITY_STATE_RM_FAILURE="${FAKE_IDENTITY_STATE_RM_FAILURE:-false}" \
     FAKE_IDENTITY_STATE_RM_RESPONSE_LOSS="${FAKE_IDENTITY_STATE_RM_RESPONSE_LOSS:-false}" \
     FAKE_FIRST_PHASE_IDENTITY_DELETE="${FAKE_FIRST_PHASE_IDENTITY_DELETE:-false}" \
@@ -1321,11 +1680,39 @@ run_fake_up() {
     RDS_SNAPSHOT_SOURCE_RESOURCE_ID="$snapshot_source_resource_id" \
     RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS="$ttl_hours" \
     AWS_LAB_OPERATOR_SCOPE="$fake_operator_scope" \
+    GITHUB_ACTIONS="${FAKE_GITHUB_ACTIONS:-false}" \
+    AIRBOB_WORKFLOW_DEADLINE_EPOCH="${FAKE_WORKFLOW_DEADLINE_EPOCH:-}" \
     AIRBOB_OPERATOR_TEST_HARNESS="${AIRBOB_OPERATOR_TEST_HARNESS:-}" \
     AIRBOB_TEST_COMMAND_DEADLINE_SECONDS="${AIRBOB_TEST_COMMAND_DEADLINE_SECONDS:-}" \
+    AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS="${AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS:-}" \
+    AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS="${AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS:-}" \
+    AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS="${AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS:-}" \
+    AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS="${AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS:-}" \
     AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS="${AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS:-}" \
+    AIRBOB_TEST_HEARTBEAT_TTL_SECONDS="${AIRBOB_TEST_HEARTBEAT_TTL_SECONDS:-}" \
     AIRBOB_TEST_TERMINATION_GRACE_SECONDS="${AIRBOB_TEST_TERMINATION_GRACE_SECONDS:-}" \
+    AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE="${AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE:-}" \
+    AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE="${AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE:-}" \
+    AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE="${AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE:-}" \
+    AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE="${AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE:-}" \
     LEASE_OWNER=fixture/operator:1 FAKE_LEASE_COMMAND=up \
+    FAKE_LEASE_STATE_FILE="${FAKE_LEASE_STATE_FILE:-$temp_dir/fake-lease-state}" \
+    FAKE_LEASE_NOW_EPOCH="${FAKE_LEASE_NOW_EPOCH:-}" \
+    FAKE_LEASE_ACQUIRE_DELAY_SECONDS="${FAKE_LEASE_ACQUIRE_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_ACQUIRE_POST_RESPONSE_DELAY_SECONDS="${FAKE_LEASE_ACQUIRE_POST_RESPONSE_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER="${FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER:-}" \
+    FAKE_LEASE_ACQUIRE_LOSE_RESPONSE="${FAKE_LEASE_ACQUIRE_LOSE_RESPONSE:-false}" \
+    FAKE_LEASE_SIGNAL_PARENT_AFTER_COMMIT="${FAKE_LEASE_SIGNAL_PARENT_AFTER_COMMIT:-}" \
+    FAKE_LEASE_STATUS_COUNTER_FILE="${FAKE_LEASE_STATUS_COUNTER_FILE:-$temp_dir/lease-status-counter-$1}" \
+    FAKE_LEASE_STATUS_INVISIBLE_COUNT="${FAKE_LEASE_STATUS_INVISIBLE_COUNT:-0}" \
+    FAKE_LEASE_STATUS_OWNER_OVERRIDE="${FAKE_LEASE_STATUS_OWNER_OVERRIDE:-}" \
+    FAKE_LEASE_STATUS_ACQUIRED_AT_OVERRIDE="${FAKE_LEASE_STATUS_ACQUIRED_AT_OVERRIDE:-}" \
+    FAKE_LEASE_ASSERT_DELAY_SECONDS="${FAKE_LEASE_ASSERT_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_ASSERT_COMPLETION_MARKER="${FAKE_LEASE_ASSERT_COMPLETION_MARKER:-}" \
+    FAKE_LEASE_RELEASE_DELAY_SECONDS="${FAKE_LEASE_RELEASE_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_RELEASE_COMPLETION_MARKER="${FAKE_LEASE_RELEASE_COMPLETION_MARKER:-}" \
+    FAKE_POST_ACQUIRE_CLOCK_MARKER="${FAKE_POST_ACQUIRE_CLOCK_MARKER:-}" \
+    FAKE_POST_ACQUIRE_CLOCK_OFFSET_SECONDS="${FAKE_POST_ACQUIRE_CLOCK_OFFSET_SECONDS:-}" \
     FAKE_LEASE_ACQUIRED_AT="${FAKE_LEASE_ACQUIRED_AT:-}" \
     FAKE_LEASE_HEARTBEAT_AT="${FAKE_LEASE_HEARTBEAT_AT:-}" \
     FAKE_LEASE_EXPIRES_AT="${FAKE_LEASE_EXPIRES_AT:-}" \
@@ -1373,9 +1760,38 @@ run_fake_down() {
     FAKE_TEARDOWN_FINALIZE_PUT_FAILURE="${FAKE_TEARDOWN_FINALIZE_PUT_FAILURE:-false}" \
     FAKE_RUN_IDENTITY_OUTPUT_MISSING="${FAKE_RUN_IDENTITY_OUTPUT_MISSING:-false}" \
     FAKE_PHASE2_OUTPUT_MISSING="${FAKE_PHASE2_OUTPUT_MISSING:-false}" \
+    FAKE_BLOCK_TERRAFORM_APPLY="${FAKE_BLOCK_TERRAFORM_APPLY:-}" \
+    FAKE_BLOCKING_MUTATION_LOG="${FAKE_BLOCKING_MUTATION_LOG:-$temp_dir/down-blocking-mutation-unused.log}" \
     AWS_LAB_OPERATOR_SCOPE="${FAKE_AWS_LAB_OPERATOR_SCOPE:-cutover}" \
     FAKE_ACTIVE_ROLE_NAME="${FAKE_ACTIVE_ROLE_NAME:-}" \
+    AIRBOB_OPERATOR_TEST_HARNESS="${AIRBOB_OPERATOR_TEST_HARNESS:-}" \
+    AIRBOB_TEST_COMMAND_DEADLINE_SECONDS="${AIRBOB_TEST_COMMAND_DEADLINE_SECONDS:-}" \
+    AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS="${AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS:-}" \
+    AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS="${AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS:-}" \
+    AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS="${AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS:-}" \
+    AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS="${AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS:-}" \
+    AIRBOB_TEST_HEARTBEAT_TTL_SECONDS="${AIRBOB_TEST_HEARTBEAT_TTL_SECONDS:-}" \
+    AIRBOB_TEST_TERMINATION_GRACE_SECONDS="${AIRBOB_TEST_TERMINATION_GRACE_SECONDS:-}" \
+    AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE="${AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE:-}" \
+    AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE="${AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE:-}" \
+    AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE="${AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE:-}" \
+    AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE="${AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE:-}" \
     LEASE_OWNER=fixture/operator:1 FAKE_LEASE_COMMAND=down \
+    FAKE_LEASE_STATE_FILE="${FAKE_LEASE_STATE_FILE:-$temp_dir/fake-lease-state}" \
+    FAKE_LEASE_NOW_EPOCH="${FAKE_LEASE_NOW_EPOCH:-}" \
+    FAKE_LEASE_ACQUIRE_DELAY_SECONDS="${FAKE_LEASE_ACQUIRE_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_ACQUIRE_POST_RESPONSE_DELAY_SECONDS="${FAKE_LEASE_ACQUIRE_POST_RESPONSE_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER="${FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER:-}" \
+    FAKE_LEASE_ACQUIRE_LOSE_RESPONSE="${FAKE_LEASE_ACQUIRE_LOSE_RESPONSE:-false}" \
+    FAKE_LEASE_SIGNAL_PARENT_AFTER_COMMIT="${FAKE_LEASE_SIGNAL_PARENT_AFTER_COMMIT:-}" \
+    FAKE_LEASE_STATUS_COUNTER_FILE="${FAKE_LEASE_STATUS_COUNTER_FILE:-$temp_dir/lease-status-counter-$selected_run}" \
+    FAKE_LEASE_STATUS_INVISIBLE_COUNT="${FAKE_LEASE_STATUS_INVISIBLE_COUNT:-0}" \
+    FAKE_LEASE_STATUS_OWNER_OVERRIDE="${FAKE_LEASE_STATUS_OWNER_OVERRIDE:-}" \
+    FAKE_LEASE_STATUS_ACQUIRED_AT_OVERRIDE="${FAKE_LEASE_STATUS_ACQUIRED_AT_OVERRIDE:-}" \
+    FAKE_LEASE_ASSERT_DELAY_SECONDS="${FAKE_LEASE_ASSERT_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_ASSERT_COMPLETION_MARKER="${FAKE_LEASE_ASSERT_COMPLETION_MARKER:-}" \
+    FAKE_LEASE_RELEASE_DELAY_SECONDS="${FAKE_LEASE_RELEASE_DELAY_SECONDS:-0}" \
+    FAKE_LEASE_RELEASE_COMPLETION_MARKER="${FAKE_LEASE_RELEASE_COMPLETION_MARKER:-}" \
     FAKE_LEASE_ACQUIRED_AT="${FAKE_LEASE_ACQUIRED_AT:-}" \
     FAKE_LEASE_HEARTBEAT_AT="${FAKE_LEASE_HEARTBEAT_AT:-}" \
     FAKE_LEASE_EXPIRES_AT="${FAKE_LEASE_EXPIRES_AT:-}" \
@@ -1398,6 +1814,43 @@ epoch_to_utc() {
   fi
 }
 
+# Non-up command time starts before lease acquisition. A delayed down acquire
+# is interrupted at the command boundary, recovers/releases its committed
+# tokenless lease, and never receives a fresh 5,400-second clock afterward.
+jq '.runId="lab-delayed-down-acquire"' "$temp_dir/run-manifest.json" \
+  > "$temp_dir/run-manifest.delayed-down.json"
+: > "$temp_dir/operator-execution.log"
+delayed_down_started=$(/bin/date +%s)
+set +e
+AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=2 \
+  AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=5 \
+  AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=5 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_LEASE_ACQUIRE_DELAY_SECONDS=4 \
+  FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.delayed-down.json" \
+  run_fake_down lab-delayed-down-acquire \
+    >"$temp_dir/delayed-down-acquire.out" \
+    2>"$temp_dir/delayed-down-acquire.err"
+delayed_down_status=$?
+set -e
+delayed_down_elapsed=$(( $(/bin/date +%s) - delayed_down_started ))
+[[ "$delayed_down_status" -eq 124 ]] \
+  || fail "delayed down acquisition did not retain the command deadline status"
+((delayed_down_elapsed >= 2 && delayed_down_elapsed < 5)) \
+  || fail "delayed down acquisition received a post-acquire command clock"
+grep -Fq 'operator command deadline exceeded during lease acquisition' \
+  "$temp_dir/delayed-down-acquire.err" \
+  || fail "delayed down acquisition did not report its original command deadline"
+grep -Eq '^lease release .* lab-delayed-down-acquire down$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "delayed down acquisition did not release its exact committed lease"
+if grep -Eq '^lease heartbeat |^terraform ' "$temp_dir/operator-execution.log"; then
+  fail "delayed down acquisition reached heartbeat or Terraform mutation"
+fi
+
 write_fake_tflock() {
   local created=$1 path=${2:-airbob-performance-lab-tfstate-942632789808/airbob/lab/terraform.tfstate}
   jq -nc --arg created "$created" --arg path "$path" \
@@ -1414,10 +1867,11 @@ prior_lock_created=$(epoch_to_utc "$((lock_now - 18400))")
 : > "$temp_dir/stale-lock-mutation.log"
 : > "$temp_dir/operator-execution.log"
 if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
-  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=2 AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
   AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
   FAKE_BLOCK_TERRAFORM_APPLY=run-identity \
   FAKE_BLOCKING_MUTATION_LOG="$temp_dir/stale-lock-mutation.log" \
+  FAKE_SIGNAL_PARENT_WHEN_BLOCKING=true \
   FAKE_CREATE_TFLOCK=true FAKE_TFLOCK_CREATED="$prior_lock_created" \
   FAKE_STATE_AFTER_FIRST_LOOKUP=true \
   FAKE_STATE_LOOKUP_COUNTER="$temp_dir/stale-lock-state-lookups" \
@@ -1428,13 +1882,27 @@ if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
 fi
 [[ -f "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock" ]] \
   || fail "SIGKILL stale-lock fixture did not preserve Terraform's native lock"
+grep -Fq 'parent-signal=USR2' "$temp_dir/stale-lock-mutation.log" \
+  || fail "SIGKILL stale-lock fixture did not synchronize after lock creation"
 if grep -Fq 'force-unlock' "$temp_dir/operator-execution.log"; then
   fail "same orchestration lease force-unlocked its own new Terraform lock"
 fi
 stale_lock_lines=$(awk 'END {print NR}' "$temp_dir/stale-lock-mutation.log")
-sleep 1
+stale_operator_lines=$(awk 'END {print NR}' "$temp_dir/operator-execution.log")
+stale_lease_owner=$(awk '$1 == "lease" && $2 == "acquire" && $6 == "lab-stale-lock" { print $5 }' \
+  "$temp_dir/operator-execution.log")
+[[ "$stale_lease_owner" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] \
+  || fail "SIGKILL stale-lock fixture did not record one canonical lease owner"
+sleep 3
 [[ "$(awk 'END {print NR}' "$temp_dir/stale-lock-mutation.log")" == "$stale_lock_lines" ]] \
   || fail "SIGKILL stale-lock fixture left a mutating descendant alive"
+if [[ "$(awk 'END {print NR}' "$temp_dir/operator-execution.log")" != "$stale_operator_lines" ]]; then
+  tail -80 "$temp_dir/operator-execution.log" >&2
+  fail "SIGKILL stale-lock operator returned before its lease children were reaped"
+fi
+grep -Eq '^lease release .* '"$stale_lease_owner"' 42 lab-stale-lock up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "SIGKILL stale-lock operator did not release its exact lease"
 stale_manifest_store="$FAKE_S3_STORE/runs__lab-stale-lock__operator.json"
 jq '.expiresAt=1700000000' "$stale_manifest_store" > "$temp_dir/stale-lock-expired.json"
 mv "$temp_dir/stale-lock-expired.json" "$stale_manifest_store"
@@ -1948,6 +2416,296 @@ if grep -Eq '^lease acquire |terraform .* (plan|apply)|^network |^dns ' "$temp_d
   fail "tampered smoke input rejection reached an infrastructure mutation"
 fi
 
+# GitHub must propagate the job clock before release validation can hand off to
+# the mutation guard. Missing, malformed, and insufficient budgets all fail
+# before lease acquisition or Terraform.
+: > "$temp_dir/operator-execution.log"
+if FAKE_GITHUB_ACTIONS=true \
+  run_fake_up lab-workflow-deadline-missing \
+    >"$temp_dir/workflow-deadline-missing.out" \
+    2>"$temp_dir/workflow-deadline-missing.err"; then
+  fail "GitHub-mode operator accepted a missing workflow deadline"
+fi
+grep -Fq 'GitHub Actions up requires AIRBOB_WORKFLOW_DEADLINE_EPOCH' \
+  "$temp_dir/workflow-deadline-missing.err" \
+  || fail "missing GitHub workflow deadline did not report the exact failure"
+if grep -Eq '^lease acquire |^terraform ' "$temp_dir/operator-execution.log"; then
+  fail "missing GitHub workflow deadline reached lease or Terraform mutation"
+fi
+
+: > "$temp_dir/operator-execution.log"
+if FAKE_GITHUB_ACTIONS=true FAKE_WORKFLOW_DEADLINE_EPOCH=11900000000 \
+  run_fake_up lab-workflow-deadline-invalid \
+    >"$temp_dir/workflow-deadline-invalid.out" \
+    2>"$temp_dir/workflow-deadline-invalid.err"; then
+  fail "GitHub-mode operator accepted a non-canonical workflow deadline"
+fi
+grep -Fq 'workflow deadline epoch is not canonical' \
+  "$temp_dir/workflow-deadline-invalid.err" \
+  || fail "invalid GitHub workflow deadline did not report the exact failure"
+if grep -Eq '^lease acquire |^terraform ' "$temp_dir/operator-execution.log"; then
+  fail "invalid GitHub workflow deadline reached lease or Terraform mutation"
+fi
+
+: > "$temp_dir/operator-execution.log"
+insufficient_workflow_deadline=$(( $(/bin/date +%s) + 60 ))
+if FAKE_GITHUB_ACTIONS=true \
+  FAKE_WORKFLOW_DEADLINE_EPOCH="$insufficient_workflow_deadline" \
+  run_fake_up lab-workflow-deadline-short \
+    >"$temp_dir/workflow-deadline-short.out" \
+    2>"$temp_dir/workflow-deadline-short.err"; then
+  fail "GitHub-mode operator accepted an insufficient workflow budget"
+fi
+grep -Fq 'workflow lifetime cannot cover the lease deadline and finalization margin' \
+  "$temp_dir/workflow-deadline-short.err" \
+  || fail "insufficient GitHub workflow budget did not report the exact failure"
+if grep -Eq '^lease acquire |^terraform ' "$temp_dir/operator-execution.log"; then
+  fail "insufficient GitHub workflow budget reached lease or Terraform mutation"
+fi
+
+# A commit whose fencing-token response arrives after the outer acquire bound
+# is recovered through strongly consistent status. The first invisible read
+# models the commit/read race; only the exact unactivated acquire shape is
+# released, and execution never proceeds to heartbeat or infrastructure.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/slow-lease-status-count"
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+  AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=1 \
+  AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=5 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_LEASE_ACQUIRE_DELAY_SECONDS=2 \
+  FAKE_LEASE_STATUS_COUNTER_FILE="$temp_dir/slow-lease-status-count" \
+  FAKE_LEASE_STATUS_INVISIBLE_COUNT=1 \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+  run_fake_up lab-slow-lease-acquire \
+    >"$temp_dir/slow-lease-acquire.out" 2>"$temp_dir/slow-lease-acquire.err"; then
+  fail "operator accepted lease acquisition beyond its bounded deadline"
+fi
+grep -Fq 'tokenless orchestration lease acquisition was recovered and released' \
+  "$temp_dir/slow-lease-acquire.err" \
+  || fail "tokenless lease acquisition did not report exact recovery"
+[[ "$(cat "$temp_dir/slow-lease-status-count")" -ge 2 ]] \
+  || fail "tokenless lease recovery did not retry an initially invisible commit"
+grep -Eq '^lease acquire .* lab-slow-lease-acquire up ' \
+  "$temp_dir/operator-execution.log" \
+  || fail "late lease fixture did not acquire a fenced lease"
+grep -Eq '^lease release .* lab-slow-lease-acquire up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "late lease acquisition did not release its exact lease"
+if grep -Eq '^terraform |runs/lab-slow-lease-acquire/operator.json' \
+  "$temp_dir/operator-execution.log"; then
+  fail "late lease acquisition reached run-manifest or Terraform mutation"
+fi
+
+# The timeout marker is diagnostic only. Even when its write is injected to
+# fail, a committed acquire that printed its token and then hung is killed as
+# a full process group, classified by elapsed time, and exactly released.
+: > "$temp_dir/operator-execution.log"
+rm -f "$temp_dir/acquire-post-response-complete"
+timeout_marker_started=$(/bin/date +%s)
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+  AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=1 \
+  AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=3 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE=true \
+  FAKE_LEASE_ACQUIRE_POST_RESPONSE_DELAY_SECONDS=6 \
+  FAKE_LEASE_ACQUIRE_POST_RESPONSE_MARKER="$temp_dir/acquire-post-response-complete" \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+  run_fake_up lab-timeout-marker-failure \
+    >"$temp_dir/timeout-marker-failure.out" \
+    2>"$temp_dir/timeout-marker-failure.err"; then
+  fail "lease acquire survived a failed timeout-marker write"
+fi
+timeout_marker_elapsed=$(( $(/bin/date +%s) - timeout_marker_started ))
+((timeout_marker_elapsed >= 1 && timeout_marker_elapsed < 6)) \
+  || fail "failed timeout-marker write did not retain the outer acquire bound"
+grep -Fq 'orchestration lease acquisition exceeded the bounded deadline' \
+  "$temp_dir/timeout-marker-failure.err" \
+  || fail "failed timeout-marker write lost the elapsed-time deadline diagnosis"
+grep -Eq '^lease release .* lab-timeout-marker-failure up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "failed timeout-marker write skipped exact lease release"
+sleep 2
+[[ ! -e "$temp_dir/acquire-post-response-complete" ]] \
+  || fail "failed timeout-marker write left the hung lease descendant alive"
+if grep -Eq '^terraform |runs/lab-timeout-marker-failure/operator.json' \
+  "$temp_dir/operator-execution.log"; then
+  fail "failed timeout-marker write reached run-manifest or Terraform mutation"
+fi
+
+# Ordinary assertions and the final best-effort release use the same hard
+# control-call bound. Both delayed fake calls are group-killed, while release
+# has already conditionally removed the exact lease before losing its response.
+: > "$temp_dir/operator-execution.log"
+rm -f "$temp_dir/assert-complete" "$temp_dir/release-complete"
+bounded_control_started=$(/bin/date +%s)
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+  AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=5 \
+  AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=3 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=1 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=5 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_LEASE_ASSERT_DELAY_SECONDS=6 \
+  FAKE_LEASE_ASSERT_COMPLETION_MARKER="$temp_dir/assert-complete" \
+  FAKE_LEASE_RELEASE_DELAY_SECONDS=6 \
+  FAKE_LEASE_RELEASE_COMPLETION_MARKER="$temp_dir/release-complete" \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+  run_fake_up lab-bounded-control-calls \
+    >"$temp_dir/bounded-control-calls.out" \
+    2>"$temp_dir/bounded-control-calls.err"; then
+  fail "operator accepted a lease assertion beyond its control-call bound"
+fi
+bounded_control_elapsed=$(( $(/bin/date +%s) - bounded_control_started ))
+((bounded_control_elapsed >= 2 && bounded_control_elapsed < 8)) \
+  || fail "assertion or final release escaped its control-call bound"
+grep -Eq '^lease release .* lab-bounded-control-calls up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "bounded assertion failure did not attempt exact final release"
+sleep 2
+[[ ! -e "$temp_dir/assert-complete" && ! -e "$temp_dir/release-complete" ]] \
+  || fail "bounded assertion or release left a delayed lease child alive"
+if grep -Eq '^terraform |runs/lab-bounded-control-calls/operator.json' \
+  "$temp_dir/operator-execution.log"; then
+  fail "bounded assertion failure reached run-manifest or Terraform mutation"
+fi
+
+# TERM after the DynamoDB commit but before token output follows the same
+# bounded status/release recovery path, then preserves the signal exit status.
+: > "$temp_dir/operator-execution.log"
+set +e
+AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+  AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=5 \
+  AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=5 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_LEASE_SIGNAL_PARENT_AFTER_COMMIT=TERM \
+  FAKE_LEASE_ACQUIRE_DELAY_SECONDS=2 \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+  run_fake_up lab-term-lease-acquire \
+    >"$temp_dir/term-lease-acquire.out" 2>"$temp_dir/term-lease-acquire.err"
+term_lease_status=$?
+set -e
+[[ "$term_lease_status" -eq 143 ]] \
+  || fail "tokenless TERM recovery did not retain the signal exit status"
+grep -Fq 'recovered and released an exact tokenless orchestration lease acquisition' \
+  "$temp_dir/term-lease-acquire.err" \
+  || fail "tokenless TERM did not recover its committed lease"
+grep -Eq '^lease release .* lab-term-lease-acquire up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "tokenless TERM did not release its exact committed lease"
+if grep -Eq '^terraform |runs/lab-term-lease-acquire/operator.json' \
+  "$temp_dir/operator-execution.log"; then
+  fail "tokenless TERM recovery reached run-manifest or Terraform mutation"
+fi
+
+# A status row with the wrong invocation owner or an AcquiredAt outside this
+# call's window is never adopted, even though the timed-out acquire committed.
+for recovery_mismatch in owner acquired-at; do
+  : > "$temp_dir/operator-execution.log"
+  mismatch_run="lab-recovery-${recovery_mismatch}"
+  status_owner_override=''
+  status_acquired_override=''
+  [[ "$recovery_mismatch" != owner ]] || status_owner_override=other/operator
+  [[ "$recovery_mismatch" != acquired-at ]] \
+    || status_acquired_override=$(( $(/bin/date +%s) - 60 ))
+  if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+    AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+    AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+    AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=1 \
+    AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=2 \
+    AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=1 \
+    AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+    AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+    FAKE_LEASE_ACQUIRE_DELAY_SECONDS=2 \
+    FAKE_LEASE_STATUS_OWNER_OVERRIDE="$status_owner_override" \
+    FAKE_LEASE_STATUS_ACQUIRED_AT_OVERRIDE="$status_acquired_override" \
+    FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+    run_fake_up "$mismatch_run" \
+      >"$temp_dir/$recovery_mismatch-recovery.out" \
+      2>"$temp_dir/$recovery_mismatch-recovery.err"; then
+    fail "tokenless recovery adopted a mismatched $recovery_mismatch status"
+  fi
+  grep -Fq 'orchestration lease acquisition timed out without one recoverable exact lease' \
+    "$temp_dir/$recovery_mismatch-recovery.err" \
+    || fail "mismatched $recovery_mismatch status reported the wrong recovery failure"
+  if grep -Eq '^lease release |^terraform |runs/'"$mismatch_run"'/operator.json' \
+    "$temp_dir/operator-execution.log"; then
+    fail "mismatched $recovery_mismatch status was released or reached mutation"
+  fi
+done
+
+# In-bound acquisition delay cannot consume the budget between the pre- and
+# post-acquire gates. A deterministic fake clock advances only after token
+# commit/response, proving both workflow and credential rechecks release the
+# exact lease before heartbeat, manifest, or Terraform work.
+post_acquire_required_seconds=$((20 + 8 + 300 + 300))
+for post_budget in workflow credential; do
+  : > "$temp_dir/operator-execution.log"
+  post_budget_run="lab-post-${post_budget}-budget"
+  post_budget_marker="$temp_dir/$post_budget-acquire-clock"
+  rm -f "$post_budget_marker"
+  post_budget_now=$(/bin/date -u +%s)
+  post_budget_deadline=$((post_budget_now + post_acquire_required_seconds + 100))
+  post_budget_expiration=2099-01-01T00:00:00Z
+  post_budget_workflow=''
+  post_budget_github=false
+  if [[ "$post_budget" == workflow ]]; then
+    post_budget_github=true
+    post_budget_workflow=$post_budget_deadline
+  else
+    post_budget_expiration=$(epoch_to_utc "$post_budget_deadline")
+  fi
+  if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+    AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+    AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+    AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS=5 \
+    AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=5 \
+    AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+    AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+    AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+    AIRBOB_AWS_CREDENTIAL_EXPIRATION="$post_budget_expiration" \
+    FAKE_GITHUB_ACTIONS="$post_budget_github" \
+    FAKE_WORKFLOW_DEADLINE_EPOCH="$post_budget_workflow" \
+    FAKE_LEASE_ACQUIRE_DELAY_SECONDS=1 \
+    FAKE_POST_ACQUIRE_CLOCK_MARKER="$post_budget_marker" \
+    FAKE_POST_ACQUIRE_CLOCK_OFFSET_SECONDS=200 \
+    FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
+    run_fake_up "$post_budget_run" \
+      >"$temp_dir/$post_budget-post-budget.out" \
+      2>"$temp_dir/$post_budget-post-budget.err"; then
+    fail "post-acquire $post_budget budget recheck accepted an exhausted lifetime"
+  fi
+  if [[ "$post_budget" == workflow ]]; then
+    grep -Fq 'workflow lifetime cannot cover the lease deadline and finalization margin' \
+      "$temp_dir/$post_budget-post-budget.err" \
+      || { cat "$temp_dir/$post_budget-post-budget.err" >&2; fail "post-acquire workflow recheck reported the wrong failure"; }
+  else
+    grep -Fq 'static STS credential lifetime cannot cover the lease deadline and safety margin' \
+      "$temp_dir/$post_budget-post-budget.err" \
+      || fail "post-acquire credential recheck reported the wrong failure"
+  fi
+  grep -Eq '^lease release .* '"$post_budget_run"' up$' \
+    "$temp_dir/operator-execution.log" \
+    || fail "post-acquire $post_budget failure did not release its exact lease"
+  if grep -Eq '^lease heartbeat .* '"$post_budget_run"' up |^terraform |runs/'"$post_budget_run"'/operator.json' \
+    "$temp_dir/operator-execution.log"; then
+    fail "post-acquire $post_budget failure reached heartbeat, manifest, or Terraform"
+  fi
+done
+
 for oci_record_drift in aaaa cname alternate alias; do
   : > "$temp_dir/operator-execution.log"
   if FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
@@ -1961,16 +2719,19 @@ for oci_record_drift in aaaa cname alternate alias; do
 done
 
 run_blocking_guard_case() {
-  local guard_case=$1 guard_run=$2 deadline=20 heartbeat_failure=false
+  local guard_case=$1 guard_run=$2 deadline=20 heartbeat_failure=false termination_grace=1
   local before_lines after_lines guard_log="$temp_dir/$guard_case-blocking-mutation.log"
   [[ "$guard_case" != deadline ]] || deadline=2
-  [[ "$guard_case" != heartbeat ]] || heartbeat_failure=true
+  if [[ "$guard_case" == heartbeat ]]; then
+    heartbeat_failure=true
+    termination_grace=2
+  fi
   : > "$temp_dir/operator-execution.log"
   : > "$guard_log"
   if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
     AIRBOB_TEST_COMMAND_DEADLINE_SECONDS="$deadline" \
     AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
-    AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+    AIRBOB_TEST_TERMINATION_GRACE_SECONDS="$termination_grace" \
     FAKE_HEARTBEAT_FAILURE="$heartbeat_failure" \
     FAKE_BLOCK_TERRAFORM_APPLY=run-identity FAKE_BLOCKING_MUTATION_LOG="$guard_log" \
     FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
@@ -1983,7 +2744,10 @@ run_blocking_guard_case() {
     || fail "$guard_case guard did not report process-group termination"
   case "$guard_case" in
     deadline) grep -Fq 'operator command deadline exceeded' "$temp_dir/$guard_case.err" ;;
-    heartbeat) grep -Fq 'orchestration heartbeat failed' "$temp_dir/$guard_case.err" ;;
+    heartbeat)
+      grep -Fq 'orchestration heartbeat failed' "$temp_dir/$guard_case.err" &&
+        [[ "$(grep -Fxc 'orchestration heartbeat failed' "$temp_dir/$guard_case.err")" -eq 1 ]]
+      ;;
   esac || fail "$guard_case guard did not report its exact abort reason"
   if grep -Eq '^terraform .* plan .*\/lab\.tfplan|^network |^policy |^dns ' \
     "$temp_dir/operator-execution.log"; then
@@ -2166,10 +2930,10 @@ FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
   FAKE_TIME_STEP_SECONDS=60 FAKE_TIME_COUNTER="$temp_dir/snapshot-time-counter" \
   run_fake_up lab-repeat-snapshot false 203.0.113.10 performance integrated-smoke >/dev/null
-grep -Eq '^lease acquire .* lab-repeat-dump up 180 14400$' "$temp_dir/operator-execution.log" \
-  || fail "dump up did not acquire the 14400-second lease deadline"
-grep -Eq '^lease acquire .* lab-repeat-snapshot up 180 5400$' "$temp_dir/operator-execution.log" \
-  || fail "snapshot up did not retain the 5400-second lease deadline"
+grep -Eq '^lease acquire .* lab-repeat-dump up 180 17100$' "$temp_dir/operator-execution.log" \
+  || fail "dump up did not acquire the 17100-second command-cleanup-transition lease deadline"
+grep -Eq '^lease acquire .* lab-repeat-snapshot up 180 9300$' "$temp_dir/operator-execution.log" \
+  || fail "snapshot up did not acquire the 9300-second command-cleanup-transition lease deadline"
 identity_apply_line=$(grep -n -m1 'terraform .* apply .*run-identity.tfplan' "$temp_dir/operator-execution.log" | cut -d: -f1)
 network_plan_line=$(grep -n -m1 'terraform .* plan .*lab.tfplan' "$temp_dir/operator-execution.log" | cut -d: -f1)
 network_probe_line=$(grep -n -m1 '^network egress ' "$temp_dir/operator-execution.log" | cut -d: -f1)
@@ -2332,6 +3096,380 @@ jq -e '
   || fail "successful automatic failure cleanup did not publish a global clean-state receipt"
 grep -Fq 'lease release ' "$temp_dir/operator-execution.log" \
   || fail "successful automatic failure cleanup skipped lease release"
+
+# If the exclusive one-shot failure marker itself cannot be created, the
+# heartbeat loop must still signal fail-safe exactly once and exit. Cleanup can
+# then serialize a fresh renewal/restart without leaving a background writer.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+: > "$temp_dir/marker-failure-heartbeat-count"
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=10 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_HEARTBEAT_TTL_SECONDS=8 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE=true \
+  FAKE_HEARTBEAT_FAIL_COUNT=1 \
+  FAKE_HEARTBEAT_COUNTER_FILE="$temp_dir/marker-failure-heartbeat-count" \
+  FAKE_BLOCK_TERRAFORM_APPLY=run-identity \
+  FAKE_BLOCKING_MUTATION_LOG="$temp_dir/marker-failure-mutation.log" \
+  FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-heartbeat-marker-failure \
+  FAKE_STATE_VERSION_ID=state-version-heartbeat-marker-failure \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  run_fake_up lab-heartbeat-marker-failure \
+    >"$temp_dir/heartbeat-marker-failure.out" \
+    2>"$temp_dir/heartbeat-marker-failure.err"; then
+  fail "operator hid a heartbeat failure whose marker could not be written"
+fi
+grep -Fq 'orchestration heartbeat failed' \
+  "$temp_dir/heartbeat-marker-failure.err" \
+  || fail "heartbeat marker failure did not signal the operator"
+grep -Fq 'failure cleanup lease renewed; heartbeat continuity verified' \
+  "$temp_dir/heartbeat-marker-failure.err" \
+  || fail "heartbeat marker failure did not complete serialized recovery"
+grep -Eq '^lease release .* lab-heartbeat-marker-failure up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "heartbeat marker failure skipped exact release"
+marker_failure_log_lines=$(awk 'END { print NR + 0 }' "$temp_dir/operator-execution.log")
+sleep 2
+[[ "$(awk 'END { print NR + 0 }' "$temp_dir/operator-execution.log")" == \
+  "$marker_failure_log_lines" ]] \
+  || fail "heartbeat marker failure left a heartbeat child after finalization"
+
+# Cleanup never depends on a writable stop marker. If removing the heartbeat
+# failure marker is unavailable, it preserves state before renewal/destroy and
+# still completes the bounded exact-release finalizer.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+cleanup_marker_clean_before=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=2 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=5 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE=true \
+  FAKE_BLOCK_TERRAFORM_APPLY=run-identity \
+  FAKE_BLOCKING_MUTATION_LOG="$temp_dir/cleanup-marker-mutation.log" \
+  FAKE_SIGNAL_PARENT_WHEN_BLOCKING=true \
+  FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-cleanup-marker-failure \
+  FAKE_STATE_VERSION_ID=state-version-cleanup-marker-failure \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  run_fake_up lab-cleanup-marker-failure \
+    >"$temp_dir/cleanup-marker-failure.out" \
+    2>"$temp_dir/cleanup-marker-failure.err"; then
+  fail "operator hid the command failure used for cleanup-marker injection"
+fi
+grep -Fq 'failure cleanup marker reset failed; resources remain preserved' \
+  "$temp_dir/cleanup-marker-failure.err" \
+  || fail "cleanup marker failure did not report state preservation"
+grep -Eq '^lease release .* lab-cleanup-marker-failure up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "cleanup marker failure skipped exact release"
+if grep -Eq 'lease heartbeat .* lab-cleanup-marker-failure up|destroy-resources.tfplan|measurements/lab-cleanup-marker-failure/teardown-(start|finalize)\.json' \
+  "$temp_dir/operator-execution.log"; then
+  fail "cleanup marker failure reached renewal, destroy, or finalization"
+fi
+cleanup_marker_clean_after=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+[[ "$cleanup_marker_clean_after" == "$cleanup_marker_clean_before" ]] \
+  || fail "cleanup marker failure published a false clean-state receipt"
+
+# A transient heartbeat failure may initiate cleanup. Cleanup cooperatively
+# reaps the failed loop, renews and asserts without overlap, then restarts the
+# periodic loop. A destroy longer than the short hermetic TTL proves renewal
+# continues through finalization instead of relying on the synchronous handoff.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+: > "$temp_dir/transient-heartbeat-count"
+: > "$temp_dir/transient-heartbeat-mutation.log"
+transient_cleanup_version=state-version-transient-heartbeat
+transient_cleanup_started=$(/bin/date +%s)
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=25 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_HEARTBEAT_TTL_SECONDS=8 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_HEARTBEAT_FAIL_COUNT=1 \
+  FAKE_HEARTBEAT_COUNTER_FILE="$temp_dir/transient-heartbeat-count" \
+  FAKE_BLOCK_TERRAFORM_APPLY=run-identity \
+  FAKE_BLOCKING_MUTATION_LOG="$temp_dir/transient-heartbeat-mutation.log" \
+  FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-transient-heartbeat \
+  FAKE_STATE_VERSION_ID="$transient_cleanup_version" \
+  FAKE_DESTROY_APPLY_DELAY_SECONDS=10 \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  run_fake_up lab-transient-heartbeat \
+    >"$temp_dir/transient-heartbeat.out" 2>"$temp_dir/transient-heartbeat.err"; then
+  fail "operator hid the transient heartbeat failure that initiated cleanup"
+fi
+transient_cleanup_elapsed=$(( $(/bin/date +%s) - transient_cleanup_started ))
+((transient_cleanup_elapsed >= 10)) \
+  || fail "transient cleanup did not cross its hermetic heartbeat TTL"
+grep -Fq 'orchestration heartbeat failed' "$temp_dir/transient-heartbeat.err" \
+  || fail "transient heartbeat failure did not reach operator cleanup"
+grep -Fq 'failure cleanup lease renewed; heartbeat continuity verified' \
+  "$temp_dir/transient-heartbeat.err" \
+  || fail "failure cleanup did not report fenced renewal and heartbeat continuity"
+(( $(cat "$temp_dir/transient-heartbeat-count") >= 7 )) \
+  || fail "failure cleanup did not keep periodic heartbeats active beyond the TTL"
+grep -Eq '^terraform .* apply .*destroy-resources.tfplan' \
+  "$temp_dir/operator-execution.log" \
+  || fail "renewed failure cleanup did not complete its bounded destroy"
+printf '%s' "$transient_cleanup_version-empty" \
+  > "$temp_dir/transient-heartbeat-version.txt"
+transient_cleanup_hash=$(sha256_file "$temp_dir/transient-heartbeat-version.txt")
+transient_cleanup_receipt="$FAKE_S3_STORE/measurements__state-clean__${transient_cleanup_hash}.json"
+[[ -f "$transient_cleanup_receipt" ]] \
+  || fail "renewed failure cleanup did not publish its clean-state receipt"
+[[ -f "$FAKE_S3_STORE/measurements__lab-transient-heartbeat__teardown-finalize.json" ]] \
+  || fail "renewed failure cleanup did not publish teardown finalization"
+grep -Eq '^lease release .* lab-transient-heartbeat up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "renewed failure cleanup did not release its exact lease"
+
+# A later heartbeat failure after successful cleanup renewal must interrupt a
+# blocked destroy, stop its full process group, and preserve every incomplete
+# state/finalization boundary while still releasing the exact lease.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+: > "$temp_dir/cleanup-late-heartbeat-count"
+: > "$temp_dir/cleanup-late-heartbeat-mutation.log"
+late_heartbeat_clean_before=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+set +e
+AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=20 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=15 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=5 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=3 \
+  AIRBOB_TEST_HEARTBEAT_TTL_SECONDS=8 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_HEARTBEAT_FAILURE_SEQUENCE=fail,success,fail \
+  FAKE_HEARTBEAT_COUNTER_FILE="$temp_dir/cleanup-late-heartbeat-count" \
+  FAKE_BLOCK_TERRAFORM_APPLY=run-identity,destroy-resources \
+  FAKE_BLOCKING_MUTATION_LOG="$temp_dir/cleanup-late-heartbeat-mutation.log" \
+  FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-cleanup-late-heartbeat \
+  FAKE_STATE_VERSION_ID=state-version-cleanup-late-heartbeat \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  run_fake_up lab-cleanup-late-heartbeat \
+    >"$temp_dir/cleanup-late-heartbeat.out" \
+    2>"$temp_dir/cleanup-late-heartbeat.err"
+late_heartbeat_status=$?
+set -e
+[[ "$late_heartbeat_status" -eq 75 ]] \
+  || fail "later cleanup heartbeat failure did not return its fencing status"
+grep -Fq 'orchestration heartbeat failed during operator cleanup' \
+  "$temp_dir/cleanup-late-heartbeat.err" \
+  || fail "later cleanup heartbeat failure did not report its exact abort"
+[[ "$(cat "$temp_dir/cleanup-late-heartbeat-count")" -ge 3 ]] \
+  || fail "heartbeat fail/succeed/fail fixture did not reach its later failure"
+grep -Fq 'blocking-leader=' "$temp_dir/cleanup-late-heartbeat-mutation.log" \
+  || fail "later cleanup heartbeat failure did not reach blocked destroy"
+late_heartbeat_lines_before=$(awk 'END { print NR + 0 }' "$temp_dir/cleanup-late-heartbeat-mutation.log")
+sleep 2
+late_heartbeat_lines_after=$(awk 'END { print NR + 0 }' "$temp_dir/cleanup-late-heartbeat-mutation.log")
+[[ "$late_heartbeat_lines_after" == "$late_heartbeat_lines_before" ]] \
+  || fail "later cleanup heartbeat failure left a mutating descendant alive"
+grep -Eq '^lease release .* lab-cleanup-late-heartbeat up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "later cleanup heartbeat failure did not release its exact lease"
+[[ "$(grep -Fxc 'orphans lab-cleanup-late-heartbeat scope=global' "$temp_dir/operator-execution.log")" -eq 1 ]] \
+  || fail "later cleanup heartbeat failure claimed a post-destroy orphan proof"
+[[ ! -f "$FAKE_S3_STORE/destroyed-lab-cleanup-late-heartbeat" ]] \
+  || fail "later cleanup heartbeat failure removed preserved state"
+[[ ! -f "$FAKE_S3_STORE/measurements__lab-cleanup-late-heartbeat__teardown-finalize.json" ]] \
+  || fail "later cleanup heartbeat failure published teardown finalization"
+late_heartbeat_clean_after=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+[[ "$late_heartbeat_clean_after" == "$late_heartbeat_clean_before" ]] \
+  || fail "later cleanup heartbeat failure published a clean-state receipt"
+
+# If a normal command failure overlaps one in-flight heartbeat, cooperative
+# stop waits for that bounded call before the synchronous renew/assert handoff.
+# This exercises the prior serialization-contention window without PID killing.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+rm -f "$temp_dir/contention-heartbeat-started"
+contention_version=state-version-heartbeat-contention
+contention_started=$(/bin/date +%s)
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=2 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=15 \
+  AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS=5 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_HEARTBEAT_TTL_SECONDS=8 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_HEARTBEAT_DELAY_SECONDS=3 \
+  FAKE_HEARTBEAT_STARTED_FILE="$temp_dir/contention-heartbeat-started" \
+  FAKE_BLOCK_TERRAFORM_APPLY=run-identity \
+  FAKE_BLOCKING_MUTATION_LOG="$temp_dir/contention-mutation.log" \
+  FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-heartbeat-contention \
+  FAKE_STATE_VERSION_ID="$contention_version" \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  run_fake_up lab-heartbeat-contention \
+    >"$temp_dir/heartbeat-contention.out" \
+    2>"$temp_dir/heartbeat-contention.err"; then
+  fail "operator hid the command failure used for heartbeat contention"
+fi
+contention_elapsed=$(( $(/bin/date +%s) - contention_started ))
+((contention_elapsed >= 6)) \
+  || fail "heartbeat contention fixture did not wait for in-flight call and renewal"
+[[ -f "$temp_dir/contention-heartbeat-started" ]] \
+  || fail "heartbeat contention fixture never started its delayed call"
+grep -Fq 'failure cleanup lease renewed; heartbeat continuity verified' \
+  "$temp_dir/heartbeat-contention.err" \
+  || fail "heartbeat contention did not complete its serialized cleanup handoff"
+printf '%s' "$contention_version-empty" > "$temp_dir/contention-version.txt"
+contention_hash=$(sha256_file "$temp_dir/contention-version.txt")
+[[ -f "$FAKE_S3_STORE/measurements__state-clean__${contention_hash}.json" ]] \
+  || fail "heartbeat contention cleanup did not publish its clean-state receipt"
+grep -Eq '^lease release .* lab-heartbeat-contention up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "heartbeat contention cleanup did not release its exact lease"
+
+# If the immediate cleanup renewal fails, no cleanup evidence or Terraform
+# destroy is attempted. Resources remain modeled as active, while release is
+# still allowed for the exact stale lease identity.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+renewal_failure_clean_before=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+if FAKE_HEARTBEAT_FAILURE=true \
+  FAKE_DIRECT_SMOKE_FAILURE=true FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-cleanup-renewal-failure \
+  FAKE_STATE_VERSION_ID=state-version-cleanup-renewal-failure \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  run_fake_up lab-cleanup-renewal-failure \
+    >"$temp_dir/cleanup-renewal-failure.out" \
+    2>"$temp_dir/cleanup-renewal-failure.err"; then
+  fail "operator hid the failure used to exercise cleanup lease renewal"
+fi
+grep -Fq 'failure cleanup lease renewal failed; resources remain preserved' \
+  "$temp_dir/cleanup-renewal-failure.err" \
+  || fail "cleanup lease renewal failure did not report resource preservation"
+grep -Eq '^lease release .* lab-cleanup-renewal-failure up$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "cleanup renewal failure did not release its exact lease"
+if grep -Eq 'destroy-resources.tfplan|measurements/lab-cleanup-renewal-failure/teardown-(start|finalize)\.json' \
+  "$temp_dir/operator-execution.log"; then
+  fail "cleanup renewal failure reached teardown mutation or finalization"
+fi
+[[ ! -f "$FAKE_S3_STORE/destroyed-lab-cleanup-renewal-failure" ]] \
+  || fail "cleanup renewal failure removed preserved state"
+renewal_failure_clean_after=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+[[ "$renewal_failure_clean_after" == "$renewal_failure_clean_before" ]] \
+  || fail "cleanup renewal failure published a false clean-state receipt"
+
+# Failure cleanup owns a separate deadline. A late signal from the original
+# command watchdog must be inert after cleanup starts, while the mode-derived
+# cleanup watchdog remains armed until destroy and finalization finish.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+cleanup_watchdog_started=$(/bin/date +%s)
+if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=5 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=12 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  FAKE_DIRECT_SMOKE_FAILURE=true FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-cleanup-watchdog \
+  FAKE_STATE_VERSION_ID=state-version-cleanup-watchdog \
+  FAKE_DESTROY_APPLY_DELAY_SECONDS=6 \
+  FAKE_SIGNAL_STALE_WATCHDOG_DURING_DESTROY=true \
+  run_fake_up lab-cleanup-watchdog \
+    >"$temp_dir/cleanup-watchdog.out" 2>"$temp_dir/cleanup-watchdog.err"; then
+  fail "operator hid the application failure used for cleanup-watchdog verification"
+fi
+cleanup_watchdog_elapsed=$(( $(/bin/date +%s) - cleanup_watchdog_started ))
+((cleanup_watchdog_elapsed >= 6)) \
+  || fail "cleanup-watchdog fixture did not cross the original command deadline"
+grep -Eq '^lease acquire .* lab-cleanup-watchdog up 180 317$' \
+  "$temp_dir/operator-execution.log" \
+  || fail "late-cleanup fixture did not extend its lease across command, cleanup, and transition"
+awk -v cutoff="$((cleanup_watchdog_started + 5))" '
+  $1 == "lease" && $2 == "deadline-check" &&
+    ($3 == "heartbeat" || $3 == "assert") && $4 >= cutoff { found=1 }
+  END { exit(found ? 0 : 1) }
+' "$temp_dir/operator-execution.log" \
+  || fail "lease heartbeat/assert did not remain valid past the command deadline"
+grep -Fq 'failure cleanup watchdog armed for 12 seconds' "$temp_dir/cleanup-watchdog.err" \
+  || fail "failure cleanup did not re-arm its dedicated watchdog"
+grep -Fqx 'stale-command-watchdog-signal' "$temp_dir/operator-execution.log" \
+  || fail "cleanup-watchdog fixture did not deliver the stale command signal during destroy"
+grep -Eq '^terraform .* apply .*destroy-resources.tfplan' "$temp_dir/operator-execution.log" \
+  || fail "stale command watchdog signal interrupted failure destroy"
+grep -Eq '^terraform .* state rm .*terraform_data.run_identity' "$temp_dir/operator-execution.log" \
+  || fail "stale command watchdog signal interrupted cleanup finalization"
+if grep -Fq 'operator command deadline exceeded' "$temp_dir/cleanup-watchdog.err"; then
+  fail "original command watchdog recursively aborted failure cleanup"
+fi
+grep -Fq 'lease release ' "$temp_dir/operator-execution.log" \
+  || fail "cleanup-watchdog verification skipped lease release"
+
+# A cleanup that itself blocks is terminated by the cleanup watchdog, not by
+# the old command clock. It releases the lease but must not publish a clean
+# receipt or remove the state identity after an incomplete destroy.
+: > "$temp_dir/operator-execution.log"
+: > "$temp_dir/state-lookup-count"
+: > "$temp_dir/cleanup-expiry-mutation.log"
+clean_receipts_before=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+cleanup_expiry_started=$(/bin/date +%s)
+set +e
+AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
+  AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=10 \
+  AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=4 \
+  AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
+  AIRBOB_TEST_TERMINATION_GRACE_SECONDS=1 \
+  FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.8.8/32 \
+  FAKE_DIRECT_SMOKE_FAILURE=true FAKE_STATE_AFTER_FIRST_LOOKUP=true \
+  FAKE_STATE_LOOKUP_COUNTER="$temp_dir/state-lookup-count" \
+  FAKE_STATE_RUN_ID=lab-cleanup-expiry \
+  FAKE_STATE_VERSION_ID=state-version-cleanup-expiry \
+  FAKE_BLOCK_TERRAFORM_APPLY=destroy-resources \
+  FAKE_BLOCKING_MUTATION_LOG="$temp_dir/cleanup-expiry-mutation.log" \
+  run_fake_up lab-cleanup-expiry \
+    >"$temp_dir/cleanup-expiry.out" 2>"$temp_dir/cleanup-expiry.err"
+cleanup_expiry_status=$?
+set -e
+cleanup_expiry_elapsed=$(( $(/bin/date +%s) - cleanup_expiry_started ))
+[[ "$cleanup_expiry_status" -eq 124 ]] \
+  || { cat "$temp_dir/cleanup-expiry.err" >&2; fail "cleanup watchdog did not return its deadline status"; }
+((cleanup_expiry_elapsed >= 4 && cleanup_expiry_elapsed < 15)) \
+  || fail "cleanup watchdog expiry did not terminate within its bounded window"
+grep -Fq 'failure cleanup deadline exceeded' "$temp_dir/cleanup-expiry.err" \
+  || fail "cleanup watchdog expiry did not report its exact deadline failure"
+grep -Fq 'blocking-leader=' "$temp_dir/cleanup-expiry-mutation.log" \
+  || fail "cleanup watchdog fixture never reached the blocked destroy process group"
+cleanup_expiry_lines_before=$(awk 'END { print NR + 0 }' "$temp_dir/cleanup-expiry-mutation.log")
+sleep 2
+cleanup_expiry_lines_after=$(awk 'END { print NR + 0 }' "$temp_dir/cleanup-expiry-mutation.log")
+[[ "$cleanup_expiry_lines_after" == "$cleanup_expiry_lines_before" ]] \
+  || fail "cleanup watchdog left a mutating descendant alive"
+grep -Fq 'lease release ' "$temp_dir/operator-execution.log" \
+  || { tail -80 "$temp_dir/operator-execution.log" >&2; fail "expired cleanup watchdog did not release the orchestration lease"; }
+[[ -f "$FAKE_S3_STORE/measurements__lab-cleanup-expiry__teardown-start.json" ]] \
+  || fail "cleanup watchdog fixture did not publish its pre-destroy journal"
+[[ "$(grep -Fxc 'orphans lab-cleanup-expiry scope=global' "$temp_dir/operator-execution.log")" -eq 1 ]] \
+  || fail "expired cleanup watchdog ran a post-destroy global orphan scan"
+[[ ! -f "$FAKE_S3_STORE/destroyed-lab-cleanup-expiry" ]] \
+  || fail "blocked cleanup destroy incorrectly reached state removal"
+[[ ! -f "$FAKE_S3_STORE/measurements__lab-cleanup-expiry__teardown-finalize.json" ]] \
+  || fail "blocked cleanup destroy published teardown finalization"
+clean_receipts_after=$(find "$FAKE_S3_STORE" -name 'measurements__state-clean__*.json' | wc -l | tr -d ' ')
+[[ "$clean_receipts_after" == "$clean_receipts_before" ]] \
+  || fail "blocked cleanup destroy published a clean-state receipt"
 
 : > "$temp_dir/operator-execution.log"
 : > "$temp_dir/oci-verify-count"

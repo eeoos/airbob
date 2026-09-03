@@ -221,14 +221,85 @@ only through the validated SSM contract. Applying `network`, `services`, or
 `data-ready` creates billable EC2/EBS/EIP/RDS/ALB resources. Use the Phase 5
 wrapper and immediate teardown; dump bootstrap requires a minimum five-hour
 TTL, while snapshot bootstrap continues to use an explicit two-hour TTL. Dump
-up alone uses a 14,400-second operator and lease deadline: its envelope covers
-the 7,200-second SSM restore plus 3,600 seconds before bootstrap and 2,400
-seconds after bootstrap. That deadline remains inside the 270-minute workflow
-ceiling and the 18,000-second credential/session and TTL boundaries. Snapshot
-and down retain the 5,400-second operator deadline and 7,200-second workflow
-and credential boundaries. The longer dump safety window does not extend
-normal resource lifetime because a successful rehearsal is torn down
-immediately. Low-level phase applies remain diagnostic/emergency tools.
+up uses a 14,400-second command watchdog. Its normal execution envelope covers
+the 9,000-second SSM restore command, a 9,300-second association waiter that
+reserves 300 seconds for result propagation, 2,400 seconds before bootstrap,
+and 2,400 seconds after bootstrap (`9,300 + 2,400 + 2,400 = 14,100`). A failed
+dump up stops that command watchdog and starts a distinct 2,400-second
+failure-cleanup watchdog. The orchestration lease spans both periods and has
+a 17,100-second absolute deadline: command, cleanup, and a 300-second
+lease-transition margin (`14,400 + 2,400 + 300`). That transition margin
+absorbs bounded lease-acquisition and handler-handoff skew so heartbeats and
+lease assertions remain valid throughout cleanup. The hard workflow ceiling is
+17,940 seconds (299 minutes), but the first step subtracts an explicit
+120-second workflow-initialization reserve and records a safe 17,820-second
+deadline. Immediately after immutable release validation, and before lease
+acquisition or Terraform mutation, the operator requires at least the
+17,100-second lease plus a 300-second finalization margin. This leaves up to
+420 seconds after the first step for setup and release validation
+(`420 + 17,100 + 300 = 17,820`). The 18,000-second static credential must still
+have at least the lease deadline plus its existing 300-second safety margin at
+that gate (17,400 seconds total). Lease acquisition itself is bounded to 120
+seconds; DynamoDB calls use 10-second connect and 20-second read timeouts with
+three standard-mode attempts. Every invocation appends a process/temp nonce to
+its bounded owner identity. If the acquire process ends without a token, the
+operator spends at most 60 seconds on strongly consistent status retries and
+an exact conditional release. It adopts a status token only when owner, run,
+command, positive token, and canonical `AcquiredAt` match that invocation's
+measured window, and when the untouched acquire shape is exact:
+`HeartbeatAt == AcquiredAt`, `ExpiresAt == AcquiredAt + 180`, and
+`CommandDeadline == AcquiredAt + lease deadline`. A recovered acquisition is
+released and always terminates; it never starts heartbeat, publishes a run
+manifest, or reaches Terraform. If every bounded status/release attempt loses
+its response, the unique lease remains fenced until its TTL/deadline rather
+than risking release of another invocation. After a normal token response, the
+operator marks the exact lease releasable and rechecks both workflow and
+credential budgets before starting heartbeat or publishing the run manifest.
+The 60-second recovery ceiling fits inside the existing 300-second workflow
+finalization and credential safety margins. The dump resource-expiry tag
+remains at least five hours.
+
+Snapshot up retains a 5,400-second command watchdog and uses a distinct
+3,600-second failure-cleanup watchdog. With the same transition margin, its
+lease deadline is 9,300 seconds. Its hard workflow ceiling is 10,200 seconds
+(170 minutes), while the same initialization reserve makes the recorded safe
+deadline 10,080 seconds. That allocates 480 seconds after the first step to
+setup and 300 seconds to finalization (`480 + 9,300 + 300 = 10,080`). Its
+10,800-second credential must have at least
+9,600 seconds remaining at the pre-mutation gate, and its resource-expiry tag
+remains exactly two hours. Down and status keep a 5,400-second command/lease
+deadline and 7,200-second workflow and credential boundaries. Their command
+watchdog starts before lease acquisition, so acquisition time cannot extend the
+lease-relative command window. Missing or invalid workflow-deadline input fails
+closed in GitHub Actions; local operators may omit it.
+
+Every heartbeat and lease control call—including ordinary assertions and the
+best-effort exact final release—has a 30-second outer process-group deadline.
+The operator prepares fresh output, error, and timeout captures before it
+starts any control child. A timeout kills and reaps the full child group before
+best-effort diagnostic-marker publication; elapsed time remains authoritative
+if that marker cannot be written. On automatic failure cleanup, the operator
+requests an in-memory cooperative loop stop, with a bounded forced-reap
+fallback that does not depend on a writable stop file. It reaps its in-flight
+call (at most 31 seconds), clears the exclusively created one-shot failure
+marker, performs a bounded 30-second renewal, and performs a bounded 30-second
+exact assertion. Failure to publish a new one-shot marker signals the operator
+and stops that loop fail-safe; failure to clear it preserves resources before
+renewal or destroy. Only after a successful handoff does the operator install
+the cleanup heartbeat trap and restart periodic renewal before destroy. This
+worst-case 91-second handoff is explicitly bounded by the existing 300-second
+lease-transition margin (`31 + 30 + 30 <= 300`). Failed renewal or validation
+preserves resources and skips every clean-finalization claim while still
+attempting exact lease release. A later failure after restart follows the same
+process-group termination and explicit finalizer path as cleanup-watchdog
+expiry. Main-shell failures raised from inside the EXIT cleanup path route
+directly through that explicit finalizer; they cannot bypass loop reaping or
+lease release through recursive EXIT behavior. Finalization always stops and
+reaps the loop before exact release, so no stale child can renew or signal after
+the operator returns. These safety windows do not extend normal resource
+lifetime because a successful rehearsal is torn down immediately, and expiry
+remains an operator-visible safety signal. Low-level phase applies remain
+diagnostic/emergency tools.
 
 The supported teardown is `make aws-down RUN_ID=<run-id>`. It publishes a
 create-only teardown-start journal before destroy. The first saved plan targets

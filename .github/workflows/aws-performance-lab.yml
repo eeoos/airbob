@@ -112,11 +112,28 @@ jobs:
   operate:
     runs-on: ubuntu-latest
     environment: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}
-    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 270 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 165 || 120 }}
+    timeout-minutes: ${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 299 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}
     permissions:
       contents: read
       id-token: write
     steps:
+      - name: Record workflow deadline
+        env:
+          ACTION: ${{ inputs.action }}
+          DATABASE_BOOTSTRAP: ${{ inputs.database_bootstrap }}
+        run: |
+          set -euo pipefail
+          WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120
+          workflow_ceiling_seconds=7200
+          if [[ "$ACTION" == up && "$DATABASE_BOOTSTRAP" == dump ]]; then
+            workflow_ceiling_seconds=17940
+          elif [[ "$ACTION" == up && "$DATABASE_BOOTSTRAP" == snapshot ]]; then
+            workflow_ceiling_seconds=10200
+          fi
+          printf 'AIRBOB_WORKFLOW_DEADLINE_EPOCH=%s\n' \
+            "$(( $(date -u +%s) + workflow_ceiling_seconds - WORKFLOW_INITIALIZATION_RESERVE_SECONDS ))" \
+            >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
