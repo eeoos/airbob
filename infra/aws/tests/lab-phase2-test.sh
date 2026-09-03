@@ -25,6 +25,18 @@ fail() {
   exit 1
 }
 
+sha256_file() {
+  local output
+  if command -v sha256sum >/dev/null 2>&1; then
+    output=$(sha256sum "$1")
+  elif command -v shasum >/dev/null 2>&1; then
+    output=$(shasum -a 256 "$1")
+  else
+    fail "no supported SHA-256 command is available"
+  fi
+  printf '%s' "${output%% *}"
+}
+
 assert_contains() {
   local file=$1
   local expected=$2
@@ -173,16 +185,17 @@ ssm_contract="$lab_root/ssm.tf"
   || fail "the data-bootstrap command timeout must remain unchanged"
 [[ "$(grep -Fc 'wait_for_success_timeout_seconds = 7200' "$ssm_contract")" -eq 1 ]] \
   || fail "the data-bootstrap association timeout must remain unchanged"
-assert_contains "$lab_root/templates/host-user-data.sh.tftpl" 'if ! command -v curl >/dev/null 2>&1; then'
-assert_contains "$lab_root/templates/host-user-data.sh.tftpl" 'dnf install -y curl-minimal'
-assert_contains "$lab_root/templates/host-user-data.sh.tftpl" 'dnf install -y jq tar gzip openssl'
-assert_not_contains "$lab_root/templates/host-user-data.sh.tftpl" 'dnf install -y curl([[:space:]]|$)'
-curl_install_line=$(grep -nF 'dnf install -y curl-minimal' "$lab_root/templates/host-user-data.sh.tftpl" | cut -d: -f1)
-curl_guard_line=$(grep -nF 'if ! command -v curl >/dev/null 2>&1; then' "$lab_root/templates/host-user-data.sh.tftpl" | cut -d: -f1)
-curl_guard_end_line=$(awk -v start="$curl_guard_line" 'NR > start && /^fi$/ { print NR; exit }' "$lab_root/templates/host-user-data.sh.tftpl")
-probe_marker_line=$(grep -nF "printf '%s\\n' 'ready' > /var/lib/airbob/probe-ready" "$lab_root/templates/host-user-data.sh.tftpl" | cut -d: -f1)
-probe_exit_line=$(grep -nF '  exit 0' "$lab_root/templates/host-user-data.sh.tftpl" | cut -d: -f1)
-service_tools_line=$(grep -nF 'dnf install -y jq tar gzip openssl' "$lab_root/templates/host-user-data.sh.tftpl" | cut -d: -f1)
+host_user_data_template="$lab_root/templates/host-user-data.sh.tftpl"
+assert_contains "$host_user_data_template" 'if ! command -v curl >/dev/null 2>&1; then'
+assert_contains "$host_user_data_template" 'dnf install -y curl-minimal'
+assert_contains "$host_user_data_template" 'dnf install -y jq tar gzip openssl'
+assert_not_contains "$host_user_data_template" 'dnf install -y curl([[:space:]]|$)'
+curl_install_line=$(grep -nF 'dnf install -y curl-minimal' "$host_user_data_template" | cut -d: -f1)
+curl_guard_line=$(grep -nF 'if ! command -v curl >/dev/null 2>&1; then' "$host_user_data_template" | cut -d: -f1)
+curl_guard_end_line=$(awk -v start="$curl_guard_line" 'NR > start && /^fi$/ { print NR; exit }' "$host_user_data_template")
+probe_marker_line=$(grep -nF "printf '%s\\n' 'ready' > /var/lib/airbob/probe-ready" "$host_user_data_template" | cut -d: -f1)
+probe_exit_line=$(grep -nF '  exit 0' "$host_user_data_template" | cut -d: -f1)
+service_tools_line=$(grep -nF 'dnf install -y jq tar gzip openssl' "$host_user_data_template" | cut -d: -f1)
 if ! ((curl_guard_line < curl_install_line \
   && curl_install_line < curl_guard_end_line \
   && curl_guard_end_line < probe_marker_line \
@@ -190,6 +203,56 @@ if ! ((curl_guard_line < curl_install_line \
   && probe_exit_line < service_tools_line)); then
   fail "probe bootstrap must conditionally install curl-minimal before publishing readiness and exit before service-only packages"
 fi
+
+release_permission_command='find "$release_root" -type d -exec chmod 755 {} +'
+[[ "$(grep -Fxc "$release_permission_command" "$host_user_data_template")" -eq 1 ]] \
+  || fail "service bundle bootstrap must normalize release directories exactly once"
+bundle_extract_line=$(grep -nF 'tar -xzf "$staging/$archive_name" -C "$release_root"' "$host_user_data_template" | cut -d: -f1)
+release_permission_line=$(grep -nFx "$release_permission_command" "$host_user_data_template" | cut -d: -f1)
+images_env_line=$(grep -nF "cat >/etc/airbob/images.env <<'EOF'" "$host_user_data_template" | cut -d: -f1)
+if ! ((bundle_extract_line < release_permission_line && release_permission_line < images_env_line)); then
+  fail "release directory permissions must be normalized immediately after verified bundle extraction"
+fi
+
+permission_source="$temp_dir/release-permission-source"
+permission_release="$temp_dir/release-permission-target"
+permission_archive="$temp_dir/release-permission.tar.gz"
+mkdir -p "$permission_source/monitoring/grafana/dashboards" "$permission_release"
+permission_source_file="$permission_source/monitoring/grafana/dashboards/airbob.json"
+permission_release_file="$permission_release/monitoring/grafana/dashboards/airbob.json"
+printf '{"fixture":"airbob"}\n' > "$permission_source_file"
+find "$permission_source" -type d -exec chmod 755 {} +
+chmod 644 "$permission_source_file"
+tar -czf "$permission_archive" -C "$permission_source" monitoring/grafana/dashboards/airbob.json
+[[ "$(tar -tzf "$permission_archive")" == monitoring/grafana/dashboards/airbob.json ]] \
+  || fail "release permission fixture must contain only the dashboard file entry"
+(
+  umask 077
+  tar -pxzf "$permission_archive" -C "$permission_release"
+)
+[[ -n "$(find "$permission_release" -type d ! -perm 0755 -print -quit)" ]] \
+  || fail "umask-077 extraction fixture did not reproduce private release directories"
+permission_file_mode=$(LC_ALL=C ls -ld "$permission_release_file" | cut -c1-10)
+[[ "$permission_file_mode" == -rw-r--r-- ]] \
+  || fail "permission-preserving extraction did not retain the dashboard file's 0644 mode"
+permission_source_sha256=$(sha256_file "$permission_source_file")
+permission_before_sha256=$(sha256_file "$permission_release_file")
+cmp -s "$permission_source_file" "$permission_release_file" \
+  || fail "permission-preserving extraction changed the dashboard bytes"
+[[ "$permission_before_sha256" == "$permission_source_sha256" ]] \
+  || fail "permission-preserving extraction changed the dashboard SHA-256"
+release_root="$permission_release" bash -c "$release_permission_command"
+if [[ -n "$(find "$permission_release" -type d ! -perm 0755 -print -quit)" ]]; then
+  fail "release permission normalization did not make every bundle directory readable and traversable"
+fi
+permission_file_mode=$(LC_ALL=C ls -ld "$permission_release_file" | cut -c1-10)
+[[ "$permission_file_mode" == -rw-r--r-- ]] \
+  || fail "release directory normalization changed the dashboard file's 0644 mode"
+permission_after_sha256=$(sha256_file "$permission_release_file")
+cmp -s "$permission_source_file" "$permission_release_file" \
+  || fail "release directory normalization changed the dashboard bytes"
+[[ "$permission_after_sha256" == "$permission_source_sha256" ]] \
+  || fail "release directory normalization changed the dashboard SHA-256"
 
 redis_services=$(grep -Ec '^[[:space:]]{2}redis(-cache)?:$' "$repo_root/infra/aws/bundles/redis/compose.yml")
 redis_exporters=$(grep -Ec '^[[:space:]]{2}redis-exporter-(general|cache):$' "$repo_root/infra/aws/bundles/redis/compose.yml")
