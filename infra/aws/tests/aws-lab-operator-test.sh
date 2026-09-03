@@ -69,15 +69,15 @@ assert_contains "$operator" 'assert "$lease_table"'
 assert_contains "$operator" 'release_lease_bounded_best_effort'
 assert_contains "$operator" 'lease-final-release.timeout'
 assert_contains "$operator" 'DEFAULT_COMMAND_DEADLINE_SECONDS=5400'
-assert_contains "$operator" 'DUMP_UP_COMMAND_DEADLINE_SECONDS=14400'
+assert_contains "$operator" 'DUMP_UP_COMMAND_DEADLINE_SECONDS=18000'
 assert_contains "$operator" 'DEFAULT_CREDENTIAL_SESSION_SECONDS=7200'
 assert_contains "$operator" 'SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800'
-assert_contains "$operator" 'DUMP_UP_CREDENTIAL_SESSION_SECONDS=18000'
+assert_contains "$operator" 'DUMP_UP_CREDENTIAL_SESSION_SECONDS=21600'
 assert_contains "$operator" 'SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600'
-assert_contains "$operator" 'DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=2400'
-assert_contains "$operator" 'DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=2400'
+assert_contains "$operator" 'DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=1800'
+assert_contains "$operator" 'DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=3000'
 assert_contains "$operator" 'DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400'
-assert_contains "$operator" 'LAB_ROLE_MAX_SESSION_SECONDS=18000'
+assert_contains "$operator" 'LAB_ROLE_MAX_SESSION_SECONDS=21600'
 assert_contains "$operator" 'TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS=300'
 assert_contains "$operator" 'WORKFLOW_FINALIZATION_MARGIN_SECONDS=300'
 assert_contains "$operator" 'LEASE_TRANSITION_MARGIN_SECONDS=300'
@@ -175,7 +175,7 @@ if grep -Eq 'aws s3api delete-object .*tflock|aws s3 rm .*tflock' "$operator"; t
 fi
 assert_contains "$operator" 'AIRBOB_OPERATOR_TEST_HARNESS'
 assert_contains "$operator" 'operator test timing overrides are outside the hermetic fake harness'
-assert_contains "$operator" 'dump bootstrap requires TTL_HOURS of at least 5'
+assert_contains "$operator" 'dump bootstrap requires TTL_HOURS of at least 6'
 assert_contains "$operator" 'snapshot bootstrap requires explicit TTL_HOURS=2'
 assert_contains "$operator" 'snapshot bootstrap requires the exact Foundation-approved RDS snapshot'
 assert_contains "$operator" 'Lab plans must use one bounded launch template and no mixed-instance override'
@@ -194,7 +194,7 @@ assert_contains "$operator" '.values.root_module.resources[]?'
 assert_contains "$operator" 'Terraform state resource fencing token differs from the run manifest'
 assert_contains "$run_identity_contract" 'resource "terraform_data" "run_identity"'
 assert_contains "$run_identity_contract" 'resource_fencing_token'
-assert_contains "$foundation_iam" 'max_session_duration = 18000'
+assert_contains "$foundation_iam" 'max_session_duration = 21600'
 assert_contains "$operator" 'INSTANCE_REFRESH_TIMEOUT_SECONDS=900'
 assert_contains "$operator" 'autoscaling rollback-instance-refresh'
 assert_contains "$operator" 'autoscaling cancel-instance-refresh'
@@ -343,13 +343,13 @@ assert_contains "$workflow" 'infra/aws/scripts/aws-lab.sh'
 assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
-assert_contains "$workflow" "default: '5'"
-assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 299 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}"
-assert_contains "$workflow" "inputs.database_bootstrap == 'dump' && 18000 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200"
+assert_contains "$workflow" "default: '6'"
+assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 359 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}"
+assert_contains "$workflow" "inputs.database_bootstrap == 'dump' && 21600 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200"
 assert_contains "$workflow" '- name: Record workflow deadline'
 assert_contains "$workflow" 'WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120'
 assert_contains "$workflow" 'workflow_ceiling_seconds=7200'
-assert_contains "$workflow" 'workflow_ceiling_seconds=17940'
+assert_contains "$workflow" 'workflow_ceiling_seconds=21540'
 assert_contains "$workflow" 'workflow_ceiling_seconds=10200'
 assert_contains "$workflow" 'workflow_ceiling_seconds - WORKFLOW_INITIALIZATION_RESERVE_SECONDS'
 assert_contains "$workflow" "printf 'AIRBOB_WORKFLOW_DEADLINE_EPOCH=%s\\n'"
@@ -378,7 +378,7 @@ for deadline_case in dump snapshot other; do
   bootstrap=$deadline_case
   expected_seconds=10080
   if [[ "$deadline_case" == dump ]]; then
-    expected_seconds=17820
+    expected_seconds=21420
   elif [[ "$deadline_case" == other ]]; then
     action=down
     bootstrap=dump
@@ -456,14 +456,14 @@ snapshot_session=$(awk -F= '$1 == "SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS" { pri
 dump_session=$(awk -F= '$1 == "DUMP_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
 workflow_seconds=$((120 * 60))
 snapshot_workflow_seconds=$((170 * 60))
-dump_workflow_seconds=$((299 * 60))
+dump_workflow_seconds=$((359 * 60))
 workflow_initialization_reserve_seconds=120
 snapshot_recorded_deadline_seconds=$((snapshot_workflow_seconds - workflow_initialization_reserve_seconds))
 dump_recorded_deadline_seconds=$((dump_workflow_seconds - workflow_initialization_reserve_seconds))
 snapshot_post_step_setup_seconds=480
 dump_post_step_setup_seconds=420
-ssm_command_seconds=9000
-ssm_waiter_seconds=9300
+ssm_command_seconds=12600
+ssm_waiter_seconds=12900
 snapshot_cleanup_seconds=$(awk -F= '$1 == "SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 pre_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 post_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
@@ -473,10 +473,10 @@ workflow_finalization_seconds=$(awk -F= '$1 == "WORKFLOW_FINALIZATION_MARGIN_SEC
 lease_transition_seconds=$(awk -F= '$1 == "LEASE_TRANSITION_MARGIN_SECONDS" { print $2 }' "$operator")
 lease_control_call_seconds=$(awk -F= '$1 == "LEASE_CONTROL_CALL_MAX_SECONDS" { print $2 }' "$operator")
 heartbeat_stop_seconds=$((lease_control_call_seconds + 1))
-dump_ttl_seconds=$((5 * 3600))
-[[ "$(grep -Fc 'timeoutSeconds = "9000"' "$ssm_contract")" -eq 1 ]] \
-  || fail "data bootstrap SSM document timeout is not exactly 9000 seconds"
-assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 9300'
+dump_ttl_seconds=$((6 * 3600))
+[[ "$(grep -Fc 'timeoutSeconds = "12600"' "$ssm_contract")" -eq 1 ]] \
+  || fail "data bootstrap SSM document timeout is not exactly 12600 seconds"
+assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 12900'
 ((ssm_command_seconds + 300 == ssm_waiter_seconds)) \
   || fail "data bootstrap association must preserve 300 seconds for result propagation"
 ((heartbeat_stop_seconds == 31 && \
@@ -492,14 +492,14 @@ dump_lease_seconds=$((dump_deadline + dump_failure_cleanup_seconds + lease_trans
   snapshot_lease_seconds + credential_margin_seconds <= snapshot_session)) \
   || fail "snapshot command, cleanup, lease, workflow, and credential hierarchy is invalid"
 ((ssm_waiter_seconds + pre_bootstrap_seconds + post_bootstrap_seconds < dump_deadline &&
-  dump_lease_seconds == 17100 &&
-  dump_recorded_deadline_seconds == 17820 &&
+  dump_lease_seconds == 20700 &&
+  dump_recorded_deadline_seconds == 21420 &&
   dump_post_step_setup_seconds + dump_lease_seconds + workflow_finalization_seconds == dump_recorded_deadline_seconds &&
   dump_lease_seconds + credential_margin_seconds <= dump_session &&
   dump_workflow_seconds < dump_session &&
   dump_session == dump_ttl_seconds)) \
   || fail "dump bootstrap, command, cleanup, lease, workflow, credential, and TTL hierarchy is invalid"
-((dump_deadline < 5 * 3600)) \
+((dump_deadline < 6 * 3600)) \
   || fail "dump operator deadline must remain inside the minimum ephemeral TTL"
 if env AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
   AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=2 AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
@@ -1124,7 +1124,7 @@ case " $* " in
       '{lockName:$lock,owner:$owner,fencingToken:$token,runId:$run,command:$command,acquiredAt:$acquired,heartbeatAt:$heartbeat,expiresAt:$expires,commandDeadline:$deadline}'
     ;;
   *' iam get-role '*)
-    printf '%s\n' "${FAKE_LAB_ROLE_MAX_SESSION_SECONDS:-18000}"
+    printf '%s\n' "${FAKE_LAB_ROLE_MAX_SESSION_SECONDS:-21600}"
     ;;
   *' ecr describe-images '*imageTag=*)
     if [[ "$*" == *'--repository-name airbob-repo'* ]]; then
@@ -1600,7 +1600,7 @@ run_fake_up() {
   local snapshot_source_run_id snapshot_source_resource_id expected_alb_ingress_cidr fake_operator_scope
   [[ -n "$ttl_hours" ]] || {
     ttl_hours=2
-    [[ "$bootstrap" != dump ]] || ttl_hours=5
+    [[ "$bootstrap" != dump ]] || ttl_hours=6
   }
   if [[ "$bootstrap" == snapshot ]]; then
     snapshot_source_run_id=${FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID-lab-repeat-dump}
@@ -1718,7 +1718,7 @@ run_fake_up() {
     FAKE_LEASE_EXPIRES_AT="${FAKE_LEASE_EXPIRES_AT:-}" \
     FAKE_LEASE_DEADLINE_AT="${FAKE_LEASE_DEADLINE_AT:-}" \
     FAKE_LEASE_OWNER_OVERRIDE="${FAKE_LEASE_OWNER_OVERRIDE:-}" \
-    FAKE_LAB_ROLE_MAX_SESSION_SECONDS="${FAKE_LAB_ROLE_MAX_SESSION_SECONDS:-18000}" \
+    FAKE_LAB_ROLE_MAX_SESSION_SECONDS="${FAKE_LAB_ROLE_MAX_SESSION_SECONDS:-21600}" \
     FAKE_TFLOCK_LAST_MODIFIED="${FAKE_TFLOCK_LAST_MODIFIED:-}" \
     FAKE_LOCK_RECOVERY_SERVER_TIME="${FAKE_LOCK_RECOVERY_SERVER_TIME:-}" \
     FAKE_TFLOCK_HEAD_VERSION_COUNTER="${FAKE_TFLOCK_HEAD_VERSION_COUNTER:-}" \
@@ -1797,7 +1797,7 @@ run_fake_down() {
     FAKE_LEASE_EXPIRES_AT="${FAKE_LEASE_EXPIRES_AT:-}" \
     FAKE_LEASE_DEADLINE_AT="${FAKE_LEASE_DEADLINE_AT:-}" \
     FAKE_LEASE_OWNER_OVERRIDE="${FAKE_LEASE_OWNER_OVERRIDE:-}" \
-    FAKE_LAB_ROLE_MAX_SESSION_SECONDS="${FAKE_LAB_ROLE_MAX_SESSION_SECONDS:-18000}" \
+    FAKE_LAB_ROLE_MAX_SESSION_SECONDS="${FAKE_LAB_ROLE_MAX_SESSION_SECONDS:-21600}" \
     FAKE_TFLOCK_LAST_MODIFIED="${FAKE_TFLOCK_LAST_MODIFIED:-}" \
     FAKE_LOCK_RECOVERY_SERVER_TIME="${FAKE_LOCK_RECOVERY_SERVER_TIME:-}" \
     FAKE_TFLOCK_HEAD_VERSION_COUNTER="${FAKE_TFLOCK_HEAD_VERSION_COUNTER:-}" \
@@ -1862,7 +1862,7 @@ write_fake_tflock() {
 # KILLed with its process group. The same lease must preserve that new lock;
 # only the next lease can recover it and continue forced teardown.
 lock_now=$(/bin/date +%s)
-prior_lock_created=$(epoch_to_utc "$((lock_now - 18400))")
+prior_lock_created=$(epoch_to_utc "$((lock_now - 22000))")
 : > "$temp_dir/stale-lock-state-lookups"
 : > "$temp_dir/stale-lock-mutation.log"
 : > "$temp_dir/operator-execution.log"
@@ -1875,7 +1875,7 @@ if AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
   FAKE_CREATE_TFLOCK=true FAKE_TFLOCK_CREATED="$prior_lock_created" \
   FAKE_STATE_AFTER_FIRST_LOOKUP=true \
   FAKE_STATE_LOOKUP_COUNTER="$temp_dir/stale-lock-state-lookups" \
-  FAKE_LEASE_ACQUIRED_AT="$((lock_now - 18500))" \
+  FAKE_LEASE_ACQUIRED_AT="$((lock_now - 22100))" \
   FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   run_fake_up lab-stale-lock >"$temp_dir/stale-lock-up.out" 2>"$temp_dir/stale-lock-up.err"; then
   fail "SIGKILL stale-lock fixture unexpectedly completed"
@@ -1968,7 +1968,7 @@ rm -f "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock"
 # LastModified and server-stamped recovery receipt remain the only age basis.
 jq '.runId="lab-lock-clock-skew"' "$temp_dir/run-manifest.json" \
   > "$temp_dir/run-manifest.clock-skew.json"
-write_fake_tflock "$(epoch_to_utc "$((lock_now - 18400))")"
+write_fake_tflock "$(epoch_to_utc "$((lock_now - 22000))")"
 clock_skew_lock_sha=$(sha256_file "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock")
 : > "$temp_dir/operator-execution.log"
 if FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.clock-skew.json" \
@@ -1989,11 +1989,11 @@ if grep -Eq 'force-unlock|apply .*destroy-resources.tfplan' "$temp_dir/operator-
 fi
 rm -f "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock"
 
-# A role whose live maximum no longer matches the closed five-hour contract
+# A role whose live maximum no longer matches the closed six-hour contract
 # blocks recovery before force-unlock, even when the S3 age itself is old.
 jq '.runId="lab-lock-role-drift"' "$temp_dir/run-manifest.json" \
   > "$temp_dir/run-manifest.role-drift-lock.json"
-write_fake_tflock "$(epoch_to_utc "$((lock_now - 18400))")"
+write_fake_tflock "$(epoch_to_utc "$((lock_now - 22000))")"
 role_drift_lock_sha=$(sha256_file "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock")
 : > "$temp_dir/operator-execution.log"
 if FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.role-drift-lock.json" \
@@ -2017,7 +2017,7 @@ rm -f "$FAKE_S3_STORE/airbob__lab__terraform.tfstate.tflock"
 # the final identity read even though LockInfo content remains unchanged.
 jq '.runId="lab-lock-aba"' "$temp_dir/run-manifest.json" \
   > "$temp_dir/run-manifest.aba-lock.json"
-write_fake_tflock "$(epoch_to_utc "$((lock_now - 18400))")"
+write_fake_tflock "$(epoch_to_utc "$((lock_now - 22000))")"
 : > "$temp_dir/aba-lock-head-count"
 : > "$temp_dir/operator-execution.log"
 if FAKE_RUN_MANIFEST_PATH="$temp_dir/run-manifest.aba-lock.json" \
@@ -2191,8 +2191,8 @@ if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
 fi
 
 : > "$temp_dir/operator-execution.log"
-if FAKE_TTL_HOURS=4 run_fake_up lab-short-dump-ttl >/dev/null 2>&1; then
-  fail "dump up accepted a TTL shorter than its five-hour safety window"
+if FAKE_TTL_HOURS=5 run_fake_up lab-short-dump-ttl >/dev/null 2>&1; then
+  fail "dump up accepted a TTL shorter than its six-hour safety window"
 fi
 if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
   fail "short dump TTL acquired the orchestration lease"
@@ -2930,8 +2930,8 @@ FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
   FAKE_TIME_STEP_SECONDS=60 FAKE_TIME_COUNTER="$temp_dir/snapshot-time-counter" \
   run_fake_up lab-repeat-snapshot false 203.0.113.10 performance integrated-smoke >/dev/null
-grep -Eq '^lease acquire .* lab-repeat-dump up 180 17100$' "$temp_dir/operator-execution.log" \
-  || fail "dump up did not acquire the 17100-second command-cleanup-transition lease deadline"
+grep -Eq '^lease acquire .* lab-repeat-dump up 180 20700$' "$temp_dir/operator-execution.log" \
+  || fail "dump up did not acquire the 20700-second command-cleanup-transition lease deadline"
 grep -Eq '^lease acquire .* lab-repeat-snapshot up 180 9300$' "$temp_dir/operator-execution.log" \
   || fail "snapshot up did not acquire the 9300-second command-cleanup-transition lease deadline"
 identity_apply_line=$(grep -n -m1 'terraform .* apply .*run-identity.tfplan' "$temp_dir/operator-execution.log" | cut -d: -f1)
@@ -3582,7 +3582,7 @@ if env FAKE_PERSISTENT_DELETE=true \
   DATASET_RELEASE=fixture-v20 DATASET_MANIFEST_VERSION_ID=dataset-version-fixture \
   BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc BUNDLE_MANIFEST_VERSION_ID=bundle-version-fixture \
   AMI_ID=ami-0123456789abcdef0 OCI_ORIGIN_IPV4=203.0.113.10 \
-  RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS=5 \
+  RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS=6 \
   RUN_ID=lab-persistent-delete "$fixture_scripts/aws-lab.sh" up >/dev/null 2>&1; then
   fail "operator accepted a plan that deletes a persistent resource"
 fi

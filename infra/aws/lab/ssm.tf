@@ -128,7 +128,7 @@ resource "aws_ssm_document" "bootstrap_data" {
       action = "aws:runShellScript"
       name   = "bootstrapData"
       inputs = {
-        timeoutSeconds = "9000"
+        timeoutSeconds = "12600"
         runCommand     = [local.bootstrap_data_command]
       }
     }]
@@ -142,7 +142,7 @@ resource "aws_ssm_association" "data_bootstrap" {
 
   name                             = aws_ssm_document.bootstrap_data[0].name
   association_name                 = "airbob-${var.run_id}-data-bootstrap"
-  wait_for_success_timeout_seconds = 9300
+  wait_for_success_timeout_seconds = 12900
 
   targets {
     key    = "InstanceIds"

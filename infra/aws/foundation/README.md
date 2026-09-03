@@ -173,7 +173,7 @@ It cannot write the DNS state or assume the public DNS controller. The separate
 `aws-performance-lab-cutover` OIDC subject (while retaining the same reviewed
 MFA-local principals) and the same five Lab policies, plus one exact inline extension for the DNS state key,
 its lock file, and session-tagged assumption of `airbob-dns-controller`.
-Both Lab roles keep `MaxSessionDuration = 18000`; their shared base policy may
+Both Lab roles keep `MaxSessionDuration = 21600`; their shared base policy may
 read IAM definitions for the global Lab orphan scan, while stale-lock recovery
 queries only those two exact role names. Recovery binds the lock and its
 create-only clock receipt to S3-server timestamps and waits out that maximum

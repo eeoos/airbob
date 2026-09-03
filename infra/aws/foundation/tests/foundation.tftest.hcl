@@ -457,8 +457,8 @@ run "foundation_contract" {
         ])
       ]) &&
       aws_iam_role.foundation_admin.max_session_duration == 7200 &&
-      aws_iam_role.lab_operator.max_session_duration == 18000 &&
-      aws_iam_role.lab_cutover_operator.max_session_duration == 18000 &&
+      aws_iam_role.lab_operator.max_session_duration == 21600 &&
+      aws_iam_role.lab_cutover_operator.max_session_duration == 21600 &&
       aws_iam_role.image_publisher.max_session_duration == 7200 &&
       aws_iam_role.dataset_publisher.max_session_duration == 7200 &&
       aws_iam_role.dns_controller.max_session_duration == 3600 &&
