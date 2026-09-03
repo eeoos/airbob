@@ -2138,7 +2138,7 @@ publish_direct_readiness() {
     --query 'DBInstances[0].{identifier:DBInstanceIdentifier,resourceId:DbiResourceId,class:DBInstanceClass,engine:Engine,engineVersion:EngineVersion,allocatedStorageGiB:AllocatedStorage,storageType:StorageType,iops:Iops,storageThroughputMiBps:StorageThroughput,multiAz:MultiAZ,storageEncrypted:StorageEncrypted,publiclyAccessible:PubliclyAccessible,availabilityZone:AvailabilityZone,parameterGroups:DBParameterGroups[].DBParameterGroupName}' \
     --output json --region "$AWS_REGION" --no-cli-pager) || fail "cannot attest the restored RDS shape"
   jq -e --arg id "$rds_instance_id" --arg resource "$rds_resource_id" --arg version "$rds_engine_version" '
-    .identifier == $id and .resourceId == $resource and .class == "db.t3.micro" and
+    .identifier == $id and .resourceId == $resource and .class == "db.t3.small" and
     .engine == "mysql" and .engineVersion == $version and .allocatedStorageGiB == 100 and
     .storageType == "gp3" and .iops == 3000 and .storageThroughputMiBps == 125 and
     .multiAz == false and .storageEncrypted == true and .publiclyAccessible == false

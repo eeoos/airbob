@@ -145,11 +145,12 @@ only GET requests and excludes availability, quote, checkout, and reservation
 mutations. Any inventory-dependent call therefore fails closed with HTTP 503 /
 `R026`. Ordinary `aws` and `oci` deployments retain mandatory inventory startup.
 
-Dump mode creates an empty `db.t3.micro` RDS MySQL instance; snapshot mode may
+Dump mode creates an empty `db.t3.small` RDS MySQL instance. Snapshot mode may
 use only an encrypted, available snapshot whose release, run, dump, Flyway,
-and manifest tags match the selected release. The dump remains canonical and
-the snapshot is only a rebuild cache. Snapshot promotion is a separate
-publisher/admin operation:
+and manifest tags match the selected release. Promotion separately validates
+the source instance class, and the restored instance also remains
+`db.t3.small`. The dump remains canonical and the snapshot is only a rebuild
+cache. Snapshot promotion is a separate publisher/admin operation:
 
 ```bash
 AIRBOB_REGION=ap-northeast-2 \
@@ -165,7 +166,8 @@ persistent release inventory. `promotion.json` is create-only. Before any RDS
 call, the promoter downloads both receipts from the fixed evidence bucket by
 their exact S3 VersionIds and requires byte-for-byte equality with the supplied
 files. It requires `airbob-<run-id>` to match the exact bootstrap and readiness
-receipts, then stamps the validated source run, source RDS resource ID, both
+receipts and the source instance to use the fixed `db.t3.small` qualification
+class. It then stamps the validated source run, source RDS resource ID, both
 receipt identities, and promotion schema onto the snapshot. Snapshot bootstrap
 rejects a snapshot that merely copies the dataset tuple without those promotion
 markers.
@@ -176,8 +178,10 @@ and declared coupon preparation, the exact 12 canonical Kafka main/retry/DLT
 topics at three partitions each, then a Debezium
 `no_data` connector with one running task. RDS and Debezium credentials are
 resolved on the host from Secrets Manager into mode-0600 temporary files and
-are not Terraform values. The final receipt is written only after every gate
-passes.
+are not Terraform values. The dump import and long MySQL validation work have
+bounded process deadlines; expiry terminates their subprocesses and fails the
+association so fenced cleanup can proceed. The final receipt is written only
+after every gate passes.
 
 ## Phase 4 application contract
 

@@ -161,6 +161,13 @@ for runtime_command in curl docker openssl sha256sum; do
   command -v "$runtime_command" >/dev/null 2>&1 \
     || { printf 'required bootstrap command is unavailable: %s\n' "$runtime_command" >&2; exit 1; }
 done
+command -v timeout >/dev/null 2>&1 \
+  || { printf '%s\n' 'GNU timeout is required' >&2; exit 1; }
+timeout_version=$(timeout --version 2>/dev/null) \
+  || { printf '%s\n' 'GNU timeout is required' >&2; exit 1; }
+[[ "$timeout_version" == *'GNU coreutils'* ]] \
+  || { printf '%s\n' 'GNU timeout is required' >&2; exit 1; }
+unset timeout_version
 
 curl_http() {
   command curl --connect-timeout 10 --max-time 60 "$@"
@@ -413,13 +420,42 @@ master_password=$(jq -r '.password' "$master_secret_file")
 [[ "$master_username" =~ ^[a-zA-Z][a-zA-Z0-9_]{0,31}$ && -n "$master_password" ]] \
   || { printf '%s\n' 'RDS managed secret has an invalid contract' >&2; exit 1; }
 
-mysql_exec() {
-  MYSQL_PWD="$master_password" mysql \
-    --protocol=TCP --default-character-set=utf8mb4 --host="$AIRBOB_RDS_ENDPOINT" --port=3306 --user="$master_username" \
+mysql_connect_timeout_seconds=10
+mysql_readiness_timeout_seconds=30
+mysql_general_timeout_seconds=900
+mysql_import_timeout_seconds=7200
+mysql_kill_after_seconds=30
+
+mysql_with_deadline() {
+  local deadline_seconds=$1
+  shift
+
+  [[ "$deadline_seconds" =~ ^[1-9][0-9]*$ ]] || return 2
+  MYSQL_PWD="$master_password" timeout \
+    --foreground --signal=TERM --kill-after="${mysql_kill_after_seconds}s" "${deadline_seconds}s" \
+    mysql --protocol=TCP --default-character-set=utf8mb4 \
+    --host="$AIRBOB_RDS_ENDPOINT" --port=3306 --user="$master_username" \
+    --connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect \
     --ssl --batch --raw --skip-column-names "$@"
 }
+
+mysql_exec() {
+  mysql_with_deadline "$mysql_general_timeout_seconds" "$@"
+}
+
+mysql_readiness_exec() {
+  mysql_with_deadline "$mysql_readiness_timeout_seconds" "$@"
+}
+
+mysql_import_dump() {
+  # timeout(1) bounds the consumer. Closing the timed-out consumer gives zstd
+  # SIGPIPE, and Bash waits for both pipeline members before returning here.
+  # pipefail preserves either a decompression failure or the MySQL timeout.
+  zstd --decompress --stdout "$dump" \
+    | mysql_with_deadline "$mysql_import_timeout_seconds" airbobdb >/dev/null
+}
 for attempt in $(seq 1 120); do
-  if mysql_exec --execute='SELECT 1' >/dev/null 2>&1; then
+  if mysql_readiness_exec --execute='SELECT 1' >/dev/null 2>&1; then
     break
   fi
   [[ "$attempt" -lt 120 ]] || { printf '%s\n' 'RDS did not become ready' >&2; exit 1; }
@@ -427,7 +463,13 @@ for attempt in $(seq 1 120); do
 done
 
 if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
-  zstd --decompress --stdout "$dump" | mysql_exec airbobdb >/dev/null
+  if mysql_import_dump; then
+    :
+  else
+    import_status=$?
+    printf 'MySQL dump import failed or exceeded its wall deadline (status %s)\n' "$import_status" >&2
+    exit "$import_status"
+  fi
 fi
 
 for variable_contract in 'binlog_format:ROW' 'binlog_row_image:FULL' 'performance_schema:ON'; do
@@ -591,7 +633,10 @@ awk -F '\t' 'NF!=13{exit 1}{for(i=1;i<=NF;i++)if($i!="0")exit 1}END{if(NR!=1)exi
 
 result_field() { printf "IF(%s IS NULL,'00000000',CONCAT(LPAD(HEX(OCTET_LENGTH(CAST(%s AS CHAR))),8,'0'),HEX(CAST(%s AS CHAR))))" "$1" "$1" "$1"; }
 mysql_result_hash() {
-  mysql_exec airbobdb --execute="$1" | tr -d '\n' | xxd -r -p | sha256sum | awk '{print $1}'
+  local digest
+  digest=$(mysql_exec airbobdb --execute="$1" | tr -d '\n' | xxd -r -p | sha256sum | awk '{print $1}') \
+    || return $?
+  printf '%s\n' "$digest"
 }
 row_text() { printf "IF(%s IS NULL,'FFFFFFFF',CONCAT(LPAD(HEX(OCTET_LENGTH(CAST(%s AS CHAR))),8,'0'),HEX(CAST(%s AS CHAR))))" "$1" "$1" "$1"; }
 row_binary() { printf "IF(%s IS NULL,'FFFFFFFF',CONCAT(LPAD(HEX(OCTET_LENGTH(%s)),8,'0'),HEX(%s)))" "$1" "$1" "$1"; }
@@ -603,9 +648,11 @@ row_hex() {
 fingerprint_table() {
   local id=$1 table=$2 predicate=$3 order=$4 expected=$5; shift 5
   local rows digest expected_digest
-  rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM $table WHERE $predicate")
+  rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM $table WHERE $predicate") \
+    || { printf 'fingerprint row count query failed: %s\n' "$id" >&2; return 1; }
   [[ "$rows" == "$expected" ]] || { printf 'fingerprint row count drifted: %s\n' "$id" >&2; return 1; }
-  digest=$(mysql_result_hash "SELECT $(row_hex "$@") FROM $table WHERE $predicate ORDER BY $order")
+  digest=$(mysql_result_hash "SELECT $(row_hex "$@") FROM $table WHERE $predicate ORDER BY $order") \
+    || { printf 'fingerprint digest query failed: %s\n' "$id" >&2; return 1; }
   expected_digest=$(jq -er --arg id "$id" \
     '.world.fingerprints[$id] | select(type=="string" and test("^[0-9a-f]{64}$"))' \
     "$benchmark_dataset_manifest") \
@@ -649,33 +696,33 @@ live_restore_fingerprints() {
   local payment=(p.id text p.payment_uid binary p.payment_key text p.order_id text p.amount text p.method text p.approved_at text p.created_at text p.reservation_id text p.status text p.balance_amount text)
   local transaction=(pt.id text pt.reservation_id text pt.payment_id text pt.transaction_type text pt.status text pt.amount text pt.payment_key text pt.order_id text pt.method text pt.failure_code text pt.cancel_amount text pt.cancel_reason text pt.transaction_key text pt.canceled_at text pt.created_at text)
   live_fingerprint_rows="$work_root/live-fingerprint-rows.tsv"; : > "$live_fingerprint_rows"
-  fingerprint_table final-accommodation 'accommodation a' '1=1' a.id "$(table_rows accommodation)" "${accommodation[@]}"
-  fingerprint_table final-address 'address a' '1=1' a.id "$(table_rows address)" "${address[@]}"
-  fingerprint_table final-occupancy-policy 'occupancy_policy o' '1=1' o.id "$(table_rows occupancy_policy)" "${occupancy_policy[@]}"
-  fingerprint_table final-accommodation-image 'accommodation_image ai' '1=1' ai.id "$(table_rows accommodation_image)" "${accommodation_image[@]}"
-  fingerprint_table final-accommodation-amenity 'accommodation_amenity aa' '1=1' aa.id "$(table_rows accommodation_amenity)" "${accommodation_amenity[@]}"
-  fingerprint_table final-member 'member m' '1=1' m.id "$(table_rows member)" "${member[@]}"
-  fingerprint_table final-reservation 'reservation r' '1=1' r.id "$(table_rows reservation)" "${reservation[@]}"
-  fingerprint_table final-review 'review r' '1=1' r.id "$(table_rows review)" "${review[@]}"
-  fingerprint_table final-review-image 'review_image ri' '1=1' ri.id "$(table_rows review_image)" "${review_image[@]}"
-  fingerprint_table final-wishlist 'wishlist w' '1=1' w.id "$(table_rows wishlist)" "${wishlist[@]}"
-  fingerprint_table final-wishlist-accommodation 'wishlist_accommodation wa' '1=1' wa.id "$(table_rows wishlist_accommodation)" "${wishlist_link[@]}"
-  fingerprint_table final-payment 'payment p' '1=1' p.id "$(table_rows payment)" "${payment[@]}"
-  fingerprint_table final-payment-transaction 'payment_transaction pt' '1=1' pt.id "$(table_rows payment_transaction)" "${transaction[@]}"
-  fingerprint_table final-review-summary 'accommodation_review_summary s' '1=1' s.accommodation_id "$(table_rows accommodation_review_summary)" s.accommodation_id text s.total_review_count text s.rating_sum text s.average_rating text
-  fingerprint_table final-daily-revenue 'daily_revenue_stats s' '1=1' 's.stat_date,s.accommodation_id' "$(table_rows daily_revenue_stats)" s.stat_date text s.accommodation_id text s.gross_amount text s.refund_amount text s.net_amount text s.payment_count text s.refund_count text
-  fingerprint_table final-inventory 'accommodation_inventory_day i' '1=1' 'i.accommodation_id,i.stay_date' "$(table_rows accommodation_inventory_day)" i.accommodation_id text i.stay_date text i.state text i.reservation_id text i.hold_expires_at text
-  base_fingerprint accommodation base-accommodation 'accommodation a' a.id '1=1' a.id "${accommodation[@]}"
-  base_fingerprint member base-member 'member m' m.id '1=1' m.id "${member[@]}"
-  base_fingerprint reservation base-reservation 'reservation r' r.id '1=1' r.id "${reservation[@]}"
-  base_fingerprint review base-review 'review r' r.id '1=1' r.id "${review[@]}"
-  base_fingerprint wishlist base-wishlist 'wishlist w' w.id "w.status='ACTIVE'" w.id "${wishlist[@]}"
-  base_fingerprint wishlist-accommodation base-wishlist-accommodation 'wishlist_accommodation wa' wa.id '1=1' wa.id "${wishlist_link[@]}"
-  base_fingerprint payment base-payment 'payment p' p.id '1=1' p.id "${payment[@]}"
-  base_fingerprint payment-transaction base-payment-transaction 'payment_transaction pt' pt.id '1=1' pt.id "${transaction[@]}"
-  final_world_fingerprint=$(combine_fingerprints final-)
-  base_world_fingerprint=$(combine_fingerprints base-)
-  inventory_fingerprint=$(awk -F '\t' '$1=="final-inventory"{print $2}' "$live_fingerprint_rows")
+  fingerprint_table final-accommodation 'accommodation a' '1=1' a.id "$(table_rows accommodation)" "${accommodation[@]}" || return 1
+  fingerprint_table final-address 'address a' '1=1' a.id "$(table_rows address)" "${address[@]}" || return 1
+  fingerprint_table final-occupancy-policy 'occupancy_policy o' '1=1' o.id "$(table_rows occupancy_policy)" "${occupancy_policy[@]}" || return 1
+  fingerprint_table final-accommodation-image 'accommodation_image ai' '1=1' ai.id "$(table_rows accommodation_image)" "${accommodation_image[@]}" || return 1
+  fingerprint_table final-accommodation-amenity 'accommodation_amenity aa' '1=1' aa.id "$(table_rows accommodation_amenity)" "${accommodation_amenity[@]}" || return 1
+  fingerprint_table final-member 'member m' '1=1' m.id "$(table_rows member)" "${member[@]}" || return 1
+  fingerprint_table final-reservation 'reservation r' '1=1' r.id "$(table_rows reservation)" "${reservation[@]}" || return 1
+  fingerprint_table final-review 'review r' '1=1' r.id "$(table_rows review)" "${review[@]}" || return 1
+  fingerprint_table final-review-image 'review_image ri' '1=1' ri.id "$(table_rows review_image)" "${review_image[@]}" || return 1
+  fingerprint_table final-wishlist 'wishlist w' '1=1' w.id "$(table_rows wishlist)" "${wishlist[@]}" || return 1
+  fingerprint_table final-wishlist-accommodation 'wishlist_accommodation wa' '1=1' wa.id "$(table_rows wishlist_accommodation)" "${wishlist_link[@]}" || return 1
+  fingerprint_table final-payment 'payment p' '1=1' p.id "$(table_rows payment)" "${payment[@]}" || return 1
+  fingerprint_table final-payment-transaction 'payment_transaction pt' '1=1' pt.id "$(table_rows payment_transaction)" "${transaction[@]}" || return 1
+  fingerprint_table final-review-summary 'accommodation_review_summary s' '1=1' s.accommodation_id "$(table_rows accommodation_review_summary)" s.accommodation_id text s.total_review_count text s.rating_sum text s.average_rating text || return 1
+  fingerprint_table final-daily-revenue 'daily_revenue_stats s' '1=1' 's.stat_date,s.accommodation_id' "$(table_rows daily_revenue_stats)" s.stat_date text s.accommodation_id text s.gross_amount text s.refund_amount text s.net_amount text s.payment_count text s.refund_count text || return 1
+  fingerprint_table final-inventory 'accommodation_inventory_day i' '1=1' 'i.accommodation_id,i.stay_date' "$(table_rows accommodation_inventory_day)" i.accommodation_id text i.stay_date text i.state text i.reservation_id text i.hold_expires_at text || return 1
+  base_fingerprint accommodation base-accommodation 'accommodation a' a.id '1=1' a.id "${accommodation[@]}" || return 1
+  base_fingerprint member base-member 'member m' m.id '1=1' m.id "${member[@]}" || return 1
+  base_fingerprint reservation base-reservation 'reservation r' r.id '1=1' r.id "${reservation[@]}" || return 1
+  base_fingerprint review base-review 'review r' r.id '1=1' r.id "${review[@]}" || return 1
+  base_fingerprint wishlist base-wishlist 'wishlist w' w.id "w.status='ACTIVE'" w.id "${wishlist[@]}" || return 1
+  base_fingerprint wishlist-accommodation base-wishlist-accommodation 'wishlist_accommodation wa' wa.id '1=1' wa.id "${wishlist_link[@]}" || return 1
+  base_fingerprint payment base-payment 'payment p' p.id '1=1' p.id "${payment[@]}" || return 1
+  base_fingerprint payment-transaction base-payment-transaction 'payment_transaction pt' pt.id '1=1' pt.id "${transaction[@]}" || return 1
+  final_world_fingerprint=$(combine_fingerprints final-) || return 1
+  base_world_fingerprint=$(combine_fingerprints base-) || return 1
+  inventory_fingerprint=$(awk -F '\t' '$1=="final-inventory"{print $2}' "$live_fingerprint_rows") || return 1
   [[ "$final_world_fingerprint" == "$(jq -r '.releaseTuple.finalWorldFingerprintSha256' "$manifest")" \
     && "$base_world_fingerprint" == "$(jq -r '.releaseTuple.baseWorldFingerprintSha256' "$manifest")" \
     && "$inventory_fingerprint" == "$(jq -r '.releaseTuple.inventoryFingerprintSha256' "$manifest")" ]]
@@ -683,19 +730,23 @@ live_restore_fingerprints() {
 verify_targets() {
   local receipt=$1 target id kind expected_rows expected_hash actual_rows actual_hash account member_id size cursor_id cursor_time from to predicate ledger sql wishlist_created_at_field
   local adult child infant pet total_occupancy top_left_lat top_left_lng bottom_right_lat bottom_right_lng minimum_price maximum_price search_scope
+  local account_count wishlist_count
   : > "$receipt"
   while IFS= read -r target; do
     id=$(jq -r '.id' <<<"$target"); kind=$(jq -r '.query.kind' <<<"$target")
     expected_rows=$(jq -r '.expectedRows' <<<"$target"); expected_hash=$(jq -r '.expectedResultHash' <<<"$target")
     if account=$(jq -er '.account|select(.!=null)' <<<"$target" 2>/dev/null); then
       member_id=$(jq -r '.memberId' <<<"$account")
-      [[ "$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM member WHERE id=$member_id AND email='$(jq -r '.email' <<<"$account")' AND role='$(jq -r '.role' <<<"$account")' AND status='$(jq -r '.status' <<<"$account")'")" == 1 ]] \
+      account_count=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM member WHERE id=$member_id AND email='$(jq -r '.email' <<<"$account")' AND role='$(jq -r '.role' <<<"$account")' AND status='$(jq -r '.status' <<<"$account")'") \
+        || { printf 'target account query failed: %s\n' "$id" >&2; return 1; }
+      [[ "$account_count" == 1 ]] \
         || { printf 'target account drifted: %s\n' "$id" >&2; return 1; }
     fi
     case "$kind" in
       REVIEW_SUMMARY_V1)
         member_id=$(jq -r '.query.accommodationId' <<<"$target")
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM review WHERE accommodation_id=$member_id AND status='PUBLISHED'")
+        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM review WHERE accommodation_id=$member_id AND status='PUBLISHED'") \
+          || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         sql="SELECT CONCAT($(result_field 'COUNT(*)'),$(result_field 'CAST(CAST(COALESCE(AVG(rating),0) AS DECIMAL(20,2)) AS CHAR)')) FROM review WHERE accommodation_id=$member_id AND status='PUBLISHED'"
         ;;
       WISHLIST_PAGE_V1)
@@ -703,16 +754,20 @@ verify_targets() {
         cursor_id=$(jq -r '.query.lastId // empty' <<<"$target"); cursor_time=$(jq -r '.query.lastCreatedAt // empty' <<<"$target")
         predicate="w.member_id=$member_id AND w.status='ACTIVE'"
         [[ -z "$cursor_id" ]] || predicate="$predicate AND (w.created_at<'$cursor_time' OR (w.created_at='$cursor_time' AND w.id<$cursor_id))"
-        [[ "$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM wishlist WHERE member_id=$member_id AND status='ACTIVE'")" == "$(jq -r '.query.totalActiveRows' <<<"$target")" ]] \
+        wishlist_count=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM wishlist WHERE member_id=$member_id AND status='ACTIVE'") \
+          || { printf 'wishlist totalActiveRows query failed: %s\n' "$id" >&2; return 1; }
+        [[ "$wishlist_count" == "$(jq -r '.query.totalActiveRows' <<<"$target")" ]] \
           || { printf 'wishlist totalActiveRows drifted: %s\n' "$id" >&2; return 1; }
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT w.id FROM wishlist w WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size) x")
+        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT w.id FROM wishlist w WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size) x") \
+          || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         wishlist_created_at_field=$(result_field "DATE_FORMAT(w.created_at,'%Y-%m-%dT%H:%i:%s.%f')")
         sql="SELECT CONCAT($(result_field 'w.id'),$(result_field 'w.name'),${wishlist_created_at_field},$(result_field 'w.accommodation_count'),$(result_field 'a.thumbnail_url')) FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size"
         ;;
       REVENUE_RANGE_V1)
         from=$(jq -r '.query.from' <<<"$target"); to=$(jq -r '.query.to' <<<"$target")
         ledger="(SELECT DATE(pt.created_at) d,COALESCE(pt.amount,0) gross,0 refund,1 pc,0 rc FROM payment_transaction pt WHERE pt.transaction_type='CONFIRM' AND DATE(pt.created_at) BETWEEN '$from' AND '$to' UNION ALL SELECT DATE(COALESCE(pt.canceled_at,pt.created_at)),0,COALESCE(pt.cancel_amount,0),0,1 FROM payment_transaction pt WHERE pt.transaction_type IN ('CANCEL','PARTIAL_CANCEL') AND DATE(COALESCE(pt.canceled_at,pt.created_at)) BETWEEN '$from' AND '$to')"
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT d FROM $ledger t GROUP BY d) x")
+        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT d FROM $ledger t GROUP BY d) x") \
+          || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         sql="SELECT CONCAT($(result_field 't.d'),$(result_field 'SUM(t.gross)'),$(result_field 'SUM(t.refund)'),$(result_field 'SUM(t.gross)-SUM(t.refund)'),$(result_field 'SUM(t.pc)'),$(result_field 'SUM(t.rc)')) FROM $ledger t GROUP BY t.d ORDER BY t.d"
         ;;
       ACCOMMODATION_SEARCH_V1)
@@ -723,13 +778,15 @@ verify_targets() {
         bottom_right_lat=$(jq -r '.query.bottomRightLat' <<<"$target"); bottom_right_lng=$(jq -r '.query.bottomRightLng' <<<"$target")
         minimum_price=$(jq -r '.query.minPrice' <<<"$target"); maximum_price=$(jq -r '.query.maxPrice' <<<"$target")
         search_scope="FROM accommodation a JOIN address addr ON addr.id=a.address_id JOIN occupancy_policy op ON op.id=a.occupancy_policy_id WHERE a.status='PUBLISHED' AND a.base_price BETWEEN 0 AND 2147483647 AND addr.latitude BETWEEN -90 AND 90 AND addr.longitude BETWEEN -180 AND 180 AND op.max_occupancy>=1 AND addr.latitude<=$top_left_lat AND addr.latitude>=$bottom_right_lat AND addr.longitude>=$top_left_lng AND addr.longitude<=$bottom_right_lng AND a.base_price BETWEEN $minimum_price AND $maximum_price AND op.max_occupancy>=$total_occupancy AND ($infant=0 OR op.infant_occupancy>=$infant) AND ($pet=0 OR op.pet_occupancy>=$pet)"
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) $search_scope")
+        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) $search_scope") \
+          || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         sql="SELECT CONCAT($(result_field 'a.id')) $search_scope ORDER BY a.id ASC"
         ;;
       *) printf 'unsupported semantic target: %s\n' "$kind" >&2; return 1 ;;
     esac
     [[ "$actual_rows" == "$expected_rows" ]] || { printf 'target expectedRows drifted: %s\n' "$id" >&2; return 1; }
-    actual_hash=$(mysql_result_hash "$sql")
+    actual_hash=$(mysql_result_hash "$sql") \
+      || { printf 'target result hash query failed: %s\n' "$id" >&2; return 1; }
     [[ "$actual_hash" == "$expected_hash" ]] || { printf 'target result hash drifted: %s\n' "$id" >&2; return 1; }
     printf '%s\t%s\t%s\n' "$id" "$actual_rows" "$actual_hash" >> "$receipt"
   done < <(jq -c '.capsules[]|select(.capsuleId=="read-model-v2" or .capsuleId=="index-query-v1").targets[]' "$benchmark_dataset_manifest")

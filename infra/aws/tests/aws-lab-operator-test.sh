@@ -527,7 +527,7 @@ cat > "$temp_dir/readiness-a.json" <<'JSON'
   "networkClearance": {"key":"network-clearance/lab-dump/i-old.json","versionId":"network-v1","sha256":"5555555555555555555555555555555555555555555555555555555555555555","lastModified":"2026-09-01T00:01:00Z","projectionSha256":"6666666666666666666666666666666666666666666666666666666666666666"},
   "actual": {
     "ami":{"id":"ami-0123456789abcdef0","shape":{"imageId":"ami-0123456789abcdef0","architecture":"x86_64"}},
-    "rds":{"identifier":"airbob-lab-dump","resourceId":"db-OLD","class":"db.t3.micro","engine":"mysql","engineVersion":"8.0.42","allocatedStorageGiB":100,"storageType":"gp3","iops":3000,"storageThroughputMiBps":125,"multiAz":false,"storageEncrypted":true,"publiclyAccessible":false,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-lab-dump"]},
+    "rds":{"identifier":"airbob-lab-dump","resourceId":"db-OLD","class":"db.t3.small","engine":"mysql","engineVersion":"8.0.42","allocatedStorageGiB":100,"storageType":"gp3","iops":3000,"storageThroughputMiBps":125,"multiAz":false,"storageEncrypted":true,"publiclyAccessible":false,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-lab-dump"]},
     "rdsParameterGroupFamily":"mysql8.0",
     "alb":{"arn":"arn:old","dnsName":"old.elb.amazonaws.com","targetGroupArn":"tg-old","autoScalingGroupName":"asg-old","securityGroupId":"sg-old","shape":{"arn":"arn:old","dnsName":"old.elb.amazonaws.com","scheme":"internet-facing","type":"application","ipAddressType":"ipv4","availabilityZones":["ap-northeast-2a","ap-northeast-2c"],"securityGroups":["sg-old"]},"observedIngress":[{"ruleId":"sgr-old","groupId":"sg-old","isEgress":false,"ipProtocol":"tcp","fromPort":443,"toPort":443,"cidrIpv4":"198.51.100.10/32","cidrIpv6":null,"prefixListId":null,"referencedGroupId":null}]},
     "autoScalingGroup":{"name":"asg-old","min":1,"desired":1,"max":1}
@@ -573,7 +573,7 @@ jq -e '.topology.alb.availabilityZones == ["ap-northeast-2a", "ap-northeast-2c"]
 for drift in lineage shape clearance outcome; do
   case "$drift" in
     lineage) jq '.dataset.manifestSha256="9999999999999999999999999999999999999999999999999999999999999999"' "$temp_dir/readiness-b.json" ;;
-    shape) jq '.actual.rds.class="db.t3.small"' "$temp_dir/readiness-b.json" ;;
+    shape) jq '.actual.rds.class="db.t3.medium"' "$temp_dir/readiness-b.json" ;;
     clearance) jq '.networkClearance.projectionSha256="9999999999999999999999999999999999999999999999999999999999999999"' "$temp_dir/readiness-b.json" ;;
     outcome) jq '.smoke.search.passed=false' "$temp_dir/readiness-b.json" ;;
   esac > "$temp_dir/readiness-drift.json"
@@ -1200,7 +1200,7 @@ case " $* " in
       --argjson throughput "${FAKE_RDS_STORAGE_THROUGHPUT:-125}" \
       --argjson publiclyAccessible "${FAKE_RDS_PUBLICLY_ACCESSIBLE:-false}" '
       {
-        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKL01234", class:"db.t3.micro",
+        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKL01234", class:"db.t3.small",
         engine:"mysql", engineVersion:"8.0.42", allocatedStorageGiB:100, storageType:"gp3",
         iops:$iops, storageThroughputMiBps:$throughput, multiAz:false, storageEncrypted:true,
         publiclyAccessible:$publiclyAccessible, availabilityZone:"ap-northeast-2a",

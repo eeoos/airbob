@@ -5,13 +5,14 @@ dump-mode AWS Performance Lab, promoting the verified RDS instance, destroying t
 replaying the same qualification from the promoted snapshot. It is intentionally limited to
 environment readiness. It does not authorize or contain a performance experiment.
 
-> Evidence status, 2026-09-01: `PREFLIGHT_IN_PROGRESS`. The immutable dataset, images, bundles,
-> local MySQL restore, clean AWS starting state, administrative promoter path, and protected GitHub
-> OIDC Lab path have been re-audited. No billable Lab has been created. The host Compose CLI is
-> `2.29.7`, but a temporary official `2.40.2` macOS arm64 plugin passed its published checksum and
-> the complete service-bundle contract. Reviewed operator code must still reach `main`, the protected
-> environment AMI must be updated to the audited value, and the foundation delta must pass its saved
-> plan before the first apply.
+> Evidence status, 2026-09-04: `DUMP_RETRY_PENDING`. The immutable dataset, images, bundles,
+> local MySQL restore, administrative promoter path, and protected GitHub OIDC Lab path remain
+> fixed. The first billable dump attempt, workflow `33763841701` / run
+> `lab-33763841701-1`, failed before producing a data-bootstrap or direct-readiness receipt and is
+> `FAILED_NOT_QUALIFIED`. Its fenced teardown completed with empty state, zero global orphans, a
+> released lease, and healthy unchanged OCI direct/public endpoints. No RDS snapshot was promoted.
+> The retry contract raises the fixed Single-AZ RDS class to `db.t3.small`; both live
+> qualifications and the final verdict remain pending.
 
 ## Decision and stop boundary
 
@@ -165,7 +166,7 @@ marked complete. This is a write-suppression gate, not a performance experiment.
 | Route 53 | One `api.airbob.cloud.` A record: `oci`, weight 100, TTL 60, `140.245.76.140`; no AWS alias | Pass |
 | OCI origin/public health | Direct `--resolve` and public `/health` both returned exact `healthy` | Pass |
 | AL2023 AMI | `ami-00b5b2470beafd65f`, `al2023-ami-2023.12.20260831.0-kernel-6.18-x86_64`, Amazon owner `137112412989`, x86_64/HVM/EBS/available | Pass |
-| RDS orderability | MySQL `8.0.46`, `db.t3.micro`, gp3, VPC and storage encryption supported in `ap-northeast-2` | Pass |
+| RDS retry contract | MySQL `8.0.46`, `db.t3.small`, gp3, VPC and storage encryption in `ap-northeast-2` | Recheck orderability immediately before retry |
 | EC2 capacity quota | 32 standard-family vCPUs; 0 current instances; qualification topology needs 16 vCPUs | Pass |
 | EIP/VPC quota | EIP 0/5; VPC 2/5 before Lab | Pass |
 | ALB/target-group quota | ALB 0/50; target groups 0/3000 | Pass |
@@ -183,7 +184,7 @@ path after the reviewed merge, then rerun status and preflight without acquiring
 The minimum implemented qualification topology still creates a NAT instance (`t3.micro`), egress
 probe (`t3.nano`), Redis and monitoring (`2 x t3.small`), Kafka, Debezium, and Elasticsearch
 (`3 x t3.medium`), one application instance (`c6i.large`), an HTTPS ALB, a Single-AZ
-`db.t3.micro` RDS with 100-GiB gp3 storage, EBS volumes, public IPv4/EIP, and supporting
+`db.t3.small` RDS with 100-GiB gp3 storage, EBS volumes, public IPv4/EIP, and supporting
 CloudWatch, Secrets Manager, S3, ECR, and SSM activity. The `c6i.xlarge` load generator is disabled;
 there is no NAT Gateway, no Multi-AZ RDS, no scaling fleet, and no standby Lab. Dump mode uses a
 six-hour TTL because its SSM bootstrap may run for up to 3.5 hours after bounded
@@ -199,18 +200,22 @@ remain provisional until exact regional prices or posted Cost Explorer data are 
 AWS Price List observations effective 2026-08-01 give the fixed compute footprint a peak On-Demand
 rate of `$0.3235/hour`: `t3.nano` `$0.0065`, `t3.micro` `$0.013`, two `t3.small`
 `$0.052`, three `t3.medium` `$0.156`, and one `c6i.large` `$0.096`. The declared 186 GiB of
-EC2 gp3 is about `$0.0233/hour` at `$0.0912/GB-month`; the RDS instance plus 100-GiB gp3 is
-about `$0.0440/hour` at `$0.026/hour` and `$0.131/GB-month`; the ALB base is
+EC2 gp3 is about `$0.0233/hour` at `$0.0912/GB-month`; in Seoul (`ap-northeast-2`), the
+`db.t3.small` RDS instance plus 100-GiB gp3 is about `$0.0700/hour` at `$0.052/hour` and
+`$0.131/GB-month` (the superseded `db.t3.micro` compute rate was `$0.026/hour`); the ALB base is
 `$0.0225/hour` plus `$0.008/LCU-hour`; and a conservative four in-use public IPv4 addresses add
-`$0.020/hour`. At the conservative six-hour dump plus two-hour snapshot failure ceilings, the
-two-run base-resource estimate is about `$3.47` before fractional LCU usage, T3 surplus CPU credits,
+`$0.020/hour`. The combined base peak is about `$0.4593/hour`. At the conservative six-hour dump
+plus two-hour snapshot failure ceilings, the
+two-run base-resource estimate is about `$3.68`, up from about `$3.47`, before fractional LCU usage,
+T3 surplus CPU credits,
 CloudWatch/Secrets/S3 requests, tax, and propagation delays. This is a planning estimate, not a
 bill; successful runs are torn down as soon as their required evidence is durable.
 
 Retained MySQL backup storage is `$0.095/GB-month` beyond any free allocation. A fully billed
 100-GiB promoted snapshot is therefore a conservative `$9.50/month` upper bound; actual snapshot
 storage can be lower because RDS bills backup data stored, not this document's estimate. This
-persistent cost is user-required and is reported separately from transient Lab cost.
+persistent cost is user-required and is reported separately from transient Lab cost. Changing the
+transient instance class does not change this snapshot-storage upper bound.
 
 References: [EC2 On-Demand billing](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-on-demand-instances.html),
 [RDS for MySQL pricing](https://aws.amazon.com/rds/mysql/pricing/),
@@ -232,11 +237,29 @@ References: [EC2 On-Demand billing](https://docs.aws.amazon.com/AWSEC2/latest/Us
 | DNS mode | `direct-only` | `direct-only` |
 | AMI | `ami-00b5b2470beafd65f` | Identical |
 | MySQL patch | `8.0.46` | Identical |
+| RDS class | `db.t3.small` | Identical |
 | Dataset/images/bundle | Fixed receipt above | Identical |
 
 ## Dump-mode qualification
 
-Status: `NOT_STARTED`.
+Status: `FAILED_NOT_QUALIFIED`; a new run ID is required for the retry.
+
+The failed attempt is retained as operational evidence, not qualification evidence:
+
+| Evidence | Recorded result |
+|---|---|
+| GitHub workflow / Lab run | `33763841701` / `lab-33763841701-1` |
+| Failure observation | Two RDS recovery cycles interrupted the dump import. Recovery began at `2026-09-03T15:42:08Z` and again at `2026-09-03T15:47:08Z`; MySQL logged controlled shutdown at `15:42:52Z` and `15:47:46Z`. A stale `zstd \| mysql` import pipeline remained on the bootstrap host after the second recovery. |
+| Bounded intervention | The exact SSM command `44b165b1-a7a5-47cf-8228-44d86c2493c4` was cancelled so the existing fenced automatic-failure cleanup path could run. The workflow produced neither a data-bootstrap nor direct-readiness receipt. |
+| Teardown journals | teardown-start VersionId `UwIcvPk4krPum4DAXMJ9Tqrx_SZmtcUD`; teardown-finalize VersionId `PDi.KQHVvmpoqObhaUoYxuTQ92mE6LBv` |
+| Clean-state receipt | VersionId `lV4nv6MqGBs1UkmX2ES39.beY_5FYxGX`; `resourceCount=0`; global orphan count `0` |
+| External safety gates | Orchestration lease released; OCI direct and public health both returned exact `healthy`; OCI and public DNS were not changed |
+| Qualification outcome | No data-ready receipt, app/ALB qualification, promotion, or reusable RDS snapshot; this run cannot be a snapshot source |
+
+The retry keeps the same immutable dataset, images, bundle, MySQL patch, Single-AZ topology, and
+validation gates while fixing both runs at `db.t3.small`. Dump import and long MySQL validation
+operations have bounded process deadlines so a disconnected client pipeline fails explicitly and
+hands control back to fenced cleanup.
 
 The acceptance receipt must record the exact MySQL/Flyway/row/fingerprint/outbox result,
 Elasticsearch count/alias/mapping/ID/pair/content result, both Redis resets, 12 Kafka topics and
@@ -249,7 +272,8 @@ Status: `NOT_STARTED`.
 
 The promoted snapshot must be encrypted and bind the release, manifest and dump digests, source Lab
 run, exact source RDS resource ID, exact data-bootstrap and direct-readiness S3 VersionIds and hashes,
-and promotion schema 2. The promoter must read both immutable S3 versions back byte-for-byte before
+promotion schema 2, and the fixed `db.t3.small` source-instance class. The promoter must read both
+immutable S3 versions back byte-for-byte before
 contacting RDS. Snapshot replay supplies and verifies the two source identities rather than accepting
 any older same-dataset snapshot. The first teardown is accepted only when OCI is authoritative,
 Terraform state is empty, the explicit orphan scan is empty, the state-version clean receipt exists,
@@ -289,5 +313,6 @@ cost savings.
 
 ## Final verdict
 
-`NOT READY` — authentication, toolchain, both live qualifications, promotion, and both clean
-teardowns remain pending. No performance work has started.
+`NOT READY` — the first dump attempt is `FAILED_NOT_QUALIFIED`; dump retry, promotion, snapshot
+replay, and both qualification teardowns remain pending. The failed attempt's cleanup is complete,
+and no performance work has started.

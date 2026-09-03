@@ -49,7 +49,7 @@ resource "aws_db_instance" "this" {
 
   engine         = "mysql"
   engine_version = var.engine_version
-  instance_class = "db.t3.micro"
+  instance_class = "db.t3.small"
 
   allocated_storage           = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
   storage_type                = var.bootstrap_mode == "dump" ? local.dump_storage_type : null

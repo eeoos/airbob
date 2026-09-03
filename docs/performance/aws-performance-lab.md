@@ -8,28 +8,30 @@
 | Same-image accommodation cache toggle | Implemented |
 | External Toss/Google/Slack/S3 side-effect block | Implemented |
 | Scheduler/Kafka isolated-read policy | Implemented |
-| Six service-host Compose/config contracts | Implemented (configuration only) |
+| Six service-host Compose/config contracts | Implemented; the first AWS attempt passed the dependency-service associations, but not data-ready qualification |
 | Debezium worker and connector template | Implemented (unrendered, enumerated sensitive-marker gate) |
 | Prometheus AWS target definitions | Implemented (static/config validation only) |
 | Verified nineteen-file bundle package | Published immutably for runtime commit `1537e845b2b6f3cda915dfaf202a1592db7d73cf` |
 | Immutable app/infra image construction and publication | Published to ECR and digest-pinned for the same runtime commit |
-| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle publication and Phase 2 SSM bootstrap configured; local repository-s3 producer contract implemented, live proof pending |
-| Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration implemented; not executed |
-| Terraform persistent foundation | Applied baseline in account `942632789808`, including the protected private DNS anchor and issued API ACM certificate; last applied state was drift-free, dataset-publisher delta is unapplied |
+| Bundle upload, repository-s3 proof, and trusted SSM bootstrap | Bundle published immutably; first AWS attempt passed service bootstrap and reached data bootstrap, but did not produce a data receipt |
+| Elasticsearch host `vm.max_map_count` runtime enforcement | SSM fail-closed configuration executed successfully in the first AWS attempt; full ES restore was not reached |
+| Terraform persistent foundation | Applied in account `942632789808`, including the protected private DNS anchor, issued API ACM certificate, disabled dataset writer, and six-hour Lab role sessions |
 | Terraform DNS/lab state boundaries | Route 53-authoritative OCI-only DNS state applied; the ephemeral lab is currently absent |
 | Expiry observer and SNS/CloudWatch alerts | Applied read-only and disabled; delivery remains unverified |
 | Lease/fencing controller and scheduled GitHub expiry cleanup | Direct-only/cutover modes, immutable readiness/teardown receipts, resumable cleanup, and expiry-at-TTL behavior implemented and hermetically tested; live qualification pending |
-| Ephemeral VPC and dependency-service EC2 Terraform | Implemented (configuration/mock tests only; not applied) |
+| Ephemeral VPC and dependency-service EC2 Terraform | First AWS attempt created and verified the network and dependency hosts, then cleanly destroyed them; retry pending |
 | Immutable V27 dataset assembly and publication | Final manifest-last release `production-seed-20260830t223254z-search-rehearsal-r3` is published with MySQL dump and sealed native Elasticsearch snapshot |
-| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented and locally verified; first AWS restore remains pending |
-| Ephemeral RDS Terraform | Implemented (`db.t3.micro`, Single-AZ, dump or validated snapshot; not applied) |
-| Ephemeral ALB/App ASG/load generator Terraform | Implemented (configuration/mock tests only; SSM/app/image runtime and k6 tooling not executed) |
+| Ordered RDS/Redis/Kafka/Debezium/ES bootstrap | Implemented and locally verified; first AWS attempt failed during MySQL import and was cleanly removed, so a qualified retry remains pending |
+| Ephemeral RDS Terraform | Implemented (`db.t3.small`, Single-AZ, dump or validated snapshot); retry apply pending |
+| Ephemeral ALB/App ASG/load generator Terraform | First AWS attempt created the disabled app boundary; data-ready app enable was not reached and the load generator stayed disabled |
 | Route 53 cutover | Route 53 serves the exact OCI-only weight-100 record; qualification uses direct-only mode and does not stage an AWS alias |
 | AWS discovery and SQL-digest harness | Implemented for public accommodation detail (fake-AWS tests only; not executed) |
-| AWS repeatability evidence | Not collected; dump-mode then promoted-snapshot qualification is the current stop boundary |
+| AWS repeatability evidence | Failed-attempt and clean-teardown evidence collected; dump-mode then promoted-snapshot qualification remains the current stop boundary |
 
-The final runtime tuple is now published, but the first live AWS Lab restore has
-not run. The selected release is
+The final runtime tuple is published. The first live AWS Lab attempt reached
+the dump import but was not qualified: two RDS recovery cycles left a stale
+import pipeline, the exact SSM command was cancelled, and fenced automatic
+teardown returned state and global orphan counts to zero. The selected release is
 `production-seed-20260830t223254z-search-rehearsal-r3`; its completion marker,
 MySQL dump, and native Elasticsearch snapshot are immutable inputs and must not
 be regenerated by Lab operation. OCI remains the public origin and the AWS
@@ -56,7 +58,8 @@ accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords
 are resolved only on the host from Secrets Manager. Persistent RDS snapshot
 promotion is a separate publisher/admin command and remains outside the lab
 role and lab destroy graph. The promoter requires the source instance to match
-the bootstrap receipt run and requires the exact S3 VersionIds and byte-for-byte
+the bootstrap receipt run and fixed `db.t3.small` qualification class, and
+requires the exact S3 VersionIds and byte-for-byte
 readback of both the data-bootstrap and final direct-readiness receipts. It
 writes its local receipt with create-only semantics and projects the validated
 source run/resource identity, both receipt hashes, and promotion schema onto the
@@ -100,9 +103,9 @@ release back to null. The wrapper publisher self-inspects its role and refuses
 all S3 work until that revoke is active. It then checks the receipt and
 inventory, writes wrapper payloads with no-overwrite semantics, and writes
 `manifest.json` last. The AWS bootstrap registers only the read-only repository
-and cannot publish a snapshot. The dedicated local MFA role, temporary grant,
-and bucket policy exist in Terraform but are unapplied, and neither a V27
-wrapper nor native snapshot currently exists in the dataset bucket.
+and cannot publish a snapshot. The publication grant is revoked, the dataset
+writer selector is disabled, and the immutable V27 wrapper plus sealed native
+snapshot are present in the dataset bucket.
 
 Phase 3 treats the wrapper object SHA-256 as its trust anchor. It accepts only
 the fixed schema-2 `benchmark-dataset-v2` / `world-v2` envelope, downloads the
@@ -114,6 +117,9 @@ rows/result hashes, and the live final/base/target/inventory fingerprints twice
 before any RDS setting, Elasticsearch, Redis, Kafka, or Debezium mutation. The
 schema-2 bootstrap receipt binds that live semantic receipt. The compressed SSM
 command is hard-capped at 45KB and no longer embeds the aggregate release verifier.
+The dump import and long MySQL validation work use bounded process deadlines;
+expiration terminates their subprocesses and fails the association so fenced
+automatic cleanup can start instead of waiting on a stale client pipeline.
 
 Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
 data bootstrap is in progress. An exact `data-ready` receipt is required before

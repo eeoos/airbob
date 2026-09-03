@@ -254,7 +254,7 @@ jq -e \
     "publiclyAccessible", "availabilityZone", "parameterGroups"
   ])) and
   .actual.rds.identifier == $rdsIdentifier and .actual.rds.resourceId == $rdsResourceId and
-  .actual.rds.class == "db.t3.micro" and .actual.rds.engine == "mysql" and
+  .actual.rds.class == "db.t3.small" and .actual.rds.engine == "mysql" and
   .actual.rds.engineVersion == $rdsEngineVersion and .actual.rds.allocatedStorageGiB == 100 and
   .actual.rds.storageType == "gp3" and .actual.rds.iops == 3000 and
   .actual.rds.storageThroughputMiBps == 125 and .actual.rds.multiAz == false and
@@ -373,7 +373,7 @@ jq -e --arg resourceId "$source_rds_resource_id" --arg engineVersion "$(jq -r '.
   .[0].Engine == "mysql" and
   .[0].EngineVersion == $engineVersion and
   .[0].DbiResourceId == $resourceId and
-  .[0].DBInstanceClass == "db.t3.micro" and
+  .[0].DBInstanceClass == "db.t3.small" and
   .[0].AllocatedStorage == 100 and
   .[0].StorageType == "gp3" and
   .[0].Iops == 3000 and

@@ -66,7 +66,7 @@ if grep -En '\$\(result_field[[:space:]]+\\"' "$bootstrap" >/dev/null; then
 fi
 
 assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)'
-assert_contains "$lab_root/modules/rds/main.tf" 'instance_class = "db.t3.micro"'
+assert_contains "$lab_root/modules/rds/main.tf" 'instance_class = "db.t3.small"'
 assert_contains "$lab_root/modules/rds/main.tf" 'var.bootstrap_mode == "dump" ? var.dump_storage_gib : null'
 assert_contains "$lab_root/modules/rds/main.tf" 'manage_master_user_password = true'
 assert_contains "$lab_root/modules/rds/main.tf" 'snapshot_identifier'
@@ -193,7 +193,18 @@ assert_contains "$bootstrap" 'is_write_index: true'
 assert_contains "$bootstrap" '/_aliases'
 assert_contains "$bootstrap" '(keys == [$restoredIndex])'
 assert_contains "$bootstrap" 'migrationChecksumSha256'
-assert_contains "$bootstrap" 'zstd --decompress --stdout "$dump" | mysql_exec airbobdb'
+assert_contains "$bootstrap" 'mysql_connect_timeout_seconds=10'
+assert_contains "$bootstrap" 'mysql_readiness_timeout_seconds=30'
+assert_contains "$bootstrap" 'mysql_general_timeout_seconds=900'
+assert_contains "$bootstrap" 'mysql_import_timeout_seconds=7200'
+assert_contains "$bootstrap" 'mysql_kill_after_seconds=30'
+assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" timeout'
+assert_contains "$bootstrap" '--foreground --signal=TERM --kill-after="${mysql_kill_after_seconds}s" "${deadline_seconds}s"'
+assert_contains "$bootstrap" '--connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect'
+assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_readiness_timeout_seconds"'
+assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_general_timeout_seconds"'
+assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_import_timeout_seconds" airbobdb'
+assert_contains "$bootstrap" 'GNU timeout is required'
 assert_contains "$bootstrap" 'information_schema.COLUMNS'
 assert_contains "$bootstrap" 'information_schema.STATISTICS'
 assert_contains "$bootstrap" 'information_schema.TABLE_CONSTRAINTS'
@@ -271,7 +282,6 @@ assert_contains "$bootstrap" '--server-side-encryption AES256'
 assert_contains "$bootstrap" 'immutable data bootstrap receipt publication could not be verified'
 assert_contains "$bootstrap" 'trap cleanup EXIT'
 assert_contains "$bootstrap" '<<AIRBOB_DEBEZIUM_SQL'
-assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" mysql'
 for component_id in \
   final-accommodation final-address final-occupancy-policy \
   final-accommodation-image final-accommodation-amenity final-member \
@@ -306,6 +316,21 @@ bootstrap_components=$(extract_fingerprint_components "$bootstrap")
   || fail "restore and bootstrap fingerprint component order differs"
 [[ "$(printf '%s\n' "$restore_components" | wc -l | tr -d '[:space:]')" == 24 ]] \
   || fail "restore and bootstrap must enumerate exactly 24 component fingerprints"
+guarded_fingerprint_calls=0
+while IFS= read -r guarded_fingerprint_call; do
+  ((guarded_fingerprint_calls += 1))
+  [[ "$guarded_fingerprint_call" == *'|| return 1' ]] \
+    || fail "live restore fingerprint call does not propagate failure: $guarded_fingerprint_call"
+done < <(awk '
+  /^live_restore_fingerprints\(\) \{/ { capture = 1; next }
+  capture && /^}/ { exit }
+  capture && /^[[:space:]]*(fingerprint_table|base_fingerprint) / { print }
+' "$bootstrap")
+[[ "$guarded_fingerprint_calls" == 24 ]] \
+  || fail "live restore must guard all 24 component fingerprint calls"
+assert_contains "$bootstrap" 'final_world_fingerprint=$(combine_fingerprints final-) || return 1'
+assert_contains "$bootstrap" 'base_world_fingerprint=$(combine_fingerprints base-) || return 1'
+assert_contains "$bootstrap" 'inventory_fingerprint=$(awk -F '\''\t'\'' '\''$1=="final-inventory"{print $2}'\'' "$live_fingerprint_rows") || return 1'
 if grep -Fq 'export MYSQL_PWD' "$bootstrap"; then
   fail "Phase 3 bootstrap must scope MYSQL_PWD to MySQL client processes"
 fi
@@ -315,6 +340,183 @@ fi
 if grep -F -- "--execute" "$bootstrap" | grep -Fq 'debezium_password'; then
   fail "Phase 3 bootstrap must not place the Debezium password in process arguments"
 fi
+
+mysql_deadline_functions="$temp_dir/mysql-deadline-functions.sh"
+awk '
+  /^mysql_with_deadline\(\) \{/ { capture = 1 }
+  capture { print }
+  /^mysql_import_dump\(\) \{/ { import_function = 1 }
+  capture && import_function && /^}/ { exit }
+' "$bootstrap" > "$mysql_deadline_functions"
+[[ -s "$mysql_deadline_functions" ]] || fail "bootstrap MySQL deadline helpers are missing"
+# shellcheck source=/dev/null
+source "$mysql_deadline_functions"
+
+mysql_deadline_bin="$temp_dir/mysql-deadline-bin"
+timeout_log="$temp_dir/mysql-deadline-timeout.log"
+mysql_log="$temp_dir/mysql-deadline-client.log"
+install -d -m 700 "$mysql_deadline_bin"
+cat > "$mysql_deadline_bin/timeout" <<'AIRBOB_TEST_TIMEOUT'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >> "$AIRBOB_TEST_TIMEOUT_LOG"
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --foreground|--signal=TERM|--kill-after=*) shift ;;
+    *s) shift; break ;;
+    *) exit 64 ;;
+  esac
+done
+if [[ "${AIRBOB_TEST_TIMEOUT_EXIT:-0}" != 0 ]]; then
+  exit "$AIRBOB_TEST_TIMEOUT_EXIT"
+fi
+exec "$@"
+AIRBOB_TEST_TIMEOUT
+cat > "$mysql_deadline_bin/mysql" <<'AIRBOB_TEST_MYSQL'
+#!/usr/bin/env bash
+set -euo pipefail
+{
+  printf 'MYSQL_PWD=%s\n' "${MYSQL_PWD:+set}"
+  printf 'arg=%s\n' "$@"
+} >> "$AIRBOB_TEST_MYSQL_LOG"
+cat >/dev/null
+exit "${AIRBOB_TEST_MYSQL_EXIT:-0}"
+AIRBOB_TEST_MYSQL
+chmod 700 "$mysql_deadline_bin/timeout" "$mysql_deadline_bin/mysql"
+
+export AIRBOB_TEST_TIMEOUT_LOG="$timeout_log"
+export AIRBOB_TEST_MYSQL_LOG="$mysql_log"
+mysql_deadline_original_path=$PATH
+PATH="$mysql_deadline_bin:$PATH"
+master_password=deadline-test-password
+master_username=airbob_admin
+AIRBOB_RDS_ENDPOINT=airbob-rds.internal
+mysql_connect_timeout_seconds=10
+mysql_readiness_timeout_seconds=30
+mysql_general_timeout_seconds=900
+mysql_import_timeout_seconds=7200
+mysql_kill_after_seconds=30
+dump="$temp_dir/mysql-deadline-dump.zst"
+: > "$dump"
+zstd() {
+  [[ "$*" == "--decompress --stdout $dump" ]] || return 91
+  printf '%s\n' 'SELECT 1;'
+}
+
+mysql_exec --execute='SELECT 1' >/dev/null \
+  || fail "bounded general MySQL helper rejected a successful client"
+mysql_readiness_exec --execute='SELECT 1' >/dev/null \
+  || fail "bounded readiness MySQL helper rejected a successful client"
+mysql_import_dump \
+  || fail "bounded dump import helper rejected a successful pipeline"
+for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 7200s; do
+  grep -Fxq -- "$expected_timeout_argument" "$timeout_log" \
+    || fail "MySQL deadline helper omitted timeout argument: $expected_timeout_argument"
+done
+[[ "$(grep -Fxc -- 'arg=--connect-timeout=10' "$mysql_log")" == 3 ]] \
+  || fail "every MySQL path must set the initial connect timeout"
+[[ "$(grep -Fxc -- 'arg=--skip-reconnect' "$mysql_log")" == 3 ]] \
+  || fail "every MySQL path must disable automatic reconnect"
+[[ "$(grep -Fxc -- 'MYSQL_PWD=set' "$mysql_log")" == 3 ]] \
+  || fail "every MySQL path must scope the password through MYSQL_PWD"
+if grep -Fq -- "$master_password" "$timeout_log" "$mysql_log"; then
+  fail "MySQL deadline helper exposed the password in process arguments or logs"
+fi
+
+export AIRBOB_TEST_MYSQL_EXIT=23
+if mysql_import_dump; then
+  fail "dump import pipeline hid a MySQL client failure"
+else
+  import_status=$?
+fi
+[[ "$import_status" == 23 ]] || fail "dump import pipeline did not preserve the MySQL failure status"
+unset AIRBOB_TEST_MYSQL_EXIT
+export AIRBOB_TEST_TIMEOUT_EXIT=124
+if mysql_import_dump; then
+  fail "dump import pipeline hid a timeout"
+else
+  import_status=$?
+fi
+[[ "$import_status" == 124 ]] || fail "dump import pipeline did not preserve timeout status 124"
+unset AIRBOB_TEST_TIMEOUT_EXIT
+PATH=$mysql_deadline_original_path
+unset -f zstd
+unset AIRBOB_TEST_TIMEOUT_LOG AIRBOB_TEST_MYSQL_LOG
+
+attestation_functions="$temp_dir/bootstrap-attestation-functions.sh"
+awk '
+  /^result_field\(\)/ { capture = 1 }
+  capture { print }
+  /^verify_targets\(\) \{/ { verify_targets_function = 1 }
+  capture && verify_targets_function && /^}/ { exit }
+' "$bootstrap" > "$attestation_functions"
+[[ -s "$attestation_functions" ]] || fail "bootstrap attestation helpers are missing"
+# shellcheck source=/dev/null
+source "$attestation_functions"
+
+attestation_work_root="$temp_dir/attestation-work"
+attestation_manifest="$attestation_work_root/dataset-manifest.json"
+attestation_hash=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+install -d -m 700 "$attestation_work_root"
+jq -n --arg hash "$attestation_hash" '
+  {
+    world:{fingerprints:{"final-accommodation":$hash}},
+    capsules:[{
+      capsuleId:"read-model-v2",
+      targets:[{
+        id:"review-target",resourceIds:[1],
+        query:{kind:"REVIEW_SUMMARY_V1",accommodationId:1},
+        expectedRows:1,expectedResultHash:$hash
+      }]
+    }]
+  }
+' > "$attestation_manifest"
+
+benchmark_dataset_manifest=$attestation_manifest
+live_fingerprint_rows="$attestation_work_root/live-fingerprint-rows.tsv"
+: > "$live_fingerprint_rows"
+mysql_test_count_status=0
+mysql_test_hash_status=0
+mysql_exec() {
+  if [[ "$*" == *'--execute=SELECT COUNT(*) FROM'* ]]; then
+    printf '%s\n' 1
+    return "$mysql_test_count_status"
+  fi
+  printf '%s\n' 616263
+  return "$mysql_test_hash_status"
+}
+
+# Both fake results are byte-for-byte valid, but status 124 must still fail.
+mysql_test_hash_status=124
+if mysql_result_hash 'SELECT exact_hash' >/dev/null; then
+  fail "result hash accepted exact output followed by status 124"
+else
+  attestation_status=$?
+fi
+[[ "$attestation_status" == 124 ]] || fail "result hash did not preserve status 124"
+
+for fingerprint_failure in count hash; do
+  mysql_test_count_status=0
+  mysql_test_hash_status=0
+  [[ "$fingerprint_failure" == count ]] && mysql_test_count_status=124 || mysql_test_hash_status=124
+  : > "$live_fingerprint_rows"
+  if fingerprint_table final-accommodation 'accommodation a' '1=1' a.id 1 a.id text 2>/dev/null; then
+    fail "fingerprint table accepted exact $fingerprint_failure output followed by status 124"
+  fi
+  [[ ! -s "$live_fingerprint_rows" ]] || fail "failed fingerprint table wrote a receipt row"
+done
+
+for target_failure in count hash; do
+  mysql_test_count_status=0
+  mysql_test_hash_status=0
+  [[ "$target_failure" == count ]] && mysql_test_count_status=124 || mysql_test_hash_status=124
+  target_receipt="$attestation_work_root/target-$target_failure.tsv"
+  if verify_targets "$target_receipt" 2>/dev/null; then
+    fail "target verifier accepted exact $target_failure output followed by status 124"
+  fi
+  [[ ! -s "$target_receipt" ]] || fail "failed target verifier wrote a receipt row"
+done
+
 fingerprint_line=$(grep -n 'Elasticsearch content fingerprint does not match the release' "$bootstrap" | cut -d: -f1)
 document_identity_line=$(grep -n 'document identity pair fingerprint does not match the release' "$bootstrap" | cut -d: -f1)
 alias_cutover_line=$(grep -n 'alias_update=$(curl_http' "$bootstrap" | cut -d: -f1)
