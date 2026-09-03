@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
+# Preserve an operator diagnostic channel across the intentionally quiet
+# automatic-cleanup compound command.
+exec 9>&2
 
 DEFAULT_COMMAND_DEADLINE_SECONDS=5400
 DUMP_UP_COMMAND_DEADLINE_SECONDS=14400
@@ -8,22 +11,36 @@ DEFAULT_CREDENTIAL_SESSION_SECONDS=7200
 SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800
 DUMP_UP_CREDENTIAL_SESSION_SECONDS=18000
 SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600
-DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=3600
+DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=2400
 DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=2400
+DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400
 LAB_ROLE_MAX_SESSION_SECONDS=18000
 TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS=300
+WORKFLOW_FINALIZATION_MARGIN_SECONDS=300
+LEASE_TRANSITION_MARGIN_SECONDS=300
+LEASE_ACQUIRE_MAX_SECONDS=120
+LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=60
+LEASE_CONTROL_CALL_MAX_SECONDS=30
 TERRAFORM_LOCK_CREDENTIAL_EXPIRY_BARRIER_SECONDS=$((
   LAB_ROLE_MAX_SESSION_SECONDS + TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS
 ))
 COMMAND_DEADLINE_SECONDS=$DEFAULT_COMMAND_DEADLINE_SECONDS
+LEASE_DEADLINE_SECONDS=$DEFAULT_COMMAND_DEADLINE_SECONDS
 CREDENTIAL_SESSION_SECONDS=$DEFAULT_CREDENTIAL_SESSION_SECONDS
-UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS=0
+UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=0
 INSTANCE_REFRESH_TIMEOUT_SECONDS=900
 HEARTBEAT_TTL_SECONDS=180
 HEARTBEAT_INTERVAL_SECONDS=60
 MUTATION_TERMINATION_GRACE_SECONDS=10
 
-fail() { printf '%s\n' "$1" >&2; exit 1; }
+fail() {
+  local message=$1
+  if [[ "${cleanup_in_progress:-false}" == true && "${BASH_SUBSHELL:-0}" -eq 0 ]]; then
+    abort_cleanup 1 "$message"
+  fi
+  printf '%s\n' "$message" >&2
+  exit 1
+}
 
 aws_utc_timestamp_epoch() {
   local timestamp=$1 normalized canonical
@@ -150,10 +167,10 @@ if [[ "$action" == up ]]; then
   if [[ "${DATABASE_BOOTSTRAP:-dump}" == dump ]]; then
     COMMAND_DEADLINE_SECONDS=$DUMP_UP_COMMAND_DEADLINE_SECONDS
     CREDENTIAL_SESSION_SECONDS=$DUMP_UP_CREDENTIAL_SESSION_SECONDS
-    UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS=$DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS
+    UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
   else
     CREDENTIAL_SESSION_SECONDS=$SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS
-    UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS=$SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
+    UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
   fi
 fi
 
@@ -167,19 +184,75 @@ if [[ -n "${AIRBOB_OPERATOR_TEST_HARNESS:-}" ]]; then
     "$repo_root" == "$test_root_prefix"/airbob-operator-test.*/operator-repo ]] \
     || fail "operator test timing overrides are outside the hermetic fake harness"
   test_command_deadline=${AIRBOB_TEST_COMMAND_DEADLINE_SECONDS:-}
+  test_failure_cleanup_allowance=${AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS:-}
+  test_lease_acquire_max=${AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS:-}
+  test_lease_acquire_recovery_max=${AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS:-}
+  test_lease_control_call_max=${AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS:-}
   test_heartbeat_interval=${AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS:-}
+  test_heartbeat_ttl=${AIRBOB_TEST_HEARTBEAT_TTL_SECONDS:-}
   test_termination_grace=${AIRBOB_TEST_TERMINATION_GRACE_SECONDS:-}
+  for test_failure_injection in \
+    "${AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE:-}" \
+    "${AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE:-}" \
+    "${AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE:-}" \
+    "${AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE:-}"; do
+    [[ -z "$test_failure_injection" || "$test_failure_injection" == true ]] \
+      || fail "operator test failure injections must be true or unset"
+  done
   [[ "$test_command_deadline" =~ ^[1-9][0-9]?$ ]] \
     || fail "test command deadline must be 1-99 seconds"
   [[ "$test_heartbeat_interval" =~ ^[1-9][0-9]?$ ]] \
     || fail "test heartbeat interval must be 1-99 seconds"
   [[ "$test_termination_grace" =~ ^[1-9][0-9]?$ ]] \
     || fail "test mutation termination grace must be 1-99 seconds"
+  if [[ -n "$test_failure_cleanup_allowance" ]]; then
+    [[ "$action" == up && "$test_failure_cleanup_allowance" =~ ^[1-9][0-9]?$ ]] \
+      || fail "test failure cleanup allowance must be 1-99 seconds for up"
+    UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$test_failure_cleanup_allowance
+  fi
+  if [[ -n "$test_lease_acquire_max" ]]; then
+    [[ "$test_lease_acquire_max" =~ ^[1-9][0-9]?$ ]] \
+      || fail "test lease acquisition deadline must be 1-99 seconds"
+    LEASE_ACQUIRE_MAX_SECONDS=$test_lease_acquire_max
+  fi
+  if [[ -n "$test_lease_acquire_recovery_max" ]]; then
+    [[ "$test_lease_acquire_recovery_max" =~ ^[1-9][0-9]?$ ]] \
+      || fail "test lease acquisition recovery deadline must be 1-99 seconds"
+    LEASE_ACQUIRE_RECOVERY_MAX_SECONDS=$test_lease_acquire_recovery_max
+  fi
+  if [[ -n "$test_lease_control_call_max" ]]; then
+    [[ "$test_lease_control_call_max" =~ ^[1-9][0-9]?$ ]] \
+      || fail "test lease control-call deadline must be 1-99 seconds"
+    LEASE_CONTROL_CALL_MAX_SECONDS=$test_lease_control_call_max
+  fi
+  if [[ -n "$test_heartbeat_ttl" ]]; then
+    [[ "$test_heartbeat_ttl" =~ ^[1-9][0-9]?$ && \
+      "$test_heartbeat_ttl" -ge 2 && \
+      "$test_heartbeat_ttl" -gt "$test_heartbeat_interval" ]] \
+      || fail "test heartbeat TTL must be 2-99 seconds and exceed its interval"
+    HEARTBEAT_TTL_SECONDS=$test_heartbeat_ttl
+  fi
   COMMAND_DEADLINE_SECONDS=$test_command_deadline
   HEARTBEAT_INTERVAL_SECONDS=$test_heartbeat_interval
   MUTATION_TERMINATION_GRACE_SECONDS=$test_termination_grace
-elif [[ -n "${AIRBOB_TEST_COMMAND_DEADLINE_SECONDS:-}${AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS:-}${AIRBOB_TEST_TERMINATION_GRACE_SECONDS:-}" ]]; then
+elif [[ -n "${AIRBOB_TEST_COMMAND_DEADLINE_SECONDS:-}${AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS:-}${AIRBOB_TEST_LEASE_ACQUIRE_MAX_SECONDS:-}${AIRBOB_TEST_LEASE_ACQUIRE_RECOVERY_MAX_SECONDS:-}${AIRBOB_TEST_LEASE_CONTROL_CALL_MAX_SECONDS:-}${AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS:-}${AIRBOB_TEST_HEARTBEAT_TTL_SECONDS:-}${AIRBOB_TEST_TERMINATION_GRACE_SECONDS:-}${AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE:-}${AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE:-}${AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE:-}${AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE:-}" ]]; then
   fail "operator test timing overrides require the hermetic fake harness"
+fi
+
+HEARTBEAT_LOOP_STOP_MAX_SECONDS=$((LEASE_CONTROL_CALL_MAX_SECONDS + 1))
+FAILURE_CLEANUP_LEASE_HANDOFF_MAX_SECONDS=$((
+  HEARTBEAT_LOOP_STOP_MAX_SECONDS + LEASE_CONTROL_CALL_MAX_SECONDS * 2
+))
+((FAILURE_CLEANUP_LEASE_HANDOFF_MAX_SECONDS <= LEASE_TRANSITION_MARGIN_SECONDS)) \
+  || fail "failure cleanup lease handoff exceeds its transition margin"
+
+if [[ "$action" == up ]]; then
+  LEASE_DEADLINE_SECONDS=$((
+    COMMAND_DEADLINE_SECONDS + UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS +
+      LEASE_TRANSITION_MARGIN_SECONDS
+  ))
+else
+  LEASE_DEADLINE_SECONDS=$COMMAND_DEADLINE_SECONDS
 fi
 
 for executable in "$lease_script" "$dns_controller" "$orphan_scanner" "$backend_helper" "$network_verifier" "$policy_verifier"; do
@@ -256,14 +329,35 @@ validate_up_credential_budget() {
   expiration_epoch=$(aws_utc_timestamp_epoch "$expiration") \
     || fail "static STS credential expiration is not a real UTC instant"
   now_epoch=$(date -u +%s)
-  required_remaining_seconds=$(($COMMAND_DEADLINE_SECONDS +
-    $UP_CREDENTIAL_CLEANUP_ALLOWANCE_SECONDS +
-    $TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS))
+  required_remaining_seconds=$((
+    LEASE_DEADLINE_SECONDS + TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS
+  ))
   remaining_seconds=$((expiration_epoch - now_epoch))
   ((remaining_seconds >= required_remaining_seconds)) \
-    || fail "static STS credential lifetime cannot cover the up deadline and cleanup allowance"
+    || fail "static STS credential lifetime cannot cover the lease deadline and safety margin"
 }
 validate_up_credential_budget
+
+validate_workflow_deadline_budget() {
+  local deadline_epoch=${AIRBOB_WORKFLOW_DEADLINE_EPOCH:-}
+  local now_epoch required_remaining_seconds remaining_seconds
+
+  [[ "$action" == up ]] || return 0
+  if [[ -z "$deadline_epoch" ]]; then
+    [[ "${GITHUB_ACTIONS:-false}" != true ]] \
+      || fail "GitHub Actions up requires AIRBOB_WORKFLOW_DEADLINE_EPOCH"
+    return 0
+  fi
+  [[ "$deadline_epoch" =~ ^[1-9][0-9]{9}$ ]] \
+    || fail "workflow deadline epoch is not canonical"
+  now_epoch=$(date -u +%s)
+  required_remaining_seconds=$((
+    LEASE_DEADLINE_SECONDS + WORKFLOW_FINALIZATION_MARGIN_SECONDS
+  ))
+  remaining_seconds=$((deadline_epoch - now_epoch))
+  ((remaining_seconds >= required_remaining_seconds)) \
+    || fail "workflow lifetime cannot cover the lease deadline and finalization margin"
+}
 
 account_id=$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")
 [[ "$account_id" == "$AIRBOB_AWS_ACCOUNT_ID" ]] || fail "active AWS account is outside the lab boundary"
@@ -287,14 +381,22 @@ terraform_lock_path="$state_bucket/$lab_state_key"
 dns_controller_role_arn="arn:aws:iam::$AIRBOB_AWS_ACCOUNT_ID:role/airbob-dns-controller"
 
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-lab.XXXXXX")
+heartbeat_failure_file="$temp_dir/heartbeat-failure"
 heartbeat_pid=''
-watchdog_pid=''
+lease_control_watchdog_pid=''
+command_watchdog_pid=''
+cleanup_watchdog_pid=''
 active_mutation_pid=''
 active_mutation_pgid=''
 lease_acquired=false
+lease_acquire_interrupted_status=0
+lease_acquire_interrupted_reason=''
+bounded_lease_command_timed_out=false
+bounded_lease_command_capture_ready=false
 dns_switched=false
 current_tfvars=''
 up_in_progress=false
+cleanup_in_progress=false
 current_stage=not-started
 lab_backend_prepared=false
 keep_on_failure=${KEEP_ON_FAILURE:-false}
@@ -334,6 +436,15 @@ abort_operator() {
   local exit_status=$1 reason=$2
   stop_active_mutation "$reason" || exit_status=125
   printf '%s\n' "$reason" >&2
+  exit "$exit_status"
+}
+
+abort_cleanup() {
+  local exit_status=$1 reason=$2
+  trap '' HUP INT TERM USR1 USR2 ALRM
+  stop_active_mutation "$reason" || exit_status=125
+  printf '%s\n' "$reason" >&9
+  finish_cleanup
   exit "$exit_status"
 }
 
@@ -384,23 +495,151 @@ run_terraform_command() {
   fi
 }
 
+watchdog_sleep() {
+  local delay_seconds=$1 sleeper_pid=''
+  trap '
+    if [[ -n "$sleeper_pid" ]]; then
+      kill -TERM "$sleeper_pid" 2>/dev/null || true
+      wait "$sleeper_pid" 2>/dev/null || true
+    fi
+    exit 0
+  ' TERM
+  sleep "$delay_seconds" &
+  sleeper_pid=$!
+  wait "$sleeper_pid"
+  trap - TERM
+}
+
+stop_watchdog() {
+  local pid=${1:-}
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+
+stop_heartbeat_loop() {
+  local pid=$heartbeat_pid stop_fallback_pid
+  [[ -n "$pid" ]] || return 0
+  kill -TERM "$pid" 2>/dev/null || true
+  (
+    watchdog_sleep "$HEARTBEAT_LOOP_STOP_MAX_SECONDS"
+    kill -KILL "$pid" 2>/dev/null || true
+  ) &
+  stop_fallback_pid=$!
+  wait "$pid" 2>/dev/null || true
+  stop_watchdog "$stop_fallback_pid"
+  heartbeat_pid=''
+}
+
+heartbeat_wait_interval() {
+  local remaining_seconds=$HEARTBEAT_INTERVAL_SECONDS
+  while ((remaining_seconds > 0)); do
+    [[ "${heartbeat_stop_requested:-false}" == false ]] || return 1
+    sleep 1 || true
+    [[ "${heartbeat_stop_requested:-false}" == false ]] || return 1
+    remaining_seconds=$((remaining_seconds - 1))
+  done
+  return 0
+}
+
+run_bounded_heartbeat() {
+  run_bounded_lease_command "$LEASE_CONTROL_CALL_MAX_SECONDS" \
+    "$temp_dir/lease-heartbeat.out" "$temp_dir/lease-heartbeat.err" \
+    "$temp_dir/lease-heartbeat.timeout" \
+    heartbeat "$lease_table" "$lease_lock_id" "$lease_owner" \
+    "$fencing_token" "$run_id" "$lease_command" "$HEARTBEAT_TTL_SECONDS"
+}
+
+publish_heartbeat_failure() {
+  [[ "${AIRBOB_TEST_HEARTBEAT_FAILURE_MARKER_WRITE_FAILURE:-false}" != true ]] \
+    || return 2
+  (
+    set -o noclobber
+    printf '%s\n' failed > "$heartbeat_failure_file"
+  ) 2>/dev/null && return 0
+  [[ -e "$heartbeat_failure_file" ]] && return 1
+  return 2
+}
+
+start_heartbeat_loop() {
+  local parent_pid=$$
+  [[ "$lease_acquired" == true && -z "$heartbeat_pid" ]] \
+    || fail "heartbeat loop requires one acquired lease and no prior loop"
+  (
+    heartbeat_stop_requested=false
+    trap 'heartbeat_stop_requested=true' TERM
+    while heartbeat_wait_interval; do
+      if run_bounded_heartbeat; then
+        [[ "$heartbeat_stop_requested" == false ]] || break
+      else
+        [[ "$heartbeat_stop_requested" == false ]] || break
+        heartbeat_failure_publish_status=0
+        if publish_heartbeat_failure; then
+          kill -USR1 "$parent_pid" 2>/dev/null || true
+        else
+          heartbeat_failure_publish_status=$?
+          if [[ "$heartbeat_failure_publish_status" -eq 2 ]]; then
+            kill -USR1 "$parent_pid" 2>/dev/null || true
+            break
+          fi
+        fi
+      fi
+    done
+  ) &
+  heartbeat_pid=$!
+}
+
+renew_cleanup_lease() {
+  run_bounded_heartbeat
+}
+
+assert_cleanup_lease() {
+  run_bounded_lease_command "$LEASE_CONTROL_CALL_MAX_SECONDS" \
+    "$temp_dir/lease-cleanup-assert.out" "$temp_dir/lease-cleanup-assert.err" \
+    "$temp_dir/lease-cleanup-assert.timeout" \
+    assert "$lease_table" "$lease_lock_id" "$lease_owner" \
+    "$fencing_token" "$run_id" "$lease_command"
+}
+
+clear_heartbeat_failure_marker() {
+  [[ "${AIRBOB_TEST_CLEANUP_MARKER_REMOVE_FAILURE:-false}" != true ]] \
+    || return 1
+  rm -f "$heartbeat_failure_file"
+}
+
+start_failure_cleanup_watchdog() {
+  local deadline_seconds=$UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS parent_pid=$$
+  [[ "$deadline_seconds" =~ ^[1-9][0-9]*$ ]] \
+    || fail "failure cleanup watchdog requires a positive deadline"
+  (
+    watchdog_sleep "$deadline_seconds"
+    kill -ALRM "$parent_pid" 2>/dev/null || true
+  ) &
+  cleanup_watchdog_pid=$!
+  printf 'failure cleanup watchdog armed for %s seconds\n' "$deadline_seconds" >&2
+}
+
+release_lease_bounded_best_effort() {
+  run_bounded_lease_command "$LEASE_CONTROL_CALL_MAX_SECONDS" \
+    "$temp_dir/lease-final-release.out" "$temp_dir/lease-final-release.err" \
+    "$temp_dir/lease-final-release.timeout" \
+    release "$lease_table" "$lease_lock_id" "$lease_owner" \
+    "$fencing_token" "$run_id" "$lease_command"
+}
+
 finish_cleanup() {
   trap - EXIT
-  trap '' HUP INT TERM USR1 USR2
+  trap '' HUP INT TERM USR1 USR2 ALRM
   stop_active_mutation "cleanup finalizer" || true
-  if [[ -n "$heartbeat_pid" ]]; then
-    kill "$heartbeat_pid" 2>/dev/null || true
-    wait "$heartbeat_pid" 2>/dev/null || true
-    heartbeat_pid=''
-  fi
-  if [[ -n "$watchdog_pid" ]]; then
-    kill "$watchdog_pid" 2>/dev/null || true
-    wait "$watchdog_pid" 2>/dev/null || true
-    watchdog_pid=''
-  fi
+  stop_heartbeat_loop
+  stop_watchdog "$lease_control_watchdog_pid"
+  lease_control_watchdog_pid=''
+  stop_watchdog "$command_watchdog_pid"
+  command_watchdog_pid=''
+  stop_watchdog "$cleanup_watchdog_pid"
+  cleanup_watchdog_pid=''
   if [[ "$lease_acquired" == true ]]; then
-    "$lease_script" release "$lease_table" "$lease_lock_id" "$lease_owner" \
-      "$fencing_token" "$run_id" "$lease_command" >/dev/null 2>&1 || true
+    release_lease_bounded_best_effort || true
     lease_acquired=false
   fi
   rm -rf "$temp_dir"
@@ -408,9 +647,55 @@ finish_cleanup() {
 
 cleanup() {
   local status=$?
+  local automatic_failure_cleanup=false
   local failure_cleanup_prerequisites=false oci_after_failure_cleanup=false
   trap - EXIT
+  cleanup_in_progress=true
+  trap '' HUP INT TERM USR1 USR2 ALRM
   trap finish_cleanup EXIT
+  stop_watchdog "$command_watchdog_pid"
+  command_watchdog_pid=''
+  if [[ "$status" -ne 0 && "$up_in_progress" == true && \
+    "$keep_on_failure" == false && -n "$current_tfvars" && -f "$current_tfvars" ]]; then
+    automatic_failure_cleanup=true
+  fi
+  trap 'abort_cleanup 129 "operator cleanup received SIGHUP"' HUP
+  trap 'abort_cleanup 130 "operator cleanup received SIGINT"' INT
+  trap 'abort_cleanup 143 "operator cleanup received SIGTERM"' TERM
+  if [[ "$automatic_failure_cleanup" == true ]]; then
+    stop_heartbeat_loop
+    if ! clear_heartbeat_failure_marker; then
+      printf '%s\n' \
+        'failure cleanup marker reset failed; resources remain preserved' >&9
+      finish_cleanup
+      exit "$status"
+    fi
+    if ! renew_cleanup_lease; then
+      printf '%s\n' \
+        'failure cleanup lease renewal failed; resources remain preserved' >&9
+      finish_cleanup
+      exit "$status"
+    fi
+    if ! assert_cleanup_lease; then
+      printf '%s\n' \
+        'failure cleanup lease validation failed; resources remain preserved' >&9
+      finish_cleanup
+      exit "$status"
+    fi
+    trap 'abort_cleanup 75 "orchestration heartbeat failed during operator cleanup"' USR1
+    start_heartbeat_loop
+    if [[ -e "$heartbeat_failure_file" ]]; then
+      printf '%s\n' \
+        'failure cleanup lease validation failed; resources remain preserved' >&9
+      finish_cleanup
+      exit "$status"
+    fi
+    printf '%s\n' 'failure cleanup lease renewed; heartbeat continuity verified' >&2
+    trap 'abort_cleanup 124 "failure cleanup deadline exceeded"' ALRM
+    start_failure_cleanup_watchdog
+  else
+    trap 'abort_cleanup 75 "orchestration heartbeat failed during operator cleanup"' USR1
+  fi
   stop_active_mutation "operator cleanup" || status=125
   if [[ "$status" -ne 0 && "$up_in_progress" == true ]]; then
     ( write_failure_evidence "$status" "$current_stage" ) >/dev/null 2>&1 || true
@@ -1050,33 +1335,277 @@ write_run_manifest() {
   cmp -s "$manifest" "$readback" || fail "run manifest read-back differs"
 }
 
-start_mutation_guard() {
-  lease_owner=${LEASE_OWNER:-${GITHUB_REPOSITORY:-local}/${GITHUB_RUN_ID:-$(id -un)}:${GITHUB_RUN_ATTEMPT:-1}}
-  [[ "$lease_owner" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] || fail "lease owner is not canonical"
-  token_output=$("$lease_script" acquire "$lease_table" "$lease_lock_id" "$lease_owner" \
-    "$run_id" "$lease_command" "$HEARTBEAT_TTL_SECONDS" "$COMMAND_DEADLINE_SECONDS")
-  fencing_token=${token_output#fencing_token=}
-  [[ "$fencing_token" =~ ^[1-9][0-9]*$ ]] || fail "lease did not issue a fencing token"
-  lease_acquired=true
-  parent_pid=$$
+run_bounded_lease_command() {
+  local deadline_seconds=$1 output_file=$2 error_file=$3 timeout_file=$4
+  local platform lease_command_pid result=0
+  local bounded_started_seconds=$SECONDS bounded_elapsed_seconds
+  shift 4
+  bounded_lease_command_timed_out=false
+  bounded_lease_command_capture_ready=false
+  [[ "$deadline_seconds" =~ ^[1-9][0-9]*$ ]] \
+    || fail "bounded lease command requires a positive deadline"
+  if [[ "${AIRBOB_TEST_LEASE_CAPTURE_PREPARE_FAILURE:-false}" == true ]] ||
+    ! { : > "$output_file" && : > "$error_file" && rm -f "$timeout_file"; }; then
+    printf '%s\n' 'cannot prepare bounded lease command capture files' >&2
+    return 125
+  fi
+  bounded_lease_command_capture_ready=true
+  platform=$(uname -s)
+  case "$platform" in
+    Linux)
+      command -v setsid >/dev/null 2>&1 \
+        || fail "Linux bounded lease command requires setsid"
+      setsid "$lease_script" "$@" >"$output_file" 2>"$error_file" &
+      ;;
+    Darwin)
+      command -v python3 >/dev/null 2>&1 \
+        || fail "Darwin bounded lease command requires python3 for a new process group"
+      python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+        "$lease_script" "$@" >"$output_file" 2>"$error_file" &
+      ;;
+    *) fail "bounded lease commands are unsupported on this operating system" ;;
+  esac
+  lease_command_pid=$!
+  active_mutation_pid=$lease_command_pid
+  active_mutation_pgid=$lease_command_pid
   (
-    while sleep "$HEARTBEAT_INTERVAL_SECONDS"; do
-      "$lease_script" heartbeat "$lease_table" "$lease_lock_id" "$lease_owner" \
-        "$fencing_token" "$run_id" "$lease_command" "$HEARTBEAT_TTL_SECONDS" >/dev/null \
-        || { kill -USR1 "$parent_pid" 2>/dev/null || true; exit 1; }
-    done
+    watchdog_sleep "$deadline_seconds"
+    kill -KILL -- "-$lease_command_pid" 2>/dev/null \
+      || kill -KILL "$lease_command_pid" 2>/dev/null || true
+    if [[ "${AIRBOB_TEST_TIMEOUT_MARKER_WRITE_FAILURE:-false}" != true ]]; then
+      : > "$timeout_file" 2>/dev/null || true
+    fi
   ) &
-  heartbeat_pid=$!
+  lease_control_watchdog_pid=$!
+  if wait "$lease_command_pid"; then
+    result=0
+  else
+    result=$?
+  fi
+  bounded_elapsed_seconds=$((SECONDS - bounded_started_seconds))
+  stop_watchdog "$lease_control_watchdog_pid"
+  lease_control_watchdog_pid=''
+  if mutation_group_alive; then
+    stop_active_mutation "bounded lease command left descendants" || result=125
+    [[ "$result" -ne 0 ]] || result=125
+  else
+    active_mutation_pid=''
+    active_mutation_pgid=''
+  fi
+  if [[ -e "$timeout_file" || \
+    ( "$result" -ne 0 && "$bounded_elapsed_seconds" -ge "$deadline_seconds" ) ]]; then
+    bounded_lease_command_timed_out=true
+  fi
+  return "$result"
+}
+
+run_bounded_lease_acquire() {
+  local output_file="$temp_dir/lease-acquire.out"
+  local error_file="$temp_dir/lease-acquire.err"
+  local timeout_file="$temp_dir/lease-acquire.timeout"
+  local result=0
+  if run_bounded_lease_command "$LEASE_ACQUIRE_MAX_SECONDS" \
+    "$output_file" "$error_file" "$timeout_file" \
+    acquire "$lease_table" "$lease_lock_id" "$lease_owner" \
+    "$run_id" "$lease_command" "$HEARTBEAT_TTL_SECONDS" "$LEASE_DEADLINE_SECONDS"; then
+    result=0
+  else
+    result=$?
+  fi
+  token_output=''
+  if [[ "$bounded_lease_command_capture_ready" == true ]]; then
+    token_output=$(<"$output_file")
+  fi
+  lease_acquire_timed_out=$bounded_lease_command_timed_out
+  if [[ "$result" -ne 0 && "$lease_acquire_timed_out" == false ]]; then
+    cat "$error_file" >&2
+  fi
+  return "$result"
+}
+
+lease_status_matches_failed_acquire() {
+  local status_output=$1 invocation_start=$2 invocation_finish=$3
+  local actual_owner actual_token actual_run actual_command actual_acquired
+  local actual_heartbeat actual_expiry actual_deadline extra
+  local expected_expiry expected_deadline
+  [[ "$status_output" != *$'\n'* ]] || return 1
+  read -r actual_owner actual_token actual_run actual_command actual_acquired \
+    actual_heartbeat actual_expiry actual_deadline extra <<< "$status_output"
+  [[ -z "${extra:-}" && "$actual_owner" == "$lease_owner" && \
+    "$actual_token" =~ ^[1-9][0-9]*$ && "$actual_run" == "$run_id" && \
+    "$actual_command" == "$lease_command" && \
+    "$actual_acquired" =~ ^[1-9][0-9]{9}$ && \
+    "$actual_heartbeat" =~ ^[1-9][0-9]{9}$ && \
+    "$actual_expiry" =~ ^[1-9][0-9]{9}$ && \
+    "$actual_deadline" =~ ^[1-9][0-9]{9}$ ]] || return 1
+  expected_expiry=$((actual_acquired + HEARTBEAT_TTL_SECONDS))
+  expected_deadline=$((actual_acquired + LEASE_DEADLINE_SECONDS))
+  ((actual_acquired >= invocation_start && actual_acquired <= invocation_finish && \
+    actual_heartbeat == actual_acquired && actual_expiry == expected_expiry && \
+    actual_deadline == expected_deadline)) || return 1
+  recovered_fencing_token=$actual_token
+}
+
+recover_tokenless_lease_acquire() {
+  local invocation_start=$1 invocation_finish=$2
+  local recovery_started recovery_deadline now remaining call_deadline status_output
+  local status_file="$temp_dir/lease-recovery-status.out"
+  local status_error="$temp_dir/lease-recovery-status.err"
+  local status_timeout="$temp_dir/lease-recovery-status.timeout"
+  local release_output="$temp_dir/lease-recovery-release.out"
+  local release_error="$temp_dir/lease-recovery-release.err"
+  local release_timeout="$temp_dir/lease-recovery-release.timeout"
+  recovery_started=$(date +%s)
+  recovery_deadline=$((recovery_started + LEASE_ACQUIRE_RECOVERY_MAX_SECONDS))
+  while :; do
+    now=$(date +%s)
+    remaining=$((recovery_deadline - now))
+    ((remaining > 0)) || break
+    call_deadline=$remaining
+    ((call_deadline <= LEASE_CONTROL_CALL_MAX_SECONDS)) \
+      || call_deadline=$LEASE_CONTROL_CALL_MAX_SECONDS
+    if run_bounded_lease_command "$call_deadline" \
+      "$status_file" "$status_error" "$status_timeout" \
+      status "$lease_table" "$lease_lock_id"; then
+      status_output=$(<"$status_file")
+      if lease_status_matches_failed_acquire "$status_output" \
+        "$invocation_start" "$invocation_finish"; then
+        now=$(date +%s)
+        remaining=$((recovery_deadline - now))
+        ((remaining > 0)) || break
+        call_deadline=$remaining
+        ((call_deadline <= LEASE_CONTROL_CALL_MAX_SECONDS)) \
+          || call_deadline=$LEASE_CONTROL_CALL_MAX_SECONDS
+        if run_bounded_lease_command "$call_deadline" \
+          "$release_output" "$release_error" "$release_timeout" \
+          release "$lease_table" "$lease_lock_id" "$lease_owner" \
+          "$recovered_fencing_token" "$run_id" "$lease_command"; then
+          printf '%s\n' \
+            'recovered and released an exact tokenless orchestration lease acquisition' >&2
+          return 0
+        fi
+      fi
+    fi
+    now=$(date +%s)
+    ((recovery_deadline - now > 1)) || break
+    sleep 1
+  done
+  return 1
+}
+
+start_command_watchdog() {
+  local parent_pid=$$
+  [[ -z "$command_watchdog_pid" ]] || return 0
   (
-    sleep "$COMMAND_DEADLINE_SECONDS"
+    watchdog_sleep "$COMMAND_DEADLINE_SECONDS"
     kill -USR2 "$parent_pid" 2>/dev/null || true
   ) &
-  watchdog_pid=$!
+  command_watchdog_pid=$!
+}
+
+install_operator_signal_traps() {
+  trap 'abort_operator 129 "operator received SIGHUP"' HUP
+  trap 'abort_operator 130 "operator received SIGINT"' INT
+  trap 'abort_operator 143 "operator received SIGTERM"' TERM
+  trap 'abort_operator 75 "orchestration heartbeat failed"' USR1
+  trap 'abort_operator 124 "operator command deadline exceeded"' USR2
+}
+
+interrupt_lease_acquire() {
+  local exit_status=$1 reason=$2
+  if [[ "$lease_acquire_interrupted_status" -eq 0 ]]; then
+    lease_acquire_interrupted_status=$exit_status
+    lease_acquire_interrupted_reason=$reason
+  fi
+  stop_active_mutation "$reason" || lease_acquire_interrupted_status=125
+}
+
+start_mutation_guard() {
+  local lease_acquire_started_epoch lease_acquire_finished_epoch lease_acquire_recovered=false
+  local lease_acquire_elapsed_seconds lease_acquire_result=0
+  local lease_owner_base lease_owner_suffix lease_owner_base_max invocation_id
+  lease_owner_base=${LEASE_OWNER:-${GITHUB_REPOSITORY:-local}/${GITHUB_RUN_ID:-$(id -un)}:${GITHUB_RUN_ATTEMPT:-1}}
+  [[ "$lease_owner_base" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] \
+    || fail "lease owner is not canonical"
+  invocation_id="${temp_dir##*.}-$$"
+  [[ "$invocation_id" =~ ^[A-Za-z0-9]+-[1-9][0-9]*$ ]] \
+    || fail "lease invocation identity is not canonical"
+  lease_owner_suffix="@$invocation_id"
+  lease_owner_base_max=$((128 - ${#lease_owner_suffix}))
+  ((lease_owner_base_max >= 3)) || fail "lease owner leaves no invocation identity capacity"
+  lease_owner="${lease_owner_base:0:lease_owner_base_max}$lease_owner_suffix"
+  export LEASE_OWNER=$lease_owner
+  [[ "$action" == up ]] || start_command_watchdog
+  lease_acquire_interrupted_status=0
+  lease_acquire_interrupted_reason=''
+  trap 'interrupt_lease_acquire 129 "operator received SIGHUP during lease acquisition"' HUP
+  trap 'interrupt_lease_acquire 130 "operator received SIGINT during lease acquisition"' INT
+  trap 'interrupt_lease_acquire 143 "operator received SIGTERM during lease acquisition"' TERM
+  trap 'interrupt_lease_acquire 124 "operator command deadline exceeded during lease acquisition"' USR2
+  lease_acquire_started_epoch=$(date +%s)
+  if run_bounded_lease_acquire; then
+    lease_acquire_result=0
+  else
+    lease_acquire_result=$?
+  fi
+  lease_acquire_finished_epoch=$(date +%s)
+  fencing_token=${token_output#fencing_token=}
+  if [[ "$fencing_token" =~ ^[1-9][0-9]*$ ]]; then
+    lease_acquired=true
+  fi
+  lease_acquire_elapsed_seconds=$((
+    lease_acquire_finished_epoch - lease_acquire_started_epoch
+  ))
+  if [[ "$lease_acquired" == false ]]; then
+    if recover_tokenless_lease_acquire "$lease_acquire_started_epoch" \
+      "$lease_acquire_finished_epoch"; then
+      lease_acquire_recovered=true
+    fi
+    install_operator_signal_traps
+    if [[ "$lease_acquire_interrupted_status" -ne 0 ]]; then
+      printf '%s\n' "$lease_acquire_interrupted_reason" >&2
+      exit "$lease_acquire_interrupted_status"
+    fi
+    if [[ "$lease_acquire_recovered" == true ]]; then
+      fail "tokenless orchestration lease acquisition was recovered and released"
+    fi
+    if [[ "$lease_acquire_timed_out" == true ]]; then
+      fail "orchestration lease acquisition timed out without one recoverable exact lease"
+    fi
+    fail "orchestration lease acquisition failed without one recoverable exact lease"
+  fi
+  install_operator_signal_traps
+  if [[ "$lease_acquire_interrupted_status" -ne 0 ]]; then
+    abort_operator "$lease_acquire_interrupted_status" "$lease_acquire_interrupted_reason"
+  fi
+  [[ "$lease_acquire_result" -eq 0 ]] \
+    || [[ "$lease_acquire_timed_out" == true && "$lease_acquired" == true ]] \
+    || fail "orchestration lease acquisition failed"
+  [[ "$lease_acquired" == true ]] || fail "lease did not issue a fencing token"
+  [[ "$lease_acquire_timed_out" == false ]] && \
+    ((lease_acquire_elapsed_seconds >= 0 && \
+      lease_acquire_elapsed_seconds <= LEASE_ACQUIRE_MAX_SECONDS)) \
+    || fail "orchestration lease acquisition exceeded the bounded deadline"
+  validate_workflow_deadline_budget
+  validate_up_credential_budget
+  start_heartbeat_loop
+  start_command_watchdog
 }
 
 assert_lease() {
-  "$lease_script" assert "$lease_table" "$lease_lock_id" "$lease_owner" \
-    "$fencing_token" "$run_id" "$lease_command" >/dev/null
+  local output_file="$temp_dir/lease-assert.out"
+  local error_file="$temp_dir/lease-assert.err"
+  local timeout_file="$temp_dir/lease-assert.timeout"
+  if run_bounded_lease_command "$LEASE_CONTROL_CALL_MAX_SECONDS" \
+    "$output_file" "$error_file" "$timeout_file" \
+    assert "$lease_table" "$lease_lock_id" "$lease_owner" \
+    "$fencing_token" "$run_id" "$lease_command"; then
+    return 0
+  fi
+  if [[ "$bounded_lease_command_capture_ready" == true ]]; then
+    cat "$error_file" >&2 || true
+  fi
+  return 1
 }
 
 validate_operator_dataset_manifest() {
@@ -2124,6 +2653,8 @@ case "$action" in
     valid_run_id "$run_id" || fail "generated RUN_ID is not canonical"
     current_stage=release-validation
     resolve_release_inputs
+    validate_workflow_deadline_budget
+    validate_up_credential_budget
     start_mutation_guard
     if terraform_lock_object_present; then
       prepare_lab_backend

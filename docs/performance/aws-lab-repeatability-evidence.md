@@ -186,8 +186,8 @@ probe (`t3.nano`), Redis and monitoring (`2 x t3.small`), Kafka, Debezium, and E
 `db.t3.micro` RDS with 100-GiB gp3 storage, EBS volumes, public IPv4/EIP, and supporting
 CloudWatch, Secrets Manager, S3, ECR, and SSM activity. The `c6i.xlarge` load generator is disabled;
 there is no NAT Gateway, no Multi-AZ RDS, no scaling fleet, and no standby Lab. Dump mode uses a
-five-hour TTL because its two-hour SSM bootstrap follows bounded network/RDS/service setup and must
-still leave a separate teardown reserve; snapshot mode retains a
+five-hour TTL because its SSM bootstrap may run for up to 2.5 hours after bounded
+network/RDS/service setup and must still leave a separate teardown reserve; snapshot mode retains a
 two-hour TTL. These are failure backstops, not scheduled lifetimes: normal teardown runs immediately
 after evidence or promotion.
 
