@@ -77,6 +77,8 @@ while IFS= read -r member; do
   esac
 done < "$staging/archive-members"
 tar -xzf "$staging/$archive_name" -C "$release_root"
+# The archive contains public code/config files only; make tar-created parent directories traversable.
+find "$release_root" -type d -exec chmod 755 {} +
 
 cat >/etc/airbob/images.env <<'EOF'
 ${images_env}
