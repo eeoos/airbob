@@ -83,7 +83,7 @@ assert_contains "$operator" 'up requires the exact static STS credential expirat
 assert_contains "$operator" 'static STS credential lifetime cannot cover the up deadline and cleanup allowance'
 assert_contains "$workflow" 'id: aws_credentials'
 assert_contains "$workflow" 'output-credentials: true'
-assert_contains "$workflow" 'AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ steps.aws_credentials.outputs.aws-expiration }}'
+assert_contains "$workflow" 'AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ fromJSON(steps.aws_credentials.outputs.aws-expiration) }}'
 assert_contains "$operator" 'run_supervised_mutation'
 assert_contains "$operator" 'kill -TERM -- "-$child_pgid"'
 assert_contains "$operator" 'kill -KILL -- "-$child_pgid"'
