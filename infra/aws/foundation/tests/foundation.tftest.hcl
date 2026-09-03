@@ -1825,7 +1825,7 @@ run "foundation_contract" {
         statement.Condition.StringEquals == merge(
           local.lab_ephemeral_request_tag_condition.StringEquals,
           {
-            "rds:DatabaseClass"  = "db.t3.micro"
+            "rds:DatabaseClass"  = "db.t3.small"
             "rds:DatabaseEngine" = "mysql"
           },
         ) &&
@@ -1969,7 +1969,7 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "DenyUnboundedLabRdsClassChange"
-      ]).Condition.StringNotEquals["rds:DatabaseClass"] == "db.t3.micro" &&
+      ]).Condition.StringNotEquals["rds:DatabaseClass"] == "db.t3.small" &&
       one([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "DenyNonMysqlLabRdsEngineChange"

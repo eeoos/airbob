@@ -213,7 +213,7 @@ run "create_dump_backed_rds_and_ordered_bootstrap" {
 
   assert {
     condition = (
-      module.rds[0].contract.instance_class == "db.t3.micro" &&
+      module.rds[0].contract.instance_class == "db.t3.small" &&
       module.rds[0].contract.multi_az == false &&
       module.rds[0].contract.availability_zone == "ap-northeast-2a" &&
       module.rds[0].contract.snapshot_identifier == null &&
@@ -293,7 +293,7 @@ run "accept_large_profile_with_large_spec_and_budgets" {
     condition = (
       data.aws_s3_object.dataset_production_spec[0].key ==
       "datasets/rehearsal-v20/benchmark/production-skew-large-v1.json" &&
-      module.rds[0].contract.instance_class == "db.t3.micro" &&
+      module.rds[0].contract.instance_class == "db.t3.small" &&
       module.rds[0].contract.configured_storage_gib == 100 &&
       module.rds[0].contract.storage_type == "gp3" &&
       module.rds[0].contract.iops == 3000 &&

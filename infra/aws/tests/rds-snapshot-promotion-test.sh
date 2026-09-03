@@ -186,7 +186,7 @@ jq -nS \
       rds: {
         identifier: "airbob-lab-phase3-test",
         resourceId: "db-ABCDEFGHIJKLMNOPQRSTUVWX",
-        class: "db.t3.micro",
+        class: "db.t3.small",
         engine: "mysql",
         engineVersion: "8.0.40",
         allocatedStorageGiB: 100,
@@ -310,7 +310,7 @@ case "$*" in
     ;;
   *"rds describe-db-instances"*)
     jq -n \
-      --arg class "${FAKE_INSTANCE_CLASS:-db.t3.micro}" \
+      --arg class "${FAKE_INSTANCE_CLASS:-db.t3.small}" \
       --arg storageType "${FAKE_INSTANCE_STORAGE_TYPE:-gp3}" \
       --argjson allocatedStorage "${FAKE_INSTANCE_ALLOCATED_STORAGE:-100}" \
       --argjson iops "${FAKE_INSTANCE_IOPS:-3000}" \
@@ -537,7 +537,7 @@ fi
 for instance_shape_case in class allocated-storage storage-type iops storage-throughput public; do
   : > "$tmp_dir/aws.log"
   case "$instance_shape_case" in
-    class) FAKE_INSTANCE_CLASS=db.t3.small \
+    class) FAKE_INSTANCE_CLASS=db.t3.medium \
       run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;
     allocated-storage) FAKE_INSTANCE_ALLOCATED_STORAGE=101 \
       run_promotion "${base_args[@]}" "$tmp_dir/instance-drift-$instance_shape_case.json" >/dev/null 2>&1 && accepted=true || accepted=false ;;

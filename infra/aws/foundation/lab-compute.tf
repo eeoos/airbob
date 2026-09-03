@@ -1292,7 +1292,7 @@ locals {
           StringEquals = merge(
             local.lab_ephemeral_request_tag_condition.StringEquals,
             {
-              "rds:DatabaseClass"  = "db.t3.micro"
+              "rds:DatabaseClass"  = "db.t3.small"
               "rds:DatabaseEngine" = "mysql"
             },
           )
@@ -1340,7 +1340,7 @@ locals {
             StringEquals = merge(
               local.lab_ephemeral_request_tag_condition.StringEquals,
               {
-                "rds:DatabaseClass"  = "db.t3.micro"
+                "rds:DatabaseClass"  = "db.t3.small"
                 "rds:DatabaseEngine" = "mysql"
               },
             )
@@ -1451,7 +1451,7 @@ locals {
             "rds:DatabaseClass" = "false"
           }
           StringNotEquals = {
-            "rds:DatabaseClass" = "db.t3.micro"
+            "rds:DatabaseClass" = "db.t3.small"
           }
         }
       },
