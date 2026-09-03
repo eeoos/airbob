@@ -196,6 +196,7 @@ assert_contains "$bootstrap" 'migrationChecksumSha256'
 assert_contains "$bootstrap" 'mysql_connect_timeout_seconds=10'
 assert_contains "$bootstrap" 'mysql_readiness_timeout_seconds=30'
 assert_contains "$bootstrap" 'mysql_general_timeout_seconds=900'
+assert_contains "$bootstrap" 'mysql_attestation_timeout_seconds=3600'
 assert_contains "$bootstrap" 'mysql_import_timeout_seconds=7200'
 assert_contains "$bootstrap" 'mysql_kill_after_seconds=30'
 assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" timeout'
@@ -203,7 +204,14 @@ assert_contains "$bootstrap" '--foreground --signal=TERM --kill-after="${mysql_k
 assert_contains "$bootstrap" '--connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_readiness_timeout_seconds"'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_general_timeout_seconds"'
+assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_attestation_timeout_seconds"'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_import_timeout_seconds" airbobdb'
+assert_contains "$bootstrap" 'actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM \`$table_name\`")'
+assert_contains "$bootstrap" 'mysql_attestation_exec airbobdb <<'"'"'AIRBOB_SEMANTIC_SQL'"'"''
+assert_contains "$bootstrap" 'digest=$(mysql_attestation_exec airbobdb --execute="$1"'
+assert_contains "$bootstrap" 'rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM $table WHERE $predicate")'
+assert_contains "$bootstrap" 'mysql_attestation_exec airbobdb --execute="SELECT id FROM accommodation WHERE status = '"'"'PUBLISHED'"'"' ORDER BY id"'
+assert_contains "$bootstrap" 'semantic restore pass failed or exceeded its wall deadline: pass=%s status=%s'
 assert_contains "$bootstrap" 'GNU timeout is required'
 assert_contains "$bootstrap" 'information_schema.COLUMNS'
 assert_contains "$bootstrap" 'information_schema.STATISTICS'
@@ -394,6 +402,7 @@ AIRBOB_RDS_ENDPOINT=airbob-rds.internal
 mysql_connect_timeout_seconds=10
 mysql_readiness_timeout_seconds=30
 mysql_general_timeout_seconds=900
+mysql_attestation_timeout_seconds=3600
 mysql_import_timeout_seconds=7200
 mysql_kill_after_seconds=30
 dump="$temp_dir/mysql-deadline-dump.zst"
@@ -407,17 +416,19 @@ mysql_exec --execute='SELECT 1' >/dev/null \
   || fail "bounded general MySQL helper rejected a successful client"
 mysql_readiness_exec --execute='SELECT 1' >/dev/null \
   || fail "bounded readiness MySQL helper rejected a successful client"
+mysql_attestation_exec --execute='SELECT 1' >/dev/null \
+  || fail "bounded attestation MySQL helper rejected a successful client"
 mysql_import_dump \
   || fail "bounded dump import helper rejected a successful pipeline"
-for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 7200s; do
+for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 3600s 7200s; do
   grep -Fxq -- "$expected_timeout_argument" "$timeout_log" \
     || fail "MySQL deadline helper omitted timeout argument: $expected_timeout_argument"
 done
-[[ "$(grep -Fxc -- 'arg=--connect-timeout=10' "$mysql_log")" == 3 ]] \
+[[ "$(grep -Fxc -- 'arg=--connect-timeout=10' "$mysql_log")" == 4 ]] \
   || fail "every MySQL path must set the initial connect timeout"
-[[ "$(grep -Fxc -- 'arg=--skip-reconnect' "$mysql_log")" == 3 ]] \
+[[ "$(grep -Fxc -- 'arg=--skip-reconnect' "$mysql_log")" == 4 ]] \
   || fail "every MySQL path must disable automatic reconnect"
-[[ "$(grep -Fxc -- 'MYSQL_PWD=set' "$mysql_log")" == 3 ]] \
+[[ "$(grep -Fxc -- 'MYSQL_PWD=set' "$mysql_log")" == 4 ]] \
   || fail "every MySQL path must scope the password through MYSQL_PWD"
 if grep -Fq -- "$master_password" "$timeout_log" "$mysql_log"; then
   fail "MySQL deadline helper exposed the password in process arguments or logs"
@@ -442,6 +453,44 @@ unset AIRBOB_TEST_TIMEOUT_EXIT
 PATH=$mysql_deadline_original_path
 unset -f zstd
 unset AIRBOB_TEST_TIMEOUT_LOG AIRBOB_TEST_MYSQL_LOG
+
+semantic_deadline_functions="$temp_dir/semantic-deadline-functions.sh"
+awk '
+  /^semantic_restore_pass\(\) \{/ { capture = 1 }
+  capture { print }
+  /^run_semantic_restore_pass\(\) \{/ { wrapper = 1 }
+  capture && wrapper && /^}/ { exit }
+' "$bootstrap" > "$semantic_deadline_functions"
+[[ -s "$semantic_deadline_functions" ]] || fail "semantic restore deadline wrapper is missing"
+# shellcheck source=/dev/null
+source "$semantic_deadline_functions"
+semantic_restore_pass() {
+  printf '%s\n' semantic-result
+  return "${AIRBOB_TEST_SEMANTIC_STATUS:-0}"
+}
+semantic_output="$temp_dir/semantic-output.tsv"
+semantic_error="$temp_dir/semantic-error.log"
+export AIRBOB_TEST_SEMANTIC_STATUS=124
+if run_semantic_restore_pass 1 "$semantic_output" 2>"$semantic_error"; then
+  fail "semantic restore wrapper accepted a timed-out pass"
+else
+  semantic_status=$?
+fi
+[[ "$semantic_status" == 124 ]] || fail "semantic restore wrapper did not preserve timeout status 124"
+grep -Fq 'semantic restore pass started: pass=1' "$semantic_error" \
+  || fail "semantic restore timeout omitted its pass start diagnostic"
+grep -Fq 'semantic restore pass failed or exceeded its wall deadline: pass=1 status=124' "$semantic_error" \
+  || fail "semantic restore timeout omitted its exact failure diagnostic"
+if grep -Fq 'semantic restore pass completed' "$semantic_error"; then
+  fail "timed-out semantic restore pass emitted a completion diagnostic"
+fi
+unset AIRBOB_TEST_SEMANTIC_STATUS
+run_semantic_restore_pass 2 "$semantic_output" 2>"$semantic_error" \
+  || fail "semantic restore wrapper rejected a successful pass"
+[[ "$(cat "$semantic_output")" == semantic-result ]] \
+  || fail "semantic restore wrapper did not preserve the successful result"
+grep -Fq 'semantic restore pass completed: pass=2' "$semantic_error" \
+  || fail "successful semantic restore pass omitted its completion diagnostic"
 
 attestation_functions="$temp_dir/bootstrap-attestation-functions.sh"
 awk '
@@ -477,7 +526,7 @@ live_fingerprint_rows="$attestation_work_root/live-fingerprint-rows.tsv"
 : > "$live_fingerprint_rows"
 mysql_test_count_status=0
 mysql_test_hash_status=0
-mysql_exec() {
+mysql_attestation_exec() {
   if [[ "$*" == *'--execute=SELECT COUNT(*) FROM'* ]]; then
     printf '%s\n' 1
     return "$mysql_test_count_status"
@@ -485,6 +534,7 @@ mysql_exec() {
   printf '%s\n' 616263
   return "$mysql_test_hash_status"
 }
+mysql_exec() { mysql_attestation_exec "$@"; }
 
 # Both fake results are byte-for-byte valid, but status 124 must still fail.
 mysql_test_hash_status=124

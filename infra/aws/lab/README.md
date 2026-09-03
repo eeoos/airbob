@@ -178,10 +178,12 @@ and declared coupon preparation, the exact 12 canonical Kafka main/retry/DLT
 topics at three partitions each, then a Debezium
 `no_data` connector with one running task. RDS and Debezium credentials are
 resolved on the host from Secrets Manager into mode-0600 temporary files and
-are not Terraform values. The dump import and long MySQL validation work have
-bounded process deadlines; expiry terminates their subprocesses and fails the
-association so fenced cleanup can proceed. The final receipt is written only
-after every gate passes.
+are not Terraform values. MySQL readiness, ordinary control SQL, full-dataset
+read-only attestation, and dump import use separate 30-, 900-, 3,600-, and
+7,200-second process deadlines. Expiry terminates the affected subprocess and
+fails the association so fenced cleanup can proceed, while the 12,600-second
+SSM command remains the total ceiling. The final receipt is written only after
+every gate passes.
 
 ## Phase 4 application contract
 

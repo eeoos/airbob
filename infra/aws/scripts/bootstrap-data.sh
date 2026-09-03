@@ -423,6 +423,7 @@ master_password=$(jq -r '.password' "$master_secret_file")
 mysql_connect_timeout_seconds=10
 mysql_readiness_timeout_seconds=30
 mysql_general_timeout_seconds=900
+mysql_attestation_timeout_seconds=3600
 mysql_import_timeout_seconds=7200
 mysql_kill_after_seconds=30
 
@@ -445,6 +446,10 @@ mysql_exec() {
 
 mysql_readiness_exec() {
   mysql_with_deadline "$mysql_readiness_timeout_seconds" "$@"
+}
+
+mysql_attestation_exec() {
+  mysql_with_deadline "$mysql_attestation_timeout_seconds" "$@"
 }
 
 mysql_import_dump() {
@@ -502,11 +507,11 @@ migration_checksum=$(sha256sum "$migration_file" | awk '{print $1}')
 while IFS=$'\t' read -r table_name expected_rows; do
   [[ "$table_name" =~ ^[a-z][a-z0-9_]{0,63}$ && "$expected_rows" =~ ^[0-9]+$ ]] \
     || { printf '%s\n' 'unsafe expected table-row contract' >&2; exit 1; }
-  actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM \`$table_name\`")
+  actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM \`$table_name\`")
   [[ "$actual_rows" == "$expected_rows" ]] || { printf 'row-count contract failed: %s\n' "$table_name" >&2; exit 1; }
 done < <(jq -r '.mysql.expectedTableRows | to_entries | sort_by(.key)[] | [.key, (.value | tostring)] | @tsv' "$manifest")
 
-invalid_published_timezone_count=$(mysql_exec airbobdb --execute="
+invalid_published_timezone_count=$(mysql_attestation_exec airbobdb --execute="
   SELECT COUNT(*)
   FROM accommodation
   WHERE status = 'PUBLISHED'
@@ -521,7 +526,7 @@ invalid_published_timezone_count=$(mysql_exec airbobdb --execute="
 
 schema_unsorted_file="$work_root/schema-fingerprint.unsorted.tsv"
 schema_file="$work_root/schema-fingerprint.tsv"
-mysql_exec --execute="
+mysql_attestation_exec --execute="
   SELECT 'COLUMN', HEX(TABLE_NAME), HEX(COLUMN_NAME), HEX(CAST(ORDINAL_POSITION AS CHAR)),
          HEX(COLUMN_NAME), HEX(COLUMN_TYPE), HEX(IS_NULLABLE),
          COALESCE(HEX(CAST(COLUMN_DEFAULT AS CHAR)), '<NULL>'), HEX(EXTRA),
@@ -576,7 +581,7 @@ schema_fingerprint=$(sha256sum "$schema_file" | awk '{print $1}')
 # Re-attest the restored database before the first database mutation or any
 # Redis, Kafka, Debezium, or Elasticsearch state change.
 semantic_restore_pass() {
-  mysql_exec airbobdb <<'AIRBOB_SEMANTIC_SQL'
+  mysql_attestation_exec airbobdb <<'AIRBOB_SEMANTIC_SQL'
 WITH review_expected AS (
   SELECT a.id accommodation_id,COUNT(r.id) total_review_count,COALESCE(SUM(r.rating),0) rating_sum,
          CAST(COALESCE(AVG(r.rating),0) AS DECIMAL(3,2)) average_rating
@@ -622,10 +627,25 @@ FROM review_counts CROSS JOIN wishlist_counts CROSS JOIN revenue_counts;
 AIRBOB_SEMANTIC_SQL
 }
 
+run_semantic_restore_pass() {
+  local pass=$1 output=$2 status
+
+  printf 'semantic restore pass started: pass=%s at=%s\n' "$pass" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >&2
+  if semantic_restore_pass > "$output"; then
+    printf 'semantic restore pass completed: pass=%s at=%s\n' "$pass" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >&2
+    return 0
+  else
+    status=$?
+    printf 'semantic restore pass failed or exceeded its wall deadline: pass=%s status=%s\n' \
+      "$pass" "$status" >&2
+    return "$status"
+  fi
+}
+
 semantic_one="$work_root/semantic-restore-one.tsv"
 semantic_two="$work_root/semantic-restore-two.tsv"
-semantic_restore_pass > "$semantic_one"
-semantic_restore_pass > "$semantic_two"
+run_semantic_restore_pass 1 "$semantic_one" || exit $?
+run_semantic_restore_pass 2 "$semantic_two" || exit $?
 cmp -s "$semantic_one" "$semantic_two" \
   || { printf '%s\n' 'semantic restore result changed between passes' >&2; exit 1; }
 awk -F '\t' 'NF!=13{exit 1}{for(i=1;i<=NF;i++)if($i!="0")exit 1}END{if(NR!=1)exit 1}' "$semantic_one" \
@@ -634,7 +654,7 @@ awk -F '\t' 'NF!=13{exit 1}{for(i=1;i<=NF;i++)if($i!="0")exit 1}END{if(NR!=1)exi
 result_field() { printf "IF(%s IS NULL,'00000000',CONCAT(LPAD(HEX(OCTET_LENGTH(CAST(%s AS CHAR))),8,'0'),HEX(CAST(%s AS CHAR))))" "$1" "$1" "$1"; }
 mysql_result_hash() {
   local digest
-  digest=$(mysql_exec airbobdb --execute="$1" | tr -d '\n' | xxd -r -p | sha256sum | awk '{print $1}') \
+  digest=$(mysql_attestation_exec airbobdb --execute="$1" | tr -d '\n' | xxd -r -p | sha256sum | awk '{print $1}') \
     || return $?
   printf '%s\n' "$digest"
 }
@@ -648,7 +668,7 @@ row_hex() {
 fingerprint_table() {
   local id=$1 table=$2 predicate=$3 order=$4 expected=$5; shift 5
   local rows digest expected_digest
-  rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM $table WHERE $predicate") \
+  rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM $table WHERE $predicate") \
     || { printf 'fingerprint row count query failed: %s\n' "$id" >&2; return 1; }
   [[ "$rows" == "$expected" ]] || { printf 'fingerprint row count drifted: %s\n' "$id" >&2; return 1; }
   digest=$(mysql_result_hash "SELECT $(row_hex "$@") FROM $table WHERE $predicate ORDER BY $order") \
@@ -737,7 +757,7 @@ verify_targets() {
     expected_rows=$(jq -r '.expectedRows' <<<"$target"); expected_hash=$(jq -r '.expectedResultHash' <<<"$target")
     if account=$(jq -er '.account|select(.!=null)' <<<"$target" 2>/dev/null); then
       member_id=$(jq -r '.memberId' <<<"$account")
-      account_count=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM member WHERE id=$member_id AND email='$(jq -r '.email' <<<"$account")' AND role='$(jq -r '.role' <<<"$account")' AND status='$(jq -r '.status' <<<"$account")'") \
+      account_count=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM member WHERE id=$member_id AND email='$(jq -r '.email' <<<"$account")' AND role='$(jq -r '.role' <<<"$account")' AND status='$(jq -r '.status' <<<"$account")'") \
         || { printf 'target account query failed: %s\n' "$id" >&2; return 1; }
       [[ "$account_count" == 1 ]] \
         || { printf 'target account drifted: %s\n' "$id" >&2; return 1; }
@@ -745,7 +765,7 @@ verify_targets() {
     case "$kind" in
       REVIEW_SUMMARY_V1)
         member_id=$(jq -r '.query.accommodationId' <<<"$target")
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM review WHERE accommodation_id=$member_id AND status='PUBLISHED'") \
+        actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM review WHERE accommodation_id=$member_id AND status='PUBLISHED'") \
           || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         sql="SELECT CONCAT($(result_field 'COUNT(*)'),$(result_field 'CAST(CAST(COALESCE(AVG(rating),0) AS DECIMAL(20,2)) AS CHAR)')) FROM review WHERE accommodation_id=$member_id AND status='PUBLISHED'"
         ;;
@@ -754,11 +774,11 @@ verify_targets() {
         cursor_id=$(jq -r '.query.lastId // empty' <<<"$target"); cursor_time=$(jq -r '.query.lastCreatedAt // empty' <<<"$target")
         predicate="w.member_id=$member_id AND w.status='ACTIVE'"
         [[ -z "$cursor_id" ]] || predicate="$predicate AND (w.created_at<'$cursor_time' OR (w.created_at='$cursor_time' AND w.id<$cursor_id))"
-        wishlist_count=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM wishlist WHERE member_id=$member_id AND status='ACTIVE'") \
+        wishlist_count=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM wishlist WHERE member_id=$member_id AND status='ACTIVE'") \
           || { printf 'wishlist totalActiveRows query failed: %s\n' "$id" >&2; return 1; }
         [[ "$wishlist_count" == "$(jq -r '.query.totalActiveRows' <<<"$target")" ]] \
           || { printf 'wishlist totalActiveRows drifted: %s\n' "$id" >&2; return 1; }
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT w.id FROM wishlist w WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size) x") \
+        actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT w.id FROM wishlist w WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size) x") \
           || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         wishlist_created_at_field=$(result_field "DATE_FORMAT(w.created_at,'%Y-%m-%dT%H:%i:%s.%f')")
         sql="SELECT CONCAT($(result_field 'w.id'),$(result_field 'w.name'),${wishlist_created_at_field},$(result_field 'w.accommodation_count'),$(result_field 'a.thumbnail_url')) FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id WHERE $predicate ORDER BY w.created_at DESC,w.id DESC LIMIT $size"
@@ -766,7 +786,7 @@ verify_targets() {
       REVENUE_RANGE_V1)
         from=$(jq -r '.query.from' <<<"$target"); to=$(jq -r '.query.to' <<<"$target")
         ledger="(SELECT DATE(pt.created_at) d,COALESCE(pt.amount,0) gross,0 refund,1 pc,0 rc FROM payment_transaction pt WHERE pt.transaction_type='CONFIRM' AND DATE(pt.created_at) BETWEEN '$from' AND '$to' UNION ALL SELECT DATE(COALESCE(pt.canceled_at,pt.created_at)),0,COALESCE(pt.cancel_amount,0),0,1 FROM payment_transaction pt WHERE pt.transaction_type IN ('CANCEL','PARTIAL_CANCEL') AND DATE(COALESCE(pt.canceled_at,pt.created_at)) BETWEEN '$from' AND '$to')"
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT d FROM $ledger t GROUP BY d) x") \
+        actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM (SELECT d FROM $ledger t GROUP BY d) x") \
           || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         sql="SELECT CONCAT($(result_field 't.d'),$(result_field 'SUM(t.gross)'),$(result_field 'SUM(t.refund)'),$(result_field 'SUM(t.gross)-SUM(t.refund)'),$(result_field 'SUM(t.pc)'),$(result_field 'SUM(t.rc)')) FROM $ledger t GROUP BY t.d ORDER BY t.d"
         ;;
@@ -778,7 +798,7 @@ verify_targets() {
         bottom_right_lat=$(jq -r '.query.bottomRightLat' <<<"$target"); bottom_right_lng=$(jq -r '.query.bottomRightLng' <<<"$target")
         minimum_price=$(jq -r '.query.minPrice' <<<"$target"); maximum_price=$(jq -r '.query.maxPrice' <<<"$target")
         search_scope="FROM accommodation a JOIN address addr ON addr.id=a.address_id JOIN occupancy_policy op ON op.id=a.occupancy_policy_id WHERE a.status='PUBLISHED' AND a.base_price BETWEEN 0 AND 2147483647 AND addr.latitude BETWEEN -90 AND 90 AND addr.longitude BETWEEN -180 AND 180 AND op.max_occupancy>=1 AND addr.latitude<=$top_left_lat AND addr.latitude>=$bottom_right_lat AND addr.longitude>=$top_left_lng AND addr.longitude<=$bottom_right_lng AND a.base_price BETWEEN $minimum_price AND $maximum_price AND op.max_occupancy>=$total_occupancy AND ($infant=0 OR op.infant_occupancy>=$infant) AND ($pet=0 OR op.pet_occupancy>=$pet)"
-        actual_rows=$(mysql_exec airbobdb --execute="SELECT COUNT(*) $search_scope") \
+        actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) $search_scope") \
           || { printf 'target row-count query failed: %s\n' "$id" >&2; return 1; }
         sql="SELECT CONCAT($(result_field 'a.id')) $search_scope ORDER BY a.id ASC"
         ;;
@@ -943,8 +963,8 @@ if [[ "$search_enabled" == true ]]; then
   elasticsearch_document_identity_pairs="$work_root/elasticsearch-document-identity-pairs.tsv"
   elasticsearch_content="$work_root/elasticsearch-content.jsonl"
   elasticsearch_page="$work_root/elasticsearch-page.json"
-  mysql_exec airbobdb --execute="SELECT id FROM accommodation WHERE status = 'PUBLISHED' ORDER BY id" > "$database_ids"
-  mysql_exec airbobdb --execute="
+  mysql_attestation_exec airbobdb --execute="SELECT id FROM accommodation WHERE status = 'PUBLISHED' ORDER BY id" > "$database_ids"
+  mysql_attestation_exec airbobdb --execute="
     SELECT LOWER(BIN_TO_UUID(accommodation_uid)), id
     FROM accommodation
     WHERE status = 'PUBLISHED'

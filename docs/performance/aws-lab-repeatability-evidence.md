@@ -7,12 +7,14 @@ environment readiness. It does not authorize or contain a performance experiment
 
 > Evidence status, 2026-09-04: `DUMP_RETRY_PENDING`. The immutable dataset, images, bundles,
 > local MySQL restore, administrative promoter path, and protected GitHub OIDC Lab path remain
-> fixed. The first billable dump attempt, workflow `33763841701` / run
-> `lab-33763841701-1`, failed before producing a data-bootstrap or direct-readiness receipt and is
-> `FAILED_NOT_QUALIFIED`. Its fenced teardown completed with empty state, zero global orphans, a
-> released lease, and healthy unchanged OCI direct/public endpoints. No RDS snapshot was promoted.
-> The retry contract raises the fixed Single-AZ RDS class to `db.t3.small`; both live
-> qualifications and the final verdict remain pending.
+> fixed. Billable dump workflows `33763841701` and `33787974967` both failed before producing a
+> data-bootstrap or direct-readiness receipt and are `FAILED_NOT_QUALIFIED`. The first exposed an
+> undersized RDS recovery/stale-client path; the second proved stable `db.t3.small` import but
+> exposed a 900-second generic SQL deadline applied to full-dataset semantic attestation. Both
+> fenced teardowns now have empty state, zero global orphans, released leases, and healthy unchanged
+> OCI direct/public endpoints. No RDS snapshot was promoted. The attestation deadline fix must be
+> reviewed and merged before the next run; both live qualifications and the final verdict remain
+> pending.
 
 ## Decision and stop boundary
 
@@ -260,6 +262,20 @@ The retry keeps the same immutable dataset, images, bundle, MySQL patch, Single-
 validation gates while fixing both runs at `db.t3.small`. Dump import and long MySQL validation
 operations have bounded process deadlines so a disconnected client pipeline fails explicitly and
 hands control back to fenced cleanup.
+
+The second failed attempt is also retained as operational evidence, not qualification evidence:
+
+| Evidence | Recorded result |
+|---|---|
+| GitHub workflow / Lab run | `33787974967` / `lab-33787974967-1`; source merge `63e5b569dfd85c523d23c00047bb3a14e8c0c2bd` |
+| Applied execution contract | Versioned Lab state `fD95IaodsUHrxiGqWzR788kebya0IzBF`, serial `201`; SSM document timeout `12,600` seconds, association waiter `12,900` seconds, embedded bootstrap SHA-256 `25abfdc05d7191461460c274bf42f05166adae4227df0b055005f70cd5e48269`, import deadline `7,200` seconds |
+| Failure observation | SSM command `ba3c292b-9151-4144-b4d2-cf5111417817` ran `03:21:31`–`04:27:00` KST and failed with status `Failed`, rc `124`, not `ExecutionTimedOut`. No post-import RDS restart/recovery or `CancelCommand` occurred. RDS receive traffic fell from MB/s to KB/s by `04:12`; a single connection then drove high read/write/temp I/O and consumed about `2.49 GiB` of free storage for exactly 900 seconds. |
+| Root cause | PR #118 introduced `mysql_general_timeout_seconds=900` for every MySQL call. The imported dataset reached the first large `semantic_restore_pass`, whose review/wishlist/payment/revenue CTE exceeded that generic 15-minute limit. The outer workflow, operator, SSM, association, credential, and import limits were not reached. |
+| Corrective gate | Keep readiness at `30` seconds, ordinary control SQL at `900`, and import at `7,200`; route full-dataset read-only row, semantic, target, fingerprint, and search-identity attestation through a separate `3,600`-second helper. Emit pass-specific start/completion/failure diagnostics while preserving rc `124`. The independent SSM total ceiling remains `12,600` seconds. |
+| Teardown journals | teardown-start VersionId `jF1I8_pTSCRf451AlOHIaeoUUaFk.r5V`; teardown-finalize VersionId `RHdOXLUAAyGBsWTu2lRkPgZB.Qzb1IM8` |
+| Clean-state recovery | Automatic destroy removed RDS, EC2, and the sole NAT EIP but did not publish its final receipt. Existing-run `down` workflow `33798478972` validated the direct-successor empty state and journals without creating Lab resources. Clean-state receipt VersionId `AEvigr2F8Cwbx8UineX.9OrI.7A35AVY` binds state VersionId `CuB4kROqidQSYM7mQi3KIgCKAOV4ZzzG`, serial `208`, `resourceCount=0`, global orphan status `clean`, and `recoveredFinalization=true`. |
+| External safety gates | Lease token `29` released; Route 53 remained the single OCI record; OCI direct and public health both returned exact `healthy` |
+| Qualification outcome | No data-bootstrap/direct-readiness receipt, promotion, or reusable RDS snapshot; this run cannot be a snapshot source |
 
 The acceptance receipt must record the exact MySQL/Flyway/row/fingerprint/outbox result,
 Elasticsearch count/alias/mapping/ID/pair/content result, both Redis resets, 12 Kafka topics and
