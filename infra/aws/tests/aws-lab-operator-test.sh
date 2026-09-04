@@ -641,6 +641,7 @@ mkdir -p "$fixture_scripts" "$fixture_repo/infra/aws/lab/modules/security" \
   "$fixture_repo/.github/workflows" "$temp_dir/operator-bin" "$temp_dir/fake-s3"
 export FAKE_S3_STORE="$temp_dir/fake-s3"
 cp "$operator" "$fixture_scripts/aws-lab.sh"
+cp "$repo_root/infra/aws/scripts/compute-target-fingerprint.sh" "$fixture_scripts/compute-target-fingerprint.sh"
 cp "$repo_root/infra/aws/toolchain.env" "$fixture_repo/infra/aws/toolchain.env"
 cp "$repo_root/Makefile" "$fixture_repo/Makefile"
 cp "$workflow" "$fixture_repo/.github/workflows/aws-performance-lab.yml"
@@ -1520,6 +1521,7 @@ cat > "$temp_dir/benchmark-dataset-manifest.json" <<'JSON'
   "schemaVersion": 2,
   "datasetVersion": "benchmark-dataset-v2",
   "world": { "version": "world-v2" },
+  "targetFingerprint": "575353f1fe80d4ce377de830aff08a71794ec70b641e71d8e6802b76d559a04b",
   "capsules": [{
     "capsuleId": "index-query-v1",
     "mutability": "READ_ONLY",
@@ -1571,7 +1573,10 @@ cat > "$temp_dir/dataset-manifest.json" <<'JSON'
     "benchmarkDatasetManifestKey": "benchmark/dataset-manifest.json",
     "benchmarkDatasetManifestSha256": "placeholder"
   },
-  "releaseTuple": { "manifestSha256": "placeholder" },
+  "releaseTuple": {
+    "manifestSha256": "placeholder",
+    "targetFingerprintSha256": "575353f1fe80d4ce377de830aff08a71794ec70b641e71d8e6802b76d559a04b"
+  },
   "search": { "enabled": false }
 }
 JSON
@@ -1724,6 +1729,34 @@ run_fake_up() {
     RUN_ID="$1" FAKE_PUBLIC_SMOKE_FAILURE="${2:-false}" \
     "$fixture_scripts/aws-lab.sh" up
 }
+
+# A real metadata calculation failure must stop the full up entry point before
+# any lease, run receipt, Terraform operation or DNS mutation, in both modes.
+jq '.search.enabled=true' "$temp_dir/dataset-manifest.json" > "$temp_dir/target-valid.json"
+: > "$temp_dir/operator-execution.log"
+FAKE_DATASET_MANIFEST="$temp_dir/target-valid.json" run_fake_up lab-target-valid >/dev/null
+grep -Eq '^terraform .* apply ' "$temp_dir/operator-execution.log" \
+  || fail 'matching target fingerprint did not pass the create gate'
+for preflight_search in false true; do
+  jq --argjson enabled "$preflight_search" '
+    .search.enabled=$enabled |
+    .releaseTuple.targetFingerprintSha256="0000000000000000000000000000000000000000000000000000000000000000"
+  ' "$temp_dir/dataset-manifest.json" > "$temp_dir/target-mismatch.json"
+  : > "$temp_dir/operator-execution.log"
+  if FAKE_DATASET_MANIFEST="$temp_dir/target-mismatch.json" \
+    run_fake_up "lab-target-$preflight_search" > "$temp_dir/target-mismatch.out" 2> "$temp_dir/target-mismatch.err"; then
+    fail 'target fingerprint mismatch reached resource creation'
+  fi
+  grep -Fq 'target fingerprint preflight differs from the immutable release' "$temp_dir/target-mismatch.err" \
+    || { cat "$temp_dir/target-mismatch.err" >&2; fail 'target preflight failed for the wrong reason'; }
+  if grep -Eq '^(lease acquire|terraform |dns )|s3api put-object' "$temp_dir/operator-execution.log"; then
+    fail 'invalid target fingerprint reached an AWS mutation'
+  fi
+done
+if [[ "${1:-}" == target-preflight ]]; then
+  printf '%s\n' 'operator target preflight rejected mismatches before any mutation'
+  exit 0
+fi
 
 run_fake_down() {
   local selected_run=$1

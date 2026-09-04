@@ -1,0 +1,68 @@
+{
+  "targetFingerprint": "01b3c82a23eda0270bc083f874c23f378067d4114f1f93cd790e584b8ec9637f",
+  "source": {"release":"production-seed-20260830t223254z-search-rehearsal-r3","manifestSha256":"ff8815b2e811fb2dc6bf688d854740f5affb984444d80edeea96d5e17468cff8","manifestVersionId":"15FldAPmT.XYBLwVB2dA.V9aPmbDOx4I","note":"Projection of all fingerprint input fields; expected digest is from the immutable release, not calculated by this test."},
+  "capsules": [
+    {
+      "capsuleId": "world-distribution-v1",
+      "targets": [
+        {"id":"background-accommodations","expectedRows":200201,"resourceIds":[],"query":null,"expectedResultHash":null,"account":null}
+      ]
+    },
+    {
+      "capsuleId": "nplus1-v1",
+      "targets": [
+        {"id":"review-hotspot","expectedRows":264,"resourceIds":[79495],"query":null,"expectedResultHash":null,"account":null},
+        {"id":"accommodation-detail","expectedRows":201,"resourceIds":[200001],"query":null,"expectedResultHash":null,"account":null},
+        {"id":"wishlist-primary","expectedRows":201,"resourceIds":[1600001],"query":null,"expectedResultHash":null,"account":null},
+        {"id":"recently-viewed","expectedRows":100,"resourceIds":[200001,200002,200003,200004,200005,200006,200007,200008,200009,200010,200011,200012,200013,200014,200015,200016,200017,200018,200019,200020,200021,200022,200023,200024,200025,200026,200027,200028,200029,200030,200031,200032,200033,200034,200035,200036,200037,200038,200039,200040,200041,200042,200043,200044,200045,200046,200047,200048,200049,200050,200051,200052,200053,200054,200055,200056,200057,200058,200059,200060,200061,200062,200063,200064,200065,200066,200067,200068,200069,200070,200071,200072,200073,200074,200075,200076,200077,200078,200079,200080,200081,200082,200083,200084,200085,200086,200087,200088,200089,200090,200091,200092,200093,200094,200095,200096,200097,200098,200099,200100],"query":null,"expectedResultHash":null,"account":null}
+      ]
+    },
+    {
+      "capsuleId": "read-model-v2",
+      "targets": [
+        {"id":"review-hot","expectedRows":264,"resourceIds":[79495],"query":{"kind":"REVIEW_SUMMARY_V1","accommodationId":79495},"expectedResultHash":"3761a17e4c015f28b305a94708169a128425cc5dc52cbe2aaa94fe92dc6dbf93","account":null},
+        {"id":"review-median","expectedRows":6,"resourceIds":[114318],"query":{"kind":"REVIEW_SUMMARY_V1","accommodationId":114318},"expectedResultHash":"081584156a2b8a8fa5041a1350ab1e1671b97d18dd2f2c0175e0df55722409b1","account":null},
+        {"id":"review-cold","expectedRows":4,"resourceIds":[20],"query":{"kind":"REVIEW_SUMMARY_V1","accommodationId":20},"expectedResultHash":"5904c1d79b9d4b5d352ee637ddbe4cb1343d4a06a8e4d10595f133e068a4798e","account":null},
+        {"id":"review-empty","expectedRows":0,"resourceIds":[4],"query":{"kind":"REVIEW_SUMMARY_V1","accommodationId":4},"expectedResultHash":"dfc558e9e4416a60aad6732f60db110bacb2215e199e537f9ac9877f31ae082b","account":null},
+        {"id":"wishlist-hot","expectedRows":50,"resourceIds":[800003],"query":{"kind":"WISHLIST_PAGE_V1","memberId":800003,"size":50,"lastId":null,"lastCreatedAt":null,"accommodationId":null,"totalActiveRows":64},"expectedResultHash":"a2d2a41f4090d52080c2d381d2ef362fbeaf26870439cd20e4019682488b80bd","account":{"memberId":800003,"email":"benchmark-read-model-wishlist-hot@airbob.cloud","role":"MEMBER","status":"ACTIVE"}},
+        {"id":"wishlist-median","expectedRows":7,"resourceIds":[800004],"query":{"kind":"WISHLIST_PAGE_V1","memberId":800004,"size":50,"lastId":null,"lastCreatedAt":null,"accommodationId":null,"totalActiveRows":7},"expectedResultHash":"da4cdea671c685d3a170dc7d2f20314aa1c61a6908719f21a1b0f61ac3016556","account":{"memberId":800004,"email":"benchmark-read-model-wishlist-median@airbob.cloud","role":"MEMBER","status":"ACTIVE"}},
+        {"id":"wishlist-cold","expectedRows":1,"resourceIds":[800005],"query":{"kind":"WISHLIST_PAGE_V1","memberId":800005,"size":50,"lastId":null,"lastCreatedAt":null,"accommodationId":null,"totalActiveRows":1},"expectedResultHash":"1518e17629483abcfad6cda08fcec76a6107f387024d1c8c4b1cea3c6d574561","account":{"memberId":800005,"email":"benchmark-read-model-wishlist-cold@airbob.cloud","role":"MEMBER","status":"ACTIVE"}},
+        {"id":"wishlist-empty","expectedRows":0,"resourceIds":[800006],"query":{"kind":"WISHLIST_PAGE_V1","memberId":800006,"size":50,"lastId":null,"lastCreatedAt":null,"accommodationId":null,"totalActiveRows":0},"expectedResultHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","account":{"memberId":800006,"email":"benchmark-read-model-wishlist-empty@airbob.cloud","role":"MEMBER","status":"ACTIVE"}},
+        {"id":"wishlist-hot-deep","expectedRows":14,"resourceIds":[800003],"query":{"kind":"WISHLIST_PAGE_V1","memberId":800003,"size":50,"lastId":1600216,"lastCreatedAt":"2025-01-01T01:00:14","accommodationId":null,"totalActiveRows":64},"expectedResultHash":"b11dc45a598d6cdb8669d09d476d37b99a464fab06a3c51586ff94ac7e163392","account":{"memberId":800003,"email":"benchmark-read-model-wishlist-hot@airbob.cloud","role":"MEMBER","status":"ACTIVE"}},
+        {"id":"revenue-recent-1d","expectedRows":1,"resourceIds":[],"query":{"kind":"REVENUE_RANGE_V1","from":"2026-07-30","to":"2026-07-30","dayBoundary":"UTC"},"expectedResultHash":"94782863e8506f6dd18aa64269754e69dd017501718d9231c5b6931674b54f65","account":{"memberId":800007,"email":"benchmark-read-model-revenue-admin@airbob.cloud","role":"ADMIN","status":"ACTIVE"}},
+        {"id":"revenue-recent-7d","expectedRows":7,"resourceIds":[],"query":{"kind":"REVENUE_RANGE_V1","from":"2026-07-24","to":"2026-07-30","dayBoundary":"UTC"},"expectedResultHash":"bbd91e769358be0a135fca316184fbc0283b996c7246ff7e5639a39bdab9a2da","account":{"memberId":800007,"email":"benchmark-read-model-revenue-admin@airbob.cloud","role":"ADMIN","status":"ACTIVE"}},
+        {"id":"revenue-medium","expectedRows":30,"resourceIds":[],"query":{"kind":"REVENUE_RANGE_V1","from":"2026-07-01","to":"2026-07-30","dayBoundary":"UTC"},"expectedResultHash":"c7f4a8c8a96f9d53217f0a363a5742d6d5f59c5658d920cd9d7ddb2017982a5a","account":{"memberId":800007,"email":"benchmark-read-model-revenue-admin@airbob.cloud","role":"ADMIN","status":"ACTIVE"}},
+        {"id":"revenue-broad","expectedRows":355,"resourceIds":[],"query":{"kind":"REVENUE_RANGE_V1","from":"2025-07-31","to":"2026-07-30","dayBoundary":"UTC"},"expectedResultHash":"3453baa4cffe0090974c93ab71c5d1aad22b6f774615fda1dd0b3732b2d21017","account":{"memberId":800007,"email":"benchmark-read-model-revenue-admin@airbob.cloud","role":"ADMIN","status":"ACTIVE"}},
+        {"id":"revenue-empty","expectedRows":0,"resourceIds":[],"query":{"kind":"REVENUE_RANGE_V1","from":"2026-08-01","to":"2026-08-01","dayBoundary":"UTC"},"expectedResultHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","account":{"memberId":800007,"email":"benchmark-read-model-revenue-admin@airbob.cloud","role":"ADMIN","status":"ACTIVE"}},
+        {"id":"revenue-refund-boundary","expectedRows":1,"resourceIds":[],"query":{"kind":"REVENUE_RANGE_V1","from":"2026-01-29","to":"2026-01-29","dayBoundary":"UTC"},"expectedResultHash":"2037f4cc5971be1e41d14f4fa49457e6a711eb7edcebc1f8a6dcfe73845a2cd9","account":{"memberId":800007,"email":"benchmark-read-model-revenue-admin@airbob.cloud","role":"ADMIN","status":"ACTIVE"}}
+      ]
+    },
+    {
+      "capsuleId": "cache-detail-v1",
+      "targets": [
+        {"id":"detail-pool","expectedRows":200,"resourceIds":[175788,31542,26934,31553,27106,101961,27107,157073,188703,100879,36936,36274,169557,191463,102415,16174,33464,135081,175478,157468,185908,34546,183388,31126,156521,165673,168192,180382,183447,189265,26679,35550,37855,42832,154531,154963,154966,155001,169849,175407,187212,191469,193894,8126,8448,11203,27104,34743,36092,36952,38123,99503,101182,156589,165287,167453,167599,167679,171937,174555,175781,179735,183605,190729,8818,102896,154969,155579,169193,171231,32363,35052,37355,38966,100852,101238,168443,170079,175223,187213,42950,168886,102414,102103,168850,62798,188239,155821,31260,34483,38012,102275,102018,36260,169385,189759,192346,193574,102291,104255,164884,189686,26940,32186,34697,99897,102763,104112,154523,157672,180234,191572,193828,26734,34842,101998,102498,103001,168920,169808,176980,180250,190009,27983,39701,102767,103969,154351,167268,169658,179537,186144,190517,191738,99459,102453,171281,185432,99518,100204,185695,194189,8589,26781,99787,99806,100111,101189,102278,103522,103656,167915,169096,175933,176211,179616,188403,194209,194318,36548,101158,102225,7757,9362,12491,27105,33087,33925,34521,34740,34825,35148,36329,43004,74564,100517,101046,101920,102330,102358,102409,102569,102683,102750,102814,103008,103310,104061,156228,157043,162635,164345,165480,166144,167703,167722,167832,168141,168202,168619],"query":null,"expectedResultHash":null,"account":null},
+        {"id":"same-key","expectedRows":1,"resourceIds":[175788],"query":null,"expectedResultHash":null,"account":null}
+      ]
+    },
+    {
+      "capsuleId": "index-query-v1",
+      "targets": [
+        {"id":"search-broad","expectedRows":170201,"resourceIds":[2],"query":{"kind":"ACCOMMODATION_SEARCH_V1","destination":"","minPrice":0,"maxPrice":10000000,"adultOccupancy":1,"childOccupancy":0,"infantOccupancy":0,"petOccupancy":0,"topLeftLat":60.03054680000001,"topLeftLng":-124.42150910000001,"bottomRightLat":-43.440580000000004,"bottomRightLng":153.63548000000003,"page":0},"expectedResultHash":"38b02efc6bd961aa5c66fc9ecce57521cf12ed8c4479ac426a412d4047a20220","account":null},
+        {"id":"search-medium","expectedRows":145164,"resourceIds":[2],"query":{"kind":"ACCOMMODATION_SEARCH_V1","destination":"","minPrice":0,"maxPrice":943741,"adultOccupancy":1,"childOccupancy":0,"infantOccupancy":0,"petOccupancy":0,"topLeftLat":60.03054680000001,"topLeftLng":-124.42150910000001,"bottomRightLat":-43.440580000000004,"bottomRightLng":153.63548000000003,"page":0},"expectedResultHash":"501d30fe75394b1b593e297a57bd241edddb244f595eb51c8e8af2369b4cbbd9","account":null},
+        {"id":"search-narrow","expectedRows":1,"resourceIds":[101706],"query":{"kind":"ACCOMMODATION_SEARCH_V1","destination":"","minPrice":0,"maxPrice":4383,"adultOccupancy":1,"childOccupancy":0,"infantOccupancy":0,"petOccupancy":0,"topLeftLat":60.03054680000001,"topLeftLng":-124.42150910000001,"bottomRightLat":-43.440580000000004,"bottomRightLng":153.63548000000003,"page":0},"expectedResultHash":"41672a3dd4e44ee6138dba8c0dea8ab83cfd8717dd61555a13eac357af676489","account":null},
+        {"id":"search-no-hit","expectedRows":0,"resourceIds":[],"query":{"kind":"ACCOMMODATION_SEARCH_V1","destination":"","minPrice":0,"maxPrice":0,"adultOccupancy":1,"childOccupancy":0,"infantOccupancy":0,"petOccupancy":0,"topLeftLat":60.03054680000001,"topLeftLng":-124.42150910000001,"bottomRightLat":-43.440580000000004,"bottomRightLng":153.63548000000003,"page":0},"expectedResultHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","account":null}
+      ]
+    },
+    {
+      "capsuleId": "bulk-expiration-history-v1",
+      "targets": [
+        {"id":"expired-payment-pending","expectedRows":2000,"resourceIds":[],"query":null,"expectedResultHash":null,"account":null}
+      ]
+    },
+    {
+      "capsuleId": "coupon-accounts-v1",
+      "targets": [
+      ]
+    }
+  ]
+}

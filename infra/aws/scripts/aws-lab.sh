@@ -763,6 +763,7 @@ canonical_operator_tree_sha256() {
     Makefile \
     .github/workflows/aws-performance-lab.yml \
     infra/aws/scripts/aws-lab.sh \
+    infra/aws/scripts/compute-target-fingerprint.sh \
     infra/aws/scripts/cleanup-expired-lab.sh \
     infra/aws/scripts/readiness-comparison-projection.jq \
     infra/aws/scripts/scan-lab-orphans.sh \
@@ -1622,7 +1623,7 @@ load_release_smoke_inputs() {
   local dataset_manifest=$1
   local legacy_manifest="$temp_dir/benchmark-manifest.json"
   local composite_manifest="$temp_dir/benchmark-dataset-manifest.json"
-  local legacy_manifest_sha composite_manifest_sha
+  local legacy_manifest_sha composite_manifest_sha target_fingerprint
 
   aws s3api get-object --bucket "$dataset_bucket" \
     --key "datasets/$dataset_release/benchmark/manifest.json" "$legacy_manifest" \
@@ -1640,13 +1641,20 @@ load_release_smoke_inputs() {
 
   smoke_search_enabled=$(jq -r '.search.enabled' "$dataset_manifest")
   smoke_search_target="$temp_dir/search-smoke-target.json"
+  # Pure metadata qualification must fail before lease acquisition or resource
+  # creation, even for a release whose Elasticsearch smoke is disabled.
+  aws s3api get-object --bucket "$dataset_bucket" \
+    --key "datasets/$dataset_release/benchmark/dataset-manifest.json" "$composite_manifest" \
+    --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "benchmark dataset manifest is unavailable"
+  composite_manifest_sha=$(sha256_file "$composite_manifest")
+  [[ "$composite_manifest_sha" == "$(jq -r '.source.benchmarkDatasetManifestSha256' "$dataset_manifest")" ]] \
+    || fail "benchmark dataset manifest digest does not match the release"
+  target_fingerprint=$("$script_dir/compute-target-fingerprint.sh" "$composite_manifest") \
+    || fail "target fingerprint preflight calculation failed"
+  [[ "$target_fingerprint" == "$(jq -r '.targetFingerprint' "$composite_manifest")" && \
+    "$target_fingerprint" == "$(jq -r '.releaseTuple.targetFingerprintSha256' "$dataset_manifest")" ]] \
+    || fail "target fingerprint preflight differs from the immutable release"
   if [[ "$smoke_search_enabled" == true ]]; then
-    aws s3api get-object --bucket "$dataset_bucket" \
-      --key "datasets/$dataset_release/benchmark/dataset-manifest.json" "$composite_manifest" \
-      --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "benchmark dataset manifest is unavailable"
-    composite_manifest_sha=$(sha256_file "$composite_manifest")
-    [[ "$composite_manifest_sha" == "$(jq -r '.source.benchmarkDatasetManifestSha256' "$dataset_manifest")" ]] \
-      || fail "benchmark dataset manifest digest does not match the release"
     jq -ce '
       select(.schemaVersion == 2 and .datasetVersion == "benchmark-dataset-v2" and
         .world.version == "world-v2") |
