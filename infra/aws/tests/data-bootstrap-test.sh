@@ -270,7 +270,7 @@ assert_contains "$bootstrap" 'manifest fingerprint component is missing or malfo
 assert_contains "$bootstrap" 'fingerprint component differs from restored canonical rows:'
 assert_contains "$restore_verifier" 'manifest fingerprint component is missing or malformed:'
 assert_contains "$restore_verifier" 'fingerprint component differs from restored canonical rows:'
-assert_contains "$bootstrap" 'then "<null>"'
+assert_contains "$repo_root/infra/aws/scripts/compute-target-fingerprint.sh" 'then "<null>"'
 assert_contains "$bootstrap" 'cat "$live_fingerprint_receipt"'
 assert_contains "$bootstrap" 'dataset release requires verified production fingerprints'
 assert_contains "$bootstrap" '$a[0].distributionAssertionSha256'

@@ -816,34 +816,10 @@ verify_targets() {
   done < <(jq -c '.capsules[]|select(.capsuleId=="read-model-v2" or .capsuleId=="index-query-v1").targets[]' "$benchmark_dataset_manifest")
   [[ "$(wc -l < "$receipt" | tr -d '[:space:]')" == 19 ]]
 }
-join_query() { local first=true field; for field in "$@"; do [[ "$first" == true ]] && first=false || printf '\x1f'; printf '%s' "$field"; done; }
-query_null() { jq -r --arg field "$1" 'if .query[$field]==null then "<null>" else (.query[$field]|tostring) end' <<<"$2"; }
-double_hex() { local value; printf -v value '%a' "$1"; value=${value/p+/p}; [[ "$value" == *.*p* ]] || value=${value/p/.0p}; printf '%s' "$value"; }
-canonical_query() {
-  local target=$1 kind; kind=$(jq -r '.query.kind // empty' <<<"$target")
-  case "$kind" in
-    REVIEW_SUMMARY_V1) join_query "$kind" "$(jq -r '.query.accommodationId' <<<"$target")" ;;
-    WISHLIST_PAGE_V1) join_query "$kind" "$(jq -r '.query.memberId' <<<"$target")" "$(jq -r '.query.size' <<<"$target")" "$(query_null lastId "$target")" "$(query_null lastCreatedAt "$target")" "$(query_null accommodationId "$target")" "$(jq -r '.query.totalActiveRows' <<<"$target")" ;;
-    REVENUE_RANGE_V1) join_query "$kind" "$(jq -r '.query.from' <<<"$target")" "$(jq -r '.query.to' <<<"$target")" "$(jq -r '.query.dayBoundary' <<<"$target")" ;;
-    ACCOMMODATION_SEARCH_V1) join_query "$kind" "$(jq -r '.query.destination' <<<"$target")" "$(jq -r '.query.minPrice' <<<"$target")" "$(jq -r '.query.maxPrice' <<<"$target")" "$(jq -r '.query.adultOccupancy' <<<"$target")" "$(jq -r '.query.childOccupancy' <<<"$target")" "$(jq -r '.query.infantOccupancy' <<<"$target")" "$(jq -r '.query.petOccupancy' <<<"$target")" "$(double_hex "$(jq -r '.query.topLeftLat' <<<"$target")")" "$(double_hex "$(jq -r '.query.topLeftLng' <<<"$target")")" "$(double_hex "$(jq -r '.query.bottomRightLat' <<<"$target")")" "$(double_hex "$(jq -r '.query.bottomRightLng' <<<"$target")")" "$(jq -r '.query.page' <<<"$target")" ;;
-    '') printf '' ;;
-    *) return 1 ;;
-  esac
-}
 recompute_target_fingerprint() {
-  local output="$work_root/target-fingerprint.bin" capsule target resource account
-  : > "$output"
-  while IFS= read -r capsule; do
-    append_lp "$output" "$(jq -r '.capsuleId' <<<"$capsule")"
-    while IFS= read -r target; do
-      append_lp "$output" "$(jq -r '.id' <<<"$target")"; append_lp "$output" "$(jq -r '.expectedRows|tostring' <<<"$target")"
-      while IFS= read -r resource; do append_lp "$output" "$resource"; done < <(jq -r '.resourceIds[]|tostring' <<<"$target")
-      append_lp "$output" "$(canonical_query "$target")"; append_lp "$output" "$(jq -r '.expectedResultHash // empty' <<<"$target")"
-      append_lp "$output" "$(jq -r '.account.memberId // empty' <<<"$target")"; append_lp "$output" "$(jq -r '.account.email // empty' <<<"$target")"
-      append_lp "$output" "$(jq -r '.account.role // empty' <<<"$target")"; append_lp "$output" "$(jq -r '.account.status // empty' <<<"$target")"
-    done < <(jq -c '.targets|sort_by(.id)[]' <<<"$capsule")
-  done < <(jq -c '.capsules|sort_by(.capsuleId)[]' "$benchmark_dataset_manifest")
-  sha256sum "$output" | awk '{print $1}'
+  local helper_dir
+  helper_dir=$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  "$helper_dir/compute-target-fingerprint.sh" "$benchmark_dataset_manifest"
 }
 targets_one="$work_root/semantic-targets-one.tsv"
 verify_targets "$targets_one" \

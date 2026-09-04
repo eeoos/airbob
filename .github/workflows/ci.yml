@@ -69,6 +69,8 @@ jobs:
 
       - name: Verify AWS dataset release production contracts
         run: |
+          bash infra/aws/tests/target-fingerprint-test.sh
+          bash infra/aws/tests/aws-lab-target-preflight-test.sh
           bash infra/aws/tests/etl-release-database-verifier-test.sh
           bash infra/aws/tests/dataset-attestation-test.sh
           bash infra/aws/tests/elasticsearch-snapshot-producer-test.sh
