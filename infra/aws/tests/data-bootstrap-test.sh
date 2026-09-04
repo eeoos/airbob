@@ -196,7 +196,6 @@ assert_contains "$bootstrap" 'migrationChecksumSha256'
 assert_contains "$bootstrap" 'mysql_connect_timeout_seconds=10'
 assert_contains "$bootstrap" 'mysql_readiness_timeout_seconds=30'
 assert_contains "$bootstrap" 'mysql_general_timeout_seconds=900'
-assert_contains "$bootstrap" 'mysql_attestation_timeout_seconds=3600'
 assert_contains "$bootstrap" 'mysql_import_timeout_seconds=7200'
 assert_contains "$bootstrap" 'mysql_kill_after_seconds=30'
 assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" timeout'
@@ -204,7 +203,6 @@ assert_contains "$bootstrap" '--foreground --signal=TERM --kill-after="${mysql_k
 assert_contains "$bootstrap" '--connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_readiness_timeout_seconds"'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_general_timeout_seconds"'
-assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_attestation_timeout_seconds"'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_import_timeout_seconds" airbobdb'
 assert_contains "$bootstrap" 'actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM \`$table_name\`")'
 assert_contains "$bootstrap" 'mysql_attestation_exec airbobdb <<'"'"'AIRBOB_SEMANTIC_SQL'"'"''
@@ -416,11 +414,15 @@ mysql_exec --execute='SELECT 1' >/dev/null \
   || fail "bounded general MySQL helper rejected a successful client"
 mysql_readiness_exec --execute='SELECT 1' >/dev/null \
   || fail "bounded readiness MySQL helper rejected a successful client"
+# A healthy attestation must reach MySQL even when an independent timeout
+# wrapper would terminate it. The outer operator/SSM lifetime owns its budget.
+export AIRBOB_TEST_TIMEOUT_EXIT=124
 mysql_attestation_exec --execute='SELECT 1' >/dev/null \
-  || fail "bounded attestation MySQL helper rejected a successful client"
+  || fail "attestation was interrupted by a speculative per-query deadline"
+unset AIRBOB_TEST_TIMEOUT_EXIT
 mysql_import_dump \
   || fail "bounded dump import helper rejected a successful pipeline"
-for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 3600s 7200s; do
+for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 7200s; do
   grep -Fxq -- "$expected_timeout_argument" "$timeout_log" \
     || fail "MySQL deadline helper omitted timeout argument: $expected_timeout_argument"
 done
@@ -435,6 +437,12 @@ if grep -Fq -- "$master_password" "$timeout_log" "$mysql_log"; then
 fi
 
 export AIRBOB_TEST_MYSQL_EXIT=23
+if mysql_attestation_exec --execute='SELECT 1' >/dev/null; then
+  fail "attestation hid a MySQL client failure"
+else
+  attestation_status=$?
+fi
+[[ "$attestation_status" == 23 ]] || fail "attestation did not preserve the MySQL failure status"
 if mysql_import_dump; then
   fail "dump import pipeline hid a MySQL client failure"
 else

@@ -6,14 +6,10 @@ umask 077
 exec 9>&2
 
 DEFAULT_COMMAND_DEADLINE_SECONDS=5400
-DUMP_UP_COMMAND_DEADLINE_SECONDS=18000
+UP_COMMAND_DEADLINE_SECONDS=18000
 DEFAULT_CREDENTIAL_SESSION_SECONDS=7200
-SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800
-DUMP_UP_CREDENTIAL_SESSION_SECONDS=21600
-SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600
-DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=1800
-DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=3000
-DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400
+UP_CREDENTIAL_SESSION_SECONDS=21600
+UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400
 LAB_ROLE_MAX_SESSION_SECONDS=21600
 TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS=300
 WORKFLOW_FINALIZATION_MARGIN_SECONDS=300
@@ -164,14 +160,9 @@ comparison_projection_filter="$script_dir/readiness-comparison-projection.jq"
 toolchain_contract="$repo_root/infra/aws/toolchain.env"
 
 if [[ "$action" == up ]]; then
-  if [[ "${DATABASE_BOOTSTRAP:-dump}" == dump ]]; then
-    COMMAND_DEADLINE_SECONDS=$DUMP_UP_COMMAND_DEADLINE_SECONDS
-    CREDENTIAL_SESSION_SECONDS=$DUMP_UP_CREDENTIAL_SESSION_SECONDS
-    UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
-  else
-    CREDENTIAL_SESSION_SECONDS=$SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS
-    UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
-  fi
+  COMMAND_DEADLINE_SECONDS=$UP_COMMAND_DEADLINE_SECONDS
+  CREDENTIAL_SESSION_SECONDS=$UP_CREDENTIAL_SESSION_SECONDS
+  UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
 fi
 
 # Short timing values are accepted only by the copied hermetic test fixture.
@@ -2600,9 +2591,7 @@ case "$action" in
     oci_origin_ipv4=${OCI_ORIGIN_IPV4:-}
     requested_alb_ingress_cidr=${ALB_INGRESS_CIDR:-}
     database_bootstrap=${DATABASE_BOOTSTRAP:-dump}
-    default_ttl_hours=2
-    [[ "$database_bootstrap" != dump ]] || default_ttl_hours=6
-    ttl_hours=${TTL_HOURS:-$default_ttl_hours}
+    ttl_hours=${TTL_HOURS:-6}
     rds_snapshot_identifier=${RDS_SNAPSHOT_IDENTIFIER:-}
     rds_snapshot_source_run_id=${RDS_SNAPSHOT_SOURCE_RUN_ID:-}
     rds_snapshot_source_resource_id=${RDS_SNAPSHOT_SOURCE_RESOURCE_ID:-}
@@ -2617,10 +2606,8 @@ case "$action" in
     [[ "$cache_enabled" == true || "$cache_enabled" == false ]] || fail "CACHE_ENABLED must be true or false"
     [[ "$load_generator_enabled" == true || "$load_generator_enabled" == false ]] || fail "LOAD_GENERATOR_ENABLED must be true or false"
     [[ "$ttl_hours" =~ ^[1-9][0-9]?$ && "$ttl_hours" -le 24 ]] || fail "TTL_HOURS must be 1-24"
-    [[ "$database_bootstrap" != dump || "$ttl_hours" -ge 6 ]] \
-      || fail "dump bootstrap requires TTL_HOURS of at least 6"
-    [[ "$database_bootstrap" != snapshot || "$ttl_hours" -eq 2 ]] \
-      || fail "snapshot bootstrap requires explicit TTL_HOURS=2"
+    [[ "$ttl_hours" -ge 6 ]] \
+      || fail "initial qualification requires TTL_HOURS of at least 6"
     [[ "$mode" != scaling || "$request_target" =~ ^[1-9][0-9]*$ ]] || fail "scaling requires REQUEST_TARGET"
     [[ "$mode" == scaling || -z "$request_target" ]] || fail "REQUEST_TARGET is valid only for scaling"
     [[ "$ami_id" =~ ^ami-[0-9a-f]{8,17}$ ]] || fail "AMI_ID is required and must be reviewed"

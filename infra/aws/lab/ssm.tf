@@ -128,7 +128,9 @@ resource "aws_ssm_document" "bootstrap_data" {
       action = "aws:runShellScript"
       name   = "bootstrapData"
       inputs = {
-        timeoutSeconds = "12600"
+        # The operator owns the earlier absolute run deadline. This fallback
+        # must not allocate a shorter, speculative data-bootstrap window.
+        timeoutSeconds = "18000"
         runCommand     = [local.bootstrap_data_command]
       }
     }]
@@ -142,7 +144,7 @@ resource "aws_ssm_association" "data_bootstrap" {
 
   name                             = aws_ssm_document.bootstrap_data[0].name
   association_name                 = "airbob-${var.run_id}-data-bootstrap"
-  wait_for_success_timeout_seconds = 12900
+  wait_for_success_timeout_seconds = 18300
 
   targets {
     key    = "InstanceIds"

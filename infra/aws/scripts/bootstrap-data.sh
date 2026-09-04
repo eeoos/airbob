@@ -423,7 +423,6 @@ master_password=$(jq -r '.password' "$master_secret_file")
 mysql_connect_timeout_seconds=10
 mysql_readiness_timeout_seconds=30
 mysql_general_timeout_seconds=900
-mysql_attestation_timeout_seconds=3600
 mysql_import_timeout_seconds=7200
 mysql_kill_after_seconds=30
 
@@ -449,7 +448,14 @@ mysql_readiness_exec() {
 }
 
 mysql_attestation_exec() {
-  mysql_with_deadline "$mysql_attestation_timeout_seconds" "$@"
+  # Initial qualification measures completion time; do not pre-empt a healthy
+  # full-dataset scan with a guessed SQL deadline. The operator/SSM lifetime
+  # still bounds the run and tears down its host on failure or expiry.
+  MYSQL_PWD="$master_password" mysql \
+    --protocol=TCP --default-character-set=utf8mb4 \
+    --host="$AIRBOB_RDS_ENDPOINT" --port=3306 --user="$master_username" \
+    --connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect \
+    --ssl --batch --raw --skip-column-names "$@"
 }
 
 mysql_import_dump() {
