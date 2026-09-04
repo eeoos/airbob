@@ -117,9 +117,12 @@ rows/result hashes, and the live final/base/target/inventory fingerprints twice
 before any RDS setting, Elasticsearch, Redis, Kafka, or Debezium mutation. The
 schema-2 bootstrap receipt binds that live semantic receipt. The compressed SSM
 command is hard-capped at 45KB and no longer embeds the aggregate release verifier.
-The dump import and long MySQL validation work use bounded process deadlines;
-expiration terminates their subprocesses and fails the association so fenced
-automatic cleanup can start instead of waiting on a stale client pipeline.
+MySQL readiness checks have a 30-second process deadline, ordinary control SQL
+retains a 900-second deadline, full-dataset read-only attestation has a separate
+3,600-second deadline, and dump import has a 7,200-second deadline. Expiration
+terminates the affected subprocess and fails the association so fenced automatic
+cleanup can start instead of waiting on a stale client pipeline. The containing
+SSM command remains the independent 12,600-second total ceiling.
 
 Phase 4 now creates an HTTPS-only ALB and an application ASG at `0/0/0` while
 data bootstrap is in progress. An exact `data-ready` receipt is required before
