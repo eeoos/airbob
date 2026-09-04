@@ -9,6 +9,7 @@ export AWS_SESSION_TOKEN=explicit-fixture-session
 export AIRBOB_AWS_CREDENTIAL_EXPIRATION=2099-01-01T00:00:00Z
 
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+bash "$script_dir/aws-lab-snapshot-parity-test.sh"
 repo_root=$(CDPATH= cd -P -- "$script_dir/../../.." && pwd -P)
 operator="$repo_root/infra/aws/scripts/aws-lab.sh"
 lease_script="$repo_root/infra/aws/scripts/orchestration-lease.sh"
@@ -69,14 +70,10 @@ assert_contains "$operator" 'assert "$lease_table"'
 assert_contains "$operator" 'release_lease_bounded_best_effort'
 assert_contains "$operator" 'lease-final-release.timeout'
 assert_contains "$operator" 'DEFAULT_COMMAND_DEADLINE_SECONDS=5400'
-assert_contains "$operator" 'DUMP_UP_COMMAND_DEADLINE_SECONDS=18000'
+assert_contains "$operator" 'UP_COMMAND_DEADLINE_SECONDS=18000'
 assert_contains "$operator" 'DEFAULT_CREDENTIAL_SESSION_SECONDS=7200'
-assert_contains "$operator" 'SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS=10800'
-assert_contains "$operator" 'DUMP_UP_CREDENTIAL_SESSION_SECONDS=21600'
-assert_contains "$operator" 'SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=3600'
-assert_contains "$operator" 'DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS=1800'
-assert_contains "$operator" 'DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS=3000'
-assert_contains "$operator" 'DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400'
+assert_contains "$operator" 'UP_CREDENTIAL_SESSION_SECONDS=21600'
+assert_contains "$operator" 'UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=2400'
 assert_contains "$operator" 'LAB_ROLE_MAX_SESSION_SECONDS=21600'
 assert_contains "$operator" 'TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS=300'
 assert_contains "$operator" 'WORKFLOW_FINALIZATION_MARGIN_SECONDS=300'
@@ -175,8 +172,7 @@ if grep -Eq 'aws s3api delete-object .*tflock|aws s3 rm .*tflock' "$operator"; t
 fi
 assert_contains "$operator" 'AIRBOB_OPERATOR_TEST_HARNESS'
 assert_contains "$operator" 'operator test timing overrides are outside the hermetic fake harness'
-assert_contains "$operator" 'dump bootstrap requires TTL_HOURS of at least 6'
-assert_contains "$operator" 'snapshot bootstrap requires explicit TTL_HOURS=2'
+assert_contains "$operator" 'initial qualification requires TTL_HOURS of at least 6'
 assert_contains "$operator" 'snapshot bootstrap requires the exact Foundation-approved RDS snapshot'
 assert_contains "$operator" 'Lab plans must use one bounded launch template and no mixed-instance override'
 assert_contains "$operator" 'dump bootstrap forbids every RDS snapshot source identity'
@@ -344,13 +340,12 @@ assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '6'"
-assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && inputs.database_bootstrap == 'dump' && 359 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 170 || 120 }}"
-assert_contains "$workflow" "inputs.database_bootstrap == 'dump' && 21600 || inputs.action == 'up' && inputs.database_bootstrap == 'snapshot' && 10800 || 7200"
+assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && 359 || 120 }}"
+assert_contains "$workflow" "role-duration-seconds: \${{ inputs.action == 'up' && 21600 || 7200 }}"
 assert_contains "$workflow" '- name: Record workflow deadline'
 assert_contains "$workflow" 'WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120'
 assert_contains "$workflow" 'workflow_ceiling_seconds=7200'
 assert_contains "$workflow" 'workflow_ceiling_seconds=21540'
-assert_contains "$workflow" 'workflow_ceiling_seconds=10200'
 assert_contains "$workflow" 'workflow_ceiling_seconds - WORKFLOW_INITIALIZATION_RESERVE_SECONDS'
 assert_contains "$workflow" "printf 'AIRBOB_WORKFLOW_DEADLINE_EPOCH=%s\\n'"
 assert_contains "$workflow" 'https://checkip.amazonaws.com'
@@ -376,10 +371,8 @@ chmod 700 "$temp_dir/deadline-bin/date"
 for deadline_case in dump snapshot other; do
   action=up
   bootstrap=$deadline_case
-  expected_seconds=10080
-  if [[ "$deadline_case" == dump ]]; then
-    expected_seconds=21420
-  elif [[ "$deadline_case" == other ]]; then
+  expected_seconds=21420
+  if [[ "$deadline_case" == other ]]; then
     action=down
     bootstrap=dump
     expected_seconds=7080
@@ -450,33 +443,26 @@ if grep -Eq 'AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY)' "$workflow"; then
 fi
 
 default_deadline=$(awk -F= '$1 == "DEFAULT_COMMAND_DEADLINE_SECONDS" { print $2 }' "$operator")
-dump_deadline=$(awk -F= '$1 == "DUMP_UP_COMMAND_DEADLINE_SECONDS" { print $2 }' "$operator")
+up_deadline=$(awk -F= '$1 == "UP_COMMAND_DEADLINE_SECONDS" { print $2 }' "$operator")
 default_session=$(awk -F= '$1 == "DEFAULT_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
-snapshot_session=$(awk -F= '$1 == "SNAPSHOT_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
-dump_session=$(awk -F= '$1 == "DUMP_UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
+up_session=$(awk -F= '$1 == "UP_CREDENTIAL_SESSION_SECONDS" { print $2 }' "$operator")
 workflow_seconds=$((120 * 60))
-snapshot_workflow_seconds=$((170 * 60))
-dump_workflow_seconds=$((359 * 60))
+up_workflow_seconds=$((359 * 60))
 workflow_initialization_reserve_seconds=120
-snapshot_recorded_deadline_seconds=$((snapshot_workflow_seconds - workflow_initialization_reserve_seconds))
-dump_recorded_deadline_seconds=$((dump_workflow_seconds - workflow_initialization_reserve_seconds))
-snapshot_post_step_setup_seconds=480
-dump_post_step_setup_seconds=420
-ssm_command_seconds=12600
-ssm_waiter_seconds=12900
-snapshot_cleanup_seconds=$(awk -F= '$1 == "SNAPSHOT_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
-pre_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_PRE_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
-post_bootstrap_seconds=$(awk -F= '$1 == "DUMP_UP_POST_BOOTSTRAP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
-dump_failure_cleanup_seconds=$(awk -F= '$1 == "DUMP_UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
+up_recorded_deadline_seconds=$((up_workflow_seconds - workflow_initialization_reserve_seconds))
+up_post_step_setup_seconds=420
+ssm_command_seconds=18000
+ssm_waiter_seconds=18300
+up_failure_cleanup_seconds=$(awk -F= '$1 == "UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS" { print $2 }' "$operator")
 credential_margin_seconds=$(awk -F= '$1 == "TERRAFORM_LOCK_CREDENTIAL_EXPIRY_MARGIN_SECONDS" { print $2 }' "$operator")
 workflow_finalization_seconds=$(awk -F= '$1 == "WORKFLOW_FINALIZATION_MARGIN_SECONDS" { print $2 }' "$operator")
 lease_transition_seconds=$(awk -F= '$1 == "LEASE_TRANSITION_MARGIN_SECONDS" { print $2 }' "$operator")
 lease_control_call_seconds=$(awk -F= '$1 == "LEASE_CONTROL_CALL_MAX_SECONDS" { print $2 }' "$operator")
 heartbeat_stop_seconds=$((lease_control_call_seconds + 1))
-dump_ttl_seconds=$((6 * 3600))
-[[ "$(grep -Fc 'timeoutSeconds = "12600"' "$ssm_contract")" -eq 1 ]] \
-  || fail "data bootstrap SSM document timeout is not exactly 12600 seconds"
-assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 12900'
+up_ttl_seconds=$((6 * 3600))
+[[ "$(grep -Fc 'timeoutSeconds = "18000"' "$ssm_contract")" -eq 1 ]] \
+  || fail "data bootstrap SSM fallback must not cut short the operator envelope"
+assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 18300'
 ((ssm_command_seconds + 300 == ssm_waiter_seconds)) \
   || fail "data bootstrap association must preserve 300 seconds for result propagation"
 ((heartbeat_stop_seconds == 31 && \
@@ -484,23 +470,17 @@ assert_contains "$ssm_contract" 'wait_for_success_timeout_seconds = 12900'
   || fail "bounded heartbeat stop, cleanup renewal, and assertion exceed the lease transition margin"
 ((default_deadline == 5400 && default_deadline < default_session && default_session == workflow_seconds)) \
   || fail "default command deadline, credential, and non-up workflow timeout hierarchy is invalid"
-snapshot_lease_seconds=$((default_deadline + snapshot_cleanup_seconds + lease_transition_seconds))
-dump_lease_seconds=$((dump_deadline + dump_failure_cleanup_seconds + lease_transition_seconds))
-((snapshot_lease_seconds == 9300 &&
-  snapshot_recorded_deadline_seconds == 10080 &&
-  snapshot_post_step_setup_seconds + snapshot_lease_seconds + workflow_finalization_seconds == snapshot_recorded_deadline_seconds &&
-  snapshot_lease_seconds + credential_margin_seconds <= snapshot_session)) \
-  || fail "snapshot command, cleanup, lease, workflow, and credential hierarchy is invalid"
-((ssm_waiter_seconds + pre_bootstrap_seconds + post_bootstrap_seconds < dump_deadline &&
-  dump_lease_seconds == 20700 &&
-  dump_recorded_deadline_seconds == 21420 &&
-  dump_post_step_setup_seconds + dump_lease_seconds + workflow_finalization_seconds == dump_recorded_deadline_seconds &&
-  dump_lease_seconds + credential_margin_seconds <= dump_session &&
-  dump_workflow_seconds < dump_session &&
-  dump_session == dump_ttl_seconds)) \
-  || fail "dump bootstrap, command, cleanup, lease, workflow, credential, and TTL hierarchy is invalid"
-((dump_deadline < 6 * 3600)) \
-  || fail "dump operator deadline must remain inside the minimum ephemeral TTL"
+up_lease_seconds=$((up_deadline + up_failure_cleanup_seconds + lease_transition_seconds))
+((ssm_command_seconds >= up_deadline &&
+  up_lease_seconds == 20700 &&
+  up_recorded_deadline_seconds == 21420 &&
+  up_post_step_setup_seconds + up_lease_seconds + workflow_finalization_seconds == up_recorded_deadline_seconds &&
+  up_lease_seconds + credential_margin_seconds <= up_session &&
+  up_workflow_seconds < up_session &&
+  up_session == up_ttl_seconds)) \
+  || fail "qualification command, cleanup, lease, workflow, credential, and TTL hierarchy is invalid"
+((up_deadline < up_ttl_seconds)) \
+  || fail "qualification operator deadline must remain inside the minimum ephemeral TTL"
 if env AIRBOB_OPERATOR_TEST_HARNESS=hermetic-fake-v1 \
   AIRBOB_TEST_COMMAND_DEADLINE_SECONDS=2 AIRBOB_TEST_HEARTBEAT_INTERVAL_SECONDS=1 \
   AIRBOB_TEST_FAILURE_CLEANUP_ALLOWANCE_SECONDS=8 \
@@ -1053,13 +1033,18 @@ case " $* " in
         cat "${FAKE_RUN_MANIFEST:?}" > "$destination"
       fi
     elif [[ "$key" == data-bootstrap/* ]]; then
+      if [[ -f "$store_path" ]]; then
+        cp "$store_path" "$destination"
+        exit 0
+      fi
       receipt_run=${key#data-bootstrap/}
       receipt_run=${receipt_run%%/*}
       manifest_sha=$(shasum -a 256 "${FAKE_DATASET_MANIFEST:?}" | awk '{print $1}')
       jq -n --arg run "$receipt_run" --arg manifestSha "$manifest_sha" \
         --arg bootstrap "${FAKE_DATABASE_BOOTSTRAP:-dump}" \
-        '{schemaVersion:2,runId:$run,datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKL01234",rdsEngineVersion:"8.0.42",outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
+        '{schemaVersion:2,runId:$run,datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",rdsEngineVersion:"8.0.42",semanticAttestationSha256:("2" * 64),outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
         > "$destination"
+      cp "$destination" "$store_path"
     elif [[ "$key" == network-clearance/* ]]; then
       clearance_run=${key#network-clearance/}
       clearance_run=${clearance_run%%/*}
@@ -1193,6 +1178,21 @@ case " $* " in
     esac
     ;;
   *' ec2 describe-images '*) printf '%s\n' '{"imageId":"ami-0123456789abcdef0","creationDate":"2026-08-31T00:00:00Z","architecture":"x86_64","rootDeviceType":"ebs","virtualizationType":"hvm"}' ;;
+  *' rds describe-db-snapshots '*)
+    source_data="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__fixture-v20.json"
+    source_readiness="$FAKE_S3_STORE/measurements__lab-repeat-dump__direct-readiness.json"
+    jq -n --arg dataSha "$(shasum -a 256 "$source_data" | awk '{print $1}')" \
+      --arg readinessSha "$(shasum -a 256 "$source_readiness" | awk '{print $1}')" \
+      --arg versionSha "$(printf version-fixture | shasum -a 256 | awk '{print $1}')" '{DBSnapshots:[{
+        DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",
+        TagList:[{Key:"SourceLabRunId",Value:"lab-repeat-dump"},{Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWX"},
+          {Key:"DatasetRelease",Value:"fixture-v20"},{Key:"PromotionReceiptSchemaVersion",Value:"2"},
+          {Key:"DataBootstrapKey",Value:"data-bootstrap/lab-repeat-dump/fixture-v20.json"},
+          {Key:"DataBootstrapVersionIdSha256",Value:$versionSha},{Key:"DataBootstrapSha256",Value:$dataSha},
+          {Key:"DirectReadinessKey",Value:"measurements/lab-repeat-dump/direct-readiness.json"},
+          {Key:"DirectReadinessVersionIdSha256",Value:$versionSha},{Key:"DirectReadinessSha256",Value:$readinessSha}]
+      }]}'
+    ;;
   *' rds describe-db-instances '*'MasterUserSecret.SecretArn'*) printf '%s\n' 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test' ;;
   *' rds describe-db-instances '*)
     jq -nc \
@@ -1200,7 +1200,7 @@ case " $* " in
       --argjson throughput "${FAKE_RDS_STORAGE_THROUGHPUT:-125}" \
       --argjson publiclyAccessible "${FAKE_RDS_PUBLICLY_ACCESSIBLE:-false}" '
       {
-        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKL01234", class:"db.t3.small",
+        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX", class:"db.t3.small",
         engine:"mysql", engineVersion:"8.0.42", allocatedStorageGiB:100, storageType:"gp3",
         iops:$iops, storageThroughputMiBps:$throughput, multiAz:false, storageEncrypted:true,
         publiclyAccessible:$publiclyAccessible, availabilityZone:"ap-northeast-2a",
@@ -1434,7 +1434,7 @@ case " $* " in
     jq -nc --arg run_id "${FAKE_STATE_RUN_ID:-lab-partial-down}" '{run_id:$run_id,vpc_id:"vpc-0123456789abcdef0",primary_private_route_table:"rtb-0123456789abcdef0",probe_instance_id:"i-0123456789abcdef0",services:{debezium:"i-11111111111111111",kafka:"i-22222222222222222"}}'
     ;;
   *' output -json phase3_contract '*)
-    printf '%s\n' '{"rds_instance_id":"airbob-fake","rds_resource_id":"db-ABCDEFGHIJKL01234","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
+    printf '%s\n' '{"rds_instance_id":"airbob-fake","rds_resource_id":"db-ABCDEFGHIJKLMNOPQRSTUVWX","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
     ;;
   *' output -json phase4_contract '*)
     if [[ "${FAKE_NO_ALB:-false}" == true ]]; then
@@ -1598,10 +1598,7 @@ run_fake_up() {
   local bootstrap=${FAKE_DATABASE_BOOTSTRAP:-dump}
   local ttl_hours=${FAKE_TTL_HOURS:-} fake_dns_mode=${FAKE_DNS_MODE:-cutover}
   local snapshot_source_run_id snapshot_source_resource_id expected_alb_ingress_cidr fake_operator_scope
-  [[ -n "$ttl_hours" ]] || {
-    ttl_hours=2
-    [[ "$bootstrap" != dump ]] || ttl_hours=6
-  }
+  [[ -n "$ttl_hours" ]] || ttl_hours=6
   if [[ "$bootstrap" == snapshot ]]; then
     snapshot_source_run_id=${FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID-lab-repeat-dump}
     snapshot_source_resource_id=${FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID-db-ABCDEFGHIJKLMNOPQRSTUVWX}
@@ -2221,10 +2218,10 @@ for dump_snapshot_input in identifier source-run source-resource; do
 done
 
 : > "$temp_dir/operator-execution.log"
-if FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_TTL_HOURS=3 \
+if FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_TTL_HOURS=5 \
   FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
-  run_fake_up lab-long-snapshot-ttl >/dev/null 2>&1; then
-  fail "snapshot up accepted a TTL other than its explicit two-hour window"
+  run_fake_up lab-short-snapshot-ttl >/dev/null 2>&1; then
+  fail "snapshot up accepted a TTL shorter than the qualification envelope"
 fi
 if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
   fail "invalid snapshot TTL acquired the orchestration lease"
@@ -2932,8 +2929,8 @@ FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   run_fake_up lab-repeat-snapshot false 203.0.113.10 performance integrated-smoke >/dev/null
 grep -Eq '^lease acquire .* lab-repeat-dump up 180 20700$' "$temp_dir/operator-execution.log" \
   || fail "dump up did not acquire the 20700-second command-cleanup-transition lease deadline"
-grep -Eq '^lease acquire .* lab-repeat-snapshot up 180 9300$' "$temp_dir/operator-execution.log" \
-  || fail "snapshot up did not acquire the 9300-second command-cleanup-transition lease deadline"
+grep -Eq '^lease acquire .* lab-repeat-snapshot up 180 20700$' "$temp_dir/operator-execution.log" \
+  || fail "snapshot up did not acquire the shared 20700-second qualification lease deadline"
 identity_apply_line=$(grep -n -m1 'terraform .* apply .*run-identity.tfplan' "$temp_dir/operator-execution.log" | cut -d: -f1)
 network_plan_line=$(grep -n -m1 'terraform .* plan .*lab.tfplan' "$temp_dir/operator-execution.log" | cut -d: -f1)
 network_probe_line=$(grep -n -m1 '^network egress ' "$temp_dir/operator-execution.log" | cut -d: -f1)

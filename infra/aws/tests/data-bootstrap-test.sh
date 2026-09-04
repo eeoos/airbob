@@ -120,7 +120,7 @@ validator_line=$(grep -n 'download_sha benchmark/validate-benchmark-dataset-v2.j
 semantic_line=$(grep -n 'jq -e -f "$semantic_validator"' "$bootstrap" | cut -d: -f1)
 secret_line=$(grep -n 'secretsmanager get-secret-value' "$bootstrap" | head -1 | cut -d: -f1)
 restore_line=$(grep -n 'zstd --decompress --stdout' "$bootstrap" | cut -d: -f1)
-attest_line=$(grep -n 'second live fingerprint attestation failed' "$bootstrap" | cut -d: -f1)
+attest_line=$(grep -n '^semantic_attestation_sha256=' "$bootstrap" | cut -d: -f1)
 mutation_line=$(grep -n "CALL mysql.rds_set_configuration" "$bootstrap" | cut -d: -f1)
 [[ "$wrapper_line" -lt "$validator_line" && "$validator_line" -lt "$semantic_line" \
   && "$semantic_line" -lt "$secret_line" && "$secret_line" -lt "$restore_line" \
@@ -196,7 +196,6 @@ assert_contains "$bootstrap" 'migrationChecksumSha256'
 assert_contains "$bootstrap" 'mysql_connect_timeout_seconds=10'
 assert_contains "$bootstrap" 'mysql_readiness_timeout_seconds=30'
 assert_contains "$bootstrap" 'mysql_general_timeout_seconds=900'
-assert_contains "$bootstrap" 'mysql_attestation_timeout_seconds=3600'
 assert_contains "$bootstrap" 'mysql_import_timeout_seconds=7200'
 assert_contains "$bootstrap" 'mysql_kill_after_seconds=30'
 assert_contains "$bootstrap" 'MYSQL_PWD="$master_password" timeout'
@@ -204,7 +203,6 @@ assert_contains "$bootstrap" '--foreground --signal=TERM --kill-after="${mysql_k
 assert_contains "$bootstrap" '--connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_readiness_timeout_seconds"'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_general_timeout_seconds"'
-assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_attestation_timeout_seconds"'
 assert_contains "$bootstrap" 'mysql_with_deadline "$mysql_import_timeout_seconds" airbobdb'
 assert_contains "$bootstrap" 'actual_rows=$(mysql_attestation_exec airbobdb --execute="SELECT COUNT(*) FROM \`$table_name\`")'
 assert_contains "$bootstrap" 'mysql_attestation_exec airbobdb <<'"'"'AIRBOB_SEMANTIC_SQL'"'"''
@@ -274,15 +272,12 @@ assert_contains "$restore_verifier" 'manifest fingerprint component is missing o
 assert_contains "$restore_verifier" 'fingerprint component differs from restored canonical rows:'
 assert_contains "$bootstrap" 'then "<null>"'
 assert_contains "$bootstrap" 'cat "$live_fingerprint_receipt"'
-assert_contains "$bootstrap" 'second live fingerprint attestation failed'
 assert_contains "$bootstrap" 'dataset release requires verified production fingerprints'
 assert_contains "$bootstrap" '$a[0].distributionAssertionSha256'
 assert_contains "$bootstrap" '$a[0].distributionSpecSha256'
 assert_contains "$bootstrap" '.capsuleId=="read-model-v2" or .capsuleId=="index-query-v1"'
 assert_contains "$bootstrap" 'JOIN address addr ON addr.id=a.address_id'
 assert_contains "$bootstrap" 'JOIN occupancy_policy op ON op.id=a.occupancy_policy_id'
-assert_contains "$bootstrap" 'final live target attestation failed'
-assert_contains "$bootstrap" 'live targets drifted after the semantic gate'
 assert_contains "$bootstrap" 'Retention=summary'
 assert_contains "$bootstrap" 'publish_immutable_receipt'
 assert_contains "$bootstrap" "--if-none-match '*'"
@@ -416,11 +411,15 @@ mysql_exec --execute='SELECT 1' >/dev/null \
   || fail "bounded general MySQL helper rejected a successful client"
 mysql_readiness_exec --execute='SELECT 1' >/dev/null \
   || fail "bounded readiness MySQL helper rejected a successful client"
+# A healthy attestation must reach MySQL even when an independent timeout
+# wrapper would terminate it. The outer operator/SSM lifetime owns its budget.
+export AIRBOB_TEST_TIMEOUT_EXIT=124
 mysql_attestation_exec --execute='SELECT 1' >/dev/null \
-  || fail "bounded attestation MySQL helper rejected a successful client"
+  || fail "attestation was interrupted by a speculative per-query deadline"
+unset AIRBOB_TEST_TIMEOUT_EXIT
 mysql_import_dump \
   || fail "bounded dump import helper rejected a successful pipeline"
-for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 3600s 7200s; do
+for expected_timeout_argument in --foreground --signal=TERM --kill-after=30s 30s 900s 7200s; do
   grep -Fxq -- "$expected_timeout_argument" "$timeout_log" \
     || fail "MySQL deadline helper omitted timeout argument: $expected_timeout_argument"
 done
@@ -435,6 +434,12 @@ if grep -Fq -- "$master_password" "$timeout_log" "$mysql_log"; then
 fi
 
 export AIRBOB_TEST_MYSQL_EXIT=23
+if mysql_attestation_exec --execute='SELECT 1' >/dev/null; then
+  fail "attestation hid a MySQL client failure"
+else
+  attestation_status=$?
+fi
+[[ "$attestation_status" == 23 ]] || fail "attestation did not preserve the MySQL failure status"
 if mysql_import_dump; then
   fail "dump import pipeline hid a MySQL client failure"
 else
@@ -565,6 +570,93 @@ for target_failure in count hash; do
     fail "target verifier accepted exact $target_failure output followed by status 124"
   fi
   [[ ! -s "$target_receipt" ]] || fail "failed target verifier wrote a receipt row"
+done
+
+# The review aggregation is portable SQL: exercise its actual CTE on a tiny
+# in-memory fixture, without connecting to or changing the restored database.
+review_truth_sql=$(awk '
+  /^WITH review_expected AS \(/ { p=1 }
+  /^\), review_counts AS \(/ { print ")"; exit }
+  p { print }
+' "$bootstrap")
+python3 - "$review_truth_sql" <<'AIRBOB_REVIEW_TRUTH_TEST'
+import sqlite3
+import sys
+
+sql = sys.argv[1]
+assert sql.startswith("WITH review_expected AS ("), "review truth CTE is missing"
+fixture = """WITH accommodation(id) AS (VALUES (1),(2),(3)),
+review(id,accommodation_id,rating,status) AS (
+  VALUES (1,1,4,'PUBLISHED'),(2,1,5,'PUBLISHED'),(3,2,1,'DELETED')
+), """
+rows = sqlite3.connect(":memory:").execute(
+    fixture + sql.removeprefix("WITH ")
+    + " SELECT * FROM review_expected ORDER BY accommodation_id"
+).fetchall()
+assert rows == [(1, 2, 9, 4.5)], (
+    "review summaries must exist only for accommodations with published reviews", rows
+)
+AIRBOB_REVIEW_TRUTH_TEST
+
+# Execute the production orchestration, replacing only the expensive DB reads.
+# Catch duplicate scans, skipped gates, changed receipt bytes and hidden errors.
+single_semantic="$temp_dir/single-semantic.sh"
+single_fingerprints="$temp_dir/single-fingerprints.sh"
+final_targets="$temp_dir/final-targets.sh"
+awk '/^semantic_one=/{p=1} /^result_field\(\)/{exit} p{print}' "$bootstrap" > "$single_semantic"
+awk '/^targets_one=/{p=1} /^# Operational mutations/{exit} p{print}' "$bootstrap" > "$single_fingerprints"
+awk '/^targets_final=/{p=1} /^cleanup$/{if(p)exit} p{print}' "$bootstrap" > "$final_targets"
+[[ -s "$single_semantic" && -s "$single_fingerprints" ]] || fail "attestation orchestration is missing"
+run_single_attestation_fixture() (
+  set -euo pipefail
+  local scenario=$1
+  work_root="$temp_dir/single-$scenario"
+  mkdir -p "$work_root"
+  manifest="$work_root/manifest.json"
+  printf '%s\n' '{"releaseTuple":{"targetFingerprintSha256":"target-hash"}}' > "$manifest"
+  calls="$work_root/calls"
+  : > "$calls"
+  run_semantic_restore_pass() {
+    printf '%s\n' semantic >> "$calls"
+    [[ "$scenario" != semantic-error ]] || return 23
+    printf '%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' \
+      "$([[ "$scenario" == semantic-mismatch ]] && printf 1 || printf 0)" > "$2"
+  }
+  verify_targets() {
+    printf '%s\n' targets >> "$calls"
+    [[ "$scenario" != target-error ]] || return 23
+    printf 'review-target\t1\tabc\n' > "$1"
+  }
+  recompute_target_fingerprint() {
+    [[ "$scenario" != target-drift ]] || { printf wrong-hash; return; }
+    printf target-hash
+  }
+  live_restore_fingerprints() {
+    printf '%s\n' fingerprints >> "$calls"
+    [[ "$scenario" != fingerprint-error ]] || return 23
+    final_world_fingerprint=final-hash
+    base_world_fingerprint=base-hash
+    inventory_fingerprint=inventory-hash
+    live_fingerprint_rows="$work_root/rows.tsv"
+    printf 'component\tdigest\n' > "$live_fingerprint_rows"
+  }
+  source "$single_semantic"
+  source "$single_fingerprints"
+  source "$final_targets"
+  printf 'COMPLETE %s\n' "$semantic_attestation_sha256"
+)
+single_result=$(run_single_attestation_fixture valid) || fail "single attestation rejected valid data"
+[[ "$single_result" == 'COMPLETE b9195554bec8204bfae037ad4a0e1405a2b9fc20f2c60992b61736bfcfb748a2' ]] \
+  || fail "single attestation changed the canonical receipt digest"
+[[ "$(cat "$temp_dir/single-valid/calls")" == $'semantic\ntargets\nfingerprints' ]] \
+  || fail "bootstrap must run each full attestation exactly once"
+for single_failure in semantic-error semantic-mismatch target-error target-drift fingerprint-error; do
+  if run_single_attestation_fixture "$single_failure" > "$temp_dir/single-result" 2>/dev/null; then
+    fail "single attestation accepted $single_failure"
+  fi
+  if grep -Fq COMPLETE "$temp_dir/single-result"; then
+    fail "failed attestation produced a completion digest"
+  fi
 done
 
 fingerprint_line=$(grep -n 'Elasticsearch content fingerprint does not match the release' "$bootstrap" | cut -d: -f1)

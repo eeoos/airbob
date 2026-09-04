@@ -60,8 +60,8 @@ grep -Fq 'DATABASE_BOOTSTRAP="dump"' <<<"$dump_make_contract" \
   || fail "make aws-up must default to dump bootstrap"
 
 snapshot_make_contract=$(make -s -n -C "$repo_root" aws-up DATABASE_BOOTSTRAP=snapshot)
-grep -Fq 'TTL_HOURS="2"' <<<"$snapshot_make_contract" \
-  || fail "make aws-up must pass the exact two-hour TTL for snapshot bootstrap"
+grep -Fq 'TTL_HOURS="6"' <<<"$snapshot_make_contract" \
+  || fail "make aws-up must allow snapshot qualification the same six-hour TTL as dump"
 grep -Fq 'DATABASE_BOOTSTRAP="snapshot"' <<<"$snapshot_make_contract" \
   || fail "make aws-up must preserve explicit snapshot bootstrap"
 
@@ -181,9 +181,9 @@ ssm_contract="$lab_root/ssm.tf"
   || fail "the shared Phase 2 service command must have exactly one 2400-second execution timeout"
 [[ "$(grep -Fc 'wait_for_success_timeout_seconds = 2700' "$ssm_contract")" -eq 3 ]] \
   || fail "core, Debezium, and monitoring associations must allow the 2400-second command to report its result"
-[[ "$(grep -Fc 'timeoutSeconds = "12600"' "$ssm_contract")" -eq 1 ]] \
-  || fail "the data-bootstrap command timeout must be exactly 12600 seconds"
-[[ "$(grep -Fc 'wait_for_success_timeout_seconds = 12900' "$ssm_contract")" -eq 1 ]] \
+[[ "$(grep -Fc 'timeoutSeconds = "18000"' "$ssm_contract")" -eq 1 ]] \
+  || fail "the data-bootstrap fallback must allow the full operator qualification envelope"
+[[ "$(grep -Fc 'wait_for_success_timeout_seconds = 18300' "$ssm_contract")" -eq 1 ]] \
   || fail "the data-bootstrap association must allow 300 seconds for result propagation"
 host_user_data_template="$lab_root/templates/host-user-data.sh.tftpl"
 assert_contains "$host_user_data_template" 'if ! command -v curl >/dev/null 2>&1; then'

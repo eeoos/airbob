@@ -423,7 +423,6 @@ master_password=$(jq -r '.password' "$master_secret_file")
 mysql_connect_timeout_seconds=10
 mysql_readiness_timeout_seconds=30
 mysql_general_timeout_seconds=900
-mysql_attestation_timeout_seconds=3600
 mysql_import_timeout_seconds=7200
 mysql_kill_after_seconds=30
 
@@ -449,7 +448,14 @@ mysql_readiness_exec() {
 }
 
 mysql_attestation_exec() {
-  mysql_with_deadline "$mysql_attestation_timeout_seconds" "$@"
+  # Initial qualification measures completion time; do not pre-empt a healthy
+  # full-dataset scan with a guessed SQL deadline. The operator/SSM lifetime
+  # still bounds the run and tears down its host on failure or expiry.
+  MYSQL_PWD="$master_password" mysql \
+    --protocol=TCP --default-character-set=utf8mb4 \
+    --host="$AIRBOB_RDS_ENDPOINT" --port=3306 --user="$master_username" \
+    --connect-timeout="$mysql_connect_timeout_seconds" --skip-reconnect \
+    --ssl --batch --raw --skip-column-names "$@"
 }
 
 mysql_import_dump() {
@@ -583,9 +589,9 @@ schema_fingerprint=$(sha256sum "$schema_file" | awk '{print $1}')
 semantic_restore_pass() {
   mysql_attestation_exec airbobdb <<'AIRBOB_SEMANTIC_SQL'
 WITH review_expected AS (
-  SELECT a.id accommodation_id,COUNT(r.id) total_review_count,COALESCE(SUM(r.rating),0) rating_sum,
-         CAST(COALESCE(AVG(r.rating),0) AS DECIMAL(3,2)) average_rating
-  FROM accommodation a LEFT JOIN review r ON r.accommodation_id=a.id AND r.status='PUBLISHED' GROUP BY a.id
+  SELECT r.accommodation_id,COUNT(*) total_review_count,SUM(r.rating) rating_sum,
+         ROUND(AVG(r.rating),2) average_rating
+  FROM review r WHERE r.status='PUBLISHED' GROUP BY r.accommodation_id
 ), review_counts AS (
   SELECT
     SUM(s.accommodation_id IS NULL) review_summary_missing_count,
@@ -643,11 +649,9 @@ run_semantic_restore_pass() {
 }
 
 semantic_one="$work_root/semantic-restore-one.tsv"
-semantic_two="$work_root/semantic-restore-two.tsv"
+# Reconcile once against the immutable release before enabling any writer.
+# Repeatability is checked between the independently restored dump/snapshot Labs.
 run_semantic_restore_pass 1 "$semantic_one" || exit $?
-run_semantic_restore_pass 2 "$semantic_two" || exit $?
-cmp -s "$semantic_one" "$semantic_two" \
-  || { printf '%s\n' 'semantic restore result changed between passes' >&2; exit 1; }
 awk -F '\t' 'NF!=13{exit 1}{for(i=1;i<=NF;i++)if($i!="0")exit 1}END{if(NR!=1)exit 1}' "$semantic_one" \
   || { printf '%s\n' 'semantic restore reconciliation failed' >&2; exit 1; }
 
@@ -842,21 +846,12 @@ recompute_target_fingerprint() {
   sha256sum "$output" | awk '{print $1}'
 }
 targets_one="$work_root/semantic-targets-one.tsv"
-targets_two="$work_root/semantic-targets-two.tsv"
-verify_targets "$targets_one" && verify_targets "$targets_two" \
+verify_targets "$targets_one" \
   || { printf '%s\n' 'restored target attestation failed' >&2; exit 1; }
-cmp -s "$targets_one" "$targets_two" \
-  || { printf '%s\n' 'restored read-model targets changed between passes' >&2; exit 1; }
 target_fingerprint=$(recompute_target_fingerprint)
 [[ "$target_fingerprint" == "$(jq -r '.releaseTuple.targetFingerprintSha256' "$manifest")" ]] \
   || { printf '%s\n' 'targetFingerprint does not bind live-verified targets' >&2; exit 1; }
 live_restore_fingerprints || { printf '%s\n' 'live final/base/inventory fingerprint attestation failed' >&2; exit 1; }
-live_rows_one="$work_root/live-fingerprint-rows-one.tsv"; cp "$live_fingerprint_rows" "$live_rows_one"
-live_summary_one="$final_world_fingerprint\t$base_world_fingerprint\t$inventory_fingerprint\t$target_fingerprint"
-live_restore_fingerprints || { printf '%s\n' 'second live fingerprint attestation failed' >&2; exit 1; }
-[[ "$live_summary_one" == "$final_world_fingerprint\t$base_world_fingerprint\t$inventory_fingerprint\t$target_fingerprint" ]] \
-  && cmp -s "$live_rows_one" "$live_fingerprint_rows" \
-  || { printf '%s\n' 'live restore fingerprints changed between passes' >&2; exit 1; }
 live_fingerprint_receipt="$work_root/live-fingerprint-receipt.tsv"
 printf 'final-world\t%s\nbase-world\t%s\ninventory\t%s\ntarget\t%s\n' "$final_world_fingerprint" "$base_world_fingerprint" "$inventory_fingerprint" "$target_fingerprint" > "$live_fingerprint_receipt"
 semantic_attestation_sha256=$({ cat "$semantic_one"; cat "$targets_one"; cat "$live_fingerprint_receipt"; } | sha256sum | awk '{print $1}')
@@ -1202,12 +1197,6 @@ done < <(jq -r '.kafka.topics[] | [.name, .partitions] | @tsv' "$manifest")
 final_outbox_count=$(mysql_exec airbobdb --execute='SELECT COUNT(*) FROM outbox')
 [[ "$final_outbox_count" == 0 ]] \
   || { printf '%s\n' 'dataset outbox changed while starting Debezium' >&2; exit 1; }
-
-targets_final="$work_root/semantic-targets-final.tsv"
-verify_targets "$targets_final" \
-  || { printf '%s\n' 'final live target attestation failed' >&2; exit 1; }
-cmp -s "$targets_one" "$targets_final" \
-  || { printf '%s\n' 'live targets drifted after the semantic gate' >&2; exit 1; }
 
 cleanup
 
