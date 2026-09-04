@@ -9,6 +9,7 @@ export AWS_SESSION_TOKEN=explicit-fixture-session
 export AIRBOB_AWS_CREDENTIAL_EXPIRATION=2099-01-01T00:00:00Z
 
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+bash "$script_dir/aws-lab-snapshot-parity-test.sh"
 repo_root=$(CDPATH= cd -P -- "$script_dir/../../.." && pwd -P)
 operator="$repo_root/infra/aws/scripts/aws-lab.sh"
 lease_script="$repo_root/infra/aws/scripts/orchestration-lease.sh"
@@ -1032,13 +1033,18 @@ case " $* " in
         cat "${FAKE_RUN_MANIFEST:?}" > "$destination"
       fi
     elif [[ "$key" == data-bootstrap/* ]]; then
+      if [[ -f "$store_path" ]]; then
+        cp "$store_path" "$destination"
+        exit 0
+      fi
       receipt_run=${key#data-bootstrap/}
       receipt_run=${receipt_run%%/*}
       manifest_sha=$(shasum -a 256 "${FAKE_DATASET_MANIFEST:?}" | awk '{print $1}')
       jq -n --arg run "$receipt_run" --arg manifestSha "$manifest_sha" \
         --arg bootstrap "${FAKE_DATABASE_BOOTSTRAP:-dump}" \
-        '{schemaVersion:2,runId:$run,datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKL01234",rdsEngineVersion:"8.0.42",outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
+        '{schemaVersion:2,runId:$run,datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",rdsEngineVersion:"8.0.42",semanticAttestationSha256:("2" * 64),outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
         > "$destination"
+      cp "$destination" "$store_path"
     elif [[ "$key" == network-clearance/* ]]; then
       clearance_run=${key#network-clearance/}
       clearance_run=${clearance_run%%/*}
@@ -1172,6 +1178,21 @@ case " $* " in
     esac
     ;;
   *' ec2 describe-images '*) printf '%s\n' '{"imageId":"ami-0123456789abcdef0","creationDate":"2026-08-31T00:00:00Z","architecture":"x86_64","rootDeviceType":"ebs","virtualizationType":"hvm"}' ;;
+  *' rds describe-db-snapshots '*)
+    source_data="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__fixture-v20.json"
+    source_readiness="$FAKE_S3_STORE/measurements__lab-repeat-dump__direct-readiness.json"
+    jq -n --arg dataSha "$(shasum -a 256 "$source_data" | awk '{print $1}')" \
+      --arg readinessSha "$(shasum -a 256 "$source_readiness" | awk '{print $1}')" \
+      --arg versionSha "$(printf version-fixture | shasum -a 256 | awk '{print $1}')" '{DBSnapshots:[{
+        DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",
+        TagList:[{Key:"SourceLabRunId",Value:"lab-repeat-dump"},{Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWX"},
+          {Key:"DatasetRelease",Value:"fixture-v20"},{Key:"PromotionReceiptSchemaVersion",Value:"2"},
+          {Key:"DataBootstrapKey",Value:"data-bootstrap/lab-repeat-dump/fixture-v20.json"},
+          {Key:"DataBootstrapVersionIdSha256",Value:$versionSha},{Key:"DataBootstrapSha256",Value:$dataSha},
+          {Key:"DirectReadinessKey",Value:"measurements/lab-repeat-dump/direct-readiness.json"},
+          {Key:"DirectReadinessVersionIdSha256",Value:$versionSha},{Key:"DirectReadinessSha256",Value:$readinessSha}]
+      }]}'
+    ;;
   *' rds describe-db-instances '*'MasterUserSecret.SecretArn'*) printf '%s\n' 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test' ;;
   *' rds describe-db-instances '*)
     jq -nc \
@@ -1179,7 +1200,7 @@ case " $* " in
       --argjson throughput "${FAKE_RDS_STORAGE_THROUGHPUT:-125}" \
       --argjson publiclyAccessible "${FAKE_RDS_PUBLICLY_ACCESSIBLE:-false}" '
       {
-        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKL01234", class:"db.t3.small",
+        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX", class:"db.t3.small",
         engine:"mysql", engineVersion:"8.0.42", allocatedStorageGiB:100, storageType:"gp3",
         iops:$iops, storageThroughputMiBps:$throughput, multiAz:false, storageEncrypted:true,
         publiclyAccessible:$publiclyAccessible, availabilityZone:"ap-northeast-2a",
@@ -1413,7 +1434,7 @@ case " $* " in
     jq -nc --arg run_id "${FAKE_STATE_RUN_ID:-lab-partial-down}" '{run_id:$run_id,vpc_id:"vpc-0123456789abcdef0",primary_private_route_table:"rtb-0123456789abcdef0",probe_instance_id:"i-0123456789abcdef0",services:{debezium:"i-11111111111111111",kafka:"i-22222222222222222"}}'
     ;;
   *' output -json phase3_contract '*)
-    printf '%s\n' '{"rds_instance_id":"airbob-fake","rds_resource_id":"db-ABCDEFGHIJKL01234","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
+    printf '%s\n' '{"rds_instance_id":"airbob-fake","rds_resource_id":"db-ABCDEFGHIJKLMNOPQRSTUVWX","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
     ;;
   *' output -json phase4_contract '*)
     if [[ "${FAKE_NO_ALB:-false}" == true ]]; then

@@ -2064,6 +2064,89 @@ verify_oci_authority() {
     > "$oci_observation_file"
 }
 
+verify_snapshot_receipt_parity() {
+  local current_data=$1 current_readiness=$2
+  [[ "$database_bootstrap" == snapshot ]] || return 0
+  local snapshot tags prefix key version expected_version_sha expected_sha destination
+  local source_data="$temp_dir/snapshot-source-data.json" source_readiness="$temp_dir/snapshot-source-readiness.json"
+  local source_data_version source_data_sha source_projection current_projection source_data_projection
+  local source_data_key="data-bootstrap/$rds_snapshot_source_run_id/$dataset_release.json"
+  local source_readiness_key="measurements/$rds_snapshot_source_run_id/direct-readiness.json"
+
+  assert_lease
+  snapshot=$(aws rds describe-db-snapshots --db-snapshot-identifier "$rds_snapshot_identifier" \
+    --output json --region "$AWS_REGION" --no-cli-pager) \
+    || fail "snapshot receipt source metadata is unavailable"
+  tags=$(jq -ce --arg snapshot "$rds_snapshot_identifier" --arg run "$rds_snapshot_source_run_id" \
+    --arg resource "$rds_snapshot_source_resource_id" --arg release "$dataset_release" \
+    --arg dataKey "$source_data_key" --arg readinessKey "$source_readiness_key" '
+    .DBSnapshots | select(length == 1) | .[0] |
+    select(.DBSnapshotIdentifier == $snapshot and .DbiResourceId == $resource) |
+    .TagList | select((map(.Key) | unique | length) == length) |
+    map({key:.Key,value:.Value}) | from_entries |
+    select(.SourceLabRunId == $run and .SourceRdsResourceId == $resource and
+      .DatasetRelease == $release and .PromotionReceiptSchemaVersion == "2" and
+      .DataBootstrapKey == $dataKey and .DirectReadinessKey == $readinessKey) |
+    select(all([.DataBootstrapVersionIdSha256,.DataBootstrapSha256,
+      .DirectReadinessVersionIdSha256,.DirectReadinessSha256][];
+      type == "string" and test("^[0-9a-f]{64}$")))
+  ' <<<"$snapshot") || fail "snapshot receipt source identity differs from the promoted snapshot"
+
+  for prefix in DataBootstrap DirectReadiness; do
+    key=$(jq -r --arg key "${prefix}Key" '.[$key]' <<<"$tags")
+    expected_version_sha=$(jq -r --arg key "${prefix}VersionIdSha256" '.[$key]' <<<"$tags")
+    expected_sha=$(jq -r --arg key "${prefix}Sha256" '.[$key]' <<<"$tags")
+    destination=$source_data
+    [[ "$prefix" != DirectReadiness ]] || destination=$source_readiness
+    # These keys are immutable. A different latest version fails closed; never
+    # silently substitute newer evidence or enumerate history for a match.
+    version=$(aws s3api head-object --bucket "$evidence_bucket" --key "$key" \
+      --query '{versionId:VersionId}' --output json --region "$AWS_REGION" --no-cli-pager \
+      | jq -er '.versionId | select(type == "string" and length > 0 and . != "null")') \
+      || fail "snapshot source receipt has no immutable version identity"
+    [[ "$(printf '%s' "$version" | sha256_text)" == "$expected_version_sha" ]] \
+      || fail "snapshot source receipt version differs from the promoted version"
+    aws s3api get-object --bucket "$evidence_bucket" --key "$key" --version-id "$version" \
+      "$destination" --region "$AWS_REGION" --no-cli-pager >/dev/null \
+      || fail "exact snapshot source receipt is unavailable"
+    [[ "$(sha256_file "$destination")" == "$expected_sha" ]] \
+      || fail "snapshot source receipt content differs from the promoted content"
+    if [[ "$prefix" == DataBootstrap ]]; then
+      source_data_version=$version
+      source_data_sha=$expected_sha
+    fi
+  done
+  jq -e --arg run "$rds_snapshot_source_run_id" --arg resource "$rds_snapshot_source_resource_id" \
+    --arg release "$dataset_release" '
+    .schemaVersion == 2 and .runId == $run and .rdsResourceId == $resource and
+    .datasetRelease == $release and .databaseBootstrap == "dump" and
+    (.semanticAttestationSha256 | type == "string" and test("^[0-9a-f]{64}$"))
+  ' "$source_data" >/dev/null || fail "snapshot source data receipt is not the promoted dump receipt"
+  source_data_projection=$(jq -cS 'del(.runId,.databaseBootstrap,.rdsResourceId,.verifiedAt)' "$source_data")
+  [[ "$source_data_projection" == "$(jq -cS 'del(.runId,.databaseBootstrap,.rdsResourceId,.verifiedAt)' "$current_data")" ]] \
+    || fail "snapshot data projection differs from the source dump receipt"
+  jq -e --arg run "$rds_snapshot_source_run_id" --arg resource "$rds_snapshot_source_resource_id" \
+    --arg key "$source_data_key" --arg version "$source_data_version" --arg sha "$source_data_sha" \
+    --arg projectionSha "$(printf '%s' "$source_data_projection" | sha256_text)" '
+    .schemaVersion == 1 and .status == "ready" and .runId == $run and
+    .actual.rds.resourceId == $resource and .bootstrap.mode == "dump" and
+    .bootstrap.rdsSnapshotIdentifier == null and .bootstrap.rdsSnapshotSourceRunId == null and
+    .bootstrap.rdsSnapshotSourceResourceId == null and
+    .bootstrap.receipt.key == $key and .bootstrap.receipt.versionId == $version and
+    .bootstrap.receipt.sha256 == $sha and .bootstrap.dataProjectionSha256 == $projectionSha
+  ' "$source_readiness" >/dev/null || fail "snapshot source readiness does not bind the exact dump receipt"
+  source_projection=$(jq -cSf "$comparison_projection_filter" "$source_readiness") \
+    || fail "snapshot source readiness projection is invalid"
+  jq -e --argjson projection "$source_projection" \
+    --arg sha "$(printf '%s\n' "$source_projection" | sha256_text)" '
+    .comparisonProjection == $projection and .comparisonProjectionSha256 == $sha
+  ' "$source_readiness" >/dev/null || fail "snapshot source readiness projection binding is invalid"
+  current_projection=$(jq -cSf "$comparison_projection_filter" "$current_readiness") \
+    || fail "snapshot readiness projection is invalid"
+  [[ "$current_projection" == "$source_projection" ]] \
+    || fail "snapshot readiness projection differs from the source dump receipt"
+}
+
 publish_direct_readiness() {
   local data_key data_head data_receipt="$temp_dir/data-bootstrap.json"
   local network_key network_head network_receipt="$temp_dir/network-clearance.json"
@@ -2234,6 +2317,7 @@ publish_direct_readiness() {
     --slurpfile comparisonProjection "$comparison_projection" \
     '. + {comparisonProjection:$comparisonProjection[0],comparisonProjectionSha256:$comparisonProjectionSha256}' \
     "$receipt_basis" > "$receipt"
+  verify_snapshot_receipt_parity "$data_receipt" "$receipt"
   publish_immutable_json "measurements/$run_id/direct-readiness.json" "$receipt"
 }
 
