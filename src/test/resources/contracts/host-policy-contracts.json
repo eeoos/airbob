@@ -1,0 +1,17 @@
+{
+  "absent": {
+    "max_occupancy": null,
+    "infant_occupancy": null,
+    "pet_occupancy": null
+  },
+  "partial": {
+    "max_occupancy": 4,
+    "infant_occupancy": null,
+    "pet_occupancy": 2
+  },
+  "complete": {
+    "max_occupancy": 4,
+    "infant_occupancy": 2,
+    "pet_occupancy": 3
+  }
+}

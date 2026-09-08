@@ -84,6 +84,29 @@ class AccommodationCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("게시 숙소의 기존 정책을 수정하면 같은 정책을 갱신하고 조회 캐시와 색인을 갱신한다")
+	void updateExistingPolicyAndRefreshReadModels() {
+		OccupancyPolicy policy = OccupancyPolicy.builder()
+			.id(9L).maxOccupancy(4).infantOccupancy(1).petOccupancy(0).build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(1L).accommodationUid(UUID.randomUUID()).status(AccommodationStatus.PUBLISHED)
+			.occupancyPolicy(policy).build();
+		when(accommodationRepository.findByIdAndMemberIdAndStatusNotForUpdate(1L, 2L, AccommodationStatus.DELETED))
+			.thenReturn(Optional.of(accommodation));
+
+		accommodationCommandService.updateAccommodation(1L, AccommodationRequest.Update.builder()
+			.occupancyPolicyInfo(new PolicyRequest.OccupancyPolicyInfo(6, 2, 3)).build(), 2L);
+
+		assertThat(accommodation.getOccupancyPolicy()).isSameAs(policy);
+		assertThat(policy.getMaxOccupancy()).isEqualTo(6);
+		assertThat(policy.getInfantOccupancy()).isEqualTo(2);
+		assertThat(policy.getPetOccupancy()).isEqualTo(3);
+		verifyNoInteractions(occupancyPolicyRepository);
+		verify(searchRefreshPublisher).requestRefresh(accommodation.getAccommodationUid());
+		verify(cacheInvalidationPublisher).publish(1L, AccommodationDetailCacheInvalidationReason.ACCOMMODATION);
+	}
+
+	@Test
 	@DisplayName("주소가 바뀌면 해석된 좌표와 시간대를 함께 갱신한다")
 	void updateAddressAndTimeZoneTogether() {
 		Accommodation accommodation = Accommodation.builder()

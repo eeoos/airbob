@@ -5,7 +5,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.PolicyRequest;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -34,5 +33,11 @@ public class OccupancyPolicy extends BaseEntity {
 				.infantOccupancy(occupancyPolicyInfo.infantOccupancy())
 				.petOccupancy(occupancyPolicyInfo.petOccupancy())
 				.build();
+	}
+
+	public void update(PolicyRequest.OccupancyPolicyInfo policy) {
+		this.maxOccupancy = policy.maxOccupancy();
+		this.infantOccupancy = policy.infantOccupancy();
+		this.petOccupancy = policy.petOccupancy();
 	}
 }
