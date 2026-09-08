@@ -74,6 +74,21 @@ class CouponQueryRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("매진 캠페인은 노출되며 발급 종료 후에도 보유 쿠폰은 조회할 수 있다")
+	void soldOutAndEndedCampaignsDoNotEraseOwnedCoupons() {
+		long memberId = insertMember("sold-out-owner");
+		long soldOut = insertCoupon("매진", true, NOW.minusHours(1), NOW.plusHours(1));
+		jdbc.update("UPDATE coupon SET issued_quantity = total_quantity WHERE id = ?", soldOut);
+		long ended = insertCoupon("발급 종료", true, NOW.minusDays(1), NOW);
+		insertMemberCoupon(memberId, soldOut, NOW.minusMinutes(2));
+		insertMemberCoupon(memberId, ended, NOW.minusMinutes(1));
+
+		assertThat(couponRepository.findCampaigns(NOW)).extracting(Coupon::getId).containsExactly(soldOut);
+		assertThat(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId))
+			.extracting(memberCoupon -> memberCoupon.getCoupon().getId()).containsExactly(ended, soldOut);
+	}
+
+	@Test
 	@DisplayName("로그인 회원의 보유 쿠폰만 발급 최신순으로 쿠폰 정보와 함께 조회한다")
 	void findsOnlyOwnedCouponsInStableLatestOrder() {
 		long memberId = insertMember("owner");
