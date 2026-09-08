@@ -21,6 +21,7 @@ import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -336,25 +337,25 @@ public class ReservationResponse {
 
 		PaymentResponse.HostPaymentInfo payment
 	) {
-		public static HostDetail from(Reservation reservation, PaymentResponse.HostPaymentInfo paymentInfo) {
-			Accommodation accommodation = reservation.getAccommodation();
-			Address address = accommodation.getAddress();
-			ZoneId timeZone = ZoneId.of(reservation.getTimeZoneId());
+		public static HostDetail from(HostReservationDetailProjection detail) {
+			ZoneId timeZone = ZoneId.of(detail.timeZoneId());
 			return HostDetail.builder()
-				.reservationUid(reservation.getReservationUid().toString())
-				.reservationCode(reservation.getReservationCode())
-				.status(reservation.getStatus())
-				.createdAt(toUtcInstant(reservation.getCreatedAt()))
-				.guestCount(reservation.getGuestCount())
-				.checkInDateTime(LocalDateTime.ofInstant(reservation.getCheckInAt(), timeZone))
-				.checkOutDateTime(LocalDateTime.ofInstant(reservation.getCheckOutAt(), timeZone))
-				.timeZoneId(reservation.getTimeZoneId())
-				.requestMessage(reservation.getMessage())
-				.accommodation(
-					AccommodationResponse.AccommodationBasicInfo.from(accommodation))
-				.address(AddressResponse.AddressInfo.from(address))
-				.guest(MemberResponse.MemberInfo.from(reservation.getGuest()))
-				.payment(paymentInfo)
+				.reservationUid(detail.reservationUid().toString())
+				.reservationCode(detail.reservationCode())
+				.status(detail.status())
+				.createdAt(toUtcInstant(detail.createdAt()))
+				.guestCount(detail.guestCount())
+				.checkInDateTime(LocalDateTime.ofInstant(detail.checkInAt(), timeZone))
+				.checkOutDateTime(LocalDateTime.ofInstant(detail.checkOutAt(), timeZone))
+				.timeZoneId(detail.timeZoneId())
+				.requestMessage(detail.requestMessage())
+				.accommodation(new AccommodationResponse.AccommodationBasicInfo(
+					detail.accommodationId(), detail.accommodationName(), detail.accommodationThumbnailUrl()))
+				.address(new AddressResponse.AddressInfo(detail.country(), detail.state(), detail.city(),
+					detail.district(), detail.street(), detail.addressDetail(), detail.postalCode()))
+				.guest(new MemberResponse.MemberInfo(
+					detail.guestId(), detail.guestNickname(), detail.guestThumbnailImageUrl()))
+				.payment(detail.paymentAmount() == null ? null : new PaymentResponse.HostPaymentInfo(detail.paymentAmount()))
 				.build();
 		}
 	}

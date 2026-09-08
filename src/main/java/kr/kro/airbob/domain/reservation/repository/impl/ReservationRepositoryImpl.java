@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.repository.impl;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.member.entity.QMember.*;
+import static kr.kro.airbob.domain.payment.entity.QPayment.payment;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
@@ -27,6 +28,8 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationDetailProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -193,12 +196,25 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Optional<Reservation> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId) {
-		Reservation result = queryFactory
-			.selectFrom(reservation)
-			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
-			.innerJoin(reservation.guest, guestMember).fetchJoin()
-			.leftJoin(accommodation.address, address).fetchJoin()
+	public Optional<HostReservationDetailProjection> findHostReservationDetailByUidAndHostId(
+		UUID reservationUid, Long hostId
+	) {
+		HostReservationDetailProjection result = queryFactory
+			.select(new QHostReservationDetailProjection(
+				reservation.reservationUid, reservation.reservationCode, reservation.status, reservation.createdAt,
+				reservation.guestCount, reservation.checkInAt, reservation.checkOutAt, reservation.timeZoneId,
+				reservation.message,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl,
+				address.country, address.state, address.city, address.district, address.street, address.detail,
+				address.postalCode,
+				guestMember.id, guestMember.nickname, guestMember.thumbnailImageUrl,
+				payment.amount
+			))
+			.from(reservation)
+			.innerJoin(reservation.accommodation, accommodation)
+			.innerJoin(reservation.guest, guestMember)
+			.leftJoin(accommodation.address, address)
+			.leftJoin(payment).on(payment.reservation.id.eq(reservation.id))
 			.where(
 				reservation.reservationUid.eq(reservationUid),
 				accommodation.member.id.eq(hostId)

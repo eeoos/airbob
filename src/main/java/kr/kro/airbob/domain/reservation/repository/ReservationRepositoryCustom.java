@@ -13,6 +13,7 @@ import org.springframework.data.domain.Slice;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 
 public interface ReservationRepositoryCustom {
 	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
@@ -47,5 +48,5 @@ public interface ReservationRepositoryCustom {
 
 	Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
 
-	Optional<Reservation> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId);
+	Optional<HostReservationDetailProjection> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId);
 }

@@ -343,17 +343,10 @@ public class ReservationTransactionService {
 
 	@Transactional(readOnly = true)
 	public ReservationResponse.HostDetail findHostReservationDetail(String reservationUidStr, Long hostId) {
-
 		UUID reservationUid = UUID.fromString(reservationUidStr);
-
-		Reservation reservation = reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
+		return reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
+			.map(ReservationResponse.HostDetail::from)
 			.orElseThrow(ReservationNotFoundException::new);
-
-		PaymentResponse.HostPaymentInfo paymentInfo = paymentRepository.findAmountByReservationId(reservation.getId())
-			.map(PaymentResponse.HostPaymentInfo::new)
-			.orElse(null);
-
-		return ReservationResponse.HostDetail.from(reservation, paymentInfo);
 	}
 
 	private java.util.List<PaymentTransaction> findCancelTransactions(Payment payment) {

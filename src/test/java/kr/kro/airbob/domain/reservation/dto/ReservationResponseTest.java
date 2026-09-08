@@ -22,12 +22,9 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.member.entity.Member;
-import kr.kro.airbob.domain.payment.dto.PaymentResponse;
-import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentMethod;
-import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 
 @JsonTest
 @DisplayName("예약 응답 시간대 테스트")
@@ -44,26 +41,15 @@ class ReservationResponseTest {
 		LocalDateTime checkIn = LocalDateTime.parse("2026-11-01T00:00:00");
 		LocalDateTime checkOut = LocalDateTime.parse("2026-11-03T00:00:00");
 		String uid = "10000000-0000-4000-8000-000000000002";
-		Accommodation accommodation = Accommodation.builder()
-			.id(7L).name("호스트 계약 숙소").timeZoneId("Asia/Seoul")
-			.address(Address.builder().country("미국").state("New York").city("New York")
-				.street("Test Street").postalCode("10001").build()).build();
-		Reservation reservation = Reservation.builder()
-			.reservationUid(UUID.fromString(uid)).reservationCode("HOST-2026")
-			.accommodation(accommodation).guest(Member.builder().id(2L).nickname("테스트 게스트").build())
-			.status(ReservationStatus.CONFIRMED).guestCount(2)
-			.checkInDate(checkIn.toLocalDate()).checkOutDate(checkOut.toLocalDate())
-			.checkInAt(checkIn.atZone(zone).toInstant()).checkOutAt(checkOut.atZone(zone).toInstant())
-			.timeZoneId(zone.getId()).totalPrice(100_001L).discountAmount(19_999L).currency("KRW")
-			.createdAt(LocalDateTime.parse("2026-09-01T00:00:00")).build();
-		Payment payment = Payment.builder().orderId(uid).paymentKey("synthetic-payment-key")
-			.reservation(reservation).amount(100_001L).balanceAmount(100_001L)
-			.method(PaymentMethod.CARD).status(PaymentStatus.DONE)
-			.approvedAt(Instant.parse("2026-09-01T00:01:00Z"))
-			.createdAt(LocalDateTime.parse("2026-09-01T00:00:00")).build();
+		HostReservationDetailProjection detail = new HostReservationDetailProjection(
+			UUID.fromString(uid), "HOST-2026", ReservationStatus.CONFIRMED,
+			LocalDateTime.parse("2026-09-01T00:00:00"), 2,
+			checkIn.atZone(zone).toInstant(), checkOut.atZone(zone).toInstant(), zone.getId(), null,
+			7L, "호스트 계약 숙소", null,
+			"미국", "New York", "New York", null, "Test Street", null, "10001",
+			2L, "테스트 게스트", null, 100_001L);
 
-		ReservationResponse.HostDetail response = ReservationResponse.HostDetail.from(
-			reservation, new PaymentResponse.HostPaymentInfo(payment.getAmount()));
+		ReservationResponse.HostDetail response = ReservationResponse.HostDetail.from(detail);
 
 		try (var fixture = new ClassPathResource("contracts/host-reservation-stay-payment.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(response)))
@@ -235,7 +221,10 @@ class ReservationResponseTest {
 		ReservationResponse.GuestDetail guestDetail = ReservationResponse.GuestDetail.from(
 			reservation, null, true, SERVER_TIME);
 		ReservationResponse.HostDetail hostDetail = ReservationResponse.HostDetail.from(
-			reservation, null);
+			new HostReservationDetailProjection(reservation.getReservationUid(), reservation.getReservationCode(),
+				reservation.getStatus(), createdAt, 2, reservation.getCheckInAt(), reservation.getCheckOutAt(),
+				reservationZone.getId(), reservation.getMessage(), 10L, accommodation.getName(), null,
+				null, null, null, null, null, null, null, 2L, guest.getNickname(), null, null));
 		ReservationResponse.GuestReservationInfo guestInfo =
 			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
 		ReservationResponse.HostReservationInfo hostInfo =

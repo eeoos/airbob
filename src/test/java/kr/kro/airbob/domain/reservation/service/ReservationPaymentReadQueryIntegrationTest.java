@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -29,6 +30,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -39,6 +41,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -48,8 +51,6 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.entity.Payment;
-import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
@@ -217,25 +218,36 @@ class ReservationPaymentReadQueryIntegrationTest {
 		assertThat(detail.payment().totalAmount()).isEqualTo(100001L);
 		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail.payment())))
 			.isEqualTo(objectMapper.readTree("{\"total_amount\":100001}"));
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
-		assertThat(statistics.getEntityStatistics(Payment.class.getName()).getLoadCount()).isZero();
-		assertThat(statistics.getEntityStatistics(PaymentTransaction.class.getName()).getLoadCount()).isZero();
-		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
-		var paymentSql = sqlCapture.statements.stream()
-			.filter(sql -> sql.contains(" from payment ")).findFirst().orElseThrow();
-		assertThat(paymentSql.substring("select ".length(), paymentSql.indexOf(" from ")))
-			.endsWith(".amount").doesNotContain(",");
-		assertThat(paymentSql).contains(".reservation_id=?").doesNotContain(" join ");
+		assertHostProjectionQuery(statistics);
 	}
 
 	@Test
-	void hostKeepsMissingPaymentAsNullWithoutReadingLegacyLedger() {
+	void hostKeepsMissingPaymentAndAddressWithoutReadingLegacyLedger() throws Exception {
 		insertTransaction(61, "VIRTUAL_ISSUED", null, null, "2026-09-01 10:00:00");
+		jdbc.update("""
+			INSERT INTO reservation (id, reservation_uid, accommodation_id, guest_id,
+				check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+				guest_count, total_price, discount_amount, status, expires_at, created_at, updated_at, currency)
+			SELECT 41, UUID_TO_BIN('20000000-0000-4000-8000-000000000003'), accommodation_id, guest_id,
+				check_in_date, check_out_date, check_in_at, check_out_at, time_zone_id,
+				guest_count, total_price, discount_amount, 'CONFIRMED', expires_at, created_at, updated_at, currency
+			FROM reservation WHERE id = 40
+			""");
+		jdbc.update("""
+			INSERT INTO payment (id, payment_uid, payment_key, order_id, amount, method, approved_at,
+				created_at, reservation_id, status, balance_amount, updated_at)
+			VALUES (51, UUID_TO_BIN(UUID()), 'synthetic-other-payment', '20000000-0000-4000-8000-000000000003',
+				200000, 'CARD', '2026-09-01 09:00:00', '2026-09-01 09:00:00', 41, 'DONE', 200000, NOW(6))
+			""");
 		Statistics statistics = prepareMeasurement();
 
-		assertThat(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L).payment()).isNull();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
-		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
+		var detail = service.findHostReservationDetail(RESERVATION_UID.toString(), 10L);
+		assertThat(detail.payment()).isNull();
+		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail.address())))
+			.isEqualTo(objectMapper.readTree("""
+				{"country":null,"state":null,"city":null,"district":null,"street":null,"detail":null,"postal_code":null}
+				"""));
+		assertHostProjectionQuery(statistics);
 	}
 
 	@Test
@@ -245,18 +257,75 @@ class ReservationPaymentReadQueryIntegrationTest {
 
 		assertThat(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L).payment().totalAmount())
 			.isZero();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertHostProjectionQuery(statistics);
 	}
 
-	@Test
-	void reservationGuestCannotReadPaymentThroughHostDetail() {
+	@ParameterizedTest
+	@ValueSource(longs = {GUEST_ID, 999L})
+	void anotherMemberCannotReadHostDetail(long memberId) {
 		insertPayment(100001L, 100001L, "DONE");
 		Statistics statistics = prepareMeasurement();
 
-		assertThatThrownBy(() -> service.findHostReservationDetail(RESERVATION_UID.toString(), GUEST_ID))
+		assertThatThrownBy(() -> service.findHostReservationDetail(RESERVATION_UID.toString(), memberId))
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
-		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains(" from payment"));
+		assertThat(statistics.getEntityLoadCount()).isZero();
+	}
+
+	@Test
+	void hostGetsNotFoundForUnknownReservation() {
+		Statistics statistics = prepareMeasurement();
+
+		assertThatThrownBy(() -> service.findHostReservationDetail(UUID.randomUUID().toString(), 10L))
+			.isInstanceOf(ReservationNotFoundException.class);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+	}
+
+	@Test
+	void hostProjectionPreservesFullJsonContractAndReservationTimeZone() throws Exception {
+		jdbc.update("""
+			INSERT INTO address (id, country, state, city, district, street, detail, postal_code, updated_at)
+			VALUES (31, '미국', 'New York', 'New York', 'Manhattan', 'Test Street', 'Unit 1', '10001', NOW(6))
+			""");
+		jdbc.update("""
+			UPDATE accommodation SET name = '호스트 계약 숙소', address_id = 31,
+				thumbnail_url = '/contract/stay.jpg', time_zone_id = 'Asia/Seoul' WHERE id = 30
+			""");
+		jdbc.update("""
+			UPDATE member SET nickname = '테스트 게스트', thumbnail_image_url = '/contract/guest.jpg' WHERE id = 20
+			""");
+		jdbc.update("""
+			UPDATE reservation SET reservation_code = 'HOST-2026', status = 'CONFIRMED',
+				created_at = '2026-09-01 00:00:00', check_in_date = '2026-11-01', check_out_date = '2026-11-03',
+				check_in_at = '2026-11-01 04:00:00', check_out_at = '2026-11-03 05:00:00',
+				time_zone_id = 'America/New_York', message = '늦은 체크인' WHERE id = 40
+			""");
+		insertPayment(100001L, 100001L, "DONE");
+		Statistics statistics = prepareMeasurement();
+
+		var detail = service.findHostReservationDetail(RESERVATION_UID.toString(), 10L);
+
+		try (var fixture = new ClassPathResource("contracts/host-reservation-stay-payment.json").getInputStream()) {
+			ObjectNode expected = (ObjectNode)objectMapper.readTree(fixture);
+			expected.put("reservation_uid", RESERVATION_UID.toString()).put("request_message", "늦은 체크인");
+			((ObjectNode)expected.get("accommodation")).put("id", 30).put("thumbnail_url", "/contract/stay.jpg");
+			((ObjectNode)expected.get("guest")).put("id", 20).put("thumbnail_image_url", "/contract/guest.jpg");
+			((ObjectNode)expected.get("address")).put("district", "Manhattan").put("detail", "Unit 1");
+			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail))).isEqualTo(expected);
+		}
+		assertHostProjectionQuery(statistics);
+	}
+
+	private void assertHostProjectionQuery(Statistics statistics) {
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		assertThat(sqlCapture.statements).hasSize(1);
+		String sql = sqlCapture.statements.getFirst();
+		assertThat(sql.substring("select ".length(), sql.indexOf(" from ")).split(",")).hasSize(23);
+		assertThat(sql).contains("left join payment ")
+			.doesNotContain("payment_transaction", ".payment_key", ".balance_amount", ".description",
+				".latitude", ".longitude", ".updated_at", ".expires_at", ".total_price", ".discount_amount", ".email");
 	}
 
 	private void insertPayment(long amount, long balanceAmount, String status) {
