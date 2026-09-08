@@ -114,17 +114,24 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status) {
-        List<Accommodation> results = jpaQueryFactory.
-            selectFrom(accommodation)
+    public List<AccommodationDetailProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+        List<Long> accommodationIds, AccommodationStatus status
+    ) {
+        return jpaQueryFactory
+            .select(new QAccommodationDetailProjection(
+                accommodation,
+                accommodationReviewSummary.totalReviewCount,
+                accommodationReviewSummary.averageRating
+            ))
+            .from(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
+            .leftJoin(accommodationReviewSummary)
+            .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
             .where(
                 accommodation.id.in(accommodationIds),
                 accommodation.status.eq(status)
             )
             .fetch();
-
-        return results;
     }
 
 	@Override
