@@ -12,16 +12,14 @@ import java.util.UUID;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.payment.dto.PaymentResponse;
 import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import lombok.AccessLevel;
@@ -222,40 +220,41 @@ public class ReservationResponse {
 		AddressResponse.Coordinate coordinate,
 		MemberResponse.MemberInfo host,
 
-		PaymentResponse.PaymentInfo payment
+		PaymentResponse.GuestPaymentInfo payment
 	) {
-		public static GuestDetail from(Reservation reservation,
-			PaymentResponse.PaymentInfo paymentInfo,
+		public static GuestDetail from(GuestReservationDetailProjection detail,
 			boolean canWriteReview,
 			Instant serverTime) {
-			Accommodation accommodation = reservation.getAccommodation();
-			Address address = accommodation.getAddress();
-			Member host = accommodation.getMember();
-			ZoneId timeZone = ZoneId.of(reservation.getTimeZoneId());
-			LocalDateTime checkInDateTime = LocalDateTime.ofInstant(reservation.getCheckInAt(), timeZone);
-			LocalDateTime checkOutDateTime = LocalDateTime.ofInstant(reservation.getCheckOutAt(), timeZone);
+			ZoneId timeZone = ZoneId.of(detail.timeZoneId());
+			LocalDateTime checkInDateTime = LocalDateTime.ofInstant(detail.checkInAt(), timeZone);
+			LocalDateTime checkOutDateTime = LocalDateTime.ofInstant(detail.checkOutAt(), timeZone);
 
 			return GuestDetail.builder()
-				.reservationUid(reservation.getReservationUid().toString())
-				.reservationCode(reservation.getReservationCode())
-				.status(reservation.effectiveStatus(serverTime))
-				.paymentAllowed(reservation.isPaymentAllowedAt(serverTime))
-				.holdExpiresAt(activeHoldExpiresAt(reservation))
+				.reservationUid(detail.reservationUid().toString())
+				.reservationCode(detail.reservationCode())
+				.status(Reservation.effectiveStatus(detail.status(), detail.expiresAt(), serverTime))
+				.paymentAllowed(Reservation.isPaymentAllowedAt(
+					detail.status(), detail.totalPrice(), detail.expiresAt(), serverTime))
+				.holdExpiresAt(detail.status() == ReservationStatus.PAYMENT_PENDING ? detail.expiresAt() : null)
 				.serverTime(serverTime)
-				.createdAt(toUtcInstant(reservation.getCreatedAt()))
-				.guestCount(reservation.getGuestCount())
+				.createdAt(toUtcInstant(detail.createdAt()))
+				.guestCount(detail.guestCount())
 				.checkInDateTime(checkInDateTime)
 				.checkOutDateTime(checkOutDateTime)
-				.timeZoneId(reservation.getTimeZoneId())
+				.timeZoneId(detail.timeZoneId())
 				.checkInTime(checkInDateTime.toLocalTime())
 				.checkOutTime(checkOutDateTime.toLocalTime())
-				.requestMessage(reservation.getMessage())
+				.requestMessage(detail.requestMessage())
 				.canWriteReview(canWriteReview)
-				.accommodation(AccommodationResponse.AccommodationBasicInfo.from(accommodation))
-				.address(AddressResponse.AddressInfo.from(address))
-				.coordinate(AddressResponse.Coordinate.from(address))
-				.host(MemberResponse.MemberInfo.from(host))
-				.payment(paymentInfo)
+				.accommodation(new AccommodationResponse.AccommodationBasicInfo(
+					detail.accommodationId(), detail.accommodationName(), detail.accommodationThumbnailUrl()))
+				.address(new AddressResponse.AddressInfo(detail.country(), detail.state(), detail.city(),
+					detail.district(), detail.street(), detail.addressDetail(), detail.postalCode()))
+				.coordinate(new AddressResponse.Coordinate(detail.latitude(), detail.longitude()))
+				.host(new MemberResponse.MemberInfo(detail.hostId(), detail.hostNickname(), detail.hostThumbnailImageUrl()))
+				.payment(detail.paymentId() == null ? null : new PaymentResponse.GuestPaymentInfo(
+					detail.paymentMethod().getDescription(), detail.paymentAmount(),
+					detail.paymentStatus(), detail.paymentApprovedAt()))
 				.build();
 		}
 	}

@@ -20,6 +20,10 @@ public class PaymentResponse {
 	public record HostPaymentInfo(Long totalAmount) {
 	}
 
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	public record GuestPaymentInfo(String method, Long totalAmount, PaymentStatus status, Instant approvedAt) {
+	}
+
 	@Builder
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	public record PaymentInfo(

@@ -58,8 +58,6 @@ import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
@@ -105,8 +103,6 @@ class GuestReservationListReadQueryIntegrationTest {
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
 	@Autowired private ReservationRepository reservationRepository;
-	@Autowired private PaymentRepository paymentRepository;
-	@Autowired private PaymentTransactionRepository transactionRepository;
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private CursorPageInfoCreator cursorPageInfoCreator;
 	@Autowired private CursorDecoder cursorDecoder;
@@ -137,8 +133,8 @@ class GuestReservationListReadQueryIntegrationTest {
 			""");
 		service = new ReservationTransactionService(
 			mock(AccommodationSearchRefreshPublisher.class), cursorPageInfoCreator,
-			mock(MemberRepository.class), mock(ReviewRepository.class), paymentRepository, reservationRepository,
-			mock(AccommodationRepository.class), transactionRepository, mock(ReservationHistoryRepository.class),
+			mock(MemberRepository.class), mock(ReviewRepository.class), reservationRepository,
+			mock(AccommodationRepository.class), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
 			mock(ReservationInventoryService.class), Clock.fixed(NOW, ZoneOffset.UTC));

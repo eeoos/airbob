@@ -244,9 +244,13 @@ public class Reservation extends BaseEntity {
 	}
 
 	public boolean isPaymentAllowedAt(Instant now) {
-		return this.status == ReservationStatus.PAYMENT_PENDING
-			&& requiresPayment()
-			&& !isExpiredAt(now);
+		return isPaymentAllowedAt(this.status, this.totalPrice, this.expiresAt, now);
+	}
+
+	public static boolean isPaymentAllowedAt(ReservationStatus status, Long totalPrice, Instant expiresAt, Instant now) {
+		return status == ReservationStatus.PAYMENT_PENDING
+			&& !Long.valueOf(0L).equals(totalPrice)
+			&& expiresAt.isAfter(now);
 	}
 
 	public boolean startPayment(Instant now) {

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -47,12 +48,14 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
+import kr.kro.airbob.domain.payment.service.PaymentQueryService;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
@@ -64,6 +67,7 @@ import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
+import kr.kro.airbob.domain.review.entity.ReviewStatus;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
@@ -101,6 +105,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	@Autowired private ReservationRepository reservationRepository;
 	@Autowired private PaymentRepository paymentRepository;
 	@Autowired private PaymentTransactionRepository transactionRepository;
+	@Autowired private ReviewRepository reviewRepository;
 	@Autowired private ObjectMapper objectMapper;
 	private ReservationTransactionService service;
 
@@ -127,8 +132,8 @@ class ReservationPaymentReadQueryIntegrationTest {
 			""", RESERVATION_UID.toString());
 		service = new ReservationTransactionService(
 			mock(AccommodationSearchRefreshPublisher.class), mock(CursorPageInfoCreator.class),
-			mock(MemberRepository.class), mock(ReviewRepository.class), paymentRepository, reservationRepository,
-			mock(AccommodationRepository.class), transactionRepository, mock(ReservationHistoryRepository.class),
+			mock(MemberRepository.class), reviewRepository, reservationRepository,
+			mock(AccommodationRepository.class), mock(ReservationHistoryRepository.class),
 			mock(CouponUsageService.class), mock(BookingWindowProvider.class), ReservationHoldPolicy.defaultPolicy(),
 			mock(ReservationQuoteRepository.class), mock(ReservationCheckoutRequestStore.class),
 			mock(ReservationInventoryService.class), Clock.fixed(NOW, ZoneOffset.UTC));
@@ -142,7 +147,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
 		assertThat(detail.status()).isEqualTo(status);
 		assertThat(detail.payment()).isNull();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
 		assertThat(detail.paymentAllowed()).isEqualTo(status == ReservationStatus.PAYMENT_PENDING);
 	}
@@ -156,7 +161,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 		Statistics statistics = prepareMeasurement();
 
 		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment()).isNull();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
 		assertThat(transactionRepository.findById(61L).orElseThrow().getTransactionType())
 			.isEqualTo(PaymentTransactionType.VIRTUAL_ISSUED);
@@ -166,7 +171,7 @@ class ReservationPaymentReadQueryIntegrationTest {
 	}
 
 	@Test
-	void keepsCardPaymentAmountsAndAllCancellationHistory() throws Exception {
+	void guestKeepsOriginalAmountWhileFullPaymentApiKeepsAllCancellationHistory() throws Exception {
 		jdbc.update("UPDATE reservation SET status = 'CANCELLED' WHERE id = 40");
 		jdbc.update("""
 			INSERT INTO payment (id, payment_uid, payment_key, order_id, amount, method, approved_at,
@@ -181,11 +186,14 @@ class ReservationPaymentReadQueryIntegrationTest {
 		Statistics statistics = prepareMeasurement();
 
 		var payment = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment();
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertGuestQuery(statistics, false);
 		assertThat(payment.totalAmount()).isEqualTo(100000L);
-		assertThat(payment.balanceAmount()).isZero();
 		assertThat(payment.method()).isEqualTo("카드");
-		assertThat(payment.cancels()).extracting(cancel -> cancel.cancelAmount()).containsExactly(25000L, 75000L);
+		var fullPayment = new PaymentQueryService(paymentRepository, transactionRepository)
+			.findPaymentByOrderId(RESERVATION_UID.toString(), GUEST_ID);
+		assertThat(fullPayment.balanceAmount()).isZero();
+		assertThat(fullPayment.cancels()).extracting(cancel -> cancel.cancelAmount()).containsExactly(25000L, 75000L);
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_transaction", Long.class)).isEqualTo(4L);
 		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(payment)).has("virtual_account")).isFalse();
 	}
 
@@ -248,6 +256,9 @@ class ReservationPaymentReadQueryIntegrationTest {
 				{"country":null,"state":null,"city":null,"district":null,"street":null,"detail":null,"postal_code":null}
 				"""));
 		assertHostProjectionQuery(statistics);
+		statistics = prepareMeasurement();
+		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment()).isNull();
+		assertGuestQuery(statistics, false);
 	}
 
 	@Test
@@ -315,6 +326,197 @@ class ReservationPaymentReadQueryIntegrationTest {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail))).isEqualTo(expected);
 		}
 		assertHostProjectionQuery(statistics);
+	}
+
+	@Test
+	void guestPreservesFullContractWithPaymentCancellationsAndReservationTimeZone() throws Exception {
+		jdbc.update("""
+			INSERT INTO address (id, country, state, city, district, street, detail, postal_code,
+				latitude, longitude, updated_at)
+			VALUES (31, '미국', 'New York', 'New York', 'Manhattan', 'Test Street', 'Unit 1', '10001',
+				40.7, -74.0, NOW(6))
+			""");
+		jdbc.update("""
+			UPDATE accommodation SET name = '게스트 계약 숙소', address_id = 31, status = 'PUBLISHED',
+				thumbnail_url = '/contract/stay.jpg', time_zone_id = 'Asia/Seoul' WHERE id = 30
+			""");
+		jdbc.update("""
+			UPDATE member SET nickname = '테스트 호스트', thumbnail_image_url = '/contract/host.jpg' WHERE id = 10
+			""");
+		jdbc.update("""
+			UPDATE reservation SET reservation_code = 'GUEST-2026', status = 'CANCELLATION_FAILED',
+				created_at = '2026-09-01 00:00:00', check_in_date = '2026-11-01', check_out_date = '2026-11-03',
+				check_in_at = '2026-11-01 04:00:00', check_out_at = '2026-11-03 05:00:00',
+				time_zone_id = 'America/New_York', message = '늦은 체크인' WHERE id = 40
+			""");
+		insertPayment(100001L, 75001L, "PARTIAL_CANCELED");
+		insertTransaction(61, "CONFIRM", 50L, null, "2026-09-01 09:00:00");
+		insertTransaction(62, "PARTIAL_CANCEL", 50L, 25000L, "2026-09-01 10:00:00");
+		insertTransaction(63, "FAIL", 50L, null, "2026-09-01 10:01:00");
+		Statistics statistics = prepareMeasurement();
+
+		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+
+		try (var fixture = new ClassPathResource("contracts/guest-reservation-detail-payment.json").getInputStream()) {
+			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail)))
+				.isEqualTo(objectMapper.readTree(fixture));
+		}
+		assertGuestQuery(statistics, false);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"-1,EXPIRED,false", "0,EXPIRED,false", "1,PAYMENT_PENDING,true"})
+	void guestUsesExactHoldBoundaryWithoutUpdatingStoredStatus(long expiryOffsetMicros,
+		ReservationStatus expectedStatus, boolean paymentAllowed) {
+		Instant expiry = NOW.plus(expiryOffsetMicros, ChronoUnit.MICROS);
+		jdbc.update("UPDATE reservation SET status = 'PAYMENT_PENDING', expires_at = ? WHERE id = 40",
+			java.sql.Timestamp.from(expiry));
+		Statistics statistics = prepareMeasurement();
+
+		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+
+		assertThat(detail.status()).isEqualTo(expectedStatus);
+		assertThat(detail.paymentAllowed()).isEqualTo(paymentAllowed);
+		assertThat(detail.holdExpiresAt()).isEqualTo(expiry);
+		assertThat(detail.serverTime()).isEqualTo(NOW);
+		assertGuestQuery(statistics, false);
+		assertThat(jdbc.queryForObject("SELECT status FROM reservation WHERE id = 40", String.class))
+			.isEqualTo("PAYMENT_PENDING");
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class, names = "PAYMENT_PENDING", mode = EnumSource.Mode.EXCLUDE)
+	void guestNeverExpiresOtherStatesOrExposesTheirOldHold(ReservationStatus status) {
+		jdbc.update("UPDATE reservation SET status = ?, expires_at = '2026-08-01 00:00:00' WHERE id = 40",
+			status.name());
+		Statistics statistics = prepareMeasurement();
+
+		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+
+		assertThat(detail.status()).isEqualTo(status);
+		assertThat(detail.paymentAllowed()).isFalse();
+		assertThat(detail.holdExpiresAt()).isNull();
+		assertGuestQuery(statistics, false);
+	}
+
+	@Test
+	void guestDoesNotAllowPaymentForZeroPriceAndKeepsNullAddressCoordinates() {
+		jdbc.update("UPDATE reservation SET status = 'PAYMENT_PENDING', total_price = 0 WHERE id = 40");
+		Statistics statistics = prepareMeasurement();
+
+		var detail = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID);
+
+		assertThat(detail.paymentAllowed()).isFalse();
+		assertThat(detail.payment()).isNull();
+		assertThat(detail.coordinate().latitude()).isNull();
+		assertThat(detail.coordinate().longitude()).isNull();
+		assertThat(detail.address().country()).isNull();
+		assertGuestQuery(statistics, false);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"CONFIRMED,-1,true", "CONFIRMED,0,true", "CONFIRMED,1,false",
+		"CANCELLATION_FAILED,0,true", "CANCELLATION_PENDING,0,false", "CANCELLED,0,false"})
+	void guestReviewPermissionUsesStoredCheckoutAndStatus(ReservationStatus status, long checkoutOffsetMicros,
+		boolean canWriteReview) {
+		jdbc.update("UPDATE accommodation SET status = 'PUBLISHED' WHERE id = 30");
+		jdbc.update("UPDATE reservation SET status = ?, check_out_at = ? WHERE id = 40", status.name(),
+			java.sql.Timestamp.from(NOW.plus(checkoutOffsetMicros, ChronoUnit.MICROS)));
+		Statistics statistics = prepareMeasurement();
+
+		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).canWriteReview())
+			.isEqualTo(canWriteReview);
+		assertGuestQuery(statistics, canWriteReview);
+	}
+
+	@ParameterizedTest
+	@EnumSource(ReviewStatus.class)
+	void onlyPublishedReviewByThisGuestPreventsAnotherReview(ReviewStatus status) {
+		jdbc.update("UPDATE accommodation SET status = 'PUBLISHED' WHERE id = 30");
+		jdbc.update("UPDATE reservation SET status = 'CONFIRMED', check_out_at = ? WHERE id = 40",
+			java.sql.Timestamp.from(NOW));
+		jdbc.update("""
+			INSERT INTO review (id, accommodation_id, member_id, rating, content, status, updated_at)
+			VALUES (70, 30, 20, 5, '본인 후기', ?, NOW(6)), (71, 30, 10, 4, '다른 회원 후기', 'PUBLISHED', NOW(6))
+			""", status.name());
+		Statistics statistics = prepareMeasurement();
+
+		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).canWriteReview())
+			.isEqualTo(status != ReviewStatus.PUBLISHED);
+		assertGuestQuery(statistics, true);
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = AccommodationStatus.class, names = "PUBLISHED", mode = EnumSource.Mode.EXCLUDE)
+	void guestCanReadUnpublishedStayButCannotReviewIt(AccommodationStatus status) {
+		jdbc.update("UPDATE accommodation SET status = ? WHERE id = 30", status.name());
+		jdbc.update("UPDATE reservation SET status = 'CONFIRMED', check_out_at = ? WHERE id = 40",
+			java.sql.Timestamp.from(NOW));
+		Statistics statistics = prepareMeasurement();
+
+		assertThat(service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).canWriteReview()).isFalse();
+		assertGuestQuery(statistics, false);
+	}
+
+	@ParameterizedTest
+	@ValueSource(longs = {10L, 999L})
+	void guestDetailRejectsHostAndOtherMembersBeforeReadingCancellationHistory(long memberId) {
+		insertPayment(100000L, 0L, "CANCELED");
+		insertTransaction(61, "CANCEL", 50L, 100000L, "2026-09-01 10:00:00");
+		Statistics statistics = prepareMeasurement();
+
+		assertThatThrownBy(() -> service.findMyReservationDetail(RESERVATION_UID.toString(), memberId))
+			.isInstanceOf(ReservationNotFoundException.class);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
+	}
+
+	@Test
+	void guestGetsNotFoundForUnknownReservation() {
+		Statistics statistics = prepareMeasurement();
+		assertThatThrownBy(() -> service.findMyReservationDetail(UUID.randomUUID().toString(), GUEST_ID))
+			.isInstanceOf(ReservationNotFoundException.class);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"DONE,100001", "PARTIAL_CANCELED,75001", "CANCELED,0"})
+	void guestDisplaysOriginalAmountForEachPaymentStatusWithoutReadingLedger(String status, long balanceAmount) {
+		insertPayment(100001L, balanceAmount, status);
+		insertTransaction(61, "CANCEL", 50L, 100001L - balanceAmount, "2026-09-01 10:00:00");
+		Statistics statistics = prepareMeasurement();
+
+		var payment = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment();
+
+		assertThat(payment.totalAmount()).isEqualTo(100001L);
+		assertThat(payment.status().name()).isEqualTo(status);
+		assertGuestQuery(statistics, false);
+	}
+
+	@Test
+	void guestDistinguishesRecordedZeroPaymentFromMissingPayment() throws Exception {
+		insertPayment(0L, 0L, "DONE");
+		Statistics statistics = prepareMeasurement();
+
+		var payment = service.findMyReservationDetail(RESERVATION_UID.toString(), GUEST_ID).payment();
+
+		assertThat(payment.totalAmount()).isZero();
+		assertThat(payment.approvedAt()).isEqualTo(Instant.parse("2026-09-01T09:00:00Z"));
+		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(payment)))
+			.isEqualTo(objectMapper.readTree("{\"method\":\"카드\",\"total_amount\":0,\"status\":\"DONE\",\"approved_at\":\"2026-09-01T09:00:00Z\"}"));
+		assertGuestQuery(statistics, false);
+	}
+
+	private void assertGuestQuery(Statistics statistics, boolean checksReview) {
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1 + (checksReview ? 1 : 0));
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		String sql = sqlCapture.statements.getFirst();
+		assertThat(sql.substring("select ".length(), sql.indexOf(" from ")).split(",")).hasSize(32);
+		assertThat(sql).contains("left join payment ")
+			.doesNotContain(".payment_key", ".balance_amount", ".password", ".email", ".description", ".updated_at");
+		assertThat(sqlCapture.statements).noneMatch(statement -> statement.contains("payment_transaction"));
+		assertThat(sqlCapture.statements.stream().filter(statement -> statement.contains(" from review ")))
+			.hasSize(checksReview ? 1 : 0);
 	}
 
 	private void assertHostProjectionQuery(Statistics statistics) {

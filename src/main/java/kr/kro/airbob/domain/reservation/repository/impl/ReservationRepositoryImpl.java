@@ -29,6 +29,8 @@ import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
 import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
@@ -162,13 +164,24 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId) {
+	public Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId) {
 
-		Reservation result = queryFactory
-			.selectFrom(reservation)
-			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
-			.leftJoin(accommodation.address, address).fetchJoin()
-			.leftJoin(accommodation.member, member).fetchJoin()
+		GuestReservationDetailProjection result = queryFactory
+			.select(new QGuestReservationDetailProjection(
+				reservation.reservationUid, reservation.reservationCode, reservation.status,
+				reservation.expiresAt, reservation.totalPrice, reservation.createdAt, reservation.guestCount,
+				reservation.checkInAt, reservation.checkOutAt, reservation.timeZoneId, reservation.message,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl, accommodation.status,
+				address.country, address.state, address.city, address.district, address.street, address.detail,
+				address.postalCode, address.latitude, address.longitude,
+				member.id, member.nickname, member.thumbnailImageUrl,
+				payment.id, payment.method, payment.amount, payment.status, payment.approvedAt
+			))
+			.from(reservation)
+			.leftJoin(reservation.accommodation, accommodation)
+			.leftJoin(accommodation.address, address)
+			.leftJoin(accommodation.member, member)
+			.leftJoin(payment).on(payment.reservation.id.eq(reservation.id))
 			.where(
 				reservation.reservationUid.eq(reservationUid),
 				reservation.guest.id.eq(guestId)

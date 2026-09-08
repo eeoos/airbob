@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.reservation.service;
 
+import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
@@ -36,8 +37,6 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -77,13 +76,9 @@ class ReservationTransactionServiceTest {
 	@Mock
 	private ReviewRepository reviewRepository;
 	@Mock
-	private PaymentRepository paymentRepository;
-	@Mock
 	private ReservationRepository reservationRepository;
 	@Mock
 	private AccommodationRepository accommodationRepository;
-	@Mock
-	private PaymentTransactionRepository paymentTransactionRepository;
 	@Mock
 	private ReservationHistoryRepository historyRepository;
 	@Mock
@@ -118,10 +113,8 @@ class ReservationTransactionServiceTest {
 			cursorPageInfoCreator,
 			memberRepository,
 			reviewRepository,
-			paymentRepository,
 			reservationRepository,
 			accommodationRepository,
-			paymentTransactionRepository,
 			historyRepository,
 			couponUsageService,
 			bookingWindowProvider,
@@ -194,7 +187,7 @@ class ReservationTransactionServiceTest {
 			.expiresAt(Instant.parse("2026-08-12T18:15:00Z"))
 			.build();
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
 			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
 			.willReturn(false);
@@ -211,7 +204,7 @@ class ReservationTransactionServiceTest {
 		Reservation reservation = createReservationWithStatus(
 			reservationUid, ReservationStatus.CANCELLATION_PENDING);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 
 		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
 
@@ -226,7 +219,7 @@ class ReservationTransactionServiceTest {
 		Reservation reservation = createReservationWithStatus(
 			reservationUid, ReservationStatus.CANCELLATION_FAILED);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
 			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
 			.willReturn(false);
@@ -243,7 +236,7 @@ class ReservationTransactionServiceTest {
 		UUID reservationUid = UUID.randomUUID();
 		Reservation reservation = createReservationWithStatus(reservationUid, status);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
 			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
 			.willReturn(true);
@@ -261,7 +254,7 @@ class ReservationTransactionServiceTest {
 		UUID reservationUid = UUID.randomUUID();
 		Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CONFIRMED);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 
 		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
@@ -275,7 +268,7 @@ class ReservationTransactionServiceTest {
 		UUID reservationUid = UUID.randomUUID();
 		Reservation reservation = createReservationWithStatus(reservationUid, status, NOW.plusNanos(1));
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 
 		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();
@@ -290,7 +283,7 @@ class ReservationTransactionServiceTest {
 		UUID reservationUid = UUID.randomUUID();
 		Reservation reservation = createReservationWithStatus(reservationUid, status);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 
 		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
 			.canWriteReview()).isFalse();

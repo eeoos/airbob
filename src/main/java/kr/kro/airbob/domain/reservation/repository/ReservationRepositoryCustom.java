@@ -14,6 +14,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
@@ -48,7 +49,7 @@ public interface ReservationRepositoryCustom {
 		Pageable pageable
 	);
 
-	Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
+	Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
 
 	Optional<HostReservationDetailProjection> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId);
 }

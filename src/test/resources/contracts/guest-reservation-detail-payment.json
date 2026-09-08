@@ -1,0 +1,46 @@
+{
+  "reservation_uid": "20000000-0000-4000-8000-000000000002",
+  "reservation_code": "GUEST-2026",
+  "status": "CANCELLATION_FAILED",
+  "payment_allowed": false,
+  "hold_expires_at": null,
+  "server_time": "2026-09-01T10:02:01Z",
+  "created_at": "2026-09-01T00:00:00Z",
+  "guest_count": 2,
+  "check_in_date_time": "2026-11-01T00:00:00",
+  "check_out_date_time": "2026-11-03T00:00:00",
+  "time_zone_id": "America/New_York",
+  "check_in_time": "00:00:00",
+  "check_out_time": "00:00:00",
+  "request_message": "늦은 체크인",
+  "can_write_review": false,
+  "accommodation": {
+    "id": 30,
+    "name": "게스트 계약 숙소",
+    "thumbnail_url": "/contract/stay.jpg"
+  },
+  "address": {
+    "country": "미국",
+    "state": "New York",
+    "city": "New York",
+    "district": "Manhattan",
+    "street": "Test Street",
+    "detail": "Unit 1",
+    "postal_code": "10001"
+  },
+  "coordinate": {
+    "latitude": 40.7,
+    "longitude": -74.0
+  },
+  "host": {
+    "id": 10,
+    "nickname": "테스트 호스트",
+    "thumbnail_image_url": "/contract/host.jpg"
+  },
+  "payment": {
+    "method": "카드",
+    "total_amount": 100001,
+    "status": "PARTIAL_CANCELED",
+    "approved_at": "2026-09-01T09:00:00Z"
+  }
+}

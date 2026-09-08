@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.reservation.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -83,11 +84,11 @@ class ReservationResponseTest {
 		try (var fixture = new ClassPathResource("contracts/guest-reservation-reviewable.json").getInputStream()) {
 			JsonNode expected = objectMapper.readTree(fixture);
 			JsonNode actual = objectMapper.readTree(objectMapper.writeValueAsString(
-				ReservationResponse.GuestDetail.from(reservation, null, true, SERVER_TIME)));
+				ReservationResponse.GuestDetail.from(guestDetail(reservation), true, SERVER_TIME)));
 			assertThat(actual).isEqualTo(expected);
 		}
 		JsonNode denied = objectMapper.valueToTree(
-			ReservationResponse.GuestDetail.from(reservation, null, false, SERVER_TIME));
+			ReservationResponse.GuestDetail.from(guestDetail(reservation), false, SERVER_TIME));
 		assertThat(denied.get("can_write_review").isBoolean()).isTrue();
 		assertThat(denied.get("can_write_review").booleanValue()).isFalse();
 	}
@@ -217,7 +218,7 @@ class ReservationResponseTest {
 			.build();
 
 		ReservationResponse.GuestDetail guestDetail = ReservationResponse.GuestDetail.from(
-			reservation, null, true, SERVER_TIME);
+			guestDetail(reservation), true, SERVER_TIME);
 		ReservationResponse.HostDetail hostDetail = ReservationResponse.HostDetail.from(
 			new HostReservationDetailProjection(reservation.getReservationUid(), reservation.getReservationCode(),
 				reservation.getStatus(), createdAt, 2, reservation.getCheckInAt(), reservation.getCheckOutAt(),
