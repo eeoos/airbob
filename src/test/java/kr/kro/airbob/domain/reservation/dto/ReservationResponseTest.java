@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,10 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.member.entity.Member;
+import kr.kro.airbob.domain.payment.dto.PaymentResponse;
+import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentMethod;
+import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
@@ -32,6 +37,43 @@ class ReservationResponseTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Test
+	@DisplayName("호스트 상세는 예약 현지 날짜와 할인 반영된 최초 결제 금액을 전달한다")
+	void serializesHostStayAndOriginalPaymentContract() throws Exception {
+		ZoneId zone = ZoneId.of("America/New_York");
+		LocalDateTime checkIn = LocalDateTime.parse("2026-11-01T00:00:00");
+		LocalDateTime checkOut = LocalDateTime.parse("2026-11-03T00:00:00");
+		String uid = "10000000-0000-4000-8000-000000000002";
+		Accommodation accommodation = Accommodation.builder()
+			.id(7L).name("호스트 계약 숙소").timeZoneId("Asia/Seoul")
+			.address(Address.builder().country("미국").state("New York").city("New York")
+				.street("Test Street").postalCode("10001").build()).build();
+		Reservation reservation = Reservation.builder()
+			.reservationUid(UUID.fromString(uid)).reservationCode("HOST-2026")
+			.accommodation(accommodation).guest(Member.builder().id(2L).nickname("테스트 게스트").build())
+			.status(ReservationStatus.CONFIRMED).guestCount(2)
+			.checkInDate(checkIn.toLocalDate()).checkOutDate(checkOut.toLocalDate())
+			.checkInAt(checkIn.atZone(zone).toInstant()).checkOutAt(checkOut.atZone(zone).toInstant())
+			.timeZoneId(zone.getId()).totalPrice(100_001L).discountAmount(19_999L).currency("KRW")
+			.createdAt(LocalDateTime.parse("2026-09-01T00:00:00")).build();
+		Payment payment = Payment.builder().orderId(uid).paymentKey("synthetic-payment-key")
+			.reservation(reservation).amount(100_001L).balanceAmount(100_001L)
+			.method(PaymentMethod.CARD).status(PaymentStatus.DONE)
+			.approvedAt(Instant.parse("2026-09-01T00:01:00Z"))
+			.createdAt(LocalDateTime.parse("2026-09-01T00:00:00")).build();
+
+		ReservationResponse.HostDetail response = ReservationResponse.HostDetail.from(
+			reservation, PaymentResponse.PaymentInfo.from(payment, List.of()));
+
+		try (var fixture = new ClassPathResource("contracts/host-reservation-stay-payment.json").getInputStream()) {
+			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(response)))
+				.isEqualTo(objectMapper.readTree(fixture));
+		}
+		assertThat(response.checkInDateTime()).isEqualTo(checkIn);
+		assertThat(response.checkOutDateTime()).isEqualTo(checkOut);
+		assertThat(response.payment().totalAmount()).isEqualTo(100_001L);
+	}
 
 	@Test
 	@DisplayName("취소 실패 예약의 후기 작성 권한을 게스트 상세 JSON 계약으로 전달한다")

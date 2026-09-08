@@ -1,0 +1,28 @@
+{
+  "reservation_uid": "10000000-0000-4000-8000-000000000002",
+  "reservation_code": "HOST-2026",
+  "status": "CONFIRMED",
+  "created_at": "2026-09-01T00:00:00Z",
+  "guest_count": 2,
+  "check_in_date_time": "2026-11-01T00:00:00",
+  "check_out_date_time": "2026-11-03T00:00:00",
+  "time_zone_id": "America/New_York",
+  "request_message": null,
+  "accommodation": { "id": 7, "name": "호스트 계약 숙소", "thumbnail_url": null },
+  "address": {
+    "country": "미국", "state": "New York", "city": "New York", "district": null,
+    "street": "Test Street", "detail": null, "postal_code": "10001"
+  },
+  "guest": { "id": 2, "nickname": "테스트 게스트", "thumbnail_image_url": null },
+  "payment": {
+    "order_id": "10000000-0000-4000-8000-000000000002",
+    "payment_key": "synthetic-payment-key",
+    "method": "카드",
+    "total_amount": 100001,
+    "balance_amount": 100001,
+    "status": "DONE",
+    "requested_at": "2026-09-01T00:00:00Z",
+    "approved_at": "2026-09-01T00:01:00Z",
+    "cancels": []
+  }
+}
