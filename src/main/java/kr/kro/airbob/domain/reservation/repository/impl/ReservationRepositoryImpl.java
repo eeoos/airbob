@@ -122,7 +122,6 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		List<Reservation> content = queryFactory
 			.selectFrom(reservation)
 			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
-			.leftJoin(accommodation.address, address).fetchJoin()
 			.where(
 				reservation.guest.id.eq(guestId),
 				buildGuestReservationFilter(filterType, now),
