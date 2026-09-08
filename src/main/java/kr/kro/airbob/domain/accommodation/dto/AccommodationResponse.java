@@ -12,6 +12,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -37,16 +38,16 @@ public class AccommodationResponse {
 		// ReviewResponse.ReviewSummary reviewSummary,
 		Instant createdAt
 	) {
-		public static HostAccommodationInfo from(Accommodation accommodation) {
-			Address address = accommodation.getAddress();
+		public static HostAccommodationInfo from(HostAccommodationProjection accommodation) {
 			return HostAccommodationInfo.builder()
-				.id(accommodation.getId())
-				.name(accommodation.getName())
-				.thumbnailUrl(accommodation.getThumbnailUrl())
-				.status(accommodation.getStatus())
-				.type(accommodation.getType())
-				.addressSummary(AddressResponse.AddressSummaryInfo.from(address))
-				.createdAt(toUtcInstant(accommodation.getCreatedAt()))
+				.id(accommodation.id())
+				.name(accommodation.name())
+				.thumbnailUrl(accommodation.thumbnailUrl())
+				.status(accommodation.status())
+				.type(accommodation.type())
+				.addressSummary(new AddressResponse.AddressSummaryInfo(
+					accommodation.country(), accommodation.state(), accommodation.city(), accommodation.district()))
+				.createdAt(toUtcInstant(accommodation.createdAt()))
 				.build();
 		}
 	}

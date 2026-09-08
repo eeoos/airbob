@@ -22,6 +22,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
@@ -86,7 +87,7 @@ public class AccommodationQueryService {
 		CursorRequest.CursorPageRequest cursorRequest,
 		AccommodationStatus status
 	) {
-		Slice<Accommodation> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
+		Slice<HostAccommodationProjection> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
 			hostId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
@@ -94,7 +95,7 @@ public class AccommodationQueryService {
 			PageRequest.of(0, cursorRequest.size())
 		);
 
-		List<Accommodation> accommodations = accommodationSlice.getContent();
+		List<HostAccommodationProjection> accommodations = accommodationSlice.getContent();
 		if (accommodations.isEmpty()) {
 			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 				Collections.emptyList(), false, acc -> 0L, acc -> null
@@ -112,8 +113,8 @@ public class AccommodationQueryService {
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			accommodations,
 			accommodationSlice.hasNext(),
-			Accommodation::getId,
-			Accommodation::getCreatedAt
+			HostAccommodationProjection::id,
+			HostAccommodationProjection::createdAt
 		);
 
 		return AccommodationResponse.HostAccommodationInfos.from(accommodationInfos, pageInfo);

@@ -26,6 +26,8 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
 import kr.kro.airbob.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 
@@ -72,14 +74,24 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Slice<Accommodation> findMyAccommodationsByHostIdWithCursor(Long hostId, Long lastId,
+    public Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(Long hostId, Long lastId,
         LocalDateTime lastCreatedAt, AccommodationStatus status, Pageable pageable) {
 
-        List<Accommodation> content = jpaQueryFactory
-            .select(accommodation)
+        List<HostAccommodationProjection> content = jpaQueryFactory
+            .select(new QHostAccommodationProjection(
+                accommodation.id,
+                accommodation.name,
+                accommodation.thumbnailUrl,
+                accommodation.status,
+                accommodation.type,
+                address.country,
+                address.state,
+                address.city,
+                address.district,
+                accommodation.createdAt
+            ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            // .leftJoin(accommodationReviewSummary).on(accommodationReviewSummary.accommodation.id.eq(accommodation.id))
+            .leftJoin(accommodation.address, address)
             .where(
                 accommodation.member.id.eq(hostId),
                 accommodation.status.ne(AccommodationStatus.DELETED),

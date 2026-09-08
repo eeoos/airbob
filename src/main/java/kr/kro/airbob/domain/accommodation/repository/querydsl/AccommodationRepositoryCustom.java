@@ -12,6 +12,7 @@ import org.springframework.data.domain.Slice;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 
 public interface AccommodationRepositoryCustom {
     Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
@@ -20,7 +21,7 @@ public interface AccommodationRepositoryCustom {
         AccommodationStatus status
     );
 
-    Slice<Accommodation> findMyAccommodationsByHostIdWithCursor(
+    Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(
         Long hostId,
         Long lastId,
         LocalDateTime lastCreatedAt,
