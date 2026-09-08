@@ -25,6 +25,7 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
 @JsonTest
 @DisplayName("예약 응답 시간대 테스트")
@@ -228,7 +229,12 @@ class ReservationResponseTest {
 		ReservationResponse.GuestReservationInfo guestInfo =
 			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
 		ReservationResponse.HostReservationInfo hostInfo =
-			ReservationResponse.HostReservationInfo.from(reservation);
+			ReservationResponse.HostReservationInfo.from(new HostReservationListProjection(
+				reservation.getId(), reservation.getReservationUid(), reservation.getReservationCode(),
+				reservation.getTotalPrice(), reservation.getCurrency(), reservation.getGuestCount(),
+				reservation.getCheckInDate(), reservation.getCheckOutDate(), reservation.getTimeZoneId(),
+				reservation.getStatus(), createdAt, guest.getId(), guest.getNickname(), null,
+				accommodation.getId(), accommodation.getName(), null));
 
 		assertThat(guestDetail.createdAt()).isEqualTo(Instant.parse("2026-03-01T09:30:00Z"));
 		assertThat(guestDetail.timeZoneId()).isEqualTo("America/New_York");

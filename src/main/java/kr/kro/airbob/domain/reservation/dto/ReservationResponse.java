@@ -22,6 +22,7 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -283,21 +284,22 @@ public class ReservationResponse {
 		MemberResponse.MemberInfo guest,
 		AccommodationResponse.AccommodationBasicInfo accommodation
 	) {
-		public static HostReservationInfo from(Reservation reservation) {
+		public static HostReservationInfo from(HostReservationListProjection reservation) {
 			return HostReservationInfo.builder()
-				.reservationUid(reservation.getReservationUid().toString())
-				.reservationCode(reservation.getReservationCode())
-				.totalPrice(reservation.getTotalPrice())
-				.currency(reservation.getCurrency())
-				.guestCount(reservation.getGuestCount())
-				.checkInDate(reservation.getCheckInDate())
-				.checkOutDate(reservation.getCheckOutDate())
-				.timeZoneId(reservation.getTimeZoneId())
-				.status(reservation.getStatus())
-				.createdAt(toUtcInstant(reservation.getCreatedAt()))
-				.guest(MemberResponse.MemberInfo.from(reservation.getGuest()))
-				.accommodation(
-					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
+				.reservationUid(reservation.reservationUid().toString())
+				.reservationCode(reservation.reservationCode())
+				.totalPrice(reservation.totalPrice())
+				.currency(reservation.currency())
+				.guestCount(reservation.guestCount())
+				.checkInDate(reservation.checkInDate())
+				.checkOutDate(reservation.checkOutDate())
+				.timeZoneId(reservation.timeZoneId())
+				.status(reservation.status())
+				.createdAt(toUtcInstant(reservation.createdAt()))
+				.guest(new MemberResponse.MemberInfo(
+					reservation.guestId(), reservation.guestNickname(), reservation.guestThumbnailImageUrl()))
+				.accommodation(new AccommodationResponse.AccommodationBasicInfo(
+					reservation.accommodationId(), reservation.accommodationName(), reservation.accommodationThumbnailUrl()))
 				.build();
 		}
 	}

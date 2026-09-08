@@ -40,6 +40,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
@@ -317,7 +318,7 @@ public class ReservationTransactionService {
 
 	@Transactional(readOnly = true)
 	public ReservationResponse.HostReservationInfos findHostReservations(Long hostId, CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
-		Slice<Reservation> reservationSlice = reservationRepository.findHostReservationsByHostIdWithCursor(
+		Slice<HostReservationListProjection> reservationSlice = reservationRepository.findHostReservationsByHostIdWithCursor(
 			hostId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
@@ -326,7 +327,7 @@ public class ReservationTransactionService {
 			PageRequest.of(0, cursorRequest.size())
 		);
 
-		List<Reservation> reservations = reservationSlice.getContent();
+		List<HostReservationListProjection> reservations = reservationSlice.getContent();
 
 		List<ReservationResponse.HostReservationInfo> reservationInfos = reservations.stream()
 			.map(ReservationResponse.HostReservationInfo::from).collect(Collectors.toList());
@@ -334,8 +335,8 @@ public class ReservationTransactionService {
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			reservations,
 			reservationSlice.hasNext(),
-			Reservation::getId,
-			Reservation::getCreatedAt
+			HostReservationListProjection::id,
+			HostReservationListProjection::createdAt
 		);
 
 		return ReservationResponse.HostReservationInfos.from(reservationInfos, pageInfo);

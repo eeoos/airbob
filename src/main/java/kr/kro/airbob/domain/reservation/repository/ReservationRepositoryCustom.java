@@ -14,6 +14,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
 public interface ReservationRepositoryCustom {
 	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
@@ -37,7 +38,7 @@ public interface ReservationRepositoryCustom {
 		Pageable pageable
 	);
 
-	Slice<Reservation> findHostReservationsByHostIdWithCursor(
+	Slice<HostReservationListProjection> findHostReservationsByHostIdWithCursor(
 		Long hostId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,

@@ -29,7 +29,9 @@ import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationListProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -170,13 +172,21 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Slice<Reservation> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
+	public Slice<HostReservationListProjection> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
 		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
-		List<Reservation> content = queryFactory
-			.selectFrom(reservation)
-			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
-			.innerJoin(reservation.guest, guestMember).fetchJoin()
+		List<HostReservationListProjection> content = queryFactory
+			.select(new QHostReservationListProjection(
+				reservation.id, reservation.reservationUid, reservation.reservationCode,
+				reservation.totalPrice, reservation.currency, reservation.guestCount,
+				reservation.checkInDate, reservation.checkOutDate, reservation.timeZoneId,
+				reservation.status, reservation.createdAt,
+				guestMember.id, guestMember.nickname, guestMember.thumbnailImageUrl,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl
+			))
+			.from(reservation)
+			.innerJoin(reservation.accommodation, accommodation)
+			.innerJoin(reservation.guest, guestMember)
 			.where(
 				accommodation.member.id.eq(hostId),
 				reservation.status.notIn(PAYMENT_PENDING, PAYMENT_PROCESSING),
@@ -248,6 +258,9 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	private BooleanExpression buildHostReservationFilter(ReservationFilterType filterType, Instant now) {
+		if (filterType == null) {
+			return null;
+		}
 		switch (filterType) {
 			case CANCELLED:
 				return reservation.status.in(CANCELLED, EXPIRED);

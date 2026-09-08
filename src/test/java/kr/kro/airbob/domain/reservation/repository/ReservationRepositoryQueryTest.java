@@ -52,6 +52,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import jakarta.persistence.EntityManager;
 
 @DataJpaTest
@@ -198,7 +199,7 @@ class ReservationRepositoryQueryTest {
 		).getContent()).isEmpty();
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)
-		).getContent()).containsExactly(reservation);
+		).getContent()).extracting(HostReservationListProjection::id).containsExactly(reservation.getId());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)
 		).getContent()).isEmpty();
@@ -305,13 +306,16 @@ class ReservationRepositoryQueryTest {
 
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(pastActive);
+		).getContent()).extracting(HostReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(pastActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(upcomingActive);
+		).getContent()).extracting(HostReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(upcomingActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrder(cancelled, expired);
+		).getContent()).extracting(HostReservationListProjection::id)
+			.containsExactlyInAnyOrder(cancelled.getId(), expired.getId());
 	}
 
 	@Test
