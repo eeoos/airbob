@@ -1,0 +1,37 @@
+{
+  "id": 31,
+  "name": "합정 테스트 숙소",
+  "description": "조용한 숙소",
+  "type": "APARTMENT",
+  "base_price": 125000,
+  "currency": "KRW",
+  "check_in_time": "15:00:00",
+  "check_out_time": "11:00:00",
+  "time_zone_id": "Asia/Seoul",
+  "address": {
+    "country": "대한민국",
+    "state": "서울특별시",
+    "city": "서울",
+    "district": "마포구",
+    "street": "월드컵북로",
+    "detail": "101호",
+    "postal_code": "04000"
+  },
+  "policy": {
+    "max_occupancy": 4,
+    "infant_occupancy": 1,
+    "pet_occupancy": 0
+  },
+  "amenities": [
+    {
+      "type": "WIFI",
+      "count": 1
+    }
+  ],
+  "images": [
+    {
+      "id": 301,
+      "image_url": "/room-301.png"
+    }
+  ]
+}

@@ -29,7 +29,6 @@ import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBoo
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 조회 서비스 단위 테스트")
@@ -40,7 +39,6 @@ class AccommodationQueryServiceTest {
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private AccommodationReviewSummaryRepository reviewSummaryRepository;
 	@Mock private ReservationInventoryService inventoryService;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
@@ -188,7 +186,6 @@ class AccommodationQueryServiceTest {
 			.thenReturn(Optional.of(accommodation));
 		when(accommodationDetailReader.loadAmenities(1L)).thenReturn(List.of());
 		when(accommodationDetailReader.loadImages(1L)).thenReturn(List.of());
-		when(reviewSummaryRepository.findByAccommodationId(1L)).thenReturn(Optional.empty());
 
 		accommodationQueryService.findHostAccommodationDetail(1L, 7L);
 

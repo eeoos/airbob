@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -27,16 +26,12 @@ import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AccommodationQueryService {
 
-	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationInventoryService inventoryService;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
@@ -131,20 +126,12 @@ public class AccommodationQueryService {
 
 		List<AmenityResponse.AmenityInfo> amenityInfos = accommodationDetailReader.loadAmenities(accommodationId);
 		List<ImageResponse.ImageInfo> imageInfos = accommodationDetailReader.loadImages(accommodationId);
-		ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
 
 		return AccommodationResponse.HostDetail.from(
 			accommodation,
 			amenityInfos,
-			imageInfos,
-			reviewSummary
+			imageInfos
 		);
-	}
-
-	private ReviewResponse.ReviewSummary getReviewSummary(Long accommodationId) {
-		Optional<AccommodationReviewSummary> summaryOpt = reviewSummaryRepository.findByAccommodationId(
-			accommodationId);
-		return ReviewResponse.ReviewSummary.of(summaryOpt.orElse(null));
 	}
 
 }

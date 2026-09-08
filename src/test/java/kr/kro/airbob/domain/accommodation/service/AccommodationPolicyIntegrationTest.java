@@ -135,7 +135,7 @@ class AccommodationPolicyIntegrationTest {
 	private PolicyResponse.PolicyInfo readPolicy(Fixture fixture) {
 		return new TransactionTemplate(transactionManager).execute(status -> AccommodationResponse.HostDetail.from(
 			accommodationRepository.findWithDetailsByIdAndHostId(fixture.id(), fixture.hostId()).orElseThrow(),
-			List.of(), List.of(), null).policy());
+			List.of(), List.of()).policy());
 	}
 
 	private long policyId(Fixture fixture) {

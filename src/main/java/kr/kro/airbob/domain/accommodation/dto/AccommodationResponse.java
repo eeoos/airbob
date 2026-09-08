@@ -14,7 +14,6 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
-import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -144,26 +143,19 @@ public class AccommodationResponse {
 		String timeZoneId,
 
 		AddressResponse.AddressInfo address,
-		AddressResponse.Coordinate coordinate,
-
-		MemberResponse.MemberInfo host,
 
 		PolicyResponse.PolicyInfo policy,
 
 		List<AmenityResponse.AmenityInfo> amenities,
 
-		List<ImageResponse.ImageInfo> images,
-
-		ReviewResponse.ReviewSummary reviewSummary
+		List<ImageResponse.ImageInfo> images
 	) {
 		public static HostDetail from(Accommodation accommodation,
 			List<AmenityResponse.AmenityInfo> amenityInfos,
-			List<ImageResponse.ImageInfo> imageInfos,
-			ReviewResponse.ReviewSummary reviewSummary) {
+			List<ImageResponse.ImageInfo> imageInfos) {
 
 			Address address = accommodation.getAddress();
 			OccupancyPolicy policy = accommodation.getOccupancyPolicy();
-			Member host = accommodation.getMember();
 
 			return HostDetail.builder()
 				.id(accommodation.getId())
@@ -176,12 +168,9 @@ public class AccommodationResponse {
 				.checkOutTime(accommodation.getCheckOutTime())
 				.timeZoneId(accommodation.getTimeZoneId())
 				.address(AddressResponse.AddressInfo.from(address))
-				.coordinate(AddressResponse.Coordinate.from(address))
-				.host(MemberResponse.MemberInfo.from(host))
 				.policy(PolicyResponse.PolicyInfo.from(policy))
 				.amenities(amenityInfos)
 				.images(imageInfos)
-				.reviewSummary(reviewSummary)
 				.build();
 		}
 	}

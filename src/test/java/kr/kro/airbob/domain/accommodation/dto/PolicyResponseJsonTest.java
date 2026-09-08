@@ -39,6 +39,6 @@ class PolicyResponseJsonTest {
 
 	private PolicyResponse.PolicyInfo hostPolicy(OccupancyPolicy policy) {
 		return AccommodationResponse.HostDetail.from(
-			Accommodation.builder().id(31L).occupancyPolicy(policy).build(), List.of(), List.of(), null).policy();
+			Accommodation.builder().id(31L).occupancyPolicy(policy).build(), List.of(), List.of()).policy();
 	}
 }

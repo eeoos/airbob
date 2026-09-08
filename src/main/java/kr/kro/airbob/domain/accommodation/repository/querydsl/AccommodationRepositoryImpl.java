@@ -104,7 +104,6 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
             .selectFrom(accommodation)
             .leftJoin(accommodation.address, address).fetchJoin()
             .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .leftJoin(accommodation.member, member).fetchJoin()
             .where(
                 accommodation.id.eq(accommodationId),
                 accommodation.member.id.eq(hostId)

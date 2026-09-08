@@ -23,7 +23,6 @@ import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBoo
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 직접 availability 점유 계약 테스트")
@@ -33,7 +32,6 @@ class AccommodationAvailabilityOccupancyContractTest {
 	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 25);
 	private static final LocalDate WINDOW_END_EXCLUSIVE = WINDOW_START.plusMonths(3);
 
-	@Mock private AccommodationReviewSummaryRepository reviewSummaryRepository;
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private ReservationInventoryService inventoryService;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
