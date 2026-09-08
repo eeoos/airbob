@@ -1,0 +1,92 @@
+[
+  {
+    "operation_status": "QUEUED",
+    "response": {
+      "operation_id": "30000000-0000-4000-8000-000000000003",
+      "order_id": "20000000-0000-4000-8000-000000000002",
+      "status": "PENDING",
+      "failure_code": null,
+      "updated_at": "2026-09-01T10:02:00Z",
+      "next_action": "POLL",
+      "retry_after_seconds": 2,
+      "user_message": "결제 결과를 확인하고 있습니다. 잠시 후 다시 확인해 주세요.",
+      "server_time": "2026-09-01T10:02:01Z",
+      "user_failure_code": null
+    }
+  },
+  {
+    "operation_status": "EXECUTING",
+    "response": {
+      "operation_id": "30000000-0000-4000-8000-000000000003",
+      "order_id": "20000000-0000-4000-8000-000000000002",
+      "status": "PROCESSING",
+      "failure_code": null,
+      "updated_at": "2026-09-01T10:02:00Z",
+      "next_action": "POLL",
+      "retry_after_seconds": 2,
+      "user_message": "결제 결과를 확인하고 있습니다. 잠시 후 다시 확인해 주세요.",
+      "server_time": "2026-09-01T10:02:01Z",
+      "user_failure_code": null
+    }
+  },
+  {
+    "operation_status": "WAITING_RETRY",
+    "response": {
+      "operation_id": "30000000-0000-4000-8000-000000000003",
+      "order_id": "20000000-0000-4000-8000-000000000002",
+      "status": "PENDING",
+      "failure_code": null,
+      "updated_at": "2026-09-01T10:02:00Z",
+      "next_action": "POLL",
+      "retry_after_seconds": 6,
+      "user_message": "결제 결과를 확인하고 있습니다. 잠시 후 다시 확인해 주세요.",
+      "server_time": "2026-09-01T10:02:01Z",
+      "user_failure_code": null
+    }
+  },
+  {
+    "operation_status": "APPLIED",
+    "response": {
+      "operation_id": "30000000-0000-4000-8000-000000000003",
+      "order_id": "20000000-0000-4000-8000-000000000002",
+      "status": "SUCCEEDED",
+      "failure_code": null,
+      "updated_at": "2026-09-01T10:02:00Z",
+      "next_action": "NONE",
+      "retry_after_seconds": null,
+      "user_message": "결제가 완료되어 예약이 확정되었습니다.",
+      "server_time": "2026-09-01T10:02:01Z",
+      "user_failure_code": null
+    }
+  },
+  {
+    "operation_status": "DECLINED",
+    "response": {
+      "operation_id": "30000000-0000-4000-8000-000000000003",
+      "order_id": "20000000-0000-4000-8000-000000000002",
+      "status": "FAILED",
+      "failure_code": "SYNTHETIC_DECLINE",
+      "updated_at": "2026-09-01T10:02:00Z",
+      "next_action": "START_NEW_CHECKOUT",
+      "retry_after_seconds": null,
+      "user_message": "결제가 완료되지 않았습니다. 새 견적을 받은 뒤 예약을 다시 진행해 주세요.",
+      "server_time": "2026-09-01T10:02:01Z",
+      "user_failure_code": "PAYMENT_DECLINED"
+    }
+  },
+  {
+    "operation_status": "MANUAL_REVIEW",
+    "response": {
+      "operation_id": "30000000-0000-4000-8000-000000000003",
+      "order_id": "20000000-0000-4000-8000-000000000002",
+      "status": "REQUIRES_REVIEW",
+      "failure_code": "SYNTHETIC_DECLINE",
+      "updated_at": "2026-09-01T10:02:00Z",
+      "next_action": "CONTACT_SUPPORT",
+      "retry_after_seconds": 30,
+      "user_message": "결제 상태에 추가 확인이 필요합니다. 고객센터에 문의해 주세요.",
+      "server_time": "2026-09-01T10:02:01Z",
+      "user_failure_code": "PAYMENT_REVIEW_REQUIRED"
+    }
+  }
+]

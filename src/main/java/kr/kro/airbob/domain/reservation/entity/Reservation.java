@@ -233,10 +233,14 @@ public class Reservation extends BaseEntity {
 	}
 
 	public ReservationStatus effectiveStatus(Instant now) {
-		if (this.status == ReservationStatus.PAYMENT_PENDING && isExpiredAt(now)) {
+		return effectiveStatus(this.status, this.expiresAt, now);
+	}
+
+	public static ReservationStatus effectiveStatus(ReservationStatus status, Instant expiresAt, Instant now) {
+		if (status == ReservationStatus.PAYMENT_PENDING && !expiresAt.isAfter(now)) {
 			return ReservationStatus.EXPIRED;
 		}
-		return this.status;
+		return status;
 	}
 
 	public boolean isPaymentAllowedAt(Instant now) {
