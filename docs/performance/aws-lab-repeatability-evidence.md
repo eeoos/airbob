@@ -5,7 +5,14 @@ dump-mode AWS Performance Lab, promoting the verified RDS instance, destroying t
 replaying the same qualification from the promoted snapshot. It is intentionally limited to
 environment readiness. It does not authorize or contain a performance experiment.
 
-> Evidence status, 2026-09-04: `DUMP_RETRY_PENDING`. The immutable dataset, images, bundles,
+> Work status, 2026-09-08: `PAUSED_BY_USER`. Code changes through
+> [PR #121](https://github.com/eeoos/airbob/pull/121) are merged into `main` at
+> `94477de9397d74367dc64140a19877e04aee395f`. The previously local
+> [execution plan](../plans/2026-09-01-001-chore-aws-lab-repeatability-plan.md) is archived
+> with this pause. The dated evidence below is retained as history, not a fresh AWS
+> state audit or a completed qualification. Resume only on the user's request.
+
+> Historical evidence status, 2026-09-04: `DUMP_RETRY_PENDING`. The immutable dataset, images, bundles,
 > local MySQL restore, administrative promoter path, and protected GitHub OIDC Lab path remain
 > fixed. Billable dump workflows `33763841701` and `33787974967` both failed before producing a
 > data-bootstrap or direct-readiness receipt and are `FAILED_NOT_QUALIFIED`. The first exposed an
