@@ -13,10 +13,11 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 
 public interface AccommodationRepositoryCustom {
     Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
-    Optional<AccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+    Optional<PublicAccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
         Long accommodationId,
         AccommodationStatus status
     );

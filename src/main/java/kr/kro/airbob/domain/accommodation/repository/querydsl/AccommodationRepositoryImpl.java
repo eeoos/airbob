@@ -26,6 +26,8 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QPublicAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
 import kr.kro.airbob.domain.member.entity.QMember;
@@ -50,20 +52,25 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Optional<AccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+    public Optional<PublicAccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
         Long accommodationId,
         AccommodationStatus status
     ) {
-        AccommodationDetailProjection result = jpaQueryFactory
-            .select(new QAccommodationDetailProjection(
-                accommodation,
+        PublicAccommodationDetailProjection result = jpaQueryFactory
+            .select(new QPublicAccommodationDetailProjection(
+                accommodation.id, accommodation.name, accommodation.description, accommodation.type,
+                accommodation.basePrice, accommodation.currency, accommodation.checkInTime,
+                accommodation.checkOutTime, accommodation.timeZoneId,
+                address.country, address.state, address.city, address.district, address.latitude, address.longitude,
+                member.id, member.nickname, member.thumbnailImageUrl,
+                occupancyPolicy.maxOccupancy, occupancyPolicy.infantOccupancy, occupancyPolicy.petOccupancy,
                 accommodationReviewSummary.totalReviewCount,
                 accommodationReviewSummary.averageRating
             ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .leftJoin(accommodation.member, member).fetchJoin()
+            .leftJoin(accommodation.address, address)
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy)
+            .leftJoin(accommodation.member, member)
             .leftJoin(accommodationReviewSummary)
             .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
             .where(accommodation.id.eq(accommodationId)
