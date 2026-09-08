@@ -28,6 +28,8 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationDetailProjection;
@@ -121,12 +123,17 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Slice<Reservation> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
+	public Slice<GuestReservationListProjection> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
 		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
-		List<Reservation> content = queryFactory
-			.selectFrom(reservation)
-			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
+		List<GuestReservationListProjection> content = queryFactory
+			.select(new QGuestReservationListProjection(
+				reservation.id, reservation.reservationUid, reservation.checkInDate, reservation.checkOutDate,
+				reservation.timeZoneId, reservation.status, reservation.expiresAt, reservation.createdAt,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl
+			))
+			.from(reservation)
+			.leftJoin(reservation.accommodation, accommodation)
 			.where(
 				reservation.guest.id.eq(guestId),
 				buildGuestReservationFilter(filterType, now),
@@ -235,6 +242,9 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	private BooleanExpression buildGuestReservationFilter(ReservationFilterType filterType, Instant now) {
+		if (filterType == null) {
+			return null;
+		}
 		switch (filterType) {
 			case PAST:
 				// 이전 여행: 유효 예약이면서 체크아웃이 과거

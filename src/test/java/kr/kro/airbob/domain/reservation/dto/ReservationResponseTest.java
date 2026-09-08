@@ -24,6 +24,7 @@ import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
@@ -166,19 +167,15 @@ class ReservationResponseTest {
 	@Test
 	@DisplayName("게스트 예약 목록도 cleanup을 기다리지 않고 만료된 hold를 EXPIRED로 응답한다")
 	void guestReservationInfoExposesEffectiveExpiry() {
-		Reservation reservation = Reservation.builder()
-			.id(20L)
-			.reservationUid(UUID.randomUUID())
-			.accommodation(Accommodation.builder().id(10L).name("expired stay").build())
-			.status(ReservationStatus.PAYMENT_PENDING)
-			.expiresAt(SERVER_TIME)
-			.build();
+		GuestReservationListProjection reservation = new GuestReservationListProjection(
+			20L, UUID.randomUUID(), null, null, "UTC", ReservationStatus.PAYMENT_PENDING,
+			SERVER_TIME, null, 10L, "expired stay", null);
 
 		ReservationResponse.GuestReservationInfo response =
 			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
 
 		assertThat(response.status()).isEqualTo(ReservationStatus.EXPIRED);
-		assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+		assertThat(reservation.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 	}
 
 	@Test
@@ -227,7 +224,10 @@ class ReservationResponseTest {
 				reservationZone.getId(), reservation.getMessage(), 10L, accommodation.getName(), null,
 				null, null, null, null, null, null, null, 2L, guest.getNickname(), null, null));
 		ReservationResponse.GuestReservationInfo guestInfo =
-			ReservationResponse.GuestReservationInfo.from(reservation, SERVER_TIME);
+			ReservationResponse.GuestReservationInfo.from(new GuestReservationListProjection(
+				reservation.getId(), reservation.getReservationUid(), reservation.getCheckInDate(),
+				reservation.getCheckOutDate(), reservation.getTimeZoneId(), reservation.getStatus(),
+				reservation.getExpiresAt(), createdAt, accommodation.getId(), accommodation.getName(), null), SERVER_TIME);
 		ReservationResponse.HostReservationInfo hostInfo =
 			ReservationResponse.HostReservationInfo.from(new HostReservationListProjection(
 				reservation.getId(), reservation.getReservationUid(), reservation.getReservationCode(),

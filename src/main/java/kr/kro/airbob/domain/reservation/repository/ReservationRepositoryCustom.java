@@ -13,6 +13,7 @@ import org.springframework.data.domain.Slice;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
@@ -29,7 +30,7 @@ public interface ReservationRepositoryCustom {
 		LocalDate windowEndExclusive
 	);
 
-	Slice<Reservation> findMyReservationsByGuestIdWithCursor(
+	Slice<GuestReservationListProjection> findMyReservationsByGuestIdWithCursor(
 		Long guestId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,

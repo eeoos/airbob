@@ -40,6 +40,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
@@ -274,7 +275,7 @@ public class ReservationTransactionService {
 		CursorRequest.CursorPageRequest cursorRequest, ReservationFilterType filterType) {
 		Instant now = clock.instant();
 
-		Slice<Reservation> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
+		Slice<GuestReservationListProjection> reservationSlice = reservationRepository.findMyReservationsByGuestIdWithCursor(
 			memberId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
@@ -290,8 +291,8 @@ public class ReservationTransactionService {
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			reservationSlice.getContent(),
 			reservationSlice.hasNext(),
-			Reservation::getId,
-			Reservation::getCreatedAt
+			GuestReservationListProjection::id,
+			GuestReservationListProjection::createdAt
 		);
 
 		return ReservationResponse.GuestReservationInfos.from(reservationInfos, pageInfo);

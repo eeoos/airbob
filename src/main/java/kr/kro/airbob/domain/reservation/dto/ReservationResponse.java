@@ -21,6 +21,7 @@ import kr.kro.airbob.domain.payment.entity.Payment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationQuote;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import lombok.AccessLevel;
@@ -164,24 +165,22 @@ public class ReservationResponse {
 		LocalDate checkOutDate,
 		String timeZoneId,
 		ReservationStatus status,
-		// Integer totalPrice,
 		Instant createdAt,
 
 		AccommodationResponse.AccommodationBasicInfo accommodation
 	) {
-		public static GuestReservationInfo from(Reservation reservation, Instant serverTime) {
+		public static GuestReservationInfo from(GuestReservationListProjection reservation, Instant serverTime) {
 
 			return GuestReservationInfo.builder()
-				.reservationId(reservation.getId())
-				.reservationUid(reservation.getReservationUid().toString())
-				.checkInDate(reservation.getCheckInDate())
-				.checkOutDate(reservation.getCheckOutDate())
-				.timeZoneId(reservation.getTimeZoneId())
-				.status(reservation.effectiveStatus(serverTime))
-				// .totalPrice(reservation.getTotalPrice())
-				.createdAt(toUtcInstant(reservation.getCreatedAt()))
-				.accommodation(
-					AccommodationResponse.AccommodationBasicInfo.from(reservation.getAccommodation()))
+				.reservationId(reservation.id())
+				.reservationUid(reservation.reservationUid().toString())
+				.checkInDate(reservation.checkInDate())
+				.checkOutDate(reservation.checkOutDate())
+				.timeZoneId(reservation.timeZoneId())
+				.status(Reservation.effectiveStatus(reservation.status(), reservation.expiresAt(), serverTime))
+				.createdAt(toUtcInstant(reservation.createdAt()))
+				.accommodation(new AccommodationResponse.AccommodationBasicInfo(
+					reservation.accommodationId(), reservation.accommodationName(), reservation.accommodationThumbnailUrl()))
 				.build();
 		}
 	}

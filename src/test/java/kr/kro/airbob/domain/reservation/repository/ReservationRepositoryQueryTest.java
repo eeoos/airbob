@@ -52,6 +52,7 @@ import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import jakarta.persistence.EntityManager;
 
@@ -150,11 +151,11 @@ class ReservationRepositoryQueryTest {
 		assertThat(firstPage.hasNext()).isTrue();
 		assertThat(sqlInspector.singleSelect()).contains(" join accommodation ").doesNotContain(" join address ");
 
-		Reservation cursor = firstPage.getContent().getLast();
+		GuestReservationListProjection cursor = firstPage.getContent().getLast();
 		entityManager.clear();
 		sqlInspector.clear();
 		var lastPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), cursor.getId(), cursor.getCreatedAt(), filter, now, PageRequest.of(0, 2));
+			guest.getId(), cursor.id(), cursor.createdAt(), filter, now, PageRequest.of(0, 2));
 		var lastDtos = lastPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now));
 		assertThat(lastDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
 			.containsExactly(firstTie.getId(), oldest.getId());
@@ -162,10 +163,10 @@ class ReservationRepositoryQueryTest {
 		assertThat(lastPage.hasNext()).isFalse();
 		assertThat(sqlInspector.singleSelect()).doesNotContain(" join address ");
 
-		Reservation lastCursor = lastPage.getContent().getLast();
+		GuestReservationListProjection lastCursor = lastPage.getContent().getLast();
 		sqlInspector.clear();
 		var emptyPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
-			guest.getId(), lastCursor.getId(), lastCursor.getCreatedAt(), filter, now, PageRequest.of(0, 2));
+			guest.getId(), lastCursor.id(), lastCursor.createdAt(), filter, now, PageRequest.of(0, 2));
 		assertThat(emptyPage).isEmpty();
 		assertThat(emptyPage.hasNext()).isFalse();
 		assertThat(sqlInspector.singleSelect()).doesNotContain(" join address ");
@@ -193,7 +194,7 @@ class ReservationRepositoryQueryTest {
 
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)
-		).getContent()).containsExactly(reservation);
+		).getContent()).extracting(GuestReservationListProjection::id).containsExactly(reservation.getId());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)
 		).getContent()).isEmpty();
@@ -296,13 +297,16 @@ class ReservationRepositoryQueryTest {
 
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(pastActive);
+		).getContent()).extracting(GuestReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(pastActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(guestUpcoming);
+		).getContent()).extracting(GuestReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(guestUpcoming.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrder(cancelled, expired, expiredPending);
+		).getContent()).extracting(GuestReservationListProjection::id)
+			.containsExactlyInAnyOrder(cancelled.getId(), expired.getId(), expiredPending.getId());
 
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
