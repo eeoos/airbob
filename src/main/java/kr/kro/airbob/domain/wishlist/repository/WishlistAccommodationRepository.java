@@ -17,6 +17,34 @@ import kr.kro.airbob.domain.wishlist.repository.querydsl.WishlistAccommodationRe
 public interface WishlistAccommodationRepository extends JpaRepository<WishlistAccommodation, Long>,
 	WishlistAccommodationRepositoryCustom {
 
+	interface MembershipProjection {
+		Long getAnyMembership();
+		Long getTargetWishlist();
+		Long getTargetMembership();
+	}
+
+	@Query(value = """
+		SELECT
+			CAST(EXISTS (
+				SELECT 1 FROM wishlist_accommodation wa
+				JOIN wishlist w ON w.id = wa.wishlist_id
+				WHERE w.member_id = :memberId AND w.status = 'ACTIVE'
+					AND wa.accommodation_id = :accommodationId
+			) AS SIGNED) AS anyMembership,
+			CAST(EXISTS (
+				SELECT 1 FROM wishlist w
+				WHERE w.id = :wishlistId AND w.member_id = :memberId AND w.status = 'ACTIVE'
+			) AS SIGNED) AS targetWishlist,
+			CAST(EXISTS (
+				SELECT 1 FROM wishlist_accommodation wa
+				JOIN wishlist w ON w.id = wa.wishlist_id
+				WHERE w.id = :wishlistId AND w.member_id = :memberId AND w.status = 'ACTIVE'
+					AND wa.accommodation_id = :accommodationId
+			) AS SIGNED) AS targetMembership
+		""", nativeQuery = true)
+	MembershipProjection findMembership(@Param("memberId") Long memberId,
+		@Param("accommodationId") Long accommodationId, @Param("wishlistId") Long wishlistId);
+
 	public interface WishlistThumbnailInfo {
 		Long getWishlist_id();
 		String getThumbnail_url();

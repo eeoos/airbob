@@ -32,7 +32,8 @@ public class WishlistAccommodationResponse {
 
 	public record WishlistAccommodationInfos(
 		List<WishlistAccommodationInfo> wishlistAccommodations,
-		CursorResponse.PageInfo pageInfo
+		CursorResponse.PageInfo pageInfo,
+		String wishlistName
 	) {
 	}
 

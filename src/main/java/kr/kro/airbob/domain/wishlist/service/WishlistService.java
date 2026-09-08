@@ -242,10 +242,18 @@ public class WishlistService {
 	}
 
 	@Transactional(readOnly = true)
+	public WishlistResponse.Membership findMembership(Long memberId, Long accommodationId, Long wishlistId) {
+		var membership = wishlistAccommodationRepository.findMembership(memberId, accommodationId, wishlistId);
+		boolean targetFound = membership.getTargetWishlist() != 0;
+		return new WishlistResponse.Membership(membership.getAnyMembership() != 0,
+			targetFound ? membership.getTargetMembership() != 0 : null, targetFound);
+	}
+
+	@Transactional(readOnly = true)
 	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodations(Long wishlistId,
 		CursorRequest.CursorPageRequest request, Long memberId) {
 
-		findWishlistByIdAndMemberId(wishlistId, memberId);
+		Wishlist wishlist = findWishlistByIdAndMemberId(wishlistId, memberId);
 
 		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice =
 			wishlistAccommodationRepository.findAccommodationsInWishlist(
@@ -264,7 +272,7 @@ public class WishlistService {
 				WishlistAccommodationResponse.WishlistAccommodationInfo::wishlistAccommodationId,
 				info -> toUtcDateTime(info.createdAt())
 			);
-			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo);
+			return new WishlistAccommodationResponse.WishlistAccommodationInfos(List.of(), pageInfo, wishlist.getName());
 		}
 
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
@@ -274,7 +282,7 @@ public class WishlistService {
 			info -> toUtcDateTime(info.createdAt())
 		);
 
-		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo);
+		return new WishlistAccommodationResponse.WishlistAccommodationInfos(infos, pageInfo, wishlist.getName());
 	}
 
 	private Member findMemberById(Long loggedInMemberId) {

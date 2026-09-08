@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
@@ -37,11 +41,12 @@ import kr.kro.airbob.cursor.util.CursorEncoder;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse.WishlistAccommodationInfos;
+import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -77,6 +82,8 @@ class WishlistDetailQueryIntegrationTest {
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private CursorDecoder cursorDecoder;
+	@Autowired private EntityManager entityManager;
+	@Autowired private EntityManagerFactory entityManagerFactory;
 
 	@BeforeEach
 	void setUp() {
@@ -92,6 +99,124 @@ class WishlistDetailQueryIntegrationTest {
 			INSERT INTO wishlist (id, name, member_id, status, updated_at)
 			VALUES (?, '여름 여행', ?, 'ACTIVE', NOW(6)), (?, '다른 여행', ?, 'ACTIVE', NOW(6))
 			""", WISHLIST_ID, OWNER_ID, OTHER_WISHLIST_ID, OTHER_MEMBER_ID);
+	}
+
+	@Test
+	@DisplayName("상세 이름은 권한 검사에서 읽은 값을 재사용하고 빈 목록에서도 두 SELECT를 유지한다")
+	void detailIncludesNameWithoutAdditionalRead() {
+		insertAccommodation(31, "PUBLISHED");
+		insertItem(501, WISHLIST_ID, 31);
+		Statistics statistics = prepareMeasurement();
+
+		assertThat(findFirstPage(20).wishlistName()).isEqualTo("여름 여행");
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+
+		jdbc.update("DELETE FROM wishlist_accommodation WHERE id = 501");
+		statistics = prepareMeasurement();
+		var empty = findFirstPage(20);
+		assertEmpty(empty);
+		assertThat(empty.wishlistName()).isEqualTo("여름 여행");
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("목록 세 페이지·아홉 SELECT로 구하던 찜 상태를 한 SELECT로 반환한다")
+	void membershipSnapshotReplacesThreeSummaryPages() {
+		insertAccommodation(31, "PUBLISHED");
+		for (long id = 100; id < 145; id++) {
+			jdbc.update("""
+				INSERT INTO wishlist
+					(id, name, member_id, status, accommodation_count, representative_accommodation_id, created_at, updated_at)
+				VALUES (?, '여행', ?, 'ACTIVE', 1, 31, '2026-07-01 00:00:00', NOW(6))
+				""", id, OWNER_ID);
+			insertItem(1000 + id, id, 31);
+		}
+		Statistics before = prepareMeasurement();
+		CursorData cursor = null;
+		int pages = 0;
+		boolean inAny = false;
+		boolean inTarget = false;
+		do {
+			var page = service.findWishlists(CursorPageRequest.builder().size(20)
+				.lastId(cursor == null ? null : cursor.id())
+				.lastCreatedAt(cursor == null ? null : cursor.lastCreatedAt()).build(), OWNER_ID, 31L);
+			pages++;
+			inAny |= page.wishlists().stream().anyMatch(w -> Boolean.TRUE.equals(w.isContained()));
+			inTarget |= page.wishlists().stream()
+				.anyMatch(w -> w.id() == 100 && Boolean.TRUE.equals(w.isContained()));
+			cursor = cursorDecoder.decode(page.pageInfo().nextCursor(), CursorData.class);
+		} while (cursor != null);
+		assertThat(pages).isEqualTo(3);
+		assertThat(before.getPrepareStatementCount()).isEqualTo(9);
+
+		assertThat(membership(OWNER_ID, 31L, 100L))
+			.isEqualTo(new WishlistResponse.Membership(inAny, inTarget, true));
+	}
+
+	@Test
+	@DisplayName("찜 상태는 내 활성 위시리스트만 확인하고 비공개 숙소의 저장 상태도 보존한다")
+	void membershipPreservesOwnershipAndSavedUnpublishedAccommodation() {
+		insertAccommodation(31, "UNPUBLISHED");
+		insertAccommodation(32, "PUBLISHED");
+		insertItem(501, WISHLIST_ID, 31);
+		insertItem(502, OTHER_WISHLIST_ID, 32);
+		jdbc.update("""
+			INSERT INTO wishlist (id, name, member_id, status, updated_at)
+			VALUES (44, '삭제된 여행', ?, 'DELETED', NOW(6))
+			""", OWNER_ID);
+		insertItem(503, 44, 32);
+
+		assertThat(membership(OWNER_ID, 31L, WISHLIST_ID))
+			.isEqualTo(new WishlistResponse.Membership(true, true, true));
+		assertThat(membership(OWNER_ID, 32L, WISHLIST_ID))
+			.isEqualTo(new WishlistResponse.Membership(false, false, true));
+		assertThat(membership(OWNER_ID, 32L, OTHER_WISHLIST_ID))
+			.isEqualTo(new WishlistResponse.Membership(false, null, false));
+		assertThat(membership(OWNER_ID, 32L, 44L))
+			.isEqualTo(new WishlistResponse.Membership(false, null, false));
+		assertThat(membership(OWNER_ID, 31L, null))
+			.isEqualTo(new WishlistResponse.Membership(true, null, false));
+		assertThat(membership(999L, 31L, WISHLIST_ID))
+			.isEqualTo(new WishlistResponse.Membership(false, null, false));
+		assertThat(membership(OWNER_ID, 999L, 999L))
+			.isEqualTo(new WishlistResponse.Membership(false, null, false));
+	}
+
+	@Test
+	@DisplayName("여러 위시리스트 중 하나에서 삭제해도 남은 저장 상태를 반환하고 마지막 삭제 후 false가 된다")
+	void membershipRemainsTrueUntilLastOwnMembershipIsRemoved() throws Exception {
+		insertAccommodation(31, "PUBLISHED");
+		jdbc.update("""
+			INSERT INTO wishlist (id, name, member_id, status, updated_at)
+			VALUES (44, '다음 여행', ?, 'ACTIVE', NOW(6))
+			""", OWNER_ID);
+		insertItem(501, WISHLIST_ID, 31);
+		insertItem(502, 44, 31);
+		jdbc.update("DELETE FROM wishlist_accommodation WHERE id = 501");
+		var snapshot = membership(OWNER_ID, 31L, WISHLIST_ID);
+		try (var fixture = new ClassPathResource("contracts/wishlist-membership.json").getInputStream()) {
+			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(snapshot)))
+				.isEqualTo(objectMapper.readTree(fixture));
+		}
+		jdbc.update("DELETE FROM wishlist_accommodation WHERE id = 502");
+		assertThat(membership(OWNER_ID, 31L, WISHLIST_ID))
+			.isEqualTo(new WishlistResponse.Membership(false, false, true));
+	}
+
+	private WishlistResponse.Membership membership(long memberId, Long accommodationId, Long wishlistId) {
+		Statistics statistics = prepareMeasurement();
+		var result = service.findMembership(memberId, accommodationId, wishlistId);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		return result;
+	}
+
+	private Statistics prepareMeasurement() {
+		entityManager.flush();
+		entityManager.clear();
+		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+		statistics.clear();
+		return statistics;
 	}
 
 	@Test
