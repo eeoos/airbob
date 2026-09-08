@@ -1,0 +1,30 @@
+{
+  "wishlist_accommodations": [
+    {
+      "wishlist_accommodation_id": 501,
+      "memo": "창가 방",
+      "created_at": "2026-07-02T00:00:00Z",
+      "accommodation": {
+        "id": 31,
+        "name": "서울 하우스",
+        "thumbnail_url": "/stay.jpg"
+      },
+      "address_summary": {
+        "country": "대한민국",
+        "state": null,
+        "city": "서울",
+        "district": "마포구"
+      },
+      "review_summary": {
+        "total_count": 0,
+        "average_rating": 0
+      },
+      "is_in_wishlist": true
+    }
+  ],
+  "page_info": {
+    "has_next": false,
+    "next_cursor": null,
+    "current_size": 1
+  }
+}

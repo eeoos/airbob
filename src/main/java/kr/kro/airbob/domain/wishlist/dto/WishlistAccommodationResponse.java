@@ -51,7 +51,7 @@ public class WishlistAccommodationResponse {
 			String memo,
 			Accommodation accommodation,
 			BigDecimal averageRating,
-			int reviewCount,
+			Integer reviewCount,
 			LocalDateTime createdAt) {
 
 			this(
@@ -60,10 +60,7 @@ public class WishlistAccommodationResponse {
 				createdAt == null ? null : createdAt.toInstant(ZoneOffset.UTC),
 				AccommodationResponse.AccommodationBasicInfo.from(accommodation),
 				AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()),
-				ReviewResponse.ReviewSummary.builder()
-					.averageRating(averageRating)
-					.totalCount(reviewCount)
-					.build(),
+				ReviewResponse.ReviewSummary.of(reviewCount, averageRating),
 				true // wishlist_accommodation 테이블에서 조회한 것이므로 true
 			);
 		}

@@ -54,7 +54,7 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.leftJoin(accommodationReviewSummary)
 			.on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
 			.where(
-				wishlist.id.eq(wishlistId),
+				wishlistAccommodation.wishlist.id.eq(wishlistId),
 				accommodation.status.eq(AccommodationStatus.PUBLISHED),
 				cursorCondition(lastId, lastCreatedAt)
 			)
