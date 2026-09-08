@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
+import kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
     boolean existsByEmailAndStatus(String email, MemberStatus status);
@@ -20,6 +21,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByEmailAndStatus(String email, MemberStatus status);
 
     Optional<Member> findByIdAndStatus(Long id, MemberStatus status);
+
+    @Query("""
+        select new kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection(m.id, m.email, m.nickname)
+        from Member m where m.id = :id and m.status = :status
+        """)
+    Optional<MemberProfileProjection> findProfileByIdAndStatus(@Param("id") Long id, @Param("status") MemberStatus status);
 
     boolean existsByIdAndStatusAndRole(Long id, MemberStatus status, MemberRole role);
 
