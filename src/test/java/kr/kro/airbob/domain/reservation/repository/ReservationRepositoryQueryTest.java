@@ -159,6 +159,12 @@ class ReservationRepositoryQueryTest {
 				.as("status=%s", status)
 				.isEqualTo(status == ReservationStatus.CONFIRMED
 					|| status == ReservationStatus.CANCELLATION_FAILED);
+			assertThat(reservationRepository.existsPastCompletedReservationByGuest(
+				accommodation.getId(), guest.getId(), now.minus(1, ChronoUnit.MICROS)))
+				.as("체크아웃 직전 status=%s", status).isFalse();
+			assertThat(reservationRepository.existsPastCompletedReservationByGuest(
+				accommodation.getId(), host.getId(), now))
+				.as("타인의 예약 status=%s", status).isFalse();
 		}
 	}
 

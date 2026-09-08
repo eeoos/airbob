@@ -13,12 +13,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
+import org.springframework.core.io.ClassPathResource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -30,6 +32,36 @@ class ReservationResponseTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Test
+	@DisplayName("취소 실패 예약의 후기 작성 권한을 게스트 상세 JSON 계약으로 전달한다")
+	void serializesReviewPermissionContract() throws Exception {
+		Member host = Member.builder().id(202L).nickname("테스트 호스트").build();
+		Accommodation accommodation = Accommodation.builder()
+			.id(7L).name("후기 계약 숙소").member(host).status(AccommodationStatus.PUBLISHED)
+			.address(Address.builder().country("대한민국").city("서울").street("양화로")
+				.postalCode("04000").build())
+			.build();
+		Reservation reservation = Reservation.builder()
+			.reservationUid(UUID.fromString("10000000-0000-4000-8000-000000000001"))
+			.reservationCode("REVIEW-2026").accommodation(accommodation)
+			.status(ReservationStatus.CANCELLATION_FAILED).guestCount(2)
+			.checkInDate(LocalDate.of(2026, 8, 23)).checkOutDate(LocalDate.of(2026, 8, 25))
+			.checkInAt(Instant.parse("2026-08-23T06:00:00Z")).checkOutAt(SERVER_TIME)
+			.timeZoneId("Asia/Seoul").totalPrice(200_000L).currency("KRW")
+			.createdAt(LocalDateTime.of(2026, 8, 1, 0, 0)).build();
+
+		try (var fixture = new ClassPathResource("contracts/guest-reservation-reviewable.json").getInputStream()) {
+			JsonNode expected = objectMapper.readTree(fixture);
+			JsonNode actual = objectMapper.readTree(objectMapper.writeValueAsString(
+				ReservationResponse.GuestDetail.from(reservation, null, true, SERVER_TIME)));
+			assertThat(actual).isEqualTo(expected);
+		}
+		JsonNode denied = objectMapper.valueToTree(
+			ReservationResponse.GuestDetail.from(reservation, null, false, SERVER_TIME));
+		assertThat(denied.get("can_write_review").isBoolean()).isTrue();
+		assertThat(denied.get("can_write_review").booleanValue()).isFalse();
+	}
 
 	@Test
 	@DisplayName("예약 준비 응답은 checkout과 결제에 필요한 전체 계약을 노출한다")

@@ -307,11 +307,12 @@ public class ReservationTransactionService {
 		PaymentResponse.PaymentInfo paymentInfo = getPaymentInfo(reservationUidStr, payment,
 			reservation);
 
-		boolean canWriteReview = isCanWriteReview(memberId, reservation);
+		Instant serverTime = clock.instant();
+		boolean canWriteReview = canWriteReview(memberId, reservation, serverTime);
 
 		// mapstruct 적용
 		return ReservationResponse.GuestDetail.from(
-			reservation, paymentInfo, canWriteReview, clock.instant());
+			reservation, paymentInfo, canWriteReview, serverTime);
 	}
 
 	@Transactional(readOnly = true)
@@ -379,19 +380,14 @@ public class ReservationTransactionService {
 			payment.getId(), java.util.List.of(PaymentTransactionType.CANCEL, PaymentTransactionType.PARTIAL_CANCEL));
 	}
 
-	private boolean isCanWriteReview(Long memberId, Reservation reservation) {
-		boolean canWriteReview = false;
-		if (reservation.getStatus().isReviewableReservation() &&
-			!reservation.getCheckOutAt().isAfter(clock.instant())) {
-
-			// 아직 작성한 리뷰가 없는지 확인
-			canWriteReview = !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
-				reservation.getAccommodation().getId(),
-				memberId,
-				ReviewStatus.PUBLISHED
-			);
+	private boolean canWriteReview(Long memberId, Reservation reservation, Instant serverTime) {
+		if (reservation.getAccommodation().getStatus() != AccommodationStatus.PUBLISHED
+			|| !reservation.getStatus().isReviewableReservation()
+			|| reservation.getCheckOutAt().isAfter(serverTime)) {
+			return false;
 		}
-		return canWriteReview;
+		return !reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
+			reservation.getAccommodation().getId(), memberId, ReviewStatus.PUBLISHED);
 	}
 
 	private String createReservationCode() {
