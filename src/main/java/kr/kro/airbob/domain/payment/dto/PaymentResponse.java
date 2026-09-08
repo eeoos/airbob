@@ -17,6 +17,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentResponse {
 
+	public record HostPaymentInfo(Long totalAmount) {
+	}
+
 	@Builder
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	public record PaymentInfo(

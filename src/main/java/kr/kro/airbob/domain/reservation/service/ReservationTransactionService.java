@@ -349,9 +349,9 @@ public class ReservationTransactionService {
 		Reservation reservation = reservationRepository.findHostReservationDetailByUidAndHostId(reservationUid, hostId)
 			.orElseThrow(ReservationNotFoundException::new);
 
-		Payment payment = findPaymentByReservationUidNullable(reservationUid);
-		PaymentResponse.PaymentInfo paymentInfo = (payment != null)
-			? PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment)) : null;
+		PaymentResponse.HostPaymentInfo paymentInfo = paymentRepository.findAmountByReservationId(reservation.getId())
+			.map(PaymentResponse.HostPaymentInfo::new)
+			.orElse(null);
 
 		return ReservationResponse.HostDetail.from(reservation, paymentInfo);
 	}

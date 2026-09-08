@@ -15,14 +15,6 @@
   },
   "guest": { "id": 2, "nickname": "테스트 게스트", "thumbnail_image_url": null },
   "payment": {
-    "order_id": "10000000-0000-4000-8000-000000000002",
-    "payment_key": "synthetic-payment-key",
-    "method": "카드",
-    "total_amount": 100001,
-    "balance_amount": 100001,
-    "status": "DONE",
-    "requested_at": "2026-09-01T00:00:00Z",
-    "approved_at": "2026-09-01T00:01:00Z",
-    "cancels": []
+    "total_amount": 100001
   }
 }

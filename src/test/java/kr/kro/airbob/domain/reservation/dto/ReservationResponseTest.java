@@ -7,7 +7,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -64,7 +63,7 @@ class ReservationResponseTest {
 			.createdAt(LocalDateTime.parse("2026-09-01T00:00:00")).build();
 
 		ReservationResponse.HostDetail response = ReservationResponse.HostDetail.from(
-			reservation, PaymentResponse.PaymentInfo.from(payment, List.of()));
+			reservation, new PaymentResponse.HostPaymentInfo(payment.getAmount()));
 
 		try (var fixture = new ClassPathResource("contracts/host-reservation-stay-payment.json").getInputStream()) {
 			assertThat(objectMapper.readTree(objectMapper.writeValueAsString(response)))

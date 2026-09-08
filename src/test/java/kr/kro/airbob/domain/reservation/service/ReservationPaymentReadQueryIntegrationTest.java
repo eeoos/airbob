@@ -18,6 +18,7 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -47,6 +48,8 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.payment.entity.Payment;
+import kr.kro.airbob.domain.payment.entity.PaymentTransaction;
 import kr.kro.airbob.domain.payment.entity.PaymentTransactionType;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
@@ -192,6 +195,77 @@ class ReservationPaymentReadQueryIntegrationTest {
 			.isInstanceOf(ReservationNotFoundException.class);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains(" from payment"));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"DONE,100001", "PARTIAL_CANCELED,75001", "CANCELED,0"})
+	void hostReadsOnlyOriginalPaymentAmountWithoutCancellationHistory(String status, long balanceAmount)
+		throws Exception {
+		jdbc.update("UPDATE reservation SET status = ? WHERE id = 40",
+			"CANCELED".equals(status) ? "CANCELLED" : "CONFIRMED");
+		insertPayment(100001L, balanceAmount, status);
+		if (balanceAmount < 100001L) {
+			insertTransaction(61, "PARTIAL_CANCEL", 50L, 25000L, "2026-09-01 10:00:00");
+		}
+		if (balanceAmount == 0L) {
+			insertTransaction(62, "CANCEL", 50L, 75001L, "2026-09-01 10:01:00");
+		}
+		Statistics statistics = prepareMeasurement();
+
+		var detail = service.findHostReservationDetail(RESERVATION_UID.toString(), 10L);
+
+		assertThat(detail.payment().totalAmount()).isEqualTo(100001L);
+		assertThat(objectMapper.readTree(objectMapper.writeValueAsString(detail.payment())))
+			.isEqualTo(objectMapper.readTree("{\"total_amount\":100001}"));
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(statistics.getEntityStatistics(Payment.class.getName()).getLoadCount()).isZero();
+		assertThat(statistics.getEntityStatistics(PaymentTransaction.class.getName()).getLoadCount()).isZero();
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
+		var paymentSql = sqlCapture.statements.stream()
+			.filter(sql -> sql.contains(" from payment ")).findFirst().orElseThrow();
+		assertThat(paymentSql.substring("select ".length(), paymentSql.indexOf(" from ")))
+			.endsWith(".amount").doesNotContain(",");
+		assertThat(paymentSql).contains(".reservation_id=?").doesNotContain(" join ");
+	}
+
+	@Test
+	void hostKeepsMissingPaymentAsNullWithoutReadingLegacyLedger() {
+		insertTransaction(61, "VIRTUAL_ISSUED", null, null, "2026-09-01 10:00:00");
+		Statistics statistics = prepareMeasurement();
+
+		assertThat(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L).payment()).isNull();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("payment_transaction"));
+	}
+
+	@Test
+	void hostDistinguishesRecordedZeroPaymentFromMissingPayment() {
+		insertPayment(0L, 0L, "DONE");
+		Statistics statistics = prepareMeasurement();
+
+		assertThat(service.findHostReservationDetail(RESERVATION_UID.toString(), 10L).payment().totalAmount())
+			.isZero();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+	}
+
+	@Test
+	void reservationGuestCannotReadPaymentThroughHostDetail() {
+		insertPayment(100001L, 100001L, "DONE");
+		Statistics statistics = prepareMeasurement();
+
+		assertThatThrownBy(() -> service.findHostReservationDetail(RESERVATION_UID.toString(), GUEST_ID))
+			.isInstanceOf(ReservationNotFoundException.class);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains(" from payment"));
+	}
+
+	private void insertPayment(long amount, long balanceAmount, String status) {
+		jdbc.update("""
+			INSERT INTO payment (id, payment_uid, payment_key, order_id, amount, method, approved_at,
+				created_at, reservation_id, status, balance_amount, updated_at)
+			VALUES (50, UUID_TO_BIN(UUID()), 'synthetic-payment-key', ?, ?, 'CARD',
+				'2026-09-01 09:00:00', '2026-09-01 09:00:00', 40, ?, ?, '2026-09-01 10:02:00')
+			""", RESERVATION_UID.toString(), amount, status, balanceAmount);
 	}
 
 	private void insertTransaction(long id, String type, Long paymentId, Long cancelAmount, String createdAt) {

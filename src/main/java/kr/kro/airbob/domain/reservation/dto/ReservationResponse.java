@@ -334,9 +334,9 @@ public class ReservationResponse {
 
 		MemberResponse.MemberInfo guest,
 
-		PaymentResponse.PaymentInfo payment
+		PaymentResponse.HostPaymentInfo payment
 	) {
-		public static HostDetail from(Reservation reservation, PaymentResponse.PaymentInfo paymentInfo) {
+		public static HostDetail from(Reservation reservation, PaymentResponse.HostPaymentInfo paymentInfo) {
 			Accommodation accommodation = reservation.getAccommodation();
 			Address address = accommodation.getAddress();
 			ZoneId timeZone = ZoneId.of(reservation.getTimeZoneId());
