@@ -76,8 +76,6 @@ class TossPaymentsAdapterTest {
 		assertTossPaymentsDisabled(() -> disabledAdapter.inquireConfirmation(command()));
 		assertTossPaymentsDisabled(() -> disabledAdapter.cancel(cancellationCommand()));
 		assertTossPaymentsDisabled(() -> disabledAdapter.inquireCancellation(cancellationCommand()));
-		assertTossPaymentsDisabled(() ->
-			disabledAdapter.issueVirtualAccount(null, "20", "guest"));
 
 		server.verify();
 	}

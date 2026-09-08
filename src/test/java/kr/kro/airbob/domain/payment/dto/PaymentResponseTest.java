@@ -48,25 +48,20 @@ class PaymentResponseTest {
 	}
 
 	@Test
-	@DisplayName("취소 시각과 가상계좌 만료 시각을 절대 시각으로 응답한다")
+	@DisplayName("취소 시각을 절대 시각으로 응답한다")
 	void transactionTimesUseInstants() {
 		Instant canceledAt = Instant.parse("2026-08-12T06:00:00.123456Z");
-		Instant dueDate = Instant.parse("2026-08-13T14:30:00.654321Z");
 		PaymentTransaction transaction = PaymentTransaction.builder()
 			.transactionType(PaymentTransactionType.CANCEL)
 			.cancelAmount(100_000L)
 			.cancelReason("사용자 요청")
 			.canceledAt(canceledAt)
-			.virtualDueDate(dueDate)
 			.createdAt(LocalDateTime.of(2026, 8, 12, 5, 59))
 			.build();
 
 		PaymentResponse.CancelInfo cancelInfo = PaymentResponse.CancelInfo.from(transaction);
-		PaymentResponse.VirtualAccountInfo virtualAccountInfo =
-			PaymentResponse.VirtualAccountInfo.from(transaction);
 
 		assertThat(cancelInfo.canceledAt()).isEqualTo(canceledAt);
-		assertThat(virtualAccountInfo.dueDate()).isEqualTo(dueDate);
 	}
 
 	@Test

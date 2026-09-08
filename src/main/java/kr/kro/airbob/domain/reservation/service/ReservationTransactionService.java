@@ -304,8 +304,8 @@ public class ReservationTransactionService {
 			.orElseThrow(ReservationNotFoundException::new);
 
 		Payment payment = findPaymentByReservationUidNullable(reservationUid);
-		PaymentResponse.PaymentInfo paymentInfo = getPaymentInfo(reservationUidStr, payment,
-			reservation);
+		PaymentResponse.PaymentInfo paymentInfo = (payment != null)
+			? PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment)) : null;
 
 		Instant serverTime = clock.instant();
 		boolean canWriteReview = canWriteReview(memberId, reservation, serverTime);
@@ -354,25 +354,6 @@ public class ReservationTransactionService {
 			? PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment)) : null;
 
 		return ReservationResponse.HostDetail.from(reservation, paymentInfo);
-	}
-
-	private PaymentResponse.PaymentInfo getPaymentInfo(String reservationUidStr, Payment payment,
-		Reservation reservation) {
-		PaymentResponse.PaymentInfo paymentInfo = null;
-
-		if (payment != null) { // 결제 완료된 예약
-			paymentInfo = PaymentResponse.PaymentInfo.from(payment, findCancelTransactions(payment));
-		} else if (reservation.getStatus() == ReservationStatus.PAYMENT_PENDING
-			|| reservation.getStatus() == ReservationStatus.PAYMENT_PROCESSING) { // 결제 대기중인 예약(가상계좌)
-			paymentInfo = paymentTransactionRepository
-				.findByOrderIdOrderByCreatedAtDesc(reservationUidStr)
-				.stream()
-				.filter(tx -> tx.getTransactionType() == PaymentTransactionType.VIRTUAL_ISSUED)
-				.findFirst()
-				.map(PaymentResponse.PaymentInfo::from)
-				.orElse(null);
-		}
-		return paymentInfo;
 	}
 
 	private java.util.List<PaymentTransaction> findCancelTransactions(Payment payment) {

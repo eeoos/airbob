@@ -10,7 +10,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
+import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 
@@ -18,25 +18,19 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 class PaymentTransactionTimeTest {
 
 	@Test
-	@DisplayName("가상계좌 만료 시각은 offset을 보존한 절대 시각으로 저장한다")
+	@DisplayName("PG 승인 메타데이터의 가상계좌 시각은 원장에 보존한다")
 	void virtualAccountDueDatePreservesOffset() {
 		Reservation reservation = reservation();
 		ZonedDateTime dueDate = ZonedDateTime.of(
 			2026, 8, 13, 23, 30, 0, 123_456_000,
 			ZoneId.of("Asia/Seoul")
 		);
-		TossPaymentResponse response = TossPaymentResponse.builder()
-			.paymentKey("payment-key")
-			.orderId(reservation.getReservationUid().toString())
-			.totalAmount(100_000L)
-			.method("가상계좌")
-			.status("WAITING_FOR_DEPOSIT")
-			.virtualAccount(TossPaymentResponse.VirtualAccount.builder()
-				.dueDate(dueDate)
-				.build())
-			.build();
-
-		PaymentTransaction transaction = PaymentTransaction.virtualIssued(response, reservation);
+		ConfirmedPayment confirmed = new ConfirmedPayment(
+			"payment-key", reservation.getReservationUid().toString(), 100_000L, 100_000L,
+			PaymentMethod.VIRTUAL_ACCOUNT, PaymentStatus.DONE, Instant.parse("2026-08-12T00:00:00Z"),
+			new ConfirmedPayment.VirtualAccountDetails("04", "synthetic-account", "guest", dueDate.toInstant()));
+		PaymentTransaction transaction = PaymentTransaction.confirm(
+			confirmed, reservation, Payment.builder().id(2L).build(), 3L);
 
 		assertThat(transaction.getVirtualDueDate())
 			.isEqualTo(Instant.parse("2026-08-13T14:30:00.123456Z"));
