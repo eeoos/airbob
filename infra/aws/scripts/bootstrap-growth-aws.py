@@ -149,8 +149,8 @@ def main(manifest_path):
     runtime.mkdir(mode=0o700)
     contract.validate_runtime(release / 'verification-runtime.zip', contract.read(release / 'migration-files.json'), runtime)
     java_version = execute(['java', '--version']).decode() if shutil.which('java') else ''
-    if not re.search(r'(?:openjdk|java) 21[. ]', java_version) or not shutil.which('keytool'):
-        execute(['dnf', 'install', '-y', 'java-21-amazon-corretto-headless'], timeout=300)
+    if not re.search(r'(?:openjdk|java) 21[. ]', java_version) or not shutil.which('keytool') or not shutil.which('xargs'):
+        execute(['dnf', 'install', '-y', 'java-21-amazon-corretto-headless', 'findutils'], timeout=300)
     contract.require(re.search(r'(?:openjdk|java) 21[. ]', execute(['java', '--version']).decode()), 'Java 21 is required')
     with tempfile.TemporaryDirectory(prefix='credentials-', dir=work) as directory:
         secret_dir = Path(directory)
