@@ -1,0 +1,721 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-09",
+  "scope": "Completed non-Elasticsearch read refactoring, current working-tree targeted revalidation",
+  "backendHeadAtReview": "fd26e74769107dd80ac3e04dfc41aa725585e42c",
+  "implementationBaseline": "3d0ae2d65ae650d6eb9d9def7d6daeffa98a6e0a",
+  "implementationCommits": [
+    {
+      "sha": "cd6e3bbefb8c10433e0ab279ec61a65f5cf97be8",
+      "subject": "fix: 위시리스트 상세의 빈 리뷰 요약 정규화"
+    },
+    {
+      "sha": "5bb1ea30f1c81955f607d336dafde7385205ced4",
+      "subject": "test: 쿠폰 조회와 사용 상태 계약 검증"
+    },
+    {
+      "sha": "b8c98c4bd937439044cf78e3cdd964b9e0d6ae01",
+      "subject": "fix: 예약 상세의 후기 작성 권한 정렬"
+    },
+    {
+      "sha": "63f44567fcf0d334770e02624dffb17d70b2948d",
+      "subject": "fix: 기존 숙소 인원 정책 수정 반영"
+    },
+    {
+      "sha": "5076071b081e467123607d07f58d51c7883e5f41",
+      "subject": "perf: 호스트 편집 상세의 미사용 조회 제거"
+    },
+    {
+      "sha": "934f7ccf6ee46ae76a09b8f425a99837629cfd0a",
+      "subject": "perf: 게스트 예약 목록의 미사용 주소 조회 제거"
+    },
+    {
+      "sha": "2b7e611c1ff612f8c99730bb71337ab797427cbb",
+      "subject": "perf: 최근 본 숙소와 후기 요약 조회 통합"
+    },
+    {
+      "sha": "777864c1d2a7448541c7fa133bd1f40bfc4383d1",
+      "subject": "perf: 호스트 숙소 목록을 필요한 컬럼으로 조회"
+    },
+    {
+      "sha": "016589bcf7ea2b388f04f9131486054eb3b6ee01",
+      "subject": "test: 호스트 예약 날짜와 결제 응답 계약 고정"
+    },
+    {
+      "sha": "19185c41e24fa303f9a58c60026194ba3d0e5592",
+      "subject": "perf: 위시리스트 이름과 찜 상태 반복 조회 제거"
+    },
+    {
+      "sha": "96fa676cafb191d81ce93c401069c508dbb9cd92",
+      "subject": "perf: 결제 작업 상태 조회를 단일 projection으로 통합"
+    },
+    {
+      "sha": "b2d1275e36498befd06f341c5d5c68e4e84f92d1",
+      "subject": "refactor: 미지원 가상계좌 발급 및 조회 경로 제거"
+    },
+    {
+      "sha": "8d4e5ee3bcbfba38446be6dbddb90a7a16333dce",
+      "subject": "perf: 호스트 예약 상세의 결제 금액 조회 축소"
+    },
+    {
+      "sha": "e921af7c3266a378726bc54b5ba911cc6590f812",
+      "subject": "perf: 호스트 예약 상세와 결제 조회를 projection으로 통합"
+    },
+    {
+      "sha": "3d757b4952ff12dd212521f56423a39c01260585",
+      "subject": "perf: 호스트 예약 목록 조회와 선택 필터 처리 개선"
+    },
+    {
+      "sha": "735e83861335e6e6571d478adc3be1f985418db2",
+      "subject": "perf: 게스트 예약 목록 조회와 선택 필터 처리 개선"
+    },
+    {
+      "sha": "f203c0b923451ac2b7a47691e2ce01ba3bd3b7f6",
+      "subject": "perf: 내 회원정보 응답과 조회 컬럼 축소"
+    },
+    {
+      "sha": "d695ebcedc6b0b6fa0b89f297d6c6fe7fa04138d",
+      "subject": "perf: 게스트 예약 상세와 결제 조회를 필요한 정보로 통합"
+    },
+    {
+      "sha": "87b29da098fa6d32360b43ddb94464760d4743f8",
+      "subject": "perf: 공개 숙소 상세를 필요한 컬럼으로 조회"
+    },
+    {
+      "sha": "aefd738734fad36003b888fa2e402aca329f0c37",
+      "subject": "perf: 호스트 숙소 편집 상세 조회 컬럼 축소"
+    },
+    {
+      "sha": "12465b12b9f0921400259fe61ca6b38479bbdca7",
+      "subject": "perf: 최근 본 숙소 카드를 필요한 컬럼으로 조회"
+    },
+    {
+      "sha": "ba183b47a24877d86a12a62a640bf0923db717fd",
+      "subject": "perf: 내 쿠폰 목록을 필요한 컬럼으로 조회"
+    },
+    {
+      "sha": "a78474678197c63430e42be979bb31f2130e298f",
+      "subject": "perf: 발급 쿠폰 목록을 필요한 컬럼으로 조회"
+    },
+    {
+      "sha": "d45f1f315f707c994f1564a474d9e7fd3e5aba3a",
+      "subject": "perf: 위시리스트 상세를 필요한 컬럼으로 조회"
+    },
+    {
+      "sha": "29550b11886472e5c3704eb14ee28dfac57eb1ef",
+      "subject": "perf: 위시리스트 목록과 사진 및 저장 상태 조회 통합"
+    }
+  ],
+  "changedProductionFiles": [
+    "src/main/java/kr/kro/airbob/domain/accommodation/dto/AccommodationResponse.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/entity/OccupancyPolicy.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationAmenityRepository.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationImageRepository.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/AccommodationRepository.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/projection/AccommodationAmenityProjection.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/projection/AccommodationImageProjection.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/projection/HostAccommodationDetailProjection.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/projection/HostAccommodationProjection.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/projection/PublicAccommodationDetailProjection.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/projection/RecentlyViewedAccommodationProjection.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/querydsl/AccommodationRepositoryCustom.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/repository/querydsl/AccommodationRepositoryImpl.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/service/AccommodationCommandService.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/service/AccommodationDetailReader.java",
+    "src/main/java/kr/kro/airbob/domain/accommodation/service/AccommodationQueryService.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/common/CouponIssuanceStatus.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/common/MemberCouponStatus.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/dto/CouponResponse.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/entity/Coupon.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/entity/MemberCoupon.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/repository/CouponRepository.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/repository/MemberCouponRepository.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/repository/projection/CouponCampaignProjection.java",
+    "src/main/java/kr/kro/airbob/domain/coupon/repository/projection/MemberCouponProjection.java",
+    "src/main/java/kr/kro/airbob/domain/member/dto/MemberResponse.java",
+    "src/main/java/kr/kro/airbob/domain/member/repository/MemberRepository.java",
+    "src/main/java/kr/kro/airbob/domain/member/repository/projection/MemberProfileProjection.java",
+    "src/main/java/kr/kro/airbob/domain/member/service/MemberService.java",
+    "src/main/java/kr/kro/airbob/domain/payment/dto/PaymentOperationResponse.java",
+    "src/main/java/kr/kro/airbob/domain/payment/dto/PaymentRequest.java",
+    "src/main/java/kr/kro/airbob/domain/payment/dto/PaymentResponse.java",
+    "src/main/java/kr/kro/airbob/domain/payment/entity/PaymentTransaction.java",
+    "src/main/java/kr/kro/airbob/domain/payment/exception/code/VirtualAccountIssueErrorCode.java",
+    "src/main/java/kr/kro/airbob/domain/payment/repository/PaymentOperationRepository.java",
+    "src/main/java/kr/kro/airbob/domain/payment/repository/PaymentTransactionRepository.java",
+    "src/main/java/kr/kro/airbob/domain/payment/repository/projection/PaymentOperationDetailRow.java",
+    "src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationQueryService.java",
+    "src/main/java/kr/kro/airbob/domain/payment/service/TossPaymentsAdapter.java",
+    "src/main/java/kr/kro/airbob/domain/payment/service/VirtualAccountService.java",
+    "src/main/java/kr/kro/airbob/domain/recentlyViewed/service/RecentlyViewedService.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/dto/ReservationResponse.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/entity/Reservation.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/repository/ReservationRepositoryCustom.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/repository/impl/ReservationRepositoryImpl.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/repository/projection/GuestReservationDetailProjection.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/repository/projection/GuestReservationListProjection.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/repository/projection/HostReservationDetailProjection.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/repository/projection/HostReservationListProjection.java",
+    "src/main/java/kr/kro/airbob/domain/reservation/service/ReservationTransactionService.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/api/WishlistController.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/dto/WishlistAccommodationResponse.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/dto/WishlistResponse.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/WishlistAccommodationRepository.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/WishlistRepository.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/projection/WishlistDetailHeaderProjection.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/projection/WishlistSummaryProjection.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/querydsl/WishlistAccommodationRepositoryImpl.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/querydsl/WishlistRepositoryCustom.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/repository/querydsl/WishlistRepositoryImpl.java",
+    "src/main/java/kr/kro/airbob/domain/wishlist/service/WishlistService.java"
+  ],
+  "frontend": {
+    "head": "b12487243847fb98888cab214e99b06f01e9601a",
+    "originMain": "f80bc095d679944af25443a456592110b23fc9d3",
+    "testFiles": 106,
+    "testsPassed": 787,
+    "browserTestsPassed": 63,
+    "browserSpecFiles": [
+      "public-accommodation-contract.spec.ts",
+      "accommodation-editor-characterization.spec.ts",
+      "host-listings-characterization.spec.ts",
+      "host-reservation-characterization.spec.ts",
+      "profile-review-characterization.spec.ts",
+      "reservation-payment-characterization.spec.ts",
+      "wishlist-characterization.spec.ts",
+      "auth-session-characterization.spec.ts"
+    ],
+    "typechecks": [
+      "app",
+      "unit-tests",
+      "e2e"
+    ],
+    "browserMode": "Production build with synthetic intercepted API; isolated loopback port; original reporter and artifact scanner retained"
+  },
+  "backend": {
+    "selectedClasses": [
+      "kr.kro.airbob.domain.accommodation.dto.AccommodationResponseJsonTest",
+      "kr.kro.airbob.domain.accommodation.dto.PolicyResponseJsonTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationAvailabilityOccupancyContractTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationCommandServiceTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationDetailCacheQueryCountTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationDetailQueryCountTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationDetailReaderTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationPolicyIntegrationTest",
+      "kr.kro.airbob.domain.accommodation.service.AccommodationQueryServiceTest",
+      "kr.kro.airbob.domain.accommodation.service.HostAccommodationDetailReadIntegrationTest",
+      "kr.kro.airbob.domain.accommodation.service.HostAccommodationListQueryIntegrationTest",
+      "kr.kro.airbob.domain.accommodation.service.PublicAccommodationDetailReadIntegrationTest",
+      "kr.kro.airbob.domain.auth.api.AuthControllerTest",
+      "kr.kro.airbob.domain.coupon.dto.CouponResponseJsonTest",
+      "kr.kro.airbob.domain.coupon.repository.CouponQueryRepositoryTest",
+      "kr.kro.airbob.domain.coupon.service.CouponCampaignReadIntegrationTest",
+      "kr.kro.airbob.domain.coupon.service.CouponQueryServiceTest",
+      "kr.kro.airbob.domain.coupon.service.MemberCouponReadIntegrationTest",
+      "kr.kro.airbob.domain.member.service.MemberProfileReadQueryIntegrationTest",
+      "kr.kro.airbob.domain.member.service.MemberServiceTest",
+      "kr.kro.airbob.domain.payment.dto.PaymentResponseTest",
+      "kr.kro.airbob.domain.payment.entity.PaymentTransactionTimeTest",
+      "kr.kro.airbob.domain.payment.service.PaymentOperationQueryServiceTest",
+      "kr.kro.airbob.domain.payment.service.PaymentOperationReadQueryIntegrationTest",
+      "kr.kro.airbob.domain.payment.service.TossPaymentsAdapterTest",
+      "kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedQueryIntegrationTest",
+      "kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedServiceTest",
+      "kr.kro.airbob.domain.reservation.dto.ReservationResponseTest",
+      "kr.kro.airbob.domain.reservation.repository.ReservationRepositoryQueryTest",
+      "kr.kro.airbob.domain.reservation.service.GuestReservationListReadQueryIntegrationTest",
+      "kr.kro.airbob.domain.reservation.service.HostReservationListReadQueryIntegrationTest",
+      "kr.kro.airbob.domain.reservation.service.ReservationCheckInCutoffContractTest",
+      "kr.kro.airbob.domain.reservation.service.ReservationPaymentReadQueryIntegrationTest",
+      "kr.kro.airbob.domain.reservation.service.ReservationTransactionServiceTest",
+      "kr.kro.airbob.domain.review.service.ReviewServiceTest",
+      "kr.kro.airbob.domain.wishlist.WishlistDetailQueryIntegrationTest",
+      "kr.kro.airbob.domain.wishlist.WishlistListReadIntegrationTest",
+      "kr.kro.airbob.domain.wishlist.api.WishlistMembershipApiTest",
+      "kr.kro.airbob.domain.wishlist.WishlistDenormalizationIntegrationTest",
+      "kr.kro.airbob.domain.wishlist.WishlistDeleteBenchmarkIntegrationTest",
+      "kr.kro.airbob.domain.wishlist.api.WishlistBenchmarkControllerTest",
+      "kr.kro.airbob.common.api.UtcResponseJsonTest"
+    ],
+    "totals": {
+      "tests": 383,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "xml": "TEST-kr.kro.airbob.common.api.UtcResponseJsonTest.xml",
+        "displayName": "절대 시각 API 응답 계약 테스트",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.dto.AccommodationResponseJsonTest.xml",
+        "displayName": "숙소 상세 응답 JSON 테스트",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.dto.PolicyResponseJsonTest.xml",
+        "displayName": "호스트 편집 정책 JSON 계약",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationAvailabilityOccupancyContractTest.xml",
+        "displayName": "숙소 직접 availability 점유 계약 테스트",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationCommandServiceTest.xml",
+        "displayName": "숙소 명령 서비스 단위 테스트",
+        "tests": 26,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationDetailCacheQueryCountTest.xml",
+        "displayName": "숙소 상세 캐시 쿼리 수 통합 테스트",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationDetailQueryCountTest.xml",
+        "displayName": "숙소 상세 조회 쿼리 테스트",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationDetailReaderTest.xml",
+        "displayName": "숙소 상세 원본 조회기 단위 테스트",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationPolicyIntegrationTest.xml",
+        "displayName": "숙소 정책 저장 후 호스트 조회 MySQL 계약",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.AccommodationQueryServiceTest.xml",
+        "displayName": "숙소 조회 서비스 단위 테스트",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.HostAccommodationDetailReadIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.accommodation.service.HostAccommodationDetailReadIntegrationTest",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.HostAccommodationListQueryIntegrationTest.xml",
+        "displayName": "호스트 숙소 목록 projection MySQL 통합 테스트",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.accommodation.service.PublicAccommodationDetailReadIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.accommodation.service.PublicAccommodationDetailReadIntegrationTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.auth.api.AuthControllerTest.xml",
+        "displayName": "kr.kro.airbob.domain.auth.api.AuthControllerTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.coupon.dto.CouponResponseJsonTest.xml",
+        "displayName": "쿠폰 캠페인·보유 쿠폰 프론트 공유 JSON 계약",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.coupon.repository.CouponQueryRepositoryTest.xml",
+        "displayName": "쿠폰 조회 저장소 테스트",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.coupon.service.CouponCampaignReadIntegrationTest.xml",
+        "displayName": "발급 쿠폰 목록 MySQL 조회 계약",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.coupon.service.CouponQueryServiceTest.xml",
+        "displayName": "kr.kro.airbob.domain.coupon.service.CouponQueryServiceTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.coupon.service.MemberCouponReadIntegrationTest.xml",
+        "displayName": "내 쿠폰 목록 MySQL 조회 계약",
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.member.service.MemberProfileReadQueryIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.member.service.MemberProfileReadQueryIntegrationTest",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.member.service.MemberServiceTest.xml",
+        "displayName": "kr.kro.airbob.domain.member.service.MemberServiceTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.payment.dto.PaymentResponseTest.xml",
+        "displayName": "결제 응답 시간 테스트",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.payment.entity.PaymentTransactionTimeTest.xml",
+        "displayName": "결제 거래 시각 테스트",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.payment.service.PaymentOperationQueryServiceTest.xml",
+        "displayName": "kr.kro.airbob.domain.payment.service.PaymentOperationQueryServiceTest",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.payment.service.PaymentOperationReadQueryIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.payment.service.PaymentOperationReadQueryIntegrationTest",
+        "tests": 23,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.payment.service.TossPaymentsAdapterTest.xml",
+        "displayName": "TossPaymentsAdapter tests",
+        "tests": 40,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedQueryIntegrationTest.xml",
+        "displayName": "최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedServiceTest.xml",
+        "displayName": "최근 본 숙소 서비스 테스트",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.dto.ReservationResponseTest.xml",
+        "displayName": "예약 응답 시간대 테스트",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.repository.ReservationRepositoryQueryTest.xml",
+        "displayName": "예약 QueryDSL 저장소 테스트",
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.service.GuestReservationListReadQueryIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.reservation.service.GuestReservationListReadQueryIntegrationTest",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.service.HostReservationListReadQueryIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.reservation.service.HostReservationListReadQueryIntegrationTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.service.ReservationCheckInCutoffContractTest.xml",
+        "displayName": "kr.kro.airbob.domain.reservation.service.ReservationCheckInCutoffContractTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.service.ReservationPaymentReadQueryIntegrationTest.xml",
+        "displayName": "kr.kro.airbob.domain.reservation.service.ReservationPaymentReadQueryIntegrationTest",
+        "tests": 44,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.service.ReservationTransactionServiceTest$CreatePendingReservationInTxTest.xml",
+        "displayName": "예약 생성 트랜잭션 테스트",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.reservation.service.ReservationTransactionServiceTest.xml",
+        "displayName": "ReservationTransactionService 테스트",
+        "tests": 16,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.review.service.ReviewServiceTest.xml",
+        "displayName": "리뷰 서비스 단위 테스트",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.wishlist.WishlistDeleteBenchmarkIntegrationTest.xml",
+        "displayName": "Wishlist 삭제 Before/After 벌크 쓰기 비교 통합 테스트",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.wishlist.WishlistDenormalizationIntegrationTest.xml",
+        "displayName": "위시리스트 반정규화(개수/대표 썸네일) 통합 테스트",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.wishlist.WishlistDetailQueryIntegrationTest.xml",
+        "displayName": "위시리스트 상세 조회 계약 MySQL 통합 테스트",
+        "tests": 17,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.wishlist.WishlistListReadIntegrationTest.xml",
+        "displayName": "위시리스트 목록·저장 선택 MySQL 조회 계약",
+        "tests": 15,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.wishlist.api.WishlistBenchmarkControllerTest.xml",
+        "displayName": "위시리스트 before 벤치마크 API 테스트",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "xml": "TEST-kr.kro.airbob.domain.wishlist.api.WishlistMembershipApiTest.xml",
+        "displayName": "kr.kro.airbob.domain.wishlist.api.WishlistMembershipApiTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "gradleResult": "BUILD SUCCESSFUL in 3m 29s"
+  },
+  "sharedContracts": [
+    {
+      "file": "auth-me-profile.json",
+      "status": "match",
+      "frontend": [
+        "src/features/auth/api/__fixtures__/auth-me-profile.json"
+      ]
+    },
+    {
+      "file": "coupon-campaigns.json",
+      "status": "match",
+      "frontend": [
+        "src/features/accommodations/detail/api/__fixtures__/coupon-campaigns.json"
+      ]
+    },
+    {
+      "file": "guest-reservation-detail-payment.json",
+      "status": "match",
+      "frontend": [
+        "src/features/reservations/api/__fixtures__/guest-reservation-detail-payment.json"
+      ]
+    },
+    {
+      "file": "guest-reservation-list-expired.json",
+      "status": "match",
+      "frontend": [
+        "src/features/reservations/api/__fixtures__/guest-reservation-list-expired.json"
+      ]
+    },
+    {
+      "file": "guest-reservation-reviewable.json",
+      "status": "match",
+      "frontend": [
+        "src/features/reservations/api/__fixtures__/guest-reservation-reviewable.json"
+      ]
+    },
+    {
+      "file": "host-accommodation-editor.json",
+      "status": "match",
+      "frontend": [
+        "src/features/accommodations/listing-editor/api/__fixtures__/host-accommodation-editor.json"
+      ]
+    },
+    {
+      "file": "host-accommodation-list.json",
+      "status": "match",
+      "frontend": [
+        "src/features/profile/api/__fixtures__/host-accommodation-list.json"
+      ]
+    },
+    {
+      "file": "host-policy-contracts.json",
+      "status": "match",
+      "frontend": [
+        "src/features/accommodations/listing-editor/api/__fixtures__/host-policy-contracts.json"
+      ]
+    },
+    {
+      "file": "host-reservation-list.json",
+      "status": "match",
+      "frontend": [
+        "src/features/reservations/api/__fixtures__/host-reservation-list.json"
+      ]
+    },
+    {
+      "file": "host-reservation-stay-payment.json",
+      "status": "match",
+      "frontend": [
+        "src/features/reservations/api/__fixtures__/host-reservation-stay-payment.json"
+      ]
+    },
+    {
+      "file": "member-coupons.json",
+      "status": "match",
+      "frontend": [
+        "src/features/accommodations/detail/api/__fixtures__/member-coupons.json"
+      ]
+    },
+    {
+      "file": "payment-operation-read.json",
+      "status": "match",
+      "frontend": [
+        "src/features/reservations/payment/api/__fixtures__/payment-operation-read.json"
+      ]
+    },
+    {
+      "file": "public-accommodation-detail.json",
+      "status": "match",
+      "frontend": [
+        "src/features/accommodations/detail/api/__fixtures__/public-accommodation-detail.json"
+      ]
+    },
+    {
+      "file": "recently-viewed-mixed-history.json",
+      "status": "match",
+      "frontend": [
+        "src/features/wishlist/api/__fixtures__/recently-viewed-mixed-history.json"
+      ]
+    },
+    {
+      "file": "wishlist-detail-without-reviews.json",
+      "status": "match",
+      "frontend": [
+        "src/features/wishlist/api/__fixtures__/wishlist-detail-without-reviews.json"
+      ]
+    },
+    {
+      "file": "wishlist-list-with-membership.json",
+      "status": "match",
+      "frontend": [
+        "src/features/wishlist/api/__fixtures__/wishlist-list-with-membership.json"
+      ]
+    },
+    {
+      "file": "wishlist-membership.json",
+      "status": "match",
+      "frontend": [
+        "src/features/wishlist/api/__fixtures__/wishlist-membership.json"
+      ]
+    }
+  ],
+  "limits": [
+    "Targeted regression, not entire repository test suite",
+    "Current working tree includes separate MySQL 8.4 upgrade changes",
+    "No live frontend-to-backend HTTP E2E or actual payment processing",
+    "No latency, throughput, execution-plan or index benchmark"
+  ]
+}
