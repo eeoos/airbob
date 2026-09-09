@@ -1,4 +1,6 @@
 locals {
+  parameter_group_family                 = startswith(var.engine_version, "8.4.") ? "mysql8.4" : "mysql8.0"
+  engine_lifecycle_support               = startswith(var.engine_version, "8.4.") ? "open-source-rds-extended-support-disabled" : "open-source-rds-extended-support"
   dump_storage_type                      = "gp3"
   dump_baseline_iops                     = 3000
   dump_baseline_storage_throughput_mibps = 125
@@ -12,7 +14,7 @@ resource "aws_db_subnet_group" "this" {
 
 resource "aws_db_parameter_group" "this" {
   name   = var.name
-  family = "mysql8.0"
+  family = local.parameter_group_family
   tags   = var.tags
 
   parameter {
@@ -47,9 +49,10 @@ resource "aws_db_parameter_group" "this" {
 resource "aws_db_instance" "this" {
   identifier = var.name
 
-  engine         = "mysql"
-  engine_version = var.engine_version
-  instance_class = "db.t3.small"
+  engine                   = "mysql"
+  engine_version           = var.engine_version
+  engine_lifecycle_support = local.engine_lifecycle_support
+  instance_class           = "db.t3.small"
 
   allocated_storage           = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
   storage_type                = var.bootstrap_mode == "dump" ? local.dump_storage_type : null

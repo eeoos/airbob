@@ -1,6 +1,6 @@
-.PHONY: aws-up aws-status aws-switch aws-down aws-discovery
+.PHONY: aws-prepare aws-up aws-status aws-switch aws-down aws-discovery
 
-aws-up:
+aws-prepare aws-up:
 	AWS_REGION=ap-northeast-2 \
 	AWS_LAB_OPERATOR_SCOPE="$(if $(filter cutover,$(or $(DNS_MODE),direct-only)),cutover,direct)" \
 	MODE="$(MODE)" POLICY="$(POLICY)" IMAGE_DIGEST="$(IMAGE_DIGEST)" \
@@ -15,7 +15,7 @@ aws-up:
 	RDS_SNAPSHOT_IDENTIFIER="$(RDS_SNAPSHOT_IDENTIFIER)" \
 	RDS_SNAPSHOT_SOURCE_RUN_ID="$(RDS_SNAPSHOT_SOURCE_RUN_ID)" \
 	RDS_SNAPSHOT_SOURCE_RESOURCE_ID="$(RDS_SNAPSHOT_SOURCE_RESOURCE_ID)" RUN_ID="$(RUN_ID)" \
-	infra/aws/scripts/aws-lab.sh up
+	infra/aws/scripts/aws-lab.sh $(patsubst aws-%,%,$@)
 
 aws-status:
 	AWS_REGION=ap-northeast-2 AWS_LAB_OPERATOR_SCOPE=direct infra/aws/scripts/aws-lab.sh status

@@ -59,7 +59,7 @@ done
 [[ -f "$comparison_projection_filter" && ! -L "$comparison_projection_filter" ]] \
   || fail "readiness comparison projection is missing or unsafe"
 
-assert_contains "$operator" 'case "$action" in up|status|switch|down)'
+assert_contains "$operator" 'case "$action" in prepare|up|status|switch|down)'
 assert_contains "$operator" 'AWS_LAB_OPERATOR_SCOPE must be direct or cutover'
 assert_contains "$operator" 'airbob-lab-cutover-operator'
 assert_contains "$operator" 'active Lab credentials do not match AWS_LAB_OPERATOR_SCOPE'
@@ -304,7 +304,7 @@ for target in aws-up aws-status aws-switch aws-down; do
 done
 
 assert_contains "$workflow" 'workflow_dispatch:'
-assert_contains "$workflow" 'options: [up, status, switch, down]'
+assert_contains "$workflow" 'options: [prepare, up, status, switch, down]'
 assert_contains "$workflow" 'schedule:'
 assert_contains "$workflow" "cron: '17,47 * * * *'"
 assert_contains "$workflow" 'group: aws-performance-lab'
@@ -340,8 +340,8 @@ assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '6'"
-assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && 359 || 120 }}"
-assert_contains "$workflow" "role-duration-seconds: \${{ inputs.action == 'up' && 21600 || 7200 }}"
+assert_contains "$workflow" "timeout-minutes: \${{ (inputs.action == 'up' || inputs.action == 'prepare') && 359 || 120 }}"
+assert_contains "$workflow" "role-duration-seconds: \${{ (inputs.action == 'up' || inputs.action == 'prepare') && 21600 || 7200 }}"
 assert_contains "$workflow" '- name: Record workflow deadline'
 assert_contains "$workflow" 'WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120'
 assert_contains "$workflow" 'workflow_ceiling_seconds=7200'
@@ -507,8 +507,8 @@ cat > "$temp_dir/readiness-a.json" <<'JSON'
   "networkClearance": {"key":"network-clearance/lab-dump/i-old.json","versionId":"network-v1","sha256":"5555555555555555555555555555555555555555555555555555555555555555","lastModified":"2026-09-01T00:01:00Z","projectionSha256":"6666666666666666666666666666666666666666666666666666666666666666"},
   "actual": {
     "ami":{"id":"ami-0123456789abcdef0","shape":{"imageId":"ami-0123456789abcdef0","architecture":"x86_64"}},
-    "rds":{"identifier":"airbob-lab-dump","resourceId":"db-OLD","class":"db.t3.small","engine":"mysql","engineVersion":"8.0.42","allocatedStorageGiB":100,"storageType":"gp3","iops":3000,"storageThroughputMiBps":125,"multiAz":false,"storageEncrypted":true,"publiclyAccessible":false,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-lab-dump"]},
-    "rdsParameterGroupFamily":"mysql8.0",
+    "rds":{"identifier":"airbob-lab-dump","resourceId":"db-OLD","class":"db.t3.small","engine":"mysql","engineVersion":"8.4.8","allocatedStorageGiB":100,"storageType":"gp3","iops":3000,"storageThroughputMiBps":125,"multiAz":false,"storageEncrypted":true,"publiclyAccessible":false,"availabilityZone":"ap-northeast-2a","parameterGroups":["airbob-lab-dump"]},
+    "rdsParameterGroupFamily":"mysql8.4",
     "alb":{"arn":"arn:old","dnsName":"old.elb.amazonaws.com","targetGroupArn":"tg-old","autoScalingGroupName":"asg-old","securityGroupId":"sg-old","shape":{"arn":"arn:old","dnsName":"old.elb.amazonaws.com","scheme":"internet-facing","type":"application","ipAddressType":"ipv4","availabilityZones":["ap-northeast-2a","ap-northeast-2c"],"securityGroups":["sg-old"]},"observedIngress":[{"ruleId":"sgr-old","groupId":"sg-old","isEgress":false,"ipProtocol":"tcp","fromPort":443,"toPort":443,"cidrIpv4":"198.51.100.10/32","cidrIpv6":null,"prefixListId":null,"referencedGroupId":null}]},
     "autoScalingGroup":{"name":"asg-old","min":1,"desired":1,"max":1}
   },
@@ -641,6 +641,7 @@ mkdir -p "$fixture_scripts" "$fixture_repo/infra/aws/lab/modules/security" \
   "$fixture_repo/.github/workflows" "$temp_dir/operator-bin" "$temp_dir/fake-s3"
 export FAKE_S3_STORE="$temp_dir/fake-s3"
 cp "$operator" "$fixture_scripts/aws-lab.sh"
+cp "$repo_root/infra/aws/scripts/dataset-qualification.sh" "$fixture_scripts/dataset-qualification.sh"
 cp "$repo_root/infra/aws/scripts/compute-target-fingerprint.sh" "$fixture_scripts/compute-target-fingerprint.sh"
 cp "$repo_root/infra/aws/toolchain.env" "$fixture_repo/infra/aws/toolchain.env"
 cp "$repo_root/Makefile" "$fixture_repo/Makefile"
@@ -1043,8 +1044,15 @@ case " $* " in
       manifest_sha=$(shasum -a 256 "${FAKE_DATASET_MANIFEST:?}" | awk '{print $1}')
       jq -n --arg run "$receipt_run" --arg manifestSha "$manifest_sha" \
         --arg bootstrap "${FAKE_DATABASE_BOOTSTRAP:-dump}" \
-        '{schemaVersion:2,runId:$run,datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",rdsEngineVersion:"8.0.42",semanticAttestationSha256:("2" * 64),outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
+        '{schemaVersion:3,runId:$run,verification:{mode:"full",source:null},datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",rdsEngineVersion:"8.4.8",semanticAttestationSha256:("2" * 64),outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
         > "$destination"
+      if [[ "${FAKE_DATABASE_BOOTSTRAP:-dump}" == snapshot ]]; then
+        source_qual="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"
+        jq --arg sha "$(shasum -a 256 "$source_qual" | awk '{print $1}')" \
+          --arg vsha "$(printf version-fixture | shasum -a 256 | awk '{print $1}')"           '.verification={mode:"approved-snapshot",source:{key:"data-bootstrap/lab-repeat-dump/dataset-qualification.json",sha256:$sha,versionIdSha256:$vsha}}' \
+          "$destination" > "$destination.next"
+        mv "$destination.next" "$destination"
+      fi
       cp "$destination" "$store_path"
     elif [[ "$key" == network-clearance/* ]]; then
       clearance_run=${key#network-clearance/}
@@ -1179,19 +1187,17 @@ case " $* " in
     esac
     ;;
   *' ec2 describe-images '*) printf '%s\n' '{"imageId":"ami-0123456789abcdef0","creationDate":"2026-08-31T00:00:00Z","architecture":"x86_64","rootDeviceType":"ebs","virtualizationType":"hvm"}' ;;
+  *' rds describe-db-engine-versions '*) printf '%s\n' '{"DBEngineVersions":[{"EngineVersion":"8.4.8","DBParameterGroupFamily":"mysql8.4","Status":"available"}]}' ;;
   *' rds describe-db-snapshots '*)
-    source_data="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__fixture-v20.json"
-    source_readiness="$FAKE_S3_STORE/measurements__lab-repeat-dump__direct-readiness.json"
+    source_data="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"
     jq -n --arg dataSha "$(shasum -a 256 "$source_data" | awk '{print $1}')" \
-      --arg readinessSha "$(shasum -a 256 "$source_readiness" | awk '{print $1}')" \
       --arg versionSha "$(printf version-fixture | shasum -a 256 | awk '{print $1}')" '{DBSnapshots:[{
         DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",
+        Engine:"mysql",EngineVersion:"8.4.8",Status:"available",Encrypted:true,
         TagList:[{Key:"SourceLabRunId",Value:"lab-repeat-dump"},{Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWX"},
-          {Key:"DatasetRelease",Value:"fixture-v20"},{Key:"PromotionReceiptSchemaVersion",Value:"2"},
-          {Key:"DataBootstrapKey",Value:"data-bootstrap/lab-repeat-dump/fixture-v20.json"},
-          {Key:"DataBootstrapVersionIdSha256",Value:$versionSha},{Key:"DataBootstrapSha256",Value:$dataSha},
-          {Key:"DirectReadinessKey",Value:"measurements/lab-repeat-dump/direct-readiness.json"},
-          {Key:"DirectReadinessVersionIdSha256",Value:$versionSha},{Key:"DirectReadinessSha256",Value:$readinessSha}]
+          {Key:"DatasetRelease",Value:"fixture-v20"},{Key:"PromotionReceiptSchemaVersion",Value:"3"},
+          {Key:"DataBootstrapKey",Value:"data-bootstrap/lab-repeat-dump/dataset-qualification.json"},
+          {Key:"DataBootstrapVersionIdSha256",Value:$versionSha},{Key:"DataBootstrapSha256",Value:$dataSha}]
       }]}'
     ;;
   *' rds describe-db-instances '*'MasterUserSecret.SecretArn'*) printf '%s\n' 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test' ;;
@@ -1202,13 +1208,13 @@ case " $* " in
       --argjson publiclyAccessible "${FAKE_RDS_PUBLICLY_ACCESSIBLE:-false}" '
       {
         identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX", class:"db.t3.small",
-        engine:"mysql", engineVersion:"8.0.42", allocatedStorageGiB:100, storageType:"gp3",
+        engine:"mysql", engineVersion:"8.4.8", allocatedStorageGiB:100, storageType:"gp3",
         iops:$iops, storageThroughputMiBps:$throughput, multiAz:false, storageEncrypted:true,
         publiclyAccessible:$publiclyAccessible, availabilityZone:"ap-northeast-2a",
         parameterGroups:["airbob-fake"]
       }'
     ;;
-  *' rds describe-db-parameter-groups '*) printf '%s\n' mysql8.0 ;;
+  *' rds describe-db-parameter-groups '*) printf '%s\n' mysql8.4 ;;
   *' elbv2 describe-load-balancers '*)
     if [[ "${FAKE_ALB_SECURITY_GROUP_DRIFT:-false}" == true ]]; then
       printf '%s\n' '{"arn":"arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-fake/0123456789abcdef","dnsName":"airbob-fake.ap-northeast-2.elb.amazonaws.com","scheme":"internet-facing","type":"application","ipAddressType":"ipv4","availabilityZones":["ap-northeast-2a"],"securityGroups":["sg-0123456789abcdef0","sg-fedcba98765432100"]}'
@@ -1581,6 +1587,8 @@ cat > "$temp_dir/dataset-manifest.json" <<'JSON'
 }
 JSON
 jq --arg legacySha "$legacy_manifest_sha" --arg compositeSha "$benchmark_dataset_manifest_sha" '
+  .datasetRunId="20260909T000000Z-12345678" |
+  .mysql.dumpSha256=("a"*64) | .mysql.migrationChecksumSha256=("b"*64) | .mysql.schemaFingerprintSha256=("c"*64) |
   .source.legacyBenchmarkManifestSha256 = $legacySha |
   .source.benchmarkDatasetManifestSha256 = $compositeSha |
   .releaseTuple.manifestSha256 = $compositeSha
@@ -1592,7 +1600,7 @@ jq -n \
   --arg runId lab-partial-down \
   --argjson expiresAt 2000000000 \
   --arg datasetManifestSha256 "$dataset_wrapper_sha" \
-  '{schemaVersion:1,runId:$runId,expiresAt:$expiresAt,fencingToken:41,mode:"performance",policy:"isolated-read",cacheEnabled:false,requestTarget:"",loadGeneratorEnabled:false,amiId:"ami-0123456789abcdef0",ociOriginIpv4:"203.0.113.10",databaseBootstrap:"dump",rdsSnapshotIdentifier:"",rdsEngineVersion:"8.0.42",bundleCommit:"cccccccccccccccccccccccccccccccccccccccc",bundleSha256:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",datasetRelease:"fixture-v20",datasetManifestSha256:$datasetManifestSha256,appImageReference:"942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",infraImageReferences:{},verifiedProbeInstanceId:"i-0123456789abcdef0"}' \
+  '{schemaVersion:1,runId:$runId,expiresAt:$expiresAt,fencingToken:41,mode:"performance",policy:"isolated-read",cacheEnabled:false,requestTarget:"",loadGeneratorEnabled:false,amiId:"ami-0123456789abcdef0",ociOriginIpv4:"203.0.113.10",databaseBootstrap:"dump",rdsSnapshotIdentifier:"",rdsEngineVersion:"8.4.8",bundleCommit:"cccccccccccccccccccccccccccccccccccccccc",bundleSha256:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",datasetRelease:"fixture-v20",datasetManifestSha256:$datasetManifestSha256,appImageReference:"942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",infraImageReferences:{},verifiedProbeInstanceId:"i-0123456789abcdef0"}' \
   > "$temp_dir/run-manifest.json"
 
 run_fake_up() {
@@ -1680,7 +1688,7 @@ run_fake_up() {
     RDS_SNAPSHOT_IDENTIFIER="${FAKE_RDS_SNAPSHOT_IDENTIFIER:-}" \
     RDS_SNAPSHOT_SOURCE_RUN_ID="$snapshot_source_run_id" \
     RDS_SNAPSHOT_SOURCE_RESOURCE_ID="$snapshot_source_resource_id" \
-    RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS="$ttl_hours" \
+    RDS_ENGINE_VERSION=8.4.8 LOAD_GENERATOR_ENABLED=false TTL_HOURS="$ttl_hours" \
     AWS_LAB_OPERATOR_SCOPE="$fake_operator_scope" \
     GITHUB_ACTIONS="${FAKE_GITHUB_ACTIONS:-false}" \
     AIRBOB_WORKFLOW_DEADLINE_EPOCH="${FAKE_WORKFLOW_DEADLINE_EPOCH:-}" \
@@ -1727,8 +1735,19 @@ run_fake_up() {
     FAKE_CREATE_TFLOCK="${FAKE_CREATE_TFLOCK:-false}" \
     FAKE_TFLOCK_CREATED="${FAKE_TFLOCK_CREATED:-}" \
     RUN_ID="$1" FAKE_PUBLIC_SMOKE_FAILURE="${2:-false}" \
-    "$fixture_scripts/aws-lab.sh" up
+    "$fixture_scripts/aws-lab.sh" "${FAKE_UP_ACTION:-up}"
 }
+
+# A prepared run stops before mutable policy, application, and direct-readiness gates.
+source "$repo_root/infra/aws/scripts/dataset-qualification.sh"
+write_dataset_qualification "$temp_dir/dataset-manifest.json" "$FAKE_S3_STORE/data-bootstrap__lab-prepare__dataset-qualification.json"   lab-prepare db-ABCDEFGHIJKLMNOPQRSTUVWX 8.4.8 "$(printf '2%.0s' {1..64})"
+: > "$temp_dir/operator-execution.log"
+FAKE_UP_ACTION=prepare FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32   run_fake_up lab-prepare > "$temp_dir/prepare.out"
+grep -Fq 'Dataset qualified.' "$temp_dir/prepare.out" || fail 'prepare did not publish its qualification result'
+if grep -Eq '^policy |^dns |deployment_phase=data-ready' "$temp_dir/operator-execution.log"; then
+  fail 'prepare entered the application/experiment path'
+fi
+[[ ! -f "$FAKE_S3_STORE/measurements__lab-prepare__direct-readiness.json" ]]   || fail 'prepare falsely claimed application readiness'
 
 # A real metadata calculation failure must stop the full up entry point before
 # any lease, run receipt, Terraform operation or DNS mutation, in both modes.
@@ -2955,6 +2974,8 @@ FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   FAKE_DATABASE_BOOTSTRAP=dump FAKE_TIME_STEP_SECONDS=120 \
   FAKE_TIME_COUNTER="$temp_dir/dump-time-counter" \
   run_fake_up lab-repeat-dump false 203.0.113.10 performance integrated-smoke >/dev/null
+source "$repo_root/infra/aws/scripts/dataset-qualification.sh"
+write_dataset_qualification "$temp_dir/dataset-manifest.json" "$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"   lab-repeat-dump db-ABCDEFGHIJKLMNOPQRSTUVWX 8.4.8 "$(printf '2%.0s' {1..64})"
 printf '%s\n' 0 > "$temp_dir/snapshot-time-counter"
 FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
@@ -3612,7 +3633,7 @@ if env FAKE_PERSISTENT_DELETE=true \
   DATASET_RELEASE=fixture-v20 DATASET_MANIFEST_VERSION_ID=dataset-version-fixture \
   BUNDLE_COMMIT=cccccccccccccccccccccccccccccccccccccccc BUNDLE_MANIFEST_VERSION_ID=bundle-version-fixture \
   AMI_ID=ami-0123456789abcdef0 OCI_ORIGIN_IPV4=203.0.113.10 \
-  RDS_ENGINE_VERSION=8.0.42 LOAD_GENERATOR_ENABLED=false TTL_HOURS=6 \
+  RDS_ENGINE_VERSION=8.4.8 LOAD_GENERATOR_ENABLED=false TTL_HOURS=6 \
   RUN_ID=lab-persistent-delete "$fixture_scripts/aws-lab.sh" up >/dev/null 2>&1; then
   fail "operator accepted a plan that deletes a persistent resource"
 fi

@@ -594,8 +594,9 @@ encoding, and bytewise sort.
 Record the SHA-256 values as `mysql.migrationChecksumSha256` and
 `mysql.schemaFingerprintSha256`. Record exact row counts for every table used
 as a restore gate, including `flyway_schema_history`, `outbox`, and
-`accommodation`. The bootstrap independently regenerates both fingerprints
-and every declared count before it writes a data-ready receipt.
+`accommodation`. Initial dump restoration independently regenerates both fingerprints and every declared count.
+Approved snapshot reuse checks schema metadata and inherits data fingerprints from the versioned
+qualification record; see [the runbook](../../../docs/performance/aws-dataset-approval-and-reuse.md).
 
 For a search-enabled release, the cross-store ID fingerprint is the SHA-256 of
 the newline-terminated decimal ids for every `PUBLISHED` accommodation, sorted
@@ -610,14 +611,15 @@ positive decimal ID, newline, then byte-sort the complete records with
 release manifest binds the same values as
 `databaseDocumentIdentityPairsSha256` and
 `elasticsearchDocumentIdentityPairsSha256`. Each DB/ES pair must be equal.
-After restore, Phase 3 independently regenerates both pair streams and rejects
+After initial dump restoration, Phase 3 independently regenerates both pair streams and rejects
 any mismatch before the `accommodations` write-alias cutover. The content
 fingerprint is the SHA-256 of one compact
 JSON `_source` value per restored document, with object keys sorted by `jq -S
 -c`, then all lines sorted bytewise with `LC_ALL=C`. Generate these values from
 the completed snapshot and record them in both the manifest and snapshot
-reference. The Phase 3 bootstrap repeats the scroll and both sorts after
-restore; a matching count and mapping alone are insufficient.
+reference. Initial qualification repeats the scroll and both sorts after restore. Subsequent approved
+snapshot reuse binds the exact snapshot reference to that qualification and checks count,
+mapping, and alias without rescanning every document.
 
 ## Validation
 

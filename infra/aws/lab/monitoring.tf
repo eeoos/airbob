@@ -17,7 +17,7 @@ locals {
 }
 
 resource "aws_cloudwatch_dashboard" "lab" {
-  count = local.services_enabled ? 1 : 0
+  count = local.application_infra_enabled ? 1 : 0
 
   dashboard_name = "airbob-${var.run_id}"
   dashboard_body = jsonencode({

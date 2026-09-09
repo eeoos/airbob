@@ -189,7 +189,7 @@ jobs:
           set -euo pipefail
           entry=$(jq -ce --arg variable "$IMAGE_VARIABLE" '.infra[] | select(.variable == $variable)' infra/aws/images/release.json)
           printf 'context=%s\n' "$(jq -r '.context' <<< "$entry")" >> "$GITHUB_OUTPUT"
-          printf 'dockerfile=%s\n' "$(jq -r '.dockerfile' <<< "$entry")" >> "$GITHUB_OUTPUT"
+          printf 'dockerfile=%s\n' "$(jq -r '.ociDockerfile // .dockerfile' <<< "$entry")" >> "$GITHUB_OUTPUT"
           {
             printf 'build_args<<EOF\n'
             jq -r '.buildArgs | to_entries[] | "\(.key)=\(.value)"' <<< "$entry"

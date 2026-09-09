@@ -47,7 +47,7 @@ variables {
   dataset_release            = "rehearsal-v20"
   dataset_manifest_sha256    = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
   database_bootstrap         = "dump"
-  rds_engine_version         = "8.0.40"
+  rds_engine_version         = "8.4.8"
   app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   infra_image_references = {
     REDIS_IMAGE                  = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -172,7 +172,8 @@ override_data {
   override_during = plan
   values = {
     body = jsonencode({
-      schemaVersion                  = 2
+      schemaVersion                  = 3
+      verification                   = { mode = "full", source = null }
       runId                          = "lab-phase3-test"
       datasetRelease                 = "rehearsal-v20"
       datasetRunId                   = "20260816T001530Z-12345678"
@@ -197,7 +198,7 @@ override_data {
       inventoryFingerprintSha256     = "1111111111111111111111111111111111111111111111111111111111111111"
       semanticAttestationSha256      = "2222222222222222222222222222222222222222222222222222222222222222"
       rdsResourceId                  = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-      rdsEngineVersion               = "8.0.40"
+      rdsEngineVersion               = "8.4.8"
       outboxState                    = "empty"
       redisState                     = "empty"
       kafkaTopics                    = jsondecode(file("tests/fixtures/dataset-manifest.json")).kafka.topics
@@ -491,34 +492,41 @@ run "restore_rds_only_from_matching_snapshot" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
       storage_type           = "gp3"
       iops                   = 3000
       tags = {
-        Project                        = "airbob"
-        Environment                    = "performance-lab"
-        Stack                          = "dataset"
-        ManagedBy                      = "dataset-publisher"
-        Persistence                    = "persistent"
-        SourceLabRunId                 = "lab-phase3-test"
-        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-        PromotionReceiptSchemaVersion  = "2"
-        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
-        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
-        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        DatasetRelease                 = "rehearsal-v20"
-        DatasetRunId                   = "20260816T001530Z-12345678"
-        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion                  = "27"
-        ManifestSha256                 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "lab-phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "3"
+        DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
+        DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256           = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
       }
     }
+  }
+
+  assert {
+    condition = length([
+      for grant in jsondecode(aws_iam_role_policy.data_bootstrap[0].policy).Statement : grant
+      if grant.Sid == "ReadApprovedDatasetQualification" &&
+      grant.Resource == "arn:aws:s3:::airbob-performance-lab-evidence-942632789808/data-bootstrap/lab-phase3-test/dataset-qualification.json" &&
+      toset(grant.Action) == toset(["s3:GetObject", "s3:GetObjectVersion"])
+    ]) == 1
+    error_message = "Snapshot bootstrap must read only the exact source qualification, with no cross-run writes."
   }
 
   assert {
@@ -551,32 +559,29 @@ run "reject_snapshot_with_non_gp3_storage" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
       storage_type           = "gp2"
       iops                   = 3000
       tags = {
-        Project                        = "airbob"
-        Environment                    = "performance-lab"
-        Stack                          = "dataset"
-        ManagedBy                      = "dataset-publisher"
-        Persistence                    = "persistent"
-        SourceLabRunId                 = "lab-phase3-test"
-        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-        PromotionReceiptSchemaVersion  = "2"
-        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
-        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
-        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        DatasetRelease                 = "rehearsal-v20"
-        DatasetRunId                   = "20260816T001530Z-12345678"
-        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion                  = "27"
-        ManifestSha256                 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "lab-phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "3"
+        DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
+        DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256           = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
       }
     }
   }
@@ -600,32 +605,29 @@ run "reject_snapshot_above_baseline_iops" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
       storage_type           = "gp3"
       iops                   = 3001
       tags = {
-        Project                        = "airbob"
-        Environment                    = "performance-lab"
-        Stack                          = "dataset"
-        ManagedBy                      = "dataset-publisher"
-        Persistence                    = "persistent"
-        SourceLabRunId                 = "lab-phase3-test"
-        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-        PromotionReceiptSchemaVersion  = "2"
-        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
-        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
-        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        DatasetRelease                 = "rehearsal-v20"
-        DatasetRunId                   = "20260816T001530Z-12345678"
-        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion                  = "27"
-        ManifestSha256                 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "lab-phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "3"
+        DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
+        DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256           = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
       }
     }
   }
@@ -679,32 +681,29 @@ run "reject_snapshot_with_different_source_identity" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
       storage_type           = "gp3"
       iops                   = 3000
       tags = {
-        Project                        = "airbob"
-        Environment                    = "performance-lab"
-        Stack                          = "dataset"
-        ManagedBy                      = "dataset-publisher"
-        Persistence                    = "persistent"
-        SourceLabRunId                 = "lab-phase3-test"
-        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-        PromotionReceiptSchemaVersion  = "2"
-        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
-        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
-        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        DatasetRelease                 = "rehearsal-v20"
-        DatasetRunId                   = "20260816T001530Z-12345678"
-        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion                  = "27"
-        ManifestSha256                 = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "lab-phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "3"
+        DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
+        DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256           = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
       }
     }
   }
@@ -728,7 +727,7 @@ run "reject_snapshot_outside_promotion_contract" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 20
@@ -814,32 +813,29 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 100
       storage_type           = "gp3"
       iops                   = 3000
       tags = {
-        Project                        = "airbob"
-        Environment                    = "performance-lab"
-        Stack                          = "dataset"
-        ManagedBy                      = "dataset-publisher"
-        Persistence                    = "persistent"
-        SourceLabRunId                 = "lab-phase3-test"
-        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-        PromotionReceiptSchemaVersion  = "2"
-        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
-        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
-        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        DatasetRelease                 = "rehearsal-v20"
-        DatasetRunId                   = "20260816T001530Z-12345678"
-        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion                  = "27"
-        ManifestSha256                 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "lab-phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "3"
+        DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
+        DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256           = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
       }
     }
   }
@@ -929,32 +925,29 @@ run "reject_large_profile_snapshot_above_dataset_storage" {
     values = {
       db_snapshot_identifier = "airbob-dataset-rehearsal-v20-large"
       engine                 = "mysql"
-      engine_version         = "8.0.40"
+      engine_version         = "8.4.8"
       status                 = "available"
       encrypted              = true
       allocated_storage      = 101
       storage_type           = "gp3"
       iops                   = 3000
       tags = {
-        Project                        = "airbob"
-        Environment                    = "performance-lab"
-        Stack                          = "dataset"
-        ManagedBy                      = "dataset-publisher"
-        Persistence                    = "persistent"
-        SourceLabRunId                 = "lab-phase3-test"
-        SourceRdsResourceId            = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
-        PromotionReceiptSchemaVersion  = "2"
-        DataBootstrapKey               = "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
-        DataBootstrapVersionIdSha256   = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        DataBootstrapSha256            = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        DirectReadinessKey             = "measurements/lab-phase3-test/direct-readiness.json"
-        DirectReadinessVersionIdSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-        DirectReadinessSha256          = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-        DatasetRelease                 = "rehearsal-v20"
-        DatasetRunId                   = "20260816T001530Z-12345678"
-        DumpSha256                     = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
-        FlywayVersion                  = "27"
-        ManifestSha256                 = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
+        Project                       = "airbob"
+        Environment                   = "performance-lab"
+        Stack                         = "dataset"
+        ManagedBy                     = "dataset-publisher"
+        Persistence                   = "persistent"
+        SourceLabRunId                = "lab-phase3-test"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        PromotionReceiptSchemaVersion = "3"
+        DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
+        DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        DataBootstrapSha256           = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        DatasetRelease                = "rehearsal-v20"
+        DatasetRunId                  = "20260816T001530Z-12345678"
+        DumpSha256                    = "94094053eaad6446274f30cbdd71c28e23a578d27dc68e26c8f9f051477a0fc2"
+        FlywayVersion                 = "27"
+        ManifestSha256                = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
       }
     }
   }
@@ -975,6 +968,20 @@ run "attest_only_the_exact_ordered_data_receipt" {
       output.phase3_contract.data_bootstrap_receipt_key == "data-bootstrap/lab-phase3-test/rehearsal-v20.json"
     )
     error_message = "data-ready must require the exact receipt for this run, RDS, release, and ordered service state."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(aws_iam_role_policy.data_bootstrap[0].policy).Statement : statement
+        if statement.Sid == "ReadDataBootstrapReceipt"
+      ]).Resource == "arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/data-bootstrap/${var.run_id}/*" &&
+      toset(one([
+        for statement in jsondecode(aws_iam_role_policy.data_bootstrap[0].policy).Statement : statement
+        if statement.Sid == "ReadDataBootstrapReceipt"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion"])
+    )
+    error_message = "The host role must restrict receipt reads to this run even when the boundary permits the shared bootstrap prefix."
   }
 }
 
@@ -1209,4 +1216,15 @@ run "reject_app_image_outside_approved_ecr_repository" {
   }
 
   expect_failures = [check.app_release]
+}
+
+run "prepare_qualifies_without_application_infrastructure" {
+  command = plan
+  variables {
+    data_qualification_only = true
+  }
+  assert {
+    condition     = length(module.alb) == 0 && length(module.app_asg) == 0 && length(aws_ssm_document.start_app) == 0
+    error_message = "Dataset preparation must not create an ALB, application ASG, or app startup document."
+  }
 }

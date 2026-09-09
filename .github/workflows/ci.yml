@@ -63,6 +63,9 @@ jobs:
           bash infra/aws/tests/dns-lab-state-test.sh
           bash infra/aws/tests/lab-phase2-test.sh
           bash infra/aws/tests/data-bootstrap-test.sh
+          bash infra/aws/tests/snapshot-fast-validation-test.sh
+          python3 infra/aws/tests/growth-publication-test.py
+          python3 infra/aws/tests/growth-aws-contract-test.py
           bash infra/aws/tests/app-asg-test.sh
           bash infra/aws/tests/network-egress-test.sh
           bash infra/aws/tests/service-bundle-publisher-test.sh

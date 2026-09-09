@@ -226,7 +226,7 @@ resource "aws_iam_role_policy" "data_bootstrap" {
   role = aws_iam_role.host["debezium"].id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid      = "ReadSelectedDatasetRelease"
         Effect   = "Allow"
@@ -262,7 +262,12 @@ resource "aws_iam_role_policy" "data_bootstrap" {
         Action   = ["s3:GetObject", "s3:GetObjectVersion"]
         Resource = "arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/data-bootstrap/${var.run_id}/*"
       },
-    ]
+      ], var.database_bootstrap == "snapshot" ? [{
+        Sid      = "ReadApprovedDatasetQualification"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = "arn:aws:s3:::${local.lab_contract.evidence_bucket_name}/data-bootstrap/${var.rds_snapshot_source_run_id}/dataset-qualification.json"
+    }] : [])
   })
 }
 

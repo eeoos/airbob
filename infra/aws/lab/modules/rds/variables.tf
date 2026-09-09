@@ -3,7 +3,13 @@ variable "name" {
 }
 
 variable "engine_version" {
-  type = string
+  description = "Exact MySQL patch. The legacy 8.0 path retains paid Extended Support; new 8.4 databases opt out."
+  type        = string
+
+  validation {
+    condition     = can(regex("^8\\.(0|4)\\.[0-9]+$", var.engine_version))
+    error_message = "engine_version must be an exact MySQL 8.0 or 8.4 patch."
+  }
 }
 
 variable "bootstrap_mode" {

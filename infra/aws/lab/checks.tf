@@ -138,7 +138,8 @@ locals {
     activeWishlists = local.dataset_production_spec.targets.activeWishlists.rowBudget
     wishlistLinks   = local.dataset_production_spec.targets.wishlistLinks.rowBudget
   }, {})
-  dataset_release_valid = !local.services_enabled || try(
+  dataset_release_valid = local.dataset_is_growth ? local.growth_dataset_release_valid : local.legacy_dataset_release_valid
+  legacy_dataset_release_valid = !local.services_enabled || try(
     sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
     toset(keys(local.dataset_manifest)) == local.dataset_manifest_keys &&
     local.dataset_manifest.schemaVersion == 2 &&
@@ -281,13 +282,10 @@ locals {
     data.aws_db_snapshot.dataset[0].iops == 3000 &&
     data.aws_db_snapshot.dataset[0].tags.SourceLabRunId == var.rds_snapshot_source_run_id &&
     data.aws_db_snapshot.dataset[0].tags.SourceRdsResourceId == var.rds_snapshot_source_resource_id &&
-    data.aws_db_snapshot.dataset[0].tags.PromotionReceiptSchemaVersion == "2" &&
-    data.aws_db_snapshot.dataset[0].tags.DataBootstrapKey == "data-bootstrap/${var.rds_snapshot_source_run_id}/${var.dataset_release}.json" &&
+    data.aws_db_snapshot.dataset[0].tags.PromotionReceiptSchemaVersion == "3" &&
+    data.aws_db_snapshot.dataset[0].tags.DataBootstrapKey == "data-bootstrap/${var.rds_snapshot_source_run_id}/dataset-qualification.json" &&
     can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DataBootstrapVersionIdSha256)) &&
     can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DataBootstrapSha256)) &&
-    data.aws_db_snapshot.dataset[0].tags.DirectReadinessKey == "measurements/${var.rds_snapshot_source_run_id}/direct-readiness.json" &&
-    can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DirectReadinessVersionIdSha256)) &&
-    can(regex("^[0-9a-f]{64}$", data.aws_db_snapshot.dataset[0].tags.DirectReadinessSha256)) &&
     data.aws_db_snapshot.dataset[0].tags.Project == "airbob" &&
     data.aws_db_snapshot.dataset[0].tags.Environment == "performance-lab" &&
     data.aws_db_snapshot.dataset[0].tags.Stack == "dataset" &&
@@ -315,9 +313,18 @@ locals {
       "finalWorldFingerprintSha256", "baseWorldFingerprintSha256", "distributionFingerprintSha256",
       "targetFingerprintSha256", "inventoryFingerprintSha256", "semanticAttestationSha256",
       "rdsResourceId", "rdsEngineVersion", "outboxState", "redisState", "kafkaTopics",
-      "connectorState", "searchState", "verifiedAt",
+      "connectorState", "searchState", "verifiedAt", "verification",
     ]) &&
-    local.data_bootstrap_receipt.schemaVersion == 2 &&
+    local.data_bootstrap_receipt.schemaVersion == 3 &&
+    toset(keys(local.data_bootstrap_receipt.verification)) == toset(["mode", "source"]) &&
+    local.data_bootstrap_receipt.verification.mode == (var.database_bootstrap == "snapshot" ? "approved-snapshot" : "full") &&
+    (var.database_bootstrap == "snapshot" ? (
+      local.data_bootstrap_receipt.verification.source == {
+        key             = data.aws_db_snapshot.dataset[0].tags.DataBootstrapKey
+        sha256          = data.aws_db_snapshot.dataset[0].tags.DataBootstrapSha256
+        versionIdSha256 = data.aws_db_snapshot.dataset[0].tags.DataBootstrapVersionIdSha256
+      }
+    ) : local.data_bootstrap_receipt.verification.source == null) &&
     local.data_bootstrap_receipt.runId == var.run_id &&
     local.data_bootstrap_receipt.datasetRelease == var.dataset_release &&
     local.data_bootstrap_receipt.datasetRunId == local.dataset_manifest.datasetRunId &&

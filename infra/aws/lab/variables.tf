@@ -373,15 +373,25 @@ variable "rds_snapshot_source_resource_id" {
 }
 
 variable "rds_engine_version" {
-  description = "Exact reviewed RDS MySQL 8.0 patch version recorded with each run."
+  description = "Exact reviewed RDS MySQL 8.4 patch version recorded with each run."
   type        = string
   default     = ""
 
   validation {
     condition = (
       !contains(["services", "data-ready"], var.deployment_phase) ||
-      can(regex("^8\\.0\\.[0-9]+$", var.rds_engine_version))
+      can(regex("^8\\.4\\.[0-9]+$", var.rds_engine_version))
     )
-    error_message = "services and data-ready require an exact MySQL 8.0 patch version."
+    error_message = "services and data-ready require an exact MySQL 8.4 patch version."
+  }
+}
+
+variable "data_qualification_only" {
+  description = "Stop after initial DB and search validation, before mutable experiment state or app startup."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.data_qualification_only || (var.database_bootstrap == "dump" && !var.app_enabled && !var.load_generator_enabled && var.dns_mode == "direct-only")
+    error_message = "Dataset preparation requires a dump, no application or load generator, and direct-only DNS."
   }
 }

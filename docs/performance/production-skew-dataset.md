@@ -378,23 +378,11 @@ mutation. After restore it must recompute the same final/base/distribution/targe
 all 15 target results, denormalized reconciliation and zero-inventory invariant before writing a
 data-ready receipt. No receipt means no readiness.
 
-After a valid restore receipt, an authorized operator may promote the exact RDS instance to a
-persistent snapshot:
-
-```bash
-infra/aws/scripts/promote-rds-snapshot.sh \
-  /secure/path/release/manifest.json \
-  /secure/path/data-bootstrap-receipt.json \
-  airbob-example-rds \
-  airbob-dataset-example-snapshot \
-  /secure/path/snapshot-promotion.json
-```
-
-The source instance must be exactly `airbob-<receipt.runId>`. The command refuses an existing
-output path and atomically publishes a mode-0600 promotion receipt only after the available,
-encrypted snapshot repeats the source run and RDS resource ID in its promotion tags. Snapshot-mode
-Terraform accepts only that tagged promotion contract in addition to the release/run/dump/Flyway/
-manifest tuple; a manually tagged tuple without the promotion markers is rejected.
+The initial AWS preparation and snapshot promotion now use a separate dataset
+qualification receipt. Follow [the approval and reuse runbook](aws-dataset-approval-and-reuse.md).
+Only initial dump restoration repeats the complete data checks above; approved
+snapshot reuse inherits those fingerprints and runs bounded readiness checks.
+Application configuration is recorded separately from dataset approval.
 
 Do not run a write capsule before collecting read-model evidence. If any write experiment has run,
 restore the immutable base snapshot again.

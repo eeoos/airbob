@@ -62,7 +62,7 @@ data "aws_s3_object" "dataset_manifest" {
 }
 
 data "aws_s3_object" "dataset_production_spec" {
-  count = local.services_enabled ? 1 : 0
+  count = local.services_enabled && !local.dataset_is_growth ? 1 : 0
 
   bucket = local.lab_contract.dataset_bucket_name
   key = "${local.dataset_prefix}/${try(

@@ -54,7 +54,7 @@ locals {
 
 module "alb" {
   source = "./modules/alb"
-  count  = local.services_enabled ? 1 : 0
+  count  = local.application_infra_enabled ? 1 : 0
 
   name_prefix       = local.bounded_name_prefix
   vpc_id            = module.network.vpc_id
@@ -68,7 +68,7 @@ module "alb" {
 
 module "app_asg" {
   source = "./modules/app-asg"
-  count  = local.services_enabled ? 1 : 0
+  count  = local.application_infra_enabled ? 1 : 0
 
   name_prefix                         = "airbob-${var.run_id}"
   ami_id                              = data.aws_ami.selected.id
@@ -97,7 +97,7 @@ module "app_asg" {
 }
 
 resource "aws_ssm_document" "start_app" {
-  count = local.services_enabled ? 1 : 0
+  count = local.application_infra_enabled ? 1 : 0
 
   name            = "airbob-${var.run_id}-start-app"
   document_type   = "Command"
@@ -119,7 +119,7 @@ resource "aws_ssm_document" "start_app" {
 }
 
 resource "aws_ssm_association" "app" {
-  count = local.services_enabled && var.app_enabled ? 1 : 0
+  count = local.application_infra_enabled && var.app_enabled ? 1 : 0
 
   name                             = aws_ssm_document.start_app[0].name
   association_name                 = "airbob-${var.run_id}-app-${substr(local.app_runtime_revision, 0, 12)}"

@@ -3,6 +3,13 @@ set -euo pipefail
 umask 077
 export LC_ALL=C
 
+if [[ "$#" -eq 3 && "$3" == growth-small-integration ]]; then
+  exec python3 "$(dirname -- "$0")/validate-growth-dataset-v3.py" "$1" "$2"
+fi
+if [[ "$#" -eq 3 && "$3" == growth-aws-qualification ]]; then
+  exec python3 "$(dirname -- "$0")/validate-growth-aws-release.py" "$1" "$2"
+fi
+
 usage() {
   printf 'usage: %s RELEASE_DIR EXPECTED_RELEASE EXPECTED_KIND [--metadata-only]\n' "${0##*/}" >&2
   exit 64

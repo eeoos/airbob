@@ -115,7 +115,7 @@ run "reject_unapproved_image_reference_set" {
     dataset_release            = "rehearsal-v20"
     dataset_manifest_sha256    = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
     database_bootstrap         = "dump"
-    rds_engine_version         = "8.0.40"
+    rds_engine_version         = "8.4.8"
     app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     infra_image_references = {
       REDIS_IMAGE = "public.example/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -179,7 +179,7 @@ run "services_require_both_receipts_and_immutable_release" {
     dataset_release            = "rehearsal-v20"
     dataset_manifest_sha256    = "f6899fe0ece0f51a0616191d2d43a36d85b8337b5f8a225d62765e7e3ae32ddc"
     database_bootstrap         = "dump"
-    rds_engine_version         = "8.0.40"
+    rds_engine_version         = "8.4.8"
     app_image_reference        = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:9123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     infra_image_references = {
       REDIS_IMAGE                  = "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-infra/redis@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

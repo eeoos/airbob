@@ -16,6 +16,7 @@ locals {
   referenced_ingress_rules = {
     app-alb-8080          = { target = "app", source = "alb", port = 8080 }
     app-monitoring-8080   = { target = "app", source = "monitoring", port = 8080 }
+    app-monitoring-9100   = { target = "app", source = "monitoring", port = 9100 }
     rds-app-3306          = { target = "rds", source = "app", port = 3306 }
     rds-debezium-3306     = { target = "rds", source = "debezium", port = 3306 }
     rds-loadgen-3306      = { target = "rds", source = "loadgen", port = 3306 }

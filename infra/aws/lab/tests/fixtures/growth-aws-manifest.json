@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 3,
+  "releaseKind": "growth-aws-qualification",
+  "datasetRelease": "korea-growth-v3-64deb4f838935b8e-aws",
+  "datasetRunId": "20260909T000736Z-5fcbb64c",
+  "source": {
+    "datasetId": "korea-growth-v3-64deb4f838935b8e",
+    "consumerManifestSha256": "5fcbb64c5dd5e74864c0561fe7453733ea5eff3f4524383fd5b49cb275140527",
+    "publicationReceiptSha256": "159510178040af048f12c845f2428aca97cd3f8885e5185af48861f4372352d2"
+  },
+  "mysql": {
+    "engineVersion": "8.4.11",
+    "flywayVersion": "27",
+    "dumpKey": "airbob-growth.sql.gz",
+    "dumpSha256": "64deb4f838935b8efe6815ede9c0b55d7c46077021e6be790f2f8c4e8a07032c",
+    "migrationChecksumSha256": "c13684e7dec9c9c5bba895a72ebecaee299edb4f10a9c28d937cb4feca318a3c",
+    "schemaFingerprintSha256": "5552a167dfb003836f226e8d85ba361b07365e15e831db0773efb8f12b5b81de",
+    "timezone": "UTC",
+    "outboxPolicy": "absent",
+    "expectedTableRows": {
+      "accommodation": 428,
+      "accommodation_amenity": 4972,
+      "accommodation_history": 0,
+      "accommodation_image": 2399,
+      "accommodation_inventory_day": 0,
+      "accommodation_review_summary": 276,
+      "address": 428,
+      "common_code": 46,
+      "common_code_group": 2,
+      "coupon": 0,
+      "daily_revenue_stats": 8796,
+      "failed_indexing_events": 0,
+      "flyway_schema_history": 27,
+      "member": 2131,
+      "member_coupon": 0,
+      "member_history": 0,
+      "occupancy_policy": 428,
+      "outbox": 0,
+      "payment": 9269,
+      "payment_operation": 0,
+      "payment_operation_resolution": 0,
+      "payment_transaction": 11124,
+      "reservation": 10268,
+      "reservation_checkout_request": 0,
+      "reservation_history": 0,
+      "reservation_quote": 0,
+      "review": 3657,
+      "review_image": 1287,
+      "settlement": 0,
+      "settlement_history": 0,
+      "wishlist": 4026,
+      "wishlist_accommodation": 21089
+    }
+  },
+  "couponPreparation": [],
+  "kafka": {
+    "topics": [
+      "ACCOMMODATION_CACHE.events",
+      "ACCOMMODATION_CACHE.events.DLT",
+      "ACCOMMODATION_CACHE.events.RETRY",
+      "ACCOMMODATION_INDEX.events",
+      "ACCOMMODATION_INDEX.events.DLT",
+      "ACCOMMODATION_INDEX.events.RETRY",
+      "OPERATOR_ALERT.events",
+      "OPERATOR_ALERT.events.DLT",
+      "OPERATOR_ALERT.events.RETRY",
+      "PAYMENT_OPERATION.events",
+      "PAYMENT_OPERATION.events.DLT",
+      "PAYMENT_OPERATION.events.RETRY"
+    ]
+  },
+  "search": {
+    "enabled": false
+  },
+  "artifacts": {
+    "airbob-growth.sql.gz": {
+      "sha256": "64deb4f838935b8efe6815ede9c0b55d7c46077021e6be790f2f8c4e8a07032c",
+      "bytes": 2133421
+    },
+    "before-fingerprint.json": {
+      "sha256": "6dcfd955607c4a07d325e6dee67e54572c611e3d002b4913eb5f31f9e4e78014",
+      "bytes": 10757
+    },
+    "consumer-manifest.json": {
+      "sha256": "5fcbb64c5dd5e74864c0561fe7453733ea5eff3f4524383fd5b49cb275140527",
+      "bytes": 1603
+    },
+    "migration-files.json": {
+      "sha256": "c13684e7dec9c9c5bba895a72ebecaee299edb4f10a9c28d937cb4feca318a3c",
+      "bytes": 2987
+    },
+    "publication-receipt.json": {
+      "sha256": "159510178040af048f12c845f2428aca97cd3f8885e5185af48861f4372352d2",
+      "bytes": 2903
+    },
+    "read-scenarios.json": {
+      "sha256": "faf027741808e627cd6d40897724ee459acb7aff9cd725250737256a77f43550",
+      "bytes": 60549
+    },
+    "runtime-plan.json": {
+      "sha256": "38d30b219df6072c7e2de270cd710338b24a45878d6c8091216fe6ec523b0c07",
+      "bytes": 2364
+    },
+    "runtime-scenarios.json": {
+      "sha256": "2739e701b50b0169d0bbe87f2cda22991bfa4421308c8d8815703ec2a71b6c42",
+      "bytes": 3473
+    },
+    "scenario-qualification.json": {
+      "sha256": "b75f09d130cd74940baeb29398dc561297589408ba0f547825b1265f3ddd140d",
+      "bytes": 11020
+    },
+    "verification-runtime.zip": {
+      "sha256": "29a13c3f6b83c058949a0bdcaa335123b5fa7909c9c325ee78f39cd3076f5254",
+      "bytes": 14428053
+    }
+  },
+  "releaseTuple": {
+    "datasetVersion": "benchmark-dataset-v3",
+    "generatorVersion": "korea-growth-v3",
+    "dumpSha256": "64deb4f838935b8efe6815ede9c0b55d7c46077021e6be790f2f8c4e8a07032c",
+    "migrationChecksumSha256": "c13684e7dec9c9c5bba895a72ebecaee299edb4f10a9c28d937cb4feca318a3c",
+    "schemaFingerprintSha256": "5552a167dfb003836f226e8d85ba361b07365e15e831db0773efb8f12b5b81de",
+    "consumerManifestSha256": "5fcbb64c5dd5e74864c0561fe7453733ea5eff3f4524383fd5b49cb275140527",
+    "verificationRuntimeSha256": "29a13c3f6b83c058949a0bdcaa335123b5fa7909c9c325ee78f39cd3076f5254"
+  }
+}

@@ -1765,7 +1765,7 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForDumpLabDb"
-      ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0" &&
+      ]).Resource == ["arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0", "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-4"] &&
       try(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForDumpLabDb"
@@ -1800,7 +1800,7 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForRestoreLabDb"
-      ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0" &&
+      ]).Resource == ["arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0", "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-4"] &&
       try(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForRestoreLabDb"
@@ -2145,6 +2145,30 @@ run "foundation_contract" {
       ])
     )
     error_message = "Phase 2 compute permissions must force the immutable host boundary and exclude persistent-role escalation."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "ReadImmutableRuntimeInputs"
+      ]).Effect == "Allow" &&
+      toset(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "ReadImmutableRuntimeInputs"
+      ]).Action) == toset(["s3:GetObject", "s3:GetObjectVersion"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_host_boundary_policy).Statement : statement
+        if statement.Sid == "ReadImmutableRuntimeInputs"
+        ]).Resource) == toset([
+        "${aws_s3_bucket.managed["bundle"].arn}/service-bundles/*",
+        "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
+        "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/measurement-inputs/*",
+        "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
+      ])
+    )
+    error_message = "Hosts must be able to read back bootstrap receipts without gaining bucket-wide read access."
   }
 
   assert {

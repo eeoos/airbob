@@ -9,7 +9,7 @@ on:
         description: Lab operation
         required: true
         type: choice
-        options: [up, status, switch, down]
+        options: [prepare, up, status, switch, down]
       run_id:
         description: Existing lab run id used by switch or down
         required: false
@@ -112,7 +112,7 @@ jobs:
   operate:
     runs-on: ubuntu-latest
     environment: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}
-    timeout-minutes: ${{ inputs.action == 'up' && 359 || 120 }}
+    timeout-minutes: ${{ (inputs.action == 'up' || inputs.action == 'prepare') && 359 || 120 }}
     permissions:
       contents: read
       id-token: write
@@ -125,7 +125,7 @@ jobs:
           set -euo pipefail
           WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120
           workflow_ceiling_seconds=7200
-          if [[ "$ACTION" == up ]]; then
+          if [[ "$ACTION" == up || "$ACTION" == prepare ]]; then
             workflow_ceiling_seconds=21540
           fi
           printf 'AIRBOB_WORKFLOW_DEADLINE_EPOCH=%s\n' \
@@ -169,7 +169,7 @@ jobs:
           role-to-assume: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && vars.AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN || vars.AWS_LAB_OPERATOR_ROLE_ARN }}
           aws-region: ap-northeast-2
           role-session-name: airbob-lab-${{ github.run_id }}
-          role-duration-seconds: ${{ inputs.action == 'up' && 21600 || 7200 }}
+          role-duration-seconds: ${{ (inputs.action == 'up' || inputs.action == 'prepare') && 21600 || 7200 }}
           output-credentials: true
 
       - name: Verify operator credential scope
@@ -188,7 +188,7 @@ jobs:
           }
 
       - name: Resolve direct-only operator ingress /32
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'up' && inputs.dns_mode == 'direct-only'
+        if: github.event_name == 'workflow_dispatch' && (inputs.action == 'up' || inputs.action == 'prepare') && inputs.dns_mode == 'direct-only'
         env:
           REQUESTED_CIDR: ${{ inputs.alb_ingress_cidr || vars.AWS_LAB_OPERATOR_CIDR }}
         run: |
@@ -253,7 +253,7 @@ jobs:
           RDS_SNAPSHOT_SOURCE_RESOURCE_ID: ${{ inputs.rds_snapshot_source_resource_id }}
           AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ fromJSON(steps.aws_credentials.outputs.aws-expiration) }}
           AWS_LAB_OPERATOR_SCOPE: ${{ (inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'cutover' || 'direct' }}
-          RUN_ID: ${{ inputs.action == 'up' && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
+          RUN_ID: ${{ (inputs.action == 'up' || inputs.action == 'prepare') && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
         run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"
 
       - name: Clean up an expired lab after grace

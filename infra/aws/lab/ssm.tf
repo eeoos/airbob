@@ -1,4 +1,5 @@
 locals {
+  bootstrap_data_command = local.dataset_is_growth ? local.growth_bootstrap_data_command : local.legacy_bootstrap_data_command
   start_service_document = templatefile("${path.module}/templates/start-service.sh.tftpl", {
     account_id      = var.account_id
     region          = var.aws_region
@@ -6,7 +7,7 @@ locals {
     evidence_bucket = local.lab_contract.evidence_bucket_name
     bundle_sha256   = var.bundle_sha256
   })
-  bootstrap_data_command = local.services_enabled ? join("\n", [
+  legacy_bootstrap_data_command = local.services_enabled ? join("\n", [
     "set -euo pipefail",
     "umask 077",
     "install -d -m 700 /opt/airbob/bootstrap-helpers",
@@ -25,6 +26,11 @@ locals {
     "base64 --decode /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh",
     "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/compute-target-fingerprint.sh")}' /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh | sha256sum --check --status",
     "chmod 700 /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh",
+    "cat > /opt/airbob/bootstrap-helpers/dataset-qualification.sh.gz.b64 <<'AIRBOB_QUALIFICATION_HELPER'",
+    base64gzip(file("${path.module}/../scripts/dataset-qualification.sh")),
+    "AIRBOB_QUALIFICATION_HELPER",
+    "base64 --decode /opt/airbob/bootstrap-helpers/dataset-qualification.sh.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/dataset-qualification.sh",
+    "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/dataset-qualification.sh")}' /opt/airbob/bootstrap-helpers/dataset-qualification.sh | sha256sum --check --status",
     "chmod 600 /opt/airbob/bootstrap-helpers/coupon_prepare.lua",
     "export AIRBOB_REGION='${var.aws_region}'",
     "export AIRBOB_RUN_ID='${var.run_id}'",
@@ -33,9 +39,16 @@ locals {
     "export AIRBOB_DATASET_RELEASE='${var.dataset_release}'",
     "export AIRBOB_DATASET_MANIFEST_SHA256='${var.dataset_manifest_sha256}'",
     "export AIRBOB_DATABASE_BOOTSTRAP='${var.database_bootstrap}'",
+    "export AIRBOB_QUALIFICATION_ONLY='${var.data_qualification_only}'",
+    "export AIRBOB_SNAPSHOT_SOURCE_RUN_ID='${var.rds_snapshot_source_run_id}'",
+    "export AIRBOB_SNAPSHOT_SOURCE_RESOURCE_ID='${var.rds_snapshot_source_resource_id}'",
+    "export AIRBOB_QUALIFICATION_KEY='${try(data.aws_db_snapshot.dataset[0].tags.DataBootstrapKey, "")}'",
+    "export AIRBOB_QUALIFICATION_VERSION_SHA256='${try(data.aws_db_snapshot.dataset[0].tags.DataBootstrapVersionIdSha256, "")}'",
+    "export AIRBOB_QUALIFICATION_SHA256='${try(data.aws_db_snapshot.dataset[0].tags.DataBootstrapSha256, "")}'",
     "export AIRBOB_RDS_ENDPOINT='${module.rds[0].address}'",
     "export AIRBOB_RDS_RESOURCE_ID='${module.rds[0].resource_id}'",
     "export AIRBOB_RDS_ENGINE_VERSION='${var.rds_engine_version}'",
+    "export AIRBOB_DEBEZIUM_CONNECTOR_VERSION='${jsondecode(file("${path.module}/../images/release.json")).artifacts.debezium.version}'",
     "export AIRBOB_RDS_MASTER_SECRET_ARN='${module.rds[0].master_secret_arn}'",
     "export AIRBOB_DEBEZIUM_SECRET_ARN='${aws_secretsmanager_secret.debezium[0].arn}'",
     "export AIRBOB_ELASTICSEARCH_IMAGE_DIGEST='${split("@", var.infra_image_references["ELASTICSEARCH_IMAGE"])[1]}'",

@@ -115,7 +115,7 @@ jq -e '
   )) and
   .artifacts.jmxExporter.version == "1.6.0" and
   (.artifacts.jmxExporter.sha256 | test("^[0-9a-f]{64}$")) and
-  .artifacts.debezium.version == "2.6.1.Final" and
+  .artifacts.debezium.version == "3.5.2.Final" and
   (.artifacts.debezium.sha256 | test("^[0-9a-f]{64}$"))
 ' "$spec_file" >/dev/null || fail "image release specification is incomplete or unsafe"
 
@@ -183,8 +183,8 @@ assert_contains "$repo_root/docker/debezium/Dockerfile" 'jmx_prometheus_javaagen
 assert_arg_before_first_from "$repo_root/docker/debezium/Dockerfile" ALPINE_IMAGE
 assert_arg_before_first_from "$repo_root/docker/debezium/Dockerfile" KAFKA_BASE_IMAGE
 assert_contains "$repo_root/docker/debezium/Dockerfile" "$(jq -r '.artifacts.jmxExporter.sha256' "$spec_file")"
-assert_contains "$repo_root/docker/debezium/Dockerfile" "$(jq -r '.artifacts.debezium.version' "$spec_file")"
-assert_contains "$repo_root/docker/debezium/Dockerfile" "$(jq -r '.artifacts.debezium.sha256' "$spec_file")"
+assert_contains "$repo_root/docker/debezium/aws/Dockerfile" "$(jq -r '.artifacts.debezium.version' "$spec_file")"
+assert_contains "$repo_root/docker/debezium/aws/Dockerfile" "$(jq -r '.artifacts.debezium.sha256' "$spec_file")"
 assert_contains "$repo_root/docker/debezium/Dockerfile" 'sha256sum -c -'
 assert_contains "$repo_root/docker/elasticsearch/Dockerfile" 'modules/repository-s3/plugin-descriptor.properties'
 assert_contains "$repo_root/docker/elasticsearch/Dockerfile" 'analysis-nori'
@@ -594,3 +594,9 @@ if "$assembler" infra "$commit_sha" "$infra_dir" "$temp_dir/invalid.json" >/dev/
 fi
 
 printf '%s\n' 'immutable image publication tests passed'
+
+# AWS upgrades CDC independently; the OCI publisher resolves its original Dockerfile.
+jq -e '.infra[] | select(.variable=="DEBEZIUM_IMAGE") | .dockerfile=="docker/debezium/aws/Dockerfile" and .ociDockerfile=="docker/debezium/Dockerfile"' "$spec_file" >/dev/null   || fail 'AWS/OCI Debezium Dockerfiles are not independent'
+assert_contains "$repo_root/.github/workflows/infra-images.yml" '.ociDockerfile // .dockerfile'
+assert_contains "$repo_root/docker/debezium/Dockerfile" 'ARG DEBEZIUM_VERSION=2.6.1.Final'
+assert_contains "$repo_root/docker/debezium/aws/Dockerfile.dockerignore" '!connect-distributed.properties'

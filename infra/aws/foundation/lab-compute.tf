@@ -42,6 +42,7 @@ locals {
           "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
           "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/*",
           "${aws_s3_bucket.managed["evidence"].arn}/measurement-inputs/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
         ]
       },
       {
@@ -1316,10 +1317,13 @@ locals {
         }
       },
       {
-        Sid      = "UseDefaultOptionGroupForDumpLabDb"
-        Effect   = "Allow"
-        Action   = "rds:CreateDBInstance"
-        Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0"
+        Sid    = "UseDefaultOptionGroupForDumpLabDb"
+        Effect = "Allow"
+        Action = "rds:CreateDBInstance"
+        Resource = [
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-4",
+        ]
       },
       {
         Sid    = "UseRunBoundConfigurationForDumpLabDb"
@@ -1369,10 +1373,13 @@ locals {
           Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:snapshot:${var.approved_rds_snapshot_identifier}"
         },
         {
-          Sid      = "UseDefaultOptionGroupForRestoreLabDb"
-          Effect   = "Allow"
-          Action   = "rds:RestoreDBInstanceFromDBSnapshot"
-          Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0"
+          Sid    = "UseDefaultOptionGroupForRestoreLabDb"
+          Effect = "Allow"
+          Action = "rds:RestoreDBInstanceFromDBSnapshot"
+          Resource = [
+            "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0",
+            "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-4",
+          ]
         },
         {
           Sid    = "UseRunBoundConfigurationForRestoreLabDb"
@@ -1394,6 +1401,7 @@ locals {
         Effect = "Allow"
         Action = [
           "rds:DescribeDBInstances",
+          "rds:DescribeDBEngineVersions",
           "rds:DescribeDBParameterGroups",
           "rds:DescribeDBParameters",
           "rds:DescribeDBSnapshots",

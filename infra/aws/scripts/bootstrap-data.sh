@@ -3,6 +3,19 @@ set -euo pipefail
 umask 077
 export LC_ALL=C
 
+bootstrap_stage=environment
+bootstrap_stage_started=$SECONDS
+bootstrap_stage_end() {
+  printf 'bootstrap stage=%s status=%s elapsedSeconds=%s\n' \
+    "$bootstrap_stage" "$1" "$((SECONDS - bootstrap_stage_started))"
+}
+bootstrap_stage_begin() {
+  bootstrap_stage_end 0
+  bootstrap_stage=$1
+  bootstrap_stage_started=$SECONDS
+  printf 'bootstrap stage=%s started\n' "$bootstrap_stage"
+}
+
 validate_document_identity_pairs() {
   local database_pairs=$1
   local elasticsearch_pairs=$2
@@ -134,12 +147,19 @@ publish_immutable_receipt() {
   rm -f "$readback_file"
 }
 
+helper_dir=$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+source "$helper_dir/dataset-qualification.sh"
+qualification_only=${AIRBOB_QUALIFICATION_ONLY:-false}
+[[ "$qualification_only" == true || "$qualification_only" == false ]] || exit 1
+[[ "$qualification_only" != true || "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]] || exit 1
+
 required_environment=(
   AIRBOB_REGION AIRBOB_RUN_ID AIRBOB_DATASET_BUCKET AIRBOB_EVIDENCE_BUCKET
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
   AIRBOB_RDS_ENDPOINT AIRBOB_RDS_RESOURCE_ID AIRBOB_RDS_ENGINE_VERSION
   AIRBOB_RDS_MASTER_SECRET_ARN AIRBOB_DEBEZIUM_SECRET_ARN
   AIRBOB_ELASTICSEARCH_IMAGE_DIGEST AIRBOB_COUPON_LUA_FILE
+  AIRBOB_DEBEZIUM_CONNECTOR_VERSION
 )
 for environment_name in "${required_environment[@]}"; do
   [[ -n "${!environment_name:-}" ]] || { printf 'missing bootstrap environment: %s\n' "$environment_name" >&2; exit 1; }
@@ -200,7 +220,7 @@ cleanup() {
   unset MYSQL_PWD master_password debezium_password
   rm -f "$master_secret_file" "$debezium_secret_file" "$connector_payload" "$connector_runtime_config"
 }
-trap cleanup EXIT
+trap 'status=$?; bootstrap_stage_end "$status"; cleanup' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -237,10 +257,16 @@ validate_source_calibration() {
 
 # The externally supplied wrapper digest is the only trust anchor.  Accept a
 # fixed shallow v2 envelope before using any value inside it.
+bootstrap_stage_begin release-metadata
 aws_cp "$dataset_uri/manifest.json" "$manifest"
 actual_manifest_sha=$(sha256sum "$manifest" | awk '{print $1}')
 [[ "$actual_manifest_sha" == "$AIRBOB_DATASET_MANIFEST_SHA256" ]] \
   || { printf '%s\n' 'dataset manifest digest mismatch' >&2; exit 1; }
+if [[ "$(jq -r '.releaseKind' "$manifest")" == growth-aws-qualification ]]; then
+  bootstrap_stage_begin growth-database-qualification
+  python3 "$helper_dir/bootstrap-growth-aws.py" --manifest "$manifest"
+  exit 0
+fi
 profile_version=$(jq -er '.releaseTuple.profileVersion | select(type=="string")' "$manifest") \
   || { printf '%s\n' 'dataset production profile is missing' >&2; exit 1; }
 case "$profile_version" in
@@ -412,6 +438,12 @@ fi
 [[ "$(jq -r '.search.imageDigest // empty' "$manifest")" == "$AIRBOB_ELASTICSEARCH_IMAGE_DIGEST" || "$search_enabled" == false ]] \
   || { printf '%s\n' 'dataset Elasticsearch image digest mismatch' >&2; exit 1; }
 
+# Check the selected CDC image before spending time importing the database.
+curl_http --fail --silent --show-error 'http://127.0.0.1:8083/connector-plugins' \
+  | jq -e --arg version "$AIRBOB_DEBEZIUM_CONNECTOR_VERSION" \
+    'any(.[]; .class == "io.debezium.connector.mysql.MySqlConnector" and .version == $version)' >/dev/null \
+  || { printf '%s\n' 'Debezium image does not provide the approved MySQL connector version' >&2; exit 1; }
+
 aws --region "$AIRBOB_REGION" secretsmanager get-secret-value \
   --secret-id "$AIRBOB_RDS_MASTER_SECRET_ARN" --query SecretString --output text > "$master_secret_file"
 chmod 600 "$master_secret_file"
@@ -473,6 +505,23 @@ for attempt in $(seq 1 120); do
   sleep 10
 done
 
+qualification_source=null
+if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == snapshot ]]; then
+  qualification_file="$work_root/source-qualification.json"
+  fetch_dataset_qualification "$AIRBOB_EVIDENCE_BUCKET" "$AIRBOB_QUALIFICATION_KEY" \
+    "$AIRBOB_QUALIFICATION_VERSION_SHA256" "$AIRBOB_QUALIFICATION_SHA256" "$qualification_file" "$AIRBOB_REGION" \
+    && verify_dataset_qualification "$qualification_file" "$manifest" "$AIRBOB_SNAPSHOT_SOURCE_RUN_ID" \
+    "$AIRBOB_SNAPSHOT_SOURCE_RESOURCE_ID" "$AIRBOB_RDS_ENGINE_VERSION" \
+    || { printf '%s\n' 'approved dataset qualification does not match the selected snapshot' >&2; exit 1; }
+  qualification_source=$(jq -n --arg key "$AIRBOB_QUALIFICATION_KEY" --arg sha256 "$AIRBOB_QUALIFICATION_SHA256" \
+    --arg versionIdSha256 "$AIRBOB_QUALIFICATION_VERSION_SHA256" '{key:$key,sha256:$sha256,versionIdSha256:$versionIdSha256}')
+fi
+
+bootstrap_stage_begin database-restore
+actual_engine_version=$(mysql_readiness_exec --execute="SELECT SUBSTRING_INDEX(VERSION(), '-', 1)")
+[[ "$actual_engine_version" == "$AIRBOB_RDS_ENGINE_VERSION" ]] \
+  || { printf '%s\n' 'connected MySQL engine differs from the selected RDS version' >&2; exit 1; }
+
 if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
   if mysql_import_dump; then
     :
@@ -483,6 +532,7 @@ if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
   fi
 fi
 
+bootstrap_stage_begin database-verification
 for variable_contract in 'binlog_format:ROW' 'binlog_row_image:FULL' 'performance_schema:ON'; do
   variable_name=${variable_contract%%:*}
   expected_value=${variable_contract#*:}
@@ -493,7 +543,7 @@ time_zone=$(mysql_exec --execute="SHOW GLOBAL VARIABLES LIKE 'time_zone'" | awk 
 [[ "$time_zone" == UTC || "$time_zone" == +00:00 ]] \
   || { printf '%s\n' 'RDS timezone contract failed' >&2; exit 1; }
 
-outbox_count=$(mysql_exec airbobdb --execute='SELECT COUNT(*) FROM outbox')
+outbox_count=$(mysql_exec airbobdb --execute='SELECT EXISTS(SELECT 1 FROM outbox LIMIT 1)')
 [[ "$outbox_count" == 0 ]] || { printf '%s\n' 'dataset outbox is not empty' >&2; exit 1; }
 
 flyway_version=$(mysql_exec airbobdb --execute='SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank DESC LIMIT 1')
@@ -510,6 +560,7 @@ migration_checksum=$(sha256sum "$migration_file" | awk '{print $1}')
 [[ "$migration_checksum" == "$(jq -r '.mysql.migrationChecksumSha256' "$manifest")" ]] \
   || { printf '%s\n' 'Flyway migration checksum does not match the dataset release' >&2; exit 1; }
 
+if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
 while IFS=$'\t' read -r table_name expected_rows; do
   [[ "$table_name" =~ ^[a-z][a-z0-9_]{0,63}$ && "$expected_rows" =~ ^[0-9]+$ ]] \
     || { printf '%s\n' 'unsafe expected table-row contract' >&2; exit 1; }
@@ -530,9 +581,11 @@ invalid_published_timezone_count=$(mysql_attestation_exec airbobdb --execute="
 [[ "$invalid_published_timezone_count" == 0 ]] \
   || { printf '%s\n' 'published accommodation timezone contract failed' >&2; exit 1; }
 
+fi
+
 schema_unsorted_file="$work_root/schema-fingerprint.unsorted.tsv"
 schema_file="$work_root/schema-fingerprint.tsv"
-mysql_attestation_exec --execute="
+mysql_exec --execute="
   SELECT 'COLUMN', HEX(TABLE_NAME), HEX(COLUMN_NAME), HEX(CAST(ORDINAL_POSITION AS CHAR)),
          HEX(COLUMN_NAME), HEX(COLUMN_TYPE), HEX(IS_NULLABLE),
          COALESCE(HEX(CAST(COLUMN_DEFAULT AS CHAR)), '<NULL>'), HEX(EXTRA),
@@ -584,8 +637,8 @@ schema_fingerprint=$(sha256sum "$schema_file" | awk '{print $1}')
 [[ "$schema_fingerprint" == "$(jq -r '.mysql.schemaFingerprintSha256' "$manifest")" ]] \
   || { printf '%s\n' 'schema fingerprint does not match the dataset release' >&2; exit 1; }
 
-# Re-attest the restored database before the first database mutation or any
-# Redis, Kafka, Debezium, or Elasticsearch state change.
+# Full database qualification is exclusive to initial dump restoration.
+if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
 semantic_restore_pass() {
   mysql_attestation_exec airbobdb <<'AIRBOB_SEMANTIC_SQL'
 WITH review_expected AS (
@@ -628,7 +681,7 @@ SELECT review_summary_missing_count,review_summary_stale_count,
   (SELECT COUNT(*) FROM daily_revenue_stats s LEFT JOIN revenue_expected e ON e.stat_date=s.stat_date AND e.accommodation_id=s.accommodation_id WHERE e.stat_date IS NULL) daily_revenue_stats_extra_count,
   daily_revenue_stats_missing_count+daily_revenue_stats_stale_count+(SELECT COUNT(*) FROM daily_revenue_stats s LEFT JOIN revenue_expected e ON e.stat_date=s.stat_date AND e.accommodation_id=s.accommodation_id WHERE e.stat_date IS NULL) daily_revenue_stats_symmetric_mismatch_count,
   (SELECT COUNT(*) FROM accommodation_inventory_day) accommodation_inventory_day_row_count,
-  (SELECT COUNT(*) FROM outbox) outbox_row_count
+  (SELECT EXISTS(SELECT 1 FROM outbox LIMIT 1)) outbox_row_count
 FROM review_counts CROSS JOIN wishlist_counts CROSS JOIN revenue_counts;
 AIRBOB_SEMANTIC_SQL
 }
@@ -832,6 +885,23 @@ live_fingerprint_receipt="$work_root/live-fingerprint-receipt.tsv"
 printf 'final-world\t%s\nbase-world\t%s\ninventory\t%s\ntarget\t%s\n' "$final_world_fingerprint" "$base_world_fingerprint" "$inventory_fingerprint" "$target_fingerprint" > "$live_fingerprint_receipt"
 semantic_attestation_sha256=$({ cat "$semantic_one"; cat "$targets_one"; cat "$live_fingerprint_receipt"; } | sha256sum | awk '{print $1}')
 
+# End full database attestation.
+else
+  final_world_fingerprint=$(jq -r '.releaseTuple.finalWorldFingerprintSha256' "$manifest")
+  base_world_fingerprint=$(jq -r '.releaseTuple.baseWorldFingerprintSha256' "$manifest")
+  inventory_fingerprint=$(jq -r '.releaseTuple.inventoryFingerprintSha256' "$manifest")
+  target_fingerprint=$(jq -r '.releaseTuple.targetFingerprintSha256' "$manifest")
+  semantic_attestation_sha256=$(jq -r '.verification.semanticAttestationSha256' "$qualification_file")
+  # Primary-key lookups only. Full aggregates and hashes are inherited, not recomputed.
+  sample_target_ids=$(jq -er '[.capsules[].targets[]? | .query.accommodationId? // empty] | unique | .[:5] | select(length > 0) | .[]' "$benchmark_dataset_manifest") \
+    || { printf '%s\n' 'snapshot release has no bounded accommodation samples' >&2; exit 1; }
+  while IFS= read -r target_id; do
+    [[ "$target_id" =~ ^[1-9][0-9]*$ ]] || exit 1
+    [[ "$(mysql_readiness_exec airbobdb --execute="SELECT id FROM accommodation WHERE id=$target_id")" == "$target_id" ]] \
+      || { printf '%s\n' 'snapshot sample accommodation is missing' >&2; exit 1; }
+  done <<<"$sample_target_ids"
+fi
+
 # Operational mutations are allowed only after the semantic gate above.
 mysql_exec --execute="CALL mysql.rds_set_configuration('binlog retention hours', 24);" >/dev/null
 mysql_exec --execute="
@@ -859,6 +929,7 @@ ALTER USER '$debezium_username'@'%' IDENTIFIED BY '$debezium_password';
 GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT, LOCK TABLES ON *.* TO '$debezium_username'@'%';
 AIRBOB_DEBEZIUM_SQL
 
+bootstrap_stage_begin search-restore-and-verification
 if [[ "$search_enabled" == true ]]; then
   snapshot_reference="$release_root/elasticsearch/snapshot-reference.json"
   repository=$(jq -r '.repository' "$snapshot_reference")
@@ -928,6 +999,7 @@ if [[ "$search_enabled" == true ]]; then
   [[ "$(sha256sum "$mapping_file" | awk '{print $1}')" == "$expected_mapping_sha" ]] \
     || { printf '%s\n' 'Elasticsearch mapping fingerprint does not match the snapshot reference' >&2; exit 1; }
 
+  if [[ "$AIRBOB_DATABASE_BOOTSTRAP" == dump ]]; then
   database_ids="$work_root/database-accommodation-ids.txt"
   database_document_identity_pairs="$work_root/database-document-identity-pairs.tsv"
   elasticsearch_ids="$work_root/elasticsearch-accommodation-ids.txt"
@@ -1016,6 +1088,8 @@ if [[ "$search_enabled" == true ]]; then
   [[ "$(sha256sum "$elasticsearch_content" | awk '{print $1}')" == "$(jq -r '.contentFingerprintSha256' "$snapshot_reference")" ]] \
     || { printf '%s\n' 'Elasticsearch content fingerprint does not match the release' >&2; exit 1; }
 
+  fi
+
   existing_aliases_file="$work_root/elasticsearch-existing-aliases.json"
   alias_status=$(curl_http --silent --show-error --output "$existing_aliases_file" --write-out '%{http_code}' \
     "http://elasticsearch.lab.airbob.internal:9200/_alias/$logical_alias")
@@ -1060,6 +1134,19 @@ else
   search_state=skipped
 fi
 
+if [[ "$qualification_only" == true ]]; then
+  bootstrap_stage_begin qualification-publication
+  qualification_file="$work_root/dataset-qualification.json"
+  write_dataset_qualification "$manifest" "$qualification_file" "$AIRBOB_RUN_ID" \
+    "$AIRBOB_RDS_RESOURCE_ID" "$AIRBOB_RDS_ENGINE_VERSION" "$semantic_attestation_sha256" \
+    || { printf '%s\n' 'dataset qualification contract is invalid' >&2; exit 1; }
+  publish_immutable_receipt "$qualification_file" "$AIRBOB_EVIDENCE_BUCKET"     "data-bootstrap/$AIRBOB_RUN_ID/dataset-qualification.json" "$qualification_file.readback" \
+    || { printf '%s\n' 'dataset qualification publication could not be verified' >&2; exit 1; }
+  printf '%s\n' 'dataset qualified; promote the snapshot before destroying this preparation run'
+  exit 0
+fi
+
+bootstrap_stage_begin experiment-state
 redis_image=$(awk -F= '$1 == "REDIS_IMAGE" {print substr($0, index($0, "=") + 1)}' /etc/airbob/images.env)
 [[ "$redis_image" =~ @sha256:[0-9a-f]{64}$ ]] || { printf '%s\n' 'immutable Redis image is unavailable' >&2; exit 1; }
 redis_cli() {
@@ -1100,9 +1187,13 @@ done < <(jq -r '.couponPreparation[] | [.couponId, .quantity] | @tsv' "$manifest
   || { printf '%s\n' 'detail-cache Redis must start empty' >&2; exit 1; }
 redis_state=$([[ "$coupon_count" -eq 0 ]] && printf empty || printf coupon-prepared)
 
+bootstrap_stage_begin kafka-and-cdc
 debezium_compose=/opt/airbob/release/infra/aws/bundles/debezium/compose.yml
 compose=(docker compose --env-file /etc/airbob/images.env -f "$debezium_compose")
 kafka_exec=("${compose[@]}" exec --no-TTY debezium env KAFKA_OPTS= KAFKA_HEAP_OPTS=-Xms64m\ -Xmx64m)
+"${kafka_exec[@]}" /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka.lab.airbob.internal:9092 --create --if-not-exists \
+  --topic __debezium-heartbeat.airbob_outbox --partitions 1 --replication-factor 1 >/dev/null
 while IFS=$'\t' read -r topic partitions retention_ms; do
   case "$topic" in
     PAYMENT_OPERATION.events|PAYMENT_OPERATION.events.RETRY|PAYMENT_OPERATION.events.DLT|\
@@ -1170,12 +1261,13 @@ while IFS=$'\t' read -r topic partitions; do
   validate_empty_topic_offsets "$topic" "$partitions" "$topic_offsets" \
     || { printf 'Kafka topic changed while starting Debezium: %s\n' "$topic" >&2; exit 1; }
 done < <(jq -r '.kafka.topics[] | [.name, .partitions] | @tsv' "$manifest")
-final_outbox_count=$(mysql_exec airbobdb --execute='SELECT COUNT(*) FROM outbox')
+final_outbox_count=$(mysql_exec airbobdb --execute='SELECT EXISTS(SELECT 1 FROM outbox LIMIT 1)')
 [[ "$final_outbox_count" == 0 ]] \
   || { printf '%s\n' 'dataset outbox changed while starting Debezium' >&2; exit 1; }
 
 cleanup
 
+bootstrap_stage_begin runtime-receipt-publication
 verified_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 receipt="$work_root/data-bootstrap-receipt.json"
 receipt_readback="$work_root/data-bootstrap-receipt.readback.json"
@@ -1209,9 +1301,11 @@ jq -n \
   --arg connectorState "$connector_state" \
   --arg searchState "$search_state" \
   --arg verifiedAt "$verified_at" \
+  --argjson qualificationSource "$qualification_source" \
   --argjson kafkaTopics "$(jq '.kafka.topics' "$manifest")" \
   '{
-    schemaVersion: 2,
+    schemaVersion: 3,
+    verification: {mode:(if $databaseBootstrap == "snapshot" then "approved-snapshot" else "full" end),source:$qualificationSource},
     runId: $runId,
     datasetRelease: $datasetRelease,
     datasetRunId: $datasetRunId,

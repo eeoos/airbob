@@ -28,6 +28,7 @@ output "parameter_group_name" {
 
 output "contract" {
   value = {
+    engine_version              = aws_db_instance.this.engine_version
     instance_class              = aws_db_instance.this.instance_class
     multi_az                    = aws_db_instance.this.multi_az
     availability_zone           = aws_db_instance.this.availability_zone

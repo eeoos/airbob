@@ -1,4 +1,5 @@
 locals {
+  application_infra_enabled = local.services_enabled && !var.data_qualification_only
   expected_contract_keys = toset([
     "schemaVersion",
     "account_id",
@@ -159,6 +160,7 @@ locals {
     null,
   ) : null
   dataset_release_kind        = try(local.dataset_manifest.releaseKind, null)
+  dataset_is_growth           = try(local.dataset_manifest.releaseKind == "growth-aws-qualification", false)
   dataset_search_enabled      = try(local.dataset_manifest.search.enabled, false)
   dataset_expected_table_rows = try(local.dataset_manifest.mysql.expectedTableRows, {})
 

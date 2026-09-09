@@ -35,8 +35,11 @@ case "$image_variable" in
       'test -s /opt/jmx/jmx_prometheus_javaagent.jar'
     ;;
   DEBEZIUM_IMAGE)
+    script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+    connector_version=$(jq -er '.artifacts.debezium.version' "$script_dir/../images/release.json")
+    [[ "$connector_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.Final$ ]] || fail "invalid pinned Debezium version"
     docker run --rm --platform linux/amd64 --entrypoint /bin/bash "$image_ref" -ec \
-      'test -s /opt/jmx/jmx_prometheus_javaagent.jar && find /opt/kafka/connect-plugins/debezium-mysql -type f -name "debezium-connector-mysql-*.jar" -print -quit | grep -q .'
+      'test -s /opt/jmx/jmx_prometheus_javaagent.jar && test -s "/opt/kafka/connect-plugins/debezium-mysql/debezium-connector-mysql-$1.jar"' _ "$connector_version"
     ;;
   ELASTICSEARCH_IMAGE)
     docker run --rm --platform linux/amd64 --entrypoint /bin/bash "$image_ref" -ec \

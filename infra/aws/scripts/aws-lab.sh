@@ -142,9 +142,14 @@ validate_operator_scope_for_action() {
     || fail "$action with DNS_MODE=$dns_mode requires AWS_LAB_OPERATOR_SCOPE=$expected_scope"
 }
 
-[[ "$#" -eq 1 ]] || fail "usage: aws-lab.sh up|status|switch|down"
+[[ "$#" -eq 1 ]] || fail "usage: aws-lab.sh prepare|up|status|switch|down"
 action=$1
-case "$action" in up|status|switch|down) ;; *) fail "unsupported AWS lab action" ;; esac
+case "$action" in prepare|up|status|switch|down) ;; *) fail "unsupported AWS lab action" ;; esac
+qualification_only=false
+if [[ "$action" == prepare ]]; then
+  qualification_only=true
+  action=up # Preparation shares the creation lease, watchdog, and teardown lifecycle.
+fi
 lease_command=$action
 
 script_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
@@ -1602,6 +1607,11 @@ assert_lease() {
 
 validate_operator_dataset_manifest() {
   local dataset_manifest=$1 expected_release=$2
+  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ]]; then
+    [[ "$qualification_only" == true && "$database_bootstrap" == dump ]] || return 1
+    python3 "$script_dir/validate-growth-aws-release.py" "$dataset_manifest" "$expected_release" --manifest-only >/dev/null
+    return
+  fi
   jq -e --arg expectedRelease "$expected_release" '
     .schemaVersion == 2 and
     .datasetRelease == $expectedRelease and
@@ -1621,6 +1631,22 @@ validate_operator_dataset_manifest() {
 
 load_release_smoke_inputs() {
   local dataset_manifest=$1
+  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ]]; then
+    local growth_dir="$temp_dir/growth-release" artifact expected_sha
+    mkdir -m 700 "$growth_dir"
+    cp "$dataset_manifest" "$growth_dir/manifest.json"
+    while IFS=$'\t' read -r artifact expected_sha; do
+      aws s3api get-object --bucket "$dataset_bucket" \
+        --key "datasets/$dataset_release/$artifact" "$growth_dir/$artifact" \
+        --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "growth qualification payload is unavailable"
+      [[ "$(sha256_file "$growth_dir/$artifact")" == "$expected_sha" ]] || fail "growth payload digest mismatch"
+    done < <(jq -r '.artifacts|to_entries[]|[.key,.value.sha256]|@tsv' "$dataset_manifest")
+    python3 "$script_dir/validate-growth-aws-release.py" "$growth_dir" "$dataset_release" \
+      --migration-dir "$repo_root/src/main/resources/db/migration" >/dev/null \
+      || fail "growth qualification source validation failed"
+    smoke_search_enabled=false
+    return
+  fi
   local legacy_manifest="$temp_dir/benchmark-manifest.json"
   local composite_manifest="$temp_dir/benchmark-dataset-manifest.json"
   local legacy_manifest_sha composite_manifest_sha target_fingerprint
@@ -1780,9 +1806,10 @@ write_tfvars() {
     --arg rds_snapshot_identifier "$rds_snapshot_identifier" \
     --arg rds_snapshot_source_run_id "$rds_snapshot_source_run_id" \
     --arg rds_snapshot_source_resource_id "$rds_snapshot_source_resource_id" \
+    --argjson qualification_only "$qualification_only" \
     --arg rds_engine_version "$rds_engine_version" \
     --arg dns_mode "$dns_mode" --arg alb_ingress_cidr "$alb_ingress_cidr" \
-    '{run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
+    '{data_qualification_only:$qualification_only,run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
     > "$current_tfvars"
 }
 
@@ -2073,86 +2100,35 @@ verify_oci_authority() {
 }
 
 verify_snapshot_receipt_parity() {
-  local current_data=$1 current_readiness=$2
+  local current_data=${1:-} current_readiness=${2:-} snapshot tags source="$temp_dir/snapshot-source-qualification.json"
   [[ "$database_bootstrap" == snapshot ]] || return 0
-  local snapshot tags prefix key version expected_version_sha expected_sha destination
-  local source_data="$temp_dir/snapshot-source-data.json" source_readiness="$temp_dir/snapshot-source-readiness.json"
-  local source_data_version source_data_sha source_projection current_projection source_data_projection
-  local source_data_key="data-bootstrap/$rds_snapshot_source_run_id/$dataset_release.json"
-  local source_readiness_key="measurements/$rds_snapshot_source_run_id/direct-readiness.json"
-
-  assert_lease
+  source "$script_dir/dataset-qualification.sh"
   snapshot=$(aws rds describe-db-snapshots --db-snapshot-identifier "$rds_snapshot_identifier" \
-    --output json --region "$AWS_REGION" --no-cli-pager) \
-    || fail "snapshot receipt source metadata is unavailable"
+    --output json --region "$AWS_REGION" --no-cli-pager) || fail "snapshot metadata is unavailable"
   tags=$(jq -ce --arg snapshot "$rds_snapshot_identifier" --arg run "$rds_snapshot_source_run_id" \
-    --arg resource "$rds_snapshot_source_resource_id" --arg release "$dataset_release" \
-    --arg dataKey "$source_data_key" --arg readinessKey "$source_readiness_key" '
+    --arg resource "$rds_snapshot_source_resource_id" --arg engine "$rds_engine_version" '
     .DBSnapshots | select(length == 1) | .[0] |
-    select(.DBSnapshotIdentifier == $snapshot and .DbiResourceId == $resource) |
-    .TagList | select((map(.Key) | unique | length) == length) |
-    map({key:.Key,value:.Value}) | from_entries |
+    select(.DBSnapshotIdentifier == $snapshot and .DbiResourceId == $resource and
+      .Engine == "mysql" and .EngineVersion == $engine and .Status == "available" and .Encrypted == true) |
+    .TagList | select((map(.Key) | unique | length) == length) | map({key:.Key,value:.Value}) | from_entries |
     select(.SourceLabRunId == $run and .SourceRdsResourceId == $resource and
-      .DatasetRelease == $release and .PromotionReceiptSchemaVersion == "2" and
-      .DataBootstrapKey == $dataKey and .DirectReadinessKey == $readinessKey) |
-    select(all([.DataBootstrapVersionIdSha256,.DataBootstrapSha256,
-      .DirectReadinessVersionIdSha256,.DirectReadinessSha256][];
-      type == "string" and test("^[0-9a-f]{64}$")))
-  ' <<<"$snapshot") || fail "snapshot receipt source identity differs from the promoted snapshot"
-
-  for prefix in DataBootstrap DirectReadiness; do
-    key=$(jq -r --arg key "${prefix}Key" '.[$key]' <<<"$tags")
-    expected_version_sha=$(jq -r --arg key "${prefix}VersionIdSha256" '.[$key]' <<<"$tags")
-    expected_sha=$(jq -r --arg key "${prefix}Sha256" '.[$key]' <<<"$tags")
-    destination=$source_data
-    [[ "$prefix" != DirectReadiness ]] || destination=$source_readiness
-    # These keys are immutable. A different latest version fails closed; never
-    # silently substitute newer evidence or enumerate history for a match.
-    version=$(aws s3api head-object --bucket "$evidence_bucket" --key "$key" \
-      --query '{versionId:VersionId}' --output json --region "$AWS_REGION" --no-cli-pager \
-      | jq -er '.versionId | select(type == "string" and length > 0 and . != "null")') \
-      || fail "snapshot source receipt has no immutable version identity"
-    [[ "$(printf '%s' "$version" | sha256_text)" == "$expected_version_sha" ]] \
-      || fail "snapshot source receipt version differs from the promoted version"
-    aws s3api get-object --bucket "$evidence_bucket" --key "$key" --version-id "$version" \
-      "$destination" --region "$AWS_REGION" --no-cli-pager >/dev/null \
-      || fail "exact snapshot source receipt is unavailable"
-    [[ "$(sha256_file "$destination")" == "$expected_sha" ]] \
-      || fail "snapshot source receipt content differs from the promoted content"
-    if [[ "$prefix" == DataBootstrap ]]; then
-      source_data_version=$version
-      source_data_sha=$expected_sha
-    fi
-  done
-  jq -e --arg run "$rds_snapshot_source_run_id" --arg resource "$rds_snapshot_source_resource_id" \
-    --arg release "$dataset_release" '
-    .schemaVersion == 2 and .runId == $run and .rdsResourceId == $resource and
-    .datasetRelease == $release and .databaseBootstrap == "dump" and
-    (.semanticAttestationSha256 | type == "string" and test("^[0-9a-f]{64}$"))
-  ' "$source_data" >/dev/null || fail "snapshot source data receipt is not the promoted dump receipt"
-  source_data_projection=$(jq -cS 'del(.runId,.databaseBootstrap,.rdsResourceId,.verifiedAt)' "$source_data")
-  [[ "$source_data_projection" == "$(jq -cS 'del(.runId,.databaseBootstrap,.rdsResourceId,.verifiedAt)' "$current_data")" ]] \
-    || fail "snapshot data projection differs from the source dump receipt"
-  jq -e --arg run "$rds_snapshot_source_run_id" --arg resource "$rds_snapshot_source_resource_id" \
-    --arg key "$source_data_key" --arg version "$source_data_version" --arg sha "$source_data_sha" \
-    --arg projectionSha "$(printf '%s' "$source_data_projection" | sha256_text)" '
-    .schemaVersion == 1 and .status == "ready" and .runId == $run and
-    .actual.rds.resourceId == $resource and .bootstrap.mode == "dump" and
-    .bootstrap.rdsSnapshotIdentifier == null and .bootstrap.rdsSnapshotSourceRunId == null and
-    .bootstrap.rdsSnapshotSourceResourceId == null and
-    .bootstrap.receipt.key == $key and .bootstrap.receipt.versionId == $version and
-    .bootstrap.receipt.sha256 == $sha and .bootstrap.dataProjectionSha256 == $projectionSha
-  ' "$source_readiness" >/dev/null || fail "snapshot source readiness does not bind the exact dump receipt"
-  source_projection=$(jq -cSf "$comparison_projection_filter" "$source_readiness") \
-    || fail "snapshot source readiness projection is invalid"
-  jq -e --argjson projection "$source_projection" \
-    --arg sha "$(printf '%s\n' "$source_projection" | sha256_text)" '
-    .comparisonProjection == $projection and .comparisonProjectionSha256 == $sha
-  ' "$source_readiness" >/dev/null || fail "snapshot source readiness projection binding is invalid"
-  current_projection=$(jq -cSf "$comparison_projection_filter" "$current_readiness") \
-    || fail "snapshot readiness projection is invalid"
-  [[ "$current_projection" == "$source_projection" ]] \
-    || fail "snapshot readiness projection differs from the source dump receipt"
+      .PromotionReceiptSchemaVersion == "3" and .DataBootstrapKey == ("data-bootstrap/"+$run+"/dataset-qualification.json"))
+  ' <<<"$snapshot") || fail "snapshot qualification source identity is invalid"
+  fetch_dataset_qualification "$evidence_bucket" "$(jq -r '.DataBootstrapKey' <<<"$tags")" \
+    "$(jq -r '.DataBootstrapVersionIdSha256' <<<"$tags")" "$(jq -r '.DataBootstrapSha256' <<<"$tags")" \
+    "$source" "$AWS_REGION" \
+    && verify_dataset_qualification "$source" "$temp_dir/dataset-manifest.json" \
+    "$rds_snapshot_source_run_id" "$rds_snapshot_source_resource_id" "$rds_engine_version" \
+    || fail "snapshot qualification version, content, or dataset differs from approval"
+  [[ -n "$current_data" ]] || return 0
+  jq -e --slurpfile source "$source" --argjson tags "$tags" '
+    .schemaVersion == 3 and .databaseBootstrap == "snapshot" and
+    .datasetManifestSha256 == $source[0].dataset.manifestSha256 and
+    .semanticAttestationSha256 == $source[0].verification.semanticAttestationSha256 and
+    .verification == {mode:"approved-snapshot",source:{key:$tags.DataBootstrapKey,
+      sha256:$tags.DataBootstrapSha256,versionIdSha256:$tags.DataBootstrapVersionIdSha256}}
+  ' "$current_data" >/dev/null || fail "runtime receipt does not inherit the approved dataset qualification"
+  # App image, cache, and ASG shape are experiment variables, recorded by current_readiness.
 }
 
 publish_direct_readiness() {
@@ -2182,7 +2158,7 @@ publish_direct_readiness() {
   jq -e --arg run "$run_id" --arg release "$dataset_release" \
     --arg bootstrap "$database_bootstrap" --arg manifestSha "$dataset_manifest_sha256" \
     --arg resourceId "$rds_resource_id" --arg engine "$rds_engine_version" '
-      .schemaVersion == 2 and .runId == $run and .datasetRelease == $release and
+      .schemaVersion == 3 and .runId == $run and .datasetRelease == $release and
       .databaseBootstrap == $bootstrap and .datasetManifestSha256 == $manifestSha and
       .rdsResourceId == $resourceId and .rdsEngineVersion == $engine and
       .outboxState == "empty" and (.redisState == "empty" or .redisState == "coupon-prepared") and
@@ -2231,8 +2207,8 @@ publish_direct_readiness() {
     --db-parameter-group-name "$rds_parameter_group_name" \
     --query 'DBParameterGroups[0].DBParameterGroupFamily' --output text \
     --region "$AWS_REGION" --no-cli-pager) || fail "cannot attest the RDS parameter-group family"
-  [[ "$rds_parameter_group_family" == mysql8.0 ]] \
-    || fail "actual RDS parameter-group family differs from mysql8.0"
+  [[ "$rds_parameter_group_family" == mysql8.4 ]] \
+    || fail "actual RDS parameter-group family differs from mysql8.4"
   alb_shape=$(aws elbv2 describe-load-balancers --load-balancer-arns "$aws_alb_arn" \
     --query 'LoadBalancers[0].{arn:LoadBalancerArn,dnsName:DNSName,scheme:Scheme,type:Type,ipAddressType:IpAddressType,availabilityZones:AvailabilityZones[].ZoneName,securityGroups:SecurityGroups}' \
     --output json --region "$AWS_REGION" --no-cli-pager) || fail "cannot attest the direct ALB shape"
@@ -2272,7 +2248,7 @@ publish_direct_readiness() {
   ' <<<"$auto_scaling_group_shape" >/dev/null \
     || fail "live Auto Scaling capacity differs from the Phase 4 contract"
 
-  data_projection=$(jq -cS 'del(.runId,.databaseBootstrap,.rdsResourceId,.verifiedAt)' "$data_receipt")
+  data_projection=$(jq -cS 'del(.runId,.databaseBootstrap,.rdsResourceId,.verifiedAt,.verification)' "$data_receipt")
   data_projection_sha256=$(printf '%s' "$data_projection" | sha256_text)
   if [[ "$smoke_search_enabled" == true ]]; then
     search_query_sha256=$(jq -cS '.query' "$smoke_search_target" | sha256_text)
@@ -2716,8 +2692,12 @@ case "$action" in
     else
       alb_ingress_cidr=0.0.0.0/0
     fi
-    [[ "$rds_engine_version" =~ ^8\.0\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"
+    [[ "$rds_engine_version" =~ ^8\.4\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"
     validate_snapshot_bootstrap_inputs
+    if [[ "$qualification_only" == true ]]; then
+      [[ "$database_bootstrap:$dns_mode:$load_generator_enabled:$mode" == dump:direct-only:false:performance ]] \
+        || fail "prepare requires dump, direct-only DNS, performance mode, and no load generator"
+    fi
     approved_rds_snapshot_identifier=$(jq -er '.approved_rds_snapshot_identifier // ""' <<<"$lab_contract") \
       || fail "foundation lab contract has no approved RDS snapshot field"
     if [[ "$database_bootstrap" == snapshot ]]; then
@@ -2725,6 +2705,12 @@ case "$action" in
         "$rds_snapshot_identifier" == "$approved_rds_snapshot_identifier" ]] \
         || fail "snapshot bootstrap requires the exact Foundation-approved RDS snapshot"
     fi
+    aws rds describe-db-engine-versions --engine mysql --engine-version "$rds_engine_version" \
+      --output json --region "$AWS_REGION" --no-cli-pager > "$temp_dir/rds-engine.json" \
+      || fail "cannot check RDS engine availability"
+    jq -e --arg engine "$rds_engine_version" \
+      'any(.DBEngineVersions[]; .EngineVersion == $engine and .DBParameterGroupFamily == "mysql8.4" and .Status == "available")' \
+      "$temp_dir/rds-engine.json" >/dev/null || fail "selected MySQL 8.4 patch is unavailable in Seoul"
     now_epoch=$(date +%s)
     expires_at=$((now_epoch + ttl_hours * 3600))
     run_id=${RUN_ID:-lab-$(date -u +%Y%m%d%H%M%S)-${GITHUB_RUN_ID:-local}}
@@ -2732,6 +2718,7 @@ case "$action" in
     valid_run_id "$run_id" || fail "generated RUN_ID is not canonical"
     current_stage=release-validation
     resolve_release_inputs
+    verify_snapshot_receipt_parity # Reject stale approval before creating any billable resources.
     validate_workflow_deadline_budget
     validate_up_credential_budget
     start_mutation_guard
@@ -2795,6 +2782,24 @@ case "$action" in
     rds_instance_id=$(jq -er '.rds_instance_id' <<<"$phase3")
     rds_resource_id=$(jq -er '.rds_resource_id' <<<"$phase3")
     rds_endpoint=$(jq -er '.rds_endpoint' <<<"$phase3")
+    if [[ "$qualification_only" == true ]]; then
+      current_stage=dataset-qualified
+      qualification_key="data-bootstrap/$run_id/dataset-qualification.json"
+      qualification_version=$(aws s3api head-object --bucket "$evidence_bucket" --key "$qualification_key" \
+        --query VersionId --output text --region "$AWS_REGION" --no-cli-pager)
+      [[ -n "$qualification_version" && "$qualification_version" != None && "$qualification_version" != null ]] \
+        || fail "dataset qualification has no immutable S3 version"
+      source "$script_dir/dataset-qualification.sh"
+      aws s3api get-object --bucket "$evidence_bucket" --key "$qualification_key" --version-id "$qualification_version" \
+        "$temp_dir/qualification.json" --region "$AWS_REGION" --no-cli-pager >/dev/null
+      verify_dataset_qualification "$temp_dir/qualification.json" "$temp_dir/dataset-manifest.json" \
+        "$run_id" "$rds_resource_id" "$rds_engine_version" || fail "preparation qualification does not bind this RDS"
+      up_in_progress=false
+      printf 'Dataset qualified. Run=%s RDS=%s qualification=%s VersionId=%s\n' \
+        "$run_id" "$rds_instance_id" "$qualification_key" "$qualification_version"
+      printf '%s\n' 'Promote the dataset snapshot before down or TTL expiry. Application startup was not requested.'
+      exit 0
+    fi
     rds_secret_arn=$(aws rds describe-db-instances --db-instance-identifier "$rds_instance_id" \
       --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text --region "$AWS_REGION" --no-cli-pager)
     assert_lease

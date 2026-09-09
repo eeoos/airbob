@@ -26,7 +26,7 @@ snapshot_receipt=${5:-}
 [[ "$expected_release" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ ]] \
   || fail 'invalid expected dataset release'
 case "$expected_kind" in
-  pipeline-rehearsal|evidence) ;;
+  pipeline-rehearsal|evidence|growth-small-integration|growth-aws-qualification) ;;
   *) fail 'invalid expected release kind' ;;
 esac
 [[ "$dataset_bucket" =~ ^airbob-performance-lab-dataset-[0-9]{12}$ ]] \
@@ -278,6 +278,18 @@ bucket_region=$(jq -er '.LocationConstraint' "$bucket_location_file") \
 rm -f -- "$bucket_location_file"
 [[ "$bucket_region" == "$AIRBOB_AWS_REGION" ]] \
   || fail 'dataset bucket is outside the approved AWS region'
+
+if [[ "$expected_kind" == growth-small-integration || "$expected_kind" == growth-aws-qualification ]]; then
+  [[ -z "$snapshot_receipt" ]] || fail 'growth publication does not accept a search snapshot receipt'
+  [[ -n "${GROWTH_PUBLICATION_RECEIPT:-}" ]] || fail 'GROWTH_PUBLICATION_RECEIPT is required'
+  growth_arguments=()
+  [[ "$expected_kind" != growth-aws-qualification ]] || growth_arguments+=(--aws-qualification)
+  python3 "$script_dir/publish-growth-dataset-v3.py" \
+    --release "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket" \
+    --migration-dir "$repo_root/src/main/resources/db/migration" \
+    --receipt "$GROWTH_PUBLICATION_RECEIPT" "${growth_arguments[@]}"
+  exit 0
+fi
 
 stage_dir="$temp_dir/release"
 mkdir -m 700 "$stage_dir"

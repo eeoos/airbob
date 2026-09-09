@@ -145,32 +145,19 @@ only GET requests and excludes availability, quote, checkout, and reservation
 mutations. Any inventory-dependent call therefore fails closed with HTTP 503 /
 `R026`. Ordinary `aws` and `oci` deployments retain mandatory inventory startup.
 
-Dump mode creates an empty `db.t3.small` RDS MySQL instance. Snapshot mode may
-use only an encrypted, available snapshot whose release, run, dump, Flyway,
-and manifest tags match the selected release. Promotion separately validates
-the source instance class, and the restored instance also remains
-`db.t3.small`. The dump remains canonical and the snapshot is only a rebuild
-cache. Snapshot promotion is a separate publisher/admin operation:
+New runs require a pinned MySQL 8.4 patch. Use `aws-lab.sh prepare` to restore
+and fully qualify the initial DB and search dataset before creating a persistent
+snapshot candidate. Preparation does not create the ALB or application ASG.
+The six-argument promoter accepts the manifest, dataset qualification receipt,
+its exact S3 VersionId, source RDS instance, candidate snapshot ID, and output.
+It does not require application direct-readiness. See the current
+[approval and reuse runbook](../../../docs/performance/aws-dataset-approval-and-reuse.md).
 
-```bash
-AIRBOB_REGION=ap-northeast-2 \
-  infra/aws/scripts/promote-rds-snapshot.sh \
-  manifest.json data-bootstrap-receipt.json "$DATA_RECEIPT_VERSION_ID" \
-  direct-readiness.json "$DIRECT_READINESS_VERSION_ID" \
-  airbob-<run-id> airbob-dataset-<release> promotion.json
-```
-
-That command creates and validates a persistent snapshot candidate; it does
-not grant the ephemeral lab role authority to retain data or update a
-persistent release inventory. `promotion.json` is create-only. Before any RDS
-call, the promoter downloads both receipts from the fixed evidence bucket by
-their exact S3 VersionIds and requires byte-for-byte equality with the supplied
-files. It requires `airbob-<run-id>` to match the exact bootstrap and readiness
-receipts and the source instance to use the fixed `db.t3.small` qualification
-class. It then stamps the validated source run, source RDS resource ID, both
-receipt identities, and promotion schema onto the snapshot. Snapshot bootstrap
-rejects a snapshot that merely copies the dataset tuple without those promotion
-markers.
+Snapshot reuse verifies the approved S3 version/content, live Flyway/schema,
+bounded sample targets, and service readiness. Full row counts, semantic scans,
+row fingerprints, and ES scrolls run only on initial dump restoration. Runtime
+receipt schema 3 explicitly records inherited dataset verification. The old
+schema 2 promotion contract is not accepted for new runs.
 
 The SSM bootstrap is fail-closed and ordered: RDS readiness/import and Flyway
 plus schema fingerprints, optional Elasticsearch restore, both Redis resets

@@ -66,7 +66,8 @@ if grep -En '\$\(result_field[[:space:]]+\\"' "$bootstrap" >/dev/null; then
 fi
 
 assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)'
-assert_contains "$lab_root/modules/rds/main.tf" 'instance_class = "db.t3.small"'
+grep -Eq 'instance_class[[:space:]]*=[[:space:]]*"db.t3.small"' "$lab_root/modules/rds/main.tf" \
+  || fail 'RDS must use the declared db.t3.small instance class'
 assert_contains "$lab_root/modules/rds/main.tf" 'var.bootstrap_mode == "dump" ? var.dump_storage_gib : null'
 assert_contains "$lab_root/modules/rds/main.tf" 'manage_master_user_password = true'
 assert_contains "$lab_root/modules/rds/main.tf" 'snapshot_identifier'
@@ -261,7 +262,7 @@ if grep -Fq '$a[0].sourceDumpSha256==$w[0].releaseTuple.dumpSha256' "$bootstrap"
 fi
 assert_contains "$bootstrap" '"$benchmark_dataset_manifest"'
 assert_contains "$bootstrap" 'semanticAttestationSha256'
-assert_contains "$bootstrap" 'schemaVersion: 2'
+assert_contains "$bootstrap" 'schemaVersion: 3'
 assert_contains "$bootstrap" 'final_world_fingerprint=$(combine_fingerprints final-)'
 assert_contains "$bootstrap" 'base_world_fingerprint=$(combine_fingerprints base-)'
 assert_contains "$bootstrap" 'inventory_fingerprint=$(awk'
@@ -283,7 +284,7 @@ assert_contains "$bootstrap" 'publish_immutable_receipt'
 assert_contains "$bootstrap" "--if-none-match '*'"
 assert_contains "$bootstrap" '--server-side-encryption AES256'
 assert_contains "$bootstrap" 'immutable data bootstrap receipt publication could not be verified'
-assert_contains "$bootstrap" 'trap cleanup EXIT'
+assert_contains "$bootstrap" 'bootstrap_stage_end "$status"; cleanup'
 assert_contains "$bootstrap" '<<AIRBOB_DEBEZIUM_SQL'
 for component_id in \
   final-accommodation final-address final-occupancy-policy \
@@ -604,7 +605,7 @@ single_semantic="$temp_dir/single-semantic.sh"
 single_fingerprints="$temp_dir/single-fingerprints.sh"
 final_targets="$temp_dir/final-targets.sh"
 awk '/^semantic_one=/{p=1} /^result_field\(\)/{exit} p{print}' "$bootstrap" > "$single_semantic"
-awk '/^targets_one=/{p=1} /^# Operational mutations/{exit} p{print}' "$bootstrap" > "$single_fingerprints"
+awk '/^targets_one=/{p=1} /^# End full database attestation/{exit} p{print}' "$bootstrap" > "$single_fingerprints"
 awk '/^targets_final=/{p=1} /^cleanup$/{if(p)exit} p{print}' "$bootstrap" > "$final_targets"
 [[ -s "$single_semantic" && -s "$single_fingerprints" ]] || fail "attestation orchestration is missing"
 run_single_attestation_fixture() (
