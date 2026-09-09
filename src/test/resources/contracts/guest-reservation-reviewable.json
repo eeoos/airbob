@@ -1,0 +1,41 @@
+{
+  "reservation_uid": "10000000-0000-4000-8000-000000000001",
+  "reservation_code": "REVIEW-2026",
+  "status": "CANCELLATION_FAILED",
+  "payment_allowed": false,
+  "hold_expires_at": null,
+  "server_time": "2026-08-25T03:00:00Z",
+  "created_at": "2026-08-01T00:00:00Z",
+  "guest_count": 2,
+  "check_in_date_time": "2026-08-23T15:00:00",
+  "check_out_date_time": "2026-08-25T12:00:00",
+  "time_zone_id": "Asia/Seoul",
+  "check_in_time": "15:00:00",
+  "check_out_time": "12:00:00",
+  "request_message": null,
+  "can_write_review": true,
+  "accommodation": {
+    "id": 7,
+    "name": "후기 계약 숙소",
+    "thumbnail_url": null
+  },
+  "address": {
+    "country": "대한민국",
+    "state": null,
+    "city": "서울",
+    "district": null,
+    "street": "양화로",
+    "detail": null,
+    "postal_code": "04000"
+  },
+  "coordinate": {
+    "latitude": null,
+    "longitude": null
+  },
+  "host": {
+    "id": 202,
+    "nickname": "테스트 호스트",
+    "thumbnail_image_url": null
+  },
+  "payment": null
+}

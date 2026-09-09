@@ -24,8 +24,14 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.QAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QRecentlyViewedAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QPublicAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationDetailProjection;
 import kr.kro.airbob.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 
@@ -48,20 +54,25 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Optional<AccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+    public Optional<PublicAccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
         Long accommodationId,
         AccommodationStatus status
     ) {
-        AccommodationDetailProjection result = jpaQueryFactory
-            .select(new QAccommodationDetailProjection(
-                accommodation,
+        PublicAccommodationDetailProjection result = jpaQueryFactory
+            .select(new QPublicAccommodationDetailProjection(
+                accommodation.id, accommodation.name, accommodation.description, accommodation.type,
+                accommodation.basePrice, accommodation.currency, accommodation.checkInTime,
+                accommodation.checkOutTime, accommodation.timeZoneId,
+                address.country, address.state, address.city, address.district, address.latitude, address.longitude,
+                member.id, member.nickname, member.thumbnailImageUrl,
+                occupancyPolicy.maxOccupancy, occupancyPolicy.infantOccupancy, occupancyPolicy.petOccupancy,
                 accommodationReviewSummary.totalReviewCount,
                 accommodationReviewSummary.averageRating
             ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .leftJoin(accommodation.member, member).fetchJoin()
+            .leftJoin(accommodation.address, address)
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy)
+            .leftJoin(accommodation.member, member)
             .leftJoin(accommodationReviewSummary)
             .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
             .where(accommodation.id.eq(accommodationId)
@@ -72,14 +83,24 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Slice<Accommodation> findMyAccommodationsByHostIdWithCursor(Long hostId, Long lastId,
+    public Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(Long hostId, Long lastId,
         LocalDateTime lastCreatedAt, AccommodationStatus status, Pageable pageable) {
 
-        List<Accommodation> content = jpaQueryFactory
-            .select(accommodation)
+        List<HostAccommodationProjection> content = jpaQueryFactory
+            .select(new QHostAccommodationProjection(
+                accommodation.id,
+                accommodation.name,
+                accommodation.thumbnailUrl,
+                accommodation.status,
+                accommodation.type,
+                address.country,
+                address.state,
+                address.city,
+                address.district,
+                accommodation.createdAt
+            ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            // .leftJoin(accommodationReviewSummary).on(accommodationReviewSummary.accommodation.id.eq(accommodation.id))
+            .leftJoin(accommodation.address, address)
             .where(
                 accommodation.member.id.eq(hostId),
                 accommodation.status.ne(AccommodationStatus.DELETED),
@@ -99,12 +120,19 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId) {
-        Accommodation result = jpaQueryFactory
-            .selectFrom(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
-            .leftJoin(accommodation.member, member).fetchJoin()
+    public Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId) {
+        HostAccommodationDetailProjection result = jpaQueryFactory
+            .select(new QHostAccommodationDetailProjection(
+                accommodation.id, accommodation.name, accommodation.description, accommodation.type,
+                accommodation.basePrice, accommodation.currency, accommodation.checkInTime,
+                accommodation.checkOutTime, accommodation.timeZoneId,
+                address.country, address.state, address.city, address.district, address.street,
+                address.detail, address.postalCode,
+                occupancyPolicy.maxOccupancy, occupancyPolicy.infantOccupancy, occupancyPolicy.petOccupancy
+            ))
+            .from(accommodation)
+            .leftJoin(accommodation.address, address)
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy)
             .where(
                 accommodation.id.eq(accommodationId),
                 accommodation.member.id.eq(hostId)
@@ -115,17 +143,25 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status) {
-        List<Accommodation> results = jpaQueryFactory.
-            selectFrom(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
+    public List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+        List<Long> accommodationIds, AccommodationStatus status
+    ) {
+        return jpaQueryFactory
+            .select(new QRecentlyViewedAccommodationProjection(
+                accommodation.id, accommodation.name, accommodation.thumbnailUrl,
+                address.country, address.state, address.city, address.district,
+                accommodationReviewSummary.totalReviewCount,
+                accommodationReviewSummary.averageRating
+            ))
+            .from(accommodation)
+            .leftJoin(accommodation.address, address)
+            .leftJoin(accommodationReviewSummary)
+            .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
             .where(
                 accommodation.id.in(accommodationIds),
                 accommodation.status.eq(status)
             )
             .fetch();
-
-        return results;
     }
 
 	@Override

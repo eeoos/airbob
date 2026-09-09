@@ -13,12 +13,21 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
+import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @Repository
 public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long> {
 
-	@EntityGraph(attributePaths = "coupon")
-	List<MemberCoupon> findByMemberIdOrderByCreatedAtDescIdDesc(Long memberId);
+	@Query("""
+		select new kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection(
+			c.id, c.name, c.description, c.discountType, c.discountValue, c.minPaymentPrice,
+			c.maxDiscountAmount, c.usableFrom, c.usableUntil, mc.used, c.isActive)
+		from MemberCoupon mc
+		join mc.coupon c
+		where mc.member.id = :memberId
+		order by mc.createdAt desc, mc.id desc
+		""")
+	List<MemberCouponProjection> findByMemberIdOrderByCreatedAtDescIdDesc(@Param("memberId") Long memberId);
 
 	boolean existsByMemberIdAndCouponId(Long memberId, Long couponId);
 

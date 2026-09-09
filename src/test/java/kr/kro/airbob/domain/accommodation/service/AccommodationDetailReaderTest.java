@@ -2,7 +2,6 @@ package kr.kro.airbob.domain.accommodation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -19,13 +18,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationImageRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,18 +41,15 @@ class AccommodationDetailReaderTest {
 	@Test
 	@DisplayName("공개 숙소의 공용 상세 스냅샷을 찜 여부 없이 조회한다")
 	void loadSharedSnapshotWithoutViewerState() {
-		Accommodation accommodation = mock(Accommodation.class);
-		when(accommodation.getId()).thenReturn(1L);
-		when(accommodation.getName()).thenReturn("서울의 집");
-		when(accommodation.getCheckInTime()).thenReturn(LocalTime.of(15, 0));
-		when(accommodation.getCheckOutTime()).thenReturn(LocalTime.of(11, 0));
-		when(accommodation.getTimeZoneId()).thenReturn("Asia/Seoul");
 		when(accommodationRepository.findWithDetailsByAccommodationIdAndStatus(
 			1L, AccommodationStatus.PUBLISHED))
-			.thenReturn(Optional.of(new AccommodationDetailProjection(
-				accommodation, 3, new BigDecimal("4.50"))));
-		when(accommodationAmenityRepository.findAllByAccommodationId(1L)).thenReturn(List.of());
-		when(accommodationImageRepository.findByAccommodationIdOrderByIdAsc(1L)).thenReturn(List.of());
+			.thenReturn(Optional.of(new PublicAccommodationDetailProjection(
+				1L, "서울의 집", "설명", "HOUSE", 100000L, "KRW",
+				LocalTime.of(15, 0), LocalTime.of(11, 0), "Asia/Seoul",
+				null, null, null, null, null, null, 20L, "호스트", null,
+				4, 1, 0, 3, new BigDecimal("4.50"))));
+		when(accommodationAmenityRepository.findDetailAmenitiesByAccommodationId(1L)).thenReturn(List.of());
+		when(accommodationImageRepository.findDetailImagesByAccommodationIdOrderByIdAsc(1L)).thenReturn(List.of());
 
 		AccommodationDetailSnapshot snapshot = reader.load(1L);
 

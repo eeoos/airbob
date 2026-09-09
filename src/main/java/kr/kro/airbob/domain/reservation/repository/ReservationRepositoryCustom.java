@@ -13,6 +13,10 @@ import org.springframework.data.domain.Slice;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 
 public interface ReservationRepositoryCustom {
 	boolean existsFutureInventoryReservation(Long accommodationId, Instant now);
@@ -27,7 +31,7 @@ public interface ReservationRepositoryCustom {
 		LocalDate windowEndExclusive
 	);
 
-	Slice<Reservation> findMyReservationsByGuestIdWithCursor(
+	Slice<GuestReservationListProjection> findMyReservationsByGuestIdWithCursor(
 		Long guestId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
@@ -36,7 +40,7 @@ public interface ReservationRepositoryCustom {
 		Pageable pageable
 	);
 
-	Slice<Reservation> findHostReservationsByHostIdWithCursor(
+	Slice<HostReservationListProjection> findHostReservationsByHostIdWithCursor(
 		Long hostId,
 		Long lastId,
 		LocalDateTime lastCreatedAt,
@@ -45,7 +49,7 @@ public interface ReservationRepositoryCustom {
 		Pageable pageable
 	);
 
-	Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
+	Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId);
 
-	Optional<Reservation> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId);
+	Optional<HostReservationDetailProjection> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId);
 }

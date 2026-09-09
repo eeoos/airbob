@@ -31,8 +31,6 @@ import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -61,10 +59,8 @@ class ReservationCheckInCutoffContractTest {
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private MemberRepository memberRepository;
 	@Mock private ReviewRepository reviewRepository;
-	@Mock private PaymentRepository paymentRepository;
 	@Mock private ReservationRepository reservationRepository;
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private PaymentTransactionRepository paymentTransactionRepository;
 	@Mock private ReservationHistoryRepository historyRepository;
 	@Mock private CouponUsageService couponUsageService;
 	@Mock private BookingWindowProvider bookingWindowProvider;
@@ -137,10 +133,8 @@ class ReservationCheckInCutoffContractTest {
 			cursorPageInfoCreator,
 			memberRepository,
 			reviewRepository,
-			paymentRepository,
 			reservationRepository,
 			accommodationRepository,
-			paymentTransactionRepository,
 			historyRepository,
 			couponUsageService,
 			bookingWindowProvider,

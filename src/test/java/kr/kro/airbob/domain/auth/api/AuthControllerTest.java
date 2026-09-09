@@ -47,9 +47,9 @@ class AuthControllerTest {
     }
 
     @Test
-    void getMyInfoDelegatesToMemberServiceWithoutChangingApiContract() throws Exception {
+    void getMyInfoUsesCurrentMemberAndExposesOnlyViewerFields() throws Exception {
         MemberResponse.MeInfo me = new MemberResponse.MeInfo(
-            10L, "guest@airbob.test", "guest", "https://img.example/guest.png");
+            10L, "guest@airbob.test", "guest");
         given(memberService.getMemberInfo(10L)).willReturn(me);
 
         mockMvc.perform(get("/api/v1/auth/me"))
@@ -57,8 +57,7 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.data.id").value(10))
             .andExpect(jsonPath("$.data.email").value("guest@airbob.test"))
             .andExpect(jsonPath("$.data.nickname").value("guest"))
-            .andExpect(jsonPath("$.data.thumbnail_image_url")
-                .value("https://img.example/guest.png"));
+            .andExpect(jsonPath("$.data.thumbnail_image_url").doesNotExist());
 
         then(memberService).should().getMemberInfo(10L);
         then(authService).shouldHaveNoInteractions();

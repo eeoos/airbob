@@ -17,6 +17,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentResponse {
 
+	public record HostPaymentInfo(Long totalAmount) {
+	}
+
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	public record GuestPaymentInfo(String method, Long totalAmount, PaymentStatus status, Instant approvedAt) {
+	}
+
 	@Builder
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	public record PaymentInfo(
@@ -28,8 +35,7 @@ public class PaymentResponse {
 		PaymentStatus status,
 		Instant requestedAt,
 		Instant approvedAt,
-		List<CancelInfo> cancels,
-		VirtualAccountInfo virtualAccount
+		List<CancelInfo> cancels
 	){
 		// 확정된 결제 + 취소 이력(거래 원장의 CANCEL/PARTIAL_CANCEL)
 		public static PaymentInfo from(Payment payment, List<PaymentTransaction> cancelTransactions) {
@@ -47,20 +53,6 @@ public class PaymentResponse {
 				.requestedAt(toUtcInstant(payment.getCreatedAt()))
 				.approvedAt(payment.getApprovedAt())
 				.cancels(cancelInfos)
-				.virtualAccount(null)
-				.build();
-		}
-
-		// 결제 확정 전(가상계좌 발급 등) — 거래 원장 기반
-		public static PaymentInfo from(PaymentTransaction transaction) {
-			return PaymentInfo.builder()
-				.orderId(transaction.getOrderId())
-				.paymentKey(transaction.getPaymentKey())
-				.method(transaction.getMethod() != null ? transaction.getMethod().getDescription() : null)
-				.totalAmount(transaction.getAmount())
-				.status(transaction.getStatus())
-				.requestedAt(toUtcInstant(transaction.getCreatedAt()))
-				.virtualAccount(VirtualAccountInfo.from(transaction))
 				.build();
 		}
 	}
@@ -76,23 +68,6 @@ public class PaymentResponse {
 				.cancelAmount(cancelTransaction.getCancelAmount())
 				.cancelReason(cancelTransaction.getCancelReason())
 				.canceledAt(cancelTransaction.getCanceledAt())
-				.build();
-		}
-	}
-
-	@Builder
-	public record VirtualAccountInfo(
-		String accountNumber,
-		String bankCode,
-		String customerName,
-		Instant dueDate
-	) {
-		public static VirtualAccountInfo from(PaymentTransaction transaction) {
-			return VirtualAccountInfo.builder()
-				.accountNumber(transaction.getVirtualAccountNumber())
-				.bankCode(transaction.getVirtualBankCode())
-				.customerName(transaction.getVirtualCustomerName())
-				.dueDate(transaction.getVirtualDueDate())
 				.build();
 		}
 	}

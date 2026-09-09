@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.review.service;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -26,6 +27,7 @@ import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalida
 import kr.kro.airbob.domain.accommodation.cache.invalidation.AccommodationDetailCacheInvalidationPublisher;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.image.entity.ReviewImage;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
@@ -36,6 +38,8 @@ import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
+import kr.kro.airbob.domain.review.exception.ReviewAlreadyExistsException;
+import kr.kro.airbob.domain.review.exception.ReviewCreationForbiddenException;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewImageRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
@@ -59,6 +63,55 @@ class ReviewServiceTest {
 
 	@InjectMocks
 	private ReviewService reviewService;
+
+	@Test
+	@DisplayName("숙소가 비공개로 바뀌면 후기 작성과 집계 변경을 거부한다")
+	void rejectCreationWhenAccommodationIsNoLongerPublished() {
+		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+			.thenReturn(Optional.of(member()));
+		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> reviewService.createReview(1L, new ReviewRequest.Create(5, "후기"), 2L))
+			.isInstanceOf(AccommodationNotFoundException.class);
+		verifyNoInteractions(reservationRepository, reviewRepository, summaryRepository,
+			searchRefreshPublisher, cacheInvalidationPublisher);
+	}
+
+	@Test
+	@DisplayName("작성 시점에도 본인의 체크아웃 완료 예약이 있어야 한다")
+	void recheckCompletedStayBeforeCreatingReview() {
+		Instant now = Instant.parse("2030-01-01T00:00:00Z");
+		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+			.thenReturn(Optional.of(member()));
+		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.thenReturn(Optional.of(accommodation()));
+		when(clock.instant()).thenReturn(now);
+		when(reservationRepository.existsPastCompletedReservationByGuest(1L, 2L, now)).thenReturn(false);
+
+		assertThatThrownBy(() -> reviewService.createReview(1L, new ReviewRequest.Create(5, "후기"), 2L))
+			.isInstanceOf(ReviewCreationForbiddenException.class);
+		verifyNoInteractions(reviewRepository, summaryRepository, searchRefreshPublisher, cacheInvalidationPublisher);
+	}
+
+	@Test
+	@DisplayName("조회 이후 게시된 후기가 생겼으면 실제 작성 시 중복을 거부한다")
+	void recheckPublishedReviewBeforeCreatingReview() {
+		Instant now = Instant.parse("2030-01-01T00:00:00Z");
+		when(memberRepository.findByIdAndStatus(2L, MemberStatus.ACTIVE))
+			.thenReturn(Optional.of(member()));
+		when(accommodationRepository.findByIdAndStatus(1L, AccommodationStatus.PUBLISHED))
+			.thenReturn(Optional.of(accommodation()));
+		when(clock.instant()).thenReturn(now);
+		when(reservationRepository.existsPastCompletedReservationByGuest(1L, 2L, now)).thenReturn(true);
+		when(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(1L, 2L, ReviewStatus.PUBLISHED))
+			.thenReturn(true);
+
+		assertThatThrownBy(() -> reviewService.createReview(1L, new ReviewRequest.Create(5, "후기"), 2L))
+			.isInstanceOf(ReviewAlreadyExistsException.class);
+		verify(reviewRepository, never()).save(any(Review.class));
+		verifyNoInteractions(summaryRepository, searchRefreshPublisher, cacheInvalidationPublisher);
+	}
 
 	@Test
 	@DisplayName("리뷰를 생성하면 리뷰 요약이 포함된 숙소 상세 캐시를 무효화한다")

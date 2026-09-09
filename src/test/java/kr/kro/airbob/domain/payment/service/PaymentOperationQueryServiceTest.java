@@ -19,13 +19,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Detail;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.NextAction;
 import kr.kro.airbob.domain.payment.dto.PaymentOperationResponse.Status;
-import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
 import kr.kro.airbob.domain.payment.exception.PaymentAccessDeniedException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationNotFoundException;
 import kr.kro.airbob.domain.payment.repository.PaymentOperationRepository;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,9 +40,9 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void ownerSeesPublicStatusAndNoPaymentKey() {
-		PaymentOperation operation = operation(
+		PaymentOperationDetailRow operation = operation(
 			PaymentOperationStatus.DECLINED, PaymentOperationType.CONFIRM, "PROVIDER_DECLINED", null);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
 		Detail detail = queryService().find(OPERATION_UID, OWNER_ID);
 
@@ -61,7 +60,7 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void nonOwnerCannotObserveAnOperation() {
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation(
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation(
 			PaymentOperationStatus.QUEUED, PaymentOperationType.CONFIRM, null, null)));
 
 		assertThatThrownBy(() -> queryService().find(OPERATION_UID, 999L))
@@ -70,7 +69,7 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void unknownOperationReturnsNotFound() {
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.empty());
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> queryService().find(OPERATION_UID, OWNER_ID))
 			.isInstanceOf(PaymentOperationNotFoundException.class);
@@ -78,13 +77,13 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void nonFailureStatusDoesNotExposeFailureCode() {
-		PaymentOperation operation = operation(
+		PaymentOperationDetailRow operation = operation(
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CONFIRM,
 			"transient-internal-detail",
 			SERVER_TIME.plusSeconds(5).plusNanos(1)
 		);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
 		Detail detail = queryService().find(OPERATION_UID, OWNER_ID);
 
@@ -97,23 +96,23 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void retryDelayUsesTheMinimumAtTheExactBoundaryAndWhenOverdue() {
-		PaymentOperation due = operation(
+		PaymentOperationDetailRow due = operation(
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CANCEL,
 			null,
 			SERVER_TIME
 		);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(due));
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(due));
 
 		Detail atBoundary = queryService().find(OPERATION_UID, OWNER_ID);
 
-		PaymentOperation overdue = operation(
+		PaymentOperationDetailRow overdue = operation(
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CANCEL,
 			null,
 			SERVER_TIME.minusNanos(1)
 		);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(overdue));
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(overdue));
 
 		Detail afterBoundary = queryService().find(OPERATION_UID, OWNER_ID);
 
@@ -125,13 +124,13 @@ class PaymentOperationQueryServiceTest {
 
 	@Test
 	void retryDelayIsCappedAtThirtySeconds() {
-		PaymentOperation operation = operation(
+		PaymentOperationDetailRow operation = operation(
 			PaymentOperationStatus.WAITING_RETRY,
 			PaymentOperationType.CONFIRM,
 			null,
 			SERVER_TIME.plusSeconds(31)
 		);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 
 		Detail detail = queryService().find(OPERATION_UID, OWNER_ID);
 
@@ -237,8 +236,8 @@ class PaymentOperationQueryServiceTest {
 	}
 
 	private Detail detailFor(PaymentOperationStatus status, PaymentOperationType operationType) {
-		PaymentOperation operation = operation(status, operationType, "raw-provider-code", null);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
+		PaymentOperationDetailRow operation = operation(status, operationType, "raw-provider-code", null);
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 		return queryService().find(OPERATION_UID, OWNER_ID);
 	}
 
@@ -264,7 +263,7 @@ class PaymentOperationQueryServiceTest {
 		Instant checkInAt,
 		Instant expiresAt
 	) {
-		PaymentOperation operation = operation(
+		PaymentOperationDetailRow operation = operation(
 			status,
 			operationType,
 			"raw-provider-code",
@@ -273,7 +272,7 @@ class PaymentOperationQueryServiceTest {
 			checkInAt,
 			expiresAt
 		);
-		given(repository.findByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
+		given(repository.findDetailByOperationUid(OPERATION_UID)).willReturn(Optional.of(operation));
 		return queryService().find(OPERATION_UID, OWNER_ID);
 	}
 
@@ -281,7 +280,7 @@ class PaymentOperationQueryServiceTest {
 		return new PaymentOperationQueryService(repository, CLOCK);
 	}
 
-	private PaymentOperation operation(
+	private PaymentOperationDetailRow operation(
 		PaymentOperationStatus status,
 		PaymentOperationType operationType,
 		String failureCode,
@@ -298,7 +297,7 @@ class PaymentOperationQueryServiceTest {
 		);
 	}
 
-	private PaymentOperation operation(
+	private PaymentOperationDetailRow operation(
 		PaymentOperationStatus status,
 		PaymentOperationType operationType,
 		String failureCode,
@@ -307,24 +306,12 @@ class PaymentOperationQueryServiceTest {
 		Instant checkInAt,
 		Instant expiresAt
 	) {
-		return PaymentOperation.builder()
-			.id(1L).operationUid(OPERATION_UID).requesterMemberId(OWNER_ID)
-			.operationType(operationType).status(status)
-			.reservation(Reservation.builder()
-				.reservationUid(UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf"))
-				.status(reservationStatus)
-				.checkInAt(checkInAt)
-				.expiresAt(expiresAt)
-				.build())
-			.paymentKey("never-expose-me")
-			.failureCode(failureCode)
-			.failureMessage("never expose provider failure details")
-			.nextAttemptAt(nextAttemptAt)
-			.dispatchGeneration(99)
-			.leaseOwner("never-expose-owner")
-			.leaseExpiresAt(SERVER_TIME.plusSeconds(30))
-			.updatedAt(LocalDateTime.ofInstant(Instant.parse("2026-08-14T01:02:03Z"), ZoneOffset.UTC))
-			.build();
+		return new PaymentOperationDetailRow(
+			OPERATION_UID, OWNER_ID, operationType, status, failureCode,
+			LocalDateTime.ofInstant(Instant.parse("2026-08-14T01:02:03Z"), ZoneOffset.UTC),
+			nextAttemptAt, UUID.fromString("6df13da6-735a-4a4a-a8bc-3b8acbdac9bf"),
+			reservationStatus, checkInAt, expiresAt
+		);
 	}
 
 	private ReservationStatus defaultReservationStatus(

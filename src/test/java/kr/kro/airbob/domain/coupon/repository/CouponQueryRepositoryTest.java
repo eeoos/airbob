@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.hibernate.Hibernate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +22,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.domain.coupon.entity.Coupon;
-import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @DataJpaTest
 @Testcontainers
@@ -69,8 +68,23 @@ class CouponQueryRepositoryTest {
 		insertUnpreparedCoupon("재고 미준비", NOW.minusMinutes(30), NOW.plusHours(1));
 
 		assertThat(couponRepository.findCampaigns(NOW))
-			.extracting(Coupon::getId)
+			.extracting(CouponCampaignProjection::id)
 			.containsExactly(latest, older);
+	}
+
+	@Test
+	@DisplayName("매진 캠페인은 노출되며 발급 종료 후에도 보유 쿠폰은 조회할 수 있다")
+	void soldOutAndEndedCampaignsDoNotEraseOwnedCoupons() {
+		long memberId = insertMember("sold-out-owner");
+		long soldOut = insertCoupon("매진", true, NOW.minusHours(1), NOW.plusHours(1));
+		jdbc.update("UPDATE coupon SET issued_quantity = total_quantity WHERE id = ?", soldOut);
+		long ended = insertCoupon("발급 종료", true, NOW.minusDays(1), NOW);
+		insertMemberCoupon(memberId, soldOut, NOW.minusMinutes(2));
+		insertMemberCoupon(memberId, ended, NOW.minusMinutes(1));
+
+		assertThat(couponRepository.findCampaigns(NOW)).extracting(CouponCampaignProjection::id).containsExactly(soldOut);
+		assertThat(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId))
+			.extracting(MemberCouponProjection::couponId).containsExactly(ended, soldOut);
 	}
 
 	@Test
@@ -91,12 +105,11 @@ class CouponQueryRepositoryTest {
 		insertMemberCoupon(memberId, sameTimeLatestCouponId, latestTime);
 		insertMemberCoupon(anotherMemberId, otherCouponId, NOW);
 
-		List<MemberCoupon> result =
+		List<MemberCouponProjection> result =
 			memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId);
 
-		assertThat(result).allMatch(memberCoupon -> Hibernate.isInitialized(memberCoupon.getCoupon()));
 		assertThat(result)
-			.extracting(memberCoupon -> memberCoupon.getCoupon().getId())
+			.extracting(MemberCouponProjection::couponId)
 			.containsExactly(sameTimeLatestCouponId, sameTimeOlderCouponId, olderCouponId);
 	}
 

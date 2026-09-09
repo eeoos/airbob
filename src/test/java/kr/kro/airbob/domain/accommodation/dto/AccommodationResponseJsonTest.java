@@ -5,17 +5,20 @@ import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
+import org.springframework.core.io.ClassPathResource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 
 @JsonTest
 @DisplayName("숙소 상세 응답 JSON 테스트")
@@ -23,6 +26,26 @@ class AccommodationResponseJsonTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Test
+	@DisplayName("호스트 편집 응답은 후기 요약·호스트·좌표 없이 편집 계약을 반환한다")
+	void serializesHostEditorContractWithoutPublicDetailFields() throws Exception {
+		HostAccommodationDetailProjection accommodation = new HostAccommodationDetailProjection(
+			31L, "합정 테스트 숙소", "조용한 숙소", "APARTMENT", 125_000L, "KRW",
+			LocalTime.of(15, 0), LocalTime.of(11, 0), "Asia/Seoul",
+			"대한민국", "서울특별시", "서울", "마포구", "월드컵북로", "101호", "04000", 4, 1, 0);
+		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(accommodation,
+			List.of(new AmenityResponse.AmenityInfo("WIFI", 1)),
+			List.of(new ImageResponse.ImageInfo(301L, "/room-301.png")));
+
+		JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
+		try (var fixture = new ClassPathResource("contracts/host-accommodation-editor.json").getInputStream()) {
+			assertThat(json).isEqualTo(objectMapper.readTree(fixture));
+		}
+		assertThat(json.has("host")).isFalse();
+		assertThat(json.has("coordinate")).isFalse();
+		assertThat(json.has("review_summary")).isFalse();
+	}
 
 	@Test
 	@DisplayName("예약 가능 기간과 예약 불가 구간을 snake case로 반환한다")
@@ -81,13 +104,12 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("호스트 상세에도 숙소 현지 시간대 식별자를 반환한다")
 	void serializesHostAccommodationTimeZoneId() {
-		Accommodation accommodation = mock(Accommodation.class);
-		when(accommodation.getTimeZoneId()).thenReturn("Europe/Paris");
+		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
+		when(accommodation.timeZoneId()).thenReturn("Europe/Paris");
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
 			accommodation,
 			List.of(),
-			List.of(),
-			null
+			List.of()
 		);
 
 		JsonNode json = objectMapper.valueToTree(response);

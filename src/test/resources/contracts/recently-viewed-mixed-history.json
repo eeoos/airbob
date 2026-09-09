@@ -1,0 +1,32 @@
+{
+  "accommodations": [
+    {
+      "viewed_at": "2026-09-07T00:00:00Z",
+      "accommodation_id": 33,
+      "accommodation_name": "서울 하우스 33",
+      "thumbnail_url": "/stay.jpg",
+      "address_summary": { "country": null, "state": null, "city": null, "district": null },
+      "review_summary": null,
+      "is_in_wishlist": false
+    },
+    {
+      "viewed_at": "2026-09-06T00:00:00Z",
+      "accommodation_id": 32,
+      "accommodation_name": "서울 하우스 32",
+      "thumbnail_url": "/stay.jpg",
+      "address_summary": { "country": "대한민국", "state": null, "city": "서울", "district": "마포구" },
+      "review_summary": { "total_count": 0, "average_rating": 0.0 },
+      "is_in_wishlist": false
+    },
+    {
+      "viewed_at": "2026-09-06T00:00:00Z",
+      "accommodation_id": 31,
+      "accommodation_name": "서울 하우스 31",
+      "thumbnail_url": "/stay.jpg",
+      "address_summary": { "country": "대한민국", "state": null, "city": "서울", "district": "마포구" },
+      "review_summary": { "total_count": 4, "average_rating": 4.75 },
+      "is_in_wishlist": true
+    }
+  ],
+  "total_count": 3
+}

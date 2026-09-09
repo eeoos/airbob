@@ -1,0 +1,76 @@
+{
+  "infos": [
+    {
+      "coupon_id": 12,
+      "name": "매진 쿠폰",
+      "description": null,
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 10000,
+      "min_payment_price": 50000,
+      "max_discount_amount": null,
+      "usable_from": "2026-09-08T12:00:00",
+      "usable_until": "2026-10-08T12:00:00",
+      "status": "AVAILABLE"
+    },
+    {
+      "coupon_id": 13,
+      "name": "사용 예정 쿠폰",
+      "description": null,
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 10000,
+      "min_payment_price": 50000,
+      "max_discount_amount": null,
+      "usable_from": "2026-09-08T13:00:00",
+      "usable_until": "2026-10-08T12:00:00",
+      "status": "UPCOMING"
+    },
+    {
+      "coupon_id": 14,
+      "name": "사용 완료 쿠폰",
+      "description": null,
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 10000,
+      "min_payment_price": 50000,
+      "max_discount_amount": null,
+      "usable_from": "2026-09-07T12:00:00",
+      "usable_until": "2026-10-08T12:00:00",
+      "status": "USED"
+    },
+    {
+      "coupon_id": 15,
+      "name": "만료 쿠폰",
+      "description": null,
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 10000,
+      "min_payment_price": 50000,
+      "max_discount_amount": null,
+      "usable_from": "2026-09-07T12:00:00",
+      "usable_until": "2026-09-08T12:00:00",
+      "status": "EXPIRED"
+    },
+    {
+      "coupon_id": 16,
+      "name": "비활성 쿠폰",
+      "description": null,
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 10000,
+      "min_payment_price": 50000,
+      "max_discount_amount": null,
+      "usable_from": "2026-09-07T12:00:00",
+      "usable_until": "2026-10-08T12:00:00",
+      "status": "UNAVAILABLE"
+    },
+    {
+      "coupon_id": 17,
+      "name": "발급 종료 보유 쿠폰",
+      "description": null,
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 10000,
+      "min_payment_price": 50000,
+      "max_discount_amount": null,
+      "usable_from": "2026-09-07T12:00:00",
+      "usable_until": "2026-10-08T12:00:00",
+      "status": "AVAILABLE"
+    }
+  ]
+}

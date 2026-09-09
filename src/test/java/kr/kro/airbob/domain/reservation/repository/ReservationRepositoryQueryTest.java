@@ -16,6 +16,8 @@ import java.util.Map;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -37,6 +39,7 @@ import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
+import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
@@ -45,9 +48,12 @@ import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
 import kr.kro.airbob.domain.payment.repository.PaymentRepository;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
+import kr.kro.airbob.domain.reservation.dto.ReservationResponse;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import jakarta.persistence.EntityManager;
 
 @DataJpaTest
@@ -96,6 +102,76 @@ class ReservationRepositoryQueryTest {
 	@Autowired
 	private EntityManager entityManager;
 
+	@ParameterizedTest
+	@EnumSource(ReservationFilterType.class)
+	@DisplayName("게스트 목록은 주소 없이 DTO를 조립하고 동률 커서·소유권·마지막 페이지를 보존한다")
+	void guestListSkipsAddressAndPreservesCursorPages(ReservationFilterType filter) {
+		Member guest = memberRepository.save(Member.builder()
+			.email("guest-list@test.com").nickname("guest-list").build());
+		Member other = memberRepository.save(Member.builder()
+			.email("other-guest-list@test.com").nickname("other-guest-list").build());
+		Accommodation accommodation = saveAccommodation(other, "guest-list-stay");
+		Address address = Address.builder().country("KR").city("Seoul").street("Test street").build();
+		entityManager.persist(address);
+		accommodation.updateLocation(address, ZoneOffset.UTC);
+		accommodation.updateThumbnailUrl("/guest-list.jpg");
+		Accommodation withoutAddress = saveAccommodation(other, "without-address");
+		Instant now = Instant.parse("2030-02-03T02:00:00Z");
+		LocalDate checkIn = filter == ReservationFilterType.UPCOMING
+			? LocalDate.of(2030, 2, 4) : LocalDate.of(2030, 2, 1);
+		LocalDate checkOut = checkIn.plusDays(1);
+		ReservationStatus status = filter == ReservationFilterType.CANCELLED
+			? ReservationStatus.CANCELLED : ReservationStatus.CONFIRMED;
+		Reservation oldest = saveReservation(withoutAddress, guest, status, checkIn, checkOut);
+		Reservation firstTie = saveReservation(accommodation, guest, status, checkIn, checkOut);
+		Reservation middleTie = saveReservation(accommodation, guest, status, checkIn, checkOut);
+		Reservation lastTie = saveReservation(accommodation, guest, status, checkIn, checkOut);
+		saveReservation(accommodation, other, status, checkIn, checkOut);
+		LocalDateTime sameCreatedAt = LocalDateTime.of(2030, 1, 1, 0, 0);
+		entityManager.flush();
+		entityManager.createQuery("update Reservation r set r.createdAt = :createdAt where r.accommodation.id = :id")
+			.setParameter("createdAt", sameCreatedAt).setParameter("id", accommodation.getId()).executeUpdate();
+		entityManager.createQuery("update Reservation r set r.createdAt = :createdAt where r.id = :id")
+			.setParameter("createdAt", sameCreatedAt.minusSeconds(1)).setParameter("id", oldest.getId()).executeUpdate();
+		entityManager.clear();
+		sqlInspector.clear();
+
+		var firstPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
+			guest.getId(), null, null, filter, now, PageRequest.of(0, 2));
+		var firstDtos = firstPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now));
+		assertThat(firstDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
+			.containsExactly(lastTie.getId(), middleTie.getId());
+		assertThat(firstDtos.getContent()).allSatisfy(dto -> {
+			assertThat(dto.status()).isEqualTo(status);
+			assertThat(dto.accommodation().name()).isEqualTo("guest-list-stay");
+			assertThat(dto.accommodation().thumbnailUrl()).isEqualTo("/guest-list.jpg");
+			assertThat(dto.checkInDate()).isEqualTo(checkIn);
+			assertThat(dto.checkOutDate()).isEqualTo(checkOut);
+		});
+		assertThat(firstPage.hasNext()).isTrue();
+		assertThat(sqlInspector.singleSelect()).contains(" join accommodation ").doesNotContain(" join address ");
+
+		GuestReservationListProjection cursor = firstPage.getContent().getLast();
+		entityManager.clear();
+		sqlInspector.clear();
+		var lastPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
+			guest.getId(), cursor.id(), cursor.createdAt(), filter, now, PageRequest.of(0, 2));
+		var lastDtos = lastPage.map(reservation -> ReservationResponse.GuestReservationInfo.from(reservation, now));
+		assertThat(lastDtos).extracting(ReservationResponse.GuestReservationInfo::reservationId)
+			.containsExactly(firstTie.getId(), oldest.getId());
+		assertThat(lastDtos.getContent().getLast().accommodation().name()).isEqualTo("without-address");
+		assertThat(lastPage.hasNext()).isFalse();
+		assertThat(sqlInspector.singleSelect()).doesNotContain(" join address ");
+
+		GuestReservationListProjection lastCursor = lastPage.getContent().getLast();
+		sqlInspector.clear();
+		var emptyPage = reservationRepository.findMyReservationsByGuestIdWithCursor(
+			guest.getId(), lastCursor.id(), lastCursor.createdAt(), filter, now, PageRequest.of(0, 2));
+		assertThat(emptyPage).isEmpty();
+		assertThat(emptyPage.hasNext()).isFalse();
+		assertThat(sqlInspector.singleSelect()).doesNotContain(" join address ");
+	}
+
 	@Test
 	@DisplayName("체크아웃 시각과 현재 시각이 같으면 과거 예약이고 예정 예약이 아니다")
 	void exactCheckoutIsPastAndNotUpcoming() {
@@ -118,13 +194,13 @@ class ReservationRepositoryQueryTest {
 
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)
-		).getContent()).containsExactly(reservation);
+		).getContent()).extracting(GuestReservationListProjection::id).containsExactly(reservation.getId());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)
 		).getContent()).isEmpty();
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 10)
-		).getContent()).containsExactly(reservation);
+		).getContent()).extracting(HostReservationListProjection::id).containsExactly(reservation.getId());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 10)
 		).getContent()).isEmpty();
@@ -159,6 +235,12 @@ class ReservationRepositoryQueryTest {
 				.as("status=%s", status)
 				.isEqualTo(status == ReservationStatus.CONFIRMED
 					|| status == ReservationStatus.CANCELLATION_FAILED);
+			assertThat(reservationRepository.existsPastCompletedReservationByGuest(
+				accommodation.getId(), guest.getId(), now.minus(1, ChronoUnit.MICROS)))
+				.as("체크아웃 직전 status=%s", status).isFalse();
+			assertThat(reservationRepository.existsPastCompletedReservationByGuest(
+				accommodation.getId(), host.getId(), now))
+				.as("타인의 예약 status=%s", status).isFalse();
 		}
 	}
 
@@ -215,23 +297,29 @@ class ReservationRepositoryQueryTest {
 
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(pastActive);
+		).getContent()).extracting(GuestReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(pastActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(guestUpcoming);
+		).getContent()).extracting(GuestReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(guestUpcoming.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findMyReservationsByGuestIdWithCursor(
 			guest.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrder(cancelled, expired, expiredPending);
+		).getContent()).extracting(GuestReservationListProjection::id)
+			.containsExactlyInAnyOrder(cancelled.getId(), expired.getId(), expiredPending.getId());
 
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.PAST, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(pastActive);
+		).getContent()).extracting(HostReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(pastActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.UPCOMING, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrderElementsOf(upcomingActive);
+		).getContent()).extracting(HostReservationListProjection::id)
+			.containsExactlyInAnyOrderElementsOf(upcomingActive.stream().map(Reservation::getId).toList());
 		assertThat(reservationRepository.findHostReservationsByHostIdWithCursor(
 			host.getId(), null, null, ReservationFilterType.CANCELLED, now, PageRequest.of(0, 20)
-		).getContent()).containsExactlyInAnyOrder(cancelled, expired);
+		).getContent()).extracting(HostReservationListProjection::id)
+			.containsExactlyInAnyOrder(cancelled.getId(), expired.getId());
 	}
 
 	@Test

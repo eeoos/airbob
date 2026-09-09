@@ -8,6 +8,7 @@ import java.util.UUID;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationStatus;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
+import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import lombok.AccessLevel;
@@ -84,27 +85,27 @@ public class PaymentOperationResponse {
 		private static final Duration MAX_POLL_INTERVAL =
 			Duration.ofSeconds(MAX_POLL_INTERVAL_SECONDS);
 
-		public static Detail from(PaymentOperation operation, Instant serverTime) {
-			PaymentOperationStatus operationStatus = operation.getStatus();
+		public static Detail from(PaymentOperationDetailRow operation, Instant serverTime) {
+			PaymentOperationStatus operationStatus = operation.status();
 			NextAction nextAction = nextAction(operation, serverTime);
 			return new Detail(
-				operation.getOperationUid(),
-				operation.getReservation().getReservationUid(),
+				operation.operationUid(),
+				operation.reservationUid(),
 				Status.from(operationStatus),
 				operationStatus == PaymentOperationStatus.DECLINED
 					|| operationStatus == PaymentOperationStatus.MANUAL_REVIEW
-					? operation.getFailureCode() : null,
-				operation.getUpdatedAt().toInstant(ZoneOffset.UTC),
+					? operation.failureCode() : null,
+				operation.updatedAt().toInstant(ZoneOffset.UTC),
 				nextAction,
 				retryAfterSeconds(operation, serverTime),
-				userMessage(operationStatus, operation.getOperationType(), nextAction),
+				userMessage(operationStatus, operation.operationType(), nextAction),
 				serverTime,
-				userFailureCode(operationStatus, operation.getOperationType())
+				userFailureCode(operationStatus, operation.operationType())
 			);
 		}
 
-		private static NextAction nextAction(PaymentOperation operation, Instant serverTime) {
-			return switch (operation.getStatus()) {
+		private static NextAction nextAction(PaymentOperationDetailRow operation, Instant serverTime) {
+			return switch (operation.status()) {
 				case QUEUED, EXECUTING, WAITING_RETRY -> NextAction.POLL;
 				case APPLIED -> NextAction.NONE;
 				case DECLINED -> declinedNextAction(operation, serverTime);
@@ -113,18 +114,19 @@ public class PaymentOperationResponse {
 		}
 
 		private static NextAction declinedNextAction(
-			PaymentOperation operation,
+			PaymentOperationDetailRow operation,
 			Instant serverTime
 		) {
-			Reservation reservation = operation.getReservation();
-			boolean beforeCheckIn = reservation.getCheckInAt() != null
-				&& serverTime.isBefore(reservation.getCheckInAt());
-			if (operation.getOperationType() == PaymentOperationType.CONFIRM) {
-				return reservation.effectiveStatus(serverTime) == ReservationStatus.EXPIRED && beforeCheckIn
+			boolean beforeCheckIn = operation.checkInAt() != null
+				&& serverTime.isBefore(operation.checkInAt());
+			if (operation.operationType() == PaymentOperationType.CONFIRM) {
+				ReservationStatus effectiveStatus = Reservation.effectiveStatus(
+					operation.reservationStatus(), operation.expiresAt(), serverTime);
+				return effectiveStatus == ReservationStatus.EXPIRED && beforeCheckIn
 					? NextAction.START_NEW_CHECKOUT
 					: NextAction.NONE;
 			}
-			if (reservation.getStatus() != ReservationStatus.CANCELLATION_FAILED) {
+			if (operation.reservationStatus() != ReservationStatus.CANCELLATION_FAILED) {
 				return NextAction.NONE;
 			}
 			return beforeCheckIn
@@ -145,10 +147,10 @@ public class PaymentOperationResponse {
 			};
 		}
 
-		private static Long retryAfterSeconds(PaymentOperation operation, Instant serverTime) {
-			return switch (operation.getStatus()) {
+		private static Long retryAfterSeconds(PaymentOperationDetailRow operation, Instant serverTime) {
+			return switch (operation.status()) {
 				case QUEUED, EXECUTING -> MIN_POLL_INTERVAL_SECONDS;
-				case WAITING_RETRY -> secondsUntil(operation.getNextAttemptAt(), serverTime);
+				case WAITING_RETRY -> secondsUntil(operation.nextAttemptAt(), serverTime);
 				case MANUAL_REVIEW -> MAX_POLL_INTERVAL_SECONDS;
 				case APPLIED, DECLINED -> null;
 			};

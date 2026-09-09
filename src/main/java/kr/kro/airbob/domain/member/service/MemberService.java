@@ -64,10 +64,9 @@ public class MemberService {
 
     @Transactional(readOnly = true)
     public MemberResponse.MeInfo getMemberInfo(Long memberId) {
-        Member member = memberRepository.findByIdAndStatus(memberId, MemberStatus.ACTIVE)
+        return memberRepository.findProfileByIdAndStatus(memberId, MemberStatus.ACTIVE)
+            .map(member -> new MemberResponse.MeInfo(member.id(), member.email(), member.nickname()))
             .orElseThrow(MemberNotFoundException::new);
-        return new MemberResponse.MeInfo(
-            member.getId(), member.getEmail(), member.getNickname(), member.getThumbnailImageUrl());
     }
 
     private LocalDateTime utcNow() {

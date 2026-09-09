@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.reservation.repository.impl;
 import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.accommodation.entity.QAddress.*;
 import static kr.kro.airbob.domain.member.entity.QMember.*;
+import static kr.kro.airbob.domain.payment.entity.QPayment.payment;
 import static kr.kro.airbob.domain.reservation.entity.QReservation.reservation;
 import static kr.kro.airbob.domain.reservation.entity.ReservationStatus.*;
 
@@ -27,6 +28,14 @@ import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationFilterType;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepositoryCustom;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.GuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationDetailProjection;
+import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationListProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -116,13 +125,17 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Slice<Reservation> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
+	public Slice<GuestReservationListProjection> findMyReservationsByGuestIdWithCursor(Long guestId, Long lastId,
 		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
-		List<Reservation> content = queryFactory
-			.selectFrom(reservation)
-			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
-			.leftJoin(accommodation.address, address).fetchJoin()
+		List<GuestReservationListProjection> content = queryFactory
+			.select(new QGuestReservationListProjection(
+				reservation.id, reservation.reservationUid, reservation.checkInDate, reservation.checkOutDate,
+				reservation.timeZoneId, reservation.status, reservation.expiresAt, reservation.createdAt,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl
+			))
+			.from(reservation)
+			.leftJoin(reservation.accommodation, accommodation)
 			.where(
 				reservation.guest.id.eq(guestId),
 				buildGuestReservationFilter(filterType, now),
@@ -151,13 +164,24 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Optional<Reservation> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId) {
+	public Optional<GuestReservationDetailProjection> findReservationDetailByUidAndGuestId(UUID reservationUid, Long guestId) {
 
-		Reservation result = queryFactory
-			.selectFrom(reservation)
-			.leftJoin(reservation.accommodation, accommodation).fetchJoin()
-			.leftJoin(accommodation.address, address).fetchJoin()
-			.leftJoin(accommodation.member, member).fetchJoin()
+		GuestReservationDetailProjection result = queryFactory
+			.select(new QGuestReservationDetailProjection(
+				reservation.reservationUid, reservation.reservationCode, reservation.status,
+				reservation.expiresAt, reservation.totalPrice, reservation.createdAt, reservation.guestCount,
+				reservation.checkInAt, reservation.checkOutAt, reservation.timeZoneId, reservation.message,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl, accommodation.status,
+				address.country, address.state, address.city, address.district, address.street, address.detail,
+				address.postalCode, address.latitude, address.longitude,
+				member.id, member.nickname, member.thumbnailImageUrl,
+				payment.id, payment.method, payment.amount, payment.status, payment.approvedAt
+			))
+			.from(reservation)
+			.leftJoin(reservation.accommodation, accommodation)
+			.leftJoin(accommodation.address, address)
+			.leftJoin(accommodation.member, member)
+			.leftJoin(payment).on(payment.reservation.id.eq(reservation.id))
 			.where(
 				reservation.reservationUid.eq(reservationUid),
 				reservation.guest.id.eq(guestId)
@@ -168,13 +192,21 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Slice<Reservation> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
+	public Slice<HostReservationListProjection> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
 		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
-		List<Reservation> content = queryFactory
-			.selectFrom(reservation)
-			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
-			.innerJoin(reservation.guest, guestMember).fetchJoin()
+		List<HostReservationListProjection> content = queryFactory
+			.select(new QHostReservationListProjection(
+				reservation.id, reservation.reservationUid, reservation.reservationCode,
+				reservation.totalPrice, reservation.currency, reservation.guestCount,
+				reservation.checkInDate, reservation.checkOutDate, reservation.timeZoneId,
+				reservation.status, reservation.createdAt,
+				guestMember.id, guestMember.nickname, guestMember.thumbnailImageUrl,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl
+			))
+			.from(reservation)
+			.innerJoin(reservation.accommodation, accommodation)
+			.innerJoin(reservation.guest, guestMember)
 			.where(
 				accommodation.member.id.eq(hostId),
 				reservation.status.notIn(PAYMENT_PENDING, PAYMENT_PROCESSING),
@@ -194,12 +226,25 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	@Override
-	public Optional<Reservation> findHostReservationDetailByUidAndHostId(UUID reservationUid, Long hostId) {
-		Reservation result = queryFactory
-			.selectFrom(reservation)
-			.innerJoin(reservation.accommodation, accommodation).fetchJoin()
-			.innerJoin(reservation.guest, guestMember).fetchJoin()
-			.leftJoin(accommodation.address, address).fetchJoin()
+	public Optional<HostReservationDetailProjection> findHostReservationDetailByUidAndHostId(
+		UUID reservationUid, Long hostId
+	) {
+		HostReservationDetailProjection result = queryFactory
+			.select(new QHostReservationDetailProjection(
+				reservation.reservationUid, reservation.reservationCode, reservation.status, reservation.createdAt,
+				reservation.guestCount, reservation.checkInAt, reservation.checkOutAt, reservation.timeZoneId,
+				reservation.message,
+				accommodation.id, accommodation.name, accommodation.thumbnailUrl,
+				address.country, address.state, address.city, address.district, address.street, address.detail,
+				address.postalCode,
+				guestMember.id, guestMember.nickname, guestMember.thumbnailImageUrl,
+				payment.amount
+			))
+			.from(reservation)
+			.innerJoin(reservation.accommodation, accommodation)
+			.innerJoin(reservation.guest, guestMember)
+			.leftJoin(accommodation.address, address)
+			.leftJoin(payment).on(payment.reservation.id.eq(reservation.id))
 			.where(
 				reservation.reservationUid.eq(reservationUid),
 				accommodation.member.id.eq(hostId)
@@ -210,6 +255,9 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	private BooleanExpression buildGuestReservationFilter(ReservationFilterType filterType, Instant now) {
+		if (filterType == null) {
+			return null;
+		}
 		switch (filterType) {
 			case PAST:
 				// 이전 여행: 유효 예약이면서 체크아웃이 과거
@@ -233,6 +281,9 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	}
 
 	private BooleanExpression buildHostReservationFilter(ReservationFilterType filterType, Instant now) {
+		if (filterType == null) {
+			return null;
+		}
 		switch (filterType) {
 			case CANCELLED:
 				return reservation.status.in(CANCELLED, EXPIRED);

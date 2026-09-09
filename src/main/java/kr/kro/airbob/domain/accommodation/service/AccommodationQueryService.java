@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -19,24 +18,21 @@ import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.review.dto.ReviewResponse;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AccommodationQueryService {
 
-	private final AccommodationReviewSummaryRepository reviewSummaryRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final ReservationInventoryService inventoryService;
 	private final CursorPageInfoCreator cursorPageInfoCreator;
@@ -91,7 +87,7 @@ public class AccommodationQueryService {
 		CursorRequest.CursorPageRequest cursorRequest,
 		AccommodationStatus status
 	) {
-		Slice<Accommodation> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
+		Slice<HostAccommodationProjection> accommodationSlice = accommodationRepository.findMyAccommodationsByHostIdWithCursor(
 			hostId,
 			cursorRequest.lastId(),
 			cursorRequest.lastCreatedAt(),
@@ -99,7 +95,7 @@ public class AccommodationQueryService {
 			PageRequest.of(0, cursorRequest.size())
 		);
 
-		List<Accommodation> accommodations = accommodationSlice.getContent();
+		List<HostAccommodationProjection> accommodations = accommodationSlice.getContent();
 		if (accommodations.isEmpty()) {
 			CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 				Collections.emptyList(), false, acc -> 0L, acc -> null
@@ -117,8 +113,8 @@ public class AccommodationQueryService {
 		CursorResponse.PageInfo pageInfo = cursorPageInfoCreator.createPageInfo(
 			accommodations,
 			accommodationSlice.hasNext(),
-			Accommodation::getId,
-			Accommodation::getCreatedAt
+			HostAccommodationProjection::id,
+			HostAccommodationProjection::createdAt
 		);
 
 		return AccommodationResponse.HostAccommodationInfos.from(accommodationInfos, pageInfo);
@@ -126,25 +122,17 @@ public class AccommodationQueryService {
 
 	@Transactional(readOnly = true)
 	public AccommodationResponse.HostDetail findHostAccommodationDetail(Long accommodationId, Long hostId) {
-		Accommodation accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
+		HostAccommodationDetailProjection accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
 			.orElseThrow(AccommodationNotFoundException::new);
 
 		List<AmenityResponse.AmenityInfo> amenityInfos = accommodationDetailReader.loadAmenities(accommodationId);
 		List<ImageResponse.ImageInfo> imageInfos = accommodationDetailReader.loadImages(accommodationId);
-		ReviewResponse.ReviewSummary reviewSummary = getReviewSummary(accommodationId);
 
 		return AccommodationResponse.HostDetail.from(
 			accommodation,
 			amenityInfos,
-			imageInfos,
-			reviewSummary
+			imageInfos
 		);
-	}
-
-	private ReviewResponse.ReviewSummary getReviewSummary(Long accommodationId) {
-		Optional<AccommodationReviewSummary> summaryOpt = reviewSummaryRepository.findByAccommodationId(
-			accommodationId);
-		return ReviewResponse.ReviewSummary.of(summaryOpt.orElse(null));
 	}
 
 }

@@ -1,5 +1,6 @@
 package kr.kro.airbob.domain.reservation.service;
 
+import static kr.kro.airbob.domain.reservation.ReservationReadTestFixtures.guestDetail;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
@@ -17,6 +18,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
@@ -34,8 +37,6 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentRepository;
-import kr.kro.airbob.domain.payment.repository.PaymentTransactionRepository;
 import kr.kro.airbob.domain.reservation.command.ReservationCreateCommand;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
@@ -75,13 +76,9 @@ class ReservationTransactionServiceTest {
 	@Mock
 	private ReviewRepository reviewRepository;
 	@Mock
-	private PaymentRepository paymentRepository;
-	@Mock
 	private ReservationRepository reservationRepository;
 	@Mock
 	private AccommodationRepository accommodationRepository;
-	@Mock
-	private PaymentTransactionRepository paymentTransactionRepository;
 	@Mock
 	private ReservationHistoryRepository historyRepository;
 	@Mock
@@ -116,10 +113,8 @@ class ReservationTransactionServiceTest {
 			cursorPageInfoCreator,
 			memberRepository,
 			reviewRepository,
-			paymentRepository,
 			reservationRepository,
 			accommodationRepository,
-			paymentTransactionRepository,
 			historyRepository,
 			couponUsageService,
 			bookingWindowProvider,
@@ -169,9 +164,10 @@ class ReservationTransactionServiceTest {
 			.thenReturn(BookingWindow.startingOn(WINDOW_START));
 	}
 
-	@Test
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED", "CANCELLATION_FAILED"})
 	@DisplayName("체크아웃 시각과 현재 시각이 같으면 리뷰를 작성할 수 있다")
-	void allowsReviewAtExactCheckoutInstant() {
+	void allowsReviewAtExactCheckoutInstant(ReservationStatus status) {
 		UUID reservationUid = UUID.randomUUID();
 		Reservation reservation = Reservation.builder()
 			.id(1L)
@@ -187,11 +183,11 @@ class ReservationTransactionServiceTest {
 			.guestCount(2)
 			.totalPrice(200_000L)
 			.currency("KRW")
-			.status(ReservationStatus.CONFIRMED)
+			.status(status)
 			.expiresAt(Instant.parse("2026-08-12T18:15:00Z"))
 			.build();
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
 			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
 			.willReturn(false);
@@ -208,7 +204,7 @@ class ReservationTransactionServiceTest {
 		Reservation reservation = createReservationWithStatus(
 			reservationUid, ReservationStatus.CANCELLATION_PENDING);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 
 		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
 
@@ -223,7 +219,7 @@ class ReservationTransactionServiceTest {
 		Reservation reservation = createReservationWithStatus(
 			reservationUid, ReservationStatus.CANCELLATION_FAILED);
 		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
-			.willReturn(Optional.of(reservation));
+			.willReturn(Optional.of(guestDetail(reservation)));
 		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
 			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
 			.willReturn(false);
@@ -231,6 +227,67 @@ class ReservationTransactionServiceTest {
 		var response = transactionService.findMyReservationDetail(reservationUid.toString(), memberId);
 
 		assertThat(response.canWriteReview()).isTrue();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED", "CANCELLATION_FAILED"})
+	@DisplayName("이미 게시한 후기가 있으면 유효한 예약이어도 추가 작성을 허용하지 않는다")
+	void publishedReviewPreventsAnotherReview(ReservationStatus status) {
+		UUID reservationUid = UUID.randomUUID();
+		Reservation reservation = createReservationWithStatus(reservationUid, status);
+		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
+			.willReturn(Optional.of(guestDetail(reservation)));
+		given(reviewRepository.existsByAccommodationIdAndAuthorIdAndStatus(
+			accommodation.getId(), memberId, kr.kro.airbob.domain.review.entity.ReviewStatus.PUBLISHED))
+			.willReturn(true);
+
+		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+			.canWriteReview()).isFalse();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = AccommodationStatus.class, names = "PUBLISHED", mode = EnumSource.Mode.EXCLUDE)
+	@DisplayName("게시되지 않은 숙소는 실제 작성 API와 동일하게 후기 작성을 허용하지 않는다")
+	void unpublishedAccommodationIsNotReviewable(AccommodationStatus status) {
+		accommodation = Accommodation.builder()
+			.id(1L).name("비공개 숙소").member(host).status(status).build();
+		UUID reservationUid = UUID.randomUUID();
+		Reservation reservation = createReservationWithStatus(reservationUid, ReservationStatus.CONFIRMED);
+		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
+			.willReturn(Optional.of(guestDetail(reservation)));
+
+		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+			.canWriteReview()).isFalse();
+		then(reviewRepository).shouldHaveNoInteractions();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED", "CANCELLATION_FAILED"})
+	@DisplayName("체크아웃 직전에는 후기 존재 여부를 조회하지 않고 작성을 차단한다")
+	void checkoutMustBeCompleteBeforeReviewLookup(ReservationStatus status) {
+		UUID reservationUid = UUID.randomUUID();
+		Reservation reservation = createReservationWithStatus(reservationUid, status, NOW.plusNanos(1));
+		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
+			.willReturn(Optional.of(guestDetail(reservation)));
+
+		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+			.canWriteReview()).isFalse();
+		then(reviewRepository).shouldHaveNoInteractions();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class, names = {"CONFIRMED", "CANCELLATION_FAILED"},
+		mode = EnumSource.Mode.EXCLUDE)
+	@DisplayName("완료되지 않은 예약 상태는 체크아웃 후에도 후기 존재 조회 없이 차단한다")
+	void ineligibleStatusSkipsReviewLookup(ReservationStatus status) {
+		UUID reservationUid = UUID.randomUUID();
+		Reservation reservation = createReservationWithStatus(reservationUid, status);
+		given(reservationRepository.findReservationDetailByUidAndGuestId(reservationUid, memberId))
+			.willReturn(Optional.of(guestDetail(reservation)));
+
+		assertThat(transactionService.findMyReservationDetail(reservationUid.toString(), memberId)
+			.canWriteReview()).isFalse();
+		then(reviewRepository).shouldHaveNoInteractions();
 	}
 
 	@Nested
@@ -525,6 +582,10 @@ class ReservationTransactionServiceTest {
 
 
 	private Reservation createReservationWithStatus(UUID reservationUid, ReservationStatus status) {
+		return createReservationWithStatus(reservationUid, status, Instant.parse("2025-01-28T16:00:00Z"));
+	}
+
+	private Reservation createReservationWithStatus(UUID reservationUid, ReservationStatus status, Instant checkOutAt) {
 		return Reservation.builder()
 			.id(1L)
 			.reservationUid(reservationUid)
@@ -534,7 +595,7 @@ class ReservationTransactionServiceTest {
 			.checkInDate(LocalDate.of(2025, 1, 26))
 			.checkOutDate(LocalDate.of(2025, 1, 28))
 			.checkInAt(Instant.parse("2025-01-26T20:00:00Z"))
-			.checkOutAt(Instant.parse("2025-01-28T16:00:00Z"))
+			.checkOutAt(checkOutAt)
 			.timeZoneId(TIME_ZONE_ID)
 			.guestCount(2)
 			.totalPrice(200_000L)
