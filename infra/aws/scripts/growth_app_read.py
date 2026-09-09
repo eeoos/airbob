@@ -218,15 +218,18 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
             except BaseException:
                 # Publish only closed diagnostic fields; application log text and
                 # configuration values remain private on the disposable host.
-                diagnostic_path = work / ('app-startup-diagnostic-' + str(cache).lower() + '.json')
-                log = execute(['docker', 'logs', name], env=docker_env).decode(errors='replace')
-                diagnostic = startup_diagnostic(log)
-                diagnostic.update(runId=os.environ['AIRBOB_RUN_ID'], cacheEnabled=cache)
-                diagnostic_path.write_text(json.dumps(diagnostic, indent=2) + '\n')
-                aws('s3api', 'put-object', '--bucket', os.environ['AIRBOB_EVIDENCE_BUCKET'],
-                    '--key', 'data-bootstrap/' + os.environ['AIRBOB_RUN_ID'] + '/' + diagnostic_path.name,
-                    '--body', str(diagnostic_path), '--if-none-match', '*', '--tagging', 'Retention=summary',
-                    '--content-type', 'application/json', '--server-side-encryption', 'AES256')
+                try:
+                    diagnostic_path = work / ('app-startup-diagnostic-' + str(cache).lower() + '.json')
+                    log = execute(['docker', 'logs', name], env=docker_env).decode(errors='replace')
+                    diagnostic = startup_diagnostic(log)
+                    diagnostic.update(runId=os.environ['AIRBOB_RUN_ID'], cacheEnabled=cache)
+                    diagnostic_path.write_text(json.dumps(diagnostic, indent=2) + '\n')
+                    aws('s3api', 'put-object', '--bucket', os.environ['AIRBOB_EVIDENCE_BUCKET'],
+                        '--key', 'data-bootstrap/' + os.environ['AIRBOB_RUN_ID'] + '/' + diagnostic_path.name,
+                        '--body', str(diagnostic_path), '--if-none-match', '*', '--tagging', 'Retention=summary',
+                        '--content-type', 'application/json', '--server-side-encryption', 'AES256')
+                except Exception:
+                    pass  # Diagnostic delivery must not replace the original app failure.
                 raise
             finally:
                 try:
