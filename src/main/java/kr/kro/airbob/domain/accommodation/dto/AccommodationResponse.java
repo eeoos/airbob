@@ -10,9 +10,8 @@ import java.util.List;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.entity.Address;
-import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -151,25 +150,24 @@ public class AccommodationResponse {
 
 		List<ImageResponse.ImageInfo> images
 	) {
-		public static HostDetail from(Accommodation accommodation,
+		public static HostDetail from(HostAccommodationDetailProjection accommodation,
 			List<AmenityResponse.AmenityInfo> amenityInfos,
 			List<ImageResponse.ImageInfo> imageInfos) {
 
-			Address address = accommodation.getAddress();
-			OccupancyPolicy policy = accommodation.getOccupancyPolicy();
-
 			return HostDetail.builder()
-				.id(accommodation.getId())
-				.name(accommodation.getName())
-				.description(accommodation.getDescription())
-				.type(accommodation.getType())
-				.basePrice(accommodation.getBasePrice())
-				.currency(accommodation.getCurrency())
-				.checkInTime(accommodation.getCheckInTime())
-				.checkOutTime(accommodation.getCheckOutTime())
-				.timeZoneId(accommodation.getTimeZoneId())
-				.address(AddressResponse.AddressInfo.from(address))
-				.policy(PolicyResponse.PolicyInfo.from(policy))
+				.id(accommodation.id())
+				.name(accommodation.name())
+				.description(accommodation.description())
+				.type(accommodation.type())
+				.basePrice(accommodation.basePrice())
+				.currency(accommodation.currency())
+				.checkInTime(accommodation.checkInTime())
+				.checkOutTime(accommodation.checkOutTime())
+				.timeZoneId(accommodation.timeZoneId())
+				.address(new AddressResponse.AddressInfo(accommodation.country(), accommodation.state(), accommodation.city(),
+					accommodation.district(), accommodation.street(), accommodation.addressDetail(), accommodation.postalCode()))
+				.policy(new PolicyResponse.PolicyInfo(
+					accommodation.maxOccupancy(), accommodation.infantOccupancy(), accommodation.petOccupancy()))
 				.amenities(amenityInfos)
 				.images(imageInfos)
 				.build();

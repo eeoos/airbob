@@ -140,7 +140,7 @@ class AccommodationPolicyIntegrationTest {
 
 	private long policyId(Fixture fixture) {
 		return new TransactionTemplate(transactionManager).execute(status -> accommodationRepository
-			.findWithDetailsByIdAndHostId(fixture.id(), fixture.hostId()).orElseThrow().getOccupancyPolicy().getId());
+			.findById(fixture.id()).orElseThrow().getOccupancyPolicy().getId());
 	}
 
 	private Fixture createAccommodation(OccupancyPolicy policy) {

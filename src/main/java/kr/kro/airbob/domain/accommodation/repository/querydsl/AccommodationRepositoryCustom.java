@@ -13,6 +13,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 
 public interface AccommodationRepositoryCustom {
@@ -33,7 +34,7 @@ public interface AccommodationRepositoryCustom {
 	List<AccommodationDetailProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
 		List<Long> accommodationIds, AccommodationStatus status);
 
-	Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
+	Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
 
 	Page<Accommodation> findForIndexing(Pageable pageable);
 

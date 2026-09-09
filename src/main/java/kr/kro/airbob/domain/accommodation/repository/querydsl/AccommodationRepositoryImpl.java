@@ -30,6 +30,8 @@ import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodat
 import kr.kro.airbob.domain.accommodation.repository.projection.QPublicAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationDetailProjection;
 import kr.kro.airbob.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 
@@ -118,11 +120,19 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId) {
-        Accommodation result = jpaQueryFactory
-            .selectFrom(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
-            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy).fetchJoin()
+    public Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId) {
+        HostAccommodationDetailProjection result = jpaQueryFactory
+            .select(new QHostAccommodationDetailProjection(
+                accommodation.id, accommodation.name, accommodation.description, accommodation.type,
+                accommodation.basePrice, accommodation.currency, accommodation.checkInTime,
+                accommodation.checkOutTime, accommodation.timeZoneId,
+                address.country, address.state, address.city, address.district, address.street,
+                address.detail, address.postalCode,
+                occupancyPolicy.maxOccupancy, occupancyPolicy.infantOccupancy, occupancyPolicy.petOccupancy
+            ))
+            .from(accommodation)
+            .leftJoin(accommodation.address, address)
+            .leftJoin(accommodation.occupancyPolicy, occupancyPolicy)
             .where(
                 accommodation.id.eq(accommodationId),
                 accommodation.member.id.eq(hostId)

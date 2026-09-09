@@ -17,11 +17,8 @@ import org.springframework.core.io.ClassPathResource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
-import kr.kro.airbob.domain.accommodation.entity.Address;
-import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
-import kr.kro.airbob.domain.member.entity.Member;
 
 @JsonTest
 @DisplayName("숙소 상세 응답 JSON 테스트")
@@ -33,16 +30,10 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("호스트 편집 응답은 후기 요약·호스트·좌표 없이 편집 계약을 반환한다")
 	void serializesHostEditorContractWithoutPublicDetailFields() throws Exception {
-		Accommodation accommodation = Accommodation.builder()
-			.id(31L).name("합정 테스트 숙소").description("조용한 숙소").type("APARTMENT")
-			.basePrice(125_000L).currency("KRW")
-			.checkInTime(LocalTime.of(15, 0)).checkOutTime(LocalTime.of(11, 0)).timeZoneId("Asia/Seoul")
-			.member(Member.builder().id(202L).nickname("합정 호스트").build())
-			.address(Address.builder().country("대한민국").state("서울특별시").city("서울")
-				.district("마포구").street("월드컵북로").detail("101호").postalCode("04000")
-				.latitude(37.556).longitude(126.923).build())
-			.occupancyPolicy(OccupancyPolicy.builder().maxOccupancy(4).infantOccupancy(1).petOccupancy(0).build())
-			.build();
+		HostAccommodationDetailProjection accommodation = new HostAccommodationDetailProjection(
+			31L, "합정 테스트 숙소", "조용한 숙소", "APARTMENT", 125_000L, "KRW",
+			LocalTime.of(15, 0), LocalTime.of(11, 0), "Asia/Seoul",
+			"대한민국", "서울특별시", "서울", "마포구", "월드컵북로", "101호", "04000", 4, 1, 0);
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(accommodation,
 			List.of(new AmenityResponse.AmenityInfo("WIFI", 1)),
 			List.of(new ImageResponse.ImageInfo(301L, "/room-301.png")));
@@ -113,8 +104,8 @@ class AccommodationResponseJsonTest {
 	@Test
 	@DisplayName("호스트 상세에도 숙소 현지 시간대 식별자를 반환한다")
 	void serializesHostAccommodationTimeZoneId() {
-		Accommodation accommodation = mock(Accommodation.class);
-		when(accommodation.getTimeZoneId()).thenReturn("Europe/Paris");
+		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
+		when(accommodation.timeZoneId()).thenReturn("Europe/Paris");
 		AccommodationResponse.HostDetail response = AccommodationResponse.HostDetail.from(
 			accommodation,
 			List.of(),

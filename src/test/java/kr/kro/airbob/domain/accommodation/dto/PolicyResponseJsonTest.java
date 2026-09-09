@@ -13,7 +13,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 
 @JsonTest
@@ -39,6 +39,11 @@ class PolicyResponseJsonTest {
 
 	private PolicyResponse.PolicyInfo hostPolicy(OccupancyPolicy policy) {
 		return AccommodationResponse.HostDetail.from(
-			Accommodation.builder().id(31L).occupancyPolicy(policy).build(), List.of(), List.of()).policy();
+			new HostAccommodationDetailProjection(
+				31L, null, null, null, null, null, null, null, null,
+				null, null, null, null, null, null, null,
+				policy == null ? null : policy.getMaxOccupancy(),
+				policy == null ? null : policy.getInfantOccupancy(),
+				policy == null ? null : policy.getPetOccupancy()), List.of(), List.of()).policy();
 	}
 }

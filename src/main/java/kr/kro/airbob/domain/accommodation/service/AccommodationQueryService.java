@@ -18,11 +18,11 @@ import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
@@ -122,7 +122,7 @@ public class AccommodationQueryService {
 
 	@Transactional(readOnly = true)
 	public AccommodationResponse.HostDetail findHostAccommodationDetail(Long accommodationId, Long hostId) {
-		Accommodation accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
+		HostAccommodationDetailProjection accommodation = accommodationRepository.findWithDetailsByIdAndHostId(accommodationId, hostId)
 			.orElseThrow(AccommodationNotFoundException::new);
 
 		List<AmenityResponse.AmenityInfo> amenityInfos = accommodationDetailReader.loadAmenities(accommodationId);

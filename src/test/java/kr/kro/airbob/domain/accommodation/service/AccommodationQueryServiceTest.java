@@ -21,7 +21,7 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -181,7 +181,7 @@ class AccommodationQueryServiceTest {
 	@Test
 	@DisplayName("호스트 숙소 상세 조회는 이미지를 숙소 ID로 조회한다")
 	void hostAccommodationDetailUsesAccommodationIdForImages() {
-		Accommodation accommodation = mock(Accommodation.class);
+		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
 		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
 			.thenReturn(Optional.of(accommodation));
 		when(accommodationDetailReader.loadAmenities(1L)).thenReturn(List.of());
