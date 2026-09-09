@@ -123,6 +123,16 @@ the wrapper does not produce these receipts. The source consumer manifest intent
 `awsExecutionValidated=false`; AWS proof is a separate immutable artifact. The current growth
 gate refuses app launches and snapshot reuse until those runtime contracts are connected.
 
+For AWS login credentials subject to the one-hour role-chaining limit, set
+`AWS_LAB_EXECUTION_WINDOW=small-qualification` for `prepare` and its subsequent `down`.
+This window accepts only the growth qualification envelope with at most 1,000 listings,
+50,000 reservations, a 10 MB compressed dump and a 20 MB verifier. It allows 30 minutes
+for creation/verification, reserves 15 minutes for failure cleanup and retains five-minute
+lease-transition and credential-expiry margins. It requests a 3,600-second STS session and
+still rejects insufficient remaining credentials before any resource mutation. Teardown
+requires the recorded growth release and gets a new 45-minute window. The standard large
+dataset execution keeps its existing six-hour session and five-hour creation deadline.
+
 For this RDS qualification, the existing immutable service images may supply the private runner.
 Their Debezium version is not certified for MySQL 8.4 by this experiment. CDC, AWS application
 queries, throughput and ALB/ASG scaling require their own runs and results.

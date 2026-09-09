@@ -170,6 +170,30 @@ if [[ "$action" == up ]]; then
   UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=$UP_POST_FAILURE_CLEANUP_ALLOWANCE_SECONDS
 fi
 
+# AWS login role chaining grants at most one hour. The small qualification
+# window reserves 15 minutes for failure cleanup and retains both five-minute
+# transition/credential margins. It never admits an application or large dump.
+configure_execution_window() {
+  operator_window=${AWS_LAB_EXECUTION_WINDOW:-standard}
+  case "$operator_window" in
+    standard) return 0 ;;
+    small-qualification)
+      [[ "$action" == down || "$action" == status ||
+        ( "$action" == up && "$qualification_only" == true ) ]] \
+        || fail "small-qualification window permits only prepare, status, and down"
+      if [[ "$action" == up ]]; then
+        COMMAND_DEADLINE_SECONDS=1800
+        UP_FAILURE_CLEANUP_ALLOWANCE_SECONDS=900
+      else
+        COMMAND_DEADLINE_SECONDS=2700
+      fi
+      CREDENTIAL_SESSION_SECONDS=3600
+      ;;
+    *) fail "unsupported AWS_LAB_EXECUTION_WINDOW" ;;
+  esac
+}
+configure_execution_window
+
 # Short timing values are accepted only by the copied hermetic test fixture.
 # A checkout (including a Git worktree) always has a .git entry and cannot use
 # this path to weaken the production command deadline or heartbeat cadence.
@@ -319,7 +343,7 @@ validate_up_credential_budget() {
   local expiration=${AIRBOB_AWS_CREDENTIAL_EXPIRATION:-}
   local expiration_epoch now_epoch required_remaining_seconds remaining_seconds
 
-  [[ "$action" == up ]] || return 0
+  [[ "$action" == up || ( "$operator_window" == small-qualification && "$action" == down ) ]] || return 0
   [[ -n "$expiration" ]] \
     || fail "up requires the exact static STS credential expiration"
   expiration_epoch=$(aws_utc_timestamp_epoch "$expiration") \
@@ -1762,6 +1786,14 @@ resolve_release_inputs() {
     || fail "dataset completion manifest is invalid"
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
   load_release_smoke_inputs "$dataset_manifest"
+  if [[ "$operator_window" == small-qualification ]]; then
+    jq -e '.releaseKind == "growth-aws-qualification" and
+      .mysql.expectedTableRows.accommodation <= 1000 and
+      .mysql.expectedTableRows.reservation <= 50000 and
+      .artifacts["airbob-growth.sql.gz"].bytes <= 10000000 and
+      .artifacts["verification-runtime.zip"].bytes <= 20000000' "$dataset_manifest" >/dev/null \
+      || fail "one-hour qualification requires the bounded small growth release"
+  fi
 
   app_repository=$(jq -er '.ecr_repositories.APP_IMAGE.url' <<<"$lab_contract")
   app_image_reference="$app_repository@$app_digest"
@@ -2883,6 +2915,10 @@ case "$action" in
     bundle_commit=$(jq -er '.bundleCommit' "$manifest")
     bundle_sha256=$(jq -er '.bundleSha256' "$manifest")
     dataset_release=$(jq -er '.datasetRelease' "$manifest")
+    if [[ "$operator_window" == small-qualification ]]; then
+      [[ "$dataset_release" =~ ^korea-growth-v3-[0-9a-f]{16}-aws$ ]] \
+        || fail "small qualification teardown requires the recorded growth run"
+    fi
     dataset_manifest_sha256=$(jq -er '.datasetManifestSha256' "$manifest")
     [[ "$dataset_release" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ \
       && "$dataset_manifest_sha256" =~ ^[0-9a-f]{64}$ ]] \
