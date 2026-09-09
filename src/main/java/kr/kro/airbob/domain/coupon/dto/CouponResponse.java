@@ -6,7 +6,7 @@ import java.util.List;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
-import kr.kro.airbob.domain.coupon.entity.Coupon;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
 import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -30,22 +30,22 @@ public class CouponResponse {
 		Integer issuedQuantity,
 		CouponIssuanceStatus issuanceStatus
 	) {
-		public static CouponInfo of(Coupon coupon, LocalDateTime now) {
+		public static CouponInfo of(CouponCampaignProjection coupon, LocalDateTime now) {
 			return new CouponInfo(
-				coupon.getId(),
-				coupon.getName(),
-				coupon.getDescription(),
-				coupon.getDiscountType(),
-				coupon.getDiscountValue(),
-				coupon.getMinPaymentPrice(),
-				coupon.getMaxDiscountAmount(),
-				coupon.getIssueStartAt(),
-				coupon.getIssueEndAt(),
-				coupon.getUsableFrom(),
-				coupon.getUsableUntil(),
-				coupon.getTotalQuantity(),
-				coupon.getIssuedQuantity(),
-				coupon.issuanceStatus(now));
+				coupon.id(),
+				coupon.name(),
+				coupon.description(),
+				coupon.discountType(),
+				coupon.discountValue(),
+				coupon.minPaymentPrice(),
+				coupon.maxDiscountAmount(),
+				coupon.issueStartAt(),
+				coupon.issueEndAt(),
+				coupon.usableFrom(),
+				coupon.usableUntil(),
+				coupon.totalQuantity(),
+				coupon.issuedQuantity(),
+				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.issuedQuantity(), now));
 		}
 	}
 

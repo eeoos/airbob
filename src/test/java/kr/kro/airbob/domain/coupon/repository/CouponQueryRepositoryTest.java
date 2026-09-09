@@ -22,7 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.domain.coupon.entity.Coupon;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
 import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @DataJpaTest
@@ -68,7 +68,7 @@ class CouponQueryRepositoryTest {
 		insertUnpreparedCoupon("재고 미준비", NOW.minusMinutes(30), NOW.plusHours(1));
 
 		assertThat(couponRepository.findCampaigns(NOW))
-			.extracting(Coupon::getId)
+			.extracting(CouponCampaignProjection::id)
 			.containsExactly(latest, older);
 	}
 
@@ -82,7 +82,7 @@ class CouponQueryRepositoryTest {
 		insertMemberCoupon(memberId, soldOut, NOW.minusMinutes(2));
 		insertMemberCoupon(memberId, ended, NOW.minusMinutes(1));
 
-		assertThat(couponRepository.findCampaigns(NOW)).extracting(Coupon::getId).containsExactly(soldOut);
+		assertThat(couponRepository.findCampaigns(NOW)).extracting(CouponCampaignProjection::id).containsExactly(soldOut);
 		assertThat(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId))
 			.extracting(MemberCouponProjection::couponId).containsExactly(ended, soldOut);
 	}

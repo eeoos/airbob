@@ -25,6 +25,7 @@ import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
 import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,8 +57,8 @@ class CouponQueryServiceTest {
 	@Test
 	@DisplayName("쿠폰 캠페인 상태는 발급 Lua와 동일한 Redis 시각으로 계산한다")
 	void findsCouponCampaignsWithIssuanceStatus() {
-		Coupon upcoming = coupon(2L, NOW.plusDays(1), 100, 0);
-		Coupon open = coupon(1L, NOW.minusMinutes(30), 100, 10);
+		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100, 0));
+		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100, 10));
 		when(stockManager.currentEpochMillis()).thenReturn(REDIS_NOW_MILLIS);
 		when(timeProvider.fromEpochMilli(REDIS_NOW_MILLIS)).thenReturn(NOW);
 		when(couponRepository.findCampaigns(NOW)).thenReturn(List.of(upcoming, open));
@@ -70,6 +71,9 @@ class CouponQueryServiceTest {
 				tuple(2L, CouponIssuanceStatus.UPCOMING),
 				tuple(1L, CouponIssuanceStatus.OPEN));
 		verify(timeProvider, never()).now();
+		verify(stockManager).currentEpochMillis();
+		verify(timeProvider).fromEpochMilli(REDIS_NOW_MILLIS);
+		verifyNoInteractions(memberCouponRepository);
 	}
 
 	@Test
@@ -113,5 +117,12 @@ class CouponQueryServiceTest {
 		return new MemberCouponProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
+	}
+
+	private CouponCampaignProjection campaign(Coupon coupon) {
+		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
+			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
+			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity());
 	}
 }

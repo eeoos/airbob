@@ -152,13 +152,7 @@ public class Coupon extends BaseEntity {
 	}
 
 	public CouponIssuanceStatus issuanceStatus(LocalDateTime now) {
-		if (now.isBefore(issueStartAt)) {
-			return CouponIssuanceStatus.UPCOMING;
-		}
-		if (isSoldOut()) {
-			return CouponIssuanceStatus.SOLD_OUT;
-		}
-		return CouponIssuanceStatus.OPEN;
+		return CouponIssuanceStatus.resolve(issueStartAt, totalQuantity, issuedQuantity, now);
 	}
 
 	// 발급된 쿠폰을 사용할 수 있는지 (활성·기간만 확인, 재고는 무관)

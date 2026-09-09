@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
 import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @JsonTest
@@ -34,7 +35,7 @@ class CouponResponseJsonTest {
 			coupon(12, "매진 쿠폰").issuedQuantity(10).build());
 
 		assertContract("coupon-campaigns.json", new CouponResponse.CouponInfos(campaigns.stream()
-			.map(coupon -> CouponResponse.CouponInfo.of(coupon, NOW)).toList()));
+			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon), NOW)).toList()));
 	}
 
 	@Test
@@ -71,5 +72,12 @@ class CouponResponseJsonTest {
 		return new MemberCouponProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
+	}
+
+	private CouponCampaignProjection campaign(Coupon coupon) {
+		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
+			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
+			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity());
 	}
 }
