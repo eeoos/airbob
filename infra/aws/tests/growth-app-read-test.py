@@ -110,6 +110,17 @@ class ReadProtocolTest(unittest.TestCase):
 
 
 class AppBoundaryTest(unittest.TestCase):
+    def test_k6_failure_retains_cause_and_container_state_without_credentials(self):
+        diagnostic = app.k6_diagnostic('error: script initialization failed\n'
+            'password=run-secret-value\nCookie: SESSION_ID=session-value\nAuthorization: Bearer bearer-value',
+            'run-secret-value', {'Running': False, 'OOMKilled': True, 'ExitCode': 137,
+                                 'Error': 'private daemon message'})
+        serialized = json.dumps(diagnostic)
+        self.assertIn('script initialization failed', serialized)
+        self.assertTrue(diagnostic['appState']['OOMKilled'])
+        for private in ['run-secret-value', 'session-value', 'bearer-value', 'private daemon message']:
+            self.assertNotIn(private, serialized)
+
     def test_sealed_reads_with_missing_or_foreign_runtime_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'scenario-qualification.json'

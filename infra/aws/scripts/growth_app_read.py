@@ -126,6 +126,16 @@ def startup_diagnostic(log):
     }
 
 
+def k6_diagnostic(log, password, state):
+    # This runner's script logs only closed failure messages and target IDs.
+    # Still remove the run credential and cookie/header values before retention.
+    safe = log.replace(password, '[redacted]')
+    safe = re.sub(r'(?i)SESSION_ID=[^\s;"\']+', 'SESSION_ID=[redacted]', safe)
+    safe = re.sub(r'(?im)(Authorization|Cookie):[^\n]*', r'\1: [redacted]', safe)
+    return {'logTail': safe[-12000:], 'appState': {key: state.get(key)
+        for key in ['Running', 'ExitCode', 'OOMKilled', 'StartedAt', 'FinishedAt']}}
+
+
 def qualify_application(release, manifest, runtime, private, work, connection, execute, aws):
     validate_identity(os.environ)
     validate_read_runtime(release)
@@ -230,8 +240,27 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
                     raise RuntimeError('Dedicated cache contents do not match the selected mode')
                 summary = work / ('k6-cache-' + str(cache).lower() + '.json')
                 kenv = dict(env, GROWTH_RELEASE_DIR=str(release), BASE_URL='http://127.0.0.1:18080', EXPECTED_DATASET_ID=manifest['source']['datasetId'], EXPECTED_MYSQL_VERSION='8.4.11')
-                with (work / ('k6-cache-' + str(cache).lower() + '.log')).open('wb') as log:
-                    execute([str(k6), 'run', '--quiet', '--summary-export', str(summary), str(Path(__file__).parent / 'load-test/k6/traffic/growth-dataset-read.js')], env=kenv, timeout=180, output=log)
+                print(json.dumps({'stage': 'sealed-reads-and-details-passed', 'cacheEnabled': cache,
+                    'targets': observation['targetCount'], 'dedicatedCacheKeys': cache_after}), flush=True)
+                k6_log = work / ('k6-cache-' + str(cache).lower() + '.log')
+                try:
+                    with k6_log.open('wb') as log:
+                        execute([str(k6), 'run', '--quiet', '--summary-export', str(summary), str(Path(__file__).parent / 'load-test/k6/traffic/growth-dataset-read.js')], env=kenv, timeout=180, output=log)
+                except Exception:
+                    try:
+                        state = json.loads(execute(['docker', 'inspect', '--format', '{{json .State}}', name], env=docker_env))
+                        diagnostic = k6_diagnostic(k6_log.read_text(errors='replace'), password, state)
+                        diagnostic.update(runId=os.environ['AIRBOB_RUN_ID'], cacheEnabled=cache,
+                            inheritedK6EnvironmentKeys=sorted(k for k in kenv if k.startswith('K6_')))
+                        path = work / ('k6-diagnostic-' + str(cache).lower() + '.json')
+                        path.write_text(json.dumps(diagnostic, indent=2) + '\n')
+                        aws('s3api', 'put-object', '--bucket', os.environ['AIRBOB_EVIDENCE_BUCKET'],
+                            '--key', 'data-bootstrap/' + os.environ['AIRBOB_RUN_ID'] + '/' + path.name,
+                            '--body', str(path), '--if-none-match', '*', '--tagging', 'Retention=summary',
+                            '--content-type', 'application/json', '--server-side-encryption', 'AES256')
+                    except Exception:
+                        pass
+                    raise
                 results.append({'cacheEnabled': cache, 'reads': observation, 'repeatedDetailTargets': details,
                     'dedicatedCacheKeysBefore': cache_before, 'dedicatedCacheKeysAfterDetails': cache_after,
                     'k6Metrics': json.loads(summary.read_text())['metrics']})
