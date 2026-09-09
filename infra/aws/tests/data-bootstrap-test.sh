@@ -39,6 +39,16 @@ done
 [[ "$latest_flyway_version" -gt 0 && "$flyway_history_rows" -eq "$latest_flyway_version" ]] \
   || fail "Flyway versions must remain contiguous for the release row-count contract"
 
+# The immutable lab dataset has its own schema target. A later application
+# migration must not silently migrate a restored, fingerprinted experiment DB.
+lab_profile="$repo_root/src/main/resources/application-performance-lab.yaml"
+lab_flyway_version=$(sed -n 's/^    target: "\([0-9][0-9]*\)"$/\1/p' "$lab_profile")
+[[ "$lab_flyway_version" =~ ^[1-9][0-9]*$ ]] \
+  || fail "performance-lab must pin one explicit Flyway target"
+((lab_flyway_version <= latest_flyway_version)) \
+  || fail "performance-lab Flyway target is missing from application migrations"
+lab_flyway_history_rows=$lab_flyway_version
+
 required_files=(
   "$bootstrap"
   "$restore_verifier"
@@ -921,21 +931,21 @@ checks="$lab_root/checks.tf"
 aws_lab="$repo_root/infra/aws/scripts/aws-lab.sh"
 discovery="$repo_root/load-test/k6/traffic/run-aws-discovery.sh"
 aggregator="$repo_root/load-test/k6/traffic/aggregate-traffic-results.mjs"
-assert_contains "$validator" ".mysql.flywayVersion == \"$latest_flyway_version\""
-assert_contains "$validator" ".mysql.expectedTableRows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$validator" ".mysql.flywayVersion == \"$lab_flyway_version\""
+assert_contains "$validator" ".mysql.expectedTableRows.flyway_schema_history == $lab_flyway_history_rows"
 assert_contains "$validator" 'has("accommodation_inventory_day")'
 assert_contains "$validator" 'all($dataset[0].world.tableRows | to_entries[]'
-assert_contains "$checks" "local.dataset_manifest.mysql.flywayVersion == \"$latest_flyway_version\""
+assert_contains "$checks" "local.dataset_manifest.mysql.flywayVersion == \"$lab_flyway_version\""
 assert_contains "$checks" 'local.dataset_release_kind == "pipeline-rehearsal"'
-assert_contains "$checks" "local.dataset_expected_table_rows.flyway_schema_history == $flyway_history_rows"
+assert_contains "$checks" "local.dataset_expected_table_rows.flyway_schema_history == $lab_flyway_history_rows"
 assert_contains "$checks" 'contains(keys(local.dataset_expected_table_rows), "accommodation_inventory_day")'
-assert_contains "$checks" "local.data_bootstrap_receipt.flywayVersion == \"$latest_flyway_version\""
-assert_contains "$aws_lab" ".mysql.flywayVersion == \"$latest_flyway_version\""
-assert_contains "$aws_lab" ".mysql.expectedTableRows.flyway_schema_history == $flyway_history_rows"
-assert_contains "$discovery" ".flywayVersion == \"$latest_flyway_version\""
+assert_contains "$checks" "local.data_bootstrap_receipt.flywayVersion == \"$lab_flyway_version\""
+assert_contains "$aws_lab" ".mysql.flywayVersion == \"$lab_flyway_version\""
+assert_contains "$aws_lab" ".mysql.expectedTableRows.flyway_schema_history == $lab_flyway_history_rows"
+assert_contains "$discovery" ".flywayVersion == \"$lab_flyway_version\""
 assert_contains "$discovery" '== "$expected_flyway_version" ]]'
 assert_contains "$discovery" '--arg flywayVersion "$expected_flyway_version"'
-assert_contains "$aggregator" "const CURRENT_FLYWAY_VERSION = '$latest_flyway_version';"
+assert_contains "$aggregator" "const CURRENT_FLYWAY_VERSION = '$lab_flyway_version';"
 assert_contains "$aggregator" 'metadata.flywayVersion === CURRENT_FLYWAY_VERSION'
 assert_contains "$bootstrap" 'published accommodation timezone contract failed'
 assert_contains "$bootstrap" "time_zone_id NOT REGEXP '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'"

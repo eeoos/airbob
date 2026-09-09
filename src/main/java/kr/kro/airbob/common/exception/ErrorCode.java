@@ -66,7 +66,7 @@ public enum ErrorCode {
 	RESERVATION_CANCELLATION_DEADLINE_PASSED(HttpStatus.CONFLICT, "R015", "체크인 시각 이후에는 예약을 취소할 수 없습니다."),
 	RESERVATION_CHECKOUT_IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "R016", "동일한 멱등성 키로 다른 예약 요청을 처리할 수 없습니다."),
 	RESERVATION_QUOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "R017", "예약 견적을 찾을 수 없습니다."),
-	RESERVATION_QUOTE_EXPIRED(HttpStatus.GONE, "R018", "예약 견적이 만료되었습니다. 새 견적을 요청해 주세요."),
+	// R018 (quote expiry) is retired; do not reuse it for another failure.
 	RESERVATION_QUOTE_STALE(HttpStatus.CONFLICT, "R019", "예약 조건 또는 금액이 변경되었습니다. 새 견적을 요청해 주세요."),
 	RESERVATION_QUOTE_ALREADY_CHECKED_OUT(HttpStatus.CONFLICT, "R020", "이미 다른 요청으로 사용된 예약 견적입니다."),
 	RESERVATION_HOLD_RELEASE_NOT_ALLOWED(HttpStatus.CONFLICT, "R021", "현재 상태에서는 예약 보유를 해제할 수 없습니다."),

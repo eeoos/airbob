@@ -21,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +42,6 @@ class ReservationQuoteCleanupServiceTest {
 		service = new ReservationQuoteCleanupService(
 			quoteRepository,
 			Clock.fixed(NOW, ZoneOffset.UTC),
-			ReservationQuotePolicy.defaultPolicy(),
 			RETENTION,
 			BATCH_SIZE
 		);
@@ -52,14 +50,14 @@ class ReservationQuoteCleanupServiceTest {
 	@Test
 	@DisplayName("30일 보존 경계보다 오래된 quote를 생성 시각 순 batch로 조회해 한 번에 삭제한다")
 	void deletesOneBoundedBatchUsingTheRetentionCutoff() {
-		given(quoteRepository.findExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE))
+		given(quoteRepository.findRetentionExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE))
 			.willReturn(List.of(11L, 12L));
 		given(quoteRepository.deleteCleanupBatchByIds(List.of(11L, 12L))).willReturn(2);
 
 		int deleted = service.cleanupOneBatch();
 
 		assertThat(deleted).isEqualTo(2);
-		then(quoteRepository).should().findExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE);
+		then(quoteRepository).should().findRetentionExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE);
 		then(quoteRepository).should().deleteCleanupBatchByIds(List.of(11L, 12L));
 		then(quoteRepository).shouldHaveNoMoreInteractions();
 	}
@@ -67,13 +65,13 @@ class ReservationQuoteCleanupServiceTest {
 	@Test
 	@DisplayName("보존 기간을 지난 quote가 없으면 delete를 실행하지 않는다")
 	void skipsDeleteForAnEmptyBatch() {
-		given(quoteRepository.findExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE))
+		given(quoteRepository.findRetentionExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE))
 			.willReturn(List.of());
 
 		int deleted = service.cleanupOneBatch();
 
 		assertThat(deleted).isZero();
-		then(quoteRepository).should().findExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE);
+		then(quoteRepository).should().findRetentionExpiredIdsForCleanup(RETENTION_CUTOFF, BATCH_SIZE);
 		then(quoteRepository).shouldHaveNoMoreInteractions();
 	}
 
@@ -91,14 +89,16 @@ class ReservationQuoteCleanupServiceTest {
 	}
 
 	@Test
-	@DisplayName("보존 기간은 quote 자체의 유효기간보다 짧을 수 없다")
-	void rejectsRetentionShorterThanQuoteDuration() {
+	@DisplayName("보존 기간은 양수여야 한다")
+	void rejectsNonPositiveRetention() {
 		assertThatThrownBy(() -> new ReservationQuoteCleanupService(
 			quoteRepository,
 			Clock.fixed(NOW, ZoneOffset.UTC),
-			ReservationQuotePolicy.defaultPolicy(),
-			Duration.ofMinutes(4),
+			Duration.ZERO,
 			BATCH_SIZE
+		)).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> new ReservationQuoteCleanupService(
+			quoteRepository, Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofSeconds(-1), BATCH_SIZE
 		)).isInstanceOf(IllegalArgumentException.class);
 	}
 }

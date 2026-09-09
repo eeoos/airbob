@@ -45,7 +45,6 @@ public class ReservationResponse {
 		String currency,
 		boolean paymentRequired,
 		boolean inventoryHeld,
-		Instant quoteExpiresAt,
 		Instant serverTime
 	) {
 		public static Quote from(ReservationQuote quote, Instant serverTime) {
@@ -64,7 +63,6 @@ public class ReservationResponse {
 				.currency(quote.getCurrency())
 				.paymentRequired(quote.getAmount() > 0)
 				.inventoryHeld(false)
-				.quoteExpiresAt(quote.getExpiresAt())
 				.serverTime(serverTime)
 				.build();
 		}

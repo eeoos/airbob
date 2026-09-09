@@ -74,7 +74,7 @@ class ReservationCheckoutControllerTest {
 	}
 
 	@Test
-	@DisplayName("POST /api/v1/reservation-quotes는 재고를 잡지 않는 5분 견적을 201로 반환한다")
+	@DisplayName("POST /api/v1/reservation-quotes는 재고를 잡지 않고 유효기간이 없는 견적을 201로 반환한다")
 	void createsNoHoldQuote() throws Exception {
 		ReservationRequest.Quote request = new ReservationRequest.Quote(
 			31L,
@@ -98,7 +98,6 @@ class ReservationCheckoutControllerTest {
 			"KRW",
 			true,
 			false,
-			NOW.plusSeconds(5 * 60),
 			NOW
 		);
 		given(quoteService.createQuote(request, MEMBER_ID)).willReturn(response);
@@ -119,7 +118,7 @@ class ReservationCheckoutControllerTest {
 			.andExpect(jsonPath("$.data.amount").value(330_000))
 			.andExpect(jsonPath("$.data.payment_required").value(true))
 			.andExpect(jsonPath("$.data.inventory_held").value(false))
-			.andExpect(jsonPath("$.data.quote_expires_at").value("2026-08-25T03:05:00Z"))
+			.andExpect(jsonPath("$.data.quote_expires_at").doesNotExist())
 			.andExpect(jsonPath("$.data.server_time").value("2026-08-25T03:00:00Z"));
 
 		then(quoteService).should().createQuote(request, MEMBER_ID);

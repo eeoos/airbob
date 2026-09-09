@@ -1,3 +1,8 @@
+spring:
+  flyway:
+    # Preserve the verified V27 dataset during isolated read/coupon experiments.
+    target: "27"
+
 payment:
   toss:
     enabled: false
