@@ -110,6 +110,20 @@ class ReadProtocolTest(unittest.TestCase):
 
 
 class AppBoundaryTest(unittest.TestCase):
+    def test_sealed_reads_with_missing_or_foreign_runtime_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'scenario-qualification.json'
+            expected = {'jvmTimeZone': 'UTC', 'jdbcConnectionTimeZone': 'UTC',
+                        'forceConnectionTimeZoneToSession': True}
+            for runtime in [None, dict(expected, jvmTimeZone='Asia/Seoul'),
+                            dict(expected, jdbcConnectionTimeZone='LOCAL'),
+                            dict(expected, forceConnectionTimeZoneToSession=False)]:
+                path.write_text(json.dumps({'applicationRuntime': runtime}))
+                with self.assertRaises(ValueError):
+                    app.validate_read_runtime(directory)
+            path.write_text(json.dumps({'applicationRuntime': expected}))
+            app.validate_read_runtime(directory)
+
     def test_container_does_not_depend_on_host_aws_configuration(self):
         env = app.app_environment({})
         self.assertIn('AWS_REGION=ap-northeast-2\n', env)

@@ -1692,6 +1692,11 @@ load_release_smoke_inputs() {
     python3 "$script_dir/validate-growth-aws-release.py" "$growth_dir" "$dataset_release" \
       --migration-dir "$repo_root/src/main/resources/db/migration" >/dev/null \
       || fail "growth qualification source validation failed"
+    if [[ "$growth_app_read" == true ]]; then
+      PYTHONPATH="$script_dir" python3 -c \
+        'from pathlib import Path; import sys; from growth_app_read import validate_read_runtime; validate_read_runtime(Path(sys.argv[1]))' \
+        "$growth_dir" || fail "growth app reads require a sealed UTC runtime qualification"
+    fi
     smoke_search_enabled=false
     return
   fi

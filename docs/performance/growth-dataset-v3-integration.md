@@ -130,6 +130,22 @@ gate refuses app launches and snapshot reuse until those runtime contracts are c
 
 ## Published-main read qualification
 
+Sealed HTTP responses and cursors must be produced with a UTC JVM and a UTC JDBC session,
+matching the published application image. The business calendar remains `Asia/Seoul`. The
+operator checks `scenario-qualification.json.applicationRuntime` before acquiring a creation
+lease, and the private host checks it again before starting the application. A release lacking
+this evidence can still describe an intact historical dump, but cannot enter the AWS app-read
+qualification. Preserve it and qualify a new immutable release; never change its expected hashes
+or run the AWS image in a different timezone merely to make the checks pass.
+
+The original `korea-growth-v3-64deb4f838935b8e` reads were sealed by a local Asia/Seoul JVM. The
+published UTC image reproduced 60 mismatched targets, including date fields and subsequent
+cursor pages. The ETL runtime now pins both JVM and JDBC UTC and records that contract. Its new
+small candidate is `korea-growth-v3-95ce46ef08db7091`; both cache settings of the published main
+image passed all 65 sealed targets and 195 k6 checks per mode locally against TLS MySQL 8.4.11
+and distinct Redis endpoints. The candidate awaits its own immutable S3 publication and AWS
+qualification; neither the old object's versions nor their historical receipts were rewritten.
+
 The optional `GROWTH_APP_READ_QUALIFICATION=true` preparation now runs a short
 loopback-only application probe on the private data-bootstrap host. It creates
 no ALB, ASG capacity, or load-generator host. Supply `GROWTH_APP_COMMIT` and

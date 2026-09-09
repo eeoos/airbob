@@ -21,6 +21,14 @@ K6_VERSION = '1.5.0'
 K6_SHA = '5ec7c7800ffedac41b9346c55fa7a4a73b4711b0d05d7226f1b8494748878263'
 
 
+def validate_read_runtime(release):
+    qualification = json.loads((Path(release) / 'scenario-qualification.json').read_text())
+    expected = {'jvmTimeZone': 'UTC', 'jdbcConnectionTimeZone': 'UTC',
+                'forceConnectionTimeZoneToSession': True}
+    if qualification.get('applicationRuntime') != expected:
+        raise ValueError('Sealed reads must be qualified with the published UTC application runtime')
+
+
 def validate_identity(env):
     if env.get('AIRBOB_QUALIFICATION_ONLY') != 'true' or env.get('AIRBOB_DATABASE_BOOTSTRAP') != 'dump':
         raise ValueError('App read qualification requires the disposable dump preparation')
@@ -120,6 +128,7 @@ def startup_diagnostic(log):
 
 def qualify_application(release, manifest, runtime, private, work, connection, execute, aws):
     validate_identity(os.environ)
+    validate_read_runtime(release)
     image = os.environ['AIRBOB_GROWTH_APP_IMAGE']
     credential = aws('ecr', 'get-authorization-token')['authorizationData'][0]
     import base64
@@ -188,6 +197,17 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
                     raise RuntimeError('Qualification app startup timeout')
                 observation = probe.probe(release, manifest['source']['datasetId'], 'http://127.0.0.1:18080', password)
                 if not observation['passed']:
+                    # Preserve only IDs, status and hashes so a mismatch can be
+                    # diagnosed without exporting response bodies or sessions.
+                    mismatch = work / ('read-mismatch-' + str(cache).lower() + '.json')
+                    mismatch.write_text(json.dumps(dict(observation, runId=os.environ['AIRBOB_RUN_ID']), indent=2) + '\n')
+                    try:
+                        aws('s3api', 'put-object', '--bucket', os.environ['AIRBOB_EVIDENCE_BUCKET'],
+                            '--key', 'data-bootstrap/' + os.environ['AIRBOB_RUN_ID'] + '/' + mismatch.name,
+                            '--body', str(mismatch), '--if-none-match', '*', '--tagging', 'Retention=summary',
+                            '--content-type', 'application/json', '--server-side-encryption', 'AES256')
+                    except Exception:
+                        pass
                     raise RuntimeError('AWS app differs from sealed read responses')
                 details = []
                 for listing_id in detail_ids:
