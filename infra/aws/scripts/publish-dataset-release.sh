@@ -282,12 +282,14 @@ rm -f -- "$bucket_location_file"
 if [[ "$expected_kind" == growth-small-integration || "$expected_kind" == growth-aws-qualification ]]; then
   [[ -z "$snapshot_receipt" ]] || fail 'growth publication does not accept a search snapshot receipt'
   [[ -n "${GROWTH_PUBLICATION_RECEIPT:-}" ]] || fail 'GROWTH_PUBLICATION_RECEIPT is required'
-  growth_arguments=()
+  # macOS ships Bash 3.2, where expanding an empty array under nounset fails.
+  growth_arguments=(
+    --release "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket"
+    --migration-dir "$repo_root/src/main/resources/db/migration"
+    --receipt "$GROWTH_PUBLICATION_RECEIPT"
+  )
   [[ "$expected_kind" != growth-aws-qualification ]] || growth_arguments+=(--aws-qualification)
-  python3 "$script_dir/publish-growth-dataset-v3.py" \
-    --release "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket" \
-    --migration-dir "$repo_root/src/main/resources/db/migration" \
-    --receipt "$GROWTH_PUBLICATION_RECEIPT" "${growth_arguments[@]}"
+  python3 "$script_dir/publish-growth-dataset-v3.py" "${growth_arguments[@]}"
   exit 0
 fi
 

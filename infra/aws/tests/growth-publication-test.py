@@ -3,6 +3,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -229,6 +230,22 @@ class PublicationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must not exist'):
             self.fetch(receipt['consumerManifestSha256'])
         self.assertEqual((self.root / 'download/keep').read_text(), 'keep')
+
+
+class ShellDispatchTest(unittest.TestCase):
+    def test_both_growth_kinds_pass_the_receipt_with_nounset(self):
+        source = (Path(__file__).parents[1] / 'scripts/publish-dataset-release.sh').read_text()
+        start = source.index('  growth_arguments=(')
+        block = source[start:source.index('  exit 0', start)]
+        for kind in ['growth-small-integration', 'growth-aws-qualification']:
+            script = ('set -eu\nrelease_dir=/release\nexpected_release=dataset\ndataset_bucket=bucket\n'
+                'repo_root=/repo\nscript_dir=/repo/scripts\nGROWTH_PUBLICATION_RECEIPT=/receipt\n'
+                'expected_kind=' + kind + '\npython3() { printf "%s\\n" "$@"; }\n' + block)
+            result = subprocess.run(['/bin/bash', '-c', script], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = result.stdout.splitlines()
+            self.assertEqual(args[args.index('--receipt') + 1], '/receipt')
+            self.assertEqual('--aws-qualification' in args, kind == 'growth-aws-qualification')
 
 
 if __name__ == '__main__':
