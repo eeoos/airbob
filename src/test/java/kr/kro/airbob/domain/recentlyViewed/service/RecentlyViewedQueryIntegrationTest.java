@@ -3,9 +3,12 @@ package kr.kro.airbob.domain.recentlyViewed.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.hibernate.SessionFactory;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,8 +17,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -37,6 +43,7 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfos;
 
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
@@ -44,7 +51,8 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyView
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
-@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class})
+@Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class,
+	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")
 class RecentlyViewedQueryIntegrationTest {
@@ -78,6 +86,7 @@ class RecentlyViewedQueryIntegrationTest {
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntityManagerFactory entityManagerFactory;
+	@Autowired private SqlCapture sqlCapture;
 
 	@BeforeEach
 	void setUp() {
@@ -101,8 +110,64 @@ class RecentlyViewedQueryIntegrationTest {
 		RecentlyViewedAccommodationInfos result = service.getRecentlyViewed(MEMBER_ID);
 
 		assertContract(result);
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertCardRead(statistics);
 		assertHistoryCleaned();
+	}
+
+	@Test
+	@DisplayName("다음 조회에 최신 숙소·주소·후기·공개 상태를 반영하고 회원별 찜과 기록을 구분한다")
+	void readsCurrentCardDataAndMemberSpecificMembership() {
+		insertMixedHistory();
+		service.getRecentlyViewed(MEMBER_ID);
+		jdbc.update("UPDATE accommodation SET name = '춘천 호수집', thumbnail_url = NULL WHERE id = 31");
+		jdbc.update("""
+			UPDATE address SET country = '대한민국', state = '강원특별자치도', city = '춘천', district = '남산면'
+			WHERE id = 21
+			""");
+		jdbc.update("""
+			UPDATE accommodation_review_summary SET total_review_count = 2, rating_sum = 9, average_rating = 4.50
+			WHERE accommodation_id = 31
+			""");
+		jdbc.update("UPDATE accommodation SET status = 'UNPUBLISHED' WHERE id = 32");
+		jdbc.update("DELETE FROM wishlist_accommodation WHERE wishlist_id IN (51, 52)");
+		jdbc.update("""
+			INSERT INTO wishlist_accommodation (id, wishlist_id, accommodation_id, updated_at)
+			VALUES (64, 53, 31, NOW(6))
+			""");
+		addHistory(OTHER_KEY, 31, "2026-09-08T00:00:00Z");
+		Statistics statistics = prepareMeasurement();
+
+		RecentlyViewedAccommodationInfos result = service.getRecentlyViewed(MEMBER_ID);
+
+		assertThat(result.totalCount()).isEqualTo(2);
+		assertThat(result.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
+			.containsExactly(33L, 31L);
+		var card = result.accommodations().getLast();
+		assertThat(card.accommodationName()).isEqualTo("춘천 호수집");
+		assertThat(card.thumbnailUrl()).isNull();
+		assertThat(card.addressSummary().country()).isEqualTo("대한민국");
+		assertThat(card.addressSummary().state()).isEqualTo("강원특별자치도");
+		assertThat(card.addressSummary().city()).isEqualTo("춘천");
+		assertThat(card.addressSummary().district()).isEqualTo("남산면");
+		assertThat(card.reviewSummary().totalCount()).isEqualTo(2);
+		assertThat(card.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
+		assertThat(card.viewedAt()).isEqualTo(Instant.parse("2026-09-06T00:00:00Z"));
+		assertThat(card.isInWishlist()).isFalse();
+		assertCardRead(statistics);
+		assertThat(redis.opsForZSet().reverseRange(KEY, 0, -1)).containsExactly("33", "31");
+		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("31", "40");
+
+		statistics = prepareMeasurement();
+		RecentlyViewedAccommodationInfos otherResult = service.getRecentlyViewed(8L);
+
+		assertThat(otherResult.totalCount()).isEqualTo(1);
+		assertThat(otherResult.accommodations().getFirst()).isEqualTo(
+			new RecentlyViewedAccommodationInfo(
+				Instant.parse("2026-09-08T00:00:00Z"), card.accommodationId(), card.accommodationName(),
+				card.thumbnailUrl(), card.addressSummary(), card.reviewSummary(), true));
+		assertCardRead(statistics);
+		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("31");
+		assertThat(redis.opsForZSet().reverseRange(KEY, 0, -1)).containsExactly("33", "31");
 	}
 
 	@Test
@@ -123,6 +188,7 @@ class RecentlyViewedQueryIntegrationTest {
 		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
 
 		assertThat(statistics.getPrepareStatementCount()).isZero();
+		assertThat(statistics.getEntityLoadCount()).isZero();
 	}
 
 	@Test
@@ -136,6 +202,7 @@ class RecentlyViewedQueryIntegrationTest {
 		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
 
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(redis.hasKey(KEY)).isFalse();
 		statistics.clear();
 		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
@@ -189,7 +256,20 @@ class RecentlyViewedQueryIntegrationTest {
 		entityManager.clear();
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
+		sqlCapture.statements.clear();
 		return statistics;
+	}
+
+	private void assertCardRead(Statistics statistics) {
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		assertThat(sqlCapture.statements.stream()
+			.map(sql -> sql.substring("select ".length(), sql.indexOf(" from ")).split(",").length))
+			.containsExactly(9, 1);
+		assertThat(sqlCapture.statements.getFirst())
+			.contains("left join address", "left join accommodation_review_summary")
+			.doesNotContain(".description", ".base_price", ".street", ".detail", ".latitude", ".longitude",
+				".created_at", ".updated_at", " join member ", " join wishlist", " for update");
 	}
 
 	private void assertContract(RecentlyViewedAccommodationInfos result) throws Exception {
@@ -209,5 +289,28 @@ class RecentlyViewedQueryIntegrationTest {
 	private void assertEmpty(RecentlyViewedAccommodationInfos result) {
 		assertThat(result.accommodations()).isEmpty();
 		assertThat(result.totalCount()).isZero();
+	}
+
+	@TestConfiguration(proxyBeanMethods = false)
+	static class ReadTestConfig {
+		@Bean
+		SqlCapture sqlCapture() {
+			return new SqlCapture();
+		}
+
+		@Bean
+		HibernatePropertiesCustomizer statementInspector(SqlCapture capture) {
+			return properties -> properties.put("hibernate.session_factory.statement_inspector", capture);
+		}
+	}
+
+	static class SqlCapture implements StatementInspector {
+		private final List<String> statements = new ArrayList<>();
+
+		@Override
+		public String inspect(String sql) {
+			statements.add(sql.replaceAll("\\s+", " ").toLowerCase(Locale.ROOT).trim());
+			return sql;
+		}
 	}
 }

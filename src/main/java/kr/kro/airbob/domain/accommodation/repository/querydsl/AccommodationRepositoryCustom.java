@@ -11,7 +11,7 @@ import org.springframework.data.domain.Slice;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
@@ -31,7 +31,7 @@ public interface AccommodationRepositoryCustom {
         Pageable pageable
     );
 
-	List<AccommodationDetailProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+	List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
 		List<Long> accommodationIds, AccommodationStatus status);
 
 	Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);

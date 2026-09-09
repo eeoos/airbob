@@ -20,7 +20,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -101,11 +101,11 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<AccommodationDetailProjection> accommodationsInDb = accommodationRepository
+		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationRepository
 			.findWithAddressAndReviewSummaryByIdInAndStatus(
 				new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
-		Map<Long, AccommodationDetailProjection> accommodationMap = accommodationsInDb.stream()
-			.collect(Collectors.toMap(projection -> projection.accommodation().getId(), projection -> projection));
+		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
+			.collect(Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));
 
 		Set<Long> existingIdsInDb = accommodationMap.keySet();
 		List<String> idsToDeleteFromRedis = accommodationIdsFromRedis.stream()
@@ -128,7 +128,7 @@ public class RecentlyViewedService {
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
 			.map(tuple -> {
 				Long accommodationId = Long.parseLong(tuple.getValue());
-				AccommodationDetailProjection projection = accommodationMap.get(accommodationId);
+				RecentlyViewedAccommodationProjection projection = accommodationMap.get(accommodationId);
 
 				if (projection == null) {
 					return null;
@@ -136,12 +136,8 @@ public class RecentlyViewedService {
 
 				Instant viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue());
 
-				// total_review_count는 NOT NULL이다. LEFT JOIN 결과가 null이면 요약 행이 없다.
-				ReviewResponse.ReviewSummary reviewSummary = projection.totalReviewCount() == null ? null
-					: ReviewResponse.ReviewSummary.of(projection.totalReviewCount(), projection.averageRating());
-
-				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(viewedAt, projection.accommodation(),
-					reviewSummary, wishlistMap.getOrDefault(accommodationId, false));
+				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(viewedAt, projection,
+					wishlistMap.getOrDefault(accommodationId, false));
 			})
 			.filter(Objects::nonNull)
 			.toList();

@@ -24,8 +24,8 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.QAddress;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
-import kr.kro.airbob.domain.accommodation.repository.projection.QAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.QRecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QPublicAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
@@ -143,17 +143,18 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     }
 
     @Override
-    public List<AccommodationDetailProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+    public List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
         List<Long> accommodationIds, AccommodationStatus status
     ) {
         return jpaQueryFactory
-            .select(new QAccommodationDetailProjection(
-                accommodation,
+            .select(new QRecentlyViewedAccommodationProjection(
+                accommodation.id, accommodation.name, accommodation.thumbnailUrl,
+                address.country, address.state, address.city, address.district,
                 accommodationReviewSummary.totalReviewCount,
                 accommodationReviewSummary.averageRating
             ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address).fetchJoin()
+            .leftJoin(accommodation.address, address)
             .leftJoin(accommodationReviewSummary)
             .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
             .where(

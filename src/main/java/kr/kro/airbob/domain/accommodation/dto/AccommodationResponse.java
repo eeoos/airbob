@@ -12,6 +12,7 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
@@ -197,6 +198,23 @@ public class AccommodationResponse {
 		ReviewResponse.ReviewSummary reviewSummary,
 		Boolean isInWishlist
 	) {
+		public static RecentlyViewedAccommodationInfo from(Instant viewedAt,
+			RecentlyViewedAccommodationProjection accommodation, boolean isInWishlist) {
+			// total_review_count는 NOT NULL이다. LEFT JOIN 결과가 null이면 요약 행이 없다.
+			ReviewResponse.ReviewSummary reviewSummary = accommodation.totalReviewCount() == null ? null
+				: ReviewResponse.ReviewSummary.of(accommodation.totalReviewCount(), accommodation.averageRating());
+			return RecentlyViewedAccommodationInfo.builder()
+				.viewedAt(viewedAt)
+				.accommodationId(accommodation.accommodationId())
+				.accommodationName(accommodation.name())
+				.thumbnailUrl(accommodation.thumbnailUrl())
+				.addressSummary(new AddressResponse.AddressSummaryInfo(
+					accommodation.country(), accommodation.state(), accommodation.city(), accommodation.district()))
+				.reviewSummary(reviewSummary)
+				.isInWishlist(isInWishlist)
+				.build();
+		}
+
 		public static RecentlyViewedAccommodationInfo from(Instant viewedAt, Accommodation accommodation,
 			ReviewResponse.ReviewSummary reviewSummary, boolean isInWishlist) {
 			return RecentlyViewedAccommodationInfo.builder()
