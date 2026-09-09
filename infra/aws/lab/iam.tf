@@ -228,6 +228,12 @@ resource "aws_iam_role_policy" "data_bootstrap" {
     Version = "2012-10-17"
     Statement = concat([
       {
+        Sid      = "PullQualifiedApplicationForBoundedReadProbe"
+        Effect   = "Allow"
+        Action   = ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+        Resource = var.growth_app_read_qualification ? local.ecr_repositories.APP_IMAGE.arn : local.ecr_repositories.DEBEZIUM_IMAGE.arn
+      },
+      {
         Sid      = "ReadSelectedDatasetRelease"
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:GetObjectVersion"]

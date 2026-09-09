@@ -1,3 +1,37 @@
+variable "growth_app_read_qualification" {
+  description = "Run a short published-app HTTP probe on the private data host after full restore parity."
+  type        = bool
+  default     = false
+  validation {
+    condition = !var.growth_app_read_qualification || (
+      var.data_qualification_only && var.database_bootstrap == "dump" &&
+      var.mode == "performance" && var.dns_mode == "direct-only" && !var.load_generator_enabled &&
+      can(regex("^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$", var.dataset_release)) &&
+      can(regex("^[0-9a-f]{40}$", var.growth_app_commit)) &&
+      can(regex("^[0-9a-f]{64}$", var.growth_app_jar_sha256))
+    )
+    error_message = "The bounded app probe requires immutable app identity and qualification-only dump preparation."
+  }
+}
+
+variable "growth_app_commit" {
+  type    = string
+  default = ""
+  validation {
+    condition     = var.growth_app_commit == "" || can(regex("^[0-9a-f]{40}$", var.growth_app_commit))
+    error_message = "growth_app_commit must be empty or a full Git commit."
+  }
+}
+
+variable "growth_app_jar_sha256" {
+  type    = string
+  default = ""
+  validation {
+    condition     = var.growth_app_jar_sha256 == "" || can(regex("^[0-9a-f]{64}$", var.growth_app_jar_sha256))
+    error_message = "growth_app_jar_sha256 must be empty or a SHA-256 digest."
+  }
+}
+
 locals {
   growth_payload_names = toset([
     "airbob-growth.sql.gz", "migration-files.json", "before-fingerprint.json", "read-scenarios.json",
@@ -56,16 +90,21 @@ locals {
 }
 
 locals {
+  growth_bootstrap_helpers = merge(
+    { for helper in ["bootstrap-growth-entry.sh", "bootstrap-growth-aws.py", "growth_aws_contract.py", "restore-growth-dataset.py", "validate-growth-dataset-v3.py", "growth_app_read.py", "probe-growth-reads.py"] : helper => "${path.module}/../scripts/${helper}" },
+    { for helper in ["load-test/k6/traffic/growth-dataset-read.js", "load-test/k6/lib/benchmark-dataset-v3.js"] : helper => "${path.module}/../../../${helper}" },
+  )
   growth_bootstrap_data_command = local.services_enabled ? join("\n", [
     "set -euo pipefail",
     "umask 077",
     "install -d -m 700 /opt/airbob/bootstrap-helpers",
-    join("\n", [for helper in ["bootstrap-growth-entry.sh", "bootstrap-growth-aws.py", "growth_aws_contract.py", "restore-growth-dataset.py", "validate-growth-dataset-v3.py"] : join("\n", [
+    join("\n", [for helper, source in local.growth_bootstrap_helpers : join("\n", [
+      "install -d -m 700 /opt/airbob/bootstrap-helpers/${dirname(helper)}",
       "cat > /opt/airbob/bootstrap-helpers/${helper}.gz.b64 <<'AIRBOB_GROWTH_HELPER'",
-      base64gzip(file("${path.module}/../scripts/${helper}")),
+      base64gzip(file(source)),
       "AIRBOB_GROWTH_HELPER",
       "base64 --decode /opt/airbob/bootstrap-helpers/${helper}.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/${helper}",
-      "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/${helper}")}' /opt/airbob/bootstrap-helpers/${helper} | sha256sum --check --status",
+      "printf '%s  %s\\n' '${filesha256(source)}' /opt/airbob/bootstrap-helpers/${helper} | sha256sum --check --status",
       "chmod 700 /opt/airbob/bootstrap-helpers/${helper}",
     ])]),
     "export AIRBOB_REGION='${var.aws_region}'",
@@ -76,6 +115,10 @@ locals {
     "export AIRBOB_DATASET_MANIFEST_SHA256='${var.dataset_manifest_sha256}'",
     "export AIRBOB_DATABASE_BOOTSTRAP='${var.database_bootstrap}'",
     "export AIRBOB_QUALIFICATION_ONLY='${var.data_qualification_only}'",
+    "export AIRBOB_GROWTH_APP_READ_QUALIFICATION='${var.growth_app_read_qualification}'",
+    "export AIRBOB_GROWTH_APP_IMAGE='${var.app_image_reference}'",
+    "export AIRBOB_GROWTH_APP_COMMIT='${var.growth_app_commit}'",
+    "export AIRBOB_GROWTH_APP_JAR_SHA256='${var.growth_app_jar_sha256}'",
     "export AIRBOB_SNAPSHOT_SOURCE_RUN_ID='${var.rds_snapshot_source_run_id}'",
     "export AIRBOB_SNAPSHOT_SOURCE_RESOURCE_ID='${var.rds_snapshot_source_resource_id}'",
     "export AIRBOB_QUALIFICATION_KEY='${try(data.aws_db_snapshot.dataset[0].tags.DataBootstrapKey, "")}'",

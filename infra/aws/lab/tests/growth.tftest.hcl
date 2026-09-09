@@ -186,3 +186,29 @@ run "reject_growth_engine_drift_before_bootstrap" {
   variables { rds_engine_version = "8.4.8" }
   expect_failures = [terraform_data.dataset_release_gate, check.dataset_release]
 }
+
+run "qualify_growth_with_bounded_private_app_probe" {
+  command = plan
+  variables {
+    growth_app_read_qualification = true
+    growth_app_commit             = "63a343fa2d3aaf4d78c0ddd436cd84a7d0633d6d"
+    growth_app_jar_sha256         = "d0f9cb6eb49351fd51b608fedf1bdb9a210472dc35093aa84e7c611ca7c8ee3a"
+  }
+  assert {
+    condition     = length(module.app_asg) == 0 && length(module.alb) == 0 && strcontains(local.growth_bootstrap_data_command, "AIRBOB_GROWTH_APP_READ_QUALIFICATION='true'")
+    error_message = "The app probe must remain a private preparation without ALB or ASG capacity."
+  }
+  assert {
+    condition     = length(local.growth_bootstrap_data_command) < 45000
+    error_message = "Compressed helpers must fit the SSM command bound."
+  }
+}
+
+run "reject_app_probe_without_qualified_jar_identity" {
+  command = plan
+  variables {
+    growth_app_read_qualification = true
+    growth_app_commit             = "63a343fa2d3aaf4d78c0ddd436cd84a7d0633d6d"
+  }
+  expect_failures = [var.growth_app_read_qualification]
+}

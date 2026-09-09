@@ -125,9 +125,9 @@ class AwsKafkaDebeziumBundleConfigurationTest {
 			.containsEntry("producer.bootstrap.servers", KAFKA_BOOTSTRAP)
 			.containsEntry("consumer.bootstrap.servers", KAFKA_BOOTSTRAP)
 			.containsEntry("group.id", "airbob-debezium-connect")
-			.containsEntry("config.storage.topic", "airbob_debezium_configs")
-			.containsEntry("offset.storage.topic", "airbob_debezium_offsets")
-			.containsEntry("status.storage.topic", "airbob_debezium_statuses")
+			.containsEntry("config.storage.topic", "DEBEZIUM_CONNECT_CONFIGS")
+			.containsEntry("offset.storage.topic", "DEBEZIUM_CONNECT_OFFSETS")
+			.containsEntry("status.storage.topic", "DEBEZIUM_CONNECT_STATUSES")
 			.containsEntry("config.storage.replication.factor", "1")
 			.containsEntry("offset.storage.replication.factor", "1")
 			.containsEntry("status.storage.replication.factor", "1")
@@ -202,7 +202,7 @@ class AwsKafkaDebeziumBundleConfigurationTest {
 			.containsEntry("predicates.IsOutboxTable.type",
 				"org.apache.kafka.connect.transforms.predicates.TopicNameMatches")
 			.containsEntry("predicates.IsOutboxTable.pattern",
-				"airbob_server\\.airbobdb\\.outbox")
+				"airbob_outbox\\.airbobdb\\.outbox")
 			.containsEntry("transforms.outbox.type", "io.debezium.transforms.outbox.EventRouter")
 			.containsEntry("transforms.outbox.predicate", "IsOutboxTable")
 			.containsEntry("transforms.outbox.table.op.invalid.behavior", "fatal")

@@ -128,6 +128,47 @@ the wrapper does not produce these receipts. The source consumer manifest intent
 `awsExecutionValidated=false`; AWS proof is a separate immutable artifact. The current growth
 gate refuses app launches and snapshot reuse until those runtime contracts are connected.
 
+## Published-main read qualification
+
+The optional `GROWTH_APP_READ_QUALIFICATION=true` preparation now runs a short
+loopback-only application probe on the private data-bootstrap host. It creates
+no ALB, ASG capacity, or load-generator host. Supply `GROWTH_APP_COMMIT` and
+`GROWTH_APP_JAR_SHA256` from the locally qualified GitHub-published app artifact,
+and its ECR digest as `IMAGE_DIGEST`. The app commit may differ from
+`BUNDLE_COMMIT`; ECR tag-to-digest verification remains mandatory for each.
+Normal lab execution still requires the existing common bundle/app commit.
+
+The operator requires unchanged `src/main` and `build.gradle` relative to that
+app commit. The private host checks the JAR inside the pulled image against the
+qualified JAR hash before starting it. Both cache settings use this same image.
+The profile set is `aws,performance-lab,test`: on the reviewed main commit
+`63a343fa2d3aaf4d78c0ddd436cd84a7d0633d6d`, the test profile excludes only the
+main scheduler configuration. All four Kafka listener controls and external
+side effects are explicitly disabled for these reads. Dedicated cache and
+general Redis remain separate dependencies. The RDS JDBC connection verifies
+the certificate and hostname.
+
+Full 32-table source parity must pass before the two sealed synthetic accounts
+receive disposable run passwords. The helper executes all 65 sealed HTTP read
+targets and the actual pinned k6 1.5.0 reader with cache disabled and enabled.
+It also repeats five published accommodation-detail reads and compares their
+semantic responses across cache settings. It stops each app, restores the
+original account hashes, and recomputes complete row/DDL parity before
+publishing `data-bootstrap/RUN_ID/growth-app-read-qualification.json`.
+Passwords, Docker credentials, and session cookies are not published.
+
+Use `AWS_LAB_EXECUTION_WINDOW=small-qualification` with `aws-lab.sh prepare`.
+The existing 30-minute command deadline, 15-minute failure cleanup budget,
+lease/fencing, and teardown checks remain in force. Explicit `down` accepts the
+same creation inputs but never restarts the probe. An existing probe container
+is refused instead of overwritten.
+
+This attests private AWS application/data compatibility. It does not attest
+ALB routing, ASG scaling, CDC, runtime write scenarios, or throughput. The
+existing `ReadModelRuntimeAssertionController` and its production discovery
+runner are not relabelled as this probe; their multi-instance observation
+contract remains a later integration step. Source manifests remain immutable.
+
 For AWS login credentials subject to the one-hour role-chaining limit, set
 `AWS_LAB_EXECUTION_WINDOW=small-qualification` for `prepare` and its subsequent `down`.
 This window accepts only the growth qualification envelope with at most 1,000 listings,

@@ -172,7 +172,7 @@ fi
 
 # AWS login role chaining grants at most one hour. The small qualification
 # window reserves 15 minutes for failure cleanup and retains both five-minute
-# transition/credential margins. It never admits an application or large dump.
+# transition/credential margins. Only an explicit loopback app probe fits this window; ALB/ASG and large dumps remain excluded.
 configure_execution_window() {
   operator_window=${AWS_LAB_EXECUTION_WINDOW:-standard}
   case "$operator_window" in
@@ -193,6 +193,30 @@ configure_execution_window() {
   esac
 }
 configure_execution_window
+
+growth_app_read=${GROWTH_APP_READ_QUALIFICATION:-false}
+growth_app_commit=${GROWTH_APP_COMMIT:-}
+growth_app_jar_sha256=${GROWTH_APP_JAR_SHA256:-}
+[[ "$growth_app_read" == true || "$growth_app_read" == false ]] || fail "GROWTH_APP_READ_QUALIFICATION must be boolean"
+if [[ "$action" == down ]]; then
+  # Destroy never restarts the disposable probe, even with the creation inputs.
+  growth_app_read=false
+  growth_app_commit=''
+  growth_app_jar_sha256=''
+fi
+if [[ "$growth_app_read" == true ]]; then
+  [[ "$action:$qualification_only:$operator_window" == up:true:small-qualification ]] \
+    || fail "growth app reads require small qualification preparation"
+  [[ "$growth_app_commit" =~ ^[0-9a-f]{40}$ && "$growth_app_jar_sha256" =~ ^[0-9a-f]{64}$ ]] \
+    || fail "growth app reads require the published commit and locally qualified JAR SHA"
+  git -C "$repo_root" cat-file -e "$growth_app_commit^{commit}" \
+    || fail "qualified application source commit is unavailable"
+  git -C "$repo_root" diff --quiet "$growth_app_commit" -- src/main build.gradle \
+    || fail "current application source differs from the qualified published commit"
+else
+  [[ -z "$growth_app_commit" && -z "$growth_app_jar_sha256" ]] \
+    || fail "growth app identity requires its explicit read qualification"
+fi
 
 # Short timing values are accepted only by the copied hermetic test fixture.
 # A checkout (including a Git worktree) always has a .git entry and cannot use
@@ -1737,7 +1761,7 @@ load_release_smoke_inputs() {
 resolve_release_inputs() {
   local checksum_file="$temp_dir/bundle.sha256" dataset_manifest="$temp_dir/dataset-manifest.json"
   local bundle_manifest="$temp_dir/bundle-manifest.json"
-  local tagged_app_digest bundle_manifest_key
+  local tagged_app_digest bundle_manifest_key app_tag_commit
   app_digest=${IMAGE_DIGEST:-}
   [[ "$app_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "IMAGE_DIGEST must be one canonical sha256 digest"
   bundle_commit=${BUNDLE_COMMIT:-}
@@ -1806,8 +1830,9 @@ resolve_release_inputs() {
   app_repository=$(jq -er '.ecr_repositories.APP_IMAGE.url' <<<"$lab_contract")
   app_image_reference="$app_repository@$app_digest"
   app_repository_name=${app_repository#*/}
+  app_tag_commit=${growth_app_commit:-$bundle_commit}
   tagged_app_digest=$(aws ecr describe-images --repository-name "$app_repository_name" \
-    --image-ids "imageTag=$bundle_commit" --query 'imageDetails[0].imageDigest' \
+    --image-ids "imageTag=$app_tag_commit" --query 'imageDetails[0].imageDigest' \
     --output text --region "$AWS_REGION" --no-cli-pager) \
     || fail "application runtime commit tag is unavailable"
   [[ "$tagged_app_digest" == "$app_digest" ]] \
@@ -1847,9 +1872,11 @@ write_tfvars() {
     --arg rds_snapshot_source_run_id "$rds_snapshot_source_run_id" \
     --arg rds_snapshot_source_resource_id "$rds_snapshot_source_resource_id" \
     --argjson qualification_only "$qualification_only" \
+    --argjson growth_app_read "$growth_app_read" --arg growth_app_commit "$growth_app_commit" \
+    --arg growth_app_jar_sha256 "$growth_app_jar_sha256" \
     --arg rds_engine_version "$rds_engine_version" \
     --arg dns_mode "$dns_mode" --arg alb_ingress_cidr "$alb_ingress_cidr" \
-    '{data_qualification_only:$qualification_only,run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
+    '{growth_app_read_qualification:$growth_app_read,growth_app_commit:$growth_app_commit,growth_app_jar_sha256:$growth_app_jar_sha256,data_qualification_only:$qualification_only,run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
     > "$current_tfvars"
 }
 
@@ -2783,7 +2810,8 @@ case "$action" in
       --arg datasetManifestVersionId "$dataset_manifest_version_id" \
       --arg bundleChecksumVersionId "$bundle_checksum_version_id" \
       --arg bundleManifestVersionId "$bundle_manifest_version_id" --arg bundleManifestSha256 "$bundle_manifest_sha256" \
-      '{schemaVersion:2,runId:$runId,expiresAt:$expiresAt,fencingToken:$fencingToken,mode:$mode,policy:$policy,dnsMode:$dnsMode,albIngressCidr:$albIngressCidr,imageDigest:$imageDigest,datasetRelease:$datasetRelease,datasetManifestVersionId:$datasetManifestVersionId,bundleCommit:$bundleCommit,bundleSha256:$bundleSha256,bundleChecksumVersionId:$bundleChecksumVersionId,bundleManifestVersionId:$bundleManifestVersionId,bundleManifestSha256:$bundleManifestSha256,datasetManifestSha256:$datasetManifestSha256,amiId:$amiId,ociOriginIpv4:$ociOriginIpv4,rdsEngineVersion:$rdsEngineVersion,databaseBootstrap:$databaseBootstrap,rdsSnapshotIdentifier:$rdsSnapshotIdentifier,rdsSnapshotSourceRunId:$rdsSnapshotSourceRunId,rdsSnapshotSourceResourceId:$rdsSnapshotSourceResourceId,cacheEnabled:$cacheEnabled,requestTarget:$requestTarget,loadGeneratorEnabled:$loadGeneratorEnabled,appImageReference:$appImageReference,infraImageReferences:$infraImageReferences}' \
+      --argjson growthAppRead "$growth_app_read" --arg growthAppCommit "$growth_app_commit" --arg growthAppJarSha256 "$growth_app_jar_sha256" \
+      '{growthAppReadQualification:$growthAppRead,growthAppCommit:$growthAppCommit,growthAppJarSha256:$growthAppJarSha256,schemaVersion:2,runId:$runId,expiresAt:$expiresAt,fencingToken:$fencingToken,mode:$mode,policy:$policy,dnsMode:$dnsMode,albIngressCidr:$albIngressCidr,imageDigest:$imageDigest,datasetRelease:$datasetRelease,datasetManifestVersionId:$datasetManifestVersionId,bundleCommit:$bundleCommit,bundleSha256:$bundleSha256,bundleChecksumVersionId:$bundleChecksumVersionId,bundleManifestVersionId:$bundleManifestVersionId,bundleManifestSha256:$bundleManifestSha256,datasetManifestSha256:$datasetManifestSha256,amiId:$amiId,ociOriginIpv4:$ociOriginIpv4,rdsEngineVersion:$rdsEngineVersion,databaseBootstrap:$databaseBootstrap,rdsSnapshotIdentifier:$rdsSnapshotIdentifier,rdsSnapshotSourceRunId:$rdsSnapshotSourceRunId,rdsSnapshotSourceResourceId:$rdsSnapshotSourceResourceId,cacheEnabled:$cacheEnabled,requestTarget:$requestTarget,loadGeneratorEnabled:$loadGeneratorEnabled,appImageReference:$appImageReference,infraImageReferences:$infraImageReferences}' \
       > "$manifest"
     write_run_manifest "$manifest"
     write_tfvars network false ""
@@ -2834,10 +2862,25 @@ case "$action" in
         "$temp_dir/qualification.json" --region "$AWS_REGION" --no-cli-pager >/dev/null
       verify_dataset_qualification "$temp_dir/qualification.json" "$temp_dir/dataset-manifest.json" \
         "$run_id" "$rds_resource_id" "$rds_engine_version" || fail "preparation qualification does not bind this RDS"
+      if [[ "$growth_app_read" == true ]]; then
+        app_receipt_key="data-bootstrap/$run_id/growth-app-read-qualification.json"
+        app_receipt_version=$(aws s3api head-object --bucket "$evidence_bucket" --key "$app_receipt_key" --query VersionId --output text --region "$AWS_REGION" --no-cli-pager)
+        [[ -n "$app_receipt_version" && "$app_receipt_version" != None && "$app_receipt_version" != null ]] || fail "app read evidence has no version"
+        aws s3api get-object --bucket "$evidence_bucket" --key "$app_receipt_key" --version-id "$app_receipt_version" "$temp_dir/app-read.json" --region "$AWS_REGION" --no-cli-pager >/dev/null
+        jq -e --arg run "$run_id" --arg commit "$growth_app_commit" --arg image "$app_image_reference" --arg jar "$growth_app_jar_sha256" \
+          --arg resource "$rds_resource_id" --arg manifest "$dataset_manifest_sha256" \
+          --arg dataset "$(jq -r '.source.datasetId' "$temp_dir/dataset-manifest.json")" '
+          .schemaVersion == 1 and .kind == "growth-app-read-qualification" and .passed == true and
+          .runId == $run and .appCommit == $commit and .appImage == $image and .appJarSha256 == $jar and
+          .datasetId == $dataset and .rdsResourceId == $resource and .datasetManifestSha256 == $manifest and
+          .fullRowsAndDdlAfterCredentialRestore == true and .asgExecuted == false and .albExecuted == false and
+          (.results | length == 2) and all(.results[]; .reads.passed == true)
+        ' "$temp_dir/app-read.json" >/dev/null || fail "app read evidence does not bind this run and image"
+      fi
       up_in_progress=false
       printf 'Dataset qualified. Run=%s RDS=%s qualification=%s VersionId=%s\n' \
         "$run_id" "$rds_instance_id" "$qualification_key" "$qualification_version"
-      printf '%s\n' 'Promote the dataset snapshot before down or TTL expiry. Application startup was not requested.'
+      printf 'growth_app_read_qualified=%s; ALB/ASG and CDC were not started by this preparation.\n' "$growth_app_read"
       exit 0
     fi
     rds_secret_arn=$(aws rds describe-db-instances --db-instance-identifier "$rds_instance_id" \

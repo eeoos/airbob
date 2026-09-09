@@ -10,6 +10,26 @@ function = source[start:source.index('\nconfigure_execution_window\n', start)]
 
 
 class WindowTest(unittest.TestCase):
+    def test_app_probe_admission_and_destroy_with_creation_inputs(self):
+        start = source.index('growth_app_read=${GROWTH_APP_READ_QUALIFICATION:-false}')
+        block = source[start:source.index('\n# Short timing', start)]
+        valid = dict(action='up', qualification_only='true', operator_window='small-qualification',
+            repo_root='/synthetic', GROWTH_APP_READ_QUALIFICATION='true', GROWTH_APP_COMMIT='a'*40,
+            GROWTH_APP_JAR_SHA256='b'*64, FAKE_GIT_STATUS='0')
+        cases = [(valid, True), (dict(valid, action='down'), True),
+            (dict(valid, qualification_only='false'), False), (dict(valid, operator_window='standard'), False),
+            (dict(valid, GROWTH_APP_JAR_SHA256=''), False), (dict(valid, GROWTH_APP_COMMIT='main'), False),
+            (dict(valid, FAKE_GIT_STATUS='1'), False), (dict(valid, GROWTH_APP_READ_QUALIFICATION='false'), False)]
+        for values, accepted in cases:
+            with self.subTest(values=values):
+                setup = 'set -euo pipefail\nfail() { exit 1; }; git() { return "$FAKE_GIT_STATUS"; };\n'
+                setup += ''.join(k + "='" + v + "'\n" for k, v in values.items())
+                result = subprocess.run(['bash', '-c', setup + block + '\nprintf "%s:%s:%s" "$growth_app_read" "$growth_app_commit" "$growth_app_jar_sha256"'],
+                    capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode == 0, accepted)
+                if values['action'] == 'down':
+                    self.assertEqual(result.stdout, 'false::')
+
     def test_selected_budget_and_forbidden_actions(self):
         cases = [
             ('up', 'true', 'small-qualification', 0, '1800 900 3600'),

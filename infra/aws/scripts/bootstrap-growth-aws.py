@@ -14,8 +14,8 @@ import urllib.request
 import growth_aws_contract as contract
 
 
-def execute(command, *, env=None, output=None, timeout=300):
-    result = subprocess.run(command, env=env, stdout=output or subprocess.PIPE,
+def execute(command, *, env=None, output=None, timeout=300, input=None):
+    result = subprocess.run(command, env=env, input=input, stdout=output or subprocess.PIPE,
                             stderr=subprocess.PIPE, timeout=timeout)
     if result.returncode:
         if output is not None:
@@ -77,6 +77,11 @@ def restore_and_verify(release, manifest, runtime, secret_dir, output, connectio
                  '--release', str(release), '--expected-id', manifest['source']['datasetId'],
                  '--migration-dir', str(migrations), '--defaults-file', str(defaults),
                  '--database', 'airbobdb', '--mysql-client', mysql_client, '--receipt', str(receipt)], output=log)
+    return verify_existing(release, manifest, runtime, output, connection)
+
+
+def verify_existing(release, manifest, runtime, output, connection):
+    """Recompute full fidelity without importing or changing the database."""
     properties = 'connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true'
     if connection.get('truststore'):
         properties += '&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=public-ca-store&trustCertificateKeyStoreUrl=file:' + str(connection['truststore'])
@@ -86,7 +91,8 @@ def restore_and_verify(release, manifest, runtime, secret_dir, output, connectio
     backend = runtime / 'backend'
     migration_target = backend / 'src/main/resources/db/migration'
     migration_target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    migration_target.symlink_to(migrations, target_is_directory=True)
+    if not migration_target.exists():
+        migration_target.symlink_to(runtime / 'migrations', target_is_directory=True)
     env = dict(os.environ, AIRBOB_ETL_DB_URL='jdbc:mysql://' + connection['host'] + ':' + str(connection.get('port', 3306)) + '/airbobdb?' + properties,
                AIRBOB_ETL_DB_USER=connection['username'], AIRBOB_ETL_DB_PASSWORD=connection['password'],
                AIRBOB_ETL_BACKEND_ROOT=str(backend), JAVA_OPTS='-Xmx256m')
@@ -158,6 +164,16 @@ def main(manifest_path):
         secret = json.loads(aws('secretsmanager', 'get-secret-value', '--secret-id', env['AIRBOB_RDS_MASTER_SECRET_ARN'])['SecretString'])
         connection = {'host': env['AIRBOB_RDS_ENDPOINT'], 'username': secret['username'], 'password': secret['password'], 'ca': ca, 'truststore': truststore}
         verification = restore_and_verify(release, manifest, runtime, secret_dir, work / 'verification', connection)
+        if env.get('AIRBOB_GROWTH_APP_READ_QUALIFICATION') == 'true':
+            from growth_app_read import qualify_application
+            app_result = qualify_application(release, manifest, runtime, secret_dir, work, connection, execute, aws)
+            after = work / 'after-app-verification'
+            after.mkdir(mode=0o700)
+            verify_existing(release, manifest, runtime, after, connection)
+            app_result['fullRowsAndDdlAfterCredentialRestore'] = True
+            app_path = work / 'growth-app-read-qualification.json'
+            app_path.write_text(json.dumps(app_result, indent=2) + '\n')
+            publish_evidence(app_path, env['AIRBOB_EVIDENCE_BUCKET'], 'data-bootstrap/' + env['AIRBOB_RUN_ID'] + '/growth-app-read-qualification.json')
     verification.update(runId=env['AIRBOB_RUN_ID'], rdsResourceId=env['AIRBOB_RDS_RESOURCE_ID'],
                         manifestSha256=env['AIRBOB_DATASET_MANIFEST_SHA256'])
     proof_path = work / 'growth-full-verification.json'
