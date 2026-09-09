@@ -13,7 +13,7 @@ verify_dataset_qualification() {
       "dataset","verification","verifiedAt"] | sort) and
     .schemaVersion == 1 and .kind == "dataset-qualification" and
     .runId == $run and (.runId | test("^[a-z0-9][a-z0-9-]{2,31}$")) and
-    .rdsResourceId == $resource and (.rdsResourceId | test("^db-[A-Z0-9]{24}$")) and
+    .rdsResourceId == $resource and (.rdsResourceId | test("^db-[A-Z0-9]{26}$")) and
     .rdsEngineVersion == $engine and (.rdsEngineVersion | test("^8\\.4\\.[0-9]+$")) and
     .dataset == {release:$m[0].datasetRelease,runId:$m[0].datasetRunId,
       manifestSha256:$manifestSha,mysql:$m[0].mysql,releaseTuple:$m[0].releaseTuple,search:$m[0].search} and

@@ -199,7 +199,7 @@ run "services_require_both_receipts_and_immutable_release" {
     override_during = plan
     values = {
       address     = "airbob-lab-phase2-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
-      resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+      resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
       master_user_secret = [{
         kms_key_id    = "arn:aws:kms:ap-northeast-2:942632789808:key/11111111-2222-3333-4444-555555555555"
         secret_arn    = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test"

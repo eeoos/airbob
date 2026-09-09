@@ -10,14 +10,14 @@ eval "$(sed -n '/^verify_snapshot_receipt_parity() {/,/^}/p' "$script_dir/aws-la
 temp_dir="$work"
 AWS_REGION=ap-northeast-2 evidence_bucket=airbob-performance-lab-evidence-942632789808
 database_bootstrap=snapshot rds_snapshot_identifier=airbob-dataset-fixture
-rds_snapshot_source_run_id=lab-source rds_snapshot_source_resource_id=db-ABCDEFGHIJKLMNOPQRSTUVWX rds_engine_version=8.4.8
+rds_snapshot_source_run_id=lab-source rds_snapshot_source_resource_id=db-ABCDEFGHIJKLMNOPQRSTUVWXYZ rds_engine_version=8.4.8
 cp "$repo/infra/aws/lab/tests/fixtures/dataset-manifest.json" "$work/dataset-manifest.json"
 write_dataset_qualification "$work/dataset-manifest.json" "$work/source.json" lab-source "$rds_snapshot_source_resource_id" 8.4.8 "$(printf '%064d' 1)"
 fake_version=source-v1
 refresh() {
   jq -n --arg sha "$(qualification_sha_file "$work/source.json")" --arg vsha "$(printf source-v1 | qualification_sha_text)" '
-    {DBSnapshots:[{DBSnapshotIdentifier:"airbob-dataset-fixture",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",Engine:"mysql",EngineVersion:"8.4.8",Status:"available",Encrypted:true,
-    TagList:({SourceLabRunId:"lab-source",SourceRdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",PromotionReceiptSchemaVersion:"3",
+    {DBSnapshots:[{DBSnapshotIdentifier:"airbob-dataset-fixture",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",Engine:"mysql",EngineVersion:"8.4.8",Status:"available",Encrypted:true,
+    TagList:({SourceLabRunId:"lab-source",SourceRdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",PromotionReceiptSchemaVersion:"3",
     DataBootstrapKey:"data-bootstrap/lab-source/dataset-qualification.json",DataBootstrapVersionIdSha256:$vsha,DataBootstrapSha256:$sha}|to_entries|map({Key:.key,Value:.value}))}]}' > "$work/snapshot.json"
 }
 refresh

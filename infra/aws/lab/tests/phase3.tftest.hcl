@@ -88,7 +88,7 @@ override_resource {
     arn         = "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-phase3-test"
     address     = "airbob-lab-phase3-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
     port        = 3306
-    resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     master_user_secret = [{
       kms_key_id    = "arn:aws:kms:ap-northeast-2:942632789808:key/11111111-2222-3333-4444-555555555555"
       secret_arn    = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test"
@@ -197,7 +197,7 @@ override_data {
       targetFingerprintSha256        = "0000000000000000000000000000000000000000000000000000000000000000"
       inventoryFingerprintSha256     = "1111111111111111111111111111111111111111111111111111111111111111"
       semanticAttestationSha256      = "2222222222222222222222222222222222222222222222222222222222222222"
-      rdsResourceId                  = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+      rdsResourceId                  = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
       rdsEngineVersion               = "8.4.8"
       outboxState                    = "empty"
       redisState                     = "empty"
@@ -483,7 +483,7 @@ run "restore_rds_only_from_matching_snapshot" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   }
 
   override_data {
@@ -505,7 +505,7 @@ run "restore_rds_only_from_matching_snapshot" {
         ManagedBy                     = "dataset-publisher"
         Persistence                   = "persistent"
         SourceLabRunId                = "lab-phase3-test"
-        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         PromotionReceiptSchemaVersion = "3"
         DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
         DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -550,7 +550,7 @@ run "reject_snapshot_with_non_gp3_storage" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   }
 
   override_data {
@@ -572,7 +572,7 @@ run "reject_snapshot_with_non_gp3_storage" {
         ManagedBy                     = "dataset-publisher"
         Persistence                   = "persistent"
         SourceLabRunId                = "lab-phase3-test"
-        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         PromotionReceiptSchemaVersion = "3"
         DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
         DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -596,7 +596,7 @@ run "reject_snapshot_above_baseline_iops" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   }
 
   override_data {
@@ -618,7 +618,7 @@ run "reject_snapshot_above_baseline_iops" {
         ManagedBy                     = "dataset-publisher"
         Persistence                   = "persistent"
         SourceLabRunId                = "lab-phase3-test"
-        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         PromotionReceiptSchemaVersion = "3"
         DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
         DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -641,7 +641,7 @@ run "reject_snapshot_inputs_for_dump_bootstrap" {
   variables {
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   }
 
   expect_failures = [
@@ -672,7 +672,7 @@ run "reject_snapshot_with_different_source_identity" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
     rds_snapshot_source_run_id      = "lab-different-source"
-    rds_snapshot_source_resource_id = "db-ZYXWVUTSRQPONMLKJIHGFEDC"
+    rds_snapshot_source_resource_id = "db-ZYXWVUTSRQPONMLKJIHGFEDCBA"
   }
 
   override_data {
@@ -694,7 +694,7 @@ run "reject_snapshot_with_different_source_identity" {
         ManagedBy                     = "dataset-publisher"
         Persistence                   = "persistent"
         SourceLabRunId                = "lab-phase3-test"
-        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         PromotionReceiptSchemaVersion = "3"
         DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
         DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -718,7 +718,7 @@ run "reject_snapshot_outside_promotion_contract" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   }
 
   override_data {
@@ -753,7 +753,7 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20-large"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     dataset_manifest_sha256         = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
   }
 
@@ -826,7 +826,7 @@ run "restore_large_profile_from_snapshot_with_sufficient_storage" {
         ManagedBy                     = "dataset-publisher"
         Persistence                   = "persistent"
         SourceLabRunId                = "lab-phase3-test"
-        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         PromotionReceiptSchemaVersion = "3"
         DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
         DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -864,7 +864,7 @@ run "reject_large_profile_snapshot_above_dataset_storage" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-rehearsal-v20-large"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     dataset_manifest_sha256         = "1eb29a5c8245bfaa435fa6c166e52ffb4c7c997410a873ecdba016e126107a0b"
   }
 
@@ -938,7 +938,7 @@ run "reject_large_profile_snapshot_above_dataset_storage" {
         ManagedBy                     = "dataset-publisher"
         Persistence                   = "persistent"
         SourceLabRunId                = "lab-phase3-test"
-        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+        SourceRdsResourceId           = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         PromotionReceiptSchemaVersion = "3"
         DataBootstrapKey              = "data-bootstrap/lab-phase3-test/dataset-qualification.json"
         DataBootstrapVersionIdSha256  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -1029,7 +1029,7 @@ run "reject_unsafe_snapshot_identifier" {
     database_bootstrap              = "snapshot"
     rds_snapshot_identifier         = "airbob-dataset-invalid--snapshot"
     rds_snapshot_source_run_id      = "lab-phase3-test"
-    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    rds_snapshot_source_resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   }
 
   expect_failures = [var.rds_snapshot_identifier]

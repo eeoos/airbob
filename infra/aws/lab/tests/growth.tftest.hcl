@@ -89,7 +89,7 @@ override_resource {
     arn         = "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-phase3-test"
     address     = "airbob-lab-phase3-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
     port        = 3306
-    resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    resource_id = "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     master_user_secret = [{
       kms_key_id    = "arn:aws:kms:ap-northeast-2:942632789808:key/11111111-2222-3333-4444-555555555555"
       secret_arn    = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-test"

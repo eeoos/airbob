@@ -522,7 +522,7 @@ jq '
   .runId="lab-snapshot" | .fencingToken=99 |
   .bootstrap.mode="snapshot" | .bootstrap.rdsSnapshotIdentifier="airbob-dataset-rehearsal-v20" |
   .bootstrap.rdsSnapshotSourceRunId="lab-dump" |
-  .bootstrap.rdsSnapshotSourceResourceId="db-ABCDEFGHIJKLMNOPQRSTUVWX" |
+  .bootstrap.rdsSnapshotSourceResourceId="db-ABCDEFGHIJKLMNOPQRSTUVWXYZ" |
   .bootstrap.receipt.key="data-bootstrap/lab-snapshot/fixture-v20.json" |
   .bootstrap.receipt.versionId="data-v2" | .bootstrap.receipt.lastModified="2026-09-01T01:00:00Z" |
   .networkClearance.key="network-clearance/lab-snapshot/i-new.json" |
@@ -1044,7 +1044,7 @@ case " $* " in
       manifest_sha=$(shasum -a 256 "${FAKE_DATASET_MANIFEST:?}" | awk '{print $1}')
       jq -n --arg run "$receipt_run" --arg manifestSha "$manifest_sha" \
         --arg bootstrap "${FAKE_DATABASE_BOOTSTRAP:-dump}" \
-        '{schemaVersion:3,runId:$run,verification:{mode:"full",source:null},datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",rdsEngineVersion:"8.4.8",semanticAttestationSha256:("2" * 64),outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
+        '{schemaVersion:3,runId:$run,verification:{mode:"full",source:null},datasetRelease:"fixture-v20",databaseBootstrap:$bootstrap,datasetManifestSha256:$manifestSha,rdsResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",rdsEngineVersion:"8.4.8",semanticAttestationSha256:("2" * 64),outboxState:"empty",redisState:"empty",connectorState:"RUNNING",searchState:"restored",verifiedAt:"2026-09-01T00:00:00Z"}' \
         > "$destination"
       if [[ "${FAKE_DATABASE_BOOTSTRAP:-dump}" == snapshot ]]; then
         source_qual="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"
@@ -1192,9 +1192,9 @@ case " $* " in
     source_data="$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"
     jq -n --arg dataSha "$(shasum -a 256 "$source_data" | awk '{print $1}')" \
       --arg versionSha "$(printf version-fixture | shasum -a 256 | awk '{print $1}')" '{DBSnapshots:[{
-        DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",
+        DBSnapshotIdentifier:"airbob-dataset-rehearsal-v20",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         Engine:"mysql",EngineVersion:"8.4.8",Status:"available",Encrypted:true,
-        TagList:[{Key:"SourceLabRunId",Value:"lab-repeat-dump"},{Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWX"},
+        TagList:[{Key:"SourceLabRunId",Value:"lab-repeat-dump"},{Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
           {Key:"DatasetRelease",Value:"fixture-v20"},{Key:"PromotionReceiptSchemaVersion",Value:"3"},
           {Key:"DataBootstrapKey",Value:"data-bootstrap/lab-repeat-dump/dataset-qualification.json"},
           {Key:"DataBootstrapVersionIdSha256",Value:$versionSha},{Key:"DataBootstrapSha256",Value:$dataSha}]
@@ -1207,7 +1207,7 @@ case " $* " in
       --argjson throughput "${FAKE_RDS_STORAGE_THROUGHPUT:-125}" \
       --argjson publiclyAccessible "${FAKE_RDS_PUBLICLY_ACCESSIBLE:-false}" '
       {
-        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX", class:"db.t3.small",
+        identifier:"airbob-fake", resourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ", class:"db.t3.small",
         engine:"mysql", engineVersion:"8.4.8", allocatedStorageGiB:100, storageType:"gp3",
         iops:$iops, storageThroughputMiBps:$throughput, multiAz:false, storageEncrypted:true,
         publiclyAccessible:$publiclyAccessible, availabilityZone:"ap-northeast-2a",
@@ -1441,7 +1441,7 @@ case " $* " in
     jq -nc --arg run_id "${FAKE_STATE_RUN_ID:-lab-partial-down}" '{run_id:$run_id,vpc_id:"vpc-0123456789abcdef0",primary_private_route_table:"rtb-0123456789abcdef0",probe_instance_id:"i-0123456789abcdef0",services:{debezium:"i-11111111111111111",kafka:"i-22222222222222222"}}'
     ;;
   *' output -json phase3_contract '*)
-    printf '%s\n' '{"rds_instance_id":"airbob-fake","rds_resource_id":"db-ABCDEFGHIJKLMNOPQRSTUVWX","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
+    printf '%s\n' '{"rds_instance_id":"airbob-fake","rds_resource_id":"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ","rds_endpoint":"fake.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"}'
     ;;
   *' output -json phase4_contract '*)
     if [[ "${FAKE_NO_ALB:-false}" == true ]]; then
@@ -1614,7 +1614,7 @@ run_fake_up() {
   [[ -n "$ttl_hours" ]] || ttl_hours=6
   if [[ "$bootstrap" == snapshot ]]; then
     snapshot_source_run_id=${FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID-lab-repeat-dump}
-    snapshot_source_resource_id=${FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID-db-ABCDEFGHIJKLMNOPQRSTUVWX}
+    snapshot_source_resource_id=${FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID-db-ABCDEFGHIJKLMNOPQRSTUVWXYZ}
   else
     snapshot_source_run_id=${FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID-}
     snapshot_source_resource_id=${FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID-}
@@ -1740,7 +1740,7 @@ run_fake_up() {
 
 # A prepared run stops before mutable policy, application, and direct-readiness gates.
 source "$repo_root/infra/aws/scripts/dataset-qualification.sh"
-write_dataset_qualification "$temp_dir/dataset-manifest.json" "$FAKE_S3_STORE/data-bootstrap__lab-prepare__dataset-qualification.json"   lab-prepare db-ABCDEFGHIJKLMNOPQRSTUVWX 8.4.8 "$(printf '2%.0s' {1..64})"
+write_dataset_qualification "$temp_dir/dataset-manifest.json" "$FAKE_S3_STORE/data-bootstrap__lab-prepare__dataset-qualification.json"   lab-prepare db-ABCDEFGHIJKLMNOPQRSTUVWXYZ 8.4.8 "$(printf '2%.0s' {1..64})"
 : > "$temp_dir/operator-execution.log"
 FAKE_UP_ACTION=prepare FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32   run_fake_up lab-prepare > "$temp_dir/prepare.out"
 grep -Fq 'Dataset qualified.' "$temp_dir/prepare.out" || fail 'prepare did not publish its qualification result'
@@ -2259,7 +2259,7 @@ for dump_snapshot_input in identifier source-run source-resource; do
         run_fake_up "lab-dump-$dump_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
       ;;
     source-resource)
-      FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID=db-ABCDEFGHIJKLMNOPQRSTUVWX \
+      FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID=db-ABCDEFGHIJKLMNOPQRSTUVWXYZ \
         run_fake_up "lab-dump-$dump_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
       ;;
   esac
@@ -2311,7 +2311,7 @@ for invalid_snapshot_input in identifier source-run source-resource; do
   FAKE_DATABASE_BOOTSTRAP=snapshot \
     FAKE_RDS_SNAPSHOT_IDENTIFIER="$([[ "$invalid_snapshot_input" == identifier ]] && printf '%s' "$invalid_identifier" || printf '%s' airbob-dataset-rehearsal-v20)" \
     FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID="$([[ "$invalid_snapshot_input" == source-run ]] && printf '%s' "$invalid_source_run" || printf '%s' lab-repeat-dump)" \
-    FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID="$([[ "$invalid_snapshot_input" == source-resource ]] && printf '%s' "$invalid_source_resource" || printf '%s' db-ABCDEFGHIJKLMNOPQRSTUVWX)" \
+    FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID="$([[ "$invalid_snapshot_input" == source-resource ]] && printf '%s' "$invalid_source_resource" || printf '%s' db-ABCDEFGHIJKLMNOPQRSTUVWXYZ)" \
     run_fake_up "lab-snap-bad-$invalid_snapshot_input" >/dev/null 2>&1 && accepted=true || accepted=false
   [[ "$accepted" == false ]] || fail "snapshot up accepted non-canonical input: $invalid_snapshot_input"
   if grep -Fq 'lease acquire ' "$temp_dir/operator-execution.log"; then
@@ -2323,7 +2323,7 @@ done
 if FAKE_DATABASE_BOOTSTRAP=snapshot \
   FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-unapproved \
   FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID=lab-repeat-dump \
-  FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID=db-ABCDEFGHIJKLMNOPQRSTUVWX \
+  FAKE_RDS_SNAPSHOT_SOURCE_RESOURCE_ID=db-ABCDEFGHIJKLMNOPQRSTUVWXYZ \
   run_fake_up lab-snap-unapproved >/dev/null 2>&1; then
   fail "snapshot up accepted a canonical but unapproved RDS snapshot"
 fi
@@ -2975,7 +2975,7 @@ FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   FAKE_TIME_COUNTER="$temp_dir/dump-time-counter" \
   run_fake_up lab-repeat-dump false 203.0.113.10 performance integrated-smoke >/dev/null
 source "$repo_root/infra/aws/scripts/dataset-qualification.sh"
-write_dataset_qualification "$temp_dir/dataset-manifest.json" "$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"   lab-repeat-dump db-ABCDEFGHIJKLMNOPQRSTUVWX 8.4.8 "$(printf '2%.0s' {1..64})"
+write_dataset_qualification "$temp_dir/dataset-manifest.json" "$FAKE_S3_STORE/data-bootstrap__lab-repeat-dump__dataset-qualification.json"   lab-repeat-dump db-ABCDEFGHIJKLMNOPQRSTUVWXYZ 8.4.8 "$(printf '2%.0s' {1..64})"
 printf '%s\n' 0 > "$temp_dir/snapshot-time-counter"
 FAKE_DNS_MODE=direct-only FAKE_ALB_INGRESS_CIDR=8.8.4.4/32 \
   FAKE_DATABASE_BOOTSTRAP=snapshot FAKE_RDS_SNAPSHOT_IDENTIFIER=airbob-dataset-rehearsal-v20 \
@@ -3002,7 +3002,7 @@ jq -e '
 jq -e '
   .bootstrap.mode == "snapshot" and .bootstrap.rdsSnapshotIdentifier == "airbob-dataset-rehearsal-v20" and
   .bootstrap.rdsSnapshotSourceRunId == "lab-repeat-dump" and
-  .bootstrap.rdsSnapshotSourceResourceId == "db-ABCDEFGHIJKLMNOPQRSTUVWX" and
+  .bootstrap.rdsSnapshotSourceResourceId == "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ" and
   (.timing.resourceToDataReadySeconds | type == "number" and . >= 0) and
   (.timing.resourceToDirectReadySeconds | type == "number" and . >= 0)
 ' "$snapshot_readiness" >/dev/null || fail "snapshot-mode fake readiness source/timing is invalid"

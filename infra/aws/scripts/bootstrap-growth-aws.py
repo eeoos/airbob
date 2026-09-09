@@ -116,6 +116,11 @@ def publish_evidence(path, bucket, key):
     return version
 
 
+def validate_run_identity(run_id, resource_id):
+    contract.require(re.fullmatch(r'[a-z0-9][a-z0-9-]{2,31}', run_id) and
+                     re.fullmatch(r'db-[A-Z0-9]{26}', resource_id), 'Invalid run/RDS identity')
+
+
 def main(manifest_path):
     env = os.environ
     contract.require(env.get('AIRBOB_QUALIFICATION_ONLY') == 'true' and env.get('AIRBOB_DATABASE_BOOTSTRAP') == 'dump',
@@ -124,8 +129,7 @@ def main(manifest_path):
                      env['AIRBOB_DATASET_BUCKET'] == 'airbob-performance-lab-dataset-942632789808' and
                      env['AIRBOB_EVIDENCE_BUCKET'] == 'airbob-performance-lab-evidence-942632789808' and
                      env['AIRBOB_RDS_ENGINE_VERSION'] == '8.4.11', 'AWS qualification boundary mismatch')
-    contract.require(re.fullmatch(r'[a-z0-9][a-z0-9-]{2,31}', env['AIRBOB_RUN_ID']) and
-                     re.fullmatch(r'db-[A-Z0-9]{24}', env['AIRBOB_RDS_RESOURCE_ID']), 'Invalid run/RDS identity')
+    validate_run_identity(env['AIRBOB_RUN_ID'], env['AIRBOB_RDS_RESOURCE_ID'])
     manifest = contract.validate_manifest(contract.read(manifest_path), env['AIRBOB_DATASET_RELEASE'])
     contract.require(contract.sha(manifest_path) == env['AIRBOB_DATASET_MANIFEST_SHA256'], 'Wrapper trust anchor mismatch')
     contract.require(re.fullmatch(r'airbob-lab-[a-z0-9-]+\.[a-z0-9]+\.ap-northeast-2\.rds\.amazonaws\.com', env['AIRBOB_RDS_ENDPOINT']), 'Unexpected RDS endpoint')

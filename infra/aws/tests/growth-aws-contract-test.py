@@ -80,6 +80,13 @@ class ContractTest(unittest.TestCase):
                                              {'host': 'external.example'})
             execute.assert_not_called()
 
+    def test_actual_aws_rds_resource_id_format(self):
+        bootstrap.validate_run_identity('lab-growth-small-0909d', 'db-FRFZWLDC3ONWRJWIUY3TLMMXDU')
+        for bad in ['db-ABCDEFGHIJKLMNOPQRSTUVWX', 'db-' + 'A' * 27, 'db-' + 'a' * 26,
+                    'db-' + 'A' * 26 + '\n']:
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'Invalid run/RDS identity'):
+                bootstrap.validate_run_identity('lab-growth-small-0909d', bad)
+
 
 if __name__ == '__main__':
     unittest.main()

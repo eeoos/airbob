@@ -6,7 +6,7 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/airbob-qualification-test.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 jq ' .search.enabled=true ' "$repo/infra/aws/lab/tests/fixtures/dataset-manifest.json" > "$work/manifest.json"
-run=lab-prepare resource=db-ABCDEFGHIJKLMNOPQRSTUVWX
+run=lab-prepare resource=db-ABCDEFGHIJKLMNOPQRSTUVWXYZ
 write_dataset_qualification "$work/manifest.json" "$work/qualification.json" "$run" "$resource" 8.4.8 "$(printf '%064d' 1)"
 for field in '.verification.mode="approved-snapshot"' '.verification.search="disabled"' '.dataset.mysql.dumpSha256=("9"*64)' '.rdsEngineVersion="8.0.42"' '.extra=true'; do
   jq "$field" "$work/qualification.json" > "$work/changed.json"
@@ -40,7 +40,7 @@ AWS
 chmod +x "$work/bin/aws"
 export PATH="$work/bin:$PATH"
 printf '%s\n' '{"AutoScalingGroups":[]}' > "$work/asgs.json"
-jq -n '{DBInstances:[{DBInstanceIdentifier:"airbob-lab-prepare",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX",Engine:"mysql",EngineVersion:"8.4.8",DBInstanceStatus:"available",StorageEncrypted:true,PubliclyAccessible:false,StorageType:"gp3",Iops:3000,AllocatedStorage:100,TagList:[{Key:"RunId",Value:"lab-prepare"}]}]}' > "$work/instance.json"
+jq -n '{DBInstances:[{DBInstanceIdentifier:"airbob-lab-prepare",DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",Engine:"mysql",EngineVersion:"8.4.8",DBInstanceStatus:"available",StorageEncrypted:true,PubliclyAccessible:false,StorageType:"gp3",Iops:3000,AllocatedStorage:100,TagList:[{Key:"RunId",Value:"lab-prepare"}]}]}' > "$work/instance.json"
 promote() { "$repo/infra/aws/scripts/promote-rds-snapshot.sh" "$work/manifest.json" "$work/qualification.json" qualification-v1 airbob-lab-prepare airbob-dataset-fixture "$1"; }
 if FAKE_VERSION=changed-v2 promote "$work/wrong-version.json" > /dev/null 2>&1; then fail 'promotion accepted replaced S3 version'; fi
 [[ ! -f "$work/snapshot.json" ]] || fail 'invalid version created a snapshot'
@@ -49,7 +49,7 @@ promote "$work/retry.json"
 [[ $(grep -c ' rds create-db-snapshot ' "$work/aws.log") == 1 ]] || fail 'retry created another snapshot'
 jq -e '.schemaVersion==3 and .sourceQualification.key=="data-bootstrap/lab-prepare/dataset-qualification.json" and (has("sourceDirectReadinessReceipt")|not)' "$work/first.json" >/dev/null
 cp "$work/snapshot.json" "$work/original-snapshot.json"
-for drift in '.EngineVersion="8.4.9"' '.DbiResourceId="db-ZYXWVUTSRQPONMLKJIHGFEDC"' '.Encrypted=false' '.TagList[0].Value="wrong"'; do
+for drift in '.EngineVersion="8.4.9"' '.DbiResourceId="db-ZYXWVUTSRQPONMLKJIHGFEDCBA"' '.Encrypted=false' '.TagList[0].Value="wrong"'; do
   jq ".DBSnapshots[0] |= ($drift)" "$work/original-snapshot.json" > "$work/snapshot.json"
   if promote "$work/rejected.json" > /dev/null 2>&1; then fail "promotion accepted $drift"; fi
   [[ ! -f "$work/rejected.json" ]] || fail 'failed promotion published a receipt'
