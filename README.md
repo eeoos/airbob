@@ -21,7 +21,7 @@
 ## Tech Stack
 
 - Java 21, Spring Boot 3.5.8, Spring Data JPA, QueryDSL
-- MySQL 8, Flyway V1~V27
+- MySQL 8, Flyway V1~V28
 - Redis: 세션, 최근 본 숙소, 쿠폰 재고, 조회 캐시
 - Apache Kafka, Debezium Outbox Event Router
 - Elasticsearch, Nori analyzer, versioned index alias
@@ -32,10 +32,16 @@
 
 ### 예약 중복: 날짜별 MySQL inventory를 단일 진실의 원천으로 사용
 
-검색·요청사항·쿠폰 입력 중에는 재고를 잡지 않습니다. 먼저 5분짜리 quote로 현재 가격과
-가능 여부를 확인하고, 사용자가 결제로 이동할 때 멱등 checkout이 예약과 15분 hold를 같은
-트랜잭션에서 만듭니다. 응답에는 서버 시각과 절대 만료시각이 포함되므로 클라이언트 타이머가
-재고의 권위가 되지 않습니다.
+검색·요청사항·쿠폰 입력 중에는 재고를 잡지 않습니다. quote로 현재 가격과 가능 여부를
+확인하고, 사용자가 결제로 이동할 때 멱등 checkout이 예약과 15분 hold를 같은 트랜잭션에서
+만듭니다. quote에는 시간 경과에 따른 만료가 없으며, checkout에서 현재 숙소·일정·인원·가격·
+쿠폰·재고를 다시 검증합니다. 조건이 달라졌다면 결제를 시작하지 않고 변경 사항을 안내합니다.
+checkout 응답의 서버 시각과 hold 절대 만료시각이 기준이므로 클라이언트 타이머가 재고의
+권위가 되지 않습니다. 명시적 hold 해제와 결제 실패·복구에 따른 재고 처리도 유지합니다.
+
+quote 응답에는 `quote_expires_at`이 없습니다. 사용한 견적의 재사용은 차단하고, 같은 checkout
+멱등 키는 기존 예약을 반환합니다. 견적 데이터는 별도 보존 정책(`reservation.quote.retention`,
+기본 30일)에 따라 정리되며, 삭제된 견적은 새로 요청해야 합니다.
 
 공개 쓰기 API는 V1 하나로 통일했습니다. `POST /api/v1/reservation-quotes`로 견적을 만든 뒤
 `Idempotency-Key`와 `quote_uid`로 `POST /api/v1/reservations`를 호출합니다. 유료 예약은

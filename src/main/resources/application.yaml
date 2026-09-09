@@ -131,7 +131,7 @@ reservation:
       max-batches-per-run: ${RESERVATION_INVENTORY_RETENTION_MAX_BATCHES_PER_RUN:10}
       interval: ${RESERVATION_INVENTORY_RETENTION_INTERVAL:1h}
   quote:
-    duration: ${RESERVATION_QUOTE_DURATION:5m}
+    # Stored-quote cleanup only; checkout has no quote age deadline.
     retention: ${RESERVATION_QUOTE_RETENTION:30d}
     cleanup-batch-size: ${RESERVATION_QUOTE_CLEANUP_BATCH_SIZE:500}
     cleanup-interval: ${RESERVATION_QUOTE_CLEANUP_INTERVAL:10m}

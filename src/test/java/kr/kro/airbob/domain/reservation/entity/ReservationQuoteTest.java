@@ -10,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
-import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 
 @DisplayName("예약 견적 엔티티 테스트")
@@ -42,8 +41,7 @@ class ReservationQuoteTest {
 			"KRW",
 			stayPrice,
 			30_000L,
-			QUOTED_AT,
-			ReservationQuotePolicy.defaultPolicy()
+			QUOTED_AT
 		);
 	}
 
@@ -64,15 +62,8 @@ class ReservationQuoteTest {
 		assertThat(quote.getDiscountAmount()).isEqualTo(30_000L);
 		assertThat(quote.getAmount()).isEqualTo(330_000L);
 		assertThat(quote.getCurrency()).isEqualTo("KRW");
-		assertThat(quote.getExpiresAt()).isEqualTo(QUOTED_AT.plusSeconds(5 * 60));
+		assertThat(quote.getQuotedAt()).isEqualTo(QUOTED_AT);
 		assertThat(quote.getReservationId()).isNull();
-	}
-
-	@Test
-	@DisplayName("견적은 만료 시각 바로 전까지만 checkout에 사용할 수 있다")
-	void expiresAtTheExactBoundary() {
-		assertThat(quote.isExpiredAt(quote.getExpiresAt().minusNanos(1))).isFalse();
-		assertThat(quote.isExpiredAt(quote.getExpiresAt())).isTrue();
 	}
 
 	@Test
@@ -87,9 +78,9 @@ class ReservationQuoteTest {
 	}
 
 	@Test
-	@DisplayName("checkout이 만든 예약을 견적에 연결할 수 있다")
+	@DisplayName("시간이 지나도 checkout이 만든 예약을 견적에 연결할 수 있다")
 	void attachesTheCreatedReservation() {
-		Instant checkedOutAt = QUOTED_AT.plusSeconds(30);
+		Instant checkedOutAt = QUOTED_AT.plusSeconds(24 * 60 * 60);
 
 		quote.attachReservation(91L, checkedOutAt);
 

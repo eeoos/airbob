@@ -24,7 +24,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
@@ -42,7 +41,6 @@ import kr.kro.airbob.domain.reservation.exception.InvalidReservationLocalTimeExc
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,7 +59,6 @@ class ReservationQuoteServiceTest {
 	@Mock private CouponUsageService couponUsageService;
 	@Mock private BookingWindowProvider bookingWindowProvider;
 	@Mock private Clock clock;
-	@Spy private ReservationQuotePolicy quotePolicy = ReservationQuotePolicy.defaultPolicy();
 
 	@InjectMocks private ReservationQuoteService quoteService;
 
@@ -124,7 +121,6 @@ class ReservationQuoteServiceTest {
 		assertThat(response.currency()).isEqualTo("KRW");
 		assertThat(response.paymentRequired()).isTrue();
 		assertThat(response.inventoryHeld()).isFalse();
-		assertThat(response.quoteExpiresAt()).isEqualTo(NOW.plusSeconds(5 * 60));
 		assertThat(response.serverTime()).isEqualTo(NOW);
 
 		then(quoteRepository).should().save(quoteCaptor.capture());

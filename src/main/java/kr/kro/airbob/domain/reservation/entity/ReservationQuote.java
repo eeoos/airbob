@@ -17,7 +17,6 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.reservation.dto.ReservationRequest;
-import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -83,9 +82,6 @@ public class ReservationQuote extends BaseEntity {
 	@Column(nullable = false, updatable = false)
 	private Instant quotedAt;
 
-	@Column(nullable = false, updatable = false)
-	private Instant expiresAt;
-
 	@Column(unique = true)
 	private Long reservationId;
 
@@ -105,8 +101,7 @@ public class ReservationQuote extends BaseEntity {
 		String currency,
 		ReservationStayPricePolicy.StayPrice stayPrice,
 		long discountAmount,
-		Instant quotedAt,
-		ReservationQuotePolicy quotePolicy
+		Instant quotedAt
 	) {
 		long amount = Math.subtractExact(stayPrice.subtotal(), discountAmount);
 		if (discountAmount < 0 || amount < 0) {
@@ -129,12 +124,7 @@ public class ReservationQuote extends BaseEntity {
 			.amount(amount)
 			.currency(currency)
 			.quotedAt(quotedAt)
-			.expiresAt(quotePolicy.expiresAtFrom(quotedAt))
 			.build();
-	}
-
-	public boolean isExpiredAt(Instant now) {
-		return !expiresAt.isAfter(now);
 	}
 
 	public boolean matchesPricing(

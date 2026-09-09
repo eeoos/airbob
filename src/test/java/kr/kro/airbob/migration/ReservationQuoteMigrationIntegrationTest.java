@@ -38,6 +38,7 @@ class ReservationQuoteMigrationIntegrationTest {
 		Flyway.configure()
 			.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
 			.locations("classpath:db/migration")
+			.target("23")
 			.load()
 			.migrate();
 	}

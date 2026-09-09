@@ -81,6 +81,17 @@ DB writer 자격 증명 사용을 통제해야 한다. preflight를 통과한 �
     DEPLOY_DIR="$HOME/airbob" IMAGE_TAG="<git-sha-7>" \
       sh "$HOME/airbob/scripts/deploy-oci.sh"
 
+### V28 견적 만료 제거 배포
+
+V28은 `reservation_quote.expires_at`과 해당 CHECK만 제거한다. 기존 견적 가격·회원·예약 연결과
+`created_at` 기반 보존 정리는 유지한다. 기존 migration을 수정하거나 견적을 일괄 삭제하지 않는다.
+
+`quote_expires_at` 없는 응답과 기존 응답을 모두 읽는 프런트엔드를 먼저 배포한다. 이후 이전
+백엔드와 별도 quote reader/writer를 중지하고 V28 migration과 새 백엔드를 적용한다. 이미 열린
+구버전 브라우저는 새 응답을 처리하지 못할 수 있으므로 새 화면을 로드해야 한다. 새 프런트엔드는
+기존 결제 복구 기록의 예약·결제 식별자를 보존한다. V28 적용 후에는 제거된 컬럼을 요구하는
+구버전 백엔드로 돌아가지 말고 V28 호환 바이너리로 roll-forward한다.
+
 ## Migration 경계와 실패 처리
 
 배포 실패는 public admission을 닫기 전후가 다르다.
@@ -89,7 +100,7 @@ DB writer 자격 증명 사용을 통제해야 한다. preflight를 통과한 �
 | --- | --- | --- |
 | config 검증·image pull | script가 실패하고 기존 app/Nginx는 건드리지 않는다 | 원인을 고친 뒤 같은 SHA 또는 수정 SHA로 재실행한다 |
 | V25 preflight 실패 | app과 Nginx를 중지하지만 Flyway는 실행하지 않는다 | 남은 writer와 데이터·시간대를 확인한다. 자동 V24 재시작은 하지 않으며 명시적 운영 판단 뒤 재개한다 |
-| Flyway 시작 이후 | app과 Nginx를 중지한 채 실패한다 | migration/connector 상태를 확인하고 V25 cutover·V26 inventory·현재 V27 index를 이해하는 current binary로 roll-forward한다 |
+| Flyway 시작 이후 | app과 Nginx를 중지한 채 실패한다 | migration/connector 상태를 확인하고 V25 cutover·V26 inventory·V27 index·V28 quote를 이해하는 current binary로 roll-forward한다 |
 
 Nginx와 기존 app을 중지한 뒤 별도 Flyway container가 migration을 적용한다. Flyway가
 성공하기 전에는 새 EventRouter connector를 등록하지 않는다. 이 경계를 넘은 뒤 CD는
@@ -100,7 +111,7 @@ Nginx와 기존 app을 중지한 뒤 별도 Flyway container가 migration을 적
 2. DB schema version과 app health 실패 유형을 확인한다. secret, provider body,
    connector raw trace는 일반 로그나 티켓에 붙이지 않는다.
 3. connector monitor와 Kafka topic은 유지한다.
-4. V25 cutover와 V26 inventory를 이해하고 현재 V27 schema에 맞는 수정 image를 build/push한다.
+4. V25 cutover와 V26 inventory를 이해하고 현재 V28 schema에 맞는 수정 image를 build/push한다.
 5. CD 또는 deploy-oci.sh로 roll-forward하고 app health가 통과한 뒤에만 Nginx를 연다.
 6. QUEUED, EXECUTING, WAITING_RETRY, MANUAL_REVIEW 상태를 결제 런북으로 점검한다.
 
