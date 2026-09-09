@@ -13,10 +13,23 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.payment.entity.PaymentOperation;
 import kr.kro.airbob.domain.payment.entity.PaymentOperationType;
+import kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow;
 
 public interface PaymentOperationRepository extends JpaRepository<PaymentOperation, Long> {
 
 	Optional<PaymentOperation> findByOperationUid(UUID operationUid);
+
+	@Query("""
+		select new kr.kro.airbob.domain.payment.repository.projection.PaymentOperationDetailRow(
+			po.operationUid, po.requesterMemberId, po.operationType, po.status,
+			po.failureCode, po.updatedAt, po.nextAttemptAt,
+			r.reservationUid, r.status, r.checkInAt, r.expiresAt
+		)
+		from PaymentOperation po
+		join po.reservation r
+		where po.operationUid = :operationUid
+		""")
+	Optional<PaymentOperationDetailRow> findDetailByOperationUid(@Param("operationUid") UUID operationUid);
 
 	Optional<PaymentOperation> findByDeduplicationKey(String deduplicationKey);
 

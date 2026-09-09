@@ -27,8 +27,7 @@ public class MemberResponse {
 	public record MeInfo(
 		Long id,
 		String email,
-		String nickname,
-		String thumbnailImageUrl
+		String nickname
 	) {
 	}
 }

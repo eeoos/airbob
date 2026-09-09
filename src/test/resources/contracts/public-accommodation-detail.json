@@ -1,0 +1,34 @@
+{
+  "id": 30,
+  "name": "공개 상세 계약 숙소",
+  "description": "창가에서 쉬어가는 숙소입니다.",
+  "type": "APARTMENT",
+  "base_price": 150000,
+  "currency": "KRW",
+  "check_in_time": "15:30:00",
+  "check_out_time": "11:00:00",
+  "time_zone_id": "Asia/Seoul",
+  "is_in_wishlist": false,
+  "address_summary": {
+    "country": "대한민국",
+    "state": "서울특별시",
+    "city": "서울",
+    "district": "마포구"
+  },
+  "coordinate": { "latitude": 37.55, "longitude": 126.92 },
+  "host": {
+    "id": 20,
+    "nickname": "공개 상세 호스트",
+    "thumbnail_image_url": "/contract/public-host.jpg"
+  },
+  "policy": { "max_occupancy": 4, "infant_occupancy": 1, "pet_occupancy": 0 },
+  "amenities": [
+    { "type": "WIFI", "count": 1 },
+    { "type": "TV", "count": 2 }
+  ],
+  "images": [
+    { "id": 60, "image_url": "/contract/public-first.jpg" },
+    { "id": 62, "image_url": "/contract/public-second.jpg" }
+  ],
+  "review_summary": { "total_count": 4, "average_rating": 4.5 }
+}

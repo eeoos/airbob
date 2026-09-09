@@ -9,12 +9,21 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
+import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationAmenityProjection;
 import kr.kro.airbob.domain.accommodation.repository.querydsl.AccommodationAmenityRepositoryCustom;
 
 public interface AccommodationAmenityRepository extends JpaRepository<AccommodationAmenity, Long>,
     AccommodationAmenityRepositoryCustom {
 
     List<AccommodationAmenity> findAllByAccommodationId(Long accommodationId);
+
+    @Query("""
+        select new kr.kro.airbob.domain.accommodation.repository.projection.AccommodationAmenityProjection(
+            amenity.amenityCode, amenity.count)
+        from AccommodationAmenity amenity where amenity.accommodation.id = :accommodationId
+        """)
+    List<AccommodationAmenityProjection> findDetailAmenitiesByAccommodationId(@Param("accommodationId") Long accommodationId);
+
     List<AccommodationAmenity> findAllByAccommodation_AccommodationUid(UUID accommodationUid);
 
     void deleteByAccommodationId(Long accommodationId);

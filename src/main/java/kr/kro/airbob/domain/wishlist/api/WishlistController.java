@@ -68,6 +68,15 @@ public class WishlistController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
+	@GetMapping("/v1/members/wishlists/membership")
+	public ResponseEntity<ApiResponse<WishlistResponse.Membership>> findMembership(
+		@RequestParam Long accommodationId,
+		@RequestParam(required = false) Long wishlistId,
+		@CurrentMemberId Long memberId) {
+		return ResponseEntity.ok(ApiResponse.success(
+			wishlistService.findMembership(memberId, accommodationId, wishlistId)));
+	}
+
 	@PostMapping("/v1/members/wishlists/accommodations/{wishlistId}")
 	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.Create>> createWishlistAccommodation(
 		@PathVariable Long wishlistId,

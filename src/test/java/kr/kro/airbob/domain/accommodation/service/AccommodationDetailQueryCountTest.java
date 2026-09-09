@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.accommodation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,8 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -36,13 +39,18 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
+import kr.kro.airbob.domain.accommodation.dto.AmenityResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
+import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
+import kr.kro.airbob.domain.image.entity.AccommodationImage;
+import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryDayRepository;
@@ -140,6 +148,71 @@ class AccommodationDetailQueryCountTest {
 	}
 
 	@Test
+	@DisplayName("호스트 편집 상세는 호스트·후기 엔티티 없이 SELECT 세 번으로 필요한 목록을 조회한다")
+	void findsHostEditorDetailInThreeSelectsWithoutHostOrReviewEntities() {
+		Member host = saveHost("host-editor-query");
+		Accommodation accommodation = savePublishedAccommodation(host, "host-editor-accommodation");
+		saveReviewSummary(accommodation, 4, 18L, "4.50");
+		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "WIFI", 1));
+		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "TV", 2));
+		AccommodationImage first = AccommodationImage.builder().accommodation(accommodation).imageUrl("/first.jpg").build();
+		AccommodationImage second = AccommodationImage.builder().accommodation(accommodation).imageUrl("/second.jpg").build();
+		entityManager.persist(first);
+		entityManager.persist(second);
+		Statistics statistics = prepareQueryMeasurement();
+
+		AccommodationResponse.HostDetail response =
+			accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId());
+
+		assertThat(response.name()).isEqualTo("host-editor-accommodation");
+		assertThat(response.policy().maxOccupancy()).isEqualTo(4);
+		assertThat(response.address().city()).isEqualTo("서울");
+		assertThat(response.timeZoneId()).isEqualTo("Asia/Seoul");
+		assertThat(response.amenities()).containsExactlyInAnyOrder(
+			new AmenityResponse.AmenityInfo("WIFI", 1),
+			new AmenityResponse.AmenityInfo("TV", 2));
+		assertThat(response.images()).extracting(ImageResponse.ImageInfo::id)
+			.containsExactly(first.getId(), second.getId());
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount()).isZero();
+		assertThat(statistics.getEntityStatistics(AccommodationReviewSummary.class.getName()).getLoadCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("주소·정책이 없는 초안도 소유자는 빈 목록과 null 정책 필드로 조회할 수 있다")
+	void findsOwnedDraftWithoutOptionalDetails() {
+		Member host = saveHost("empty-host-editor");
+		Accommodation accommodation = accommodationRepository.save(Accommodation.createAccommodation(host));
+		Statistics statistics = prepareQueryMeasurement();
+
+		AccommodationResponse.HostDetail response =
+			accommodationQueryService.findHostAccommodationDetail(accommodation.getId(), host.getId());
+
+		assertThat(response.id()).isEqualTo(accommodation.getId());
+		assertThat(response.address().city()).isNull();
+		assertThat(response.policy().maxOccupancy()).isNull();
+		assertThat(response.images()).isEmpty();
+		assertThat(response.amenities()).isEmpty();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(statistics.getEntityStatistics(Member.class.getName()).getLoadCount()).isZero();
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("타인 소유이거나 없는 숙소는 첫 조회에서 거부하고 자식 목록을 읽지 않는다")
+	void rejectsInaccessibleHostDetailBeforeLoadingCollections(boolean missing) {
+		Member host = saveHost("owned-host-editor");
+		Member other = saveHost("other-host-editor");
+		Accommodation accommodation = savePublishedAccommodation(host, "owned-accommodation");
+		Statistics statistics = prepareQueryMeasurement();
+
+		assertThatThrownBy(() -> accommodationQueryService.findHostAccommodationDetail(
+			missing ? Long.MAX_VALUE : accommodation.getId(), other.getId()))
+			.isInstanceOf(AccommodationNotFoundException.class);
+		assertThat(statistics.getPrepareStatementCount()).isOne();
+	}
+
+	@Test
 	@DisplayName("공개 숙소 상세는 리뷰 요약을 포함해 SELECT 세 번으로 조회한다")
 	void findsPublicAccommodationDetailWithReviewSummaryInThreeSelects() {
 		Member host = saveHost("accommodation-detail-query");
@@ -153,6 +226,9 @@ class AccommodationDetailQueryCountTest {
 		assertThat(response.reviewSummary().totalCount()).isEqualTo(4);
 		assertThat(response.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
 		assertThat(response.timeZoneId()).isEqualTo("Asia/Seoul");
+		assertThat(response.host().id()).isEqualTo(host.getId());
+		assertThat(response.coordinate().latitude()).isEqualTo(37.55);
+		assertThat(response.coordinate().longitude()).isEqualTo(126.92);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
 	}
 
@@ -223,6 +299,8 @@ class AccommodationDetailQueryCountTest {
 			.address(Address.builder()
 				.country("대한민국")
 				.city("서울")
+				.latitude(37.55)
+				.longitude(126.92)
 				.build())
 			.occupancyPolicy(OccupancyPolicy.builder()
 				.maxOccupancy(4)

@@ -11,16 +11,19 @@ import org.springframework.data.domain.Slice;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
+import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
 
 public interface AccommodationRepositoryCustom {
     Optional<Accommodation> findWithDetailsByAccommodationUid(UUID accommodationUid);
-    Optional<AccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
+    Optional<PublicAccommodationDetailProjection> findWithDetailsByAccommodationIdAndStatus(
         Long accommodationId,
         AccommodationStatus status
     );
 
-    Slice<Accommodation> findMyAccommodationsByHostIdWithCursor(
+    Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(
         Long hostId,
         Long lastId,
         LocalDateTime lastCreatedAt,
@@ -28,9 +31,10 @@ public interface AccommodationRepositoryCustom {
         Pageable pageable
     );
 
-	List<Accommodation> findWithAddressByIdAndStatusIn(List<Long> accommodationIds, AccommodationStatus status);
+	List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+		List<Long> accommodationIds, AccommodationStatus status);
 
-	Optional<Accommodation> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
+	Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
 
 	Page<Accommodation> findForIndexing(Pageable pageable);
 

@@ -22,6 +22,13 @@ public class WishlistResponse {
 	) {
 	}
 
+	public record Membership(
+		boolean isInAnyWishlist,
+		Boolean targetWishlistContains,
+		boolean targetWishlistFound
+	) {
+	}
+
 	@Builder
 	public record WishlistInfos(
 		List<WishlistInfo> wishlists,

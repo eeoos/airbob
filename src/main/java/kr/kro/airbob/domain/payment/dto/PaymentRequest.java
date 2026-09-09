@@ -32,11 +32,4 @@ public class PaymentRequest {
 		Long cancelAmount // 취소 금액, null이면 전액 취소
 		) {}
 
-	public record VirtualAccount(
-		@NotBlank(message = "은행 코드는 필수입니다.")
-		String bankCode,
-
-		@NotBlank(message = "고객 이름은 필수입니다.")
-		String customerName
-		) {}
 }

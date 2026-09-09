@@ -331,6 +331,8 @@ public class AccommodationCommandService {
 			OccupancyPolicy newPolicy = OccupancyPolicy.createOccupancyPolicy(occupancyPolicyInfo);
 			OccupancyPolicy savedPolicy = occupancyPolicyRepository.save(newPolicy);
 			accommodation.updateOccupancyPolicy(savedPolicy);
+		} else {
+			currentPolicy.update(occupancyPolicyInfo);
 		}
 	}
 

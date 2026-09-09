@@ -13,19 +13,23 @@ import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
 
 @Repository
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
 	@Query("""
-		select c
+		select new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection(
+			c.id, c.name, c.description, c.discountType, c.discountValue, c.minPaymentPrice,
+			c.maxDiscountAmount, c.issueStartAt, c.issueEndAt, c.usableFrom, c.usableUntil,
+			c.totalQuantity, c.issuedQuantity)
 		from Coupon c
 		where c.isActive = true
 		  and c.redisStockPreparedAt is not null
 		  and c.issueEndAt > :now
 		order by c.issueStartAt desc, c.id desc
 		""")
-	List<Coupon> findCampaigns(@Param("now") LocalDateTime now);
+	List<CouponCampaignProjection> findCampaigns(@Param("now") LocalDateTime now);
 
 	/**
 	 * Lua 운영 경로로 전환할 수 없는 기존 Redisson 발급 쿠폰 수를 조회한다.

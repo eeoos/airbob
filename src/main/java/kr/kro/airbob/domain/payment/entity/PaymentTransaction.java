@@ -10,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
-import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
@@ -64,7 +63,7 @@ public class PaymentTransaction extends BaseEntity {
 	@Column(length = FAILURE_MESSAGE_MAX_LENGTH)
 	private String failureMessage;
 
-	// 가상계좌 정보
+	// 과거 원장 및 PG 승인 메타데이터 보존용. 신규 가상계좌 발급은 지원하지 않는다.
 	private String virtualBankCode;
 	private String virtualAccountNumber;
 	private String virtualCustomerName;
@@ -122,19 +121,6 @@ public class PaymentTransaction extends BaseEntity {
 			.build();
 	}
 
-	// 가상계좌 발급 (Payment 생성 전)
-	public static PaymentTransaction virtualIssued(TossPaymentResponse response, Reservation reservation) {
-		TossPaymentResponse.VirtualAccount virtualAccount = response.getVirtualAccount();
-		return baseFromResponse(response, reservation)
-			.transactionType(PaymentTransactionType.VIRTUAL_ISSUED)
-			.virtualBankCode(virtualAccount != null ? virtualAccount.getBankCode() : null)
-			.virtualAccountNumber(virtualAccount != null ? virtualAccount.getAccountNumber() : null)
-			.virtualCustomerName(virtualAccount != null ? virtualAccount.getCustomerName() : null)
-			.virtualDueDate(virtualAccount != null && virtualAccount.getDueDate() != null
-				? virtualAccount.getDueDate().toInstant() : null)
-			.build();
-	}
-
 	public static PaymentTransaction cancel(
 		CancelledPayment cancelled,
 		Reservation reservation,
@@ -180,19 +166,6 @@ public class PaymentTransaction extends BaseEntity {
 			.failureCode(limitLength(failureCode, FAILURE_CODE_MAX_LENGTH))
 			.failureMessage(limitLength(failureMessage, FAILURE_MESSAGE_MAX_LENGTH))
 			.build();
-	}
-
-	private static PaymentTransactionBuilder<?, ?> baseFromResponse(TossPaymentResponse response, Reservation reservation) {
-		TossPaymentResponse.Failure failure = response.getFailure();
-		return PaymentTransaction.builder()
-			.reservationId(reservation.getId())
-			.status(PaymentStatus.from(response.getStatus()))
-			.amount(response.getTotalAmount())
-			.paymentKey(response.getPaymentKey())
-			.orderId(response.getOrderId())
-			.method(PaymentMethod.fromDescription(response.getMethod()))
-			.failureCode(failure != null ? failure.getCode() : null)
-			.failureMessage(failure != null ? failure.getMessage() : null);
 	}
 
 	private static String limitLength(String value, int maxLength) {

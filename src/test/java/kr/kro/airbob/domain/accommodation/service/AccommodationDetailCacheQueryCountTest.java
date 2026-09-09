@@ -47,18 +47,22 @@ import kr.kro.airbob.domain.accommodation.cache.monitoring.FailSafeAccommodation
 import kr.kro.airbob.domain.accommodation.cache.monitoring.MicrometerAccommodationDetailCacheMetricRecorder;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.entity.OccupancyPolicy;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.domain.image.service.S3ImageUploader;
+import kr.kro.airbob.domain.image.entity.AccommodationImage;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.domain.wishlist.entity.Wishlist;
+import kr.kro.airbob.domain.wishlist.entity.WishlistAccommodation;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.search.messaging.AccommodationSearchRefreshPublisher;
 
@@ -146,6 +150,8 @@ class AccommodationDetailCacheQueryCountTest {
 			.ratingSum(18L)
 			.averageRating(new BigDecimal("4.50"))
 			.build());
+		entityManager.persist(AccommodationAmenity.createAccommodationAmenity(accommodation, "WIFI", 1));
+		entityManager.persist(AccommodationImage.builder().accommodation(accommodation).imageUrl("/cache-image.jpg").build());
 	}
 
 	@Test
@@ -157,6 +163,9 @@ class AccommodationDetailCacheQueryCountTest {
 
 		assertThat(first.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
 		assertThat(cold.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(cold.getEntityLoadCount()).isZero();
+		assertThat(first.images()).hasSize(1);
+		assertThat(first.amenities()).hasSize(1);
 
 		Statistics warm = prepareMeasurement();
 		AccommodationResponse.DetailInfo second = queryService.findAccommodation(accommodation.getId(), null);
@@ -180,6 +189,37 @@ class AccommodationDetailCacheQueryCountTest {
 
 		assertThat(second.isInWishlist()).isFalse();
 		assertThat(warm.getPrepareStatementCount()).isEqualTo(1);
+	}
+
+	@Test
+	void cachedSnapshotDoesNotShareWishlistStateAcrossViewers() {
+		Member other = memberRepository.save(Member.builder().email("other-cache@test.invalid").nickname("other").build());
+		Wishlist wishlist = Wishlist.builder().member(host).name("개인 저장 목록").build();
+		entityManager.persist(wishlist);
+		entityManager.persist(WishlistAccommodation.builder().wishlist(wishlist).accommodation(accommodation).build());
+		Statistics cold = prepareMeasurement();
+
+		var ownerView = queryService.findAccommodation(accommodation.getId(), host.getId());
+		assertThat(ownerView.isInWishlist()).isTrue();
+		assertThat(cold.getPrepareStatementCount()).isEqualTo(4);
+		assertThat(cold.getEntityLoadCount()).isZero();
+
+		Statistics otherWarm = prepareMeasurement();
+		var otherView = queryService.findAccommodation(accommodation.getId(), other.getId());
+		assertThat(otherView.isInWishlist()).isFalse();
+		assertThat(otherView.images()).isEqualTo(ownerView.images());
+		assertThat(otherView.amenities()).isEqualTo(ownerView.amenities());
+		assertThat(otherWarm.getPrepareStatementCount()).isEqualTo(1);
+
+		Statistics anonymousWarm = prepareMeasurement();
+		assertThat(queryService.findAccommodation(accommodation.getId(), null).isInWishlist()).isFalse();
+		assertThat(anonymousWarm.getPrepareStatementCount()).isZero();
+
+		entityManager.createQuery("delete WishlistAccommodation wa where wa.wishlist.id = :wishlistId")
+			.setParameter("wishlistId", wishlist.getId()).executeUpdate();
+		Statistics afterRemoval = prepareMeasurement();
+		assertThat(queryService.findAccommodation(accommodation.getId(), host.getId()).isInWishlist()).isFalse();
+		assertThat(afterRemoval.getPrepareStatementCount()).isEqualTo(1);
 	}
 
 	private Statistics prepareMeasurement() {

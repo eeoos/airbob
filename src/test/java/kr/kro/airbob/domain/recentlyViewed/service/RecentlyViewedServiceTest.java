@@ -98,7 +98,8 @@ class RecentlyViewedServiceTest {
 		verify(summaryRepository).findByAccommodationIdIn(anyList());
 		verify(wishlistAccommodationRepository)
 			.findAccommodationIdsByMemberIdAndAccommodationIds(eq(memberId), anyList());
-		verify(accommodationRepository, never()).findWithAddressByIdAndStatusIn(anyList(), eq(AccommodationStatus.PUBLISHED));
+		verify(accommodationRepository, never())
+			.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED));
 		verify(accommodationRepository, never()).findByIdAndStatus(anyLong(), eq(AccommodationStatus.PUBLISHED));
 		verify(summaryRepository, never()).findByAccommodationId(anyLong());
 		verify(wishlistAccommodationRepository, never())

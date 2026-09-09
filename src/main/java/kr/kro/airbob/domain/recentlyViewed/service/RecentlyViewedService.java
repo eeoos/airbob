@@ -20,6 +20,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
@@ -100,9 +101,11 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<Accommodation> accommodationsInDb = accommodationRepository.findWithAddressByIdAndStatusIn(new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
-		Map<Long, Accommodation> accommodationMap = accommodationsInDb.stream()
-			.collect(Collectors.toMap(Accommodation::getId, accommodation -> accommodation));
+		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationRepository
+			.findWithAddressAndReviewSummaryByIdInAndStatus(
+				new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
+		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
+			.collect(Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));
 
 		Set<Long> existingIdsInDb = accommodationMap.keySet();
 		List<String> idsToDeleteFromRedis = accommodationIdsFromRedis.stream()
@@ -115,25 +118,26 @@ public class RecentlyViewedService {
 			redisTemplate.opsForZSet().remove(key, idsToDeleteFromRedis.toArray(new Object[0]));
 		}
 
+		if (existingIdsInDb.isEmpty()) {
+			return AccommodationResponse.RecentlyViewedAccommodationInfos.from(List.of());
+		}
+
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
-		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> recentlyViewedAccommodationInfos = recentlyViewedWithScores.stream()
 			.map(tuple -> {
 				Long accommodationId = Long.parseLong(tuple.getValue());
-				Accommodation accommodation = accommodationMap.get(accommodationId);
+				RecentlyViewedAccommodationProjection projection = accommodationMap.get(accommodationId);
 
-				if (accommodation == null) {
+				if (projection == null) {
 					return null;
 				}
 
 				Instant viewedAt = Instant.ofEpochMilli(tuple.getScore().longValue());
 
-				ReviewResponse.ReviewSummary reviewSummary = reviewSummaryMap.get(accommodationId);
-
-				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(viewedAt, accommodation,
-					reviewSummary, wishlistMap.getOrDefault(accommodationId, false));
+				return AccommodationResponse.RecentlyViewedAccommodationInfo.from(viewedAt, projection,
+					wishlistMap.getOrDefault(accommodationId, false));
 			})
 			.filter(Objects::nonNull)
 			.toList();

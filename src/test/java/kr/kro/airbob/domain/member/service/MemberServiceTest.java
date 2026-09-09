@@ -25,6 +25,7 @@ import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberHistoryRepository;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.member.repository.projection.MemberProfileProjection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mindrot.jbcrypt.BCrypt;
@@ -121,14 +122,8 @@ class MemberServiceTest {
     void getMemberInfoReturnsActiveMemberProfile() {
         MemberService service = new MemberService(
             memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
-        Member member = Member.builder()
-            .id(10L)
-            .email("guest@airbob.test")
-            .nickname("guest")
-            .thumbnailImageUrl("https://img.example/guest.png")
-            .status(MemberStatus.ACTIVE)
-            .build();
-        given(memberRepository.findByIdAndStatus(10L, MemberStatus.ACTIVE))
+        MemberProfileProjection member = new MemberProfileProjection(10L, "guest@airbob.test", "guest");
+        given(memberRepository.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
             .willReturn(Optional.of(member));
 
         MemberResponse.MeInfo result = service.getMemberInfo(10L);
@@ -136,14 +131,13 @@ class MemberServiceTest {
         assertThat(result.id()).isEqualTo(10L);
         assertThat(result.email()).isEqualTo("guest@airbob.test");
         assertThat(result.nickname()).isEqualTo("guest");
-        assertThat(result.thumbnailImageUrl()).isEqualTo("https://img.example/guest.png");
     }
 
     @Test
     void getMemberInfoRejectsMissingOrInactiveMember() {
         MemberService service = new MemberService(
             memberRepository, historyRepository, sessionInvalidator, FIXED_CLOCK);
-        given(memberRepository.findByIdAndStatus(10L, MemberStatus.ACTIVE))
+        given(memberRepository.findProfileByIdAndStatus(10L, MemberStatus.ACTIVE))
             .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getMemberInfo(10L))

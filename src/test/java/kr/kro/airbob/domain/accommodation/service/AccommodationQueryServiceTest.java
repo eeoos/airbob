@@ -21,7 +21,7 @@ import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCache;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationDetailSnapshot;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
+import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -29,7 +29,6 @@ import kr.kro.airbob.domain.accommodation.repository.projection.AccommodationBoo
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("숙소 조회 서비스 단위 테스트")
@@ -40,7 +39,6 @@ class AccommodationQueryServiceTest {
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(BOOKING_WINDOW_START);
 
 	@Mock private AccommodationRepository accommodationRepository;
-	@Mock private AccommodationReviewSummaryRepository reviewSummaryRepository;
 	@Mock private ReservationInventoryService inventoryService;
 	@Mock private CursorPageInfoCreator cursorPageInfoCreator;
 	@Mock private BookingWindowProvider bookingWindowProvider;
@@ -183,12 +181,11 @@ class AccommodationQueryServiceTest {
 	@Test
 	@DisplayName("호스트 숙소 상세 조회는 이미지를 숙소 ID로 조회한다")
 	void hostAccommodationDetailUsesAccommodationIdForImages() {
-		Accommodation accommodation = mock(Accommodation.class);
+		HostAccommodationDetailProjection accommodation = mock(HostAccommodationDetailProjection.class);
 		when(accommodationRepository.findWithDetailsByIdAndHostId(1L, 7L))
 			.thenReturn(Optional.of(accommodation));
 		when(accommodationDetailReader.loadAmenities(1L)).thenReturn(List.of());
 		when(accommodationDetailReader.loadImages(1L)).thenReturn(List.of());
-		when(reviewSummaryRepository.findByAccommodationId(1L)).thenReturn(Optional.empty());
 
 		accommodationQueryService.findHostAccommodationDetail(1L, 7L);
 

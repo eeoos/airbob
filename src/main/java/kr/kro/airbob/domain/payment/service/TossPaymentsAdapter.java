@@ -14,10 +14,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -29,16 +26,13 @@ import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.payment.dto.TossPaymentResponse;
 import kr.kro.airbob.domain.payment.entity.PaymentMethod;
 import kr.kro.airbob.domain.payment.entity.PaymentStatus;
-import kr.kro.airbob.domain.payment.exception.TossPaymentException;
 import kr.kro.airbob.domain.payment.exception.TossPaymentResponseParsingException;
-import kr.kro.airbob.domain.payment.exception.code.VirtualAccountIssueErrorCode;
 import kr.kro.airbob.domain.payment.service.gateway.ConfirmedPayment;
 import kr.kro.airbob.domain.payment.service.gateway.CancelledPayment;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationFailureClassifier;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentGatewayResult;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommand;
 import kr.kro.airbob.domain.payment.service.gateway.PaymentProviderGateway;
-import kr.kro.airbob.domain.reservation.entity.Reservation;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -49,9 +43,6 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	public static final String ORDER_ID = "orderId";
 	public static final String AMOUNT = "amount";
 	public static final String CANCEL_REASON = "cancelReason";
-	public static final String BANK = "bank";
-	public static final String CUSTOMER_NAME = "customerName";
-	public static final int VALID_HOURS_VALUE = 24;
 	public static final String UNKNOWN_ERROR = "UNKNOWN_ERROR";
 	public static final String IDEMPOTENT_REQUEST_PROCESSING = "IDEMPOTENT_REQUEST_PROCESSING";
 	public static final String PARSING_FAILED_CODE = "PARSING_FAILED";
@@ -60,9 +51,6 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	public static final String CANCEL_AMOUNT = "cancelAmount";
 	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 	public static final String GET_PATH_BY_PAYMENT_KEY = "/v1/payments/{paymentKey}";
-	public static final String VALID_HOURS = "validHours";
-	public static final String VIRTUAL_ACCOUNTS_PATH = "/v1/virtual-accounts";
-	public static final String TOSS_API_SERVER_ERROR = "토스 페이먼츠 API 서버 에러: ";
 	private static final String SAFE_UNKNOWN_MESSAGE = "결제 결과를 확인하고 있습니다.";
 	private static final String SAFE_RETRYABLE_MESSAGE = "결제 서비스에 연결할 수 없어 다시 시도합니다.";
 	private static final String SAFE_NOT_FOUND_MESSAGE = "결제 정보를 찾을 수 없습니다.";
@@ -427,39 +415,6 @@ public class TossPaymentsAdapter implements PaymentProviderGateway {
 	private PaymentGatewayResult.ManualReviewRequired cancellationReview(String code) {
 		return new PaymentGatewayResult.ManualReviewRequired(
 			code, SAFE_CANCELLATION_REVIEW_MESSAGE);
-	}
-
-	// TODO: 도메인 재발급 후 웹훅 구현 필요
-	@Retryable(
-		retryFor = { ResourceAccessException.class },
-		maxAttempts = 3,
-		backoff = @Backoff(delay = 2000)
-	)
-	public TossPaymentResponse issueVirtualAccount(Reservation reservation,String bankCode, String customerName) {
-		requireEnabled();
-
-		Map<String, Object> payload = new HashMap<>();
-		payload.put(AMOUNT, reservation.getTotalPrice());
-		payload.put(ORDER_ID, reservation.getReservationUid().toString());
-		payload.put(BANK, bankCode);
-		payload.put(CUSTOMER_NAME, customerName);
-		payload.put(VALID_HOURS, VALID_HOURS_VALUE); // 24시간으로 제한
-
-		return Objects.requireNonNull(
-			tossPaymentsRestClient.post()
-				.uri(VIRTUAL_ACCOUNTS_PATH)
-				.body(payload)
-				.retrieve()
-				.onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-					throw new ResourceAccessException(TOSS_API_SERVER_ERROR + response.getStatusCode());
-				})
-				.onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-					String errorCode = readErrorCode(response);
-					throw new TossPaymentException(VirtualAccountIssueErrorCode.fromErrorCode(errorCode));
-				})
-				.toEntity(TossPaymentResponse.class)
-				.getBody()
-		);
 	}
 
 	private String readErrorCode(ClientHttpResponse response) {
