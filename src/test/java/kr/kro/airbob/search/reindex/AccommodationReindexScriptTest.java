@@ -309,6 +309,19 @@ class AccommodationReindexScriptTest {
 			.doesNotContain("\"remove\"");
 	}
 
+	@Test
+	@DisplayName("HEAD 확인은 응답 본문을 기다리지 않는 curl HEAD 모드를 사용한다")
+	void usesCurlHeadModeForHeadProbes() throws Exception {
+		Execution execution = execute("bootstrap", true);
+
+		assertThat(execution.exitCode()).withFailMessage(execution.output()).isZero();
+		String invocations = Files.readString(tempDir.resolve("curl-invocations.log"));
+		assertThat(invocations.lines().filter(line -> line.contains("--head")).toList())
+			.anyMatch(line -> line.endsWith("http://elasticsearch:9200/accommodations"))
+			.anyMatch(line -> line.endsWith("http://elasticsearch:9200/" + TARGET_INDEX));
+		assertThat(invocations).doesNotContain("-X HEAD");
+	}
+
 	private Execution execute(String scenario, boolean confirmPaused) throws Exception {
 		return execute(scenario, confirmPaused, Map.of());
 	}
@@ -371,6 +384,7 @@ class AccommodationReindexScriptTest {
 		while (($#)); do
 		  case "$1" in
 		    -X) method="$2"; shift 2 ;;
+		    --head) method=HEAD; shift ;;
 		    -o) output_file="$2"; shift 2 ;;
 		    -w) shift 2 ;;
 		    -H|-u|--config|--connect-timeout|--max-time) shift 2 ;;

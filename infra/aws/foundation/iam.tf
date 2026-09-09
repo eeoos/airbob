@@ -28,11 +28,31 @@ locals {
     }
     compute_ec2_iam = {
       name     = "airbob-lab-operator-compute-ec2-iam"
-      document = local.lab_compute_ec2_iam_policy
+      document = local.lab_compute_ec2_core_policy
     }
     compute_ssm_dns = {
       name     = "airbob-lab-operator-compute-ssm-dns"
       document = local.lab_compute_ssm_dns_policy
+    }
+    safety_mutations = {
+      name     = "airbob-lab-operator-safety-mutations"
+      document = local.lab_safety_mutation_policy
+    }
+    network_core_create = {
+      name     = "airbob-lab-operator-network-core-create"
+      document = local.lab_network_core_create_policy
+    }
+    network_dependent_create = {
+      name     = "airbob-lab-operator-network-dependent-create"
+      document = local.lab_network_dependent_create_policy
+    }
+    run_instances = {
+      name     = "airbob-lab-operator-run-instances"
+      document = local.lab_run_instances_policy
+    }
+    rds_provision = {
+      name     = "airbob-lab-operator-rds-provision"
+      document = local.lab_rds_provision_policy
     }
     data_compute = {
       name     = "airbob-lab-operator-data-compute"
@@ -40,7 +60,7 @@ locals {
     }
     app_compute = {
       name     = "airbob-lab-operator-app-compute"
-      document = local.lab_app_compute_policy
+      document = local.lab_app_compute_core_policy
     }
   }
 
@@ -50,6 +70,9 @@ locals {
     })
     lab = merge(local.github_trust_common, {
       "token.actions.githubusercontent.com:sub" = local.github_subjects.lab
+    })
+    lab_cutover = merge(local.github_trust_common, {
+      "token.actions.githubusercontent.com:sub" = local.github_subjects.lab_cutover
     })
     image = merge(local.github_trust_common, {
       "token.actions.githubusercontent.com:sub" = local.github_subjects.image
@@ -83,6 +106,19 @@ locals {
         local.approved_local_principals_statements.lab,
       ]
     })
+    lab_cutover = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Sid       = "GitHubOidc"
+          Effect    = "Allow"
+          Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+          Action    = "sts:AssumeRoleWithWebIdentity"
+          Condition = { StringEquals = local.github_role_trust.lab_cutover }
+        },
+        local.approved_local_principals_statements.lab,
+      ]
+    })
     image = jsonencode({
       Version = "2012-10-17"
       Statement = [{
@@ -100,10 +136,11 @@ locals {
   }
 
   role_names = {
-    foundation = "airbob-foundation-admin"
-    lab        = "airbob-lab-operator"
-    image      = "airbob-image-publisher"
-    dataset    = "airbob-dataset-publisher"
+    foundation  = "airbob-foundation-admin"
+    lab         = "airbob-lab-operator"
+    lab_cutover = "airbob-lab-cutover-operator"
+    image       = "airbob-image-publisher"
+    dataset     = "airbob-dataset-publisher"
   }
 
   dataset_snapshot_write_segment = coalesce(var.dataset_snapshot_writer_release, "__disabled__")
@@ -165,9 +202,11 @@ locals {
         Sid    = "ManagedBucketRead"
         Effect = "Allow"
         Action = [
+          "s3:GetAccelerateConfiguration",
           "s3:GetBucket*",
           "s3:GetEncryptionConfiguration",
           "s3:GetLifecycleConfiguration",
+          "s3:GetBucketObjectLockConfiguration",
           "s3:GetReplicationConfiguration",
           "s3:ListBucket",
         ]
@@ -222,16 +261,23 @@ locals {
         Sid    = "FoundationIdentityReadOnly"
         Effect = "Allow"
         Action = ["iam:GetOpenIDConnectProvider", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListPolicyTags", "iam:ListPolicyVersions", "iam:ListRolePolicies", "iam:ListRoleTags"]
-        Resource = [
-          aws_iam_openid_connect_provider.github.arn,
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
-          "arn:aws:iam::${var.account_id}:role/${local.role_names.dataset}",
-          "arn:aws:iam::${var.account_id}:role/${local.dns_controller_role_name}",
-          aws_iam_role.expiry_observer.arn,
-          aws_iam_policy.lab_host_boundary.arn,
-        ]
+        Resource = concat(
+          [
+            aws_iam_openid_connect_provider.github.arn,
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.foundation}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.lab_cutover}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.image}",
+            "arn:aws:iam::${var.account_id}:role/${local.role_names.dataset}",
+            "arn:aws:iam::${var.account_id}:role/${local.dns_controller_role_name}",
+            aws_iam_role.expiry_observer.arn,
+            aws_iam_policy.lab_host_boundary.arn,
+          ],
+          [
+            for policy in values(local.lab_operator_managed_policies) :
+            "arn:aws:iam::${var.account_id}:policy/${policy.name}"
+          ],
+        )
       },
       {
         Sid    = "ExpiryObserverLambdaReadOnly"
@@ -384,7 +430,7 @@ locals {
       {
         Sid      = "OperationalState"
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject"]
+        Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]
         Resource = [for state_key in local.lab_operator_state_keys : "arn:aws:s3:::${var.state_bucket_name}/${state_key}"]
       },
       {
@@ -396,7 +442,7 @@ locals {
       {
         Sid      = "OperationalStateList"
         Effect   = "Allow"
-        Action   = "s3:ListBucket"
+        Action   = ["s3:ListBucket", "s3:ListBucketVersions"]
         Resource = "arn:aws:s3:::${var.state_bucket_name}"
         Condition = {
           StringLike = {
@@ -421,7 +467,7 @@ locals {
       {
         Sid    = "ReadDatasetAndBundles"
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Action = ["s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion"]
         Resource = [
           "${aws_s3_bucket.managed["dataset"].arn}/*",
           "${aws_s3_bucket.managed["bundle"].arn}/*",
@@ -450,10 +496,13 @@ locals {
       {
         Sid    = "ReadOperatorEvidence"
         Effect = "Allow"
-        Action = "s3:GetObject"
+        Action = ["s3:GetObject", "s3:GetObjectTagging", "s3:GetObjectVersion"]
         Resource = [
           "${aws_s3_bucket.managed["evidence"].arn}/runs/*/operator.json",
           "${aws_s3_bucket.managed["evidence"].arn}/measurements/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/network-receipts/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/network-clearance/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
         ]
       },
       {
@@ -481,9 +530,20 @@ locals {
         Resource = "*"
       },
       {
-        Sid      = "OrchestrationLease"
+        Sid      = "OwnOrchestrationLease"
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DescribeTable"]
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.orchestration_lease.arn
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "dynamodb:LeadingKeys" = [local.lease_lock_id]
+          }
+        }
+      },
+      {
+        Sid      = "DescribeOrchestrationLeaseTable"
+        Effect   = "Allow"
+        Action   = "dynamodb:DescribeTable"
         Resource = aws_dynamodb_table.orchestration_lease.arn
       },
       {
@@ -515,12 +575,6 @@ locals {
         Resource = "*"
       },
       {
-        Sid      = "AssumeDnsController"
-        Effect   = "Allow"
-        Action   = ["sts:AssumeRole", "sts:TagSession"]
-        Resource = aws_iam_role.dns_controller.arn
-      },
-      {
         Sid      = "ReadExpiryObserverStatus"
         Effect   = "Allow"
         Action   = "events:DescribeRule"
@@ -532,11 +586,43 @@ locals {
         Action   = "cloudwatch:DescribeAlarms"
         Resource = "*"
       },
+    ]
+  })
+
+  lab_cutover_operator_extension_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
       {
-        Sid      = "ReadLabTagInventory"
+        Sid      = "DnsState"
         Effect   = "Allow"
-        Action   = "tag:GetResources"
-        Resource = "*"
+        Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${local.lab_cutover_operator_dns_state_key}"
+      },
+      {
+        Sid      = "DnsStateLock"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${local.lab_cutover_operator_dns_state_key}.tflock"
+      },
+      {
+        Sid      = "DnsStateList"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}"
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [
+              local.lab_cutover_operator_dns_state_key,
+              "${local.lab_cutover_operator_dns_state_key}.tflock",
+            ]
+          }
+        }
+      },
+      {
+        Sid      = "AssumeDnsController"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole", "sts:TagSession"]
+        Resource = aws_iam_role.dns_controller.arn
       },
     ]
   })
@@ -711,7 +797,17 @@ resource "aws_iam_role" "foundation_admin" {
 resource "aws_iam_role" "lab_operator" {
   name                 = local.role_names.lab
   assume_role_policy   = local.role_trust_policies.lab
-  max_session_duration = 7200
+  max_session_duration = 21600
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role" "lab_cutover_operator" {
+  name                 = local.role_names.lab_cutover
+  assume_role_policy   = local.role_trust_policies.lab_cutover
+  max_session_duration = 21600
 
   lifecycle {
     prevent_destroy = true
@@ -754,8 +850,15 @@ resource "aws_iam_policy" "lab_operator" {
   name   = each.value.name
   policy = each.value.document
 
+  depends_on = [aws_s3_bucket_policy.managed["evidence"]]
+
   lifecycle {
     prevent_destroy = true
+
+    precondition {
+      condition     = length(each.value.document) <= 6144
+      error_message = "Lab operator managed policy ${each.key} is ${length(each.value.document)} characters and exceeds the AWS 6,144-character quota."
+    }
   }
 }
 
@@ -764,6 +867,27 @@ resource "aws_iam_role_policy_attachment" "lab_operator" {
 
   role       = aws_iam_role.lab_operator.name
   policy_arn = aws_iam_policy.lab_operator[each.key].arn
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "lab_cutover_operator" {
+  for_each = local.lab_operator_managed_policies
+
+  role       = aws_iam_role.lab_cutover_operator.name
+  policy_arn = aws_iam_policy.lab_operator[each.key].arn
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_iam_role_policy" "lab_cutover_operator_extension" {
+  name   = "airbob-lab-cutover-operator-extension"
+  role   = aws_iam_role.lab_cutover_operator.id
+  policy = local.lab_cutover_operator_extension_policy
 
   lifecycle {
     prevent_destroy = true

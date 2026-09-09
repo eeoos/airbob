@@ -237,7 +237,7 @@ case "$dns_action" in
     fi
     ;;
   remove)
-    [[ "$force_down" == true ]] || probe_oci
+    probe_oci
     if [[ -n "$aws_alb_arn" ]]; then
       apply_dns oci true # traffic_target=oci
       if [[ "$force_down" == false ]]; then

@@ -19,6 +19,12 @@ locals {
     "base64 --decode /opt/airbob/bootstrap-helpers/bootstrap-data.sh.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/bootstrap-data.sh",
     "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/bootstrap-data.sh")}' /opt/airbob/bootstrap-helpers/bootstrap-data.sh | sha256sum --check --status",
     "chmod 700 /opt/airbob/bootstrap-helpers/bootstrap-data.sh",
+    "cat > /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh.gz.b64 <<'AIRBOB_TARGET_FINGERPRINT'",
+    base64gzip(file("${path.module}/../scripts/compute-target-fingerprint.sh")),
+    "AIRBOB_TARGET_FINGERPRINT",
+    "base64 --decode /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh",
+    "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/compute-target-fingerprint.sh")}' /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh | sha256sum --check --status",
+    "chmod 700 /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh",
     "chmod 600 /opt/airbob/bootstrap-helpers/coupon_prepare.lua",
     "export AIRBOB_REGION='${var.aws_region}'",
     "export AIRBOB_RUN_ID='${var.run_id}'",
@@ -51,13 +57,13 @@ resource "aws_ssm_document" "start_service" {
       action = "aws:runShellScript"
       name   = "startAndVerify"
       inputs = {
-        timeoutSeconds = "1200"
+        timeoutSeconds = "2400"
         runCommand     = [local.start_service_document]
       }
     }]
   })
 
-  tags = local.ephemeral_tags
+  tags = merge(local.ephemeral_tags, { Service = "service-bootstrap" })
 }
 
 resource "aws_ssm_association" "core_services" {
@@ -65,7 +71,7 @@ resource "aws_ssm_association" "core_services" {
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-${each.key}"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = 2700
   apply_only_at_cron_interval      = false
 
   targets {
@@ -83,7 +89,7 @@ resource "aws_ssm_association" "debezium" {
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-debezium"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = 2700
 
   targets {
     key    = "InstanceIds"
@@ -100,7 +106,7 @@ resource "aws_ssm_association" "monitoring" {
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-monitoring"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = 2700
 
   targets {
     key    = "InstanceIds"
@@ -128,13 +134,15 @@ resource "aws_ssm_document" "bootstrap_data" {
       action = "aws:runShellScript"
       name   = "bootstrapData"
       inputs = {
-        timeoutSeconds = "7200"
+        # The operator owns the earlier absolute run deadline. This fallback
+        # must not allocate a shorter, speculative data-bootstrap window.
+        timeoutSeconds = "18000"
         runCommand     = [local.bootstrap_data_command]
       }
     }]
   })
 
-  tags = local.ephemeral_tags
+  tags = merge(local.ephemeral_tags, { Service = "data-bootstrap" })
 }
 
 resource "aws_ssm_association" "data_bootstrap" {
@@ -142,7 +150,7 @@ resource "aws_ssm_association" "data_bootstrap" {
 
   name                             = aws_ssm_document.bootstrap_data[0].name
   association_name                 = "airbob-${var.run_id}-data-bootstrap"
-  wait_for_success_timeout_seconds = 7200
+  wait_for_success_timeout_seconds = 18300
 
   targets {
     key    = "InstanceIds"

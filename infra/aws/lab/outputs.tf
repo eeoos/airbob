@@ -52,6 +52,11 @@ output "state_boundaries" {
   }
 }
 
+output "run_identity" {
+  description = "No-cost run and creation-fence identity persisted before any network resource is created."
+  value       = terraform_data.run_identity.output
+}
+
 output "phase2_contract" {
   description = "Non-secret Phase 2 topology and ordered transition status."
   value = {
@@ -143,6 +148,7 @@ output "phase4_contract" {
     alb_arn                             = local.services_enabled ? module.alb[0].arn : null
     alb_dns_name                        = local.services_enabled ? module.alb[0].dns_name : null
     alb_zone_id                         = local.services_enabled ? module.alb[0].zone_id : null
+    alb_security_group_id               = local.services_enabled ? module.security.security_group_ids["alb"] : null
     target_group_arn                    = local.services_enabled ? module.alb[0].target_group_arn : null
     auto_scaling_group_name             = local.services_enabled ? module.app_asg[0].name : null
     alb_https_only                      = local.services_enabled ? module.alb[0].contract.https_only : true

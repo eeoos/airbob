@@ -51,6 +51,9 @@ jobs:
           bash infra/aws/tests/all-service-bundles-test.sh
           bash infra/aws/tests/package-service-bundles-test.sh
 
+      - name: Verify local MySQL initialization contract
+        run: bash infra/aws/tests/mysql-init-script-test.sh
+
       - name: Verify immutable AWS image publication contracts
         run: bash infra/aws/tests/image-publication-test.sh
 
@@ -66,6 +69,8 @@ jobs:
 
       - name: Verify AWS dataset release production contracts
         run: |
+          bash infra/aws/tests/target-fingerprint-test.sh
+          bash infra/aws/tests/aws-lab-target-preflight-test.sh
           bash infra/aws/tests/etl-release-database-verifier-test.sh
           bash infra/aws/tests/dataset-attestation-test.sh
           bash infra/aws/tests/elasticsearch-snapshot-producer-test.sh

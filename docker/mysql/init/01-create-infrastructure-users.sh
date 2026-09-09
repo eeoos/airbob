@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
+set -euo pipefail
+umask 077
 
-# The official MySQL entrypoint sources non-executable *.sh files, so
-# docker_process_sql is available without exposing the root password.
+# Docker Desktop bind mounts can report a mode-0644 script as executable to
+# the MySQL entrypoint and then reject execve. Keep this script independently
+# executable and pass the root password to mysql through the process environment,
+# never argv or output.
 
 require_value() {
   local name="$1"
@@ -48,6 +52,7 @@ MYSQL_DATABASE="${MYSQL_DATABASE:-airbobdb}"
 
 require_password DEBEZIUM_DATABASE_PASSWORD
 require_password LOGSTASH_JDBC_PASSWORD
+require_password MYSQL_ROOT_PASSWORD
 require_identifier DEBEZIUM_DATABASE_USER
 require_identifier LOGSTASH_JDBC_USER
 require_identifier MYSQL_DATABASE
@@ -55,7 +60,10 @@ require_identifier MYSQL_DATABASE
 debezium_password="$(sql_literal "$DEBEZIUM_DATABASE_PASSWORD")"
 logstash_password="$(sql_literal "$LOGSTASH_JDBC_PASSWORD")"
 
-docker_process_sql --database=mysql <<-EOSQL
+MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql \
+	--protocol=socket \
+	--user=root \
+	--database=mysql <<-EOSQL
 	CREATE USER IF NOT EXISTS '${DEBEZIUM_DATABASE_USER}'@'%' IDENTIFIED BY '${debezium_password}';
 	ALTER USER '${DEBEZIUM_DATABASE_USER}'@'%' IDENTIFIED BY '${debezium_password}';
 	GRANT SELECT ON \`${MYSQL_DATABASE}\`.* TO '${DEBEZIUM_DATABASE_USER}'@'%';

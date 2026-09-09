@@ -192,6 +192,19 @@ variable "github_lab_subject" {
   }
 }
 
+variable "github_lab_cutover_subject" {
+  description = "Exact GitHub OIDC subject observed for the separately protected aws-performance-lab-cutover environment."
+  type        = string
+
+  validation {
+    condition = contains([
+      "repo:eeoos/airbob:environment:aws-performance-lab-cutover",
+      "repo:eeoos@119295425/airbob@1056501820:environment:aws-performance-lab-cutover",
+    ], var.github_lab_cutover_subject)
+    error_message = "github_lab_cutover_subject must be the exact reviewed legacy or immutable Airbob cutover subject."
+  }
+}
+
 variable "github_image_subject" {
   description = "Exact GitHub OIDC subject observed for the protected aws-image-publisher environment."
   type        = string
@@ -206,7 +219,7 @@ variable "github_image_subject" {
 }
 
 variable "github_oidc_subjects_reviewed" {
-  description = "Explicit acknowledgement that all three exact subjects were checked against the repository OIDC configuration."
+  description = "Explicit acknowledgement that all four exact subjects were checked against the repository OIDC configuration."
   type        = bool
   default     = false
 
@@ -271,6 +284,24 @@ variable "dataset_snapshot_writer_release" {
       can(regex("^[a-z0-9][a-z0-9._-]{2,63}$", var.dataset_snapshot_writer_release))
     )
     error_message = "dataset_snapshot_writer_release must be null or one lowercase safe dataset release name."
+  }
+}
+
+variable "approved_rds_snapshot_identifier" {
+  description = "The one promoted dataset-bound RDS snapshot the Lab operator may restore; empty revokes snapshot restore."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.approved_rds_snapshot_identifier == "" ||
+      (
+        can(regex("^airbob-dataset-[a-z0-9][a-z0-9-]{2,47}$", var.approved_rds_snapshot_identifier)) &&
+        !endswith(var.approved_rds_snapshot_identifier, "-") &&
+        !strcontains(var.approved_rds_snapshot_identifier, "--")
+      )
+    )
+    error_message = "approved_rds_snapshot_identifier must be empty or one canonical airbob-dataset-* snapshot identifier."
   }
 }
 

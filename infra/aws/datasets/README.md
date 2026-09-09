@@ -300,22 +300,36 @@ That value grants only
 `airbob-dataset-snapshot/rehearsal-v27`. A null value maps both grants to the
 unusable `__disabled__` target. Do not authorize two release prefixes at once.
 
-Configure an AWS CLI role profile after the reviewed foundation change has
-been applied; replace the MFA device ARN with the IAM user's actual device:
+After the reviewed foundation change has been applied, authenticate the
+approved IAM user with `aws login --profile admin-eeoos`. Login credentials are
+temporary, so assuming the publisher role from them is role chaining and AWS
+caps that role session at 3,600 seconds. Use a new `role_session_name` suffix
+for each production attempt so an aged cached role session is not reused:
 
 ```ini
+[profile admin-eeoos]
+login_session = arn:aws:iam::942632789808:user/admin-eeoos
+region = ap-northeast-2
+
 [profile airbob-dataset-publisher]
 source_profile = admin-eeoos
 role_arn = arn:aws:iam::942632789808:role/airbob-dataset-publisher
-mfa_serial = <MFA-device-ARN>
 region = ap-northeast-2
-role_session_name = airbob-dataset-local
-duration_seconds = 7200
+role_session_name = airbob-dataset-local-<unique-run-suffix>
+duration_seconds = 3600
 ```
 
-Confirm that the profile resolves to
-`arn:aws:sts::942632789808:assumed-role/airbob-dataset-publisher/...`, then run
-the full reindex and producer against the writer-free restored MySQL database.
+The selected console login must already satisfy the role's MFA trust. Do not
+resolve or export the publisher profile during preflight: its first use creates
+the cached 3,600-second role session. The producer performs live database
+lineage verification without any AWS call, then resolves the publisher profile
+and accepts only credentials with at least 3,300 seconds (55 minutes)
+remaining. It retains a 300-second cleanup reserve, leaving at most 3,000
+seconds for snapshot creation, restore verification, and sealing. A stale role
+session fails before lease acquisition or S3 access; create a fresh uniquely
+named role session instead of weakening this gate.
+
+Run the full reindex and producer against the writer-free restored MySQL database.
 The reindex must use that exact attested host and port, not the unrelated Compose
 `mysql` service. Its reviewed source commit must equal the `gitCommit` in the
 selected infrastructure image release. Do not place the database password on
@@ -350,7 +364,9 @@ CONFIRM_MYSQL_SOURCE_QUIESCED=true \
 unset LOGSTASH_JDBC_PASSWORD
 export AIRBOB_DATASET_ES_QUIESCED=true
 
-aws sts get-caller-identity
+aws login --profile admin-eeoos
+aws sts get-caller-identity --profile admin-eeoos
+# Do not call the airbob-dataset-publisher profile before the producer.
 infra/aws/scripts/produce-elasticsearch-snapshot.sh \
   /path/to/etl-release \
   /secure/path/attestation.json \
@@ -368,8 +384,9 @@ and atomically creates or moves the single write alias. Only after this succeeds
 is the local `accommodations` alias considered quiesced input for the snapshot
 producer.
 
-Only one producer may own a release. Before its first S3 inventory call, the
-producer acquires the protected DynamoDB row
+Only one producer may own a release. After the AWS-free live lineage check and
+before its first S3 inventory call, the producer resolves its publisher
+credentials and acquires the protected DynamoDB row
 `airbob-dataset-snapshot/<release>` with a monotonic fencing token. A heartbeat
 covers snapshot creation and verification, while the takeover deadline extends
 beyond the temporary STS credential expiry so a crashed local Elasticsearch

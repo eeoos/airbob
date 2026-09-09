@@ -49,7 +49,7 @@ awk '
   /^java_double_hex\(\) \{/ { capture = 1 }
   capture { print }
   capture && /^}/ { exit }
-' "$verifier" > "$java_double_hex_function"
+' "$repo_root/infra/aws/scripts/compute-target-fingerprint.sh" > "$java_double_hex_function"
 [[ -s "$java_double_hex_function" ]] || fail 'Java double hex canonicalizer is missing'
 # shellcheck source=/dev/null
 source "$java_double_hex_function"
@@ -412,6 +412,7 @@ swapped_verifier_dir="$temp_dir/swapped-verifier"
 swapped_verifier="$swapped_verifier_dir/verify-etl-release-database.sh"
 mkdir -p "$swapped_verifier_dir"
 cp "$repo_root/infra/aws/scripts/validate-benchmark-dataset-v2.jq" "$swapped_verifier_dir/"
+cp "$repo_root/infra/aws/scripts/compute-target-fingerprint.sh" "$swapped_verifier_dir/"
 sed \
   -e 's/^fingerprint_table final-address /fingerprint_table final-component-swap /' \
   -e 's/^fingerprint_table final-occupancy-policy /fingerprint_table final-address /' \

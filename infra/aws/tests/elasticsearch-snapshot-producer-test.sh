@@ -4,6 +4,21 @@ umask 077
 
 repo_root=$(CDPATH= cd -P -- "$(dirname -- "$0")/../../.." && pwd -P)
 producer_source="$repo_root/infra/aws/scripts/produce-elasticsearch-snapshot.sh"
+dataset_runbook="$repo_root/infra/aws/datasets/README.md"
+[[ -f "$dataset_runbook" && ! -L "$dataset_runbook" ]] \
+  || { printf '%s\n' 'dataset snapshot runbook is missing or unsafe' >&2; exit 1; }
+grep -Fq 'duration_seconds = 3600' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the role-chaining duration' >&2; exit 1; }
+grep -Fq '3,300 seconds (55 minutes)' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the credential headroom contract' >&2; exit 1; }
+grep -Fq '300-second cleanup reserve' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the cleanup reserve' >&2; exit 1; }
+grep -Fq 'aws sts get-caller-identity --profile admin-eeoos' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits the AWS-free publisher preflight' >&2; exit 1; }
+! grep -Fxq 'aws sts get-caller-identity' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook resolves publisher credentials before lineage' >&2; exit 1; }
+grep -Fq 'lineage verification without any AWS call' "$dataset_runbook" \
+  || { printf '%s\n' 'dataset snapshot runbook omits deferred publisher credential resolution' >&2; exit 1; }
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-es-snapshot-producer-test.XXXXXX")
 producer_root="$temp_dir/producer/infra/aws/scripts"
 mkdir -p "$producer_root"
@@ -306,7 +321,13 @@ printf 'aws' >> "${FAKE_AWS_LOG:?}"
 printf ' <%s>' "$@" >> "$FAKE_AWS_LOG"
 printf '\n' >> "$FAKE_AWS_LOG"
 
+while [[ "${1:-}" == --cli-connect-timeout || "${1:-}" == --cli-read-timeout ]]; do
+  [[ "$#" -ge 2 ]] || exit 1
+  shift 2
+done
+
 if [[ "$1 $2" == 'sts get-caller-identity' ]]; then
+  printf '%s\n' 'caller-identity' >> "${FAKE_EVENT_LOG:?}"
   if [[ "${FAKE_WRONG_ROLE:-false}" == true ]]; then
     printf '%s\n' '{"UserId":"AIDA","Account":"942632789808","Arn":"arn:aws:iam::942632789808:user/admin-eeoos"}'
   else
@@ -316,7 +337,10 @@ if [[ "$1 $2" == 'sts get-caller-identity' ]]; then
 fi
 
 if [[ "$1 $2" == 'configure export-credentials' ]]; then
-  expiration=$(jq -nr 'now + 7200 | todateiso8601')
+  printf '%s\n' 'credential-export' >> "${FAKE_EVENT_LOG:?}"
+  credential_lifetime_seconds=${FAKE_CREDENTIAL_LIFETIME_SECONDS:-3590}
+  expiration=$(jq -nr --argjson lifetime "$credential_lifetime_seconds" \
+    'now + $lifetime | todateiso8601')
   [[ "${FAKE_EXPIRED_CREDENTIALS:-false}" == true ]] && expiration='2020-01-01T00:00:00Z'
   jq -n \
     --arg access "${FAKE_ACCESS_KEY:?}" \
@@ -329,6 +353,7 @@ fi
 
 if [[ "$1 $2" == 'dynamodb update-item' ]]; then
   if [[ "$*" == *'if_not_exists(#token, :zero) + :one'* ]]; then
+    printf '%s\n' 'lease-acquire' >> "${FAKE_EVENT_LOG:?}"
     [[ "${FAKE_LEASE_ACQUIRE_FAILURE:-false}" != true ]] || exit 1
     printf '%s\n' 7
   elif [[ "$*" == *'SET #heartbeat = :now, #expires = :expires'* ]]; then
@@ -564,6 +589,7 @@ jq '{schemaVersion:2,sourceEtlCommit,databaseServerUuid,verifierContractInventor
   baseWorldFingerprintSha256,distributionEvidenceSha256,distributionAssertionSha256,
   distributionSpecSha256,targetFingerprintSha256,
   inventoryFingerprintSha256}' "${FAKE_CANONICAL_ATTESTATION:?}"
+printf '%s\n' 'lineage-verified' >> "${FAKE_EVENT_LOG:?}"
 EOF
   chmod 700 "$producer_root/verify-etl-release-database.sh"
 }
@@ -703,17 +729,26 @@ case "$method $url" in
     fi
     snapshot_state='SUCCESS'
     successful_shards=1
+    snapshot_index_version='8.18.0-8.18.8'
+    snapshot_index_version_id=8525000
     if [[ "${FAKE_SNAPSHOT_FAIL:-false}" == true ]]; then
       snapshot_state='PARTIAL'
       successful_shards=0
     fi
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_DRIFT:-false}" != true ]] \
+      || snapshot_index_version='8.18.0-8.18.7'
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_ID_DRIFT:-false}" != true ]] \
+      || snapshot_index_version_id=8524000
     jq -n \
       --arg state "$snapshot_state" \
       --argjson successful "$successful_shards" \
+      --arg snapshotIndexVersion "$snapshot_index_version" \
+      --argjson snapshotIndexVersionId "$snapshot_index_version_id" \
       --arg runId "${FAKE_DATASET_RUN_ID:?}" \
       --arg sourceSha "${FAKE_SOURCE_PAYLOAD_SHA:?}" '
       {snapshot:{
-        snapshot:"airbob-rehearsal-v20",uuid:"uuid-1",state:$state,version:"8.18.8",
+        snapshot:"airbob-rehearsal-v20",uuid:"uuid-1",state:$state,
+        version:$snapshotIndexVersion,version_id:$snapshotIndexVersionId,
         indices:["accommodations-v20260817001530"],include_global_state:false,feature_states:[],
         metadata:{
           datasetRelease:"rehearsal-v20",datasetRunId:$runId,
@@ -729,9 +764,17 @@ case "$method $url" in
     ;;
   "GET ${FAKE_ES_URL}/_snapshot/airbob-dataset-readonly/airbob-rehearsal-v20")
     metadata_release='rehearsal-v20'
+    snapshot_index_version='8.18.0-8.18.8'
+    snapshot_index_version_id=8525000
     [[ "${FAKE_SNAPSHOT_METADATA_DRIFT:-false}" != true ]] || metadata_release='other-v20'
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_DRIFT:-false}" != true ]] \
+      || snapshot_index_version='8.18.0-8.18.7'
+    [[ "${FAKE_SNAPSHOT_INDEX_VERSION_ID_DRIFT:-false}" != true ]] \
+      || snapshot_index_version_id=8524000
     jq -n \
       --arg metadataRelease "$metadata_release" \
+      --arg snapshotIndexVersion "$snapshot_index_version" \
+      --argjson snapshotIndexVersionId "$snapshot_index_version_id" \
       --arg runId "${FAKE_DATASET_RUN_ID:?}" \
       --arg sourceSha "${FAKE_SOURCE_PAYLOAD_SHA:?}" '
       {
@@ -739,7 +782,8 @@ case "$method $url" in
           snapshot:"airbob-rehearsal-v20",
           uuid:"uuid-1",
           repository:"airbob-dataset-readonly",
-          version:"8.18.8",
+          version:$snapshotIndexVersion,
+          version_id:$snapshotIndexVersionId,
           indices:["accommodations-v20260817001530"],
           include_global_state:false,
           feature_states:[],
@@ -938,6 +982,16 @@ grep -Fq 'benchmark dataset manifest digest does not match the source release' \
 
 run_producer "$reference" "$receipt" >/dev/null
 [[ -f "$seal_object" ]] || fail 'successful snapshot did not publish its immutable seal'
+lineage_verified_line=$(grep -n -m1 -F 'lineage-verified' "$event_log" | cut -d: -f1)
+caller_identity_line=$(grep -n -m1 -F 'caller-identity' "$event_log" | cut -d: -f1)
+credential_export_line=$(grep -n -m1 -F 'credential-export' "$event_log" | cut -d: -f1)
+lease_acquire_event_line=$(grep -n -m1 -F 'lease-acquire' "$event_log" | cut -d: -f1)
+[[ -n "$lineage_verified_line" && -n "$caller_identity_line" \
+  && -n "$credential_export_line" && -n "$lease_acquire_event_line" \
+  && "$lineage_verified_line" -lt "$caller_identity_line" \
+  && "$caller_identity_line" -lt "$credential_export_line" \
+  && "$credential_export_line" -lt "$lease_acquire_event_line" ]] \
+  || fail 'publisher credentials or snapshot lease started before live lineage verification'
 
 jq -e '
   (keys | sort) == ([
@@ -972,7 +1026,8 @@ jq -cS -n --arg sourcePayloadSha "$source_payload_sha" '
     snapshot:"airbob-rehearsal-v20",
     uuid:"uuid-1",
     repository:"airbob-dataset-readonly",
-    version:"8.18.8",
+    version:"8.18.0-8.18.8",
+    version_id:8525000,
     indices:["accommodations-v20260817001530"],
     include_global_state:false,
     feature_states:[],
@@ -1021,7 +1076,7 @@ jq -e \
   .snapshot.name == "airbob-rehearsal-v20" and
   .snapshot.uuid == "uuid-1" and
   .snapshot.state == "SUCCESS" and
-  .snapshot.version == "8.18.8" and
+  .snapshot.version == "8.18.0-8.18.8" and
   .snapshot.indices == ["accommodations-v20260817001530"] and
   .snapshot.includeGlobalState == false and
   .snapshot.totalShards == 1 and
@@ -1177,10 +1232,45 @@ expired_receipt="$temp_dir/expired-receipt.json"
 expect_failure expired-credentials run_producer "$expired_reference" "$expired_receipt" FAKE_EXPIRED_CREDENTIALS=true
 [[ ! -e "$expired_reference" && ! -e "$expired_receipt" ]] \
   || fail 'expired credential rejection wrote output files'
+grep -Fq 'semantic-lineage-verifier' "$mysql_log" \
+  || fail 'expired credential rejection did not finish live lineage verification first'
+! grep -Fq 'dynamodb update-item' "$aws_log" \
+  || fail 'expired credential rejection reached the snapshot lease'
+! grep -Fq 's3api' "$aws_log" \
+  || fail 'expired credential rejection reached S3'
+[[ ! -s "$curl_log" && ! -s "$docker_log" ]] \
+  || fail 'expired credential rejection reached Elasticsearch mutation'
+
+insufficient_headroom_reference="$temp_dir/insufficient-headroom-reference.json"
+insufficient_headroom_receipt="$temp_dir/insufficient-headroom-receipt.json"
+expect_failure insufficient-credential-headroom run_producer \
+  "$insufficient_headroom_reference" "$insufficient_headroom_receipt" \
+  FAKE_CREDENTIAL_LIFETIME_SECONDS=3290
+grep -Fq 'temporary AWS credentials do not have 55 minutes of expiry headroom' \
+  "$temp_dir/insufficient-credential-headroom.stderr" \
+  || fail 'insufficient credential headroom missed the closed rejection reason'
+[[ ! -e "$insufficient_headroom_reference" && ! -e "$insufficient_headroom_receipt" ]] \
+  || fail 'insufficient credential headroom wrote output files'
+! grep -Fq 'dynamodb update-item' "$aws_log" \
+  || fail 'insufficient credential headroom reached the snapshot lease'
+! grep -Fq 's3api' "$aws_log" \
+  || fail 'insufficient credential headroom reached S3'
+grep -Fq 'semantic-lineage-verifier' "$mysql_log" \
+  || fail 'insufficient credential headroom did not finish live lineage verification first'
+[[ ! -s "$curl_log" && ! -s "$docker_log" ]] \
+  || fail 'insufficient credential headroom reached Elasticsearch mutation'
 
 wrong_role_reference="$temp_dir/wrong-role-reference.json"
 wrong_role_receipt="$temp_dir/wrong-role-receipt.json"
 expect_failure wrong-role run_producer "$wrong_role_reference" "$wrong_role_receipt" FAKE_WRONG_ROLE=true
+grep -Fq 'semantic-lineage-verifier' "$mysql_log" \
+  || fail 'wrong-role rejection did not finish live lineage verification first'
+! grep -Fq 'dynamodb update-item' "$aws_log" \
+  || fail 'wrong-role rejection reached the snapshot lease'
+! grep -Fq 's3api' "$aws_log" \
+  || fail 'wrong-role rejection reached S3'
+[[ ! -s "$curl_log" && ! -s "$docker_log" ]] \
+  || fail 'wrong-role rejection reached Elasticsearch mutation'
 
 lease_rejected_reference="$temp_dir/lease-rejected-reference.json"
 lease_rejected_receipt="$temp_dir/lease-rejected-receipt.json"
@@ -1189,8 +1279,10 @@ expect_failure lease-rejected run_producer \
 [[ ! -e "$lease_rejected_reference" && ! -e "$lease_rejected_receipt" ]] \
   || fail 'rejected lease acquisition wrote output files'
 ! grep -Fq 's3api' "$aws_log" || fail 'rejected lease acquisition reached S3'
-[[ ! -s "$curl_log" && ! -s "$docker_log" && ! -s "$mysql_log" ]] \
-  || fail 'rejected lease acquisition reached local data services'
+grep -Fq 'semantic-lineage-verifier' "$mysql_log" \
+  || fail 'rejected lease acquisition did not finish live lineage verification first'
+[[ ! -s "$curl_log" && ! -s "$docker_log" ]] \
+  || fail 'rejected lease acquisition reached Elasticsearch mutation'
 
 multi_attestation="$temp_dir/multi-attestation.json"
 {
@@ -1302,7 +1394,8 @@ for lineage_index in "${!lineage_fields[@]}"; do
       [[ -s "$mysql_log" ]] || fail 'live-only lineage mismatch did not reach database verification'
       grep -Fq 'live database lineage differs from the dataset attestation' "$temp_dir/lineage-$lineage_field.stderr" \
         || fail 'live-only lineage mismatch missed the receipt comparison gate'
-      grep -Fq 'SET #owner = :released' "$aws_log" || fail 'live-only lineage mismatch did not release its clean lease'
+      [[ ! -s "$aws_log" ]] \
+        || fail 'live-only lineage mismatch reached AWS before lineage verification completed'
       ;;
     *)
       [[ ! -s "$mysql_log" ]] || fail 'release-tuple mismatch reached live database verification'
@@ -1365,6 +1458,22 @@ grep -Fq -- '<PUT> <http://127.0.0.1:9200/accommodations-v20260817001530/_settin
   || fail 'snapshot failure did not unfreeze the source index'
 [[ $(grep -c '<remove> <s3.client.airbob_dataset_producer.' "$docker_log") -eq 3 ]] \
   || fail 'snapshot failure did not remove temporary credentials'
+
+snapshot_version_drift_reference="$temp_dir/snapshot-version-drift-reference.json"
+snapshot_version_drift_receipt="$temp_dir/snapshot-version-drift-receipt.json"
+expect_failure snapshot-index-version-drift run_producer \
+  "$snapshot_version_drift_reference" "$snapshot_version_drift_receipt" \
+  FAKE_SNAPSHOT_INDEX_VERSION_DRIFT=true
+[[ ! -e "$snapshot_version_drift_reference" && ! -e "$snapshot_version_drift_receipt" ]] \
+  || fail 'mismatched snapshot index version wrote producer outputs'
+
+snapshot_version_id_drift_reference="$temp_dir/snapshot-version-id-drift-reference.json"
+snapshot_version_id_drift_receipt="$temp_dir/snapshot-version-id-drift-receipt.json"
+expect_failure snapshot-index-version-id-drift run_producer \
+  "$snapshot_version_id_drift_reference" "$snapshot_version_id_drift_receipt" \
+  FAKE_SNAPSHOT_INDEX_VERSION_ID_DRIFT=true
+[[ ! -e "$snapshot_version_id_drift_reference" && ! -e "$snapshot_version_id_drift_receipt" ]] \
+  || fail 'mismatched snapshot index version id wrote producer outputs'
 
 heartbeat_reference="$temp_dir/heartbeat-failure-reference.json"
 heartbeat_receipt="$temp_dir/heartbeat-failure-receipt.json"

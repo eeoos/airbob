@@ -1,8 +1,10 @@
 locals {
   service_role_names = toset(keys(local.service_hosts))
   active_host_roles = setunion(
-    toset(["nat"]),
-    local.probe_enabled ? toset(["probe"]) : toset([]),
+    # Keep the no-cost probe identity until teardown. Removing one member from
+    # this shared for_each collection during the probe-cleared transition can
+    # cycle with the NAT instance's stored create-before-destroy dependencies.
+    toset(["nat", "probe"]),
     local.services_enabled ? local.service_role_names : toset([]),
     local.services_enabled ? toset(["app"]) : toset([]),
     local.services_enabled && var.load_generator_enabled ? toset(["loadgen"]) : toset([]),

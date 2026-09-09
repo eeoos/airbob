@@ -20,6 +20,7 @@ locals {
     "api_certificate_arn",
     "private_dns_zone_id",
     "private_dns_zone_name",
+    "approved_rds_snapshot_identifier",
     "ecr_repositories",
   ])
 
@@ -70,6 +71,14 @@ locals {
     local.lab_contract.api_fqdn == "api.airbob.cloud" &&
     can(regex("^Z[A-Z0-9]+$", local.lab_contract.private_dns_zone_id)) &&
     local.lab_contract.private_dns_zone_name == "lab.airbob.internal" &&
+    (
+      local.lab_contract.approved_rds_snapshot_identifier == "" ||
+      (
+        can(regex("^airbob-dataset-[a-z0-9][a-z0-9-]{2,47}$", local.lab_contract.approved_rds_snapshot_identifier)) &&
+        !endswith(local.lab_contract.approved_rds_snapshot_identifier, "-") &&
+        !strcontains(local.lab_contract.approved_rds_snapshot_identifier, "--")
+      )
+    ) &&
     can(regex(
       "^arn:aws:acm:ap-northeast-2:942632789808:certificate/[0-9a-f-]+$",
       local.lab_contract.api_certificate_arn,

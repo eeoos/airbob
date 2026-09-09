@@ -35,7 +35,9 @@ output "contract" {
     manage_master_user_password = aws_db_instance.this.manage_master_user_password
     backup_retention_period     = aws_db_instance.this.backup_retention_period
     configured_storage_gib      = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
-    storage_type                = aws_db_instance.this.storage_type
+    storage_type                = var.bootstrap_mode == "dump" ? local.dump_storage_type : null
+    iops                        = var.bootstrap_mode == "dump" ? local.dump_baseline_iops : null
+    storage_throughput_mibps    = var.bootstrap_mode == "dump" ? local.dump_baseline_storage_throughput_mibps : null
     storage_encrypted           = aws_db_instance.this.storage_encrypted
   }
 }

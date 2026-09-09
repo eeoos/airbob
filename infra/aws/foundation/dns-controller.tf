@@ -4,9 +4,9 @@ locals {
   dns_controller_trust_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid       = "LabOperatorOnly"
+      Sid       = "LabCutoverOperatorOnly"
       Effect    = "Allow"
-      Principal = { AWS = "arn:aws:iam::${var.account_id}:role/${local.role_names.lab}" }
+      Principal = { AWS = "arn:aws:iam::${var.account_id}:role/${local.role_names.lab_cutover}" }
       Action    = ["sts:AssumeRole", "sts:TagSession"]
       Condition = {
         "ForAllValues:StringEquals" = {
@@ -104,6 +104,7 @@ resource "aws_iam_role" "dns_controller" {
   name                 = local.dns_controller_role_name
   assume_role_policy   = local.dns_controller_trust_policy
   max_session_duration = 3600
+  depends_on           = [aws_iam_role.lab_cutover_operator]
 
   lifecycle {
     prevent_destroy = true

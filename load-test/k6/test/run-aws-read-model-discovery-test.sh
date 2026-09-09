@@ -394,6 +394,10 @@ cat > "$raw_bin/aws" <<'AWS'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_AWS_LOG"
+while [[ "${1:-}" == --cli-connect-timeout || "${1:-}" == --cli-read-timeout ]]; do
+  [[ "$#" -ge 2 ]] || exit 1
+  shift 2
+done
 service=$1
 operation=$2
 if [[ "$service:$operation" == dynamodb:update-item ]]; then

@@ -36,12 +36,16 @@ locals {
     "s3:GetEncryptionConfiguration",
   ]
 
-  lab_operator_state_keys = [local.state_keys.dns, local.state_keys.lab]
+  # The default operator is intentionally direct-only. Public DNS state is
+  # available only through the separately trusted cutover operator.
+  lab_operator_state_keys            = [local.state_keys.lab]
+  lab_cutover_operator_dns_state_key = local.state_keys.dns
 
   github_subjects = {
-    foundation = var.github_foundation_subject
-    lab        = var.github_lab_subject
-    image      = var.github_image_subject
+    foundation  = var.github_foundation_subject
+    lab         = var.github_lab_subject
+    lab_cutover = var.github_lab_cutover_subject
+    image       = var.github_image_subject
   }
 
   github_subjects_are_legacy = alltrue([

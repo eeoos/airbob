@@ -70,12 +70,17 @@ resource "aws_vpc_security_group_egress_rule" "all" {
 
 resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   security_group_id = aws_security_group.this["alb"].id
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = var.alb_ingress_cidr
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  description       = "Public HTTPS only"
+  description       = var.dns_mode == "cutover" ? "Public HTTPS for explicit DNS cutover" : "Operator HTTPS for direct-only qualification"
   tags              = var.tags
+}
+
+output "alb_https_ingress_cidr" {
+  description = "Validated HTTPS ingress source applied to the ALB security group."
+  value       = aws_vpc_security_group_ingress_rule.alb_https.cidr_ipv4
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nat_private" {

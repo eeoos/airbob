@@ -2,6 +2,9 @@
 set -euo pipefail
 umask 077
 
+# Snapshot receipts carry SnapshotInfo's IndexVersion range, not the producer node version.
+ELASTICSEARCH_SNAPSHOT_INDEX_VERSION=8.18.0-8.18.8
+
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
@@ -431,6 +434,7 @@ if [[ "$search_enabled" == true ]]; then
     --arg release "$expected_release" \
     --arg bucket "$dataset_bucket" \
     --arg referenceSha "$reference_sha" \
+    --arg snapshotIndexVersion "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION" \
     --slurpfile manifest "$stage_dir/manifest.json" \
     --slurpfile reference "$reference" '
       def exact_keys($wanted): (keys | sort) == ($wanted | sort);
@@ -475,7 +479,7 @@ if [[ "$search_enabled" == true ]]; then
       .[0].snapshot.name == $reference[0].snapshot and
       (.[0].snapshot.uuid | safe_name) and
       .[0].snapshot.state == "SUCCESS" and
-      .[0].snapshot.version == $reference[0].elasticsearchVersion and
+      .[0].snapshot.version == $snapshotIndexVersion and
       .[0].snapshot.indices == [$reference[0].snapshotIndex] and
       .[0].snapshot.includeGlobalState == false and
       (.[0].snapshot.totalShards | type == "number" and floor == . and . > 0) and

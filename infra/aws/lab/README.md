@@ -16,6 +16,18 @@ must therefore be unable to delete persistent datasets, evidence, bundles,
 ECR repositories, the orchestration lease table, ACM, OCI DNS, or the hosted
 zone through this Terraform graph.
 
+The supported operator defaults to `dns_mode=direct-only`. Terraform then
+accepts exactly one operator public `/32` as `alb_ingress_cidr`; explicit
+`cutover` is the only mode that accepts `0.0.0.0/0`. The direct operator role
+cannot write public-DNS state or assume the DNS controller; those permissions
+exist only on the separate cutover operator role. Direct-only never stages,
+switches, or removes public DNS and verifies OCI authority around the Lab
+lifecycle. Both modes repeat the OCI check after direct ALB smoke and publish
+direct-readiness before any optional DNS stage/switch. The protected hosted
+runner always resolves its live public IPv4; a supplied `/32` must match it
+exactly. The qualification footprint uses `performance`,
+`integrated-smoke`, one app instance, and `load_generator_enabled=false`.
+
 Prepare its committed S3 backend with:
 
 ```bash
@@ -33,6 +45,13 @@ immutable ECR images and service bundle, and select one reviewed Amazon-owned
 AL2023 x86_64 AMI id. No default AMI lookup is used, so the measured host image
 cannot silently change between runs.
 
+Before those applies, the operator performs a targeted apply of only
+`terraform_data.run_identity`. This no-cost state record binds the immutable
+operator manifest's run ID and original resource fencing token before any
+network resource can be created. Recovery reads that identity independently of
+`phase2_contract`, including from the exact current-state JSON if the output
+was not published.
+
 The Phase 2-4 transition is deliberately four applies, not one:
 
 1. `deployment_phase=network` creates networking, NAT, and one private
@@ -44,9 +63,13 @@ The Phase 2-4 transition is deliberately four applies, not one:
    `deployment_phase=services` with the bundle commit/SHA, nine infrastructure
    ECR digest references, the application ECR digest, the immutable dataset
    release, manifest SHA, MySQL patch
-   version, and `database_bootstrap=dump|snapshot`. A second receipt must attest
+   version, and `database_bootstrap=dump|snapshot`. Snapshot mode additionally
+   requires the exact promoted snapshot's source Lab run and source RDS resource
+   ID; dump mode requires every snapshot-source field to be empty. A second receipt must attest
    that the probe is terminated before the five service hosts and RDS can enter
-   the graph. The Debezium host then runs the ordered Phase 3 bootstrap. The
+   the graph. Readiness later fetches that receipt's nonempty exact S3 VersionId,
+   validates schema/run/VPC/probe/terminated state, and binds both its byte SHA
+   and normalized semantic SHA. The Debezium host then runs the ordered Phase 3 bootstrap. The
    ALB and App ASG are present, but the ASG contract is exactly `0/0/0` and no
    scaling policy exists.
 4. After the bootstrap has written its exact S3 receipt, apply
@@ -57,7 +80,10 @@ The Phase 2-4 transition is deliberately four applies, not one:
    request target; only scaling creates its CPU 50% and ALB request-count
    target tracking policies. This transition creates no
    replacement dataset and accepts only the exact receipt for this run,
-   manifest, RDS resource id, and dependency state.
+   manifest, RDS resource id, and dependency state. Readiness also re-reads the
+   live ALB attachment, requires exactly one TCP/443 ingress rule from the
+   requested CIDR with no IPv6 alternative, and matches live ASG capacity to
+   the Phase 4 contract.
 
 The network apply associates its VPC with the foundation-owned private zone;
 destroy removes only that association and the six service records, never the
@@ -75,7 +101,11 @@ merge hosts.
 
 The canonical release lives below
 `s3://<dataset-bucket>/datasets/<release>/`. `manifest.json` is published last
-and its SHA-256 is an explicit Terraform input. The release contains
+and its SHA-256 is an explicit Terraform input. The operator also requires the
+audited `DATASET_MANIFEST_VERSION_ID` and fetches that exact S3 version. The
+service bundle is independently pinned by `BUNDLE_COMMIT`, archive SHA, and
+the exact `BUNDLE_MANIFEST_VERSION_ID`; the supplied app digest must equal the
+ECR digest tagged by that runtime commit. The release contains
 the immutable `benchmark/manifest.json` workload input bound by the wrapper,
 `mysql/airbob.sql.zst`, and `mysql/sha256.txt`; a search-enabled release also
 contains `elasticsearch/snapshot-reference.json` and points to a read-only
@@ -103,34 +133,44 @@ mandatory inventory bootstrap; the read-only performance-lab exception is
 described below.
 
 The lab application is deliberately read-only for reservation inventory. Both
-`aws,performance-lab` and the `aws,traffic-benchmark` profile group disable
+`aws,performance-lab,test` and the `aws,traffic-benchmark` profile group disable
 inventory startup, rolling seed, and retention, so the manifest's exact
 `accommodation_inventory_day=0` contract is preserved instead of materializing
-date rows for 730,702 accommodations. The benchmark target allowlist contains
+date rows for 200,201 accommodations. For the fixed immutable application image,
+the additional `test` profile excludes the main scheduling configuration while
+the explicit runtime environment restores every integrated Kafka listener to
+`auto-startup=true`; the runtime and context contracts verify both sides. The
+benchmark target allowlist contains
 only GET requests and excludes availability, quote, checkout, and reservation
 mutations. Any inventory-dependent call therefore fails closed with HTTP 503 /
 `R026`. Ordinary `aws` and `oci` deployments retain mandatory inventory startup.
 
-Dump mode creates an empty `db.t3.micro` RDS MySQL instance; snapshot mode may
+Dump mode creates an empty `db.t3.small` RDS MySQL instance. Snapshot mode may
 use only an encrypted, available snapshot whose release, run, dump, Flyway,
-and manifest tags match the selected release. The dump remains canonical and
-the snapshot is only a rebuild cache. Snapshot promotion is a separate
-publisher/admin operation:
+and manifest tags match the selected release. Promotion separately validates
+the source instance class, and the restored instance also remains
+`db.t3.small`. The dump remains canonical and the snapshot is only a rebuild
+cache. Snapshot promotion is a separate publisher/admin operation:
 
 ```bash
 AIRBOB_REGION=ap-northeast-2 \
   infra/aws/scripts/promote-rds-snapshot.sh \
-  manifest.json data-bootstrap-receipt.json \
+  manifest.json data-bootstrap-receipt.json "$DATA_RECEIPT_VERSION_ID" \
+  direct-readiness.json "$DIRECT_READINESS_VERSION_ID" \
   airbob-<run-id> airbob-dataset-<release> promotion.json
 ```
 
 That command creates and validates a persistent snapshot candidate; it does
 not grant the ephemeral lab role authority to retain data or update a
-persistent release inventory. `promotion.json` is create-only. The promoter
-requires `airbob-<run-id>` to match the exact bootstrap receipt, then stamps the
-validated source run, source RDS resource ID, and promotion schema onto the
-snapshot. Snapshot bootstrap rejects a snapshot that merely copies the dataset
-tuple without those promotion markers.
+persistent release inventory. `promotion.json` is create-only. Before any RDS
+call, the promoter downloads both receipts from the fixed evidence bucket by
+their exact S3 VersionIds and requires byte-for-byte equality with the supplied
+files. It requires `airbob-<run-id>` to match the exact bootstrap and readiness
+receipts and the source instance to use the fixed `db.t3.small` qualification
+class. It then stamps the validated source run, source RDS resource ID, both
+receipt identities, and promotion schema onto the snapshot. Snapshot bootstrap
+rejects a snapshot that merely copies the dataset tuple without those promotion
+markers.
 
 The SSM bootstrap is fail-closed and ordered: RDS readiness/import and Flyway
 plus schema fingerprints, optional Elasticsearch restore, both Redis resets
@@ -138,8 +178,12 @@ and declared coupon preparation, the exact 12 canonical Kafka main/retry/DLT
 topics at three partitions each, then a Debezium
 `no_data` connector with one running task. RDS and Debezium credentials are
 resolved on the host from Secrets Manager into mode-0600 temporary files and
-are not Terraform values. The final receipt is written only after every gate
-passes.
+are not Terraform values. MySQL readiness, ordinary control SQL, full-dataset
+read-only attestation, and dump import use separate 30-, 900-, 3,600-, and
+7,200-second process deadlines. Expiry terminates the affected subprocess and
+fails the association so fenced cleanup can proceed, while the 12,600-second
+SSM command remains the total ceiling. The final receipt is written only after
+every gate passes.
 
 ## Phase 4 application contract
 
@@ -178,16 +222,136 @@ Phase 4 creates only the host boundary; the digest/checksum-locked k6 tooling
 and evidence runner remain Phase 6 work.
 
 Every resource must retain the ephemeral identity/expiry tags and remain
-destroyable by a lab-only `terraform destroy`; persistent resources continue
-to enter only through the validated SSM contract.
+destroyable by the fenced operator; persistent resources continue to enter
+only through the validated SSM contract. Applying `network`, `services`, or
+`data-ready` creates billable EC2/EBS/EIP/RDS/ALB resources. Use the Phase 5
+wrapper and immediate teardown; dump bootstrap requires a minimum six-hour
+TTL, while snapshot bootstrap continues to use an explicit two-hour TTL. Dump
+up uses an 18,000-second command watchdog. Its budget model allocates
+the 12,600-second SSM restore command, a 12,900-second association waiter that
+reserves 300 seconds for result propagation, 1,800 seconds before bootstrap,
+and 3,000 seconds after bootstrap (`12,900 + 1,800 + 3,000 = 17,700`). The
+pre/post figures are planning allocations inside the single fail-closed outer
+watchdog, not independent stage timers. A failed
+dump up stops that command watchdog and starts a distinct 2,400-second
+failure-cleanup watchdog. The orchestration lease spans both periods and has
+a 20,700-second absolute deadline: command, cleanup, and a 300-second
+lease-transition margin (`18,000 + 2,400 + 300`). That transition margin
+absorbs bounded lease-acquisition and handler-handoff skew so heartbeats and
+lease assertions remain valid throughout cleanup. The hard workflow ceiling is
+21,540 seconds (359 minutes), but the first step subtracts an explicit
+120-second workflow-initialization reserve and records a safe 21,420-second
+deadline. Immediately after immutable release validation, and before lease
+acquisition or Terraform mutation, the operator requires at least the
+20,700-second lease plus a 300-second finalization margin. This leaves up to
+420 seconds after the first step for setup and release validation
+(`420 + 20,700 + 300 = 21,420`). The 21,600-second static credential must still
+have at least the lease deadline plus its existing 300-second safety margin at
+that gate (21,000 seconds total). Lease acquisition itself is bounded to 120
+seconds; DynamoDB calls use 10-second connect and 20-second read timeouts with
+three standard-mode attempts. Every invocation appends a process/temp nonce to
+its bounded owner identity. If the acquire process ends without a token, the
+operator spends at most 60 seconds on strongly consistent status retries and
+an exact conditional release. It adopts a status token only when owner, run,
+command, positive token, and canonical `AcquiredAt` match that invocation's
+measured window, and when the untouched acquire shape is exact:
+`HeartbeatAt == AcquiredAt`, `ExpiresAt == AcquiredAt + 180`, and
+`CommandDeadline == AcquiredAt + lease deadline`. A recovered acquisition is
+released and always terminates; it never starts heartbeat, publishes a run
+manifest, or reaches Terraform. If every bounded status/release attempt loses
+its response, the unique lease remains fenced until its TTL/deadline rather
+than risking release of another invocation. After a normal token response, the
+operator marks the exact lease releasable and rechecks both workflow and
+credential budgets before starting heartbeat or publishing the run manifest.
+The 60-second recovery ceiling fits inside the existing 300-second workflow
+finalization and credential safety margins. The dump resource-expiry tag
+remains at least six hours.
 
-No live plan or apply has been executed. The Terraform configuration and mock
-tests are implemented, but applying `network`, `services`, or `data-ready` will
-create billable EC2/EBS/EIP/RDS/ALB resources. The Phase 5 wrapper is now the
-supported entry point because it supplies the required fencing token and
-ordered receipts; low-level phase applies remain diagnostic/emergency tools.
+Snapshot up retains a 5,400-second command watchdog and uses a distinct
+3,600-second failure-cleanup watchdog. With the same transition margin, its
+lease deadline is 9,300 seconds. Its hard workflow ceiling is 10,200 seconds
+(170 minutes), while the same initialization reserve makes the recorded safe
+deadline 10,080 seconds. That allocates 480 seconds after the first step to
+setup and 300 seconds to finalization (`480 + 9,300 + 300 = 10,080`). Its
+10,800-second credential must have at least
+9,600 seconds remaining at the pre-mutation gate, and its resource-expiry tag
+remains exactly two hours. Down and status keep a 5,400-second command/lease
+deadline and 7,200-second workflow and credential boundaries. Their command
+watchdog starts before lease acquisition, so acquisition time cannot extend the
+lease-relative command window. Missing or invalid workflow-deadline input fails
+closed in GitHub Actions; local operators may omit it.
 
-The supported teardown is `make aws-down`. A manual emergency teardown must
-still use `deployment_phase=network` plus the same `run_id`, `expires_at`,
-`fencing_token`, and `ami_id`; destroy mode then avoids receipt and bundle
-reads. Do not run a normal low-level `apply` as a substitute for the operator.
+Every heartbeat and lease control call—including ordinary assertions and the
+best-effort exact final release—has a 30-second outer process-group deadline.
+The operator prepares fresh output, error, and timeout captures before it
+starts any control child. A timeout kills and reaps the full child group before
+best-effort diagnostic-marker publication; elapsed time remains authoritative
+if that marker cannot be written. On automatic failure cleanup, the operator
+requests an in-memory cooperative loop stop, with a bounded forced-reap
+fallback that does not depend on a writable stop file. It reaps its in-flight
+call (at most 31 seconds), clears the exclusively created one-shot failure
+marker, performs a bounded 30-second renewal, and performs a bounded 30-second
+exact assertion. Failure to publish a new one-shot marker signals the operator
+and stops that loop fail-safe; failure to clear it preserves resources before
+renewal or destroy. Only after a successful handoff does the operator install
+the cleanup heartbeat trap and restart periodic renewal before destroy. This
+worst-case 91-second handoff is explicitly bounded by the existing 300-second
+lease-transition margin (`31 + 30 + 30 <= 300`). Failed renewal or validation
+preserves resources and skips every clean-finalization claim while still
+attempting exact lease release. A later failure after restart follows the same
+process-group termination and explicit finalizer path as cleanup-watchdog
+expiry. Main-shell failures raised from inside the EXIT cleanup path route
+directly through that explicit finalizer; they cannot bypass loop reaping or
+lease release through recursive EXIT behavior. Finalization always stops and
+reaps the loop before exact release, so no stale child can renew or signal after
+the operator returns. These safety windows do not extend normal resource
+lifetime because a successful rehearsal is torn down immediately, and expiry
+remains an operator-visible safety signal. Low-level phase applies remain
+diagnostic/emergency tools.
+
+The supported teardown is `make aws-down RUN_ID=<run-id>`. It publishes a
+create-only teardown-start journal before destroy. The first saved plan targets
+every managed state address except `terraform_data.run_identity`, verifies the
+exact delete-only address set, and applies it. Any remaining data-source state
+is removed only after the current JSON inventory proves an exact `mode=data`
+allowlist. With the state reduced to the matching run identity, the operator
+publishes and exact-version reads
+`measurements/<run-id>/teardown-finalize.json`; that journal binds the
+identity-only state VersionId, object SHA, lineage, serial, resource fence, and
+the versioned teardown-start journal. A second refresh-free destroy plan must
+then describe exactly one delete for the state-only built-in `terraform_data`
+identity. The operator verifies that plan but does not apply it; it removes the
+single literal state address with `terraform state rm`, avoiding an external
+API call and producing a stable one-serial transition. The resulting empty
+state must have the same lineage and exactly the predecessor serial plus one.
+A failed first apply or finalize publication therefore leaves the identity
+available for an explicit retry, and a lost identity state-removal response
+can be recovered only by the matching run's versioned finalize journal.
+Teardown then requires verified OCI-only DNS/direct/public health and zero
+globally tagged or explicitly scanned compute, network, ALB, RDS, IAM, SSM,
+secret, dashboard, alarm, and six exact private-zone service A-record
+resources. Every explicit AWS scan fails closed when the service query itself
+fails. Its final authority is
+`measurements/state-clean/<sha256(state-VersionId)>.json`, which also binds the
+state-object SHA. Do not delete the backend object. A later `up` accepts it only
+when that exact final receipt, exact versioned teardown-start and
+teardown-finalize journals, the direct lineage/serial transition, and a
+fresh account-wide Lab orphan scan all validate. Run IDs are globally
+single-use; their create-only operator manifest is read back before the first
+Terraform mutation, and data-bootstrap receipts are create-only at the bucket
+boundary. Even the first run with no backend state must pass the same global
+orphan scan before publishing its manifest. Automatic failure cleanup requires a
+fresh OCI observation and successful create-only/read-back teardown-start
+journal before destroy; if either fails it preserves the Lab for explicit
+recovery and still releases the orchestration lease. If final publication failed after a
+successful destroy, repeat `aws-down RUN_ID=<old-run>`; the journal allows
+finalization without another apply or destroy. Scheduled forced cleanup is
+eligible at `expiresAt`, and the minute-17/47 workflow cadence bounds pickup to
+30 minutes. A native S3 `.tflock` left by a SIGKILL is never removed by direct
+S3 deletion. The current lease preserves a lock it could have created; a later
+lease may invoke Terraform `force-unlock` only after the exact LockInfo ID,
+version, backend path, byte stability, and `Created < AcquiredAt` fence all pass.
+It additionally fixes the current S3 lock `VersionId` and server `LastModified`,
+writes a create-only S3 clock receipt, waits 21,900 seconds of server-observed
+elapsed time, and rechecks the unchanged bytes and S3 identity immediately
+before Terraform performs the ID-checked unlock.

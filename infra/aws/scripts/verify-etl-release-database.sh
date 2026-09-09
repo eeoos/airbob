@@ -357,73 +357,10 @@ inventory_fingerprint=$(awk -F $'\t' '$1=="final-inventory"{print $2}' "$fingerp
 [[ "$base_world" == "$(jq -r '.world.fingerprints["base-world"]' "$manifest")" ]] || fail 'base-world fingerprint differs from restored contiguous scopes'
 [[ "$inventory_fingerprint" == "$(jq -r '.world.fingerprints["final-inventory"]' "$manifest")" ]] || fail 'inventory fingerprint differs from restored rows'
 
-java_double_hex() {
-  jq -nr --argjson value "$1" '
-    def hex_digit($value):
-      "0123456789abcdef"[$value:($value + 1)];
-    def fraction_hex($value):
-      reduce range(0; 13) as $unused
-        ({remainder: $value, digits: ""};
-          (.remainder * 16) as $scaled
-          | ($scaled | floor) as $digit
-          | .remainder = ($scaled - $digit)
-          | .digits += hex_digit($digit))
-      | .digits
-      | sub("0+$"; "")
-      | if length == 0 then "0" else . end;
-    ($value | fabs) as $absolute
-    | (if copysign(1; $value) < 0 then "-" else "" end) as $sign
-    | if $absolute == 0 then
-        $sign + "0x0.0p0"
-      elif $absolute < ldexp(1; -1022) then
-        $sign + "0x0." + fraction_hex(ldexp($absolute; 1022)) + "p-1022"
-      else
-        ($absolute | frexp) as $parts
-        | $sign + "0x1." + fraction_hex(($parts[0] * 2) - 1)
-          + "p" + (($parts[1] - 1) | tostring)
-      end
-  '
-}
-join_unit_fields() {
-  local delimiter=$'\x1f' first=true field
-  for field in "$@"; do
-    if [[ "$first" == true ]]; then first=false; else printf '%s' "$delimiter"; fi
-    printf '%s' "$field"
-  done
-}
-query_nullable() {
-  jq -r --arg field "$1" 'if .query[$field]==null then "<null>" else (.query[$field]|tostring) end' <<< "$2"
-}
-query_canonical() {
-  local target=$1 kind
-  kind=$(jq -r '.query.kind // empty' <<< "$target")
-  case "$kind" in
-    REVIEW_SUMMARY_V1) join_unit_fields "$kind" "$(jq -r '.query.accommodationId' <<< "$target")" ;;
-    WISHLIST_PAGE_V1)
-      join_unit_fields "$kind" "$(jq -r '.query.memberId' <<< "$target")" \
-        "$(jq -r '.query.size' <<< "$target")" "$(query_nullable lastId "$target")" \
-        "$(query_nullable lastCreatedAt "$target")" "$(query_nullable accommodationId "$target")" \
-        "$(jq -r '.query.totalActiveRows' <<< "$target")" ;;
-    REVENUE_RANGE_V1) join_unit_fields "$kind" "$(jq -r '.query.from' <<< "$target")" "$(jq -r '.query.to' <<< "$target")" "$(jq -r '.query.dayBoundary' <<< "$target")" ;;
-    ACCOMMODATION_SEARCH_V1)
-      join_unit_fields "$kind" "$(jq -r '.query.destination' <<< "$target")" \
-        "$(jq -r '.query.minPrice' <<< "$target")" "$(jq -r '.query.maxPrice' <<< "$target")" \
-        "$(jq -r '.query.adultOccupancy' <<< "$target")" "$(jq -r '.query.childOccupancy' <<< "$target")" \
-        "$(jq -r '.query.infantOccupancy' <<< "$target")" "$(jq -r '.query.petOccupancy' <<< "$target")" \
-        "$(java_double_hex "$(jq -r '.query.topLeftLat' <<< "$target")")" \
-        "$(java_double_hex "$(jq -r '.query.topLeftLng' <<< "$target")")" \
-        "$(java_double_hex "$(jq -r '.query.bottomRightLat' <<< "$target")")" \
-        "$(java_double_hex "$(jq -r '.query.bottomRightLng' <<< "$target")")" \
-        "$(jq -r '.query.page' <<< "$target")" ;;
-    '') printf '' ;;
-    *) fail "unsupported target query kind: $kind" ;;
-  esac
-}
-
 verify_read_model_targets() {
-  local receipt=$1 fingerprint_stream="$work_dir/target-fingerprint.bin" target id kind expected_rows expected_hash actual_rows actual_hash member_id size cursor_id cursor_time from to data_sql data_hash account_count created_at_field
+  local receipt=$1 target id kind expected_rows expected_hash actual_rows actual_hash member_id size cursor_id cursor_time from to data_sql data_hash account_count created_at_field
   local read_model_count=0 search_count=0 adult child infant pet total_occupancy top_left_lat top_left_lng bottom_right_lat bottom_right_lng minimum_price maximum_price search_scope search_stats representative_id expected_representative
-  : > "$receipt"; : > "$fingerprint_stream"
+  : > "$receipt"
   while IFS= read -r target; do
     id=$(jq -r '.id' <<< "$target"); kind=$(jq -r '.query.kind // empty' <<< "$target")
     if [[ "$kind" != REVIEW_SUMMARY_V1 && "$kind" != WISHLIST_PAGE_V1 && "$kind" != REVENUE_RANGE_V1 && "$kind" != ACCOMMODATION_SEARCH_V1 ]]; then continue; fi
@@ -485,21 +422,8 @@ verify_read_model_targets() {
   [[ "$search_count" == 4 ]] || fail 'index-query-v1 must contain exactly four live-verifiable search targets'
   [[ "$(wc -l < "$receipt" | tr -d '[:space:]')" == 19 ]] || fail 'live target receipt cardinality is invalid'
 
-  while IFS= read -r capsule; do
-    append_length_prefixed "$fingerprint_stream" "$(jq -r '.capsuleId' <<< "$capsule")"
-    while IFS= read -r target; do
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.id' <<< "$target")"
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.expectedRows|tostring' <<< "$target")"
-      while IFS= read -r resource; do append_length_prefixed "$fingerprint_stream" "$resource"; done < <(jq -r '.resourceIds[]|tostring' <<< "$target")
-      append_length_prefixed "$fingerprint_stream" "$(query_canonical "$target")"
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.expectedResultHash // empty' <<< "$target")"
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.account.memberId // empty' <<< "$target")"
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.account.email // empty' <<< "$target")"
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.account.role // empty' <<< "$target")"
-      append_length_prefixed "$fingerprint_stream" "$(jq -r '.account.status // empty' <<< "$target")"
-    done < <(jq -c '.targets|sort_by(.id)[]' <<< "$capsule")
-  done < <(jq -c '.capsules|sort_by(.capsuleId)[]' "$manifest")
-  target_fingerprint=$(sha256_file "$fingerprint_stream")
+  target_fingerprint=$("$script_dir/compute-target-fingerprint.sh" "$manifest") \
+    || fail 'target fingerprint calculation failed'
   [[ "$target_fingerprint" == "$(jq -r '.targetFingerprint' "$manifest")" ]] || fail 'targetFingerprint does not bind live-verified targets'
   printf 'targetFingerprint\t%s\n' "$target_fingerprint" >> "$receipt"
 }

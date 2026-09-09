@@ -26,8 +26,9 @@ resource "aws_instance" "this" {
     delete_on_termination = true
     volume_type           = "gp3"
     volume_size           = each.value.volume_size
-    tags                  = merge(var.tags, { Name = "${var.name_prefix}-${each.key}-root" })
   }
+
+  volume_tags = merge(var.tags, { Name = "${var.name_prefix}-${each.key}-root" })
 
   tags = merge(
     var.tags,

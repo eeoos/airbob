@@ -4,7 +4,10 @@ umask 077
 export LC_ALL=C
 
 ELASTICSEARCH_VERSION=8.18.8
-CREDENTIAL_HEADROOM_SECONDS=3600
+# SnapshotInfo.version serializes IndexVersion.toReleaseVersion(), not the node product version.
+ELASTICSEARCH_SNAPSHOT_INDEX_VERSION=8.18.0-8.18.8
+ELASTICSEARCH_SNAPSHOT_INDEX_VERSION_ID=8525000
+CREDENTIAL_HEADROOM_SECONDS=3300
 CREDENTIAL_SHUTDOWN_HEADROOM_SECONDS=300
 LEASE_DEADLINE_GRACE_SECONDS=900
 LEASE_HEARTBEAT_INTERVAL_SECONDS=60
@@ -601,47 +604,8 @@ jq -se \
 elasticsearch_image_ref=$(jq -r '.images.ELASTICSEARCH_IMAGE' "$image_release_file")
 image_digest=${elasticsearch_image_ref##*@}
 
-caller_identity=$(aws sts get-caller-identity --output json --region "$AIRBOB_REGION") \
-  || fail 'cannot resolve the active AWS caller'
-jq -e \
-  --arg account "$AIRBOB_AWS_ACCOUNT_ID" \
-  --arg arn "arn:aws:sts::$AIRBOB_AWS_ACCOUNT_ID:assumed-role/airbob-dataset-publisher/" '
-  .Account == $account and (.Arn | startswith($arn))
-' <<<"$caller_identity" >/dev/null \
-  || fail 'snapshot production requires assumed-role/airbob-dataset-publisher credentials'
-caller_arn=$(jq -r '.Arn' <<<"$caller_identity")
-
-credentials_json=$(aws configure export-credentials --format process) \
-  || fail 'cannot export the active temporary AWS credentials'
-jq -e '
-  .Version == 1 and
-  (.AccessKeyId | type == "string" and test("^ASIA[A-Z0-9]{16}$")) and
-  (.SecretAccessKey | type == "string" and length > 0) and
-  (.SessionToken | type == "string" and length > 0) and
-  (.Expiration | type == "string")
-' <<<"$credentials_json" >/dev/null \
-  || fail 'active AWS credentials are not temporary session credentials'
-expiration_epoch=$(jq -er '.Expiration | sub("\\+00:00$"; "Z") | fromdateiso8601' <<<"$credentials_json") \
-  || fail 'temporary AWS credential expiration is invalid'
-current_epoch=$(date -u '+%s')
-[[ "$expiration_epoch" =~ ^[0-9]+$ && "$expiration_epoch" -ge $((current_epoch + CREDENTIAL_HEADROOM_SECONDS)) ]] \
-  || fail 'temporary AWS credentials do not have one hour of expiry headroom'
-credential_remaining_seconds=$((expiration_epoch - current_epoch))
-credential_watchdog_seconds=$((credential_remaining_seconds - CREDENTIAL_SHUTDOWN_HEADROOM_SECONDS))
-lease_deadline_seconds=$((credential_remaining_seconds + LEASE_DEADLINE_GRACE_SECONDS))
-[[ "$credential_watchdog_seconds" -gt 0 && "$lease_deadline_seconds" -le 9000 ]] \
-  || fail 'temporary AWS credential lifetime is outside the snapshot lease boundary'
-access_key=$(jq -r '.AccessKeyId' <<<"$credentials_json")
-secret_key=$(jq -r '.SecretAccessKey' <<<"$credentials_json")
-session_token=$(jq -r '.SessionToken' <<<"$credentials_json")
-credentials_json=''
-
-caller_session=${caller_arn##*/}
-lease_owner="dataset-publisher/$caller_session"
 lease_run_id="snapshot-${dataset_run_id:0:8}-${dataset_run_id##*-}"
 lease_lock_id="airbob-dataset-snapshot/$dataset_release"
-[[ "$lease_owner" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] \
-  || fail 'derived dataset snapshot lease owner is invalid'
 [[ "$lease_run_id" =~ ^snapshot-[0-9]{8}-[0-9a-f]{8}$ ]] \
   || fail 'derived dataset snapshot lease run id is invalid'
 
@@ -757,17 +721,6 @@ collect_inventory() {
   rm -f "$raw" "$page"
 }
 
-lease_output=$(lease_command acquire \
-  "$LEASE_TABLE" "$lease_lock_id" "$lease_owner" "$lease_run_id" \
-  dataset-snapshot "$LEASE_HEARTBEAT_TTL_SECONDS" "$lease_deadline_seconds") \
-  || fail 'another producer owns the dataset snapshot release lease'
-[[ "$lease_output" =~ ^fencing_token=([1-9][0-9]*)$ ]] \
-  || fail 'dataset snapshot lease returned an invalid fencing token'
-lease_token=${BASH_REMATCH[1]}
-lease_acquired=true
-start_lease_guards
-assert_snapshot_lease || fail 'dataset snapshot lease was lost before repository inspection'
-
 lineage_receipt=$(AIRBOB_DATASET_RELEASE_PROFILE="$profile_version" \
   AIRBOB_DATASET_DB_PASSWORD="$database_password" \
   "$lineage_verifier" "$etl_release_dir") \
@@ -798,6 +751,57 @@ jq -se --slurpfile attestation "$attestation_file" '
   || fail 'live database lineage differs from the dataset attestation'
 database_server_uuid=$(jq -r '.databaseServerUuid' <<<"$lineage_receipt")
 lineage_receipt=''
+
+caller_identity=$(aws sts get-caller-identity --output json --region "$AIRBOB_REGION") \
+  || fail 'cannot resolve the active AWS caller'
+jq -e \
+  --arg account "$AIRBOB_AWS_ACCOUNT_ID" \
+  --arg arn "arn:aws:sts::$AIRBOB_AWS_ACCOUNT_ID:assumed-role/airbob-dataset-publisher/" '
+  .Account == $account and (.Arn | startswith($arn))
+' <<<"$caller_identity" >/dev/null \
+  || fail 'snapshot production requires assumed-role/airbob-dataset-publisher credentials'
+caller_arn=$(jq -r '.Arn' <<<"$caller_identity")
+
+credentials_json=$(aws configure export-credentials --format process) \
+  || fail 'cannot export the active temporary AWS credentials'
+jq -e '
+  .Version == 1 and
+  (.AccessKeyId | type == "string" and test("^ASIA[A-Z0-9]{16}$")) and
+  (.SecretAccessKey | type == "string" and length > 0) and
+  (.SessionToken | type == "string" and length > 0) and
+  (.Expiration | type == "string")
+' <<<"$credentials_json" >/dev/null \
+  || fail 'active AWS credentials are not temporary session credentials'
+expiration_epoch=$(jq -er '.Expiration | sub("\\+00:00$"; "Z") | fromdateiso8601' <<<"$credentials_json") \
+  || fail 'temporary AWS credential expiration is invalid'
+current_epoch=$(date -u '+%s')
+[[ "$expiration_epoch" =~ ^[0-9]+$ && "$expiration_epoch" -ge $((current_epoch + CREDENTIAL_HEADROOM_SECONDS)) ]] \
+  || fail 'temporary AWS credentials do not have 55 minutes of expiry headroom'
+credential_remaining_seconds=$((expiration_epoch - current_epoch))
+credential_watchdog_seconds=$((credential_remaining_seconds - CREDENTIAL_SHUTDOWN_HEADROOM_SECONDS))
+lease_deadline_seconds=$((credential_remaining_seconds + LEASE_DEADLINE_GRACE_SECONDS))
+[[ "$credential_watchdog_seconds" -gt 0 && "$lease_deadline_seconds" -le 9000 ]] \
+  || fail 'temporary AWS credential lifetime is outside the snapshot lease boundary'
+access_key=$(jq -r '.AccessKeyId' <<<"$credentials_json")
+secret_key=$(jq -r '.SecretAccessKey' <<<"$credentials_json")
+session_token=$(jq -r '.SessionToken' <<<"$credentials_json")
+credentials_json=''
+
+caller_session=${caller_arn##*/}
+lease_owner="dataset-publisher/$caller_session"
+[[ "$lease_owner" =~ ^[A-Za-z0-9._:@/-]{3,128}$ ]] \
+  || fail 'derived dataset snapshot lease owner is invalid'
+
+lease_output=$(lease_command acquire \
+  "$LEASE_TABLE" "$lease_lock_id" "$lease_owner" "$lease_run_id" \
+  dataset-snapshot "$LEASE_HEARTBEAT_TTL_SECONDS" "$lease_deadline_seconds") \
+  || fail 'another producer owns the dataset snapshot release lease'
+[[ "$lease_output" =~ ^fencing_token=([1-9][0-9]*)$ ]] \
+  || fail 'dataset snapshot lease returned an invalid fencing token'
+lease_token=${BASH_REMATCH[1]}
+lease_acquired=true
+start_lease_guards
+assert_snapshot_lease || fail 'dataset snapshot lease was lost before repository inspection'
 
 pre_inventory="$work_dir/pre-inventory.jsonl"
 collect_inventory "$pre_inventory"
@@ -1104,7 +1108,8 @@ snapshot_create=$(curl_json PUT \
 jq -e \
   --arg snapshot "$snapshot_name" \
   --arg index "$SOURCE_INDEX" \
-  --arg version "$ELASTICSEARCH_VERSION" \
+  --arg version "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION" \
+  --argjson versionId "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION_ID" \
   --arg release "$dataset_release" \
   --arg runId "$dataset_run_id" \
   --arg sourcePayloadSha256 "$source_payload_sha" \
@@ -1113,6 +1118,7 @@ jq -e \
   (.snapshot.uuid | type == "string" and length > 0) and
   .snapshot.state == "SUCCESS" and
   .snapshot.version == $version and
+  .snapshot.version_id == $versionId and
   .snapshot.indices == [$index] and
   .snapshot.include_global_state == false and
   (.snapshot.feature_states // []) == [] and
@@ -1162,7 +1168,8 @@ snapshot_metadata_response=$(curl_json GET "/_snapshot/$READER_REPOSITORY/$snaps
 jq -e \
   --arg snapshot "$snapshot_name" \
   --arg index "$SOURCE_INDEX" \
-  --arg version "$ELASTICSEARCH_VERSION" \
+  --arg version "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION" \
+  --argjson versionId "$ELASTICSEARCH_SNAPSHOT_INDEX_VERSION_ID" \
   --arg release "$dataset_release" \
   --arg runId "$dataset_run_id" \
   --arg sourcePayloadSha256 "$source_payload_sha" \
@@ -1172,6 +1179,7 @@ jq -e \
   (.snapshots[0].uuid | type == "string" and length > 0) and
   .snapshots[0].state == "SUCCESS" and
   .snapshots[0].version == $version and
+  .snapshots[0].version_id == $versionId and
   .snapshots[0].indices == [$index] and
   .snapshots[0].include_global_state == false and
   (.snapshots[0].feature_states // []) == [] and
