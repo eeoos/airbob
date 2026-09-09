@@ -1,6 +1,5 @@
 package kr.kro.airbob.domain.accommodation.repository;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,15 +22,6 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
 		Long getAccommodationId();
 		String getTimeZoneId();
 	}
-
-	// 대표 숙소 id 묶음 → 썸네일 URL 배치 조회 (위시리스트 목록 반정규화 읽기용)
-	interface ThumbnailUrlProjection {
-		Long getId();
-		String getThumbnailUrl();
-	}
-
-	@Query("SELECT a.id AS id, a.thumbnailUrl AS thumbnailUrl FROM Accommodation a WHERE a.id IN :ids")
-	List<ThumbnailUrlProjection> findThumbnailUrlsByIds(@Param("ids") Collection<Long> ids);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT a FROM Accommodation a WHERE a.id = :id")

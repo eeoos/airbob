@@ -1,0 +1,45 @@
+{
+  "wishlists": [
+    {
+      "id": 44,
+      "name": "빈 여행",
+      "created_at": "2026-07-02T00:00:00Z",
+      "wishlist_item_count": 0,
+      "thumbnail_image_url": null,
+      "is_contained": false,
+      "wishlist_accommodation_id": null
+    },
+    {
+      "id": 43,
+      "name": "함께 여행",
+      "created_at": "2026-07-02T00:00:00Z",
+      "wishlist_item_count": 1,
+      "thumbnail_image_url": "/stay.jpg",
+      "is_contained": true,
+      "wishlist_accommodation_id": 501
+    },
+    {
+      "id": 42,
+      "name": "겨울 여행",
+      "created_at": "2026-07-02T00:00:00Z",
+      "wishlist_item_count": 2,
+      "thumbnail_image_url": "/private.jpg",
+      "is_contained": true,
+      "wishlist_accommodation_id": 502
+    },
+    {
+      "id": 41,
+      "name": "지난 여행",
+      "created_at": "2026-07-01T00:00:00Z",
+      "wishlist_item_count": 1,
+      "thumbnail_image_url": null,
+      "is_contained": false,
+      "wishlist_accommodation_id": null
+    }
+  ],
+  "page_info": {
+    "has_next": false,
+    "next_cursor": null,
+    "current_size": 4
+  }
+}

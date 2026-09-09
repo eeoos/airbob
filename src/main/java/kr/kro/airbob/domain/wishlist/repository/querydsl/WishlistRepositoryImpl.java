@@ -1,6 +1,8 @@
 package kr.kro.airbob.domain.wishlist.repository.querydsl;
 
+import static kr.kro.airbob.domain.accommodation.entity.QAccommodation.*;
 import static kr.kro.airbob.domain.wishlist.entity.QWishlist.*;
+import static kr.kro.airbob.domain.wishlist.entity.QWishlistAccommodation.*;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -10,12 +12,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 
+import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAUpdateClause;
 
 import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
+import kr.kro.airbob.domain.wishlist.repository.projection.QWishlistSummaryProjection;
+import kr.kro.airbob.domain.wishlist.repository.projection.WishlistSummaryProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -53,6 +59,33 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 			clause.set(wishlist.representativeAccommodationId, accommodationId);
 		}
 		clause.execute();
+	}
+
+	@Override
+	public Slice<WishlistSummaryProjection> findSummariesByMemberIdAndStatusWithCursor(Long memberId,
+		WishlistStatus status, Long lastId, LocalDateTime lastCreatedAt, Long accommodationId, Pageable pageable) {
+		Expression<Long> membershipId = accommodationId == null
+			? Expressions.nullExpression(Long.class) : wishlistAccommodation.id;
+		var query = queryFactory
+			.select(new QWishlistSummaryProjection(wishlist.id, wishlist.name, wishlist.createdAt,
+				wishlist.accommodationCount, accommodation.thumbnailUrl, membershipId))
+			.from(wishlist)
+			.leftJoin(accommodation).on(accommodation.id.eq(wishlist.representativeAccommodationId));
+		if (accommodationId != null) {
+			// UNIQUE(wishlist_id, accommodation_id) guarantees at most one matching membership per list.
+			query.leftJoin(wishlistAccommodation).on(wishlistAccommodation.wishlist.id.eq(wishlist.id),
+				wishlistAccommodation.accommodation.id.eq(accommodationId));
+		}
+		List<WishlistSummaryProjection> content = query
+			.where(wishlist.member.id.eq(memberId), wishlist.status.eq(status), cursorCondition(lastId, lastCreatedAt))
+			.orderBy(wishlist.createdAt.desc(), wishlist.id.desc())
+			.limit(pageable.getPageSize() + 1)
+			.fetch();
+		boolean hasNext = content.size() > pageable.getPageSize();
+		if (hasNext) {
+			content.remove(pageable.getPageSize());
+		}
+		return new SliceImpl<>(content, pageable, hasNext);
 	}
 
 	@Override

@@ -190,7 +190,7 @@ class WishlistDetailQueryIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("목록 세 페이지·아홉 SELECT로 구하던 찜 상태를 한 SELECT로 반환한다")
+	@DisplayName("목록 세 페이지로 구하는 찜 상태를 전용 상태 조회 한 번으로 반환한다")
 	void membershipSnapshotReplacesThreeSummaryPages() {
 		insertAccommodation(31, "PUBLISHED");
 		for (long id = 100; id < 145; id++) {
@@ -217,7 +217,8 @@ class WishlistDetailQueryIntegrationTest {
 			cursor = cursorDecoder.decode(page.pageInfo().nextCursor(), CursorData.class);
 		} while (cursor != null);
 		assertThat(pages).isEqualTo(3);
-		assertThat(before.getPrepareStatementCount()).isEqualTo(9);
+		assertThat(before.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(before.getEntityLoadCount()).isZero();
 
 		assertThat(membership(OWNER_ID, 31L, 100L))
 			.isEqualTo(new WishlistResponse.Membership(inAny, inTarget, true));
