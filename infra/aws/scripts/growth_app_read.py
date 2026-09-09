@@ -99,6 +99,25 @@ def cache_size():
     return int(value[1:-2])
 
 
+def app_environment(settings):
+    # The isolated container has no host ~/.aws/config or instance credentials.
+    # Framework AWS clients still need a region even with external writes off.
+    return ('SPRING_APPLICATION_JSON=' + json.dumps(settings, separators=(',', ':'))
+        + '\nJAVA_OPTS=-Xmx512m\nAWS_EC2_METADATA_DISABLED=true\n'
+        + 'AWS_REGION=ap-northeast-2\nAWS_DEFAULT_REGION=ap-northeast-2\n'
+        + 'AWS_ACCESS_KEY_ID=disabled\nAWS_SECRET_ACCESS_KEY=disabled\n')
+
+
+def startup_diagnostic(log):
+    return {
+        'exceptionTypes': sorted(set(re.findall(r'\b(?:org|java|com|software|io)\.[A-Za-z0-9_.$]*(?:Exception|Error)', log))),
+        'beans': sorted(set(re.findall(r"Error creating bean with name '([A-Za-z0-9_.$-]+)'", log))),
+        'missingRegion': 'Unable to load region' in log,
+        'connectionFailure': 'Failed to obtain JDBC Connection' in log,
+        'heapExhausted': 'OutOfMemoryError' in log,
+    }
+
+
 def qualify_application(release, manifest, runtime, private, work, connection, execute, aws):
     validate_identity(os.environ)
     image = os.environ['AIRBOB_GROWTH_APP_IMAGE']
@@ -150,7 +169,7 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
             if cache_before != 0:
                 raise ValueError('Fresh qualification cache is not empty')
             config = private / 'app.env'
-            config.write_text('SPRING_APPLICATION_JSON=' + json.dumps(app_settings(connection, cache), separators=(',', ':')) + '\nJAVA_OPTS=-Xmx512m\nAWS_EC2_METADATA_DISABLED=true\n')
+            config.write_text(app_environment(app_settings(connection, cache)))
             config.chmod(0o600)
             execute(['docker', 'run', '-d', '--name', name, '--network', 'host', '--memory', '768m', '--env-file', str(config),
                      '--mount', f'type=bind,source={private},target={private},readonly', image], env=docker_env)
@@ -196,6 +215,19 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
                 results.append({'cacheEnabled': cache, 'reads': observation, 'repeatedDetailTargets': details,
                     'dedicatedCacheKeysBefore': cache_before, 'dedicatedCacheKeysAfterDetails': cache_after,
                     'k6Metrics': json.loads(summary.read_text())['metrics']})
+            except BaseException:
+                # Publish only closed diagnostic fields; application log text and
+                # configuration values remain private on the disposable host.
+                diagnostic_path = work / ('app-startup-diagnostic-' + str(cache).lower() + '.json')
+                log = execute(['docker', 'logs', name], env=docker_env).decode(errors='replace')
+                diagnostic = startup_diagnostic(log)
+                diagnostic.update(runId=os.environ['AIRBOB_RUN_ID'], cacheEnabled=cache)
+                diagnostic_path.write_text(json.dumps(diagnostic, indent=2) + '\n')
+                aws('s3api', 'put-object', '--bucket', os.environ['AIRBOB_EVIDENCE_BUCKET'],
+                    '--key', 'data-bootstrap/' + os.environ['AIRBOB_RUN_ID'] + '/' + diagnostic_path.name,
+                    '--body', str(diagnostic_path), '--if-none-match', '*', '--tagging', 'Retention=summary',
+                    '--content-type', 'application/json', '--server-side-encryption', 'AES256')
+                raise
             finally:
                 try:
                     with (work / ('app-cache-' + str(cache).lower() + '.log')).open('wb') as log:

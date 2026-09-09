@@ -110,6 +110,19 @@ class ReadProtocolTest(unittest.TestCase):
 
 
 class AppBoundaryTest(unittest.TestCase):
+    def test_container_does_not_depend_on_host_aws_configuration(self):
+        env = app.app_environment({})
+        self.assertIn('AWS_REGION=ap-northeast-2\n', env)
+        self.assertIn('AWS_EC2_METADATA_DISABLED=true\n', env)
+        self.assertIn('AWS_ACCESS_KEY_ID=disabled\n', env)
+
+    def test_failure_diagnostic_excludes_exception_messages_and_credentials(self):
+        diagnostic = app.startup_diagnostic("software.amazon.awssdk.core.exception.SdkClientException: Unable to load region\n"
+            "Error creating bean with name 'regionProvider'\npassword=synthetic-secret-value")
+        self.assertTrue(diagnostic['missingRegion'])
+        self.assertEqual(diagnostic['beans'], ['regionProvider'])
+        self.assertNotIn('synthetic-secret-value', json.dumps(diagnostic))
+
     def test_source_and_repository_identity_are_required(self):
         valid = {'AIRBOB_QUALIFICATION_ONLY': 'true', 'AIRBOB_DATABASE_BOOTSTRAP': 'dump',
             'AIRBOB_GROWTH_APP_IMAGE': app.REGISTRY + '/airbob-repo@sha256:' + 'a' * 64,
