@@ -64,15 +64,7 @@ public class MemberCoupon extends BaseEntity {
 		if (used) {
 			return MemberCouponStatus.USED;
 		}
-		if (!now.isBefore(coupon.getUsableUntil())) {
-			return MemberCouponStatus.EXPIRED;
-		}
-		if (!Boolean.TRUE.equals(coupon.getIsActive())) {
-			return MemberCouponStatus.UNAVAILABLE;
-		}
-		if (now.isBefore(coupon.getUsableFrom())) {
-			return MemberCouponStatus.UPCOMING;
-		}
-		return MemberCouponStatus.AVAILABLE;
+		return MemberCouponStatus.resolve(false, coupon.getIsActive(), coupon.getUsableFrom(),
+			coupon.getUsableUntil(), now);
 	}
 }

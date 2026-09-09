@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.hibernate.Hibernate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +23,7 @@ import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
-import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
+import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @DataJpaTest
 @Testcontainers
@@ -85,7 +84,7 @@ class CouponQueryRepositoryTest {
 
 		assertThat(couponRepository.findCampaigns(NOW)).extracting(Coupon::getId).containsExactly(soldOut);
 		assertThat(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId))
-			.extracting(memberCoupon -> memberCoupon.getCoupon().getId()).containsExactly(ended, soldOut);
+			.extracting(MemberCouponProjection::couponId).containsExactly(ended, soldOut);
 	}
 
 	@Test
@@ -106,12 +105,11 @@ class CouponQueryRepositoryTest {
 		insertMemberCoupon(memberId, sameTimeLatestCouponId, latestTime);
 		insertMemberCoupon(anotherMemberId, otherCouponId, NOW);
 
-		List<MemberCoupon> result =
+		List<MemberCouponProjection> result =
 			memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(memberId);
 
-		assertThat(result).allMatch(memberCoupon -> Hibernate.isInitialized(memberCoupon.getCoupon()));
 		assertThat(result)
-			.extracting(memberCoupon -> memberCoupon.getCoupon().getId())
+			.extracting(MemberCouponProjection::couponId)
 			.containsExactly(sameTimeLatestCouponId, sameTimeOlderCouponId, olderCouponId);
 	}
 

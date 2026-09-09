@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -22,9 +23,9 @@ import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
-import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
+import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 
 @ExtendWith(MockitoExtension.class)
 class CouponQueryServiceTest {
@@ -74,8 +75,8 @@ class CouponQueryServiceTest {
 	@Test
 	@DisplayName("회원이 발급받은 쿠폰을 최신 발급순과 보유 상태로 조회한다")
 	void findsMyCouponsWithMemberCouponStatus() {
-		MemberCoupon used = memberCoupon(12L, coupon(2L, NOW.minusDays(2), 100, 1), true);
-		MemberCoupon available = memberCoupon(11L, coupon(1L, NOW.minusDays(3), 100, 1), false);
+		MemberCouponProjection used = memberCoupon(coupon(2L, NOW.minusDays(2), 100, 1), true);
+		MemberCouponProjection available = memberCoupon(coupon(1L, NOW.minusDays(3), 100, 1), false);
 		when(timeProvider.now()).thenReturn(NOW);
 		when(memberCouponRepository.findByMemberIdOrderByCreatedAtDescIdDesc(10L))
 			.thenReturn(List.of(used, available));
@@ -87,6 +88,8 @@ class CouponQueryServiceTest {
 			.containsExactly(
 				tuple(2L, MemberCouponStatus.USED),
 				tuple(1L, MemberCouponStatus.AVAILABLE));
+		verify(timeProvider).now();
+		verifyNoInteractions(couponRepository, stockManager);
 	}
 
 	private Coupon coupon(Long id, LocalDateTime issueStartAt, int totalQuantity, int issuedQuantity) {
@@ -106,11 +109,9 @@ class CouponQueryServiceTest {
 			.build();
 	}
 
-	private MemberCoupon memberCoupon(Long id, Coupon coupon, boolean used) {
-		return MemberCoupon.builder()
-			.id(id)
-			.coupon(coupon)
-			.used(used)
-			.build();
+	private MemberCouponProjection memberCoupon(Coupon coupon, boolean used) {
+		return new MemberCouponProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
+			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
+			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
 	}
 }

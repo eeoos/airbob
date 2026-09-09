@@ -7,7 +7,7 @@ import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
-import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
+import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -67,19 +67,19 @@ public class CouponResponse {
 		LocalDateTime usableUntil,
 		MemberCouponStatus status
 	) {
-		public static MemberCouponInfo of(MemberCoupon memberCoupon, LocalDateTime now) {
-			Coupon coupon = memberCoupon.getCoupon();
+		public static MemberCouponInfo of(MemberCouponProjection coupon, LocalDateTime now) {
 			return new MemberCouponInfo(
-				coupon.getId(),
-				coupon.getName(),
-				coupon.getDescription(),
-				coupon.getDiscountType(),
-				coupon.getDiscountValue(),
-				coupon.getMinPaymentPrice(),
-				coupon.getMaxDiscountAmount(),
-				coupon.getUsableFrom(),
-				coupon.getUsableUntil(),
-				memberCoupon.status(now));
+				coupon.couponId(),
+				coupon.name(),
+				coupon.description(),
+				coupon.discountType(),
+				coupon.discountValue(),
+				coupon.minPaymentPrice(),
+				coupon.maxDiscountAmount(),
+				coupon.usableFrom(),
+				coupon.usableUntil(),
+				MemberCouponStatus.resolve(coupon.used(), coupon.active(), coupon.usableFrom(),
+					coupon.usableUntil(), now));
 		}
 	}
 
