@@ -4,17 +4,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import org.hibernate.SessionFactory;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -41,6 +50,7 @@ import kr.kro.airbob.cursor.util.CursorEncoder;
 import kr.kro.airbob.cursor.util.CursorPageInfoCreator;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse.WishlistAccommodationInfo;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse.WishlistAccommodationInfos;
+import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.exception.WishlistAccessDeniedException;
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
@@ -53,7 +63,8 @@ import kr.kro.airbob.domain.wishlist.service.WishlistService;
 @ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Import({
 	ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class,
-	WishlistService.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class
+	WishlistService.class, CursorPageInfoCreator.class, CursorEncoder.class, CursorDecoder.class,
+	WishlistDetailQueryIntegrationTest.ReadTestConfig.class
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("위시리스트 상세 조회 계약 MySQL 통합 테스트")
@@ -84,6 +95,7 @@ class WishlistDetailQueryIntegrationTest {
 	@Autowired private CursorDecoder cursorDecoder;
 	@Autowired private EntityManager entityManager;
 	@Autowired private EntityManagerFactory entityManagerFactory;
+	@Autowired private SqlCapture sqlCapture;
 
 	@BeforeEach
 	void setUp() {
@@ -117,6 +129,64 @@ class WishlistDetailQueryIntegrationTest {
 		assertEmpty(empty);
 		assertThat(empty.wishlistName()).isEqualTo("여름 여행");
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("제목·숙소·주소·후기·메모의 현재 값을 다음 조회에 반영한다")
+	void readsCurrentHeaderCardAndMemo() {
+		insertAccommodation(31, "PUBLISHED");
+		insertItem(501, WISHLIST_ID, 31);
+		insertReviewSummary(31, 4, 19, "4.75");
+		findFirstPage(20);
+		service.updateWishlist(WISHLIST_ID, new WishlistRequest.Update("가을 여행"), OWNER_ID);
+		jdbc.update("UPDATE wishlist_accommodation SET memo = NULL WHERE id = 501");
+		jdbc.update("UPDATE accommodation SET name = '춘천 호수집', thumbnail_url = NULL WHERE id = 31");
+		jdbc.update("UPDATE address SET state = '강원특별자치도', city = '춘천', district = '남산면' WHERE id = 21");
+		jdbc.update("""
+			UPDATE accommodation_review_summary SET total_review_count = 2, rating_sum = 9, average_rating = 4.50
+			WHERE accommodation_id = 31
+			""");
+
+		var result = findFirstPage(20);
+
+		assertThat(result.wishlistName()).isEqualTo("가을 여행");
+		assertThat(result.wishlistAccommodations()).singleElement().satisfies(card -> {
+			assertThat(card.wishlistAccommodationId()).isEqualTo(501L);
+			assertThat(card.accommodation().id()).isEqualTo(31L);
+			assertThat(card.accommodation().name()).isEqualTo("춘천 호수집");
+			assertThat(card.accommodation().thumbnailUrl()).isNull();
+			assertThat(card.addressSummary().country()).isEqualTo("대한민국");
+			assertThat(card.addressSummary().state()).isEqualTo("강원특별자치도");
+			assertThat(card.addressSummary().city()).isEqualTo("춘천");
+			assertThat(card.addressSummary().district()).isEqualTo("남산면");
+			assertThat(card.memo()).isNull();
+			assertThat(card.reviewSummary().totalCount()).isEqualTo(2);
+			assertThat(card.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
+			assertThat(card.createdAt()).isEqualTo(Instant.parse("2026-07-02T00:00:00Z"));
+			assertThat(card.isInWishlist()).isTrue();
+		});
+	}
+
+	@Test
+	@DisplayName("주소 행 없는 숙소는 기존처럼 제외하고 주소 필드의 null 값은 유지한다")
+	void preservesAddressJoinAndNullableFields() {
+		insertAccommodation(31, "PUBLISHED");
+		insertAccommodation(32, "PUBLISHED");
+		insertItem(501, WISHLIST_ID, 31);
+		insertItem(502, WISHLIST_ID, 32);
+		jdbc.update("UPDATE accommodation SET address_id = NULL WHERE id = 32");
+		jdbc.update("UPDATE address SET country = NULL, state = NULL, city = NULL, district = NULL WHERE id = 21");
+
+		var result = findFirstPage(20);
+
+		assertThat(result.wishlistAccommodations()).singleElement().satisfies(card -> {
+			assertThat(card.wishlistAccommodationId()).isEqualTo(501L);
+			assertThat(card.addressSummary().country()).isNull();
+			assertThat(card.addressSummary().state()).isNull();
+			assertThat(card.addressSummary().city()).isNull();
+			assertThat(card.addressSummary().district()).isNull();
+		});
+		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 1));
 	}
 
 	@Test
@@ -216,6 +286,7 @@ class WishlistDetailQueryIntegrationTest {
 		entityManager.clear();
 		Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
+		sqlCapture.statements.clear();
 		return statistics;
 	}
 
@@ -294,10 +365,8 @@ class WishlistDetailQueryIntegrationTest {
 		assertThat(first.pageInfo().currentSize()).isEqualTo(2);
 		CursorData cursor = cursorDecoder.decode(first.pageInfo().nextCursor(), CursorData.class);
 
-		WishlistAccommodationInfos second = service.findWishlistAccommodations(
-			WISHLIST_ID,
-			CursorPageRequest.builder().size(2).lastId(cursor.id()).lastCreatedAt(cursor.lastCreatedAt()).build(),
-			OWNER_ID);
+		WishlistAccommodationInfos second = findPage(
+			CursorPageRequest.builder().size(2).lastId(cursor.id()).lastCreatedAt(cursor.lastCreatedAt()).build());
 
 		assertThat(second.wishlistAccommodations())
 			.extracting(WishlistAccommodationInfo::wishlistAccommodationId)
@@ -311,21 +380,29 @@ class WishlistDetailQueryIntegrationTest {
 		assertEmpty(findFirstPage(20));
 	}
 
-	@Test
+	@ParameterizedTest
+	@ValueSource(strings = {"DRAFT", "UNPUBLISHED", "DELETED"})
 	@DisplayName("비공개 숙소만 있는 위시리스트는 빈 목록을 반환한다")
-	void wishlistContainingOnlyUnpublishedAccommodationsReturnsEmptyLastPage() {
-		insertAccommodation(31, "DRAFT");
+	void wishlistContainingOnlyUnpublishedAccommodationsReturnsEmptyLastPage(String status) {
+		insertAccommodation(31, status);
 		insertItem(501, WISHLIST_ID, 31);
 
 		assertEmpty(findFirstPage(20));
 	}
 
-	@Test
-	@DisplayName("타인의 위시리스트는 빈 목록 대신 접근 거부를 유지한다")
-	void anotherMembersWishlistIsDeniedEvenWhenEmpty() {
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("타인의 위시리스트는 항목 유무와 무관하게 항목 조회 전 접근을 거부한다")
+	void anotherMembersWishlistIsDeniedEvenWhenEmpty(boolean populated) {
+		if (populated) {
+			insertAccommodation(31, "PUBLISHED");
+			insertItem(501, WISHLIST_ID, 31);
+		}
+		Statistics statistics = prepareMeasurement();
 		assertThatThrownBy(() -> service.findWishlistAccommodations(
 			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
 			.isInstanceOf(WishlistAccessDeniedException.class);
+		assertHeaderOnlyRead(statistics);
 	}
 
 	@Test
@@ -333,15 +410,54 @@ class WishlistDetailQueryIntegrationTest {
 	void deletedAndMissingWishlistsAreNotFound() {
 		jdbc.update("UPDATE wishlist SET status = 'DELETED' WHERE id = ?", WISHLIST_ID);
 
+		Statistics statistics = prepareMeasurement();
 		assertThatThrownBy(() -> findFirstPage(20)).isInstanceOf(WishlistNotFoundException.class);
+		assertHeaderOnlyRead(statistics);
+
+		statistics = prepareMeasurement();
 		assertThatThrownBy(() -> service.findWishlistAccommodations(
 			999L, CursorPageRequest.builder().size(20).build(), OWNER_ID))
 			.isInstanceOf(WishlistNotFoundException.class);
+		assertHeaderOnlyRead(statistics);
+
+		statistics = prepareMeasurement();
+		assertThatThrownBy(() -> service.findWishlistAccommodations(
+			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
+			.isInstanceOf(WishlistNotFoundException.class);
+		assertHeaderOnlyRead(statistics);
 	}
 
 	private WishlistAccommodationInfos findFirstPage(int size) {
-		return service.findWishlistAccommodations(
-			WISHLIST_ID, CursorPageRequest.builder().size(size).build(), OWNER_ID);
+		return findPage(CursorPageRequest.builder().size(size).build());
+	}
+
+	private WishlistAccommodationInfos findPage(CursorPageRequest request) {
+		Statistics statistics = prepareMeasurement();
+		var result = service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		assertThat(selectedColumnCounts()).containsExactly(2, 12);
+		assertThat(sqlCapture.statements.getFirst()).doesNotContain(" join ", ".accommodation_count",
+			".representative_accommodation_id", ".created_at", ".updated_at", " for update");
+		String itemSql = sqlCapture.statements.getLast();
+		String selected = itemSql.substring("select ".length(), itemSql.indexOf(" from "));
+		assertThat(selected).doesNotContain(".description", ".base_price", ".time_zone_id", ".street", ".detail",
+			".latitude", ".longitude", ".updated_at", ".created_by", ".updated_by");
+		assertThat(itemSql).contains(" join address ", "left join accommodation_review_summary")
+			.doesNotContain("left join address", " join member ", " for update");
+		return result;
+	}
+
+	private void assertHeaderOnlyRead(Statistics statistics) {
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		assertThat(selectedColumnCounts()).containsExactly(2);
+		assertThat(sqlCapture.statements.getFirst()).doesNotContain(" join ", " from wishlist_accommodation ");
+	}
+
+	private List<Integer> selectedColumnCounts() {
+		return sqlCapture.statements.stream()
+			.map(sql -> sql.substring("select ".length(), sql.indexOf(" from ")).split(",").length).toList();
 	}
 
 	private void assertEmpty(WishlistAccommodationInfos result) {
@@ -373,5 +489,28 @@ class WishlistDetailQueryIntegrationTest {
 				(accommodation_id, total_review_count, rating_sum, average_rating, updated_at)
 			VALUES (?, ?, ?, ?, NOW(6))
 			""", accommodationId, count, ratingSum, averageRating);
+	}
+
+	@TestConfiguration(proxyBeanMethods = false)
+	static class ReadTestConfig {
+		@Bean
+		SqlCapture sqlCapture() {
+			return new SqlCapture();
+		}
+
+		@Bean
+		HibernatePropertiesCustomizer statementInspector(SqlCapture capture) {
+			return properties -> properties.put("hibernate.session_factory.statement_inspector", capture);
+		}
+	}
+
+	static class SqlCapture implements StatementInspector {
+		private final List<String> statements = new ArrayList<>();
+
+		@Override
+		public String inspect(String sql) {
+			statements.add(sql.replaceAll("\\s+", " ").toLowerCase(Locale.ROOT).trim());
+			return sql;
+		}
 	}
 }

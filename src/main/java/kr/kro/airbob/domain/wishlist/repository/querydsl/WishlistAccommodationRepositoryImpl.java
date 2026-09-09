@@ -43,14 +43,20 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 			.select(new QWishlistAccommodationResponse_WishlistAccommodationInfo(
 				wishlistAccommodation.id,
 				wishlistAccommodation.memo,
-				accommodation,
+				accommodation.id,
+				accommodation.name,
+				accommodation.thumbnailUrl,
+				address.country,
+				address.state,
+				address.city,
+				address.district,
 				accommodationReviewSummary.averageRating,
 				accommodationReviewSummary.totalReviewCount,
 				wishlistAccommodation.createdAt
 			))
 			.from(wishlistAccommodation)
 			.join(wishlistAccommodation.accommodation, accommodation)
-			.join(accommodation.address, address).fetchJoin()
+			.join(accommodation.address, address)
 			.leftJoin(accommodationReviewSummary)
 			.on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
 			.where(

@@ -11,10 +11,8 @@ import com.querydsl.core.annotations.QueryProjection;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import kr.kro.airbob.domain.accommodation.dto.AddressResponse;
-import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -50,7 +48,13 @@ public class WishlistAccommodationResponse {
 		public WishlistAccommodationInfo(
 			long wishlistAccommodationId,
 			String memo,
-			Accommodation accommodation,
+			long accommodationId,
+			String accommodationName,
+			String thumbnailUrl,
+			String country,
+			String state,
+			String city,
+			String district,
 			BigDecimal averageRating,
 			Integer reviewCount,
 			LocalDateTime createdAt) {
@@ -59,8 +63,8 @@ public class WishlistAccommodationResponse {
 				wishlistAccommodationId,
 				memo,
 				createdAt == null ? null : createdAt.toInstant(ZoneOffset.UTC),
-				AccommodationResponse.AccommodationBasicInfo.from(accommodation),
-				AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()),
+				new AccommodationResponse.AccommodationBasicInfo(accommodationId, accommodationName, thumbnailUrl),
+				new AddressResponse.AddressSummaryInfo(country, state, city, district),
 				ReviewResponse.ReviewSummary.of(reviewCount, averageRating),
 				true // wishlist_accommodation 테이블에서 조회한 것이므로 true
 			);
