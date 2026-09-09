@@ -63,8 +63,10 @@ class Aws:
                          '--version-id', version, str(destination))
 
     def put(self, bucket, key, source):
+        content_type = ('application/json' if key.endswith('.json') else
+                        'application/gzip' if key.endswith('.gz') else 'application/zip')
         return self.call('s3api', 'put-object', '--bucket', bucket, '--key', key,
-                         '--body', str(source), '--if-none-match', '*')
+                         '--body', str(source), '--if-none-match', '*', '--content-type', content_type)
 
 
 def version_id(response):
@@ -117,6 +119,9 @@ def publish(release, dataset_id, bucket, migration_dir, receipt_path, aws=None, 
                 completed = remote[marker] is not None
                 if completed:
                     validator.require(all(remote.values()), 'Completed release has missing payloads')
+                    if aws_contract is not None:
+                        validator.require(remote[marker].get('ContentType') == 'application/json',
+                                          'AWS completion marker must have application/json Content-Type')
 
                 def verify(name, response):
                     version = version_id(response)
@@ -151,9 +156,13 @@ def publish(release, dataset_id, bucket, migration_dir, receipt_path, aws=None, 
                 validator.require(aws.keys(bucket, prefix) == expected_keys,
                                   'Published release inventory mismatch')
                 for name in names:
-                    validator.require(version_id(aws.head(bucket, prefix + name)) ==
+                    metadata = aws.head(bucket, prefix + name)
+                    validator.require(version_id(metadata) ==
                                       receipt['objects'][name]['versionId'],
                                       'Object version changed during publication: ' + name)
+                    if aws_contract is not None and name == marker:
+                        validator.require(metadata.get('ContentType') == 'application/json',
+                                          'AWS completion marker must have application/json Content-Type')
                 receipt.update(state='PUBLISHED_BYTES_AND_VERSIONS_VERIFIED',
                                alreadyPublished=completed,
                                completionVersionId=receipt['objects'][marker]['versionId'])

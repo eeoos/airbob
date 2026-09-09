@@ -10,7 +10,8 @@ import zipfile
 import growth_aws_contract as contract
 
 
-def assemble(release, publication_path, runtime, migrations, output):
+def assemble(release, publication_path, runtime, migrations, output, revision=1):
+    contract.require(type(revision) is int and 1 <= revision <= 999, 'Invalid envelope revision')
     publication = contract.read(publication_path)
     source_id = publication['datasetId']
     consumer, fingerprint, _ = contract.consumer.validate(release, source_id, '8.4.11', migrations)
@@ -40,7 +41,8 @@ def assemble(release, publication_path, runtime, migrations, output):
              'migrationChecksumSha256': artifacts['migration-files.json']['sha256'],
              'schemaFingerprintSha256': schema, 'timezone': 'UTC', 'outboxPolicy': 'absent',
              'expectedTableRows': {name: item['rows'] for name, item in fingerprint['tables'].items()}}
-    manifest = {'schemaVersion': 3, 'releaseKind': 'growth-aws-qualification', 'datasetRelease': source_id + '-aws',
+    release_id = source_id + '-aws' + (('-r' + str(revision)) if revision > 1 else '')
+    manifest = {'schemaVersion': 3, 'releaseKind': 'growth-aws-qualification', 'datasetRelease': release_id,
                 'datasetRunId': dt.datetime.fromisoformat(publication['recordedAt']).strftime('%Y%m%dT%H%M%SZ-') + source['consumerManifestSha256'][:8],
                 'source': source, 'mysql': mysql, 'couponPreparation': [], 'kafka': {'topics': contract.TOPICS},
                 'search': {'enabled': False}, 'artifacts': artifacts,
@@ -59,5 +61,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ['release', 'publication-receipt', 'runtime', 'migration-dir', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--revision', type=int, default=1)
     args = parser.parse_args()
-    print(json.dumps(assemble(args.release, args.publication_receipt, args.runtime, args.migration_dir, args.output)))
+    print(json.dumps(assemble(args.release, args.publication_receipt, args.runtime, args.migration_dir, args.output, args.revision)))

@@ -1784,6 +1784,14 @@ resolve_release_inputs() {
     --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "dataset completion manifest is unavailable"
   validate_operator_dataset_manifest "$dataset_manifest" "$dataset_release" \
     || fail "dataset completion manifest is invalid"
+  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ]]; then
+    aws s3api head-object --bucket "$dataset_bucket" --key "datasets/$dataset_release/manifest.json" \
+      --version-id "$dataset_manifest_version_id" --region "$AWS_REGION" --no-cli-pager \
+      > "$temp_dir/growth-manifest-metadata.json" \
+      || fail "cannot inspect growth completion marker metadata"
+    jq -e '.ContentType == "application/json"' "$temp_dir/growth-manifest-metadata.json" >/dev/null \
+      || fail "growth completion marker needs application/json Content-Type for Terraform"
+  fi
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
   load_release_smoke_inputs "$dataset_manifest"
   if [[ "$operator_window" == small-qualification ]]; then
@@ -2916,7 +2924,7 @@ case "$action" in
     bundle_sha256=$(jq -er '.bundleSha256' "$manifest")
     dataset_release=$(jq -er '.datasetRelease' "$manifest")
     if [[ "$operator_window" == small-qualification ]]; then
-      [[ "$dataset_release" =~ ^korea-growth-v3-[0-9a-f]{16}-aws$ ]] \
+      [[ "$dataset_release" =~ ^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$ ]] \
         || fail "small qualification teardown requires the recorded growth run"
     fi
     dataset_manifest_sha256=$(jq -er '.datasetManifestSha256' "$manifest")

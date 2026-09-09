@@ -14,7 +14,7 @@ locals {
     local.dataset_manifest.schemaVersion == 3 && local.dataset_release_kind == "growth-aws-qualification" &&
     local.dataset_manifest.datasetRelease == var.dataset_release &&
     can(regex("^korea-growth-v3-[0-9a-f]{16}$", local.dataset_manifest.source.datasetId)) &&
-    var.dataset_release == "${local.dataset_manifest.source.datasetId}-aws" &&
+    can(regex("^${local.dataset_manifest.source.datasetId}-aws(-r[1-9][0-9]{0,2})?$", var.dataset_release)) &&
     can(regex("^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$", local.dataset_manifest.datasetRunId)) &&
     toset(keys(local.dataset_manifest.source)) == toset(["datasetId", "consumerManifestSha256", "publicationReceiptSha256"]) &&
     toset(keys(local.dataset_manifest.artifacts)) == local.growth_payload_names &&

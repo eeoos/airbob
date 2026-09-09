@@ -6,7 +6,7 @@ export LC_ALL=C
 [[ "$AIRBOB_QUALIFICATION_ONLY:$AIRBOB_DATABASE_BOOTSTRAP" == true:dump ]]
 [[ "$AIRBOB_REGION" == ap-northeast-2 ]]
 [[ "$AIRBOB_DATASET_BUCKET" == airbob-performance-lab-dataset-942632789808 ]]
-[[ "$AIRBOB_DATASET_RELEASE" =~ ^korea-growth-v3-[0-9a-f]{16}-aws$ ]]
+[[ "$AIRBOB_DATASET_RELEASE" =~ ^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$ ]]
 [[ "$AIRBOB_DATASET_MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]]
 if ! command -v mysql >/dev/null; then
   dnf install -y mariadb105

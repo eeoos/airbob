@@ -35,7 +35,8 @@ def validate_manifest(manifest, expected_release):
     source = manifest['source']
     exact(source, ['datasetId', 'consumerManifestSha256', 'publicationReceiptSha256'])
     require(re.fullmatch(r'korea-growth-v3-[0-9a-f]{16}', source['datasetId']) and
-            manifest['datasetRelease'] == expected_release == source['datasetId'] + '-aws',
+            manifest['datasetRelease'] == expected_release and
+            re.fullmatch(re.escape(source['datasetId']) + r'-aws(?:-r[1-9][0-9]{0,2})?', expected_release),
             'AWS growth release identity mismatch')
     require(re.fullmatch(r'[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}', manifest['datasetRunId']), 'Invalid assembly identity')
     exact(manifest['artifacts'], PAYLOAD_FILES)

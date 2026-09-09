@@ -108,6 +108,11 @@ Its separate `growth-aws-qualification` manifest retains the source dataset ID a
 `DATASET_ID-aws` prefix. The existing source release is never rewritten. The wrapper publisher
 writes ten payloads before its `manifest.json` completion marker and reads every exact S3 version
 back. The verifier package contains no password or AWS credential.
+JSON objects must be published with `Content-Type: application/json`: Terraform's S3 data
+source omits the body of binary objects even when their bytes contain valid JSON. The publisher
+checks completion-marker metadata and the operator checks it again before acquiring a lease.
+Use `--revision 2` (or a later bounded revision) to assemble a new `-aws-r2` envelope when
+publication metadata needs correction; never replace the old immutable object version.
 
 `aws-lab.sh prepare` accepts this wrapper only with dump bootstrap, exact MySQL 8.4.11 and
 application capacity disabled. Before acquiring the creation lease, it validates all payloads,

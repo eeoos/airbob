@@ -24,6 +24,8 @@ class ContractTest(unittest.TestCase):
 
     def test_qualified_envelope(self):
         contract.validate_manifest(self.manifest, self.manifest['datasetRelease'])
+        self.manifest['datasetRelease'] += '-r2'
+        contract.validate_manifest(self.manifest, self.manifest['datasetRelease'])
 
     def test_rejects_wrong_claims_and_artifact_bindings(self):
         for label, mutate in [

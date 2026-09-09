@@ -26,6 +26,7 @@ class FakeAws:
         self.corrupt = False
         self.race = False
         self.unversioned = False
+        self.content_type = 'application/json'
         self.arn = 'arn:aws:sts::942632789808:assumed-role/airbob-dataset-publisher/test'
 
     def identity(self):
@@ -39,7 +40,7 @@ class FakeAws:
             raise publisher.AwsError('HeadObject', '403')
         if key not in self.objects:
             return None
-        return {'VersionId': self.objects[key][0]}
+        return {'VersionId': self.objects[key][0], 'ContentType': self.content_type}
 
     def get(self, bucket, key, version, destination):
         actual, data = self.objects[key]
@@ -107,6 +108,19 @@ class PublicationTest(unittest.TestCase):
                                    self.root, self.root / 'replay.json', self.aws, contract)
         self.assertTrue(replay['alreadyPublished'])
         self.assertEqual(self.aws.writes, [])
+        self.aws.content_type = 'binary/octet-stream'
+        with self.assertRaisesRegex(ValueError, 'Content-Type'):
+            publisher.publish(self.release, identity, publisher.BUCKET,
+                              self.root, self.root / 'invalid-metadata.json', self.aws, contract)
+        self.assertEqual(self.aws.writes, [])
+
+    def test_real_aws_adapter_sets_readable_json_metadata(self):
+        aws = publisher.Aws()
+        with patch.object(aws, 'call', return_value={}) as call:
+            aws.put(publisher.BUCKET, self.prefix + 'manifest.json', self.release / publisher.MARKER)
+            arguments = call.call_args.args
+            self.assertEqual(arguments[arguments.index('--content-type') + 1], 'application/json')
+            self.assertEqual(arguments[arguments.index('--if-none-match') + 1], '*')
 
     def test_identical_replay_performs_no_write(self):
         self.publish()
