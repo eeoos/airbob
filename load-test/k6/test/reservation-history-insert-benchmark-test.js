@@ -45,10 +45,10 @@ function operation(datasetSize, overrides = {}, variant = 'BEFORE') {
     hibernate_statements_by_type: {
       SELECT: 1,
       INSERT: datasetSize,
-      UPDATE: datasetSize,
+      UPDATE: datasetSize * 2,
       DELETE: 0,
       OTHER: 0,
-      TOTAL: 1 + (datasetSize * 2),
+      TOTAL: 1 + (datasetSize * 3),
     },
     jdbc_batch_calls: 0,
     jdbc_submitted_rows: 0,
@@ -101,7 +101,7 @@ function summary(datasetSize) {
         values: { count: 1, avg: datasetSize, min: datasetSize, med: datasetSize, max: datasetSize },
       },
       bulk_write_hibernate_update_statements: {
-        values: { count: 1, avg: datasetSize, min: datasetSize, med: datasetSize, max: datasetSize },
+        values: { count: 1, avg: datasetSize * 2, min: datasetSize * 2, med: datasetSize * 2, max: datasetSize * 2 },
       },
       bulk_write_hibernate_delete_statements: {
         values: { count: 1, avg: 0, min: 0, med: 0, max: 0 },
@@ -112,10 +112,10 @@ function summary(datasetSize) {
       bulk_write_hibernate_total_statements: {
         values: {
           count: 1,
-          avg: 1 + (datasetSize * 2),
-          min: 1 + (datasetSize * 2),
-          med: 1 + (datasetSize * 2),
-          max: 1 + (datasetSize * 2),
+          avg: 1 + (datasetSize * 3),
+          min: 1 + (datasetSize * 3),
+          med: 1 + (datasetSize * 3),
+          max: 1 + (datasetSize * 3),
         },
       },
       bulk_write_jdbc_batch_calls: { values: { count: 1, avg: 0, min: 0, med: 0, max: 0 } },
@@ -255,7 +255,7 @@ export default function () {
     'wrong identity insert count is rejected': () => !matchesBulkWriteResponseContract(
       payload(3, { operation: operation(3, {
         hibernate_statements_by_type: {
-          SELECT: 1, INSERT: 2, UPDATE: 3, DELETE: 0, OTHER: 0, TOTAL: 6,
+          SELECT: 1, INSERT: 2, UPDATE: 6, DELETE: 0, OTHER: 0, TOTAL: 9,
         },
       }) }),
       3,

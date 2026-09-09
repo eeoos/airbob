@@ -63,7 +63,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 class ReservationHistoryInsertBenchmarkIntegrationTest {
 
 	@Container
-	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4.11")
 		.withDatabaseName("airbob_bulk_write_benchmark");
 
 	@DynamicPropertySource
@@ -108,6 +108,8 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	void tearDown() {
 		UserContext.clear();
 		reset(historyRepository, jdbcTemplate);
+		jdbcTemplate.update("DELETE FROM member_coupon");
+		jdbcTemplate.update("DELETE FROM coupon");
 		jdbcTemplate.update("DELETE FROM reservation_history");
 		jdbcTemplate.update("DELETE FROM accommodation_inventory_day");
 		jdbcTemplate.update("DELETE FROM reservation");
@@ -116,7 +118,7 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("N개 만료 예약은 N개 IDENTITY history INSERT와 N개 dirty-check UPDATE를 만든다")
+	@DisplayName("N개 만료 예약은 이력 INSERT와 예약 갱신·쿠폰 복원 UPDATE를 각각 N개 만든다")
 	void measuresActualIdentityInsertBaseline() throws Exception {
 		var response = benchmarkService.run(
 			new ReservationHistoryInsertBenchmarkRequest(Variant.BEFORE, 3)
@@ -136,10 +138,10 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 1)
 			.containsEntry(SqlQueryType.INSERT, 3)
-			.containsEntry(SqlQueryType.UPDATE, 3)
+			.containsEntry(SqlQueryType.UPDATE, 6)
 			.containsEntry(SqlQueryType.DELETE, 0)
 			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, 7);
+			.containsEntry(SqlQueryType.TOTAL, 10);
 		assertThat(response.operation().jdbcBatchCalls()).isZero();
 		assertThat(response.operation().jdbcSubmittedRows()).isZero();
 		assertThat(response.operation().jdbcConfiguredBatchSize()).isNull();
@@ -225,9 +227,28 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("두 번째 history 저장 실패는 예약과 history 변경을 모두 rollback한다")
+	@DisplayName("BEFORE 만료는 사용 쿠폰을 복원하고 반복 실행은 데이터를 바꾸지 않는다")
+	void restoresUsedCouponsWithTheReservation() {
+		Fixture fixture = fixtureService.createFixture(3);
+		attachUsedCoupons(fixture);
+		UserContext.clear();
+
+		beforeService.cleanupExpiredPendingReservations();
+		assertThat(countTargetStatus(fixture, "EXPIRED")).isEqualTo(3);
+		assertThat(countHistories(fixture)).isEqualTo(3);
+		assertThat(jdbcTemplate.queryForList(
+			"SELECT reservation_id FROM member_coupon WHERE used=false AND used_at IS NULL ORDER BY reservation_id",
+			Long.class)).containsExactlyElementsOf(fixture.targets().stream().map(target -> target.id()).toList());
+		beforeService.cleanupExpiredPendingReservations();
+		assertThat(countHistories(fixture)).isEqualTo(3);
+		assertThat(countRows("member_coupon")).isEqualTo(3);
+	}
+
+	@Test
+	@DisplayName("두 번째 history 저장 실패는 쿠폰 복원·재고·예약·이력을 모두 rollback한다")
 	void rollsBackBeforeServiceWhenHistorySaveFails() {
 		Fixture fixture = fixtureService.createFixture(3);
+		attachUsedCoupons(fixture);
 		AtomicInteger saveInvocations = new AtomicInteger();
 		doAnswer(invocation -> {
 			if (saveInvocations.incrementAndGet() == 2) {
@@ -245,7 +266,12 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 		assertThat(countTargetStatus(fixture, "PAYMENT_PENDING")).isEqualTo(3);
 		assertThat(countHistories(fixture)).isZero();
 		assertThat(countTargetInventoryState(fixture, "HOLD")).isEqualTo(6);
+		assertThat(jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM member_coupon WHERE used=true AND used_at IS NOT NULL AND reservation_id IS NOT NULL",
+			Long.class)).isEqualTo(3);
 
+		jdbcTemplate.update("DELETE FROM member_coupon");
+		jdbcTemplate.update("DELETE FROM coupon");
 		fixtureService.cleanup(fixture);
 		fixtureService.cleanup(fixture);
 		assertThat(countRows("reservation_history")).isZero();
@@ -285,6 +311,23 @@ class ReservationHistoryInsertBenchmarkIntegrationTest {
 
 		fixtureService.cleanup(fixture);
 		UserContext.set(requestAdmin);
+	}
+
+	private void attachUsedCoupons(Fixture fixture) {
+		for (var reservation : fixture.targets()) {
+			String name = "expiry-test-" + reservation.id();
+			jdbcTemplate.update("""
+				INSERT INTO coupon (name,discount_type,discount_value,min_payment_price,max_discount_amount,
+				is_active,total_quantity,issued_quantity,usable_from,usable_until,issue_start_at,issue_end_at,updated_at)
+				VALUES (?,'FIXED_AMOUNT',1000,0,1000,true,1,1,
+				'2026-01-01','2027-01-01','2026-01-01','2027-01-01',CURRENT_TIMESTAMP(6))
+				""", name);
+			Long couponId = jdbcTemplate.queryForObject("SELECT id FROM coupon WHERE name=?", Long.class, name);
+			jdbcTemplate.update("""
+				INSERT INTO member_coupon (member_id,coupon_id,used,used_at,reservation_id,created_at,updated_at)
+				VALUES (?,?,true,CURRENT_TIMESTAMP(6),?,CURRENT_TIMESTAMP(6),CURRENT_TIMESTAMP(6))
+				""", fixture.memberId(), couponId, reservation.id());
+		}
 	}
 
 	private long countTargetStatus(Fixture fixture, String status) {

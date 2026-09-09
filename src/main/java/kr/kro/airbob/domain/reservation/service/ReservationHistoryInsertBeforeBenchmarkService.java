@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
 import kr.kro.airbob.domain.reservation.entity.Reservation;
+import kr.kro.airbob.domain.coupon.service.CouponUsageService;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -29,6 +30,7 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 	private final ReservationHistoryRepository historyRepository;
 	private final ReservationInventoryService inventoryService;
 	private final Clock clock;
+	private final CouponUsageService couponUsageService;
 
 	@Transactional
 	public void cleanupExpiredPendingReservations() {
@@ -53,6 +55,7 @@ public class ReservationHistoryInsertBeforeBenchmarkService {
 				reservation.getId()
 			);
 			reservation.expire();
+			couponUsageService.restore(reservation.getId());
 
 			historyRepository.save(
 				ReservationHistory.ofSystem(reservation, ChangeType.STATUS_CHANGE, "결제 시간 초과", "BATCH"));

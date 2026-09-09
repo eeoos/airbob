@@ -70,10 +70,10 @@ function sourceArtifact({
     ? {
       SELECT: 1,
       INSERT: datasetSize,
-      UPDATE: datasetSize,
+      UPDATE: datasetSize * 2,
       DELETE: 0,
       OTHER: 0,
-      TOTAL: 1 + (datasetSize * 2),
+      TOTAL: 1 + (datasetSize * 3),
     }
     : {
       SELECT: 1,

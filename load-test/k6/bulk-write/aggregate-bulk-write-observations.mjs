@@ -641,10 +641,10 @@ function validateDatabaseObservation(source, definition) {
       requireCondition(
         sql.SELECT === 1
           && sql.INSERT === datasetSize
-          && sql.UPDATE === datasetSize
+          && sql.UPDATE === datasetSize * 2
           && sql.DELETE === 0
           && sql.OTHER === 0
-          && sql.TOTAL === 1 + (datasetSize * 2),
+          && sql.TOTAL === 1 + (datasetSize * 3),
         'source BEFORE Hibernate observation is invalid',
       );
     } else {

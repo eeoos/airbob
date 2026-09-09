@@ -7,12 +7,82 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.mock.env.MockEnvironment;
 
 @DisplayName("대량 쓰기 벤치마크 disposable DB 시작 가드 단위 테스트")
 class BulkWriteBenchmarkDatabaseGuardTest {
 
 	private static final String ALLOWED_SCHEMA = "airbob_bulk_write_benchmark";
+	private static final String GROWTH_SCHEMA = "airbob_growth_bulk_write_benchmark";
+	private static final String RUN_ID = "lab-runtime-test";
+	private static final String AWS_URL = "jdbc:mysql://airbob-" + RUN_ID
+		+ ".abcdefghijkl.ap-northeast-2.rds.amazonaws.com:3306/" + GROWTH_SCHEMA
+		+ "?sslMode=VERIFY_IDENTITY&connectionTimeZone=UTC";
+
+	@Test
+	void explicitAwsQualificationRequiresTheActualRunConnectionAndRestrictedAccount() throws Exception {
+		JdbcOperations jdbc = mock(JdbcOperations.class);
+		when(jdbc.execute(org.mockito.ArgumentMatchers.<ConnectionCallback<String>>any())).thenReturn(AWS_URL);
+		String account = "growth_" + java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+			.digest(RUN_ID.getBytes(java.nio.charset.StandardCharsets.UTF_8))).substring(0, 16) + "@%";
+		when(jdbc.queryForObject("SELECT CURRENT_USER()", String.class)).thenReturn(account);
+		when(jdbc.queryForObject("SELECT DATABASE()", String.class)).thenReturn(GROWTH_SCHEMA);
+		when(jdbc.queryForObject(anyString(), eq(Integer.class), eq(GROWTH_SCHEMA))).thenReturn(8);
+		MockEnvironment env = growthEnvironment();
+		assertThatCode(guard(jdbc, env, GROWTH_SCHEMA)::afterPropertiesSet).doesNotThrowAnyException();
+
+		when(jdbc.queryForObject("SELECT CURRENT_USER()", String.class)).thenReturn("root@%");
+		assertDatabaseRejected(guard(jdbc, env, GROWTH_SCHEMA));
+	}
+
+	@Test
+	void awsQualificationRejectsOtherRunsUnverifiedTlsAndConflictingProperties() {
+		for (String url : new String[] { AWS_URL.replace(RUN_ID, "lab-other-run"),
+			AWS_URL.replace("VERIFY_IDENTITY", "REQUIRED"), AWS_URL + "&sslMode=DISABLED",
+			AWS_URL + "&useSSL=false", AWS_URL.replace("ap-northeast-2", "us-east-1"),
+			AWS_URL.replace(GROWTH_SCHEMA, "airbobdb") }) {
+			JdbcOperations jdbc = mock(JdbcOperations.class);
+			when(jdbc.execute(org.mockito.ArgumentMatchers.<ConnectionCallback<String>>any())).thenReturn(url);
+			assertDatabaseRejected(guard(jdbc, growthEnvironment(), GROWTH_SCHEMA));
+			verify(jdbc, never()).queryForObject("SELECT DATABASE()", String.class);
+		}
+	}
+
+	@Test
+	void awsQualificationDoesNotPermitOciOrMissingIsolationProfiles() {
+		for (String[] profiles : new String[][] {
+			{"aws", "growth-runtime-qualification", "test"},
+			{"aws", "growth-runtime-qualification", "performance-lab"},
+			{"aws", "growth-runtime-qualification", "performance-lab", "test", "oci"}
+		}) {
+			JdbcOperations jdbc = mock(JdbcOperations.class);
+			MockEnvironment env = growthEnvironment();
+			env.setActiveProfiles(profiles);
+			assertDatabaseRejected(guard(jdbc, env, GROWTH_SCHEMA));
+			verifyNoInteractions(jdbc);
+		}
+	}
+
+	private MockEnvironment growthEnvironment() {
+		MockEnvironment env = new MockEnvironment().withProperty("AIRBOB_RUN_ID", RUN_ID)
+			.withProperty("benchmark.bulk-write.aws-qualification-enabled", "true");
+		for (String property : new String[] {"spring.kafka.listener.auto-startup", "accommodation.indexing.kafka.auto-startup",
+			"accommodation.detail-cache.invalidation.kafka.auto-startup", "operator-alert.kafka.auto-startup",
+			"payment.toss.enabled", "google.api.enabled", "cloud.aws.s3.write-enabled", "operator-alert.slack.enabled"}) {
+			env.withProperty(property, "false");
+		}
+		env.setActiveProfiles("aws", "growth-runtime-qualification", "performance-lab", "test", "bulk-write-benchmark");
+		return env;
+	}
+
+	@Test
+	void awsQualificationRejectsEnabledExternalEffectsBeforeJdbc() {
+		JdbcOperations jdbc = mock(JdbcOperations.class);
+		MockEnvironment env = growthEnvironment().withProperty("payment.toss.enabled", "true");
+		assertDatabaseRejected(guard(jdbc, env, GROWTH_SCHEMA));
+		verifyNoInteractions(jdbc);
+	}
 
 	@Test
 	@DisplayName("현재 schema가 설정값과 정확히 같고 전용 suffix로 끝나면 시작을 허용한다")

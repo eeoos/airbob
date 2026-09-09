@@ -117,8 +117,9 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
     const isBefore = variant === 'BEFORE'
       && counts.SELECT === 1
       && counts.INSERT === datasetSize
-      && counts.UPDATE === datasetSize
-      && counts.TOTAL === 1 + (datasetSize * 2)
+      // Each BEFORE target updates the reservation and restores its coupon separately.
+      && counts.UPDATE === datasetSize * 2
+      && counts.TOTAL === 1 + (datasetSize * 3)
       && operation.jdbc_batch_calls === 0;
     const isAfterEmpty = variant === 'AFTER'
       && datasetSize === 0

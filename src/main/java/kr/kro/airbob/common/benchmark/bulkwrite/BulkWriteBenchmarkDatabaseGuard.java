@@ -1,6 +1,11 @@
 package kr.kro.airbob.common.benchmark.bulkwrite;
 
 import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Set;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +14,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -89,8 +95,51 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 	}
 
 	private boolean hasForbiddenCloudProfile() {
-		return Arrays.stream(environment.getActiveProfiles())
-			.anyMatch(profile -> profile.equals("aws") || profile.equals("oci"));
+		Set<String> profiles = Set.copyOf(Arrays.asList(environment.getActiveProfiles()));
+		if (profiles.contains("oci")) {
+			return true;
+		}
+		return profiles.contains("aws") && !allowsBoundedAwsQualification(profiles);
+	}
+
+	private boolean allowsBoundedAwsQualification(Set<String> profiles) {
+		if (!profiles.containsAll(Set.of("growth-runtime-qualification", "performance-lab", "test"))
+			|| !environment.getProperty("benchmark.bulk-write.aws-qualification-enabled", Boolean.class, false)
+			|| !"airbob_growth_bulk_write_benchmark".equals(allowedSchema)) {
+			return false;
+		}
+		for (String property : Set.of("spring.kafka.listener.auto-startup", "accommodation.indexing.kafka.auto-startup",
+			"accommodation.detail-cache.invalidation.kafka.auto-startup", "operator-alert.kafka.auto-startup",
+			"payment.toss.enabled", "google.api.enabled", "cloud.aws.s3.write-enabled", "operator-alert.slack.enabled")) {
+			if (!Boolean.FALSE.equals(environment.getProperty(property, Boolean.class))) {
+				return false;
+			}
+		}
+		String runId = environment.getProperty("AIRBOB_RUN_ID", "");
+		if (!runId.matches("lab-[a-z0-9][a-z0-9-]{0,27}") || runId.endsWith("-") || runId.contains("--")) {
+			return false;
+		}
+		try {
+			String url = jdbcOperations.execute((ConnectionCallback<String>) connection -> connection.getMetaData().getURL());
+			String prefix = "jdbc:mysql://airbob-" + runId + ".";
+			if (url == null || !url.startsWith(prefix)
+				|| !url.matches("jdbc:mysql://airbob-lab-[a-z0-9-]+\\.[a-z0-9]+\\.ap-northeast-2\\.rds\\.amazonaws\\.com:3306/airbob_growth_bulk_write_benchmark\\?.+")) {
+				return false;
+			}
+			String[] properties = url.substring(url.indexOf('?') + 1).split("&");
+			Set<String> permitted = Set.of("sslMode", "connectionTimeZone", "forceConnectionTimeZoneToSession",
+				"trustCertificateKeyStoreType", "trustCertificateKeyStorePassword", "trustCertificateKeyStoreUrl");
+			var keys = Arrays.stream(properties).map(value -> value.split("=", 2)[0]).toList();
+			if (keys.size() != Set.copyOf(keys).size() || !permitted.containsAll(keys)
+				|| !Arrays.asList(properties).contains("sslMode=VERIFY_IDENTITY")) {
+				return false;
+			}
+			String account = "growth_" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+				.digest(runId.getBytes(StandardCharsets.UTF_8))).substring(0, 16) + "@%";
+			return account.equals(jdbcOperations.queryForObject("SELECT CURRENT_USER()", String.class));
+		} catch (RuntimeException | NoSuchAlgorithmException exception) {
+			return false;
+		}
 	}
 
 	private boolean isValidAllowedSchema() {
