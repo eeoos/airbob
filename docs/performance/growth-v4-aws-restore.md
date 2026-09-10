@@ -35,12 +35,19 @@ accommodations, and 4,392,547 occupied inventory rows. It requires the standard
 six-hour execution window and 100 GiB of RDS storage. It must never be admitted
 through the small window by increasing that window's population or file limits.
 
-At this stage `prepare` qualifies the private RDS restore and optional HTTP/cache
-reads. ALB, ASG, CDC, payment writes, rolling current inventory initialization,
-and the native S3 Elasticsearch snapshot are separate subsequent checks; this
-receipt makes no claim that those workloads ran. The initial AWS envelope has
-`search.enabled=false`. Bind the existing search companion in a new immutable
-revision before qualifying the combined final RDS/search environment.
+`prepare` qualifies the private RDS restore and optional HTTP/cache reads. The
+small envelope has `search.enabled=false`; the final envelope must bind the
+existing `korea-growth-v4-778895bd2bd73be4-search-r1` companion and native seal.
+Before resource creation, the operator verifies current native S3 object
+membership and VersionIds. After RDS parity, the private Elasticsearch host
+restores the snapshot with its EC2 role and a read-only repository, compares all
+14,343 document bodies, mappings, and UID/ID pairs, and publishes one write alias.
+The repository is unregistered after verification; static S3 keys are never
+installed. Existing target indices are never implicitly deleted.
+
+ALB, ASG, CDC, payment writes, and rolling current inventory initialization are
+separate subsequent checks. This preparation receipt makes no claim that those
+workloads ran or that end-to-end service performance has been measured.
 
 ## Preparation artifacts
 
@@ -54,10 +61,28 @@ new AWS manifest; source artifacts remain in their original S3 prefix. Publish
 it through `publish-dataset-release.sh` with `growth-v4-aws-qualification`, and
 pin the returned manifest VersionId when invoking `aws-lab.sh prepare`.
 
+For the final source, pass `--search-directory` and `--search-publication` to the
+assembler. Both refer to the existing verified companion and publication receipt.
+The following completion markers were published and downloaded by exact version:
+
+| Envelope | S3 manifest VersionId | SHA-256 |
+| --- | --- | --- |
+| `korea-growth-v4-c8c75883908247ef-aws-r1` | `zSibwCP0Sz0vubjG9iPpIV.m7ay3vy3b` | `de904b7f442956100d7af8ab6a8c58a79231f634c02dc9f5623ad057276a0639` |
+| `korea-growth-v4-778895bd2bd73be4-aws-r1` | `myHfv8kJ6DawMPCljsTm5SFFCenxJ9Vt` | `a74b19a622d3855f7369bfb7a6ea43d3849f22d4db039fa6fe88df703e0b365f` |
+
+Each is `datasets/<envelope>/manifest.json` in
+`airbob-performance-lab-dataset-942632789808`. Source files and native snapshot
+objects were not rewritten by envelope publication.
+
 The execution checkout must be clean and committed. Continue development in a
 different worktree while a run uses its frozen execution commit. Use the same
 revision's operator for teardown. Do not change GitHub deployment branch
 restrictions or merge an execution branch into main as an implicit prerequisite.
+The shared workflow accepts explicit `rds_engine_version`,
+`growth_app_read_qualification`, `growth_app_commit`, and
+`growth_app_jar_sha256` inputs. This avoids changing persistent environment
+defaults when qualifying MySQL 8.4.11 with the current published app. Large runs
+retain the standard six-hour OIDC session and existing cleanup deadlines.
 
 ## Verification before real RDS execution
 

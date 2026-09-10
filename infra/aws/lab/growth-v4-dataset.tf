@@ -63,9 +63,28 @@ locals {
       local.dataset_expected_table_rows.reservation == 2000268 && local.dataset_expected_table_rows.wishlist == 300026 &&
       local.dataset_expected_table_rows.accommodation_inventory_day == 4392547
     ) &&
-    local.dataset_manifest.search == { enabled = false } && length(local.dataset_manifest.couponPreparation) == 0 &&
+    (local.dataset_manifest.datasetScale == "small-qualification" ? local.dataset_manifest.search == { enabled = false } : local.growth_v4_search_valid) && length(local.dataset_manifest.couponPreparation) == 0 &&
     toset(keys(local.dataset_manifest.kafka)) == toset(["topics"]) &&
     toset(local.dataset_manifest.kafka.topics) == local.dataset_kafka_topics && length(local.dataset_manifest.kafka.topics) == 12,
+    false,
+  )
+  growth_v4_search_valid = try(
+    local.dataset_manifest.source.datasetId == "korea-growth-v4-778895bd2bd73be4" &&
+    toset(keys(local.dataset_manifest.search)) == toset(["enabled", "snapshotRelease", "artifacts", "seal"]) &&
+    local.dataset_manifest.search.enabled == true &&
+    local.dataset_manifest.search.snapshotRelease == "korea-growth-v4-778895bd2bd73be4-search-r1" &&
+    toset(keys(local.dataset_manifest.search.artifacts)) == toset([
+      "manifest.json", "snapshot-reference.json", "snapshot-producer-receipt.json", "snapshot-seal.json",
+      "source-proof.json", "mysql-current-fingerprint.json", "historical-inventory.json", "seal-publication.json",
+    ]) &&
+    alltrue([for name, item in merge(local.dataset_manifest.search.artifacts, { nativeSeal = local.dataset_manifest.search.seal }) :
+      toset(keys(item)) == toset(["key", "versionId", "sha256", "bytes"]) &&
+      item.key == (name == "nativeSeal" ? "elasticsearch/seals/${local.dataset_manifest.search.snapshotRelease}.json" : "datasets/${local.dataset_manifest.search.snapshotRelease}/${name}") &&
+      can(regex("^[A-Za-z0-9._~+/=-]+$", item.versionId)) && length(item.versionId) <= 1024 && !contains(["null", "None"], item.versionId) &&
+      can(regex("^[0-9a-f]{64}$", item.sha256)) && item.bytes > 0 && item.bytes < 20000 && floor(item.bytes) == item.bytes
+    ]) &&
+    local.dataset_manifest.search.artifacts["manifest.json"].sha256 == "69a27409e161ceb9ab8cf996e4d8cb78636e9a212f9166479af096e293fb1066" &&
+    local.dataset_manifest.search.seal.sha256 == local.dataset_manifest.search.artifacts["snapshot-seal.json"].sha256,
     false,
   )
 }

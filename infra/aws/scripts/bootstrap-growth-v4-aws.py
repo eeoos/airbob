@@ -169,6 +169,9 @@ def main(manifest_path):
     runtime = work / 'verifier'
     migrations = contract.extract_runtime(release, runtime)
     contract.validate_directory(release, manifest, migrations)
+    if manifest['search']['enabled']:
+        from growth_v4_search import fetch_companion
+        fetch_companion(work / 'search-companion', manifest, aws)
     if not shutil.which('java') or not shutil.which('keytool') or not shutil.which('xargs'):
         execute(['dnf', 'install', '-y', 'java-21-amazon-corretto-headless', 'findutils'], timeout=300)
     contract.require(re.search(r'(?:openjdk|java) 21[. ]', execute(['java', '--version']).decode()), 'Java 21 required')
@@ -178,6 +181,12 @@ def main(manifest_path):
         secret = json.loads(aws('secretsmanager', 'get-secret-value', '--secret-id', env['AIRBOB_RDS_MASTER_SECRET_ARN'])['SecretString'])
         connection = {'host': env['AIRBOB_RDS_ENDPOINT'], 'username': secret['username'], 'password': secret['password'], 'ca': ca, 'truststore': truststore}
         proof = restore_and_verify(release, manifest, runtime, private, work / 'verification', connection)
+        if manifest['search']['enabled']:
+            from growth_v4_search import qualify_search
+            def sql(query):
+                return execute(['mysql', '--defaults-extra-file=' + str(private / 'client.cnf'), '--batch', '--raw',
+                    '--skip-column-names', 'airbobdb'], input=query.encode()).decode().strip()
+            proof['search'] = qualify_search(work / 'search-companion', manifest, work, sql)
         if env.get('AIRBOB_GROWTH_APP_READ_QUALIFICATION') == 'true':
             from growth_v4_app_read import qualify_application
             app_result = qualify_application(release, manifest, runtime, private, work, connection, execute, aws)
@@ -197,7 +206,8 @@ def main(manifest_path):
         'dataset': {'release': manifest['datasetRelease'], 'runId': manifest['datasetRunId'],
             'manifestSha256': env['AIRBOB_DATASET_MANIFEST_SHA256'], 'mysql': manifest['mysql'],
             'releaseTuple': manifest['releaseTuple'], 'search': manifest['search']},
-        'verification': {'mode': 'full', 'semanticAttestationSha256': contract.sha(proof_path), 'search': 'disabled'},
+        'verification': {'mode': 'full', 'semanticAttestationSha256': contract.sha(proof_path),
+                         'search': 'full' if manifest['search']['enabled'] else 'disabled'},
         'verifiedAt': dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
     path = work / 'dataset-qualification.json'
     path.write_text(json.dumps(qualification, indent=2) + '\n')

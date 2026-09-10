@@ -159,11 +159,12 @@ locals {
     jsondecode(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)),
     null,
   ) : null
-  dataset_release_kind        = try(local.dataset_manifest.releaseKind, null)
-  dataset_is_growth_v4        = try(local.dataset_manifest.releaseKind == "growth-v4-aws-qualification", false)
-  dataset_is_growth           = try(contains(["growth-aws-qualification", "growth-v4-aws-qualification"], local.dataset_manifest.releaseKind), false)
-  dataset_search_enabled      = try(local.dataset_manifest.search.enabled, false)
-  dataset_expected_table_rows = try(local.dataset_manifest.mysql.expectedTableRows, {})
+  dataset_release_kind                = try(local.dataset_manifest.releaseKind, null)
+  dataset_is_growth_v4                = try(local.dataset_manifest.releaseKind == "growth-v4-aws-qualification", false)
+  dataset_is_growth                   = try(contains(["growth-aws-qualification", "growth-v4-aws-qualification"], local.dataset_manifest.releaseKind), false)
+  dataset_search_enabled              = try(local.dataset_manifest.search.enabled, false)
+  dataset_snapshot_repository_release = local.dataset_is_growth_v4 && local.dataset_search_enabled ? local.dataset_manifest.search.snapshotRelease : var.dataset_release
+  dataset_expected_table_rows         = try(local.dataset_manifest.mysql.expectedTableRows, {})
 
   bundle_archive_name  = "airbob-service-bundles-${var.bundle_commit}.tar.gz"
   bundle_prefix        = "service-bundles/${var.bundle_commit}"

@@ -26,7 +26,10 @@ def publish(release, expected, receipt_path, aws=None):
     identity = aws.call('sts', 'get-caller-identity')
     contract.require(identity['Account'] == publisher.ACCOUNT and re.fullmatch(
         r'arn:aws:sts::942632789808:assumed-role/airbob-dataset-publisher/[A-Za-z0-9+=,.@_-]+', identity['Arn']), 'Dataset publisher role required')
-    for item in m['artifacts'].values():
+    referenced = list(m['artifacts'].values())
+    if m['search']['enabled']:
+        referenced += list(m['search']['artifacts'].values()) + [m['search']['seal']]
+    for item in referenced:
         remote = aws.call('s3api', 'head-object', '--bucket', contract.BUCKET, '--key', item['key'], '--version-id', item['versionId'])
         contract.require(publisher.version(remote) == item['versionId'] and remote['ContentLength'] == item['bytes'], 'Source object version is missing or differs')
     key = 'datasets/' + expected + '/manifest.json'

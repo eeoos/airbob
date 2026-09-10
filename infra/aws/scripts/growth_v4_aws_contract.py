@@ -75,7 +75,11 @@ def validate_manifest(m, expected_release):
                 rows['member'] == 150131 and rows['wishlist'] == 300026 and
                 rows['accommodation_inventory_day'] == 4392547, 'Selected two-million population differs')
     require(m['couponPreparation'] == [] and m['kafka'] == {'topics': TOPICS}, 'Unexpected runtime preparation claims')
-    require(m['search'] == {'enabled': False}, 'Search qualification is a separate bound stage')
+    if m['datasetScale'] == 'selected-two-million':
+        from growth_v4_search import descriptor_valid
+        descriptor_valid(m['search'], source['datasetId'])
+    else:
+        require(m['search'] == {'enabled': False}, 'Small qualification has no matching native snapshot')
     expected_tuple = {'datasetVersion': 'benchmark-dataset-v4', 'generatorVersion': 'korea-growth-v4',
         'dumpSha256': db['dumpSha256'], 'migrationChecksumSha256': db['migrationChecksumSha256'],
         'schemaFingerprintSha256': db['schemaFingerprintSha256'],
@@ -132,7 +136,7 @@ def extract_runtime(release, destination):
     return migrations
 
 
-def assemble(release, publication_path, migrations, output, revision=1):
+def assemble(release, publication_path, migrations, output, revision=1, search_directory=None, search_publication=None):
     require(not output.exists() and type(revision) is int and 1 <= revision <= 999, 'Use a new reviewed revision')
     publication = read(publication_path)
     require(publication['state'] == 'PUBLISHED_BYTES_AND_VERSIONS_VERIFIED' and
@@ -155,6 +159,12 @@ def assemble(release, publication_path, migrations, output, revision=1):
              'dumpSha256': db['dumpSha256'], 'migrationChecksumSha256': db['migrationChecksumSha256'],
              'schemaFingerprintSha256': db['schemaFingerprintSha256'], 'consumerManifestSha256': artifacts['consumer-manifest.json']['sha256'],
              'verificationRuntimeSha256': artifacts['preparation-tools.tar.gz']['sha256']}}
+    if source['datasetScale'] == 'selected-two-million':
+        require(search_directory is not None and search_publication is not None, 'Final AWS restore requires the existing search companion')
+        from growth_v4_search import assemble_search
+        m['search'] = assemble_search(search_directory, search_publication, m)
+    else:
+        require(search_directory is None and search_publication is None, 'Small source cannot be paired with the final snapshot')
     validate_directory(release, m, migrations)
     output.mkdir(parents=True, mode=0o700)
     (output / 'manifest.json').write_text(json.dumps(m, indent=2) + '\n')

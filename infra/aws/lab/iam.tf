@@ -237,10 +237,13 @@ resource "aws_iam_role_policy" "data_bootstrap" {
         Sid    = "ReadSelectedDatasetRelease"
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:GetObjectVersion"]
-        Resource = local.dataset_is_growth_v4 ? [
+        Resource = local.dataset_is_growth_v4 ? concat([
           "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*",
           "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/datasets/${local.dataset_manifest.source.datasetId}/*",
-        ] : ["arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*"]
+          ], local.dataset_search_enabled ? [
+          "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/datasets/${local.dataset_manifest.search.snapshotRelease}/*",
+          "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_manifest.search.seal.key}",
+        ] : []) : ["arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*"]
       },
       {
         Sid      = "ReadRdsMasterSecret"
@@ -301,7 +304,7 @@ resource "aws_iam_role_policy" "elasticsearch_snapshot" {
         Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}"
         Condition = {
           StringLike = {
-            "s3:prefix" = ["elasticsearch/releases/${var.dataset_release}/*"]
+            "s3:prefix" = ["elasticsearch/releases/${local.dataset_snapshot_repository_release}/*"]
           }
         }
       },
@@ -309,7 +312,7 @@ resource "aws_iam_role_policy" "elasticsearch_snapshot" {
         Sid      = "ReadDatasetSnapshotRepository"
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:GetObjectVersion"]
-        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/elasticsearch/releases/${var.dataset_release}/*"
+        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/elasticsearch/releases/${local.dataset_snapshot_repository_release}/*"
       },
     ]
   })

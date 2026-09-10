@@ -62,6 +62,23 @@ on:
         default: dump
         type: choice
         options: [dump, snapshot]
+      rds_engine_version:
+        description: Exact RDS engine override; empty uses the environment setting
+        required: false
+        type: string
+      growth_app_read_qualification:
+        description: Verify the immutable V28 app privately after growth dataset restore
+        required: false
+        default: false
+        type: boolean
+      growth_app_commit:
+        description: Full published application commit for growth read qualification
+        required: false
+        type: string
+      growth_app_jar_sha256:
+        description: Verified JAR SHA-256 for the published growth qualification image
+        required: false
+        type: string
       rds_snapshot_identifier:
         description: Dataset-bound manual RDS snapshot required by snapshot bootstrap
         required: false
@@ -243,7 +260,10 @@ jobs:
           FORCE: ${{ inputs.force }}
           AMI_ID: ${{ vars.AWS_LAB_AMI_ID }}
           OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
-          RDS_ENGINE_VERSION: ${{ vars.AWS_LAB_RDS_ENGINE_VERSION }}
+          RDS_ENGINE_VERSION: ${{ inputs.rds_engine_version || vars.AWS_LAB_RDS_ENGINE_VERSION }}
+          GROWTH_APP_READ_QUALIFICATION: ${{ inputs.growth_app_read_qualification }}
+          GROWTH_APP_COMMIT: ${{ inputs.growth_app_commit }}
+          GROWTH_APP_JAR_SHA256: ${{ inputs.growth_app_jar_sha256 }}
           CACHE_ENABLED: ${{ vars.AWS_LAB_CACHE_ENABLED || 'true' }}
           LOAD_GENERATOR_ENABLED: ${{ inputs.load_generator_enabled }}
           BUNDLE_COMMIT: ${{ inputs.bundle_commit }}

@@ -826,6 +826,7 @@ canonical_operator_tree_sha256() {
     infra/aws/scripts/growth_v4_contract.py \
     infra/aws/scripts/growth_v4_aws_contract.py \
     infra/aws/scripts/growth_v4_app_read.py \
+    infra/aws/scripts/growth_v4_search.py \
     infra/aws/lab/growth-v4-dataset.tf \
     infra/aws/lab/iam.tf \
     infra/aws/lab/variables.tf \
@@ -1710,6 +1711,10 @@ load_release_smoke_inputs() {
       PYTHONPATH="$script_dir" python3 -c \
         'from pathlib import Path; import sys; from growth_app_read import validate_read_runtime; validate_read_runtime(Path(sys.argv[1]))' \
         "$growth_dir" || fail "V4 reads lack the sealed UTC runtime"
+    fi
+    if [[ "$(jq -r '.search.enabled' "$dataset_manifest")" == true ]]; then
+      python3 "$script_dir/growth_v4_search.py" --manifest "$dataset_manifest" --output "$temp_dir/growth-v4-search" \
+        || fail "V4 native snapshot preflight failed"
     fi
     smoke_search_enabled=false
     return

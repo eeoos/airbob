@@ -93,7 +93,7 @@ locals {
 locals {
   growth_bootstrap_helpers = merge(
     { for helper in ["bootstrap-growth-entry.sh", "growth_app_read.py"] : helper => "${path.module}/../scripts/${helper}" },
-    { for helper in(local.dataset_is_growth_v4 ? ["bootstrap-growth-v4-aws.py", "growth_v4_contract.py", "growth_v4_aws_contract.py", "growth_v4_app_read.py"] : ["bootstrap-growth-aws.py", "growth_aws_contract.py", "validate-growth-dataset-v3.py", "restore-growth-dataset.py", "probe-growth-reads.py"]) : helper => "${path.module}/../scripts/${helper}" },
+    { for helper in(local.dataset_is_growth_v4 ? ["bootstrap-growth-v4-aws.py", "growth_v4_contract.py", "growth_v4_aws_contract.py", "growth_v4_app_read.py", "growth_v4_search.py"] : ["bootstrap-growth-aws.py", "growth_aws_contract.py", "validate-growth-dataset-v3.py", "restore-growth-dataset.py", "probe-growth-reads.py"]) : helper => "${path.module}/../scripts/${helper}" },
     { for helper in ["load-test/k6/traffic/growth-dataset-read.js", "load-test/k6/lib/benchmark-dataset-v3.js"] : helper => "${path.module}/../../../${helper}" if !local.dataset_is_growth_v4 },
   )
   growth_bootstrap_data_command = local.services_enabled ? join("\n", [
