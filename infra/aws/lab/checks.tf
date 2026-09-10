@@ -117,7 +117,7 @@ locals {
   }
   dataset_profile_version  = try(local.dataset_manifest.releaseTuple.profileVersion, "")
   dataset_profile_contract = try(local.dataset_profile_contracts[local.dataset_profile_version], null)
-  dataset_dump_storage_gib = try(local.dataset_profile_contract.dump_storage_gib, 20)
+  dataset_dump_storage_gib = local.dataset_is_growth_v4 ? (try(local.dataset_manifest.datasetScale, "") == "selected-two-million" ? 100 : 20) : try(local.dataset_profile_contract.dump_storage_gib, 20)
   dataset_final_table_minimum_rows = {
     accommodation          = try(local.dataset_profile_contract.budgets.accommodations, -1)
     member                 = try(local.dataset_profile_contract.budgets.members, -1)
@@ -138,7 +138,7 @@ locals {
     activeWishlists = local.dataset_production_spec.targets.activeWishlists.rowBudget
     wishlistLinks   = local.dataset_production_spec.targets.wishlistLinks.rowBudget
   }, {})
-  dataset_release_valid = local.dataset_is_growth ? local.growth_dataset_release_valid : local.legacy_dataset_release_valid
+  dataset_release_valid = local.dataset_is_growth_v4 ? local.growth_v4_dataset_release_valid : (local.dataset_is_growth ? local.growth_dataset_release_valid : local.legacy_dataset_release_valid)
   legacy_dataset_release_valid = !local.services_enabled || try(
     sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
     toset(keys(local.dataset_manifest)) == local.dataset_manifest_keys &&
@@ -434,7 +434,7 @@ resource "terraform_data" "dataset_release_gate" {
   lifecycle {
     precondition {
       condition     = local.dataset_release_valid && local.dataset_snapshot_valid
-      error_message = "Refusing to create RDS without the exact V27 dataset manifest and, when selected, matching snapshot tags."
+      error_message = "Refusing to create RDS without the exact admitted dataset manifest and, when selected, matching snapshot tags."
     }
   }
 }
@@ -488,7 +488,7 @@ check "app_capacity_contract" {
 check "dataset_release" {
   assert {
     condition     = local.dataset_release_valid && local.dataset_snapshot_valid
-    error_message = "Phase 3 requires an immutable V27 dataset release and a matching optional RDS snapshot."
+    error_message = "Phase 3 requires an immutable admitted dataset release and a matching optional RDS snapshot."
   }
 }
 

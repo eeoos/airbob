@@ -3,6 +3,21 @@ set -euo pipefail
 umask 077
 export LC_ALL=C
 
+if [[ "$#" -eq 3 && "$3" == growth-v4-aws-qualification ]]; then
+  exec python3 "$(dirname -- "$0")/validate-growth-v4-aws-release.py" "$1/manifest.json" "$2"
+fi
+if [[ "$#" -eq 3 && "$3" == growth-v4-integration ]]; then
+  exec python3 - "$1" "$2" "$(dirname -- "$0")" <<'PY'
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[3])
+from growth_v4_contract import validate
+scripts = Path(sys.argv[3]).resolve()
+validate(Path(sys.argv[1]), sys.argv[2], scripts.parents[2] / 'src/main/resources/db/migration')
+print('V4_SOURCE_VERIFIED')
+PY
+fi
+
 if [[ "$#" -eq 3 && "$3" == growth-small-integration ]]; then
   exec python3 "$(dirname -- "$0")/validate-growth-dataset-v3.py" "$1" "$2"
 fi

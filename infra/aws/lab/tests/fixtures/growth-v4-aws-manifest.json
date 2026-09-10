@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 4,
+  "releaseKind": "growth-v4-aws-qualification",
+  "datasetRelease": "korea-growth-v4-c8c75883908247ef-aws-r1",
+  "datasetRunId": "20260910T000000Z-12345678",
+  "datasetScale": "small-qualification",
+  "source": {
+    "datasetId": "korea-growth-v4-c8c75883908247ef",
+    "consumerManifestSha256": "01b935e51378b0e7dca6bb120483f7c7d2e96c0f183a6d7d71c79433908d023f",
+    "publicationReceiptSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "mysql": {
+    "engineVersion": "8.4.11",
+    "flywayVersion": "28",
+    "dumpKey": "airbob-growth.sql.gz",
+    "dumpSha256": "c8c75883908247ef8661924580f2bead97242678c34ee723873fb07a84186948",
+    "migrationChecksumSha256": "dd22ee7e4fcab39eb3b5b3ad6609235a0751b7d43bceb71408b8c4dabdc798ed",
+    "schemaFingerprintSha256": "211289c979a24c3d99a612032fd8159707602ac5c66a9eafafb8272d7de893dd",
+    "timezone": "UTC",
+    "outboxPolicy": "absent",
+    "expectedTableRows": {
+      "accommodation": 428,
+      "accommodation_amenity": 4732,
+      "accommodation_history": 465,
+      "accommodation_image": 2340,
+      "accommodation_inventory_day": 26046,
+      "accommodation_review_summary": 321,
+      "address": 428,
+      "common_code": 46,
+      "common_code_group": 2,
+      "coupon": 120,
+      "daily_revenue_stats": 8775,
+      "failed_indexing_events": 0,
+      "flyway_schema_history": 28,
+      "member": 2131,
+      "member_coupon": 1157,
+      "member_history": 2131,
+      "occupancy_policy": 428,
+      "outbox": 0,
+      "payment": 9261,
+      "payment_operation": 11064,
+      "payment_operation_resolution": 0,
+      "payment_transaction": 11064,
+      "reservation": 10268,
+      "reservation_checkout_request": 0,
+      "reservation_history": 33403,
+      "reservation_quote": 0,
+      "review": 3770,
+      "review_image": 1259,
+      "settlement": 3777,
+      "settlement_history": 6815,
+      "wishlist": 4026,
+      "wishlist_accommodation": 23147
+    }
+  },
+  "couponPreparation": [],
+  "kafka": {
+    "topics": [
+      "ACCOMMODATION_CACHE.events",
+      "ACCOMMODATION_CACHE.events.DLT",
+      "ACCOMMODATION_CACHE.events.RETRY",
+      "ACCOMMODATION_INDEX.events",
+      "ACCOMMODATION_INDEX.events.DLT",
+      "ACCOMMODATION_INDEX.events.RETRY",
+      "OPERATOR_ALERT.events",
+      "OPERATOR_ALERT.events.DLT",
+      "OPERATOR_ALERT.events.RETRY",
+      "PAYMENT_OPERATION.events",
+      "PAYMENT_OPERATION.events.DLT",
+      "PAYMENT_OPERATION.events.RETRY"
+    ]
+  },
+  "search": {
+    "enabled": false
+  },
+  "artifacts": {
+    "distribution.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/distribution.json",
+      "versionId": "test-only-version",
+      "sha256": "72ac39701c0943b747b2b171870254f046541672425640261c12ee0976e32b99",
+      "bytes": 97810
+    },
+    "measured-workload-targets.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/measured-workload-targets.json",
+      "versionId": "test-only-version",
+      "sha256": "fdd84c05a195ff94880720df3ff11901982c09e0b767a4b7ce3ce8b3cba44629",
+      "bytes": 267568
+    },
+    "http-coverage.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/http-coverage.json",
+      "versionId": "test-only-version",
+      "sha256": "8e9f169ad8032a869116d114a011c0e019d0e60fd5a32dd17bd11f17329e8cb9",
+      "bytes": 16885
+    },
+    "qualification.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/qualification.json",
+      "versionId": "test-only-version",
+      "sha256": "847725101572e44be566d8ec8abdb5c6cc67038176e3e822bec52bf5eed9a129",
+      "bytes": 138981
+    },
+    "runtime-scenarios.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/runtime-scenarios.json",
+      "versionId": "test-only-version",
+      "sha256": "c77651e9125189ef50b02aacbb125ec5d114486af7c6d5f268129fdcdcfb22a9",
+      "bytes": 6806
+    },
+    "after-fingerprint.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/after-fingerprint.json",
+      "versionId": "test-only-version",
+      "sha256": "4b6abbb52c37b4dd124ae3aa458e91e955f0166db763812df1e4c40044f8b7d9",
+      "bytes": 10785
+    },
+    "runtime-plan.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/runtime-plan.json",
+      "versionId": "test-only-version",
+      "sha256": "e6d859e96115af65692fb2e9fd21a82ce71de03fb6ba2e2e585dc1d29efae9d2",
+      "bytes": 2426
+    },
+    "preparation-tools.tar.gz": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/preparation-tools.tar.gz",
+      "versionId": "test-only-version",
+      "sha256": "f9bba03a6ec803db53c5e0af444a2a40c099e262bfefae9a9ba733c95ea1f0ab",
+      "bytes": 14470436
+    },
+    "admission-diagnostics.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/admission-diagnostics.json",
+      "versionId": "test-only-version",
+      "sha256": "67f85d5be88423999d68efe3fc65a52b5e65b8e1cbc8646a8cd5a3cb9447581d",
+      "bytes": 5214
+    },
+    "generation-plan.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/generation-plan.json",
+      "versionId": "test-only-version",
+      "sha256": "37dd11a0ef9ac529b9bf3d0391a3788398d619b1572cd20917946aff91d584c7",
+      "bytes": 11319
+    },
+    "tool-sources.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/tool-sources.json",
+      "versionId": "test-only-version",
+      "sha256": "e0327b1af4cfa4bd1b881874dde45176660cbbec8fe938cdc412e7cead08cf75",
+      "bytes": 1845
+    },
+    "measurements.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/measurements.json",
+      "versionId": "test-only-version",
+      "sha256": "b2fab7563e290457234aebd2de59e6f155acf43b9a68d93c62cd9c47ff68b39b",
+      "bytes": 40479
+    },
+    "query-targets.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/query-targets.json",
+      "versionId": "test-only-version",
+      "sha256": "a8aabb1f9a1ff9512a92d543ac3dc9f238fc3612b9ad16fa922f085aadbccc83",
+      "bytes": 218509
+    },
+    "final-reset-fingerprint.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/final-reset-fingerprint.json",
+      "versionId": "test-only-version",
+      "sha256": "dc86c1694273a2d6ecde4978316138238a0d942dac36495f4825d3549087ecd0",
+      "bytes": 10785
+    },
+    "http-smoke.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/http-smoke.json",
+      "versionId": "test-only-version",
+      "sha256": "97e6636619125ff8db6ec49b601ac847d5ba441d08b5c889e6dfc43e28fa2141",
+      "bytes": 34333
+    },
+    "migration-files.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/migration-files.json",
+      "versionId": "test-only-version",
+      "sha256": "dd22ee7e4fcab39eb3b5b3ad6609235a0751b7d43bceb71408b8c4dabdc798ed",
+      "bytes": 3101
+    },
+    "boundary-fixtures.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/boundary-fixtures.json",
+      "versionId": "test-only-version",
+      "sha256": "21fb1b5691c68cccb5b1bf852cdc08fcd942b70151cba498ad409e9b807d34a8",
+      "bytes": 765
+    },
+    "SHA256SUMS.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/SHA256SUMS.json",
+      "versionId": "test-only-version",
+      "sha256": "19259af2c5c3447464d3b4c88f8e065bbf9f216498bc3db3f741a574b3ac14da",
+      "bytes": 3310
+    },
+    "airbob-growth.sql.gz": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/airbob-growth.sql.gz",
+      "versionId": "test-only-version",
+      "sha256": "c8c75883908247ef8661924580f2bead97242678c34ee723873fb07a84186948",
+      "bytes": 5600504
+    },
+    "validation.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/validation.json",
+      "versionId": "test-only-version",
+      "sha256": "b3283ae8e25f324d8477e47799249216f87c5bb886e9996b476c5997d6c59918",
+      "bytes": 2810
+    },
+    "manifest.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/manifest.json",
+      "versionId": "test-only-version",
+      "sha256": "d8b3bcffa62b644e51c56b9f95e14461c06259f0193e165d9f6d5da80148bee7",
+      "bytes": 2057
+    },
+    "integrated-data.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/integrated-data.json",
+      "versionId": "test-only-version",
+      "sha256": "045933b05645c9313ac68821991ad38da18e1f97df6c83ac2f2ebee4bc7d4393",
+      "bytes": 992
+    },
+    "source-provenance.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/source-provenance.json",
+      "versionId": "test-only-version",
+      "sha256": "39b165100ee05ec3511e672411494ef84dd0f8afbafbdc51da0291294c524fd4",
+      "bytes": 365203
+    },
+    "after-http-fingerprint.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/after-http-fingerprint.json",
+      "versionId": "test-only-version",
+      "sha256": "4620a15805b6dc9b57ec2551d12c8ba06e0cf2f590f9aa8a4941ec91d802c3b9",
+      "bytes": 10785
+    },
+    "listing-lifecycle.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/listing-lifecycle.json",
+      "versionId": "test-only-version",
+      "sha256": "d6136ddff0942037975c71c199cd3ddf0bad1feb01a4eb46d46b9dacad8a8e52",
+      "bytes": 54908
+    },
+    "scenario-qualification.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/scenario-qualification.json",
+      "versionId": "test-only-version",
+      "sha256": "6d26844a076fa2ce5559d919617146ae184e69b9785d4fbea5690274a971a1a2",
+      "bytes": 130759
+    },
+    "search-qualification.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/search-qualification.json",
+      "versionId": "test-only-version",
+      "sha256": "c3f74429f7172406c8b9e7afd16227a4c33d9a491212df1de234389561504c70",
+      "bytes": 63198
+    },
+    "cache-qualification.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/cache-qualification.json",
+      "versionId": "test-only-version",
+      "sha256": "3dee48357181dc398978c13a6a7782378d1d48c5ec3a5f9d2a8a5d95523a0453",
+      "bytes": 1579
+    },
+    "captured-sql.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/captured-sql.json",
+      "versionId": "test-only-version",
+      "sha256": "9c5aba84ae38fb4fc364384db38179e80acf7cca35d4c0102095410272ffea0e",
+      "bytes": 189866
+    },
+    "query-catalog.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/query-catalog.json",
+      "versionId": "test-only-version",
+      "sha256": "8126bef22e9a59c3a75418d065d64da93b89a7acaecd2e1877d2c14aeeaf4d03",
+      "bytes": 96970
+    },
+    "etl-binaries.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/etl-binaries.json",
+      "versionId": "test-only-version",
+      "sha256": "0fbfc2549a8478bb70f623b176c827e346150019091ff14c281506b53254b798",
+      "bytes": 2348
+    },
+    "consumer-manifest.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/consumer-manifest.json",
+      "versionId": "test-only-version",
+      "sha256": "01b935e51378b0e7dca6bb120483f7c7d2e96c0f183a6d7d71c79433908d023f",
+      "bytes": 3342
+    },
+    "restore-validation.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/restore-validation.json",
+      "versionId": "test-only-version",
+      "sha256": "7cb406c1fe9aef23c2c2d791204c99785cde5bfb91e167c0f84a0051cef2102d",
+      "bytes": 2810
+    },
+    "before-fingerprint.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/before-fingerprint.json",
+      "versionId": "test-only-version",
+      "sha256": "4620a15805b6dc9b57ec2551d12c8ba06e0cf2f590f9aa8a4941ec91d802c3b9",
+      "bytes": 10785
+    },
+    "read-scenarios.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/read-scenarios.json",
+      "versionId": "test-only-version",
+      "sha256": "2e1dfa3a95f5141730b9cd585d592d9e266fa0a2c8d7c1cbd2e163c416679740",
+      "bytes": 61158
+    },
+    "profile.json": {
+      "key": "datasets/korea-growth-v4-c8c75883908247ef/profile.json",
+      "versionId": "test-only-version",
+      "sha256": "5a31079ba4bc485cfbf0f825af6b566c0db0e66baab32d1ebcaf8fde40d7f3b1",
+      "bytes": 751
+    }
+  },
+  "releaseTuple": {
+    "datasetVersion": "benchmark-dataset-v4",
+    "generatorVersion": "korea-growth-v4",
+    "dumpSha256": "c8c75883908247ef8661924580f2bead97242678c34ee723873fb07a84186948",
+    "migrationChecksumSha256": "dd22ee7e4fcab39eb3b5b3ad6609235a0751b7d43bceb71408b8c4dabdc798ed",
+    "schemaFingerprintSha256": "211289c979a24c3d99a612032fd8159707602ac5c66a9eafafb8272d7de893dd",
+    "consumerManifestSha256": "01b935e51378b0e7dca6bb120483f7c7d2e96c0f183a6d7d71c79433908d023f",
+    "verificationRuntimeSha256": "f9bba03a6ec803db53c5e0af444a2a40c099e262bfefae9a9ba733c95ea1f0ab"
+  }
+}

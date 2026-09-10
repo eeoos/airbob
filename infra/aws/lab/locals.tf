@@ -160,7 +160,8 @@ locals {
     null,
   ) : null
   dataset_release_kind        = try(local.dataset_manifest.releaseKind, null)
-  dataset_is_growth           = try(local.dataset_manifest.releaseKind == "growth-aws-qualification", false)
+  dataset_is_growth_v4        = try(local.dataset_manifest.releaseKind == "growth-v4-aws-qualification", false)
+  dataset_is_growth           = try(contains(["growth-aws-qualification", "growth-v4-aws-qualification"], local.dataset_manifest.releaseKind), false)
   dataset_search_enabled      = try(local.dataset_manifest.search.enabled, false)
   dataset_expected_table_rows = try(local.dataset_manifest.mysql.expectedTableRows, {})
 

@@ -17,6 +17,7 @@ class WindowTest(unittest.TestCase):
             repo_root='/synthetic', GROWTH_APP_READ_QUALIFICATION='true', GROWTH_APP_COMMIT='a'*40,
             GROWTH_APP_JAR_SHA256='b'*64, FAKE_GIT_STATUS='0')
         cases = [(valid, True), (dict(valid, action='down'), True),
+            (dict(valid, operator_window='standard', DATASET_RELEASE='korea-growth-v4-778895bd2bd73be4-aws-r1'), True),
             (dict(valid, qualification_only='false'), False), (dict(valid, operator_window='standard'), False),
             (dict(valid, GROWTH_APP_JAR_SHA256=''), False), (dict(valid, GROWTH_APP_COMMIT='main'), False),
             (dict(valid, FAKE_GIT_STATUS='1'), False), (dict(valid, GROWTH_APP_READ_QUALIFICATION='false'), False)]

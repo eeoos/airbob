@@ -234,10 +234,13 @@ resource "aws_iam_role_policy" "data_bootstrap" {
         Resource = var.growth_app_read_qualification ? local.ecr_repositories.APP_IMAGE.arn : local.ecr_repositories.DEBEZIUM_IMAGE.arn
       },
       {
-        Sid      = "ReadSelectedDatasetRelease"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:GetObjectVersion"]
-        Resource = "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*"
+        Sid    = "ReadSelectedDatasetRelease"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:GetObjectVersion"]
+        Resource = local.dataset_is_growth_v4 ? [
+          "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*",
+          "arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/datasets/${local.dataset_manifest.source.datasetId}/*",
+        ] : ["arn:aws:s3:::${local.lab_contract.dataset_bucket_name}/${local.dataset_prefix}/*"]
       },
       {
         Sid      = "ReadRdsMasterSecret"

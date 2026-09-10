@@ -6,7 +6,8 @@ variable "growth_app_read_qualification" {
     condition = !var.growth_app_read_qualification || (
       var.data_qualification_only && var.database_bootstrap == "dump" &&
       var.mode == "performance" && var.dns_mode == "direct-only" && !var.load_generator_enabled &&
-      can(regex("^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$", var.dataset_release)) &&
+      (can(regex("^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$", var.dataset_release)) ||
+      can(regex("^korea-growth-v4-[0-9a-f]{16}-aws-r[1-9][0-9]{0,2}$", var.dataset_release))) &&
       can(regex("^[0-9a-f]{40}$", var.growth_app_commit)) &&
       can(regex("^[0-9a-f]{64}$", var.growth_app_jar_sha256))
     )
@@ -91,8 +92,9 @@ locals {
 
 locals {
   growth_bootstrap_helpers = merge(
-    { for helper in ["bootstrap-growth-entry.sh", "bootstrap-growth-aws.py", "growth_aws_contract.py", "restore-growth-dataset.py", "validate-growth-dataset-v3.py", "growth_app_read.py", "probe-growth-reads.py"] : helper => "${path.module}/../scripts/${helper}" },
-    { for helper in ["load-test/k6/traffic/growth-dataset-read.js", "load-test/k6/lib/benchmark-dataset-v3.js"] : helper => "${path.module}/../../../${helper}" },
+    { for helper in ["bootstrap-growth-entry.sh", "growth_app_read.py"] : helper => "${path.module}/../scripts/${helper}" },
+    { for helper in(local.dataset_is_growth_v4 ? ["bootstrap-growth-v4-aws.py", "growth_v4_contract.py", "growth_v4_aws_contract.py", "growth_v4_app_read.py"] : ["bootstrap-growth-aws.py", "growth_aws_contract.py", "validate-growth-dataset-v3.py", "restore-growth-dataset.py", "probe-growth-reads.py"]) : helper => "${path.module}/../scripts/${helper}" },
+    { for helper in ["load-test/k6/traffic/growth-dataset-read.js", "load-test/k6/lib/benchmark-dataset-v3.js"] : helper => "${path.module}/../../../${helper}" if !local.dataset_is_growth_v4 },
   )
   growth_bootstrap_data_command = local.services_enabled ? join("\n", [
     "set -euo pipefail",

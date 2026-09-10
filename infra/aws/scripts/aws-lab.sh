@@ -205,8 +205,10 @@ if [[ "$action" == down ]]; then
   growth_app_jar_sha256=''
 fi
 if [[ "$growth_app_read" == true ]]; then
-  [[ "$action:$qualification_only:$operator_window" == up:true:small-qualification ]] \
-    || fail "growth app reads require small qualification preparation"
+  [[ "$action:$qualification_only:$operator_window" == up:true:small-qualification ||
+     ( "$action:$qualification_only:$operator_window" == up:true:standard &&
+       "${DATASET_RELEASE:-}" =~ ^korea-growth-v4-[0-9a-f]{16}-aws-r[1-9][0-9]{0,2}$ ) ]] \
+    || fail "growth app reads require bounded small or explicit standard-window V4 preparation"
   [[ "$growth_app_commit" =~ ^[0-9a-f]{40}$ && "$growth_app_jar_sha256" =~ ^[0-9a-f]{64}$ ]] \
     || fail "growth app reads require the published commit and locally qualified JAR SHA"
   git -C "$repo_root" cat-file -e "$growth_app_commit^{commit}" \
@@ -820,6 +822,12 @@ canonical_operator_tree_sha256() {
     infra/aws/scripts/cleanup-expired-lab.sh \
     infra/aws/scripts/readiness-comparison-projection.jq \
     infra/aws/scripts/scan-lab-orphans.sh \
+    infra/aws/scripts/bootstrap-growth-v4-aws.py \
+    infra/aws/scripts/growth_v4_contract.py \
+    infra/aws/scripts/growth_v4_aws_contract.py \
+    infra/aws/scripts/growth_v4_app_read.py \
+    infra/aws/lab/growth-v4-dataset.tf \
+    infra/aws/lab/iam.tf \
     infra/aws/lab/variables.tf \
     infra/aws/lab/security.tf \
     infra/aws/lab/modules/security/main.tf \
@@ -1655,6 +1663,11 @@ assert_lease() {
 
 validate_operator_dataset_manifest() {
   local dataset_manifest=$1 expected_release=$2
+  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-v4-aws-qualification ]]; then
+    [[ "$qualification_only" == true && "$database_bootstrap" == dump ]] || return 1
+    python3 "$script_dir/validate-growth-v4-aws-release.py" "$dataset_manifest" "$expected_release" >/dev/null
+    return
+  fi
   if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ]]; then
     [[ "$qualification_only" == true && "$database_bootstrap" == dump ]] || return 1
     python3 "$script_dir/validate-growth-aws-release.py" "$dataset_manifest" "$expected_release" --manifest-only >/dev/null
@@ -1679,6 +1692,28 @@ validate_operator_dataset_manifest() {
 
 load_release_smoke_inputs() {
   local dataset_manifest=$1
+  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-v4-aws-qualification ]]; then
+    local growth_dir="$temp_dir/growth-v4-source" artifact key object_version expected_sha expected_bytes
+    mkdir -m 700 "$growth_dir"
+    while IFS=$'\t' read -r artifact key object_version expected_sha expected_bytes; do
+      aws s3api get-object --bucket "$dataset_bucket" --key "$key" --version-id "$object_version" \
+        "$growth_dir/$artifact" --region "$AWS_REGION" --no-cli-pager >/dev/null \
+        || fail "V4 source object version is unavailable"
+      [[ "$(sha256_file "$growth_dir/$artifact")" == "$expected_sha" &&
+         "$(wc -c < "$growth_dir/$artifact" | tr -d '[:space:]')" == "$expected_bytes" ]] \
+        || fail "V4 source bytes differ"
+    done < <(jq -r '.artifacts|to_entries[]|[.key,.value.key,.value.versionId,.value.sha256,.value.bytes]|@tsv' "$dataset_manifest")
+    python3 "$script_dir/validate-growth-v4-aws-release.py" "$dataset_manifest" "$dataset_release" \
+      --source "$growth_dir" --migration-dir "$repo_root/src/main/resources/db/migration" >/dev/null \
+      || fail "V4 source qualification failed"
+    if [[ "$growth_app_read" == true ]]; then
+      PYTHONPATH="$script_dir" python3 -c \
+        'from pathlib import Path; import sys; from growth_app_read import validate_read_runtime; validate_read_runtime(Path(sys.argv[1]))' \
+        "$growth_dir" || fail "V4 reads lack the sealed UTC runtime"
+    fi
+    smoke_search_enabled=false
+    return
+  fi
   if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ]]; then
     local growth_dir="$temp_dir/growth-release" artifact expected_sha
     mkdir -m 700 "$growth_dir"
@@ -1813,7 +1848,8 @@ resolve_release_inputs() {
     --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "dataset completion manifest is unavailable"
   validate_operator_dataset_manifest "$dataset_manifest" "$dataset_release" \
     || fail "dataset completion manifest is invalid"
-  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ]]; then
+  if [[ "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-aws-qualification ||
+        "$(jq -r '.releaseKind' "$dataset_manifest")" == growth-v4-aws-qualification ]]; then
     aws s3api head-object --bucket "$dataset_bucket" --key "datasets/$dataset_release/manifest.json" \
       --version-id "$dataset_manifest_version_id" --region "$AWS_REGION" --no-cli-pager \
       > "$temp_dir/growth-manifest-metadata.json" \
@@ -1824,11 +1860,13 @@ resolve_release_inputs() {
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
   load_release_smoke_inputs "$dataset_manifest"
   if [[ "$operator_window" == small-qualification ]]; then
-    jq -e '.releaseKind == "growth-aws-qualification" and
+    jq -e '(.releaseKind == "growth-aws-qualification" or
+      (.releaseKind == "growth-v4-aws-qualification" and .datasetScale == "small-qualification")) and
       .mysql.expectedTableRows.accommodation <= 1000 and
       .mysql.expectedTableRows.reservation <= 50000 and
       .artifacts["airbob-growth.sql.gz"].bytes <= 10000000 and
-      .artifacts["verification-runtime.zip"].bytes <= 20000000' "$dataset_manifest" >/dev/null \
+      (if .releaseKind == "growth-v4-aws-qualification" then .artifacts["preparation-tools.tar.gz"].bytes
+       else .artifacts["verification-runtime.zip"].bytes end) <= 20000000' "$dataset_manifest" >/dev/null \
       || fail "one-hour qualification requires the bounded small growth release"
   fi
 
@@ -2972,7 +3010,8 @@ case "$action" in
     bundle_sha256=$(jq -er '.bundleSha256' "$manifest")
     dataset_release=$(jq -er '.datasetRelease' "$manifest")
     if [[ "$operator_window" == small-qualification ]]; then
-      [[ "$dataset_release" =~ ^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$ ]] \
+      [[ "$dataset_release" =~ ^korea-growth-v3-[0-9a-f]{16}-aws(-r[1-9][0-9]{0,2})?$ ||
+         "$dataset_release" =~ ^korea-growth-v4-[0-9a-f]{16}-aws-r[1-9][0-9]{0,2}$ ]] \
         || fail "small qualification teardown requires the recorded growth run"
     fi
     dataset_manifest_sha256=$(jq -er '.datasetManifestSha256' "$manifest")
