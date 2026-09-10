@@ -137,3 +137,42 @@ the 512 MiB heap, and records partial read IDs/hashes plus closed Docker exit/OO
 state on failure. Credentials, response bodies, and raw application logs are not
 published. DB and search checkpoint receipts are retained separately so a later
 failure cannot erase the evidence of already completed stages.
+
+## Actual final RDS and search qualification, 2026-09-10
+
+[Run 34497367298](https://github.com/eeoos/airbob/actions/runs/34497367298)
+completed successfully at 16:34:13 UTC using execution commit
+`c08345c3028a56ced0bed937903f9c05c1c25689`. Its full CI run
+[34497319626](https://github.com/eeoos/airbob/actions/runs/34497319626) also passed.
+
+- Run ID: `lab-34497367298-1`; RDS resource:
+  `db-2VRHC4CQMBIPBTZTRLBN6UCI4U`, MySQL 8.4.11, `db.t3.small`, 100 GiB.
+- All 32 tables, 24,988,237 rows, and their DDL matched the original source,
+  including 2,000,268 reservations and 4,392,547 occupied inventory rows.
+- Streamed import: **1,301.121 seconds**. First complete fingerprint comparison:
+  **139.557 seconds**. These timings describe restoration and verification on
+  this instance; they are not API throughput or index-tuning results.
+- Native S3 search restore: **14,343 documents**, all source fields, mappings,
+  and UID/ID pairs equal. The verified write alias points to
+  `accommodations-v20260910162947` and agrees with the RDS published listings.
+- The unchanged published C1 app passed all **94 sealed reads in each cache
+  mode**, plus five repeated accommodation details. Dedicated cache key counts
+  were **0 with cache off and 9 with cache on**. All DB rows and DDL matched
+  again after the app probe.
+- Five receipts, including the final DB/app proofs and two intermediate
+  checkpoints, were downloaded by exact S3 VersionId and independently checked
+  against the source fingerprint and all 94 expected responses locally.
+- Final qualification: `data-bootstrap/lab-34497367298-1/dataset-qualification.json`
+  in `airbob-performance-lab-evidence-942632789808`, VersionId
+  `.EqY1w.AYjWqP_R4HjUzdDyAAXn_ki5u`.
+
+The user-approved temporary environment policy for
+`codex/growth-v4-aws-restore` (ID `59617956`) was removed after successful
+verification. Only the preexisting `main` branch policy remains. This branch is
+still a draft PR and has not been merged into main.
+
+The final RDS/ES environment is ephemeral and becomes eligible for the existing
+expiry cleanup at **2026-09-11 06:42:36 KST**. Source datasets and versioned
+evidence remain in their separate persistent S3 buckets. This preparation did
+not execute ALB/ASG load, CDC, payment writes, or runtime current FREE-inventory
+initialization; those remain subsequent experiment integration work.
