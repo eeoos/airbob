@@ -19,7 +19,12 @@ source release's historical qualification claims.
   Redis sessions and repeat five accommodation details with cache off and on.
 - Recheck all DB rows and DDL after the application probe. The probe does not
   alter member passwords. Only the dedicated accommodation cache is flushed.
-- Publish versioned, hash-verified evidence only after successful verification.
+- Publish the final qualification only after all requested checks succeed.
+  Separate DB and search checkpoints survive a later application failure and
+  explicitly carry `qualificationComplete=false`.
+- The private read probe uses a 512 MiB Java heap inside a 1,536 MiB container
+  with no additional swap allowance. The larger cgroup leaves room for Java's
+  non-heap memory without changing the published application or its heap.
 
 ## Selected inputs and execution windows
 
@@ -117,3 +122,18 @@ Run `lab-v4-small-0910a`, execution commit
 The temporary small environment is torn down before starting the final run.
 The final run's execution outcome is recorded separately; publication and mock
 test success alone are not a final RDS qualification.
+
+## Final-run recovery, 2026-09-10
+
+Run `lab-34488704492-1` reached the application read probe after DB fingerprint
+and search verification, then failed with a reset connection. The EC2 console
+records a Java memory-cgroup OOM kill at the former 768 MiB container limit. This
+was a probe resource failure; no final qualification receipt was emitted. The
+failed environment was automatically destroyed, and exact EC2/RDS APIs confirmed
+that its instances and retained automated backup were absent.
+
+The recovery increases only the probe container's native-memory headroom, retains
+the 512 MiB heap, and records partial read IDs/hashes plus closed Docker exit/OOM
+state on failure. Credentials, response bodies, and raw application logs are not
+published. DB and search checkpoint receipts are retained separately so a later
+failure cannot erase the evidence of already completed stages.

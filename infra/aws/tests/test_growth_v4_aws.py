@@ -1,5 +1,6 @@
 """V28 restore admission, source fidelity, deadlines, and cleanup boundaries."""
 import copy
+import hashlib
 import importlib.util
 import io
 import json
@@ -109,6 +110,62 @@ class ContractTest(unittest.TestCase):
 
 
 class ProcessAndCleanupTest(unittest.TestCase):
+    def test_failed_read_keeps_partial_progress_and_cleans_sessions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = {'id': 'first', 'method': 'GET', 'immutable': True, 'path': '/api/v1/test',
+                'memberId': 7, 'account': {'memberId': 7, 'email': 'growth-test@example.test'},
+                'expectedStatus': 200, 'expectedResponseSha256': hashlib.sha256(app.canonical({'data': 1})).hexdigest()}
+            scenarios = root / 'read-scenarios.json'
+            scenarios.write_text(json.dumps({'targets': [target, dict(target, id='second')]}))
+            (root / 'consumer-manifest.json').write_text(json.dumps({'artifacts': {'reads': {
+                'sha256': hashlib.sha256(scenarios.read_bytes()).hexdigest()}}}))
+            response = io.BytesIO(b'{"data":1}')
+            response.status = 200
+            progress = root / 'progress.json'
+            with patch.object(app, 'redis', return_value='OK') as redis, \
+                    patch.object(app.urllib.request, 'urlopen', side_effect=[response, ConnectionResetError('private-message')]):
+                with self.assertRaises(ConnectionResetError):
+                    app.read_cases(root, progress_path=progress)
+            observed = json.loads(progress.read_text())
+            self.assertFalse(observed['passed'])
+            self.assertEqual(observed['readCount'], 1)
+            self.assertEqual(observed['failure'], {'readId': 'second', 'errorType': 'ConnectionResetError'})
+            self.assertTrue(any(call.args[1] == 'UNLINK' for call in redis.call_args_list))
+            self.assertTrue(any(call.args[1] == 'EVAL' for call in redis.call_args_list))
+            self.assertNotIn('private-message', progress.read_text())
+            self.assertNotIn('SESSION', progress.read_text())
+
+    def test_oom_diagnostic_retains_only_closed_state(self):
+        state = {'Running': False, 'ExitCode': 137, 'OOMKilled': True,
+            'Error': 'secret-error', 'Env': ['DB_PASSWORD=secret'], 'Health': {'Log': 'secret-payload'}}
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict(os.environ, {'AIRBOB_RUN_ID': 'lab-test'}):
+            diagnostic = app.failure_diagnostic('test', False, lambda *args, **kwargs: json.dumps(state), {},
+                'java.lang.OutOfMemoryError: secret-message', ConnectionResetError('secret-reset'), Path(directory) / 'absent')
+        self.assertTrue(diagnostic['appState']['OOMKilled'])
+        self.assertEqual(diagnostic['appState']['ExitCode'], 137)
+        self.assertNotIn('secret', json.dumps(diagnostic))
+        self.assertIn('JAVA_OPTS=-Xmx' + str(diagnostic['maxHeapMiB']) + 'm\n', app.common.app_environment({}))
+        self.assertGreaterEqual(diagnostic['containerMemoryMiB'] - diagnostic['maxHeapMiB'], 512)
+
+    def test_stage_checkpoint_cannot_masquerade_as_complete_qualification(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {
+                'AIRBOB_RUN_ID': 'lab-test', 'AIRBOB_RDS_RESOURCE_ID': 'db-test',
+                'AIRBOB_DATASET_MANIFEST_SHA256': 'a'*64, 'AIRBOB_EVIDENCE_BUCKET': 'test-bucket'}), \
+                patch.object(bootstrap, 'publish_evidence') as publish:
+            root = Path(directory)
+            proof = {'tableCount': 32, 'totalRows': 24988237, 'importSeconds': 1, 'verificationSeconds': 2}
+            bootstrap.publish_checkpoint(root, 'db-verified', proof)
+            path = root / 'growth-v4-db-verified-checkpoint.json'
+            checkpoint = json.loads(path.read_text())
+            self.assertFalse(checkpoint['qualificationComplete'])
+            self.assertEqual(checkpoint['kind'], 'growth-v4-preparation-checkpoint')
+            self.assertEqual(checkpoint['proof'], proof)
+            self.assertEqual(checkpoint['rdsResourceId'], 'db-test')
+            self.assertFalse((root / 'dataset-qualification.json').exists())
+            publish.assert_called_once_with(path, 'test-bucket', 'data-bootstrap/lab-test/' + path.name)
+
     def test_timeout_terminates_pipeline_descendant(self):
         with tempfile.TemporaryDirectory() as directory:
             marker = Path(directory) / 'still-running'

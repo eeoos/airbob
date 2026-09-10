@@ -74,6 +74,20 @@ def publish_evidence(path, bucket, key):
     return version
 
 
+def publish_checkpoint(work, stage, proof):
+    env = os.environ
+    checkpoint = {'schemaVersion': 1, 'kind': 'growth-v4-preparation-checkpoint',
+        'stage': stage, 'qualificationComplete': False, 'runId': env['AIRBOB_RUN_ID'],
+        'rdsResourceId': env['AIRBOB_RDS_RESOURCE_ID'],
+        'manifestSha256': env['AIRBOB_DATASET_MANIFEST_SHA256'], 'proof': proof}
+    path = work / ('growth-v4-' + stage + '-checkpoint.json')
+    path.write_text(json.dumps(checkpoint, indent=2) + '\n')
+    publish_evidence(path, env['AIRBOB_EVIDENCE_BUCKET'], 'data-bootstrap/' + env['AIRBOB_RUN_ID'] + '/' + path.name)
+    print(json.dumps({'stage': stage, 'qualificationComplete': False,
+        'importSeconds': proof['importSeconds'], 'verificationSeconds': proof['verificationSeconds'],
+        'tableCount': proof['tableCount'], 'totalRows': proof['totalRows']}), flush=True)
+
+
 def write_client(private, connection):
     options = {'host': connection['host'], 'port': str(connection.get('port', 3306)),
         'user': connection['username'], 'password': connection['password'],
@@ -132,8 +146,10 @@ def restore_and_verify(release, manifest, runtime, private, output, connection, 
         # the process group terminates both gzip and mysql after any deadline.
         pipeline = 'gzip -dc -- ' + shlex.quote(str(release / 'airbob-growth.sql.gz')) + ' | ' + shlex.join(client)
         with (output / 'import.log').open('wb') as log:
+            print(json.dumps({'stage': 'V28_DUMP_IMPORT_STARTED', 'deadlineSeconds': import_timeout}), flush=True)
             execute(['bash', '-o', 'pipefail', '-c', pipeline], output=log, timeout=import_timeout)
         receipt['importSeconds'] = round(time.monotonic() - started, 3)
+        print(json.dumps({'stage': 'V28_DUMP_IMPORTED', 'importSeconds': receipt['importSeconds']}), flush=True)
         started = time.monotonic()
         actual = fingerprint(release, runtime, output / 'fingerprint.json', connection, verify_timeout)
         receipt.update(state='ALL_ROWS_AND_DDL_VERIFIED', verificationSeconds=round(time.monotonic()-started, 3),
@@ -181,12 +197,14 @@ def main(manifest_path):
         secret = json.loads(aws('secretsmanager', 'get-secret-value', '--secret-id', env['AIRBOB_RDS_MASTER_SECRET_ARN'])['SecretString'])
         connection = {'host': env['AIRBOB_RDS_ENDPOINT'], 'username': secret['username'], 'password': secret['password'], 'ca': ca, 'truststore': truststore}
         proof = restore_and_verify(release, manifest, runtime, private, work / 'verification', connection)
+        publish_checkpoint(work, 'db-verified', proof)
         if manifest['search']['enabled']:
             from growth_v4_search import qualify_search
             def sql(query):
                 return execute(['mysql', '--defaults-extra-file=' + str(private / 'client.cnf'), '--batch', '--raw',
                     '--skip-column-names', 'airbobdb'], input=query.encode()).decode().strip()
             proof['search'] = qualify_search(work / 'search-companion', manifest, work, sql)
+            publish_checkpoint(work, 'search-verified', proof)
         if env.get('AIRBOB_GROWTH_APP_READ_QUALIFICATION') == 'true':
             from growth_v4_app_read import qualify_application
             app_result = qualify_application(release, manifest, runtime, private, work, connection, execute, aws)

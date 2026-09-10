@@ -12,6 +12,9 @@ import uuid
 import growth_app_read as common
 from growth_v4_contract import require
 
+APP_MEMORY_MIB = 1536
+APP_HEAP_MIB = 512
+
 
 def canonical(value):
     def normalize(item):
@@ -52,15 +55,16 @@ def cleanup_all(actions):
             raise RuntimeError('Qualification cleanup failed')
 
 
-def read_cases(release, base='http://127.0.0.1:18080'):
+def read_cases(release, base='http://127.0.0.1:18080', progress_path=None):
     manifest = json.loads((release / 'consumer-manifest.json').read_text())
     path = release / 'read-scenarios.json'
     require(hashlib.sha256(path.read_bytes()).hexdigest() == manifest['artifacts']['reads']['sha256'], 'Read contract differs')
     targets = json.loads(path.read_text())['targets']
     sessions, active, owned = {}, [], []
-    results = []
+    results, current_id, failure = [], None, None
     try:
         for target in targets:
+            current_id = target['id']
             require(target['method'] == 'GET' and target['immutable'] and target['path'].startswith('/api/v1/'), 'Only sealed immutable reads allowed')
             member = target['memberId']
             if member is not None and member not in sessions:
@@ -80,14 +84,37 @@ def read_cases(release, base='http://127.0.0.1:18080'):
                 sha = hashlib.sha256(canonical(body)).hexdigest()
                 passed = response.status == target['expectedStatus'] and sha == target['expectedResponseSha256']
                 results.append({'id': target['id'], 'status': response.status, 'responseSha256': sha, 'passed': passed})
+    except BaseException as error:
+        failure = {'readId': current_id, 'errorType': type(error).__name__}
+        raise
     finally:
-        actions = [lambda: redis(6379, 'UNLINK', *owned)] if owned else []
+        actions = [lambda: progress_path.write_text(json.dumps({'passed': failure is None and len(results) == len(targets)
+                and bool(results) and all(r['passed'] for r in results), 'readCount': len(results),
+                'expectedReadCount': len(targets), 'checks': results, 'failure': failure}, indent=2) + '\n')] if progress_path is not None else []
+        actions += [lambda: redis(6379, 'UNLINK', *owned)] if owned else []
         actions += [lambda key=key, marker=marker: redis(6379, 'EVAL',
             "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('UNLINK',KEYS[1]) else return 0 end", 1, key, marker)
             for key, marker in active]
         cleanup_all(actions)
     return {'passed': bool(results) and all(r['passed'] for r in results), 'readCount': len(results), 'checks': results,
             'authentication': 'temporary synthetic-member Redis sessions; password login not tested'}
+
+
+def failure_diagnostic(name, cache, execute, docker_env, log, error, observation):
+    # Retain closed process state and sealed target IDs, never Docker environment
+    # settings, HTTP bodies, cookies, or exception messages.
+    diagnostic = {'runId': os.environ['AIRBOB_RUN_ID'], 'cacheEnabled': cache,
+        'errorType': type(error).__name__, 'containerMemoryMiB': APP_MEMORY_MIB,
+        'maxHeapMiB': APP_HEAP_MIB, 'startup': common.startup_diagnostic(log)}
+    try:
+        state = json.loads(execute(['docker', 'inspect', '--format', '{{json .State}}', name], env=docker_env))
+        diagnostic['appState'] = {key: state.get(key) for key in
+            ['Running', 'ExitCode', 'OOMKilled', 'StartedAt', 'FinishedAt']}
+    except Exception as state_error:
+        diagnostic['stateReadErrorType'] = type(state_error).__name__
+    if observation.exists():
+        diagnostic['reads'] = json.loads(observation.read_text())
+    return diagnostic
 
 
 def qualify_application(release, manifest, runtime, private, work, connection, execute, aws):
@@ -116,10 +143,15 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
         config = private / 'app.env'
         config.write_text(common.app_environment(settings))
         config.chmod(0o600)
+        observation_path = work / ('read-observation-' + str(cache).lower() + '.json')
         started = False
         try:
             started = True
-            execute(['docker', 'run', '-d', '--name', name, '--network', 'host', '--memory', '768m',
+            # The 512 MiB Java heap also needs room for metaspace, code cache,
+            # direct buffers and threads. The old 768 MiB cgroup was OOM-killed
+            # during real two-million-row reads despite the bounded heap.
+            execute(['docker', 'run', '-d', '--name', name, '--network', 'host',
+                '--memory', str(APP_MEMORY_MIB) + 'm', '--memory-swap', str(APP_MEMORY_MIB) + 'm',
                 '--env-file', str(config), '--mount', f'type=bind,source={private},target={private},readonly', image], env=docker_env)
             for _ in range(120):
                 require(execute(['docker', 'inspect', '--format', '{{.State.Running}}', name], env=docker_env).strip() == b'true', 'Probe app exited')
@@ -129,8 +161,8 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
                 except (OSError, ValueError): pass
                 time.sleep(1)
             else: raise RuntimeError('V28 app startup deadline exceeded')
-            observation = read_cases(release)
-            (work / ('read-observation-' + str(cache).lower() + '.json')).write_text(json.dumps(observation, indent=2) + '\n')
+            print(json.dumps({'stage': 'V28_APP_READS_STARTED', 'cacheEnabled': cache}), flush=True)
+            observation = read_cases(release, progress_path=observation_path)
             require(observation['passed'], 'App response differs from sealed V28 data')
             details = []
             for listing_id in detail_ids:
@@ -148,15 +180,26 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
             require(cache_after >= len(detail_ids) if cache else cache_after == 0, 'Cache contents differ from selected mode')
             results.append({'cacheEnabled': cache, 'reads': observation, 'repeatedDetailTargets': details,
                 'dedicatedCacheKeysBefore': 0, 'dedicatedCacheKeysAfterDetails': cache_after})
-        except BaseException:
+            print(json.dumps({'stage': 'V28_APP_READS_PASSED', 'cacheEnabled': cache,
+                'readCount': observation['readCount'], 'dedicatedCacheKeys': cache_after}), flush=True)
+        except BaseException as error:
             if started:
                 try:
                     log_path = work / ('app-cache-' + str(cache).lower() + '.log')
                     with log_path.open('wb') as log:
                         execute(['docker', 'logs', name], env=docker_env, output=log)
-                    (work / 'app-startup-diagnostic.json').write_text(json.dumps(common.startup_diagnostic(log_path.read_text(errors='replace')), indent=2) + '\n')
-                except Exception:
-                    pass
+                    diagnostic = failure_diagnostic(name, cache, execute, docker_env,
+                        log_path.read_text(errors='replace'), error, observation_path)
+                    path = work / ('app-failure-' + str(cache).lower() + '.json')
+                    path.write_text(json.dumps(diagnostic, indent=2) + '\n')
+                    aws('s3api', 'put-object', '--bucket', os.environ['AIRBOB_EVIDENCE_BUCKET'],
+                        '--key', 'data-bootstrap/' + os.environ['AIRBOB_RUN_ID'] + '/' + path.name,
+                        '--body', str(path), '--if-none-match', '*', '--tagging', 'Retention=summary',
+                        '--content-type', 'application/json', '--server-side-encryption', 'AES256')
+                    print(json.dumps({'stage': 'V28_APP_READS_FAILED', 'cacheEnabled': cache,
+                        'errorType': diagnostic['errorType'], 'appState': diagnostic.get('appState')}), flush=True)
+                except Exception as diagnostic_error:
+                    print(json.dumps({'diagnosticErrorType': type(diagnostic_error).__name__}), flush=True)
             raise
         finally:
             # The general Redis is never flushed. This endpoint is the separate,
@@ -168,4 +211,5 @@ def qualify_application(release, manifest, runtime, private, work, connection, e
         'datasetId': manifest['source']['datasetId'], 'datasetManifestSha256': os.environ['AIRBOB_DATASET_MANIFEST_SHA256'],
         'appCommit': os.environ['AIRBOB_GROWTH_APP_COMMIT'], 'appImage': image, 'appJarSha256': actual_jar,
         'flywayTarget': 28, 'results': results, 'asgExecuted': False, 'albExecuted': False,
+        'containerMemoryMiB': APP_MEMORY_MIB, 'maxHeapMiB': APP_HEAP_MIB,
         'databaseContentChangedByProbe': False}
