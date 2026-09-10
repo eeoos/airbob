@@ -92,3 +92,28 @@ full-content parity, TLS requirements, process-group termination, and cleanup
 error preservation. Terraform mock tests cover v4 and existing v3 preparation,
 the 45 KB SSM document budget, app isolation, and MySQL 8.4 parameter-family
 selection. Real RDS execution evidence is recorded separately per run.
+
+## Actual small RDS qualification, 2026-09-10
+
+Run `lab-v4-small-0910a`, execution commit
+`7df239e23c83c878a0bbcd59d20a111a348a0593`, completed successfully at
+13:52:35 UTC. MySQL resource ID: `db-MIVFLHNQYCWELLJZUKTZP7G4SA`.
+
+- 32 tables and all 167,432 rows matched their source data and DDL, including
+  10,268 reservations and 26,046 occupied inventory rows.
+- Streamed import took 11.055 seconds; the first complete fingerprint comparison
+  took 4.950 seconds. These are small-restore timings, not service benchmarks or
+  extrapolations for the final dataset.
+- The unchanged published application at
+  `c1d0a33eb7e9686a18fbc5c999bde74ed6d5ce35` passed all 66 sealed reads with cache
+  disabled and again with cache enabled. Five repeated details agreed across
+  both modes; dedicated cache key counts were 0 and 8 respectively.
+- Every DB row and DDL matched again after the application probe.
+- The qualification receipt is
+  `data-bootstrap/lab-v4-small-0910a/dataset-qualification.json` in the evidence
+  bucket, VersionId `F6jrNaqTjia1mwaq2OqJBreznsWLCHu4`. The full DB and app proofs
+  were independently downloaded by exact version and verified locally.
+
+The temporary small environment is torn down before starting the final run.
+The final run's execution outcome is recorded separately; publication and mock
+test success alone are not a final RDS qualification.
