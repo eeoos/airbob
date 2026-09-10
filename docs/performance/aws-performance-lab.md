@@ -47,6 +47,14 @@ V27, and the resulting release binds the inventory table, published timezone
 preflight, and exact schema fingerprint. A failed V25+ cutover is roll-forward
 only; the lab does not start or roll back to a pre-inventory application.
 
+The application schema now includes V28, which removes quote expiry. The
+`performance-lab` profile pins Flyway target `27` so starting a new application
+image does not change the verified dataset schema or bootstrap receipt. This
+dataset remains for the existing isolated read/coupon experiments. Reservation
+quote creation and checkout require the V28 application schema and are tested
+outside this V27 lab. A future lab schema upgrade needs a matching new dataset
+release and validation contract; it must not rewrite the published V27 release.
+
 Phase 3 now binds one manifest SHA to an ephemeral RDS instance and runs the
 ordered bootstrap from the Debezium host: database import and Flyway/schema
 fingerprints, optional read-only Elasticsearch S3 snapshot restore into a

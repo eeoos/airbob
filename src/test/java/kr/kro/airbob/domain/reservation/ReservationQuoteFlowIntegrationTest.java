@@ -61,6 +61,7 @@ import kr.kro.airbob.domain.accommodation.repository.OccupancyPolicyRepository;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
+import kr.kro.airbob.domain.coupon.exception.CouponNotApplicableException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.entity.Member;
@@ -72,7 +73,6 @@ import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
-import kr.kro.airbob.domain.reservation.exception.ReservationQuoteExpiredException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
@@ -179,7 +179,6 @@ class ReservationQuoteFlowIntegrationTest {
 		assertThat(response.subtotal()).isEqualTo(SUBTOTAL);
 		assertThat(response.discountAmount()).isEqualTo(30_000L);
 		assertThat(response.amount()).isEqualTo(330_000L);
-		assertThat(response.quoteExpiresAt()).isEqualTo(NOW.plusSeconds(5 * 60));
 		assertThat(reservationRepository.count()).isZero();
 		assertThat(historyRepository.count()).isZero();
 		assertThat(outboxRepository.count()).isZero();
@@ -246,17 +245,18 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("성공한 checkout은 quote 만료 뒤에도 같은 멱등성 키로 기존 예약을 재생한다")
-	void successfulCheckoutReplaysAfterQuoteExpiry() {
+	@DisplayName("성공한 checkout은 시간이 지난 뒤에도 같은 멱등성 키로 기존 예약을 재생하며 hold를 연장하지 않는다")
+	void successfulCheckoutReplaysWithoutExtendingTheHold() {
 		ReservationResponse.Quote quote = createQuote(null);
-		String idempotencyKey = "quote-replay-after-expiry";
+		String idempotencyKey = "quote-replay-after-delay";
 		String requestMessage = "동일 요청 재시도";
 		ReservationResponse.Ready first = checkout(quote, idempotencyKey, requestMessage);
-		clock.set(quote.quoteExpiresAt());
+		clock.set(NOW.plusSeconds(10 * 60));
 
 		ReservationResponse.Ready replayed = checkout(quote, idempotencyKey, requestMessage);
 
 		assertThat(replayed.reservationUid()).isEqualTo(first.reservationUid());
+		assertThat(replayed.holdExpiresAt()).isEqualTo(first.holdExpiresAt());
 		assertThat(replayed.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
 		assertThat(reservationRepository.count()).isOne();
 		assertThat(historyRepository.count()).isOne();
@@ -264,23 +264,29 @@ class ReservationQuoteFlowIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("견적 만료 시각과 정확히 같아진 checkout은 거절하고 아무 상태도 소비하지 않는다")
-	void checkoutAtExactQuoteExpiryIsRejected() {
-		ReservationResponse.Quote quote = createQuote(null);
-		clock.set(quote.quoteExpiresAt());
+	@DisplayName("견적 생성 1시간 뒤에도 현재 조건이 같으면 checkout하고 그 시점부터 15분 hold를 시작한다")
+	void delayedCheckoutRevalidatesAndStartsAFreshFifteenMinuteHold() {
+		Coupon coupon = issueFixedCoupon(30_000);
+		ReservationResponse.Quote quote = createQuote(coupon.getId());
+		Instant checkoutAt = NOW.plusSeconds(60 * 60);
+		advanceClock(checkoutAt);
 
-		assertThatThrownBy(() -> checkout(quote, "quote-expiry-boundary", null))
-			.isInstanceOf(ReservationQuoteExpiredException.class);
+		ReservationResponse.Ready ready = checkout(quote, "delayed-quote-checkout", null);
 
-		assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
+		assertThat(ready.status()).isEqualTo(ReservationStatus.PAYMENT_PENDING);
+		assertThat(ready.holdExpiresAt()).isEqualTo(checkoutAt.plusSeconds(15 * 60));
+		assertThat(ready.serverTime()).isEqualTo(checkoutAt);
+		assertThat(ready.amount()).isEqualTo(330_000L);
+		assertThat(memberCoupon(coupon).isUsed()).isTrue();
+		assertThat(quote(quote.quoteUid()).getCheckedOutAt()).isEqualTo(checkoutAt);
+		assertThat(reservationRepository.count()).isOne();
+		assertThat(checkoutRequestCount()).isOne();
 	}
 
 	@Test
-	@DisplayName("busy checkout은 상태를 소비하지 않고 재시도 시 quote 만료를 관찰한다")
-	void busyCheckoutCanRetryAndObserveQuoteExpiry() throws Exception {
+	@DisplayName("busy checkout은 상태를 소비하지 않으며 5분이 지나도 재시도할 수 있다")
+	void busyCheckoutCanRetryAfterFormerQuoteExpiry() throws Exception {
 		ReservationResponse.Quote quote = createQuote(null);
-		given(bookingWindowProvider.currentFor(TIME_ZONE_ID, quote.quoteExpiresAt()))
-			.willReturn(BookingWindow.startingOn(BOOKING_WINDOW_START));
 		ExecutorService executor = Executors.newFixedThreadPool(2);
 		CountDownLatch lockAcquired = new CountDownLatch(1);
 		CountDownLatch releaseLock = new CountDownLatch(1);
@@ -294,7 +300,7 @@ class ReservationQuoteFlowIntegrationTest {
 		assertThat(lockAcquired.await(10, TimeUnit.SECONDS)).isTrue();
 
 		Future<ReservationResponse.Ready> checkout = executor.submit(() ->
-			checkout(quote, "quote-expires-while-waiting", null));
+			checkout(quote, "quote-retry-after-contention", null));
 		try {
 			assertThatThrownBy(() -> checkout.get(2, TimeUnit.SECONDS))
 				.isInstanceOf(ExecutionException.class)
@@ -311,10 +317,12 @@ class ReservationQuoteFlowIntegrationTest {
 			executor.awaitTermination(10, TimeUnit.SECONDS);
 		}
 
-		clock.set(quote.quoteExpiresAt());
-		assertThatThrownBy(() -> checkout(quote, "quote-expires-while-waiting", null))
-			.isInstanceOf(ReservationQuoteExpiredException.class);
-		assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
+		Instant retryAt = NOW.plusSeconds(10 * 60);
+		advanceClock(retryAt);
+		ReservationResponse.Ready ready = checkout(quote, "quote-retry-after-contention", null);
+		assertThat(ready.holdExpiresAt()).isEqualTo(retryAt.plusSeconds(15 * 60));
+		assertThat(reservationRepository.count()).isOne();
+		assertThat(checkoutRequestCount()).isOne();
 	}
 
 	@Test
@@ -336,6 +344,7 @@ class ReservationQuoteFlowIntegrationTest {
 	void inventoryClaimedAfterQuoteCreationRejectsCheckoutAtomically() {
 		Coupon coupon = issueFixedCoupon(30_000);
 		ReservationResponse.Quote quote = createQuote(coupon.getId());
+		advanceClock(NOW.plusSeconds(60 * 60));
 		Member competitor = memberRepository.save(
 			Member.builder().email("quote-competitor@test.com").nickname("quote-competitor").build());
 		ReservationResponse.Quote competitorQuote = createQuote(competitor, null);
@@ -364,6 +373,7 @@ class ReservationQuoteFlowIntegrationTest {
 	void priceChangeRejectsStaleQuoteAndRollsBack() {
 		Coupon coupon = issueFixedCoupon(30_000);
 		ReservationResponse.Quote quote = createQuote(coupon.getId());
+		advanceClock(NOW.plusSeconds(60 * 60));
 		jdbcTemplate.update(
 			"UPDATE accommodation SET base_price = ?, updated_at = CURRENT_TIMESTAMP(6) WHERE id = ?",
 			NIGHTLY_PRICE + 10_000,
@@ -371,6 +381,21 @@ class ReservationQuoteFlowIntegrationTest {
 
 		assertThatThrownBy(() -> checkout(quote, "quote-stale-price", null))
 			.isInstanceOf(ReservationQuoteStaleException.class);
+
+		assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
+		assertThat(memberCoupon(coupon).isUsed()).isFalse();
+	}
+
+	@Test
+	@DisplayName("오래된 견적의 쿠폰이 비활성화되면 checkout은 예약과 쿠폰을 소비하지 않는다")
+	void delayedCheckoutRejectsCouponThatIsNoLongerApplicable() {
+		Coupon coupon = issueFixedCoupon(30_000);
+		ReservationResponse.Quote quote = createQuote(coupon.getId());
+		advanceClock(NOW.plusSeconds(60 * 60));
+		jdbcTemplate.update("UPDATE coupon SET is_active = FALSE WHERE id = ?", coupon.getId());
+
+		assertThatThrownBy(() -> checkout(quote, "delayed-quote-inactive-coupon", null))
+			.isInstanceOf(CouponNotApplicableException.class);
 
 		assertQuoteAndCheckoutRemainUnconsumed(quote.quoteUid());
 		assertThat(memberCoupon(coupon).isUsed()).isFalse();
@@ -495,6 +520,12 @@ class ReservationQuoteFlowIntegrationTest {
 		assertThat(historyRepository.count()).isOne();
 		assertThat(checkoutRequestCount()).isOne();
 		assertThat(memberCoupon(coupon).isUsed()).isTrue();
+	}
+
+	private void advanceClock(Instant now) {
+		clock.set(now);
+		given(bookingWindowProvider.currentFor(TIME_ZONE_ID, now))
+			.willReturn(BookingWindow.startingOn(BOOKING_WINDOW_START));
 	}
 
 	private void createFixture() {

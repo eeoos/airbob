@@ -48,7 +48,6 @@ import kr.kro.airbob.domain.reservation.exception.ReservationNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindowException;
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteAlreadyCheckedOutException;
-import kr.kro.airbob.domain.reservation.exception.ReservationQuoteExpiredException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteNotFoundException;
 import kr.kro.airbob.domain.reservation.exception.ReservationQuoteStaleException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
@@ -123,11 +122,6 @@ public class ReservationTransactionService {
 			throw new ReservationQuoteAlreadyCheckedOutException();
 		}
 
-		Instant quoteCheckedAt = clock.instant();
-		if (quote.isExpiredAt(quoteCheckedAt)) {
-			throw new ReservationQuoteExpiredException();
-		}
-
 		ReservationCreateCommand createRequest = new ReservationCreateCommand(
 			quote.getAccommodationId(),
 			quote.getCheckInDate(),
@@ -138,9 +132,6 @@ public class ReservationTransactionService {
 		);
 		Reservation reservation = createPendingReservation(createRequest, reason, guest);
 		Instant checkedOutAt = clock.instant();
-		if (quote.isExpiredAt(checkedOutAt)) {
-			throw new ReservationQuoteExpiredException();
-		}
 		ReservationStayPricePolicy.StayPrice currentPrice = ReservationStayPricePolicy.calculate(
 			reservation.getAccommodation().getBasePrice(),
 			reservation.getCheckInDate(),

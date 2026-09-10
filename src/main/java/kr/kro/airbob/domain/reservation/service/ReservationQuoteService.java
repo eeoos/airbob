@@ -27,7 +27,6 @@ import kr.kro.airbob.domain.reservation.exception.ReservationOutsideBookingWindo
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
 import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
-import kr.kro.airbob.domain.reservation.policy.ReservationQuotePolicy;
 import kr.kro.airbob.domain.reservation.policy.ReservationStayPricePolicy;
 import kr.kro.airbob.domain.reservation.repository.ReservationQuoteRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +42,6 @@ public class ReservationQuoteService {
 	private final CouponUsageService couponUsageService;
 	private final BookingWindowProvider bookingWindowProvider;
 	private final Clock clock;
-	private final ReservationQuotePolicy quotePolicy;
 
 	@Transactional
 	public ReservationResponse.Quote createQuote(ReservationRequest.Quote request, Long memberId) {
@@ -90,8 +88,7 @@ public class ReservationQuoteService {
 			currency,
 			stayPrice,
 			discountAmount,
-			now,
-			quotePolicy
+			now
 		);
 		quoteRepository.save(quote);
 		return ReservationResponse.Quote.from(quote, now);

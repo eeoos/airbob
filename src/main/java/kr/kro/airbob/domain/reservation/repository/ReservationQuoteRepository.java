@@ -36,7 +36,7 @@ public interface ReservationQuoteRepository extends JpaRepository<ReservationQuo
 		limit :batchSize
 		for update skip locked
 		""", nativeQuery = true)
-	List<Long> findExpiredIdsForCleanup(
+	List<Long> findRetentionExpiredIdsForCleanup(
 		@Param("cutoffExclusive") Instant cutoffExclusive,
 		@Param("batchSize") int batchSize
 	);

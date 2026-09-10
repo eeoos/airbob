@@ -205,25 +205,24 @@ class ReservationQuoteCleanupRepositoryIntegrationTest {
 			("quote-cleanup-" + sequence).getBytes(StandardCharsets.UTF_8));
 		LocalDate checkIn = LocalDate.of(2026, 10, 1).plusDays(sequence);
 		LocalDate checkOut = checkIn.plusDays(1);
-		Instant expiresAt = createdAt.plusSeconds(300);
 		jdbc.update("""
 			INSERT INTO reservation_quote (
 			  quote_uid, member_id, accommodation_id, order_name,
 			  check_in_date, check_out_date, guest_count, coupon_id,
 			  nightly_price, nights, subtotal, discount_amount, amount, currency,
-			  quoted_at, expires_at, reservation_id, checked_out_at,
+			  quoted_at, reservation_id, checked_out_at,
 			  created_at, updated_at
 			) VALUES (
 			  UNHEX(REPLACE(?, '-', '')), ?, ?, 'Quote cleanup fixture',
 			  ?, ?, 2, NULL,
 			  100000, 1, 100000, 0, 100000, 'KRW',
-			  ?, ?, ?, ?,
+			  ?, ?, ?,
 			  ?, ?
 			)
 			""",
 			quoteUid.toString(), memberId, accommodationId,
 			Date.valueOf(checkIn), Date.valueOf(checkOut),
-			Timestamp.from(createdAt), Timestamp.from(expiresAt), reservationId,
+			Timestamp.from(createdAt), reservationId,
 			reservationId == null ? null : Timestamp.from(createdAt.plusSeconds(60)),
 			Timestamp.from(createdAt), Timestamp.from(createdAt));
 		return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
@@ -291,7 +290,7 @@ class ReservationQuoteCleanupRepositoryIntegrationTest {
 		}
 
 		private List<Long> lockIds(Instant cutoff, int batchSize) {
-			return repository.findExpiredIdsForCleanup(cutoff, batchSize);
+			return repository.findRetentionExpiredIdsForCleanup(cutoff, batchSize);
 		}
 
 		private void awaitRelease(CountDownLatch release) {

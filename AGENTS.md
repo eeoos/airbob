@@ -65,6 +65,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   remains the business state; the inventory table is the exclusive date-ownership model.
 - Quote creation never locks or consumes inventory. The authoritative checkout revalidates quote,
   price, coupon, accommodation, and inventory before creating the 15-minute hold.
+- Quotes have no elapsed-time validity deadline or `quote_expires_at` response field. Keep live
+  checkout revalidation, one-use attachment, and idempotent replay. Quote data retention (30 days
+  by default, based on `created_at`) remains separate from checkout validity and HOLD expiry.
 - The public write contract is V1-only: create a quote, checkout it with an `Idempotency-Key`, then
   issue a payment-attempt token before confirmation. Do not restore direct-create or reservation V2
   compatibility paths.
@@ -165,7 +168,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V27.
+- Current schema history is V1 through V28.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.
@@ -173,6 +176,8 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   checkout-idempotency ledger, V23 added non-holding reservation quotes, and V24 added the
   payment-entry attempt lease. V25 is an intentional zero-reservation hard-cutover guard, V26 adds
   the date inventory ownership table, and V27 indexes the bounded published-accommodation seed scan.
+  V28 removes only the quote expiry constraint and column; it preserves quote snapshots and checkout
+  links. Stop older quote readers/writers before V28 and roll forward with a V28-compatible binary.
   Stop every V24-or-older writer and verify zero reservation rows before V25; the guard is not a
   database-level writer fence. Do not rewrite these migrations or automatically roll a V25+
   database back to a pre-inventory binary.
