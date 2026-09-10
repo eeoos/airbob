@@ -151,6 +151,10 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # The published app may precede the AWS operator commit. Its exact
+          # source tree must be available for the immutable identity comparison.
+          fetch-depth: 0
 
       - name: Set up Terraform 1.15.5
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
