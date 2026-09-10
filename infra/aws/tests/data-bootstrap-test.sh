@@ -110,7 +110,7 @@ assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "data_bootstrap
 assert_contains "$lab_root/iam.tf" 'ManageEphemeralDebeziumCredentialValue'
 assert_contains "$lab_root/iam.tf" 'ReadDataBootstrapReceipt'
 assert_contains "$lab_root/iam.tf" '["s3:GetObject", "s3:GetObjectVersion"]'
-assert_contains "$lab_root/iam.tf" 'elasticsearch/releases/${var.dataset_release}/*'
+assert_contains "$lab_root/iam.tf" 'elasticsearch/releases/${local.dataset_snapshot_repository_release}/*'
 assert_contains "$repo_root/infra/aws/foundation/lab-compute.tf" 'ReadLabDebeziumSecret'
 assert_contains "$repo_root/infra/aws/foundation/lab-compute.tf" 'ReadLabRdsManagedMasterSecret'
 assert_contains "$repo_root/infra/aws/foundation/lab-compute.tf" 'WriteLabDebeziumSecret'

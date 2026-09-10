@@ -163,6 +163,15 @@ override_data {
 run "qualify_selected_two_million_with_bound_search" {
   command = plan
   assert {
+    condition = alltrue([for statement in jsondecode(aws_iam_role_policy.elasticsearch_snapshot[0].policy).Statement :
+      statement.Sid != "ReadDatasetSnapshotRepository" || (
+        statement.Resource == "arn:aws:s3:::airbob-performance-lab-dataset-942632789808/elasticsearch/releases/korea-growth-v4-778895bd2bd73be4-search-r1/*" &&
+        toset(statement.Action) == toset(["s3:GetObject", "s3:GetObjectVersion"])
+      )
+    ])
+    error_message = "The ES role must read the existing native snapshot prefix with no write permission."
+  }
+  assert {
     condition = (
       local.dataset_release_valid && local.dataset_search_enabled && local.dataset_dump_storage_gib == 100 &&
       length(module.alb) == 0 && length(module.app_asg) == 0 &&

@@ -653,6 +653,16 @@ cp "$repo_root/infra/aws/lab/variables.tf" "$fixture_repo/infra/aws/lab/variable
 cp "$repo_root/infra/aws/lab/security.tf" "$fixture_repo/infra/aws/lab/security.tf"
 cp "$repo_root/infra/aws/lab/modules/security/main.tf" "$fixture_repo/infra/aws/lab/modules/security/main.tf"
 cp "$repo_root/infra/aws/lab/modules/security/variables.tf" "$fixture_repo/infra/aws/lab/modules/security/variables.tf"
+for relative in \
+  infra/aws/scripts/bootstrap-growth-v4-aws.py \
+  infra/aws/scripts/growth_v4_contract.py \
+  infra/aws/scripts/growth_v4_aws_contract.py \
+  infra/aws/scripts/growth_v4_app_read.py \
+  infra/aws/scripts/growth_v4_search.py \
+  infra/aws/lab/growth-v4-dataset.tf \
+  infra/aws/lab/iam.tf; do
+  cp "$repo_root/$relative" "$fixture_repo/$relative"
+done
 
 cat > "$fixture_scripts/orchestration-lease.sh" <<'EOF'
 #!/usr/bin/env bash

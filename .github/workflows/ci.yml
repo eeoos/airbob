@@ -66,6 +66,7 @@ jobs:
           bash infra/aws/tests/snapshot-fast-validation-test.sh
           python3 infra/aws/tests/growth-publication-test.py
           python3 infra/aws/tests/growth-aws-contract-test.py
+          python3 -m unittest discover -s infra/aws/tests -p 'test_growth_v4*.py'
           python3 infra/aws/tests/aws-lab-small-window-test.py
           bash infra/aws/tests/app-asg-test.sh
           bash infra/aws/tests/network-egress-test.sh
