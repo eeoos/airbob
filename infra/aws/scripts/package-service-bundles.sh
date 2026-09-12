@@ -62,6 +62,7 @@ archive_files=(
 validation_files=(
   infra/aws/tests/all-service-bundles-test.sh
   infra/aws/scripts/verify-service-bundle.sh
+  infra/aws/scripts/deterministic_service_bundle.py
   infra/aws/tests/fixtures/images.env
   infra/aws/tests/fixtures/runtime.env
   infra/aws/bundles/manifest.json
@@ -269,7 +270,11 @@ sha256_file() {
   printf '%s' "$checksum_digest"
 }
 
-COPYFILE_DISABLE=1 tar -C "$repo_root" -czf "$archive_path" "${archive_files[@]}"
+command -v python3 >/dev/null 2>&1 || fail "Python 3 is required for deterministic bundle packaging"
+commit_timestamp=$(git -C "$repo_root" show -s --format=%ct "$commit")
+[[ "$commit_timestamp" =~ ^[0-9]+$ ]] || fail "commit timestamp is not canonical"
+python3 "$commit_blob_root/infra/aws/scripts/deterministic_service_bundle.py" \
+  "$commit_blob_root" "$expected_listing" "$archive_path" "$commit_timestamp"
 COPYFILE_DISABLE=1 tar -tzf "$archive_path" > "$actual_listing"
 cmp -s "$expected_listing" "$actual_listing" || fail "created archive does not contain exactly the fixed nineteen-file allowlist"
 archive_digest=$(sha256_file "$archive_path")

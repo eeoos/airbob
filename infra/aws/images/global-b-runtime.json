@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "runtimeCommit": "479ba02d54954af46f1f5633aceddeb69e321ff3",
+  "legacyReleaseSha256": "14f146c2453065fbc0c8a3e48dd59ac298b962575907e9c826af620de20c7062",
+  "legacyBundleManifestSha256": "c73a37e98a2cb10d210ba3ae39d5c390ac66305825e2b846f70b46ec2bbdb5fb",
+  "appImage": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:442574616c6e5572ee7c9493ccd9ec59eeed629188371a6384513816d589be70",
+  "debezium": {
+    "repository": "airbob-infra/debezium",
+    "tagPrefix": "global-b-",
+    "context": "docker/aws-global-b-debezium",
+    "dockerfile": "docker/aws-global-b-debezium/Dockerfile",
+    "pluginVersion": "3.0.8.Final",
+    "pluginUrl": "https://repo.maven.apache.org/maven2/io/debezium/debezium-connector-mysql/3.0.8.Final/debezium-connector-mysql-3.0.8.Final-plugin.tar.gz",
+    "pluginArchiveSha256": "14b7c50782b162f1a1a17706ebc05c424995e681ffa1ae7d3a1e1a91345d871a",
+    "pluginJarSha256": "6de35d7c20ca1d00e6d9d8ae0e033203e487bf29e335a096dcaf38d4e0316f59",
+    "connectVersion": "3.7.0",
+    "buildArgs": {
+      "ALPINE_IMAGE": "docker.io/library/alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1",
+      "KAFKA_BASE_IMAGE": "docker.io/apache/kafka@sha256:41c20d65b0a2180b9deca056d47540771752e69fe9225d5748dd65a25a9675d7"
+    }
+  }
+}

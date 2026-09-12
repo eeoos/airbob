@@ -65,6 +65,7 @@ make_package_repo() {
   mkdir -p "$destination/infra/aws/tests" "$destination/infra/aws/scripts" "$destination/monitoring"
   cp -R "$repo_root/infra/aws/bundles" "$destination/infra/aws/"
   cp "$repo_root/infra/aws/scripts/verify-service-bundle.sh" "$destination/infra/aws/scripts/verify-service-bundle.sh"
+  cp "$repo_root/infra/aws/scripts/deterministic_service_bundle.py" "$destination/infra/aws/scripts/deterministic_service_bundle.py"
   cp "$packager" "$destination/infra/aws/scripts/package-service-bundles.sh"
   cp "$repo_root/infra/aws/tests/all-service-bundles-test.sh" "$destination/infra/aws/tests/all-service-bundles-test.sh"
   cp -R "$repo_root/infra/aws/tests/fixtures" "$destination/infra/aws/tests/"
@@ -510,7 +511,7 @@ mkdir "$fake_concurrent_bin"
 cat > "$fake_concurrent_bin/tar" <<'EOF'
 #!/bin/sh
 case " $* " in
-  *" -czf "*)
+  *" -tzf "*)
     if [ ! -e "$AIRBOB_TAR_MUTATION_MARKER" ]; then
       printf '\n# PACKAGED_TAR_TIME_DRIFT=yes\n' >> "$AIRBOB_TAR_MUTATION_SOURCE"
       : > "$AIRBOB_TAR_MUTATION_MARKER"
@@ -521,7 +522,7 @@ exec "$AIRBOB_REAL_TAR" "$@"
 EOF
 chmod 700 "$fake_concurrent_bin/tar"
 real_tar=$(command -v tar)
-run_expect_failure 'a source mutation during tar creation' "$temp_dir/concurrent-source.log" \
+run_expect_failure 'a source mutation during archive verification' "$temp_dir/concurrent-source.log" \
   env \
     PATH="$fake_concurrent_bin:$PATH" \
     AIRBOB_REAL_TAR="$real_tar" \
@@ -591,6 +592,41 @@ expected_release_manifest="$temp_dir/expected-release-manifest.json"
 } > "$expected_release_manifest"
 cmp -s "$expected_release_manifest" "$release_manifest" || fail "release manifest does not exactly bind commit, archive, digest, schema, and file list"
 assert_no_staging "$valid_output"
+
+# A fresh checkout and different filesystem modes/times must reproduce all bytes.
+repeat_repo="$temp_dir/repeat-checkout"
+git clone -q --no-local "$base_repo" "$repeat_repo"
+python3 - "$repeat_repo" "$expected_files" <<'PY'
+import os
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+for name in Path(sys.argv[2]).read_text().splitlines():
+    path = root / name
+    os.utime(path, (1_234_567_890, 1_234_567_890))
+    path.chmod(0o600)
+PY
+repeat_output="$temp_dir/repeat-output"
+mkdir "$repeat_output"
+"$repeat_repo/infra/aws/scripts/package-service-bundles.sh" "$valid_commit" "$repeat_output" > "$temp_dir/repeat.log"
+for suffix in .tar.gz .tar.gz.sha256 .manifest.json; do
+  cmp -s "$valid_output/airbob-service-bundles-$valid_commit$suffix" \
+    "$repeat_output/airbob-service-bundles-$valid_commit$suffix" \
+    || fail "same commit produced different bundle bytes in a fresh checkout"
+done
+python3 - "$archive" "$(git -C "$base_repo" show -s --format=%ct "$valid_commit")" <<'PY'
+from pathlib import Path
+import sys
+import tarfile
+path = Path(sys.argv[1])
+assert path.read_bytes()[4:8] == b'\x00' * 4
+with tarfile.open(path) as archive:
+    for member in archive:
+        assert member.isfile() and member.uid == member.gid == 0
+        assert member.uname == member.gname == '' and member.mode == 0o644
+        assert member.mtime == int(sys.argv[2])
+PY
+assert_no_staging "$repeat_output"
 
 for artifact_suffix in .tar.gz .tar.gz.sha256 .manifest.json; do
   overwrite_output="$temp_dir/preexisting-${artifact_suffix//[^a-zA-Z0-9]/_}"
