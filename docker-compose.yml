@@ -1,5 +1,5 @@
 # --------------------------------------------------------
-# 로컬 개발용 (가벼운 단일 노드 구성)
+# 로컬 개발용 (기존 B 데이터 볼륨 사용)
 # 사용법: docker compose up -d
 # --------------------------------------------------------
 services:
@@ -7,10 +7,11 @@ services:
   # MySQL
   # --------------------------------------------------------
   mysql:
-    image: mysql:8.0.33
+    image: mysql:8.4.11
     container_name: mysql
+    mem_limit: 2g
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD_FILE: /run/airbob-mysql/root-password
       MYSQL_DATABASE: airbobdb
       DEBEZIUM_DATABASE_USER: ${DEBEZIUM_DATABASE_USER:-debezium}
       DEBEZIUM_DATABASE_PASSWORD: ${DEBEZIUM_DATABASE_PASSWORD:-dbz}
@@ -18,19 +19,34 @@ services:
       LOGSTASH_JDBC_PASSWORD: ${LOGSTASH_JDBC_PASSWORD:-logstash}
       TZ: UTC
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+      - --innodb-buffer-pool-size=1G
+      - --innodb-redo-log-capacity=128M
       - --server-id=1
       - --log-bin=mysql-bin
       - --binlog-format=ROW
       - --binlog-row-image=FULL
       - --gtid-mode=ON
       - --enforce-gtid-consistency=ON
+      - --binlog-expire-logs-seconds=86400
+    labels:
+      airbob.dev-handoff.claim: ${AIRBOB_DEV_HANDOFF_CLAIM:-local}
+      airbob.dev-handoff.dataset: ${AIRBOB_DATASET_ID:-local}
     volumes:
-      - mysql-data:/var/lib/mysql
+      - type: volume
+        source: mysql84-data
+        target: /var/lib/mysql
+        volume:
+          nocopy: true
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+      - type: bind
+        source: ${AIRBOB_MYSQL_PRIVATE_DIR:?Set the private MySQL directory}
+        target: /run/airbob-mysql
+        read_only: true
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -46,7 +62,7 @@ services:
     image: apache/kafka:3.7.0
     container_name: kafka
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -97,12 +113,15 @@ services:
     build:
       context: ./docker/debezium
       dockerfile: Dockerfile
-    image: airbob-debezium:local
+      args:
+        DEBEZIUM_VERSION: 3.0.8.Final
+        DEBEZIUM_SHA256: 14b7c50782b162f1a1a17706ebc05c424995e681ffa1ae7d3a1e1a91345d871a
+    image: airbob-debezium:3.0.8-local
     container_name: debezium
     volumes:
       - ./docker/debezium/connect-distributed.properties:/opt/kafka/config/connect-distributed.properties:ro
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     depends_on:
       kafka-topic-init:
         condition: service_completed_successfully
@@ -172,17 +191,25 @@ services:
       context: ./docker/elasticsearch
       dockerfile: Dockerfile
     container_name: elasticsearch
+    mem_limit: 2g
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - action.auto_create_index=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - path.repo=/usr/share/elasticsearch/backup
       - s3.client.airbob_dataset_producer.region=ap-northeast-2
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
+    labels:
+      airbob.dev-handoff.claim: ${AIRBOB_DEV_HANDOFF_CLAIM:-local}
+      airbob.dev-handoff.dataset: ${AIRBOB_DATASET_ID:-local}
     volumes:
       - es-data:/usr/share/elasticsearch/data
+      - type: bind
+        source: ${AIRBOB_NATIVE_REPOSITORY:?Set the native search repository}
+        target: /usr/share/elasticsearch/backup
+        read_only: true
     healthcheck:
       test: ["CMD", "curl", "-s", "http://localhost:9200/_cluster/health"]
       interval: 30s
@@ -227,7 +254,7 @@ services:
     image: redis:7.2-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
@@ -381,7 +408,9 @@ services:
       - local-infra
 
 volumes:
-  mysql-data:
+  mysql84-data:
+    external: true
+    name: ${AIRBOB_MYSQL_DATA_VOLUME:?Set the existing MySQL 8.4 data volume name}
   kafka-data:
   es-data:
   redis-data:

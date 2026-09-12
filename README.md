@@ -264,6 +264,12 @@ kr.kro.airbob
 
 ## 로컬 실행
 
+로컬 인프라는 `docker-compose.yml` 하나로 구성하며 MySQL 8.4.11을 사용합니다.
+`.env`에 기존 데이터 볼륨 이름(`AIRBOB_MYSQL_DATA_VOLUME`), MySQL 비밀번호 파일이 있는
+디렉터리(`AIRBOB_MYSQL_PRIVATE_DIR`), ES 스냅샷 디렉터리(`AIRBOB_NATIVE_REPOSITORY`)를 설정합니다.
+MySQL은 비밀번호 디렉터리의 `root-password` 파일을 읽습니다. 기존 데이터 볼륨을 연결할 때는
+그 DB의 비밀번호를 그대로 사용해야 합니다. `.env`와 비밀번호 파일은 Git에서 제외합니다.
+
 ```bash
 # 외부 인프라 기동 및 topic/connector bootstrap
 docker compose up -d
