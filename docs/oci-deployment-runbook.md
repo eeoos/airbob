@@ -50,7 +50,7 @@ managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 
 docker-compose.oci.yml을 명시해서 다음 순서로 실행한다.
 
 1. docker compose config --quiet
-2. 선택한 SHA의 app image를 pull하고 `APP_IMAGE`로 직접 지정
+2. 선택한 SHA의 app image를 `APP_IMAGE`로 직접 지정하고, 로컬에 없으면 GHCR에서 pull
 3. Elasticsearch와 Debezium 이미지를 `compose build --pull`로 빌드
 4. 기존 Nginx와 app을 중지해 신규 요청과 기존 outbox producer 차단
 5. MySQL, Redis, Elasticsearch, Kafka 기동 및 health 대기

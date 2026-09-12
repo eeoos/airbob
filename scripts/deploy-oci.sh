@@ -141,7 +141,11 @@ cd "$DEPLOY_DIR"
 
 # These checks do not mutate live services. A failure leaves the admitted application untouched.
 compose config --quiet
-"$DOCKER_BIN" pull "$APP_IMAGE"
+# Reuse the selected immutable SHA image when an earlier authenticated CD run
+# already downloaded it. A new SHA still requires a successful registry pull.
+if ! "$DOCKER_BIN" image inspect "$APP_IMAGE" >/dev/null 2>&1; then
+  "$DOCKER_BIN" pull "$APP_IMAGE"
+fi
 compose build --pull elasticsearch debezium
 
 # Close public admission and the old event producer before applying the schema and

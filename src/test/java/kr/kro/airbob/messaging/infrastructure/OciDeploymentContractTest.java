@@ -177,6 +177,18 @@ class OciDeploymentContractTest {
 	}
 
 	@Test
+	@DisplayName("선택한 SHA의 app 이미지가 있으면 registry 재인증 없이 해당 이미지를 재사용한다")
+	void reusesCachedShaImageWithoutRegistryCredentials() throws Exception {
+		DeploymentAttempt attempt = failDeploymentAt("build --pull elasticsearch debezium", true);
+
+		assertThat(attempt.exitCode()).isNotZero();
+		assertThat(attempt.commands())
+			.contains("image inspect ghcr.io/eeoos/airbob:reviewed-sha")
+			.contains("build --pull elasticsearch debezium")
+			.doesNotContain("pull ghcr.io/eeoos/airbob", "image tag", "stop nginx app");
+	}
+
+	@Test
 	@DisplayName("인프라 기동 실패는 Flyway 실행 전 실패로 보고하고 migration을 실행하지 않는다")
 	void reportsInfrastructureFailureBeforeMigration() throws Exception {
 		DeploymentAttempt attempt = failDeploymentAt("up -d --wait --wait-timeout 240");
@@ -469,6 +481,10 @@ class OciDeploymentContractTest {
 	}
 
 	private DeploymentAttempt failDeploymentAt(String failureMarker) throws Exception {
+		return failDeploymentAt(failureMarker, false);
+	}
+
+	private DeploymentAttempt failDeploymentAt(String failureMarker, boolean cachedAppImage) throws Exception {
 		Path deployment = tempDir.resolve("failed-deployment");
 		Files.createDirectories(deployment);
 		Files.writeString(deployment.resolve(".env.oci"), "DB_ROOT_PASSWORD=test\n");
@@ -480,6 +496,7 @@ class OciDeploymentContractTest {
 			printf 'APP_IMAGE=%s\\n' "$APP_IMAGE" >> "$FAKE_DOCKER_LOG"
 			printf '%s\\n' "$*" >> "$FAKE_DOCKER_LOG"
 			case "$*" in
+			  "image inspect "*) [ "$FAKE_APP_IMAGE_CACHED" = true ]; exit $? ;;
 			  *"$FAKE_DOCKER_FAILURE"*) exit 42 ;;
 			esac
 			exit 0
@@ -495,6 +512,7 @@ class OciDeploymentContractTest {
 		builder.environment().put("APP_IMAGE", "stale-image:latest");
 		builder.environment().put("FAKE_DOCKER_LOG", dockerLog.toString());
 		builder.environment().put("FAKE_DOCKER_FAILURE", failureMarker);
+		builder.environment().put("FAKE_APP_IMAGE_CACHED", Boolean.toString(cachedAppImage));
 		Process process = builder.start();
 		boolean completed = process.waitFor(5, TimeUnit.SECONDS);
 		if (!completed) {
