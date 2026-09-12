@@ -229,6 +229,7 @@ infra/aws/images/release.json
 docker-compose.oci.yml
 debezium-config/**
 docker/debezium/**
+docker/elasticsearch/**
 docker/kafka/**
 docker/mysql/init/**
 logstash/**
@@ -255,8 +256,8 @@ do
     fail "CD classifier allowlist contains a non-runtime path: $rejected_path"
   fi
 done
-assert_contains "$cd_workflow" '# docker/aws-mirror/** and docker/elasticsearch/** are released by'
-assert_contains "$cd_workflow" '# infra-images.yml, not here, avoiding an uncoordinated cross-workflow race.'
+assert_contains "$cd_workflow" '# AWS mirror images are released by infra-images.yml independently.'
+assert_contains "$cd_workflow" '# OCI builds Elasticsearch and Debezium from this checked-out source.'
 assert_contains "$cd_workflow" 'fetch-depth: 0'
 assert_contains "$cd_workflow" "readonly SHA_PATTERN='^[0-9a-f]{40}$'"
 assert_contains "$cd_workflow" 'git fetch --no-tags --prune origin'
@@ -329,6 +330,11 @@ printf '%s\n' 'services: {}' > "$scope_repo/docker-compose.oci.yml"
 git -C "$scope_repo" add docker-compose.oci.yml
 git -C "$scope_repo" commit -q -m oci-assets
 scope_oci=$(git -C "$scope_repo" rev-parse HEAD)
+mkdir -p "$scope_repo/docker/elasticsearch"
+printf '%s\n' 'FROM scratch' > "$scope_repo/docker/elasticsearch/Dockerfile"
+git -C "$scope_repo" add docker/elasticsearch/Dockerfile
+git -C "$scope_repo" commit -q -m elasticsearch-build
+scope_elasticsearch=$(git -C "$scope_repo" rev-parse HEAD)
 git -C "$scope_repo" push -q origin HEAD:refs/heads/main
 
 run_scope_success() {
@@ -378,6 +384,7 @@ run_scope_success "$scope_workflow" "$scope_aws" false
 run_scope_success "$scope_aws" "$scope_tests" false
 run_scope_success "$scope_tests" "$scope_release" true
 run_scope_success "$scope_release" "$scope_oci" true
+run_scope_success "$scope_oci" "$scope_elasticsearch" true
 run_scope_failure '' "$scope_release" 'missing before SHA'
 run_scope_failure 0000000000000000000000000000000000000000 "$scope_release" 'zero before SHA'
 run_scope_failure '$(touch unsafe)' "$scope_release" 'unsafe before SHA'

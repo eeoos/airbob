@@ -8,6 +8,7 @@
 main CD의 self-hosted runner에는 다음 항목이 준비되어 있어야 한다.
 
 - Docker Engine과 Docker Compose v2 (up --wait, --wait-timeout 지원)
+- Docker Buildx (Elasticsearch와 Debezium 이미지 빌드)
 - rsync
 - GHCR pull 권한
 - $HOME/airbob/.env.oci
@@ -15,6 +16,17 @@ main CD의 self-hosted runner에는 다음 항목이 준비되어 있어야 한�
 
 .env.oci는 저장소에서 배포하지 않는다. 최초 배포 전에 서버에서 만들고 권한을 제한한다.
 DB, provider, Slack webhook 값을 command line이나 티켓에 복사하지 않는다.
+
+OCI는 한 인스턴스의 Compose stack으로 실행한다. MySQL 8.4.11, Elasticsearch 8.18.8,
+Debezium 3.0.8.Final을 로컬 개발 환경과 맞추고 Kafka 3.7.0과 Redis 7.2를 사용한다.
+Elasticsearch와 Debezium은 동기화한 저장소의 Dockerfile로 OCI에서 빌드한다.
+Dockerfile의 base image digest와 Debezium archive checksum을 사용하며,
+서버에 남아 있는 GHCR `latest` 이미지는 사용하지 않는다.
+
+MySQL 8.4는 `airbob_mysql84-data` 볼륨을 사용한다. 기존 `airbob_mysql-data`의 8.0
+데이터 디렉터리는 자동으로 연결하지 않는다. 8.4 볼륨이 없으면 새 DB를 초기화한다.
+서버 기본 시간대와 JDBC 시간대는 UTC다. MySQL health는 TCP 연결과 인증된 `SELECT 1`,
+Elasticsearch health는 single-node에서 허용되는 yellow 이상 상태로 확인한다.
 
 ## Reviewed asset 동기화
 
@@ -25,7 +37,7 @@ CD는 deploy job에서도 commit을 checkout한 다음
 - docker-compose.oci.yml
 - debezium-config/
 - src/main/resources/db/migration/
-- docker/debezium/, docker/kafka/, docker/mysql/init/
+- docker/debezium/, docker/elasticsearch/, docker/kafka/, docker/mysql/init/
 - logstash/, monitoring/, nginx/, scripts/
 
 managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 삭제한다. 반면 서버가
@@ -38,20 +50,21 @@ managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 
 docker-compose.oci.yml을 명시해서 다음 순서로 실행한다.
 
 1. docker compose config --quiet
-2. immutable SHA image pull과 local latest tag 갱신
-3. 기존 Nginx와 app을 중지해 신규 요청과 기존 outbox producer 차단
-4. MySQL, Redis, Elasticsearch, Kafka 기동 및 health 대기
-5. V25 예약 재고 컷오버 preflight one-shot 실행
-6. kafka-topic-init one-shot 실행
-7. 기존 Debezium과 connector monitor 중지
-8. 애플리케이션과 동일한 Flyway 11.7.2로 V1~현재 migration 적용
-9. Debezium 기동 및 health 대기
-10. debezium-connector-init one-shot 실행
-11. debezium-connector-monitor 기동 및 health 대기
-12. app 교체와 health 대기
-13. Nginx 교체, config 검증, Docker network 내부 app health 검증
+2. 선택한 SHA의 app image를 `APP_IMAGE`로 직접 지정하고, 로컬에 없으면 GHCR에서 pull
+3. Elasticsearch와 Debezium 이미지를 `compose build --pull`로 빌드
+4. 기존 Nginx와 app을 중지해 신규 요청과 기존 outbox producer 차단
+5. MySQL, Redis, Elasticsearch, Kafka 기동 및 health 대기
+6. V25 예약 재고 컷오버 preflight one-shot 실행
+7. kafka-topic-init one-shot 실행
+8. 기존 Debezium과 connector monitor 중지
+9. 애플리케이션과 동일한 Flyway 11.7.2로 V1~현재 migration 적용
+10. Debezium 기동 및 health 대기
+11. debezium-connector-init one-shot 실행
+12. debezium-connector-monitor 기동 및 health 대기
+13. app 교체와 health 대기
+14. Nginx 교체, config 검증, Docker network 내부 app health 검증
 
-5번, 6번, 8번, 10번은 app의 depends_on에만 맡기지 않고 CD가 명시적으로 실행한다. 따라서
+6번, 7번, 9번, 11번은 app의 depends_on에만 맡기지 않고 CD가 명시적으로 실행한다. 따라서
 기존 producer를 닫은 뒤 schema를 먼저 적용하고, 새 outbox column 계약을 이해하는
 connector가 RUNNING이 된 뒤에만 Kafka listener를 시작한다. 기존 airbob-app이나 nginx
 container가 없는 첫 배포도 같은 순서를 사용한다.
@@ -98,7 +111,8 @@ V28은 `reservation_quote.expires_at`과 해당 CHECK만 제거한다. 기존 �
 
 | 실패 시점 | 자동 동작 | 운영 조치 |
 | --- | --- | --- |
-| config 검증·image pull | script가 실패하고 기존 app/Nginx는 건드리지 않는다 | 원인을 고친 뒤 같은 SHA 또는 수정 SHA로 재실행한다 |
+| config 검증, app image pull, 인프라 image build | script가 실패하고 기존 app/Nginx는 건드리지 않는다 | 원인을 고친 뒤 같은 SHA 또는 수정 SHA로 재실행한다 |
+| 인프라 기동과 Kafka bootstrap 실패 | app과 Nginx를 중지하지만 Flyway는 실행하지 않는다 | 이미지 버전, 연결, health를 확인하고 수정 후 재실행한다 |
 | V25 preflight 실패 | app과 Nginx를 중지하지만 Flyway는 실행하지 않는다 | 남은 writer와 데이터·시간대를 확인한다. 자동 V24 재시작은 하지 않으며 명시적 운영 판단 뒤 재개한다 |
 | Flyway 시작 이후 | app과 Nginx를 중지한 채 실패한다 | migration/connector 상태를 확인하고 V25 cutover·V26 inventory·V27 index·V28 quote를 이해하는 current binary로 roll-forward한다 |
 

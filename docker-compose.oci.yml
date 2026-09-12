@@ -52,7 +52,7 @@ services:
   # Spring Boot Application
   # --------------------------------------------------------
   app:
-    image: ghcr.io/eeoos/airbob:latest
+    image: ${APP_IMAGE:-ghcr.io/eeoos/airbob:latest}
     container_name: airbob-app
     volumes:
       - ./logs:/app/logs
@@ -63,7 +63,7 @@ services:
       - SPRING_PROFILES_ACTIVE=oci
       - JAVA_OPTS=-Xms512m -Xmx1536m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
       # Docker 내부 서비스 주소 오버라이드
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - REDIS_HOST=redis
       - ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
@@ -185,7 +185,7 @@ services:
   # MySQL
   # --------------------------------------------------------
   mysql:
-    image: mysql:8.0.33
+    image: mysql:8.4.11
     container_name: mysql
     env_file:
       - .env.oci
@@ -201,18 +201,22 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+      - --innodb-buffer-pool-size=1G
+      - --innodb-redo-log-capacity=128M
       - --server-id=1
       - --log-bin=mysql-bin
       - --binlog-format=ROW
       - --binlog-row-image=FULL
       - --gtid-mode=ON
       - --enforce-gtid-consistency=ON
+      - --binlog-expire-logs-seconds=86400
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mysql84-data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysql --protocol=tcp --host=127.0.0.1 --user=root --batch --skip-column-names --execute='SELECT 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -230,7 +234,7 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      FLYWAY_URL: jdbc:mysql://mysql:3306/airbobdb?useSSL=false&allowPublicKeyRetrieval=true
+      FLYWAY_URL: jdbc:mysql://mysql:3306/airbobdb?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       FLYWAY_USER: ${SPRING_DATASOURCE_USERNAME}
       FLYWAY_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
@@ -244,7 +248,7 @@ services:
       - airbob-network
 
   reservation-inventory-cutover-preflight:
-    image: mysql:8.0.33
+    image: mysql:8.4.11
     depends_on:
       mysql:
         condition: service_healthy
@@ -318,11 +322,17 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
-  # Debezium (Kafka Connect) - GHCR pre-built 이미지
+  # Debezium (Kafka Connect) - reviewed Dockerfile로 OCI에서 빌드
   # The reviewed worker configuration is bind-mounted during deployment.
   # --------------------------------------------------------
   debezium:
-    image: ghcr.io/eeoos/airbob-debezium:latest
+    image: airbob-debezium:3.0.8-oci
+    pull_policy: never
+    build:
+      context: ./docker/debezium
+      args:
+        DEBEZIUM_VERSION: 3.0.8.Final
+        DEBEZIUM_SHA256: 14b7c50782b162f1a1a17706ebc05c424995e681ffa1ae7d3a1e1a91345d871a
     container_name: debezium
     volumes:
       - ./docker/debezium/connect-distributed.properties:/opt/kafka/config/connect-distributed.properties:ro
@@ -404,10 +414,13 @@ services:
       - airbob-network
 
   # --------------------------------------------------------
-  # Elasticsearch (with Nori Analyzer) - GHCR pre-built 이미지
+  # Elasticsearch 8.18.8 (with Nori Analyzer) - reviewed Dockerfile로 OCI에서 빌드
   # --------------------------------------------------------
   elasticsearch:
-    image: ghcr.io/eeoos/airbob-elasticsearch:latest
+    image: airbob-elasticsearch:8.18.8-oci
+    pull_policy: never
+    build:
+      context: ./docker/elasticsearch
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
@@ -415,11 +428,12 @@ services:
       - action.auto_create_index=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - path.repo=/usr/share/elasticsearch/backup
+      - s3.client.airbob_dataset_producer.region=ap-northeast-2
     volumes:
       - es-data:/usr/share/elasticsearch/data
       - es-backup:/usr/share/elasticsearch/backup
     healthcheck:
-      test: ["CMD", "curl", "-s", "http://localhost:9200/_cluster/health"]
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -531,7 +545,7 @@ services:
 # Volumes
 # --------------------------------------------------------
 volumes:
-  mysql-data:
+  mysql84-data:
   kafka-data:
   es-data:
   es-backup:

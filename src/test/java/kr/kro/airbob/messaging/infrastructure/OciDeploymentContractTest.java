@@ -47,6 +47,7 @@ class OciDeploymentContractTest {
 			.contains("src/main/resources/db/migration")
 			.contains("debezium-config")
 			.contains("docker/debezium")
+			.contains("docker/elasticsearch")
 			.contains("docker/kafka")
 			.contains("docker/mysql/init")
 			.contains("monitoring")
@@ -69,6 +70,7 @@ class OciDeploymentContractTest {
 			"src/main/resources/db/migration",
 			"debezium-config",
 			"docker/debezium",
+			"docker/elasticsearch",
 			"docker/kafka",
 			"docker/mysql/init",
 			"logstash",
@@ -106,6 +108,7 @@ class OciDeploymentContractTest {
 		assertThat(completed).withFailMessage(output).isTrue();
 		assertThat(process.exitValue()).withFailMessage(output).isZero();
 		assertThat(target.resolve("scripts/reviewed")).hasContent("scripts");
+		assertThat(target.resolve("docker/elasticsearch/reviewed")).hasContent("docker/elasticsearch");
 		assertThat(target.resolve("scripts/stale")).doesNotExist();
 		assertThat(target.resolve(".env.oci")).hasContent("SERVER_SECRET=preserve");
 		assertThat(target.resolve("logs/app.log")).hasContent("preserve");
@@ -158,6 +161,46 @@ class OciDeploymentContractTest {
 			.contains("current binary that understands the V25 cutover, V26 inventory, and V27 index")
 			.contains("No pre-V25 binary rollback was attempted")
 			.doesNotContain("Rolling back to image");
+	}
+
+	@Test
+	@DisplayName("OCI 인프라 이미지 빌드 실패는 기존 app과 ingress를 중지하지 않는다")
+	void leavesApplicationRunningWhenInfrastructureBuildFails() throws Exception {
+		DeploymentAttempt attempt = failDeploymentAt("build --pull elasticsearch debezium");
+
+		assertThat(attempt.exitCode()).isNotZero();
+		assertThat(attempt.commands())
+			.contains("APP_IMAGE=ghcr.io/eeoos/airbob:reviewed-sha")
+			.contains("pull ghcr.io/eeoos/airbob:reviewed-sha")
+			.contains("build --pull elasticsearch debezium")
+			.doesNotContain("stop nginx app", "up -d", "image tag");
+	}
+
+	@Test
+	@DisplayName("선택한 SHA의 app 이미지가 있으면 registry 재인증 없이 해당 이미지를 재사용한다")
+	void reusesCachedShaImageWithoutRegistryCredentials() throws Exception {
+		DeploymentAttempt attempt = failDeploymentAt("build --pull elasticsearch debezium", true);
+
+		assertThat(attempt.exitCode()).isNotZero();
+		assertThat(attempt.commands())
+			.contains("image inspect ghcr.io/eeoos/airbob:reviewed-sha")
+			.contains("build --pull elasticsearch debezium")
+			.doesNotContain("pull ghcr.io/eeoos/airbob", "image tag", "stop nginx app");
+	}
+
+	@Test
+	@DisplayName("인프라 기동 실패는 Flyway 실행 전 실패로 보고하고 migration을 실행하지 않는다")
+	void reportsInfrastructureFailureBeforeMigration() throws Exception {
+		DeploymentAttempt attempt = failDeploymentAt("up -d --wait --wait-timeout 240");
+
+		assertThat(attempt.exitCode()).isNotZero();
+		assertThat(attempt.commands().indexOf("build --pull elasticsearch debezium"))
+			.isLessThan(attempt.commands().indexOf("stop nginx app"));
+		assertThat(attempt.commands())
+			.doesNotContain("run --rm --no-deps flyway-migrate", "--force-recreate --pull never app");
+		assertThat(attempt.output())
+			.contains("Infrastructure startup failed before Flyway; no migration was attempted")
+			.doesNotContain("crossed the Flyway/app-start boundary");
 	}
 
 	@Test
@@ -307,7 +350,7 @@ class OciDeploymentContractTest {
 			.contains("condition: service_healthy")
 			.contains("restart: \"no\"");
 		assertThat(inventoryPreflight)
-			.contains("mysql:8.0.33")
+			.contains("mysql:8.4.11")
 			.contains("./scripts/preflight-reservation-inventory-cutover.sh:/preflight.sh:ro")
 			.contains("entrypoint: [\"/bin/sh\", \"/preflight.sh\"]")
 			.contains("restart: \"no\"");
@@ -435,6 +478,54 @@ class OciDeploymentContractTest {
 		assertThat(app)
 			.contains("debezium-connector-monitor:")
 			.contains("condition: service_healthy");
+	}
+
+	private DeploymentAttempt failDeploymentAt(String failureMarker) throws Exception {
+		return failDeploymentAt(failureMarker, false);
+	}
+
+	private DeploymentAttempt failDeploymentAt(String failureMarker, boolean cachedAppImage) throws Exception {
+		Path deployment = tempDir.resolve("failed-deployment");
+		Files.createDirectories(deployment);
+		Files.writeString(deployment.resolve(".env.oci"), "DB_ROOT_PASSWORD=test\n");
+		Files.writeString(deployment.resolve("docker-compose.oci.yml"), "services: {}\n");
+		Path dockerLog = tempDir.resolve("failed-docker.log");
+		Path fakeDocker = tempDir.resolve("failed-docker");
+		Files.writeString(fakeDocker, """
+			#!/bin/sh
+			printf 'APP_IMAGE=%s\\n' "$APP_IMAGE" >> "$FAKE_DOCKER_LOG"
+			printf '%s\\n' "$*" >> "$FAKE_DOCKER_LOG"
+			case "$*" in
+			  "image inspect "*) [ "$FAKE_APP_IMAGE_CACHED" = true ]; exit $? ;;
+			  *"$FAKE_DOCKER_FAILURE"*) exit 42 ;;
+			esac
+			exit 0
+			""");
+		assertThat(fakeDocker.toFile().setExecutable(true)).isTrue();
+		ProcessBuilder builder = new ProcessBuilder(
+			"/bin/sh", Path.of("scripts/deploy-oci.sh").toAbsolutePath().toString()
+		).redirectErrorStream(true);
+		builder.environment().put("DEPLOY_DIR", deployment.toString());
+		builder.environment().put("DOCKER_BIN", fakeDocker.toString());
+		builder.environment().put("IMAGE_REPO", "ghcr.io/eeoos/airbob");
+		builder.environment().put("IMAGE_TAG", "reviewed-sha");
+		builder.environment().put("APP_IMAGE", "stale-image:latest");
+		builder.environment().put("FAKE_DOCKER_LOG", dockerLog.toString());
+		builder.environment().put("FAKE_DOCKER_FAILURE", failureMarker);
+		builder.environment().put("FAKE_APP_IMAGE_CACHED", Boolean.toString(cachedAppImage));
+		Process process = builder.start();
+		boolean completed = process.waitFor(5, TimeUnit.SECONDS);
+		if (!completed) {
+			process.descendants().forEach(ProcessHandle::destroyForcibly);
+			process.destroyForcibly();
+			process.waitFor(1, TimeUnit.SECONDS);
+		}
+		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+		assertThat(completed).withFailMessage(output).isTrue();
+		return new DeploymentAttempt(process.exitValue(), Files.readString(dockerLog), output);
+	}
+
+	private record DeploymentAttempt(int exitCode, String commands, String output) {
 	}
 
 	private String read(String path) throws IOException {

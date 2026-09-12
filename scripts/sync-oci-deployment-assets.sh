@@ -37,6 +37,7 @@ managed_directories="
 src/main/resources/db/migration
 debezium-config
 docker/debezium
+docker/elasticsearch
 docker/kafka
 docker/mysql/init
 logstash

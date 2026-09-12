@@ -50,6 +50,8 @@ case "$IMAGE_TAG" in
     exit 1
     ;;
 esac
+APP_IMAGE="$IMAGE_REPO:$IMAGE_TAG"
+export APP_IMAGE
 if ! command -v "$DOCKER_BIN" >/dev/null 2>&1; then
   echo "docker executable not found" >&2
   exit 1
@@ -128,12 +130,23 @@ stop_admission_before_inventory_cutover() {
   exit 1
 }
 
+stop_admission_before_migration() {
+  compose stop nginx app >/dev/null 2>&1 || true
+  echo "$1 failed before Flyway; no migration was attempted." >&2
+  echo "No automatic rollback was attempted; public admission is stopped." >&2
+  exit 1
+}
+
 cd "$DEPLOY_DIR"
 
 # These checks do not mutate live services. A failure leaves the admitted application untouched.
 compose config --quiet
-"$DOCKER_BIN" pull "$IMAGE_REPO:$IMAGE_TAG"
-"$DOCKER_BIN" image tag "$IMAGE_REPO:$IMAGE_TAG" "$IMAGE_REPO:latest"
+# Reuse the selected immutable SHA image when an earlier authenticated CD run
+# already downloaded it. A new SHA still requires a successful registry pull.
+if ! "$DOCKER_BIN" image inspect "$APP_IMAGE" >/dev/null 2>&1; then
+  "$DOCKER_BIN" pull "$APP_IMAGE"
+fi
+compose build --pull elasticsearch debezium
 
 # Close public admission and the old event producer before applying the schema and
 # connector contract. From here every failure requires a compatible roll-forward.
@@ -143,16 +156,16 @@ if ! compose stop nginx app; then
 fi
 
 if ! compose up -d --wait --wait-timeout 240 mysql redis redis-cache elasticsearch kafka; then
-  stop_admission_and_require_roll_forward
+  stop_admission_before_migration "Infrastructure startup"
 fi
 if ! compose run --rm --no-deps reservation-inventory-cutover-preflight; then
   stop_admission_before_inventory_cutover
 fi
 if ! compose run --rm --no-deps kafka-topic-init; then
-  stop_admission_and_require_roll_forward
+  stop_admission_before_migration "Kafka topic initialization"
 fi
 if ! compose stop debezium-connector-monitor debezium; then
-  stop_admission_and_require_roll_forward
+  stop_admission_before_migration "Connector shutdown"
 fi
 if ! compose run --rm --no-deps flyway-migrate; then
   stop_admission_and_require_roll_forward
