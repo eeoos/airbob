@@ -28,6 +28,18 @@ class TimeShapeTimeZoneResolverTest {
 	}
 
 	@Test
+	void 새로_분리된_Coyhaique_영역을_누락하지_않는다() {
+		assertThat(resolver.resolve(-45.5712, -72.0683))
+			.contains(ZoneId.of("America/Coyhaique"));
+	}
+
+	@Test
+	void Nevada_파일의_경계_좌표도_제공된_좌표의_Phoenix_시간대로_해석한다() {
+		assertThat(resolver.resolve(35.12159, -114.59891))
+			.contains(ZoneId.of("America/Phoenix"));
+	}
+
+	@Test
 	void 범위를_벗어난_위도는_빈_결과를_반환한다() {
 		assertThat(resolver.resolve(91.0, 0.0)).isEmpty();
 	}
