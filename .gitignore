@@ -140,3 +140,8 @@ override.tf.json
 
 # Verified local Java runtimes
 .toolchains/
+
+# Local archives, private settings, and machine-specific development setup
+/.local/
+/docker-compose.override.yml
+/gradle.properties
