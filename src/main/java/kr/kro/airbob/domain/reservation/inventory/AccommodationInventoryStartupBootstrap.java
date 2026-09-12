@@ -33,10 +33,10 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 	public AccommodationInventoryStartupBootstrap(
 		AccommodationInventorySeedService seedService,
 		AccommodationInventoryReadiness readiness,
-		@Value("${reservation.inventory.startup.batch-size:200}") int batchSize
+		@Value("${reservation.inventory.startup.batch-size:1000}") int batchSize
 	) {
-		if (batchSize < 1) {
-			throw new IllegalArgumentException("inventory startup batch size must be positive");
+		if (batchSize < 1 || batchSize > AccommodationInventoryDayRepository.MAX_SEED_TARGETS) {
+			throw new IllegalArgumentException("inventory startup batch size must be between 1 and 1000");
 		}
 		this.seedService = seedService;
 		this.readiness = readiness;
@@ -46,8 +46,13 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 	@Override
 	public void run(ApplicationArguments args) {
 		readiness.markBootstrapping();
+		long startedAt = System.nanoTime();
+		long lastProgressAt = startedAt;
 		long cursor = 0L;
-		int totalSeeded = 0;
+		long totalSeeded = 0;
+		long expectedDays = 0;
+		long missingDaysSubmitted = 0;
+		long insertStatements = 0;
 		while (true) {
 			AccommodationInventorySeedService.SeedBatch batch =
 				seedService.seedNextPublishedBatch(cursor, batchSize);
@@ -59,12 +64,26 @@ public class AccommodationInventoryStartupBootstrap implements ApplicationRunner
 					"inventory startup seed cursor did not advance");
 			}
 			totalSeeded += batch.processed();
+			expectedDays += batch.expectedDays();
+			missingDaysSubmitted += batch.missingDaysSubmitted();
+			insertStatements += batch.insertStatements();
 			cursor = batch.lastAccommodationId();
+			long now = System.nanoTime();
+			if (now - lastProgressAt >= 10_000_000_000L) {
+				log.info("Inventory startup progress: accommodations={} expectedDays={} "
+						+ "missingDaysSubmitted={} insertStatements={} elapsedMs={} cursor={}",
+					totalSeeded, expectedDays, missingDaysSubmitted, insertStatements,
+					(now - startedAt) / 1_000_000, cursor);
+				lastProgressAt = now;
+			}
 			if (batch.processed() < batchSize) {
 				break;
 			}
 		}
 		readiness.markReady();
-		log.info("예약 inventory startup bootstrap 완료: 게시 숙소 {}건 검증", totalSeeded);
+		log.info("예약 inventory startup bootstrap 완료: accommodations={} expectedDays={} "
+				+ "missingDaysSubmitted={} insertStatements={} elapsedMs={}",
+			totalSeeded, expectedDays, missingDaysSubmitted, insertStatements,
+			(System.nanoTime() - startedAt) / 1_000_000);
 	}
 }

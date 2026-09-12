@@ -30,7 +30,7 @@ class AccommodationInventorySeedRepositoryIntegrationTest {
 	private static final Instant HOLD_EXPIRES_AT = Instant.parse("2026-08-25T03:15:00.123456Z");
 
 	@Container
-	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
 		.withDatabaseName("airbobdb_inventory_seed")
 		.withUsername("airbob")
 		.withPassword("airbob");
@@ -69,7 +69,7 @@ class AccommodationInventorySeedRepositoryIntegrationTest {
 			WHERE accommodation_id = ? AND stay_date = ?
 			""", RESERVATION_ID, ACCOMMODATION_ID, Date.valueOf(START.plusDays(1)));
 
-		repository.seedMissingDays(ACCOMMODATION_ID, List.of(START.plusDays(2)));
+		repository.seedMissingDays(ACCOMMODATION_ID, START.datesUntil(START.plusDays(3)).toList());
 
 		assertThat(repository.findSnapshot(ACCOMMODATION_ID, START, START.plusDays(3)))
 			.containsExactly(

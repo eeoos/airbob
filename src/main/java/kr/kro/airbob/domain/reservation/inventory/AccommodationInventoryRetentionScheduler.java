@@ -33,7 +33,7 @@ public class AccommodationInventoryRetentionScheduler {
 		Clock clock,
 		@Value("${reservation.inventory.retention.past-free-days-to-keep:30}")
 		int pastFreeDaysToKeep,
-		@Value("${reservation.inventory.retention.batch-size:1000}") int batchSize,
+		@Value("${reservation.inventory.retention.batch-size:5000}") int batchSize,
 		@Value("${reservation.inventory.retention.max-batches-per-run:10}")
 		int maxBatchesPerRun
 	) {
@@ -52,23 +52,31 @@ public class AccommodationInventoryRetentionScheduler {
 	}
 
 	@Scheduled(
-		fixedDelayString = "${reservation.inventory.retention.interval:1h}",
+		fixedDelayString = "${reservation.inventory.retention.interval:5m}",
 		scheduler = ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER
 	)
 	public void deletePastFreeInventory() {
+		long startedAt = System.nanoTime();
 		LocalDate cutoffExclusive = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC)
 			.minusDays(pastFreeDaysToKeep);
-		int totalDeleted = 0;
+		long totalDeleted = 0;
+		int batches = 0;
+		boolean drained = false;
 		for (int batchIndex = 0; batchIndex < maxBatchesPerRun; batchIndex++) {
 			int deleted = retentionService.deleteNextPastFreeBatch(
 				cutoffExclusive, batchSize);
 			totalDeleted += deleted;
+			batches++;
 			if (deleted < batchSize) {
+				drained = true;
 				break;
 			}
 		}
 		if (totalDeleted > 0) {
-			log.info("과거 FREE 예약 inventory {}건 정리 완료", totalDeleted);
+			log.info("Inventory FREE retention complete: deletedRows={} batches={} elapsedMs={} "
+					+ "cutoffExclusive={} drained={}",
+				totalDeleted, batches, (System.nanoTime() - startedAt) / 1_000_000,
+				cutoffExclusive, drained);
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package kr.kro.airbob.domain.reservation.inventory;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
@@ -11,6 +12,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
+import kr.kro.airbob.domain.reservation.exception.ReservationInventoryNotReadyException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AccommodationInventorySeedService")
@@ -35,6 +38,7 @@ class AccommodationInventorySeedServiceTest {
 
 	@Mock private AccommodationRepository accommodationRepository;
 	@Mock private ReservationInventoryService inventoryService;
+	@Mock private AccommodationInventoryDayRepository inventoryRepository;
 	@Mock private AccommodationInventorySeedPolicy seedPolicy;
 
 	private AccommodationInventorySeedService service;
@@ -44,6 +48,7 @@ class AccommodationInventorySeedServiceTest {
 		service = new AccommodationInventorySeedService(
 			accommodationRepository,
 			inventoryService,
+			inventoryRepository,
 			seedPolicy,
 			Clock.fixed(NOW, ZoneOffset.UTC)
 		);
@@ -78,20 +83,30 @@ class AccommodationInventorySeedServiceTest {
 		given(seedPolicy.currentRange("America/New_York", NOW))
 			.willReturn(new AccommodationInventorySeedPolicy.SeedRange(
 				START.minusDays(1), END_WITH_BUFFER.minusDays(1)));
+		given(inventoryRepository.countSeedDays(List.of(11L), START, END_WITH_BUFFER))
+			.willReturn(Map.of(11L, 94));
+		given(inventoryRepository.countSeedDays(
+			List.of(19L), START.minusDays(1), END_WITH_BUFFER.minusDays(1)))
+			.willReturn(Map.of(19L, 94));
 
 		AccommodationInventorySeedService.SeedBatch batch =
 			service.seedNextPublishedBatch(10L, 2);
 
 		assertThat(batch.processed()).isEqualTo(2);
 		assertThat(batch.lastAccommodationId()).isEqualTo(19L);
-		then(inventoryService).should().seed(11L, START, END_WITH_BUFFER);
-		then(inventoryService).should().seed(
-			19L, START.minusDays(1), END_WITH_BUFFER.minusDays(1));
+		assertThat(batch.expectedDays()).isEqualTo(188);
+		assertThat(batch.missingDaysSubmitted()).isZero();
+		assertThat(batch.insertStatements()).isZero();
+		then(inventoryService).shouldHaveNoInteractions();
+		then(inventoryRepository).should().countSeedDays(List.of(11L), START, END_WITH_BUFFER);
+		then(inventoryRepository).should().countSeedDays(
+			List.of(19L), START.minusDays(1), END_WITH_BUFFER.minusDays(1));
+		then(inventoryRepository).shouldHaveNoMoreInteractions();
 	}
 
 	@Test
-	@DisplayName("rolling scan has no outer transaction while each accommodation seed is transactional")
-	void keepsTransactionsPerAccommodation() throws NoSuchMethodException {
+	@DisplayName("rolling scan commits bounded insert statements while publication retains its business transaction")
+	void keepsRollingScanOutsideABulkTransaction() throws NoSuchMethodException {
 		Method batchMethod = AccommodationInventorySeedService.class.getMethod(
 			"seedNextPublishedBatch", long.class, int.class);
 		Method accommodationSeedMethod = ReservationInventoryService.class.getMethod(
@@ -99,6 +114,43 @@ class AccommodationInventorySeedServiceTest {
 
 		assertThat(batchMethod.getAnnotation(Transactional.class)).isNull();
 		assertThat(accommodationSeedMethod.getAnnotation(Transactional.class)).isNotNull();
+	}
+
+	@Test
+	@DisplayName("a missing interior date is repaired and exact coverage is rechecked")
+	void verifiesCoverageAfterRepair() {
+		AccommodationRepository.InventorySeedTarget target = target(11L, "Asia/Seoul");
+		given(accommodationRepository.findInventorySeedTargets(
+			AccommodationStatus.PUBLISHED, 0L, PageRequest.of(0, 1000)))
+			.willReturn(List.of(target));
+		given(seedPolicy.currentRange("Asia/Seoul", NOW))
+			.willReturn(new AccommodationInventorySeedPolicy.SeedRange(START, START.plusDays(3)));
+		given(inventoryRepository.countSeedDays(List.of(11L), START, START.plusDays(3)))
+			.willReturn(Map.of(11L, 2), Map.of(11L, 3));
+		given(inventoryRepository.findSeedDays(List.of(11L), START, START.plusDays(3)))
+			.willReturn(List.of(new AccommodationInventoryDayRepository.SeedDay(11L, START),
+				new AccommodationInventoryDayRepository.SeedDay(11L, START.plusDays(2))));
+
+		AccommodationInventorySeedService.SeedBatch batch = service.seedNextPublishedBatch(0L, 1000);
+
+		assertThat(batch.missingDaysSubmitted()).isOne();
+		assertThat(batch.insertStatements()).isOne();
+		then(inventoryRepository).should().seedMissingDayBatch(
+			List.of(new AccommodationInventoryDayRepository.SeedDay(11L, START.plusDays(1))));
+	}
+
+	@Test
+	@DisplayName("failed post-insert coverage cannot be reported as a successful batch")
+	void failsClosedWhenRepairDoesNotCompleteCoverage() {
+		AccommodationRepository.InventorySeedTarget target = target(11L, "Asia/Seoul");
+		given(accommodationRepository.findInventorySeedTargets(
+			AccommodationStatus.PUBLISHED, 0L, PageRequest.of(0, 1000)))
+			.willReturn(List.of(target));
+		given(seedPolicy.currentRange("Asia/Seoul", NOW))
+			.willReturn(new AccommodationInventorySeedPolicy.SeedRange(START, START.plusDays(3)));
+
+		assertThatThrownBy(() -> service.seedNextPublishedBatch(0L, 1000))
+			.isInstanceOf(ReservationInventoryNotReadyException.class);
 	}
 
 	private AccommodationRepository.InventorySeedTarget target(Long id, String timeZoneId) {

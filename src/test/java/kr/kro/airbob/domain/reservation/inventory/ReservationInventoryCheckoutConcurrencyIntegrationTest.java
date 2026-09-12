@@ -89,7 +89,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	private static final Duration FAST_BUSY_LIMIT = Duration.ofSeconds(2);
 
 	@Container
-	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
 		.withDatabaseName("airbobdb_inventory_checkout_concurrency")
 		.withCommand("--log-bin-trust-function-creators=1");
 

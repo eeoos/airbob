@@ -117,19 +117,22 @@ reservation:
   inventory:
     startup:
       enabled: ${RESERVATION_INVENTORY_STARTUP_ENABLED:true}
-      batch-size: ${RESERVATION_INVENTORY_STARTUP_BATCH_SIZE:200}
+      batch-size: ${RESERVATION_INVENTORY_STARTUP_BATCH_SIZE:1000}
     seed:
       enabled: ${RESERVATION_INVENTORY_SEED_ENABLED:true}
       safety-buffer-days: ${RESERVATION_INVENTORY_SEED_SAFETY_BUFFER_DAYS:7}
-      batch-size: ${RESERVATION_INVENTORY_SEED_BATCH_SIZE:100}
+      # Up to 2.88 million accommodations/day before execution time (660k scan ~5.5h).
+      # Each SQL insert remains bounded to 1,000 missing dates across accommodations.
+      batch-size: ${RESERVATION_INVENTORY_SEED_BATCH_SIZE:1000}
       max-batches-per-run: ${RESERVATION_INVENTORY_SEED_MAX_BATCHES_PER_RUN:10}
-      interval: ${RESERVATION_INVENTORY_SEED_INTERVAL:1h}
+      interval: ${RESERVATION_INVENTORY_SEED_INTERVAL:5m}
     retention:
       enabled: ${RESERVATION_INVENTORY_RETENTION_ENABLED:true}
       past-free-days-to-keep: ${RESERVATION_INVENTORY_RETENTION_PAST_FREE_DAYS:30}
-      batch-size: ${RESERVATION_INVENTORY_RETENTION_BATCH_SIZE:1000}
+      # Up to 14.4 million FREE rows/day before execution time; historical owners remain intact.
+      batch-size: ${RESERVATION_INVENTORY_RETENTION_BATCH_SIZE:5000}
       max-batches-per-run: ${RESERVATION_INVENTORY_RETENTION_MAX_BATCHES_PER_RUN:10}
-      interval: ${RESERVATION_INVENTORY_RETENTION_INTERVAL:1h}
+      interval: ${RESERVATION_INVENTORY_RETENTION_INTERVAL:5m}
   quote:
     # Stored-quote cleanup only; checkout has no quote age deadline.
     retention: ${RESERVATION_QUOTE_RETENTION:30d}
