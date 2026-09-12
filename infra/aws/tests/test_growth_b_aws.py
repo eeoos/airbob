@@ -305,7 +305,9 @@ class ExecutionOrderTest(unittest.TestCase):
         self.stack = ExitStack(); self.addCleanup(self.stack.close)
         for name, result in [('verify_remote_versions', None), ('database_state', self.before), ('command', b''),
                              ('free_storage', {'bytes': 200, 'recordedAt': 'now'}), ('stream_restore', None),
-                             ('prepare_service', {'passed': True}), ('exclusive_database', nullcontext()),
+                             ('prepare_service', {'passed': True, 'preparedFingerprintSha256': 'f' * 64}),
+                             ('execution_bindings', {'targetIdentity': {}, 'credentialBindingSha256': 'd' * 64}),
+                             ('exclusive_database', nullcontext()),
                              ('validate_rehearsal', {'state': 'SMALL_RDS_INVENTORY_LOGIN_VERIFIED'})]:
             self.stack.enter_context(patch.object(restore, name, return_value=result))
         self.stack.enter_context(patch.object(restore.shutil, 'disk_usage', return_value=Mock(free=10**12)))
@@ -320,7 +322,8 @@ class ExecutionOrderTest(unittest.TestCase):
     def test_complete_order_hashes_before_password_or_inventory_changes(self):
         self.run_restore()
         self.assertEqual(self.events, ['EXISTING_DATABASE_VERIFIED', 'PREVIOUS_DATABASE_REMOVED',
-            'POST_REMOVAL_CAPACITY_VERIFIED', 'SEALED_DATABASE_VERIFIED', 'DATABASE_INVENTORY_LOGIN_VERIFIED'])
+            'POST_REMOVAL_CAPACITY_VERIFIED', 'SQL_IMPORT_STARTED', 'SQL_IMPORT_COMPLETED', 'FULL_VALIDATION_STARTED',
+            'SEALED_DATABASE_VERIFIED', 'PREPARATION_STARTED', 'DATABASE_INVENTORY_LOGIN_VERIFIED'])
         self.assertEqual(self.db.execute.call_args_list[0].args[0], 'DROP DATABASE IF EXISTS airbobdb;')
         restore.prepare_service.assert_called_once()
 

@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / 'infra/aws/scripts'))
 sys.path.insert(0, str(ROOT / 'infra/aws/tests/fixtures/etl-account-runtime'))
 import growth_accounts as accounts
 import growth_b_aws_restore as restore
+import growth_b_inventory as inventory_dates
 from growth_runtime import App
 
 
@@ -317,6 +318,7 @@ class AwsLoginLifecycleTest(PrivateAwsFixture):
         runtime_module = Mock()
         def app_factory(*args, **kwargs):
             self.app.env = args[3]
+            self.app.settings = kwargs['settings']
             return self.app
         runtime_module.App.side_effect = app_factory
         inventory = Mock()
@@ -339,9 +341,16 @@ class AwsLoginLifecycleTest(PrivateAwsFixture):
             assert argv[:2] in (['docker', 'run'], ['docker', 'port'], ['docker', 'rm'])
             return b'127.0.0.1:12345' if argv[1] == 'port' else b''
         self.commands = []
+        vector = {'observedAt': '2026-09-12T12:00:00+00:00', 'publishedListingsByZone': {'Asia/Seoul': 1},
+                  'dates': {'Asia/Seoul': '2026-09-12'}}
+        def fingerprint(runtime, release, environment, output, *args):
+            restore.write(output, before)
+            return before
         with patch.object(restore.importlib, 'import_module', side_effect=lambda name: modules[name]), \
+                patch.object(inventory_dates, 'inventory_date_vector', return_value=vector), \
+                patch.object(inventory_dates, 'inventory_horizon_at_vector', return_value={'everyHorizonContiguous': True}), \
                 patch.object(restore, 'owner_fingerprint', return_value='d' * 64), \
-                patch.object(restore, 'fingerprint', return_value=before), \
+                patch.object(restore, 'fingerprint', side_effect=fingerprint), \
                 patch.object(restore, 'apply_credentials', return_value={'individualPasswords': True}) as apply, \
                 patch.object(restore, 'command', side_effect=command):
             self.apply_mock = apply
@@ -354,6 +363,12 @@ class AwsLoginLifecycleTest(PrivateAwsFixture):
         self.assertEqual(4, self.app.normal_logins); self.assertEqual(4, self.app.cross_rejections)
         self.assertEqual(str(Path(self.config['privateAccounts']).resolve()), self.app.env['AIRBOB_GROWTH_CREDENTIALS_FILE'])
         self.assertNotIn('AIRBOB_ETL_BENCHMARK_PASSWORD', self.app.env)
+        self.assertEqual(restore.REGION, self.app.env['AWS_REGION'])
+        self.assertEqual('dummy', self.app.env['AWS_ACCESS_KEY_ID'])
+        self.assertEqual('dummy', self.app.env['AWS_SECRET_ACCESS_KEY'])
+        self.assertEqual('true', self.app.env['AWS_EC2_METADATA_DISABLED'])
+        self.assertEqual(restore.REGION, self.app.settings['spring.cloud.aws.region.static'])
+        self.assertEqual('dummy', self.app.settings['spring.cloud.aws.credentials.access-key'])
         self.assertTrue(self.app.stopped); self.assertFalse(report['serviceCurrentlyAvailable'])
         self.assertFalse(report['applicationLeftRunning']); self.assertFalse(report['privateCredentials']['usable'])
         self.assertEqual(self.environment, report['accountLogins']['environment'])

@@ -31,7 +31,7 @@ REGION = 'ap-northeast-2'
 BUCKET = 'airbob-performance-lab-dataset-' + ACCOUNT
 KIND = 'global-growth-b-aws-data-only-preparation'
 TOOLS = ('growth_b_prepare.py', 'growth_b_aws_restore.py', 'growth_b_aws_contract.py',
-         'growth_b_contract.py', 'growth_b_runtime.py')
+         'growth_b_contract.py', 'growth_b_runtime.py', 'growth_b_inventory.py')
 GIB = 1024**3
 FILES = {'envelope': 'envelope.json', 'publicationReceipt': 'publication-receipt.json',
     'appJar': 'app.jar', 'consumerTools': 'consumer-tools.tar.gz',
@@ -97,7 +97,9 @@ def validate_manifest(value, dataset_id, expected_tools):
         names['smallRdsReceipt'] = 'small-rds-receipt.json'
     require(set(value['files']) == set(names), 'Full B needs its current small RDS receipt; small has no override receipt')
     for name, filename in names.items():
-        object_reference(value['files'][name], f'datasets/{dataset_id}/aws-preparation/{filename}')
+        reference = value['files'][name]
+        require(isinstance(reference, dict) and digest(reference.get('sha256')), 'Preparation payload SHA is required before selecting its immutable key')
+        object_reference(reference, f'datasets/{dataset_id}-aws-preparation/files/{reference["sha256"]}-{filename}')
     require(set(expected_tools) == set(TOOLS) and all(digest(item) for item in expected_tools.values())
             and value['toolSources'] == expected_tools, 'Preparation helpers differ from the reviewed controller tree')
     runtime = value['toolchain']
@@ -233,8 +235,14 @@ def qualify_toolchain(root, manifest, expected):
     require(javac == 'javac ' + expected['javaVersion'], 'JDK patch differs from the staged toolchain')
     mysql = run([str(root / 'mysql/bin/mysql'), '--version'], env=environment).decode()
     require(re.search(r'\bVer 8\.4\.11\b', mysql) and 'MariaDB' not in mysql, 'MySQL 8.4.11 client is required')
-    help_text = run([str(root / 'mysql/bin/mysql'), '--no-defaults', '--help'], env=environment).decode()
-    require('ssl-mode' in help_text and 'VERIFY_IDENTITY' in help_text, 'MySQL client lacks required TLS identity verification')
+    help_text = run([str(root / 'mysql/bin/mysql'), '--no-defaults', '--ssl-mode=VERIFY_IDENTITY', '--help'], env=environment).decode()
+    require('ssl-mode' in help_text, 'MySQL client lacks required TLS identity verification')
+    try:
+        run([str(root / 'mysql/bin/mysql'), '--no-defaults', '--ssl-mode=AIRBOB_INVALID_MODE', '--help'], env=environment)
+    except ValueError:
+        pass
+    else:
+        require(False, 'MySQL client does not reject unsupported TLS modes')
     return environment
 
 

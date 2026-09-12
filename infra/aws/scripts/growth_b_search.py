@@ -11,6 +11,7 @@ import datetime as dt
 import hashlib
 import importlib.util
 import itertools
+import ipaddress
 import json
 import math
 import os
@@ -19,6 +20,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -44,6 +46,7 @@ SNAPSHOT_METADATA_VERSION_ID = 8525000
 BUILD_FIELDS = ('number', 'build_flavor', 'build_hash', 'lucene_version',
                 'minimum_wire_compatibility_version', 'minimum_index_compatibility_version')
 REQUIRED_PLUGINS = {'analysis-nori', 'repository-s3'}
+LOOPBACK_HOSTS = {'127.0.0.1', 'localhost', '::1'}
 
 
 def canonical(value):
@@ -74,6 +77,100 @@ def run(arguments, *, data=None, environment=None, timeout=120, stdout=None, cwd
                             stderr=subprocess.PIPE, timeout=timeout, cwd=cwd)
     require(result.returncode == 0, 'Subprocess failed: ' + Path(arguments[0]).name)
     return result.stdout
+
+
+def local_docker_bridge(config, endpoint, service_port):
+    """Explicit Linux-host exception for an exact running container's bridge IP.
+
+    Both ES and MySQL use container/image plus localDockerBridge containing only
+    expectedContainerId (full ID) and network (exact Docker network name). The
+    configured URL remains the reviewed address; Docker cannot select a new one.
+    """
+    bridge = config['localDockerBridge']
+    require(sys.platform == 'linux', 'Docker bridge transport requires the Linux host')
+    require(isinstance(bridge, dict) and set(bridge) == {'expectedContainerId', 'network'}
+            and re.fullmatch(HEX_RE, bridge.get('expectedContainerId', ''))
+            and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', bridge.get('network', '')),
+            'Exact Docker bridge container ID and network opt-in required')
+    require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', config.get('container', ''))
+            and re.fullmatch(r'(?:[a-zA-Z0-9./:_-]+@)?sha256:' + HEX_RE, config.get('image', '')),
+            'Docker bridge container and immutable image pin required')
+    try: address = ipaddress.IPv4Address(endpoint.hostname)
+    except ipaddress.AddressValueError: raise ValueError('Docker bridge endpoint requires a literal private IPv4 address') from None
+    require(str(address) == endpoint.hostname and endpoint.port == service_port
+            and any(address in ipaddress.IPv4Network(block) for block in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')),
+            'Docker bridge endpoint must use a private container IP and exact service port')
+    context = run(['docker', 'context', 'show']).decode().strip()
+    contexts = json.loads(run(['docker', 'context', 'inspect', context]))
+    require(len(contexts) == 1, 'Docker context identity is ambiguous')
+    socket = contexts[0].get('Endpoints', {}).get('docker', {}).get('Host', '')
+    parsed = urllib.parse.urlsplit(socket)
+    require(parsed.scheme == 'unix' and not parsed.netloc and Path(parsed.path).is_absolute()
+            and not parsed.query and not parsed.fragment and Path(parsed.path).is_socket()
+            and os.environ.get('DOCKER_HOST', socket) == socket,
+            'Docker bridge transport requires an unambiguous local Unix Docker context and socket')
+    environment = {key: value for key, value in os.environ.items() if key not in
+                   {'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH'}}
+    def docker(*arguments):
+        return json.loads(run(['docker', '--host', socket, *arguments], environment=environment))
+    info = docker('info', '--format', '{{json .}}')
+    require(info.get('OSType') == 'linux', 'Docker bridge daemon must run locally on Linux')
+    observed = docker('container', 'inspect', config['container'])
+    require(len(observed) == 1, 'Docker bridge container identity is ambiguous')
+    observed = observed[0]
+    require(observed.get('Id') == bridge['expectedContainerId'] and observed.get('State', {}).get('Running') is True,
+            'Docker bridge container was replaced or is not running')
+    mode = observed.get('HostConfig', {}).get('NetworkMode', '')
+    require(mode not in {'host', 'none', ''} and not mode.startswith('container:'), 'Docker bridge requires an isolated container network endpoint')
+    attachment = observed.get('NetworkSettings', {}).get('Networks', {}).get(bridge['network'], {})
+    require(attachment.get('IPAddress') == endpoint.hostname and attachment.get('EndpointID'),
+            'Docker bridge URL differs from the selected container network address')
+    networks = docker('network', 'inspect', bridge['network'])
+    require(len(networks) == 1, 'Docker bridge network identity is ambiguous')
+    network = networks[0]
+    require(network.get('Name') == bridge['network'] and network.get('Driver') == 'bridge'
+            and network.get('Scope') == 'local' and re.fullmatch(HEX_RE, network.get('Id', ''))
+            and attachment.get('NetworkID') == network['Id'], 'Selected network is not the container local Docker bridge')
+    member = network.get('Containers', {}).get(bridge['expectedContainerId'], {})
+    require(member.get('EndpointID') == attachment['EndpointID']
+            and member.get('IPv4Address', '').partition('/')[0] == endpoint.hostname,
+            'Docker bridge network membership differs from the selected container')
+    require(re.fullmatch(r'sha256:' + HEX_RE, observed.get('Image', '')), 'Docker bridge image identity is incomplete')
+    images = docker('image', 'inspect', observed['Image'])
+    require(len(images) == 1, 'Docker bridge image identity is ambiguous')
+    image = images[0]; pin = config['image']
+    require(image.get('Id') == observed['Image'] and image.get('Os') == 'linux'
+            and (pin == image['Id'] or pin in image.get('RepoDigests', [])), 'Docker bridge image differs from immutable pin')
+    return observed, image
+
+
+class NoBridgeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, newurl):
+        # A checked local bridge address must never forward requests or auth.
+        raise urllib.error.HTTPError(request.full_url, code, 'Local Docker bridge redirects are not allowed', headers, fp)
+
+
+def mysql_endpoint(mysql):
+    raw_url = mysql['jdbcUrl']
+    require(raw_url.startswith('jdbc:mysql://'), 'Single MySQL JDBC endpoint required')
+    parsed = urllib.parse.urlsplit(raw_url[5:])
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    require(parsed.hostname and not parsed.username and not parsed.password and not parsed.fragment
+            and re.fullmatch(r'/[a-z][a-z0-9_]*', parsed.path) and len(dict(query)) == len(query), 'Unsafe MySQL JDBC endpoint')
+    options = dict(query)
+    require(not any('password' in key.lower() or key.lower() in {'user', 'username'} for key in options), 'JDBC credentials must use private properties')
+    if 'localDockerBridge' in mysql:
+        # Connector plugins, alternate hosts and proxy/socket factories must not
+        # redirect this narrowly verified non-TLS endpoint.
+        allowed = {'sslMode', 'useSSL', 'requireSSL', 'verifyServerCertificate', 'allowPublicKeyRetrieval',
+                   'serverTimezone', 'connectionTimeZone', 'forceConnectionTimeZoneToSession', 'preserveInstants',
+                   'characterEncoding', 'useUnicode', 'connectTimeout', 'socketTimeout',
+                   'autoReconnect', 'autoReconnectForPools', 'reconnectAtTxEnd'}
+        require(set(options) <= allowed, 'Unsupported JDBC options for the exact local Docker bridge')
+        local_docker_bridge(mysql, parsed, 3306)
+    else:
+        require(parsed.hostname in LOOPBACK_HOSTS or options.get('sslMode') == 'VERIFY_IDENTITY', 'Remote MySQL requires TLS identity verification')
+    return parsed
 
 
 def file_binding(path): return {'sha256': sha(path), 'bytes': Path(path).stat().st_size}
@@ -166,6 +263,7 @@ class Elasticsearch:
         self.url = config['url'].rstrip('/')
         self.timeout = min(int(config.get('requestTimeoutSeconds', 180)), 3600)
         require(1 <= self.timeout <= 3600, 'Invalid ES request timeout')
+        self._bridge_binding = None
     def api(self, method, path, body=None, *, content_type='application/json'):
         data = body if isinstance(body, bytes) else None if body is None else canonical(body)
         headers = {'Content-Type': content_type}
@@ -174,7 +272,14 @@ class Elasticsearch:
             require(re.fullmatch(r'AIRBOB_[A-Z0-9_]+', auth_env), 'Unsafe authorization environment name')
             headers['Authorization'] = os.environ[auth_env]
         request = urllib.request.Request(self.url + path, data=data, method=method, headers=headers)
-        with urllib.request.urlopen(request, timeout=self.timeout) as response:
+        if 'localDockerBridge' in self.config:
+            if self._bridge_binding is None:
+                self._bridge_binding = local_docker_bridge(self.config, urllib.parse.urlsplit(self.url), 9200)
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoBridgeRedirect())
+            response = opener.open(request, timeout=self.timeout)
+        else:
+            response = urllib.request.urlopen(request, timeout=self.timeout)
+        with response:
             raw = response.read(64 * 1024 * 1024 + 1)
         require(len(raw) <= 64 * 1024 * 1024, 'ES response exceeds page bound')
         return json.loads(raw)
@@ -184,22 +289,26 @@ class Elasticsearch:
             require(error.code == 404, 'ES object inspection failed')
             return None
     def identity(self):
-        info = self.api('GET', '/')
-        require(info['version']['number'] == self.config['version'] == '8.18.8', 'ES product version differs from pinned runtime')
         container = self.config['container']
         require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', container), 'Invalid ES container name')
-        observed = json.loads(run(['docker', 'inspect', container]))[0]
         endpoint = urllib.parse.urlsplit(self.url)
-        published = observed.get('NetworkSettings', {}).get('Ports', {}).get('9200/tcp') or []
-        network_mode = observed.get('HostConfig', {}).get('NetworkMode')
-        require(endpoint.hostname in {'127.0.0.1', 'localhost', '::1'} and
-                (network_mode == 'host' and endpoint.port == 9200 or
-                 any(int(item['HostPort']) == endpoint.port for item in published)),
-                'ES endpoint must resolve to the selected local host container port')
-        image = json.loads(run(['docker', 'image', 'inspect', observed['Image']]))[0]
+        if 'localDockerBridge' in self.config:
+            self._bridge_binding = local_docker_bridge(self.config, endpoint, 9200)
+            observed, image = self._bridge_binding
+        else:
+            observed = json.loads(run(['docker', 'inspect', container]))[0]
+            published = observed.get('NetworkSettings', {}).get('Ports', {}).get('9200/tcp') or []
+            network_mode = observed.get('HostConfig', {}).get('NetworkMode')
+            require(endpoint.hostname in LOOPBACK_HOSTS and
+                    (network_mode == 'host' and endpoint.port == 9200 or
+                     any(int(item['HostPort']) == endpoint.port for item in published)),
+                    'ES endpoint must resolve to the selected local host container port')
+            image = json.loads(run(['docker', 'image', 'inspect', observed['Image']]))[0]
         pin = self.config['image']
         require(re.fullmatch(r'(?:[a-zA-Z0-9./:_-]+@)?sha256:[0-9a-f]{64}', pin), 'Exact ES image digest required')
         require(pin == image['Id'] or pin in image.get('RepoDigests', []), 'ES container image differs from digest pin')
+        info = self.api('GET', '/')
+        require(info['version']['number'] == self.config['version'] == '8.18.8', 'ES product version differs from pinned runtime')
         nodes = self.api('GET', '/_nodes/plugins')['nodes']
         require(len(nodes) == 1 and all(REQUIRED_PLUGINS <=
                 {plugin['name'] for plugin in node.get('plugins', []) + node.get('modules', [])} for node in nodes.values()),
@@ -277,19 +386,29 @@ class Elasticsearch:
 class Repository:
     def __init__(self, config, aws=None):
         self.config = config; self.aws = aws
+        self.transport_proof = None
         require(config['type'] in {'fs', 's3'} and re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,100}', config['name']), 'Invalid snapshot repository')
         self.name = config['name']; self.settings = dict(config['settings'])
         allowed = {'location', 'compress'} if config['type'] == 'fs' else {'bucket', 'base_path', 'region', 'endpoint', 'client', 'compress', 'server_side_encryption'}
         require(set(self.settings) <= allowed, 'Unsupported or credential-bearing repository setting')
+        if 'transport' in config:
+            transport = config['transport']
+            require(config['type'] == 's3' and isinstance(transport, dict) and set(transport) == {'manifest', 'sha256'}
+                    and Path(transport['manifest']).is_absolute() and re.fullmatch(HEX_RE, transport['sha256'])
+                    and not {'endpoint', 'client'} & set(self.settings), 'Pinned AWS S3 transport manifest required without endpoint/client overrides')
         if config['type'] == 'fs':
             require(Path(config['inventoryRoot']).is_absolute() and Path(self.settings['location']).is_absolute(), 'Absolute fs repository paths required')
         else:
             require(self.aws is not None and re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,62}', self.settings['bucket']), 'S3 command adapter and bucket required')
-            require(re.fullmatch(r'elasticsearch/releases/global-growth-b-[0-9a-f]{16}-search-[a-z0-9._-]+', self.settings['base_path']), 'Release-scoped S3 base path required')
+            pattern = (r'datasets/(?P<dataset>global-growth-b-[0-9a-f]{16})-search/(?P=dataset)-search-[a-z0-9][a-z0-9._-]{0,60}/native'
+                       if 'transport' in config else r'elasticsearch/releases/global-growth-b-[0-9a-f]{16}-search-[a-z0-9._-]+')
+            require(re.fullmatch(pattern, self.settings['base_path']), 'Release-scoped S3 base path required')
     def binding(self):
         if self.config['type'] == 's3': return {'type': 's3', 'bucket': self.settings['bucket'], 'basePath': self.settings['base_path']}
         return {'type': 'fs', 'layout': 'native-elasticsearch-repository', 'locationAtProduction': self.settings['location']}
     def register(self, es, readonly):
+        if 'transport' in self.config:
+            require(readonly is True and self.transport_proof is not None, 'Transport repository requires verified native bytes and read-only registration')
         require(es.optional('/_snapshot/' + self.name) is None, 'Repository name already exists; never replace an external registration')
         require(es.api('PUT', '/_snapshot/' + self.name, {'type': self.config['type'], 'settings': self.settings | {'readonly': readonly}}).get('acknowledged'), 'Repository registration failed')
         observed = es.api('GET', '/_snapshot/' + self.name)[self.name]
@@ -487,8 +606,12 @@ def properties(path, values):
 
 def clean_java_environment():
     # Application overrides and JVM injection must not revive background writers.
+    # The isolated reader still constructs the S3 SDK resource resolver. Supply
+    # inert credentials and a region instead of consulting ambient profiles/IMDS.
     return {key: value for key, value in os.environ.items() if key in
-            {'PATH', 'JAVA_HOME', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'SystemRoot'}} | {'TZ': 'UTC'}
+            {'PATH', 'JAVA_HOME', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'SystemRoot'}} | {
+                'TZ': 'UTC', 'AWS_REGION': 'ap-northeast-2', 'AWS_EC2_METADATA_DISABLED': 'true',
+                'AWS_ACCESS_KEY_ID': 'dummy', 'AWS_SECRET_ACCESS_KEY': 'dummy'}
 
 
 def release_identity(config):
@@ -519,15 +642,7 @@ class SourceAdapter:
         spec = importlib.util.spec_from_file_location('_growth_b_verified_settings', settings_path)
         settings = importlib.util.module_from_spec(spec); spec.loader.exec_module(settings)
         self.settings = dict(settings.BASE_SETTINGS)
-        mysql = config['mysql']; raw_url = mysql['jdbcUrl']
-        require(raw_url.startswith('jdbc:mysql://'), 'Single MySQL JDBC endpoint required')
-        parsed = urllib.parse.urlsplit(raw_url[5:])
-        query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
-        require(parsed.hostname and not parsed.username and not parsed.password and not parsed.fragment
-                and re.fullmatch(r'/[a-z][a-z0-9_]*', parsed.path) and len(dict(query)) == len(query), 'Unsafe MySQL JDBC endpoint')
-        options = dict(query)
-        require(not any('password' in key.lower() or key.lower() in {'user', 'username'} for key in options), 'JDBC credentials must use private properties')
-        require(parsed.hostname in {'127.0.0.1', 'localhost', '::1'} or options.get('sslMode') == 'VERIFY_IDENTITY', 'Remote MySQL requires TLS identity verification')
+        mysql = config['mysql']; raw_url = mysql['jdbcUrl']; parsed = mysql_endpoint(mysql)
         self.url = settings.utc_jdbc_url(raw_url)
         base_url, _, query_string = self.url.partition('?'); values = dict(urllib.parse.parse_qsl(query_string))
         for key in ('autoReconnect', 'autoReconnectForPools', 'reconnectAtTxEnd'):
@@ -566,6 +681,7 @@ class SourceAdapter:
             if self.heartbeat_path.is_file() and self.heartbeat_path.read_text() == nonce: return
             time.sleep(.05)
     def command(self, mode, output):
+        if 'localDockerBridge' in self.config['mysql']: mysql_endpoint(self.config['mysql'])
         self.java_env = qualified_environment(self.host_runtime, self.java_env)
         return [self.host_runtime['hostJavaTools']['java']['path'], '-Duser.timezone=UTC', '-Xmx512m', '-cp', self.cp,
                 'org.example.growth.GrowthBSourceProbe', mode, str(self.connection_path), str(output)]
@@ -621,6 +737,8 @@ class SourceAdapter:
         self.mapping = read(extracted / 'BOOT-INF/classes/elasticsearch/accommodations-index.json')
         settings = self.settings | {'spring.flyway.enabled': 'false', 'spring.datasource.url': self.connection['url'],
             'spring.datasource.username': self.connection['username'], 'spring.datasource.password': self.connection['password'],
+            'spring.cloud.aws.region.static': 'ap-northeast-2',
+            'spring.cloud.aws.credentials.access-key': 'dummy', 'spring.cloud.aws.credentials.secret-key': 'dummy',
             'spring.datasource.hikari.maximum-pool-size': '4', 'spring.datasource.hikari.read-only': 'true',
             'spring.data.redis.host': '127.0.0.1', 'spring.data.redis.port': '1',
             'spring.data.redis.repositories.enabled': 'false', 'spring.profiles.active': 'test',
@@ -629,6 +747,7 @@ class SourceAdapter:
         self.application_settings = self.work / 'application.properties'; properties(self.application_settings, settings)
     def documents(self, path):
         require(self._fence is not None and self._fence.poll() is None, 'Application export requires the MySQL read fence')
+        if 'localDockerBridge' in self.config['mysql']: mysql_endpoint(self.config['mysql'])
         self.prepare_backend()
         self.java_env = qualified_environment(self.host_runtime, self.java_env)
         run([self.host_runtime['hostJavaTools']['java']['path'], '-Duser.timezone=UTC', '-Xmx512m', '-cp', self.backend_cp, 'GrowthBCurrentSearchProbe',
@@ -711,9 +830,29 @@ def create_snapshot(es, repository, snapshot, index, timeout):
         time.sleep(2)
 
 
+class RestoreMeasurements:
+    """UTC event coordinates and independent monotonic elapsed measurements."""
+    stages = ('restoreRequested', 'recoveryCompleted', 'fullComparisonStarted', 'fullComparisonCompleted')
+    def __init__(self):
+        self.events = {}; self.mark('restoreRequested')
+    def mark(self, stage):
+        require(len(self.events) < len(self.stages) and stage == self.stages[len(self.events)], 'Search restore timing stage is out of order')
+        self.events[stage] = (dt.datetime.now(dt.timezone.utc).isoformat(), time.monotonic_ns())
+    def result(self):
+        require(tuple(self.events) == self.stages, 'Search restore measurements are incomplete')
+        def seconds(start, end): return round((self.events[end][1] - self.events[start][1]) / 1_000_000_000, 6)
+        return {stage + 'At': value[0] for stage, value in self.events.items()} | {
+            'elapsedClock': 'monotonic',
+            'requestToRecoverySeconds': seconds('restoreRequested', 'recoveryCompleted'),
+            'recoveryToComparisonStartSeconds': seconds('recoveryCompleted', 'fullComparisonStarted'),
+            'fullComparisonSeconds': seconds('fullComparisonStarted', 'fullComparisonCompleted'),
+            'requestToFullComparisonSeconds': seconds('restoreRequested', 'fullComparisonCompleted')}
+
+
 def restore_index(es, repository, reference, target, timeout):
     require(re.fullmatch(INDEX_RE, target) and es.optional('/' + target) is None, 'Restore target must be a new versioned index')
     # Never restore aliases or global state, and quarantine writes until equality.
+    measurements = RestoreMeasurements()
     result = es.api('POST', '/_snapshot/' + repository.name + '/' + reference['snapshot'] + '/_restore',
         {'indices': reference['snapshotIndex'], 'rename_pattern': '^' + re.escape(reference['snapshotIndex']) + '$',
          'rename_replacement': target, 'include_aliases': False, 'include_global_state': False,
@@ -746,11 +885,13 @@ def restore_index(es, repository, reference, target, timeout):
         if (health['timed_out'] is False and health['status'] == 'green'
                 and health['active_primary_shards'] > 0
                 and health['unassigned_shards'] == 0 and health['initializing_shards'] == 0):
+            measurements.mark('recoveryCompleted')
             break
         time.sleep(min(2, remaining))
     observed = es.api('GET', '/' + target + '/_settings')[target]['settings']['index']
     require(str(observed.get('blocks', {}).get('write')).lower() == 'true', 'Restored index must remain write blocked during verification')
     require(not es.api('GET', '/' + target + '/_alias')[target]['aliases'], 'Native restore unexpectedly installed aliases')
+    return measurements
 
 
 def snapshot_timeout(config):
@@ -780,8 +921,12 @@ def disk_gate(es, expected_additional_bytes):
             'existingIndicesRetained': True}
 
 
-def same_repository(repository, reference):
+def same_repository(repository, reference, transport=None):
     expected = reference['repository']; actual = repository.binding()
+    if transport is not None:
+        require(expected['type'] == 'fs' and expected.get('layout') == 'native-elasticsearch-repository'
+                and actual['type'] == 's3' and actual == transport['repository'], 'Native transport source layout or S3 coordinates differ')
+        return
     require(expected['type'] == actual['type'], 'Native repository type differs')
     if actual['type'] == 's3': require(actual == expected, 'S3 bucket/base path differs from sealed native repository')
     else: require(expected.get('layout') == actual['layout'], 'Native filesystem layout differs')
@@ -993,9 +1138,24 @@ def restore(config, companion, descriptor, baseline, output, *, activate_alias=F
         source = SourceAdapter(config, Path(work) / 'source', runtime_output=Path(str(output) + '.host-runtime.json'))
         es = Elasticsearch(config['elasticsearch']); identity = es.identity(); previous = es.alias(optional=True)
         compatibility = runtime_compatibility(reference['elasticsearch'], identity)
-        repository = repository_for(config); same_repository(repository, reference)
-        native = read(Path(companion) / 'native-inventory.json')
-        require(repository.inventory() == native, 'Native repository versions/files differ before restore')
+        repository = repository_for(config)
+        transport = None; transport_proof = None
+        if 'transport' in config.get('repository', {}):
+            import growth_b_search_transport as transport_tools
+            reviewed = config['repository']['transport']
+            transport = transport_tools.validate_published_transport(reviewed['manifest'], reviewed['sha256'], companion, descriptor)
+            require(repository.settings.get('region') == config['repository']['aws']['region'] == transport['region'],
+                    'Native transport repository and AWS region differ')
+        same_repository(repository, reference, transport)
+        sealed_native = read(Path(companion) / 'native-inventory.json')
+        native = repository.inventory()
+        if transport is None:
+            require(native == sealed_native, 'Native repository versions/files differ before restore')
+        else:
+            transport_tools.validate_native_versions(transport, native)
+            transport_proof = transport_tools.verify_s3_repository(transport, repository.aws)
+            require(repository.inventory() == native, 'Native S3 versions changed during byte verification')
+            repository.transport_proof = transport_proof
         producer = read(Path(companion) / 'snapshot-producer-receipt.json')
         # Credit no space from existing indices; retain the measured two-index bound.
         space = disk_gate(es, producer['storage']['measuredSourcePlusTemporaryRestoreStoreBytes'])
@@ -1013,9 +1173,11 @@ def restore(config, companion, descriptor, baseline, output, *, activate_alias=F
                         'Companion mapping/analyzers differ from pinned application')
                 repository.register(es, True); registered = True
                 validate_snapshot(snapshot_info(es, repository, reference['snapshot']), reference['snapshot'], reference['snapshotIndex'], reference['snapshotUuid'])
-                restore_index(es, repository, reference, target, snapshot_timeout(config))
+                measurements = restore_index(es, repository, reference, target, snapshot_timeout(config))
+                measurements.mark('fullComparisonStarted')
                 actual = es.fingerprint(target, documents)
                 require(actual == reference['fingerprint'], 'Restored full ES source differs from sealed snapshot')
+                measurements.mark('fullComparisonCompleted')
                 drift = source_drift_check(source, mysql, prepared, projection, work)
                 require(es.identity() == identity and es.alias(optional=True) == previous and repository.inventory() == native,
                         'Restore identity, alias or native inventory drifted')
@@ -1034,7 +1196,10 @@ def restore(config, companion, descriptor, baseline, output, *, activate_alias=F
                     'elasticsearch': identity, 'runtimeCompatibility': compatibility,
                     'restoredIndex': target, 'previousIndexRetained': previous,
                     'activeAlias': target if activate_alias else previous, 'repositoryReadOnly': True,
-                    'nativeInventoryUnchanged': True, 'repositoryRegistrationRemoved': True, 'diskGate': space}
+                    'nativeInventoryUnchanged': True, 'repositoryRegistrationRemoved': True, 'diskGate': space,
+                    'restoreMeasurements': measurements.result()}
+                if transport_proof is not None:
+                    receipt['nativeTransport'] = {'manifestSha256': reviewed['sha256'], **transport_proof}
                 write(output / 'search-restore-receipt.json', receipt)
                 return receipt
         finally:
