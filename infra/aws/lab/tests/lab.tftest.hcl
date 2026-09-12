@@ -248,3 +248,51 @@ run "reject_missing_or_invalid_fencing_token" {
 
   expect_failures = [var.fencing_token]
 }
+
+run "accept_b_exact_engine_before_services" {
+  command = plan
+
+  variables {
+    global_b_prepare_only        = true
+    database_bootstrap           = "dump"
+    dataset_release              = "global-growth-b-aaaaaaaaaaaaaaaa"
+    global_b_manifest_version_id = "b-validation-fixture"
+    global_b_lease_owner         = "lab-contract-test"
+    rds_engine_version           = "8.4.11"
+  }
+
+  assert {
+    condition     = output.global_b_preparation.selected
+    error_message = "B must accept only its exact engine before the services phase as well."
+  }
+}
+
+run "reject_b_missing_engine_before_services" {
+  command = plan
+
+  variables {
+    global_b_prepare_only        = true
+    database_bootstrap           = "dump"
+    dataset_release              = "global-growth-b-aaaaaaaaaaaaaaaa"
+    global_b_manifest_version_id = "b-validation-fixture"
+    global_b_lease_owner         = "lab-contract-test"
+    rds_engine_version           = ""
+  }
+
+  expect_failures = [var.rds_engine_version]
+}
+
+run "reject_b_other_patch_before_services" {
+  command = plan
+
+  variables {
+    global_b_prepare_only        = true
+    database_bootstrap           = "dump"
+    dataset_release              = "global-growth-b-aaaaaaaaaaaaaaaa"
+    global_b_manifest_version_id = "b-validation-fixture"
+    global_b_lease_owner         = "lab-contract-test"
+    rds_engine_version           = "8.4.10"
+  }
+
+  expect_failures = [var.rds_engine_version]
+}

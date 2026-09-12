@@ -88,8 +88,10 @@ done
 assert_contains "$lab_root/variables.tf" 'validation {'
 assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)'
 assert_contains "$lab_root/providers.tf" 'ExpiresAt'
-assert_contains "$lab_root/locals.tf" 'probe_enabled    = var.deployment_phase == "network"'
-assert_contains "$lab_root/locals.tf" 'services_enabled = contains(["services", "data-ready"], var.deployment_phase)'
+grep -Eq '^[[:space:]]*probe_enabled[[:space:]]*=[[:space:]]*var\.deployment_phase == "network"$' "$lab_root/locals.tf" \
+  || fail "probe_enabled must remain limited to the network phase"
+grep -Eq '^[[:space:]]*services_enabled[[:space:]]*=[[:space:]]*contains\(\["services", "data-ready"\], var\.deployment_phase\)$' "$lab_root/locals.tf" \
+  || fail "services_enabled must remain limited to services and data-ready phases"
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "network_receipt_gate"'
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "probe_clearance_gate"'
 assert_contains "$lab_root/checks.tf" 'resource "terraform_data" "service_release_gate"'

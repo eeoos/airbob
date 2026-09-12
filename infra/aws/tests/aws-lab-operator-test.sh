@@ -304,7 +304,7 @@ for target in aws-up aws-status aws-switch aws-down; do
 done
 
 assert_contains "$workflow" 'workflow_dispatch:'
-assert_contains "$workflow" 'options: [up, status, switch, down]'
+assert_contains "$workflow" 'options: [up, prepare, status, switch, down]'
 assert_contains "$workflow" 'schedule:'
 assert_contains "$workflow" "cron: '17,47 * * * *'"
 assert_contains "$workflow" 'group: aws-performance-lab'

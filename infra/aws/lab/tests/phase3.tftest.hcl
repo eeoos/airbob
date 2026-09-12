@@ -1210,3 +1210,23 @@ run "reject_app_image_outside_approved_ecr_repository" {
 
   expect_failures = [check.app_release]
 }
+
+run "reject_mysql_84_for_legacy_services" {
+  command = plan
+
+  variables {
+    rds_engine_version = "8.4.11"
+  }
+
+  expect_failures = [var.rds_engine_version]
+}
+
+run "reject_missing_engine_for_legacy_services" {
+  command = plan
+
+  variables {
+    rds_engine_version = ""
+  }
+
+  expect_failures = [var.rds_engine_version]
+}
