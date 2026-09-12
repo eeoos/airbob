@@ -20,8 +20,3 @@
 - [운영자 알림](operator-alert-operations.md)
 - [OCI 배포](oci-deployment-runbook.md)
 - [쿼리 수 모니터링](query-count-monitoring.md)
-
-## 데이터 구조
-
-- [업무 도메인 ERD](erd/airbob-business-domain.dbml)
-- [데이터 관리 구조 ERD](erd/airbob-data-management-optimization.dbml)
