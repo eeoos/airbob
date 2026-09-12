@@ -232,15 +232,14 @@ consumer가 retry/DLT를 거쳐 다시 수행합니다. 일반 Redis와 상세 �
 - Kafka delivery: [OperatorAlertKafkaListener.java](src/main/java/kr/kro/airbob/messaging/alert/infrastructure/kafka/OperatorAlertKafkaListener.java)
 - 운영 절차: [operator-alert-operations.md](docs/operator-alert-operations.md)
 
-## 기타 구현·성능 개선
+## 그 밖의 구현
 
 - `@CursorParam`과 ArgumentResolver 기반 커서 페이지네이션
 - 리뷰 요약을 별도 테이블에 비정규화하고 원자적 증감으로 목록 집계 제거
 - 최근 본 숙소를 Redis Sorted Set으로 저장해 순서·trim·TTL 처리
 - 위시리스트 목록의 숙소 정보를 비정규화해 조회 fan-out 축소
 - 예약 만료 history의 `IDENTITY` N회 INSERT를 JDBC batch로 전환
-  - [reservation-history-jdbc-batch.md](docs/performance/reservation-history-jdbc-batch.md)
-- bulk write·cache·쿠폰 발급 비교를 위한 격리 benchmark와 k6 검증
+- 성능 실험용 profile과 k6 도구
   - [load-test/README.md](load-test/README.md)
 
 ## 패키지 구조
@@ -284,12 +283,9 @@ Elasticsearch 정합성 테스트는 Testcontainers를 사용합니다.
 
 ## 운영 문서
 
-- [예약 날짜 inventory 최초 컷오버·readiness](docs/reservation-inventory-cutover.md)
-- [결제 작업·수동 해결·롤백](docs/payment-operation-runbook.md)
-- [Transactional Outbox 보관·Connect 점검](docs/outbox-operations.md)
-- [숙소 색인과 DLT](docs/accommodation-indexing-operations.md)
-- [전체 Elasticsearch 재색인](docs/logstash-reindex.md)
-- [운영자 알림](docs/operator-alert-operations.md)
+- [문서 목록](docs/README.md): 예약·결제·검색·메시징 운영과 ERD
+- [B 데이터셋 복원과 개발 환경 인수](docs/performance/global-b-operations.md)
+- [AWS 성능 실험 환경 운영](docs/performance/aws-performance-lab.md)
 
 ## API Reference
 
