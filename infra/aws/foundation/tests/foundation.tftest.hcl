@@ -1762,10 +1762,13 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "CreateBoundedDumpLabDbInstance"
       ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-*" &&
-      one([
+      toset(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForDumpLabDb"
-      ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0" &&
+        ]).Resource) == toset([
+        "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0",
+        "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-4",
+      ]) &&
       try(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForDumpLabDb"
@@ -1797,10 +1800,13 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseApprovedSnapshotForRestoreLabDb"
       ]).Condition, null) == null &&
-      one([
+      toset(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForRestoreLabDb"
-      ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0" &&
+        ]).Resource) == toset([
+        "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0",
+        "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-4",
+      ]) &&
       try(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "UseDefaultOptionGroupForRestoreLabDb"

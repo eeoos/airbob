@@ -57,12 +57,13 @@ data "aws_s3_object" "bundle_checksum" {
 data "aws_s3_object" "dataset_manifest" {
   count = local.services_enabled ? 1 : 0
 
-  bucket = local.lab_contract.dataset_bucket_name
-  key    = local.dataset_manifest_key
+  bucket     = local.lab_contract.dataset_bucket_name
+  key        = local.dataset_manifest_key
+  version_id = var.global_b_prepare_only ? var.global_b_manifest_version_id : null
 }
 
 data "aws_s3_object" "dataset_production_spec" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   bucket = local.lab_contract.dataset_bucket_name
   key = "${local.dataset_prefix}/${try(

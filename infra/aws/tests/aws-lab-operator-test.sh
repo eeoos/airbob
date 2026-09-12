@@ -340,8 +340,8 @@ assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '6'"
-assert_contains "$workflow" "timeout-minutes: \${{ inputs.action == 'up' && 359 || 120 }}"
-assert_contains "$workflow" "role-duration-seconds: \${{ inputs.action == 'up' && 21600 || 7200 }}"
+assert_contains "$workflow" "timeout-minutes: \${{ (inputs.action == 'up' || inputs.action == 'prepare') && 359 || 120 }}"
+assert_contains "$workflow" "role-duration-seconds: \${{ (inputs.action == 'up' || inputs.action == 'prepare') && 21600 || 7200 }}"
 assert_contains "$workflow" '- name: Record workflow deadline'
 assert_contains "$workflow" 'WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120'
 assert_contains "$workflow" 'workflow_ceiling_seconds=7200'

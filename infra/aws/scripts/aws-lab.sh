@@ -142,8 +142,15 @@ validate_operator_scope_for_action() {
     || fail "$action with DNS_MODE=$dns_mode requires AWS_LAB_OPERATOR_SCOPE=$expected_scope"
 }
 
-[[ "$#" -eq 1 ]] || fail "usage: aws-lab.sh up|status|switch|down"
+[[ "$#" -eq 1 ]] || fail "usage: aws-lab.sh up|prepare|status|switch|down"
 action=$1
+# B preparation shares the existing up lease/deadline and teardown machinery.
+# Its explicit selector never enters the legacy data-ready/application stage.
+global_b_prepare_only=false
+if [[ "$action" == prepare ]]; then
+  global_b_prepare_only=true
+  action=up
+fi
 case "$action" in up|status|switch|down) ;; *) fail "unsupported AWS lab action" ;; esac
 lease_command=$action
 
@@ -775,6 +782,18 @@ canonical_operator_tree_sha256() {
       || fail "operator identity file is missing or unsafe: $relative"
     printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
   done
+  if [[ "$global_b_prepare_only" == true ]]; then
+    for relative in infra/aws/scripts/growth_b_prepare.py infra/aws/scripts/bootstrap-growth-b-entry.sh \
+      infra/aws/scripts/bootstrap-growth-b-stop.sh infra/aws/scripts/growth_b_aws_restore.py \
+      infra/aws/scripts/growth_b_aws_contract.py infra/aws/scripts/growth_b_contract.py infra/aws/scripts/growth_b_runtime.py \
+      infra/aws/lab/growth-b.tf infra/aws/lab/app.tf infra/aws/lab/iam.tf infra/aws/lab/monitoring.tf \
+      infra/aws/lab/locals.tf infra/aws/lab/checks.tf infra/aws/lab/data.tf infra/aws/lab/outputs.tf \
+      infra/aws/lab/ssm.tf infra/aws/lab/private-dns.tf infra/aws/lab/service-hosts.tf \
+      infra/aws/lab/templates/growth-b-host-user-data.sh.tftpl infra/aws/toolchain.env; do
+      [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "B operator identity file is unavailable"
+      printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
+    done
+  fi
   LC_ALL=C sort -k2,2 "$inventory" | sha256_text
 }
 
@@ -1684,10 +1703,125 @@ load_release_smoke_inputs() {
   fi
 }
 
+fetch_global_b_input() {
+  local name=$1 destination=$2 reference key version digest bytes response="$temp_dir/b-object-response.json"
+  reference=$(jq -ce --arg name "$name" '.files[$name]' "$temp_dir/dataset-manifest.json")
+  key=$(jq -er '.key' <<<"$reference")
+  version=$(jq -er '.versionId' <<<"$reference")
+  digest=$(jq -er '.sha256' <<<"$reference")
+  bytes=$(jq -er '.bytes' <<<"$reference")
+  aws s3api get-object --bucket "$dataset_bucket" --key "$key" --version-id "$version" "$destination" \
+    --region "$AWS_REGION" --no-cli-pager > "$response" || fail "Pinned B preparation input is unavailable"
+  [[ "$(jq -er '.VersionId' "$response")" == "$version" && "$(wc -c < "$destination" | tr -d ' ')" == "$bytes" \
+    && "$(sha256_file "$destination")" == "$digest" ]] || fail "Pinned B preparation bytes/version differ"
+}
+
+validate_global_b_inputs() {
+  local selected_manifest=$1 reference key version bytes result="$temp_dir/b-object-head.json"
+  local -a receipt_args=()
+  [[ "${B_PREPARATION_SHA256:-}" =~ ^[0-9a-f]{64}$ && "$B_PREPARATION_SHA256" == "$dataset_manifest_sha256" ]] \
+    || fail "B prepare requires the explicit reviewed aws-preparation.json SHA256"
+  python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)' \
+    || fail "B offline admission requires Python 3.12 or newer"
+  python3 "$script_dir/growth_b_prepare.py" validate-manifest --manifest "$selected_manifest" \
+    --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" > "$temp_dir/b-manifest-admission.json" \
+    || fail "B preparation wrapper or reviewed helper identity is invalid"
+  fetch_global_b_input envelope "$temp_dir/b-envelope.json"
+  if [[ "$(jq -r '.scope' "$selected_manifest")" == final-b-rds ]]; then
+    fetch_global_b_input smallRdsReceipt "$temp_dir/b-small-rds-receipt.json"
+    receipt_args=(--small-receipt "$temp_dir/b-small-rds-receipt.json")
+  fi
+  python3 "$script_dir/growth_b_prepare.py" validate-inputs --manifest "$selected_manifest" \
+    --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" --envelope "$temp_dir/b-envelope.json" \
+    "${receipt_args[@]}" > "$temp_dir/b-input-admission.json" \
+    || fail "B preparation envelope, measured capacity, or current small RDS receipt is invalid"
+  # Existence/size/version before any provision; the host verifies every SHA
+  # and the complete sealed contract before its first database connection.
+  while IFS= read -r reference; do
+    key=$(jq -er '.key' <<<"$reference"); version=$(jq -er '.versionId' <<<"$reference"); bytes=$(jq -er '.bytes' <<<"$reference")
+    aws s3api head-object --bucket "$dataset_bucket" --key "$key" --version-id "$version" \
+      --region "$AWS_REGION" --no-cli-pager > "$result" || fail "B preparation object has not been staged"
+    jq -e --arg version "$version" --argjson bytes "$bytes" \
+      '.VersionId == $version and .ContentLength == $bytes' "$result" >/dev/null \
+      || fail "Staged B object version/size differs"
+  done < <(jq -cs '.[0].files[], .[1].objects[]' "$selected_manifest" "$temp_dir/b-envelope.json")
+}
+
+verify_global_b_receipt() {
+  local key="data-bootstrap/$run_id/$dataset_release.json" version receipt="$temp_dir/b-preparation-receipt.json"
+  local standalone="$temp_dir/b-standalone-receipt.json" reference result="$temp_dir/b-receipt-object.json"
+  local topology
+  assert_lease
+  topology=$(run_terraform_command "Terraform B preparation output" -chdir="$lab_root" output -json global_b_preparation)
+  jq -e --arg id "$debezium_instance_id" '.selected == true and .host_instance_id == $id and
+    .app_asg_created == false and .alb_created == false and .cdc_started == false and .deployment_ready == false' <<<"$topology" >/dev/null \
+    || fail "B preparation topology differs"
+  jq -e '.services | keys == ["debezium"]' <<<"$phase2" >/dev/null || fail "B preparation has unexpected service hosts"
+  version=$(aws s3api head-object --bucket "$evidence_bucket" --key "$key" --query VersionId --output text \
+    --region "$AWS_REGION" --no-cli-pager) || fail "B host completion receipt is unavailable"
+  [[ "$version" =~ ^[A-Za-z0-9._~+/=-]+$ && "$version" != null && "$version" != None ]] || fail "B receipt has no version identity"
+  aws s3api get-object --bucket "$evidence_bucket" --key "$key" --version-id "$version" "$receipt" \
+    --region "$AWS_REGION" --no-cli-pager > "$result" || fail "B host receipt read failed"
+  [[ "$(jq -er '.VersionId' "$result")" == "$version" ]] || fail "B receipt version changed"
+  reference=$(jq -ce --arg key "data-bootstrap/$run_id/$dataset_release-standalone-rds.json" '
+    .standaloneReceiptObject | select((keys|sort)==["bytes","key","sha256","versionId"] and .key==$key and
+      (.versionId|type=="string" and test("^[A-Za-z0-9._~+/=-]+$") and .!="null" and .!="None") and
+      (.sha256|test("^[0-9a-f]{64}$")) and (.bytes|type=="number" and .>0 and .<10485760))' "$receipt") \
+    || fail "B standalone receipt reference is invalid"
+  aws s3api get-object --bucket "$evidence_bucket" --key "$(jq -r '.key' <<<"$reference")" \
+    --version-id "$(jq -r '.versionId' <<<"$reference")" "$standalone" --region "$AWS_REGION" --no-cli-pager > "$result" \
+    || fail "B standalone receipt read failed"
+  [[ "$(jq -r '.VersionId' "$result")" == "$(jq -r '.versionId' <<<"$reference")" && \
+    "$(wc -c < "$standalone" | tr -d ' ')" == "$(jq -r '.bytes' <<<"$reference")" && \
+    "$(sha256_file "$standalone")" == "$(jq -r '.sha256' <<<"$reference")" ]] || fail "B standalone receipt bytes differ"
+  jq -n --arg run "$run_id" --arg manifest "$dataset_manifest_sha256" --arg rds "$(jq -er '.rds_resource_id' <<<"$phase3")" \
+    '{runId:$run,manifestSha256:$manifest,rdsResourceId:$rds}' > "$temp_dir/b-receipt-context.json"
+  python3 "$script_dir/growth_b_prepare.py" validate-receipt --manifest "$temp_dir/dataset-manifest.json" \
+    --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" --envelope "$temp_dir/b-envelope.json" \
+    --context "$temp_dir/b-receipt-context.json" --receipt "$receipt" --standalone-receipt "$standalone" \
+    > "$temp_dir/b-receipt-admission.json" || fail "B data-only completion proof is invalid"
+}
+
+stop_global_b_bootstrap() {
+  local instances instance_id payload="$temp_dir/b-stop-command.json" command_id status attempt
+  assert_lease
+  instances=$(aws ec2 describe-instances --filters Name=tag:Project,Values=airbob \
+    Name=tag:Environment,Values=performance-lab Name=tag:Stack,Values=lab Name=tag:ManagedBy,Values=terraform \
+    Name=tag:Persistence,Values=ephemeral Name=tag:RunId,Values="$run_id" \
+    Name=tag:FencingToken,Values="$resource_fencing_token" Name=tag:Service,Values=debezium \
+    Name=instance-state-name,Values=pending,running \
+    --query 'Reservations[].Instances[].InstanceId' --output text --region "$AWS_REGION" --no-cli-pager) \
+    || fail "B bootstrap cancellation inventory is unavailable"
+  for instance_id in $instances; do
+    [[ "$instance_id" != None ]] || continue
+    [[ "$instance_id" =~ ^i-[0-9a-f]{8,17}$ ]] || fail "Invalid B bootstrap cancellation target"
+    jq -n --arg encoded "$(base64 < "$script_dir/bootstrap-growth-b-stop.sh" | tr -d '\n')" \
+      --arg sha "$(sha256_file "$script_dir/bootstrap-growth-b-stop.sh")" --arg run "$run_id" --arg fence "$resource_fencing_token" \
+      '{commands:["set -eu; umask 077", "install -d -m 700 /opt/airbob/bootstrap-helpers",
+        ("printf %s " + $encoded + " | base64 --decode > /opt/airbob/bootstrap-helpers/stop-global-b.sh"),
+        ("printf '\''%s  %s\\n'\'' " + $sha + " /opt/airbob/bootstrap-helpers/stop-global-b.sh | sha256sum --check --status"),
+        ("bash /opt/airbob/bootstrap-helpers/stop-global-b.sh " + $run + " " + $fence)],executionTimeout:["180"]}' > "$payload"
+    assert_lease
+    command_id=$(aws ssm send-command --document-name AWS-RunShellScript --instance-ids "$instance_id" \
+      --parameters "file://$payload" --timeout-seconds 180 --query 'Command.CommandId' --output text \
+      --region "$AWS_REGION" --no-cli-pager) || fail "B bootstrap cancellation could not be sent; resources remain preserved"
+    [[ "$command_id" =~ ^[0-9a-f-]{36}$ ]] || fail "Invalid B cancellation command identity"
+    status=Pending
+    for attempt in $(seq 1 42); do
+      assert_lease
+      status=$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$instance_id" \
+        --query Status --output text --region "$AWS_REGION" --no-cli-pager 2>/dev/null || printf Pending)
+      case "$status" in Success) break ;; Failed|Cancelled|TimedOut) break ;; esac
+      sleep 5
+    done
+    [[ "$status" == Success ]] || fail "B bootstrap stop was not attested; resources remain preserved"
+  done
+}
+
 resolve_release_inputs() {
   local checksum_file="$temp_dir/bundle.sha256" dataset_manifest="$temp_dir/dataset-manifest.json"
   local bundle_manifest="$temp_dir/bundle-manifest.json"
-  local tagged_app_digest bundle_manifest_key
+  local tagged_app_digest bundle_manifest_key dataset_manifest_key
   app_digest=${IMAGE_DIGEST:-}
   [[ "$app_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "IMAGE_DIGEST must be one canonical sha256 digest"
   bundle_commit=${BUNDLE_COMMIT:-}
@@ -1729,13 +1863,19 @@ resolve_release_inputs() {
     '.schemaVersion == 1 and .commit == $commit and .archive == $archive and .sha256 == $sha' \
     "$bundle_manifest" >/dev/null || fail "service bundle manifest does not bind the archive"
 
+  dataset_manifest_key="datasets/$dataset_release/manifest.json"
+  [[ "$global_b_prepare_only" != true ]] || dataset_manifest_key="datasets/$dataset_release/aws-preparation.json"
   aws s3api get-object --bucket "$dataset_bucket" \
-    --key "datasets/$dataset_release/manifest.json" --version-id "$dataset_manifest_version_id" "$dataset_manifest" \
+    --key "$dataset_manifest_key" --version-id "$dataset_manifest_version_id" "$dataset_manifest" \
     --region "$AWS_REGION" --no-cli-pager >/dev/null || fail "dataset completion manifest is unavailable"
-  validate_operator_dataset_manifest "$dataset_manifest" "$dataset_release" \
-    || fail "dataset completion manifest is invalid"
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
-  load_release_smoke_inputs "$dataset_manifest"
+  if [[ "$global_b_prepare_only" == true ]]; then
+    validate_global_b_inputs "$dataset_manifest"
+  else
+    validate_operator_dataset_manifest "$dataset_manifest" "$dataset_release" \
+      || fail "dataset completion manifest is invalid"
+    load_release_smoke_inputs "$dataset_manifest"
+  fi
 
   app_repository=$(jq -er '.ecr_repositories.APP_IMAGE.url' <<<"$lab_contract")
   app_image_reference="$app_repository@$app_digest"
@@ -1777,12 +1917,16 @@ write_tfvars() {
     --argjson cache_enabled "$cache_enabled" --arg request_target "$request_target" \
     --argjson load_generator_enabled "$effective_load_generator" --arg dataset_release "${dataset_release:-}" \
     --arg dataset_manifest_sha256 "${dataset_manifest_sha256:-}" --arg database_bootstrap "$database_bootstrap" \
+    --argjson global_b_prepare_only "$global_b_prepare_only" \
+    --arg global_b_manifest_version_id "${dataset_manifest_version_id:-}" --arg global_b_lease_owner "${lease_owner:-}" \
     --arg rds_snapshot_identifier "$rds_snapshot_identifier" \
     --arg rds_snapshot_source_run_id "$rds_snapshot_source_run_id" \
     --arg rds_snapshot_source_resource_id "$rds_snapshot_source_resource_id" \
     --arg rds_engine_version "$rds_engine_version" \
     --arg dns_mode "$dns_mode" --arg alb_ingress_cidr "$alb_ingress_cidr" \
     '{run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
+    | jq --argjson selected "$global_b_prepare_only" --arg version "${dataset_manifest_version_id:-}" \
+      --arg owner "${lease_owner:-}" '. + {global_b_prepare_only:$selected,global_b_manifest_version_id:(if $selected then $version else "" end),global_b_lease_owner:(if $selected then $owner else "" end)}' \
     > "$current_tfvars"
 }
 
@@ -1855,6 +1999,12 @@ apply_lab() {
     )
   ' "$plan_json" >/dev/null \
     || fail "Lab plans must use one bounded launch template and no mixed-instance override"
+  if [[ "$global_b_prepare_only" == true ]]; then
+    jq -e '[.resource_changes[]? | select(.change.after != null) |
+      select(.type == "aws_autoscaling_group" or .type == "aws_lb" or .type == "aws_lb_listener" or
+        .type == "aws_lb_target_group" or .type == "aws_launch_template")] | length == 0' "$plan_json" >/dev/null \
+      || fail "B preparation forbids all application ASG/ALB resources"
+  fi
   assert_lease
   run_supervised_mutation "Terraform lab apply" \
     terraform -chdir="$lab_root" apply -input=false -lock-timeout=5m \
@@ -1906,6 +2056,7 @@ destroy_lab() {
   assert_lease
   prepare_lab_backend
   recover_prior_terraform_lock
+  [[ "$global_b_prepare_only" != true ]] || stop_global_b_bootstrap
   clear_lab_instance_shutdown_protection
   capture_terraform_state_inventory "$before_inventory"
   jq -e '
@@ -2524,7 +2675,7 @@ write_terraform_output_evidence() {
   if ! run_terraform_command "Terraform output evidence read" \
     -chdir="$lab_root" output -json > "$raw_outputs" 2>/dev/null ||
     ! jq -e '
-      (keys | sort) == [
+      (del(.global_b_preparation) | keys | sort) == [
         "persistent_resource_contract",
         "phase2_contract",
         "phase3_contract",
@@ -2716,7 +2867,13 @@ case "$action" in
     else
       alb_ingress_cidr=0.0.0.0/0
     fi
-    [[ "$rds_engine_version" =~ ^8\.0\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"
+    if [[ "$global_b_prepare_only" == true ]]; then
+      [[ "$mode:$policy:$dns_mode:$database_bootstrap:$load_generator_enabled:$rds_engine_version" == \
+        performance:isolated-read:direct-only:dump:false:8.4.11 ]] \
+        || fail "B prepare requires performance/isolated-read/direct-only/dump, no load generator, and MySQL 8.4.11"
+    else
+      [[ "$rds_engine_version" =~ ^8\.0\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"
+    fi
     validate_snapshot_bootstrap_inputs
     approved_rds_snapshot_identifier=$(jq -er '.approved_rds_snapshot_identifier // ""' <<<"$lab_contract") \
       || fail "foundation lab contract has no approved RDS snapshot field"
@@ -2758,6 +2915,10 @@ case "$action" in
       --arg bundleManifestVersionId "$bundle_manifest_version_id" --arg bundleManifestSha256 "$bundle_manifest_sha256" \
       '{schemaVersion:2,runId:$runId,expiresAt:$expiresAt,fencingToken:$fencingToken,mode:$mode,policy:$policy,dnsMode:$dnsMode,albIngressCidr:$albIngressCidr,imageDigest:$imageDigest,datasetRelease:$datasetRelease,datasetManifestVersionId:$datasetManifestVersionId,bundleCommit:$bundleCommit,bundleSha256:$bundleSha256,bundleChecksumVersionId:$bundleChecksumVersionId,bundleManifestVersionId:$bundleManifestVersionId,bundleManifestSha256:$bundleManifestSha256,datasetManifestSha256:$datasetManifestSha256,amiId:$amiId,ociOriginIpv4:$ociOriginIpv4,rdsEngineVersion:$rdsEngineVersion,databaseBootstrap:$databaseBootstrap,rdsSnapshotIdentifier:$rdsSnapshotIdentifier,rdsSnapshotSourceRunId:$rdsSnapshotSourceRunId,rdsSnapshotSourceResourceId:$rdsSnapshotSourceResourceId,cacheEnabled:$cacheEnabled,requestTarget:$requestTarget,loadGeneratorEnabled:$loadGeneratorEnabled,appImageReference:$appImageReference,infraImageReferences:$infraImageReferences}' \
       > "$manifest"
+    if [[ "$global_b_prepare_only" == true ]]; then
+      jq '. + {globalBPrepareOnly:true}' "$manifest" > "$temp_dir/operator-b.json"
+      mv "$temp_dir/operator-b.json" "$manifest"
+    fi
     write_run_manifest "$manifest"
     write_tfvars network false ""
     up_in_progress=true
@@ -2791,6 +2952,15 @@ case "$action" in
     phase3=$(run_terraform_command "Terraform Phase 3 data output" \
       -chdir="$lab_root" output -json phase3_contract)
     debezium_instance_id=$(jq -er '.services.debezium' <<<"$phase2")
+    if [[ "$global_b_prepare_only" == true ]]; then
+      current_stage=b-data-only-receipt
+      verify_global_b_receipt
+      write_terraform_output_evidence required
+      up_in_progress=false
+      printf 'run_id=%s\nfencing_token=%s\nexpires_at=%s\npreparation_complete=true\ndeployment_ready=false\nprivate_accounts_usable=false\n' \
+        "$run_id" "$fencing_token" "$expires_at"
+      exit 0
+    fi
     kafka_instance_id=$(jq -er '.services.kafka' <<<"$phase2")
     rds_instance_id=$(jq -er '.rds_instance_id' <<<"$phase3")
     rds_resource_id=$(jq -er '.rds_resource_id' <<<"$phase3")
@@ -2851,6 +3021,10 @@ case "$action" in
     valid_run_id "$run_id" || fail "RUN_ID is unavailable or invalid"
     manifest="$temp_dir/operator.json"
     read_run_manifest "$run_id" "$manifest"
+    global_b_prepare_only=$(jq -r '.globalBPrepareOnly // false' "$manifest")
+    [[ "$global_b_prepare_only" == true || "$global_b_prepare_only" == false ]] || fail "Invalid preparation selector in run manifest"
+    [[ "$action:$global_b_prepare_only" != switch:true ]] || fail "B data-only runs have no DNS/application switch"
+    dataset_manifest_version_id=$(jq -r '.datasetManifestVersionId // ""' "$manifest")
     resource_fencing_token=$(jq -er '.fencingToken' "$manifest")
     [[ "$resource_fencing_token" =~ ^[1-9][0-9]*$ ]] || fail "run manifest fencing token is invalid"
     expires_at=$(jq -er '.expiresAt' "$manifest")

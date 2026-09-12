@@ -230,6 +230,35 @@ variable "app_enabled" {
   default     = false
 }
 
+variable "global_b_prepare_only" {
+  description = "Explicit B/V28 data-only preparation; never creates an app ASG/ALB or starts CDC."
+  type        = bool
+  default     = false
+
+  validation {
+    condition = !var.global_b_prepare_only || (
+      !var.app_enabled && !var.load_generator_enabled && var.dns_mode == "direct-only" && var.mode == "performance" &&
+      var.database_bootstrap == "dump" && var.rds_engine_version == "8.4.11" && var.deployment_phase != "data-ready" &&
+      can(regex("^global-growth-b-[0-9a-f]{16}$", var.dataset_release)) &&
+      can(regex("^[A-Za-z0-9._~+/=-]+$", var.global_b_manifest_version_id)) && !contains(["null", "None"], var.global_b_manifest_version_id) &&
+      can(regex("^[A-Za-z0-9._:@/-]{3,128}$", var.global_b_lease_owner))
+    )
+    error_message = "B preparation needs exact B/8.4.11 inputs and live lease owner, dump/direct-only/performance, and no app/load/data-ready transition."
+  }
+}
+
+variable "global_b_manifest_version_id" {
+  description = "Exact S3 VersionId of the reviewed B aws-preparation.json wrapper."
+  type        = string
+  default     = ""
+}
+
+variable "global_b_lease_owner" {
+  description = "Exact current controller lease owner; no credentials or session tokens."
+  type        = string
+  default     = ""
+}
+
 variable "mode" {
   description = "Application capacity mode: single-node performance or elastic scaling."
   type        = string
@@ -373,15 +402,15 @@ variable "rds_snapshot_source_resource_id" {
 }
 
 variable "rds_engine_version" {
-  description = "Exact reviewed RDS MySQL 8.0 patch version recorded with each run."
+  description = "Exact reviewed MySQL patch; B data-only preparation requires 8.4.11."
   type        = string
   default     = ""
 
   validation {
     condition = (
       !contains(["services", "data-ready"], var.deployment_phase) ||
-      can(regex("^8\\.0\\.[0-9]+$", var.rds_engine_version))
+      (var.global_b_prepare_only ? var.rds_engine_version == "8.4.11" : can(regex("^8\\.0\\.[0-9]+$", var.rds_engine_version)))
     )
-    error_message = "services and data-ready require an exact MySQL 8.0 patch version."
+    error_message = "Legacy services require MySQL 8.0.x; explicit B data-only preparation requires 8.4.11."
   }
 }
