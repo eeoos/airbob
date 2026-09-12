@@ -57,8 +57,8 @@ jobs:
           [[ "$resolved_after" == "$AFTER_SHA" ]] || fail_scope 'after commit mismatch'
           [[ "$resolved_head" == "$AFTER_SHA" ]] || fail_scope 'checked-out commit mismatch'
 
-          # docker/aws-mirror/** and docker/elasticsearch/** are released by
-          # infra-images.yml, not here, avoiding an uncoordinated cross-workflow race.
+          # AWS mirror images are released by infra-images.yml independently.
+          # OCI builds Elasticsearch and Debezium from this checked-out source.
           scope_paths=(
             'src/main/**'
             'build.gradle'
@@ -72,6 +72,7 @@ jobs:
             'docker-compose.oci.yml'
             'debezium-config/**'
             'docker/debezium/**'
+            'docker/elasticsearch/**'
             'docker/kafka/**'
             'docker/mysql/init/**'
             'logstash/**'

@@ -428,6 +428,7 @@ services:
       - action.auto_create_index=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - path.repo=/usr/share/elasticsearch/backup
+      - s3.client.airbob_dataset_producer.region=ap-northeast-2
     volumes:
       - es-data:/usr/share/elasticsearch/data
       - es-backup:/usr/share/elasticsearch/backup
