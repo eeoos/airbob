@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "global-growth-b-b0fbda4d12511eeb",
+  "counts": {
+    "sealedBaseline": {
+      "tables": 32,
+      "rows": 160882380,
+      "accommodations": 730529,
+      "reservations": 10000268
+    },
+    "frozenNativeHandoffRows": 225303464,
+    "maximumFullBusinessDatabasesAtOnce": 1,
+    "sqlReimportsDuringNormalDevAdoption": 0,
+    "verifiedNativeDocuments": 657358,
+    "normalDevInventoryRows": 64421084,
+    "normalDevStartupInsertedRows": 363971,
+    "normalDevStartupInsertStatements": 644,
+    "usableRepresentativeAccounts": 3,
+    "unusableQualificationAccounts": 121,
+    "cdcDirectOutboxProbeRows": 1,
+    "cdcOutboxBefore": 0,
+    "cdcOutboxAfterInsert": 1,
+    "cdcOutboxAfterCleanup": 0,
+    "storageSamples": 551,
+    "storageFailedOrPartialSamples": 53,
+    "offlineBContractTestsPassed": 381,
+    "offlinePublicationTestsPassed": 13,
+    "offlineInfrastructureTestsPassed": 9,
+    "offlineTestsPassed": 403,
+    "offlineTestsSkipped": 0,
+    "offlineExpectedRejectionsChecked": 2
+  },
+  "bytes": {
+    "mysqlMetadataDataEstimate": 32878084096,
+    "mysqlMetadataIndexEstimate": 18693406720,
+    "mysqlBusinessTablespaceAllocated": 55454298112,
+    "mysqlDataDirectoryAllocated": 55705845760,
+    "serviceEsStore": 808000801,
+    "serviceEsDataDirectoryAllocated": 808415232,
+    "hostNativeRepositoryLogical": 807980289,
+    "hostNativeRepositoryAllocated": 871219200,
+    "sealedSqlGzipLogical": 6168231584,
+    "sealedSqlGzipAllocated": 6175055872,
+    "macFree": 114047471616,
+    "dockerVmFree": 395311394816,
+    "dockerRawLogical": 494384709632,
+    "dockerRawHostAllocated": 63783436288,
+    "sampledHandoffMinimumMacFree": 113670967296,
+    "sampledHandoffMinimumDockerVmFree": 394931666944
+  },
+  "verification": {
+    "localHandoff": "NORMAL_DEV_LOCAL_HANDOFF_COMPLETE",
+    "sealedDataset": "DATASET_DB_AND_HTTP_QUALIFIED",
+    "firstRepeat": "INHERITED_SUCCESSFUL_PROOF",
+    "secondRepeat": "REEXECUTED_AND_PASSED",
+    "datasetRegenerationForContinuation": "NOT_PERFORMED",
+    "allRowsAndDdlAfterFinalReset": "PASSED",
+    "independentDumpTemporalValidation": "ZERO_MISMATCHES_IN_SELECTED_SOURCE_ZONE_SCOPE",
+    "nativeSnapshotFullDocumentAndMappingComparison": "PASSED",
+    "sameDatabaseVolumeAdoption": "PASSED_WITHOUT_SQL_REIMPORT",
+    "appReadiness": "UP_AT_RECORDED_FINAL_OBSERVATION",
+    "currentDevDatabase": "WRITABLE_AFTER_FROZEN_NATIVE_HANDOFF",
+    "representativeLoginIdentityRoleReadsAndLogout": "PASSED",
+    "cdc": "PASSED_SINGLE_DIRECT_OUTBOX_EVENT_AND_CLEANUP",
+    "newBusinessApiWriteScenarioInCdcProbe": "NOT_EXECUTED",
+    "offlineContractsWithoutPrivateEtlCheckout": "PASSED",
+    "actualJavaBcryptContract": "PASSED",
+    "missingBcryptJar": "REJECTED_AS_FAILURE_WITHOUT_SKIP",
+    "modifiedPythonFixture": "REJECTED_BY_CHECKSUM",
+    "remotePullRequestCi": "NOT_RUN_AT_SUMMARY_CREATION",
+    "cloudDeploymentAndRestore": "NOT_VALIDATED",
+    "koreanMidnightInventoryHorizonIssue": "NOT_FIXED",
+    "storageContinuousCoverage": "NOT_CLAIMED_ERRORS_AND_GAPS_RETAINED",
+    "storageAdditiveTotal": "PROHIBITED_OVERLAPPING_MEASUREMENTS",
+    "mysqlMetadataDataAndIndex": "CACHED_ESTIMATES_WITHOUT_ANALYZE",
+    "dumpHashAtFinalSpaceObservation": "PRIOR_SEALED_PROOF_NOT_RECOMPUTED",
+    "rawArtifactsAndPrivateMaterial": "RETAINED_OUTSIDE_GIT"
+  },
+  "evidence": [
+    {
+      "name": "normal-dev-completion",
+      "sha256": "412d0bd5b69935a44b1394ca387ce773536e00ff75e9242b927599ff8aa73b35"
+    },
+    {
+      "name": "normal-dev-completion-report",
+      "sha256": "f88c437da7671ee77101582183b8373faddfd43c7f9d3ce8ee909a09bd465926"
+    },
+    {
+      "name": "bRoundtrip",
+      "sha256": "2d296b46e293b512ed1e17f07223265cdbc712ac78c90b36164bed8350b3253a"
+    },
+    {
+      "name": "bIndependentAudit",
+      "sha256": "36011111e1067c633d472f4616d1741105c6473d50f9f0ba5ecd1c628c492338"
+    },
+    {
+      "name": "nativeAdoption",
+      "sha256": "2f216de74ed1cd132cc4a787f7c419b48cf297d845134ae7a84ac41345693ff3"
+    },
+    {
+      "name": "nativeRestore",
+      "sha256": "60afb1a4a1324a451404e4ae004ee40bb69473b253c7a9c3453f06afc0bef834"
+    },
+    {
+      "name": "runtime",
+      "sha256": "863f8aa192fe192b6c6c7fc7d596ba152ee2f5d4ad8ceb4862a07b34a7126f5b"
+    },
+    {
+      "name": "writeEnabled",
+      "sha256": "bbcd11106f08f39aeaedf761fd6aca107e93bb98c628edb5e139ec16bc93fab9"
+    },
+    {
+      "name": "representativeHttp",
+      "sha256": "b32ce4711943fc8a1fb865ac4229c66b9145a11adf92767e7ccb2bf68d4f67b9"
+    },
+    {
+      "name": "usableAccounts",
+      "sha256": "86e18b125ce59c2c22702e0258b194c0584ef53fdf791f2c866540c60f7357dc"
+    },
+    {
+      "name": "cdcDelivery",
+      "sha256": "089a111a1119ac8671929b32868a41273e52f5b38c6e85c5eeed4d6189ae1676"
+    },
+    {
+      "name": "cdcCleanup",
+      "sha256": "8f7d4602cc434a57a9a60492af5153a71ccc9f8ffc748590c085e6e69bdc21d4"
+    },
+    {
+      "name": "finalStorage",
+      "sha256": "a6ca8a0f568f60eb62e7ee639398ff27c40c0a1f6ad21d0d8db41a3a3f22a92c"
+    },
+    {
+      "name": "finalDockerRaw",
+      "sha256": "1ed65316382f4f7c3846333b2cbec4ca4eed2d68a132adc953527fd88f14c713"
+    },
+    {
+      "name": "capacitySummary",
+      "sha256": "e70e29986cf0d94ac72b56a4f52e7f87772d9969489e12886b076787567c51ff"
+    },
+    {
+      "name": "cadenceAudit",
+      "sha256": "f7195f4aaa8c5f3d056f8e86e0c27db3decf7278acaa7f3902ad3b383c75e717"
+    },
+    {
+      "name": "offline-ci-workflow",
+      "sha256": "0617258cb091279c8cea8de20580d87993605103f2ff5e0d16bbe7402c9cf9f2"
+    },
+    {
+      "name": "offline-gradle-test-dependency",
+      "sha256": "cab28bb3a6e58973632cd6d99a10eb51620313ce7484ab93fce962d031229bb0"
+    },
+    {
+      "name": "offline-local-service-test",
+      "sha256": "2e9edd36a4c1dc53a7a9dcf1094d6be1e64dcf83bb57ca129e52c53233975464"
+    },
+    {
+      "name": "offline-aws-account-test",
+      "sha256": "568e12cf0e8ee88937796d34e8640d2bf0e9383339193efdfd1255479a044d8f"
+    },
+    {
+      "name": "offline-etl-fixture-checksums",
+      "sha256": "795aac923182eb9e32ca3ce71ee13a2a7c327c0d9edbca6701d3b22d6bc75d7c"
+    },
+    {
+      "name": "sealed-sql-gzip",
+      "sha256": "b0fbda4d12511eeb8182ab4563ae9e64c8158e78fd50f22c8462f2eb95a2dc00"
+    }
+  ]
+}

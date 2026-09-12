@@ -19,6 +19,12 @@ configurations {
 		extendsFrom annotationProcessor
 	}
 	asciidoctorExt
+	// Resolve only the library used by the offline Python/Java credential contract.
+	growthBContractTestRuntime {
+		canBeConsumed = false
+		canBeResolved = true
+		transitive = false
+	}
 }
 
 repositories {
@@ -36,6 +42,8 @@ dependencyManagement {
 }
 
 dependencies {
+	growthBContractTestRuntime 'org.mindrot:jbcrypt:0.4'
+
 	// Spring Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 
@@ -127,6 +135,14 @@ dependencies {
 }
 
 
+tasks.register('prepareGrowthBContractTestRuntime', Sync) {
+	group = 'verification'
+	description = 'Prepare BCrypt for the offline Global B credential contract tests.'
+	from configurations.growthBContractTestRuntime
+	into layout.buildDirectory.dir('growth-b-contract-test-runtime')
+}
+
+
 tasks.named('test') {
 	outputs.dir snippetsDir
 	useJUnitPlatform()
@@ -151,7 +167,8 @@ tasks.named('jar') {
 }
 
 tasks.named('resolveMainClassName') {
-	dependsOn tasks.named('copyDocument')
+	// Preserve packaging order without pulling documentation and tests into bootRun.
+	mustRunAfter tasks.named('copyDocument')
 }
 
 build {
