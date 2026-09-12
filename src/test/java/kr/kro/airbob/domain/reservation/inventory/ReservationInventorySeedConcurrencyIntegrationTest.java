@@ -35,7 +35,7 @@ class ReservationInventorySeedConcurrencyIntegrationTest {
 	private static final LocalDate END_EXCLUSIVE = START.plusDays(3);
 
 	@Container
-	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.33")
+	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
 		.withDatabaseName("airbobdb_inventory_seed_concurrency")
 		.withUsername("airbob")
 		.withPassword("airbob");

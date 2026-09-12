@@ -35,6 +35,9 @@ validator_agreement_line=$(grep -n 'bash infra/aws/tests/benchmark-dataset-v2-va
   || fail 'CI must execute the validator agreement wrapper after pinned k6 installation'
 assert_contains "$ci_workflow" 'source infra/aws/toolchain.env'
 assert_contains "$ci_workflow" 'AIRBOB_K6_LINUX_AMD64_SHA256'
+assert_contains "$ci_workflow" 'name: Verify Global B offline Python contracts (Python 3.12+)'
+assert_contains "$ci_workflow" 'sys.version_info >= (3, 12)'
+assert_contains "$ci_workflow" "python3 -m unittest discover -s infra/aws/tests -p 'test_growth_b_*.py' -v"
 
 assert_contains "$release_validator" 'wrapper does not satisfy the fixed v2 envelope'
 assert_contains "$release_validator" 'validator payload does not match the trusted release-builder contract'

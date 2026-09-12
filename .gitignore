@@ -134,3 +134,9 @@ override.tf.json
 **/zz_backend.generated.tf
 **/backend.generated.hcl
 !/infra/aws/toolchain.env
+
+# Independent ETL checkout for the global dataset work (versioned in its own repository).
+/.etl-global-b/
+
+# Verified local Java runtimes
+.toolchains/

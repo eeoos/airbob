@@ -1,4 +1,4 @@
-ARG APP_BASE_IMAGE=docker.io/library/eclipse-temurin@sha256:371da296b8cb74c7e53fbe7083d5374befc0011b493231d97d45fa789915e434
+ARG APP_BASE_IMAGE=docker.io/library/eclipse-temurin@sha256:d35199d74a3b2dff1bfb435d9adde4ef974e74a7d2a4fcb3079063c55926edb5
 FROM ${APP_BASE_IMAGE}
 
 WORKDIR /app

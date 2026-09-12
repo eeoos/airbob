@@ -34,6 +34,39 @@ locals {
         Resource = "*"
       },
       {
+        Sid      = "ReadBootstrapOrchestrationLease"
+        Effect   = "Allow"
+        Action   = "dynamodb:GetItem"
+        Resource = aws_dynamodb_table.orchestration_lease.arn
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "dynamodb:LeadingKeys" = [local.lease_lock_id]
+          }
+          Null = {
+            "dynamodb:LeadingKeys" = "false"
+          }
+        }
+      },
+      {
+        Sid      = "DescribeBootstrapRds"
+        Effect   = "Allow"
+        Action   = "rds:DescribeDBInstances"
+        Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:db:airbob-$${aws:PrincipalTag/RunId}"
+      },
+      {
+        # CloudWatch GetMetricStatistics is already bounded by MonitoringReadOnly;
+        # this adds only the missing ASG read API, which has no resource ARN scope.
+        Sid      = "DescribeBootstrapAutoScaling"
+        Effect   = "Allow"
+        Action   = "autoscaling:DescribeAutoScalingGroups"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
         Sid    = "ReadImmutableRuntimeInputs"
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:GetObjectVersion"]
@@ -1316,10 +1349,13 @@ locals {
         }
       },
       {
-        Sid      = "UseDefaultOptionGroupForDumpLabDb"
-        Effect   = "Allow"
-        Action   = "rds:CreateDBInstance"
-        Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0"
+        Sid    = "UseDefaultOptionGroupForDumpLabDb"
+        Effect = "Allow"
+        Action = "rds:CreateDBInstance"
+        Resource = [
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0",
+          "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-4",
+        ]
       },
       {
         Sid    = "UseRunBoundConfigurationForDumpLabDb"
@@ -1369,10 +1405,13 @@ locals {
           Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:snapshot:${var.approved_rds_snapshot_identifier}"
         },
         {
-          Sid      = "UseDefaultOptionGroupForRestoreLabDb"
-          Effect   = "Allow"
-          Action   = "rds:RestoreDBInstanceFromDBSnapshot"
-          Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0"
+          Sid    = "UseDefaultOptionGroupForRestoreLabDb"
+          Effect = "Allow"
+          Action = "rds:RestoreDBInstanceFromDBSnapshot"
+          Resource = [
+            "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-0",
+            "arn:aws:rds:${var.aws_region}:${var.account_id}:og:default:mysql-8-4",
+          ]
         },
         {
           Sid    = "UseRunBoundConfigurationForRestoreLabDb"

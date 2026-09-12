@@ -34,6 +34,6 @@ public final class TimeShapeTimeZoneResolver implements TimeZoneResolver {
 
 	private static final class EngineHolder {
 
-		private static final TimeZoneEngine INSTANCE = TimeZoneEngine.initialize();
+		private static final TimeZoneEngine INSTANCE = TimeZoneRuntimeCompatibility.initializeCompatibleEngine();
 	}
 }

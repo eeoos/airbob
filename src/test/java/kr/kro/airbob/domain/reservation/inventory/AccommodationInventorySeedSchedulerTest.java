@@ -91,7 +91,7 @@ class AccommodationInventorySeedSchedulerTest {
 		assertThat(scheduled.scheduler())
 			.isEqualTo(ACCOMMODATION_INVENTORY_SEED_TASK_SCHEDULER);
 		assertThat(scheduled.fixedDelayString())
-			.isEqualTo("${reservation.inventory.seed.interval:1h}");
+			.isEqualTo("${reservation.inventory.seed.interval:5m}");
 	}
 
 	@Test

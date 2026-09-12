@@ -6,7 +6,7 @@ locals {
     # cycle with the NAT instance's stored create-before-destroy dependencies.
     toset(["nat", "probe"]),
     local.services_enabled ? local.service_role_names : toset([]),
-    local.services_enabled ? toset(["app"]) : toset([]),
+    local.application_infrastructure_enabled ? toset(["app"]) : toset([]),
     local.services_enabled && var.load_generator_enabled ? toset(["loadgen"]) : toset([]),
   )
   data_plane_host_roles = local.services_enabled ? local.service_role_names : toset([])
@@ -30,7 +30,7 @@ locals {
 }
 
 resource "aws_iam_role_policy" "app_data_plane" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   name = "airbob-performance-lab-app-data-plane"
   role = aws_iam_role.host["app"].id
@@ -198,7 +198,7 @@ resource "aws_iam_role_policy" "probe_egress" {
 }
 
 resource "aws_iam_role_policy" "monitoring_discovery" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   name = "airbob-performance-lab-monitoring-discovery"
   role = aws_iam_role.host["monitoring"].id
@@ -227,6 +227,39 @@ resource "aws_iam_role_policy" "data_bootstrap" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      {
+        Sid      = "ReadBootstrapOrchestrationLease"
+        Effect   = "Allow"
+        Action   = "dynamodb:GetItem"
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.account_id}:table/${local.lab_contract.lease_table_name}"
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "dynamodb:LeadingKeys" = [local.lab_contract.lease_lock_id]
+          }
+          Null = {
+            "dynamodb:LeadingKeys" = "false"
+          }
+        }
+      },
+      {
+        # DescribeDBInstances supports a DB ARN; the runner names this instance.
+        Sid      = "DescribeBootstrapRds"
+        Effect   = "Allow"
+        Action   = "rds:DescribeDBInstances"
+        Resource = module.rds[0].arn
+      },
+      {
+        # These two read APIs do not support resource-level authorization.
+        Sid      = "ReadBootstrapCapacityAndWriters"
+        Effect   = "Allow"
+        Action   = ["autoscaling:DescribeAutoScalingGroups", "cloudwatch:GetMetricStatistics"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
       {
         Sid      = "ReadSelectedDatasetRelease"
         Effect   = "Allow"
@@ -267,7 +300,7 @@ resource "aws_iam_role_policy" "data_bootstrap" {
 }
 
 resource "aws_iam_role_policy" "elasticsearch_snapshot" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   name = "airbob-performance-lab-elasticsearch-snapshot"
   role = aws_iam_role.host["elasticsearch"].id

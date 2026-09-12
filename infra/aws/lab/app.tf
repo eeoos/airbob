@@ -1,5 +1,5 @@
 locals {
-  app_images_env = local.services_enabled ? join("\n", [
+  app_images_env = local.application_infrastructure_enabled ? join("\n", [
     "APP_IMAGE=${var.app_image_reference}",
     "NODE_EXPORTER_IMAGE=${lookup(var.infra_image_references, "NODE_EXPORTER_IMAGE", "")}",
   ]) : ""
@@ -9,12 +9,12 @@ locals {
     app_image_reference                = var.app_image_reference
     bundle_sha256                      = var.bundle_sha256
     dataset_manifest_sha256            = var.dataset_manifest_sha256
-    rds_resource_id                    = local.services_enabled ? module.rds[0].resource_id : null
+    rds_resource_id                    = local.application_infrastructure_enabled ? module.rds[0].resource_id : null
     measurement_policy                 = var.measurement_policy
     accommodation_detail_cache_enabled = var.accommodation_detail_cache_enabled
   }))
 
-  app_runtime_contract = local.services_enabled ? join("\n", [
+  app_runtime_contract = local.application_infrastructure_enabled ? join("\n", [
     "AIRBOB_RUN_ID=${var.run_id}",
     "AIRBOB_RESOURCE_FENCING_TOKEN_SHA256=${sha256(tostring(var.fencing_token))}",
     "AIRBOB_MEASUREMENT_POLICY=${var.measurement_policy}",
@@ -24,7 +24,7 @@ locals {
     "AIRBOB_RUNTIME_REVISION=${local.app_runtime_revision}",
   ]) : ""
 
-  app_user_data = local.services_enabled ? templatefile("${path.module}/templates/host-user-data.sh.tftpl", {
+  app_user_data = local.application_infrastructure_enabled ? templatefile("${path.module}/templates/host-user-data.sh.tftpl", {
     mode                   = "service"
     service                = "app"
     region                 = var.aws_region
@@ -42,7 +42,7 @@ locals {
     runtime_contract       = local.app_runtime_contract
   }) : ""
 
-  start_app_document = local.services_enabled ? join("\n", [
+  start_app_document = local.application_infrastructure_enabled ? join("\n", [
     "install -d -m 700 /opt/airbob/release/infra/aws/scripts",
     "cat > /opt/airbob/release/infra/aws/scripts/verify-app-runtime-env.sh <<'AIRBOB_APP_ENV_VALIDATOR'",
     file("${path.module}/../scripts/verify-app-runtime-env.sh"),
@@ -54,7 +54,7 @@ locals {
 
 module "alb" {
   source = "./modules/alb"
-  count  = local.services_enabled ? 1 : 0
+  count  = local.application_infrastructure_enabled ? 1 : 0
 
   name_prefix       = local.bounded_name_prefix
   vpc_id            = module.network.vpc_id
@@ -68,7 +68,7 @@ module "alb" {
 
 module "app_asg" {
   source = "./modules/app-asg"
-  count  = local.services_enabled ? 1 : 0
+  count  = local.application_infrastructure_enabled ? 1 : 0
 
   name_prefix                         = "airbob-${var.run_id}"
   ami_id                              = data.aws_ami.selected.id
@@ -97,7 +97,7 @@ module "app_asg" {
 }
 
 resource "aws_ssm_document" "start_app" {
-  count = local.services_enabled ? 1 : 0
+  count = local.application_infrastructure_enabled ? 1 : 0
 
   name            = "airbob-${var.run_id}-start-app"
   document_type   = "Command"
@@ -119,7 +119,7 @@ resource "aws_ssm_document" "start_app" {
 }
 
 resource "aws_ssm_association" "app" {
-  count = local.services_enabled && var.app_enabled ? 1 : 0
+  count = local.application_infrastructure_enabled && var.app_enabled ? 1 : 0
 
   name                             = aws_ssm_document.start_app[0].name
   association_name                 = "airbob-${var.run_id}-app-${substr(local.app_runtime_revision, 0, 12)}"

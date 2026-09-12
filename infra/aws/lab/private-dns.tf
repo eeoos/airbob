@@ -5,14 +5,16 @@ resource "aws_route53_zone_association" "private" {
 }
 
 locals {
-  private_dns_records = local.services_enabled ? {
+  private_dns_records = local.services_enabled ? (var.global_b_prepare_only ? {
+    "connect.lab.airbob.internal" = module.service_hosts.private_ips.debezium
+    } : {
     "redis-general.lab.airbob.internal" = module.service_hosts.private_ips.redis
     "redis-cache.lab.airbob.internal"   = module.service_hosts.private_ips.redis
     "kafka.lab.airbob.internal"         = module.service_hosts.private_ips.kafka
     "connect.lab.airbob.internal"       = module.service_hosts.private_ips.debezium
     "elasticsearch.lab.airbob.internal" = module.service_hosts.private_ips.elasticsearch
     "monitoring.lab.airbob.internal"    = module.service_hosts.private_ips.monitoring
-  } : {}
+  }) : {}
 }
 
 resource "aws_route53_record" "private_service" {

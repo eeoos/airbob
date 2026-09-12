@@ -4,6 +4,11 @@ variable "name" {
 
 variable "engine_version" {
   type = string
+
+  validation {
+    condition     = can(regex("^8\\.(0|4)\\.[0-9]+$", var.engine_version))
+    error_message = "engine_version must be an explicit MySQL 8.0.x or 8.4.x patch version."
+  }
 }
 
 variable "bootstrap_mode" {

@@ -1,0 +1,223 @@
+[
+  {
+    "id": "vancouver-november-local",
+    "kind": "local",
+    "zone": "America/Vancouver",
+    "input": "2026-11-15T15:00:00",
+    "expected": {
+      "status": "VALID",
+      "validOffsetsSeconds": [
+        -25200
+      ],
+      "offsetSeconds": -25200,
+      "instant": "2026-11-15T22:00:00Z"
+    }
+  },
+  {
+    "id": "vancouver-november-today",
+    "kind": "instant",
+    "zone": "America/Vancouver",
+    "input": "2026-11-15T07:30:00Z",
+    "expected": {
+      "localDate": "2026-11-15",
+      "localTime": "00:30:00",
+      "offsetSeconds": -25200
+    }
+  },
+  {
+    "id": "coyhaique-supported",
+    "kind": "local",
+    "zone": "America/Coyhaique",
+    "input": "2026-07-15T15:00:00",
+    "expected": {
+      "status": "VALID",
+      "validOffsetsSeconds": [
+        -10800
+      ],
+      "offsetSeconds": -10800,
+      "instant": "2026-07-15T18:00:00Z"
+    }
+  },
+  {
+    "id": "seoul-local-date",
+    "kind": "instant",
+    "zone": "Asia/Seoul",
+    "input": "2026-01-01T00:30:00Z",
+    "expected": {
+      "localDate": "2026-01-01",
+      "localTime": "09:30:00",
+      "offsetSeconds": 32400
+    }
+  },
+  {
+    "id": "new-york-local-date",
+    "kind": "instant",
+    "zone": "America/New_York",
+    "input": "2026-01-01T00:30:00Z",
+    "expected": {
+      "localDate": "2025-12-31",
+      "localTime": "19:30:00",
+      "offsetSeconds": -18000
+    }
+  },
+  {
+    "id": "new-york-gap",
+    "kind": "local",
+    "zone": "America/New_York",
+    "input": "2026-03-08T02:30:00",
+    "expected": {
+      "status": "GAP_REJECTED",
+      "validOffsetsSeconds": [],
+      "offsetSeconds": null,
+      "instant": null
+    }
+  },
+  {
+    "id": "new-york-overlap-first",
+    "kind": "local",
+    "zone": "America/New_York",
+    "input": "2026-11-01T01:30:00",
+    "expected": {
+      "status": "OVERLAP_FIRST",
+      "validOffsetsSeconds": [
+        -14400,
+        -18000
+      ],
+      "offsetSeconds": -14400,
+      "instant": "2026-11-01T05:30:00Z"
+    }
+  },
+  {
+    "id": "sydney-summer",
+    "kind": "local",
+    "zone": "Australia/Sydney",
+    "input": "2026-01-15T15:00:00",
+    "expected": {
+      "status": "VALID",
+      "validOffsetsSeconds": [
+        39600
+      ],
+      "offsetSeconds": 39600,
+      "instant": "2026-01-15T04:00:00Z"
+    }
+  },
+  {
+    "id": "sydney-winter",
+    "kind": "local",
+    "zone": "Australia/Sydney",
+    "input": "2026-07-15T15:00:00",
+    "expected": {
+      "status": "VALID",
+      "validOffsetsSeconds": [
+        36000
+      ],
+      "offsetSeconds": 36000,
+      "instant": "2026-07-15T05:00:00Z"
+    }
+  },
+  {
+    "id": "sydney-gap",
+    "kind": "local",
+    "zone": "Australia/Sydney",
+    "input": "2026-10-04T02:30:00",
+    "expected": {
+      "status": "GAP_REJECTED",
+      "validOffsetsSeconds": [],
+      "offsetSeconds": null,
+      "instant": null
+    }
+  },
+  {
+    "id": "sydney-overlap-first",
+    "kind": "local",
+    "zone": "Australia/Sydney",
+    "input": "2026-04-05T02:30:00",
+    "expected": {
+      "status": "OVERLAP_FIRST",
+      "validOffsetsSeconds": [
+        39600,
+        36000
+      ],
+      "offsetSeconds": 39600,
+      "instant": "2026-04-04T15:30:00Z"
+    }
+  },
+  {
+    "id": "adelaide-summer-half-hour",
+    "kind": "local",
+    "zone": "Australia/Adelaide",
+    "input": "2026-01-15T15:00:00",
+    "expected": {
+      "status": "VALID",
+      "validOffsetsSeconds": [
+        37800
+      ],
+      "offsetSeconds": 37800,
+      "instant": "2026-01-15T04:30:00Z"
+    }
+  },
+  {
+    "id": "adelaide-winter-half-hour",
+    "kind": "local",
+    "zone": "Australia/Adelaide",
+    "input": "2026-07-15T15:00:00",
+    "expected": {
+      "status": "VALID",
+      "validOffsetsSeconds": [
+        34200
+      ],
+      "offsetSeconds": 34200,
+      "instant": "2026-07-15T05:30:00Z"
+    }
+  },
+  {
+    "id": "calendar-leap-end",
+    "kind": "calendar",
+    "zone": null,
+    "input": "2023-11-30",
+    "expected": {
+      "plusThreeMonths": "2024-02-29",
+      "inventoryEndExclusive": "2024-03-07"
+    }
+  },
+  {
+    "id": "calendar-common-end",
+    "kind": "calendar",
+    "zone": null,
+    "input": "2024-11-30",
+    "expected": {
+      "plusThreeMonths": "2025-02-28",
+      "inventoryEndExclusive": "2025-03-07"
+    }
+  },
+  {
+    "id": "calendar-leap-start",
+    "kind": "calendar",
+    "zone": null,
+    "input": "2024-02-29",
+    "expected": {
+      "plusThreeMonths": "2024-05-29",
+      "inventoryEndExclusive": "2024-06-05"
+    }
+  },
+  {
+    "id": "calendar-april-end",
+    "kind": "calendar",
+    "zone": null,
+    "input": "2026-01-31",
+    "expected": {
+      "plusThreeMonths": "2026-04-30",
+      "inventoryEndExclusive": "2026-05-07"
+    }
+  },
+  {
+    "id": "calendar-year-rollover",
+    "kind": "calendar",
+    "zone": null,
+    "input": "2026-12-31",
+    "expected": {
+      "plusThreeMonths": "2027-03-31",
+      "inventoryEndExclusive": "2027-04-07"
+    }
+  }
+]

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+install -d -m 700 /var/lib/airbob /etc/airbob /opt/airbob
+printf '%s\n' debezium > /etc/airbob/service-name
+printf '%s\n' '${region}' > /etc/airbob/region
+systemctl enable --now amazon-ssm-agent
+# These are bootstrap OS utilities only. The preparation entry installs the
+# checksum-pinned AWS CLI and authenticates the separately staged runtime.
+command -v curl >/dev/null || dnf install -y curl-minimal
+dnf install -y jq tar gzip unzip findutils util-linux docker
+systemctl enable --now docker
+printf '%s\n' ready > /var/lib/airbob/b-host-ready

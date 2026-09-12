@@ -6,7 +6,7 @@ locals {
     evidence_bucket = local.lab_contract.evidence_bucket_name
     bundle_sha256   = var.bundle_sha256
   })
-  bootstrap_data_command = local.services_enabled ? join("\n", [
+  legacy_bootstrap_data_command = local.legacy_services_enabled ? join("\n", [
     "set -euo pipefail",
     "umask 077",
     "install -d -m 700 /opt/airbob/bootstrap-helpers",
@@ -45,7 +45,7 @@ locals {
 }
 
 resource "aws_ssm_document" "start_service" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   name            = "airbob-${var.run_id}-start-service"
   document_type   = "Command"
@@ -67,7 +67,7 @@ resource "aws_ssm_document" "start_service" {
 }
 
 resource "aws_ssm_association" "core_services" {
-  for_each = local.services_enabled ? toset(["redis", "kafka", "elasticsearch"]) : toset([])
+  for_each = local.legacy_services_enabled ? toset(["redis", "kafka", "elasticsearch"]) : toset([])
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-${each.key}"
@@ -85,7 +85,7 @@ resource "aws_ssm_association" "core_services" {
 }
 
 resource "aws_ssm_association" "debezium" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-debezium"
@@ -102,7 +102,7 @@ resource "aws_ssm_association" "debezium" {
 }
 
 resource "aws_ssm_association" "monitoring" {
-  count = local.services_enabled ? 1 : 0
+  count = local.legacy_services_enabled ? 1 : 0
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-monitoring"

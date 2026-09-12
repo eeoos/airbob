@@ -1,4 +1,5 @@
 locals {
+  parameter_group_family                 = startswith(var.engine_version, "8.4.") ? "mysql8.4" : "mysql8.0"
   dump_storage_type                      = "gp3"
   dump_baseline_iops                     = 3000
   dump_baseline_storage_throughput_mibps = 125
@@ -12,7 +13,7 @@ resource "aws_db_subnet_group" "this" {
 
 resource "aws_db_parameter_group" "this" {
   name   = var.name
-  family = "mysql8.0"
+  family = local.parameter_group_family
   tags   = var.tags
 
   parameter {

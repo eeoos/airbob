@@ -75,11 +75,11 @@ output "phase2_contract" {
     private_dns_zone_id          = local.lab_contract.private_dns_zone_id
     instance_types               = { for service, host in local.service_hosts : service => host.instance_type }
     redis_topology = {
-      host_count      = 1
-      redis_processes = 2
-      exporters       = 2
-      general         = "redis-general.lab.airbob.internal:6379"
-      cache           = "redis-cache.lab.airbob.internal:6380"
+      host_count      = var.global_b_prepare_only ? 0 : 1
+      redis_processes = var.global_b_prepare_only ? 0 : 2
+      exporters       = var.global_b_prepare_only ? 0 : 2
+      general         = var.global_b_prepare_only ? null : "redis-general.lab.airbob.internal:6379"
+      cache           = var.global_b_prepare_only ? null : "redis-cache.lab.airbob.internal:6380"
     }
   }
 
@@ -99,7 +99,7 @@ output "phase3_contract" {
   value = {
     dataset_release            = var.dataset_release
     dataset_run_id             = try(local.dataset_manifest.datasetRunId, null)
-    release_kind               = local.dataset_release_kind
+    release_kind               = var.global_b_prepare_only ? try(local.dataset_manifest.kind, null) : local.dataset_release_kind
     profile_version            = local.dataset_profile_version
     production_spec_key        = try(local.dataset_profile_contract.production_spec_key, null)
     database_bootstrap         = var.database_bootstrap
@@ -132,32 +132,32 @@ output "phase4_contract" {
     mode                               = var.mode
     measurement_policy                 = var.measurement_policy
     accommodation_detail_cache_enabled = var.accommodation_detail_cache_enabled
-    instance_type                      = local.services_enabled ? module.app_asg[0].contract.instance_type : "c6i.large"
-    capacity = local.services_enabled ? {
+    instance_type                      = local.application_infrastructure_enabled ? module.app_asg[0].contract.instance_type : "c6i.large"
+    capacity = local.application_infrastructure_enabled ? {
       min     = module.app_asg[0].contract.min
       desired = module.app_asg[0].contract.desired
       max     = module.app_asg[0].contract.max
     } : local.app_capacity
-    app_subnet_count                    = local.services_enabled ? module.app_asg[0].contract.subnet_count : length(local.app_subnet_ids)
+    app_subnet_count                    = local.application_infrastructure_enabled ? module.app_asg[0].contract.subnet_count : length(local.app_subnet_ids)
     app_availability_zones              = local.app_availability_zones
-    scaling_policy_count                = local.services_enabled ? module.app_asg[0].contract.scaling_policy_count : 0
-    request_count_per_target_per_minute = local.services_enabled ? module.app_asg[0].contract.request_target_per_minute : var.request_count_per_target_per_minute
-    cpu_target_percent                  = local.services_enabled ? module.app_asg[0].contract.cpu_target_percent : 50
-    default_instance_warmup             = local.services_enabled ? module.app_asg[0].contract.default_instance_warmup : 180
+    scaling_policy_count                = local.application_infrastructure_enabled ? module.app_asg[0].contract.scaling_policy_count : 0
+    request_count_per_target_per_minute = local.application_infrastructure_enabled ? module.app_asg[0].contract.request_target_per_minute : var.request_count_per_target_per_minute
+    cpu_target_percent                  = local.application_infrastructure_enabled ? module.app_asg[0].contract.cpu_target_percent : 50
+    default_instance_warmup             = local.application_infrastructure_enabled ? module.app_asg[0].contract.default_instance_warmup : 180
     runtime_revision                    = local.app_runtime_revision
-    alb_arn                             = local.services_enabled ? module.alb[0].arn : null
-    alb_dns_name                        = local.services_enabled ? module.alb[0].dns_name : null
-    alb_zone_id                         = local.services_enabled ? module.alb[0].zone_id : null
-    alb_security_group_id               = local.services_enabled ? module.security.security_group_ids["alb"] : null
-    target_group_arn                    = local.services_enabled ? module.alb[0].target_group_arn : null
-    auto_scaling_group_name             = local.services_enabled ? module.app_asg[0].name : null
-    alb_https_only                      = local.services_enabled ? module.alb[0].contract.https_only : true
-    alb_stickiness_enabled              = local.services_enabled ? module.alb[0].contract.stickiness_enabled : false
+    alb_arn                             = local.application_infrastructure_enabled ? module.alb[0].arn : null
+    alb_dns_name                        = local.application_infrastructure_enabled ? module.alb[0].dns_name : null
+    alb_zone_id                         = local.application_infrastructure_enabled ? module.alb[0].zone_id : null
+    alb_security_group_id               = local.application_infrastructure_enabled ? module.security.security_group_ids["alb"] : null
+    target_group_arn                    = local.application_infrastructure_enabled ? module.alb[0].target_group_arn : null
+    auto_scaling_group_name             = local.application_infrastructure_enabled ? module.app_asg[0].name : null
+    alb_https_only                      = local.application_infrastructure_enabled ? module.alb[0].contract.https_only : true
+    alb_stickiness_enabled              = local.application_infrastructure_enabled ? module.alb[0].contract.stickiness_enabled : false
     load_generator_enabled              = var.load_generator_enabled
-    load_generator_instance_type        = local.services_enabled && var.load_generator_enabled ? module.load_generator[0].contract.instance_type : null
-    load_generator_instance_id          = local.services_enabled && var.load_generator_enabled ? module.load_generator[0].instance_id : null
-    load_generator_public_ipv4          = local.services_enabled && var.load_generator_enabled ? module.load_generator[0].contract.public_ipv4 : false
-    refresh = local.services_enabled ? module.app_asg[0].contract.refresh : {
+    load_generator_instance_type        = local.application_infrastructure_enabled && var.load_generator_enabled ? module.load_generator[0].contract.instance_type : null
+    load_generator_instance_id          = local.application_infrastructure_enabled && var.load_generator_enabled ? module.load_generator[0].instance_id : null
+    load_generator_public_ipv4          = local.application_infrastructure_enabled && var.load_generator_enabled ? module.load_generator[0].contract.public_ipv4 : false
+    refresh = local.application_infrastructure_enabled ? module.app_asg[0].contract.refresh : {
       min_healthy_percentage = var.mode == "performance" ? 0 : 100
       max_healthy_percentage = var.mode == "performance" ? 100 : 200
       checkpoint_percentages = var.mode == "scaling" ? [50, 100] : []

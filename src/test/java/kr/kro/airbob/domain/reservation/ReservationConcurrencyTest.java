@@ -1,16 +1,17 @@
 package kr.kro.airbob.domain.reservation;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static kr.kro.airbob.domain.reservation.service.ReservationTransactionTestDriver.createPendingReservation;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -26,6 +27,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -53,6 +58,7 @@ import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
+import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
 import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.payment.dto.PaymentRequest;
@@ -74,7 +80,6 @@ import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyExcept
 import kr.kro.airbob.domain.reservation.exception.ReservationOccupancyExceededException;
 import kr.kro.airbob.domain.reservation.inventory.ReservationInventoryService;
 import kr.kro.airbob.domain.reservation.policy.BookingWindow;
-import kr.kro.airbob.domain.reservation.policy.BookingWindowProvider;
 import kr.kro.airbob.domain.reservation.repository.ReservationHistoryRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.reservation.service.ExpiredReservationCleanupService;
@@ -89,6 +94,7 @@ import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 @Testcontainers
 @SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
 @ActiveProfiles("test")
+@Import(ReservationConcurrencyTest.FixedClockConfiguration.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ReservationConcurrencyTest {
 
@@ -97,6 +103,8 @@ class ReservationConcurrencyTest {
 	private static final String TIME_ZONE_ID = "Asia/Seoul";
 	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 12);
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(WINDOW_START);
+	private static final Instant NOW = Instant.parse("2026-08-12T00:00:00Z");
+	private static final LocalDateTime COUPON_NOW = LocalDateTime.ofInstant(NOW, ZoneId.of(TIME_ZONE_ID));
 
 	@Autowired
 	private ReservationService reservationService;
@@ -148,7 +156,7 @@ class ReservationConcurrencyTest {
 	@MockitoBean
 	private io.awspring.cloud.s3.S3Template s3Template;
 	@MockitoBean
-	private BookingWindowProvider bookingWindowProvider;
+	private CouponTimeProvider couponTimeProvider;
 
 	@Container
 	private static final MySQLContainer<?> mySQLContainer = new MySQLContainer<>("mysql:8.0.33")
@@ -176,8 +184,7 @@ class ReservationConcurrencyTest {
 
 	@BeforeEach
 	void setUp() {
-		given(bookingWindowProvider.currentFor(eq(TIME_ZONE_ID), any(Instant.class)))
-			.willReturn(BOOKING_WINDOW);
+		given(couponTimeProvider.now()).willReturn(COUPON_NOW);
 		jdbcTemplate.update("DELETE FROM reservation_checkout_request");
 		jdbcTemplate.update("DELETE FROM reservation_quote");
 		outboxRepository.deleteAllInBatch();
@@ -341,7 +348,7 @@ class ReservationConcurrencyTest {
 		assertThat(memberCoupon(guest, coupon).isUsed()).isTrue();
 		jdbcTemplate.update(
 			"UPDATE reservation SET expires_at = ? WHERE id = ?",
-			Timestamp.from(Instant.now().minusSeconds(5)),
+			Timestamp.from(NOW.minusSeconds(5)),
 			pending.getId());
 
 		assertThat(cleanupService.cleanupExpiredPendingReservations()).isEqualTo(1);
@@ -364,7 +371,7 @@ class ReservationConcurrencyTest {
 			"expiry rollback");
 		jdbcTemplate.update(
 			"UPDATE reservation SET expires_at = ? WHERE id = ?",
-			Timestamp.from(Instant.now().minusSeconds(5)),
+			Timestamp.from(NOW.minusSeconds(5)),
 			pending.getId());
 		jdbcTemplate.execute("""
 			CREATE TRIGGER reservation_expiration_reject_history
@@ -386,7 +393,7 @@ class ReservationConcurrencyTest {
 	}
 
 	private Coupon issueFixedCoupon(Member member, int discountAmount) {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = COUPON_NOW;
 		Coupon coupon = couponRepository.save(Coupon.builder()
 			.name(discountAmount + "원 할인")
 			.discountType(DiscountType.FIXED_AMOUNT)
@@ -490,7 +497,7 @@ class ReservationConcurrencyTest {
 			.amount(reservation.getTotalPrice())
 			.balanceAmount(reservation.getTotalPrice())
 			.method(PaymentMethod.CARD)
-			.approvedAt(Instant.now())
+			.approvedAt(NOW)
 			.reservation(reservation)
 			.status(PaymentStatus.DONE)
 			.build());
@@ -878,5 +885,14 @@ class ReservationConcurrencyTest {
 	private void seedInventory(Accommodation target) {
 		inventoryService.seed(
 			target.getId(), BOOKING_WINDOW.startInclusive(), BOOKING_WINDOW.endExclusive());
+	}
+
+	@TestConfiguration(proxyBeanMethods = false)
+	static class FixedClockConfiguration {
+		@Bean
+		@Primary
+		Clock reservationConcurrencyClock() {
+			return Clock.fixed(NOW, ZoneOffset.UTC);
+		}
 	}
 }

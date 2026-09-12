@@ -326,6 +326,7 @@ terraform_version=${terraform_version_line#Terraform v}
   || fail "Terraform version mismatch: expected 1.15.5"
 
 terraform -chdir="$foundation_root" fmt -check -recursive
+python3 "$repo_root/infra/aws/tests/test_global_b_infrastructure.py"
 terraform -chdir="$foundation_root" init -backend=false -input=false -lockfile=readonly
 terraform -chdir="$foundation_root" validate
 terraform -chdir="$foundation_root" test

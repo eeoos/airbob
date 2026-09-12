@@ -126,10 +126,12 @@ locals {
     secondary = "10.42.3.0/24"
   }
 
-  probe_enabled    = var.deployment_phase == "network"
-  receipt_required = var.deployment_phase != "network"
-  services_enabled = contains(["services", "data-ready"], var.deployment_phase)
-  data_ready       = var.deployment_phase == "data-ready"
+  probe_enabled                      = var.deployment_phase == "network"
+  receipt_required                   = var.deployment_phase != "network"
+  services_enabled                   = contains(["services", "data-ready"], var.deployment_phase)
+  data_ready                         = var.deployment_phase == "data-ready"
+  legacy_services_enabled            = local.services_enabled && !var.global_b_prepare_only
+  application_infrastructure_enabled = local.legacy_services_enabled
 
   bounded_name_prefix = "airbob-${substr(var.run_id, 0, 12)}-${substr(sha1(var.run_id), 0, 6)}"
   app_capacity = !var.app_enabled ? {
@@ -153,7 +155,7 @@ locals {
   ]
 
   dataset_prefix       = "datasets/${var.dataset_release}"
-  dataset_manifest_key = "${local.dataset_prefix}/manifest.json"
+  dataset_manifest_key = "${local.dataset_prefix}/${var.global_b_prepare_only ? "aws-preparation.json" : "manifest.json"}"
   dataset_manifest = local.services_enabled ? try(
     jsondecode(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)),
     null,
@@ -183,7 +185,10 @@ locals {
     FencingToken = tostring(var.fencing_token)
   }
 
-  service_hosts = {
+  service_hosts = { for service, host in local.legacy_service_hosts : service => host
+    if !var.global_b_prepare_only || service == "debezium"
+  }
+  legacy_service_hosts = {
     redis = {
       instance_type = "t3.small"
       volume_size   = 20

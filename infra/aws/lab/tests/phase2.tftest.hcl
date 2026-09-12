@@ -99,7 +99,7 @@ run "reject_services_without_probe_identity" {
     var.dataset_release,
     var.dataset_manifest_sha256,
     var.database_bootstrap,
-    var.rds_engine_version,
+    # Engine validation is checked separately with valid prerequisites in phase3.
     check.app_release,
   ]
 }

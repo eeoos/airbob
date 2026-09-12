@@ -79,6 +79,18 @@ jobs:
           bash infra/aws/tests/dataset-release-test.sh
           bash infra/aws/tests/rds-snapshot-promotion-test.sh
 
+      - name: Verify Global B offline Python contracts (Python 3.12+)
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 -c "import sys; sys.version_info >= (3, 12) or sys.exit('Global B offline contracts require Python 3.12+'); print(sys.version)"
+          (cd infra/aws/tests/fixtures/etl-account-runtime && sha256sum --check SHA256SUMS)
+          ./gradlew prepareGrowthBContractTestRuntime
+          python3 -m unittest discover -s infra/aws/tests -p 'test_growth_b_*.py' -v
+          python3 infra/aws/scripts/test_growth_b_publication.py -v
+          python3 infra/aws/tests/test_global_b_infrastructure.py -v
+
       - name: Verify AWS performance-lab operator contracts
         run: |
           bash infra/aws/tests/orchestration-lease-test.sh
