@@ -12,6 +12,8 @@ root="/opt/airbob/global-b/$run_id"
 [[ -x "$root/toolchain/python/bin/python3" && -f "$root/restore-config.json" && ! -e "$root/STOP" ]]
 export PATH="$root/aws-bin:$root/toolchain/python/bin:$root/toolchain/jdk/bin:$root/toolchain/mysql/bin:$PATH"
 export JAVA_HOME="$root/toolchain/jdk" AWS_REGION=ap-northeast-2 AWS_MAX_ATTEMPTS=1 AWS_CLI_AUTO_PROMPT=off
+# Each SSM entry must preserve the toolchain independently of earlier sessions.
+export PYTHONDONTWRITEBYTECODE=1
 unset PYTHONPATH PYTHONHOME JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS JAVA_OPTS JDK_JAVAC_OPTIONS CLASSPATH
 stage="$root/service-$release"
 mkdir -m 700 "$stage"
@@ -28,7 +30,7 @@ aws --region "$AWS_REGION" s3api get-object --bucket airbob-performance-lab-data
 [[ "$(jq -er '.VersionId' "$stage/download.json")" == "$(jq -er '.consumerTools.versionId' "$manifest")" ]]
 printf '%s  %s\n' "$(jq -er '.consumerTools.sha256' "$manifest")" "$stage/consumer-tools.tar.gz" | sha256sum --check --status
 jq -e --slurpfile context "$context" '.toolSources == $context[0].toolSources' "$manifest" >/dev/null
-python3 - "$stage" <<'PY'
+python3 -B - "$stage" <<'PY'
 import hashlib,json,pathlib,tarfile,sys
 root=pathlib.Path(sys.argv[1]); meta=json.loads((root/'aws-service.json').read_text())
 assert (root/'consumer-tools.tar.gz').stat().st_size == meta['consumerTools']['bytes']
@@ -42,7 +44,7 @@ with tarfile.open(root/'consumer-tools.tar.gz') as archive:
         assert hashlib.sha256(raw).hexdigest()==meta['toolSources'][member.name]
         file=tools/member.name; file.write_bytes(raw); file.chmod(0o600)
 PY
-python3 "$stage/tools/growth_b_service.py" bootstrap --manifest "$manifest" \
+python3 -B "$stage/tools/growth_b_service.py" bootstrap --manifest "$manifest" \
   --sha256 "$(jq -er '.manifestSha256' "$context")" --dataset-id "$dataset" --run-id "$run_id" --release "$release" \
   --context "$context" --root "$root" --output "$stage/bootstrap" > "$stage/bootstrap.log" 2>&1
 aws --region "$AWS_REGION" s3api put-object --bucket airbob-performance-lab-evidence-942632789808 \
