@@ -394,7 +394,7 @@ variable "rds_snapshot_source_resource_id" {
   validation {
     condition = (
       var.database_bootstrap == "snapshot"
-      ? can(regex("^db-[A-Z0-9]{24}$", var.rds_snapshot_source_resource_id))
+      ? can(regex("^db-[A-Z0-9]+$", var.rds_snapshot_source_resource_id))
       : var.rds_snapshot_source_resource_id == ""
     )
     error_message = "snapshot bootstrap requires the exact db-* source RDS resource ID; every other bootstrap mode requires it to be empty."

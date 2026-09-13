@@ -116,7 +116,7 @@ def validate_config(value, *, check_files=True):
          and all(match(r'[A-Za-z0-9_:/.-]{1,200}', value['lease'][k]) for k in ('table', 'lockName', 'owner')), 'EXACT_LAB_LEASE_REQUIRED')
     rds = value['rds']
     fields(rds, 'identifier resourceId serverUuid endpoint masterSecretArn caBundle caSha256')
-    need(rds['identifier'] == 'airbob-' + value['runId'] and match(r'db-[A-Z0-9]{24}', rds['resourceId'])
+    need(rds['identifier'] == 'airbob-' + value['runId'] and match(r'db-[A-Z0-9]+', rds['resourceId'])
          and match(r'[a-z0-9-]+\.[a-z0-9]+\.ap-northeast-2\.rds\.amazonaws\.com', rds['endpoint'])
          and match(r'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-[A-Za-z0-9-]+', rds['masterSecretArn'])
          and match(HASH, rds['caSha256']), 'EXACT_PRIVATE_RDS_REQUIRED')

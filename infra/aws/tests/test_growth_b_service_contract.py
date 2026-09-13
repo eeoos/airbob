@@ -21,7 +21,7 @@ def fixture():
     dataset, run, release = 'global-growth-b-' + 'a' * 16, 'lab-b-services-test', 'service-01'
     def ref(key):
         return {'key': key, 'versionId': 'version-' + str(len(key)), 'sha256': 'b' * 64, 'bytes': 100}
-    rds = {'identifier': 'airbob-' + run, 'resourceId': 'db-' + 'A' * 24, 'serverUuid': '12345678-1234-1234-1234-123456789abc'}
+    rds = {'identifier': 'airbob-' + run, 'resourceId': 'db-' + 'A' * 26, 'serverUuid': '12345678-1234-1234-1234-123456789abc'}
     image = service.ACCOUNT + '.dkr.ecr.' + service.REGION + '.amazonaws.com/'
     value = {'schemaVersion': 1, 'kind': service.KIND, 'datasetId': dataset, 'runId': run, 'serviceRelease': release,
         'account': service.ACCOUNT, 'region': service.REGION, 'mysql': {'version': '8.4.11', 'flywayVersion': 28, 'schema': 'airbobdb'},

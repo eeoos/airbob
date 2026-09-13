@@ -234,7 +234,7 @@ def validate_context(value, *, now=None, expected_sources=None):
     instant(es['startedAt'])
     rds = value['rds']
     keys(rds, 'identifier resourceId serverUuid endpoint masterSecretArn createdAt', 'RDS_FIELDS')
-    need(rds['identifier'] == 'airbob-' + run and re.fullmatch(r'db-[A-Z0-9]{24}', rds['resourceId'])
+    need(rds['identifier'] == 'airbob-' + run and re.fullmatch(r'db-[A-Z0-9]+', rds['resourceId'])
          and re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', rds['serverUuid'])
          and re.fullmatch(re.escape(rds['identifier']) + r'\.[a-z0-9]+\.ap-northeast-2\.rds\.amazonaws\.com', rds['endpoint'])
          and re.fullmatch(r'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:[A-Za-z0-9/_+=.@!-]+', rds['masterSecretArn']), 'RDS_IDENTITY')

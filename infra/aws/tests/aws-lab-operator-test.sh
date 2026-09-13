@@ -2298,7 +2298,7 @@ for invalid_snapshot_input in identifier source-run source-resource; do
   : > "$temp_dir/operator-execution.log"
   invalid_identifier=airbob-snapshot-fixture
   invalid_source_run=lab-Invalid
-  invalid_source_resource=db-ABCDEFGHIJKLMNOPQRSTUVW
+  invalid_source_resource=db-invalid-resource
   FAKE_DATABASE_BOOTSTRAP=snapshot \
     FAKE_RDS_SNAPSHOT_IDENTIFIER="$([[ "$invalid_snapshot_input" == identifier ]] && printf '%s' "$invalid_identifier" || printf '%s' airbob-dataset-rehearsal-v20)" \
     FAKE_RDS_SNAPSHOT_SOURCE_RUN_ID="$([[ "$invalid_snapshot_input" == source-run ]] && printf '%s' "$invalid_source_run" || printf '%s' lab-repeat-dump)" \

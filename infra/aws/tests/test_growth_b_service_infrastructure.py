@@ -88,8 +88,10 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
       growth_b_envelope = { objects = {} }
       dataset_kafka_topics = toset(jsondecode(file("topics.json")))
       object_data = jsondecode(file("objects.json"))
-      rds = [{ resource_id = "db-AAAAAAAAAAAAAAAAAAAAAAAA", arn = "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-b-services-test", master_secret_arn = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-selected" }]
     '''
+    config += 'rds = ' + json.dumps([{'resource_id': fixture()['rds']['resourceId'],
+        'arn': 'arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-b-services-test',
+        'master_secret_arn': 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-selected'}]) + '\n'
     for key, expression in expressions.items():
         config += key + ' = ' + expression.replace('data.aws_s3_object.', 'local.object_data.').replace('module.rds', 'local.rds') + '\n'
     config += '}\n'

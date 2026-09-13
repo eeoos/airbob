@@ -98,7 +98,7 @@ valid_rds_snapshot_identifier() {
 
 valid_rds_resource_id() {
   local candidate=$1
-  [[ "$candidate" =~ ^db-[A-Z0-9]{24}$ ]]
+  [[ "$candidate" =~ ^db-[A-Z0-9]+$ ]]
 }
 
 require_global_b_execution_deadline() {

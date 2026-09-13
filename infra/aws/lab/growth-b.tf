@@ -157,7 +157,7 @@ locals {
     local.dataset_manifest.mysql == { version = "8.4.11", flywayVersion = 28, schema = "airbobdb" } &&
     toset(keys(local.dataset_manifest.rds)) == toset(["identifier", "resourceId", "serverUuid"]) &&
     local.dataset_manifest.rds.identifier == "airbob-${var.run_id}" &&
-    can(regex("^db-[A-Z0-9]{24}$", local.dataset_manifest.rds.resourceId)) &&
+    can(regex("^db-[A-Z0-9]+$", local.dataset_manifest.rds.resourceId)) &&
     can(regex("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$", local.dataset_manifest.rds.serverUuid)) &&
     local.dataset_manifest.application.image == var.app_image_reference &&
     local.dataset_manifest.application.mainCommit == var.bundle_commit &&

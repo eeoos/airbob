@@ -94,7 +94,7 @@ def validate_manifest(value, dataset_id, run_id, release, sources=None):
             'B service schema or target differs')
     rds = value['rds']
     require(set(rds) == {'identifier', 'resourceId', 'serverUuid'} and rds['identifier'] == 'airbob-' + run_id
-            and re.fullmatch(r'db-[A-Z0-9]{24}', rds['resourceId'])
+            and re.fullmatch(r'db-[A-Z0-9]+', rds['resourceId'])
             and re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', rds['serverUuid']), 'Exact prepared RDS identity required')
     app = value['application']
     require(set(app) == {'mainCommit', 'image', 'appJarSha256', 'migrationFilesSha256'}

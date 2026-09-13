@@ -69,9 +69,19 @@ has exactly these fields:
 
 Replace the example byte count with the actual manifest size. The source archive
 contains the 17 host helpers and the controller. The six sealed preparation
-helpers, native search engine, service consumer and runtime binding retain their
-original bytes. The stage executes through the existing operator OIDC role and
+helpers, native search engine and runtime binding retain their original bytes.
+The service consumer accepts opaque RDS resource IDs while retaining exact
+target identity comparisons. The stage executes through the existing operator OIDC role and
 SSM permissions; it never builds Terraform variables or applies infrastructure.
+
+`DbiResourceId` is an opaque AWS identifier, separate from the database name.
+Do not infer identity from a fixed suffix length: an observed RDS resource has
+26 characters after `db-`, while the earlier admission assumed 24. Python,
+shell and Terraform admit the `db-` prefix with uppercase letters and digits;
+the actual API response and selected receipt must still match exactly. See the
+[AWS DBInstance API contract](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DBInstance.html).
+Publish revised service helper archives and manifests for this admission fix;
+previous immutable archives remain evidence of their original source revision.
 
 The original preparation host exports its exact import receipt, raw/prepared
 fingerprints and runtime proof under its original control lock. This establishes
