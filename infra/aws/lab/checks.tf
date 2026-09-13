@@ -304,7 +304,7 @@ locals {
   )
 
   data_bootstrap_receipt = try(
-    jsondecode(nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body)),
+    jsondecode(var.global_b_services ? base64decode(nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body_base64)) : nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body)),
     null,
   )
   data_bootstrap_receipt_valid = var.global_b_services ? local.growth_b_readiness_valid : local.legacy_data_bootstrap_receipt_valid

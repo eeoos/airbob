@@ -1,4 +1,5 @@
 """Evaluate B snapshot Terraform gates against the snapshot tool's actual schema."""
+import base64
 import copy
 import hashlib
 import json
@@ -15,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 LAB = ROOT / 'infra/aws/lab'
 
 
-def evaluate(change=None):
+def evaluate(change=None, *, object_change=None):
     fixture = snapshot_tests.SnapshotFixture()
     fixture.setUp()
     try:
@@ -34,6 +35,10 @@ def evaluate(change=None):
             change(state)
         raw = json.dumps(provenance)
         digest = hashlib.sha256(raw.encode()).hexdigest()
+        object_data = [{'body': raw, 'body_base64': base64.b64encode(raw.encode()).decode(),
+                        'content_type': 'application/json', 'version_id': 'exact-version'}]
+        if object_change:
+            object_change(object_data)
         variables = {'global_b_snapshot_restore_only': True, 'global_b_services': False, 'database_bootstrap': 'snapshot',
             'rds_engine_version': state['engine'], 'dataset_release': core['datasetId'], 'run_id': 'lab-b-snapshot-next',
             'rds_snapshot_identifier': core['snapshotIdentifier'], 'rds_snapshot_source_run_id': state['sourceRunId'],
@@ -44,7 +49,7 @@ def evaluate(change=None):
         config = ''.join('variable "' + name + '" { default = ' + json.dumps(value) + ' }\n' for name, value in variables.items())
         config += '''locals {
           services_enabled = true
-          s3 = [{body=file("provenance.json"),version_id="exact-version"}]
+          s3 = jsondecode(file("objects.json"))
           live_snapshot = [jsondecode(file("snapshot.json"))]
           live_instances = [{instance_identifiers=jsondecode(file("instances.json"))}]
           lab_contract = {approved_rds_snapshot_identifier=''' + json.dumps(state['approvedSnapshot']) + '''}
@@ -62,6 +67,7 @@ def evaluate(change=None):
             work = Path(directory)
             (work / 'main.tf').write_text(config)
             (work / 'provenance.json').write_text(raw)
+            (work / 'objects.json').write_text(json.dumps(object_data))
             for name in ('snapshot', 'instances'):
                 (work / (name + '.json')).write_text(json.dumps(state[name]))
             env = {'PATH': os.environ['PATH'], 'CHECKPOINT_DISABLE': '1', 'TF_IN_AUTOMATION': '1', 'AWS_EC2_METADATA_DISABLED': 'true'}
