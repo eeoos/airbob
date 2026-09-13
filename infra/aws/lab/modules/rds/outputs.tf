@@ -47,3 +47,8 @@ output "contract" {
     storage_encrypted           = aws_db_instance.this.storage_encrypted
   }
 }
+
+output "allocated_storage_gib" {
+  description = "Actual provider storage, including restored snapshots; separate from configured dump storage."
+  value       = aws_db_instance.this.allocated_storage
+}

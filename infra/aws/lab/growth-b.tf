@@ -64,12 +64,15 @@ locals {
   )
 
   growth_b_context = local.services_enabled && var.global_b_prepare_only ? {
-    runId             = var.run_id
-    datasetId         = var.dataset_release
-    manifestVersionId = var.global_b_manifest_version_id
-    manifestSha256    = var.dataset_manifest_sha256
-    toolSources       = local.growth_b_helper_sources
-    redisImage        = var.infra_image_references.REDIS_IMAGE
+    runId               = var.run_id
+    datasetId           = var.dataset_release
+    manifestVersionId   = var.global_b_manifest_version_id
+    manifestSha256      = var.dataset_manifest_sha256
+    toolSources         = local.growth_b_helper_sources
+    rdsInstanceClass    = var.rds_instance_class
+    rdsClassGuardSha256 = filesha256("${path.module}/../scripts/growth_b_rds_class.py")
+    expiresAt           = var.expires_at
+    redisImage          = var.infra_image_references.REDIS_IMAGE
     awsCli = {
       version       = regex("AIRBOB_AWS_CLI_VERSION=([0-9.]+)", file("${path.module}/../toolchain.env"))[0]
       archiveSha256 = regex("AIRBOB_AWS_CLI_LINUX_X86_64_SHA256=([0-9a-f]+)", file("${path.module}/../toolchain.env"))[0]
@@ -95,6 +98,8 @@ locals {
     "for attempt in $(seq 1 120); do test -f /var/lib/airbob/b-host-ready && break; sleep 5; done",
     "test -f /var/lib/airbob/b-host-ready",
     "install -d -m 700 /opt/airbob/bootstrap-helpers",
+    "printf '%s' '${base64gzip(file("${path.module}/../scripts/growth_b_rds_class.py"))}' | base64 --decode | gzip --decompress > /opt/airbob/bootstrap-helpers/growth_b_rds_class.py",
+    "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/growth_b_rds_class.py")}' /opt/airbob/bootstrap-helpers/growth_b_rds_class.py | sha256sum --check --status",
     "printf '%s' '${base64encode(jsonencode(local.growth_b_context))}' | base64 --decode > /opt/airbob/bootstrap-helpers/global-b-context.json",
     "printf '%s' '${base64gzip(file("${path.module}/../scripts/bootstrap-growth-b-entry.sh"))}' | base64 --decode | gzip --decompress > /opt/airbob/bootstrap-helpers/bootstrap-growth-b-entry.sh",
     "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/bootstrap-growth-b-entry.sh")}' /opt/airbob/bootstrap-helpers/bootstrap-growth-b-entry.sh | sha256sum --check --status",
@@ -268,6 +273,10 @@ locals {
     manifestVersionId        = var.global_b_manifest_version_id, manifestSha256 = var.dataset_manifest_sha256
     toolSources              = local.growth_b_service_helper_sources
     databaseBootstrap        = var.database_bootstrap
+    rdsInstanceClass         = var.rds_instance_class
+    rdsClassGuardSha256      = filesha256("${path.module}/../scripts/growth_b_rds_class.py")
+    resourceFence            = var.fencing_token
+    expiresAt                = var.expires_at
     snapshotProvenanceSha256 = var.database_bootstrap == "snapshot" ? var.global_b_snapshot_provenance.sha256 : null
     lease = { table = local.lab_contract.lease_table_name, lockName = local.lab_contract.lease_lock_id,
     owner = var.global_b_lease_owner, runId = var.run_id, command = "up", fencingToken = var.global_b_lease_fencing_token }
@@ -276,6 +285,8 @@ locals {
   } : null
   growth_b_service_bootstrap_command = var.global_b_services && local.services_enabled ? join("\n", [
     "set -euo pipefail", "umask 077", "install -d -m 700 /opt/airbob/bootstrap-helpers",
+    "printf '%s' '${base64gzip(file("${path.module}/../scripts/growth_b_rds_class.py"))}' | base64 --decode | gzip --decompress > /opt/airbob/bootstrap-helpers/growth_b_rds_class.py",
+    "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/growth_b_rds_class.py")}' /opt/airbob/bootstrap-helpers/growth_b_rds_class.py | sha256sum --check --status",
     "printf '%s' '${base64encode(jsonencode(local.growth_b_service_context))}' | base64 --decode > /opt/airbob/bootstrap-helpers/global-b-service-context.json",
     "printf '%s' '${base64gzip(file("${path.module}/../scripts/bootstrap-growth-b-services.sh"))}' | base64 --decode | gzip --decompress > /opt/airbob/bootstrap-helpers/bootstrap-growth-b-services.sh",
     "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/bootstrap-growth-b-services.sh")}' /opt/airbob/bootstrap-helpers/bootstrap-growth-b-services.sh | sha256sum --check --status",

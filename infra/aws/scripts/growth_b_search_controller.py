@@ -24,6 +24,7 @@ import time
 import growth_b_aws_restore as restore
 import growth_b_prepare as prepare
 import growth_b_search_host as host
+import growth_b_rds_class as rds_class
 import growth_b_service as service
 
 KIND = 'global-b-aws-native-search-operation'
@@ -132,13 +133,14 @@ def validate_context(value, operation, *, now=None):
          and host.integer(lease['fencingToken'], original['fencingToken'] + 1)
          and isinstance(lease['owner'], str) and re.fullmatch(r'[A-Za-z0-9._:@/-]{3,128}', lease['owner']), 'NEW_CONTROLLER_LEASE_REQUIRED')
     p2, p3, p4, state = (value[name] for name in ('phase2', 'phase3', 'phase4', 'serviceState'))
+    rds_class.phase3_class(original, p3)
     need(p2['run_id'] == operation['runId'] and p2['fencing_token'] == original['fencingToken']
          and {'debezium', 'kafka', 'elasticsearch'} <= set(p2['services'])
          and all(re.fullmatch(r'i-[0-9a-f]{17}', p2['services'][k]) for k in ('debezium', 'kafka', 'elasticsearch')),
          'RETAINED_DEPENDENCY_HOSTS_REQUIRED')
     need(p3['dataset_release'] == DATASET and p3['database_bootstrap'] == bootstrap
          and p3['rds_instance_id'] == 'airbob-' + operation['runId'] and p3['rds_engine_version'] == '8.4.11'
-         and p3['rds_configured_storage_gib'] == 100, 'RETAINED_RDS_REQUIRED')
+         and (p3['rds_configured_storage_gib'] == 100 or (snapshot_target and p3.get('rds_allocated_storage_gib') == 100)), 'RETAINED_RDS_REQUIRED')
     need(p4['app_enabled'] is False and p4['capacity'] == {'min': 0, 'desired': 0, 'max': 0}
          and p4['accommodation_detail_cache_enabled'] is False and p4['load_generator_enabled'] is False, 'ZERO_WRITER_TOPOLOGY_REQUIRED')
     reference = operation['manifest']
@@ -668,10 +670,12 @@ class Controller:
         rows = self.aws.call('rds', 'describe-db-instances', '--db-instance-identifier', 'airbob-' + op['runId'])['DBInstances']
         need(len(rows) == 1, 'EXACT_RDS_REQUIRED'); rds = rows[0]
         self.tags(rds['TagList'])
+        selected_class = rds_class.phase3_class(context['operator'], context['phase3'])
+        rds_class.actual_class(rds, selected_class)
         need(rds['DBInstanceIdentifier'] == self.manifest['value']['rds']['identifier']
              and rds['DbiResourceId'] == self.manifest['value']['rds']['resourceId'] == context['phase3']['rds_resource_id']
              and rds['DBInstanceStatus'] == 'available' and rds['Engine'] == 'mysql' and rds['EngineVersion'] == '8.4.11'
-             and rds['DBInstanceClass'] == 'db.t3.small' and rds['AllocatedStorage'] == 100 and rds['StorageType'] == 'gp3'
+             and rds['DBInstanceClass'] == selected_class and rds['AllocatedStorage'] == 100 and rds['StorageType'] == 'gp3'
              and rds['PubliclyAccessible'] is False and rds['MultiAZ'] is False and rds['StorageEncrypted'] is True
              and rds['Endpoint']['Address'] == context['phase3']['rds_endpoint'] and rds['Endpoint']['Port'] == 3306,
              'ORIGINAL_SINGLE_RDS_CHANGED')
@@ -732,6 +736,7 @@ class Controller:
         original = self.context['operator']
         value = {'schemaVersion': 1, 'kind': host.KIND, 'operationId': self.operation['operationId'], 'runId': self.operation['runId'],
             'datasetId': DATASET, 'account': ACCOUNT, 'region': REGION, 'resourceFence': original['fencingToken'],
+            'rdsInstanceClass': rds_class.original_class(original),
             'expiresAt': int(original['expiresAt']), 'approvedExecutionDeadlineEpoch': self.context['approvedExecutionDeadlineEpoch'],
             'controllerDeadlineEpoch': self.deadline - HOST_COMPLETION_MARGIN, 'lease': self.context['lease'],
             'hosts': {'preparation': {'instanceId': self.connect_pin['instanceId']}, 'elasticsearch': es},

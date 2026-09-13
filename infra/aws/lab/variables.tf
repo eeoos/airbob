@@ -401,6 +401,19 @@ variable "rds_snapshot_source_resource_id" {
   }
 }
 
+variable "rds_instance_class" {
+  description = "Initial class selection. Global B may explicitly select db.m6i.large; retained steps inherit the original selection."
+  type        = string
+  default     = "db.t3.small"
+  validation {
+    condition = var.rds_instance_class == "db.t3.small" || (
+      var.rds_instance_class == "db.m6i.large" && var.rds_engine_version == "8.4.11" &&
+      (var.global_b_prepare_only || var.global_b_services || var.global_b_snapshot_restore_only)
+    )
+    error_message = "db.m6i.large is an explicit Global B selection only; arbitrary or classic class changes are forbidden."
+  }
+}
+
 variable "rds_engine_version" {
   description = "Exact reviewed MySQL patch; B data-only preparation requires 8.4.11."
   type        = string

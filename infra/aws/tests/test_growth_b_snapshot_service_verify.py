@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import types
@@ -462,6 +463,50 @@ class TargetServiceVerificationTests(unittest.TestCase):
             request = {'DocumentName': 'AWS-RunShellScript', 'DocumentVersion': '1', 'InstanceIds': [pin['instanceId']], 'TimeoutSeconds': 60,
                 'Parameters': {'commands': [text], 'executionTimeout': ['90']}}
             self.assertLessEqual(len(target.encoded(request)), target.transport.MAX_COMMAND_BYTES)
+
+    def test_real_archive_imports_in_isolation_with_all_snapshot_class_dependencies(self):
+        raw, metadata = target.source_archive()
+        self.assertEqual(26, len(metadata['files']))
+        self.assertLessEqual({'infra/aws/scripts/' + name for name in target.snapshot_host.sources()}, set(metadata['files']))
+        root = self.root / 'isolated-package'; root.mkdir()
+        with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+            archive.extractall(root, filter='data')
+        code = ('import json,sys; sys.path.insert(0,sys.argv[1]); import growth_b_snapshot_service_verify as target; '
+                'print(json.dumps({"sources":target.source_files(),"archive":target.source_archive()[1]}))')
+        result = subprocess.run([sys.executable, '-I', '-B', '-c', code, str(root / 'infra/aws/scripts')],
+            cwd=root, capture_output=True, text=True, timeout=15, env={'PATH': os.environ['PATH'], 'AWS_EC2_METADATA_DISABLED': 'true'})
+        self.assertEqual(0, result.returncode, result.stderr)
+        observed = json.loads(result.stdout)
+        self.assertEqual(target.source_files(), observed['sources'])
+        self.assertEqual(metadata, observed['archive'])
+
+    def test_missing_or_changed_class_helper_cannot_become_an_admitted_package(self):
+        value = proof_fixture(self.root)
+        target.validate_operation(value['operation'])
+        selected = target.source_files()
+        missing = dict(selected); del missing['infra/aws/scripts/growth_b_rds_class.py']
+        raw, metadata = target.transport.source_archive(missing)
+        with self.assertRaisesRegex(target.Failed, 'REVIEWED_TARGET_SERVICE_SOURCES_CHANGED'):
+            target.validate_operation(value['operation'] | {'sourceArchiveSha256': metadata['sha256']})
+        root = self.root / 'missing-package'; root.mkdir()
+        with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+            archive.extractall(root, filter='data')
+        code = ('import json,sys; sys.path.insert(0,sys.argv[1])\ntry:\n import growth_b_snapshot_service_verify\n'
+                'except ModuleNotFoundError as e:\n print(json.dumps({"missing":e.name})); raise SystemExit(19)\nraise SystemExit(0)')
+        result = subprocess.run([sys.executable, '-I', '-B', '-c', code, str(root / 'infra/aws/scripts')],
+            cwd=root, capture_output=True, text=True, timeout=15, env={'PATH': os.environ['PATH'], 'AWS_EC2_METADATA_DISABLED': 'true'})
+        self.assertEqual(19, result.returncode, result.stderr)
+        self.assertEqual({'missing': 'growth_b_rds_class'}, json.loads(result.stdout))
+        helper = root / 'infra/aws/scripts/growth_b_rds_class.py'
+        helper.write_bytes((ROOT / 'infra/aws/scripts/growth_b_rds_class.py').read_bytes() + b'\n# changed fixture bytes\n')
+        with self.assertRaisesRegex(target.Failed, 'SOURCE_BYTES_OR_SIZE_CHANGED'):
+            target.transport.source_archive(selected, root)
+        # Rehashing the changed helper still cannot replace the source selected
+        # by the actual R5 operation validator.
+        changed = selected | {'infra/aws/scripts/growth_b_rds_class.py': target.contract.sha(helper)}
+        metadata = target.transport.source_archive(changed, root)[1]
+        with self.assertRaisesRegex(target.Failed, 'REVIEWED_TARGET_SERVICE_SOURCES_CHANGED'):
+            target.validate_operation(value['operation'] | {'sourceArchiveSha256': metadata['sha256']})
 
 
 class TargetWorkerBoundaryTests(unittest.TestCase):

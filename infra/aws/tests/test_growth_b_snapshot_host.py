@@ -5,9 +5,12 @@ import datetime as dt
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import unittest
@@ -119,6 +122,43 @@ class Fixture(unittest.TestCase):
 
 
 class ManifestTests(Fixture):
+    def test_real_nine_file_archive_passes_shell_admission_and_foreign_or_missing_members_fail(self):
+        scripts = Path(host.__file__).parent
+        shell = (scripts / 'bootstrap-growth-b-snapshot.sh').read_text()
+        extract = 'extract_regular() {' + shell.split('extract_regular() {', 1)[1].split('\n}\n', 1)[0] + '\n}\n'
+        admission = 'extract_regular "$stage/consumer-tools.tar.gz"' + shell.split(
+            'extract_regular "$stage/consumer-tools.tar.gz"', 1)[1].split('\nassert_lease\n', 1)[0] + '\n'
+        originals = {name: (scripts / name).read_bytes() for name in host.sources()}
+        self.assertEqual(9, len(originals))
+        variants = {'exact': originals, 'missing': {k: v for k, v in originals.items() if k != 'growth_b_rds_class.py'},
+                    'extra': originals | {'foreign.py': b'foreign = True\n'},
+                    'foreign-same-count': {k: v for k, v in originals.items() if k != 'growth_b_rds_class.py'} | {'foreign.py': b'foreign = True\n'},
+                    'changed-bytes': originals | {'growth_b_rds_class.py': b'changed = True\n'}}
+        for name, files in variants.items():
+            with self.subTest(variant=name):
+                root = self.root / name; stage = root / 'stage'; stage.mkdir(parents=True, mode=0o700)
+                binary = root / 'toolchain/python/bin/python3'; binary.parent.mkdir(parents=True)
+                binary.symlink_to(sys.executable)
+                with tarfile.open(stage / 'consumer-tools.tar.gz', 'w:gz') as archive:
+                    for filename, raw in sorted(files.items()):
+                        info = tarfile.TarInfo(filename); info.size = len(raw); info.mode = 0o600; info.mtime = 0
+                        archive.addfile(info, io.BytesIO(raw))
+                manifest = stage / 'manifest.json'; host.write(manifest, self.manifest)
+                variables = {'root': str(root), 'stage': str(stage), 'manifest': str(manifest), 'digest': host.sha(manifest),
+                             'dataset': self.dataset, 'run_id': self.run, 'operation_id': self.operation}
+                setup = 'set -euo pipefail\numask 077\nexport PYTHONDONTWRITEBYTECODE=1\n' + '\n'.join(
+                    key + '=' + shlex.quote(value) for key, value in variables.items()) + '\n'
+                result = subprocess.run(['bash', '-c', setup + 'fail() { exit 31; }\n' + extract + admission +
+                    'printf SHELL_ARCHIVE_ADMISSION_PASSED\n'], capture_output=True, text=True, timeout=15,
+                    env={'PATH': os.environ['PATH'], 'AWS_EC2_METADATA_DISABLED': 'true'})
+                if name == 'exact':
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertIn('SHELL_ARCHIVE_ADMISSION_PASSED', result.stdout)
+                    self.assertEqual(originals, {p.name: p.read_bytes() for p in (stage / 'tools').iterdir()})
+                else:
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertNotIn('SHELL_ARCHIVE_ADMISSION_PASSED', result.stdout)
+
     def test_rds_managed_secret_name_keeps_exact_account_and_region_boundary(self):
         self.assertEqual(host.validate_context(self.context, self.manifest, self.manifest_sha), self.context)
         for original, changed in ((host.ACCOUNT, '111111111111'), (host.REGION, 'us-east-1')):

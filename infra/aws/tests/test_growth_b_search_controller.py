@@ -258,7 +258,7 @@ class AckTests(unittest.TestCase):
 class SourceArchiveTests(unittest.TestCase):
     def test_archive_is_deterministic_and_includes_exact_host_and_controller_sources(self):
         raw, meta = c.source_archive()
-        self.assertEqual(raw, c.source_archive()[0]); self.assertEqual(18, len(meta['files']))
+        self.assertEqual(raw, c.source_archive()[0]); self.assertEqual(19, len(meta['files']))
         self.assertEqual(c.source_files(), {name: ref['sha256'] for name, ref in meta['files'].items()})
         self.assertLessEqual(len(gzip.decompress(raw)), c.MAX_EXPANDED)
 

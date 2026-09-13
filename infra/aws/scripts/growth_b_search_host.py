@@ -33,6 +33,7 @@ import growth_b_contract as contract
 import growth_b_prepare as prepare
 import growth_b_runtime as runtime
 import growth_b_search as search
+import growth_b_rds_class as rds_class
 import growth_b_search_transport as transport
 import growth_b_service as service
 
@@ -47,7 +48,7 @@ MAX_PUBLIC_BYTES = 8 * 1024**2
 TOOLS = tuple(sorted(set(prepare.TOOLS) | {'growth_b_search_host.py', 'growth_b_search.py',
     'growth_b_search_transport.py', 'growth_b_service.py', 'growth_b_app_runtime.py',
     'publish-growth-dataset-b.py', 'fetch-growth-dataset-b.py', 'growth_b_search_snapshot.py',
-    'growth_b_search_snapshot_bridge.py', 'growth_b_snapshot.py', 'growth_b_snapshot_host.py'}))
+    'growth_b_search_snapshot_bridge.py', 'growth_b_snapshot.py', 'growth_b_snapshot_host.py', 'growth_b_rds_class.py'}))
 CONTEXT_KEYS = set(('schemaVersion kind operationId runId datasetId account region resourceFence expiresAt '
     'approvedExecutionDeadlineEpoch controllerDeadlineEpoch lease hosts rds serviceManifest preparationManifest '
     'sourceRefs targetIndex repositoryName toolSources').split())
@@ -202,7 +203,8 @@ def public_json(value):
 
 def validate_context(value, *, now=None, expected_sources=None):
     snapshot_target = isinstance(value, dict) and 'snapshotLineage' in value
-    need(isinstance(value, dict) and set(value) == CONTEXT_KEYS | ({'snapshotLineage'} if snapshot_target else set()), 'CONTEXT_FIELDS')
+    need(isinstance(value, dict) and set(value) == CONTEXT_KEYS | ({'snapshotLineage'} if snapshot_target else set()) | ({'rdsInstanceClass'} if 'rdsInstanceClass' in value else set()), 'CONTEXT_FIELDS')
+    rds_class.selected(value.get('rdsInstanceClass', rds_class.DEFAULT))
     need(value['schemaVersion'] == 1 and value['kind'] == KIND and value['datasetId'] == DATASET
          and value['account'] == ACCOUNT and value['region'] == REGION, 'CONTEXT_SCOPE')
     run, operation = value['runId'], value['operationId']
@@ -510,6 +512,7 @@ def live_rds(context, aws):
     items = aws.call('rds', 'describe-db-instances', '--db-instance-identifier', expected['identifier']).get('DBInstances')
     need(isinstance(items, list) and len(items) == 1, 'RDS_INVENTORY')
     actual = items[0]
+    rds_class.actual_class(actual, context.get('rdsInstanceClass', rds_class.DEFAULT))
     need(actual.get('DBInstanceIdentifier') == expected['identifier'] and actual.get('DbiResourceId') == expected['resourceId']
          and actual.get('Endpoint', {}).get('Address') == expected['endpoint'] and actual['Endpoint'].get('Port') == 3306
          and actual.get('Engine') == 'mysql' and actual.get('EngineVersion') == '8.4.11'

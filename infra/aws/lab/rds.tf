@@ -4,6 +4,7 @@ module "rds" {
 
   name                = "airbob-${var.run_id}"
   engine_version      = var.rds_engine_version
+  instance_class      = var.rds_instance_class
   bootstrap_mode      = var.database_bootstrap
   dump_storage_gib    = local.dataset_dump_storage_gib
   snapshot_identifier = var.database_bootstrap == "snapshot" ? var.rds_snapshot_identifier : null
@@ -13,7 +14,9 @@ module "rds" {
   ]
   security_group_id = module.security.security_group_ids.rds
   availability_zone = var.primary_availability_zone
-  tags              = merge(local.ephemeral_tags, { Service = "rds" })
+  tags = merge(local.ephemeral_tags, { Service = "rds" },
+    var.rds_instance_class == "db.m6i.large"
+  ? { BDatabaseClass = var.rds_instance_class } : {})
 
   depends_on = [
     terraform_data.network_receipt_gate,

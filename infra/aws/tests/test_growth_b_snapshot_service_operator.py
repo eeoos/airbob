@@ -72,6 +72,7 @@ class SnapshotOperatorFixture(reusable.CdcOperatorFixture):
         import growth_b_snapshot_service_verify as verifier
         self.verifier = verifier
         self.original.update(globalBSnapshotRestoreOnly=True, globalBPrepareOnly=False, databaseBootstrap='snapshot')
+        self.phase3['rds_configured_storage_gib'] = None
         selected_sha = 'd' * 64
         preparation_id = 'target-prepare-01'
         self.operation = {key: copy.deepcopy(value) for key, value in self.operation.items()}
@@ -91,6 +92,7 @@ class SnapshotOperatorFixture(reusable.CdcOperatorFixture):
                             ' --boundary ' + shlex.quote(tool) + ' "$@"\n')
             file.chmod(0o700)
         names = ('valid_run_id', 'require_global_b_execution_deadline', 'validate_retained_global_b_execution_deadline',
+                 'load_retained_rds_class', 'verify_retained_rds_class',
                  'validate_operator_scope_for_action', 'read_run_manifest', 'publish_immutable_json', 'sha256_file',
                  'sha256_text', 'write_current_lease_file', 'assert_b_source_not_retired', 'publish_global_b_cdc_json',
                  'continue_global_b_snapshot_service', 'continue_global_b_services')
@@ -114,6 +116,8 @@ class SnapshotOperatorFixture(reusable.CdcOperatorFixture):
             'lease_lock_id': self.lease['lockName'], 'lease_owner': self.lease['owner'], 'lease_command': 'up',
             'fencing_token': str(self.lease['fencingToken']), 'GLOBAL_LEASE_FAIL': 'false', 'BACKEND_DELAY_SECONDS': '0',
             'global_b_service_release': 'untrusted-input', 'cache_enabled': 'true', 'bundle_commit': 'untrusted-input'}
+        values.update(global_b_prepare_only='false', global_b_snapshot_restore_only='false', global_b_services='true',
+                      global_b_snapshot_operation='', rds_instance_class='db.t3.small', rds_class_operator_file='')
         values.update(env or {})
         setup = 'set -euo pipefail\numask 077\n' + '\n'.join(key + '=' + shlex.quote(value) for key, value in values.items())
         stubs = r'''
@@ -153,6 +157,23 @@ continue_global_b_cdc() { fail FORBIDDEN_SOURCE_CDC; }
 
 
 class SnapshotAdmissionTest(SnapshotOperatorFixture):
+    def test_large_target_uses_actual_allocated_storage_and_current_class_guard(self):
+        self.select_large_class()
+        result = self.execute(); self.assertEqual(37, result.returncode, result.stderr)
+        context = json.loads((self.root / 'verifier-context.json').read_bytes())
+        self.assertEqual('db.m6i.large', context['operator']['rdsInstanceClass'])
+        self.assertIsNone(context['phase3']['rds_configured_storage_gib'])
+        self.assertEqual(100, context['phase3']['rds_allocated_storage_gib'])
+        self.assertTrue(any(call['tool'] == 'python3' and Path(call['args'][0]) == SCRIPTS / 'growth_b_rds_class.py'
+                            and call['args'][1] == 'live' for call in self.calls))
+
+    def test_snapshot_target_pending_class_drift_closes_before_read_worker(self):
+        self.select_large_class()
+        self.settings['rds']['PendingModifiedValues'] = {'DBInstanceClass': 'db.t3.small'}
+        result = self.execute(); self.assert_before_remote_run(result)
+        self.assertIn('Live RDS class, immutable selection', result.stderr)
+        self.assertFalse(any(call['tool'] == 'aws' and call['args'][:2] == ['s3api', 'put-object'] for call in self.calls))
+
     def test_retained_snapshot_context_is_exact_and_remote_unknown_remains_failure(self):
         result = self.execute(); self.assertEqual(37, result.returncode, result.stderr)
         context = json.loads((self.root / 'verifier-context.json').read_bytes())
@@ -164,7 +185,8 @@ class SnapshotAdmissionTest(SnapshotOperatorFixture):
         self.assertEqual(context['controllerDeadlineEpoch'], self.now + 17940)
         self.assertEqual([call['args'][-1] for call in self.calls if call['tool'] == 'terraform'],
                          ['phase2_contract', 'phase3_contract', 'phase4_contract', 'global_b_service'])
-        self.assertFalse(any(call['tool'] == 'aws' and call['args'][0] != 's3api' for call in self.calls))
+        self.assertEqual(1, sum(call['tool'] == 'aws' and call['args'][:2] == ['rds', 'describe-db-instances'] for call in self.calls))
+        self.assertFalse(any(call['tool'] == 'aws' and call['args'][0] not in ('s3api', 'rds') for call in self.calls))
         self.assertFalse(any(call['tool'] == 'python3' and 'growth_b_cdc_supervisor.py' in call['args'][0] for call in self.calls))
 
     def test_dump_source_cannot_use_snapshot_verifier(self):
@@ -376,6 +398,7 @@ class SnapshotCompletionTest(SnapshotOperatorFixture):
         self.manifest = self.verifier.unpack_document(self.completed['documents']['serviceManifest'])[0]
         self.readiness = self.verifier.unpack_document(self.completed['documents']['readiness'])[0]
         self.settings.update(head=self.operation['executionCommit'], selectedService=self.manifest, selectedReadiness=self.readiness,
+            rds=reusable.rds_fixture(self.original, self.phase3, self.now),
             terraform={'phase2_contract': self.phase2, 'phase3_contract': self.phase3,
                        'phase4_contract': self.phase4, 'global_b_service': self.service_state}, verifierStatus=0)
         for path in (self.completed['output'] / 'public').iterdir():
@@ -434,7 +457,8 @@ class SnapshotCompletionTest(SnapshotOperatorFixture):
 
     def test_current_tf_rds_resource_must_match_actual_snapshot_preparation(self):
         self.phase3['rds_resource_id'] = 'db-' + 'X' * 24
-        self.assert_completion_rejected(self.execute())
+        result = self.execute(); self.assert_before_remote_run(result)
+        self.assertIn('Live RDS class, immutable selection', result.stderr)
 
     def test_foreign_completed_target_uuid_is_rejected(self):
         self.change_public('snapshot-target-service-verification', lambda value: value['targetIdentity'].update(

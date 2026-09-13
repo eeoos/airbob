@@ -1,0 +1,653 @@
+{
+  "actualCloudSuccessClaimed": false,
+  "archiveContracts": {
+    "nativeControllerArchive": {
+      "bytes": 172344,
+      "expandedBytes": 666724,
+      "files": {
+        "infra/aws/scripts/fetch-growth-dataset-b.py": {
+          "bytes": 6283,
+          "sha256": "d9bf31788fd6b16d314547c3772af82b22cc21246f849d062eec8f52dadcbf04"
+        },
+        "infra/aws/scripts/growth_b_app_runtime.py": {
+          "bytes": 20791,
+          "sha256": "99fb542f000eab424f16529aca3fb62b1dc0d38a6ed1ea789dc834b4865547ee"
+        },
+        "infra/aws/scripts/growth_b_aws_contract.py": {
+          "bytes": 9169,
+          "sha256": "66461ad5f5dea567bccae5f9284608febeb579bca07403ab3ce4e2edef5a2d32"
+        },
+        "infra/aws/scripts/growth_b_aws_restore.py": {
+          "bytes": 69142,
+          "sha256": "ecdb52bd159a36324699005d082494694f6ebd9a81f48199818abf4fd5307c30"
+        },
+        "infra/aws/scripts/growth_b_contract.py": {
+          "bytes": 34768,
+          "sha256": "f0327d99e7a6d53db4eb9210bf6634ea64552d05d9b802db90b4eaae19811e8d"
+        },
+        "infra/aws/scripts/growth_b_inventory.py": {
+          "bytes": 9992,
+          "sha256": "2f7a908162fc59bc64577e1c0219905a39566996d348a651af68c5cbba2e33e7"
+        },
+        "infra/aws/scripts/growth_b_prepare.py": {
+          "bytes": 28679,
+          "sha256": "391c9adf36b8263816b8ff7227edb77d053984061df72efa8fbf11c0fbdcdd83"
+        },
+        "infra/aws/scripts/growth_b_rds_class.py": {
+          "bytes": 23370,
+          "sha256": "c4ac951e8eb4bfcd5822453f5ab11e01b30d3f02c7548d9e256a492cc2d366e2"
+        },
+        "infra/aws/scripts/growth_b_runtime.py": {
+          "bytes": 8641,
+          "sha256": "61c1ca526f939f37de8b8b3e41f1022c5494e8bbbbead9b43cd7272a1ecf137e"
+        },
+        "infra/aws/scripts/growth_b_search.py": {
+          "bytes": 87279,
+          "sha256": "1c268ba040492172c014d9bf51dec5ea414b972176b9a86a5275e9149f56e12e"
+        },
+        "infra/aws/scripts/growth_b_search_controller.py": {
+          "bytes": 65155,
+          "sha256": "5a85301c0aa04fcb5ff656020f82326bdc487ab51a9c78c1322b2bd1b5128f52"
+        },
+        "infra/aws/scripts/growth_b_search_host.py": {
+          "bytes": 73284,
+          "sha256": "d98167e5fcb633d46092fbee276e52b7ebbb6e61536ae58fd52036022858a109"
+        },
+        "infra/aws/scripts/growth_b_search_snapshot.py": {
+          "bytes": 42840,
+          "sha256": "c1e37cd1fac10deab16817d009db439e80fe2a39e4d9f5749ffdea032a8de9f5"
+        },
+        "infra/aws/scripts/growth_b_search_snapshot_bridge.py": {
+          "bytes": 16800,
+          "sha256": "53492d45c40998244eaee3cc2772cf07cc7c4c9636195465c9410d5da172f064"
+        },
+        "infra/aws/scripts/growth_b_search_transport.py": {
+          "bytes": 32038,
+          "sha256": "58b8561a3c1f0490570eff9083ae97f7fd2a12533a2c27e5efe51c496c8d4205"
+        },
+        "infra/aws/scripts/growth_b_service.py": {
+          "bytes": 33751,
+          "sha256": "e599e01f0aeccadb34d92dea545b8343044c5c87af0d4dfa00b4a2113b49fa93"
+        },
+        "infra/aws/scripts/growth_b_snapshot.py": {
+          "bytes": 51063,
+          "sha256": "b2aa1e1cac9a30b98418a7244584bc2bca9451aed305213ac99ca742ac6dc9cd"
+        },
+        "infra/aws/scripts/growth_b_snapshot_host.py": {
+          "bytes": 40700,
+          "sha256": "c551f2ffc8d36b801de72e21e4a213731ffab8c709a8841cc750f6e21320e584"
+        },
+        "infra/aws/scripts/publish-growth-dataset-b.py": {
+          "bytes": 12979,
+          "sha256": "b530158f1f49497ec91ca55db6f017ee819e0d353d026a3c6833cd240bc79f8b"
+        }
+      },
+      "sha256": "4ba3691c6fc0c6e1120c158f4c1208508418417166ecd433a7cfb0ace2b5c067"
+    },
+    "nativeHostSources": {
+      "infra/aws/scripts/fetch-growth-dataset-b.py": "d9bf31788fd6b16d314547c3772af82b22cc21246f849d062eec8f52dadcbf04",
+      "infra/aws/scripts/growth_b_app_runtime.py": "99fb542f000eab424f16529aca3fb62b1dc0d38a6ed1ea789dc834b4865547ee",
+      "infra/aws/scripts/growth_b_aws_contract.py": "66461ad5f5dea567bccae5f9284608febeb579bca07403ab3ce4e2edef5a2d32",
+      "infra/aws/scripts/growth_b_aws_restore.py": "ecdb52bd159a36324699005d082494694f6ebd9a81f48199818abf4fd5307c30",
+      "infra/aws/scripts/growth_b_contract.py": "f0327d99e7a6d53db4eb9210bf6634ea64552d05d9b802db90b4eaae19811e8d",
+      "infra/aws/scripts/growth_b_inventory.py": "2f7a908162fc59bc64577e1c0219905a39566996d348a651af68c5cbba2e33e7",
+      "infra/aws/scripts/growth_b_prepare.py": "391c9adf36b8263816b8ff7227edb77d053984061df72efa8fbf11c0fbdcdd83",
+      "infra/aws/scripts/growth_b_rds_class.py": "c4ac951e8eb4bfcd5822453f5ab11e01b30d3f02c7548d9e256a492cc2d366e2",
+      "infra/aws/scripts/growth_b_runtime.py": "61c1ca526f939f37de8b8b3e41f1022c5494e8bbbbead9b43cd7272a1ecf137e",
+      "infra/aws/scripts/growth_b_search.py": "1c268ba040492172c014d9bf51dec5ea414b972176b9a86a5275e9149f56e12e",
+      "infra/aws/scripts/growth_b_search_host.py": "d98167e5fcb633d46092fbee276e52b7ebbb6e61536ae58fd52036022858a109",
+      "infra/aws/scripts/growth_b_search_snapshot.py": "c1e37cd1fac10deab16817d009db439e80fe2a39e4d9f5749ffdea032a8de9f5",
+      "infra/aws/scripts/growth_b_search_snapshot_bridge.py": "53492d45c40998244eaee3cc2772cf07cc7c4c9636195465c9410d5da172f064",
+      "infra/aws/scripts/growth_b_search_transport.py": "58b8561a3c1f0490570eff9083ae97f7fd2a12533a2c27e5efe51c496c8d4205",
+      "infra/aws/scripts/growth_b_service.py": "e599e01f0aeccadb34d92dea545b8343044c5c87af0d4dfa00b4a2113b49fa93",
+      "infra/aws/scripts/growth_b_snapshot.py": "b2aa1e1cac9a30b98418a7244584bc2bca9451aed305213ac99ca742ac6dc9cd",
+      "infra/aws/scripts/growth_b_snapshot_host.py": "c551f2ffc8d36b801de72e21e4a213731ffab8c709a8841cc750f6e21320e584",
+      "infra/aws/scripts/publish-growth-dataset-b.py": "b530158f1f49497ec91ca55db6f017ee819e0d353d026a3c6833cd240bc79f8b"
+    },
+    "snapshotHostSources": {
+      "growth_b_aws_contract.py": "66461ad5f5dea567bccae5f9284608febeb579bca07403ab3ce4e2edef5a2d32",
+      "growth_b_aws_restore.py": "ecdb52bd159a36324699005d082494694f6ebd9a81f48199818abf4fd5307c30",
+      "growth_b_contract.py": "f0327d99e7a6d53db4eb9210bf6634ea64552d05d9b802db90b4eaae19811e8d",
+      "growth_b_inventory.py": "2f7a908162fc59bc64577e1c0219905a39566996d348a651af68c5cbba2e33e7",
+      "growth_b_prepare.py": "391c9adf36b8263816b8ff7227edb77d053984061df72efa8fbf11c0fbdcdd83",
+      "growth_b_rds_class.py": "c4ac951e8eb4bfcd5822453f5ab11e01b30d3f02c7548d9e256a492cc2d366e2",
+      "growth_b_runtime.py": "61c1ca526f939f37de8b8b3e41f1022c5494e8bbbbead9b43cd7272a1ecf137e",
+      "growth_b_snapshot.py": "b2aa1e1cac9a30b98418a7244584bc2bca9451aed305213ac99ca742ac6dc9cd",
+      "growth_b_snapshot_host.py": "c551f2ffc8d36b801de72e21e4a213731ffab8c709a8841cc750f6e21320e584"
+    }
+  },
+  "baseCommit": "352e1e0ae1d85cb3a52d094051dbc6525ff1e887",
+  "currentPublicPackages": {
+    "native": {
+      "archive": {
+        "bytes": 172344,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-native-search-source-package-20260913-04/source.tar.gz",
+        "sha256": "4ba3691c6fc0c6e1120c158f4c1208508418417166ecd433a7cfb0ace2b5c067"
+      },
+      "builder": {
+        "bytes": 8992,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-native-search-source-package-20260913-04/package-builder.py",
+        "sha256": "8216db7ee78cd4b2def1ab37d05c8109a6cca46360eb55001a761ffeb8bc73d6"
+      },
+      "builderInput": {
+        "bytes": 4149,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-native-search-source-package-20260913-04/builder-input.json",
+        "sha256": "cb774dbb710af875fe939851ef14c70ea3074262e4c7baae455c9aea66f10683"
+      },
+      "expandedBytes": 666724,
+      "fullByteVerification": {
+        "bytes": 4858,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-native-search-source-package-20260913-04/byte-verification.json",
+        "sha256": "53812ff4951ada3d665ea1998d69a00ddbe84612d8199d496b75d1bf4c740c4e"
+      },
+      "manifest": {
+        "bytes": 3247,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-native-search-source-package-20260913-04/source-manifest.json",
+        "sha256": "3a8a798b21ddde23e0c73ee67beeff04efce215acffc49c84a07876d4632bb41"
+      },
+      "members": 19
+    },
+    "r4": {
+      "archive": {
+        "bytes": 212632,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r4-public-source-package-20260913-03/source.tar.gz",
+        "sha256": "d3b8995556be35446288146da63733c74d1bea2799c60a5900e3bd7ef6e2b776"
+      },
+      "builder": {
+        "bytes": 8992,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r4-public-source-package-20260913-03/package-builder.py",
+        "sha256": "8216db7ee78cd4b2def1ab37d05c8109a6cca46360eb55001a761ffeb8bc73d6"
+      },
+      "builderInput": {
+        "bytes": 4558,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r4-public-source-package-20260913-03/builder-input.json",
+        "sha256": "f7eeb6b97b759eddb3cf5254ef042f6630888d34c2980cc29c23f537287dbf58"
+      },
+      "expandedBytes": 806144,
+      "fullByteVerification": {
+        "bytes": 5243,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r4-public-source-package-20260913-03/byte-verification.json",
+        "sha256": "059573d94a3e86123e21fdfd12bf18079d40011632c245b9add0bdba3398d586"
+      },
+      "manifest": {
+        "bytes": 5696,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r4-public-source-package-20260913-03/source-package.json",
+        "sha256": "d311b570468b624ac263189f882db60d9065e2b7999eeba492d58c7cc65ed86b"
+      },
+      "members": 22
+    },
+    "r5": {
+      "archive": {
+        "bytes": 257546,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/source.tar.gz",
+        "sha256": "ac323c10c165ecb85e12b64bb57e1ab250372cca6fadd4dc527791c9f75fcd50"
+      },
+      "builder": {
+        "bytes": 8992,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/package-builder.py",
+        "sha256": "8216db7ee78cd4b2def1ab37d05c8109a6cca46360eb55001a761ffeb8bc73d6"
+      },
+      "builderInput": {
+        "bytes": 5322,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/builder-input.json",
+        "sha256": "20174309001afeaa9549ffc51adaba8e46b99aef078331bcf895d22a279a6862"
+      },
+      "expandedBytes": 994022,
+      "fullByteVerification": {
+        "bytes": 6166,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/byte-verification.json",
+        "sha256": "175f51b57b9c6643c27ade03a546baabac1ac1e6b9a9a981544cc41ef80e921e"
+      },
+      "manifest": {
+        "bytes": 4489,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/source-package.json",
+        "sha256": "d2017548795cf8d530a20f086814e850e29837a6e130ec5b4be923815df3e74d"
+      },
+      "members": 26
+    }
+  },
+  "externalActions": {
+    "authCalls": 0,
+    "awsCalls": 0,
+    "cloudPlanOrApply": 0,
+    "gitMutations": 0,
+    "githubCalls": 0,
+    "publications": 0,
+    "sqlCalls": 0,
+    "sshCalls": 0
+  },
+  "followupFiles": {
+    "infra/aws/scripts/bootstrap-growth-b-snapshot.sh": {
+      "bytes": 12639,
+      "change": "modified",
+      "sha256": "232295c43176c043aea2a0fe17e2deccc22528a7ad533bfd6512d21ae9edb6f6"
+    },
+    "infra/aws/tests/test_growth_b_bootstrap_bytecode.py": {
+      "bytes": 4405,
+      "change": "modified",
+      "sha256": "64cb4ca5baee14d3a9cad44aefecbd361fb7320e2be4fccd2ed2c5d85744d4ce"
+    },
+    "infra/aws/tests/test_growth_b_cdc_operator.py": {
+      "bytes": 48023,
+      "change": "modified",
+      "sha256": "afbf075a4fa0ac31273a88500bd6d06d3c0d74012eb1228bd4d55ca21591ebb9"
+    },
+    "infra/aws/tests/test_growth_b_local_service.py": {
+      "bytes": 43328,
+      "change": "modified",
+      "sha256": "9b660ae25801ab58103a845bbd3237ecd2c2a1fb7e672f01946c96866b0ab855"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_host.py": {
+      "bytes": 43419,
+      "change": "modified",
+      "sha256": "e3f519af1f2763fbf28fb10653b3f20715cf3dc86326854e879f838e5e111859"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_service_operator.py": {
+      "bytes": 32644,
+      "change": "modified",
+      "sha256": "23dd4106b8d69a19a5eb177375be55002d0ce2ee055c823e355eea07b36c956b"
+    }
+  },
+  "foundationSubsetUnchanged": {
+    "infra/aws/foundation/lab-compute.tf": "b046302df596eec1fd8c430e9ffd52ff184c524ac76efa5f8450779a98562749",
+    "infra/aws/foundation/tests/foundation.tftest.hcl": "2d9b828635044e7482903895037dad2626fdf90928d3a3b624a40bc845f52854",
+    "infra/aws/tests/test_global_b_infrastructure.py": "0052319e51b731ad46d195a5857815f5ae7868f033df97be450dccfaf08566b6",
+    "infra/aws/tests/test_growth_b_rds_class_infrastructure.py": "9e741a046a6a776763ec90b6fdd27567946277fb56f48a74f2a85a63cb56a971"
+  },
+  "historicalQualificationChain": [
+    {
+      "bytes": 16802,
+      "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-rds-class-root-qa-20260913-01/.private/frozen-source-01/infra/aws/reviews/global-b-rds-class-qualification.json",
+      "sha256": "8c59f20c11050c1384a0700909b072d374c56eb63121236f35759148667b9378",
+      "state": "HISTORICAL_29_FILE_FOCUSED_CHECKS"
+    },
+    {
+      "bytes": 21841,
+      "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/.private/revision-2/global-b-rds-class-qualification.json",
+      "revision": 2,
+      "sha256": "f8d1e98cf690999b0a54ca9a5dbfbe60705570652f178b2deb40dccdfd1e25c9",
+      "state": "HISTORICAL_35_FILE_ROOT_PYTHON_QUALIFIED"
+    }
+  ],
+  "kind": "global-b-rds-class-selector-offline-qualification",
+  "previousQualification": {
+    "bytes": 21841,
+    "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/.private/revision-2/global-b-rds-class-qualification.json",
+    "revision": 2,
+    "sha256": "f8d1e98cf690999b0a54ca9a5dbfbe60705570652f178b2deb40dccdfd1e25c9",
+    "state": "HISTORICAL_35_FILE_ROOT_PYTHON_QUALIFIED"
+  },
+  "previousSelectedFileCountIncludingReport": 35,
+  "previousSelectedFileMap": {
+    "bytes": 6755,
+    "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/.private/revision-2/selected-35-files.json",
+    "sha256": "b1e77d343fc74aab90b0265bd72bd6a8595c67a4c96a095274f86b2b268d7935"
+  },
+  "remainingGates": [
+    "Root affected R5/contract tests and CI for the exact revision3 37-file set; revision2 full QA remains historical evidence",
+    "No approval of the larger paid specification or a new common budget/deadline is implied",
+    "Retire the failed lab before a fresh Foundation plan; Root observed the existing private-zone association drift and applied nothing",
+    "Actual same-class small preparation and exact immutable class qualification do not yet exist",
+    "Rebuild final preparation input with the new actual small standalone receipt; retain its exact VersionId/SHA and separate class reference",
+    "After source promotion, review and publish actual new native/R5 archive bytes and use their exact operation references; local packages are not publication evidence",
+    "Measure actual duration/capacity; this code does not establish that the fixed import timeout will be sufficient"
+  ],
+  "revision": 3,
+  "revision3Files": {
+    "infra/aws/scripts/growth_b_snapshot_service_verify.py": {
+      "bytes": 78867,
+      "change": "modified",
+      "sha256": "c49379a2dc3b79b32bcc6a2a7c328910de13b79d6199998ddc6d1e96c02a5b91"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_service_verify.py": {
+      "bytes": 45809,
+      "change": "modified",
+      "sha256": "87edff4deb7ba010505a74cb0ed2e9658492ae03dbb325d7769d74a29f4494a5"
+    }
+  },
+  "schemaVersion": 1,
+  "scope": {
+    "budgetOrDeadlineExtended": false,
+    "defaultClass": "db.t3.small",
+    "explicitGlobalBClass": "db.m6i.large",
+    "maximumSimultaneousRds": 1,
+    "multiAz": false,
+    "mysqlVersion": "8.4.11",
+    "originalApprovedDeadlineEpoch": 1789366861,
+    "originalApprovedOperatingBudgetUsd": 40,
+    "storageGiB": 100,
+    "storageType": "gp3",
+    "workflowDispatchInputs": 25
+  },
+  "selectedFileCountIncludingThisReport": 37,
+  "selectedFilesExcludingThisReport": {
+    ".github/workflows/aws-performance-lab.yml": {
+      "bytes": 29573,
+      "change": "modified",
+      "sha256": "ed454fda809f5ca21dd8c6d92a01cc1349aaf63d6634909efc704c360778cdf8"
+    },
+    "infra/aws/foundation/lab-compute.tf": {
+      "bytes": 67925,
+      "change": "modified",
+      "sha256": "b046302df596eec1fd8c430e9ffd52ff184c524ac76efa5f8450779a98562749"
+    },
+    "infra/aws/foundation/tests/foundation.tftest.hcl": {
+      "bytes": 167485,
+      "change": "modified",
+      "sha256": "2d9b828635044e7482903895037dad2626fdf90928d3a3b624a40bc845f52854"
+    },
+    "infra/aws/lab/growth-b.tf": {
+      "bytes": 31742,
+      "change": "modified",
+      "sha256": "6aa9925a151d840e7de44dc93055995d2a1a53612d6adeef5453bd6548325ce9"
+    },
+    "infra/aws/lab/modules/rds/main.tf": {
+      "bytes": 2858,
+      "change": "modified",
+      "sha256": "3c039363f390cf1cd6c5de012dc5d409d231a1a572ca0aa118be936f04846681"
+    },
+    "infra/aws/lab/modules/rds/outputs.tf": {
+      "bytes": 1888,
+      "change": "modified",
+      "sha256": "5ce2cf806eafe435658538dda81d52356321add283b3e98d9a61fc0200eeaafd"
+    },
+    "infra/aws/lab/modules/rds/variables.tf": {
+      "bytes": 1506,
+      "change": "modified",
+      "sha256": "8823872032bfa604422e328ca0cd52cffa960366f5e018afe7170aa82a2b98fd"
+    },
+    "infra/aws/lab/outputs.tf": {
+      "bytes": 10339,
+      "change": "modified",
+      "sha256": "4f1d8a98b550cb71786f2a0e4779a19ba1d69a695deac539a260c684764c0ff5"
+    },
+    "infra/aws/lab/rds.tf": {
+      "bytes": 1397,
+      "change": "modified",
+      "sha256": "f3ddc6b2e514c8297f875b89e7215388dd14f7dc60d61bf9d47e4b8fa2c7d400"
+    },
+    "infra/aws/lab/variables.tf": {
+      "bytes": 18076,
+      "change": "modified",
+      "sha256": "6c18a2d0a2ba1583b40c7ef0f09ffb12f559fb067b5392659e053993a4e0b65d"
+    },
+    "infra/aws/reviews/global-b-rds-class-selector.md": {
+      "bytes": 14617,
+      "change": "new",
+      "sha256": "e8becd43d0df5bc5a9002aac43f0f8e4e653ccd5f40b5432f29a076309d39eb3"
+    },
+    "infra/aws/scripts/aws-lab.sh": {
+      "bytes": 249883,
+      "change": "modified",
+      "sha256": "dc562e42fd470a18bf36444176600b4aebe996c03fd1791cd166a0bc04847932"
+    },
+    "infra/aws/scripts/bootstrap-growth-b-entry.sh": {
+      "bytes": 12037,
+      "change": "modified",
+      "sha256": "f5d9060342d9d5d75c0780df4bf89e1131b3c161e1312418b9a1d018ca531d89"
+    },
+    "infra/aws/scripts/bootstrap-growth-b-services.sh": {
+      "bytes": 4693,
+      "change": "modified",
+      "sha256": "8478a3d0a0b627f31aea80f3beb5d5dc40c5dee8ac6c61343a4f7c830ba15706"
+    },
+    "infra/aws/scripts/bootstrap-growth-b-snapshot.sh": {
+      "bytes": 12639,
+      "change": "modified",
+      "sha256": "232295c43176c043aea2a0fe17e2deccc22528a7ad533bfd6512d21ae9edb6f6"
+    },
+    "infra/aws/scripts/growth_b_rds_class.py": {
+      "bytes": 23370,
+      "change": "new",
+      "sha256": "c4ac951e8eb4bfcd5822453f5ab11e01b30d3f02c7548d9e256a492cc2d366e2"
+    },
+    "infra/aws/scripts/growth_b_search_controller.py": {
+      "bytes": 65155,
+      "change": "modified",
+      "sha256": "5a85301c0aa04fcb5ff656020f82326bdc487ab51a9c78c1322b2bd1b5128f52"
+    },
+    "infra/aws/scripts/growth_b_search_host.py": {
+      "bytes": 73284,
+      "change": "modified",
+      "sha256": "d98167e5fcb633d46092fbee276e52b7ebbb6e61536ae58fd52036022858a109"
+    },
+    "infra/aws/scripts/growth_b_snapshot_controller.py": {
+      "bytes": 44941,
+      "change": "modified",
+      "sha256": "2def21033d33c4b6ce9db8bdf3d497896741bb173a211f620c492db3fdb159ac"
+    },
+    "infra/aws/scripts/growth_b_snapshot_host.py": {
+      "bytes": 40700,
+      "change": "modified",
+      "sha256": "c551f2ffc8d36b801de72e21e4a213731ffab8c709a8841cc750f6e21320e584"
+    },
+    "infra/aws/scripts/growth_b_snapshot_service_verify.py": {
+      "bytes": 78867,
+      "change": "modified",
+      "sha256": "c49379a2dc3b79b32bcc6a2a7c328910de13b79d6199998ddc6d1e96c02a5b91"
+    },
+    "infra/aws/tests/data-bootstrap-test.sh": {
+      "bytes": 49622,
+      "change": "modified",
+      "sha256": "e96eb410b6c3e3c421c0c60a3086bcb9ae8d92ffcd9a168dbbd252c90ee7bb25"
+    },
+    "infra/aws/tests/test_global_b_infrastructure.py": {
+      "bytes": 16885,
+      "change": "modified",
+      "sha256": "0052319e51b731ad46d195a5857815f5ae7868f033df97be450dccfaf08566b6"
+    },
+    "infra/aws/tests/test_growth_b_bootstrap_bytecode.py": {
+      "bytes": 4405,
+      "change": "modified",
+      "sha256": "64cb4ca5baee14d3a9cad44aefecbd361fb7320e2be4fccd2ed2c5d85744d4ce"
+    },
+    "infra/aws/tests/test_growth_b_cdc_operator.py": {
+      "bytes": 48023,
+      "change": "modified",
+      "sha256": "afbf075a4fa0ac31273a88500bd6d06d3c0d74012eb1228bd4d55ca21591ebb9"
+    },
+    "infra/aws/tests/test_growth_b_local_service.py": {
+      "bytes": 43328,
+      "change": "modified",
+      "sha256": "9b660ae25801ab58103a845bbd3237ecd2c2a1fb7e672f01946c96866b0ab855"
+    },
+    "infra/aws/tests/test_growth_b_rds_class.py": {
+      "bytes": 22314,
+      "change": "new",
+      "sha256": "cad7e78fa077ee07ce38ebc06b0d75df5c676a195eefa1cf6de99963f7773716"
+    },
+    "infra/aws/tests/test_growth_b_rds_class_infrastructure.py": {
+      "bytes": 8825,
+      "change": "new",
+      "sha256": "9e741a046a6a776763ec90b6fdd27567946277fb56f48a74f2a85a63cb56a971"
+    },
+    "infra/aws/tests/test_growth_b_search_controller.py": {
+      "bytes": 24167,
+      "change": "modified",
+      "sha256": "32b8c2b0156823d7f272d6642d64a0a7ef0f5069935ae575bf6c3589c7b15b3b"
+    },
+    "infra/aws/tests/test_growth_b_search_host.py": {
+      "bytes": 49318,
+      "change": "modified",
+      "sha256": "92ea05da5e6b25483414128771334e09e2f646840b76f04f4d19e90e98b3f50a"
+    },
+    "infra/aws/tests/test_growth_b_service_contract.py": {
+      "bytes": 24869,
+      "change": "modified",
+      "sha256": "da8f571d5483856c7646998fe275bd4198264f61083bf67f4621b57fe1073846"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_controller.py": {
+      "bytes": 34479,
+      "change": "modified",
+      "sha256": "1c98599e80e0dc6c69c0590334f99e02632800cc1b6bab8b5bcbf12814092093"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_host.py": {
+      "bytes": 43419,
+      "change": "modified",
+      "sha256": "e3f519af1f2763fbf28fb10653b3f20715cf3dc86326854e879f838e5e111859"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_service_operator.py": {
+      "bytes": 32644,
+      "change": "modified",
+      "sha256": "23dd4106b8d69a19a5eb177375be55002d0ce2ee055c823e355eea07b36c956b"
+    },
+    "infra/aws/tests/test_growth_b_snapshot_service_verify.py": {
+      "bytes": 45809,
+      "change": "modified",
+      "sha256": "87edff4deb7ba010505a74cb0ed2e9658492ae03dbb325d7769d74a29f4494a5"
+    },
+    "infra/aws/tests/test_growth_b_workflow.py": {
+      "bytes": 23947,
+      "change": "modified",
+      "sha256": "63063a54ea29adae928413d3c704efb3b78f9d67831cbd3a601ca160d5869ba6"
+    }
+  },
+  "state": "FOCUSED_LOCAL_CHECKS_PASSED_PENDING_ROOT_AFFECTED_QA_AND_CI",
+  "unchangedFrozenSources": {
+    "growth_b_app_runtime.py": "99fb542f000eab424f16529aca3fb62b1dc0d38a6ed1ea789dc834b4865547ee",
+    "growth_b_aws_contract.py": "66461ad5f5dea567bccae5f9284608febeb579bca07403ab3ce4e2edef5a2d32",
+    "growth_b_aws_restore.py": "ecdb52bd159a36324699005d082494694f6ebd9a81f48199818abf4fd5307c30",
+    "growth_b_contract.py": "f0327d99e7a6d53db4eb9210bf6634ea64552d05d9b802db90b4eaae19811e8d",
+    "growth_b_inventory.py": "2f7a908162fc59bc64577e1c0219905a39566996d348a651af68c5cbba2e33e7",
+    "growth_b_prepare.py": "391c9adf36b8263816b8ff7227edb77d053984061df72efa8fbf11c0fbdcdd83",
+    "growth_b_runtime.py": "61c1ca526f939f37de8b8b3e41f1022c5494e8bbbbead9b43cd7272a1ecf137e",
+    "growth_b_search.py": "1c268ba040492172c014d9bf51dec5ea414b972176b9a86a5275e9149f56e12e",
+    "growth_b_search_snapshot.py": "c1e37cd1fac10deab16817d009db439e80fe2a39e4d9f5749ffdea032a8de9f5",
+    "growth_b_service.py": "e599e01f0aeccadb34d92dea545b8343044c5c87af0d4dfa00b4a2113b49fa93",
+    "growth_b_snapshot.py": "b2aa1e1cac9a30b98418a7244584bc2bca9451aed305213ac99ca742ac6dc9cd"
+  },
+  "validation": {
+    "affectedFollowupPython": {
+      "actualRemoteCalls": 0,
+      "command": "python3 -B -m unittest test_growth_b_bootstrap_bytecode test_growth_b_cdc_operator test_growth_b_snapshot_service_operator test_growth_b_snapshot_host",
+      "cwd": "infra/aws/tests",
+      "productionClassAndCompletionValidators": "executed without no-op stubs",
+      "result": "PASS",
+      "seconds": 215.262,
+      "syntheticSuccessFixtures": true,
+      "tests": 124
+    },
+    "bytecodeProtection": {
+      "entries": {
+        "preparation": 4,
+        "services": 4,
+        "snapshot": 2
+      },
+      "parentAndChildInventoryAndShaUnchanged": true,
+      "result": "PASS",
+      "unprotectedNegativeControlReproduced": true
+    },
+    "currentRepositoryWidePythonCi": "REVISION_3_NOT_RUN_PENDING_ROOT_AFFECTED_QA_AND_CI",
+    "dataBootstrapShell": {
+      "command": "bash infra/aws/tests/data-bootstrap-test.sh",
+      "result": "PASS"
+    },
+    "editedPythonAstSyntax": "PASS",
+    "editedShellSyntax": "PASS",
+    "editedTerraformFormat": "PASS",
+    "foundationMockedTerraform": {
+      "executedByThisWorker": false,
+      "independentCredentialFreeCopy": true,
+      "reportedBy": "root",
+      "result": "PASS",
+      "seconds": 5.809,
+      "tests": 42
+    },
+    "managedPolicyBytes": {
+      "actualRenderedJson": true,
+      "dataCompute": 5724,
+      "hostBoundary": 6006,
+      "limitPerManagedPolicy": 6144,
+      "rdsProvisionLegacyApproved": 4964,
+      "rdsProvisionLongBApprovedFixture": 6045
+    },
+    "noRepositoryWideSuiteClaim": true,
+    "prior29FileFocusedPython": {
+      "command": "python3 -B -m unittest test_growth_b_rds_class test_growth_b_workflow test_growth_b_service_contract test_growth_b_search_host test_growth_b_search_controller test_growth_b_snapshot_host test_growth_b_snapshot_controller test_global_b_infrastructure test_growth_b_rds_class_infrastructure",
+      "cwd": "infra/aws/tests",
+      "remoteIo": "mocked/no actual requests",
+      "result": "PASS",
+      "seconds": 19.879,
+      "syntheticSuccessFixtures": true,
+      "tests": 190
+    },
+    "priorRootFullPython": {
+      "failures": 55,
+      "logSha256": "bf8d17d22ce3b52ec20f19e7f9f22dbcb836ea8f1ad002b192bf2da05a965c9b",
+      "note": "Historical result preserved; 53 missing harness-function failures, one bytecode invocation count, one shared-directory mode fixture.",
+      "result": "FAILED",
+      "seconds": 114.515,
+      "skipped": 8,
+      "tests": 1067
+    },
+    "publicSourcePackages": {
+      "actualConsumerFilesystemBody": true,
+      "cloudAdmission": false,
+      "currentThreeArchiveFullReadback": true,
+      "receipt": {
+        "bytes": 7203,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-native-search-source-package-20260913-04/package-qualification.json",
+        "sha256": "1d98f3bcab2eff64574855f70bca88fa7cc3f880502c3a2b761c7beaa53aadec"
+      },
+      "result": "PASS",
+      "seconds": 0.915295,
+      "tests": 19
+    },
+    "r5DependencyFix": {
+      "actualCloudCalls": 0,
+      "command": "python3 -B -m unittest test_growth_b_snapshot_service_verify",
+      "isolatedImportAndRebuildActual26Members": true,
+      "missingAndTamperedHelperRejected": true,
+      "receipt": {
+        "bytes": 1382,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-r5-public-source-package-20260913-04/source-fix-review.json",
+        "sha256": "f8bef3b9017472ec273be2aae1f5ede7eac881472dfebace512ae4d0dd733da8"
+      },
+      "result": "PASS",
+      "rootOneLineSourceReviewAccepted": true,
+      "seconds": 9.852,
+      "tests": 25
+    },
+    "revision2RootFullPython": {
+      "applicableToRevision3FullCi": false,
+      "completedAt": "2026-09-13T23:05:55.751993+00:00",
+      "passed": 1087,
+      "receipt": {
+        "bytes": 9864,
+        "path": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/aws-rds-class-root-qa-20260913-02/python/result.json",
+        "sha256": "080351ed63970cd4f3abca3f72bb9cee24f6dd21a70e325a2be5d2cca4129759"
+      },
+      "revision": 2,
+      "skipped": 8,
+      "sourceBytesUnchangedDuringTests": true,
+      "sourceQualificationSha256": "f8d1e98cf690999b0a54ca9a5dbfbe60705570652f178b2deb40dccdfd1e25c9",
+      "state": "ROOT_PYTHON_QUALIFICATION_PASSED",
+      "total": 1095
+    },
+    "rootLocalServiceFixture": {
+      "actualPrivateDirectoryValidatorUnchanged": true,
+      "change": "Root added explicit chmod(0755) to preserve the intended rejected shared-directory fixture under umask077.",
+      "file": "infra/aws/tests/test_growth_b_local_service.py",
+      "sha256": "9b660ae25801ab58103a845bbd3237ecd2c2a1fb7e672f01946c96866b0ab855"
+    },
+    "rootOperatorShellOnPrior29Files": {
+      "productionDeltaSinceRun": "Only two snapshot archive count literals changed from 8 to 9; actual shell archive admission tested locally.",
+      "reportedBy": "root",
+      "result": "PASS",
+      "seconds": 312.805079
+    },
+    "snapshotArchiveAdmission": {
+      "actualShellExtractCountHashAndHostCli": true,
+      "actualSourceBytes": true,
+      "files": 9,
+      "rejects": [
+        "missing member",
+        "extra member",
+        "foreign same-count member",
+        "changed same-count source bytes"
+      ],
+      "result": "PASS"
+    }
+  },
+  "worktree": "/Users/jaehoonchoi/study/CodeSquad/airbob-artifacts/global-b/20260912/executions/cloud-load-20260912-b4a1/.private/aws-rds-class-review"
+}

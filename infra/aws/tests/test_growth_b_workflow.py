@@ -47,6 +47,23 @@ class WorkflowAdmission(unittest.TestCase):
         checkout = self.source.split('      - name: Checkout\n', 1)[1].split('      - name:', 1)[0]
         self.assertNotIn('ref:', checkout)
 
+    def test_initial_class_selection_uses_the_existing_closed_operation_input(self):
+        code, env = self.run_gate('prepare', {'rdsInstanceClass': 'db.m6i.large'})
+        self.assertEqual(0, code); self.assertIn('B_RDS_INSTANCE_CLASS=db.m6i.large', env)
+        for operation in ({'rdsInstanceClass': 'db.m6i.xlarge'}, {'rdsInstanceClass': 'db.m6i.large', 'autoUpsize': True},
+                          {'rdsInstanceClass': 'db.m6i.large', 'classRehearsal': {}}):
+            with self.subTest(operation=operation): self.assertNotEqual(0, self.run_gate('prepare', operation)[0])
+        ref = {'key': 'data-bootstrap/lab-small/global-growth-b-' + 'a'*16 + '-rds-class.json',
+            'versionId': 'qualified-version', 'sha256': 'b'*64, 'bytes': 10000}
+        self.assertEqual(0, self.run_gate('prepare', {'rdsInstanceClass': 'db.m6i.large', 'classRehearsal': ref})[0])
+        self.assertEqual(0, self.run_gate('snapshot-restore', {'provenanceSha256': 'c'*64,
+            'rdsInstanceClass': 'db.m6i.large', 'classRehearsal': ref}, bootstrap='snapshot')[0])
+        self.assertNotEqual(0, self.run_gate('up', {'rdsInstanceClass': 'db.m6i.large'})[0])
+        services = {'serviceRelease': 'service-01', 'serviceManifestSha256': 'c'*64, 'stage': 'dependencies'}
+        self.assertNotEqual(0, self.run_gate('services', services | {'rdsInstanceClass': 'db.m6i.large'})[0])
+        inputs = self.source.split('  workflow_dispatch:\n    inputs:\n', 1)[1].split('\npermissions:', 1)[0]
+        self.assertEqual(25, len(re.findall(r'^      [a-z][a-z_]*:', inputs, re.MULTILINE)))
+
     def test_services_map_closed_stage_inputs_to_controller_environment(self):
         selected = {'serviceRelease': 'service-01', 'serviceManifestSha256': 'c'*64, 'stage': 'dependencies'}
         status, env = self.run_gate('services', selected)
@@ -265,7 +282,7 @@ UP_CREDENTIAL_SESSION_SECONDS=21600
 LEASE_DEADLINE_SECONDS=20700
 '''
             return subprocess.run(['bash', '-c', setup + self.functions + body],
-                env={'PATH': os.environ['PATH'], 'TEST_NOW': str(now), 'TEST_DEADLINE': deadline, 'TEST_MANIFEST': str(path)},
+                env={'PATH': os.environ['PATH'], 'TEST_NOW': str(now), 'TEST_DEADLINE': deadline, 'TEST_MANIFEST': str(path), 'script_dir': str(WORKFLOW.parents[2] / 'infra/aws/scripts')},
                 capture_output=True, text=True, timeout=10)
 
     def test_new_run_caps_expiry_at_common_deadline_and_keeps_shorter_ttl(self):

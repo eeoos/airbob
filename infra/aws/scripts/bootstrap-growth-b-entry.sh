@@ -115,6 +115,9 @@ export PATH="$root/toolchain/python/bin:$JAVA_HOME/bin:$root/toolchain/mysql/bin
 export PYTHONDONTWRITEBYTECODE=1
 unset PYTHONPATH PYTHONHOME JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS JAVA_OPTS JDK_JAVAC_OPTIONS CLASSPATH AIRBOB_ETL_BENCHMARK_PASSWORD
 assert_lease
+class_guard=/opt/airbob/bootstrap-helpers/growth_b_rds_class.py
+printf '%s  %s\n' "$(jq -er '.rdsClassGuardSha256' "$context")" "$class_guard" | sha256sum --check --status
+python3 -B "$class_guard" observe --context "$context" --stage before --aws "$aws" --output "$root/rds-class-before.json" >/dev/null
 redis_image=$(jq -er '.redisImage' "$context")
 [[ "$redis_image" =~ ^942632789808\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/[a-z0-9/_-]+@sha256:[0-9a-f]{64}$ ]] || fail
 export DOCKER_CONFIG="$root/docker-client"
@@ -139,6 +142,7 @@ wait "$child" || fail
 trap - HUP INT TERM
 rm -f -- "$root/process-group"
 assert_lease
+python3 -B "$class_guard" observe --context "$context" --stage after --aws "$aws" --output "$root/rds-class-after.json" >/dev/null
 standalone_key="data-bootstrap/$run_id/$dataset_id-standalone-rds.json"
 "$aws" --region "$AWS_REGION" s3api put-object --bucket airbob-performance-lab-evidence-942632789808 \
   --key "$standalone_key" --body "$root/execute/restore-receipt.json" --tagging Retention=summary \
@@ -148,6 +152,27 @@ jq --arg key "$standalone_key" --arg version "$(jq -er '.VersionId' "$root/stand
   --argjson bytes "$(stat -c %s "$root/execute/restore-receipt.json")" \
   '. + {standaloneReceiptObject:{key:$key,versionId:$version,sha256:$digest,bytes:$bytes}}' \
   "$root/preparation-receipt.json" > "$root/public-receipt.json"
+if [[ "$(jq -er '.scope' "$manifest")" == small-rds-rehearsal && "$(jq -er '.rdsInstanceClass' "$context")" == db.m6i.large ]]; then
+  python3 -B "$class_guard" qualify --context "$context" --before "$root/rds-class-before.json" \
+    --after "$root/rds-class-after.json" --wrapper "$root/public-receipt.json" \
+    --standalone "$root/execute/restore-receipt.json" --output "$root/rds-class-qualification.json" >/dev/null
+  assert_lease
+  class_key="data-bootstrap/$run_id/$dataset_id-rds-class.json"
+  "$aws" --region "$AWS_REGION" s3api put-object --bucket airbob-performance-lab-evidence-942632789808 \
+    --key "$class_key" --body "$root/rds-class-qualification.json" --tagging Retention=summary \
+    --server-side-encryption AES256 --if-none-match '*' --output json > "$root/class-publication.json"
+  class_version=$(jq -er '.VersionId | select(. != "null" and . != "")' "$root/class-publication.json")
+  "$aws" --region "$AWS_REGION" s3api get-object --bucket airbob-performance-lab-evidence-942632789808 \
+    --key "$class_key" --version-id "$class_version" "$root/rds-class-readback.json" > "$root/class-readback-object.json"
+  [[ "$(jq -er '.VersionId' "$root/class-readback-object.json")" == "$class_version" ]]
+  cmp -s "$root/rds-class-qualification.json" "$root/rds-class-readback.json"
+  jq --arg key "$class_key" --arg version "$class_version" \
+    --arg sha "$(sha256sum "$root/rds-class-qualification.json" | awk '{print $1}')" \
+    --argjson bytes "$(stat -c %s "$root/rds-class-qualification.json")" \
+    '. + {rdsClassQualificationObject:{key:$key,versionId:$version,sha256:$sha,bytes:$bytes}}' \
+    "$root/public-receipt.json" > "$root/public-receipt-with-class.json"
+  mv "$root/public-receipt-with-class.json" "$root/public-receipt.json"
+fi
 assert_lease
 "$aws" --region "$AWS_REGION" s3api put-object --bucket airbob-performance-lab-evidence-942632789808 \
   --key "data-bootstrap/$run_id/$dataset_id.json" --body "$root/public-receipt.json" \

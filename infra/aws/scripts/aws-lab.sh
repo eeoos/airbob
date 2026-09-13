@@ -119,6 +119,7 @@ set_global_b_execution_expiry() {
 
 validate_retained_global_b_execution_deadline() {
   local original=$1 retained_deadline
+  load_retained_rds_class "$original"
   require_global_b_execution_deadline
   retained_deadline=$(jq -er '.approvedExecutionDeadlineEpoch |
     select(type=="number" and floor==. and (tostring|test("^[1-9][0-9]{9}$")))' "$original") \
@@ -127,6 +128,84 @@ validate_retained_global_b_execution_deadline() {
     || fail "B continuation cannot change the approved common execution deadline"
   (( expires_at <= retained_deadline && expires_at > $(date +%s) + LEASE_DEADLINE_SECONDS )) \
     || fail "Original B resource expiry cannot cover this lease or exceeds the approved deadline"
+}
+
+load_retained_rds_class() {
+  local original=$1
+  rds_instance_class=$(python3 "$script_dir/growth_b_rds_class.py" selected --operator "$original") \
+    || fail "The original RDS class selection is invalid"
+  [[ -z "${B_RDS_INSTANCE_CLASS:-}" || "$B_RDS_INSTANCE_CLASS" == "$rds_instance_class" ]] \
+    || fail "Retained operations cannot change the original RDS class"
+  [[ -z "${B_RDS_CLASS_REHEARSAL_JSON:-}" ]] || fail "Retained operations cannot replace initial class qualification"
+  rds_class_operator_file=$original
+}
+
+verify_retained_rds_class() {
+  [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true || "$global_b_services" == true || -n "$global_b_snapshot_operation" ]] || return 0
+  [[ -n "$rds_class_operator_file" && -f "$rds_class_operator_file" ]] || fail "Original RDS class binding is missing"
+  printf '%s\n' "$phase3" > "$temp_dir/rds-class-phase3.json"
+  aws rds describe-db-instances --db-instance-identifier "airbob-$run_id" --region "$AWS_REGION" \
+    --no-cli-pager --cli-connect-timeout 5 --cli-read-timeout 15 > "$temp_dir/rds-class-live.json" \
+    || fail "RDS class observation failed"
+  python3 "$script_dir/growth_b_rds_class.py" live --operator "$rds_class_operator_file" \
+    --phase3 "$temp_dir/rds-class-phase3.json" --rds "$temp_dir/rds-class-live.json" >/dev/null \
+    || fail "Live RDS class, immutable selection, pending class, or original identity differs"
+}
+
+fetch_b_class_evidence() {
+  local reference=$1 destination=$2 response="$temp_dir/rds-class-object.json"
+  aws s3api head-object --bucket "$evidence_bucket" --key "$(jq -er '.key' <<<"$reference")" \
+    --version-id "$(jq -er '.versionId' <<<"$reference")" --region "$AWS_REGION" \
+    --no-cli-pager --cli-connect-timeout 5 --cli-read-timeout 15 > "$response" || fail "Class evidence metadata is unavailable"
+  [[ "$(jq -er '.VersionId' "$response")" == "$(jq -er '.versionId' <<<"$reference")" && \
+    "$(jq -er '.ContentLength' "$response")" == "$(jq -er '.bytes' <<<"$reference")" ]] \
+    || fail "Class evidence exceeds the reviewed byte/version bound"
+  aws s3api get-object --bucket "$evidence_bucket" --key "$(jq -er '.key' <<<"$reference")" \
+    --version-id "$(jq -er '.versionId' <<<"$reference")" "$destination" --region "$AWS_REGION" \
+    --no-cli-pager --cli-connect-timeout 5 --cli-read-timeout 15 > "$response" || fail "Pinned class evidence is unavailable"
+  [[ "$(jq -er '.VersionId' "$response")" == "$(jq -er '.versionId' <<<"$reference")" && \
+    "$(sha256_file "$destination")" == "$(jq -er '.sha256' <<<"$reference")" && \
+    "$(wc -c < "$destination" | tr -d ' ')" == "$(jq -er '.bytes' <<<"$reference")" ]] \
+    || fail "Class evidence version or bytes differ"
+}
+
+validate_b_class_rehearsal() {
+  local mode=$1 ref=${B_RDS_CLASS_REHEARSAL_JSON:-} qualification="$temp_dir/class-rehearsal.json" raw_ref
+  [[ "$rds_instance_class" == db.m6i.large ]] || { [[ -z "$ref" ]] || fail "Class qualification requires explicit large selection"; return 0; }
+  [[ -n "$ref" ]] || fail "New class final execution requires actual same-class small qualification"
+  printf '%s\n' "$ref" > "$temp_dir/class-rehearsal-reference.json"
+  python3 - "$script_dir" "$temp_dir/class-rehearsal-reference.json" <<'B_CLASS_REF'
+import sys
+sys.path.insert(0,sys.argv[1])
+import growth_b_rds_class as gate
+gate.reference(gate.read(sys.argv[2]))
+B_CLASS_REF
+  fetch_b_class_evidence "$ref" "$qualification"
+  python3 - "$script_dir" "$temp_dir/class-rehearsal-reference.json" "$qualification" <<'B_CLASS_REF_BINDING'
+import sys
+sys.path.insert(0,sys.argv[1])
+import growth_b_rds_class as gate
+ref=gate.reference(gate.read(sys.argv[2])); value=gate.read(sys.argv[3])
+gate.need(ref['key']==f'data-bootstrap/{value["runId"]}/{value["datasetId"]}-rds-class.json','CLASS_PRODUCER_PREFIX')
+B_CLASS_REF_BINDING
+  if [[ "$mode" == snapshot ]]; then
+    raw_ref=$(python3 - "$script_dir" "$qualification" <<'B_CLASS_RAW_REF'
+import json,sys
+sys.path.insert(0,sys.argv[1])
+import growth_b_rds_class as gate
+v=gate.read(sys.argv[2])
+print(json.dumps(gate.standalone_reference(v['standaloneReceipt'],v['runId'],v['datasetId'])))
+B_CLASS_RAW_REF
+    ) || fail "Class qualification raw small reference differs"
+    fetch_b_class_evidence "$raw_ref" "$temp_dir/b-small-rds-receipt.json"
+    python3 "$script_dir/growth_b_rds_class.py" validate-snapshot-rehearsal --qualification "$qualification" \
+      --standalone "$temp_dir/b-small-rds-receipt.json" --provenance "$temp_dir/dataset-manifest.json" \
+      --instance-class "$rds_instance_class" >/dev/null || fail "Snapshot class rehearsal and actual source contract differ"
+  else
+    python3 "$script_dir/growth_b_rds_class.py" validate-rehearsal --qualification "$qualification" \
+      --manifest "$temp_dir/dataset-manifest.json" --standalone "$temp_dir/b-small-rds-receipt.json" \
+      --instance-class "$rds_instance_class" >/dev/null || fail "Final wrapper and same-class small evidence differ"
+  fi
 }
 
 validate_snapshot_bootstrap_inputs() {
@@ -186,6 +265,8 @@ global_b_service_release=""
 global_b_service_bootstrap_enabled=false
 global_b_readiness_receipt=null
 approved_execution_deadline_epoch=${APPROVED_EXECUTION_DEADLINE_EPOCH:-}
+rds_instance_class=${B_RDS_INSTANCE_CLASS:-db.t3.small}
+rds_class_operator_file=""
 if [[ "$action" == prepare ]]; then
   global_b_prepare_only=true
   action=up
@@ -841,6 +922,7 @@ canonical_operator_tree_sha256() {
   done
   if [[ "$global_b_prepare_only" == true || "$global_b_services" == true || "$global_b_snapshot_restore_only" == true || -n "$global_b_snapshot_operation" ]]; then
     for relative in infra/aws/scripts/growth_b_prepare.py infra/aws/scripts/bootstrap-growth-b-entry.sh \
+      infra/aws/scripts/growth_b_rds_class.py infra/aws/lab/rds.tf infra/aws/lab/modules/rds/main.tf infra/aws/lab/modules/rds/variables.tf infra/aws/lab/modules/rds/outputs.tf \
       infra/aws/scripts/bootstrap-growth-b-stop.sh infra/aws/scripts/growth_b_aws_restore.py \
       infra/aws/scripts/growth_b_aws_contract.py infra/aws/scripts/growth_b_contract.py infra/aws/scripts/growth_b_runtime.py infra/aws/scripts/growth_b_inventory.py \
       infra/aws/scripts/growth_b_snapshot_controller.py infra/aws/scripts/growth_b_snapshot.py infra/aws/scripts/growth_b_snapshot_host.py \
@@ -1846,6 +1928,11 @@ validate_global_b_inputs() {
     --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" --envelope "$temp_dir/b-envelope.json" \
     "${receipt_args[@]}" > "$temp_dir/b-input-admission.json" \
     || fail "B preparation envelope, measured capacity, or current small RDS receipt is invalid"
+  if [[ "$(jq -er '.scope' "$selected_manifest")" == final-b-rds ]]; then
+    validate_b_class_rehearsal dump
+  else
+    [[ -z "${B_RDS_CLASS_REHEARSAL_JSON:-}" ]] || fail "Small execution cannot consume a final class prerequisite"
+  fi
   # Existence/size/version before any provision; the host verifies every SHA
   # and the complete sealed contract before its first database connection.
   while IFS= read -r reference; do
@@ -1891,6 +1978,25 @@ verify_global_b_receipt() {
     --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" --envelope "$temp_dir/b-envelope.json" \
     --context "$temp_dir/b-receipt-context.json" --receipt "$receipt" --standalone-receipt "$standalone" \
     > "$temp_dir/b-receipt-admission.json" || fail "B data-only completion proof is invalid"
+  if [[ "$rds_instance_class" == db.m6i.large && "$(jq -er '.scope' "$temp_dir/dataset-manifest.json")" == small-rds-rehearsal ]]; then
+    local class_reference class_proof="$temp_dir/b-small-class-qualification.json"
+    class_reference=$(jq -ce '.rdsClassQualificationObject' "$receipt") || fail "Actual small class qualification is missing"
+    printf '%s\n' "$class_reference" > "$temp_dir/b-small-class-reference.json"
+    python3 - "$script_dir" "$temp_dir/b-small-class-reference.json" "$run_id" "$dataset_release" <<'B_CLASS_COMPLETION_REF'
+import sys
+sys.path.insert(0,sys.argv[1])
+import growth_b_rds_class as gate
+value=gate.reference(gate.read(sys.argv[2]))
+gate.need(value['key']==f'data-bootstrap/{sys.argv[3]}/{sys.argv[4]}-rds-class.json','CLASS_COMPLETION_REFERENCE')
+B_CLASS_COMPLETION_REF
+    fetch_b_class_evidence "$class_reference" "$class_proof"
+    python3 "$script_dir/growth_b_rds_class.py" verify-small --qualification "$class_proof" \
+      --manifest "$temp_dir/dataset-manifest.json" --standalone "$standalone" --instance-class "$rds_instance_class" >/dev/null \
+      || fail "Small class observations and raw frozen receipt differ"
+    jq -e --arg run "$run_id" --argjson fence "$resource_fencing_token" --slurpfile original "$rds_class_operator_file" \
+      '.runId==$run and .resourceFence==$fence and (.originalContext.expiresAt|tostring)==($original[0].expiresAt|tostring)' \
+      "$class_proof" >/dev/null || fail "Small qualification changed the original run, fence, or expiry"
+  fi
 }
 
 stop_global_b_bootstrap() {
@@ -2004,6 +2110,7 @@ import growth_b_snapshot as snapshot
 snapshot.verify(snapshot.restore.Aws(), snapshot.read(sys.argv[2]))
 print('B snapshot provenance and live snapshot metadata verified')
 AIRBOB_B_SNAPSHOT_ADMISSION
+    validate_b_class_rehearsal snapshot
     global_b_snapshot_provenance=$(jq -n --arg key "$dataset_manifest_key" --arg version "$dataset_manifest_version_id" \
       --arg sha "$dataset_manifest_sha256" --argjson bytes "$(wc -c < "$dataset_manifest" | tr -d ' ')" \
       '{key:$key,version_id:$version,sha256:$sha,bytes:$bytes}')
@@ -2079,9 +2186,9 @@ write_tfvars() {
     --arg rds_snapshot_identifier "$rds_snapshot_identifier" \
     --arg rds_snapshot_source_run_id "$rds_snapshot_source_run_id" \
     --arg rds_snapshot_source_resource_id "$rds_snapshot_source_resource_id" \
-    --arg rds_engine_version "$rds_engine_version" \
+    --arg rds_engine_version "$rds_engine_version" --arg rds_instance_class "$rds_instance_class" \
     --arg dns_mode "$dns_mode" --arg alb_ingress_cidr "$alb_ingress_cidr" \
-    '{run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
+    '{run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,rds_instance_class:$rds_instance_class,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
     | jq --argjson selected "$global_b_prepare_only" --arg version "${dataset_manifest_version_id:-}" \
       --arg owner "${lease_owner:-}" --argjson services "$global_b_services" --arg serviceRelease "$global_b_service_release" \
       --argjson bootstrap "$global_b_service_bootstrap_enabled" --argjson readiness "$global_b_readiness_receipt" \
@@ -2166,6 +2273,14 @@ apply_lab() {
     )
   ' "$plan_json" >/dev/null \
     || fail "Lab plans must use one bounded launch template and no mixed-instance override"
+  if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true || "$global_b_services" == true ]]; then
+    local -a class_plan_args=()
+    if [[ "$global_b_snapshot_restore_only" == true ]]; then
+      class_plan_args=(--provenance "$temp_dir/dataset-manifest.json" --provenance-sha256 "$dataset_manifest_sha256")
+    fi
+    python3 "$script_dir/growth_b_rds_class.py" plan --rds "$plan_json" --instance-class "$rds_instance_class" "${class_plan_args[@]}" >/dev/null \
+      || fail "B Terraform plan changes the original RDS class or storage shape"
+  fi
   if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
     jq -e '[.resource_changes[]? | select(.change.after != null) |
       select(.type == "aws_autoscaling_group" or .type == "aws_lb" or .type == "aws_lb_listener" or
@@ -2546,8 +2661,8 @@ publish_direct_readiness() {
   rds_shape=$(aws rds describe-db-instances --db-instance-identifier "$rds_instance_id" \
     --query 'DBInstances[0].{identifier:DBInstanceIdentifier,resourceId:DbiResourceId,class:DBInstanceClass,engine:Engine,engineVersion:EngineVersion,allocatedStorageGiB:AllocatedStorage,storageType:StorageType,iops:Iops,storageThroughputMiBps:StorageThroughput,multiAz:MultiAZ,storageEncrypted:StorageEncrypted,publiclyAccessible:PubliclyAccessible,availabilityZone:AvailabilityZone,parameterGroups:DBParameterGroups[].DBParameterGroupName}' \
     --output json --region "$AWS_REGION" --no-cli-pager) || fail "cannot attest the restored RDS shape"
-  jq -e --arg id "$rds_instance_id" --arg resource "$rds_resource_id" --arg version "$rds_engine_version" '
-    .identifier == $id and .resourceId == $resource and .class == "db.t3.small" and
+  jq -e --arg id "$rds_instance_id" --arg resource "$rds_resource_id" --arg version "$rds_engine_version" --arg class "$rds_instance_class" '
+    .identifier == $id and .resourceId == $resource and .class == $class and
     .engine == "mysql" and .engineVersion == $version and .allocatedStorageGiB == 100 and
     .storageType == "gp3" and .iops == 3000 and .storageThroughputMiBps == 125 and
     .multiAz == false and .storageEncrypted == true and .publiclyAccessible == false
@@ -3097,6 +3212,7 @@ continue_global_b_snapshot_operation() {
   prepare_lab_backend; recover_prior_terraform_lock; assert_state_run_identity required
   phase2=$(run_terraform_command "Terraform snapshot host identity" -chdir="$lab_root" output -json phase2_contract)
   phase3=$(run_terraform_command "Terraform snapshot RDS identity" -chdir="$lab_root" output -json phase3_contract)
+  verify_retained_rds_class
   instance=$(jq -er '.services.debezium' <<<"$phase2")
   rds_json=$(aws rds describe-db-instances --db-instance-identifier "airbob-$run_id" --region "$AWS_REGION" --no-cli-pager)
   jq -e --arg run "$run_id" --arg resource "$(jq -er '.rds_resource_id' <<<"$phase3")" \
@@ -3106,11 +3222,13 @@ continue_global_b_snapshot_operation() {
   jq -n --slurpfile manifest "$operation_file" --slurpfile lease "$temp_dir/snapshot-lease.json" \
     --arg key "$operation_key" --arg version "$operation_version" --arg sha "$operation_sha" --argjson bytes "$(wc -c < "$operation_file" | tr -d ' ')" \
     --argjson rds "$rds_json" --arg redis "$(jq -er '.infraImageReferences.REDIS_IMAGE' "$original")" \
-    --arg instance "$instance" --argjson deadline "$deadline" --arg cli "$AIRBOB_AWS_CLI_VERSION" --arg cliSha "$AIRBOB_AWS_CLI_LINUX_X86_64_SHA256" '
+    --arg instance "$instance" --arg class "$rds_instance_class" --argjson resourceFence "$resource_fencing_token" \
+    --argjson deadline "$deadline" --arg cli "$AIRBOB_AWS_CLI_VERSION" --arg cliSha "$AIRBOB_AWS_CLI_LINUX_X86_64_SHA256" '
       $manifest[0] as $m | $rds.DBInstances[0] as $r | {schemaVersion:1,kind:"global-growth-b-snapshot-host-context",
       operation:$m.operation,operationId:$m.operationId,datasetId:$m.datasetId,runId:$m.runId,
       manifest:{key:$key,versionId:$version,sha256:$sha,bytes:$bytes},toolSources:$m.toolSources,lease:$lease[0],
       rds:{identifier:$r.DBInstanceIdentifier,resourceId:$r.DbiResourceId,endpoint:$r.Endpoint.Address,masterSecretArn:$r.MasterUserSecret.SecretArn},
+      rdsInstanceClass:$class,resourceFence:$resourceFence,
       redisImage:$redis,hostInstanceId:$instance,deadlineEpoch:$deadline,
       evidencePrefix:("data-bootstrap/"+$m.runId+"/"+$m.datasetId+"-snapshot/"+$m.operationId+"/"),awsCli:{version:$cli,archiveSha256:$cliSha}}' > "$context"
   current_stage=b-snapshot-$global_b_snapshot_operation
@@ -3212,6 +3330,8 @@ AIRBOB_B_ASG_OPERATION
   python3 "$script_dir/growth_b_asg_controller.py" --operator "$evidence_run/operator.json" \
     --phase4 "$evidence_run/phase4.json" --service-state "$evidence_run/service-state.json" --operation "$evidence_run/operation.json" \
     --lease "$evidence_run/lease.json" --manifest-version "${DATASET_MANIFEST_VERSION_ID:-}" --output "$evidence_run"
+  phase3=$(run_terraform_command "Terraform ASG original RDS class" -chdir="$lab_root" output -json phase3_contract)
+  verify_retained_rds_class
   key="data-bootstrap/$run_id/asg-probe/$operation_id-$fencing_token"
   publish_immutable_json "$key/configuration.json" "$evidence_run/configuration.json"
   current_stage=b-asg-probe
@@ -3299,6 +3419,7 @@ AIRBOB_B_CDC_OPERATION
   write_current_lease_file "$evidence_run/lease.json"
   run_terraform_command "Terraform source R4 service hosts" -chdir="$lab_root" output -json phase2_contract > "$evidence_run/phase2.json"
   run_terraform_command "Terraform source R4 RDS identity" -chdir="$lab_root" output -json phase3_contract > "$evidence_run/phase3.json"
+  phase3=$(cat "$evidence_run/phase3.json"); verify_retained_rds_class
   run_terraform_command "Terraform source R4 application identity" -chdir="$lab_root" output -json phase4_contract > "$evidence_run/phase4.json"
   run_terraform_command "Terraform source R4 selected service" -chdir="$lab_root" output -json global_b_service > "$evidence_run/service-state.json"
   context="$evidence_run/context.json"
@@ -3467,6 +3588,7 @@ AIRBOB_B_SNAPSHOT_SERVICE_OPERATION
   write_current_lease_file "$evidence_run/lease.json"
   run_terraform_command "Terraform snapshot target service hosts" -chdir="$lab_root" output -json phase2_contract > "$evidence_run/phase2.json"
   run_terraform_command "Terraform snapshot target RDS identity" -chdir="$lab_root" output -json phase3_contract > "$evidence_run/phase3.json"
+  phase3=$(cat "$evidence_run/phase3.json"); verify_retained_rds_class
   run_terraform_command "Terraform snapshot target application identity" -chdir="$lab_root" output -json phase4_contract > "$evidence_run/phase4.json"
   run_terraform_command "Terraform snapshot target selected service" -chdir="$lab_root" output -json global_b_service > "$evidence_run/service-state.json"
   context="$evidence_run/context.json"
@@ -3560,7 +3682,8 @@ AIRBOB_B_NATIVE_OPERATION
   # Project only the public admission fields. Never persist raw state or the
   # complete Terraform output object in the new controller's evidence directory.
   phase2=$(run_terraform_command "Terraform native search hosts" -chdir="$lab_root" output -json phase2_contract | jq '{run_id,fencing_token,vpc_id,services}')
-  phase3=$(run_terraform_command "Terraform native search RDS identity" -chdir="$lab_root" output -json phase3_contract | jq '{dataset_release,database_bootstrap,rds_instance_id,rds_resource_id,rds_endpoint,rds_engine_version,rds_configured_storage_gib}')
+  phase3=$(run_terraform_command "Terraform native search RDS identity" -chdir="$lab_root" output -json phase3_contract | jq '{dataset_release,database_bootstrap,rds_instance_id,rds_resource_id,rds_endpoint,rds_engine_version,rds_instance_class,rds_configured_storage_gib,rds_allocated_storage_gib}')
+  verify_retained_rds_class
   phase4=$(run_terraform_command "Terraform native search writer capacity" -chdir="$lab_root" output -json phase4_contract | jq '{app_enabled,capacity,accommodation_detail_cache_enabled,load_generator_enabled,auto_scaling_group_name}')
   selected_state=$(run_terraform_command "Terraform native search selected service" -chdir="$lab_root" output -json global_b_service | jq '{selected,manifest_key,manifest_version_id,manifest_sha256,readiness_receipt}')
   context="$evidence_run/context.json"
@@ -3640,6 +3763,8 @@ continue_global_b_services() {
   prepare_lab_backend; recover_prior_terraform_lock; assert_state_run_identity required
   verify_oci_authority before-b-service
   phase2=$(run_terraform_command "Terraform retained B topology" -chdir="$lab_root" output -json phase2_contract)
+  phase3=$(run_terraform_command "Terraform retained B RDS class" -chdir="$lab_root" output -json phase3_contract)
+  verify_retained_rds_class
   probe_instance_id=$(jq -er '.expected_network_receipt_key|capture("/(?<probe>i-[0-9a-f]{8,17})\\.json$").probe' <<<"$phase2")
   global_b_service_bootstrap_enabled=false
   global_b_readiness_receipt=null
@@ -3791,6 +3916,11 @@ case "$action" in
     else
       [[ "$rds_engine_version" =~ ^8\.0\.[0-9]+$ ]] || fail "RDS_ENGINE_VERSION is required and must be exact"
     fi
+    [[ "$rds_instance_class" == db.t3.small || "$rds_instance_class" == db.m6i.large ]] || fail "Unreviewed RDS class"
+    [[ "$rds_instance_class" == db.t3.small || "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]] \
+      || fail "The larger class is a Global B initial selection only"
+    [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true || -z "${B_RDS_CLASS_REHEARSAL_JSON:-}" ]] \
+      || fail "Classic actions cannot accept class qualification"
     validate_snapshot_bootstrap_inputs
     approved_rds_snapshot_identifier=$(jq -er '.approved_rds_snapshot_identifier // ""' <<<"$lab_contract") \
       || fail "foundation lab contract has no approved RDS snapshot field"
@@ -3850,10 +3980,13 @@ case "$action" in
       mv "$temp_dir/operator-b-snapshot.json" "$manifest"
     fi
     if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
-      jq --argjson deadline "$approved_execution_deadline_epoch" '. + {approvedExecutionDeadlineEpoch:$deadline}' \
+      jq --argjson deadline "$approved_execution_deadline_epoch" --arg class "$rds_instance_class" \
+        --argjson qualification "${B_RDS_CLASS_REHEARSAL_JSON:-null}" \
+        '. + {approvedExecutionDeadlineEpoch:$deadline,rdsInstanceClass:$class,rdsClassRehearsal:$qualification}' \
         "$manifest" > "$temp_dir/operator-b-deadline.json"
       mv "$temp_dir/operator-b-deadline.json" "$manifest"
     fi
+    rds_class_operator_file=$manifest
     write_run_manifest "$manifest"
     write_tfvars network false ""
     up_in_progress=true
@@ -3891,6 +4024,7 @@ case "$action" in
       -chdir="$lab_root" output -json phase2_contract)
     phase3=$(run_terraform_command "Terraform Phase 3 data output" \
       -chdir="$lab_root" output -json phase3_contract)
+    verify_retained_rds_class
     debezium_instance_id=$(jq -er '.services.debezium' <<<"$phase2")
     if [[ "$global_b_snapshot_restore_only" == true ]]; then
       current_stage=b-snapshot-target-created
@@ -4008,6 +4142,12 @@ case "$action" in
     rds_snapshot_source_resource_id=$(jq -r '.rdsSnapshotSourceResourceId // ""' "$manifest")
     validate_snapshot_bootstrap_inputs
     rds_engine_version=$(jq -er '.rdsEngineVersion' "$manifest")
+    if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
+      load_retained_rds_class "$manifest"
+    else
+      [[ -z "${B_RDS_INSTANCE_CLASS:-}${B_RDS_CLASS_REHEARSAL_JSON:-}" ]] || fail "Classic retained actions cannot select a B class"
+      rds_instance_class=db.t3.small
+    fi
     bundle_commit=$(jq -er '.bundleCommit' "$manifest")
     bundle_sha256=$(jq -er '.bundleSha256' "$manifest")
     dataset_release=$(jq -er '.datasetRelease' "$manifest")

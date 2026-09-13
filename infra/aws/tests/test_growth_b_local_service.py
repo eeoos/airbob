@@ -95,6 +95,7 @@ class ConfigurationTest(Fixture):
         service.write(binding['path'], {'state': 'different'})
         with self.assertRaises(ValueError): service.bound(binding)
         folder = self.root / 'shared'; folder.mkdir(mode=0o755)
+        folder.chmod(0o755)  # Preserve the shared-directory fixture under a restrictive caller umask.
         with self.assertRaises(ValueError): service.private_directory(folder)
 
     def test_old_resource_state_cannot_change_pinned_app_image(self):

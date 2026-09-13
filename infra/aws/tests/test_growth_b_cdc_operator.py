@@ -43,6 +43,20 @@ def function(source, name):
     return source[start:end]
 
 
+def rds_fixture(operator, phase3, observed_epoch):
+    """Synthetic exact RDS API shape; never inferred from a completion boolean."""
+    tags = {'Project': 'airbob', 'Stack': 'lab', 'RunId': operator['runId'],
+            'FencingToken': str(operator['fencingToken']), 'ExpiresAt': str(operator['expiresAt'])}
+    chosen = operator.get('rdsInstanceClass', 'db.t3.small')
+    if chosen != 'db.t3.small': tags['BDatabaseClass'] = chosen
+    return {'DBInstanceIdentifier': phase3['rds_instance_id'], 'DbiResourceId': phase3['rds_resource_id'],
+            'DBInstanceClass': chosen, 'DBInstanceStatus': 'available', 'Engine': 'mysql', 'EngineVersion': '8.4.11',
+            'AllocatedStorage': 100, 'StorageType': 'gp3', 'MultiAZ': False, 'StorageEncrypted': True,
+            'PubliclyAccessible': False, 'PendingModifiedValues': {},
+            'InstanceCreateTime': datetime.fromtimestamp(observed_epoch - 3600, timezone.utc).isoformat(),
+            'TagList': [{'Key': k, 'Value': v} for k, v in tags.items()]}
+
+
 def boundary(tool, args):
     """One local executable shim; every unsupported external action is fatal."""
     root = Path(os.environ['CDC_TEST_ROOT']); settings = json.loads((root / 'settings.json').read_bytes())
@@ -65,6 +79,12 @@ def boundary(tool, args):
     if tool == 'python3':
         if args[0] == '-':
             result = subprocess.run([sys.executable, *args], input=sys.stdin.buffer.read(), capture_output=True)
+            sys.stdout.buffer.write(result.stdout); sys.stderr.buffer.write(result.stderr); return result.returncode
+        if Path(args[0]) == SCRIPTS / 'growth_b_rds_class.py':
+            assert args[1] in ('selected', 'live'), 'undeclared class operation'
+            # Execute the shipped CLI and validators. Only their input API
+            # observation is supplied by the exact read-only fake below.
+            result = subprocess.run([sys.executable, '-B', *args], capture_output=True)
             sys.stdout.buffer.write(result.stdout); sys.stderr.buffer.write(result.stderr); return result.returncode
         assert Path(args[0]) == SCRIPTS / 'growth_b_cdc_supervisor.py'
         import growth_b_cdc_supervisor as supervisor
@@ -99,6 +119,11 @@ def boundary(tool, args):
         for name, value in settings['outputs'].items():
             write(public / name, value)
         return settings.get('supervisorStatus', 0)
+    if tool == 'aws' and args[:2] == ['rds', 'describe-db-instances']:
+        assert args == ['rds', 'describe-db-instances', '--db-instance-identifier', settings['rds']['DBInstanceIdentifier'],
+                        '--region', 'ap-northeast-2', '--no-cli-pager', '--cli-connect-timeout', '5', '--cli-read-timeout', '15']
+        if settings.get('rdsReadFailure'): return 17
+        print(json.dumps({'DBInstances': [settings['rds']]})); return 0
     assert tool == 'aws' and args[0] == 's3api', 'undeclared external tool'
     verb, options, positional = args[1], {}, []
     index = 2
@@ -178,7 +203,8 @@ class CdcOperatorFixture(unittest.TestCase):
                       'services': {name: self.config['hosts'][role]['instanceId'] for name, role in
                                    (('debezium', 'connect'), ('kafka', 'kafka'), ('elasticsearch', 'elasticsearch'))}}
         self.phase3 = {'dataset_release': self.dataset, 'rds_instance_id': self.target['identifier'],
-                      'rds_engine_version': '8.4.11', 'rds_resource_id': self.target['resourceId'], 'rds_endpoint': self.target['endpoint']}
+                      'rds_engine_version': '8.4.11', 'rds_resource_id': self.target['resourceId'], 'rds_endpoint': self.target['endpoint'],
+                      'rds_instance_class': 'db.t3.small', 'rds_configured_storage_gib': 100, 'rds_allocated_storage_gib': 100}
         self.phase4 = {'app_enabled': True, 'capacity': {'min': 1, 'desired': 1, 'max': 1},
                       'accommodation_detail_cache_enabled': False, 'load_generator_enabled': False,
                       'measurement_policy': 'isolated-read',
@@ -238,6 +264,7 @@ class CdcOperatorFixture(unittest.TestCase):
         self.recovery = {'schemaVersion': 1, 'kind': 'global-b-aws-source-r4-recovery', 'runId': self.run,
                          'operationId': self.operation['operationId'], 'datasetId': self.dataset, 'outstandingCommands': []}
         self.settings = {'now': self.now, 'head': self.operation['executionCommit'],
+            'rds': rds_fixture(self.original, self.phase3, self.now),
             'selectedService': self.manifest, 'selectedReadiness': self.readiness,
             'configurations': {'live': self.live_configuration, 'cdc': self.cdc_configuration},
             'terraform': {'phase2_contract': self.phase2, 'phase3_contract': self.phase3,
@@ -254,11 +281,17 @@ class CdcOperatorFixture(unittest.TestCase):
             file.chmod(0o700)
         self.source = SOURCE.read_text(); self.source_sha = digest(self.source.encode())
         names = ('valid_run_id', 'require_global_b_execution_deadline', 'validate_retained_global_b_execution_deadline',
+                 'load_retained_rds_class', 'verify_retained_rds_class',
                  'validate_operator_scope_for_action', 'read_run_manifest', 'publish_immutable_json', 'sha256_file',
                  'sha256_text', 'write_current_lease_file', 'assert_b_source_not_retired', 'publish_global_b_cdc_json', 'continue_global_b_cdc')
         self.functions = '\n\n'.join(function(self.source, name) for name in names)
         self.evidence = self.root / 'evidence'
         self.public = self.evidence / (self.run + '-' + self.operation['operationId'] + '-' + str(self.lease['fencingToken'])) / 'supervisor/public'
+
+    def select_large_class(self):
+        self.original['rdsInstanceClass'] = 'db.m6i.large'
+        self.phase3['rds_instance_class'] = 'db.m6i.large'
+        self.settings['rds'] = rds_fixture(self.original, self.phase3, self.now)
 
     def resume_with_new_lease(self):
         original = copy.deepcopy(self.operation)
@@ -296,6 +329,9 @@ class CdcOperatorFixture(unittest.TestCase):
             'lease_table': self.lease['table'], 'lease_lock_id': self.lease['lockName'], 'lease_owner': self.lease['owner'],
             'lease_command': 'up', 'fencing_token': str(self.lease['fencingToken']), 'GLOBAL_LEASE_FAIL': 'false',
             'BACKEND_DELAY_SECONDS': '0',
+            'global_b_prepare_only': 'false', 'global_b_snapshot_restore_only': 'false',
+            'global_b_services': 'true', 'global_b_snapshot_operation': '',
+            'rds_instance_class': 'db.t3.small', 'rds_class_operator_file': '',
             'cache_enabled': 'true', 'bundle_commit': 'untrusted-environment-input'}
         values.update(env or {})
         setup = 'set -euo pipefail\numask 077\n' + '\n'.join(key + '=' + shlex.quote(value) for key, value in values.items())
@@ -331,6 +367,32 @@ destroy_lab() { fail FORBIDDEN_TERRAFORM_DESTROY; }
 
 
 class OperatorAdmissionTest(CdcOperatorFixture):
+    def test_explicit_large_class_uses_actual_guard_and_preserves_original_and_current_fences(self):
+        self.select_large_class()
+        result = self.execute(); self.assertEqual(0, result.returncode, result.stderr)
+        context = json.loads((self.root / 'supervisor-context.json').read_bytes())
+        self.assertEqual('db.m6i.large', context['operator']['rdsInstanceClass'])
+        self.assertEqual('db.m6i.large', context['phase3']['rds_instance_class'])
+        self.assertNotEqual(context['operator']['fencingToken'], context['lease']['fencingToken'])
+        calls = [call['args'][1] for call in self.calls if call['tool'] == 'python3'
+                 and Path(call['args'][0]) == SCRIPTS / 'growth_b_rds_class.py']
+        self.assertEqual(['selected', 'selected', 'live'], calls)
+        self.assertEqual(1, sum(call['tool'] == 'aws' and call['args'][:2] == ['rds', 'describe-db-instances'] for call in self.calls))
+
+    def assert_class_drift_stops_before_supervisor(self, change):
+        self.select_large_class()
+        self.settings['rds'].update(change)
+        result = self.execute(); self.assert_failed(result)
+        self.assertIn('Live RDS class, immutable selection', result.stderr)
+        self.assertFalse((self.root / 'supervisor-context.json').exists())
+        self.assertFalse(any(call['tool'] == 'aws' and call['args'][:2] == ['s3api', 'put-object'] for call in self.calls))
+
+    def test_actual_class_drift_stops_before_supervisor_and_publication(self):
+        self.assert_class_drift_stops_before_supervisor({'DBInstanceClass': 'db.t3.small'})
+
+    def test_pending_class_drift_stops_before_supervisor_and_publication(self):
+        self.assert_class_drift_stops_before_supervisor({'PendingModifiedValues': {'DBInstanceClass': 'db.t3.small'}})
+
     def test_exact_eleven_field_context_is_constructed_from_retained_tf_and_current_lease(self):
         result = self.execute(); self.assertEqual(0, result.returncode, result.stderr)
         context = json.loads((self.root / 'supervisor-context.json').read_bytes())
