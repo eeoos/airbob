@@ -84,7 +84,8 @@ override_resource {
   target          = module.rds[0].aws_db_instance.this
   override_during = plan
   values = {
-    id          = "airbob-lab-phase3-test"
+    id          = "db-ABCDEFGHIJKLMNOPQRSTUVWX"
+    identifier  = "airbob-lab-phase3-test"
     arn         = "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-phase3-test"
     address     = "airbob-lab-phase3-test.abcdefghijkl.ap-northeast-2.rds.amazonaws.com"
     port        = 3306
@@ -213,6 +214,10 @@ run "create_dump_backed_rds_and_ordered_bootstrap" {
 
   assert {
     condition = (
+      module.rds[0].id == "db-ABCDEFGHIJKLMNOPQRSTUVWX" &&
+      module.rds[0].resource_id == "db-ABCDEFGHIJKLMNOPQRSTUVWX" &&
+      module.rds[0].identifier == "airbob-lab-phase3-test" &&
+      output.phase3_contract.rds_instance_id == "airbob-lab-phase3-test" &&
       module.rds[0].contract.instance_class == "db.t3.small" &&
       module.rds[0].contract.multi_az == false &&
       module.rds[0].contract.availability_zone == "ap-northeast-2a" &&

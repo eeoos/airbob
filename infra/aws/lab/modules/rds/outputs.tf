@@ -1,5 +1,11 @@
 output "id" {
-  value = aws_db_instance.this.id
+  description = "Terraform provider state identity (the RDS DBI resource ID)."
+  value       = aws_db_instance.this.id
+}
+
+output "identifier" {
+  description = "DB instance name used by RDS APIs and CloudWatch dimensions."
+  value       = aws_db_instance.this.identifier
 }
 
 output "arn" {

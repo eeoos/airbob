@@ -83,7 +83,7 @@ locals {
       fencingToken = var.fencing_token
     }
     rds = {
-      identifier      = module.rds[0].id
+      identifier      = module.rds[0].identifier
       resourceId      = module.rds[0].resource_id
       endpoint        = module.rds[0].address
       masterSecretArn = module.rds[0].master_secret_arn
@@ -271,7 +271,7 @@ locals {
     snapshotProvenanceSha256 = var.database_bootstrap == "snapshot" ? var.global_b_snapshot_provenance.sha256 : null
     lease = { table = local.lab_contract.lease_table_name, lockName = local.lab_contract.lease_lock_id,
     owner = var.global_b_lease_owner, runId = var.run_id, command = "up", fencingToken = var.global_b_lease_fencing_token }
-    rds               = { identifier = module.rds[0].id, resourceId = module.rds[0].resource_id }
+    rds               = { identifier = module.rds[0].identifier, resourceId = module.rds[0].resource_id }
     debeziumSecretArn = aws_secretsmanager_secret.debezium[0].arn
   } : null
   growth_b_service_bootstrap_command = var.global_b_services && local.services_enabled ? join("\n", [

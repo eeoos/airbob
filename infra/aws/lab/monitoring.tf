@@ -52,12 +52,12 @@ resource "aws_cloudwatch_dashboard" "lab" {
         properties = {
           title = "RDS", region = var.aws_region, period = 60, view = "timeSeries"
           metrics = [
-            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", module.rds[0].id, { stat = "Average" }],
-            ["AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", module.rds[0].id, { stat = "Average" }],
-            ["AWS/RDS", "FreeableMemory", "DBInstanceIdentifier", module.rds[0].id, { stat = "Minimum", yAxis = "right" }],
-            ["AWS/RDS", "CPUCreditBalance", "DBInstanceIdentifier", module.rds[0].id, { stat = "Minimum", yAxis = "right" }],
-            ["AWS/RDS", "CPUSurplusCreditBalance", "DBInstanceIdentifier", module.rds[0].id, { stat = "Maximum", yAxis = "right" }],
-            ["AWS/RDS", "CPUSurplusCreditsCharged", "DBInstanceIdentifier", module.rds[0].id, { stat = "Sum", yAxis = "right" }],
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", module.rds[0].identifier, { stat = "Average" }],
+            ["AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", module.rds[0].identifier, { stat = "Average" }],
+            ["AWS/RDS", "FreeableMemory", "DBInstanceIdentifier", module.rds[0].identifier, { stat = "Minimum", yAxis = "right" }],
+            ["AWS/RDS", "CPUCreditBalance", "DBInstanceIdentifier", module.rds[0].identifier, { stat = "Minimum", yAxis = "right" }],
+            ["AWS/RDS", "CPUSurplusCreditBalance", "DBInstanceIdentifier", module.rds[0].identifier, { stat = "Maximum", yAxis = "right" }],
+            ["AWS/RDS", "CPUSurplusCreditsCharged", "DBInstanceIdentifier", module.rds[0].identifier, { stat = "Sum", yAxis = "right" }],
           ]
         }
       },
