@@ -143,6 +143,8 @@ jq -r '.files|to_entries[]|"\(.value.sha256)  \(.key)"' "$root/toolchain.json" >
 (cd "$root/toolchain" && sha256sum --check --status "$stage/toolchain-checks")
 export JAVA_HOME="$root/toolchain/jdk"
 export PATH="$root/toolchain/python/bin:$JAVA_HOME/bin:$root/toolchain/mysql/bin:$PATH"
+# Preserve exact file hashes before qualification and through all child imports.
+export PYTHONDONTWRITEBYTECODE=1
 unset PYTHONPATH PYTHONHOME JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS JAVA_OPTS JDK_JAVAC_OPTIONS CLASSPATH AIRBOB_ETL_BENCHMARK_PASSWORD
 jq '.consumerTools' "$manifest" > "$stage/tools-ref.json"
 [[ "$(jq -er '.key' "$stage/tools-ref.json")" == "datasets/$dataset-aws-snapshots/operations/$run_id/$operation_id/files/$(jq -er '.sha256' "$stage/tools-ref.json")-consumer-tools.tar.gz" ]] || fail
@@ -151,7 +153,7 @@ extract_regular "$stage/consumer-tools.tar.gz" "$stage/tools" 4194304
 [[ "$(find "$stage/tools" -type f | wc -l)" -eq 8 && "$(wc -l < "$stage/members")" -eq 8 ]] || fail
 jq -r '.toolSources|to_entries[]|"\(.value)  \(.key)"' "$manifest" > "$stage/tool-checks"
 (cd "$stage/tools" && sha256sum --check --status "$stage/tool-checks")
-"$root/toolchain/python/bin/python3" "$stage/tools/growth_b_snapshot_host.py" validate --manifest "$manifest" --sha256 "$digest" \
+"$root/toolchain/python/bin/python3" -B "$stage/tools/growth_b_snapshot_host.py" validate --manifest "$manifest" --sha256 "$digest" \
   --dataset-id "$dataset" --run-id "$run_id" --operation-id "$operation_id"
 assert_lease
 if [[ "$mode" == prepare ]]; then
@@ -168,7 +170,7 @@ exec 9> "$root/control.lock"
 flock -x 9
 [[ "$mode" == retire || ! -e "$root/STOP" ]] || fail
 [[ ! -e "$root/process-group" ]] || fail
-setsid "$root/toolchain/python/bin/python3" "$stage/tools/growth_b_snapshot_host.py" host --manifest "$manifest" --sha256 "$digest" \
+setsid "$root/toolchain/python/bin/python3" -B "$stage/tools/growth_b_snapshot_host.py" host --manifest "$manifest" --sha256 "$digest" \
   --dataset-id "$dataset" --run-id "$run_id" --operation-id "$operation_id" \
   --context "$context" --root "$root" --output "$stage" > "$stage/host.log" 2>&1 &
 child=$!

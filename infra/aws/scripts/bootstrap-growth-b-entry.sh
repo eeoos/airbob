@@ -111,6 +111,8 @@ jq -r '.toolSources|to_entries[]|"\(.value)  \(.key)"' "$context" > "$root/consu
 [[ "$(find "$root/consumer-tools" -type f | wc -l)" -eq 6 ]] || fail
 export JAVA_HOME="$root/toolchain/jdk"
 export PATH="$root/toolchain/python/bin:$JAVA_HOME/bin:$root/toolchain/mysql/bin:$PATH"
+# Imports must preserve the sealed toolchain, including in child Python processes.
+export PYTHONDONTWRITEBYTECODE=1
 unset PYTHONPATH PYTHONHOME JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS JAVA_OPTS JDK_JAVAC_OPTIONS CLASSPATH AIRBOB_ETL_BENCHMARK_PASSWORD
 assert_lease
 redis_image=$(jq -er '.redisImage' "$context")
@@ -125,7 +127,7 @@ assert_lease
 exec 9> "$root/control.lock"
 flock -x 9
 [[ ! -e "$root/STOP" ]] || fail
-setsid "$root/toolchain/python/bin/python3" "$root/consumer-tools/growth_b_prepare.py" host \
+setsid "$root/toolchain/python/bin/python3" -B "$root/consumer-tools/growth_b_prepare.py" host \
   --manifest "$manifest" --sha256 "$(jq -er '.manifestSha256' "$context")" --dataset-id "$dataset_id" \
   --context "$context" --root "$root" --aws "$aws" > "$root/preparation.log" 2>&1 &
 child=$!
