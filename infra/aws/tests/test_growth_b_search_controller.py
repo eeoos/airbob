@@ -90,6 +90,62 @@ class AdmissionTests(unittest.TestCase):
                 c.validate_context(self.ctx | {'serviceState': self.ctx['serviceState'] | patch}, self.op, now=NOW)
 
 
+def snapshot_operation():
+    value = operation()
+    value.update(kind=c.SNAPSHOT_KIND, stage='native-snapshot-restore')
+    def ref(key):
+        return {'key': key, 'versionId': 'actual-test-version', 'sha256': '1' * 64, 'bytes': 1000}
+    value['targetPreparation'] = {
+        'manifest': ref(f'datasets/{c.DATASET}-aws-snapshots/operations/{value["runId"]}/prepare-01/manifest-' + '1' * 64 + '.json'),
+        'hostReceipt': ref(f'data-bootstrap/{value["runId"]}/{c.DATASET}-snapshot/prepare-01/host-receipt.json')}
+    value['sourceEvidence'] = {key: ref(f'data-bootstrap/lab-ancestor-01/{key}.json')
+        for key in ('restoreReceipt', 'preparedFingerprint', 'serviceResetReceipt')}
+    return value
+
+
+class SnapshotAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        self.op = snapshot_operation(); self.ctx = context(self.op)
+        self.ctx['operator'].update(globalBPrepareOnly=False, globalBSnapshotRestoreOnly=True, databaseBootstrap='snapshot')
+        self.ctx['phase3']['database_bootstrap'] = 'snapshot'
+
+    def test_snapshot_requires_distinct_closed_operation_and_original_target_mode(self):
+        c.validate_operation(self.op)
+        c.validate_context(self.ctx, self.op, now=NOW)
+        for changes in ({'kind': c.KIND}, {'stage': 'native-restore'}, {'sourceEvidence': {}}, {'targetPreparation': {}}):
+            with self.subTest(changes=changes), self.assertRaises(h.Rejected):
+                c.validate_operation(self.op | changes, check_sources=False)
+
+    def test_dump_context_cannot_admit_target_operation(self):
+        with self.assertRaises(h.Rejected):
+            c.validate_context(context(self.op), self.op, now=NOW)
+        changed = copy.deepcopy(self.ctx); changed['phase3']['database_bootstrap'] = 'dump'
+        with self.assertRaises(h.Rejected):
+            c.validate_context(changed, self.op, now=NOW)
+
+    def test_snapshot_target_cannot_claim_its_own_raw_ancestor(self):
+        changed = copy.deepcopy(self.op)
+        changed['sourceEvidence']['restoreReceipt']['key'] = f'data-bootstrap/{self.op["runId"]}/restore.json'
+        with self.assertRaisesRegex(h.Rejected, 'SOURCE_MUST_PRECEDE_TARGET_RUN'):
+            c.validate_operation(changed, check_sources=False)
+
+    def test_target_receipts_cannot_select_another_run(self):
+        for key in ('manifest', 'hostReceipt'):
+            changed = copy.deepcopy(self.op)
+            changed['targetPreparation'][key]['key'] = changed['targetPreparation'][key]['key'].replace(self.op['runId'], 'lab-foreign-01')
+            with self.subTest(key=key), self.assertRaises(h.Rejected):
+                c.validate_operation(changed, check_sources=False)
+
+    def test_snapshot_export_has_its_own_state_and_cleanup_gate(self):
+        ctx = {'runId': self.op['runId'], 'operationId': self.op['operationId'], 'snapshotLineage': {}}
+        result = {'state': 'SNAPSHOT_TARGET_LINEAGE_PROOFS_EXPORTED', 'output': str(h.op_root(ctx) / 'prepare-source'),
+            'sha256': 'c' * 64, 'ownedWorkerTerminal': True, 'privateMaterialRemoved': True}
+        c.validate_host_phase_result(ctx, 'prepare-source', result)
+        for changes in ({'state': 'FROZEN_IMPORT_BASELINE_PROOFS_EXPORTED'}, {'privateMaterialRemoved': False}):
+            with self.subTest(changes=changes), self.assertRaises(h.Rejected):
+                c.validate_host_phase_result(ctx, 'prepare-source', result | changes)
+
+
 class TransportTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
@@ -202,7 +258,7 @@ class AckTests(unittest.TestCase):
 class SourceArchiveTests(unittest.TestCase):
     def test_archive_is_deterministic_and_includes_exact_host_and_controller_sources(self):
         raw, meta = c.source_archive()
-        self.assertEqual(raw, c.source_archive()[0]); self.assertEqual(14, len(meta['files']))
+        self.assertEqual(raw, c.source_archive()[0]); self.assertEqual(18, len(meta['files']))
         self.assertEqual(c.source_files(), {name: ref['sha256'] for name, ref in meta['files'].items()})
         self.assertLessEqual(len(gzip.decompress(raw)), c.MAX_EXPANDED)
 

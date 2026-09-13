@@ -79,6 +79,20 @@ class WorkflowAdmission(unittest.TestCase):
         self.assertNotEqual(0, self.run_gate('services', selected, policy='integrated-smoke')[0])
         self.assertNotEqual(0, self.run_gate('services', selected, deadline='')[0])
 
+    def test_native_snapshot_stage_requires_explicit_target_proofs_and_snapshot_mode(self):
+        from test_growth_b_search_controller import snapshot_operation
+        selected = snapshot_operation()
+        status, env = self.run_gate('services', selected, bootstrap='snapshot')
+        self.assertEqual(0, status)
+        values = dict(line.split('=', 1) for line in env.splitlines())
+        self.assertEqual('native-snapshot-restore', values['B_SERVICE_STAGE'])
+        self.assertEqual(selected, json.loads(values['B_NATIVE_OPERATION_JSON']))
+        self.assertNotEqual(0, self.run_gate('services', selected, bootstrap='dump')[0])
+        for changes in ({'targetPreparation': {}}, {'sourceEvidence': {}}, {'stage': 'native-restore'}):
+            with self.subTest(changes=changes):
+                status, env = self.run_gate('services', selected | changes, bootstrap='snapshot')
+                self.assertNotEqual(0, status); self.assertEqual('', env)
+
     def test_snapshot_is_explicit_and_cannot_use_legacy_dump_selection(self):
         selected = {'provenanceSha256': 'd'*64}
         status, env = self.run_gate('snapshot-restore', selected, bootstrap='snapshot')

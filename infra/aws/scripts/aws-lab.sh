@@ -858,7 +858,7 @@ canonical_operator_tree_sha256() {
       [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "B service identity file is unavailable"
       printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
     done
-    if [[ "${B_SERVICE_STAGE:-}" == native-restore ]]; then
+    if [[ "${B_SERVICE_STAGE:-}" == native-restore || "${B_SERVICE_STAGE:-}" == native-snapshot-restore ]]; then
       python3 - "$script_dir" >> "$inventory" <<'AIRBOB_B_NATIVE_IDENTITY'
 import sys
 sys.path.insert(0, sys.argv[1])
@@ -3501,7 +3501,7 @@ AIRBOB_B_SNAPSHOT_SERVICE_OPERATION
 continue_global_b_native_search() {
   local original="$temp_dir/native-source-operator.json" selected="$temp_dir/native-search-operation.json"
   local operation_id evidence_root evidence_run context deadline proof_status=0 recovery_sha recovery_key
-  local phase3 phase4 selected_state
+  local phase3 phase4 selected_state native_stage
   run_id=${RUN_ID:-}
   valid_run_id "$run_id" || fail "Native search requires the exact retained preparation RUN_ID"
   printf '%s\n' "${B_NATIVE_OPERATION_JSON:-}" > "$selected"
@@ -3512,10 +3512,15 @@ import growth_b_search_controller as controller
 controller.validate_operation(controller.read(sys.argv[2]))
 AIRBOB_B_NATIVE_OPERATION
   read_run_manifest "$run_id" "$original"
-  jq -e '.schemaVersion==2 and .globalBPrepareOnly==true and .databaseBootstrap=="dump" and
+  native_stage=$(jq -er '.stage' "$selected")
+  database_bootstrap=$(jq -er '.databaseBootstrap' "$original")
+  [[ "$native_stage:$database_bootstrap" == native-restore:dump || "$native_stage:$database_bootstrap" == native-snapshot-restore:snapshot ]] \
+    || fail "Native search stage must retain the original database source"
+  jq -e '.schemaVersion==2 and ((.globalBPrepareOnly==true and .databaseBootstrap=="dump") or
+    (.globalBSnapshotRestoreOnly==true and .databaseBootstrap=="snapshot")) and
     .mode=="performance" and .dnsMode=="direct-only" and .rdsEngineVersion=="8.4.11" and
     .loadGeneratorEnabled==false and .cacheEnabled==false' "$original" >/dev/null \
-    || fail "Native search requires the original cache-disabled B dump preparation run"
+    || fail "Native search requires the original cache-disabled B preparation run"
   manifest=$original
   dataset_release=$(jq -er '.datasetRelease' "$original")
   [[ "${DATASET_RELEASE:-}" == "$dataset_release" && "$(jq -er '.datasetId' "$selected")" == "$dataset_release" &&
@@ -3527,7 +3532,7 @@ AIRBOB_B_NATIVE_OPERATION
   validate_retained_global_b_execution_deadline "$original"
   (( expires_at > $(date +%s) + LEASE_DEADLINE_SECONDS )) || fail "Original paid-resource TTL cannot cover native search; it is not extended"
   mode=performance; policy=isolated-read; dns_mode=direct-only; load_generator_enabled=false; cache_enabled=false
-  database_bootstrap=dump; bundle_commit=$(jq -er '.bundleCommit' "$original")
+  bundle_commit=$(jq -er '.bundleCommit' "$original")
   [[ "${BUNDLE_COMMIT:-}" == "$bundle_commit" && "${IMAGE_DIGEST:-}" == "$(jq -er '.imageDigest' "$original")" ]] \
     || fail "Native search must retain the prepared application tuple"
   [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]] || fail "Native search requires a clean reviewed execution commit"
@@ -3584,7 +3589,7 @@ AIRBOB_B_NATIVE_OPERATION
     "$evidence_run/controller/public/completion.json" >/dev/null || fail "Native search completion is not verified"
   publish_immutable_json "data-bootstrap/$run_id/$dataset_release-native-search/$operation_id/completion.json" \
     "$evidence_run/controller/public/completion.json"
-  printf 'run_id=%s\nb_service_stage=native-restore\nexpires_at=%s\n' "$run_id" "$expires_at"
+  printf 'run_id=%s\nb_service_stage=%s\nexpires_at=%s\n' "$run_id" "$native_stage" "$expires_at"
 }
 
 continue_global_b_services() {
@@ -3595,7 +3600,7 @@ continue_global_b_services() {
     continue_global_b_snapshot_service
     return
   fi
-  if [[ "$stage" == native-restore ]]; then
+  if [[ "$stage" == native-restore || "$stage" == native-snapshot-restore ]]; then
     continue_global_b_native_search
     return
   fi

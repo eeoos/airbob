@@ -46,7 +46,8 @@ ACK_KIND = 'global-b-aws-native-search-lease-ack'
 MAX_PUBLIC_BYTES = 8 * 1024**2
 TOOLS = tuple(sorted(set(prepare.TOOLS) | {'growth_b_search_host.py', 'growth_b_search.py',
     'growth_b_search_transport.py', 'growth_b_service.py', 'growth_b_app_runtime.py',
-    'publish-growth-dataset-b.py', 'fetch-growth-dataset-b.py'}))
+    'publish-growth-dataset-b.py', 'fetch-growth-dataset-b.py', 'growth_b_search_snapshot.py',
+    'growth_b_search_snapshot_bridge.py', 'growth_b_snapshot.py', 'growth_b_snapshot_host.py'}))
 CONTEXT_KEYS = set(('schemaVersion kind operationId runId datasetId account region resourceFence expiresAt '
     'approvedExecutionDeadlineEpoch controllerDeadlineEpoch lease hosts rds serviceManifest preparationManifest '
     'sourceRefs targetIndex repositoryName toolSources').split())
@@ -200,7 +201,8 @@ def public_json(value):
 
 
 def validate_context(value, *, now=None, expected_sources=None):
-    need(isinstance(value, dict) and set(value) == CONTEXT_KEYS, 'CONTEXT_FIELDS')
+    snapshot_target = isinstance(value, dict) and 'snapshotLineage' in value
+    need(isinstance(value, dict) and set(value) == CONTEXT_KEYS | ({'snapshotLineage'} if snapshot_target else set()), 'CONTEXT_FIELDS')
     need(value['schemaVersion'] == 1 and value['kind'] == KIND and value['datasetId'] == DATASET
          and value['account'] == ACCOUNT and value['region'] == REGION, 'CONTEXT_SCOPE')
     run, operation = value['runId'], value['operationId']
@@ -249,14 +251,18 @@ def validate_context(value, *, now=None, expected_sources=None):
     need(preparation['reference']['key'] == f'datasets/{DATASET}-aws-preparation/aws-preparation-{preparation["reference"]["sha256"]}.json', 'PREPARATION_KEY')
     prepare.validate_manifest(preparation['value'], DATASET, {n: sources()[n] for n in prepare.TOOLS})
     need(preparation['value']['scope'] == 'final-b-rds', 'FINAL_DUMP_PREPARATION_REQUIRED')
-    keys(value['sourceRefs'], 'preparationReceipt standaloneReceipt', 'SOURCE_REFERENCE_FIELDS')
+    keys(value['sourceRefs'], 'preparationReceipt' if snapshot_target else 'preparationReceipt standaloneReceipt', 'SOURCE_REFERENCE_FIELDS')
     for pair in value['sourceRefs'].values():
         public_pair(pair, f'data-bootstrap/{run}/')
     prep_ref = value['sourceRefs']['preparationReceipt']
-    raw_ref = value['sourceRefs']['standaloneReceipt']
-    need(prep_ref['reference'] == manifest['preparation']['receipt']
-         and raw_ref['reference'] == prep_ref['value'].get('standaloneReceiptObject')
-         and raw_ref['reference']['sha256'] == manifest['preparation']['restoreReceiptSha256'], 'SOURCE_REFERENCE_BINDING')
+    need(prep_ref['reference'] == manifest['preparation']['receipt'], 'SOURCE_REFERENCE_BINDING')
+    if snapshot_target:
+        import growth_b_search_snapshot_bridge as snapshot_bridge
+        snapshot_bridge.validate_context(value)
+    else:
+        raw_ref = value['sourceRefs']['standaloneReceipt']
+        need(raw_ref['reference'] == prep_ref['value'].get('standaloneReceiptObject')
+             and raw_ref['reference']['sha256'] == manifest['preparation']['restoreReceiptSha256'], 'SOURCE_REFERENCE_BINDING')
     need(value['targetIndex'] == 'accommodations-v' + operation
          and re.fullmatch(search.INDEX_RE, value['targetIndex'])
          and value['repositoryName'] == 'b_' + operation.replace('-', '_'), 'NEW_NAMESPACE_REQUIRED')
@@ -265,6 +271,9 @@ def validate_context(value, *, now=None, expected_sources=None):
 
 
 def expected_mysql(context, envelope):
+    if 'snapshotLineage' in context:
+        return {'version': '8.4.11', 'serverUuid': context['rds']['serverUuid'],
+            'schema': envelope['mysql']['schema'], 'publishedDocuments': envelope['storage']['publishedListings']}
     raw = context['sourceRefs']['standaloneReceipt']['value']
     return {'version': raw['beforeDatabase']['version'], 'serverUuid': raw['beforeDatabase']['serverUuid'],
             'schema': envelope['mysql']['schema'], 'publishedDocuments': envelope['storage']['publishedListings']}
@@ -391,6 +400,9 @@ def decode_blobs(values):
 
 
 def validate_source_package(package, context, context_sha, envelope, base):
+    if 'snapshotLineage' in context:
+        import growth_b_search_snapshot_bridge as snapshot_bridge
+        return snapshot_bridge.validate_source_package(package, context, context_sha, envelope, base)
     keys(package, 'schemaVersion kind state contextSha256 sourceToolSha256 runId datasetId operationId resourceFence lease exportedAt origin mysql currentIdentityOnly files', 'PACKAGE_FIELDS')
     need(package['schemaVersion'] == 1 and package['kind'] == PACKAGE_KIND
          and package['state'] == 'FROZEN_IMPORT_BASELINE_PROOFS_EXPORTED'
@@ -576,11 +588,16 @@ class LiveGuard:
 
 def input_paths(context, phase):
     root = retained_root(context) if phase == 'prepare-source' else op_root(context) / 'inputs'
+    preparation_path = root / 'aws-preparation.json'
+    if phase == 'prepare-source' and 'snapshotLineage' in context:
+        document = context['snapshotLineage']['documents']['targetManifest']
+        target = decode(base64.b64decode(document['base64'], validate=True))
+        preparation_path = root / ('snapshot-' + target['operationId']) / 'aws-preparation.json'
     return {'root': root, 'release': root / 'release', 'migrations': root / 'migrations', 'app': root / 'app.jar',
             'envelope': root / 'envelope.json', 'publication': root / 'publication-receipt.json',
             'ca': root / 'rds-ca.pem', 'toolchainManifest': root / 'toolchain.json',
             'toolchain': (retained_root(context) if phase == 'prepare-source' else op_root(context)) / 'toolchain',
-            'preparation': root / 'aws-preparation.json', 'small': root / 'small-rds-receipt.json',
+            'preparation': preparation_path, 'small': root / 'small-rds-receipt.json',
             'companion': op_root(context) / 'inputs/search/companion',
             'descriptor': op_root(context) / 'inputs/search/companion-descriptor.json',
             'transport': op_root(context) / 'inputs/search/transport-manifest.json'}
@@ -650,6 +667,9 @@ def identity_only(context, db, config):
 
 
 def prepare_source(context, context_sha, output, *, guard=None):
+    if 'snapshotLineage' in context:
+        import growth_b_search_snapshot_bridge as snapshot_bridge
+        return snapshot_bridge.prepare_source(context, context_sha, output, guard=guard)
     output = Path(output)
     guard = guard or LiveGuard(context, context_sha, 'prepare-source')
     guard(force=True)
@@ -699,6 +719,9 @@ def search_config(context, paths, envelope, private_directory, environment):
 
 
 def restore_on_es(context, context_sha, package_path, package_sha, output, *, guard=None):
+    if 'snapshotLineage' in context:
+        import growth_b_search_snapshot_bridge as snapshot_bridge
+        return snapshot_bridge.restore_on_es(context, context_sha, package_path, package_sha, output, guard=guard)
     output = Path(output)
     guard = guard or LiveGuard(context, context_sha, 'restore-on-es')
     guard(force=True)
@@ -941,6 +964,9 @@ def original_control_lock(context):
 
 
 def validate_completion(context, context_sha, package, package_sha, native, receipt):
+    if 'snapshotLineage' in context:
+        import growth_b_search_snapshot_bridge as snapshot_bridge
+        return snapshot_bridge.validate_completion(context, context_sha, package, package_sha, native, receipt)
     """Pure public completion gate for the owning controller before publication."""
     keys(receipt, 'schemaVersion kind state contextSha256 sourcePackageSha256 toolSources runId datasetId operationId resourceFence lease rds hosts completedAt baselineOrigin restoreReceipt finalAck freshFullSourceAndOwnedComparisons allDocumentSourceFieldsEqual sqlImportExecuted businessSqlWritesExecuted accountPreparationExecuted redisModified cloudInfrastructureModified sourceSealsChanged', 'HOST_COMPLETION_FIELDS')
     need(receipt.get('schemaVersion') == 1 and receipt.get('kind') == 'global-b-aws-native-search-host-receipt'

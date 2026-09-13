@@ -273,7 +273,9 @@ class Contracts(unittest.TestCase):
 
     def test_sources_include_real_dynamic_transport_import_dependencies(self):
         names = host.sources()
-        self.assertEqual(13, len(names))
+        self.assertEqual(17, len(names))
+        self.assertTrue({'growth_b_search_snapshot.py', 'growth_b_search_snapshot_bridge.py',
+            'growth_b_snapshot.py', 'growth_b_snapshot_host.py'} <= set(names))
         self.assertTrue({'growth_b_search_transport.py','publish-growth-dataset-b.py','fetch-growth-dataset-b.py'} <= names.keys())
         self.assertEqual({'infra/aws/scripts/'+n:s for n,s in names.items()}, host.source_files())
 

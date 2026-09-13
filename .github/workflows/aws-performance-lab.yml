@@ -206,16 +206,17 @@ jobs:
               require(os.environ["AIRBOB_MODE"] == "performance", "B operations require performance mode")
               require(os.environ["AIRBOB_LOAD_GENERATOR_ENABLED"] == "false", "B operations must keep the load generator disabled")
           if action == "services":
-              require(operation.get("stage") in {"dependencies", "native-restore", "bootstrap", "application", "snapshot-verify"}, "B service stage is invalid")
-              if operation["stage"] == "native-restore":
+              require(operation.get("stage") in {"dependencies", "native-restore", "native-snapshot-restore", "bootstrap", "application", "snapshot-verify"}, "B service stage is invalid")
+              if operation["stage"] in {"native-restore", "native-snapshot-restore"}:
                   import sys
                   sys.path.insert(0, "infra/aws/scripts")
                   from growth_b_search_controller import validate_operation
                   validate_operation(operation)
                   require(operation["executionCommit"] == sha, "Native search must identify this reviewed main commit")
-                  require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == "dump", "Native search requires the original dump preparation")
+                  source_mode = "snapshot" if operation["stage"] == "native-snapshot-restore" else "dump"
+                  require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == source_mode, "Native search must retain the declared database source")
                   require(os.environ["AIRBOB_POLICY"] == "isolated-read", "Native search requires isolated-read controller mode")
-                  env = {"B_SERVICE_RELEASE": operation["serviceRelease"], "B_SERVICE_STAGE": "native-restore",
+                  env = {"B_SERVICE_RELEASE": operation["serviceRelease"], "B_SERVICE_STAGE": operation["stage"],
                       "B_SERVICE_SHA256": operation["manifest"]["sha256"],
                       "B_NATIVE_OPERATION_JSON": json.dumps(operation, sort_keys=True, separators=(",", ":"))}
               elif operation["stage"] == "snapshot-verify":
@@ -433,7 +434,7 @@ jobs:
           retention-days: 7
 
       - name: Preserve B native search evidence
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.action == 'services' && env.B_SERVICE_STAGE == 'native-restore'
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.action == 'services' && contains(fromJSON('["native-restore", "native-snapshot-restore"]'), env.B_SERVICE_STAGE)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: global-b-native-search-${{ github.run_id }}-${{ github.run_attempt }}

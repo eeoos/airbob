@@ -27,6 +27,7 @@ import growth_b_search_host as host
 import growth_b_service as service
 
 KIND = 'global-b-aws-native-search-operation'
+SNAPSHOT_KIND = 'global-b-aws-snapshot-native-search-operation'
 CONTEXT_KIND = 'global-b-aws-native-search-controller-context'
 ACCOUNT, REGION, DATASET = host.ACCOUNT, host.REGION, host.DATASET
 ROOT = Path(__file__).resolve().parents[3]
@@ -77,8 +78,11 @@ def source_archive(selected=None, root=ROOT):
 
 
 def validate_operation(value, *, check_sources=True):
-    host.keys(value, 'schemaVersion kind stage operationId runId datasetId serviceRelease executionCommit sourceArchiveSha256 manifest', 'OPERATION_FIELDS')
-    need(value['schemaVersion'] == 1 and value['kind'] == KIND and value['stage'] == 'native-restore'
+    snapshot_target = isinstance(value, dict) and value.get('kind') == SNAPSHOT_KIND
+    fields = 'schemaVersion kind stage operationId runId datasetId serviceRelease executionCommit sourceArchiveSha256 manifest'
+    host.keys(value, fields + (' targetPreparation sourceEvidence' if snapshot_target else ''), 'OPERATION_FIELDS')
+    need(value['schemaVersion'] == 1 and value['kind'] == (SNAPSHOT_KIND if snapshot_target else KIND)
+         and value['stage'] == ('native-snapshot-restore' if snapshot_target else 'native-restore')
          and value['datasetId'] == DATASET, 'OPERATION_SCOPE')
     for name in ('operationId', 'serviceRelease'):
         need(isinstance(value[name], str) and re.fullmatch(r'[a-z0-9][a-z0-9-]{2,47}', value[name])
@@ -90,6 +94,14 @@ def validate_operation(value, *, check_sources=True):
     key = f'datasets/{DATASET}-aws-service/{value["serviceRelease"]}/aws-service.json'
     host.reference(value['manifest'], key)
     need(value['manifest']['key'] == key, 'OPERATION_MANIFEST_KEY')
+    if snapshot_target:
+        host.keys(value['targetPreparation'], 'manifest hostReceipt', 'TARGET_PREPARATION_FIELDS')
+        host.keys(value['sourceEvidence'], 'restoreReceipt preparedFingerprint serviceResetReceipt', 'SNAPSHOT_SOURCE_EVIDENCE_FIELDS')
+        host.reference(value['targetPreparation']['manifest'], f'datasets/{DATASET}-aws-snapshots/operations/{value["runId"]}/')
+        host.reference(value['targetPreparation']['hostReceipt'], f'data-bootstrap/{value["runId"]}/{DATASET}-snapshot/')
+        for ref in value['sourceEvidence'].values():
+            host.reference(ref, 'data-bootstrap/')
+            need(not ref['key'].startswith(f'data-bootstrap/{value["runId"]}/'), 'SOURCE_MUST_PRECEDE_TARGET_RUN')
     if check_sources:
         need(source_archive()[1]['sha256'] == value['sourceArchiveSha256'], 'REVIEWED_SOURCE_ARCHIVE_CHANGED')
     return value
@@ -101,9 +113,12 @@ def validate_context(value, operation, *, now=None):
     need(value['schemaVersion'] == 1 and value['kind'] == CONTEXT_KIND
          and value['executionCommit'] == operation['executionCommit'], 'CONTROLLER_CONTEXT_IDENTITY')
     original, lease = value['operator'], value['lease']
+    snapshot_target = operation['kind'] == SNAPSHOT_KIND
+    bootstrap = 'snapshot' if snapshot_target else 'dump'
     need(original.get('schemaVersion') == 2 and original.get('runId') == operation['runId']
-         and original.get('datasetRelease') == DATASET and original.get('globalBPrepareOnly') is True
-         and original.get('databaseBootstrap') == 'dump' and original.get('mode') == 'performance'
+         and original.get('datasetRelease') == DATASET
+         and original.get('globalBSnapshotRestoreOnly' if snapshot_target else 'globalBPrepareOnly') is True
+         and original.get('databaseBootstrap') == bootstrap and original.get('mode') == 'performance'
          and original.get('dnsMode') == 'direct-only' and original.get('rdsEngineVersion') == '8.4.11'
          and original.get('cacheEnabled') is False and original.get('loadGeneratorEnabled') is False
          and host.integer(original.get('fencingToken'), 1), 'ORIGINAL_FINAL_PREPARATION_REQUIRED')
@@ -121,7 +136,7 @@ def validate_context(value, operation, *, now=None):
          and {'debezium', 'kafka', 'elasticsearch'} <= set(p2['services'])
          and all(re.fullmatch(r'i-[0-9a-f]{17}', p2['services'][k]) for k in ('debezium', 'kafka', 'elasticsearch')),
          'RETAINED_DEPENDENCY_HOSTS_REQUIRED')
-    need(p3['dataset_release'] == DATASET and p3['database_bootstrap'] == 'dump'
+    need(p3['dataset_release'] == DATASET and p3['database_bootstrap'] == bootstrap
          and p3['rds_instance_id'] == 'airbob-' + operation['runId'] and p3['rds_engine_version'] == '8.4.11'
          and p3['rds_configured_storage_gib'] == 100, 'RETAINED_RDS_REQUIRED')
     need(p4['app_enabled'] is False and p4['capacity'] == {'min': 0, 'desired': 0, 'max': 0}
@@ -364,7 +379,8 @@ def ack_value(context, context_sha, sequence, previous_sha, issued):
 
 
 def validate_host_phase_result(context, phase, result):
-    expected = {'prepare-source': 'FROZEN_IMPORT_BASELINE_PROOFS_EXPORTED',
+    expected = {'prepare-source': ('SNAPSHOT_TARGET_LINEAGE_PROOFS_EXPORTED' if 'snapshotLineage' in context
+                                   else 'FROZEN_IMPORT_BASELINE_PROOFS_EXPORTED'),
                 'restore-on-es': 'NATIVE_SEARCH_RESTORED_AND_SOURCE_VERIFIED'}
     need(phase in expected, 'HOST_PHASE')
     host.keys(result, 'state output sha256 ownedWorkerTerminal privateMaterialRemoved', 'HOST_PHASE_RESULT_FIELDS')
@@ -577,6 +593,9 @@ class Controller:
             {name: host.sha(Path(service.__file__).with_name(name)) for name in service.TOOLS})
         need(value['search']['restoreReceipt'] is None and value['application']['image'] == original['appImageReference']
              and value['application']['mainCommit'] == original['bundleCommit'], 'ORIGINAL_APP_AND_UNRESTORED_SEARCH_REQUIRED')
+        if op['kind'] == SNAPSHOT_KIND:
+            self.selected_snapshot_inputs()
+            return
         prep_sha = original['datasetManifestSha256']
         need(host.digest(prep_sha), 'ORIGINAL_PREPARATION_SHA')
         self.preparation = self.fetch({'key': f'datasets/{DATASET}-aws-preparation/aws-preparation-{prep_sha}.json',
@@ -590,6 +609,48 @@ class Controller:
             self.directory / 'selected-envelope.json')
         need(self.wrapper['value']['serverUuid'] == value['rds']['serverUuid']
              and self.standalone['reference']['sha256'] == value['preparation']['restoreReceiptSha256'], 'PREPARATION_UUID_BINDING')
+        self.base = self.standalone['value']['sealedFingerprint']
+
+    def snapshot_document(self, reference, name, bucket=EVIDENCE):
+        filename = 'snapshot-lineage-' + name + '.json'
+        pair = self.fetch(reference, filename, bucket)
+        return pair, {'reference': pair['reference'],
+            'base64': base64.b64encode(host.regular(self.directory / filename)).decode('ascii')}
+
+    def selected_snapshot_inputs(self):
+        import growth_b_snapshot_host as snapshot_host
+        op, manifest = self.operation, self.manifest['value']
+        selected, selected_document = self.snapshot_document(op['targetPreparation']['manifest'], 'targetManifest', service.BUCKET)
+        snapshot_host.validate_manifest(selected['value'], DATASET, op['runId'], selected['value']['operationId'])
+        need(selected['value']['operation'] == 'prepare', 'SNAPSHOT_PREPARATION_MANIFEST_REQUIRED')
+        target_host, host_document = self.snapshot_document(op['targetPreparation']['hostReceipt'], 'targetHostReceipt')
+        docs = {'targetManifest': selected_document, 'targetHostReceipt': host_document}
+        self.preparation = self.fetch(selected['value']['awsPreparation'], 'selected-preparation.json', service.BUCKET)
+        prepare.validate_manifest(self.preparation['value'], DATASET, {n: host.sources()[n] for n in prepare.TOOLS})
+        need(self.preparation['value']['scope'] == 'final-b-rds', 'FINAL_PREPARATION_MANIFEST_REQUIRED')
+        self.envelope, envelope_document = self.snapshot_document(self.preparation['value']['files']['envelope'], 'envelope', service.BUCKET)
+        refs = {'targetPreflight': target_host['value']['objects']['preflight.json'],
+            'targetOperation': target_host['value']['objects']['snapshot-operation.json'],
+            'targetPreparation': target_host['value']['objects']['data-only-preparation.json'],
+            'targetPreparedFingerprint': target_host['value']['objects']['prepared-fingerprint.json'],
+            'sourceRestoreReceipt': op['sourceEvidence']['restoreReceipt'],
+            'sourcePreparedFingerprint': op['sourceEvidence']['preparedFingerprint'],
+            'sourceServiceResetReceipt': op['sourceEvidence']['serviceResetReceipt'],
+            **selected['value']['evidence']}
+        values = {}
+        for name, ref in refs.items():
+            bucket = service.BUCKET if ref['key'].startswith('datasets/') else EVIDENCE
+            values[name], docs[name] = self.snapshot_document(ref, name, bucket)
+        self.wrapper = values['targetPreparation']
+        need(self.wrapper['reference'] == manifest['preparation']['receipt']
+             and self.wrapper['value']['serverUuid'] == manifest['rds']['serverUuid']
+             and values['targetOperation']['reference']['sha256'] == manifest['preparation']['restoreReceiptSha256'],
+             'ACTUAL_TARGET_PREPARATION_BINDING')
+        expected = self.context['operator']['globalBSnapshotProvenance']
+        need(values['provenance']['reference'] == {'key': expected['key'], 'versionId': expected['version_id'],
+             'sha256': expected['sha256'], 'bytes': expected['bytes']}, 'ACTUALLY_RESTORED_PROVENANCE_CHANGED')
+        self.snapshot_documents, self.snapshot_envelope = docs, envelope_document
+        self.base = snapshot_host.snapshot.validate_provenance(values['provenance']['value'])['sealedFingerprint']
 
     def tags(self, rows, role=None):
         tags = {r['Key']: r['Value'] for r in rows}
@@ -676,9 +737,23 @@ class Controller:
             'hosts': {'preparation': {'instanceId': self.connect_pin['instanceId']}, 'elasticsearch': es},
             'rds': self.manifest['value']['rds'] | {'endpoint': rds['Endpoint']['Address'], 'masterSecretArn': rds['MasterUserSecret']['SecretArn'],
                 'createdAt': rds['InstanceCreateTime']}, 'serviceManifest': self.manifest, 'preparationManifest': self.preparation,
-            'sourceRefs': {'preparationReceipt': self.wrapper, 'standaloneReceipt': self.standalone},
+            'sourceRefs': {'preparationReceipt': self.wrapper},
             'targetIndex': 'accommodations-v' + self.operation['operationId'], 'repositoryName': 'b_' + self.operation['operationId'].replace('-', '_'),
             'toolSources': host.sources()}
+        if self.operation['kind'] == SNAPSHOT_KIND:
+            import growth_b_search_snapshot as snapshot_search
+            binding = {'schemaVersion': 1, 'kind': snapshot_search.BINDING_KIND, 'datasetId': DATASET,
+                'runId': self.operation['runId'],
+                'targetRds': {k: value['rds'][k] for k in ('identifier', 'resourceId', 'serverUuid', 'endpoint', 'createdAt')},
+                'preparationHostInstanceId': self.connect_pin['instanceId'], 'application': self.manifest['value']['application'],
+                'envelopeSha256': self.envelope['reference']['sha256'],
+                'consumerManifestSha256': self.envelope['value']['consumerManifestSha256'],
+                'checksumsSha256': self.envelope['value']['checksumsSha256'],
+                'targetPreparation': self.operation['targetPreparation'], 'sourceEvidence': self.operation['sourceEvidence']}
+            snapshot_search.validate_lineage(binding, self.snapshot_documents, self.snapshot_envelope, self.base)
+            value['snapshotLineage'] = {'binding': binding, 'documents': self.snapshot_documents, 'envelope': self.snapshot_envelope}
+        else:
+            value['sourceRefs']['standaloneReceipt'] = self.standalone
         host.validate_context(value)
         self.host_context = value; self.host_raw = encoded(value); self.host_sha = checksum(self.host_raw)
         host.new_file(self.directory / 'host-context.json', self.host_raw)
@@ -783,9 +858,10 @@ class Controller:
             source_completion = self.launch('prepare-source', source_instance)
             package = self.read_public(source_instance, 'source'); package_sha = checksum(package)
             need(source_completion['sha256'] == package_sha, 'SOURCE_PACKAGE_CHANGED_AFTER_CLEANUP')
-            need(decode(package).get('state') == 'FROZEN_IMPORT_BASELINE_PROOFS_EXPORTED', 'ACTUAL_IMPORT_SOURCE_PACKAGE_REQUIRED')
+            expected_state = 'SNAPSHOT_TARGET_LINEAGE_PROOFS_EXPORTED' if 'snapshotLineage' in context else 'FROZEN_IMPORT_BASELINE_PROOFS_EXPORTED'
+            need(decode(package).get('state') == expected_state, 'ACTUAL_SOURCE_PACKAGE_REQUIRED')
             host.validate_source_package(decode(package), context, self.host_sha, self.envelope['value'],
-                self.standalone['value']['sealedFingerprint'])
+                self.base)
             host.new_file(self.directory / 'public/source-package.json', package)
             es = context['hosts']['elasticsearch']['instanceId']
             self.stage(es, 'package', package)

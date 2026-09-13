@@ -68,7 +68,7 @@ has exactly these fields:
 ```
 
 Replace the example byte count with the actual manifest size. The source archive
-contains the 13 host helpers and the controller. The six sealed preparation
+contains the 17 host helpers and the controller. The six sealed preparation
 helpers, native search engine, service consumer and runtime binding retain their
 original bytes. The stage executes through the existing operator OIDC role and
 SSM permissions; it never builds Terraform variables or applies infrastructure.
@@ -112,6 +112,41 @@ receipt and native receipt are published under
 native receipt reference in a new immutable service manifest before bootstrap.
 This completion does not admit application traffic, CDC verification or snapshot
 creation on its own.
+
+### Native search after an actual RDS snapshot restore
+
+After the new snapshot target has completed preparation and `services` stage
+`dependencies`, select the distinct stage `native-snapshot-restore` with
+`database_bootstrap=snapshot`. Its operation kind is
+`global-b-aws-snapshot-native-search-operation`. Retain the native operation's
+other fields and add `targetPreparation` with exact `manifest` and `hostReceipt`
+object references, plus `sourceEvidence` with the exact original `restoreReceipt`,
+`preparedFingerprint` and `serviceResetReceipt` references used to create the
+snapshot. The original target operator must contain `globalBSnapshotRestoreOnly`
+and the exact provenance used for the actual RDS restore.
+
+The target engine validates twelve immutable documents: the original import,
+prepared fingerprint and R4 reset; the target preparation manifest, host result,
+preflight, operation, common preparation and prepared fingerprint; and the
+snapshot provenance, source-absence admission and actual CloudTrail restore
+event. It keeps the ancestor and target UUIDs separate. Its baseline state is
+`VERIFIED_SNAPSHOT_TARGET_LINEAGE`; it explicitly records
+`rawBaselineObservedOnTarget=false`. It does not generate the original dump
+engine's `BASELINE_VERIFIED_BEFORE_PREPARATION` receipt for the new target.
+
+The retained preparation host verifies its original control lock, configuration
+hash and six exact local target proof files before exporting the lineage. The
+ES host then verifies current complete rows/DDL, inventory ownership, every
+current search field, exact native S3 versions/bytes and post-restore source drift
+under the same deadline, process and ACK guards. A successful native receipt is
+written only after the source fence and private scratch cleanup finish. The
+native receipt includes `sourceBaseline` and `snapshotTargetBaselineSha256`.
+
+This target entry point and its host bridge are separate modules. The original
+dump search engine, snapshot core, six preparation helpers and sealed payloads
+remain unchanged. Publish a new immutable service manifest containing the
+actual target native receipt before `bootstrap`, `application` and
+`snapshot-verify`. Offline fixtures do not establish a cloud restoration.
 
 ## Source R4 verification and reset
 
