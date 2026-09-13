@@ -136,6 +136,7 @@ locals {
   receipt_required                   = var.deployment_phase != "network"
   services_enabled                   = contains(["services", "data-ready"], var.deployment_phase)
   data_ready                         = var.deployment_phase == "data-ready"
+  global_b_selected                  = var.global_b_prepare_only || var.global_b_services || var.global_b_snapshot_restore_only
   legacy_services_enabled            = local.services_enabled && !var.global_b_prepare_only && !var.global_b_services && !var.global_b_snapshot_restore_only
   application_infrastructure_enabled = local.services_enabled && !var.global_b_prepare_only && !var.global_b_snapshot_restore_only
   dependency_services_enabled        = local.legacy_services_enabled || (local.services_enabled && var.global_b_services)
@@ -164,8 +165,13 @@ locals {
 
   dataset_prefix       = "datasets/${var.dataset_release}"
   dataset_manifest_key = var.global_b_snapshot_restore_only ? try(var.global_b_snapshot_provenance.key, "invalid-b-snapshot-provenance") : var.global_b_prepare_only ? "datasets/${var.dataset_release}-aws-preparation/aws-preparation-${var.dataset_manifest_sha256}.json" : (var.global_b_services ? "datasets/${var.dataset_release}-aws-service/${var.global_b_service_release}/aws-service.json" : "${local.dataset_prefix}/manifest.json")
+  # Sealed B JSON may have a binary Content-Type. Decode the exact downloaded
+  # bytes without changing its object version or the legacy text-body reader.
+  dataset_manifest_body = local.services_enabled ? (
+    local.global_b_selected ? base64decode(nonsensitive(data.aws_s3_object.dataset_manifest[0].body_base64)) : nonsensitive(data.aws_s3_object.dataset_manifest[0].body)
+  ) : null
   dataset_manifest = local.services_enabled ? try(
-    jsondecode(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)),
+    jsondecode(local.dataset_manifest_body),
     null,
   ) : null
   dataset_release_kind        = try(local.dataset_manifest.releaseKind, null)

@@ -26,7 +26,7 @@ locals {
   growth_b_snapshot_selected = var.global_b_snapshot_restore_only || (var.global_b_services && var.database_bootstrap == "snapshot")
   growth_b_snapshot_bucket   = try(startswith(var.global_b_snapshot_provenance.key, "data-bootstrap/"), false) ? local.lab_contract.evidence_bucket_name : local.lab_contract.dataset_bucket_name
   growth_b_snapshot_provenance = local.services_enabled && local.growth_b_snapshot_selected ? try(
-  jsondecode(nonsensitive(data.aws_s3_object.growth_b_snapshot_provenance[0].body)), null) : null
+  jsondecode(base64decode(nonsensitive(data.aws_s3_object.growth_b_snapshot_provenance[0].body_base64))), null) : null
   growth_b_snapshot_core = try(local.growth_b_snapshot_provenance.contract, null)
   growth_b_snapshot_tool_sources = { for name in ["growth_b_aws_restore.py", "growth_b_aws_contract.py", "growth_b_contract.py",
   "growth_b_runtime.py", "growth_b_inventory.py", "growth_b_snapshot.py"] : name => filesha256("${path.module}/../scripts/${name}") }
@@ -39,7 +39,7 @@ locals {
     !contains(["", "null", "None"], var.global_b_snapshot_provenance.version_id) &&
     var.global_b_snapshot_provenance.bytes > 0 && var.global_b_snapshot_provenance.bytes <= 4 * 1024 * 1024 &&
     data.aws_s3_object.growth_b_snapshot_provenance[0].version_id == var.global_b_snapshot_provenance.version_id &&
-    sha256(nonsensitive(data.aws_s3_object.growth_b_snapshot_provenance[0].body)) == var.global_b_snapshot_provenance.sha256 &&
+    sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_snapshot_provenance[0].body_base64))) == var.global_b_snapshot_provenance.sha256 &&
     local.growth_b_snapshot_provenance.schemaVersion == 1 &&
     local.growth_b_snapshot_provenance.kind == "global-growth-b-rds-snapshot-provenance" &&
     local.growth_b_snapshot_provenance.state == "SNAPSHOT_AVAILABLE_PROVENANCE_VERIFIED" &&
@@ -91,10 +91,11 @@ locals {
 }
 
 data "aws_s3_object" "growth_b_snapshot_provenance" {
-  count      = local.services_enabled && local.growth_b_snapshot_selected ? 1 : 0
-  bucket     = local.growth_b_snapshot_bucket
-  key        = try(var.global_b_snapshot_provenance.key, "invalid-b-snapshot-provenance")
-  version_id = try(var.global_b_snapshot_provenance.version_id, "invalid-b-version")
+  download_body = true
+  count         = local.services_enabled && local.growth_b_snapshot_selected ? 1 : 0
+  bucket        = local.growth_b_snapshot_bucket
+  key           = try(var.global_b_snapshot_provenance.key, "invalid-b-snapshot-provenance")
+  version_id    = try(var.global_b_snapshot_provenance.version_id, "invalid-b-version")
 }
 
 data "aws_db_instances" "growth_b_snapshot_targets" {

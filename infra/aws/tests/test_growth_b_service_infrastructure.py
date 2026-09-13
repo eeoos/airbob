@@ -1,4 +1,5 @@
 """Evaluate the real B Terraform admission/IAM expressions without providers or cloud."""
+import base64
 import copy
 import json
 import os
@@ -12,7 +13,7 @@ from test_growth_b_service_contract import fixture, receipt, runtime_projection,
 LAB = ROOT / 'infra/aws/lab'
 
 
-def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=None, database_bootstrap='dump'):
+def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=None, database_bootstrap='dump', object_change=None):
     manifest = manifest or fixture()
     proof = proof or receipt(manifest)
     preparation = {'kind': 'global-growth-b-aws-data-only-preparation', 'state': 'DATABASE_INVENTORY_LOGIN_VERIFIED',
@@ -47,7 +48,11 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
         'growth_b_service_preparation': [{'body': prep_text}], 'growth_b_service_transport': [{'body': transport_text}],
         'growth_b_service_runtime': [{'body': runtime_text, 'version_id': manifest['appRuntimeBinding']['versionId']}],
         'data_bootstrap_receipt': [{'body': proof_text, 'version_id': 'readiness-v1'}]}
+    for objects in object_data.values():
+        for item in objects:
+            item.update(body_base64=base64.b64encode(item['body'].encode()).decode(), content_type='application/json')
     variables = {'global_b_services': mode == 'service', 'global_b_prepare_only': mode == 'prepare',
+        'global_b_snapshot_restore_only': False,
         'global_b_service_bootstrap_enabled': True, 'database_bootstrap': database_bootstrap, 'rds_engine_version': '8.4.11',
         'global_b_snapshot_provenance': {'sha256': 'd' * 64},
         'mode': 'performance', 'dns_mode': 'direct-only', 'load_generator_enabled': False,
@@ -62,22 +67,26 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
     names = ('growth_b_service_prefix', 'growth_b_search_prefix', 'growth_b_service_refs', 'growth_b_cdc_suffix',
         'growth_b_service_manifest_valid', 'growth_b_service_preparation', 'growth_b_service_transport', 'growth_b_service_runtime', 'growth_b_readiness_valid')
     expressions = {name: attribute(growth, name) for name in names}
+    expressions.update({name: attribute((LAB / 'locals.tf').read_text(), name) for name in
+        ('global_b_selected', 'dataset_manifest_body', 'dataset_manifest', 'dataset_manifest_key')})
+    expressions['data_bootstrap_receipt'] = attribute((LAB / 'checks.tf').read_text(), 'data_bootstrap_receipt')
     expressions.update({name: attribute(iam, name) for name in ('growth_b_preparation_refs', 'growth_b_service_read_refs',
         'growth_b_app_read_refs', 'growth_b_transport_refs')})
     for name in ('growth_b_preparation_inputs', 'growth_b_service_inputs', 'growth_b_app_inputs', 'growth_b_search_inputs'):
         expressions[name] = attribute(block(iam, 'resource', 'aws_iam_role_policy', name), 'policy')
+    if object_change:
+        # Perturb provider-returned fields after the expected byte/version pins
+        # have been fixed, so negative MIME/transport tests cannot self-repin.
+        object_change(object_data)
     vars_text = ''.join('variable "' + key + '" { default = ' + json.dumps(value) + ' }\n' for key, value in variables.items())
     config = vars_text + '''locals {
       services_enabled = true
       data_ready = true
-      dataset_manifest = jsondecode(file("manifest.json"))
       dataset_prefix = "datasets/${var.dataset_release}"
-      dataset_manifest_key = "datasets/${var.dataset_release}-aws-service/${var.global_b_service_release}/aws-service.json"
       growth_b_service_helper_sources = local.dataset_manifest.toolSources
       lab_contract = { dataset_bucket_name = "airbob-performance-lab-dataset-942632789808", evidence_bucket_name = "airbob-performance-lab-evidence-942632789808" }
       growth_b_envelope = { objects = {} }
       dataset_kafka_topics = toset(jsondecode(file("topics.json")))
-      data_bootstrap_receipt = jsondecode(file("proof.json"))
       object_data = jsondecode(file("objects.json"))
       rds = [{ resource_id = "db-AAAAAAAAAAAAAAAAAAAAAAAA", arn = "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-b-services-test", master_secret_arn = "arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-selected" }]
     '''

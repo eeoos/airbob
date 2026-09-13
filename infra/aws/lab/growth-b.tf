@@ -6,7 +6,7 @@ locals {
   ]
   growth_b_helper_sources = { for name in local.growth_b_helper_names : name => filesha256("${path.module}/../scripts/${name}") }
   growth_b_envelope = local.services_enabled && var.global_b_prepare_only ? try(
-    jsondecode(nonsensitive(data.aws_s3_object.growth_b_envelope[0].body)), null,
+    jsondecode(base64decode(nonsensitive(data.aws_s3_object.growth_b_envelope[0].body_base64))), null,
   ) : null
   growth_b_file_names = merge({
     envelope      = "envelope.json", publicationReceipt = "publication-receipt.json", appJar = "app.jar",
@@ -17,7 +17,7 @@ locals {
   growth_b_dataset_valid = !local.services_enabled || try(
     var.global_b_prepare_only && var.database_bootstrap == "dump" && var.rds_engine_version == "8.4.11" &&
     !var.app_enabled && !var.load_generator_enabled && var.mode == "performance" && var.dns_mode == "direct-only" && !local.data_ready &&
-    sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
+    sha256(local.dataset_manifest_body) == var.dataset_manifest_sha256 &&
     data.aws_s3_object.dataset_manifest[0].version_id == var.global_b_manifest_version_id &&
     toset(keys(local.dataset_manifest)) == toset([
       "schemaVersion", "kind", "datasetId", "account", "region", "scope", "mysql", "files",
@@ -45,7 +45,7 @@ locals {
     local.dataset_manifest.storage.minimumStagingFreeBytes >= 4 * 1024 * 1024 * 1024 &&
     local.dataset_manifest.storage.minimumStagingFreeBytes < 20 * 1024 * 1024 * 1024 &&
     local.dataset_manifest.binlogAdditionalReserveBytes > 0 &&
-    sha256(nonsensitive(data.aws_s3_object.growth_b_envelope[0].body)) == local.dataset_manifest.files.envelope.sha256 &&
+    sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_envelope[0].body_base64))) == local.dataset_manifest.files.envelope.sha256 &&
     local.growth_b_envelope.kind == "global-growth-b-aws-restore" && local.growth_b_envelope.datasetId == var.dataset_release &&
     local.growth_b_envelope.mysql == { version = "8.4.11", flywayVersion = 28, schema = "airbobdb" } &&
     local.growth_b_envelope.account == var.account_id && local.growth_b_envelope.region == var.aws_region &&
@@ -105,7 +105,8 @@ locals {
 }
 
 data "aws_s3_object" "growth_b_envelope" {
-  count = local.services_enabled && var.global_b_prepare_only ? 1 : 0
+  download_body = true
+  count         = local.services_enabled && var.global_b_prepare_only ? 1 : 0
 
   bucket     = local.lab_contract.dataset_bucket_name
   key        = try(local.dataset_manifest.files.envelope.key, "invalid-b-envelope")
@@ -145,7 +146,7 @@ locals {
   growth_b_service_manifest_valid = !local.services_enabled || try(
     var.global_b_services && !var.global_b_prepare_only && contains(["dump", "snapshot"], var.database_bootstrap) && var.rds_engine_version == "8.4.11" &&
     var.mode == "performance" && var.dns_mode == "direct-only" && !var.load_generator_enabled &&
-    sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
+    sha256(local.dataset_manifest_body) == var.dataset_manifest_sha256 &&
     data.aws_s3_object.dataset_manifest[0].version_id == var.global_b_manifest_version_id &&
     toset(keys(local.dataset_manifest)) == toset(["schemaVersion", "kind", "datasetId", "runId", "serviceRelease", "account", "region",
     "mysql", "rds", "application", "appRuntimeBinding", "preparation", "search", "debezium", "consumerTools", "toolSources", "cdc"]) &&
@@ -163,7 +164,7 @@ locals {
     toset(keys(local.dataset_manifest.application)) == toset(["mainCommit", "image", "appJarSha256", "migrationFilesSha256"]) &&
     alltrue([for key in ["appJarSha256", "migrationFilesSha256"] : can(regex("^[0-9a-f]{64}$", local.dataset_manifest.application[key]))]) &&
     local.dataset_manifest.appRuntimeBinding.key == "${local.growth_b_service_prefix}/files/app-runtime-binding.json" &&
-    sha256(nonsensitive(data.aws_s3_object.growth_b_service_runtime[0].body)) == local.dataset_manifest.appRuntimeBinding.sha256 &&
+    sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_runtime[0].body_base64))) == local.dataset_manifest.appRuntimeBinding.sha256 &&
     data.aws_s3_object.growth_b_service_runtime[0].version_id == local.dataset_manifest.appRuntimeBinding.versionId &&
     local.growth_b_service_runtime.kind == "global-b-app-runtime-binding" && local.growth_b_service_runtime.schemaVersion == 1 &&
     toset(keys(local.growth_b_service_runtime.runtime)) == toset(["imageJarSha256", "runtimeDigest", "runtimeContract", "runtimeRevision", "sourceJarSha256", "image", "mainCommit"]) &&
@@ -198,7 +199,7 @@ locals {
       can(regex("^[A-Za-z0-9._~+/=-]+$", item.ref.versionId)) && !contains(["", "null", "None"], item.ref.versionId) &&
       can(regex("^[0-9a-f]{64}$", item.ref.sha256)) && item.ref.bytes > 0 && item.ref.bytes <= 20 * 1024 * 1024 && floor(item.ref.bytes) == item.ref.bytes
     ]) &&
-    sha256(nonsensitive(data.aws_s3_object.growth_b_service_preparation[0].body)) == local.dataset_manifest.preparation.receipt.sha256 &&
+    sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_preparation[0].body_base64))) == local.dataset_manifest.preparation.receipt.sha256 &&
     local.growth_b_service_preparation.kind == "global-growth-b-aws-data-only-preparation" &&
     local.growth_b_service_preparation.state == "DATABASE_INVENTORY_LOGIN_VERIFIED" &&
     local.growth_b_service_preparation.runId == var.run_id && local.growth_b_service_preparation.datasetId == var.dataset_release &&
@@ -214,7 +215,7 @@ locals {
       can(regex("^[0-9a-f]{64}$", local.growth_b_service_preparation.snapshotRestoreEvidence.eventSha256))
       ) : (!contains(keys(local.growth_b_service_preparation), "snapshotProvenanceSha256") &&
     contains(["dump", ""], try(coalesce(local.growth_b_service_preparation.sourceMode, ""), "")))) &&
-    sha256(nonsensitive(data.aws_s3_object.growth_b_service_transport[0].body)) == local.dataset_manifest.search.transport.sha256 &&
+    sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_transport[0].body_base64))) == local.dataset_manifest.search.transport.sha256 &&
     local.growth_b_service_transport.schemaVersion == 1 && local.growth_b_service_transport.kind == "global-growth-b-search-transport" &&
     local.growth_b_service_transport.bucket == local.lab_contract.dataset_bucket_name && local.growth_b_service_transport.region == var.aws_region &&
     local.growth_b_service_transport.datasetId == var.dataset_release &&
@@ -229,14 +230,14 @@ locals {
       username           = "b_cdc_${local.growth_b_cdc_suffix}"
     }, false,
   )
-  growth_b_service_preparation = var.global_b_services && local.services_enabled ? try(jsondecode(nonsensitive(data.aws_s3_object.growth_b_service_preparation[0].body)), null) : null
-  growth_b_service_transport   = var.global_b_services && local.services_enabled ? try(jsondecode(nonsensitive(data.aws_s3_object.growth_b_service_transport[0].body)), null) : null
-  growth_b_service_runtime     = var.global_b_services && local.services_enabled ? try(jsondecode(nonsensitive(data.aws_s3_object.growth_b_service_runtime[0].body)), null) : null
+  growth_b_service_preparation = var.global_b_services && local.services_enabled ? try(jsondecode(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_preparation[0].body_base64))), null) : null
+  growth_b_service_transport   = var.global_b_services && local.services_enabled ? try(jsondecode(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_transport[0].body_base64))), null) : null
+  growth_b_service_runtime     = var.global_b_services && local.services_enabled ? try(jsondecode(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_runtime[0].body_base64))), null) : null
   growth_b_readiness_valid = !local.data_ready || try(
     var.global_b_services && var.global_b_readiness_receipt != null &&
     var.global_b_readiness_receipt.key == "data-bootstrap/${var.run_id}/${var.dataset_release}-service-${var.global_b_service_release}.json" &&
     data.aws_s3_object.data_bootstrap_receipt[0].version_id == var.global_b_readiness_receipt.version_id &&
-    sha256(nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body)) == var.global_b_readiness_receipt.sha256 &&
+    sha256(base64decode(nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body_base64))) == var.global_b_readiness_receipt.sha256 &&
     local.data_bootstrap_receipt.schemaVersion == 1 && local.data_bootstrap_receipt.kind == "global-growth-b-aws-service-readiness" &&
     local.data_bootstrap_receipt.state == "GLOBAL_B_DEPENDENCIES_VERIFIED" &&
     local.data_bootstrap_receipt.runId == var.run_id && local.data_bootstrap_receipt.datasetId == var.dataset_release &&
@@ -306,24 +307,27 @@ resource "aws_vpc_security_group_ingress_rule" "growth_b_cdc_application" {
 }
 
 data "aws_s3_object" "growth_b_service_preparation" {
-  count      = var.global_b_services && local.services_enabled ? 1 : 0
-  bucket     = local.lab_contract.evidence_bucket_name
-  key        = try(local.dataset_manifest.preparation.receipt.key, "invalid-b-preparation")
-  version_id = try(local.dataset_manifest.preparation.receipt.versionId, "invalid-b-version")
+  download_body = true
+  count         = var.global_b_services && local.services_enabled ? 1 : 0
+  bucket        = local.lab_contract.evidence_bucket_name
+  key           = try(local.dataset_manifest.preparation.receipt.key, "invalid-b-preparation")
+  version_id    = try(local.dataset_manifest.preparation.receipt.versionId, "invalid-b-version")
 }
 
 data "aws_s3_object" "growth_b_service_transport" {
-  count      = var.global_b_services && local.services_enabled ? 1 : 0
-  bucket     = local.lab_contract.dataset_bucket_name
-  key        = try(local.dataset_manifest.search.transport.key, "invalid-b-transport")
-  version_id = try(local.dataset_manifest.search.transport.versionId, "invalid-b-version")
+  download_body = true
+  count         = var.global_b_services && local.services_enabled ? 1 : 0
+  bucket        = local.lab_contract.dataset_bucket_name
+  key           = try(local.dataset_manifest.search.transport.key, "invalid-b-transport")
+  version_id    = try(local.dataset_manifest.search.transport.versionId, "invalid-b-version")
 }
 
 data "aws_s3_object" "growth_b_service_runtime" {
-  count      = var.global_b_services && local.services_enabled ? 1 : 0
-  bucket     = local.lab_contract.dataset_bucket_name
-  key        = try(local.dataset_manifest.appRuntimeBinding.key, "invalid-b-runtime")
-  version_id = try(local.dataset_manifest.appRuntimeBinding.versionId, "invalid-b-version")
+  download_body = true
+  count         = var.global_b_services && local.services_enabled ? 1 : 0
+  bucket        = local.lab_contract.dataset_bucket_name
+  key           = try(local.dataset_manifest.appRuntimeBinding.key, "invalid-b-runtime")
+  version_id    = try(local.dataset_manifest.appRuntimeBinding.versionId, "invalid-b-version")
 }
 
 resource "aws_ssm_document" "growth_b_connect_bundle" {
