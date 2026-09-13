@@ -82,7 +82,7 @@ jobs:
           bash infra/aws/tests/rds-snapshot-promotion-test.sh
 
       - name: Verify Global B offline Python contracts (Python 3.12+)
-        timeout-minutes: 5
+        timeout-minutes: 10
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |

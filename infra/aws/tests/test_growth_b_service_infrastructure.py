@@ -98,6 +98,36 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
 
 
 class ServiceInfrastructure(unittest.TestCase):
+    def test_cdc_api_ingress_opens_only_for_b_application_and_exact_connect_group(self):
+        rule = block((LAB / 'growth-b.tf').read_text(), 'resource',
+                     'aws_vpc_security_group_ingress_rule', 'growth_b_cdc_application')
+        expressions = {key: attribute(rule, key) for key in
+                       ('count', 'security_group_id', 'referenced_security_group_id', 'ip_protocol', 'from_port', 'to_port')}
+        self.assertNotIn('cidr_ipv4', rule)
+        self.assertNotIn('cidr_ipv6', rule)
+        config = ('variable "global_b_services" {}\nvariable "app_enabled" {}\n'
+                  'variable "infrastructure" {}\nlocals {\n'
+                  'application_infrastructure_enabled = var.infrastructure\n'
+                  'groups = { app = "sg-app", debezium = "sg-retained-connect" }\n')
+        for key, expression in expressions.items():
+            config += key + ' = ' + expression.replace('module.security.security_group_ids', 'local.groups') + '\n'
+        config += '}\n'
+        with tempfile.TemporaryDirectory(prefix='airbob-b-api-ingress-') as directory:
+            root = Path(directory); (root / 'main.tf').write_text(config)
+            env = dict(PATH=os.environ['PATH'], CHECKPOINT_DISABLE='1', TF_IN_AUTOMATION='1', AWS_EC2_METADATA_DISABLED='true')
+            for infrastructure, selected_b, app_enabled in ((False, True, True), (True, False, True),
+                                                           (True, True, False), (True, True, True)):
+                result = subprocess.run(['terraform', '-chdir=' + directory, 'console', '-no-color',
+                    '-var=infrastructure=' + str(infrastructure).lower(),
+                    '-var=global_b_services=' + str(selected_b).lower(), '-var=app_enabled=' + str(app_enabled).lower()],
+                    input='jsonencode({count=local.count,target=local.security_group_id,source=local.referenced_security_group_id,'
+                          'protocol=local.ip_protocol,start=local.from_port,end=local.to_port})\n',
+                    env=env, capture_output=True, text=True, timeout=30)
+                self.assertEqual(0, result.returncode, result.stderr)
+                observed = json.loads(json.loads(result.stdout))
+                self.assertEqual({'count': int(infrastructure and selected_b and app_enabled), 'target': 'sg-app',
+                    'source': 'sg-retained-connect', 'protocol': 'tcp', 'start': 8080, 'end': 8080}, observed)
+
     def test_actual_hcl_admits_b_and_exact_readiness(self):
         result = evaluate()
         self.assertTrue(result['valid']); self.assertTrue(result['ready'])

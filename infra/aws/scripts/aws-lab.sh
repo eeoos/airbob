@@ -170,12 +170,14 @@ validate_operator_scope_for_action() {
     || fail "$action with DNS_MODE=$dns_mode requires AWS_LAB_OPERATOR_SCOPE=$expected_scope"
 }
 
-[[ "$#" -eq 1 ]] || fail "usage: aws-lab.sh up|prepare|services|asg-probe|snapshot-create|snapshot-restore|snapshot-prepare|snapshot-retire|status|switch|down"
+[[ "$#" -eq 1 ]] || fail "usage: aws-lab.sh up|prepare|services|cdc|asg-probe|snapshot-create|snapshot-restore|snapshot-prepare|snapshot-retire|status|switch|down"
 action=$1
 # B preparation shares the existing up lease/deadline and teardown machinery.
 # Its explicit selector never enters the legacy data-ready/application stage.
 global_b_prepare_only=false
 global_b_services=false
+global_b_cdc=false
+global_b_snapshot_service=false
 global_b_asg_probe=false
 global_b_snapshot_restore_only=false
 global_b_snapshot_operation=""
@@ -193,6 +195,10 @@ elif [[ "$action" == services ]]; then
   action=up
 elif [[ "$action" == asg-probe ]]; then
   global_b_asg_probe=true
+  global_b_services=true
+  action=up
+elif [[ "$action" == cdc ]]; then
+  global_b_cdc=true
   global_b_services=true
   action=up
 elif [[ "$action" == snapshot-restore ]]; then
@@ -858,6 +864,24 @@ canonical_operator_tree_sha256() {
       [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "ASG probe identity file is unavailable"
       printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
     done
+  fi
+  if [[ "$global_b_cdc" == true ]]; then
+    python3 - "$script_dir" >> "$inventory" <<'AIRBOB_B_CDC_IDENTITY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from growth_b_cdc_supervisor import source_files
+for relative, digest in sorted(source_files().items()):
+    print(digest + '\t' + relative)
+AIRBOB_B_CDC_IDENTITY
+  fi
+  if [[ "$global_b_snapshot_service" == true ]]; then
+    python3 - "$script_dir" >> "$inventory" <<'AIRBOB_B_SNAPSHOT_SERVICE_IDENTITY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from growth_b_snapshot_service_verify import source_files
+for relative, digest in sorted(source_files().items()):
+    print(digest + '\t' + relative)
+AIRBOB_B_SNAPSHOT_SERVICE_IDENTITY
   fi
   if [[ "$global_b_snapshot_restore_only" == true || -n "$global_b_snapshot_operation" || ( "$global_b_services" == true && "$database_bootstrap" == snapshot ) ]]; then
     for relative in infra/aws/scripts/growth_b_snapshot.py infra/aws/lab/growth-b-snapshot.tf; do
@@ -3197,10 +3221,282 @@ AIRBOB_B_ASG_OPERATION
   complete_global_b_asg_probe "$selected" "$evidence_run/probe/asg-probe.json" "$proof_status"
 }
 
+publish_global_b_cdc_json() {
+  local key=$1 source=$2 reference=$3 digest bytes version response readback
+  [[ -f "$source" && ! -L "$source" ]] || fail "R4 public evidence is missing or linked"
+  digest=$(sha256_file "$source"); bytes=$(wc -c < "$source" | tr -d ' ')
+  publish_immutable_json "$key" "$source"
+  version=$(aws s3api head-object --bucket "$evidence_bucket" --key "$key" \
+    --query VersionId --output text --region "$AWS_REGION" --no-cli-pager)
+  [[ "$version" =~ ^[A-Za-z0-9._~+/=-]+$ && "$version" != None && "$version" != null ]] \
+    || fail "R4 evidence has no exact VersionId"
+  response="$temp_dir/r4-version-$digest.json"; readback="$temp_dir/r4-readback-$digest.json"
+  aws s3api get-object --bucket "$evidence_bucket" --key "$key" --version-id "$version" "$readback" \
+    --region "$AWS_REGION" --no-cli-pager > "$response" || fail "Exact R4 evidence version is unreadable"
+  [[ "$(jq -er '.VersionId' "$response")" == "$version" && "$(sha256_file "$readback")" == "$digest" &&
+    "$(wc -c < "$readback" | tr -d ' ')" == "$bytes" && "$(sha256_file "$source")" == "$digest" ]] \
+    || fail "R4 evidence exact version, bytes or source changed"
+  jq -n --arg key "$key" --arg version "$version" --arg sha "$digest" --argjson bytes "$bytes" \
+    '{key:$key,versionId:$version,sha256:$sha,bytes:$bytes}' > "$reference"
+}
+
+continue_global_b_cdc() {
+  local original="$temp_dir/cdc-source-operator.json" selected="$temp_dir/cdc-operation.json"
+  local operation_id evidence_root evidence_run context deadline proof_status=0 recovery_key recovery_sha public_dir filename digest expected
+  run_id=${RUN_ID:-}
+  valid_run_id "$run_id" || fail "Source R4 requires the exact retained RUN_ID"
+  printf '%s\n' "${B_CDC_OPERATION_JSON:-}" > "$selected"
+  python3 - "$script_dir" "$selected" <<'AIRBOB_B_CDC_OPERATION'
+import sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_cdc_supervisor as supervisor
+supervisor.validate_operation(supervisor.service.read(sys.argv[2]))
+AIRBOB_B_CDC_OPERATION
+  read_run_manifest "$run_id" "$original"
+  jq -e '.schemaVersion==2 and .globalBPrepareOnly==true and .databaseBootstrap=="dump" and
+    .mode=="performance" and .dnsMode=="direct-only" and .rdsEngineVersion=="8.4.11" and
+    .loadGeneratorEnabled==false and .cacheEnabled==false' "$original" >/dev/null \
+    || fail "Source R4 requires the original cache-disabled B dump preparation run"
+  dataset_release=$(jq -er '.datasetRelease' "$original")
+  [[ "${DATASET_RELEASE:-}" == "$dataset_release" && "$(jq -er '.datasetId' "$selected")" == "$dataset_release" &&
+    "$(jq -er '.runId' "$selected")" == "$run_id" ]] || fail "Source R4 operation differs from its retained dataset/run"
+  operation_id=$(jq -er '.operationId' "$selected")
+  global_b_service_release=$(jq -er '.serviceRelease' "$selected")
+  resource_fencing_token=$(jq -er '.fencingToken' "$original"); expires_at=$(jq -er '.expiresAt' "$original")
+  [[ "$resource_fencing_token" =~ ^[1-9][0-9]*$ && "$expires_at" =~ ^[1-9][0-9]{9}$ ]] || fail "Invalid retained R4 resource identity"
+  validate_retained_global_b_execution_deadline "$original"
+  mode=performance; policy=isolated-read; dns_mode=direct-only; load_generator_enabled=false; cache_enabled=false
+  database_bootstrap=dump; bundle_commit=$(jq -er '.bundleCommit' "$original")
+  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]] || fail "Source R4 requires a clean reviewed execution commit"
+  execution_commit=$(git -C "$repo_root" rev-parse HEAD)
+  [[ "$(jq -er '.executionCommit' "$selected")" == "$execution_commit" ]] || fail "Source R4 execution commit changed"
+  operator_tree_sha256=$(canonical_operator_tree_sha256)
+  validate_operator_scope_for_action false; assert_b_source_not_retired
+  evidence_root=${CDC_EVIDENCE_DIR:-}
+  [[ "$evidence_root" == /* && ! -L "$evidence_root" ]] || fail "CDC_EVIDENCE_DIR must be a persistent private absolute directory"
+  validate_workflow_deadline_budget; validate_up_credential_budget
+  validate_retained_global_b_execution_deadline "$original"
+  start_mutation_guard
+  deadline=$(($(date +%s) + COMMAND_DEADLINE_SECONDS - 60))
+  (( deadline <= expires_at )) || deadline=$expires_at
+  (( deadline <= approved_execution_deadline_epoch )) || deadline=$approved_execution_deadline_epoch
+  if [[ -n "${AIRBOB_WORKFLOW_DEADLINE_EPOCH:-}" ]] && (( deadline > AIRBOB_WORKFLOW_DEADLINE_EPOCH )); then
+    deadline=$AIRBOB_WORKFLOW_DEADLINE_EPOCH
+  fi
+  prepare_lab_backend; recover_prior_terraform_lock; assert_state_run_identity required
+  evidence_run="$evidence_root/$run_id-$operation_id-$fencing_token"
+  mkdir -p -m 700 "$evidence_root"; mkdir -m 700 "$evidence_run"
+  cp "$original" "$evidence_run/operator.json"; cp "$selected" "$evidence_run/operation.json"
+  write_current_lease_file "$evidence_run/lease.json"
+  run_terraform_command "Terraform source R4 service hosts" -chdir="$lab_root" output -json phase2_contract > "$evidence_run/phase2.json"
+  run_terraform_command "Terraform source R4 RDS identity" -chdir="$lab_root" output -json phase3_contract > "$evidence_run/phase3.json"
+  run_terraform_command "Terraform source R4 application identity" -chdir="$lab_root" output -json phase4_contract > "$evidence_run/phase4.json"
+  run_terraform_command "Terraform source R4 selected service" -chdir="$lab_root" output -json global_b_service > "$evidence_run/service-state.json"
+  context="$evidence_run/context.json"
+  jq -n --arg commit "$execution_commit" --argjson approved "$approved_execution_deadline_epoch" --argjson deadline "$deadline" \
+    --slurpfile original "$evidence_run/operator.json" --slurpfile lease "$evidence_run/lease.json" \
+    --slurpfile phase2 "$evidence_run/phase2.json" --slurpfile phase3 "$evidence_run/phase3.json" \
+    --slurpfile phase4 "$evidence_run/phase4.json" --slurpfile state "$evidence_run/service-state.json" \
+    '{schemaVersion:1,kind:"global-b-aws-source-r4-context",executionCommit:$commit,
+      approvedExecutionDeadlineEpoch:$approved,controllerDeadlineEpoch:$deadline,operator:$original[0],lease:$lease[0],
+      phase2:$phase2[0],phase3:$phase3[0],phase4:$phase4[0],serviceState:$state[0]}' > "$context"
+  python3 "$script_dir/growth_b_cdc_supervisor.py" validate-operation --operation "$selected" --context "$context" \
+    --output "$evidence_run/validation.json"
+  # This continuation never constructs tfvars or enters initial-up teardown.
+  # Unknown remote commands retain their existing hosts and exact recovery record.
+  current_stage=b-source-r4
+  run_supervised_mutation "Verify source B service, CDC mutation and exact reset" \
+    python3 "$script_dir/growth_b_cdc_supervisor.py" run --operation "$selected" --context "$context" \
+    --directory "$evidence_run/supervisor" || proof_status=$?
+  public_dir="$evidence_run/supervisor/public"
+  if [[ -f "$public_dir/recovery.json" ]]; then
+    recovery_sha=$(sha256_file "$public_dir/recovery.json")
+    recovery_key="data-bootstrap/$run_id/$dataset_release-r4/$operation_id/recovery-$recovery_sha.json"
+    publish_global_b_cdc_json "$recovery_key" "$public_dir/recovery.json" "$public_dir/recovery-reference.json"
+  fi
+  [[ "$proof_status" -eq 0 ]] || return "$proof_status"
+  expected="$temp_dir/r4-completion-bindings.json"
+  python3 - "$script_dir" "$selected" "$context" "$evidence_run/supervisor" > "$expected" <<'AIRBOB_B_CDC_COMPLETION'
+import hashlib, json, pathlib, sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_cdc_supervisor as supervisor
+operation, context = (supervisor.service.read(path) for path in sys.argv[2:4])
+directory = pathlib.Path(sys.argv[4])
+for key, name in (('manifest', 'selected-service.json'), ('readiness', 'selected-readiness.json')):
+    path = directory / name
+    if not path.is_file() or path.is_symlink():
+        raise SystemExit('Exact selected R4 input is missing or linked')
+    raw = path.read_bytes()
+    if len(raw) != operation[key]['bytes'] or hashlib.sha256(raw).hexdigest() != operation[key]['sha256']:
+        raise SystemExit('Selected R4 input differs from its original manifest/readiness reference')
+exports = {}
+for name in ('restore-receipt.json', 'prepared-fingerprint.json', 'service-verified-and-reset.json'):
+    path = directory / 'public' / name
+    if not path.is_file() or path.is_symlink():
+        raise SystemExit('Exact R4 producer export is missing or linked')
+    raw = path.read_bytes()
+    exports[name] = {'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}
+configurations = {}
+for name in ('live', 'cdc'):
+    path = directory / (name + '-configuration.json')
+    if not path.is_file() or path.is_symlink():
+        raise SystemExit('Original R4 configuration is missing or linked')
+    raw = path.read_bytes()
+    configurations[name] = {'sha256': hashlib.sha256(raw).hexdigest(),
+        'journalBindingSha256': supervisor.cdc.journal_binding(supervisor.core.parse(raw))}
+print(json.dumps({'operationSha256': supervisor.operation_binding(operation),
+    'contextSha256': supervisor.sha(supervisor.encoded(context)), 'exports': exports, 'configurations': configurations}))
+AIRBOB_B_CDC_COMPLETION
+  jq -e --slurpfile context "$context" --slurpfile operation "$selected" --slurpfile expected "$expected" \
+    --slurpfile producer "$public_dir/service-verified-and-reset.json" '
+    $context[0] as $c | $operation[0] as $o | $expected[0] as $e | $producer[0] as $p |
+    .schemaVersion==1 and .kind=="global-b-aws-source-r4-supervisor-receipt" and
+    .state=="SOURCE_R4_VERIFIED_AND_RESET" and .phasePassed==true and .privateValuesIncluded==false and
+    .fullServiceVerificationAndReset==true and .snapshotCreated==false and
+    .operationId==$o.operationId and .runId==$o.runId and .datasetId==$o.datasetId and .executionCommit==$c.executionCommit and
+    .operationSha256==$e.operationSha256 and .contextSha256==$e.contextSha256 and .sourceArchiveSha256==$o.sourceArchiveSha256 and
+    .selected=={manifest:$o.manifest,readiness:$o.readiness} and .targetIdentity==$p.targetIdentity and
+    .cdcConfigurationSha256==$e.configurations.cdc.sha256 and .liveConfigurationSha256==$e.configurations.live.sha256 and
+    .cdcJournalBindingSha256==$e.configurations.cdc.journalBindingSha256 and
+    .liveJournalBindingSha256==$e.configurations.live.journalBindingSha256 and
+    .cdcJournalBindingSha256==$p.binding.configurationSha256 and .sharedBindingSha256==$p.binding.sharedBindingSha256 and
+    .exports["restore-receipt.json"]==$e.exports["restore-receipt.json"] and
+    .exports["prepared-fingerprint.json"]==$e.exports["prepared-fingerprint.json"] and
+    .exports["service-verified-and-reset.json"]==$e.exports["service-verified-and-reset.json"]
+  ' \
+    "$public_dir/supervisor.json" >/dev/null \
+    || fail "Source R4 supervisor did not verify the complete service/reset gate"
+  jq -e --slurpfile context "$context" --slurpfile operation "$selected" \
+    --slurpfile original "$public_dir/restore-receipt.json" \
+    --slurpfile manifest "$evidence_run/supervisor/selected-service.json" \
+    --arg originalSha "$(sha256_file "$public_dir/restore-receipt.json")" \
+    --arg fingerprintSha "$(sha256_file "$public_dir/prepared-fingerprint.json")" '
+    $context[0] as $c | $operation[0] as $o | $original[0] as $r | $manifest[0] as $m |
+    .kind=="global-growth-b-aws-service-reset-verification" and .state=="SERVICE_VERIFIED_AND_RESET" and
+    .datasetId==$o.datasetId and .mysql=={version:"8.4.11",flywayVersion:28,schema:"airbobdb"} and .writersStopped==true and .cdcStopped==true and
+    .sourceOriginalsUnchanged==true and .snapshotCreated==false and .privateValuesIncluded==false and
+    .databaseBusinessWritesPerformed==false and .preparedFingerprintSha256==$fingerprintSha and .restoreReceiptSha256==$originalSha and
+    $r.kind=="global-growth-b-aws-restore-receipt" and $r.state=="DATABASE_INVENTORY_LOGIN_VERIFIED" and $r.datasetId==$o.datasetId and
+    $originalSha==$m.preparation.restoreReceiptSha256 and .binding.restoreConfigSha256==$m.preparation.restoreConfigSha256 and
+    .targetIdentity==$r.targetIdentity and .targetIdentity.identifier==$c.phase3.rds_instance_id and
+    .targetIdentity.resourceId==$c.phase3.rds_resource_id and .targetIdentity.endpoint==$c.phase3.rds_endpoint and
+    {identifier:.targetIdentity.identifier,resourceId:.targetIdentity.resourceId,serverUuid:.targetIdentity.serverUuid}==$m.rds and
+    .application==$m.application and
+    .application.mainCommit==$c.operator.bundleCommit and .application.image==$c.operator.appImageReference and
+    .binding.operationId==$o.operationId and .binding.runId==$o.runId and .binding.datasetId==$o.datasetId and
+    .binding.targetIdentity==.targetIdentity and .binding.lease==$c.lease and
+    .binding.resourceFencingToken==$c.operator.fencingToken and .binding.expiresAt==($c.operator.expiresAt|tonumber) and
+    .binding.approvedExecutionDeadlineEpoch==$c.approvedExecutionDeadlineEpoch and
+    .binding.verificationDeadlineEpoch<=$c.controllerDeadlineEpoch and .binding.serviceManifest==$o.manifest and
+    .binding.serviceReadiness==$o.readiness and .binding.restoreReceiptSha256==$originalSha and
+    .service.representativeAccounts==3 and
+    ([.service.readinessPassed,.service.normalLoginsPassed,.service.publicReadsPassed,.service.globalSearchPassed,
+      .service.imagesSampled,.service.reservableDatesPassed,.service.domainApiMutationCdcEsPassed,.service.detailCacheDisabledVerified]|all(.==true)) and
+    .reset.passed==true and .reset.testMutationRemoved==true and .reset.unchangedDomainAndDdl==true and
+    .reset.remainingOutboxRows==0 and (.reset.ownerSha256BeforeAndAfter|type=="string" and test("^[0-9a-f]{64}$")) and
+    .reset.ownerSha256BeforeAndAfter==$r.preparation.ownerSha256BeforeAndAfter
+  ' "$public_dir/service-verified-and-reset.json" >/dev/null || fail "Source R4 complete producer evidence or current target binding differs"
+  assert_lease
+  for filename in restore-receipt prepared-fingerprint service-verified-and-reset; do
+    digest=$(sha256_file "$public_dir/$filename.json")
+    publish_global_b_cdc_json "data-bootstrap/$run_id/$dataset_release-r4/$operation_id/$filename-$digest.json" \
+      "$public_dir/$filename.json" "$public_dir/$filename-reference.json"
+  done
+  printf 'run_id=%s\nb_source_r4_complete=true\nr7_overall_complete=false\nB_SOURCE_R4_RECEIPT_SHA256=%s\n' \
+    "$run_id" "$(sha256_file "$public_dir/service-verified-and-reset.json")"
+}
+
+continue_global_b_snapshot_service() {
+  local original="$temp_dir/snapshot-service-operator.json" selected="$temp_dir/snapshot-service-operation.json"
+  local operation_id evidence_root evidence_run context deadline proof_status=0 public_dir digest filename prefix
+  global_b_snapshot_service=true
+  run_id=${RUN_ID:-}
+  valid_run_id "$run_id" || fail "Snapshot target service verification requires the exact retained RUN_ID"
+  printf '%s\n' "${B_SNAPSHOT_SERVICE_OPERATION_JSON:-}" > "$selected"
+  python3 - "$script_dir" "$selected" <<'AIRBOB_B_SNAPSHOT_SERVICE_OPERATION'
+import sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_snapshot_service_verify as verifier
+import growth_b_service as service
+verifier.validate_operation(service.read(sys.argv[2]))
+AIRBOB_B_SNAPSHOT_SERVICE_OPERATION
+  read_run_manifest "$run_id" "$original"
+  jq -e '.schemaVersion==2 and .globalBSnapshotRestoreOnly==true and .databaseBootstrap=="snapshot" and
+    .mode=="performance" and .dnsMode=="direct-only" and .rdsEngineVersion=="8.4.11" and
+    .loadGeneratorEnabled==false and .cacheEnabled==false' "$original" >/dev/null \
+    || fail "Snapshot service reads require the original cache-disabled restored B target"
+  dataset_release=$(jq -er '.datasetRelease' "$original")
+  [[ "${DATASET_RELEASE:-}" == "$dataset_release" && "$(jq -er '.datasetId' "$selected")" == "$dataset_release" &&
+    "$(jq -er '.runId' "$selected")" == "$run_id" ]] || fail "Snapshot service operation differs from the retained target"
+  operation_id=$(jq -er '.operationId' "$selected")
+  global_b_service_release=$(jq -er '.serviceRelease' "$selected")
+  resource_fencing_token=$(jq -er '.fencingToken' "$original"); expires_at=$(jq -er '.expiresAt' "$original")
+  [[ "$resource_fencing_token" =~ ^[1-9][0-9]*$ && "$expires_at" =~ ^[1-9][0-9]{9}$ ]] || fail "Invalid retained snapshot target identity"
+  validate_retained_global_b_execution_deadline "$original"
+  mode=performance; policy=isolated-read; dns_mode=direct-only; load_generator_enabled=false; cache_enabled=false
+  database_bootstrap=snapshot; bundle_commit=$(jq -er '.bundleCommit' "$original")
+  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]] || fail "Snapshot service reads require a clean reviewed execution commit"
+  execution_commit=$(git -C "$repo_root" rev-parse HEAD)
+  [[ "$(jq -er '.executionCommit' "$selected")" == "$execution_commit" ]] || fail "Snapshot service execution commit changed"
+  operator_tree_sha256=$(canonical_operator_tree_sha256)
+  validate_operator_scope_for_action false; assert_b_source_not_retired
+  evidence_root=${SNAPSHOT_SERVICE_EVIDENCE_DIR:-}
+  [[ "$evidence_root" == /* && ! -L "$evidence_root" ]] || fail "SNAPSHOT_SERVICE_EVIDENCE_DIR must be a private absolute directory"
+  validate_workflow_deadline_budget; validate_up_credential_budget
+  validate_retained_global_b_execution_deadline "$original"
+  start_mutation_guard
+  deadline=$(($(date +%s) + COMMAND_DEADLINE_SECONDS - 60))
+  (( deadline <= expires_at )) || deadline=$expires_at
+  (( deadline <= approved_execution_deadline_epoch )) || deadline=$approved_execution_deadline_epoch
+  if [[ -n "${AIRBOB_WORKFLOW_DEADLINE_EPOCH:-}" ]] && (( deadline > AIRBOB_WORKFLOW_DEADLINE_EPOCH )); then
+    deadline=$AIRBOB_WORKFLOW_DEADLINE_EPOCH
+  fi
+  prepare_lab_backend; recover_prior_terraform_lock; assert_state_run_identity required
+  evidence_run="$evidence_root/$run_id-$operation_id-$fencing_token"
+  mkdir -p -m 700 "$evidence_root"; mkdir -m 700 "$evidence_run"
+  cp "$original" "$evidence_run/operator.json"; cp "$selected" "$evidence_run/operation.json"
+  write_current_lease_file "$evidence_run/lease.json"
+  run_terraform_command "Terraform snapshot target service hosts" -chdir="$lab_root" output -json phase2_contract > "$evidence_run/phase2.json"
+  run_terraform_command "Terraform snapshot target RDS identity" -chdir="$lab_root" output -json phase3_contract > "$evidence_run/phase3.json"
+  run_terraform_command "Terraform snapshot target application identity" -chdir="$lab_root" output -json phase4_contract > "$evidence_run/phase4.json"
+  run_terraform_command "Terraform snapshot target selected service" -chdir="$lab_root" output -json global_b_service > "$evidence_run/service-state.json"
+  context="$evidence_run/context.json"
+  jq -n --arg commit "$execution_commit" --argjson approved "$approved_execution_deadline_epoch" --argjson deadline "$deadline" \
+    --slurpfile original "$evidence_run/operator.json" --slurpfile lease "$evidence_run/lease.json" \
+    --slurpfile phase2 "$evidence_run/phase2.json" --slurpfile phase3 "$evidence_run/phase3.json" \
+    --slurpfile phase4 "$evidence_run/phase4.json" --slurpfile state "$evidence_run/service-state.json" \
+    '{schemaVersion:1,kind:"global-b-aws-snapshot-target-service-context",executionCommit:$commit,
+      approvedExecutionDeadlineEpoch:$approved,controllerDeadlineEpoch:$deadline,operator:$original[0],lease:$lease[0],
+      phase2:$phase2[0],phase3:$phase3[0],phase4:$phase4[0],serviceState:$state[0]}' > "$context"
+  current_stage=b-snapshot-target-service-verification
+  run_supervised_mutation "Verify restored target normal logins, public reads and warmup" \
+    python3 "$script_dir/growth_b_snapshot_service_verify.py" run --operation "$selected" --context "$context" \
+    --output "$evidence_run/verifier" || proof_status=$?
+  public_dir="$evidence_run/verifier/public"
+  prefix="data-bootstrap/$run_id/$dataset_release-snapshot-service/$operation_id"
+  if [[ -f "$public_dir/recovery.json" ]]; then
+    digest=$(sha256_file "$public_dir/recovery.json")
+    publish_global_b_cdc_json "$prefix/recovery-$digest.json" "$public_dir/recovery.json" "$public_dir/recovery-reference.json"
+  fi
+  [[ "$proof_status" -eq 0 ]] || return "$proof_status"
+  python3 "$script_dir/growth_b_snapshot_service_verify.py" validate-completion --operation "$selected" --context "$context" \
+    --output "$evidence_run/verifier" || fail "Snapshot target service result or current input bindings differ"
+  assert_lease
+  for filename in snapshot-target-service-verification representative-http-reads warmup-receipt media-availability host-runtime-qualification; do
+    digest=$(sha256_file "$public_dir/$filename.json")
+    publish_global_b_cdc_json "$prefix/$filename-$digest.json" "$public_dir/$filename.json" "$public_dir/$filename-reference.json"
+  done
+  printf 'run_id=%s\nsnapshot_target_service_verified=true\nsource_r4_or_cdc_mutation_executed=false\n' "$run_id"
+}
+
 continue_global_b_services() {
   local stage=${B_SERVICE_STAGE:-dependencies} original="$temp_dir/b-prepared-operator.json"
   local receipt="$temp_dir/b-service-readiness.json" head="$temp_dir/b-service-readiness-head.json"
   local receipt_key receipt_version receipt_sha old_dataset
+  if [[ "$stage" == snapshot-verify ]]; then
+    continue_global_b_snapshot_service
+    return
+  fi
   run_id=${RUN_ID:-}
   valid_run_id "$run_id" || fail "services requires the exact retained preparation RUN_ID"
   assert_b_source_not_retired
@@ -3321,6 +3617,10 @@ case "$action" in
       continue_global_b_asg_probe
       exit 0
     fi
+    if [[ "$global_b_cdc" == true ]]; then
+      continue_global_b_cdc
+      exit 0
+    fi
     if [[ "$global_b_services" == true ]]; then
       continue_global_b_services
       exit 0
@@ -3328,7 +3628,12 @@ case "$action" in
     mode=${MODE:-performance}
     policy=${POLICY:-isolated-read}
     dns_mode=${DNS_MODE:-direct-only}
-    cache_enabled=${CACHE_ENABLED:-true}
+    if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
+      cache_enabled=${CACHE_ENABLED:-false}
+      [[ "$cache_enabled" == false ]] || fail "Initial B preparation requires the reviewed cache-disabled service baseline"
+    else
+      cache_enabled=${CACHE_ENABLED:-true}
+    fi
     request_target=${REQUEST_TARGET:-}
     load_generator_enabled=${LOAD_GENERATOR_ENABLED:-false}
     ami_id=${AMI_ID:-}

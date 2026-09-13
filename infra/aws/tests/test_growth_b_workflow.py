@@ -35,7 +35,8 @@ class WorkflowAdmission(unittest.TestCase):
                 'AIRBOB_DNS_MODE': 'direct-only', 'AIRBOB_MODE': 'performance', 'AIRBOB_POLICY': policy,
                 'AIRBOB_DATABASE_BOOTSTRAP': bootstrap, 'AIRBOB_LOAD_GENERATOR_ENABLED': 'false',
                 'AIRBOB_APPROVED_EXECUTION_DEADLINE_EPOCH': str(int(time.time()) + 86400) if deadline is None else deadline}
-            result = subprocess.run([sys.executable, '-c', self.body], env=env, text=True, capture_output=True, timeout=10)
+            result = subprocess.run([sys.executable, '-c', self.body], env=env, text=True, capture_output=True,
+                timeout=10, cwd=WORKFLOW.parents[2])
             return result.returncode, (root / 'github-env').read_text() if (root / 'github-env').exists() else ''
 
     def test_exact_reviewed_main_is_required_before_any_oidc(self):
@@ -97,10 +98,49 @@ class WorkflowAdmission(unittest.TestCase):
         status, env = self.run_gate('services', selected)
         self.assertNotEqual(0, status); self.assertEqual('', env)
 
+    def cdc_operation(self):
+        sys.path.insert(0, str(WORKFLOW.parents[2] / 'infra/aws/scripts'))
+        from growth_b_cdc_supervisor import source_archive
+        dataset, run, release = 'global-growth-b-' + 'b'*16, 'lab-source', 'service-01'
+        return {'schemaVersion': 1, 'kind': 'global-b-aws-source-r4-operation', 'stage': 'all',
+            'operationId': 'source-r4-01', 'runId': run, 'datasetId': dataset, 'serviceRelease': release,
+            'executionCommit': COMMIT, 'sourceArchiveSha256': source_archive()[1]['sha256'],
+            'manifest': {'key': f'datasets/{dataset}-aws-service/{release}/aws-service.json',
+                'versionId': 'manifest-v1', 'sha256': 'c'*64, 'bytes': 1000},
+            'readiness': {'key': f'data-bootstrap/{run}/{dataset}-service-{release}.json',
+                'versionId': 'readiness-v1', 'sha256': 'd'*64, 'bytes': 1000}}
+
+    def test_source_r4_binds_the_actual_source_archive_and_reviewed_main(self):
+        operation = self.cdc_operation()
+        status, environment = self.run_gate('cdc', operation)
+        self.assertEqual(0, status)
+        exported = environment.removeprefix('B_CDC_OPERATION_JSON=').strip()
+        self.assertEqual(operation, json.loads(exported))
+        for patch in ({'executionCommit': 'e'*40}, {'sourceArchiveSha256': 'f'*64},
+                      {'stage': 'reset'}, {'unreviewedOverride': True}, {'operationId': 'r4\nAWS_PROFILE=x'}):
+            with self.subTest(patch=patch):
+                status, environment = self.run_gate('cdc', operation | patch)
+                self.assertNotEqual(0, status); self.assertEqual('', environment)
+        self.assertNotEqual(0, self.run_gate('cdc', operation, deadline='')[0])
+        self.assertNotEqual(0, self.run_gate('cdc', operation, policy='integrated-smoke')[0])
+
+    def test_source_r4_cannot_select_another_run_or_unversioned_service(self):
+        operation = self.cdc_operation()
+        for patch in ({'readiness': operation['readiness'] | {'key': 'data-bootstrap/lab-other/readiness.json'}},
+                      {'manifest': operation['manifest'] | {'versionId': 'null'}},
+                      {'manifest': operation['manifest'] | {'key': operation['manifest']['key'] + '/extra'}}):
+            with self.subTest(patch=patch): self.assertNotEqual(0, self.run_gate('cdc', operation | patch)[0])
+        self.assertNotIn("'cdc'", next(line for line in self.source.splitlines() if 'RUN_ID: ${{' in line))
+        self.assertIn('CDC_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-cdc', self.source)
+        self.assertIn('${{ runner.temp }}/airbob-b-cdc/**/public/**', self.source)
+
+    def test_initial_b_workflow_selects_the_cache_disabled_service_baseline(self):
+        self.assertIn("(inputs.action == 'prepare' || inputs.action == 'snapshot-restore') && 'false'", self.source)
+
     def test_input_count_and_six_hour_budget_remain_bounded(self):
         inputs = self.source.split('  workflow_dispatch:', 1)[1].split('\nconcurrency:', 1)[0]
         self.assertEqual(len(re.findall(r'^      [a-z0-9_]+:$', inputs, re.M)), 25)
-        actions = "(inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-'))"
+        actions = "(inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'cdc' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-'))"
         self.assertIn('role-duration-seconds: ${{ ' + actions + ' && 21600 || 7200 }}', self.source)
         self.assertIn('timeout-minutes: ${{ ' + actions + ' && 359 || 120 }}', self.source)
 

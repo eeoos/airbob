@@ -304,7 +304,7 @@ for target in aws-up aws-status aws-switch aws-down; do
 done
 
 assert_contains "$workflow" 'workflow_dispatch:'
-assert_contains "$workflow" 'options: [up, prepare, services, asg-probe, snapshot-create, snapshot-restore, snapshot-prepare, snapshot-retire, status, switch, down]'
+assert_contains "$workflow" 'options: [up, prepare, services, cdc, asg-probe, snapshot-create, snapshot-restore, snapshot-prepare, snapshot-retire, status, switch, down]'
 assert_contains "$workflow" 'schedule:'
 assert_contains "$workflow" "cron: '17,47 * * * *'"
 assert_contains "$workflow" 'group: aws-performance-lab'
@@ -342,8 +342,8 @@ assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '6'"
-assert_contains "$workflow" "timeout-minutes: \${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 359 || 120 }}"
-assert_contains "$workflow" "role-duration-seconds: \${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 21600 || 7200 }}"
+assert_contains "$workflow" "timeout-minutes: \${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'cdc' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 359 || 120 }}"
+assert_contains "$workflow" "role-duration-seconds: \${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'cdc' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 21600 || 7200 }}"
 assert_contains "$workflow" 'expected_execution_commit:'
 assert_contains "$workflow" 'b_operation:'
 assert_contains "$workflow" 'Checked-out commit differs from the dispatch commit'
@@ -374,7 +374,7 @@ set -euo pipefail
 printf '%s\n' 1900000000
 EOF
 chmod 700 "$temp_dir/deadline-bin/date"
-for deadline_case in dump snapshot prepare services asg-probe snapshot-create snapshot-restore snapshot-prepare snapshot-retire other; do
+for deadline_case in dump snapshot prepare services cdc asg-probe snapshot-create snapshot-restore snapshot-prepare snapshot-retire other; do
   action=up
   bootstrap=$deadline_case
   expected_seconds=21420
@@ -382,7 +382,7 @@ for deadline_case in dump snapshot prepare services asg-probe snapshot-create sn
     action=down
     bootstrap=dump
     expected_seconds=7080
-  elif [[ "$deadline_case" == prepare || "$deadline_case" == services || "$deadline_case" == asg-probe || "$deadline_case" == snapshot-* ]]; then
+  elif [[ "$deadline_case" == prepare || "$deadline_case" == services || "$deadline_case" == cdc || "$deadline_case" == asg-probe || "$deadline_case" == snapshot-* ]]; then
     action=$deadline_case
     bootstrap=dump
     [[ "$deadline_case" != snapshot-restore ]] || bootstrap=snapshot

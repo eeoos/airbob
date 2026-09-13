@@ -293,6 +293,18 @@ locals {
   }) : ""
 }
 
+resource "aws_vpc_security_group_ingress_rule" "growth_b_cdc_application" {
+  count = local.application_infrastructure_enabled && var.global_b_services && var.app_enabled ? 1 : 0
+
+  security_group_id            = module.security.security_group_ids.app
+  referenced_security_group_id = module.security.security_group_ids.debezium
+  ip_protocol                  = "tcp"
+  from_port                    = 8080
+  to_port                      = 8080
+  description                  = "B service verification from the retained Connect host"
+  tags                         = local.ephemeral_tags
+}
+
 data "aws_s3_object" "growth_b_service_preparation" {
   count      = var.global_b_services && local.services_enabled ? 1 : 0
   bucket     = local.lab_contract.evidence_bucket_name

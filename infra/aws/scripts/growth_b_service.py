@@ -264,6 +264,26 @@ def validate_preparation(proof, manifest, source_mode, provenance_sha):
     return proof
 
 
+def qualify_service_runtime(root, release, output, envelope, source_mode):
+    """Use the authenticated release after the exact preparation gate above."""
+    import growth_b_aws_restore as restore
+    import growth_b_runtime as runtime_gate
+    root, release, output = Path(root), Path(release), Path(output)
+    runtime = root / 'bootstrap-runtime'
+    if source_mode == 'snapshot':
+        # Snapshot preparation keeps its runtime in its operation directory.
+        # Create the canonical service runtime once; existing bytes are retained.
+        require(root.resolve() == root and runtime.resolve() == runtime and not runtime.is_symlink(),
+                'Snapshot service runtime must use its canonical retained path')
+        if not runtime.exists():
+            require(sha(release / 'preparation-tools.tar.gz') == envelope['objects']['preparation-tools.tar.gz']['sha256'],
+                    'Snapshot service runtime archive differs from the sealed envelope')
+            restore.extract_runtime(release, runtime)
+    qualification = runtime_gate.qualify_runtime(release, runtime, output / 'host-runtime.json',
+        expected_checks={name: item['sha256'] for name, item in envelope['objects'].items()}, java_home=root / 'toolchain/jdk')
+    return runtime, qualification
+
+
 def bootstrap(manifest, context, root, output):
     import growth_b_aws_restore as restore
     import growth_b_runtime as runtime_gate
@@ -307,9 +327,7 @@ def bootstrap(manifest, context, root, output):
             and restored['repositoryReadOnly'] is True and restored['nativeInventoryUnchanged'] is True
             and restored['allDocumentSourceFieldsEqual'] is True and restored['elasticsearch']['image'] == manifest['search']['image'],
             'Actual unchanged native S3 restore and full document equality proof required')
-    runtime = root / 'bootstrap-runtime'
-    qualification = runtime_gate.qualify_runtime(Path(config['release']), runtime, output / 'host-runtime.json',
-        expected_checks={name: item['sha256'] for name, item in envelope['objects'].items()}, java_home=root / 'toolchain/jdk')
+    runtime, qualification = qualify_service_runtime(root, config['release'], output, envelope, context['databaseBootstrap'])
     with runtime_gate.activated_runtime(qualification):
         live = restore.live_rds(aws, config)
         secret_dir = restore.private_directory(output / '.connection')
