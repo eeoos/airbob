@@ -45,7 +45,8 @@ locals {
     data.aws_region.current.region == var.aws_region
   )
   contract_schema_valid = try(
-    local.lab_contract_keys == local.expected_contract_keys &&
+    (local.lab_contract_keys == local.expected_contract_keys ||
+    local.lab_contract_keys == setunion(local.expected_contract_keys, toset(["approved_b_snapshot_creation_identifier"]))) &&
     local.lab_contract.schemaVersion == 1 &&
     local.lab_contract.account_id == var.account_id &&
     local.lab_contract.region == var.aws_region,
@@ -63,6 +64,11 @@ locals {
     false,
   )
   operational_contract_valid = try(
+    (try(local.lab_contract.approved_b_snapshot_creation_identifier, "") == "" || (
+      can(regex("^airbob-dataset-b-[a-z0-9][a-z0-9-]{2,45}$", try(local.lab_contract.approved_b_snapshot_creation_identifier, ""))) &&
+      !endswith(try(local.lab_contract.approved_b_snapshot_creation_identifier, ""), "-") &&
+      !strcontains(try(local.lab_contract.approved_b_snapshot_creation_identifier, ""), "--")
+    )) &&
     local.lab_contract.lease_table_name == "airbob-performance-lab-orchestration-lease" &&
     local.lab_contract.lease_partition_key == "LockName" &&
     local.lab_contract.lease_expires_attribute == "ExpiresAt" &&
@@ -130,8 +136,10 @@ locals {
   receipt_required                   = var.deployment_phase != "network"
   services_enabled                   = contains(["services", "data-ready"], var.deployment_phase)
   data_ready                         = var.deployment_phase == "data-ready"
-  legacy_services_enabled            = local.services_enabled && !var.global_b_prepare_only
-  application_infrastructure_enabled = local.legacy_services_enabled
+  legacy_services_enabled            = local.services_enabled && !var.global_b_prepare_only && !var.global_b_services && !var.global_b_snapshot_restore_only
+  application_infrastructure_enabled = local.services_enabled && !var.global_b_prepare_only && !var.global_b_snapshot_restore_only
+  dependency_services_enabled        = local.legacy_services_enabled || (local.services_enabled && var.global_b_services)
+  data_bootstrap_enabled             = local.services_enabled && !var.global_b_snapshot_restore_only && (!var.global_b_services || var.global_b_service_bootstrap_enabled)
 
   bounded_name_prefix = "airbob-${substr(var.run_id, 0, 12)}-${substr(sha1(var.run_id), 0, 6)}"
   app_capacity = !var.app_enabled ? {
@@ -155,7 +163,7 @@ locals {
   ]
 
   dataset_prefix       = "datasets/${var.dataset_release}"
-  dataset_manifest_key = "${local.dataset_prefix}/${var.global_b_prepare_only ? "aws-preparation.json" : "manifest.json"}"
+  dataset_manifest_key = var.global_b_snapshot_restore_only ? try(var.global_b_snapshot_provenance.key, "invalid-b-snapshot-provenance") : var.global_b_prepare_only ? "datasets/${var.dataset_release}-aws-preparation/aws-preparation-${var.dataset_manifest_sha256}.json" : (var.global_b_services ? "datasets/${var.dataset_release}-aws-service/${var.global_b_service_release}/aws-service.json" : "${local.dataset_prefix}/manifest.json")
   dataset_manifest = local.services_enabled ? try(
     jsondecode(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)),
     null,
@@ -186,7 +194,7 @@ locals {
   }
 
   service_hosts = { for service, host in local.legacy_service_hosts : service => host
-    if !var.global_b_prepare_only || service == "debezium"
+    if(!var.global_b_prepare_only && !var.global_b_snapshot_restore_only) || service == "debezium"
   }
   legacy_service_hosts = {
     redis = {

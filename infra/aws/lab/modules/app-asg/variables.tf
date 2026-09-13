@@ -94,3 +94,13 @@ variable "alb_resource_label" {
 variable "tags" {
   type = map(string)
 }
+
+variable "startup_grace_seconds" {
+  description = "Readiness grace for current inventory startup; the legacy default remains 900 seconds."
+  type        = number
+  default     = 900
+  validation {
+    condition     = contains([900, 18000], var.startup_grace_seconds)
+    error_message = "Startup grace must be the legacy 900 or explicit B 18000 seconds."
+  }
+}

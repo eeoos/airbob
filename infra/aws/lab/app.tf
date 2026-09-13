@@ -4,7 +4,7 @@ locals {
     "NODE_EXPORTER_IMAGE=${lookup(var.infra_image_references, "NODE_EXPORTER_IMAGE", "")}",
   ]) : ""
 
-  app_runtime_revision = sha256(jsonencode({
+  legacy_app_runtime_revision = sha256(jsonencode({
     run_id                             = var.run_id
     app_image_reference                = var.app_image_reference
     bundle_sha256                      = var.bundle_sha256
@@ -13,8 +13,12 @@ locals {
     measurement_policy                 = var.measurement_policy
     accommodation_detail_cache_enabled = var.accommodation_detail_cache_enabled
   }))
+  app_runtime_revision = var.global_b_services ? sha256(jsonencode({
+    legacyRevision    = local.legacy_app_runtime_revision, globalBReadiness = var.global_b_readiness_receipt
+    appRuntimeBinding = try(local.dataset_manifest.appRuntimeBinding, null), appRuntime = try(local.growth_b_service_runtime.runtime, null)
+  })) : local.legacy_app_runtime_revision
 
-  app_runtime_contract = local.application_infrastructure_enabled ? join("\n", [
+  legacy_app_runtime_contract = local.application_infrastructure_enabled ? join("\n", [
     "AIRBOB_RUN_ID=${var.run_id}",
     "AIRBOB_RESOURCE_FENCING_TOKEN_SHA256=${sha256(tostring(var.fencing_token))}",
     "AIRBOB_MEASUREMENT_POLICY=${var.measurement_policy}",
@@ -23,6 +27,23 @@ locals {
     "AIRBOB_RDS_MASTER_SECRET_ARN=${module.rds[0].master_secret_arn}",
     "AIRBOB_RUNTIME_REVISION=${local.app_runtime_revision}",
   ]) : ""
+
+  app_runtime_contract = var.global_b_services ? jsonencode({
+    kind              = "global-growth-b-app-runtime", runId = var.run_id, datasetId = var.dataset_release, region = var.aws_region
+    runtimeRevision   = local.app_runtime_revision, cacheEnabled = var.accommodation_detail_cache_enabled
+    application       = try(local.dataset_manifest.application, null)
+    appRuntimeBinding = try(local.dataset_manifest.appRuntimeBinding, null)
+    appRuntime        = try(local.growth_b_service_runtime.runtime, null)
+    rds = local.application_infrastructure_enabled ? {
+      identifier      = module.rds[0].id, resourceId = module.rds[0].resource_id, endpoint = module.rds[0].address
+      masterSecretArn = module.rds[0].master_secret_arn, serverUuid = try(local.dataset_manifest.rds.serverUuid, null)
+    } : null
+    readiness = var.global_b_readiness_receipt == null ? null : {
+      key    = var.global_b_readiness_receipt.key, versionId = var.global_b_readiness_receipt.version_id
+      sha256 = var.global_b_readiness_receipt.sha256, bytes = var.global_b_readiness_receipt.bytes
+    }
+    rdsCaBundle = try(local.dataset_manifest.preparation.rdsCaBundle, null)
+  }) : local.legacy_app_runtime_contract
 
   app_user_data = local.application_infrastructure_enabled ? templatefile("${path.module}/templates/host-user-data.sh.tftpl", {
     mode                   = "service"
@@ -42,14 +63,14 @@ locals {
     runtime_contract       = local.app_runtime_contract
   }) : ""
 
-  start_app_document = local.application_infrastructure_enabled ? join("\n", [
+  start_app_document = var.global_b_services ? file("${path.module}/templates/start-growth-b-app.sh.tftpl") : (local.application_infrastructure_enabled ? join("\n", [
     "install -d -m 700 /opt/airbob/release/infra/aws/scripts",
     "cat > /opt/airbob/release/infra/aws/scripts/verify-app-runtime-env.sh <<'AIRBOB_APP_ENV_VALIDATOR'",
     file("${path.module}/../scripts/verify-app-runtime-env.sh"),
     "AIRBOB_APP_ENV_VALIDATOR",
     "chmod 700 /opt/airbob/release/infra/aws/scripts/verify-app-runtime-env.sh",
     file("${path.module}/templates/start-app.sh.tftpl"),
-  ]) : ""
+  ]) : "")
 }
 
 module "alb" {
@@ -73,6 +94,7 @@ module "app_asg" {
   name_prefix                         = "airbob-${var.run_id}"
   ami_id                              = data.aws_ami.selected.id
   instance_type                       = "c6i.large"
+  startup_grace_seconds               = var.global_b_services ? 18000 : 900
   subnet_ids                          = local.app_subnet_ids
   security_group_ids                  = [module.security.security_group_ids.app]
   instance_profile_name               = aws_iam_instance_profile.host["app"].name
@@ -93,6 +115,7 @@ module "app_asg" {
   depends_on = [
     terraform_data.data_bootstrap_gate,
     aws_iam_role_policy.app_data_plane,
+    aws_iam_role_policy.growth_b_app_inputs,
   ]
 }
 
@@ -109,7 +132,7 @@ resource "aws_ssm_document" "start_app" {
       action = "aws:runShellScript"
       name   = "startAndVerifyApp"
       inputs = {
-        timeoutSeconds = "1200"
+        timeoutSeconds = var.global_b_services ? "18300" : "1200"
         runCommand     = [local.start_app_document]
       }
     }]
@@ -123,7 +146,7 @@ resource "aws_ssm_association" "app" {
 
   name                             = aws_ssm_document.start_app[0].name
   association_name                 = "airbob-${var.run_id}-app-${substr(local.app_runtime_revision, 0, 12)}"
-  wait_for_success_timeout_seconds = 1200
+  wait_for_success_timeout_seconds = var.global_b_services ? 18600 : 1200
   apply_only_at_cron_interval      = false
   max_concurrency                  = "100%"
   max_errors                       = "0"

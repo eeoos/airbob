@@ -5,7 +5,7 @@ resource "aws_route53_zone_association" "private" {
 }
 
 locals {
-  private_dns_records = local.services_enabled ? (var.global_b_prepare_only ? {
+  private_dns_records = local.services_enabled ? ((var.global_b_prepare_only || var.global_b_snapshot_restore_only) ? {
     "connect.lab.airbob.internal" = module.service_hosts.private_ips.debezium
     } : {
     "redis-general.lab.airbob.internal" = module.service_hosts.private_ips.redis

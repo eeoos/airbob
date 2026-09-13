@@ -93,6 +93,21 @@ esac
 compose_file="/opt/airbob/release/infra/aws/bundles/$service/compose.yml"
 [[ -f "$compose_file" && ! -L "$compose_file" ]]
 compose_files=(-f "$compose_file")
+if [[ "$${AIRBOB_GLOBAL_B_SERVICES:-false}" == true && "$service" == kafka ]]; then
+  # A new B run has a new Kafka log identity; broker topic auto-creation remains
+  # disabled even before the explicit business topic/CDC bootstrap is admitted.
+  cluster_id=$(printf '%s' '${run_id}' | openssl dgst -sha256 -binary | head -c 16 | base64 | tr '+/' '-_' | tr -d '=\n')
+  [[ "$cluster_id" =~ ^[A-Za-z0-9_-]{22}$ ]]
+  cat > /etc/airbob/b-kafka.override.yml <<EOF
+services:
+  kafka:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: "$cluster_id"
+EOF
+  chmod 600 /etc/airbob/b-kafka.override.yml
+  compose_files+=(-f /etc/airbob/b-kafka.override.yml)
+fi
 registry=$(awk -F= 'NF == 2 { print $2; exit }' /etc/airbob/images.env | cut -d/ -f1)
 [[ "$registry" == '${account_id}.dkr.ecr.${region}.amazonaws.com' ]]
 stage=registry-authentication

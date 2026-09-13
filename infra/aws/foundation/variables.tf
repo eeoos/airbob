@@ -287,6 +287,20 @@ variable "dataset_snapshot_writer_release" {
   }
 }
 
+variable "approved_b_snapshot_creation_identifier" {
+  description = "Exact future B snapshot the direct controller may create; independent from promoted snapshot restore approval."
+  type        = string
+  default     = ""
+  validation {
+    condition = var.approved_b_snapshot_creation_identifier == "" || (
+      can(regex("^airbob-dataset-b-[a-z0-9][a-z0-9-]{2,45}$", var.approved_b_snapshot_creation_identifier)) &&
+      !endswith(var.approved_b_snapshot_creation_identifier, "-") &&
+      !strcontains(var.approved_b_snapshot_creation_identifier, "--")
+    )
+    error_message = "B snapshot creation approval must be empty or one canonical airbob-dataset-b-* identifier."
+  }
+}
+
 variable "approved_rds_snapshot_identifier" {
   description = "The one promoted dataset-bound RDS snapshot the Lab operator may restore; empty revokes snapshot restore."
   type        = string

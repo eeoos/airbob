@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+for attempt in $(seq 1 120); do
+  [[ -f /var/lib/airbob/release-ready && -f /etc/airbob/app-runtime-contract.env ]] && break
+  sleep 5
+done
+[[ "$(cat /etc/airbob/service-name)" == app ]]
+contract=/etc/airbob/app-runtime-contract.env
+jq -e '(.|keys|sort) == ["appRuntime","appRuntimeBinding","application","cacheEnabled","datasetId","kind","rds","rdsCaBundle","readiness","region","runId","runtimeRevision"] and
+  .kind=="global-growth-b-app-runtime" and .region=="ap-northeast-2" and
+  (.runtimeRevision|test("^[0-9a-f]{64}$")) and (.cacheEnabled|type=="boolean") and
+  (.runId|test("^lab-[a-z0-9][a-z0-9-]{0,27}$")) and (.datasetId|test("^global-growth-b-[0-9a-f]{16}$")) and
+  (.application.mainCommit|test("^[0-9a-f]{40}$")) and (.application.appJarSha256|test("^[0-9a-f]{64}$")) and
+  .appRuntime.runtimeContract=="global-b-main-479-entry-bytes-v1" and .appRuntime.mainCommit==.application.mainCommit and
+  .appRuntime.runtimeRevision==.application.mainCommit and .appRuntime.image==.application.image and
+  .appRuntime.sourceJarSha256==.application.appJarSha256 and
+  (.appRuntime.imageJarSha256|test("^[0-9a-f]{64}$")) and (.appRuntime.runtimeDigest|test("^[0-9a-f]{64}$"))' "$contract" >/dev/null
+stage=$(mktemp -d /etc/airbob/b-start.XXXXXX)
+trap 'rm -rf -- "$stage"' EXIT
+fetch() {
+  local ref=$1 bucket=$2 destination=$3
+  aws --region ap-northeast-2 s3api get-object --bucket "$bucket" --key "$(jq -er ".$ref.key" "$contract")" \
+    --version-id "$(jq -er ".$ref.versionId" "$contract")" "$destination" > "$stage/response.json"
+  [[ "$(jq -er '.VersionId' "$stage/response.json")" == "$(jq -er ".$ref.versionId" "$contract")" ]]
+  [[ "$(stat -c %s "$destination")" == "$(jq -er ".$ref.bytes" "$contract")" ]]
+  printf '%s  %s\n' "$(jq -er ".$ref.sha256" "$contract")" "$destination" | sha256sum --check --status
+}
+fetch readiness airbob-performance-lab-evidence-942632789808 "$stage/readiness.json"
+fetch appRuntimeBinding airbob-performance-lab-dataset-942632789808 "$stage/app-runtime-binding.json"
+jq -e --slurpfile c "$contract" '.schemaVersion==1 and .kind=="global-b-app-runtime-binding" and .runtime==$c[0].appRuntime' \
+  "$stage/app-runtime-binding.json" >/dev/null
+jq -e --slurpfile c "$contract" '. as $r | $c[0] as $c |
+  $r.schemaVersion==1 and $r.kind=="global-growth-b-aws-service-readiness" and $r.state=="GLOBAL_B_DEPENDENCIES_VERIFIED" and
+  $r.runId==$c.runId and $r.datasetId==$c.datasetId and $r.application==$c.application and
+  $r.appRuntimeBinding==$c.appRuntimeBinding and $r.appRuntime==$c.appRuntime and
+  $r.rds.resourceId==$c.rds.resourceId and $r.rds.serverUuid==$c.rds.serverUuid and $r.rds.identifier==$c.rds.identifier and
+  $r.mysql=={version:"8.4.11",flywayVersion:28,schema:"airbobdb"} and $r.redisSeparate==true and $r.cdcRunning==true and $r.heartbeatObserved==true and
+  $r.applicationStarted==false and $r.deploymentReady==false' "$stage/readiness.json" >/dev/null
+aws --region ap-northeast-2 rds describe-db-instances --db-instance-identifier "$(jq -er '.rds.identifier' "$contract")" > "$stage/rds.json"
+jq -e --slurpfile c "$contract" '.DBInstances as $items | ($items|length)==1 and ($items[0] as $r | $c[0].rds as $c |
+  $r.DbiResourceId==$c.resourceId and $r.Endpoint.Address==$c.endpoint and $r.Endpoint.Port==3306 and
+  $r.MasterUserSecret.SecretArn==$c.masterSecretArn and $r.Engine=="mysql" and $r.EngineVersion=="8.4.11" and
+  $r.DBInstanceStatus=="available" and $r.PubliclyAccessible==false)' "$stage/rds.json" >/dev/null
+app_image=$(jq -er '.application.image' "$contract")
+[[ "$app_image" == "$(awk -F= '$1=="APP_IMAGE"{print $2}' /etc/airbob/images.env)" ]]
+registry=942632789808.dkr.ecr.ap-northeast-2.amazonaws.com
+aws --region ap-northeast-2 ecr get-login-password | docker login --username AWS --password-stdin "$registry" >/dev/null
+docker pull --quiet "$app_image" >/dev/null
+[[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$app_image")" == "$(jq -er '.application.mainCommit' "$contract")" ]]
+[[ "$(docker run --rm --entrypoint sha256sum "$app_image" /app/app.jar | awk '{print $1}')" == "$(jq -er '.appRuntime.imageJarSha256' "$contract")" ]]
+# Trust only the exact reviewed RDS CA bundle and verify the DNS endpoint in JDBC.
+fetch rdsCaBundle airbob-performance-lab-dataset-942632789808 "$stage/rds-ca.pem"
+install -d -m 700 /etc/airbob/rds-trust
+awk -v dir="$stage" '/-----BEGIN CERTIFICATE-----/{n++;f=dir "/ca-" n ".pem"} f{print > f} /-----END CERTIFICATE-----/{close(f);f=""}' "$stage/rds-ca.pem"
+for certificate in "$stage"/ca-*.pem; do
+  [[ -f "$certificate" ]]
+  docker run --rm --entrypoint keytool -v "$stage:/trust" "$app_image" -importcert -noprompt \
+    -storetype PKCS12 -keystore /trust/rds.p12 -storepass changeit -alias "$(basename "$certificate" .pem)" \
+    -file "/trust/$(basename "$certificate")" >/dev/null 2>&1
+done
+install -m 600 "$stage/rds.p12" /etc/airbob/rds-trust/rds.p12
+aws --region ap-northeast-2 secretsmanager get-secret-value --secret-id "$(jq -er '.rds.masterSecretArn' "$contract")" > "$stage/secret.json"
+username=$(jq -er '.SecretString|fromjson|.username' "$stage/secret.json")
+password=$(jq -er '.SecretString|fromjson|.password' "$stage/secret.json")
+[[ -n "$username" && -n "$password" && "$username$password" != *$'\n'* && "$username$password" != *$'\r'* ]]
+rds_endpoint=$(jq -er '.rds.endpoint' "$contract")
+[[ "$rds_endpoint" =~ ^[a-zA-Z0-9.-]+$ ]]
+{
+  printf '%s\n' 'SPRING_PROFILES_ACTIVE=aws' 'SPRING_FLYWAY_TARGET=28'
+  printf '%s\n' 'SPRING_KAFKA_LISTENER_AUTO_STARTUP=true' 'OPERATOR_ALERT_KAFKA_AUTO_STARTUP=true'
+  printf '%s\n' 'ACCOMMODATION_INDEXING_AUTO_STARTUP=true' 'ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP=true'
+  printf '%s\n' 'RESERVATION_INVENTORY_STARTUP_ENABLED=true' 'RESERVATION_INVENTORY_SEED_ENABLED=true' 'RESERVATION_INVENTORY_RETENTION_ENABLED=true'
+  printf '%s\n' 'ACCOMMODATION_INDEX_BOOTSTRAP_ENABLED=true'
+  printf '%s\n' 'TOSS_PAYMENTS_ENABLED=false' 'GOOGLE_API_ENABLED=false' 'AWS_S3_WRITE_ENABLED=false' 'OPERATOR_ALERT_SLACK_ENABLED=false'
+  # The disabled image-write client must still initialize under AWSpring 3.x.
+  # Application containers do not need instance metadata or cloud credentials.
+  printf '%s\n' 'AWS_REGION=ap-northeast-2' 'AWS_DEFAULT_REGION=ap-northeast-2' 'SPRING_CLOUD_AWS_REGION_STATIC=ap-northeast-2'
+  printf '%s\n' 'AWS_EC2_METADATA_DISABLED=true'
+  printf '%s\n' 'SPRING_CLOUD_AWS_CREDENTIALS_ACCESS_KEY=dummy' 'SPRING_CLOUD_AWS_CREDENTIALS_SECRET_KEY=dummy'
+  printf 'SPRING_DATASOURCE_URL=jdbc:mysql://%s:3306/airbobdb?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreUrl=file:/run/airbob/rds-trust/rds.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=changeit&fallbackToSystemTrustStore=false\n' "$rds_endpoint"
+  printf 'SPRING_DATASOURCE_USERNAME=%s\nSPRING_DATASOURCE_PASSWORD=%s\n' "$username" "$password"
+  printf '%s\n' 'REDIS_HOST=redis-general.lab.airbob.internal' 'REDIS_PORT=6379'
+  printf 'ACCOMMODATION_DETAIL_CACHE_ENABLED=%s\n' "$(jq -er '.cacheEnabled|tostring' "$contract")"
+  printf '%s\n' 'ACCOMMODATION_DETAIL_CACHE_REDIS_HOST=redis-cache.lab.airbob.internal' 'ACCOMMODATION_DETAIL_CACHE_REDIS_PORT=6380'
+  printf '%s\n' 'KAFKA_BOOTSTRAP_SERVERS=kafka.lab.airbob.internal:9092' 'ELASTICSEARCH_URIS=http://elasticsearch.lab.airbob.internal:9200'
+  printf '%s\n' 'ELASTICSEARCH_USERNAME=' 'ELASTIC_PASSWORD=' 'AWS_S3_BUCKET_NAME=performance-lab-disabled' 'CLOUDFRONT_DOMAIN=https://invalid.performance-lab'
+} > "$stage/app.env"
+unset username password
+install -m 600 "$stage/app.env" /etc/airbob/app.env
+cat > /etc/airbob/b-app-compose.yml <<'YAML'
+services:
+  app:
+    volumes:
+      - /etc/airbob/rds-trust:/run/airbob/rds-trust:ro
+    healthcheck:
+      start_period: 18000s
+YAML
+export APP_ENV_FILE=/etc/airbob/app.env
+compose=(docker compose --env-file /etc/airbob/images.env -f /opt/airbob/release/infra/aws/bundles/app/compose.yml -f /etc/airbob/b-app-compose.yml)
+"${compose[@]}" config --quiet
+"${compose[@]}" up --detach --wait --wait-timeout 18000
+curl --connect-timeout 2 --max-time 10 --fail --silent --show-error http://127.0.0.1:8080/actuator/health/readiness \
+  | jq -e '.status=="UP"' >/dev/null
+jq -er '.runtimeRevision' "$contract" > /var/lib/airbob/app-runtime-revision
+printf '%s\n' healthy > /var/lib/airbob/app-health

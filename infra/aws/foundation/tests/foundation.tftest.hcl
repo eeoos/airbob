@@ -684,6 +684,23 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
         if statement.Sid == "ManageNamedLabAutoScaling"
       ]).Action, "autoscaling:DeleteTags") &&
+      contains(one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ManageNamedLabAutoScaling"
+      ]).Action, "autoscaling:SetInstanceProtection") &&
+      contains(one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ManageNamedLabAutoScaling"
+      ]).Action, "autoscaling:TerminateInstanceInAutoScalingGroup") &&
+      one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ReadExactAppCleanupPermissionContract"
+      ]).Resource == "arn:aws:iam::942632789808:policy/airbob-lab-operator-app-compute" &&
+      toset(one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ReadExactAppCleanupPermissionContract"
+      ]).Action) == toset(["iam:GetPolicy", "iam:GetPolicyVersion"]) &&
+      alltrue([for statement in jsondecode(local.lab_app_compute_core_policy).Statement : !contains(keys(statement), "Sid")]) &&
       one([
         for statement in jsondecode(local.lab_app_compute_policy).Statement : statement
         if statement.Sid == "ManageNamedLabAutoScaling"
@@ -940,7 +957,9 @@ run "foundation_contract" {
           ] : length(flatten([
             for policy in values(local.lab_operator_managed_policies) : [
               for statement in jsondecode(policy.document).Statement : statement
-              if statement.Sid == sid
+              if jsonencode({ for key, value in statement : key => value if key != "Sid" }) == jsonencode({
+                for key, value in one([for source in local.lab_app_compute_statements : source if source.Sid == sid]) : key => value if key != "Sid"
+              })
             ]
         ])) == 1
       ]) &&
@@ -3588,4 +3607,48 @@ run "reject_unsafe_snapshot_writer_release" {
   }
 
   expect_failures = [var.dataset_snapshot_writer_release]
+}
+
+run "b_snapshot_creation_is_closed_by_default" {
+  command = plan
+  assert {
+    condition = (
+      length(aws_iam_role_policy.lab_b_snapshot_controller) == 0 &&
+      !contains(keys(local.lab_consumer_contract), "approved_b_snapshot_creation_identifier") &&
+      local.lab_consumer_contract.approved_rds_snapshot_identifier == "airbob-dataset-rehearsal-v20"
+    )
+    error_message = "Future B snapshot creation must be disabled without changing the existing promoted restore approval."
+  }
+}
+
+run "b_snapshot_creation_and_promoted_restore_are_independent" {
+  command = plan
+  variables {
+    approved_b_snapshot_creation_identifier = "airbob-dataset-b-reviewed-final"
+  }
+  assert {
+    condition = (
+      length(aws_iam_role_policy.lab_b_snapshot_controller) == 1 &&
+      local.lab_consumer_contract.approved_b_snapshot_creation_identifier == "airbob-dataset-b-reviewed-final" &&
+      local.lab_consumer_contract.approved_rds_snapshot_identifier == "airbob-dataset-rehearsal-v20" &&
+      jsondecode(local.lab_b_snapshot_controller_policy).Statement[0].Resource == "arn:aws:rds:ap-northeast-2:942632789808:snapshot:airbob-dataset-b-reviewed-final" &&
+      toset(jsondecode(local.lab_b_snapshot_controller_policy).Statement[0].Action) == toset(["rds:CreateDBSnapshot", "rds:AddTagsToResource"]) &&
+      jsondecode(local.lab_b_snapshot_controller_policy).Statement[1].Action == "rds:CreateDBSnapshot" &&
+      strcontains(jsondecode(local.lab_b_snapshot_controller_policy).Statement[1].Resource, "aws:RequestTag/SourceRunId") &&
+      strcontains(jsondecode(local.lab_b_snapshot_controller_policy).Statement[1].Condition.StringEquals["rds:db-tag/RunId"], "aws:RequestTag/SourceRunId") &&
+      jsondecode(local.lab_b_snapshot_controller_policy).Statement[1].Condition.StringEquals["aws:RequestedRegion"] == "ap-northeast-2" &&
+      jsondecode(local.lab_b_snapshot_controller_policy).Statement[1].Condition.Bool["rds:StorageEncrypted"] == "true" &&
+      one([for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement if statement.Sid == "UseApprovedSnapshotForRestoreLabDb"]).Resource ==
+      "arn:aws:rds:ap-northeast-2:942632789808:snapshot:airbob-dataset-rehearsal-v20"
+    )
+    error_message = "Create may authorize only the future B snapshot and source RunId while preserving legacy promoted restore permission."
+  }
+}
+
+run "reject_legacy_name_as_b_snapshot_creation_approval" {
+  command = plan
+  variables {
+    approved_b_snapshot_creation_identifier = "airbob-dataset-rehearsal-v20"
+  }
+  expect_failures = [var.approved_b_snapshot_creation_identifier]
 }

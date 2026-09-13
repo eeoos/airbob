@@ -11,7 +11,7 @@ locals {
       subnet_id             = module.network.private_subnet_ids.primary
       security_group_ids    = [module.security.security_group_ids[service]]
       instance_profile_name = aws_iam_instance_profile.host[service].name
-      user_data = var.global_b_prepare_only ? templatefile("${path.module}/templates/growth-b-host-user-data.sh.tftpl", {
+      user_data = (var.global_b_prepare_only || var.global_b_snapshot_restore_only || (var.global_b_services && service == "debezium")) ? templatefile("${path.module}/templates/growth-b-host-user-data.sh.tftpl", {
         region = var.aws_region
         }) : templatefile("${path.module}/templates/host-user-data.sh.tftpl", {
         mode                   = "service"

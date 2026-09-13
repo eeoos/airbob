@@ -296,3 +296,32 @@ run "reject_b_other_patch_before_services" {
 
   expect_failures = [var.rds_engine_version]
 }
+
+run "accept_optional_b_snapshot_creation_contract" {
+  command = plan
+  override_data {
+    target = data.aws_ssm_parameter.foundation_contract
+    values = {
+      value = jsonencode(merge(jsondecode(file("tests/fixtures/lab-contract.json")), {
+        approved_b_snapshot_creation_identifier = "airbob-dataset-b-reviewed-final"
+      }))
+    }
+  }
+  assert {
+    condition     = local.contract_schema_valid && local.operational_contract_valid
+    error_message = "The additive B creation approval must retain the old restore contract."
+  }
+}
+
+run "reject_non_b_snapshot_creation_contract" {
+  command = plan
+  override_data {
+    target = data.aws_ssm_parameter.foundation_contract
+    values = {
+      value = jsonencode(merge(jsondecode(file("tests/fixtures/lab-contract.json")), {
+        approved_b_snapshot_creation_identifier = "airbob-dataset-legacy-snapshot"
+      }))
+    }
+  }
+  expect_failures = [check.foundation_boundary, output.persistent_resource_contract]
+}

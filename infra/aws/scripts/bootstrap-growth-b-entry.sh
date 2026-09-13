@@ -49,7 +49,7 @@ assert_lease() {
 assert_lease
 version=$(jq -er '.manifestVersionId' "$context")
 "$aws" --region "$AWS_REGION" s3api get-object --bucket airbob-performance-lab-dataset-942632789808 \
-  --key "datasets/$dataset_id/aws-preparation.json" --version-id "$version" "$root/aws-preparation.json" \
+  --key "datasets/$dataset_id-aws-preparation/aws-preparation-$(jq -er '.manifestSha256' "$context").json" --version-id "$version" "$root/aws-preparation.json" \
   --output json > "$root/manifest-object.json"
 [[ "$(jq -er '.VersionId' "$root/manifest-object.json")" == "$version" ]] || fail
 printf '%s  %s\n' "$(jq -er '.manifestSha256' "$context")" "$root/aws-preparation.json" | sha256sum --check --status
@@ -66,7 +66,7 @@ download() {
   selected_version=$(jq -er --arg name "$name" '.files[$name].versionId' "$manifest")
   digest=$(jq -er --arg name "$name" '.files[$name].sha256' "$manifest")
   bytes=$(jq -er --arg name "$name" '.files[$name].bytes' "$manifest")
-  [[ "$key" == "datasets/$dataset_id/aws-preparation/"* && "$digest" =~ ^[0-9a-f]{64}$ && "$bytes" =~ ^[1-9][0-9]*$ ]] || fail
+  [[ "$key" == "datasets/$dataset_id-aws-preparation/files/"* && "$digest" =~ ^[0-9a-f]{64}$ && "$bytes" =~ ^[1-9][0-9]*$ ]] || fail
   "$aws" --region "$AWS_REGION" s3api get-object --bucket airbob-performance-lab-dataset-942632789808 \
     --key "$key" --version-id "$selected_version" "$root/$file" --output json > "$root/download-result.json"
   [[ "$(jq -er '.VersionId' "$root/download-result.json")" == "$selected_version" && "$(stat -c %s "$root/$file")" == "$bytes" ]] || fail
@@ -108,7 +108,7 @@ extract_regular_archive "$root/consumer-tools.tar.gz" "$root/consumer-tools" 104
 jq -e --slurpfile context "$context" '.toolSources == $context[0].toolSources' "$manifest" >/dev/null || fail
 jq -r '.toolSources|to_entries[]|"\(.value)  \(.key)"' "$context" > "$root/consumer-checks"
 (cd "$root/consumer-tools" && sha256sum --check --status "$root/consumer-checks")
-[[ "$(find "$root/consumer-tools" -type f | wc -l)" -eq 5 ]] || fail
+[[ "$(find "$root/consumer-tools" -type f | wc -l)" -eq 6 ]] || fail
 export JAVA_HOME="$root/toolchain/jdk"
 export PATH="$root/toolchain/python/bin:$JAVA_HOME/bin:$root/toolchain/mysql/bin:$PATH"
 unset PYTHONPATH PYTHONHOME JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS JAVA_OPTS JDK_JAVAC_OPTIONS CLASSPATH AIRBOB_ETL_BENCHMARK_PASSWORD

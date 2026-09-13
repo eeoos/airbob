@@ -67,6 +67,20 @@ locals {
         }
       },
       {
+        Sid       = "ReadBSourceSnapshotInventory"
+        Effect    = "Allow"
+        Action    = ["rds:DescribeDBInstances", "rds:DescribeDBSnapshots"]
+        Resource  = "*"
+        Condition = { StringEquals = { "aws:RequestedRegion" = var.aws_region, "aws:PrincipalTag/Service" = "debezium" } }
+      },
+      {
+        Sid       = "ReadBSourceSnapshotMetadata"
+        Effect    = "Allow"
+        Action    = ["rds:DescribeDBSnapshotAttributes", "rds:ListTagsForResource"]
+        Resource  = ["arn:aws:rds:${var.aws_region}:${var.account_id}:snapshot:airbob-dataset-b-*", "arn:aws:rds:${var.aws_region}:${var.account_id}:db:airbob-$${aws:PrincipalTag/RunId}"]
+        Condition = { StringEquals = { "aws:RequestedRegion" = var.aws_region, "aws:PrincipalTag/Service" = "debezium" } }
+      },
+      {
         Sid    = "ReadImmutableRuntimeInputs"
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:GetObjectVersion"]
@@ -75,6 +89,7 @@ locals {
           "${aws_s3_bucket.managed["dataset"].arn}/datasets/*",
           "${aws_s3_bucket.managed["dataset"].arn}/elasticsearch/*",
           "${aws_s3_bucket.managed["evidence"].arn}/measurement-inputs/*",
+          "${aws_s3_bucket.managed["evidence"].arn}/data-bootstrap/*",
         ]
       },
       {
@@ -86,11 +101,11 @@ locals {
       {
         Sid      = "ListDatasetSnapshotRepository"
         Effect   = "Allow"
-        Action   = "s3:ListBucket"
+        Action   = ["s3:ListBucket", "s3:ListBucketVersions"]
         Resource = aws_s3_bucket.managed["dataset"].arn
         Condition = {
           StringLike = {
-            "s3:prefix" = ["elasticsearch/*"]
+            "s3:prefix" = ["elasticsearch/*", "datasets/*"]
           }
         }
       },
@@ -1433,6 +1448,7 @@ locals {
         Effect = "Allow"
         Action = [
           "rds:DescribeDBInstances",
+          "rds:DescribeDBEngineVersions",
           "rds:DescribeDBParameterGroups",
           "rds:DescribeDBParameters",
           "rds:DescribeDBSnapshots",
@@ -1441,6 +1457,13 @@ locals {
           "secretsmanager:ListSecrets",
         ]
         Resource = "*"
+      },
+      {
+        Sid       = "ReadRegionalBSnapshotRestoreEvents"
+        Effect    = "Allow"
+        Action    = ["cloudtrail:LookupEvents", "rds:DescribeDBSnapshotAttributes"]
+        Resource  = "*"
+        Condition = { StringEquals = { "aws:RequestedRegion" = var.aws_region } }
       },
       {
         Sid    = "TagNewLabRdsOnCreate"
@@ -1596,6 +1619,12 @@ locals {
 
   lab_app_compute_statements = [
     {
+      Sid      = "ReadExactAppCleanupPermissionContract"
+      Effect   = "Allow"
+      Action   = ["iam:GetPolicy", "iam:GetPolicyVersion"]
+      Resource = "arn:aws:iam::${var.account_id}:policy/airbob-lab-operator-app-compute"
+    },
+    {
       Sid      = "CreateTaggedLabAutoScaling"
       Effect   = "Allow"
       Action   = "autoscaling:CreateAutoScalingGroup"
@@ -1704,6 +1733,8 @@ locals {
         "autoscaling:EnableMetricsCollection",
         "autoscaling:PutScalingPolicy",
         "autoscaling:SetDesiredCapacity",
+        "autoscaling:SetInstanceProtection",
+        "autoscaling:TerminateInstanceInAutoScalingGroup",
       ]
       Resource  = "arn:aws:autoscaling:${var.aws_region}:${var.account_id}:autoScalingGroup:*:autoScalingGroupName/airbob-lab-*"
       Condition = local.lab_ephemeral_resource_tag_condition
@@ -1791,7 +1822,9 @@ locals {
   lab_app_compute_core_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      for statement in local.lab_app_compute_statements : statement
+      # Sid is optional metadata. Keep named source statements for review while
+      # preserving every action/resource/condition within the managed quota.
+      for statement in local.lab_app_compute_statements : { for key, value in statement : key => value if key != "Sid" }
       if !contains([
         "CreateTaggedLabLoadBalancing",
         "TagNewLabLoadBalancingOnCreate",
@@ -1819,4 +1852,52 @@ resource "aws_iam_policy" "lab_host_boundary" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# This controller-only permission appears only after the exact new B snapshot
+# identifier is approved in the existing foundation contract. Host roles never
+# receive persistent snapshot creation/deletion permission.
+locals {
+  lab_b_snapshot_controller_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CreateExactApprovedBSnapshot"
+        Effect   = "Allow"
+        Action   = ["rds:CreateDBSnapshot", "rds:AddTagsToResource"]
+        Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:snapshot:${var.approved_b_snapshot_creation_identifier}"
+        Condition = { StringEquals = {
+          "aws:RequestedRegion"         = var.aws_region
+          "aws:RequestTag/Project"      = "airbob", "aws:RequestTag/Environment" = "performance-lab"
+          "aws:RequestTag/Stack"        = "dataset", "aws:RequestTag/Persistence" = "persistent"
+          "aws:RequestTag/ManagedBy"    = "global-b-snapshot", "aws:RequestTag/BProvenanceSchemaVersion" = "1"
+          "aws:RequestTag/MysqlVersion" = "8.4.11", "aws:RequestTag/FlywayVersion" = "28"
+        } }
+      },
+      {
+        Sid      = "SnapshotOnlyBoundSourceRun"
+        Effect   = "Allow"
+        Action   = "rds:CreateDBSnapshot"
+        Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:db:airbob-$${aws:RequestTag/SourceRunId}"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+            "rds:db-tag/Project"  = "airbob", "rds:db-tag/Environment" = "performance-lab"
+            "rds:db-tag/Stack"    = "lab", "rds:db-tag/Persistence" = "ephemeral"
+            "rds:db-tag/RunId"    = "$${aws:RequestTag/SourceRunId}"
+            "rds:DatabaseEngine"  = "mysql", "rds:DatabaseClass" = "db.t3.small"
+          }
+          StringLike = { "aws:RequestTag/SourceRunId" = "lab-*" }
+          Bool       = { "rds:StorageEncrypted" = "true" }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lab_b_snapshot_controller" {
+  count  = var.approved_b_snapshot_creation_identifier != "" ? 1 : 0
+  name   = "airbob-performance-lab-b-snapshot-controller"
+  role   = aws_iam_role.lab_operator.id
+  policy = local.lab_b_snapshot_controller_policy
 }

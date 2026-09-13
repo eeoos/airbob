@@ -9,9 +9,9 @@ on:
         description: Lab operation
         required: true
         type: choice
-        options: [up, prepare, status, switch, down]
+        options: [up, prepare, services, asg-probe, snapshot-create, snapshot-restore, snapshot-prepare, snapshot-retire, status, switch, down]
       run_id:
-        description: Existing lab run id used by switch or down
+        description: Existing lab run id used by services, switch, or down
         required: false
         type: string
       mode:
@@ -33,7 +33,7 @@ on:
         type: choice
         options: [direct-only, cutover]
       alb_ingress_cidr:
-        description: Exact operator IPv4 /32 required by direct-only up
+        description: Optional exact current runner IPv4 /32 for direct-only operations
         required: false
         type: string
       app_image_digest:
@@ -45,11 +45,11 @@ on:
         required: false
         type: string
       dataset_manifest_version_id:
-        description: Audited S3 VersionId of the dataset marker (aws-preparation.json for B prepare)
+        description: Audited S3 VersionId of the selected legacy, B preparation, service, or snapshot marker
         required: false
         type: string
       b_preparation_sha256:
-        description: Reviewed aws-preparation.json SHA256; mandatory for B data-only prepare
+        description: Reviewed content-addressed B preparation manifest SHA256; required for prepare
         required: false
         type: string
       bundle_commit:
@@ -98,11 +98,23 @@ on:
         required: false
         default: '6'
         type: string
+      approved_execution_deadline_epoch:
+        description: Approved common UTC epoch deadline for every B run and continuation; never reset per run
+        required: false
+        type: string
       keep_on_failure:
         description: Preserve a failed pre-cutover lab for diagnosis
         required: false
         default: false
         type: boolean
+      expected_execution_commit:
+        description: Reviewed full main commit SHA; required for every manual mutation
+        required: false
+        type: string
+      b_operation:
+        description: Closed B service, ASG probe, or snapshot operation JSON; omit for other actions
+        required: false
+        type: string
       force:
         description: Force expired down at or after the declared expiry
         required: false
@@ -116,7 +128,7 @@ jobs:
   operate:
     runs-on: ubuntu-latest
     environment: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'aws-performance-lab-cutover' || 'aws-performance-lab' }}
-    timeout-minutes: ${{ (inputs.action == 'up' || inputs.action == 'prepare') && 359 || 120 }}
+    timeout-minutes: ${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 359 || 120 }}
     permissions:
       contents: read
       id-token: write
@@ -129,7 +141,7 @@ jobs:
           set -euo pipefail
           WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120
           workflow_ceiling_seconds=7200
-          if [[ "$ACTION" == up || "$ACTION" == prepare ]]; then
+          if [[ "$ACTION" == up || "$ACTION" == prepare || "$ACTION" == services || "$ACTION" == asg-probe || "$ACTION" == snapshot-* ]]; then
             workflow_ceiling_seconds=21540
           fi
           printf 'AIRBOB_WORKFLOW_DEADLINE_EPOCH=%s\n' \
@@ -138,6 +150,112 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify reviewed main commit and closed operation inputs
+        env:
+          AIRBOB_EVENT_NAME: ${{ github.event_name }}
+          AIRBOB_ACTION: ${{ inputs.action }}
+          AIRBOB_EXPECTED_EXECUTION_COMMIT: ${{ inputs.expected_execution_commit }}
+          AIRBOB_B_OPERATION: ${{ inputs.b_operation }}
+          AIRBOB_DNS_MODE: ${{ inputs.dns_mode }}
+          AIRBOB_MODE: ${{ inputs.mode }}
+          AIRBOB_POLICY: ${{ inputs.policy }}
+          AIRBOB_DATABASE_BOOTSTRAP: ${{ inputs.database_bootstrap }}
+          AIRBOB_LOAD_GENERATOR_ENABLED: ${{ inputs.load_generator_enabled }}
+          AIRBOB_APPROVED_EXECUTION_DEADLINE_EPOCH: ${{ inputs.approved_execution_deadline_epoch }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import json, os, re, subprocess, time
+          def require(value, message):
+              if not value:
+                  raise SystemExit(message)
+          def exact_pairs(pairs):
+              result = {}
+              for key, value in pairs:
+                  require(key not in result, "B operation JSON contains duplicate keys")
+                  result[key] = value
+              return result
+          head = subprocess.check_output(["git", "rev-parse", "--verify", "HEAD^{commit}"], text=True).strip()
+          sha = os.environ["GITHUB_SHA"]
+          require(os.environ["GITHUB_REF"] == "refs/heads/main", "Only the protected main deployment branch is allowed")
+          require(re.fullmatch(r"[0-9a-f]{40}", sha) and head == sha, "Checked-out commit differs from the dispatch commit")
+          event = os.environ["AIRBOB_EVENT_NAME"]
+          if event == "schedule":
+              raise SystemExit(0)
+          require(event == "workflow_dispatch", "Unsupported workflow event")
+          action = os.environ["AIRBOB_ACTION"]
+          require(action in {"up", "prepare", "services", "asg-probe", "snapshot-create", "snapshot-restore", "snapshot-prepare", "snapshot-retire", "status", "switch", "down"}, "Unsupported operation")
+          expected = os.environ["AIRBOB_EXPECTED_EXECUTION_COMMIT"]
+          if action != "status" or expected:
+              require(re.fullmatch(r"[0-9a-f]{40}", expected) and expected == sha, "Reviewed execution commit must equal the checked-out main commit")
+          try:
+              operation = json.loads(os.environ.get("AIRBOB_B_OPERATION") or "{}", object_pairs_hook=exact_pairs)
+          except (ValueError, TypeError):
+              raise SystemExit("B operation must be valid JSON")
+          require(isinstance(operation, dict), "B operation must be an object")
+          env = {}
+          if action in {"prepare", "services", "asg-probe", "snapshot-create", "snapshot-restore", "snapshot-prepare", "snapshot-retire"}:
+              deadline = os.environ.get("AIRBOB_APPROVED_EXECUTION_DEADLINE_EPOCH", "")
+              require(re.fullmatch(r"[1-9][0-9]{9}", deadline), "B operations require the approved common UTC execution deadline")
+              remaining = int(deadline) - int(time.time())
+              require(remaining > 0, "The approved B execution deadline has expired")
+              if action in {"prepare", "snapshot-restore"}:
+                  require(remaining >= 21600, "A new B run requires at least six hours before the approved common deadline")
+              require(os.environ["AIRBOB_DNS_MODE"] == "direct-only", "B operations require direct-only DNS")
+              require(os.environ["AIRBOB_MODE"] == "performance", "B operations require performance mode")
+              require(os.environ["AIRBOB_LOAD_GENERATOR_ENABLED"] == "false", "B operations must keep the load generator disabled")
+          if action == "services":
+              require(operation.get("stage") in {"dependencies", "bootstrap", "application"}, "B service stage is invalid")
+              required = {"serviceRelease", "serviceManifestSha256", "stage"}
+              if operation["stage"] == "application":
+                  required |= {"readinessVersionId", "readinessSha256"}
+              require(set(operation) == required, "B service operation keys differ from the selected stage")
+              require(isinstance(operation["serviceRelease"], str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{2,47}", operation["serviceRelease"]), "B service release is invalid")
+              require(isinstance(operation["serviceManifestSha256"], str) and re.fullmatch(r"[0-9a-f]{64}", operation["serviceManifestSha256"]), "B service manifest SHA is invalid")
+              env = {"B_SERVICE_RELEASE": operation["serviceRelease"], "B_SERVICE_SHA256": operation["serviceManifestSha256"], "B_SERVICE_STAGE": operation["stage"]}
+              if operation["stage"] == "application":
+                  require(isinstance(operation["readinessVersionId"], str) and re.fullmatch(r"[A-Za-z0-9._~+/=-]+", operation["readinessVersionId"]) and operation["readinessVersionId"] not in {"null", "None"}, "B readiness VersionId is invalid")
+                  require(isinstance(operation["readinessSha256"], str) and re.fullmatch(r"[0-9a-f]{64}", operation["readinessSha256"]), "B readiness SHA is invalid")
+                  env.update(B_READINESS_VERSION_ID=operation["readinessVersionId"], B_READINESS_SHA256=operation["readinessSha256"])
+          elif action == "asg-probe":
+              required = {"operationId", "serviceRelease", "serviceManifestSha256", "readinessVersionId", "readinessSha256", "detailPath"}
+              require(required <= set(operation) <= required | {"resume"}, "B ASG probe operation keys differ")
+              for key in ("operationId", "serviceRelease"):
+                  require(isinstance(operation[key], str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{2,47}", operation[key]) and "--" not in operation[key] and not operation[key].endswith("-"), "B ASG probe coordinates are invalid")
+              for key in ("serviceManifestSha256", "readinessSha256"):
+                  require(isinstance(operation[key], str) and re.fullmatch(r"[0-9a-f]{64}", operation[key]), "B ASG proof SHA is invalid")
+              require(isinstance(operation["readinessVersionId"], str) and re.fullmatch(r"[A-Za-z0-9._~+/=-]{1,1024}", operation["readinessVersionId"]) and operation["readinessVersionId"] not in {"null", "None"}, "B ASG readiness version is invalid")
+              require(isinstance(operation["detailPath"], str) and re.fullmatch(r"/api/v1/accommodations/[1-9][0-9]{0,18}", operation["detailPath"]), "B ASG probe permits one exact public detail GET")
+              if "resume" in operation:
+                  require(isinstance(operation["resume"], dict) and set(operation["resume"]) == {"configuration", "receipt"}, "B ASG resume requires exact configuration and receipt")
+                  for key, suffix in (("configuration", "configuration.json"), ("receipt", "asg-probe.json")):
+                      item = operation["resume"][key]
+                      require(isinstance(item, dict) and set(item) == {"key", "versionId", "sha256", "bytes"}, "B ASG resume reference fields differ")
+                      require(isinstance(item["key"], str) and re.fullmatch(r"data-bootstrap/lab-[a-z0-9][a-z0-9-]{0,27}/asg-probe/" + re.escape(operation["operationId"]) + r"-[1-9][0-9]*/" + re.escape(suffix), item["key"]), "B ASG resume path is invalid")
+                      require(isinstance(item["versionId"], str) and re.fullmatch(r"[A-Za-z0-9._~+/=-]{1,1024}", item["versionId"]) and item["versionId"] not in {"null", "None"}, "B ASG resume version is invalid")
+                      require(isinstance(item["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) and type(item["bytes"]) is int and 0 < item["bytes"] <= 20971520, "B ASG resume metadata is invalid")
+              env = {"B_ASG_PROBE_OPERATION_JSON": json.dumps(operation, sort_keys=True, separators=(",", ":"))}
+          elif action == "snapshot-restore":
+              require({"provenanceSha256"} <= set(operation) <= {"provenanceSha256", "provenanceKey"}, "B snapshot operation must contain provenanceSha256 and optional exact provenanceKey")
+              require(isinstance(operation["provenanceSha256"], str) and re.fullmatch(r"[0-9a-f]{64}", operation["provenanceSha256"]), "B snapshot provenance SHA is invalid")
+              require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == "snapshot" and os.environ["AIRBOB_POLICY"] == "isolated-read", "B snapshot target creation requires isolated-read snapshot mode")
+              env["B_SNAPSHOT_PROVENANCE_SHA256"] = operation["provenanceSha256"]
+              if "provenanceKey" in operation:
+                  require(isinstance(operation["provenanceKey"], str) and re.fullmatch(r"data-bootstrap/lab-[a-z0-9][a-z0-9-]{0,27}/global-growth-b-[0-9a-f]{16}-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json", operation["provenanceKey"]), "B source-host provenance key is invalid")
+                  env["B_SNAPSHOT_PROVENANCE_KEY"] = operation["provenanceKey"]
+          elif action in {"snapshot-create", "snapshot-prepare", "snapshot-retire"}:
+              require(set(operation) == {"operationId", "manifestSha256"}, "B host operation keys differ")
+              require(isinstance(operation["operationId"], str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{2,47}", operation["operationId"]) and "--" not in operation["operationId"] and not operation["operationId"].endswith("-"), "B snapshot operationId is invalid")
+              require(isinstance(operation["manifestSha256"], str) and re.fullmatch(r"[0-9a-f]{64}", operation["manifestSha256"]), "B snapshot manifest SHA is invalid")
+              require(os.environ["AIRBOB_POLICY"] == "isolated-read", "B host operations require isolated-read controller mode")
+              env = {"B_SNAPSHOT_OPERATION_ID": operation["operationId"], "B_SNAPSHOT_OPERATION_SHA256": operation["manifestSha256"]}
+          else:
+              require(not operation, "B operation input is not accepted for this action")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              for key, value in sorted(env.items()):
+                  output.write(key + "=" + value + "\n")
+          PYCODE
 
       - name: Set up Terraform 1.15.5
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
@@ -173,7 +291,7 @@ jobs:
           role-to-assume: ${{ (github.event_name == 'schedule' || inputs.action == 'switch' || inputs.dns_mode == 'cutover') && vars.AWS_LAB_CUTOVER_OPERATOR_ROLE_ARN || vars.AWS_LAB_OPERATOR_ROLE_ARN }}
           aws-region: ap-northeast-2
           role-session-name: airbob-lab-${{ github.run_id }}
-          role-duration-seconds: ${{ (inputs.action == 'up' || inputs.action == 'prepare') && 21600 || 7200 }}
+          role-duration-seconds: ${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 21600 || 7200 }}
           output-credentials: true
 
       - name: Verify operator credential scope
@@ -192,7 +310,7 @@ jobs:
           }
 
       - name: Resolve direct-only operator ingress /32
-        if: github.event_name == 'workflow_dispatch' && (inputs.action == 'up' || inputs.action == 'prepare') && inputs.dns_mode == 'direct-only'
+        if: github.event_name == 'workflow_dispatch' && (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'snapshot-restore') && inputs.dns_mode == 'direct-only'
         env:
           REQUESTED_CIDR: ${{ inputs.alb_ingress_cidr || vars.AWS_LAB_OPERATOR_CIDR }}
         run: |
@@ -232,6 +350,7 @@ jobs:
       - name: Run shared lab operator
         if: github.event_name == 'workflow_dispatch'
         env:
+          AIRBOB_ACTION: ${{ inputs.action }}
           AWS_REGION: ap-northeast-2
           MODE: ${{ inputs.mode }}
           POLICY: ${{ inputs.policy }}
@@ -244,11 +363,13 @@ jobs:
           REQUEST_TARGET: ${{ inputs.request_target }}
           TARGET: ${{ inputs.target }}
           TTL_HOURS: ${{ inputs.ttl_hours }}
+          APPROVED_EXECUTION_DEADLINE_EPOCH: ${{ inputs.approved_execution_deadline_epoch }}
+          ASG_PROBE_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-asg-probe
           KEEP_ON_FAILURE: ${{ inputs.keep_on_failure }}
           FORCE: ${{ inputs.force }}
           AMI_ID: ${{ vars.AWS_LAB_AMI_ID }}
           OCI_ORIGIN_IPV4: ${{ vars.OCI_ORIGIN_IPV4 }}
-          RDS_ENGINE_VERSION: ${{ inputs.action == 'prepare' && '8.4.11' || vars.AWS_LAB_RDS_ENGINE_VERSION }}
+          RDS_ENGINE_VERSION: ${{ (inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && '8.4.11' || vars.AWS_LAB_RDS_ENGINE_VERSION }}
           CACHE_ENABLED: ${{ vars.AWS_LAB_CACHE_ENABLED || 'true' }}
           LOAD_GENERATOR_ENABLED: ${{ inputs.load_generator_enabled }}
           BUNDLE_COMMIT: ${{ inputs.bundle_commit }}
@@ -258,8 +379,17 @@ jobs:
           RDS_SNAPSHOT_SOURCE_RESOURCE_ID: ${{ inputs.rds_snapshot_source_resource_id }}
           AIRBOB_AWS_CREDENTIAL_EXPIRATION: ${{ fromJSON(steps.aws_credentials.outputs.aws-expiration) }}
           AWS_LAB_OPERATOR_SCOPE: ${{ (inputs.action == 'switch' || inputs.dns_mode == 'cutover') && 'cutover' || 'direct' }}
-          RUN_ID: ${{ (inputs.action == 'up' || inputs.action == 'prepare') && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
-        run: infra/aws/scripts/aws-lab.sh "${{ inputs.action }}"
+          RUN_ID: ${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'snapshot-restore') && format('lab-{0}-{1}', github.run_id, github.run_attempt) || inputs.run_id }}
+        run: infra/aws/scripts/aws-lab.sh "$AIRBOB_ACTION"
+
+      - name: Preserve B ASG probe recovery evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.action == 'asg-probe'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-asg-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/airbob-b-asg-probe
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Clean up an expired lab after grace
         if: github.event_name == 'schedule'
