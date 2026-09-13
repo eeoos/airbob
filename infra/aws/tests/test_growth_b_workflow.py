@@ -56,6 +56,29 @@ class WorkflowAdmission(unittest.TestCase):
         status, env = self.run_gate('services', selected | {'stage': 'application', 'readinessVersionId': 'version-1', 'readinessSha256': 'd'*64})
         self.assertEqual(0, status); self.assertIn('B_READINESS_VERSION_ID=version-1', env)
 
+    def test_native_search_requires_reviewed_source_and_original_dump_stage_before_oidc(self):
+        sys.path.insert(0, str(WORKFLOW.parents[2] / 'infra/aws/scripts'))
+        import growth_b_search_controller as native
+        selected = {'schemaVersion': 1, 'kind': native.KIND, 'stage': 'native-restore',
+            'operationId': 'native-final-01', 'runId': 'lab-source-01', 'datasetId': native.DATASET,
+            'serviceRelease': 'dependencies-01', 'executionCommit': COMMIT,
+            'sourceArchiveSha256': native.source_archive()[1]['sha256'],
+            'manifest': {'key': f'datasets/{native.DATASET}-aws-service/dependencies-01/aws-service.json',
+                'versionId': 'actual-service-v1', 'sha256': 'c' * 64, 'bytes': 3000}}
+        status, environment = self.run_gate('services', selected)
+        self.assertEqual(0, status)
+        lines = dict(line.split('=', 1) for line in environment.splitlines())
+        self.assertEqual('native-restore', lines['B_SERVICE_STAGE'])
+        self.assertEqual(selected, json.loads(lines['B_NATIVE_OPERATION_JSON']))
+        for patch in ({'sourceArchiveSha256': 'f' * 64}, {'executionCommit': 'b' * 40}, {'extra': True},
+                      {'operationId': 'native\nAWS_PROFILE=other'}):
+            with self.subTest(patch=patch):
+                status, environment = self.run_gate('services', selected | patch)
+                self.assertNotEqual(0, status); self.assertEqual('', environment)
+        self.assertNotEqual(0, self.run_gate('services', selected, bootstrap='snapshot')[0])
+        self.assertNotEqual(0, self.run_gate('services', selected, policy='integrated-smoke')[0])
+        self.assertNotEqual(0, self.run_gate('services', selected, deadline='')[0])
+
     def test_snapshot_is_explicit_and_cannot_use_legacy_dump_selection(self):
         selected = {'provenanceSha256': 'd'*64}
         status, env = self.run_gate('snapshot-restore', selected, bootstrap='snapshot')
@@ -256,6 +279,7 @@ LEASE_DEADLINE_SECONDS=20700
 
     def test_every_b_continuation_rechecks_deadline_before_lease_and_new_run_persists_it(self):
         for name, next_name in (('continue_global_b_snapshot_operation', 'write_global_b_snapshot_admission'),
+                                ('continue_global_b_native_search', 'continue_global_b_services'),
                                 ('continue_global_b_services', None)):
             section = self.source.split(name + '() {', 1)[1]
             section = section.split(next_name + '() {', 1)[0] if next_name else section.split('\ncase "$action" in', 1)[0]

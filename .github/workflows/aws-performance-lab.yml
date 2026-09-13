@@ -206,8 +206,19 @@ jobs:
               require(os.environ["AIRBOB_MODE"] == "performance", "B operations require performance mode")
               require(os.environ["AIRBOB_LOAD_GENERATOR_ENABLED"] == "false", "B operations must keep the load generator disabled")
           if action == "services":
-              require(operation.get("stage") in {"dependencies", "bootstrap", "application", "snapshot-verify"}, "B service stage is invalid")
-              if operation["stage"] == "snapshot-verify":
+              require(operation.get("stage") in {"dependencies", "native-restore", "bootstrap", "application", "snapshot-verify"}, "B service stage is invalid")
+              if operation["stage"] == "native-restore":
+                  import sys
+                  sys.path.insert(0, "infra/aws/scripts")
+                  from growth_b_search_controller import validate_operation
+                  validate_operation(operation)
+                  require(operation["executionCommit"] == sha, "Native search must identify this reviewed main commit")
+                  require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == "dump", "Native search requires the original dump preparation")
+                  require(os.environ["AIRBOB_POLICY"] == "isolated-read", "Native search requires isolated-read controller mode")
+                  env = {"B_SERVICE_RELEASE": operation["serviceRelease"], "B_SERVICE_STAGE": "native-restore",
+                      "B_SERVICE_SHA256": operation["manifest"]["sha256"],
+                      "B_NATIVE_OPERATION_JSON": json.dumps(operation, sort_keys=True, separators=(",", ":"))}
+              elif operation["stage"] == "snapshot-verify":
                   import sys
                   sys.path.insert(0, "infra/aws/scripts")
                   from growth_b_snapshot_service_verify import validate_operation
@@ -383,6 +394,7 @@ jobs:
           TTL_HOURS: ${{ inputs.ttl_hours }}
           APPROVED_EXECUTION_DEADLINE_EPOCH: ${{ inputs.approved_execution_deadline_epoch }}
           CDC_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-cdc
+          NATIVE_SEARCH_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-native-search
           SNAPSHOT_SERVICE_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-snapshot-service
           ASG_PROBE_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-asg-probe
           KEEP_ON_FAILURE: ${{ inputs.keep_on_failure }}
@@ -417,6 +429,15 @@ jobs:
         with:
           name: global-b-snapshot-service-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/airbob-b-snapshot-service/**/public/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Preserve B native search evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.action == 'services' && env.B_SERVICE_STAGE == 'native-restore'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-native-search-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/airbob-b-native-search
           if-no-files-found: ignore
           retention-days: 7
 

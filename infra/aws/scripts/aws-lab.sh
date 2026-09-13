@@ -858,6 +858,15 @@ canonical_operator_tree_sha256() {
       [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "B service identity file is unavailable"
       printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
     done
+    if [[ "${B_SERVICE_STAGE:-}" == native-restore ]]; then
+      python3 - "$script_dir" >> "$inventory" <<'AIRBOB_B_NATIVE_IDENTITY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from growth_b_search_controller import source_files
+for relative, digest in sorted(source_files().items()):
+    print(digest + '\t' + relative)
+AIRBOB_B_NATIVE_IDENTITY
+    fi
   fi
   if [[ "$global_b_asg_probe" == true ]]; then
     for relative in infra/aws/scripts/growth_b_asg_probe.py infra/aws/scripts/growth_b_asg_controller.py infra/aws/scripts/growth_b_app_runtime.py; do
@@ -3489,12 +3498,105 @@ AIRBOB_B_SNAPSHOT_SERVICE_OPERATION
   printf 'run_id=%s\nsnapshot_target_service_verified=true\nsource_r4_or_cdc_mutation_executed=false\n' "$run_id"
 }
 
+continue_global_b_native_search() {
+  local original="$temp_dir/native-source-operator.json" selected="$temp_dir/native-search-operation.json"
+  local operation_id evidence_root evidence_run context deadline proof_status=0 recovery_sha recovery_key
+  local phase3 phase4 selected_state
+  run_id=${RUN_ID:-}
+  valid_run_id "$run_id" || fail "Native search requires the exact retained preparation RUN_ID"
+  printf '%s\n' "${B_NATIVE_OPERATION_JSON:-}" > "$selected"
+  python3 - "$script_dir" "$selected" <<'AIRBOB_B_NATIVE_OPERATION'
+import sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_search_controller as controller
+controller.validate_operation(controller.read(sys.argv[2]))
+AIRBOB_B_NATIVE_OPERATION
+  read_run_manifest "$run_id" "$original"
+  jq -e '.schemaVersion==2 and .globalBPrepareOnly==true and .databaseBootstrap=="dump" and
+    .mode=="performance" and .dnsMode=="direct-only" and .rdsEngineVersion=="8.4.11" and
+    .loadGeneratorEnabled==false and .cacheEnabled==false' "$original" >/dev/null \
+    || fail "Native search requires the original cache-disabled B dump preparation run"
+  manifest=$original
+  dataset_release=$(jq -er '.datasetRelease' "$original")
+  [[ "${DATASET_RELEASE:-}" == "$dataset_release" && "$(jq -er '.datasetId' "$selected")" == "$dataset_release" &&
+    "$(jq -er '.runId' "$selected")" == "$run_id" ]] || fail "Native search operation differs from its retained dataset/run"
+  operation_id=$(jq -er '.operationId' "$selected")
+  global_b_service_release=$(jq -er '.serviceRelease' "$selected")
+  resource_fencing_token=$(jq -er '.fencingToken' "$original"); expires_at=$(jq -er '.expiresAt' "$original")
+  [[ "$resource_fencing_token" =~ ^[1-9][0-9]*$ && "$expires_at" =~ ^[1-9][0-9]{9}$ ]] || fail "Invalid retained native search resource identity"
+  validate_retained_global_b_execution_deadline "$original"
+  (( expires_at > $(date +%s) + LEASE_DEADLINE_SECONDS )) || fail "Original paid-resource TTL cannot cover native search; it is not extended"
+  mode=performance; policy=isolated-read; dns_mode=direct-only; load_generator_enabled=false; cache_enabled=false
+  database_bootstrap=dump; bundle_commit=$(jq -er '.bundleCommit' "$original")
+  [[ "${BUNDLE_COMMIT:-}" == "$bundle_commit" && "${IMAGE_DIGEST:-}" == "$(jq -er '.imageDigest' "$original")" ]] \
+    || fail "Native search must retain the prepared application tuple"
+  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]] || fail "Native search requires a clean reviewed execution commit"
+  execution_commit=$(git -C "$repo_root" rev-parse HEAD)
+  [[ "$(jq -er '.executionCommit' "$selected")" == "$execution_commit" ]] || fail "Native search execution commit changed"
+  operator_tree_sha256=$(canonical_operator_tree_sha256)
+  validate_operator_scope_for_action false; assert_b_source_not_retired
+  evidence_root=${NATIVE_SEARCH_EVIDENCE_DIR:-}
+  [[ "$evidence_root" == /* && ! -L "$evidence_root" ]] || fail "NATIVE_SEARCH_EVIDENCE_DIR must be a private absolute directory"
+  validate_workflow_deadline_budget; validate_up_credential_budget
+  validate_retained_global_b_execution_deadline "$original"
+  start_mutation_guard
+  deadline=$(($(date +%s) + COMMAND_DEADLINE_SECONDS - 60))
+  (( deadline <= expires_at )) || deadline=$expires_at
+  (( deadline <= approved_execution_deadline_epoch )) || deadline=$approved_execution_deadline_epoch
+  if [[ -n "${AIRBOB_WORKFLOW_DEADLINE_EPOCH:-}" ]] && (( deadline > AIRBOB_WORKFLOW_DEADLINE_EPOCH )); then
+    deadline=$AIRBOB_WORKFLOW_DEADLINE_EPOCH
+  fi
+  prepare_lab_backend; recover_prior_terraform_lock; assert_state_run_identity required
+  verify_oci_authority before-b-native-search
+  evidence_run="$evidence_root/$run_id-$operation_id-$fencing_token"
+  mkdir -p -m 700 "$evidence_root"; mkdir -m 700 "$evidence_run"
+  cp "$original" "$evidence_run/operator.json"; cp "$selected" "$evidence_run/operation.json"
+  write_current_lease_file "$evidence_run/lease.json"
+  # Project only the public admission fields. Never persist raw state or the
+  # complete Terraform output object in the new controller's evidence directory.
+  phase2=$(run_terraform_command "Terraform native search hosts" -chdir="$lab_root" output -json phase2_contract | jq '{run_id,fencing_token,vpc_id,services}')
+  phase3=$(run_terraform_command "Terraform native search RDS identity" -chdir="$lab_root" output -json phase3_contract | jq '{dataset_release,database_bootstrap,rds_instance_id,rds_resource_id,rds_endpoint,rds_engine_version,rds_configured_storage_gib}')
+  phase4=$(run_terraform_command "Terraform native search writer capacity" -chdir="$lab_root" output -json phase4_contract | jq '{app_enabled,capacity,accommodation_detail_cache_enabled,load_generator_enabled,auto_scaling_group_name}')
+  selected_state=$(run_terraform_command "Terraform native search selected service" -chdir="$lab_root" output -json global_b_service | jq '{selected,manifest_key,manifest_version_id,manifest_sha256,readiness_receipt}')
+  context="$evidence_run/context.json"
+  jq -n --arg commit "$execution_commit" --argjson approved "$approved_execution_deadline_epoch" --argjson deadline "$deadline" \
+    --slurpfile original "$evidence_run/operator.json" --slurpfile lease "$evidence_run/lease.json" \
+    --argjson phase2 "$phase2" --argjson phase3 "$phase3" --argjson phase4 "$phase4" --argjson state "$selected_state" \
+    '{schemaVersion:1,kind:"global-b-aws-native-search-controller-context",executionCommit:$commit,
+      approvedExecutionDeadlineEpoch:$approved,controllerDeadlineEpoch:$deadline,operator:$original[0],lease:$lease[0],
+      phase2:$phase2,phase3:$phase3,phase4:$phase4,serviceState:$state}' > "$context"
+  python3 "$script_dir/growth_b_search_controller.py" validate-operation --operation "$selected" --context "$context" \
+    --output "$evidence_run/validation.json"
+  # This stage never writes tfvars, applies a lab plan or enters initial-up teardown.
+  current_stage=b-native-search
+  run_supervised_mutation "Restore exact native B search on its ES host" \
+    python3 "$script_dir/growth_b_search_controller.py" run --operation "$selected" --context "$context" \
+    --directory "$evidence_run/controller" || proof_status=$?
+  if [[ -f "$evidence_run/controller/public/recovery.json" ]]; then
+    recovery_sha=$(sha256_file "$evidence_run/controller/public/recovery.json")
+    recovery_key="data-bootstrap/$run_id/$dataset_release-native-search/$operation_id/recovery-$recovery_sha.json"
+    publish_global_b_cdc_json "$recovery_key" "$evidence_run/controller/public/recovery.json" "$evidence_run/recovery-reference.json"
+  fi
+  [[ "$proof_status" -eq 0 ]] || return "$proof_status"
+  assert_lease
+  verify_oci_authority after-b-native-search
+  jq -e '.state=="NATIVE_SEARCH_RESTORED_AND_SOURCE_VERIFIED" and .freshServiceManifestRequired==true' \
+    "$evidence_run/controller/public/completion.json" >/dev/null || fail "Native search completion is not verified"
+  publish_immutable_json "data-bootstrap/$run_id/$dataset_release-native-search/$operation_id/completion.json" \
+    "$evidence_run/controller/public/completion.json"
+  printf 'run_id=%s\nb_service_stage=native-restore\nexpires_at=%s\n' "$run_id" "$expires_at"
+}
+
 continue_global_b_services() {
   local stage=${B_SERVICE_STAGE:-dependencies} original="$temp_dir/b-prepared-operator.json"
   local receipt="$temp_dir/b-service-readiness.json" head="$temp_dir/b-service-readiness-head.json"
   local receipt_key receipt_version receipt_sha old_dataset
   if [[ "$stage" == snapshot-verify ]]; then
     continue_global_b_snapshot_service
+    return
+  fi
+  if [[ "$stage" == native-restore ]]; then
+    continue_global_b_native_search
     return
   fi
   run_id=${RUN_ID:-}
