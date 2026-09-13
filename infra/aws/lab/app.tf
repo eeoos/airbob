@@ -35,7 +35,7 @@ locals {
     appRuntimeBinding = try(local.dataset_manifest.appRuntimeBinding, null)
     appRuntime        = try(local.growth_b_service_runtime.runtime, null)
     rds = local.application_infrastructure_enabled ? {
-      identifier      = module.rds[0].id, resourceId = module.rds[0].resource_id, endpoint = module.rds[0].address
+      identifier      = module.rds[0].identifier, resourceId = module.rds[0].resource_id, endpoint = module.rds[0].address
       masterSecretArn = module.rds[0].master_secret_arn, serverUuid = try(local.dataset_manifest.rds.serverUuid, null)
     } : null
     readiness = var.global_b_readiness_receipt == null ? null : {

@@ -103,7 +103,7 @@ output "phase3_contract" {
     profile_version            = local.dataset_profile_version
     production_spec_key        = try(local.dataset_profile_contract.production_spec_key, null)
     database_bootstrap         = var.database_bootstrap
-    rds_instance_id            = local.services_enabled ? module.rds[0].id : null
+    rds_instance_id            = local.services_enabled ? module.rds[0].identifier : null
     rds_resource_id            = local.services_enabled ? module.rds[0].resource_id : null
     rds_endpoint               = local.services_enabled ? module.rds[0].address : null
     rds_engine_version         = var.rds_engine_version
