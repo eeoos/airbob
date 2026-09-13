@@ -1,5 +1,6 @@
 """Bounded full-source/native snapshot contracts; no cloud or running databases."""
 import copy
+import contextlib
 import hashlib
 import io
 import json
@@ -8,7 +9,7 @@ import sys
 import tempfile
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import growth_b_search as search
 from growth_b_contract import TABLES
@@ -68,6 +69,18 @@ class SearchContracts(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
     def tearDown(self): self.temp.cleanup()
+    def test_isolated_reader_has_region_without_inheriting_real_aws_credentials(self):
+        with patch.dict(search.os.environ, {'PATH': '/usr/bin', 'AWS_REGION': 'us-east-1',
+                'AWS_PROFILE': 'operator', 'AWS_ACCESS_KEY_ID': 'real-key',
+                'AWS_SECRET_ACCESS_KEY': 'real-secret', 'AWS_SESSION_TOKEN': 'real-token',
+                'SPRING_CLOUD_AWS_REGION_STATIC': 'eu-west-1', 'JAVA_TOOL_OPTIONS': '-Dinjected=true'}, clear=True):
+            environment = search.clean_java_environment()
+        self.assertEqual('ap-northeast-2', environment['AWS_REGION'])
+        self.assertEqual('true', environment['AWS_EC2_METADATA_DISABLED'])
+        self.assertEqual('dummy', environment['AWS_ACCESS_KEY_ID'])
+        self.assertEqual('dummy', environment['AWS_SECRET_ACCESS_KEY'])
+        self.assertFalse({'AWS_PROFILE', 'AWS_SESSION_TOKEN', 'SPRING_CLOUD_AWS_REGION_STATIC',
+                          'JAVA_TOOL_OPTIONS'} & environment.keys())
     def documents(self, docs):
         path = self.root / ('docs-' + uuid.uuid4().hex + '.jsonl')
         path.write_text(''.join(json.dumps(d) + '\n' for d in docs)); return path
@@ -210,7 +223,9 @@ class SearchContracts(unittest.TestCase):
         dataset = 'global-growth-b-' + 'a' * 16; release = dataset + '-search-unit-test'
         anchor = {'datasetId': dataset, 'consumerManifestSha256': '1' * 64,
                   'checksSha256': '2' * 64, 'appJarSha256': '3' * 64}
-        fingerprint = search.file_fingerprint(self.documents([doc(1)])) | {'mappingSha256': '4' * 64, 'indexSemanticsSha256': search.digest(search.index_semantics({}))}
+        fingerprint = search.file_fingerprint(self.documents([doc(1)])) | {
+            'mappingSha256': search.digest({'properties': {'accommodationId': {'type': 'long'}}}),
+            'indexSemanticsSha256': search.digest(search.index_semantics({}))}
         base = base_fingerprint(); owners = {'rows': 1, 'rowsSha256': 'a' * 64, 'invalidFreeRows': 0}
         inventory = {'type': 'fs', 'entries': [{'key': 'index-0', 'sha256': '5' * 64, 'bytes': 42}]}
         proof = {'schemaVersion': 1, **anchor, 'state': 'PINNED_MYSQL_SOURCE_VERIFIED',
@@ -227,6 +242,7 @@ class SearchContracts(unittest.TestCase):
             'repository': {'type': 'fs', 'layout': 'native-elasticsearch-repository'}, 'nativeInventorySha256': search.digest(inventory)}
         receipt = {'schemaVersion': 1, **anchor, 'snapshotRelease': release, 'snapshotUuid': 'native-uuid',
             'state': 'NATIVE_SNAPSHOT_PRODUCED_AND_RESTORED', 'sourceFingerprint': fingerprint, 'restoredFingerprint': fingerprint,
+            'storage': {'measuredSourcePlusTemporaryRestoreStoreBytes': 4096},
             'temporaryRestoreDeleted': True, 'repositoryRegistrationRemoved': True, 'repositoryUnchangedAfterReadOnlyRestore': True}
         payloads = {'source-proof.json': proof, 'snapshot-reference.json': reference, 'snapshot-producer-receipt.json': receipt,
                     'native-inventory.json': inventory, 'mysql-baseline-fingerprint.json': base, 'mysql-prepared-fingerprint.json': base}
@@ -261,6 +277,55 @@ class SearchContracts(unittest.TestCase):
         es = Pages([]); es.config = {}; es.api = lambda *args: {'nodes': {'one': {'fs': {'total': {'available_in_bytes': 2 * 1024**3}}}}}
         self.assertTrue(search.disk_gate(es, 1024)['existingIndicesRetained'])
         with self.assertRaises(ValueError): search.disk_gate(es, 2 * 1024**3)
+    def test_restore_receipt_records_recovery_and_comparison_only_after_complete_equality(self):
+        companion, descriptor = self.companion()
+        manifest, reference = search.validate_companion(companion, descriptor)
+        config = {key: manifest[key] for key in ('datasetId', 'consumerManifestSha256', 'checksSha256')}
+        config.update(elasticsearch={}, targetIndex='accommodations-vnew')
+        source = MagicMock(); source.config = config; source.manifest = manifest; source.base = base_fingerprint()
+        source.host_runtime_path = self.root / 'host-runtime.json'; source.host_runtime_path.write_text('{}')
+        source.checks = {'airbob-growth.sql.gz': 'a' * 64}
+        source.mapping = {'mappings': {'properties': {'accommodationId': {'type': 'long'}}}, 'settings': {}}
+        source.documents.return_value = search.document_fingerprint(reference['fingerprint'])
+        mysql = {'serverUuid': str(uuid.UUID(int=1))}
+        es = MagicMock(); es.identity.return_value = runtime_identity(); es.alias.return_value = None; es.optional.return_value = None
+        def api(method, path, body=None):
+            if path.endswith('/_restore'): return {'accepted': True}
+            if path.startswith('/_cluster/health/'): return restore_health()
+            if path.endswith('/_settings'): return {'accommodations-vnew': {'settings': {'index': {'blocks': {'write': 'true'}}}}}
+            if path.endswith('/_alias'): return {'accommodations-vnew': {'aliases': {}}}
+            raise AssertionError(path)
+        es.api.side_effect = api
+        repository = MagicMock(); repository.name = 'test'; repository.binding.return_value = reference['repository']
+        repository.inventory.return_value = search.read(companion / 'native-inventory.json')
+        preparation = {'baselineReceiptSha256': 'f' * 64, 'preparedAllowedChanges': {}}
+        for matches in (True, False):
+            source.fence.return_value = contextlib.nullcontext(mysql)
+            es.fingerprint.return_value = reference['fingerprint'] if matches else reference['fingerprint'] | {'contentSha256': 'f' * 64}
+            output = self.root / ('restore-' + str(matches))
+            with self.subTest(matches=matches), patch.object(search, 'SourceAdapter', return_value=source), \
+                 patch.object(search, 'Elasticsearch', return_value=es), patch.object(search, 'repository_for', return_value=repository), \
+                 patch.object(search, 'disk_gate', return_value={}), patch.object(search, 'snapshot_info', return_value={}), \
+                 patch.object(search, 'validate_snapshot'), patch.object(search, 'prepared_source', return_value=(source.base, preparation)), \
+                 patch.object(search, 'source_drift_check', return_value={}), \
+                 patch.object(search.time, 'monotonic_ns', side_effect=[1_000_000_000, 4_000_000_000, 5_000_000_000, 9_000_000_000]) as clock:
+                if matches:
+                    receipt = search.restore(config, companion, descriptor, self.root / 'baseline', output)
+                    measured = receipt['restoreMeasurements']
+                    self.assertEqual(measured['requestToRecoverySeconds'], 3)
+                    self.assertEqual(measured['recoveryToComparisonStartSeconds'], 1)
+                    self.assertEqual(measured['fullComparisonSeconds'], 4)
+                    self.assertEqual(measured['requestToFullComparisonSeconds'], 8)
+                    self.assertEqual(measured['elapsedClock'], 'monotonic')
+                    for stage in search.RestoreMeasurements.stages:
+                        self.assertEqual(search.dt.datetime.fromisoformat(measured[stage + 'At']).utcoffset(), search.dt.timedelta())
+                    self.assertEqual(search.read(output / 'search-restore-receipt.json')['restoreMeasurements'], measured)
+                    self.assertEqual(clock.call_count, 4)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'Restored full ES source differs'):
+                        search.restore(config, companion, descriptor, self.root / 'baseline', output)
+                    self.assertFalse((output / 'search-restore-receipt.json').exists())
+                    self.assertEqual(clock.call_count, 3)
 
 
 class RestoreHealthPolling(unittest.TestCase):

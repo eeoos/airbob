@@ -1,11 +1,13 @@
 locals {
-  start_service_document = templatefile("${path.module}/templates/start-service.sh.tftpl", {
-    account_id      = var.account_id
-    region          = var.aws_region
-    run_id          = var.run_id
-    evidence_bucket = local.lab_contract.evidence_bucket_name
-    bundle_sha256   = var.bundle_sha256
-  })
+  start_service_document = join("\n", [
+    "export AIRBOB_GLOBAL_B_SERVICES=${var.global_b_services}",
+    templatefile("${path.module}/templates/start-service.sh.tftpl", {
+      account_id      = var.account_id
+      region          = var.aws_region
+      run_id          = var.run_id
+      evidence_bucket = local.lab_contract.evidence_bucket_name
+      bundle_sha256   = var.bundle_sha256
+  })])
   legacy_bootstrap_data_command = local.legacy_services_enabled ? join("\n", [
     "set -euo pipefail",
     "umask 077",
@@ -45,7 +47,7 @@ locals {
 }
 
 resource "aws_ssm_document" "start_service" {
-  count = local.legacy_services_enabled ? 1 : 0
+  count = local.dependency_services_enabled ? 1 : 0
 
   name            = "airbob-${var.run_id}-start-service"
   document_type   = "Command"
@@ -67,7 +69,7 @@ resource "aws_ssm_document" "start_service" {
 }
 
 resource "aws_ssm_association" "core_services" {
-  for_each = local.legacy_services_enabled ? toset(["redis", "kafka", "elasticsearch"]) : toset([])
+  for_each = local.dependency_services_enabled ? toset(["redis", "kafka", "elasticsearch"]) : toset([])
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-${each.key}"
@@ -81,11 +83,11 @@ resource "aws_ssm_association" "core_services" {
 
   tags = merge(local.ephemeral_tags, { Service = each.key })
 
-  depends_on = [aws_route53_record.private_service]
+  depends_on = [aws_route53_record.private_service, aws_iam_role_policy.growth_b_search_inputs]
 }
 
 resource "aws_ssm_association" "debezium" {
-  count = local.legacy_services_enabled ? 1 : 0
+  count = local.dependency_services_enabled ? 1 : 0
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-debezium"
@@ -98,11 +100,11 @@ resource "aws_ssm_association" "debezium" {
 
   tags = merge(local.ephemeral_tags, { Service = "debezium" })
 
-  depends_on = [aws_ssm_association.core_services]
+  depends_on = [aws_ssm_association.core_services, aws_ssm_association.growth_b_connect_bundle]
 }
 
 resource "aws_ssm_association" "monitoring" {
-  count = local.legacy_services_enabled ? 1 : 0
+  count = local.dependency_services_enabled ? 1 : 0
 
   name                             = aws_ssm_document.start_service[0].name
   association_name                 = "airbob-${var.run_id}-monitoring"
@@ -122,7 +124,7 @@ resource "aws_ssm_association" "monitoring" {
 }
 
 resource "aws_ssm_document" "bootstrap_data" {
-  count = local.services_enabled ? 1 : 0
+  count = local.data_bootstrap_enabled ? 1 : 0
 
   name            = "airbob-${var.run_id}-bootstrap-data"
   document_type   = "Command"
@@ -146,7 +148,7 @@ resource "aws_ssm_document" "bootstrap_data" {
 }
 
 resource "aws_ssm_association" "data_bootstrap" {
-  count = local.services_enabled ? 1 : 0
+  count = local.data_bootstrap_enabled ? 1 : 0
 
   name                             = aws_ssm_document.bootstrap_data[0].name
   association_name                 = "airbob-${var.run_id}-data-bootstrap"
@@ -163,6 +165,9 @@ resource "aws_ssm_association" "data_bootstrap" {
     module.rds,
     aws_secretsmanager_secret.debezium,
     aws_iam_role_policy.data_bootstrap,
+    aws_iam_role_policy.growth_b_preparation_inputs,
+    aws_iam_role_policy.growth_b_service_inputs,
+    aws_iam_role_policy.growth_b_search_inputs,
     aws_iam_role_policy.elasticsearch_snapshot,
     aws_ssm_association.core_services,
     aws_ssm_association.debezium,

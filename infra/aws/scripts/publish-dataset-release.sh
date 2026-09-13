@@ -26,7 +26,7 @@ snapshot_receipt=${5:-}
 [[ "$expected_release" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ ]] \
   || fail 'invalid expected dataset release'
 case "$expected_kind" in
-  pipeline-rehearsal|evidence|growth-b) ;;
+  pipeline-rehearsal|evidence|growth-b|growth-b-search) ;;
   *) fail 'invalid expected release kind' ;;
 esac
 [[ "$dataset_bucket" =~ ^airbob-performance-lab-dataset-[0-9]{12}$ ]] \
@@ -279,15 +279,31 @@ rm -f -- "$bucket_location_file"
 [[ "$bucket_region" == "$AIRBOB_AWS_REGION" ]] \
   || fail 'dataset bucket is outside the approved AWS region'
 
+if [[ "$expected_kind" == growth-b-search ]]; then
+  [[ -z "$snapshot_receipt" ]] || fail 'growth-b-search uses the externally pinned local companion descriptor'
+  for required_variable in GROWTH_PUBLICATION_RECEIPT GROWTH_SEARCH_DESCRIPTOR GROWTH_SEARCH_DESCRIPTOR_SHA256 \
+    GROWTH_NATIVE_REPOSITORY GROWTH_SQL_PUBLICATION_RECEIPT GROWTH_SQL_PUBLICATION_RECEIPT_SHA256; do
+    [[ -n "${!required_variable:-}" ]] || fail "$required_variable is required"
+  done
+  python3 "$script_dir/growth_b_search_transport.py" publish \
+    --companion "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket" \
+    --descriptor "$GROWTH_SEARCH_DESCRIPTOR" --descriptor-sha256 "$GROWTH_SEARCH_DESCRIPTOR_SHA256" \
+    --native-repository "$GROWTH_NATIVE_REPOSITORY" \
+    --sql-publication-receipt "$GROWTH_SQL_PUBLICATION_RECEIPT" \
+    --sql-publication-receipt-sha256 "$GROWTH_SQL_PUBLICATION_RECEIPT_SHA256" \
+    --receipt "$GROWTH_PUBLICATION_RECEIPT"
+  exit 0
+fi
+
 if [[ "$expected_kind" == growth-b ]]; then
   [[ -z "$snapshot_receipt" ]] || fail 'growth-b publishes the separately sealed search companion'
   [[ -n "${GROWTH_PUBLICATION_RECEIPT:-}" ]] || fail 'GROWTH_PUBLICATION_RECEIPT is required'
-  growth_b_options=()
-  [[ "${GROWTH_ALLOW_SMALL:-0}" != 1 ]] || growth_b_options+=(--allow-small)
-  python3 "$script_dir/publish-growth-dataset-b.py" \
-    --release "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket" \
-    --migration-dir "$repo_root/src/main/resources/db/migration" \
-    --receipt "$GROWTH_PUBLICATION_RECEIPT" "${growth_b_options[@]}"
+  growth_b_command=(python3 "$script_dir/publish-growth-dataset-b.py"
+    --release "$release_dir" --expected-id "$expected_release" --bucket "$dataset_bucket"
+    --migration-dir "$repo_root/src/main/resources/db/migration"
+    --receipt "$GROWTH_PUBLICATION_RECEIPT")
+  [[ "${GROWTH_ALLOW_SMALL:-0}" != 1 ]] || growth_b_command+=(--allow-small)
+  "${growth_b_command[@]}"
   exit 0
 fi
 

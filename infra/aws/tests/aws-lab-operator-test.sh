@@ -304,7 +304,7 @@ for target in aws-up aws-status aws-switch aws-down; do
 done
 
 assert_contains "$workflow" 'workflow_dispatch:'
-assert_contains "$workflow" 'options: [up, prepare, status, switch, down]'
+assert_contains "$workflow" 'options: [up, prepare, services, cdc, asg-probe, snapshot-create, snapshot-restore, snapshot-prepare, snapshot-retire, status, switch, down]'
 assert_contains "$workflow" 'schedule:'
 assert_contains "$workflow" "cron: '17,47 * * * *'"
 assert_contains "$workflow" 'group: aws-performance-lab'
@@ -328,11 +328,13 @@ credential_line=$(grep -nF -- '- name: Configure short-lived AWS credentials' "$
 operator_line=$(grep -nF -- '- name: Run shared lab operator' "$workflow" | cut -d: -f1)
 deadline_line=$(grep -nF -- '- name: Record workflow deadline' "$workflow" | cut -d: -f1)
 checkout_line=$(grep -nF -- '- name: Checkout' "$workflow" | cut -d: -f1)
+execution_gate_line=$(grep -nF -- '- name: Verify reviewed main commit and closed operation inputs' "$workflow" | cut -d: -f1)
 [[ "$deadline_line" =~ ^[0-9]+$ && "$checkout_line" =~ ^[0-9]+$ && \
   "$aws_cli_install_line" =~ ^[0-9]+$ && "$credential_line" =~ ^[0-9]+$ && \
-  "$operator_line" =~ ^[0-9]+$ ]] \
+  "$operator_line" =~ ^[0-9]+$ && "$execution_gate_line" =~ ^[0-9]+$ ]] \
   || fail "deadline, checkout, AWS CLI, credential, or operator workflow step is ambiguous"
 ((deadline_line < checkout_line && checkout_line < aws_cli_install_line && \
+  checkout_line < execution_gate_line && execution_gate_line < credential_line && \
   aws_cli_install_line < credential_line && credential_line < operator_line)) \
   || fail "workflow deadline must be recorded before checkout and operator setup"
 assert_contains "$workflow" 'infra/aws/scripts/aws-lab.sh'
@@ -340,8 +342,12 @@ assert_contains "$workflow" 'infra/aws/scripts/cleanup-expired-lab.sh'
 assert_contains "$workflow" 'options: [performance, scaling]'
 assert_contains "$workflow" 'options: [direct-only, cutover]'
 assert_contains "$workflow" "default: '6'"
-assert_contains "$workflow" "timeout-minutes: \${{ (inputs.action == 'up' || inputs.action == 'prepare') && 359 || 120 }}"
-assert_contains "$workflow" "role-duration-seconds: \${{ (inputs.action == 'up' || inputs.action == 'prepare') && 21600 || 7200 }}"
+assert_contains "$workflow" "timeout-minutes: \${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'cdc' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 359 || 120 }}"
+assert_contains "$workflow" "role-duration-seconds: \${{ (inputs.action == 'up' || inputs.action == 'prepare' || inputs.action == 'services' || inputs.action == 'cdc' || inputs.action == 'asg-probe' || startsWith(inputs.action, 'snapshot-')) && 21600 || 7200 }}"
+assert_contains "$workflow" 'expected_execution_commit:'
+assert_contains "$workflow" 'b_operation:'
+assert_contains "$workflow" 'Checked-out commit differs from the dispatch commit'
+assert_contains "$workflow" 'Reviewed execution commit must equal the checked-out main commit'
 assert_contains "$workflow" '- name: Record workflow deadline'
 assert_contains "$workflow" 'WORKFLOW_INITIALIZATION_RESERVE_SECONDS=120'
 assert_contains "$workflow" 'workflow_ceiling_seconds=7200'
@@ -368,7 +374,7 @@ set -euo pipefail
 printf '%s\n' 1900000000
 EOF
 chmod 700 "$temp_dir/deadline-bin/date"
-for deadline_case in dump snapshot other; do
+for deadline_case in dump snapshot prepare services cdc asg-probe snapshot-create snapshot-restore snapshot-prepare snapshot-retire other; do
   action=up
   bootstrap=$deadline_case
   expected_seconds=21420
@@ -376,6 +382,10 @@ for deadline_case in dump snapshot other; do
     action=down
     bootstrap=dump
     expected_seconds=7080
+  elif [[ "$deadline_case" == prepare || "$deadline_case" == services || "$deadline_case" == cdc || "$deadline_case" == asg-probe || "$deadline_case" == snapshot-* ]]; then
+    action=$deadline_case
+    bootstrap=dump
+    [[ "$deadline_case" != snapshot-restore ]] || bootstrap=snapshot
   fi
   : > "$temp_dir/github-deadline-env"
   env PATH="$temp_dir/deadline-bin:$PATH" ACTION="$action" DATABASE_BOOTSTRAP="$bootstrap" \

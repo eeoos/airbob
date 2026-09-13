@@ -248,7 +248,7 @@ variable "global_b_prepare_only" {
 }
 
 variable "global_b_manifest_version_id" {
-  description = "Exact S3 VersionId of the reviewed B aws-preparation.json wrapper."
+  description = "Exact S3 VersionId of the reviewed B preparation or service wrapper."
   type        = string
   default     = ""
 }
@@ -408,10 +408,60 @@ variable "rds_engine_version" {
 
   validation {
     condition = (
-      var.global_b_prepare_only
+      (var.global_b_prepare_only || var.global_b_services || var.global_b_snapshot_restore_only)
       ? var.rds_engine_version == "8.4.11"
       : (!contains(["services", "data-ready"], var.deployment_phase) || can(regex("^8\\.0\\.[0-9]+$", var.rds_engine_version)))
     )
     error_message = "Legacy services require MySQL 8.0.x; explicit B data-only preparation requires 8.4.11."
+  }
+}
+
+variable "global_b_services" {
+  description = "Explicit MySQL 8.4.11/V28 normal-service contract; separate from the legacy V27 experiment."
+  type        = bool
+  default     = false
+  validation {
+    condition = !var.global_b_services || (
+      !var.global_b_prepare_only && !var.load_generator_enabled && var.mode == "performance" &&
+      var.dns_mode == "direct-only" && (var.database_bootstrap == "dump" || (var.database_bootstrap == "snapshot" && var.global_b_snapshot_provenance != null)) &&
+      can(regex("^global-growth-b-[0-9a-f]{16}$", var.dataset_release)) &&
+      can(regex("^[a-z0-9][a-z0-9-]{2,47}$", var.global_b_service_release)) &&
+      can(regex("^[A-Za-z0-9._~+/=-]+$", var.global_b_manifest_version_id)) &&
+      !contains(["null", "None"], var.global_b_manifest_version_id) &&
+      can(regex("^[A-Za-z0-9._:@/-]{3,128}$", var.global_b_lease_owner))
+    )
+    error_message = "B services require a separate immutable B service release, MySQL 8.4.11, dump/direct-only/performance, live lease owner, and no load generator. B snapshot restoration requires its separate provenance contract."
+  }
+}
+
+variable "global_b_service_release" {
+  description = "Immutable sibling aws-service release name. No payloads are added to the finite SQL release."
+  type        = string
+  default     = ""
+}
+
+variable "global_b_service_bootstrap_enabled" {
+  description = "Run the explicit B CDC/readiness bootstrap after the actual native S3 restore receipt has been published."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.global_b_service_bootstrap_enabled || (var.global_b_services && !var.app_enabled && var.deployment_phase == "services")
+    error_message = "B bootstrap runs only with services selected and the application ASG held at zero."
+  }
+}
+
+variable "global_b_readiness_receipt" {
+  description = "Pinned immutable B dependency receipt; required before enabling application capacity."
+  type        = object({ key = string, version_id = string, sha256 = string, bytes = number })
+  default     = null
+}
+
+variable "global_b_lease_fencing_token" {
+  description = "Current B service operation lease token; retained resources keep their original fencing_token tags."
+  type        = number
+  default     = 0
+  validation {
+    condition     = !var.global_b_services || (var.global_b_lease_fencing_token > 0 && floor(var.global_b_lease_fencing_token) == var.global_b_lease_fencing_token)
+    error_message = "B service continuation must bind its current operation lease separately from the retained resource fence."
   }
 }

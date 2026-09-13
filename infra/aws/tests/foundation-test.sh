@@ -139,12 +139,25 @@ assert_file_not_contains "$foundation_root/expiry-observer.tf" 'reserved_concurr
 resource_count=$(grep -hE '^resource "aws_[^"]+" "[^"]+" \{' "$foundation_root"/*.tf | wc -l | tr -d ' ')
 prevent_destroy_count=$(grep -hE '^[[:space:]]+prevent_destroy = true$' "$foundation_root"/*.tf | wc -l | tr -d ' ')
 [[ "$resource_count" -gt 0 ]] || fail "foundation must declare persistent AWS resources"
-[[ "$resource_count" -eq $((prevent_destroy_count + 1)) ]] \
-  || fail "every foundation AWS resource except the replaceable alert subscription must have prevent_destroy"
+[[ "$resource_count" -eq $((prevent_destroy_count + 2)) ]] \
+  || fail "every foundation AWS resource except the replaceable alert subscription and revocable B snapshot grant must have prevent_destroy"
 subscription_block=$(sed -n '/^resource "aws_sns_topic_subscription" "expiry_alert_email" {$/,/^}$/p' "$foundation_root/expiry-observer.tf")
 [[ -n "$subscription_block" ]] || fail "replaceable expiry alert subscription is missing"
 if printf '%s\n' "$subscription_block" | grep -Fq 'prevent_destroy'; then
   fail "the expiry alert subscription must remain replaceable for email rotation"
+fi
+
+snapshot_grant_count=$(grep -hEc '^resource "aws_iam_role_policy" "lab_b_snapshot_controller" \{$' "$foundation_root/lab-compute.tf")
+[[ "$snapshot_grant_count" -eq 1 ]] || fail "exactly one revocable B snapshot controller grant must be declared"
+snapshot_grant_block=$(sed -n '/^resource "aws_iam_role_policy" "lab_b_snapshot_controller" {$/,/^}$/p' "$foundation_root/lab-compute.tf")
+grep -Eq '^[[:space:]]*count[[:space:]]*=[[:space:]]*var\.approved_b_snapshot_creation_identifier != "" \? 1 : 0$' <<<"$snapshot_grant_block" \
+  || fail "the B snapshot creation grant must disappear when its exact creation approval is cleared"
+grep -Eq '^[[:space:]]*role[[:space:]]*=[[:space:]]*aws_iam_role\.lab_operator\.id$' <<<"$snapshot_grant_block" \
+  || fail "the revocable B snapshot grant must belong only to the lab controller"
+grep -Eq '^[[:space:]]*policy[[:space:]]*=[[:space:]]*local\.lab_b_snapshot_controller_policy$' <<<"$snapshot_grant_block" \
+  || fail "the revocable grant must use the exact approved B snapshot policy"
+if grep -Fq 'prevent_destroy' <<<"$snapshot_grant_block"; then
+  fail "the B snapshot creation grant must remain revocable after snapshot creation"
 fi
 
 assert_not_contains "$foundation_root" 'force_destroy[[:space:]]*=[[:space:]]*true'

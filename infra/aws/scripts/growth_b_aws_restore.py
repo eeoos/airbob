@@ -26,12 +26,14 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 from urllib.parse import parse_qsl, urlencode
 
 from growth_b_contract import (digest, extract_runtime, integer, public_account_union,
-                               read, representative_rows, require, sha, validate_private_accounts)
+                               read, representative_rows, require, sha, validate_private_accounts, validate_fingerprint)
 from growth_b_aws_contract import ACCOUNT, REGION, validate_envelope
 from growth_b_runtime import activated_runtime, qualification_binding, qualify_runtime
+from growth_b_inventory import prepare_inventory_epochs
 
 SYSTEM_SCHEMAS = {'information_schema', 'performance_schema', 'mysql', 'sys'}
 
@@ -151,7 +153,8 @@ def configuration(path):
     required = {'schemaVersion', 'mode', 'release', 'migrationDirectory', 'publicationReceipt', 'envelope',
         'envelopeSha256', 'appJar', 'privateAccounts', 'rds', 'writerAsgNames', 'redisImage', 'replacementPolicy'}
     require(required <= set(config) <= required | {'allowSmallOffline', 'operationTimeoutSeconds',
-        'appStartupTimeoutSeconds', 'lease', 'search', 'binlogBudget', 'allowSmallRehearsal', 'smallRdsReceipt'},
+        'appStartupTimeoutSeconds', 'lease', 'search', 'binlogBudget', 'allowSmallRehearsal', 'smallRdsReceipt',
+        'operation', 'resumeReceipt'},
             'Unknown/missing configuration field; inline secrets are forbidden')
     require(config['schemaVersion'] == 1 and config['mode'] == 'aws-global-b', 'B AWS configuration is required')
     for key in ('release', 'migrationDirectory', 'publicationReceipt', 'envelope', 'appJar', 'privateAccounts'):
@@ -170,6 +173,14 @@ def configuration(path):
             and digest(rds['caBundleSha256']), 'Invalid RDS identity')
     require(Path(rds['caBundle']).is_absolute() and sha(rds['caBundle']) == rds['caBundleSha256'], 'Pinned RDS CA bundle differs')
     require(config['replacementPolicy'] in {'empty-only', 'discard-reviewed-existing'}, 'Explicit replacement policy is required')
+    require(config.get('operation', 'replace-database') in {'replace-database', 'resume-preparation'}, 'Unknown B RDS operation')
+    if config.get('operation') == 'resume-preparation':
+        reference = config.get('resumeReceipt', {})
+        require(set(reference) == {'path', 'sha256'} and isinstance(reference['path'], str)
+                and Path(reference['path']).is_absolute() and digest(reference['sha256']),
+                'Preparation resume needs the exact own prior restore receipt path/SHA')
+    else:
+        require('resumeReceipt' not in config, 'A resume receipt belongs only to explicit preparation resume')
     require(all(type(config[key]) is bool for key in ('allowSmallOffline', 'allowSmallRehearsal') if key in config),
             'Small qualification options must be booleans')
     # Lab app.tf passes the full run ID; modules/app-asg appends exactly "-app".
@@ -218,7 +229,61 @@ def validate_inputs(config):
 def tool_identity():
     scripts = Path(__file__).resolve().parent
     return {name: sha(scripts / name) for name in
-            ('growth_b_aws_restore.py', 'growth_b_aws_contract.py', 'growth_b_contract.py', 'growth_b_runtime.py')}
+            ('growth_b_aws_restore.py', 'growth_b_aws_contract.py', 'growth_b_contract.py', 'growth_b_runtime.py', 'growth_b_inventory.py')}
+
+
+def target_identity(config):
+    return {key: config['rds'][key] for key in ('identifier', 'resourceId', 'endpoint', 'serverUuid')}
+
+
+def credential_binding(config):
+    private = private_accounts(config['privateAccounts'], Path(config['release']),
+                               expected_environment=credential_environment(config))
+    fields = ('memberId', 'email', 'role', 'group', 'purpose', 'environment', 'password')
+    return canonical_sha([{key: row[key] for key in fields} for row in private['credentials']])
+
+
+def execution_bindings(config):
+    return {'targetIdentity': target_identity(config), 'credentialBindingSha256': credential_binding(config),
+            'searchCoordinatesSha256': canonical_sha(config.get('search'))}
+
+
+def validate_preparation_resume(config, envelope, current, db, runtime):
+    reference = config.get('resumeReceipt', {})
+    require(config.get('operation') == 'resume-preparation' and digest(reference.get('sha256'))
+            and sha(reference['path']) == reference['sha256'], 'Reviewed preparation resume receipt changed')
+    proof = read(reference['path'])
+    scope = 'final-b-rds' if envelope['finalScaleSelected'] else 'small-rds-rehearsal'
+    require(proof.get('schemaVersion') == 1 and proof.get('kind') == 'global-growth-b-aws-restore-receipt'
+            and proof.get('account') == ACCOUNT and proof.get('region') == REGION
+            and proof.get('toolIdentity') == tool_identity() and proof.get('datasetId') == envelope['datasetId']
+            and proof.get('envelopeSha256') == config['envelopeSha256']
+            and proof.get('appJarSha256') == envelope['appJarSha256']
+            and proof.get('migrationFilesSha256') == envelope['objects']['migration-files.json']['sha256']
+            and proof.get('mysqlVersion') == '8.4.11' and proof.get('flywayVersion') == 28
+            and proof.get('finalScaleSelected') is envelope['finalScaleSelected'] and proof.get('executionScope') == scope
+            and proof.get('allRowsAndDdlEqual') is True and digest(proof.get('restoredFingerprintSha256'))
+            and proof.get('previousBusinessSchemaAbsent') is True and proof.get('maximumSimultaneousBusinessDatabases') == 1
+            and proof.get('awsWritesExecuted') is True
+            and all(proof.get(key) == value for key, value in execution_bindings(config).items()),
+            'Resume requires this exact target, sealed B, credentials, and successful same-tool baseline')
+    before = read(Path(config['release']) / 'before-fingerprint.json')
+    require(proof.get('sealedFingerprint') == before, 'Resume lacks the complete original verified baseline')
+    require('search' not in config or proof.get('searchVerified') is True,
+            'Required search qualification did not finish before preparation resume')
+    validate_fingerprint(current, require_sealed=False)
+    validate_prepared_changes(before, current)
+    sys.path.insert(0, str(runtime / 'tools'))
+    inventory = importlib.import_module('growth_inventory')
+    inventory.verify_closed_ownership(db)
+    owners = owner_fingerprint(db)
+    expected = proof.get('baselineOwnerSha256')
+    if not digest(expected):
+        require(current == before, 'An interrupted owner checkpoint requires an unchanged complete baseline')
+        expected = owners
+    require(owners == expected, 'Preparation resume changed historical HOLD/OCCUPIED ownership')
+    return {'receiptSha256': reference['sha256'], 'baselineOwnerSha256': expected,
+            'restoredFingerprintSha256': proof['restoredFingerprintSha256'], 'searchVerified': proof.get('searchVerified', False)}
 
 
 def execution_scope(config, envelope, *, allow_small_rehearsal=False):
@@ -659,7 +724,17 @@ def apply_credentials(db, runtime, private, environment, secret_dir, bundle):
             'fullBaselineVerifiedBeforeCredentials': True}
 
 
-def prepare_service(config, envelope, runtime, environment, db, output, secret_dir):
+def validate_prepared_changes(before, after):
+    require(set(after['tables']) == set(before['tables']), 'Preparation changed the table inventory')
+    for table, info in before['tables'].items():
+        require(after['tables'][table]['ddlSha256'] == info['ddlSha256'], 'Preparation changed DDL')
+        if table not in {'member', 'accommodation_inventory_day'}:
+            require(after['tables'][table] == info, 'Preparation changed a non-live table: ' + table)
+    require(after['tables']['member']['domainRowsSha256'] == before['tables']['member']['domainRowsSha256']
+            and after['tables']['member']['rows'] == before['tables']['member']['rows'], 'Preparation changed member domain values')
+
+
+def prepare_service(config, envelope, runtime, environment, db, output, secret_dir, *, expected_owner_sha=None, checkpoint=None):
     sys.path.insert(0, str(runtime / 'tools'))
     accounts = importlib.import_module('growth_accounts')
     inventory = importlib.import_module('growth_inventory')
@@ -677,6 +752,9 @@ def prepare_service(config, envelope, runtime, environment, db, output, secret_d
     try:
         inventory.verify_closed_ownership(db)
         owners = owner_fingerprint(db)
+        require(expected_owner_sha is None or owners == expected_owner_sha, 'Preparation changed the verified historical owners')
+        if checkpoint is not None:
+            checkpoint(owners)
         accounts.verify_representative_accounts(db, bundle['representativeAccounts'])
         prepared = apply_credentials(db, runtime, private, environment, secret_dir, bundle)
         write(output / 'credentials-applied.json', prepared)
@@ -687,46 +765,52 @@ def prepare_service(config, envelope, runtime, environment, db, output, secret_d
         app_env = dict(environment, AIRBOB_GROWTH_CREDENTIALS_FILE=str(private_input),
             AIRBOB_GROWTH_STARTUP_TIMEOUT_SECONDS=str(config['appStartupTimeoutSeconds']))
         app_env.pop('AIRBOB_ETL_BENCHMARK_PASSWORD', None)
-        app = runtime_module.App(config['appJar'], output, secret_dir, app_env, port, label='aws-restored-b',
-            settings={'spring.flyway.enabled': False, 'reservation.inventory.startup.enabled': True,
-                      'management.endpoint.health.probes.enabled': True})
-        app.env['SPRING_DATASOURCE_URL'] = environment['AIRBOB_ETL_DB_URL']
-        app.env['SPRING_DATASOURCE_USERNAME'] = environment['AIRBOB_ETL_DB_USER']
-        # Frozen App needs a lease watchdog while startup performs its date inserts.
-        stopped, failures = threading.Event(), []
-        def watchdog():
-            while not stopped.wait(5):
-                try:
-                    db.guard()
-                except BaseException as error:
-                    failures.append(type(error).__name__)
-                    if app.process is not None:
-                        app.process.terminate()
-                    return
-        watcher = threading.Thread(target=watchdog, daemon=True); watcher.start()
-        try:
-            with app:
-                require(not failures, 'AWS lease watchdog stopped the application')
-                readiness = app.request(app.client(), '/actuator/health/readiness', capture=False)
-                require(readiness['response']['status'] == 'UP', 'Application readiness is not UP')
-                horizon = inventory.verify_current_inventory(db)
-                require(owner_fingerprint(db) == owners, 'Current inventory bootstrap changed historical owners')
-                login = accounts.qualify_account_logins(app, db, bundle, output,
-                    private_input=private_input, environment=account_environment)
-                require(not failures, 'AWS lease was lost during application qualification')
-                startup = app.startup_seconds
-        finally:
-            stopped.set(); watcher.join(timeout=50)
-        after = fingerprint(runtime, release, environment, output / 'prepared-fingerprint.json', db.timeout, db.guard)
-        before = read(release / 'before-fingerprint.json')
-        require(set(after['tables']) == set(before['tables']), 'Preparation changed the table inventory')
-        for table, info in before['tables'].items():
-            require(after['tables'][table]['ddlSha256'] == info['ddlSha256'], 'Preparation changed DDL')
-            if table not in {'member', 'accommodation_inventory_day'}:
-                require(after['tables'][table] == info, 'Preparation changed a non-live table: ' + table)
-        require(after['tables']['member']['domainRowsSha256'] == before['tables']['member']['domainRowsSha256']
-                and after['tables']['member']['rows'] == before['tables']['member']['rows'], 'Preparation changed member domain values')
-        require(owner_fingerprint(db) == owners, 'Prepared inventory owners differ')
+        @contextmanager
+        def app_factory(attempt):
+            app = runtime_module.App(config['appJar'], output, secret_dir, app_env, port,
+                label='aws-restored-b-inventory-' + str(attempt),
+                settings={'spring.flyway.enabled': False, 'reservation.inventory.startup.enabled': True,
+                          'management.endpoint.health.probes.enabled': True,
+                          'spring.cloud.aws.region.static': REGION,
+                          'spring.cloud.aws.credentials.access-key': 'dummy',
+                          'spring.cloud.aws.credentials.secret-key': 'dummy'})
+            app.env['SPRING_DATASOURCE_URL'] = environment['AIRBOB_ETL_DB_URL']
+            app.env['SPRING_DATASOURCE_USERNAME'] = environment['AIRBOB_ETL_DB_USER']
+            app.env.update(AWS_REGION=REGION, AWS_DEFAULT_REGION=REGION,
+                           AWS_ACCESS_KEY_ID='dummy', AWS_SECRET_ACCESS_KEY='dummy', AWS_EC2_METADATA_DISABLED='true')
+            stopped, failures = threading.Event(), []
+            def watchdog():
+                while not stopped.wait(5):
+                    try:
+                        db.guard()
+                    except BaseException as error:
+                        failures.append(type(error).__name__)
+                        if app.process is not None:
+                            app.process.terminate()
+                        return
+            watcher = threading.Thread(target=watchdog, daemon=True); watcher.start()
+            try:
+                with app:
+                    require(not failures, 'AWS lease watchdog stopped the application')
+                    yield app
+                    require(not failures, 'AWS lease was lost during application qualification')
+            finally:
+                stopped.set(); watcher.join(timeout=50)
+        def qualify(app, attempt):
+            if db.guard:
+                db.guard(force=True)
+            readiness = app.request(app.client(), '/actuator/health/readiness', capture=False)
+            require(readiness['response']['status'] == 'UP', 'Application readiness is not UP')
+            return accounts.qualify_account_logins(app, db, bundle, output,
+                private_input=private_input, environment=account_environment)
+        def finalize(attempt):
+            after = fingerprint(runtime, release, environment, output / 'prepared-fingerprint.json', db.timeout, db.guard)
+            validate_prepared_changes(read(release / 'before-fingerprint.json'), after)
+            return after
+        # Reuse the exact OCI calendar defense, retaining the AWS lease-aware owner reader.
+        inventory_adapter = SimpleNamespace(horizon=inventory.horizon, owned_fingerprint=owner_fingerprint)
+        horizon, login, startup, inventory_preparation = prepare_inventory_epochs(db, inventory_adapter, owners,
+            app_factory, qualify, finalize, output / 'inventory-preparation.json')
         return {'passed': True, 'fullBaselineVerifiedBeforeCredentials': True, 'currentInventory': horizon,
             'ownerSha256BeforeAndAfter': owners, 'accountLogins': login, 'startupSeconds': startup,
             'credentialPreparation': prepared,
@@ -735,7 +819,9 @@ def prepare_service(config, envelope, runtime, environment, db, output, secret_d
                 'individualPasswords': True, 'state': 'NOT_AVAILABLE', 'usable': False,
                 'reason': 'Temporary qualification application stopped', 'credentialValuesRecorded': False},
             'readinessVerified': True, 'applicationLeftRunning': False, 'temporarySessionsRemoved': True,
-            'serviceCurrentlyAvailable': False}
+            'serviceCurrentlyAvailable': False, 'inventoryPreparation': inventory_preparation,
+            'preparedFingerprintSha256': sha(output / 'prepared-fingerprint.json'),
+            'preparationResumed': expected_owner_sha is not None}
     finally:
         try:
             accounts.update_login_state(private_input, selected_ids, account_environment, usable=False,
@@ -756,12 +842,19 @@ def offline_plan(config, envelope):
         'finalRequiresSameToolSmallRdsReceipt': True,
         'rdsResourceId': config['rds']['resourceId'], 'mysqlVersion': '8.4.11', 'flywayVersion': 28,
         'awsExecutionAllowed': envelope['awsExecutionAllowed'], 'replacementPolicy': config['replacementPolicy'],
+        'operation': config.get('operation', 'replace-database'),
         'storage': envelope['storage'], 'privateCredentialsIncluded': False, 'awsWritesExecuted': False,
-        'phases': ['verify exact object versions and local release', 'assert live lease and stopped writers',
+        'phases': (['verify the exact prior same-tool baseline receipt, target, credentials and release',
+            'assert the current live lease, stopped writers and unchanged full prepared fingerprint',
+            'hold the same MySQL execution fence without removing or importing the business database',
+            'prepare credentials and missing current FREE days with bounded real-calendar retries',
+            'verify normal login, complete prepared fingerprint and unchanged owned nights']
+            if config.get('operation') == 'resume-preparation' else
+            ['verify exact object versions and local release', 'assert live lease and stopped writers',
             'review existing full fingerprint', 'remove only reviewed airbobdb', 'observe fresh free storage',
             'restore gzip stream into empty airbobdb', 'compare all rows and DDL before any preparation',
             'qualify optional ES companion', 'prepare private accounts and current FREE inventory',
-            'normal login plus owner-scoped API reads', 'verify only password/FREE rows changed']}
+            'normal login plus owner-scoped API reads', 'verify only password/FREE rows changed'])}
 
 
 def verify_remote_versions(aws, envelope):
@@ -775,11 +868,17 @@ def preflight(config, envelope, output, aws, runtime, db, environment, live):
     require(shutil.disk_usage(output).free >= envelope['storage']['requiredAdditionalDataHostFreeBytes'], 'Data-host scratch reserve is insufficient')
     command(['docker', 'image', 'inspect', config['redisImage']])
     before = database_state(db, config)
+    resume = config.get('operation') == 'resume-preparation'
+    resume_evidence = None
     if before['tableObjects']:
-        require(config['replacementPolicy'] == 'discard-reviewed-existing', 'Target must be empty; replacement was not selected')
+        require(resume or config['replacementPolicy'] == 'discard-reviewed-existing', 'Target must be empty; replacement was not selected')
         old = output / 'existing-fingerprint.json'
-        before['fullFingerprintSha256'] = canonical_sha(fingerprint(runtime, Path(config['release']), environment, old, db.timeout))
+        current = fingerprint(runtime, Path(config['release']), environment, old, db.timeout)
+        before['fullFingerprintSha256'] = canonical_sha(current)
+        if resume:
+            resume_evidence = validate_preparation_resume(config, envelope, current, db, runtime)
     else:
+        require(not resume, 'Preparation resume requires the original verified business database')
         before['fullFingerprintSha256'] = None
     free = free_storage(aws, config['rds']['identifier'])
     required_bytes = required_rds_bytes(config, envelope, before)
@@ -790,7 +889,21 @@ def preflight(config, envelope, output, aws, runtime, db, environment, live):
         'freeStorageBeforeRemoval': free, 'dataHostFreeBytes': shutil.disk_usage(output).free,
         'requiredRdsFreeAfterRemovalBytes': required_bytes,
         'recordedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'sourceVersionsAvailable': True,
-        'awsWritesExecuted': False, 'replacementPolicy': config['replacementPolicy']}
+        'awsWritesExecuted': False, 'replacementPolicy': config['replacementPolicy'],
+        'operation': config.get('operation', 'replace-database'), 'resumeEvidence': resume_evidence}
+
+
+def finish_preparation(config, envelope, runtime, environment, db, output, event, scope, *, expected_owner_sha=None):
+    started = time.monotonic()
+    event('PREPARATION_STARTED', preparationStartedAt=dt.datetime.now(dt.timezone.utc).isoformat())
+    prepared = prepare_service(config, envelope, runtime, environment, db, output, output / '.private',
+        expected_owner_sha=expected_owner_sha,
+        checkpoint=lambda owners: event('PREPARATION_OWNER_BASELINE_VERIFIED', baselineOwnerSha256=owners))
+    db.guard(force=True)
+    final_state = 'SMALL_RDS_INVENTORY_LOGIN_VERIFIED' if scope == 'small-rds-rehearsal' else 'DATABASE_INVENTORY_LOGIN_VERIFIED'
+    event(final_state, preparation=prepared, deploymentReady=False, applicationLeftRunning=False, albReady=False, kafkaCdcReady=False,
+          preparedFingerprintSha256=prepared['preparedFingerprintSha256'],
+          preparationCompletedAt=dt.datetime.now(dt.timezone.utc).isoformat(), preparationSeconds=round(time.monotonic() - started, 6))
 
 
 def execute(config, envelope, reviewed, output, aws, runtime, db, environment, live, event, *, allow_small_rehearsal=False):
@@ -800,7 +913,8 @@ def execute(config, envelope, reviewed, output, aws, runtime, db, environment, l
     guard = db.guard
     guard(force=True)
     require(reviewed['state'] == 'READ_ONLY_PREFLIGHT' and reviewed['datasetId'] == envelope['datasetId']
-            and reviewed['envelopeSha256'] == config['envelopeSha256'] and reviewed['rds'] == live,
+            and reviewed['envelopeSha256'] == config['envelopeSha256'] and reviewed['rds'] == live
+            and reviewed.get('operation', 'replace-database') == config.get('operation', 'replace-database'),
             'Reviewed preflight belongs to another target')
     verify_remote_versions(aws, envelope)
     require(shutil.disk_usage(output).free >= envelope['storage']['requiredAdditionalDataHostFreeBytes'], 'Data-host reserve is insufficient')
@@ -811,10 +925,31 @@ def execute(config, envelope, reviewed, output, aws, runtime, db, environment, l
         expected = dict(reviewed['beforeDatabase']); old_sha = expected.pop('fullFingerprintSha256')
         require(before == expected, 'Existing database changed since preflight')
         if before['tableObjects']:
-            require(config['replacementPolicy'] == 'discard-reviewed-existing', 'Nonempty target cannot be replaced')
-            removed_fingerprint = fingerprint(runtime, Path(config['release']), environment, output / 'removed-database-fingerprint.json', db.timeout, guard)
+            require(config.get('operation') == 'resume-preparation' or config['replacementPolicy'] == 'discard-reviewed-existing',
+                    'Nonempty target cannot be replaced')
+            source_name = 'resume-source-fingerprint.json' if config.get('operation') == 'resume-preparation' else 'removed-database-fingerprint.json'
+            removed_fingerprint = fingerprint(runtime, Path(config['release']), environment, output / source_name, db.timeout, guard)
             require(canonical_sha(removed_fingerprint) == old_sha, 'Existing full database changed since review')
+        if config.get('operation') == 'resume-preparation':
+            require(before['tableObjects'], 'Preparation resume cannot recreate a missing database')
+            evidence = validate_preparation_resume(config, envelope, removed_fingerprint, db, runtime)
+            require(evidence == reviewed.get('resumeEvidence'), 'Reviewed preparation-resume evidence changed')
+            free = free_storage(aws, config['rds']['identifier'])
+            require(free['bytes'] + before['allocatedTablespaceBytes'] >= required_rds_bytes(config, envelope, before),
+                    'RDS lacks the reviewed preparation growth and binlog reserve')
+            event('VERIFIED_BASELINE_REUSED_FOR_PREPARATION', beforeDatabase=before, **execution_bindings(config),
+                executionScope=scope, finalScaleSelected=envelope['finalScaleSelected'], smallRdsPrerequisite=prerequisite,
+                allRowsAndDdlEqual=True, sealedFingerprint=read(Path(config['release']) / 'before-fingerprint.json'),
+                restoredFingerprintSha256=evidence['restoredFingerprintSha256'], baselineOwnerSha256=evidence['baselineOwnerSha256'],
+                previousBusinessSchemaAbsent=True, previousBusinessSchemaAbsenceInheritedFromReceipt=evidence['receiptSha256'],
+                maximumSimultaneousBusinessDatabases=1, awsWritesExecuted=True, databaseRecreatedInThisRun=False,
+                sqlImportSkipped=True, searchVerified=evidence['searchVerified'], preparationResume=evidence,
+                freeStorageBeforePreparation=free, plaintextTemporaryDumpBytes=0)
+            finish_preparation(config, envelope, runtime, environment, db, output, event, scope,
+                               expected_owner_sha=evidence['baselineOwnerSha256'])
+            return
         event('EXISTING_DATABASE_VERIFIED', beforeDatabase=before, removedFingerprintSha256=old_sha,
+              **execution_bindings(config),
               executionScope=scope, finalScaleSelected=envelope['finalScaleSelected'], smallRdsPrerequisite=prerequisite,
               awsExecutionAllowed=True, explicitSmallRehearsalOptIn=scope == 'small-rds-rehearsal')
         require(sha(Path(config['release']) / 'airbob-growth.sql.gz') == envelope['objects']['airbob-growth.sql.gz']['sha256'],
@@ -840,19 +975,22 @@ def execute(config, envelope, reviewed, output, aws, runtime, db, environment, l
         event('POST_REMOVAL_CAPACITY_VERIFIED', freeStorageAfterRemoval=free)
         db.execute('CREATE DATABASE airbobdb CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;', False)
         require(db.scalar('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE()') == 0, 'Import target is not empty')
+        started = time.monotonic()
+        event('SQL_IMPORT_STARTED', sqlImportStartedAt=dt.datetime.now(dt.timezone.utc).isoformat())
         stream_restore(db, Path(config['release']) / 'airbob-growth.sql.gz')
+        event('SQL_IMPORT_COMPLETED', sqlImportCompletedAt=dt.datetime.now(dt.timezone.utc).isoformat(),
+              sqlImportSeconds=round(time.monotonic() - started, 6))
+        started = time.monotonic()
+        event('FULL_VALIDATION_STARTED', fullValidationStartedAt=dt.datetime.now(dt.timezone.utc).isoformat())
         observed = fingerprint(runtime, Path(config['release']), environment, output / 'restored-fingerprint.json', db.timeout, guard)
         require(observed == read(Path(config['release']) / 'before-fingerprint.json'), 'Full restored rows/DDL differ; preparation was not run')
         event('SEALED_DATABASE_VERIFIED', allRowsAndDdlEqual=True, plaintextTemporaryDumpBytes=0,
-              restoredFingerprintSha256=sha(output / 'restored-fingerprint.json'))
+              restoredFingerprintSha256=sha(output / 'restored-fingerprint.json'), sealedFingerprint=observed,
+              fullValidationCompletedAt=dt.datetime.now(dt.timezone.utc).isoformat(), fullValidationSeconds=round(time.monotonic() - started, 6))
         if 'search' in config:
             qualify_search(config, environment, runtime, output, guard)
             event('SEARCH_COMPANION_VERIFIED', searchVerified=True, aliasActivated=False)
-        prepared = prepare_service(config, envelope, runtime, environment, db, output, output / '.private')
-        guard(force=True)
-        final_state = 'SMALL_RDS_INVENTORY_LOGIN_VERIFIED' if scope == 'small-rds-rehearsal' else 'DATABASE_INVENTORY_LOGIN_VERIFIED'
-        event(final_state, preparation=prepared, deploymentReady=False,
-              applicationLeftRunning=False, albReady=False, kafkaCdcReady=False)
+        finish_preparation(config, envelope, runtime, environment, db, output, event, scope)
 
 
 def qualify_search(config, environment, runtime, output, guard):
@@ -918,8 +1056,10 @@ def main():
         require(reviewed['configSha256'] == sha(args.config), 'Reviewed restore configuration changed')
     receipt.update(state='STARTING', events=[])
     def event(state, **values):
-        receipt.update(state=state, **values)
-        receipt.setdefault('events', []).append({'state': state, 'at': dt.datetime.now(dt.timezone.utc).isoformat()})
+        at = dt.datetime.now(dt.timezone.utc).isoformat()
+        receipt.update(state=state, updatedAt=at, **values)
+        receipt.setdefault('startedAt', at)
+        receipt.setdefault('events', []).append({'state': state, 'at': at})
         write(output / 'restore-receipt.json', receipt)
     try:
         runtime = extract_runtime(Path(config['release']), output / 'runtime')

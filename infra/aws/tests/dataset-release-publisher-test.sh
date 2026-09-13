@@ -914,6 +914,27 @@ FAKE_VERSION_INVENTORY_DRIFT="$version_inventory_drift" \
 [[ ! -e "$fake_s3/$prefix/manifest.json" ]] \
   || fail 'publisher completed a release after snapshot inventory drift'
 
+# Exercise the real shell dispatcher with and without its optional small flag.
+# Bash 3.2 treats an empty array expansion as unbound under set -u.
+cat > "$fixture/infra/aws/scripts/publish-growth-dataset-b.py" <<'EOF'
+import json, os, sys
+with open(os.environ['GROWTH_PUBLICATION_RECEIPT'], 'w') as stream:
+    json.dump(sys.argv[1:], stream)
+EOF
+for small_flag in 0 1; do
+  reset_fake_s3
+  growth_receipt="$temp_dir/growth-dispatch-$small_flag.json"
+  GROWTH_ALLOW_SMALL="$small_flag" GROWTH_PUBLICATION_RECEIPT="$growth_receipt" \
+    run_publisher "$rehearsal" global-growth-b-b0fbda4d12511eeb growth-b "$bucket"
+  jq -e --arg release "$(CDPATH= cd -P -- "$rehearsal" && pwd -P)" --arg expected global-growth-b-b0fbda4d12511eeb \
+    --arg bucket "$bucket" --arg receipt "$growth_receipt" --arg small "$small_flag" '
+      .[0:6] == ["--release", $release, "--expected-id", $expected, "--bucket", $bucket] and
+      .[8:10] == ["--receipt", $receipt] and
+      (if $small == "1" then .[10:] == ["--allow-small"] else length == 10 end)
+    ' "$growth_receipt" >/dev/null || fail 'B publisher dispatch changed required or optional arguments'
+  assert_no_dataset_writes
+done
+
 if grep -Fq -- "$secret_fixture" "$call_log"; then
   fail 'publisher replayed a secret into an AWS command'
 fi

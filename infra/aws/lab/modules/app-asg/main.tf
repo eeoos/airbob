@@ -68,7 +68,7 @@ resource "aws_autoscaling_group" "app" {
   vpc_zone_identifier       = var.subnet_ids
   target_group_arns         = var.target_group_arns
   health_check_type         = "ELB"
-  health_check_grace_period = 900
+  health_check_grace_period = var.startup_grace_seconds
   default_instance_warmup   = 180
   capacity_rebalance        = false
   protect_from_scale_in     = false

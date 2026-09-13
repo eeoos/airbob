@@ -73,6 +73,9 @@ def evaluate_sources():
     config = ('''variable "aws_region" { default = "ap-northeast-2" }
 variable "account_id" { default = "942632789808" }
 variable "run_id" { default = "lab-static-b-test" }
+variable "global_b_prepare_only" { default = false }
+variable "global_b_services" { default = false }
+variable "global_b_snapshot_restore_only" { default = false }
 variable "approved_rds_snapshot_identifier" { default = "airbob-dataset-rehearsal-v20" }
 locals {
   lab_contract = jsondecode(file("contract.json"))
@@ -181,7 +184,10 @@ class GlobalBInfrastructureTest(unittest.TestCase):
             actions = {action for statement in policy['Statement'] if statement['Effect'] == 'Allow'
                        for action in items(statement['Action'])}
             self.assertEqual({'dynamodb:GetItem'}, {action for action in actions if action.startswith('dynamodb:')})
-            self.assertEqual({'rds:DescribeDBInstances'}, {action for action in actions if action.startswith('rds:')})
+            expected_rds_reads = {'rds:DescribeDBInstances'}
+            if policy is self.boundary:
+                expected_rds_reads |= {'rds:DescribeDBSnapshots', 'rds:DescribeDBSnapshotAttributes', 'rds:ListTagsForResource'}
+            self.assertEqual(expected_rds_reads, {action for action in actions if action.startswith('rds:')})
             self.assertEqual({'autoscaling:DescribeAutoScalingGroups'}, {action for action in actions if action.startswith('autoscaling:')})
 
     def test_rds_query_is_exact_and_boundary_is_bound_to_the_existing_host_run_tag(self):

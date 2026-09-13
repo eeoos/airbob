@@ -13,6 +13,8 @@ on:
       - 'infra/aws/scripts/verify-published-image.sh'
       - 'infra/aws/scripts/assemble-image-release.sh'
       - 'infra/aws/scripts/package-service-bundles.sh'
+      - 'infra/aws/scripts/deterministic_service_bundle.py'
+      - 'infra/aws/scripts/classify-image-publication.py'
       - 'infra/aws/scripts/publish-service-bundles.sh'
       - 'infra/aws/bundles/**'
       - 'monitoring/prometheus/prometheus.aws.yml'
@@ -30,11 +32,24 @@ jobs:
     permissions:
       contents: read
     outputs:
+      images_required: ${{ steps.scope.outputs.images_required }}
       matrix: ${{ steps.matrix.outputs.matrix }}
       oci_matrix: ${{ steps.matrix.outputs.oci_matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Classify actual legacy image source changes
+        id: scope
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 infra/aws/scripts/classify-image-publication.py
+
+      - name: Verify image publication scope
+        run: python3 -m unittest discover -s infra/aws/tests -p 'test_image_publication_scope.py'
 
       - name: Verify immutable image contract
         run: bash infra/aws/tests/image-publication-test.sh
@@ -48,7 +63,7 @@ jobs:
 
   publish-ecr-images:
     needs: prepare
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.prepare.outputs.images_required == 'true'
     runs-on: ubuntu-latest
     environment: aws-image-publisher
     permissions:
@@ -128,7 +143,7 @@ jobs:
 
   publish-service-bundles:
     needs: [prepare, publish-ecr-images]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.prepare.outputs.images_required == 'true'
     runs-on: ubuntu-latest
     environment: aws-image-publisher
     permissions:
@@ -156,7 +171,7 @@ jobs:
 
   publish-oci-compat-images:
     needs: prepare
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.prepare.outputs.images_required == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

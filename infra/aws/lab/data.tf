@@ -57,9 +57,9 @@ data "aws_s3_object" "bundle_checksum" {
 data "aws_s3_object" "dataset_manifest" {
   count = local.services_enabled ? 1 : 0
 
-  bucket     = local.lab_contract.dataset_bucket_name
+  bucket     = var.global_b_snapshot_restore_only ? local.growth_b_snapshot_bucket : local.lab_contract.dataset_bucket_name
   key        = local.dataset_manifest_key
-  version_id = var.global_b_prepare_only ? var.global_b_manifest_version_id : null
+  version_id = var.global_b_snapshot_restore_only ? try(var.global_b_snapshot_provenance.version_id, "invalid-b-version") : (var.global_b_prepare_only || var.global_b_services) ? var.global_b_manifest_version_id : null
 }
 
 data "aws_s3_object" "dataset_production_spec" {
@@ -84,6 +84,7 @@ data "aws_db_snapshot" "dataset" {
 data "aws_s3_object" "data_bootstrap_receipt" {
   count = local.data_ready ? 1 : 0
 
-  bucket = local.lab_contract.evidence_bucket_name
-  key    = "data-bootstrap/${var.run_id}/${var.dataset_release}.json"
+  bucket     = local.lab_contract.evidence_bucket_name
+  key        = var.global_b_services ? try(var.global_b_readiness_receipt.key, "invalid-b-readiness") : "data-bootstrap/${var.run_id}/${var.dataset_release}.json"
+  version_id = var.global_b_services ? try(var.global_b_readiness_receipt.version_id, "invalid-b-version") : null
 }

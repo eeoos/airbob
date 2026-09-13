@@ -6,7 +6,7 @@ locals {
     api_fqdn      = local.api_fqdn
   }
 
-  lab_consumer_contract = {
+  lab_consumer_contract = merge({
     schemaVersion                    = 1
     account_id                       = var.account_id
     region                           = var.aws_region
@@ -29,7 +29,9 @@ locals {
     private_dns_zone_name            = aws_route53_zone.private.name
     approved_rds_snapshot_identifier = var.approved_rds_snapshot_identifier
     ecr_repositories                 = local.ecr_repositories
-  }
+    }, var.approved_b_snapshot_creation_identifier == "" ? {} : {
+    approved_b_snapshot_creation_identifier = var.approved_b_snapshot_creation_identifier
+  })
 }
 
 resource "aws_ssm_parameter" "dns_consumer_contract" {

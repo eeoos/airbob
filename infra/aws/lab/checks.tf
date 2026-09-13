@@ -117,7 +117,7 @@ locals {
   }
   dataset_profile_version  = try(local.dataset_manifest.releaseTuple.profileVersion, "")
   dataset_profile_contract = try(local.dataset_profile_contracts[local.dataset_profile_version], null)
-  dataset_dump_storage_gib = var.global_b_prepare_only ? 100 : try(local.dataset_profile_contract.dump_storage_gib, 20)
+  dataset_dump_storage_gib = (var.global_b_prepare_only || var.global_b_services || var.global_b_snapshot_restore_only) ? 100 : try(local.dataset_profile_contract.dump_storage_gib, 20)
   dataset_final_table_minimum_rows = {
     accommodation          = try(local.dataset_profile_contract.budgets.accommodations, -1)
     member                 = try(local.dataset_profile_contract.budgets.members, -1)
@@ -138,7 +138,7 @@ locals {
     activeWishlists = local.dataset_production_spec.targets.activeWishlists.rowBudget
     wishlistLinks   = local.dataset_production_spec.targets.wishlistLinks.rowBudget
   }, {})
-  dataset_release_valid = var.global_b_prepare_only ? local.growth_b_dataset_valid : local.legacy_dataset_release_valid
+  dataset_release_valid = var.global_b_snapshot_restore_only ? local.growth_b_snapshot_valid : var.global_b_prepare_only ? local.growth_b_dataset_valid : (var.global_b_services ? local.growth_b_service_manifest_valid : local.legacy_dataset_release_valid)
   legacy_dataset_release_valid = !local.services_enabled || try(
     sha256(nonsensitive(data.aws_s3_object.dataset_manifest[0].body)) == var.dataset_manifest_sha256 &&
     toset(keys(local.dataset_manifest)) == local.dataset_manifest_keys &&
@@ -271,7 +271,8 @@ locals {
     ),
     false,
   )
-  dataset_snapshot_valid = !local.services_enabled || var.database_bootstrap != "snapshot" || try(
+  dataset_snapshot_valid = local.growth_b_snapshot_selected ? local.growth_b_snapshot_valid : local.legacy_dataset_snapshot_valid
+  legacy_dataset_snapshot_valid = !local.services_enabled || var.database_bootstrap != "snapshot" || try(
     local.lab_contract.approved_rds_snapshot_identifier == var.rds_snapshot_identifier &&
     data.aws_db_snapshot.dataset[0].status == "available" &&
     data.aws_db_snapshot.dataset[0].engine == "mysql" &&
@@ -306,7 +307,8 @@ locals {
     jsondecode(nonsensitive(data.aws_s3_object.data_bootstrap_receipt[0].body)),
     null,
   )
-  data_bootstrap_receipt_valid = !local.data_ready || try(
+  data_bootstrap_receipt_valid = var.global_b_services ? local.growth_b_readiness_valid : local.legacy_data_bootstrap_receipt_valid
+  legacy_data_bootstrap_receipt_valid = !local.data_ready || try(
     toset(keys(local.data_bootstrap_receipt)) == toset([
       "schemaVersion", "runId", "datasetRelease", "datasetRunId", "releaseKind",
       "databaseBootstrap", "dumpSha256", "flywayVersion", "migrationChecksumSha256",
@@ -428,7 +430,7 @@ resource "terraform_data" "dataset_release_gate" {
   lifecycle {
     precondition {
       condition     = local.dataset_release_valid && local.dataset_snapshot_valid
-      error_message = "Refusing RDS without its exact legacy V27 or explicit B/V28 data-only input and matching optional snapshot."
+      error_message = "Refusing RDS without its exact legacy V27 or explicit B/V28 preparation/service input and matching optional snapshot."
     }
   }
 }
@@ -482,7 +484,7 @@ check "app_capacity_contract" {
 check "dataset_release" {
   assert {
     condition     = local.dataset_release_valid && local.dataset_snapshot_valid
-    error_message = "Phase 3 requires an immutable V27 dataset release and a matching optional RDS snapshot."
+    error_message = "Phase 3 requires an immutable V27 or explicit B/V28 dataset release and a matching optional RDS snapshot."
   }
 }
 

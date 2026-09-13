@@ -1,0 +1,169 @@
+name: Publish fixed Global B AWS image inputs
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_execution_commit:
+        description: Exact reviewed main commit that may execute publication
+        required: true
+        type: string
+
+env:
+  AIRBOB_EXPECTED_EXECUTION_COMMIT: ${{ inputs.expected_execution_commit }}
+
+# Shares the existing image publication fence. This workflow has no OCI jobs.
+concurrency:
+  group: infra-images
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.repository == 'eeoos/airbob' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test the closed publication contract
+        run: |
+          set -euo pipefail
+          [[ "$AIRBOB_EXPECTED_EXECUTION_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_SHA" == "$AIRBOB_EXPECTED_EXECUTION_COMMIT" ]]
+          python3 -m unittest discover -s infra/aws/tests -p 'test_growth_b_images.py'
+          bash infra/aws/tests/package-service-bundles-test.sh
+          mkdir "$RUNNER_TEMP/b-image-plan"
+          python3 infra/aws/scripts/growth_b_images.py plan --output "$RUNNER_TEMP/b-image-plan"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-image-plan-${{ github.sha }}
+          path: ${{ runner.temp }}/b-image-plan/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-legacy-infra:
+    needs: validate
+    if: github.repository == 'eeoos/airbob' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        variable: [REDIS_IMAGE, REDIS_EXPORTER_IMAGE, NODE_EXPORTER_IMAGE, KAFKA_IMAGE, DEBEZIUM_IMAGE, ELASTICSEARCH_IMAGE, ELASTICSEARCH_EXPORTER_IMAGE, PROMETHEUS_IMAGE, GRAFANA_IMAGE]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: arn:aws:iam::942632789808:role/airbob-image-publisher
+          allowed-account-ids: '942632789808'
+          aws-region: ap-northeast-2
+          role-duration-seconds: 7200
+          role-session-name: airbob-b-image-${{ github.run_id }}
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
+      - name: Supply the fixed main-ancestor image
+        env:
+          IMAGE_VARIABLE: ${{ matrix.variable }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/b-image-result"
+          python3 infra/aws/scripts/growth_b_images.py publish-infra --variable "$IMAGE_VARIABLE" --output "$RUNNER_TEMP/b-image-result"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-legacy-${{ matrix.variable }}-${{ github.sha }}
+          path: ${{ runner.temp }}/b-image-result/receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-b-debezium:
+    needs: validate
+    if: github.repository == 'eeoos/airbob' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: arn:aws:iam::942632789808:role/airbob-image-publisher
+          allowed-account-ids: '942632789808'
+          aws-region: ap-northeast-2
+          role-duration-seconds: 7200
+          role-session-name: airbob-b-debezium-${{ github.run_id }}
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
+      - name: Publish the separate B connector tag
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/b-image-result"
+          python3 infra/aws/scripts/growth_b_images.py publish-b --output "$RUNNER_TEMP/b-image-result"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-debezium-${{ github.sha }}
+          path: ${{ runner.temp }}/b-image-result/receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-bundle-and-receipt:
+    needs: [publish-legacy-infra, publish-b-debezium]
+    if: github.repository == 'eeoos/airbob' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: aws-image-publisher
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Install the checksum-pinned AWS CLI
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 \
+            https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.34.64.zip -o "$RUNNER_TEMP/awscliv2.zip"
+          printf '%s  %s\n' ae97157f36526c36673fbc71756a921d9ff238542cba9c88f6568cd80e88d1d4 "$RUNNER_TEMP/awscliv2.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/awscliv2.zip" -d "$RUNNER_TEMP/pinned-cli"
+          "$RUNNER_TEMP/pinned-cli/aws/install" --install-dir "$RUNNER_TEMP/aws-cli" --bin-dir "$RUNNER_TEMP/aws-bin"
+          echo "$RUNNER_TEMP/aws-bin" >> "$GITHUB_PATH"
+      - uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: arn:aws:iam::942632789808:role/airbob-image-publisher
+          allowed-account-ids: '942632789808'
+          aws-region: ap-northeast-2
+          role-duration-seconds: 7200
+          role-session-name: airbob-b-bundle-${{ github.run_id }}
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
+      - name: Verify image inputs and publish the config completion marker last
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/b-image-result"
+          python3 infra/aws/scripts/growth_b_images.py publish-bundle --output "$RUNNER_TEMP/b-image-result"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-aws-image-inputs-${{ github.sha }}
+          path: ${{ runner.temp }}/b-image-result/
+          if-no-files-found: error
+          retention-days: 30
