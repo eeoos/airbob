@@ -373,7 +373,8 @@ def bootstrap_dependencies(manifest, endpoint, redis_image, aws, db, secret_dir,
             'Generated CDC account tokens differ')
     account = "'" + cdc['username'] + "'@'%'"
     db.execute('CREATE USER ' + account + " IDENTIFIED BY '" + password + "' REQUIRE SSL;", False)
-    db.execute('GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO ' + account + ';', False)
+    # RDS disallows global read locks; Debezium snapshots require table locks.
+    db.execute('GRANT SELECT, RELOAD, LOCK TABLES, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO ' + account + ';', False)
     secret_file = secret_dir / 'cdc.json'; write(secret_file, {'username': cdc['username'], 'password': password})
     aws.call('secretsmanager', 'put-secret-value', '--secret-id', debezium_secret_arn, '--secret-string', 'file://' + str(secret_file))
     desired = connector_config(manifest, endpoint, password)

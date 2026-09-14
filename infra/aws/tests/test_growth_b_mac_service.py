@@ -317,7 +317,9 @@ print(json.dumps({'pythonVersion':sys.version.split()[0],'count':len(names),'sta
                 account = "'" + manifest['cdc']['username'] + "'@'%'"
                 if sql.startswith('CREATE'):
                     self.assertRegex(sql, '^CREATE USER ' + account + " IDENTIFIED BY '[A-Za-z0-9_-]{48}' REQUIRE SSL;$")
-                else: self.assertTrue(sql.endswith(' TO ' + account + ';'))
+                else:
+                    self.assertEqual('GRANT SELECT, RELOAD, LOCK TABLES, SHOW DATABASES, '
+                        'REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO ' + account + ';', sql)
                 self.assertNotIn('CONVERT(', sql)
                 self.events.append(('sql-write', sql.split()[0]))
         def http(method, path, value=None):
