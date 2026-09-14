@@ -7,6 +7,13 @@ bundle commit, resource fence and expiry. The existing `services` command create
 the normal five dependency hosts and then the application. It does not create
 an importer host, run SQL import/ETL, or claim a full database fingerprint.
 
+The consumer must package the same downsize source that issued the actual
+receipt. PR140's `configuration_sha` normalizes only existing empty
+`domain_dns_ips` and `enabled_cloudwatch_logs_exports` lists to null; it preserves
+the original state digests and all nonempty values. Use that source when the
+receipt binds its SHA. Do not replace the receipt's `sourceSha256` or its
+operator/state lineage to match an older consumer package.
+
 After the real import and downsize finish, select their unchanged JSON bytes
 through exact S3 `key`, `versionId`, `sha256`, and `bytes` references. These are
 the only different fields in the existing B service manifest's `preparation`:
@@ -68,6 +75,22 @@ checks with a 30-minute controller wait for this Mac path. Original lease and
 resource expiry still govern the operation. Review the caller's current ALB
 ingress `/32` when planning execution; the provisioning runner's earlier `/32`
 is not evidence that the Mac or a later runner can reach the endpoint.
+
+The default retained-NAT + five dependencies + one app uses seven EC2 instances
+and the same one 100-GiB RDS. It does not start an additional ASG observation
+instance. Keep the original resource expiry and cumulative budget; permission
+for up to eight base EC2 instances and one additional app for at most one hour
+does not authorize extending that expiry. Any separate full DB comparison is a
+read-only operator step; this bootstrap does not repeat it or relabel its
+lightweight source receipt as a full comparison.
+
+`test_growth_b_mac_service` exercises the exact eleven-file package in a fresh
+isolated interpreter with networking and process creation blocked during import.
+The Mac source/dependency/native-restore tests can also run under Python 3.9:
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=infra/aws/tests python3.9 -B -m unittest test_growth_b_mac_service`.
+This covers the Mac execution path and package imports; the unused Linux
+preparation/snapshot/R4 functions retain their Python 3.11+ runtime requirement.
+These are offline contracts; they do not claim that AWS hosts have started.
 
 An uncertain/failed restore retains its intent, index and any current connector
 state. Repeating bootstrap is rejected rather than replaying SQL, restoring

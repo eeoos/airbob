@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -135,6 +137,36 @@ class MacService(unittest.TestCase):
         self.assertEqual(11, len(service.tools_for(value)))
         self.assertNotIn('preparedFingerprintSha256', value['preparation'])
         self.assertFalse(self.transition['fullDatasetValidated'])
+
+    def test_exact_eleven_file_host_package_imports_without_repository_or_external_io(self):
+        with tempfile.TemporaryDirectory(prefix='airbob-mac-service-tools-') as directory:
+            tools = Path(directory)
+            sources = self.manifest['toolSources']
+            for name, expected in sources.items():
+                raw = (SCRIPTS / name).read_bytes()
+                self.assertEqual(expected, hashlib.sha256(raw).hexdigest())
+                (tools / name).write_bytes(raw)
+            program = '''import hashlib,importlib,json,pathlib,sys
+root=pathlib.Path(sys.argv[1]); sys.path.insert(0,str(root))
+def offline(event,args):
+    if event.startswith('socket.') or event in {'subprocess.Popen','os.system','os.fork','os.posix_spawn'}:
+        raise AssertionError('unexpected import side effect: '+event)
+sys.addaudithook(offline)
+service=importlib.import_module('growth_b_service')
+names=service.tools_for({'preparation':{'sourceMode':'mac-sql-postcheck'}})
+assert len(names)==11 and {p.name for p in root.iterdir()}==set(names)
+for name in names:
+    compile((root/name).read_bytes(),str(root/name),'exec')
+    importlib.import_module(name[:-3])
+print(json.dumps({'pythonVersion':sys.version.split()[0],'count':len(names),'state':'FULL_PACKAGE_IMPORTED'}))
+'''
+            observed = subprocess.run([sys.executable, '-B', '-I', '-c', program, str(tools)],
+                cwd=directory, capture_output=True, text=True, timeout=10,
+                env={'PATH': os.environ['PATH'], 'AWS_EC2_METADATA_DISABLED': 'true'})
+            self.assertEqual(0, observed.returncode, observed.stderr)
+            self.assertEqual({'pythonVersion': sys.version.split()[0], 'count': 11, 'state': 'FULL_PACKAGE_IMPORTED'},
+                json.loads(observed.stdout))
+            self.assertEqual(set(sources), {p.name for p in tools.iterdir()})
 
     def test_original_operator_immutable_fields_cannot_be_relabelled(self):
         for key, value in [('fencingToken', 77), ('expiresAt', '1999999998'), ('bundleCommit', 'f' * 40),
