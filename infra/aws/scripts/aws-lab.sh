@@ -959,6 +959,7 @@ canonical_operator_tree_sha256() {
   fi
   if [[ "$global_b_services" == true ]]; then
     for relative in infra/aws/scripts/growth_b_service.py infra/aws/scripts/growth_b_search.py infra/aws/scripts/growth_b_app_runtime.py \
+      infra/aws/scripts/growth_b_mac_service.py infra/aws/scripts/growth_b_mac_downsize.py \
       infra/aws/scripts/bootstrap-growth-b-services.sh infra/aws/lab/templates/start-growth-b-app.sh.tftpl; do
       [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "B service identity file is unavailable"
       printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
@@ -3027,8 +3028,8 @@ write_terraform_output_evidence() {
 }
 
 wait_for_application() {
-  local deadline status unhealthy healthy desired
-  deadline=$(($(date +%s) + INSTANCE_REFRESH_TIMEOUT_SECONDS))
+  local deadline status unhealthy healthy desired timeout_seconds=${1:-$INSTANCE_REFRESH_TIMEOUT_SECONDS}
+  deadline=$(($(date +%s) + timeout_seconds))
   while [[ $(date +%s) -le "$deadline" ]]; do
     assert_lease
     status=$(aws autoscaling describe-instance-refreshes --auto-scaling-group-name "$asg_name" \
@@ -3053,7 +3054,7 @@ wait_for_application() {
     run_supervised_mutation "Auto Scaling instance-refresh cancellation" \
       aws autoscaling cancel-instance-refresh --auto-scaling-group-name "$asg_name" \
       --region "$AWS_REGION" --no-cli-pager >/dev/null 2>&1 || true
-  fail "application refresh/target-health gate exceeded 15 minutes"
+  fail "application refresh/target-health gate exceeded $timeout_seconds seconds"
 }
 
 verify_aws_application_smoke() {
@@ -3787,6 +3788,27 @@ continue_global_b_services() {
   validate_operator_scope_for_action false
   current_stage=b-service-release-validation
   resolve_release_inputs
+  if jq -e '.preparation.sourceMode == "mac-sql-postcheck"' "$temp_dir/dataset-manifest.json" >/dev/null; then
+    jq -e '.globalBPrepareOnly==true and .globalBImportFromMac==true' "$original" >/dev/null \
+      || fail "Mac service input cannot replace another preparation source"
+    local selected_downsize
+    selected_downsize=$(jq -c '.preparation.receipt' "$temp_dir/dataset-manifest.json")
+    [[ -z "${B_MAC_DOWNSIZE_RECEIPT_JSON:-}" || "$(jq -cS . <<<"$B_MAC_DOWNSIZE_RECEIPT_JSON")" == "$(jq -cS . <<<"$selected_downsize")" ]] \
+      || fail "Mac service and selected downsize references differ"
+    B_MAC_DOWNSIZE_RECEIPT_JSON=$selected_downsize
+    load_retained_rds_class "$original"
+    fetch_b_class_evidence "$(jq -c '.preparation.sqlImportReceipt' "$temp_dir/dataset-manifest.json")" "$temp_dir/mac-sql-complete.json"
+    fetch_b_class_evidence "$(jq -c '.preparation.postcheckReceipt' "$temp_dir/dataset-manifest.json")" "$temp_dir/mac-sql-postcheck.json"
+    python3 - "$script_dir" "$temp_dir/dataset-manifest.json" "$original" "$rds_class_transition_file" \
+      "$temp_dir/mac-sql-complete.json" "$temp_dir/mac-sql-postcheck.json" <<'AIRBOB_MAC_SERVICE_SOURCE' || fail "Mac SQL/postcheck/downsize source admission failed"
+import sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_service as service
+import growth_b_mac_service as mac
+mac.validate_source(service.read(sys.argv[2]), service.read(sys.argv[5]), service.read(sys.argv[6]),
+    service.read(sys.argv[4]), original=service.read(sys.argv[3]), original_sha=service.sha(sys.argv[3]))
+AIRBOB_MAC_SERVICE_SOURCE
+  fi
   validate_workflow_deadline_budget; validate_up_credential_budget
   validate_retained_global_b_execution_deadline "$original"
   start_mutation_guard
@@ -3800,7 +3822,7 @@ continue_global_b_services() {
   global_b_readiness_receipt=null
   if [[ "$stage" == bootstrap ]]; then
     global_b_service_bootstrap_enabled=true
-    jq -e '.search.restoreReceipt != null' "$temp_dir/dataset-manifest.json" >/dev/null \
+    jq -e '.preparation.sourceMode == "mac-sql-postcheck" or .search.restoreReceipt != null' "$temp_dir/dataset-manifest.json" >/dev/null \
       || fail "B bootstrap requires its actual native S3 search restore receipt"
   elif [[ "$stage" == application ]]; then
     receipt_key="data-bootstrap/$run_id/$dataset_release-service-$global_b_service_release.json"
@@ -3847,7 +3869,11 @@ continue_global_b_services() {
     asg_name=$(jq -er '.auto_scaling_group_name' <<<"$phase4")
     target_group_arn=$(jq -er '.target_group_arn' <<<"$phase4")
     aws_alb_dns_name=$(jq -er '.alb_dns_name' <<<"$phase4")
-    wait_for_application
+    if jq -e '.preparation.sourceMode == "mac-sql-postcheck"' "$temp_dir/dataset-manifest.json" >/dev/null; then
+      wait_for_application 1800
+    else
+      wait_for_application
+    fi
     curl --fail --silent --show-error --max-time 30 --connect-to "api.airbob.cloud:443:$aws_alb_dns_name:443" \
       https://api.airbob.cloud/actuator/health/readiness | jq -e '.status=="UP"' >/dev/null \
       || fail "B application ALB readiness did not open"

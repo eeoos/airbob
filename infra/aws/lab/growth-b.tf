@@ -151,7 +151,9 @@ output "global_b_mac_import" {
 }
 
 locals {
-  growth_b_service_helper_names   = concat(local.growth_b_helper_names, ["growth_b_service.py", "growth_b_search.py", "growth_b_app_runtime.py"])
+  growth_b_service_mac_source = try(local.dataset_manifest.preparation.sourceMode == "mac-sql-postcheck", false)
+  growth_b_service_helper_names = concat(local.growth_b_helper_names, ["growth_b_service.py", "growth_b_search.py", "growth_b_app_runtime.py"],
+  local.growth_b_service_mac_source ? ["growth_b_mac_service.py", "growth_b_mac_downsize.py"] : [])
   growth_b_service_helper_sources = { for name in local.growth_b_service_helper_names : name => filesha256("${path.module}/../scripts/${name}") }
   growth_b_service_prefix         = "datasets/${var.dataset_release}-aws-service/${var.global_b_service_release}"
   growth_b_search_prefix          = try("datasets/${var.dataset_release}-search/${local.dataset_manifest.search.snapshotRelease}", "invalid-b-search")
@@ -204,15 +206,22 @@ locals {
     local.dataset_manifest.consumerTools.key == "${local.growth_b_service_prefix}/files/consumer-tools.tar.gz" &&
     local.dataset_manifest.preparation.rdsCaBundle.key == "datasets/${var.dataset_release}-aws-preparation/files/${local.dataset_manifest.preparation.rdsCaBundle.sha256}-rds-ca.pem" &&
     startswith(local.dataset_manifest.preparation.receipt.key, "data-bootstrap/${var.run_id}/") &&
-    alltrue([for key in ["restoreConfigSha256", "restoreReceiptSha256", "preparedFingerprintSha256"] : can(regex("^[0-9a-f]{64}$", local.dataset_manifest.preparation[key]))]) &&
+    (local.growth_b_service_mac_source ? (
+      local.dataset_manifest.preparation.receipt.key == "data-bootstrap/${var.run_id}/${var.dataset_release}-mac-rds-downsize.json" &&
+      alltrue([for name in ["sqlImportReceipt", "postcheckReceipt"] :
+        startswith(local.dataset_manifest.preparation[name].key, "data-bootstrap/${var.run_id}/") &&
+        can(regex("^[0-9a-f]{64}$", local.dataset_manifest.preparation[name].sha256)) &&
+        !contains(["", "null", "None"], local.dataset_manifest.preparation[name].versionId)
+      ])
+    ) : alltrue([for key in ["restoreConfigSha256", "restoreReceiptSha256", "preparedFingerprintSha256"] : can(regex("^[0-9a-f]{64}$", local.dataset_manifest.preparation[key]))])) &&
     local.dataset_manifest.search.image == var.infra_image_references.ELASTICSEARCH_IMAGE &&
     can(regex("^${var.dataset_release}-search-[a-z0-9][a-z0-9._-]{0,60}$", local.dataset_manifest.search.snapshotRelease)) &&
     local.dataset_manifest.search.transport.key == "${local.growth_b_search_prefix}/transport-manifest.json" &&
-    (!var.global_b_service_bootstrap_enabled || (
+    (local.growth_b_service_mac_source ? local.dataset_manifest.search.restoreReceipt == null : (!var.global_b_service_bootstrap_enabled || (
       startswith(local.dataset_manifest.search.restoreReceipt.key, "data-bootstrap/${var.run_id}/") &&
       can(regex("^[0-9a-f]{64}$", local.dataset_manifest.search.restoreReceipt.sha256)) &&
       !contains(["", "null", "None"], local.dataset_manifest.search.restoreReceipt.versionId)
-    )) &&
+    ))) &&
     alltrue([for item in local.growth_b_service_refs :
       toset(keys(item.ref)) == toset(["key", "versionId", "sha256", "bytes"]) &&
       can(regex("^[A-Za-z0-9_./-]+$", item.ref.key)) && !strcontains(item.ref.key, "/../") && !strcontains(item.ref.key, "/./") &&
@@ -220,21 +229,43 @@ locals {
       can(regex("^[0-9a-f]{64}$", item.ref.sha256)) && item.ref.bytes > 0 && item.ref.bytes <= 20 * 1024 * 1024 && floor(item.ref.bytes) == item.ref.bytes
     ]) &&
     sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_preparation[0].body_base64))) == local.dataset_manifest.preparation.receipt.sha256 &&
-    local.growth_b_service_preparation.kind == "global-growth-b-aws-data-only-preparation" &&
-    local.growth_b_service_preparation.state == "DATABASE_INVENTORY_LOGIN_VERIFIED" &&
-    local.growth_b_service_preparation.runId == var.run_id && local.growth_b_service_preparation.datasetId == var.dataset_release &&
-    local.growth_b_service_preparation.rdsResourceId == local.dataset_manifest.rds.resourceId &&
-    local.growth_b_service_preparation.serverUuid == local.dataset_manifest.rds.serverUuid &&
-    local.growth_b_service_preparation.restoreReceiptSha256 == local.dataset_manifest.preparation.restoreReceiptSha256 &&
-    local.growth_b_service_preparation.preparation.preparedFingerprintSha256 == local.dataset_manifest.preparation.preparedFingerprintSha256 &&
-    !local.growth_b_service_preparation.deploymentReady && !local.growth_b_service_preparation.applicationLeftRunning &&
-    (var.database_bootstrap == "snapshot" ? (
-      local.growth_b_service_preparation.sourceMode == "verified-global-b-snapshot" &&
-      local.growth_b_service_preparation.snapshotProvenanceSha256 == var.global_b_snapshot_provenance.sha256 &&
-      local.growth_b_service_preparation.snapshotRestoreEvidence.evidenceSource == "controller-pinned-cloudtrail-event" &&
-      can(regex("^[0-9a-f]{64}$", local.growth_b_service_preparation.snapshotRestoreEvidence.eventSha256))
-      ) : (!contains(keys(local.growth_b_service_preparation), "snapshotProvenanceSha256") &&
-    contains(["dump", ""], try(coalesce(local.growth_b_service_preparation.sourceMode, ""), "")))) &&
+    (local.growth_b_service_mac_source ? (
+      var.database_bootstrap == "dump" && var.rds_instance_class == "db.t3.small" &&
+      local.growth_b_service_preparation.kind == "global-b-mac-rds-downsize" &&
+      local.growth_b_service_preparation.state == "SAME_RDS_DOWNSIZED_AND_TERRAFORM_ALIGNED" &&
+      local.growth_b_service_preparation.sourceSha256 == local.growth_b_service_helper_sources["growth_b_mac_downsize.py"] &&
+      local.growth_b_service_preparation.operator.globalBPrepareOnly && local.growth_b_service_preparation.operator.globalBImportFromMac &&
+      local.growth_b_service_preparation.operator.runId == var.run_id &&
+      local.growth_b_service_preparation.operator.datasetRelease == var.dataset_release &&
+      local.growth_b_service_preparation.operator.fencingToken == var.fencing_token &&
+      local.growth_b_service_preparation.operator.expiresAt == var.expires_at &&
+      local.growth_b_service_preparation.operator.bundleCommit == var.bundle_commit &&
+      local.growth_b_service_preparation.operator.appImageReference == var.app_image_reference &&
+      local.growth_b_service_preparation.rds.identifier == local.dataset_manifest.rds.identifier &&
+      local.growth_b_service_preparation.rds.resourceId == local.dataset_manifest.rds.resourceId &&
+      local.growth_b_service_preparation.rds.serverUuid == local.dataset_manifest.rds.serverUuid &&
+      local.growth_b_service_preparation.fromClass == "db.m6i.large" && local.growth_b_service_preparation.toClass == "db.t3.small" &&
+      local.growth_b_service_preparation.sqlImportSha256 == local.dataset_manifest.preparation.sqlImportReceipt.sha256 &&
+      local.growth_b_service_preparation.postcheckSha256 == local.dataset_manifest.preparation.postcheckReceipt.sha256 &&
+      !local.growth_b_service_preparation.sqlReplayed && !local.growth_b_service_preparation.fullDatasetValidated &&
+      !local.growth_b_service_preparation.servicesStarted
+      ) : (
+      local.growth_b_service_preparation.kind == "global-growth-b-aws-data-only-preparation" &&
+      local.growth_b_service_preparation.state == "DATABASE_INVENTORY_LOGIN_VERIFIED" &&
+      local.growth_b_service_preparation.runId == var.run_id && local.growth_b_service_preparation.datasetId == var.dataset_release &&
+      local.growth_b_service_preparation.rdsResourceId == local.dataset_manifest.rds.resourceId &&
+      local.growth_b_service_preparation.serverUuid == local.dataset_manifest.rds.serverUuid &&
+      local.growth_b_service_preparation.restoreReceiptSha256 == local.dataset_manifest.preparation.restoreReceiptSha256 &&
+      local.growth_b_service_preparation.preparation.preparedFingerprintSha256 == local.dataset_manifest.preparation.preparedFingerprintSha256 &&
+      !local.growth_b_service_preparation.deploymentReady && !local.growth_b_service_preparation.applicationLeftRunning &&
+      (var.database_bootstrap == "snapshot" ? (
+        local.growth_b_service_preparation.sourceMode == "verified-global-b-snapshot" &&
+        local.growth_b_service_preparation.snapshotProvenanceSha256 == var.global_b_snapshot_provenance.sha256 &&
+        local.growth_b_service_preparation.snapshotRestoreEvidence.evidenceSource == "controller-pinned-cloudtrail-event" &&
+        can(regex("^[0-9a-f]{64}$", local.growth_b_service_preparation.snapshotRestoreEvidence.eventSha256))
+        ) : (!contains(keys(local.growth_b_service_preparation), "snapshotProvenanceSha256") &&
+      contains(["dump", ""], try(coalesce(local.growth_b_service_preparation.sourceMode, ""), ""))))
+    )) &&
     sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_transport[0].body_base64))) == local.dataset_manifest.search.transport.sha256 &&
     local.growth_b_service_transport.schemaVersion == 1 && local.growth_b_service_transport.kind == "global-growth-b-search-transport" &&
     local.growth_b_service_transport.bucket == local.lab_contract.dataset_bucket_name && local.growth_b_service_transport.region == var.aws_region &&
@@ -271,10 +302,27 @@ locals {
     local.data_bootstrap_receipt.appRuntime == local.growth_b_service_runtime.runtime &&
     local.data_bootstrap_receipt.debezium == local.dataset_manifest.debezium && local.data_bootstrap_receipt.debeziumVerified &&
     local.data_bootstrap_receipt.preparationReceipt == local.dataset_manifest.preparation.receipt &&
-    local.data_bootstrap_receipt.preparedFingerprintSha256 == local.dataset_manifest.preparation.preparedFingerprintSha256 &&
-    local.data_bootstrap_receipt.searchRestoreReceipt == local.dataset_manifest.search.restoreReceipt &&
-    local.data_bootstrap_receipt.searchTransport == local.dataset_manifest.search.transport &&
-    local.data_bootstrap_receipt.searchFingerprint == local.dataset_manifest.search.documentFingerprint &&
+    (local.growth_b_service_mac_source ? (
+      local.data_bootstrap_receipt.sourceMode == "mac-sql-postcheck" &&
+      local.data_bootstrap_receipt.sqlImportReceipt == local.dataset_manifest.preparation.sqlImportReceipt &&
+      local.data_bootstrap_receipt.postcheckReceipt == local.dataset_manifest.preparation.postcheckReceipt &&
+      !local.data_bootstrap_receipt.fullDatasetValidated && !local.data_bootstrap_receipt.sqlReplayed &&
+      local.data_bootstrap_receipt.searchDatasetRestored &&
+      local.data_bootstrap_receipt.searchTransport == local.dataset_manifest.search.transport &&
+      local.data_bootstrap_receipt.nativeSearch.state == "NATIVE_SEARCH_COUNT_AND_SAMPLE_VERIFIED" &&
+      local.data_bootstrap_receipt.nativeSearch.documents == local.dataset_manifest.search.documentFingerprint.documents &&
+      local.data_bootstrap_receipt.nativeSearch.transport == local.dataset_manifest.search.transport &&
+      local.data_bootstrap_receipt.nativeSearch.restoredIndex == local.data_bootstrap_receipt.restoredIndex &&
+      local.data_bootstrap_receipt.nativeSearch.nativeRestoreSucceeded && local.data_bootstrap_receipt.nativeSearch.singleWriteAlias &&
+      local.data_bootstrap_receipt.nativeSearch.representativeSearchPassed && local.data_bootstrap_receipt.nativeSearch.repositoryReadOnly &&
+      local.data_bootstrap_receipt.nativeSearch.repositoryRemoved && !local.data_bootstrap_receipt.nativeSearch.fullDatasetValidated &&
+      !local.data_bootstrap_receipt.nativeSearch.allDocumentSourceFieldsEqual
+      ) : (
+      local.data_bootstrap_receipt.preparedFingerprintSha256 == local.dataset_manifest.preparation.preparedFingerprintSha256 &&
+      local.data_bootstrap_receipt.searchRestoreReceipt == local.dataset_manifest.search.restoreReceipt &&
+      local.data_bootstrap_receipt.searchTransport == local.dataset_manifest.search.transport &&
+      local.data_bootstrap_receipt.searchFingerprint == local.dataset_manifest.search.documentFingerprint
+    )) &&
     local.data_bootstrap_receipt.cdc == local.dataset_manifest.cdc && local.data_bootstrap_receipt.cdcRunning && local.data_bootstrap_receipt.heartbeatObserved &&
     toset(local.data_bootstrap_receipt.topics) == local.dataset_kafka_topics && local.data_bootstrap_receipt.redisSeparate &&
     !local.data_bootstrap_receipt.redisReset && local.data_bootstrap_receipt.writersStopped &&
@@ -288,6 +336,8 @@ locals {
     manifestVersionId        = var.global_b_manifest_version_id, manifestSha256 = var.dataset_manifest_sha256
     toolSources              = local.growth_b_service_helper_sources
     databaseBootstrap        = var.database_bootstrap
+    macSource                = local.growth_b_service_mac_source
+    redisImage               = var.infra_image_references.REDIS_IMAGE
     rdsInstanceClass         = var.rds_instance_class
     rdsClassGuardSha256      = filesha256("${path.module}/../scripts/growth_b_rds_class.py")
     resourceFence            = var.fencing_token
@@ -295,7 +345,7 @@ locals {
     snapshotProvenanceSha256 = var.database_bootstrap == "snapshot" ? var.global_b_snapshot_provenance.sha256 : null
     lease = { table = local.lab_contract.lease_table_name, lockName = local.lab_contract.lease_lock_id,
     owner = var.global_b_lease_owner, runId = var.run_id, command = "up", fencingToken = var.global_b_lease_fencing_token }
-    rds               = { identifier = module.rds[0].identifier, resourceId = module.rds[0].resource_id }
+    rds               = { identifier = module.rds[0].identifier, resourceId = module.rds[0].resource_id, endpoint = module.rds[0].address, masterSecretArn = module.rds[0].master_secret_arn }
     debeziumSecretArn = aws_secretsmanager_secret.debezium[0].arn
   } : null
   growth_b_service_bootstrap_command = var.global_b_services && local.services_enabled ? join("\n", [

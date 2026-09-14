@@ -1,7 +1,8 @@
 """Explicit B/V28 AWS normal-service admission and fresh CDC bootstrap.
 
 Runs on the retained preparation/Connect host under the existing controller lease.
-It does not restore SQL/search, enable ASG capacity, reset Redis, or publish images.
+The Mac branch restores sealed native search using its existing low-level helper.
+It does not restore SQL, enable ASG capacity, reset Redis, or publish images.
 Public receipts prove dependencies before app start; they never claim a live app.
 """
 from __future__ import annotations
@@ -32,6 +33,14 @@ TOOLS = ('growth_b_service.py', 'growth_b_prepare.py', 'growth_b_aws_restore.py'
          'growth_b_contract.py', 'growth_b_runtime.py', 'growth_b_inventory.py', 'growth_b_search.py', 'growth_b_app_runtime.py')
 TOPICS = tuple(stream + '.events' + suffix for stream in ('PAYMENT_OPERATION', 'ACCOMMODATION_INDEX',
     'ACCOMMODATION_CACHE', 'OPERATOR_ALERT') for suffix in ('', '.RETRY', '.DLT'))
+
+
+def mac_source(value):
+    return value.get('preparation', {}).get('sourceMode') == 'mac-sql-postcheck'
+
+
+def tools_for(value):
+    return TOOLS + ('growth_b_mac_service.py', 'growth_b_mac_downsize.py') if mac_source(value) else TOOLS
 
 
 def require(ok, message):
@@ -115,11 +124,15 @@ def validate_manifest(value, dataset_id, run_id, release, sources=None):
             and debezium['connectVersion'] == '3.7.0',
             'B requires its separate immutable Debezium 3.0.8 plugin and Kafka Connect identity')
     prep = value['preparation']
-    require(set(prep) == {'receipt', 'restoreConfigSha256', 'restoreReceiptSha256', 'preparedFingerprintSha256', 'rdsCaBundle'}, 'Preparation binding fields differ')
-    ref(prep['receipt'], f'data-bootstrap/{run_id}/')
-    ref(prep['rdsCaBundle'], f'datasets/{dataset_id}-aws-preparation/files/')
-    require(prep['rdsCaBundle']['key'].endswith('/' + prep['rdsCaBundle']['sha256'] + '-rds-ca.pem') and all(re.fullmatch(r'[0-9a-f]{64}', prep[key])
-            for key in ('restoreConfigSha256', 'restoreReceiptSha256', 'preparedFingerprintSha256')), 'Preparation hashes differ')
+    if mac_source(value):
+        import growth_b_mac_service as mac
+        mac.validate_preparation_fields(prep, dataset_id, run_id)
+    else:
+        require(set(prep) == {'receipt', 'restoreConfigSha256', 'restoreReceiptSha256', 'preparedFingerprintSha256', 'rdsCaBundle'}, 'Preparation binding fields differ')
+        ref(prep['receipt'], f'data-bootstrap/{run_id}/')
+        ref(prep['rdsCaBundle'], f'datasets/{dataset_id}-aws-preparation/files/')
+        require(prep['rdsCaBundle']['key'].endswith('/' + prep['rdsCaBundle']['sha256'] + '-rds-ca.pem') and all(re.fullmatch(r'[0-9a-f]{64}', prep[key])
+                for key in ('restoreConfigSha256', 'restoreReceiptSha256', 'preparedFingerprintSha256')), 'Preparation hashes differ')
     search = value['search']
     require(set(search) == {'snapshotRelease', 'transport', 'restoreReceipt', 'documentFingerprint', 'image'}, 'Search fields differ')
     require(re.fullmatch(re.escape(dataset_id) + r'-search-[a-z0-9][a-z0-9._-]{0,60}', search['snapshotRelease']), 'Search release differs')
@@ -128,6 +141,7 @@ def validate_manifest(value, dataset_id, run_id, release, sources=None):
     require(search['transport']['key'] == prefix + 'transport-manifest.json', 'Search completion marker required')
     if search['restoreReceipt'] is not None:
         ref(search['restoreReceipt'], f'data-bootstrap/{run_id}/')
+    require(not mac_source(value) or search['restoreReceipt'] is None, 'Mac bootstrap produces its own scoped native result')
     fingerprint = search['documentFingerprint']
     require(set(fingerprint) == {'algorithm', 'documents', 'contentSha256', 'identityPairsSha256', 'mappingSha256', 'indexSemanticsSha256'}
             and fingerprint['algorithm'] == 'airbob-es-accommodation-id-asc-length-prefixed-json-v1'
@@ -136,7 +150,7 @@ def validate_manifest(value, dataset_id, run_id, release, sources=None):
             'Complete sealed search fingerprint required')
     require(re.fullmatch(ACCOUNT + r'\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/airbob-infra/elasticsearch@sha256:[0-9a-f]{64}', search['image']), 'Pinned AWS ES image required')
     ref(value['consumerTools'], f'datasets/{dataset_id}-aws-service/{release}/files/')
-    require(value['consumerTools']['key'].endswith('/consumer-tools.tar.gz') and set(value['toolSources']) == set(TOOLS)
+    require(value['consumerTools']['key'].endswith('/consumer-tools.tar.gz') and set(value['toolSources']) == set(tools_for(value))
             and all(re.fullmatch(r'[0-9a-f]{64}', item) for item in value['toolSources'].values()), 'Exact B service helper inventory required')
     if sources is not None:
         require(value['toolSources'] == sources, 'B service helper bytes differ from review')
@@ -164,6 +178,28 @@ def validate_readiness(receipt, manifest, manifest_sha):
     for key in ('runId', 'datasetId', 'serviceRelease', 'mysql', 'rds', 'application', 'appRuntimeBinding', 'debezium', 'cdc', 'toolSources'):
         require(receipt.get(key) == manifest[key], 'B readiness selected identity differs: ' + key)
     validate_app_runtime_projection(receipt.get('appRuntime'), manifest['application'])
+    if mac_source(manifest):
+        require(receipt.get('sourceMode') == 'mac-sql-postcheck' and receipt.get('fullDatasetValidated') is False
+                and receipt.get('sqlReplayed') is False and receipt.get('searchDatasetRestored') is True
+                and receipt.get('preparationReceipt') == manifest['preparation']['receipt']
+                and receipt.get('sqlImportReceipt') == manifest['preparation']['sqlImportReceipt']
+                and receipt.get('postcheckReceipt') == manifest['preparation']['postcheckReceipt']
+                and 'preparedFingerprintSha256' not in receipt and 'searchFingerprint' not in receipt,
+                'Exact SQL-only Mac source scope required')
+        native = receipt.get('nativeSearch', {})
+        require(native.get('state') == 'NATIVE_SEARCH_COUNT_AND_SAMPLE_VERIFIED'
+                and native.get('datasetId') == manifest['datasetId'] and native.get('runId') == manifest['runId']
+                and native.get('transport') == manifest['search']['transport']
+                and native.get('documents') == manifest['search']['documentFingerprint']['documents']
+                and native.get('restoredIndex') == receipt.get('restoredIndex')
+                and all(native.get(k) is True for k in ('nativeRestoreSucceeded', 'singleWriteAlias', 'representativeSearchPassed', 'repositoryReadOnly', 'repositoryRemoved'))
+                and native.get('fullDatasetValidated') is False and native.get('allDocumentSourceFieldsEqual') is False
+                and native.get('sqlReplayed') is False, 'Actual Mac native search recovery/count/sample required')
+        require(receipt.get('searchTransport') == manifest['search']['transport'] and receipt.get('topics') == list(TOPICS)
+                and all(receipt.get(k) is True for k in ('redisSeparate', 'debeziumVerified', 'cdcRunning', 'heartbeatObserved', 'writersStopped'))
+                and all(receipt.get(k) is False for k in ('redisReset', 'applicationStarted', 'deploymentReady')),
+                'Actual Mac dependencies required')
+        return {'state': READY, 'applicationAdmitted': True, 'deploymentReady': False, 'fullDatasetValidated': False}
     require(receipt.get('preparationReceipt') == manifest['preparation']['receipt']
             and receipt.get('preparedFingerprintSha256') == manifest['preparation']['preparedFingerprintSha256']
             and receipt.get('searchRestoreReceipt') == manifest['search']['restoreReceipt']
@@ -284,7 +320,80 @@ def qualify_service_runtime(root, release, output, envelope, source_mode):
     return runtime, qualification
 
 
+def bootstrap_dependencies(manifest, endpoint, redis_image, aws, db, secret_dir, debezium_secret_arn, live_guard):
+    import growth_b_aws_restore as restore
+    # No FLUSHDB: general sessions/coupon state and detail-cache Redis are distinct live dependencies.
+    redis = []
+    for host, port in [('redis-general.lab.airbob.internal', 6379), ('redis-cache.lab.airbob.internal', 6380)]:
+        raw = restore.command(['docker', 'run', '--rm', '--network', 'host', redis_image,
+            'redis-cli', '-h', host, '-p', str(port), '--raw', 'INFO', 'server'], guard=db.guard).decode()
+        match = re.search(r'^run_id:([0-9a-f]{40})\r?$', raw, re.M)
+        require(match is not None, 'Redis runtime identity is unavailable'); redis.append(match.group(1))
+    require(redis[0] != redis[1], 'General and dedicated cache Redis must be separate processes')
+    require(request('GET', '/connectors') == [], 'Fresh B bootstrap requires no previously configured connector')
+    compose = ['docker', 'compose', '--env-file', '/etc/airbob/images.env', '-f', '/opt/airbob/release/infra/aws/bundles/debezium/compose.yml']
+    def kafka(tool, *args):
+        return restore.command(compose + ['exec', '--no-TTY', '-e', 'KAFKA_OPTS=', '-e', 'KAFKA_HEAP_OPTS=-Xms64m -Xmx128m',
+            'debezium', '/opt/kafka/bin/' + tool + '.sh', '--bootstrap-server', 'kafka.lab.airbob.internal:9092', *args],
+            guard=db.guard, timeout=120).decode()
+    cdc = manifest['cdc']
+    broker_config = kafka('kafka-configs', '--entity-type', 'brokers', '--entity-name', '1', '--describe', '--all')
+    require('auto.create.topics.enable=false' in broker_config, 'Kafka automatic topic creation must remain disabled')
+    current_topics = set(kafka('kafka-topics', '--list').splitlines())
+    unique_topics = [cdc['schemaHistoryTopic'], '__debezium-heartbeat.' + cdc['topicPrefix']]
+    require(not set(unique_topics) & current_topics, 'B CDC history/heartbeat identity was used before')
+    for topic in TOPICS:
+        kafka('kafka-topics', '--create', '--if-not-exists', '--topic', topic, '--partitions', '3', '--replication-factor', '1', '--config', 'retention.ms=86400000')
+        description = kafka('kafka-topics', '--describe', '--topic', topic)
+        require('PartitionCount: 3' in description and 'ReplicationFactor: 1' in description, 'Canonical topic partition/replica contract differs')
+        config_text = kafka('kafka-configs', '--entity-type', 'topics', '--entity-name', topic, '--describe')
+        require(re.search(r'\bretention.ms=86400000\b', config_text), 'Canonical topic retention differs')
+        offsets = kafka('kafka-get-offsets', '--topic', topic, '--time', 'latest').splitlines()
+        require(set(offsets) == {topic + ':' + str(n) + ':0' for n in range(3)}, 'Business stream already contains records')
+    kafka('kafka-topics', '--create', '--topic', unique_topics[0], '--partitions', '1', '--replication-factor', '1', '--config', 'retention.ms=-1', '--config', 'retention.bytes=-1')
+    kafka('kafka-topics', '--create', '--topic', unique_topics[1], '--partitions', '1', '--replication-factor', '1', '--config', 'retention.ms=86400000')
+    require(int(db.scalar('SELECT COUNT(*) FROM mysql.user WHERE user=' + db.literal(cdc['username']), False)) == 0, 'CDC database identity already exists')
+    password = secrets.token_urlsafe(36)
+    # Account/auth grammar accepts string literals, not Database.literal()'s
+    # CONVERT expression. Both generated tokens have a closed ASCII alphabet.
+    require(re.fullmatch(r'b_cdc_[0-9a-f]{20}', cdc['username']) and re.fullmatch(r'[A-Za-z0-9_-]{48}', password),
+            'Generated CDC account tokens differ')
+    account = "'" + cdc['username'] + "'@'%'"
+    db.execute('CREATE USER ' + account + " IDENTIFIED BY '" + password + "' REQUIRE SSL;", False)
+    db.execute('GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO ' + account + ';', False)
+    secret_file = secret_dir / 'cdc.json'; write(secret_file, {'username': cdc['username'], 'password': password})
+    aws.call('secretsmanager', 'put-secret-value', '--secret-id', debezium_secret_arn, '--secret-string', 'file://' + str(secret_file))
+    desired = connector_config(manifest, endpoint, password)
+    db.guard(force=True); live_guard()
+    request('POST', '/connectors', {'name': cdc['connectorName'], 'config': desired})
+    for _ in range(120):
+        db.guard(force=True)
+        status = request('GET', '/connectors/' + cdc['connectorName'] + '/status')
+        if status.get('connector', {}).get('state') == 'RUNNING' and len(status.get('tasks', [])) == 1 and status['tasks'][0]['state'] == 'RUNNING':
+            break
+        time.sleep(5)
+    else:
+        raise ValueError('Fresh B connector did not become RUNNING')
+    for _ in range(60):
+        db.guard(force=True)
+        heartbeat = kafka('kafka-get-offsets', '--topic', unique_topics[1], '--time', 'latest').splitlines()
+        if len(heartbeat) == 1 and heartbeat[0].startswith(unique_topics[1] + ':0:') and int(heartbeat[0].rsplit(':', 1)[1]) > 0:
+            break
+        time.sleep(5)
+    else:
+        raise ValueError('Fresh CDC heartbeat did not reach Kafka')
+    actual = request('GET', '/connectors/' + cdc['connectorName'] + '/config')
+    require(all(actual.get(key) == value for key, value in desired.items()), 'Live CDC configuration differs')
+    require(int(db.scalar('SELECT COUNT(*) FROM outbox')) == 0, 'Service admission source changed')
+    del password, desired, actual
+    return {'redisSeparate': True, 'redisReset': False, 'cdc': cdc, 'cdcRunning': True,
+            'heartbeatObserved': True, 'topics': list(TOPICS), 'writersStopped': True}
+
+
 def bootstrap(manifest, context, root, output):
+    if mac_source(manifest):
+        import growth_b_mac_service as mac
+        return mac.bootstrap(manifest, context, root, output)
     import growth_b_aws_restore as restore
     import growth_b_runtime as runtime_gate
     import growth_b_search as search
@@ -344,65 +453,9 @@ def bootstrap(manifest, context, root, output):
                         and es.alias() == restored['restoredIndex'], 'Live restored search target changed')
                 observed = es.fingerprint(restored['restoredIndex'])
                 require(observed == manifest['search']['documentFingerprint'], 'Live complete search content/mapping differs')
-                # No FLUSHDB: general sessions/coupon state and detail-cache Redis are distinct live dependencies.
-                redis = []
-                for host, port in [('redis-general.lab.airbob.internal', 6379), ('redis-cache.lab.airbob.internal', 6380)]:
-                    raw = restore.command(['docker', 'run', '--rm', '--network', 'host', config['redisImage'],
-                        'redis-cli', '-h', host, '-p', str(port), '--raw', 'INFO', 'server'], guard=db.guard).decode()
-                    match = re.search(r'^run_id:([0-9a-f]{40})\r?$', raw, re.M)
-                    require(match is not None, 'Redis runtime identity is unavailable'); redis.append(match.group(1))
-                require(redis[0] != redis[1], 'General and dedicated cache Redis must be separate processes')
-                require(request('GET', '/connectors') == [], 'Fresh B bootstrap requires no previously configured connector')
-                compose = ['docker', 'compose', '--env-file', '/etc/airbob/images.env', '-f', '/opt/airbob/release/infra/aws/bundles/debezium/compose.yml']
-                def kafka(tool, *args):
-                    return restore.command(compose + ['exec', '--no-TTY', '-e', 'KAFKA_OPTS=', '-e', 'KAFKA_HEAP_OPTS=-Xms64m -Xmx128m',
-                        'debezium', '/opt/kafka/bin/' + tool + '.sh', '--bootstrap-server', 'kafka.lab.airbob.internal:9092', *args],
-                        guard=db.guard, timeout=120).decode()
-                cdc = manifest['cdc']
-                broker_config = kafka('kafka-configs', '--entity-type', 'brokers', '--entity-name', '1', '--describe', '--all')
-                require('auto.create.topics.enable=false' in broker_config, 'Kafka automatic topic creation must remain disabled')
-                current_topics = set(kafka('kafka-topics', '--list').splitlines())
-                unique_topics = [cdc['schemaHistoryTopic'], '__debezium-heartbeat.' + cdc['topicPrefix']]
-                require(not set(unique_topics) & current_topics, 'B CDC history/heartbeat identity was used before')
-                for topic in TOPICS:
-                    kafka('kafka-topics', '--create', '--if-not-exists', '--topic', topic, '--partitions', '3', '--replication-factor', '1', '--config', 'retention.ms=86400000')
-                    description = kafka('kafka-topics', '--describe', '--topic', topic)
-                    require('PartitionCount: 3' in description and 'ReplicationFactor: 1' in description, 'Canonical topic partition/replica contract differs')
-                    config_text = kafka('kafka-configs', '--entity-type', 'topics', '--entity-name', topic, '--describe')
-                    require(re.search(r'\bretention.ms=86400000\b', config_text), 'Canonical topic retention differs')
-                    offsets = kafka('kafka-get-offsets', '--topic', topic, '--time', 'latest').splitlines()
-                    require(set(offsets) == {topic + ':' + str(n) + ':0' for n in range(3)}, 'Business stream already contains records')
-                kafka('kafka-topics', '--create', '--topic', unique_topics[0], '--partitions', '1', '--replication-factor', '1', '--config', 'retention.ms=-1', '--config', 'retention.bytes=-1')
-                kafka('kafka-topics', '--create', '--topic', unique_topics[1], '--partitions', '1', '--replication-factor', '1', '--config', 'retention.ms=86400000')
-                require(db.scalar('SELECT COUNT(*) FROM mysql.user WHERE user=' + db.literal(cdc['username']), False) == '0', 'CDC database identity already exists')
-                password = secrets.token_urlsafe(36)
-                db.execute('CREATE USER ' + db.literal(cdc['username']) + "@'%' IDENTIFIED BY " + db.literal(password) + ' REQUIRE SSL;', False)
-                db.execute('GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO ' + db.literal(cdc['username']) + "@'%';", False)
-                secret_file = secret_dir / 'cdc.json'; write(secret_file, {'username': cdc['username'], 'password': password})
-                aws.call('secretsmanager', 'put-secret-value', '--secret-id', context['debeziumSecretArn'], '--secret-string', 'file://' + str(secret_file))
-                desired = connector_config(manifest, config['rds']['endpoint'], password)
-                db.guard(force=True); restore.live_rds(aws, config)
-                request('POST', '/connectors', {'name': cdc['connectorName'], 'config': desired})
-                for _ in range(120):
-                    db.guard(force=True)
-                    status = request('GET', '/connectors/' + cdc['connectorName'] + '/status')
-                    if status.get('connector', {}).get('state') == 'RUNNING' and len(status.get('tasks', [])) == 1 and status['tasks'][0]['state'] == 'RUNNING':
-                        break
-                    time.sleep(5)
-                else:
-                    raise ValueError('Fresh B connector did not become RUNNING')
-                for _ in range(60):
-                    db.guard(force=True)
-                    heartbeat = kafka('kafka-get-offsets', '--topic', unique_topics[1], '--time', 'latest').splitlines()
-                    if len(heartbeat) == 1 and heartbeat[0].startswith(unique_topics[1] + ':0:') and int(heartbeat[0].rsplit(':', 1)[1]) > 0:
-                        break
-                    time.sleep(5)
-                else:
-                    raise ValueError('Fresh CDC heartbeat did not reach Kafka')
-                actual = request('GET', '/connectors/' + cdc['connectorName'] + '/config')
-                require(all(actual.get(key) == value for key, value in desired.items()), 'Live CDC configuration differs')
-                require(db.scalar('SELECT COUNT(*) FROM outbox') == '0' and es.alias() == restored['restoredIndex'], 'Service admission source changed')
-                del password, desired, actual
+                dependencies = bootstrap_dependencies(manifest, config['rds']['endpoint'], config['redisImage'],
+                    aws, db, secret_dir, context['debeziumSecretArn'], lambda: restore.live_rds(aws, config))
+                require(es.alias() == restored['restoredIndex'], 'Service admission search alias changed')
                 return {'schemaVersion': 1, 'kind': KIND + '-readiness', 'state': READY, 'runId': manifest['runId'],
                     'datasetId': manifest['datasetId'], 'serviceRelease': manifest['serviceRelease'], 'manifestSha256': context['manifestSha256'],
                     'rds': manifest['rds'], 'mysql': manifest['mysql'], 'application': manifest['application'],
@@ -411,7 +464,7 @@ def bootstrap(manifest, context, root, output):
                     'preparationReceipt': manifest['preparation']['receipt'], 'preparedFingerprintSha256': sha(output / 'prepared-fingerprint.json'),
                     'searchRestoreReceipt': manifest['search']['restoreReceipt'], 'searchTransport': manifest['search']['transport'],
                     'searchFingerprint': observed, 'restoredIndex': restored['restoredIndex'], 'redisSeparate': True,
-                    'redisReset': False, 'cdc': cdc, 'cdcRunning': True, 'heartbeatObserved': True, 'topics': list(TOPICS), 'writersStopped': True,
+                    **dependencies,
                     'applicationStarted': False, 'deploymentReady': False, 'toolSources': manifest['toolSources'],
                     'recordedAt': dt.datetime.now(dt.timezone.utc).isoformat()}
         finally:
@@ -427,8 +480,9 @@ def main():
     args = parser.parse_args()
     try:
         require(sha(args.manifest) == args.sha256, 'Service manifest trust anchor differs')
-        manifest = validate_manifest(read(args.manifest), args.dataset_id, args.run_id, args.release,
-            {name: sha(Path(__file__).parent / name) for name in TOOLS})
+        value = read(args.manifest)
+        manifest = validate_manifest(value, args.dataset_id, args.run_id, args.release,
+            {name: sha(Path(__file__).parent / name) for name in tools_for(value)})
         if args.mode == 'validate':
             print(json.dumps({'state': 'OFFLINE_B_SERVICE_MANIFEST_VALIDATED', 'deploymentReady': False})); return
         if args.mode == 'validate-readiness':

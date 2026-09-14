@@ -13,10 +13,11 @@ from test_growth_b_service_contract import fixture, receipt, runtime_projection,
 LAB = ROOT / 'infra/aws/lab'
 
 
-def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=None, database_bootstrap='dump', object_change=None):
+def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=None, database_bootstrap='dump', object_change=None,
+             preparation_document=None, retained_operator=None):
     manifest = manifest or fixture()
     proof = proof or receipt(manifest)
-    preparation = {'kind': 'global-growth-b-aws-data-only-preparation', 'state': 'DATABASE_INVENTORY_LOGIN_VERIFIED',
+    preparation = preparation_document if preparation_document is not None else {'kind': 'global-growth-b-aws-data-only-preparation', 'state': 'DATABASE_INVENTORY_LOGIN_VERIFIED',
         'runId': manifest['runId'], 'datasetId': manifest['datasetId'], 'rdsResourceId': manifest['rds']['resourceId'],
         'serverUuid': manifest['rds']['serverUuid'], 'restoreReceiptSha256': manifest['preparation']['restoreReceiptSha256'],
         'preparation': {'preparedFingerprintSha256': manifest['preparation']['preparedFingerprintSha256']},
@@ -42,6 +43,8 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
     proof['manifestSha256'] = manifest_sha
     proof['preparationReceipt'] = manifest['preparation']['receipt']
     proof['searchTransport'] = manifest['search']['transport']
+    if manifest['preparation'].get('sourceMode') == 'mac-sql-postcheck':
+        proof['nativeSearch']['transport'] = manifest['search']['transport']
     proof['appRuntimeBinding'] = manifest['appRuntimeBinding']
     proof_text = json.dumps(proof)
     object_data = {'dataset_manifest': [{'body': manifest_text, 'version_id': 'manifest-v1'}],
@@ -52,6 +55,8 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
         for item in objects:
             item.update(body_base64=base64.b64encode(item['body'].encode()).decode(), content_type='application/json')
     variables = {'global_b_services': mode == 'service', 'global_b_prepare_only': mode == 'prepare',
+        'rds_instance_class': 'db.t3.small', 'fencing_token': (retained_operator or {}).get('fencingToken', 1),
+        'expires_at': (retained_operator or {}).get('expiresAt', '1999999999'),
         'global_b_snapshot_restore_only': False,
         'global_b_service_bootstrap_enabled': True, 'database_bootstrap': database_bootstrap, 'rds_engine_version': '8.4.11',
         'global_b_snapshot_provenance': {'sha256': 'd' * 64},
@@ -64,7 +69,7 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
         'global_b_readiness_receipt': {'key': f"data-bootstrap/{manifest['runId']}/{manifest['datasetId']}-service-{manifest['serviceRelease']}.json",
             'version_id': 'readiness-v1', 'sha256': hashlib.sha256(proof_text.encode()).hexdigest(), 'bytes': len(proof_text)}}
     growth, iam = (LAB / 'growth-b.tf').read_text(), (LAB / 'iam.tf').read_text()
-    names = ('growth_b_service_prefix', 'growth_b_search_prefix', 'growth_b_service_refs', 'growth_b_cdc_suffix',
+    names = ('growth_b_service_mac_source', 'growth_b_service_prefix', 'growth_b_search_prefix', 'growth_b_service_refs', 'growth_b_cdc_suffix',
         'growth_b_service_manifest_valid', 'growth_b_service_preparation', 'growth_b_service_transport', 'growth_b_service_runtime', 'growth_b_readiness_valid')
     expressions = {name: attribute(growth, name) for name in names}
     expressions.update({name: attribute((LAB / 'locals.tf').read_text(), name) for name in
@@ -89,7 +94,7 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
       dataset_kafka_topics = toset(jsondecode(file("topics.json")))
       object_data = jsondecode(file("objects.json"))
     '''
-    config += 'rds = ' + json.dumps([{'resource_id': fixture()['rds']['resourceId'],
+    config += 'rds = ' + json.dumps([{'resource_id': manifest['rds']['resourceId'],
         'arn': 'arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-b-services-test',
         'master_secret_arn': 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-selected'}]) + '\n'
     for key, expression in expressions.items():
