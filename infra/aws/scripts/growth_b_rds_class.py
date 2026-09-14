@@ -86,6 +86,19 @@ def original_class(operator):
     return result
 
 
+def effective_class(operator, transition=None, operator_sha256=None):
+    original = original_class(operator)
+    if transition is None:
+        return original
+    import growth_b_mac_downsize as mac_downsize
+    try:
+        mac_downsize.validate_receipt(operator, transition, operator_sha256)
+    except (ValueError, KeyError, TypeError):
+        raise Rejected('EXACT_MAC_DOWNSIZE_TRANSITION_REQUIRED') from None
+    need(original == LARGE, 'MAC_DOWNSIZE_REQUIRES_ORIGINAL_LARGE')
+    return DEFAULT
+
+
 def reference(value):
     need(isinstance(value, dict) and set(value) == {'key', 'versionId', 'sha256', 'bytes'}, 'CLASS_REFERENCE_FIELDS')
     need(isinstance(value['key'], str) and re.fullmatch(
@@ -115,9 +128,13 @@ def initial_operation(operation):
     return result
 
 
-def phase3_class(operator, phase3):
-    result = original_class(operator)
+def phase3_class(operator, phase3, transition=None, operator_sha256=None):
+    result = effective_class(operator, transition, operator_sha256)
     need(phase3.get('rds_instance_class', DEFAULT) == result, 'ORIGINAL_TERRAFORM_CLASS_CHANGED')
+    if transition is not None:
+        need(all(phase3.get(field) == transition['rds'][key] for field, key in (
+            ('rds_instance_id', 'identifier'), ('rds_resource_id', 'resourceId'), ('rds_endpoint', 'endpoint')))
+            and phase3.get('rds_configured_storage_gib') == 100, 'DOWNSIZED_TERRAFORM_TARGET_CHANGED')
     if result == LARGE:
         need(phase3.get('rds_instance_class') == result and (phase3.get('rds_configured_storage_gib') == 100 or
              (operator.get('databaseBootstrap') == 'snapshot' and phase3.get('rds_allocated_storage_gib') == 100)),
@@ -193,8 +210,8 @@ def shape(row, expected, *, identifier, resource_id, run, fence, expiry=None):
             'storageType': 'gp3', 'multiAz': False, 'encrypted': True, 'publiclyAccessible': False}
 
 
-def validate_live(operator, phase3, response):
-    cls = phase3_class(operator, phase3)
+def validate_live(operator, phase3, response, transition=None, operator_sha256=None):
+    cls = phase3_class(operator, phase3, transition, operator_sha256)
     need(isinstance(response, dict) and len(response.get('DBInstances', [])) == 1, 'EXACT_RDS_REQUIRED')
     return shape(response['DBInstances'][0], cls, identifier=phase3['rds_instance_id'], resource_id=phase3['rds_resource_id'],
                  run=operator['runId'], fence=operator['fencingToken'], expiry=operator['expiresAt'])
@@ -317,16 +334,24 @@ def validate_qualification(value, manifest, standalone, standalone_sha, expected
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('selected', 'live', 'observe', 'qualify', 'validate-rehearsal', 'validate-snapshot-rehearsal', 'verify-small', 'plan'))
-    for name in ('operator', 'phase3', 'rds', 'context', 'before', 'after', 'wrapper', 'standalone', 'manifest', 'qualification', 'provenance', 'output'):
+    for name in ('operator', 'phase3', 'rds', 'context', 'before', 'after', 'wrapper', 'standalone', 'manifest', 'qualification', 'provenance', 'transition', 'output'):
         parser.add_argument('--' + name, type=Path)
     parser.add_argument('--instance-class', default=DEFAULT)
     parser.add_argument('--stage', choices=('before', 'after'))
     parser.add_argument('--aws')
     parser.add_argument('--provenance-sha256')
+    parser.add_argument('--transition-sha256')
     args = parser.parse_args()
     try:
+        transition = None
+        if args.transition is not None:
+            need(args.mode in ('selected', 'live') and args.transition_sha256 == sha(args.transition),
+                 'MAC_TRANSITION_BYTES_OR_MODE_CHANGED')
+            transition = read(args.transition)
+        else:
+            need(args.transition_sha256 is None, 'MAC_TRANSITION_FILE_REQUIRED')
         if args.mode == 'selected':
-            print(original_class(read(args.operator))); return
+            print(effective_class(read(args.operator), transition, sha(args.operator))); return
         if args.mode == 'plan':
             provenance = None
             if args.provenance is not None:
@@ -334,7 +359,7 @@ def main():
                 provenance = read(args.provenance)
             result = validate_plan(read(args.rds), args.instance_class, provenance)
         elif args.mode == 'live':
-            result = validate_live(read(args.operator), read(args.phase3), read(args.rds))
+            result = validate_live(read(args.operator), read(args.phase3), read(args.rds), transition, sha(args.operator))
         elif args.mode == 'observe':
             context = read(args.context)
             result = subprocess.run([args.aws, '--region', 'ap-northeast-2', '--cli-connect-timeout', '5', '--cli-read-timeout', '15',

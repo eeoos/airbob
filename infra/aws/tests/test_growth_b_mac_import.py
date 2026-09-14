@@ -220,6 +220,17 @@ class MacImportTests(unittest.TestCase):
         self.assertEqual(self.state.streams, 1)
         self.assert_secret_removed()
 
+    def test_connection_fence_timeout_retains_a_specific_safe_failure(self):
+        with patch.object(m.restore, 'stream_restore', side_effect=ValueError('Database fence check timed out')):
+            with self.assertRaises(ValueError):
+                m.run(self.args)
+        failed = m.read_record(self.args.output / 'import-unconfirmed.json')
+        self.assertEqual(failed['closedCode'], 'DATABASE_FENCE_CHECK_TIMED_OUT')
+        self.assertFalse((self.args.output / 'sql-import-completed.json').exists())
+        with self.assertRaisesRegex(m.MacImportError, 'IMPORT_INTENT_EXISTS_NO_REPLAY'):
+            m.run(self.args)
+        self.assert_secret_removed()
+
     def test_failed_completion_checkpoint_does_not_replay_successful_sql(self):
         original = m.record
         def fail_checkpoint(path, value):
@@ -326,9 +337,17 @@ class ClientAndCliTests(unittest.TestCase):
         self.assertIn('--defaults-file=/private/mysql.cnf', command)
         self.assertIn('--no-login-paths', command)
         self.assertIn('--skip-reconnect', command)
+        self.assertIn('--compression-algorithms=zstd', command)
+        self.assertIn('--zstd-compression-level=3', command)
         self.assertEqual(command[:3], ['/usr/bin/env', '-i', 'PATH=/usr/bin:/bin'])
         self.assertNotIn(PASSWORD, ' '.join(command))
         self.assertNotIn('--ssl-mode=DISABLED', command)
+
+    def test_failure_codes_never_copy_unknown_diagnostics(self):
+        self.assertEqual(m.failure_code(ValueError('Database fence check timed out')), 'DATABASE_FENCE_CHECK_TIMED_OUT')
+        self.assertEqual(m.failure_code(ValueError(PASSWORD)), 'LOCAL_IMPORT_UNCONFIRMED')
+        self.assertEqual(m.failure_code(OSError(PASSWORD)), 'LOCAL_IMPORT_UNCONFIRMED')
+        self.assertEqual(m.failure_code(m.MacImportError('INTERRUPTED_IMPORT_UNCONFIRMED')), 'INTERRUPTED_IMPORT_UNCONFIRMED')
 
     def test_cli_requires_explicit_target_hash_tunnel_and_profile(self):
         with patch('sys.stderr', io.StringIO()):
