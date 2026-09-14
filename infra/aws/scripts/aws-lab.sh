@@ -131,8 +131,25 @@ validate_retained_global_b_execution_deadline() {
 }
 
 load_retained_rds_class() {
-  local original=$1
-  rds_instance_class=$(python3 "$script_dir/growth_b_rds_class.py" selected --operator "$original") \
+  local original=$1 transition_ref=${B_MAC_DOWNSIZE_RECEIPT_JSON:-}
+  set -- selected --operator "$original"
+  rds_class_transition_file=''
+  rds_class_transition_sha=''
+  if [[ -n "$transition_ref" ]]; then
+    printf '%s\n' "$transition_ref" > "$temp_dir/mac-downsize-reference.json"
+    python3 - "$script_dir" "$original" "$temp_dir/mac-downsize-reference.json" <<'MAC_DOWNSIZE_REF' || fail "Mac downsize reference differs from the original run"
+import sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_rds_class as gate
+import growth_b_mac_downsize as downsize
+downsize.reference(gate.read(sys.argv[3]), gate.read(sys.argv[2]))
+MAC_DOWNSIZE_REF
+    rds_class_transition_file="$temp_dir/mac-downsize-transition.json"
+    fetch_b_class_evidence "$transition_ref" "$rds_class_transition_file"
+    rds_class_transition_sha=$(jq -er '.sha256' <<<"$transition_ref")
+    set -- "$@" --transition "$rds_class_transition_file" --transition-sha256 "$rds_class_transition_sha"
+  fi
+  rds_instance_class=$(python3 "$script_dir/growth_b_rds_class.py" "$@") \
     || fail "The original RDS class selection is invalid"
   [[ -z "${B_RDS_INSTANCE_CLASS:-}" || "$B_RDS_INSTANCE_CLASS" == "$rds_instance_class" ]] \
     || fail "Retained operations cannot change the original RDS class"
@@ -147,8 +164,11 @@ verify_retained_rds_class() {
   aws rds describe-db-instances --db-instance-identifier "airbob-$run_id" --region "$AWS_REGION" \
     --no-cli-pager --cli-connect-timeout 5 --cli-read-timeout 15 > "$temp_dir/rds-class-live.json" \
     || fail "RDS class observation failed"
-  python3 "$script_dir/growth_b_rds_class.py" live --operator "$rds_class_operator_file" \
-    --phase3 "$temp_dir/rds-class-phase3.json" --rds "$temp_dir/rds-class-live.json" >/dev/null \
+  set -- live --operator "$rds_class_operator_file" --phase3 "$temp_dir/rds-class-phase3.json" --rds "$temp_dir/rds-class-live.json"
+  if [[ -n "${rds_class_transition_file:-}" ]]; then
+    set -- "$@" --transition "$rds_class_transition_file" --transition-sha256 "$rds_class_transition_sha"
+  fi
+  python3 "$script_dir/growth_b_rds_class.py" "$@" >/dev/null \
     || fail "Live RDS class, immutable selection, pending class, or original identity differs"
 }
 
