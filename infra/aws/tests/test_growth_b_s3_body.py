@@ -86,7 +86,7 @@ def console(values, variables, objects, seeds, result):
 
 
 def selected_variables(mode):
-    return {'global_b_prepare_only': mode == 'prepare', 'global_b_services': mode == 'service',
+    return {'global_b_prepare_only': mode == 'prepare', 'global_b_import_from_mac': False, 'global_b_services': mode == 'service',
             'global_b_snapshot_restore_only': mode == 'snapshot', 'database_bootstrap': 'snapshot' if mode == 'snapshot' else 'dump',
             'global_b_snapshot_provenance': {'key': 'datasets/snapshot/provenance.json', 'version_id': 'snapshot-version'},
             'global_b_readiness_receipt': {'key': 'data-bootstrap/selected-readiness.json', 'version_id': 'readiness-version'},
@@ -143,7 +143,8 @@ def evaluate_preparation(change=None):
     values.update(expressions('growth-b.tf', ('growth_b_envelope', 'growth_b_file_names', 'growth_b_dataset_valid')))
     values.update(dataset_request=request('data.tf', 'dataset_manifest'),
                   envelope_request=request('growth-b.tf', 'growth_b_envelope'))
-    result = console(values, variables, objects, shared_seeds() | {'data_ready': False, 'growth_b_helper_sources': helpers},
+    result = console(values, variables, objects, shared_seeds() | {
+        'data_ready': False, 'growth_b_helper_sources': helpers, 'growth_b_helper_names': list(HELPERS)},
         '{valid=local.growth_b_dataset_valid,manifest=local.dataset_manifest,envelope=local.growth_b_envelope,'
         'datasetRequest=local.dataset_request,envelopeRequest=local.envelope_request}')
     return result, manifest, envelope

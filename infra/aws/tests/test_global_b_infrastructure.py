@@ -243,7 +243,7 @@ class GlobalBInfrastructureTest(unittest.TestCase):
                             for arn in sid(self.boundary, 'ReadImmutableRuntimeInputs')['Resource']))
         resource = block((LAB / 'iam.tf').read_text(), 'resource', 'aws_iam_role_policy', 'data_bootstrap')
         self.assertEqual('aws_iam_role.host["debezium"].id', attribute(resource, 'role'))
-        self.assertEqual('local.services_enabled ? 1 : 0', attribute(resource, 'count'))
+        self.assertEqual('local.services_enabled && !var.global_b_import_from_mac ? 1 : 0', attribute(resource, 'count'))
 
     def test_changed_policies_remain_below_the_existing_managed_policy_size_limit(self):
         self.assertLessEqual(self.result['boundaryBytes'], 6144)

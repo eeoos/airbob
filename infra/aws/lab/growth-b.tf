@@ -28,7 +28,10 @@ locals {
     local.dataset_manifest.account == var.account_id && local.dataset_manifest.region == var.aws_region &&
     contains(["small-rds-rehearsal", "final-b-rds"], local.dataset_manifest.scope) &&
     local.dataset_manifest.mysql == { version = "8.4.11", flywayVersion = 28 } &&
-    local.dataset_manifest.toolSources == local.growth_b_helper_sources &&
+    (var.global_b_import_from_mac ? (
+      toset(keys(local.dataset_manifest.toolSources)) == toset(local.growth_b_helper_names) &&
+      alltrue([for digest in values(local.dataset_manifest.toolSources) : can(regex("^[0-9a-f]{64}$", digest))])
+    ) : local.dataset_manifest.toolSources == local.growth_b_helper_sources) &&
     toset(keys(local.dataset_manifest.files)) == toset(keys(local.growth_b_file_names)) &&
     alltrue([for name, item in local.dataset_manifest.files :
       toset(keys(item)) == toset(["key", "versionId", "sha256", "bytes"]) &&
@@ -63,7 +66,7 @@ locals {
     false,
   )
 
-  growth_b_context = local.services_enabled && var.global_b_prepare_only ? {
+  growth_b_context = local.services_enabled && var.global_b_prepare_only && !var.global_b_import_from_mac ? {
     runId               = var.run_id
     datasetId           = var.dataset_release
     manifestVersionId   = var.global_b_manifest_version_id
@@ -93,7 +96,7 @@ locals {
     }
   } : null
 
-  growth_b_bootstrap_command = local.services_enabled && var.global_b_prepare_only ? join("\n", [
+  growth_b_bootstrap_command = local.services_enabled && var.global_b_prepare_only && !var.global_b_import_from_mac ? join("\n", [
     "set -euo pipefail", "umask 077",
     "for attempt in $(seq 1 120); do test -f /var/lib/airbob/b-host-ready && break; sleep 5; done",
     "test -f /var/lib/airbob/b-host-ready",
@@ -119,7 +122,7 @@ data "aws_s3_object" "growth_b_envelope" {
 }
 
 output "global_b_preparation" {
-  description = "B data-only coordinates; a separate verified host receipt is required for completion."
+  description = "B data-only coordinates; a separate verified preparation receipt is required for completion."
   value = {
     selected                    = var.global_b_prepare_only
     dataset_id                  = var.dataset_release
@@ -133,6 +136,18 @@ output "global_b_preparation" {
     deployment_ready            = false
     completion_requires_receipt = true
   }
+}
+
+output "global_b_mac_import" {
+  description = "Non-secret coordinates for Mac import through the existing NAT SSM tunnel."
+  value = local.services_enabled && var.global_b_prepare_only && var.global_b_import_from_mac ? {
+    selected              = true
+    rds_instance_id       = module.rds[0].identifier
+    rds_resource_id       = module.rds[0].resource_id
+    rds_endpoint          = module.rds[0].address
+    rds_master_secret_arn = module.rds[0].master_secret_arn
+    nat_instance_id       = module.nat.instance_id
+  } : null
 }
 
 locals {

@@ -254,6 +254,7 @@ action=$1
 # B preparation shares the existing up lease/deadline and teardown machinery.
 # Its explicit selector never enters the legacy data-ready/application stage.
 global_b_prepare_only=false
+global_b_import_from_mac=${B_IMPORT_FROM_MAC:-false}
 global_b_services=false
 global_b_cdc=false
 global_b_snapshot_service=false
@@ -289,6 +290,8 @@ elif [[ "$action" == snapshot-create || "$action" == snapshot-prepare || "$actio
   global_b_snapshot_operation=${action#snapshot-}
   action=up
 fi
+[[ "$global_b_import_from_mac" == true || "$global_b_import_from_mac" == false ]] || fail "B_IMPORT_FROM_MAC must be true or false"
+[[ "$global_b_import_from_mac" == false || "$global_b_prepare_only" == true ]] || fail "Mac import is selected only with prepare"
 case "$action" in up|status|switch|down) ;; *) fail "unsupported AWS lab action" ;; esac
 lease_command=$action
 
@@ -1916,6 +1919,13 @@ validate_global_b_inputs() {
     || fail "B prepare requires the explicit reviewed aws-preparation.json SHA256"
   python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,12) else 1)' \
     || fail "B offline admission requires Python 3.12 or newer"
+  if [[ "$global_b_import_from_mac" == true ]]; then
+    fetch_global_b_input envelope "$temp_dir/b-envelope.json"
+    python3 "$script_dir/growth_b_prepare.py" validate-mac-inputs --manifest "$selected_manifest" \
+      --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" --envelope "$temp_dir/b-envelope.json" \
+      > "$temp_dir/b-input-admission.json" || fail "Mac import dataset or storage metadata differs"
+    return
+  fi
   python3 "$script_dir/growth_b_prepare.py" validate-manifest --manifest "$selected_manifest" \
     --sha256 "$dataset_manifest_sha256" --dataset-id "$dataset_release" > "$temp_dir/b-manifest-admission.json" \
     || fail "B preparation wrapper or reviewed helper identity is invalid"
@@ -2189,12 +2199,12 @@ write_tfvars() {
     --arg rds_engine_version "$rds_engine_version" --arg rds_instance_class "$rds_instance_class" \
     --arg dns_mode "$dns_mode" --arg alb_ingress_cidr "$alb_ingress_cidr" \
     '{run_id:$run_id,expires_at:$expires_at,fencing_token:$fencing_token,deployment_phase:$deployment_phase,ami_id:$ami_id,verified_probe_instance_id:$verified_probe_instance_id,bundle_commit:$bundle_commit,bundle_sha256:$bundle_sha256,infra_image_references:$infra_image_references,app_image_reference:$app_image_reference,app_enabled:$app_enabled,mode:$mode,measurement_policy:$measurement_policy,accommodation_detail_cache_enabled:$cache_enabled,request_count_per_target_per_minute:(if $request_target == "" then null else ($request_target|tonumber) end),load_generator_enabled:$load_generator_enabled,dataset_release:$dataset_release,dataset_manifest_sha256:$dataset_manifest_sha256,database_bootstrap:$database_bootstrap,rds_snapshot_identifier:$rds_snapshot_identifier,rds_snapshot_source_run_id:$rds_snapshot_source_run_id,rds_snapshot_source_resource_id:$rds_snapshot_source_resource_id,rds_engine_version:$rds_engine_version,rds_instance_class:$rds_instance_class,dns_mode:$dns_mode,alb_ingress_cidr:$alb_ingress_cidr}' \
-    | jq --argjson selected "$global_b_prepare_only" --arg version "${dataset_manifest_version_id:-}" \
+    | jq --argjson selected "$global_b_prepare_only" --argjson macImport "$global_b_import_from_mac" --arg version "${dataset_manifest_version_id:-}" \
       --arg owner "${lease_owner:-}" --argjson services "$global_b_services" --arg serviceRelease "$global_b_service_release" \
       --argjson bootstrap "$global_b_service_bootstrap_enabled" --argjson readiness "$global_b_readiness_receipt" \
       --argjson snapshotOnly "$global_b_snapshot_restore_only" --argjson provenance "$global_b_snapshot_provenance" \
       --argjson operationFence "$fencing_token" --argjson resourceFence "${resource_fencing_token:-$fencing_token}" \
-      '. + {global_b_prepare_only:$selected,global_b_services:$services,global_b_service_release:$serviceRelease,
+      '. + {global_b_prepare_only:$selected,global_b_import_from_mac:$macImport,global_b_services:$services,global_b_service_release:$serviceRelease,
         global_b_service_bootstrap_enabled:$bootstrap,global_b_readiness_receipt:$readiness,
         global_b_snapshot_restore_only:$snapshotOnly,global_b_snapshot_provenance:$provenance,
         global_b_manifest_version_id:(if $selected or $services then $version else "" end),
@@ -2344,7 +2354,7 @@ destroy_lab() {
   assert_lease
   prepare_lab_backend
   recover_prior_terraform_lock
-  [[ "$global_b_prepare_only" != true ]] || stop_global_b_bootstrap
+  [[ "$global_b_prepare_only" != true || "$global_b_import_from_mac" == true ]] || stop_global_b_bootstrap
   clear_lab_instance_shutdown_protection
   capture_terraform_state_inventory "$before_inventory"
   if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
@@ -2966,7 +2976,7 @@ write_terraform_output_evidence() {
   if ! run_terraform_command "Terraform output evidence read" \
     -chdir="$lab_root" output -json > "$raw_outputs" 2>/dev/null ||
     ! jq -e '
-      (del(.global_b_preparation, .global_b_service, .global_b_snapshot) | keys | sort) == [
+      (del(.global_b_preparation, .global_b_mac_import, .global_b_service, .global_b_snapshot) | keys | sort) == [
         "persistent_resource_contract",
         "phase2_contract",
         "phase3_contract",
@@ -3971,7 +3981,7 @@ case "$action" in
       '{schemaVersion:2,runId:$runId,expiresAt:$expiresAt,fencingToken:$fencingToken,mode:$mode,policy:$policy,dnsMode:$dnsMode,albIngressCidr:$albIngressCidr,imageDigest:$imageDigest,datasetRelease:$datasetRelease,datasetManifestVersionId:$datasetManifestVersionId,bundleCommit:$bundleCommit,bundleSha256:$bundleSha256,bundleChecksumVersionId:$bundleChecksumVersionId,bundleManifestVersionId:$bundleManifestVersionId,bundleManifestSha256:$bundleManifestSha256,datasetManifestSha256:$datasetManifestSha256,amiId:$amiId,ociOriginIpv4:$ociOriginIpv4,rdsEngineVersion:$rdsEngineVersion,databaseBootstrap:$databaseBootstrap,rdsSnapshotIdentifier:$rdsSnapshotIdentifier,rdsSnapshotSourceRunId:$rdsSnapshotSourceRunId,rdsSnapshotSourceResourceId:$rdsSnapshotSourceResourceId,cacheEnabled:$cacheEnabled,requestTarget:$requestTarget,loadGeneratorEnabled:$loadGeneratorEnabled,appImageReference:$appImageReference,infraImageReferences:$infraImageReferences}' \
       > "$manifest"
     if [[ "$global_b_prepare_only" == true ]]; then
-      jq '. + {globalBPrepareOnly:true}' "$manifest" > "$temp_dir/operator-b.json"
+      jq --argjson macImport "$global_b_import_from_mac" '. + {globalBPrepareOnly:true,globalBImportFromMac:$macImport}' "$manifest" > "$temp_dir/operator-b.json"
       mv "$temp_dir/operator-b.json" "$manifest"
     fi
     if [[ "$global_b_snapshot_restore_only" == true ]]; then
@@ -4025,6 +4035,17 @@ case "$action" in
     phase3=$(run_terraform_command "Terraform Phase 3 data output" \
       -chdir="$lab_root" output -json phase3_contract)
     verify_retained_rds_class
+    if [[ "$global_b_import_from_mac" == true ]]; then
+      current_stage=b-mac-import-target-ready
+      run_terraform_command "Terraform Mac import target" \
+        -chdir="$lab_root" output -json global_b_mac_import > "$temp_dir/mac-import-target.json"
+      jq -e '.selected == true' "$temp_dir/mac-import-target.json" >/dev/null || fail "Mac import target is missing"
+      write_terraform_output_evidence required
+      up_in_progress=false
+      printf 'run_id=%s\nfencing_token=%s\nexpires_at=%s\nmac_import_target_ready=true\nsql_import_complete=false\n' \
+        "$run_id" "$fencing_token" "$expires_at"
+      exit 0
+    fi
     debezium_instance_id=$(jq -er '.services.debezium' <<<"$phase2")
     if [[ "$global_b_snapshot_restore_only" == true ]]; then
       current_stage=b-snapshot-target-created
@@ -4115,6 +4136,9 @@ case "$action" in
     [[ "$global_b_snapshot_restore_only" == true || "$global_b_snapshot_restore_only" == false ]] || fail "Invalid B snapshot selector"
     [[ "$action:$global_b_snapshot_restore_only" != switch:true ]] || fail "B snapshot-only runs cannot switch DNS"
     global_b_prepare_only=$(jq -r '.globalBPrepareOnly // false' "$manifest")
+    global_b_import_from_mac=$(jq -r '.globalBImportFromMac // false' "$manifest")
+    [[ "$global_b_import_from_mac" == true || "$global_b_import_from_mac" == false ]] || fail "Invalid Mac import selector in run manifest"
+    [[ "$global_b_import_from_mac" == false || "$global_b_prepare_only" == true ]] || fail "Mac import manifest requires preparation mode"
     [[ "$global_b_prepare_only" == true || "$global_b_prepare_only" == false ]] || fail "Invalid preparation selector in run manifest"
     [[ "$action:$global_b_prepare_only" != switch:true ]] || fail "B data-only runs have no DNS/application switch"
     dataset_manifest_version_id=$(jq -r '.datasetManifestVersionId // ""' "$manifest")
