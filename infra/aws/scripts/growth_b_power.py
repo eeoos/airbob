@@ -375,7 +375,7 @@ class Runner:
         changes = validate_plan([json.loads(line) for line in raw.splitlines() if line], phase)
         need(source_sha(self.lab) == source and digest(self.pull()) == state_sha
              and path.read_bytes() == encoded(variables), 'SOURCE_OR_STATE_CHANGED_AFTER_PLAN')
-        self.heartbeat(); self.inspect(before, identity)
+        self.heartbeat(); self.inspect(before, identity, healthy=phase == 'running')
         self.tf('apply', '-json', '-input=false', '-lock-timeout=60s', '-auto-approve', '-var-file=' + str(path))
         after = self.pull(); _, ec2, rds, suspended = self.inspect(after, identity)
         if phase == 'access':

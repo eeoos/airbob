@@ -317,6 +317,20 @@ class PowerOrchestration(unittest.TestCase):
         self.assertEqual(set(self.runner.host_states.values()), {'running'})
         self.assertNotIn('running', self.runner.applied)
 
+    def test_asg_health_is_rechecked_after_plan_before_unfencing(self):
+        self.runner.operate('pause')
+        original = self.runner.tf
+        def change_after_plan(*args):
+            result = original(*args)
+            if args[0] == 'plan' and any('/running-' in item for item in args):
+                self.runner.app_health = 'Unhealthy'
+            return result
+        with patch.object(self.runner, 'tf', side_effect=change_after_plan):
+            with self.assertRaisesRegex(power.Rejected, 'RUNNING_HEALTHY_SOURCE_REQUIRED'):
+                self.runner.operate('resume')
+        self.assertEqual(set(self.runner.suspended), power.PROCESSES)
+        self.assertNotIn('running', self.runner.applied)
+
     def test_status_distinguishes_absent_from_partial_and_never_acquires_lease(self):
         initial_token = self.runner.token
         result = self.runner.operate('status')
