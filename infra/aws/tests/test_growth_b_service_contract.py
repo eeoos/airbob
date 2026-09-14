@@ -203,6 +203,38 @@ class ServiceContract(unittest.TestCase):
         self.assertIn('fetch appRuntimeBinding', normal)
         self.assertIn('$r.appRuntimeBinding==$c.appRuntimeBinding', normal)
 
+    def test_b_environment_resolves_required_aws_placeholders_with_external_apis_disabled(self):
+        import re
+        template = (ROOT / 'infra/aws/lab/templates/start-growth-b-app.sh.tftpl').read_text()
+        emission = re.search(r'(?ms)^\{\n.*?^\} > "\$stage/app.env"$', template)
+        self.assertIsNotNone(emission)
+        required = set()
+        for name in ('application.yaml', 'application-aws.yaml'):
+            required.update(re.findall(r'\$\{([A-Z][A-Z0-9_]*)\}',
+                (ROOT / 'src/main/resources' / name).read_text()))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); contract = root / 'contract.json'
+            contract.write_text(json.dumps({'cacheEnabled': True}))
+            script = ('set -euo pipefail\numask 077\nstage=$1\ncontract=$2\n'
+                      'rds_endpoint=reviewed.example.invalid\nusername=unit-user\npassword=unit-password\n'
+                      + emission.group(0))
+            result = subprocess.run(['bash', '-c', script, 'render-b-environment', str(root), str(contract)],
+                capture_output=True, text=True, timeout=10,
+                env={'PATH': os.environ['PATH'], 'GOOGLE_API_KEY': 'must-not-inherit-google',
+                     'TOSS_SECRET_KEY': 'must-not-inherit-toss'})
+            self.assertEqual(0, result.returncode, result.stderr)
+            raw = (root / 'app.env').read_text()
+        pairs = [line.split('=', 1) for line in raw.splitlines()]
+        values = dict(pairs)
+        self.assertEqual(len(pairs), len(values), 'Duplicate runtime setting')
+        self.assertEqual(set(), required - values.keys(), 'Required AWS placeholder is missing')
+        for name in ('GOOGLE_API_KEY', 'TOSS_SECRET_KEY'):
+            self.assertEqual('', values[name])
+        for name in ('GOOGLE_API_ENABLED', 'TOSS_PAYMENTS_ENABLED', 'AWS_S3_WRITE_ENABLED', 'OPERATOR_ALERT_SLACK_ENABLED'):
+            self.assertEqual('false', values[name])
+        self.assertEqual('aws', values['SPRING_PROFILES_ACTIVE'])
+        self.assertNotIn('must-not-inherit', raw)
+
     def test_runtime_binding_cannot_pollute_sealed_sql_or_admit_unreviewed_runtime(self):
         manifest = fixture()
         manifest['appRuntimeBinding']['key'] = f"datasets/{manifest['datasetId']}/app-runtime-binding.json"
