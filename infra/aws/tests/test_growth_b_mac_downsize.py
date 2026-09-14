@@ -301,6 +301,49 @@ class MacDownsize(unittest.TestCase):
         with self.assertRaises(d.Rejected):
             self.finish(approval=approval, database_after=self.postcheck['database'] | {'serverUuid': '99999999-1234-4123-8123-123456789abc'})
 
+    def test_empty_optional_collections_retain_legacy_null_configuration_hash(self):
+        before = self.before | {'domain_dns_ips': None, 'enabled_cloudwatch_logs_exports': None}
+        legacy_sha = d.digest({k: v for k, v in before.items()
+                               if k not in d.COMPUTED | {'instance_class', 'tags', 'tags_all'}})
+        self.assertEqual(legacy_sha, d.configuration_sha(before))
+        for fields in (('domain_dns_ips',), ('enabled_cloudwatch_logs_exports',),
+                       ('domain_dns_ips', 'enabled_cloudwatch_logs_exports')):
+            after = before | {key: [] for key in fields}
+            original = copy.deepcopy(after)
+            with self.subTest(fields=fields):
+                self.assertEqual(legacy_sha, d.configuration_sha(after))
+                self.assertEqual(original, after)
+                self.assertNotEqual(d.digest(before), d.digest(after))
+        self.assertNotEqual(legacy_sha, d.configuration_sha(self.before))
+
+    def test_refresh_completion_accepts_empty_collections_without_rewriting_state_hashes(self):
+        self.before.update(domain_dns_ips=None, enabled_cloudwatch_logs_exports=None)
+        self.request = d.prepare_inputs(**self.arguments)['request']
+        self.after.update(domain_dns_ips=[], enabled_cloudwatch_logs_exports=[],
+                          latest_restorable_time='2026-09-14T10:00:00Z')
+        original_request, original_state = d.encoded(self.request), d.encoded(self.state_after)
+        result = d.complete_transition(self.request, self.approve_api(), self.state_after,
+            self.rds_after, self.postcheck['database'], now=1800000100)
+        d.validate_receipt(self.op, result, self.arguments['operator_sha256'])
+        self.assertEqual(self.request['stateBefore'], result['stateBefore'])
+        self.assertEqual(d.digest(self.state_after), result['stateAfter']['sha256'])
+        self.assertEqual(original_state, d.encoded(self.state_after))
+        self.assertEqual(original_request, d.encoded(self.request))
+        self.assertEqual(d.source_sha(), result['sourceSha256'])
+
+    def test_nonempty_collections_and_unrelated_configuration_changes_still_reject(self):
+        self.before.update(domain_dns_ips=None, enabled_cloudwatch_logs_exports=None, unrelated_collection=None)
+        self.request = d.prepare_inputs(**self.arguments)['request']
+        self.after.update(domain_dns_ips=[], enabled_cloudwatch_logs_exports=[], unrelated_collection=None)
+        approval = self.approve_api()
+        for key, value in (('domain_dns_ips', ['10.0.0.2']), ('enabled_cloudwatch_logs_exports', ['error']),
+                           ('unrelated_collection', []), ('iops', 5000), ('backup_retention_period', 2)):
+            changed = copy.deepcopy(self.state_after)
+            changed['resources'][0]['instances'][0]['attributes'][key] = value
+            with self.subTest(field=key), self.assertRaisesRegex(d.Rejected, 'FINAL_RDS_CONFIGURATION_DRIFTED'):
+                d.complete_transition(self.request, approval, changed,
+                    self.rds_after, self.postcheck['database'], now=1800000100)
+
     def test_api_public_evidence_contains_exact_requests_but_no_raw_source_values(self):
         source = copy.deepcopy(self.source_rds); source['DBInstances'][0]['PrivateFixtureOnly'] = SECRET
         approval = self.approve_api(source_rds=source)

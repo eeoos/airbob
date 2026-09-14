@@ -132,7 +132,13 @@ def rds_resource(state):
 
 
 def configuration_sha(row):
-    return digest({k: v for k, v in row.items() if k not in COMPUTED | {'instance_class', 'tags', 'tags_all'}})
+    configuration = {k: v for k, v in row.items() if k not in COMPUTED | {'instance_class', 'tags', 'tags_all'}}
+    # Refresh can represent these unset optional collections as [] instead of
+    # null. Keep the original null hash without changing the observed state.
+    for key in ('domain_dns_ips', 'enabled_cloudwatch_logs_exports'):
+        if key in configuration and configuration[key] == []:
+            configuration[key] = None
+    return digest(configuration)
 
 
 def check_resource(row, op, target, chosen):
