@@ -1,3 +1,9 @@
+variable "suspended_processes" {
+  description = "Explicit lifecycle suspension; ordinary service operation uses no suspension."
+  type        = set(string)
+  default     = []
+}
+
 variable "name_prefix" {
   type = string
 }
