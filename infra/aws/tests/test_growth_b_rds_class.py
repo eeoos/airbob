@@ -1,6 +1,7 @@
 """Offline class/lineage boundaries; all success-shaped receipts are fixtures."""
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -28,6 +30,72 @@ def row(context, chosen=gate.LARGE):
         'Engine': 'mysql', 'EngineVersion': '8.4.11', 'AllocatedStorage': 100, 'StorageType': 'gp3',
         'MultiAZ': False, 'StorageEncrypted': True, 'PubliclyAccessible': False,
         'TagList': [{'Key': k, 'Value': v} for k, v in tags.items()]}
+
+
+class HashRuntimeCompatibility(unittest.TestCase):
+    def test_file_sha_matches_empty_binary_and_chunk_boundary_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'input.bin'
+            for data in (b'', b'abc', bytes(range(256)) * 8192 + b'tail'):
+                with self.subTest(bytes=len(data)):
+                    path.write_bytes(data)
+                    self.assertEqual(hashlib.sha256(data).hexdigest(), gate.sha(path))
+                    path.write_bytes(data + b'changed')
+                    self.assertNotEqual(hashlib.sha256(data).hexdigest(), gate.sha(path))
+
+    def test_sha_uses_bounded_reads_without_file_digest(self):
+        data = b'x' * (2 * 1024**2 + 17)
+        case = self
+        class BoundedStream(io.BytesIO):
+            def read(self, size=-1):
+                case.assertGreater(size, 0)
+                case.assertLessEqual(size, 1024**2)
+                return super().read(size)
+        with patch.object(Path, 'open', return_value=BoundedStream(data)), patch.object(
+                hashlib, 'file_digest', side_effect=AssertionError('Python 3.9 has no file_digest'), create=True):
+            self.assertEqual(hashlib.sha256(data).hexdigest(), gate.sha('fixture-only'))
+
+    def test_actual_cli_observe_hashes_context_and_source_with_only_fake_aws(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = {'runId': 'lab-class-cli-fixture', 'datasetId': 'global-growth-b-' + 'a' * 16,
+                'manifestSha256': '1' * 64, 'toolSources': {'fixture.py': '2' * 64},
+                'rdsInstanceClass': gate.DEFAULT, 'resourceFence': 76,
+                'rdsClassGuardSha256': hashlib.sha256(Path(gate.__file__).read_bytes()).hexdigest(),
+                'expiresAt': str(int(time.time()) + 600),
+                'lease': {'table': 'airbob-performance-lab-orchestration-lease', 'lockName': 'airbob-performance-lab',
+                    'owner': 'class-cli-fixture', 'runId': 'lab-class-cli-fixture', 'command': 'up', 'fencingToken': 87},
+                'rds': {'identifier': 'airbob-lab-class-cli-fixture', 'resourceId': 'db-CLASSCLIFIXTURE'}}
+            context_file = root / 'context.json'; context_file.write_bytes(gate.canonical(context))
+            response = row(context, gate.DEFAULT)
+            for tag in response['TagList']:
+                if tag['Key'] == 'FencingToken': tag['Value'] = '76'
+            response_file = root / 'response.json'
+            response_file.write_text(json.dumps({'DBInstances': [response]}))
+            expected = ['--region', 'ap-northeast-2', '--cli-connect-timeout', '5', '--cli-read-timeout', '15',
+                'rds', 'describe-db-instances', '--db-instance-identifier', context['rds']['identifier'], '--output', 'json']
+            aws = root / 'fixture-aws'
+            aws.write_text('#!' + sys.executable + '\nimport pathlib,sys\nassert sys.argv[1:] == ' + repr(expected) +
+                '\nsys.stdout.write(pathlib.Path(__file__).with_name("response.json").read_text())\n')
+            aws.chmod(0o700)
+            command = [sys.executable, '-B', gate.__file__, 'observe', '--context', str(context_file),
+                '--stage', 'before', '--aws', str(aws)]
+            # No credential environment, AWS binary fallback, network or real API.
+            env = {'PATH': str(root), 'PYTHONDONTWRITEBYTECODE': '1', 'AWS_EC2_METADATA_DISABLED': 'true'}
+            output = root / 'observation.json'
+            result = subprocess.run(command + ['--output', str(output)], capture_output=True, text=True, env=env, timeout=10)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            observed = json.loads(output.read_bytes())
+            self.assertEqual(context['rdsClassGuardSha256'], observed['sourceSha256'])
+            self.assertEqual(hashlib.sha256(context_file.read_bytes()).hexdigest(), observed['contextSha256'])
+            self.assertEqual(76, observed['resourceFence'])
+            self.assertEqual('db-CLASSCLIFIXTURE', observed['rds']['resourceId'])
+            self.assertEqual(0o600, output.stat().st_mode & 0o777)
+            response['DbiResourceId'] = 'db-FOREIGN'
+            response_file.write_text(json.dumps({'DBInstances': [response]}))
+            result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=10)
+            self.assertEqual(1, result.returncode)
+            self.assertEqual({'state': 'REJECTED', 'code': 'ORIGINAL_RDS_CLASS_OR_ID_CHANGED'}, json.loads(result.stdout))
 
 
 class ClassHistory(unittest.TestCase):
