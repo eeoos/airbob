@@ -10,7 +10,7 @@ module "security" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "mac_import_rds" {
-  count = local.services_enabled && ((var.global_b_prepare_only && var.global_b_import_from_mac) || (var.global_b_services && local.growth_b_service_mac_source)) ? 1 : 0
+  count = local.services_enabled && ((var.global_b_prepare_only && var.global_b_import_from_mac) || (var.global_b_services && local.growth_b_service_mac_source) || (var.global_b_snapshot_restore_only && var.global_b_snapshot_source_mode == "mac-snapshot-counts-ddl")) ? 1 : 0
 
   security_group_id            = module.security.security_group_ids.rds
   referenced_security_group_id = module.security.security_group_ids.nat

@@ -14,7 +14,8 @@ LAB = ROOT / 'infra/aws/lab'
 
 
 def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=None, database_bootstrap='dump', object_change=None,
-             preparation_document=None, retained_operator=None):
+             preparation_document=None, retained_operator=None, snapshot_context=None):
+    snapshot_context = snapshot_context or {}
     manifest = manifest or fixture()
     proof = proof or receipt(manifest)
     preparation = preparation_document if preparation_document is not None else {'kind': 'global-growth-b-aws-data-only-preparation', 'state': 'DATABASE_INVENTORY_LOGIN_VERIFIED',
@@ -43,7 +44,7 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
     proof['manifestSha256'] = manifest_sha
     proof['preparationReceipt'] = manifest['preparation']['receipt']
     proof['searchTransport'] = manifest['search']['transport']
-    if manifest['preparation'].get('sourceMode') == 'mac-sql-postcheck':
+    if manifest['preparation'].get('sourceMode') in ('mac-sql-postcheck', 'mac-snapshot-counts-ddl'):
         proof['nativeSearch']['transport'] = manifest['search']['transport']
     proof['appRuntimeBinding'] = manifest['appRuntimeBinding']
     proof_text = json.dumps(proof)
@@ -58,8 +59,12 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
         'rds_instance_class': 'db.t3.small', 'fencing_token': (retained_operator or {}).get('fencingToken', 1),
         'expires_at': (retained_operator or {}).get('expiresAt', '1999999999'),
         'global_b_snapshot_restore_only': False,
+        'global_b_snapshot_source_mode': snapshot_context.get('mode', 'verified-global-b-snapshot'),
+        'rds_snapshot_identifier': snapshot_context.get('identifier', ''),
+        'rds_snapshot_source_run_id': snapshot_context.get('sourceRunId', ''),
+        'rds_snapshot_source_resource_id': snapshot_context.get('sourceResourceId', ''),
         'global_b_service_bootstrap_enabled': True, 'database_bootstrap': database_bootstrap, 'rds_engine_version': '8.4.11',
-        'global_b_snapshot_provenance': {'sha256': 'd' * 64},
+        'global_b_snapshot_provenance': snapshot_context.get('reference', {'sha256': 'd' * 64}),
         'mode': 'performance', 'dns_mode': 'direct-only', 'load_generator_enabled': False,
         'dataset_release': manifest['datasetId'], 'run_id': manifest['runId'], 'global_b_service_release': manifest['serviceRelease'],
         'dataset_manifest_sha256': manifest_sha, 'global_b_manifest_version_id': 'manifest-v1',
@@ -69,9 +74,12 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
         'global_b_readiness_receipt': {'key': f"data-bootstrap/{manifest['runId']}/{manifest['datasetId']}-service-{manifest['serviceRelease']}.json",
             'version_id': 'readiness-v1', 'sha256': hashlib.sha256(proof_text.encode()).hexdigest(), 'bytes': len(proof_text)}}
     growth, iam = (LAB / 'growth-b.tf').read_text(), (LAB / 'iam.tf').read_text()
-    names = ('growth_b_service_mac_source', 'growth_b_service_prefix', 'growth_b_search_prefix', 'growth_b_service_refs', 'growth_b_cdc_suffix',
+    names = ('growth_b_service_mac_source', 'growth_b_service_mac_snapshot', 'growth_b_service_prefix', 'growth_b_search_prefix', 'growth_b_service_refs', 'growth_b_cdc_suffix',
         'growth_b_service_manifest_valid', 'growth_b_service_preparation', 'growth_b_service_transport', 'growth_b_service_runtime', 'growth_b_readiness_valid')
     expressions = {name: attribute(growth, name) for name in names}
+    mac_hcl = (LAB / 'growth-b-mac-snapshot.tf').read_text()
+    expressions.update({name: attribute(mac_hcl, name) for name in ('growth_b_mac_snapshot_valid',
+        'growth_b_mac_snapshot_preparation_refs_valid', 'growth_b_mac_snapshot_target_valid')})
     expressions.update({name: attribute((LAB / 'locals.tf').read_text(), name) for name in
         ('global_b_selected', 'dataset_manifest_body', 'dataset_manifest', 'dataset_manifest_key')})
     expressions['data_bootstrap_receipt'] = attribute((LAB / 'checks.tf').read_text(), 'data_bootstrap_receipt')
@@ -89,19 +97,30 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
       data_ready = true
       dataset_prefix = "datasets/${var.dataset_release}"
       growth_b_service_helper_sources = local.dataset_manifest.toolSources
-      lab_contract = { dataset_bucket_name = "airbob-performance-lab-dataset-942632789808", evidence_bucket_name = "airbob-performance-lab-evidence-942632789808" }
+      lab_contract = { dataset_bucket_name = "airbob-performance-lab-dataset-942632789808", evidence_bucket_name = "airbob-performance-lab-evidence-942632789808", approved_rds_snapshot_identifier = var.rds_snapshot_identifier }
       growth_b_envelope = { objects = {} }
       dataset_kafka_topics = toset(jsondecode(file("topics.json")))
       object_data = jsondecode(file("objects.json"))
+      growth_b_snapshot_selected = var.database_bootstrap == "snapshot"
+      growth_b_snapshot_provenance = jsondecode(file("snapshot-source.json"))
+      snapshot_live = jsondecode(file("snapshot-live.json"))
+      snapshot_instances = jsondecode(file("snapshot-instances.json"))
     '''
     config += 'rds = ' + json.dumps([{'resource_id': manifest['rds']['resourceId'],
         'arn': 'arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-b-services-test',
         'master_secret_arn': 'arn:aws:secretsmanager:ap-northeast-2:942632789808:secret:rds!db-selected'}]) + '\n'
     for key, expression in expressions.items():
+        expression = expression.replace('data.aws_db_snapshot.dataset', 'local.snapshot_live').replace('data.aws_db_instances.growth_b_snapshot_targets', 'local.snapshot_instances')
         config += key + ' = ' + expression.replace('data.aws_s3_object.', 'local.object_data.').replace('module.rds', 'local.rds') + '\n'
     config += '}\n'
     with tempfile.TemporaryDirectory(prefix='airbob-b-service-static-') as directory:
         root = Path(directory)
+        source_raw = json.dumps(snapshot_context.get('source'), sort_keys=True, separators=(',', ':')) + '\n'
+        object_data['growth_b_snapshot_provenance'] = [{'body_base64': base64.b64encode(source_raw.encode()).decode(),
+            'version_id': snapshot_context.get('reference', {}).get('version_id', '')}]
+        (root / 'snapshot-source.json').write_text(source_raw)
+        (root / 'snapshot-live.json').write_text(json.dumps(snapshot_context.get('live', [])))
+        (root / 'snapshot-instances.json').write_text(json.dumps([{'instance_identifiers': snapshot_context.get('instances', [])}]))
         for name, value in [('manifest', manifest), ('proof', proof), ('objects', object_data), ('topics', proof['topics'])]:
             (root / (name + '.json')).write_text(json.dumps(value))
         (root / 'main.tf').write_text(config)

@@ -220,7 +220,7 @@ resource "aws_iam_role_policy" "monitoring_discovery" {
 }
 
 resource "aws_iam_role_policy" "data_bootstrap" {
-  count = local.services_enabled && !var.global_b_import_from_mac ? 1 : 0
+  count = local.services_enabled && !var.global_b_import_from_mac && !(var.global_b_snapshot_restore_only && var.global_b_snapshot_source_mode == "mac-snapshot-counts-ddl") ? 1 : 0
 
   name = "airbob-performance-lab-data-bootstrap"
   role = aws_iam_role.host["debezium"].id
@@ -459,7 +459,7 @@ resource "aws_iam_role_policy" "growth_b_search_source_inputs" {
 }
 
 resource "aws_iam_role_policy" "growth_b_snapshot_read" {
-  count = local.services_enabled && (var.global_b_services || var.global_b_snapshot_restore_only) ? 1 : 0
+  count = local.services_enabled && (var.global_b_services || (var.global_b_snapshot_restore_only && var.global_b_snapshot_source_mode != "mac-snapshot-counts-ddl")) ? 1 : 0
   name  = "airbob-performance-lab-b-snapshot-read"
   role  = aws_iam_role.host["debezium"].id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
@@ -472,7 +472,7 @@ resource "aws_iam_role_policy" "growth_b_snapshot_read" {
 }
 
 resource "aws_iam_role_policy" "growth_b_snapshot_restore_inputs" {
-  count = local.services_enabled && var.global_b_snapshot_restore_only ? 1 : 0
+  count = local.services_enabled && var.global_b_snapshot_restore_only && var.global_b_snapshot_source_mode != "mac-snapshot-counts-ddl" ? 1 : 0
   name  = "airbob-performance-lab-b-snapshot-restore-inputs"
   role  = aws_iam_role.host["debezium"].id
   policy = jsonencode({ Version = "2012-10-17", Statement = [

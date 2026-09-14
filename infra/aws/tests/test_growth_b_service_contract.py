@@ -307,6 +307,7 @@ class ServiceContract(unittest.TestCase):
                 cache_enabled='true', request_target='', load_generator_enabled='false', dataset_release='global-growth-b-'+'a'*16,
                 dataset_manifest_sha256='e'*64, database_bootstrap='dump', global_b_prepare_only='false', global_b_import_from_mac='false',
                 global_b_services='true', global_b_snapshot_restore_only='false', global_b_snapshot_provenance='null', global_b_service_release='service-01', global_b_service_bootstrap_enabled='false',
+                global_b_snapshot_source_mode='verified-global-b-snapshot', lab_power_request='null',
                 global_b_readiness_receipt='null', dataset_manifest_version_id='version-service', lease_owner='owner/current',
                 rds_snapshot_identifier='', rds_snapshot_source_run_id='', rds_snapshot_source_resource_id='',
                 rds_engine_version='8.4.11', rds_instance_class='db.t3.small', dns_mode='direct-only', alb_ingress_cidr='203.0.113.1/32')
@@ -318,6 +319,8 @@ class ServiceContract(unittest.TestCase):
             self.assertEqual('owner/current', data['global_b_lease_owner']); self.assertTrue(data['global_b_services'])
             self.assertFalse(data['app_enabled']); self.assertEqual('1999999999', data['expires_at'])
             self.assertEqual('db.t3.small', data['rds_instance_class'])
+            self.assertEqual('verified-global-b-snapshot', data['global_b_snapshot_source_mode'])
+            self.assertIsNone(data['lab_power'])
             large = prefix+'rds_instance_class=db.m6i.large\n'+function+'write_tfvars services false i-0123456789abcdef0\ncat "$current_tfvars"\n'
             selected = json.loads(subprocess.run(['bash'], input=large, text=True, capture_output=True, check=True).stdout)
             self.assertEqual('db.m6i.large', selected['rds_instance_class'])

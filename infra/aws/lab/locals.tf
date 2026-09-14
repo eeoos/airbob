@@ -200,7 +200,7 @@ locals {
   }
 
   service_hosts = { for service, host in local.legacy_service_hosts : service => host
-    if !var.global_b_import_from_mac && ((!var.global_b_prepare_only && !var.global_b_snapshot_restore_only) || service == "debezium")
+    if !var.global_b_import_from_mac && !(var.global_b_snapshot_restore_only && var.global_b_snapshot_source_mode == "mac-snapshot-counts-ddl") && ((!var.global_b_prepare_only && !var.global_b_snapshot_restore_only) || service == "debezium")
   }
   legacy_service_hosts = {
     redis = {

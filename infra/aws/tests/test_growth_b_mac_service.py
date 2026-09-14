@@ -317,7 +317,9 @@ print(json.dumps({'pythonVersion':sys.version.split()[0],'count':len(names),'sta
                 account = "'" + manifest['cdc']['username'] + "'@'%'"
                 if sql.startswith('CREATE'):
                     self.assertRegex(sql, '^CREATE USER ' + account + " IDENTIFIED BY '[A-Za-z0-9_-]{48}' REQUIRE SSL;$")
-                else: self.assertTrue(sql.endswith(' TO ' + account + ';'))
+                else:
+                    self.assertEqual('GRANT SELECT, RELOAD, LOCK TABLES, SHOW DATABASES, '
+                        'REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO ' + account + ';', sql)
                 self.assertNotIn('CONVERT(', sql)
                 self.events.append(('sql-write', sql.split()[0]))
         def http(method, path, value=None):
@@ -476,38 +478,54 @@ print(json.dumps({'VersionId':ref['versionId'],'ContentLength':len(raw)}))
         self.assertNotEqual(0, self.operator_admission(changed_reference=True).returncode)
         self.assertNotEqual(0, self.operator_admission(corrupt_object=True).returncode)
 
-    def test_mac_app_can_pass_after_fifteen_minutes_without_removing_failed_status_gate(self):
+    def test_b_app_can_seed_for_hours_with_original_lease_and_failure_gates(self):
         source = (SCRIPTS / 'aws-lab.sh').read_text()
-        start = source.index('wait_for_application() {'); end = source.index('\n}\n', start) + 3
-        body = source[start:end]
-        def run(seconds, failed=False):
+        def function(name):
+            start = source.index(name + '() {'); end = source.index('\n}\n', start) + 3
+            return source[start:end]
+        body = function('assert_lease') + '\n' + function('wait_for_application')
+        def run(seconds=None, failed=False, lease_expires=20700, ready_after=10800):
             clock = self.root / 'app-clock'; clock.write_text('0')
+            mutation = self.root / 'app-timeout-mutation'; mutation.write_text('')
             script = '''set -euo pipefail
 INSTANCE_REFRESH_TIMEOUT_SECONDS=900
 asg_name=exact-asg; target_group_arn=exact-target; AWS_REGION=ap-northeast-2
+temp_dir=$TEST_ROOT; LEASE_CONTROL_CALL_MAX_SECONDS=30
+lease_table=table; lease_lock_id=lock; lease_owner=owner; fencing_token=99; run_id=lab-test; lease_command=services
+bounded_lease_command_capture_ready=false
 fail() { exit 2; }
-assert_lease() { :; }
+run_bounded_lease_command() { (( $(cat "$CLOCK") < LEASE_EXPIRES )); }
 sleep() { :; }
-run_supervised_mutation() { :; }
+run_supervised_mutation() { printf '%s\n' "$1" >> "$MUTATION"; }
 date() { n=$(cat "$CLOCK"); printf '%s' "$((n+600))" > "$CLOCK"; printf '%s' "$n"; }
 aws() {
   case "$1 $2" in
     'autoscaling describe-instance-refreshes') printf '%s' "$STATUS" ;;
     'autoscaling describe-auto-scaling-groups') printf '1' ;;
     'elbv2 describe-target-health')
-      n=$(cat "$CLOCK"); ready=0; (( n < 1800 )) || ready=1
+      n=$(cat "$CLOCK"); ready=0; (( n < READY_AFTER )) || ready=1
       if [[ "$*" == *'State!=`healthy`'* ]]; then printf '%s' "$((1-ready))"; else printf '%s' "$ready"; fi ;;
     *) exit 99 ;;
   esac
 }
 '''
-            script += body + '\nwait_for_application ' + str(seconds) + '\n'
-            return subprocess.run(['bash'], input=script, text=True, capture_output=True, timeout=3,
-                env={'PATH': os.environ['PATH'], 'CLOCK': str(clock), 'STATUS': 'Failed' if failed else 'None'}).returncode
-        self.assertNotEqual(0, run(900)); self.assertEqual(0, run(1800)); self.assertNotEqual(0, run(1800, failed=True))
-        selected = source[source.index('continue_global_b_services()'):]
-        self.assertIn('wait_for_application 1800', selected)
-        self.assertIn('preparation.sourceMode == "mac-sql-postcheck"', selected)
+            script += body + '\nwait_for_application' + ('' if seconds is None else ' ' + str(seconds)) + '\n'
+            result = subprocess.run(['bash'], input=script, text=True, capture_output=True, timeout=5,
+                env={'PATH': os.environ['PATH'], 'CLOCK': str(clock), 'TEST_ROOT': str(self.root),
+                     'MUTATION': str(mutation), 'LEASE_EXPIRES': str(lease_expires), 'READY_AFTER': str(ready_after),
+                     'STATUS': 'Failed' if failed else 'None'})
+            return result.returncode, mutation.read_text()
+        self.assertNotEqual(0, run()[0])  # Ordinary legacy path still has its 900-second default.
+        self.assertNotEqual(0, run(1800)[0])
+        self.assertEqual((0, ''), run(18000))
+        self.assertEqual((2, ''), run(18000, failed=True))
+        self.assertEqual((1, ''), run(18000, lease_expires=3600))
+        self.assertNotEqual(0, run(18000, ready_after=30000)[0])
+        selected = function('continue_global_b_services')
+        self.assertEqual(1, selected.count('wait_for_application 18000\n'))
+        self.assertNotIn('wait_for_application\n', selected)
+        self.assertIn('validate_retained_global_b_execution_deadline "$original"', selected)
+        self.assertIn('expires_at > $(date +%s) + LEASE_DEADLINE_SECONDS', selected)
 
 
 class MacServicePlan(unittest.TestCase):

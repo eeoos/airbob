@@ -281,6 +281,17 @@ locals {
   lab_asg_tag_binding_condition = merge(
     local.lab_ephemeral_tag_binding_condition,
     {
+      # Terraform sends only changed tags. Preserve current ownership and bind
+      # any supplied ownership tag to its original value without requiring it.
+      StringEquals = local.lab_ephemeral_resource_tag_condition.StringEquals
+      StringEqualsIfExists = {
+        for key, value in local.lab_ephemeral_tag_binding_condition.StringEquals : key => value
+        if startswith(key, "aws:RequestTag/")
+      }
+      Null = merge(
+        { for key, value in local.lab_ephemeral_tag_binding_condition.Null : key => value if startswith(key, "aws:ResourceTag/") },
+        { "aws:TagKeys" = "false" },
+      )
       "ForAllValues:StringEquals" = {
         "aws:TagKeys" = [
           "Environment",

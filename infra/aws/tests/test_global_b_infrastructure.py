@@ -62,8 +62,31 @@ def evaluate_sources(approved_snapshot="airbob-dataset-rehearsal-v20"):
             'lab_ephemeral_request_tag_condition', 'lab_ephemeral_create_tag_condition', 'lab_rds_request_tag_condition',
             'lab_rds_provision_baseline_policy', 'lab_rds_class_tag_keys', 'lab_data_compute_policy',
             'lab_ephemeral_resource_tag_condition', 'lab_ephemeral_tag_binding_condition',
-            'lab_b_snapshot_controller_policy', 'lab_b_snapshot_controller_baseline_policy')}
+            'lab_b_snapshot_controller_policy', 'lab_b_snapshot_controller_baseline_policy',
+            'lab_asg_tag_binding_condition', 'lab_elb_create_tag_condition', 'lab_elb_resource_tag_condition',
+            'lab_elb_listener_create_condition', 'lab_elb_listener_modify_condition',
+            'lab_app_compute_statements', 'lab_app_compute_core_policy')}
     expressions['bootstrap_policy'] = attribute(block(iam, 'resource', 'aws_iam_role_policy', 'data_bootstrap'), 'policy')
+    bootstrap_count = attribute(block(iam, 'resource', 'aws_iam_role_policy', 'data_bootstrap'), 'count')
+    for original, selected in {
+        'local.services_enabled': 'selected.services',
+        'var.global_b_import_from_mac': 'selected.macImport',
+        'var.global_b_snapshot_restore_only': 'selected.snapshotOnly',
+        'var.global_b_snapshot_source_mode': 'selected.sourceMode',
+    }.items():
+        bootstrap_count = bootstrap_count.replace(original, selected)
+    bootstrap_cases = [
+        {'services': services, 'macImport': mac, 'snapshotOnly': snapshot, 'sourceMode': mode}
+        for services, mac, snapshot, mode in (
+            (False, False, False, 'verified-global-b-snapshot'),
+            (True, True, False, 'verified-global-b-snapshot'),
+            (True, False, False, 'verified-global-b-snapshot'),
+            (True, False, True, 'verified-global-b-snapshot'),
+            (True, False, True, 'mac-snapshot-counts-ddl'),
+            (True, False, False, 'mac-snapshot-counts-ddl'),
+        )
+    ]
+    expressions['bootstrap_counts'] = '[for selected in ' + json.dumps(bootstrap_cases) + ' : (' + bootstrap_count + ')]'
     expressions['lease_lock_id'] = attribute((FOUNDATION / 'locals.tf').read_text(), 'lease_lock_id')
     expressions['authoritative_evidence_resources'] = attribute((FOUNDATION / 'storage.tf').read_text(), 'authoritative_evidence_resources')
     guard = attribute(block(variables, 'variable', 'engine_version'), 'condition', 4).replace('var.engine_version', 'engine')
@@ -118,7 +141,9 @@ locals {
         result = subprocess.run(command, input='jsonencode({boundary=jsondecode(local.lab_host_boundary_policy), '
             'bootstrap=jsondecode(local.bootstrap_policy), provision=jsondecode(local.lab_rds_provision_policy), '
             'data=jsondecode(local.lab_data_compute_policy), dataBytes=length(local.lab_data_compute_policy), '
+            'app=jsondecode(local.lab_app_compute_core_policy), appBytes=length(local.lab_app_compute_core_policy), '
             'snapshot=jsondecode(local.lab_b_snapshot_controller_policy), '
+            'bootstrapCounts=local.bootstrap_counts, '
             'engines=local.engine_cases, storage=local.storage_cases, leaseLockId=local.lease_lock_id, '
             'boundaryBytes=length(local.lab_host_boundary_policy), provisionBytes=length(local.lab_rds_provision_policy)})\n',
             text=True, capture_output=True, timeout=30, env=environment)
@@ -143,6 +168,61 @@ class GlobalBInfrastructureTest(unittest.TestCase):
     def setUpClass(cls):
         cls.result = evaluate_sources()
         cls.boundary, cls.bootstrap = cls.result['boundary'], cls.result['bootstrap']
+
+    def test_asg_tag_diffs_preserve_existing_ownership_and_managed_policy_quota(self):
+        # Evaluate the rendered IAM predicates against the partial request that
+        # provider 6.55 updateTags sends, not a synthetic full-tag request.
+        policy = self.result['app']
+        self.assertLessEqual(self.result['appBytes'], 6144)
+        resource = ('arn:aws:autoscaling:ap-northeast-2:942632789808:autoScalingGroup:group-id:'
+                    'autoScalingGroupName/airbob-lab-static-b-test-app')
+        owned = {'Project': 'airbob', 'Environment': 'performance-lab', 'Stack': 'lab',
+            'ManagedBy': 'terraform', 'Persistence': 'ephemeral', 'ExpiresAt': '1789444248',
+            'FencingToken': '76', 'RunId': 'lab-static-b-test', 'Service': 'app'}
+
+        def admitted(request, tags=None, arn=resource, action='autoscaling:CreateOrUpdateTags'):
+            values = {'aws:ResourceTag/' + key: value for key, value in (owned if tags is None else tags).items()}
+            values.update({'aws:RequestTag/' + key: value for key, value in request.items()})
+            if request:
+                values['aws:TagKeys'] = list(request)
+
+            def conditions_match(condition):
+                for operator, entries in condition.items():
+                    for key, expected in entries.items():
+                        if operator == 'Null':
+                            if (key not in values) != (expected == 'true'): return False
+                        elif operator == 'ForAllValues:StringEquals':
+                            if not all(value in items(expected) for value in values.get(key, [])): return False
+                        elif operator in ('StringEquals', 'StringEqualsIfExists'):
+                            if operator.endswith('IfExists') and key not in values: continue
+                            options = [values.get(value[2:-1]) if value.startswith('${') else value for value in items(expected)]
+                            if key not in values or values[key] not in options: return False
+                        else:
+                            raise AssertionError('Review new IAM condition operator: ' + operator)
+                return True
+
+            matches = [statement for statement in policy['Statement'] if
+                any(fnmatch.fnmatchcase(action, pattern) for pattern in items(statement['Action'])) and
+                any(fnmatch.fnmatchcase(arn, pattern) for pattern in items(statement['Resource'])) and
+                conditions_match(statement.get('Condition', {}))]
+            return any(row['Effect'] == 'Allow' for row in matches) and not any(row['Effect'] == 'Deny' for row in matches)
+
+        for request in ({'RuntimeRevision': 'new-revision'}, {'Name': 'app', 'Monitoring': 'node-exporter'},
+                        {**owned, 'RuntimeRevision': 'new-revision', 'Name': 'app', 'Monitoring': 'node-exporter'}):
+            with self.subTest(allowed=request): self.assertTrue(admitted(request))
+        for key, original in owned.items():
+            with self.subTest(ownership=key):
+                self.assertTrue(admitted({key: original, 'RuntimeRevision': 'new-revision'}))
+                self.assertFalse(admitted({key: 'foreign', 'RuntimeRevision': 'new-revision'}))
+                self.assertFalse(admitted({'RuntimeRevision': 'new-revision'}, {k: v for k, v in owned.items() if k != key}))
+        for request in ({}, {'ForeignKey': 'value'}, {'RuntimeRevision': 'new', 'ForeignKey': 'value'}):
+            with self.subTest(rejected=request): self.assertFalse(admitted(request))
+        self.assertFalse(admitted({'RuntimeRevision': 'new'}, {**owned, 'Project': 'foreign'}))
+        for arn in (resource.replace('942632789808', '111111111111'), resource.replace('ap-northeast-2', 'us-east-1'),
+                    resource.replace('/airbob-lab-', '/airbob-production-')):
+            with self.subTest(foreign_resource=arn): self.assertFalse(admitted({'RuntimeRevision': 'new'}, arn=arn))
+        # The module keeps every tag key; value changes do not need DeleteTags.
+        self.assertFalse(admitted({'RuntimeRevision': 'new'}, action='autoscaling:DeleteTags'))
 
     def test_explicit_80_and_84_patches_select_the_corresponding_family(self):
         observed = {row['version']: row for row in self.result['engines']}
@@ -243,7 +323,7 @@ class GlobalBInfrastructureTest(unittest.TestCase):
                             for arn in sid(self.boundary, 'ReadImmutableRuntimeInputs')['Resource']))
         resource = block((LAB / 'iam.tf').read_text(), 'resource', 'aws_iam_role_policy', 'data_bootstrap')
         self.assertEqual('aws_iam_role.host["debezium"].id', attribute(resource, 'role'))
-        self.assertEqual('local.services_enabled && !var.global_b_import_from_mac ? 1 : 0', attribute(resource, 'count'))
+        self.assertEqual([0, 0, 1, 1, 0, 1], self.result['bootstrapCounts'])
 
     def test_changed_policies_remain_below_the_existing_managed_policy_size_limit(self):
         self.assertLessEqual(self.result['boundaryBytes'], 6144)

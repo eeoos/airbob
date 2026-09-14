@@ -94,7 +94,7 @@ on:
         type: choice
         options: [oci, aws]
       ttl_hours:
-        description: Ephemeral resource TTL; initial dump and snapshot qualification require at least 6 hours
+        description: Resource TTL 6-24 hours; explicit Mac snapshot runs allow 6-168 hours within their selected deadline
         required: false
         default: '6'
         type: string
@@ -161,6 +161,8 @@ jobs:
           AIRBOB_MODE: ${{ inputs.mode }}
           AIRBOB_POLICY: ${{ inputs.policy }}
           AIRBOB_DATABASE_BOOTSTRAP: ${{ inputs.database_bootstrap }}
+          AIRBOB_DATASET_RELEASE: ${{ inputs.dataset_release }}
+          AIRBOB_RDS_SNAPSHOT_IDENTIFIER: ${{ inputs.rds_snapshot_identifier }}
           AIRBOB_LOAD_GENERATOR_ENABLED: ${{ inputs.load_generator_enabled }}
           AIRBOB_APPROVED_EXECUTION_DEADLINE_EPOCH: ${{ inputs.approved_execution_deadline_epoch }}
         run: |
@@ -278,18 +280,27 @@ jobs:
               if "classRehearsal" in operation:
                   env["B_RDS_CLASS_REHEARSAL_JSON"] = json.dumps(operation["classRehearsal"], sort_keys=True, separators=(",", ":"))
           elif action == "snapshot-restore":
-              require({"provenanceSha256"} <= set(operation) <= {"provenanceSha256", "provenanceKey", "rdsInstanceClass", "classRehearsal"}, "B snapshot operation must contain provenanceSha256 and optional exact provenanceKey")
+              require({"provenanceSha256"} <= set(operation) <= {"provenanceSha256", "provenanceKey", "rdsInstanceClass", "classRehearsal", "sourceMode"}, "B snapshot operation must contain provenanceSha256 and optional exact provenanceKey/sourceMode")
+              source_mode = operation.get("sourceMode", "verified-global-b-snapshot")
+              require(source_mode in {"verified-global-b-snapshot", "mac-snapshot-counts-ddl"}, "B snapshot source mode is invalid")
               require(isinstance(operation["provenanceSha256"], str) and re.fullmatch(r"[0-9a-f]{64}", operation["provenanceSha256"]), "B snapshot provenance SHA is invalid")
               require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == "snapshot" and os.environ["AIRBOB_POLICY"] == "isolated-read", "B snapshot target creation requires isolated-read snapshot mode")
               import sys
               sys.path.insert(0, "infra/aws/scripts")
               from growth_b_rds_class import initial_operation
+              if source_mode == "mac-snapshot-counts-ddl":
+                  require(operation.get("rdsInstanceClass", "db.t3.small") == "db.t3.small" and "classRehearsal" not in operation, "Mac snapshot restore requires the small RDS class")
               env["B_RDS_INSTANCE_CLASS"] = initial_operation({k: v for k, v in operation.items() if k in {"rdsInstanceClass", "classRehearsal"}})
+              env["B_SNAPSHOT_SOURCE_MODE"] = source_mode
               if "classRehearsal" in operation:
                   env["B_RDS_CLASS_REHEARSAL_JSON"] = json.dumps(operation["classRehearsal"], sort_keys=True, separators=(",", ":"))
               env["B_SNAPSHOT_PROVENANCE_SHA256"] = operation["provenanceSha256"]
               if "provenanceKey" in operation:
-                  require(isinstance(operation["provenanceKey"], str) and re.fullmatch(r"data-bootstrap/lab-[a-z0-9][a-z0-9-]{0,27}/global-growth-b-[0-9a-f]{16}-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json", operation["provenanceKey"]), "B source-host provenance key is invalid")
+                  if source_mode == "mac-snapshot-counts-ddl":
+                      expected_key = "datasets/" + os.environ["AIRBOB_DATASET_RELEASE"] + "-mac-snapshots/" + os.environ["AIRBOB_RDS_SNAPSHOT_IDENTIFIER"] + "/source-" + operation["provenanceSha256"] + ".json"
+                      require(operation["provenanceKey"] == expected_key, "Mac snapshot source key differs from its selected dataset/snapshot/SHA")
+                  else:
+                      require(isinstance(operation["provenanceKey"], str) and re.fullmatch(r"data-bootstrap/lab-[a-z0-9][a-z0-9-]{0,27}/global-growth-b-[0-9a-f]{16}-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json", operation["provenanceKey"]), "B source-host provenance key is invalid")
                   env["B_SNAPSHOT_PROVENANCE_KEY"] = operation["provenanceKey"]
           elif action in {"snapshot-create", "snapshot-prepare", "snapshot-retire"}:
               require(set(operation) == {"operationId", "manifestSha256"}, "B host operation keys differ")

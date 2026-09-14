@@ -91,7 +91,9 @@ sleep() {
             (True, True, False, False, 1), (False, False, True, True, 1),
             (False, False, True, False, 0), (False, False, False, False, 0),
         ):
-            variables = {'global_b_prepare_only': prepared, 'global_b_import_from_mac': importing, 'global_b_services': services}
+            variables = {'global_b_prepare_only': prepared, 'global_b_import_from_mac': importing,
+                         'global_b_services': services, 'global_b_snapshot_restore_only': False,
+                         'global_b_snapshot_source_mode': 'verified-global-b-snapshot'}
             config = ''.join('variable "' + k + '" { default = ' + json.dumps(v) + ' }\n' for k, v in variables.items())
             config += 'locals {\nservices_enabled = true\ngrowth_b_service_mac_source = ' + json.dumps(mac_source) + '\n'
             config += 'groups = {rds="sg-rds",nat="sg-nat"}\n'
