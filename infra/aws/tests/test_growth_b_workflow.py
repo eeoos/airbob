@@ -64,6 +64,18 @@ class WorkflowAdmission(unittest.TestCase):
         inputs = self.source.split('  workflow_dispatch:\n    inputs:\n', 1)[1].split('\npermissions:', 1)[0]
         self.assertEqual(25, len(re.findall(r'^      [a-z][a-z_]*:', inputs, re.MULTILINE)))
 
+    def test_mac_import_provisions_only_and_rejects_nonboolean_selectors(self):
+        code, env = self.run_gate('prepare', {'rdsInstanceClass': 'db.m6i.large', 'importFromMac': True})
+        self.assertEqual(0, code)
+        self.assertIn('B_IMPORT_FROM_MAC=true', env)
+        self.assertIn('B_RDS_INSTANCE_CLASS=db.m6i.large', env)
+        for value in ('true', 1, None, {}):
+            with self.subTest(value=value):
+                self.assertNotEqual(0, self.run_gate('prepare', {'importFromMac': value})[0])
+        self.assertNotEqual(0, self.run_gate('prepare', {'importFromMac': True, 'ignoreDeadline': True})[0])
+        self.assertNotEqual(0, self.run_gate('snapshot-restore', {'importFromMac': True,
+                            'provenanceSha256': 'a' * 64}, bootstrap='snapshot')[0])
+
     def test_services_map_closed_stage_inputs_to_controller_environment(self):
         selected = {'serviceRelease': 'service-01', 'serviceManifestSha256': 'c'*64, 'stage': 'dependencies'}
         status, env = self.run_gate('services', selected)

@@ -270,8 +270,11 @@ jobs:
               import sys
               sys.path.insert(0, "infra/aws/scripts")
               from growth_b_rds_class import initial_operation
-              chosen = initial_operation(operation)
+              mac_import = operation.get("importFromMac", False)
+              require(type(mac_import) is bool, "importFromMac must be a boolean")
+              chosen = initial_operation({k: v for k, v in operation.items() if k != "importFromMac"})
               env["B_RDS_INSTANCE_CLASS"] = chosen
+              env["B_IMPORT_FROM_MAC"] = "true" if mac_import else "false"
               if "classRehearsal" in operation:
                   env["B_RDS_CLASS_REHEARSAL_JSON"] = json.dumps(operation["classRehearsal"], sort_keys=True, separators=(",", ":"))
           elif action == "snapshot-restore":

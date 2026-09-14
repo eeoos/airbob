@@ -140,7 +140,7 @@ locals {
   legacy_services_enabled            = local.services_enabled && !var.global_b_prepare_only && !var.global_b_services && !var.global_b_snapshot_restore_only
   application_infrastructure_enabled = local.services_enabled && !var.global_b_prepare_only && !var.global_b_snapshot_restore_only
   dependency_services_enabled        = local.legacy_services_enabled || (local.services_enabled && var.global_b_services)
-  data_bootstrap_enabled             = local.services_enabled && !var.global_b_snapshot_restore_only && (!var.global_b_services || var.global_b_service_bootstrap_enabled)
+  data_bootstrap_enabled             = local.services_enabled && !var.global_b_import_from_mac && !var.global_b_snapshot_restore_only && (!var.global_b_services || var.global_b_service_bootstrap_enabled)
 
   bounded_name_prefix = "airbob-${substr(var.run_id, 0, 12)}-${substr(sha1(var.run_id), 0, 6)}"
   app_capacity = !var.app_enabled ? {
@@ -200,7 +200,7 @@ locals {
   }
 
   service_hosts = { for service, host in local.legacy_service_hosts : service => host
-    if(!var.global_b_prepare_only && !var.global_b_snapshot_restore_only) || service == "debezium"
+    if !var.global_b_import_from_mac && ((!var.global_b_prepare_only && !var.global_b_snapshot_restore_only) || service == "debezium")
   }
   legacy_service_hosts = {
     redis = {

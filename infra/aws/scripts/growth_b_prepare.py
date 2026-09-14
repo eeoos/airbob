@@ -328,7 +328,10 @@ def prepare_host(context, wrapper, root, aws):
                     arguments += ['--preflight', str(preflight), '--preflight-sha256', sha(preflight)]
                     if manifest['scope'] == 'small-rds-rehearsal':
                         arguments.append('--allow-small-rehearsal')
-                run(arguments, env=runtime_gate.qualified_environment(qualification, environment), timeout=18000)
+                # SQL import duration is data-dependent. Its live lease guard
+                # remains active; don't add a second elapsed import cutoff here.
+                run(arguments, env=runtime_gate.qualified_environment(qualification, environment),
+                    timeout=None if phase == 'execute' else 18000)
             receipt = read(root / 'execute/restore-receipt.json')
             expected = 'SMALL_RDS_INVENTORY_LOGIN_VERIFIED' if manifest['scope'] == 'small-rds-rehearsal' else 'DATABASE_INVENTORY_LOGIN_VERIFIED'
             require(receipt['state'] == expected and receipt['deploymentReady'] is False
@@ -398,7 +401,7 @@ def validate_preparation_receipt(manifest, context, receipt, standalone_path, en
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['validate-manifest', 'validate-inputs', 'validate-receipt', 'host'])
+    parser.add_argument('mode', choices=['validate-manifest', 'validate-inputs', 'validate-mac-inputs', 'validate-receipt', 'host'])
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--sha256', required=True)
     parser.add_argument('--dataset-id', required=True)
@@ -412,7 +415,20 @@ def main():
     parser.add_argument('--standalone-receipt', type=Path)
     args = parser.parse_args()
     require(digest(args.sha256) and sha(args.manifest) == args.sha256, 'Preparation manifest trust anchor differs')
-    manifest = validate_manifest(read(args.manifest), args.dataset_id, source_hashes(args.source_directory))
+    value = read(args.manifest)
+    if args.mode == 'validate-mac-inputs':
+        # This admits dataset/storage metadata for provisioning only. Mac
+        # imports use the sealed local SQL; no Linux helper is executed and no
+        # host-preparation or same-class rehearsal success is claimed.
+        manifest = validate_manifest(value, args.dataset_id, value.get('toolSources', {}))
+        require(args.envelope and sha(args.envelope) == manifest['files']['envelope']['sha256'],
+                'Staged envelope SHA differs')
+        result = validate_envelope_metadata(manifest, read(args.envelope))
+        result.update(state='MAC_IMPORT_INFRASTRUCTURE_INPUTS_VALIDATED', hostToolsExecuted=False,
+                      sqlImportExecuted=False)
+        print(json.dumps(result))
+        return
+    manifest = validate_manifest(value, args.dataset_id, source_hashes(args.source_directory))
     if args.mode == 'validate-manifest':
         print(json.dumps({'state': 'OFFLINE_B_PREPARATION_MANIFEST_VALIDATED', 'scope': manifest['scope'], 'deploymentReady': False}))
         return

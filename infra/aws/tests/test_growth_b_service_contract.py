@@ -273,7 +273,7 @@ class ServiceContract(unittest.TestCase):
                 resource_fencing_token='62', ami_id='ami-0123456789abcdef0', bundle_commit='c'*40, bundle_sha256='b'*64,
                 infra_image_references='{}', app_image_reference='image@sha256:'+'d'*64, mode='performance', policy='integrated-smoke',
                 cache_enabled='true', request_target='', load_generator_enabled='false', dataset_release='global-growth-b-'+'a'*16,
-                dataset_manifest_sha256='e'*64, database_bootstrap='dump', global_b_prepare_only='false',
+                dataset_manifest_sha256='e'*64, database_bootstrap='dump', global_b_prepare_only='false', global_b_import_from_mac='false',
                 global_b_services='true', global_b_snapshot_restore_only='false', global_b_snapshot_provenance='null', global_b_service_release='service-01', global_b_service_bootstrap_enabled='false',
                 global_b_readiness_receipt='null', dataset_manifest_version_id='version-service', lease_owner='owner/current',
                 rds_snapshot_identifier='', rds_snapshot_source_run_id='', rds_snapshot_source_resource_id='',

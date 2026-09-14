@@ -561,6 +561,62 @@ class StreamingProcessTest(unittest.TestCase):
             restore.stream_restore(db, dump)
             self.assertEqual(list(Path(directory).iterdir()), [dump])
 
+    def test_import_survives_the_old_four_hour_boundary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dump = Path(directory) / 'good.gz'
+            with gzip.open(dump, 'wb') as stream:
+                stream.write(b'SELECT 1;\n')
+            db = Mock(timeout=14400, guard=None)
+            db.command.return_value = [sys.executable, '-c',
+                'import sys,time;sys.stdin.buffer.read();time.sleep(0.05)']
+            # Each clock observation crosses the former total import limit.
+            ticks = iter(range(0, 1_000_000, 14401))
+            observed = []
+            with patch.object(restore.time, 'monotonic', side_effect=lambda: next(ticks)):
+                result = restore.stream_restore(db, dump, progress=observed.append)
+            self.assertEqual(result['state'], 'SQL_IMPORT_COMPLETED')
+            self.assertEqual(result['compressedBytesRead'], dump.stat().st_size)
+            self.assertGreater(result['elapsedSeconds'], 14400)
+            self.assertEqual(observed[-1]['mysqlExitCode'], 0)
+
+    def test_progress_write_failure_does_not_abort_valid_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dump = Path(directory) / 'good.gz'
+            with gzip.open(dump, 'wb') as stream:
+                stream.write(b'SELECT 1;\n')
+            db = Mock(timeout=1, guard=None)
+            db.command.return_value = [sys.executable, '-c', 'import sys;sys.stdin.buffer.read()']
+            result = restore.stream_restore(db, dump, progress=Mock(side_effect=OSError('disk full')))
+            self.assertEqual(result['state'], 'SQL_IMPORT_COMPLETED')
+
+    def test_mysql_failure_retains_nonzero_exit_without_sql_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dump = Path(directory) / 'good.gz'
+            with gzip.open(dump, 'wb') as stream:
+                stream.write(b'SELECT 1;\n')
+            db = Mock(timeout=1, guard=None)
+            db.command.return_value = [sys.executable, '-c',
+                'import sys;sys.stderr.write("ERROR 2006 (HY000) at line 77: private SQL data\\n");sys.exit(3)']
+            observed = []
+            with self.assertRaisesRegex(ValueError, r'MySQL exit 3') as failure:
+                restore.stream_restore(db, dump, progress=observed.append)
+            self.assertNotIn('private', str(failure.exception))
+            self.assertEqual(observed[-1]['state'], 'SQL_IMPORT_FAILED')
+            self.assertEqual(observed[-1]['mysqlExitCode'], 3)
+            self.assertEqual(observed[-1]['mysqlErrors'], [{'code': 2006, 'sqlState': 'HY000', 'lineNumber': 77}])
+            self.assertNotIn('private', json.dumps(observed))
+
+    def test_guard_can_still_cancel_an_active_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dump = Path(directory) / 'good.gz'
+            with gzip.open(dump, 'wb') as stream:
+                stream.write(b'SELECT 1;\n')
+            db = Mock(timeout=14400, guard=Mock(side_effect=[None, ValueError('fence lost')]))
+            db.command.return_value = [sys.executable, '-c', 'import time;time.sleep(60)']
+            with self.assertRaisesRegex(ValueError, 'fence lost'):
+                restore.stream_restore(db, dump)
+            self.assertEqual(db.guard.call_count, 2)
+
     def test_live_guard_cancels_subprocess_without_raw_secret_error(self):
         guard = Mock(side_effect=ValueError('fence lost'))
         with self.assertRaisesRegex(ValueError, 'fence lost'):

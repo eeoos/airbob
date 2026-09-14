@@ -575,34 +575,99 @@ def exclusive_database(db):
             process.stdin.close()
 
 
-def stream_restore(db, dump):
-    """Two checked processes; no shell interpolation and no plaintext SQL file."""
+def mysql_error_codes(pipe, errors):
+    """Keep only numeric codes/SQLSTATE/line numbers, never diagnostic SQL."""
+    at_start = True
+    while chunk := pipe.readline(4096):
+        if at_start and len(errors) < 8:
+            match = re.match(rb'^ERROR ([0-9]{1,5})(?: \(([A-Z0-9]{5})\))?(?: at line ([0-9]{1,12}))?:', chunk)
+            if match:
+                code, state, line = match.groups()
+                errors.append({'code': int(code), 'sqlState': state.decode() if state else None,
+                               'lineNumber': int(line) if line else None})
+        at_start = chunk.endswith(b'\n')
+
+
+def stream_restore(db, dump, *, progress=None):
+    """Import until both children finish, without a fixed elapsed-time cutoff.
+
+    ``db.timeout`` bounds individual queries, not a full dataset import. The
+    owning guard still handles cancellation and any explicitly approved lease.
+    Input progress is compressed bytes consumed by gzip, not committed rows.
+    """
     if db.guard:
         db.guard(force=True)
-    unpack = subprocess.Popen(['gzip', '-dc', '--', str(dump)], stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, start_new_session=True)
-    mysql = None
+    source = Path(dump).open('rb', buffering=0)
+    total = os.fstat(source.fileno()).st_size
+    started = time.monotonic()
+    last_report = started
+    last_input_progress = started
+    previous_bytes = 0
+    unpack = mysql = None
+    diagnostics = None
+    errors = []
+
+    def report(state):
+        nonlocal previous_bytes, last_input_progress, last_report
+        now = time.monotonic()
+        consumed = source.tell()
+        if consumed != previous_bytes:
+            previous_bytes, last_input_progress = consumed, now
+        value = {'state': state, 'compressedBytesRead': consumed,
+                 'compressedBytesTotal': total, 'elapsedSeconds': round(now - started, 6),
+                 'secondsSinceInputProgress': round(now - last_input_progress, 6),
+                 'mysqlExitCode': mysql.poll() if mysql else None,
+                 'gzipExitCode': unpack.poll() if unpack else None,
+                 'mysqlErrors': list(errors)}
+        last_report = now
+        if progress:
+            # A failed observational write must not destroy a healthy import.
+            try:
+                progress(value)
+            except Exception:
+                pass
+        return value
+
     try:
-        mysql = subprocess.Popen(db.command(), stdin=unpack.stdout, stdout=subprocess.DEVNULL,
+        # The shared file offset lets the parent report compressed input
+        # consumption while keeping SQL in a direct gzip -> mysql pipe.
+        unpack = subprocess.Popen(['gzip', '-dc'], stdin=source, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, start_new_session=True)
+        mysql = subprocess.Popen(db.command(), stdin=unpack.stdout, stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE, start_new_session=True)
+        diagnostics = threading.Thread(target=mysql_error_codes, args=(mysql.stderr, errors), daemon=True)
+        diagnostics.start()
         unpack.stdout.close()
-        deadline = time.monotonic() + db.timeout
+        report('SQL_IMPORT_RUNNING')
         while mysql.poll() is None:
-            require(time.monotonic() < deadline, 'Streaming restore deadline expired')
             try:
                 mysql.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 if db.guard:
                     db.guard()
+            if time.monotonic() - last_report >= 30:
+                report('SQL_IMPORT_RUNNING')
+        diagnostics.join(timeout=1)
+        require(mysql.returncode == 0,
+                f'Streaming gzip/MySQL restore failed (MySQL exit {mysql.returncode})')
         unpack.wait(timeout=10)
         require(mysql.returncode == unpack.returncode == 0, 'Streaming gzip/MySQL restore failed')
-        if db.guard:
-            db.guard(force=True)
+        # Both processes have succeeded. Record that boundary even if a lease
+        # ends immediately afterwards; the next DB operation checks its guard.
+        return report('SQL_IMPORT_COMPLETED')
+    except BaseException:
+        report('SQL_IMPORT_FAILED')
+        raise
     finally:
         if mysql:
             terminate(mysql)
-        terminate(unpack)
-        unpack.stdout.close()
+            if diagnostics:
+                diagnostics.join(timeout=1)
+            mysql.stderr.close()
+        if unpack:
+            terminate(unpack)
+            unpack.stdout.close()
+        source.close()
 
 
 @contextmanager
@@ -977,7 +1042,8 @@ def execute(config, envelope, reviewed, output, aws, runtime, db, environment, l
         require(db.scalar('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE()') == 0, 'Import target is not empty')
         started = time.monotonic()
         event('SQL_IMPORT_STARTED', sqlImportStartedAt=dt.datetime.now(dt.timezone.utc).isoformat())
-        stream_restore(db, Path(config['release']) / 'airbob-growth.sql.gz')
+        stream_restore(db, Path(config['release']) / 'airbob-growth.sql.gz',
+                       progress=lambda value: write(output / 'sql-import-progress.json', value))
         event('SQL_IMPORT_COMPLETED', sqlImportCompletedAt=dt.datetime.now(dt.timezone.utc).isoformat(),
               sqlImportSeconds=round(time.monotonic() - started, 6))
         started = time.monotonic()

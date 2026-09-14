@@ -247,6 +247,17 @@ variable "global_b_prepare_only" {
   }
 }
 
+variable "global_b_import_from_mac" {
+  description = "Import the sealed B dump from Mac through the existing NAT SSM tunnel, without a preparation EC2 or host bootstrap."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.global_b_import_from_mac || var.global_b_prepare_only
+    error_message = "Mac import is available only with global_b_prepare_only."
+  }
+}
+
 variable "global_b_manifest_version_id" {
   description = "Exact S3 VersionId of the reviewed B preparation or service wrapper."
   type        = string

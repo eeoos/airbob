@@ -220,7 +220,7 @@ resource "aws_iam_role_policy" "monitoring_discovery" {
 }
 
 resource "aws_iam_role_policy" "data_bootstrap" {
-  count = local.services_enabled ? 1 : 0
+  count = local.services_enabled && !var.global_b_import_from_mac ? 1 : 0
 
   name = "airbob-performance-lab-data-bootstrap"
   role = aws_iam_role.host["debezium"].id
@@ -359,7 +359,7 @@ locals {
 }
 
 resource "aws_iam_role_policy" "growth_b_preparation_inputs" {
-  count = local.services_enabled && var.global_b_prepare_only ? 1 : 0
+  count = local.services_enabled && var.global_b_prepare_only && !var.global_b_import_from_mac ? 1 : 0
   name  = "airbob-performance-lab-b-preparation-inputs"
   role  = aws_iam_role.host["debezium"].id
   # Selected release prefixes and a finite version set keep the role below IAM's aggregate inline
