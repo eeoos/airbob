@@ -255,6 +255,8 @@ jobs:
       - name: Deploy through the messaging and migration gates
         env:
           IMAGE_SHA7: ${{ needs.publish-oci-image.outputs.image_sha7 }}
+          HEALTH_ATTEMPTS: '120'
+          HEALTH_DELAY_SECONDS: '10'
         run: |
           set -eu
           DEPLOY_DIR="$HOME/airbob" IMAGE_TAG="$IMAGE_SHA7" \
