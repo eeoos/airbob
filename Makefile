@@ -3,7 +3,7 @@
 # Daily operation of the saved B baseline; optional CLI flags go in LAB_ARGS.
 LAB_PYTHON ?= $(if $(wildcard .local/airbob-lab/venv/bin/python),.local/airbob-lab/venv/bin/python,python3)
 lab-start lab-pause lab-resume lab-destroy lab-status lab-access:
-	PATH="$(CURDIR)/.local/airbob-lab/bin:$$PATH" "$(LAB_PYTHON)" -B infra/aws/scripts/airbob-lab.py $(patsubst lab-%,%,$@) $(LAB_ARGS)
+	@PATH="$(CURDIR)/.local/airbob-lab/bin:$$PATH" "$(LAB_PYTHON)" -B infra/aws/scripts/airbob-lab.py $(patsubst lab-%,%,$@) $(LAB_ARGS)
 
 aws-up:
 	AWS_REGION=ap-northeast-2 \

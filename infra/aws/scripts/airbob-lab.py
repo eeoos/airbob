@@ -721,9 +721,9 @@ def main(argv=None):
     parser.add_argument('action',choices=['start','pause','resume','destroy','status','access'])
     parser.add_argument('--config',type=Path,default=DEFAULT_CONFIG)
     parser.add_argument('--profile')
-    parser.add_argument('--ttl-hours',type=int,help='New target only, 6..168 hours; default24 in saved config; an existing approval cap wins')
-    parser.add_argument('--approved-deadline',type=int,help='Explicit UTC epoch cap for this start; never extends an existing saved cap or retained target')
-    parser.add_argument('--cidr',help='access/start: current public IPv4 /32; otherwise detected by the power helper')
+    parser.add_argument('--ttl-hours',type=int,help='새 환경 유지 시간: 6~168시간, 기본 24시간. 기존 운영 기한이 우선합니다.')
+    parser.add_argument('--approved-deadline',type=int,help='이번 시작의 운영 종료 상한(UTC epoch). 기존 기한은 연장하지 않습니다.')
+    parser.add_argument('--cidr',help='현재 접속 위치의 공인 IPv4 /32. 생략하면 자동 확인합니다.')
     parser.add_argument('--json',action='store_true',help='출력 결과와 증거 참조를 JSON으로 표시')
     args=parser.parse_args(argv)
     try:
