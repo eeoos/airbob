@@ -9,9 +9,17 @@ dataset=$(jq -er '.datasetId' "$context")
 release=$(jq -er '.serviceRelease' "$context")
 [[ "$run_id" =~ ^lab-[a-z0-9][a-z0-9-]{0,27}$ && "$dataset" =~ ^global-growth-b-[0-9a-f]{16}$ && "$release" =~ ^[a-z0-9][a-z0-9-]{2,47}$ ]]
 root="/opt/airbob/global-b/$run_id"
-[[ -x "$root/toolchain/python/bin/python3" && -f "$root/restore-config.json" && ! -e "$root/STOP" ]]
-export PATH="$root/aws-bin:$root/toolchain/python/bin:$root/toolchain/jdk/bin:$root/toolchain/mysql/bin:$PATH"
-export JAVA_HOME="$root/toolchain/jdk" AWS_REGION=ap-northeast-2 AWS_MAX_ATTEMPTS=1 AWS_CLI_AUTO_PROMPT=off
+[[ ! -e "$root/STOP" ]]
+if [[ "$(jq -r '.macSource // false' "$context")" == true ]]; then
+  [[ -f /var/lib/airbob/release-ready ]]
+  command -v python3 >/dev/null; command -v mysql >/dev/null; command -v aws >/dev/null
+  install -d -m 700 "$root"
+else
+  [[ -x "$root/toolchain/python/bin/python3" && -f "$root/restore-config.json" ]]
+  export PATH="$root/aws-bin:$root/toolchain/python/bin:$root/toolchain/jdk/bin:$root/toolchain/mysql/bin:$PATH"
+  export JAVA_HOME="$root/toolchain/jdk"
+fi
+export AWS_REGION=ap-northeast-2 AWS_MAX_ATTEMPTS=1 AWS_CLI_AUTO_PROMPT=off
 # Each SSM entry must preserve the toolchain independently of earlier sessions.
 export PYTHONDONTWRITEBYTECODE=1
 unset PYTHONPATH PYTHONHOME JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS JAVA_OPTS JDK_JAVAC_OPTIONS CLASSPATH
