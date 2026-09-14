@@ -111,6 +111,7 @@ module "app_asg" {
   request_count_per_target_per_minute = var.request_count_per_target_per_minute
   alb_resource_label                  = module.alb[0].resource_label
   tags                                = local.ephemeral_tags
+  suspended_processes                 = local.power_suspended
 
   depends_on = [
     terraform_data.data_bootstrap_gate,
