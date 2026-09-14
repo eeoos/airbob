@@ -73,6 +73,8 @@ rds_endpoint=$(jq -er '.rds.endpoint' "$contract")
   printf '%s\n' 'RESERVATION_INVENTORY_STARTUP_ENABLED=true' 'RESERVATION_INVENTORY_SEED_ENABLED=true' 'RESERVATION_INVENTORY_RETENTION_ENABLED=true'
   printf '%s\n' 'ACCOMMODATION_INDEX_BOOTSTRAP_ENABLED=true'
   printf '%s\n' 'TOSS_PAYMENTS_ENABLED=false' 'GOOGLE_API_ENABLED=false' 'AWS_S3_WRITE_ENABLED=false' 'OPERATOR_ALERT_SLACK_ENABLED=false'
+  # These placeholders resolve during bean creation even when API calls are disabled.
+  printf '%s\n' 'GOOGLE_API_KEY=' 'TOSS_SECRET_KEY='
   # The disabled image-write client must still initialize under AWSpring 3.x.
   # Application containers do not need instance metadata or cloud credentials.
   printf '%s\n' 'AWS_REGION=ap-northeast-2' 'AWS_DEFAULT_REGION=ap-northeast-2' 'SPRING_CLOUD_AWS_REGION_STATIC=ap-northeast-2'
