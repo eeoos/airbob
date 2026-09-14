@@ -64,6 +64,26 @@ def evaluate_sources(approved_snapshot="airbob-dataset-rehearsal-v20"):
             'lab_ephemeral_resource_tag_condition', 'lab_ephemeral_tag_binding_condition',
             'lab_b_snapshot_controller_policy', 'lab_b_snapshot_controller_baseline_policy')}
     expressions['bootstrap_policy'] = attribute(block(iam, 'resource', 'aws_iam_role_policy', 'data_bootstrap'), 'policy')
+    bootstrap_count = attribute(block(iam, 'resource', 'aws_iam_role_policy', 'data_bootstrap'), 'count')
+    for original, selected in {
+        'local.services_enabled': 'selected.services',
+        'var.global_b_import_from_mac': 'selected.macImport',
+        'var.global_b_snapshot_restore_only': 'selected.snapshotOnly',
+        'var.global_b_snapshot_source_mode': 'selected.sourceMode',
+    }.items():
+        bootstrap_count = bootstrap_count.replace(original, selected)
+    bootstrap_cases = [
+        {'services': services, 'macImport': mac, 'snapshotOnly': snapshot, 'sourceMode': mode}
+        for services, mac, snapshot, mode in (
+            (False, False, False, 'verified-global-b-snapshot'),
+            (True, True, False, 'verified-global-b-snapshot'),
+            (True, False, False, 'verified-global-b-snapshot'),
+            (True, False, True, 'verified-global-b-snapshot'),
+            (True, False, True, 'mac-snapshot-counts-ddl'),
+            (True, False, False, 'mac-snapshot-counts-ddl'),
+        )
+    ]
+    expressions['bootstrap_counts'] = '[for selected in ' + json.dumps(bootstrap_cases) + ' : (' + bootstrap_count + ')]'
     expressions['lease_lock_id'] = attribute((FOUNDATION / 'locals.tf').read_text(), 'lease_lock_id')
     expressions['authoritative_evidence_resources'] = attribute((FOUNDATION / 'storage.tf').read_text(), 'authoritative_evidence_resources')
     guard = attribute(block(variables, 'variable', 'engine_version'), 'condition', 4).replace('var.engine_version', 'engine')
@@ -119,6 +139,7 @@ locals {
             'bootstrap=jsondecode(local.bootstrap_policy), provision=jsondecode(local.lab_rds_provision_policy), '
             'data=jsondecode(local.lab_data_compute_policy), dataBytes=length(local.lab_data_compute_policy), '
             'snapshot=jsondecode(local.lab_b_snapshot_controller_policy), '
+            'bootstrapCounts=local.bootstrap_counts, '
             'engines=local.engine_cases, storage=local.storage_cases, leaseLockId=local.lease_lock_id, '
             'boundaryBytes=length(local.lab_host_boundary_policy), provisionBytes=length(local.lab_rds_provision_policy)})\n',
             text=True, capture_output=True, timeout=30, env=environment)
@@ -243,7 +264,7 @@ class GlobalBInfrastructureTest(unittest.TestCase):
                             for arn in sid(self.boundary, 'ReadImmutableRuntimeInputs')['Resource']))
         resource = block((LAB / 'iam.tf').read_text(), 'resource', 'aws_iam_role_policy', 'data_bootstrap')
         self.assertEqual('aws_iam_role.host["debezium"].id', attribute(resource, 'role'))
-        self.assertEqual('local.services_enabled && !var.global_b_import_from_mac ? 1 : 0', attribute(resource, 'count'))
+        self.assertEqual([0, 0, 1, 1, 0, 1], self.result['bootstrapCounts'])
 
     def test_changed_policies_remain_below_the_existing_managed_policy_size_limit(self):
         self.assertLessEqual(self.result['boundaryBytes'], 6144)

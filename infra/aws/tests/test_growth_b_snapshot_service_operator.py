@@ -24,6 +24,19 @@ raw, digest, write, function = reusable.raw, reusable.digest, reusable.write, re
 
 
 def boundary(tool, args):
+    if tool == 'terraform' and len(args) == 3:
+        assert args[0] == '-chdir=' + str(ROOT / 'infra/aws/lab')
+        root = Path(os.environ['CDC_TEST_ROOT'])
+        settings = json.loads((root / 'settings.json').read_bytes())
+        with (root / 'calls.jsonl').open('a') as stream:
+            stream.write(json.dumps({'tool': tool, 'args': args}) + '\n')
+        if args[1:] == ['output', '-json']:
+            # Real output -json nesting; an unselected null output is absent.
+            print(json.dumps(settings['terraformPowerOutput']))
+        else:
+            assert args[1:] == ['state', 'list'], 'undeclared Terraform command'
+            print('\n'.join(settings['terraformStateAddresses']))
+        return settings.get('terraformStatus', 0)
     if tool != 'python3' or not args or Path(args[0]) != VERIFIER:
         return reusable.boundary(tool, args)
     root = Path(os.environ['CDC_TEST_ROOT'])
@@ -86,6 +99,8 @@ class SnapshotOperatorFixture(reusable.CdcOperatorFixture):
         verifier.validate_operation(self.operation)
         self.settings['verifierFiles'] = {'.private/never-public.txt': base64.b64encode(b'OWNED_PRIVATE_TEST_SENTINEL').decode()}
         self.settings['verifierStatus'] = 37
+        self.settings['terraformPowerOutput'] = {}
+        self.settings['terraformStateAddresses'] = ['aws_db_instance.lab[0]', 'aws_instance.nat', 'aws_autoscaling_group.app[0]']
         for tool in ('aws', 'git', 'date', 'terraform', 'python3'):
             file = self.fake_bin / tool
             file.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' ' + shlex.quote(str(Path(__file__).resolve())) +
@@ -95,7 +110,7 @@ class SnapshotOperatorFixture(reusable.CdcOperatorFixture):
                  'load_retained_rds_class', 'verify_retained_rds_class',
                  'validate_operator_scope_for_action', 'read_run_manifest', 'publish_immutable_json', 'sha256_file',
                  'sha256_text', 'write_current_lease_file', 'assert_b_source_not_retired', 'publish_global_b_cdc_json',
-                 'continue_global_b_snapshot_service', 'continue_global_b_services')
+                 'retain_running_lab_power', 'continue_global_b_snapshot_service', 'continue_global_b_services')
         self.functions = '\n\n'.join(function(self.source, name) for name in names)
         self.public = self.evidence / (self.run + '-' + self.operation['operationId'] + '-' + str(self.lease['fencingToken'])) / 'verifier/public'
 
@@ -117,17 +132,26 @@ class SnapshotOperatorFixture(reusable.CdcOperatorFixture):
             'fencing_token': str(self.lease['fencingToken']), 'GLOBAL_LEASE_FAIL': 'false', 'BACKEND_DELAY_SECONDS': '0',
             'global_b_service_release': 'untrusted-input', 'cache_enabled': 'true', 'bundle_commit': 'untrusted-input'}
         values.update(global_b_prepare_only='false', global_b_snapshot_restore_only='false', global_b_services='true',
-                      global_b_snapshot_operation='', rds_instance_class='db.t3.small', rds_class_operator_file='')
+                      global_b_snapshot_operation='', rds_instance_class='db.t3.small', rds_class_operator_file='',
+                      global_b_snapshot_source_mode='verified-global-b-snapshot', lab_power_request='null', mutation_guard_started='false')
         values.update(env or {})
         setup = 'set -euo pipefail\numask 077\n' + '\n'.join(key + '=' + shlex.quote(value) for key, value in values.items())
+        setup += '\ntrap \'printf "%s\\n" "$lab_power_request" > "$CDC_TEST_ROOT/retained-power-request.json"\' EXIT\n'
         stubs = r'''
 fail() { printf '%s\n' "$1" >&2; exit 2; }
 canonical_operator_tree_sha256() { printf '%064d\n' 1; }
 record() { printf '%s\n' "$*" >> "$CDC_TEST_ROOT/shell-calls"; }
 validate_workflow_deadline_budget() { record workflow-budget; }
 validate_up_credential_budget() { record credential-budget; }
-start_mutation_guard() { record lease-start; }
-prepare_lab_backend() { record backend-read; printf '%s' "$BACKEND_DELAY_SECONDS" > "$CDC_TEST_ROOT/clock-delta"; }
+start_mutation_guard() { record lease-start; mutation_guard_started=true; }
+prepare_lab_backend() {
+  record backend-read
+  # This fixture's BACKEND_DELAY_SECONDS models the preparation after the
+  # mutation watchdog starts, not the earlier read-only power inspection.
+  if [[ "$mutation_guard_started" == true ]]; then
+    printf '%s' "$BACKEND_DELAY_SECONDS" > "$CDC_TEST_ROOT/clock-delta"
+  fi
+}
 recover_prior_terraform_lock() { record native-lock-read; }
 assert_state_run_identity() { record state-identity; [[ "$1" == required ]]; }
 run_terraform_command() { shift; terraform "$@"; }
@@ -184,7 +208,7 @@ class SnapshotAdmissionTest(SnapshotOperatorFixture):
             self.assertEqual(context[key], expected)
         self.assertEqual(context['controllerDeadlineEpoch'], self.now + 17940)
         self.assertEqual([call['args'][-1] for call in self.calls if call['tool'] == 'terraform'],
-                         ['phase2_contract', 'phase3_contract', 'phase4_contract', 'global_b_service'])
+                         ['-json', 'list', 'phase2_contract', 'phase3_contract', 'phase4_contract', 'global_b_service'])
         self.assertEqual(1, sum(call['tool'] == 'aws' and call['args'][:2] == ['rds', 'describe-db-instances'] for call in self.calls))
         self.assertFalse(any(call['tool'] == 'aws' and call['args'][0] not in ('s3api', 'rds') for call in self.calls))
         self.assertFalse(any(call['tool'] == 'python3' and 'growth_b_cdc_supervisor.py' in call['args'][0] for call in self.calls))
@@ -192,7 +216,9 @@ class SnapshotAdmissionTest(SnapshotOperatorFixture):
     def test_dump_source_cannot_use_snapshot_verifier(self):
         self.original.update(globalBSnapshotRestoreOnly=False, globalBPrepareOnly=True, databaseBootstrap='dump')
         self.assert_before_remote_run(self.execute())
-        self.assertFalse(any(call['tool'] == 'terraform' for call in self.calls))
+        self.assertEqual([call['args'] for call in self.calls if call['tool'] == 'terraform'],
+                         [['-chdir=' + str(ROOT / 'infra/aws/lab'), 'output', '-json'],
+                          ['-chdir=' + str(ROOT / 'infra/aws/lab'), 'state', 'list']])
 
     def test_mixed_dump_and_snapshot_claim_is_rejected_by_actual_context_validator(self):
         self.original['globalBPrepareOnly'] = True
@@ -224,7 +250,7 @@ class SnapshotAdmissionTest(SnapshotOperatorFixture):
     def test_reviewed_source_archive_is_required_before_lease(self):
         self.operation['sourceArchiveSha256'] = '0' * 64
         self.assert_before_remote_run(self.execute())
-        self.assertFalse((self.root / 'shell-calls').exists())
+        self.assertEqual((self.root / 'shell-calls').read_text().splitlines(), ['backend-read'])
 
     def test_dirty_or_different_execution_commit_is_rejected(self):
         self.settings['head'] = 'd' * 40
@@ -247,7 +273,48 @@ class SnapshotAdmissionTest(SnapshotOperatorFixture):
         context = json.loads((self.root / 'verifier-context.json').read_bytes())
         self.assertEqual(context['controllerDeadlineEpoch'], self.now + 17940)
         calls = (self.root / 'shell-calls').read_text().splitlines()
-        self.assertLess(calls.index('lease-start'), calls.index('backend-read'))
+        backends = [index for index, name in enumerate(calls) if name == 'backend-read']
+        self.assertEqual(2, len(backends))
+        self.assertLess(backends[0], calls.index('lease-start'))
+        self.assertLess(calls.index('lease-start'), backends[1])
+
+    def test_actual_power_guard_retains_running_request_without_recreating_controls(self):
+        request = {'operation_id': 'retained-running-01', 'phase': 'running',
+            'app_instance_id': self.config['hosts']['app']['instanceId'], 'rds_resource_id': self.target['resourceId'],
+            'identity_sha256': 'a' * 64, 'original_suspended_processes': ['AlarmNotification'],
+            'deadline_epoch': self.expiry, 'evidence_directory': str(self.evidence), 'lease': self.lease}
+        self.settings['terraformPowerOutput'] = {'lab_power': {'sensitive': False, 'value': {
+            'request': request, 'phase': 'running', 'operation_id': request['operation_id'],
+            'instance_ids': {'app': request['app_instance_id']}, 'desired_states': {'app': 'running'},
+            'rds_resource_id': self.target['resourceId'], 'rds_state': 'available',
+            'original_suspended_processes': request['original_suspended_processes']}}}
+        self.settings['terraformStateAddresses'] += ['aws_ec2_instance_state.power["app"]', 'terraform_data.rds_power']
+        result = self.execute()
+        self.assertEqual(37, result.returncode, result.stderr)
+        self.assertEqual(request, json.loads((self.root / 'retained-power-request.json').read_bytes()))
+        self.assertFalse(any(call['tool'] == 'terraform' and call['args'][1:] == ['state', 'list'] for call in self.calls))
+
+    def test_actual_power_guard_blocks_paused_or_incomplete_resume_before_remote_work(self):
+        for phase in ('fenced', 'writers-stopped', 'stopped', 'dependencies-running', 'connect-running', 'app-running'):
+            self.settings['terraformPowerOutput'] = {'lab_power': {'value': {'phase': phase, 'request': {'phase': phase}}}}
+            with self.subTest(phase=phase):
+                result = self.execute()
+                self.assert_before_remote_run(result)
+                self.assertIn('Lab is paused or changing power state', result.stderr)
+                self.assertFalse(any(call['tool'] == 'aws' for call in self.calls))
+        self.settings['terraformPowerOutput'] = {'lab_power': {'value': {'phase': 'running', 'request': {'phase': 'app-running'}}}}
+        result = self.execute()
+        self.assert_before_remote_run(result)
+        self.assertIn('Lab is paused or changing power state', result.stderr)
+
+    def test_actual_power_guard_rejects_controls_without_retained_output(self):
+        for address in ('aws_ec2_instance_state.power["app"]', 'terraform_data.rds_power'):
+            self.settings['terraformStateAddresses'] = [address]
+            with self.subTest(address=address):
+                result = self.execute()
+                self.assert_before_remote_run(result)
+                self.assertIn('Power controls exist without their retained output', result.stderr)
+                self.assertFalse(any(call['tool'] == 'aws' for call in self.calls))
 
 
 class SnapshotPublicationTest(SnapshotOperatorFixture):
