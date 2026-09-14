@@ -21,7 +21,7 @@ def fixture():
     dataset, run, release = 'global-growth-b-' + 'a' * 16, 'lab-b-services-test', 'service-01'
     def ref(key):
         return {'key': key, 'versionId': 'version-' + str(len(key)), 'sha256': 'b' * 64, 'bytes': 100}
-    rds = {'identifier': 'airbob-' + run, 'resourceId': 'db-' + 'A' * 24, 'serverUuid': '12345678-1234-1234-1234-123456789abc'}
+    rds = {'identifier': 'airbob-' + run, 'resourceId': 'db-' + 'A' * 26, 'serverUuid': '12345678-1234-1234-1234-123456789abc'}
     image = service.ACCOUNT + '.dkr.ecr.' + service.REGION + '.amazonaws.com/'
     value = {'schemaVersion': 1, 'kind': service.KIND, 'datasetId': dataset, 'runId': run, 'serviceRelease': release,
         'account': service.ACCOUNT, 'region': service.REGION, 'mysql': {'version': '8.4.11', 'flywayVersion': 28, 'schema': 'airbobdb'},
@@ -277,7 +277,7 @@ class ServiceContract(unittest.TestCase):
                 global_b_services='true', global_b_snapshot_restore_only='false', global_b_snapshot_provenance='null', global_b_service_release='service-01', global_b_service_bootstrap_enabled='false',
                 global_b_readiness_receipt='null', dataset_manifest_version_id='version-service', lease_owner='owner/current',
                 rds_snapshot_identifier='', rds_snapshot_source_run_id='', rds_snapshot_source_resource_id='',
-                rds_engine_version='8.4.11', dns_mode='direct-only', alb_ingress_cidr='203.0.113.1/32')
+                rds_engine_version='8.4.11', rds_instance_class='db.t3.small', dns_mode='direct-only', alb_ingress_cidr='203.0.113.1/32')
             prefix = 'set -euo pipefail\n' + '\n'.join(key+'='+shlex.quote(value) for key,value in values.items()) + '\n'
             result = subprocess.run(['bash'], input=prefix+function+'write_tfvars services false i-0123456789abcdef0\ncat "$current_tfvars"\n',
                 text=True, capture_output=True, check=True)
@@ -285,6 +285,11 @@ class ServiceContract(unittest.TestCase):
             self.assertEqual(62, data['fencing_token']); self.assertEqual(99, data['global_b_lease_fencing_token'])
             self.assertEqual('owner/current', data['global_b_lease_owner']); self.assertTrue(data['global_b_services'])
             self.assertFalse(data['app_enabled']); self.assertEqual('1999999999', data['expires_at'])
+            self.assertEqual('db.t3.small', data['rds_instance_class'])
+            large = prefix+'rds_instance_class=db.m6i.large\n'+function+'write_tfvars services false i-0123456789abcdef0\ncat "$current_tfvars"\n'
+            selected = json.loads(subprocess.run(['bash'], input=large, text=True, capture_output=True, check=True).stdout)
+            self.assertEqual('db.m6i.large', selected['rds_instance_class'])
+            self.assertEqual(62, selected['fencing_token']); self.assertEqual('1999999999', selected['expires_at'])
             legacy = prefix+'global_b_services=false\n'+function+'write_tfvars services false i-0123456789abcdef0\ncat "$current_tfvars"\n'
             data = json.loads(subprocess.run(['bash'], input=legacy, text=True, capture_output=True, check=True).stdout)
             self.assertEqual(99, data['fencing_token']); self.assertEqual(0, data['global_b_lease_fencing_token'])

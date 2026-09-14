@@ -20,11 +20,143 @@ The reviewed image inputs contain the baseline application/config bundle and nin
 
        {"serviceRelease":"<release>","serviceManifestSha256":"<sha>","stage":"dependencies"}
 
-   After actual native S3 restore, bind its receipt in a new immutable service release and select stage=bootstrap. Then select stage=application, adding readinessVersionId and readinessSha256 from bootstrap.
+   Run the `native-restore` continuation below on those existing dependencies. After actual native S3 restore, bind its receipt in a new immutable service release and select stage=bootstrap. Then select stage=application, adding readinessVersionId and readinessSha256 from bootstrap.
 4. Application admission enables the normal aws profile, inventory readiness, schedulers and Kafka consumers, with separate general/cache Redis. It verifies MySQL TLS identity, exact application image and actual container JAR, and native ES fingerprint. The sealed application.appJarSha256 retains its preparation/search meaning. The reviewed main479 ECR JAR has the same 1277 source file entries including loader/META-INF and adds only the pinned API reference page plus two empty directory entries. The runtime validator verifies both complete inventories and its own source hash; it does not claim whole-JAR equality. Readiness and the runtime revision bind this proof, and startup independently verifies the actual image JAR SHA before launching. External payment, Slack, Google and image-write integrations remain disabled for the lab.
 5. Run the separate `cdc` source R4 operation below. It verifies account/API/search/image/reservable-date reads, then actual domain API → outbox → Kafka → consumer → ES propagation and full reset. Connector RUNNING and heartbeat alone are dependency checks.
 
 Initial B preparation fixes the accommodation detail cache to disabled, and normal service stages retain that original setting. General Redis and cache Redis remain separate. The source R4 runtime observation checks the actual application environment and JAR; a declared receipt flag cannot override a running cache-enabled app.
+
+## Native search on the original prepared RDS
+
+`services` stage `native-restore` closes the gap between dependency creation and
+service bootstrap. It retains the original preparation run, RDS resource ID and
+server UUID, resource fence, application tuple and common execution deadline.
+The current adapter is admitted only for the sealed final dataset
+`global-growth-b-b0fbda4d12511eeb` and its approved deadline `1789366861`.
+Application capacity must remain 0/0/0, Connect must have no business connector,
+and the selected dependency manifest must have `search.restoreReceipt: null`.
+
+Create the reviewed source package with:
+
+```bash
+python3 -B infra/aws/scripts/growth_b_search_controller.py package-sources \
+  --directory /absolute/new/native-search-source
+```
+
+The workflow uses `action=services`, `policy=isolated-read`, `database_bootstrap=dump`,
+the original dataset/application tuple and retained `run_id`. Its `b_operation`
+has exactly these fields:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "global-b-aws-native-search-operation",
+  "stage": "native-restore",
+  "operationId": "<new-operation-id>",
+  "runId": "<original-preparation-run>",
+  "datasetId": "global-growth-b-b0fbda4d12511eeb",
+  "serviceRelease": "<selected-dependency-release>",
+  "executionCommit": "<reviewed-main-commit>",
+  "sourceArchiveSha256": "<actual-source-archive-sha256>",
+  "manifest": {
+    "key": "<exact-selected-service-manifest-key>",
+    "versionId": "<actual-version-id>",
+    "sha256": "<actual-manifest-sha256>",
+    "bytes": 1
+  }
+}
+```
+
+Replace the example byte count with the actual manifest size. The source archive
+contains the 17 host helpers and the controller. The six sealed preparation
+helpers, native search engine and runtime binding retain their original bytes.
+The service consumer accepts opaque RDS resource IDs while retaining exact
+target identity comparisons. The stage executes through the existing operator OIDC role and
+SSM permissions; it never builds Terraform variables or applies infrastructure.
+
+`DbiResourceId` is an opaque AWS identifier, separate from the database name.
+Do not infer identity from a fixed suffix length: an observed RDS resource has
+26 characters after `db-`, while the earlier admission assumed 24. Python,
+shell and Terraform admit the `db-` prefix with uppercase letters and digits;
+the actual API response and selected receipt must still match exactly. See the
+[AWS DBInstance API contract](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DBInstance.html).
+Publish revised service helper archives and manifests for this admission fix;
+previous immutable archives remain evidence of their original source revision.
+
+The original preparation host exports its exact import receipt, raw/prepared
+fingerprints and runtime proof under its original control lock. This establishes
+an inherited pre-preparation baseline with the original validation timestamp.
+Its source package explicitly says that current complete rows and inventory
+ownership were not rescanned in that phase. The ES host then runs the unchanged
+native engine against the same RDS through TLS, including current full source
+and ownership validation, exact S3 versions/bytes, every document source field,
+post-restore source drift verification and final alias activation.
+
+The ES role has no DynamoDB or ASG read permission. The controller observes the
+live lease, original resources, zero application capacity and empty Connect
+registry and delivers an immutable chained ACK at most 90 seconds in duration.
+The host checks this ACK while its own worker runs. Expiry or identity drift
+closes admission and settles only that invocation's work. No SSM cancellation,
+new SQL import, account preparation, Redis flush, writer start or IAM change is
+part of this stage.
+
+The host work deadline is ten minutes before the existing controller deadline,
+leaving time to settle processes and retrieve and publish exact receipts. The
+SSM wrapper first requests orderly termination of its own supervisor and waits
+for cleanup; uncertain forced termination cannot produce a completion receipt.
+The worker independently checks its original supervisor identity and ACK so
+losing that supervisor does not leave an unguarded native restore running.
+
+Every SSM request and S3 publication has a durable intent before submission.
+Unknown submissions retain the exact command/recovery evidence and cannot be
+replayed automatically. Inspect the original namespace and terminal evidence
+before choosing another operation; a new operation ID alone does not authorize
+reusing or replacing an index. Failure preserves resources and their original
+expiry. The workflow uploads the controller evidence even on failure.
+
+Success requires the host receipt and exact native receipt to pass the controller
+completion gate, including their actual UUID, inherited baseline, full content
+fingerprint and delivered final ACK. Exact versions of the source package, host
+receipt and native receipt are published under
+`data-bootstrap/<run>/<dataset>-native-search/<operation>/`. Use the verified
+native receipt reference in a new immutable service manifest before bootstrap.
+This completion does not admit application traffic, CDC verification or snapshot
+creation on its own.
+
+### Native search after an actual RDS snapshot restore
+
+After the new snapshot target has completed preparation and `services` stage
+`dependencies`, select the distinct stage `native-snapshot-restore` with
+`database_bootstrap=snapshot`. Its operation kind is
+`global-b-aws-snapshot-native-search-operation`. Retain the native operation's
+other fields and add `targetPreparation` with exact `manifest` and `hostReceipt`
+object references, plus `sourceEvidence` with the exact original `restoreReceipt`,
+`preparedFingerprint` and `serviceResetReceipt` references used to create the
+snapshot. The original target operator must contain `globalBSnapshotRestoreOnly`
+and the exact provenance used for the actual RDS restore.
+
+The target engine validates twelve immutable documents: the original import,
+prepared fingerprint and R4 reset; the target preparation manifest, host result,
+preflight, operation, common preparation and prepared fingerprint; and the
+snapshot provenance, source-absence admission and actual CloudTrail restore
+event. It keeps the ancestor and target UUIDs separate. Its baseline state is
+`VERIFIED_SNAPSHOT_TARGET_LINEAGE`; it explicitly records
+`rawBaselineObservedOnTarget=false`. It does not generate the original dump
+engine's `BASELINE_VERIFIED_BEFORE_PREPARATION` receipt for the new target.
+
+The retained preparation host verifies its original control lock, configuration
+hash and six exact local target proof files before exporting the lineage. The
+ES host then verifies current complete rows/DDL, inventory ownership, every
+current search field, exact native S3 versions/bytes and post-restore source drift
+under the same deadline, process and ACK guards. A successful native receipt is
+written only after the source fence and private scratch cleanup finish. The
+native receipt includes `sourceBaseline` and `snapshotTargetBaselineSha256`.
+
+This target entry point and its host bridge are separate modules. The original
+dump search engine, snapshot core, six preparation helpers and sealed payloads
+remain unchanged. Publish a new immutable service manifest containing the
+actual target native receipt before `bootstrap`, `application` and
+`snapshot-verify`. Offline fixtures do not establish a cloud restoration.
 
 ## Source R4 verification and reset
 

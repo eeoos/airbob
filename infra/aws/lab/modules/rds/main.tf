@@ -8,13 +8,13 @@ locals {
 resource "aws_db_subnet_group" "this" {
   name       = var.name
   subnet_ids = var.subnet_ids
-  tags       = var.tags
+  tags       = { for key, value in var.tags : key => value if key != "BDatabaseClass" }
 }
 
 resource "aws_db_parameter_group" "this" {
   name   = var.name
   family = local.parameter_group_family
-  tags   = var.tags
+  tags   = { for key, value in var.tags : key => value if key != "BDatabaseClass" }
 
   parameter {
     name         = "binlog_format"
@@ -50,7 +50,7 @@ resource "aws_db_instance" "this" {
 
   engine         = "mysql"
   engine_version = var.engine_version
-  instance_class = "db.t3.small"
+  instance_class = var.instance_class
 
   allocated_storage           = var.bootstrap_mode == "dump" ? var.dump_storage_gib : null
   storage_type                = var.bootstrap_mode == "dump" ? local.dump_storage_type : null

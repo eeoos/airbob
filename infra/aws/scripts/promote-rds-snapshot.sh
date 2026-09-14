@@ -149,7 +149,7 @@ jq -e \
   .distributionFingerprintSha256 == $distributionFingerprintSha and
   .targetFingerprintSha256 == $targetFingerprintSha and
   .inventoryFingerprintSha256 == $inventoryFingerprintSha and
-  (.rdsResourceId | type == "string" and test("^db-[A-Z0-9]{24}$")) and
+  (.rdsResourceId | type == "string" and test("^db-[A-Z0-9]+$")) and
   (.rdsEngineVersion | type == "string" and test("^8\\.0\\.[0-9]+$")) and
   .outboxState == "empty" and
   (.redisState == "empty" or .redisState == "coupon-prepared") and

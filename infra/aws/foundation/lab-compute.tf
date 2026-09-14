@@ -1314,7 +1314,7 @@ locals {
     ])
   })
 
-  lab_rds_provision_policy = jsonencode({
+  lab_rds_provision_baseline_policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat([
       {
@@ -1440,6 +1440,47 @@ locals {
     ] : statement if var.approved_rds_snapshot_identifier != ""])
   })
 
+  # Preserve the classic grants. The only extra class is a separately tagged
+  # Global B creation; the selected class tag cannot be rebound or removed.
+  lab_rds_class_tag_keys = concat(local.lab_ephemeral_create_tag_condition["ForAllValues:StringEquals"]["aws:TagKeys"], ["BDatabaseClass"])
+  lab_rds_provision_policy = jsonencode({
+    Version = "2012-10-17"
+    # Consolidate only grants with identical conditions/actions to stay within
+    # the 6,144-byte managed-policy quota, including a later B restore approval.
+    Statement = concat([
+      for statement in jsondecode(local.lab_rds_provision_baseline_policy).Statement : statement
+      if !contains(["CreateTaggedLabDbParameterGroup", "CreateTaggedLabDbSubnetGroup",
+      "UseDefaultOptionGroupForDumpLabDb", "UseRunBoundConfigurationForDumpLabDb"], statement.Sid)
+      ], [
+      {
+        Sid       = "CreateTaggedLabDbConfiguration"
+        Effect    = "Allow"
+        Action    = ["rds:CreateDBParameterGroup", "rds:CreateDBSubnetGroup"]
+        Resource  = ["arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-lab-*", "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-lab-*"]
+        Condition = local.lab_rds_request_tag_condition
+      },
+      {
+        Sid    = "UseRunBoundDumpDependencies"
+        Effect = "Allow"
+        Action = "rds:CreateDBInstance"
+        Resource = flatten([for statement in jsondecode(local.lab_rds_provision_baseline_policy).Statement : statement.Resource
+        if contains(["UseDefaultOptionGroupForDumpLabDb", "UseRunBoundConfigurationForDumpLabDb"], statement.Sid)])
+      }
+      ], [
+      for statement in jsondecode(local.lab_rds_provision_baseline_policy).Statement : merge(statement, {
+        Sid = statement.Sid == "CreateBoundedDumpLabDbInstance" ? "CreateExplicitGlobalBLargeDb" : "RestoreExplicitGlobalBLargeDb"
+        Condition = merge(statement.Condition, {
+          StringEquals = merge(statement.Condition.StringEquals, {
+            "rds:DatabaseClass" = "db.m6i.large", "aws:RequestTag/BDatabaseClass" = "db.m6i.large"
+          })
+          "ForAllValues:StringEquals" = { "aws:TagKeys" = local.lab_rds_class_tag_keys }
+        })
+        }) if statement.Sid == "CreateBoundedDumpLabDbInstance" || (
+        statement.Sid == "RestoreBoundedSnapshotLabDbInstance" && startswith(var.approved_rds_snapshot_identifier, "airbob-dataset-b-")
+      )
+    ])
+  })
+
   lab_data_compute_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -1474,7 +1515,24 @@ locals {
           "arn:aws:rds:${var.aws_region}:${var.account_id}:pg:airbob-lab-*",
           "arn:aws:rds:${var.aws_region}:${var.account_id}:subgrp:airbob-lab-*",
         ]
-        Condition = local.lab_ephemeral_tag_binding_condition
+        Condition = merge(local.lab_ephemeral_tag_binding_condition, {
+          StringEqualsIfExists        = { "aws:RequestTag/BDatabaseClass" = "$${aws:ResourceTag/BDatabaseClass}" }
+          "ForAllValues:StringEquals" = { "aws:TagKeys" = local.lab_rds_class_tag_keys }
+        })
+      },
+      {
+        # A new B instance's selected class is immutable for its entire run.
+        # The condition value must match the initial tag. Live API checks and
+        # plan before/after checks separately enforce class immutability; IAM's
+        # DatabaseClass key is not assumed to represent a new requested value.
+        Sid      = "DenySelectedGlobalBRdsClassChange"
+        Effect   = "Deny"
+        Action   = "rds:ModifyDBInstance"
+        Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:db:*"
+        Condition = {
+          Null            = { "rds:DatabaseClass" = "false", "rds:db-tag/BDatabaseClass" = "false" }
+          StringNotEquals = { "rds:DatabaseClass" = "$${rds:db-tag/BDatabaseClass}" }
+        }
       },
       {
         Sid    = "ManageTaggedLabRdsInstance"
@@ -1510,7 +1568,8 @@ locals {
         Resource = "arn:aws:rds:${var.aws_region}:${var.account_id}:db:*"
         Condition = {
           Null = {
-            "rds:DatabaseClass" = "false"
+            "rds:DatabaseClass"         = "false"
+            "rds:db-tag/BDatabaseClass" = "true"
           }
           StringNotEquals = {
             "rds:DatabaseClass" = "db.t3.small"
@@ -1858,7 +1917,7 @@ resource "aws_iam_policy" "lab_host_boundary" {
 # identifier is approved in the existing foundation contract. Host roles never
 # receive persistent snapshot creation/deletion permission.
 locals {
-  lab_b_snapshot_controller_policy = jsonencode({
+  lab_b_snapshot_controller_baseline_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
@@ -1892,6 +1951,22 @@ locals {
         }
       },
     ]
+  })
+}
+
+locals {
+  lab_b_snapshot_controller_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(jsondecode(local.lab_b_snapshot_controller_baseline_policy).Statement, [
+      merge(jsondecode(local.lab_b_snapshot_controller_baseline_policy).Statement[1], {
+        Sid = "SnapshotBoundGlobalBLargeSource"
+        Condition = merge(jsondecode(local.lab_b_snapshot_controller_baseline_policy).Statement[1].Condition, {
+          StringEquals = merge(jsondecode(local.lab_b_snapshot_controller_baseline_policy).Statement[1].Condition.StringEquals, {
+            "rds:DatabaseClass" = "db.m6i.large", "rds:db-tag/BDatabaseClass" = "db.m6i.large"
+          })
+        })
+      })
+    ])
   })
 }
 

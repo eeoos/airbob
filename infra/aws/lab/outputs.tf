@@ -107,6 +107,8 @@ output "phase3_contract" {
     rds_resource_id            = local.services_enabled ? module.rds[0].resource_id : null
     rds_endpoint               = local.services_enabled ? module.rds[0].address : null
     rds_engine_version         = var.rds_engine_version
+    rds_instance_class         = local.services_enabled ? module.rds[0].contract.instance_class : var.rds_instance_class
+    rds_allocated_storage_gib  = local.services_enabled ? module.rds[0].allocated_storage_gib : null
     rds_parameter_group        = local.services_enabled ? module.rds[0].parameter_group_name : null
     rds_configured_storage_gib = local.services_enabled ? module.rds[0].contract.configured_storage_gib : null
     search_enabled             = local.dataset_search_enabled

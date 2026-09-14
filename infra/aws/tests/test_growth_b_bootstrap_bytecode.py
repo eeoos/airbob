@@ -54,16 +54,17 @@ class BootstrapBytecodeTests(unittest.TestCase):
             return json.loads(result.stdout), before, self.inventory(modules)
 
     def test_every_shell_entry_preserves_shipped_bytecode_and_child_inventory(self):
-        counts = {'entry': 1, 'services': 2, 'snapshot': 2}
+        counts = {'entry': 4, 'services': 4, 'snapshot': 2}
         for name, expected_count in counts.items():
             source = (SCRIPTS / ('bootstrap-growth-b-' + name + '.sh')).read_text()
             invocations = list(re.finditer(
-                r'^(?:setsid )?("\$root/toolchain/python/bin/python3"|python3)'
-                r'((?: -B)?)(?= (?:"\$(?:root|stage)/|-))', source, re.MULTILINE))
+                r'^[ \t]*(?:setsid )?("\$root/toolchain/python/bin/python3"|python3)'
+                r'((?: -B)?) (?:(?:"\$(?:root|stage)/[^"\n]+")|"\$class_guard"|-(?=\s|$))', source, re.MULTILINE))
             self.assertEqual(len(invocations), expected_count, name)
             for number, invocation in enumerate(invocations):
                 with self.subTest(entry=name, invocation=number):
                     executable, options = invocation.groups()
+                    self.assertEqual(options, ' -B')
                     setup = '\n'.join(line for line in source[:invocation.start()].splitlines()
                                       if line.startswith(('export ', 'unset ')))
                     # Session creation is orthogonal; execute the real interpreter prefix.

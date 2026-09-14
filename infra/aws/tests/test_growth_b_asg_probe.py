@@ -57,6 +57,7 @@ def config(clock,manifest):
 class Aws:
     def __init__(self,c,clock):
         self.c,self.clock=c,clock; self.calls=[]; self.new='i-'+'9'*17; self.pending=False
+        self.rds_resource_id=service_fixture()['rds']['resourceId']
         self.fail_scale_before=self.fail_scale_after=self.fail_terminate_after=False
         self.fail_terminate_before=self.fail_protect_after=self.fail_max_restore=False; self.drift=False; self.online=True
         self.policy=policy(); self.public_targets={c['asg']['baselineInstanceId']:'healthy'}
@@ -102,7 +103,7 @@ class Aws:
             return {'TargetHealthDescriptions':[{'Target':{'Id':key,'Port':8080},'TargetHealth':{'State':state}} for key,state in self.public_targets.items()]}
         if pair==('elbv2','describe-target-groups'): return {'TargetGroups':[{'TargetType':'instance','Port':8080,'Protocol':'HTTP','HealthCheckPath':'/actuator/health','LoadBalancerArns':[self.c['asg']['albArn']]}]}
         if pair==('elbv2','describe-load-balancers'): return {'LoadBalancers':[{'DNSName':self.c['asg']['albDnsName'],'State':{'Code':'active'}}]}
-        if pair==('rds','describe-db-instances'): return {'DBInstances':[{'DbiResourceId':'db-'+'A'*24,'EngineVersion':'8.4.11','DBInstanceStatus':'available','TagList':self.resource_tags()}]}
+        if pair==('rds','describe-db-instances'): return {'DBInstances':[{'DbiResourceId':self.rds_resource_id,'EngineVersion':'8.4.11','DBInstanceStatus':'available','TagList':self.resource_tags()}]}
         if pair==('autoscaling','set-instance-protection'):
             assert option('--instance-ids')==self.c['asg']['baselineInstanceId']
             self.row['Instances'][0]['ProtectedFromScaleIn']='--protected-from-scale-in' in args
@@ -424,4 +425,3 @@ class BaselineAdmissionTests(Fixture):
         self.assertFalse(self.aws.row['Instances'][0]['ProtectedFromScaleIn'])
 
 if __name__=='__main__': unittest.main()
-

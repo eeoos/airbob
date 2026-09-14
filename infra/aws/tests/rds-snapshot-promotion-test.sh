@@ -68,7 +68,7 @@ cat > "$tmp_dir/data-receipt.json" <<'JSON'
   "targetFingerprintSha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "inventoryFingerprintSha256": "1111111111111111111111111111111111111111111111111111111111111111",
   "semanticAttestationSha256": "2222222222222222222222222222222222222222222222222222222222222222",
-  "rdsResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWX",
+  "rdsResourceId": "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
   "rdsEngineVersion": "8.0.40",
   "outboxState": "empty",
   "redisState": "empty",
@@ -185,7 +185,7 @@ jq -nS \
       },
       rds: {
         identifier: "airbob-lab-phase3-test",
-        resourceId: "db-ABCDEFGHIJKLMNOPQRSTUVWX",
+        resourceId: "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         class: "db.t3.small",
         engine: "mysql",
         engineVersion: "8.0.40",
@@ -318,7 +318,7 @@ case "$*" in
       --argjson publiclyAccessible "${FAKE_INSTANCE_PUBLICLY_ACCESSIBLE:-false}" '
       {DBInstances:[{
         DBInstanceStatus:"available", Engine:"mysql", EngineVersion:"8.0.40",
-        DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWX", DBInstanceClass:$class,
+        DbiResourceId:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ", DBInstanceClass:$class,
         AllocatedStorage:$allocatedStorage, StorageType:$storageType, Iops:$iops,
         StorageThroughput:$throughput, MultiAZ:false, StorageEncrypted:true,
         PubliclyAccessible:$publiclyAccessible
@@ -328,7 +328,7 @@ case "$*" in
     [[ -f "$FAKE_SNAPSHOT_CREATED" ]] || exit 1
     jq -n --arg manifestSha "$FAKE_MANIFEST_SHA" \
       --arg sourceInstance "${FAKE_SNAPSHOT_INSTANCE_ID:-airbob-lab-phase3-test}" \
-      --arg sourceResourceId "${FAKE_SNAPSHOT_RESOURCE_ID:-db-ABCDEFGHIJKLMNOPQRSTUVWX}" \
+      --arg sourceResourceId "${FAKE_SNAPSHOT_RESOURCE_ID:-db-ABCDEFGHIJKLMNOPQRSTUVWXYZ}" \
       --arg engineVersion "${FAKE_SNAPSHOT_ENGINE_VERSION:-8.0.40}" \
       --arg storageType "${FAKE_SNAPSHOT_STORAGE_TYPE:-gp3}" \
       --argjson allocatedStorage "${FAKE_SNAPSHOT_ALLOCATED_STORAGE:-100}" \
@@ -353,7 +353,7 @@ case "$*" in
         {Key:"FlywayVersion",Value:"27"},
         {Key:"ManifestSha256",Value:$manifestSha},
         {Key:"SourceLabRunId",Value:"lab-phase3-test"},
-        {Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWX"},
+        {Key:"SourceRdsResourceId",Value:"db-ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
         {Key:"DataBootstrapKey",Value:"data-bootstrap/lab-phase3-test/rehearsal-v20.json"},
         {Key:"DataBootstrapVersionIdSha256",Value:$dataVersionSha},
         {Key:"DataBootstrapSha256",Value:$dataSha},
@@ -418,7 +418,7 @@ jq -e \
   .schemaVersion == 2 and .snapshotIdentifier == "airbob-dataset-rehearsal-v20" and
   .datasetRelease == "rehearsal-v20" and .manifestSha256 == $manifestSha and
   .sourceLabRunId == "lab-phase3-test" and
-  .sourceRdsResourceId == "db-ABCDEFGHIJKLMNOPQRSTUVWX" and
+  .sourceRdsResourceId == "db-ABCDEFGHIJKLMNOPQRSTUVWXYZ" and
   .sourceDataBootstrapReceipt == {
     key:"data-bootstrap/lab-phase3-test/rehearsal-v20.json",
     versionId:"data-version-v1", versionIdSha256:$dataVersionSha, sha256:$dataSha

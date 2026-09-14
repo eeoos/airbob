@@ -206,8 +206,20 @@ jobs:
               require(os.environ["AIRBOB_MODE"] == "performance", "B operations require performance mode")
               require(os.environ["AIRBOB_LOAD_GENERATOR_ENABLED"] == "false", "B operations must keep the load generator disabled")
           if action == "services":
-              require(operation.get("stage") in {"dependencies", "bootstrap", "application", "snapshot-verify"}, "B service stage is invalid")
-              if operation["stage"] == "snapshot-verify":
+              require(operation.get("stage") in {"dependencies", "native-restore", "native-snapshot-restore", "bootstrap", "application", "snapshot-verify"}, "B service stage is invalid")
+              if operation["stage"] in {"native-restore", "native-snapshot-restore"}:
+                  import sys
+                  sys.path.insert(0, "infra/aws/scripts")
+                  from growth_b_search_controller import validate_operation
+                  validate_operation(operation)
+                  require(operation["executionCommit"] == sha, "Native search must identify this reviewed main commit")
+                  source_mode = "snapshot" if operation["stage"] == "native-snapshot-restore" else "dump"
+                  require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == source_mode, "Native search must retain the declared database source")
+                  require(os.environ["AIRBOB_POLICY"] == "isolated-read", "Native search requires isolated-read controller mode")
+                  env = {"B_SERVICE_RELEASE": operation["serviceRelease"], "B_SERVICE_STAGE": operation["stage"],
+                      "B_SERVICE_SHA256": operation["manifest"]["sha256"],
+                      "B_NATIVE_OPERATION_JSON": json.dumps(operation, sort_keys=True, separators=(",", ":"))}
+              elif operation["stage"] == "snapshot-verify":
                   import sys
                   sys.path.insert(0, "infra/aws/scripts")
                   from growth_b_snapshot_service_verify import validate_operation
@@ -254,10 +266,24 @@ jobs:
                       require(isinstance(item["versionId"], str) and re.fullmatch(r"[A-Za-z0-9._~+/=-]{1,1024}", item["versionId"]) and item["versionId"] not in {"null", "None"}, "B ASG resume version is invalid")
                       require(isinstance(item["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) and type(item["bytes"]) is int and 0 < item["bytes"] <= 20971520, "B ASG resume metadata is invalid")
               env = {"B_ASG_PROBE_OPERATION_JSON": json.dumps(operation, sort_keys=True, separators=(",", ":"))}
+          elif action == "prepare":
+              import sys
+              sys.path.insert(0, "infra/aws/scripts")
+              from growth_b_rds_class import initial_operation
+              chosen = initial_operation(operation)
+              env["B_RDS_INSTANCE_CLASS"] = chosen
+              if "classRehearsal" in operation:
+                  env["B_RDS_CLASS_REHEARSAL_JSON"] = json.dumps(operation["classRehearsal"], sort_keys=True, separators=(",", ":"))
           elif action == "snapshot-restore":
-              require({"provenanceSha256"} <= set(operation) <= {"provenanceSha256", "provenanceKey"}, "B snapshot operation must contain provenanceSha256 and optional exact provenanceKey")
+              require({"provenanceSha256"} <= set(operation) <= {"provenanceSha256", "provenanceKey", "rdsInstanceClass", "classRehearsal"}, "B snapshot operation must contain provenanceSha256 and optional exact provenanceKey")
               require(isinstance(operation["provenanceSha256"], str) and re.fullmatch(r"[0-9a-f]{64}", operation["provenanceSha256"]), "B snapshot provenance SHA is invalid")
               require(os.environ["AIRBOB_DATABASE_BOOTSTRAP"] == "snapshot" and os.environ["AIRBOB_POLICY"] == "isolated-read", "B snapshot target creation requires isolated-read snapshot mode")
+              import sys
+              sys.path.insert(0, "infra/aws/scripts")
+              from growth_b_rds_class import initial_operation
+              env["B_RDS_INSTANCE_CLASS"] = initial_operation({k: v for k, v in operation.items() if k in {"rdsInstanceClass", "classRehearsal"}})
+              if "classRehearsal" in operation:
+                  env["B_RDS_CLASS_REHEARSAL_JSON"] = json.dumps(operation["classRehearsal"], sort_keys=True, separators=(",", ":"))
               env["B_SNAPSHOT_PROVENANCE_SHA256"] = operation["provenanceSha256"]
               if "provenanceKey" in operation:
                   require(isinstance(operation["provenanceKey"], str) and re.fullmatch(r"data-bootstrap/lab-[a-z0-9][a-z0-9-]{0,27}/global-growth-b-[0-9a-f]{16}-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json", operation["provenanceKey"]), "B source-host provenance key is invalid")
@@ -383,6 +409,7 @@ jobs:
           TTL_HOURS: ${{ inputs.ttl_hours }}
           APPROVED_EXECUTION_DEADLINE_EPOCH: ${{ inputs.approved_execution_deadline_epoch }}
           CDC_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-cdc
+          NATIVE_SEARCH_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-native-search
           SNAPSHOT_SERVICE_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-snapshot-service
           ASG_PROBE_EVIDENCE_DIR: ${{ runner.temp }}/airbob-b-asg-probe
           KEEP_ON_FAILURE: ${{ inputs.keep_on_failure }}
@@ -417,6 +444,15 @@ jobs:
         with:
           name: global-b-snapshot-service-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/airbob-b-snapshot-service/**/public/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Preserve B native search evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.action == 'services' && contains(fromJSON('["native-restore", "native-snapshot-restore"]'), env.B_SERVICE_STAGE)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: global-b-native-search-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/airbob-b-native-search
           if-no-files-found: ignore
           retention-days: 7
 

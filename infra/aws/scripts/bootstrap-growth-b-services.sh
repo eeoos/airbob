@@ -44,9 +44,13 @@ with tarfile.open(root/'consumer-tools.tar.gz') as archive:
         assert hashlib.sha256(raw).hexdigest()==meta['toolSources'][member.name]
         file=tools/member.name; file.write_bytes(raw); file.chmod(0o600)
 PY
+class_guard=/opt/airbob/bootstrap-helpers/growth_b_rds_class.py
+printf '%s  %s\n' "$(jq -er '.rdsClassGuardSha256' "$context")" "$class_guard" | sha256sum --check --status
+python3 -B "$class_guard" observe --context "$context" --stage before --aws "$(command -v aws)" --output "$stage/rds-class-before.json" >/dev/null
 python3 -B "$stage/tools/growth_b_service.py" bootstrap --manifest "$manifest" \
   --sha256 "$(jq -er '.manifestSha256' "$context")" --dataset-id "$dataset" --run-id "$run_id" --release "$release" \
   --context "$context" --root "$root" --output "$stage/bootstrap" > "$stage/bootstrap.log" 2>&1
+python3 -B "$class_guard" observe --context "$context" --stage after --aws "$(command -v aws)" --output "$stage/rds-class-after.json" >/dev/null
 aws --region "$AWS_REGION" s3api put-object --bucket airbob-performance-lab-evidence-942632789808 \
   --key "data-bootstrap/$run_id/$dataset-service-$release.json" --body "$stage/bootstrap/service-readiness.json" \
   --tagging Retention=summary --server-side-encryption AES256 --if-none-match '*' > "$stage/publication.json"

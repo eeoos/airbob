@@ -394,10 +394,23 @@ variable "rds_snapshot_source_resource_id" {
   validation {
     condition = (
       var.database_bootstrap == "snapshot"
-      ? can(regex("^db-[A-Z0-9]{24}$", var.rds_snapshot_source_resource_id))
+      ? can(regex("^db-[A-Z0-9]+$", var.rds_snapshot_source_resource_id))
       : var.rds_snapshot_source_resource_id == ""
     )
     error_message = "snapshot bootstrap requires the exact db-* source RDS resource ID; every other bootstrap mode requires it to be empty."
+  }
+}
+
+variable "rds_instance_class" {
+  description = "Initial class selection. Global B may explicitly select db.m6i.large; retained steps inherit the original selection."
+  type        = string
+  default     = "db.t3.small"
+  validation {
+    condition = var.rds_instance_class == "db.t3.small" || (
+      var.rds_instance_class == "db.m6i.large" && var.rds_engine_version == "8.4.11" &&
+      (var.global_b_prepare_only || var.global_b_services || var.global_b_snapshot_restore_only)
+    )
+    error_message = "db.m6i.large is an explicit Global B selection only; arbitrary or classic class changes are forbidden."
   }
 }
 

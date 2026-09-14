@@ -16,6 +16,7 @@ import urllib.parse
 
 import growth_b_snapshot as snapshot
 import growth_b_snapshot_host as host
+import growth_b_rds_class as rds_class
 
 restore, preparation = snapshot.restore, host.preparation
 read, sha, require = snapshot.read, snapshot.sha, snapshot.require
@@ -151,12 +152,15 @@ def validate_target(aws, context, manifest, resource_fence):
     rows = aws.call('rds', 'describe-db-instances')['DBInstances']
     require(len(rows) == 1, 'Only one business RDS may exist during B snapshot operations')
     row = rows[0]; selected = context['rds']
+    chosen_class = rds_class.selected(context.get('rdsInstanceClass', rds_class.DEFAULT))
+    require(context.get('resourceFence', resource_fence) == resource_fence, 'Original class resource fence differs')
+    rds_class.actual_class(row, chosen_class)
     resource_tags = snapshot.tags(row.get('TagList', []))
     require(row['DBInstanceIdentifier'] == selected['identifier'] and row['DbiResourceId'] == selected['resourceId']
             and row['Endpoint']['Address'] == selected['endpoint'] and row['Endpoint']['Port'] == 3306
             and row['MasterUserSecret']['SecretArn'] == selected['masterSecretArn'] and row['EngineVersion'] == '8.4.11'
             and row['DBInstanceStatus'] == 'available' and row['PubliclyAccessible'] is False
-            and row.get('StorageEncrypted') is True and row.get('DBInstanceClass') == 'db.t3.small'
+            and row.get('StorageEncrypted') is True and row.get('DBInstanceClass') == chosen_class
             and resource_tags.get('RunId') == context['runId'] and resource_tags.get('FencingToken') == str(resource_fence)
             and resource_tags.get('Project') == 'airbob' and resource_tags.get('Stack') == 'lab', 'Live B RDS target changed')
     role = 'airbob-lab-host-' + context['runId'] + '-debezium'

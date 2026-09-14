@@ -51,7 +51,7 @@ def now():
 
 def source_files():
     value = transport.source_files()
-    for name in ('growth_b_snapshot_service_verify.py', 'growth_b_snapshot_host.py', 'growth_b_snapshot_controller.py'):
+    for name in ('growth_b_snapshot_service_verify.py', 'growth_b_snapshot_host.py', 'growth_b_snapshot_controller.py', 'growth_b_rds_class.py'):
         value['infra/aws/scripts/' + name] = contract.sha(Path(__file__).with_name(name))
     return value
 

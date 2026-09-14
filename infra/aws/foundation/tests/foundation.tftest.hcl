@@ -1764,48 +1764,38 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "CreateTaggedLabRds"
       ]) == 0 &&
+      toset(one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "CreateTaggedLabDbConfiguration"
+      ]).Resource) == toset(["arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-lab-*", "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-lab-*"]) &&
+      toset(one([
+        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
+        if statement.Sid == "CreateTaggedLabDbConfiguration"
+      ]).Action) == toset(["rds:CreateDBParameterGroup", "rds:CreateDBSubnetGroup"]) &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "CreateTaggedLabDbParameterGroup"
-      ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-lab-*" &&
-      one([
-        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "CreateTaggedLabDbSubnetGroup"
-      ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-lab-*" &&
-      alltrue([
-        for statement in jsondecode(local.lab_rds_provision_policy).Statement :
-        statement.Condition == local.lab_rds_request_tag_condition
-        if contains(["CreateTaggedLabDbParameterGroup", "CreateTaggedLabDbSubnetGroup"], statement.Sid)
-      ]) &&
+        if statement.Sid == "CreateTaggedLabDbConfiguration"
+      ]).Condition == local.lab_rds_request_tag_condition &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
         if statement.Sid == "CreateBoundedDumpLabDbInstance"
       ]).Resource == "arn:aws:rds:ap-northeast-2:942632789808:db:airbob-lab-*" &&
       toset(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseDefaultOptionGroupForDumpLabDb"
+        if statement.Sid == "UseRunBoundDumpDependencies"
         ]).Resource) == toset([
         "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0",
         "arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-4",
-      ]) &&
-      try(one([
-        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseDefaultOptionGroupForDumpLabDb"
-      ]).Condition, null) == null &&
-      toset(one([
-        for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseRunBoundConfigurationForDumpLabDb"
-        ]).Resource) == toset([
         "arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-$${aws:RequestTag/RunId}",
         "arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-$${aws:RequestTag/RunId}",
       ]) &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseRunBoundConfigurationForDumpLabDb"
+        if statement.Sid == "UseRunBoundDumpDependencies"
       ]).Action == "rds:CreateDBInstance" &&
       try(one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
-        if statement.Sid == "UseRunBoundConfigurationForDumpLabDb"
+        if statement.Sid == "UseRunBoundDumpDependencies"
       ]).Condition, null) == null &&
       one([
         for statement in jsondecode(local.lab_rds_provision_policy).Statement : statement
@@ -1921,11 +1911,15 @@ run "foundation_contract" {
       one([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "TagNewLabRdsOnCreate"
-      ]).Condition == local.lab_ephemeral_tag_binding_condition &&
+        ]).Condition == merge(local.lab_ephemeral_tag_binding_condition, {
+        StringEqualsIfExists        = { "aws:RequestTag/BDatabaseClass" = "$${aws:ResourceTag/BDatabaseClass}" }
+        "ForAllValues:StringEquals" = { "aws:TagKeys" = local.lab_rds_class_tag_keys }
+      }) &&
       toset(one([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "TagNewLabRdsOnCreate"
         ]).Condition["ForAllValues:StringEquals"]["aws:TagKeys"]) == toset([
+        "BDatabaseClass",
         "Environment",
         "ExpiresAt",
         "FencingToken",
@@ -1979,6 +1973,7 @@ run "foundation_contract" {
         "DenyOversizedLabRdsChange",
         "DenyAboveBaselineIopsLabRdsChange",
         "DenyUnboundedLabRdsClassChange",
+        "DenySelectedGlobalBRdsClassChange",
         "DenyUnencryptedLabRdsChange",
         "DenyUnmanagedMasterPasswordChange",
       ]) &&

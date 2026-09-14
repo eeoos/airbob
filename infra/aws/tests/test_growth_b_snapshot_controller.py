@@ -181,14 +181,14 @@ class ControllerFixture(Fixture):
 
 
 class IdentityAndPolicyTests(ControllerFixture):
-    def test_offline_package_contains_exactly_eight_frozen_regular_files_and_is_reproducible(self):
+    def test_offline_package_contains_six_sealed_helpers_and_three_outer_modules_and_is_reproducible(self):
         first = controller.package_tools(self.root / 'package-a', self.dataset, self.run, self.operation)
         second = controller.package_tools(self.root / 'package-b', self.dataset, self.run, self.operation)
         self.assertEqual(first['archive']['sha256'], second['archive']['sha256'])
         self.assertFalse(first['cloudMutationsExecuted'])
         self.assertEqual(first['toolSources'], host.sources())
         with tarfile.open(first['archive']['path'], 'r:gz') as archive:
-            self.assertEqual(8, len(archive.getmembers()))
+            self.assertEqual(9, len(archive.getmembers()))
             for member in archive.getmembers():
                 self.assertTrue(member.isfile())
                 self.assertEqual(first['toolSources'][member.name], hashlib.sha256(archive.extractfile(member).read()).hexdigest())

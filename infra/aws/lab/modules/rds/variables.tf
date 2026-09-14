@@ -49,3 +49,15 @@ variable "availability_zone" {
 variable "tags" {
   type = map(string)
 }
+variable "instance_class" {
+  description = "Reviewed initial RDS class; retained runs never change it."
+  type        = string
+  default     = "db.t3.small"
+  validation {
+    condition = var.instance_class == "db.t3.small" || (
+      var.instance_class == "db.m6i.large" && var.engine_version == "8.4.11" &&
+      var.dump_storage_gib == 100 && try(var.tags.BDatabaseClass, "") == var.instance_class
+    )
+    error_message = "Only explicit Global B db.m6i.large with MySQL 8.4.11/100GiB/class tag is additionally allowed."
+  }
+}

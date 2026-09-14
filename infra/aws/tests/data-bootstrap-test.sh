@@ -76,7 +76,7 @@ if grep -En '\$\(result_field[[:space:]]+\\"' "$bootstrap" >/dev/null; then
 fi
 
 assert_contains "$lab_root/variables.tf" 'contains(["network", "probe-cleared", "services", "data-ready"], var.deployment_phase)'
-assert_contains "$lab_root/modules/rds/main.tf" 'instance_class = "db.t3.small"'
+assert_contains "$lab_root/modules/rds/main.tf" 'instance_class = var.instance_class'
 assert_contains "$lab_root/modules/rds/main.tf" 'var.bootstrap_mode == "dump" ? var.dump_storage_gib : null'
 assert_contains "$lab_root/modules/rds/main.tf" 'manage_master_user_password = true'
 assert_contains "$lab_root/modules/rds/main.tf" 'snapshot_identifier'

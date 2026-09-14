@@ -44,7 +44,7 @@ def block(source, kind, *labels):
     return matches[0] + '}\n'
 
 
-def evaluate_sources():
+def evaluate_sources(approved_snapshot="airbob-dataset-rehearsal-v20"):
     compute = (FOUNDATION / 'lab-compute.tf').read_text()
     iam = (LAB / 'iam.tf').read_text()
     main = (LAB / 'modules/rds/main.tf').read_text()
@@ -59,7 +59,10 @@ def evaluate_sources():
     }
     expressions = {
         name: attribute(compute, name) for name in ('lab_host_boundary_policy', 'lab_rds_provision_policy',
-            'lab_ephemeral_request_tag_condition', 'lab_ephemeral_create_tag_condition', 'lab_rds_request_tag_condition')}
+            'lab_ephemeral_request_tag_condition', 'lab_ephemeral_create_tag_condition', 'lab_rds_request_tag_condition',
+            'lab_rds_provision_baseline_policy', 'lab_rds_class_tag_keys', 'lab_data_compute_policy',
+            'lab_ephemeral_resource_tag_condition', 'lab_ephemeral_tag_binding_condition',
+            'lab_b_snapshot_controller_policy', 'lab_b_snapshot_controller_baseline_policy')}
     expressions['bootstrap_policy'] = attribute(block(iam, 'resource', 'aws_iam_role_policy', 'data_bootstrap'), 'policy')
     expressions['lease_lock_id'] = attribute((FOUNDATION / 'locals.tf').read_text(), 'lease_lock_id')
     expressions['authoritative_evidence_resources'] = attribute((FOUNDATION / 'storage.tf').read_text(), 'authoritative_evidence_resources')
@@ -77,6 +80,7 @@ variable "global_b_prepare_only" { default = false }
 variable "global_b_services" { default = false }
 variable "global_b_snapshot_restore_only" { default = false }
 variable "approved_rds_snapshot_identifier" { default = "airbob-dataset-rehearsal-v20" }
+variable "approved_b_snapshot_creation_identifier" { default = "airbob-dataset-b-class-test" }
 locals {
   lab_contract = jsondecode(file("contract.json"))
   dataset_prefix = "datasets/global-growth-b-aaaaaaaaaaaaaaaa"
@@ -91,6 +95,7 @@ locals {
   }
   all_ecr_repository_arns = [for repository in local.lab_contract.ecr_repositories : repository.arn]
 ''')
+    config = config.replace('default = "airbob-dataset-rehearsal-v20"', 'default = ' + json.dumps(approved_snapshot))
     for name, expression in expressions.items():
         for original, replacement in replacements.items():
             expression = expression.replace(original, replacement)
@@ -112,6 +117,8 @@ locals {
         command = [terraform, '-chdir=' + str(root), 'console', '-no-color']
         result = subprocess.run(command, input='jsonencode({boundary=jsondecode(local.lab_host_boundary_policy), '
             'bootstrap=jsondecode(local.bootstrap_policy), provision=jsondecode(local.lab_rds_provision_policy), '
+            'data=jsondecode(local.lab_data_compute_policy), dataBytes=length(local.lab_data_compute_policy), '
+            'snapshot=jsondecode(local.lab_b_snapshot_controller_policy), '
             'engines=local.engine_cases, storage=local.storage_cases, leaseLockId=local.lease_lock_id, '
             'boundaryBytes=length(local.lab_host_boundary_policy), provisionBytes=length(local.lab_rds_provision_policy)})\n',
             text=True, capture_output=True, timeout=30, env=environment)
@@ -150,7 +157,7 @@ class GlobalBInfrastructureTest(unittest.TestCase):
     def test_existing_capacity_class_backup_and_private_instance_contract_are_unchanged(self):
         self.assertEqual([20, 100], [row['size'] for row in self.result['storage'] if row['admitted']])
         instance = block((LAB / 'modules/rds/main.tf').read_text(), 'resource', 'aws_db_instance', 'this')
-        for name, expected in {'instance_class': '"db.t3.small"', 'multi_az': 'false',
+        for name, expected in {'instance_class': 'var.instance_class', 'multi_az': 'false',
                 'publicly_accessible': 'false', 'storage_encrypted': 'true', 'backup_retention_period': '1',
                 'auto_minor_version_upgrade': 'false', 'deletion_protection': 'false'}.items():
             self.assertEqual(expected, attribute(instance, name))
@@ -162,10 +169,14 @@ class GlobalBInfrastructureTest(unittest.TestCase):
     def test_only_exact_mysql_80_and_84_default_option_groups_are_allowed(self):
         expected = {'arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-0',
                     'arn:aws:rds:ap-northeast-2:942632789808:og:default:mysql-8-4'}
-        for name, action in (('UseDefaultOptionGroupForDumpLabDb', 'rds:CreateDBInstance'),
+        for name, action in (('UseRunBoundDumpDependencies', 'rds:CreateDBInstance'),
                              ('UseDefaultOptionGroupForRestoreLabDb', 'rds:RestoreDBInstanceFromDBSnapshot')):
             statement = sid(self.result['provision'], name)
-            self.assertEqual(expected, set(statement['Resource'])); self.assertEqual(action, statement['Action'])
+            actual_options = {arn for arn in statement['Resource'] if ':og:' in arn}
+            self.assertEqual(expected, actual_options); self.assertEqual(action, statement['Action'])
+            if name == 'UseRunBoundDumpDependencies':
+                self.assertEqual({'arn:aws:rds:ap-northeast-2:942632789808:pg:airbob-${aws:RequestTag/RunId}',
+                    'arn:aws:rds:ap-northeast-2:942632789808:subgrp:airbob-${aws:RequestTag/RunId}'}, set(statement['Resource']) - actual_options)
             self.assertNotIn('Condition', statement)
             self.assertFalse(any('*' in arn for arn in statement['Resource']))
 

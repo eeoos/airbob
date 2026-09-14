@@ -47,6 +47,23 @@ class WorkflowAdmission(unittest.TestCase):
         checkout = self.source.split('      - name: Checkout\n', 1)[1].split('      - name:', 1)[0]
         self.assertNotIn('ref:', checkout)
 
+    def test_initial_class_selection_uses_the_existing_closed_operation_input(self):
+        code, env = self.run_gate('prepare', {'rdsInstanceClass': 'db.m6i.large'})
+        self.assertEqual(0, code); self.assertIn('B_RDS_INSTANCE_CLASS=db.m6i.large', env)
+        for operation in ({'rdsInstanceClass': 'db.m6i.xlarge'}, {'rdsInstanceClass': 'db.m6i.large', 'autoUpsize': True},
+                          {'rdsInstanceClass': 'db.m6i.large', 'classRehearsal': {}}):
+            with self.subTest(operation=operation): self.assertNotEqual(0, self.run_gate('prepare', operation)[0])
+        ref = {'key': 'data-bootstrap/lab-small/global-growth-b-' + 'a'*16 + '-rds-class.json',
+            'versionId': 'qualified-version', 'sha256': 'b'*64, 'bytes': 10000}
+        self.assertEqual(0, self.run_gate('prepare', {'rdsInstanceClass': 'db.m6i.large', 'classRehearsal': ref})[0])
+        self.assertEqual(0, self.run_gate('snapshot-restore', {'provenanceSha256': 'c'*64,
+            'rdsInstanceClass': 'db.m6i.large', 'classRehearsal': ref}, bootstrap='snapshot')[0])
+        self.assertNotEqual(0, self.run_gate('up', {'rdsInstanceClass': 'db.m6i.large'})[0])
+        services = {'serviceRelease': 'service-01', 'serviceManifestSha256': 'c'*64, 'stage': 'dependencies'}
+        self.assertNotEqual(0, self.run_gate('services', services | {'rdsInstanceClass': 'db.m6i.large'})[0])
+        inputs = self.source.split('  workflow_dispatch:\n    inputs:\n', 1)[1].split('\npermissions:', 1)[0]
+        self.assertEqual(25, len(re.findall(r'^      [a-z][a-z_]*:', inputs, re.MULTILINE)))
+
     def test_services_map_closed_stage_inputs_to_controller_environment(self):
         selected = {'serviceRelease': 'service-01', 'serviceManifestSha256': 'c'*64, 'stage': 'dependencies'}
         status, env = self.run_gate('services', selected)
@@ -55,6 +72,43 @@ class WorkflowAdmission(unittest.TestCase):
         self.assertNotEqual(0, self.run_gate('services', selected | {'stage': 'application'})[0])
         status, env = self.run_gate('services', selected | {'stage': 'application', 'readinessVersionId': 'version-1', 'readinessSha256': 'd'*64})
         self.assertEqual(0, status); self.assertIn('B_READINESS_VERSION_ID=version-1', env)
+
+    def test_native_search_requires_reviewed_source_and_original_dump_stage_before_oidc(self):
+        sys.path.insert(0, str(WORKFLOW.parents[2] / 'infra/aws/scripts'))
+        import growth_b_search_controller as native
+        selected = {'schemaVersion': 1, 'kind': native.KIND, 'stage': 'native-restore',
+            'operationId': 'native-final-01', 'runId': 'lab-source-01', 'datasetId': native.DATASET,
+            'serviceRelease': 'dependencies-01', 'executionCommit': COMMIT,
+            'sourceArchiveSha256': native.source_archive()[1]['sha256'],
+            'manifest': {'key': f'datasets/{native.DATASET}-aws-service/dependencies-01/aws-service.json',
+                'versionId': 'actual-service-v1', 'sha256': 'c' * 64, 'bytes': 3000}}
+        status, environment = self.run_gate('services', selected)
+        self.assertEqual(0, status)
+        lines = dict(line.split('=', 1) for line in environment.splitlines())
+        self.assertEqual('native-restore', lines['B_SERVICE_STAGE'])
+        self.assertEqual(selected, json.loads(lines['B_NATIVE_OPERATION_JSON']))
+        for patch in ({'sourceArchiveSha256': 'f' * 64}, {'executionCommit': 'b' * 40}, {'extra': True},
+                      {'operationId': 'native\nAWS_PROFILE=other'}):
+            with self.subTest(patch=patch):
+                status, environment = self.run_gate('services', selected | patch)
+                self.assertNotEqual(0, status); self.assertEqual('', environment)
+        self.assertNotEqual(0, self.run_gate('services', selected, bootstrap='snapshot')[0])
+        self.assertNotEqual(0, self.run_gate('services', selected, policy='integrated-smoke')[0])
+        self.assertNotEqual(0, self.run_gate('services', selected, deadline='')[0])
+
+    def test_native_snapshot_stage_requires_explicit_target_proofs_and_snapshot_mode(self):
+        from test_growth_b_search_controller import snapshot_operation
+        selected = snapshot_operation()
+        status, env = self.run_gate('services', selected, bootstrap='snapshot')
+        self.assertEqual(0, status)
+        values = dict(line.split('=', 1) for line in env.splitlines())
+        self.assertEqual('native-snapshot-restore', values['B_SERVICE_STAGE'])
+        self.assertEqual(selected, json.loads(values['B_NATIVE_OPERATION_JSON']))
+        self.assertNotEqual(0, self.run_gate('services', selected, bootstrap='dump')[0])
+        for changes in ({'targetPreparation': {}}, {'sourceEvidence': {}}, {'stage': 'native-restore'}):
+            with self.subTest(changes=changes):
+                status, env = self.run_gate('services', selected | changes, bootstrap='snapshot')
+                self.assertNotEqual(0, status); self.assertEqual('', env)
 
     def test_snapshot_is_explicit_and_cannot_use_legacy_dump_selection(self):
         selected = {'provenanceSha256': 'd'*64}
@@ -228,7 +282,7 @@ UP_CREDENTIAL_SESSION_SECONDS=21600
 LEASE_DEADLINE_SECONDS=20700
 '''
             return subprocess.run(['bash', '-c', setup + self.functions + body],
-                env={'PATH': os.environ['PATH'], 'TEST_NOW': str(now), 'TEST_DEADLINE': deadline, 'TEST_MANIFEST': str(path)},
+                env={'PATH': os.environ['PATH'], 'TEST_NOW': str(now), 'TEST_DEADLINE': deadline, 'TEST_MANIFEST': str(path), 'script_dir': str(WORKFLOW.parents[2] / 'infra/aws/scripts')},
                 capture_output=True, text=True, timeout=10)
 
     def test_new_run_caps_expiry_at_common_deadline_and_keeps_shorter_ttl(self):
@@ -256,6 +310,7 @@ LEASE_DEADLINE_SECONDS=20700
 
     def test_every_b_continuation_rechecks_deadline_before_lease_and_new_run_persists_it(self):
         for name, next_name in (('continue_global_b_snapshot_operation', 'write_global_b_snapshot_admission'),
+                                ('continue_global_b_native_search', 'continue_global_b_services'),
                                 ('continue_global_b_services', None)):
             section = self.source.split(name + '() {', 1)[1]
             section = section.split(next_name + '() {', 1)[0] if next_name else section.split('\ncase "$action" in', 1)[0]

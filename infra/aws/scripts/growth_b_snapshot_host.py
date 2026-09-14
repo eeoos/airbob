@@ -20,13 +20,14 @@ import zipfile
 
 import growth_b_prepare as preparation
 import growth_b_snapshot as snapshot
+import growth_b_rds_class as rds_class
 
 restore, contract = snapshot.restore, snapshot.contract
 read, write, sha, require = preparation.read, restore.write, preparation.sha, preparation.require
 ACCOUNT, REGION, BUCKET = preparation.ACCOUNT, preparation.REGION, preparation.BUCKET
 EVIDENCE = 'airbob-performance-lab-evidence-' + ACCOUNT
 KIND = 'global-growth-b-snapshot-host'
-TOOLS = preparation.TOOLS + ('growth_b_snapshot.py', 'growth_b_snapshot_host.py')
+TOOLS = preparation.TOOLS + ('growth_b_snapshot.py', 'growth_b_snapshot_host.py', 'growth_b_rds_class.py')
 MAX_SECONDS = 18000  # Retains the controller's cleanup margin in its six-hour session.
 PUBLIC_FILES = {'snapshot-create-request.json', 'snapshot-provenance.json', 'snapshot-operation.json',
                 'data-only-preparation.json', 'prepared-fingerprint.json', 'preflight.json', 'host-receipt.json',
@@ -129,7 +130,11 @@ def validate_manifest(value, dataset, run, operation, expected_sources=None):
 
 def validate_context(value, manifest, manifest_sha):
     require(set(value) == {'schemaVersion', 'kind', 'operation', 'operationId', 'datasetId', 'runId', 'manifest', 'toolSources',
-                         'lease', 'rds', 'redisImage', 'hostInstanceId', 'deadlineEpoch', 'evidencePrefix', 'awsCli'}, 'Public context fields differ')
+                         'lease', 'rds', 'redisImage', 'hostInstanceId', 'deadlineEpoch', 'evidencePrefix', 'awsCli'} | (
+                             {'rdsInstanceClass', 'resourceFence'} if 'rdsInstanceClass' in value else set()), 'Public context fields differ')
+    rds_class.selected(value.get('rdsInstanceClass', rds_class.DEFAULT))
+    if 'rdsInstanceClass' in value:
+        require(type(value['resourceFence']) is int and value['resourceFence'] > 0, 'Original resource fence required')
     require(value['schemaVersion'] == 1 and value['kind'] == KIND + '-context'
             and all(value[key] == manifest[key] for key in ('operation', 'operationId', 'datasetId', 'runId', 'toolSources')),
             'Controller and host manifest coordinates differ')
@@ -197,6 +202,10 @@ class HostAws:
                 '--cli-connect-timeout', '5', '--cli-read-timeout', '30', *args], timeout=1800, guard=self.guard))
         else:
             result = self.raw.call(*args)
+        if operation == ('rds', 'describe-db-instances'):
+            for row in result.get('DBInstances', []):
+                if row.get('DBInstanceIdentifier') == self.context['rds']['identifier']:
+                    rds_class.actual_class(row, self.context.get('rdsInstanceClass', rds_class.DEFAULT))
         self.guard()
         return result
 

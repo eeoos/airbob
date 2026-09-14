@@ -150,7 +150,7 @@ jq '.consumerTools' "$manifest" > "$stage/tools-ref.json"
 [[ "$(jq -er '.key' "$stage/tools-ref.json")" == "datasets/$dataset-aws-snapshots/operations/$run_id/$operation_id/files/$(jq -er '.sha256' "$stage/tools-ref.json")-consumer-tools.tar.gz" ]] || fail
 download "$stage/tools-ref.json" "$stage/consumer-tools.tar.gz" airbob-performance-lab-dataset-942632789808
 extract_regular "$stage/consumer-tools.tar.gz" "$stage/tools" 4194304
-[[ "$(find "$stage/tools" -type f | wc -l)" -eq 8 && "$(wc -l < "$stage/members")" -eq 8 ]] || fail
+[[ "$(find "$stage/tools" -type f | wc -l)" -eq 9 && "$(wc -l < "$stage/members")" -eq 9 ]] || fail
 jq -r '.toolSources|to_entries[]|"\(.value)  \(.key)"' "$manifest" > "$stage/tool-checks"
 (cd "$stage/tools" && sha256sum --check --status "$stage/tool-checks")
 "$root/toolchain/python/bin/python3" -B "$stage/tools/growth_b_snapshot_host.py" validate --manifest "$manifest" --sha256 "$digest" \
