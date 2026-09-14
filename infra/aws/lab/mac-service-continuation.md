@@ -7,6 +7,15 @@ bundle commit, resource fence and expiry. The existing `services` command create
 the normal five dependency hosts and then the application. It does not create
 an importer host, run SQL import/ETL, or claim a full database fingerprint.
 
+The `dependencies` plan permits the first ordinary Connect host only after
+rechecking the reviewed Mac source receipts and original operator. Its exact
+Debezium address must be absent in prior state and use one create action with
+the normal private, encrypted 20-GiB `t3.medium` host and original run/fence/expiry.
+Other stages and Linux preparation keep the existing host requirement. RDS
+creation/deletion and an existing Connect host's deletion/replacement remain
+forbidden. This operator-shell gate does not change the eleven consumer helpers
+or require rebuilding their already published immutable package.
+
 The consumer must package the same downsize source that issued the actual
 receipt. PR140's `configuration_sha` normalizes only existing empty
 `domain_dns_ips` and `enabled_cloudwatch_logs_exports` lists to null; it preserves

@@ -2319,9 +2319,59 @@ apply_lab() {
       || fail "B preparation forbids all application ASG/ALB resources"
   fi
   if [[ "$global_b_services" == true ]]; then
-    jq -e '[.resource_changes[]? | select(.change.actions | (index("delete") != null or index("create") != null)) |
-      select(.address == "module.rds[0].aws_db_instance.this" or
-        .address == "module.service_hosts.aws_instance.this[\"debezium\"]")] | length == 0' "$plan_json" >/dev/null \
+    local mac_connect_create=false
+    if [[ "${B_SERVICE_STAGE:-dependencies}" == dependencies ]] &&
+      jq -e '.preparation.sourceMode == "mac-sql-postcheck"' "$temp_dir/dataset-manifest.json" >/dev/null; then
+      [[ "$rds_instance_class" == db.t3.small &&
+        "$(sha256_file "$temp_dir/dataset-manifest.json")" == "$dataset_manifest_sha256" ]] \
+        || fail "Mac service plan source differs from the reviewed manifest"
+      # Only the real Mac source admission can open this first-host exception.
+      # Recheck its unchanged public inputs at the saved-plan apply boundary.
+      python3 - "$script_dir" "$temp_dir/dataset-manifest.json" "$rds_class_operator_file" \
+        "$rds_class_transition_file" "$temp_dir/mac-sql-complete.json" "$temp_dir/mac-sql-postcheck.json" \
+        "$run_id" "$resource_fencing_token" "$expires_at" "$ami_id" <<'AIRBOB_MAC_CONNECT_PLAN' \
+        || fail "Mac service plan requires its unchanged SQL and same-RDS source admission"
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import growth_b_service as service
+import growth_b_mac_service as mac
+manifest, original = service.read(sys.argv[2]), service.read(sys.argv[3])
+for path, name in ((sys.argv[4], 'receipt'), (sys.argv[5], 'sqlImportReceipt'), (sys.argv[6], 'postcheckReceipt')):
+    reference = manifest['preparation'][name]
+    service.require(service.sha(path) == reference['sha256'] and Path(path).stat().st_size == reference['bytes'],
+        'Mac source bytes changed before plan admission')
+mac.validate_source(manifest, service.read(sys.argv[5]), service.read(sys.argv[6]), service.read(sys.argv[4]),
+    original=original, original_sha=service.sha(sys.argv[3]))
+service.require(original['runId'] == sys.argv[7] and str(original['fencingToken']) == sys.argv[8]
+    and str(original['expiresAt']) == sys.argv[9] and original['amiId'] == sys.argv[10],
+    'Mac plan must retain the original run, resource fence, expiry and AMI')
+AIRBOB_MAC_CONNECT_PLAN
+      mac_connect_create=true
+    fi
+    jq -e --argjson macCreate "$mac_connect_create" --arg run "$run_id" --arg ami "$ami_id" \
+      --arg fence "$resource_fencing_token" --arg expiry "$expires_at" '
+      def creates_or_deletes: .change.actions | (index("delete") != null or index("create") != null);
+      "module.service_hosts.aws_instance.this[\"debezium\"]" as $hostAddress |
+      [.resource_changes[]? | select(.type == "aws_db_instance" or .address == "module.rds[0].aws_db_instance.this") |
+        select(creates_or_deletes)] as $rdsChanges |
+      [.resource_changes[]? | select(.address == $hostAddress)] as $hosts |
+      ($rdsChanges | length) == 0 and (
+        ([$hosts[] | select(creates_or_deletes)] | length) == 0 or (
+          $macCreate and ($hosts | length) == 1 and
+          ([.prior_state? | .. | objects | select(.address? == $hostAddress)] | length) == 0 and
+          ($hosts[0] | .mode == "managed" and .type == "aws_instance" and .previous_address? == null and
+            .change.actions == ["create"] and .change.before == null and .change.importing? == null and
+            (.change.after | .ami == $ami and .instance_type == "t3.medium" and .associate_public_ip_address == false and
+              .iam_instance_profile == ("airbob-lab-host-" + $run + "-debezium") and
+              (.root_block_device | length) == 1 and .root_block_device[0].encrypted == true and
+              .root_block_device[0].delete_on_termination == true and .root_block_device[0].volume_type == "gp3" and
+              .root_block_device[0].volume_size == 20 and
+              .tags.Project == "airbob" and .tags.Environment == "performance-lab" and .tags.Stack == "lab" and
+              .tags.ManagedBy == "terraform" and .tags.Persistence == "ephemeral" and .tags.Service == "debezium" and
+              .tags.Name == ("airbob-" + $run + "-debezium") and .tags.RunId == $run and
+              .tags.FencingToken == $fence and .tags.ExpiresAt == $expiry))
+        ))' "$plan_json" >/dev/null \
       || fail "B service transition must retain the prepared RDS and data host"
   fi
   assert_lease

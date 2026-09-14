@@ -510,4 +510,144 @@ aws() {
         self.assertIn('preparation.sourceMode == "mac-sql-postcheck"', selected)
 
 
+class MacServicePlan(unittest.TestCase):
+    """Execute the real plan gate and Mac receipt validators; stub cloud I/O only."""
+    HOST = 'module.service_hosts.aws_instance.this["debezium"]'
+
+    def setUp(self):
+        self.producer, self.manifest, self.transition, _, _, self.objects = mac_fixture(self)
+        self.root = self.producer.root
+
+    def plan(self, host_actions=None, before=None):
+        op = self.producer.op
+        host = {'ami': op['amiId'], 'instance_type': 't3.medium', 'associate_public_ip_address': False,
+            'iam_instance_profile': 'airbob-lab-host-' + op['runId'] + '-debezium',
+            'root_block_device': [{'encrypted': True, 'delete_on_termination': True, 'volume_type': 'gp3', 'volume_size': 20}],
+            'tags': {'Project': 'airbob', 'Environment': 'performance-lab', 'Stack': 'lab', 'ManagedBy': 'terraform',
+                'Persistence': 'ephemeral', 'Service': 'debezium', 'Name': 'airbob-' + op['runId'] + '-debezium',
+                'RunId': op['runId'], 'FencingToken': str(op['fencingToken']), 'ExpiresAt': op['expiresAt']}}
+        return {'resource_changes': [
+            {'address': downsize.ADDRESS, 'type': 'aws_db_instance', 'mode': 'managed',
+                'change': {'actions': ['no-op'], 'before': self.producer.after, 'after': self.producer.after}},
+            {'address': self.HOST, 'type': 'aws_instance', 'mode': 'managed',
+                'change': {'actions': host_actions or ['create'], 'before': before, 'after': host}}]}
+
+    def run_plan(self, plan=None, *, stage='dependencies', linux=False, tamper=None, context=None):
+        source = (SCRIPTS / 'aws-lab.sh').read_text()
+        start = source.index('  if [[ "$global_b_services" == true ]]; then', source.index('apply_lab() {'))
+        # The preceding NAT/persistence/class gates are unchanged. Execute this
+        # exact phase gate through its real final apply boundary, without the
+        # Linux-only empty-array expansion earlier in apply_lab on macOS Bash3.
+        body = 'apply_lab() {\n' + source[start:source.index('\n}\n', start) + 3]
+        with tempfile.TemporaryDirectory(dir=self.root, prefix='plan-') as directory:
+            root = Path(directory)
+            manifest = fixture() if linux else self.manifest
+            files = {'dataset-manifest.json': downsize.encoded(manifest),
+                'operator.json': downsize.encoded(self.producer.op),
+                'transition.json': downsize.encoded(self.transition), 'mac-sql-complete.json': self.producer.sql_raw,
+                'mac-sql-postcheck.json': downsize.encoded(self.producer.postcheck)}
+            manifest_sha = hashlib.sha256(files['dataset-manifest.json']).hexdigest()
+            if tamper:
+                name, mutate = tamper
+                value = json.loads(files[name]); mutate(value); files[name] = downsize.encoded(value)
+            for name, raw in files.items(): (root / name).write_bytes(raw)
+            (root / 'selected-plan.json').write_text(json.dumps(plan or self.plan()))
+            variables = {'temp_dir': directory, 'script_dir': str(SCRIPTS), 'lab_root': '/never-real-terraform',
+                'current_tfvars': str(root / 'unused.tfvars'), 'global_b_services': 'true', 'global_b_prepare_only': 'false',
+                'plan_json': str(root / 'selected-plan.json'), 'plan_file': str(root / 'lab.tfplan'),
+                'global_b_snapshot_restore_only': 'false', 'rds_instance_class': downsize.SMALL,
+                'rds_class_operator_file': str(root / 'operator.json'), 'rds_class_transition_file': str(root / 'transition.json'),
+                'dataset_manifest_sha256': manifest_sha, 'B_SERVICE_STAGE': stage, 'run_id': self.producer.op['runId'],
+                'ami_id': self.producer.op['amiId'], 'resource_fencing_token': str(self.producer.op['fencingToken']),
+                'expires_at': self.producer.op['expiresAt']}
+            variables.update(context or {})
+            script = 'set -euo pipefail\n' + '\n'.join(k + '=' + shlex.quote(v) for k, v in variables.items()) + '\n'
+            script += '''fail() { printf '%s\\n' "$*" >&2; exit 23; }
+assert_lease() { :; }
+prepare_lab_backend() { :; }
+sha256_file() { shasum -a 256 "$1" | awk '{print $1}'; }
+aws() { fail FORBIDDEN_AWS_CALL; }
+terraform() { fail FORBIDDEN_TERRAFORM_CALL; }
+run_terraform_command() {
+  [[ "$1" == 'Terraform lab-plan inspection' ]] || fail UNEXPECTED_INSPECTION
+  cat "$temp_dir/selected-plan.json"
+}
+run_supervised_mutation() {
+  case "$1" in
+    'Terraform lab plan') printf 'fake-plan' > "$temp_dir/lab.tfplan" ;;
+    'Terraform lab apply') printf 'applied' > "$temp_dir/applied" ;;
+    *) fail FORBIDDEN_MUTATION ;;
+  esac
+}
+'''
+            result = subprocess.run(['bash'], input=script + body + '\napply_lab\n', capture_output=True,
+                text=True, timeout=10, env={'PATH': os.environ['PATH'], 'PYTHONDONTWRITEBYTECODE': '1', 'AWS_EC2_METADATA_DISABLED': 'true'})
+            return result, (root / 'applied').exists()
+
+    def test_actual_mac_receipts_allow_one_absent_normal_connect_create(self):
+        result, applied = self.run_plan()
+        self.assertEqual(0, result.returncode, result.stderr); self.assertTrue(applied)
+
+    def test_linux_source_and_other_service_stages_still_reject_host_creation(self):
+        for arguments in ({'linux': True}, {'stage': 'bootstrap'}, {'stage': 'application'}):
+            with self.subTest(arguments=arguments):
+                result, applied = self.run_plan(**arguments)
+                self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+                self.assertIn('retain the prepared RDS and data host', result.stderr)
+
+    def test_existing_host_noop_or_update_remains_allowed_for_both_sources(self):
+        for linux in (False, True):
+            for actions in (['no-op'], ['update']):
+                plan = self.plan(actions); plan['resource_changes'][1]['change']['before'] = copy.deepcopy(plan['resource_changes'][1]['change']['after'])
+                with self.subTest(linux=linux, actions=actions):
+                    result, applied = self.run_plan(plan, linux=linux, stage='bootstrap')
+                    self.assertEqual(0, result.returncode, result.stderr); self.assertTrue(applied)
+
+    def test_host_delete_replacement_import_move_and_prior_presence_cannot_use_exception(self):
+        plans = []
+        for actions in (['delete'], ['delete', 'create'], ['create', 'delete']): plans.append(self.plan(actions, {'id': 'i-existing'}))
+        plans.append(self.plan(before={'id': 'i-existing'}))
+        for field in ('previous_address',):
+            plan = self.plan(); plan['resource_changes'][1][field] = 'module.foreign.aws_instance.this'; plans.append(plan)
+        plan = self.plan(); plan['resource_changes'][1]['change']['importing'] = {'id': 'i-existing'}; plans.append(plan)
+        plan = self.plan(); plan['prior_state'] = {'values': {'root_module': {'child_modules': [{'resources': [{'address': self.HOST}]}]}}}; plans.append(plan)
+        plan = self.plan(); plan['resource_changes'].append(copy.deepcopy(plan['resource_changes'][1])); plans.append(plan)
+        for n, plan in enumerate(plans):
+            with self.subTest(case=n):
+                result, applied = self.run_plan(plan); self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+
+    def test_rds_create_delete_or_replacement_never_reaches_apply(self):
+        for address in (downsize.ADDRESS, 'module.rds[1].aws_db_instance.this'):
+            for actions in (['create'], ['delete'], ['delete', 'create']):
+                plan = self.plan(); row = plan['resource_changes'][0]; row['address'] = address; row['change']['actions'] = actions
+                if actions == ['create']: row['change']['before'] = None
+                if actions == ['delete']: row['change']['after'] = None
+                with self.subTest(address=address, actions=actions):
+                    result, applied = self.run_plan(plan); self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+
+    def test_nonordinary_host_and_original_identity_drift_are_rejected(self):
+        changes = [('instance_type', 'c6i.large'), ('ami', 'ami-foreign'), ('associate_public_ip_address', True),
+            ('iam_instance_profile', 'foreign-profile'), ('root_block_device', [{'encrypted': True, 'delete_on_termination': True, 'volume_type': 'gp3', 'volume_size': 100}])]
+        for field, value in changes:
+            plan = self.plan(); plan['resource_changes'][1]['change']['after'][field] = value
+            with self.subTest(field=field):
+                result, applied = self.run_plan(plan); self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+        for tag in ('RunId', 'FencingToken', 'ExpiresAt', 'Service'):
+            plan = self.plan(); plan['resource_changes'][1]['change']['after']['tags'][tag] = 'foreign'
+            with self.subTest(tag=tag):
+                result, applied = self.run_plan(plan); self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+        for variable in ('run_id', 'resource_fencing_token', 'expires_at', 'ami_id'):
+            with self.subTest(variable=variable):
+                result, applied = self.run_plan(context={variable: 'foreign'})
+                self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+
+    def test_reviewed_source_bytes_and_mac_operator_are_rechecked_at_plan_boundary(self):
+        for name, field, value in [('dataset-manifest.json', 'runId', 'lab-foreign'),
+                ('operator.json', 'globalBImportFromMac', False), ('transition.json', 'fullDatasetValidated', True),
+                ('mac-sql-complete.json', 'state', 'SQL_IMPORT_FAILED'), ('mac-sql-postcheck.json', 'state', 'FAILED')]:
+            with self.subTest(file=name):
+                result, applied = self.run_plan(tamper=(name, lambda row: row.update({field: value})))
+                self.assertNotEqual(0, result.returncode); self.assertFalse(applied)
+
+
 if __name__ == '__main__': unittest.main()
