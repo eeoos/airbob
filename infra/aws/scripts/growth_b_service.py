@@ -36,11 +36,24 @@ TOPICS = tuple(stream + '.events' + suffix for stream in ('PAYMENT_OPERATION', '
 
 
 def mac_source(value):
-    return value.get('preparation', {}).get('sourceMode') == 'mac-sql-postcheck'
+    return value.get('preparation', {}).get('sourceMode') in ('mac-sql-postcheck', 'mac-snapshot-counts-ddl')
+
+
+def mac_snapshot_source(value):
+    return value.get('preparation', {}).get('sourceMode') == 'mac-snapshot-counts-ddl'
+
+
+def mac_adapter(value):
+    if mac_snapshot_source(value):
+        import growth_b_mac_snapshot as adapter
+    else:
+        import growth_b_mac_service as adapter
+    return adapter
 
 
 def tools_for(value):
-    return TOOLS + ('growth_b_mac_service.py', 'growth_b_mac_downsize.py') if mac_source(value) else TOOLS
+    names = TOOLS + ('growth_b_mac_service.py', 'growth_b_mac_downsize.py') if mac_source(value) else TOOLS
+    return names + ('growth_b_mac_snapshot.py',) if mac_snapshot_source(value) else names
 
 
 def require(ok, message):
@@ -125,8 +138,7 @@ def validate_manifest(value, dataset_id, run_id, release, sources=None):
             'B requires its separate immutable Debezium 3.0.8 plugin and Kafka Connect identity')
     prep = value['preparation']
     if mac_source(value):
-        import growth_b_mac_service as mac
-        mac.validate_preparation_fields(prep, dataset_id, run_id)
+        mac_adapter(value).validate_preparation_fields(prep, dataset_id, run_id)
     else:
         require(set(prep) == {'receipt', 'restoreConfigSha256', 'restoreReceiptSha256', 'preparedFingerprintSha256', 'rdsCaBundle'}, 'Preparation binding fields differ')
         ref(prep['receipt'], f'data-bootstrap/{run_id}/')
@@ -179,13 +191,14 @@ def validate_readiness(receipt, manifest, manifest_sha):
         require(receipt.get(key) == manifest[key], 'B readiness selected identity differs: ' + key)
     validate_app_runtime_projection(receipt.get('appRuntime'), manifest['application'])
     if mac_source(manifest):
-        require(receipt.get('sourceMode') == 'mac-sql-postcheck' and receipt.get('fullDatasetValidated') is False
+        require(receipt.get('sourceMode') == manifest['preparation']['sourceMode'] and receipt.get('fullDatasetValidated') is False
                 and receipt.get('sqlReplayed') is False and receipt.get('searchDatasetRestored') is True
                 and receipt.get('preparationReceipt') == manifest['preparation']['receipt']
-                and receipt.get('sqlImportReceipt') == manifest['preparation']['sqlImportReceipt']
-                and receipt.get('postcheckReceipt') == manifest['preparation']['postcheckReceipt']
                 and 'preparedFingerprintSha256' not in receipt and 'searchFingerprint' not in receipt,
-                'Exact SQL-only Mac source scope required')
+                'Exact Mac source verification scope required')
+        source_keys = ('sourceProvenance', 'restoreReceipt', 'countsDdlReceipt') if mac_snapshot_source(manifest) else ('sqlImportReceipt', 'postcheckReceipt')
+        require(all(receipt.get(key) == manifest['preparation'][key] for key in source_keys),
+                'Mac source receipt bindings differ')
         native = receipt.get('nativeSearch', {})
         require(native.get('state') == 'NATIVE_SEARCH_COUNT_AND_SAMPLE_VERIFIED'
                 and native.get('datasetId') == manifest['datasetId'] and native.get('runId') == manifest['runId']
@@ -392,7 +405,7 @@ def bootstrap_dependencies(manifest, endpoint, redis_image, aws, db, secret_dir,
 
 def bootstrap(manifest, context, root, output):
     if mac_source(manifest):
-        import growth_b_mac_service as mac
+        mac = mac_adapter(manifest)
         return mac.bootstrap(manifest, context, root, output)
     import growth_b_aws_restore as restore
     import growth_b_runtime as runtime_gate

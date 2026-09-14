@@ -40,6 +40,7 @@ def evaluate(change=None, *, object_change=None):
         if object_change:
             object_change(object_data)
         variables = {'global_b_snapshot_restore_only': True, 'global_b_services': False, 'database_bootstrap': 'snapshot',
+            'global_b_snapshot_source_mode': 'verified-global-b-snapshot',
             'rds_engine_version': state['engine'], 'dataset_release': core['datasetId'], 'run_id': 'lab-b-snapshot-next',
             'rds_snapshot_identifier': core['snapshotIdentifier'], 'rds_snapshot_source_run_id': state['sourceRunId'],
             'rds_snapshot_source_resource_id': state['sourceResourceId'], 'account_id': '942632789808', 'aws_region': 'ap-northeast-2',
@@ -49,6 +50,7 @@ def evaluate(change=None, *, object_change=None):
         config = ''.join('variable "' + name + '" { default = ' + json.dumps(value) + ' }\n' for name, value in variables.items())
         config += '''locals {
           services_enabled = true
+          growth_b_mac_snapshot_valid = false
           s3 = jsondecode(file("objects.json"))
           live_snapshot = [jsondecode(file("snapshot.json"))]
           live_instances = [{instance_identifiers=jsondecode(file("instances.json"))}]
@@ -56,7 +58,7 @@ def evaluate(change=None, *, object_change=None):
         '''
         source = (LAB / 'growth-b-snapshot.tf').read_text()
         for name in ('growth_b_snapshot_selected', 'growth_b_snapshot_provenance', 'growth_b_snapshot_core',
-                     'growth_b_snapshot_tool_sources', 'growth_b_snapshot_valid'):
+                     'growth_b_snapshot_tool_sources', 'growth_b_legacy_snapshot_valid', 'growth_b_snapshot_valid'):
             expression = attribute(source, name).replace('data.aws_s3_object.growth_b_snapshot_provenance', 'local.s3')
             expression = expression.replace('data.aws_db_snapshot.dataset', 'local.live_snapshot')
             expression = expression.replace('data.aws_db_instances.growth_b_snapshot_targets', 'local.live_instances')

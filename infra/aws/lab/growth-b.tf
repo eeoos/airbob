@@ -151,19 +151,25 @@ output "global_b_mac_import" {
 }
 
 locals {
-  growth_b_service_mac_source = try(local.dataset_manifest.preparation.sourceMode == "mac-sql-postcheck", false)
+  growth_b_service_mac_source   = try(contains(["mac-sql-postcheck", "mac-snapshot-counts-ddl"], local.dataset_manifest.preparation.sourceMode), false)
+  growth_b_service_mac_snapshot = try(local.dataset_manifest.preparation.sourceMode == "mac-snapshot-counts-ddl", false)
   growth_b_service_helper_names = concat(local.growth_b_helper_names, ["growth_b_service.py", "growth_b_search.py", "growth_b_app_runtime.py"],
-  local.growth_b_service_mac_source ? ["growth_b_mac_service.py", "growth_b_mac_downsize.py"] : [])
+    local.growth_b_service_mac_source ? ["growth_b_mac_service.py", "growth_b_mac_downsize.py"] : [],
+  local.growth_b_service_mac_snapshot ? ["growth_b_mac_snapshot.py"] : [])
   growth_b_service_helper_sources = { for name in local.growth_b_service_helper_names : name => filesha256("${path.module}/../scripts/${name}") }
   growth_b_service_prefix         = "datasets/${var.dataset_release}-aws-service/${var.global_b_service_release}"
   growth_b_search_prefix          = try("datasets/${var.dataset_release}-search/${local.dataset_manifest.search.snapshotRelease}", "invalid-b-search")
-  growth_b_service_refs = var.global_b_services && local.services_enabled ? try({
+  growth_b_service_refs = var.global_b_services && local.services_enabled ? try(merge({
     preparation = { bucket = local.lab_contract.evidence_bucket_name, ref = local.dataset_manifest.preparation.receipt }
     ca          = { bucket = local.lab_contract.dataset_bucket_name, ref = local.dataset_manifest.preparation.rdsCaBundle }
     tools       = { bucket = local.lab_contract.dataset_bucket_name, ref = local.dataset_manifest.consumerTools }
     transport   = { bucket = local.lab_contract.dataset_bucket_name, ref = local.dataset_manifest.search.transport }
     appRuntime  = { bucket = local.lab_contract.dataset_bucket_name, ref = local.dataset_manifest.appRuntimeBinding }
-  }, {}) : {}
+    }, local.growth_b_service_mac_snapshot ? {
+    sourceProvenance = { bucket = local.lab_contract.dataset_bucket_name, ref = local.dataset_manifest.preparation.sourceProvenance }
+    restoreReceipt   = { bucket = local.lab_contract.evidence_bucket_name, ref = local.dataset_manifest.preparation.restoreReceipt }
+    countsDdlReceipt = { bucket = local.lab_contract.evidence_bucket_name, ref = local.dataset_manifest.preparation.countsDdlReceipt }
+  } : {}), {}) : {}
   growth_b_cdc_suffix = try(substr(sha256("${var.run_id}:${local.dataset_manifest.rds.serverUuid}"), 0, 20), "")
   growth_b_service_manifest_valid = !local.services_enabled || try(
     var.global_b_services && !var.global_b_prepare_only && contains(["dump", "snapshot"], var.database_bootstrap) && var.rds_engine_version == "8.4.11" &&
@@ -206,7 +212,7 @@ locals {
     local.dataset_manifest.consumerTools.key == "${local.growth_b_service_prefix}/files/consumer-tools.tar.gz" &&
     local.dataset_manifest.preparation.rdsCaBundle.key == "datasets/${var.dataset_release}-aws-preparation/files/${local.dataset_manifest.preparation.rdsCaBundle.sha256}-rds-ca.pem" &&
     startswith(local.dataset_manifest.preparation.receipt.key, "data-bootstrap/${var.run_id}/") &&
-    (local.growth_b_service_mac_source ? (
+    (local.growth_b_service_mac_snapshot ? local.growth_b_mac_snapshot_preparation_refs_valid : local.growth_b_service_mac_source ? (
       local.dataset_manifest.preparation.receipt.key == "data-bootstrap/${var.run_id}/${var.dataset_release}-mac-rds-downsize.json" &&
       alltrue([for name in ["sqlImportReceipt", "postcheckReceipt"] :
         startswith(local.dataset_manifest.preparation[name].key, "data-bootstrap/${var.run_id}/") &&
@@ -229,7 +235,7 @@ locals {
       can(regex("^[0-9a-f]{64}$", item.ref.sha256)) && item.ref.bytes > 0 && item.ref.bytes <= 20 * 1024 * 1024 && floor(item.ref.bytes) == item.ref.bytes
     ]) &&
     sha256(base64decode(nonsensitive(data.aws_s3_object.growth_b_service_preparation[0].body_base64))) == local.dataset_manifest.preparation.receipt.sha256 &&
-    (local.growth_b_service_mac_source ? (
+    (local.growth_b_service_mac_snapshot ? local.growth_b_mac_snapshot_target_valid : local.growth_b_service_mac_source ? (
       var.database_bootstrap == "dump" && var.rds_instance_class == "db.t3.small" &&
       local.growth_b_service_preparation.kind == "global-b-mac-rds-downsize" &&
       local.growth_b_service_preparation.state == "SAME_RDS_DOWNSIZED_AND_TERRAFORM_ALIGNED" &&
@@ -303,9 +309,15 @@ locals {
     local.data_bootstrap_receipt.debezium == local.dataset_manifest.debezium && local.data_bootstrap_receipt.debeziumVerified &&
     local.data_bootstrap_receipt.preparationReceipt == local.dataset_manifest.preparation.receipt &&
     (local.growth_b_service_mac_source ? (
-      local.data_bootstrap_receipt.sourceMode == "mac-sql-postcheck" &&
-      local.data_bootstrap_receipt.sqlImportReceipt == local.dataset_manifest.preparation.sqlImportReceipt &&
-      local.data_bootstrap_receipt.postcheckReceipt == local.dataset_manifest.preparation.postcheckReceipt &&
+      local.data_bootstrap_receipt.sourceMode == local.dataset_manifest.preparation.sourceMode &&
+      (local.growth_b_service_mac_snapshot ? (
+        local.data_bootstrap_receipt.sourceProvenance == local.dataset_manifest.preparation.sourceProvenance &&
+        local.data_bootstrap_receipt.restoreReceipt == local.dataset_manifest.preparation.restoreReceipt &&
+        local.data_bootstrap_receipt.countsDdlReceipt == local.dataset_manifest.preparation.countsDdlReceipt
+        ) : (
+        local.data_bootstrap_receipt.sqlImportReceipt == local.dataset_manifest.preparation.sqlImportReceipt &&
+        local.data_bootstrap_receipt.postcheckReceipt == local.dataset_manifest.preparation.postcheckReceipt
+      )) &&
       !local.data_bootstrap_receipt.fullDatasetValidated && !local.data_bootstrap_receipt.sqlReplayed &&
       local.data_bootstrap_receipt.searchDatasetRestored &&
       local.data_bootstrap_receipt.searchTransport == local.dataset_manifest.search.transport &&

@@ -34,6 +34,7 @@ class WorkflowAdmission(unittest.TestCase):
                 'AIRBOB_EXPECTED_EXECUTION_COMMIT': expected, 'AIRBOB_B_OPERATION': raw if raw is not None else json.dumps(operation or {}),
                 'AIRBOB_DNS_MODE': 'direct-only', 'AIRBOB_MODE': 'performance', 'AIRBOB_POLICY': policy,
                 'AIRBOB_DATABASE_BOOTSTRAP': bootstrap, 'AIRBOB_LOAD_GENERATOR_ENABLED': 'false',
+                'AIRBOB_DATASET_RELEASE': 'global-growth-b-' + 'a'*16, 'AIRBOB_RDS_SNAPSHOT_IDENTIFIER': 'airbob-dataset-b-test',
                 'AIRBOB_APPROVED_EXECUTION_DEADLINE_EPOCH': str(int(time.time()) + 86400) if deadline is None else deadline}
             result = subprocess.run([sys.executable, '-c', self.body], env=env, text=True, capture_output=True,
                 timeout=10, cwd=WORKFLOW.parents[2])
@@ -75,6 +76,17 @@ class WorkflowAdmission(unittest.TestCase):
         self.assertNotEqual(0, self.run_gate('prepare', {'importFromMac': True, 'ignoreDeadline': True})[0])
         self.assertNotEqual(0, self.run_gate('snapshot-restore', {'importFromMac': True,
                             'provenanceSha256': 'a' * 64}, bootstrap='snapshot')[0])
+
+    def test_mac_snapshot_selects_small_rds_and_exact_dataset_source_key(self):
+        selected = {'sourceMode': 'mac-snapshot-counts-ddl', 'provenanceSha256': 'c'*64, 'rdsInstanceClass': 'db.t3.small'}
+        code, env = self.run_gate('snapshot-restore', selected, bootstrap='snapshot')
+        self.assertEqual(0, code); self.assertIn('B_SNAPSHOT_SOURCE_MODE=mac-snapshot-counts-ddl', env)
+        key = 'datasets/global-growth-b-' + 'a'*16 + '-mac-snapshots/airbob-dataset-b-test/source-' + 'c'*64 + '.json'
+        self.assertEqual(0, self.run_gate('snapshot-restore', selected | {'provenanceKey': key}, bootstrap='snapshot')[0])
+        for change in ({'rdsInstanceClass': 'db.m6i.large'}, {'classRehearsal': {}}, {'sourceMode': 'other'},
+                       {'provenanceKey': key.replace('airbob-dataset-b-test', 'airbob-dataset-b-foreign')}):
+            with self.subTest(change=change):
+                self.assertNotEqual(0, self.run_gate('snapshot-restore', selected | change, bootstrap='snapshot')[0])
 
     def test_services_map_closed_stage_inputs_to_controller_environment(self):
         selected = {'serviceRelease': 'service-01', 'serviceManifestSha256': 'c'*64, 'stage': 'dependencies'}

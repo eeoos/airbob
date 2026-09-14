@@ -280,6 +280,8 @@ global_b_cdc=false
 global_b_snapshot_service=false
 global_b_asg_probe=false
 global_b_snapshot_restore_only=false
+global_b_snapshot_source_mode=${B_SNAPSHOT_SOURCE_MODE:-verified-global-b-snapshot}
+lab_power_request=null
 global_b_snapshot_operation=""
 global_b_snapshot_provenance=null
 global_b_service_release=""
@@ -1008,6 +1010,13 @@ AIRBOB_B_SNAPSHOT_SERVICE_IDENTITY
     for relative in infra/aws/scripts/growth_b_snapshot_controller.py infra/aws/scripts/growth_b_snapshot_host.py \
       infra/aws/scripts/bootstrap-growth-b-snapshot.sh; do
       [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "Snapshot bridge identity file is unavailable"
+      printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
+    done
+  fi
+  if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+    for relative in infra/aws/scripts/growth_b_mac_snapshot.py infra/aws/scripts/growth_b_mac_snapshot_controller.py \
+      infra/aws/lab/growth-b-mac-snapshot.tf; do
+      [[ -f "$repo_root/$relative" && ! -L "$repo_root/$relative" ]] || fail "Mac snapshot controller identity file is unavailable"
       printf '%s\t%s\n' "$(sha256_file "$repo_root/$relative")" "$relative" >> "$inventory"
     done
   fi
@@ -2119,14 +2128,23 @@ resolve_release_inputs() {
   [[ "$global_b_services" != true ]] || dataset_manifest_key="datasets/$dataset_release-aws-service/$global_b_service_release/aws-service.json"
   if [[ "$global_b_snapshot_restore_only" == true ]]; then
     [[ "${B_SNAPSHOT_PROVENANCE_SHA256:-}" =~ ^[0-9a-f]{64}$ ]] || fail "B snapshot provenance SHA is required before key selection"
-    dataset_manifest_key="datasets/$dataset_release-aws-snapshots/$rds_snapshot_identifier/provenance-$B_SNAPSHOT_PROVENANCE_SHA256.json"
+    if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      dataset_manifest_key="datasets/$dataset_release-mac-snapshots/$rds_snapshot_identifier/source-$B_SNAPSHOT_PROVENANCE_SHA256.json"
+    else
+      [[ "$global_b_snapshot_source_mode" == verified-global-b-snapshot ]] || fail "B snapshot source mode is invalid"
+      dataset_manifest_key="datasets/$dataset_release-aws-snapshots/$rds_snapshot_identifier/provenance-$B_SNAPSHOT_PROVENANCE_SHA256.json"
+    fi
   fi
   local selected_manifest_bucket=$dataset_bucket
   if [[ "$global_b_snapshot_restore_only" == true && -n "${B_SNAPSHOT_PROVENANCE_KEY:-}" ]]; then
-    dataset_manifest_key=$B_SNAPSHOT_PROVENANCE_KEY
-    [[ "$dataset_manifest_key" =~ ^data-bootstrap/$rds_snapshot_source_run_id/$dataset_release-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json$ ]] \
-      || fail "B snapshot provenance must name its exact source run and dataset"
-    selected_manifest_bucket=$evidence_bucket
+    if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      [[ "$B_SNAPSHOT_PROVENANCE_KEY" == "$dataset_manifest_key" ]] || fail "Mac snapshot source key differs from its exact selected snapshot and SHA"
+    else
+      dataset_manifest_key=$B_SNAPSHOT_PROVENANCE_KEY
+      [[ "$dataset_manifest_key" =~ ^data-bootstrap/$rds_snapshot_source_run_id/$dataset_release-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json$ ]] \
+        || fail "B snapshot provenance must name its exact source run and dataset"
+      selected_manifest_bucket=$evidence_bucket
+    fi
   fi
   aws s3api get-object --bucket "$selected_manifest_bucket" \
     --key "$dataset_manifest_key" --version-id "$dataset_manifest_version_id" "$dataset_manifest" \
@@ -2134,14 +2152,22 @@ resolve_release_inputs() {
   dataset_manifest_sha256=$(sha256_file "$dataset_manifest")
   if [[ "$global_b_snapshot_restore_only" == true ]]; then
     [[ "$dataset_manifest_sha256" == "$B_SNAPSHOT_PROVENANCE_SHA256" ]] || fail "B snapshot provenance bytes changed"
-    python3 - "$script_dir" "$dataset_manifest" <<'AIRBOB_B_SNAPSHOT_ADMISSION'
+    if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      [[ "$rds_instance_class" == db.t3.small && -z "${B_RDS_CLASS_REHEARSAL_JSON:-}" ]] || fail "Mac snapshot restore uses the small RDS class"
+      python3 "$script_dir/growth_b_mac_snapshot_controller.py" verify-source --source "$dataset_manifest" >/dev/null
+      jq -e --arg run "$rds_snapshot_source_run_id" --arg rid "$rds_snapshot_source_resource_id" --arg snap "$rds_snapshot_identifier" \
+        '.source.runId==$run and .source.rds.resourceId==$rid and .snapshot.identifier==$snap' "$dataset_manifest" >/dev/null \
+        || fail "Mac snapshot source coordinates changed"
+    else
+      python3 - "$script_dir" "$dataset_manifest" <<'AIRBOB_B_SNAPSHOT_ADMISSION'
 import sys
 sys.path.insert(0,sys.argv[1])
 import growth_b_snapshot as snapshot
 snapshot.verify(snapshot.restore.Aws(), snapshot.read(sys.argv[2]))
 print('B snapshot provenance and live snapshot metadata verified')
 AIRBOB_B_SNAPSHOT_ADMISSION
-    validate_b_class_rehearsal snapshot
+      validate_b_class_rehearsal snapshot
+    fi
     global_b_snapshot_provenance=$(jq -n --arg key "$dataset_manifest_key" --arg version "$dataset_manifest_version_id" \
       --arg sha "$dataset_manifest_sha256" --argjson bytes "$(wc -c < "$dataset_manifest" | tr -d ' ')" \
       '{key:$key,version_id:$version,sha256:$sha,bytes:$bytes}')
@@ -2224,10 +2250,12 @@ write_tfvars() {
       --arg owner "${lease_owner:-}" --argjson services "$global_b_services" --arg serviceRelease "$global_b_service_release" \
       --argjson bootstrap "$global_b_service_bootstrap_enabled" --argjson readiness "$global_b_readiness_receipt" \
       --argjson snapshotOnly "$global_b_snapshot_restore_only" --argjson provenance "$global_b_snapshot_provenance" \
+      --arg sourceMode "$global_b_snapshot_source_mode" --argjson power "$lab_power_request" \
       --argjson operationFence "$fencing_token" --argjson resourceFence "${resource_fencing_token:-$fencing_token}" \
       '. + {global_b_prepare_only:$selected,global_b_import_from_mac:$macImport,global_b_services:$services,global_b_service_release:$serviceRelease,
         global_b_service_bootstrap_enabled:$bootstrap,global_b_readiness_receipt:$readiness,
-        global_b_snapshot_restore_only:$snapshotOnly,global_b_snapshot_provenance:$provenance,
+        global_b_snapshot_restore_only:$snapshotOnly,global_b_snapshot_provenance:$provenance,global_b_snapshot_source_mode:$sourceMode,
+        lab_power:$power,
         global_b_manifest_version_id:(if $selected or $services then $version else "" end),
         global_b_lease_owner:(if $selected or $services then $owner else "" end),
         global_b_lease_fencing_token:(if $services then $operationFence else 0 end),
@@ -2306,11 +2334,16 @@ apply_lab() {
     || fail "Lab plans must use one bounded launch template and no mixed-instance override"
   if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true || "$global_b_services" == true ]]; then
     local -a class_plan_args=()
-    if [[ "$global_b_snapshot_restore_only" == true ]]; then
+    if [[ "$global_b_snapshot_restore_only" == true && "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      python3 "$script_dir/growth_b_mac_snapshot_controller.py" plan --plan "$plan_json" --source "$temp_dir/dataset-manifest.json" >/dev/null \
+        || fail "Mac snapshot plan changes its RDS or adds an import/service host"
+    else
+      if [[ "$global_b_snapshot_restore_only" == true ]]; then
       class_plan_args=(--provenance "$temp_dir/dataset-manifest.json" --provenance-sha256 "$dataset_manifest_sha256")
+      fi
+      python3 "$script_dir/growth_b_rds_class.py" plan --rds "$plan_json" --instance-class "$rds_instance_class" "${class_plan_args[@]}" >/dev/null \
+        || fail "B Terraform plan changes the original RDS class or storage shape"
     fi
-    python3 "$script_dir/growth_b_rds_class.py" plan --rds "$plan_json" --instance-class "$rds_instance_class" "${class_plan_args[@]}" >/dev/null \
-      || fail "B Terraform plan changes the original RDS class or storage shape"
   fi
   if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
     jq -e '[.resource_changes[]? | select(.change.after != null) |
@@ -2347,6 +2380,22 @@ service.require(original['runId'] == sys.argv[7] and str(original['fencingToken'
     and str(original['expiresAt']) == sys.argv[9] and original['amiId'] == sys.argv[10],
     'Mac plan must retain the original run, resource fence, expiry and AMI')
 AIRBOB_MAC_CONNECT_PLAN
+      mac_connect_create=true
+    elif [[ "${B_SERVICE_STAGE:-dependencies}" == dependencies ]] &&
+      jq -e '.preparation.sourceMode == "mac-snapshot-counts-ddl"' "$temp_dir/dataset-manifest.json" >/dev/null; then
+      [[ "$rds_instance_class" == db.t3.small && "$(sha256_file "$temp_dir/dataset-manifest.json")" == "$dataset_manifest_sha256" ]] \
+        || fail "Mac snapshot service plan source changed after admission"
+      python3 - "$script_dir" "$temp_dir/dataset-manifest.json" "$rds_class_operator_file" \
+        "$temp_dir/mac-snapshot-service-source" "$run_id" "$resource_fencing_token" "$expires_at" "$ami_id" \
+        <<'AIRBOB_MAC_SNAPSHOT_CONNECT_PLAN' || fail "Mac snapshot first-host plan requires its exact new-target count/DDL proof"
+import sys
+sys.path.insert(0, sys.argv[1])
+import growth_b_mac_snapshot_controller as controller
+manifest, original = controller.read(sys.argv[2]), controller.read(sys.argv[3])
+controller.validate_service_files(manifest, original, sys.argv[4])
+controller.need(original['runId'] == sys.argv[5] and str(original['fencingToken']) == sys.argv[6]
+    and str(original['expiresAt']) == sys.argv[7] and original['amiId'] == sys.argv[8], 'MAC_TARGET_PLAN_IDENTITY_CHANGED')
+AIRBOB_MAC_SNAPSHOT_CONNECT_PLAN
       mac_connect_create=true
     fi
     jq -e --argjson macCreate "$mac_connect_create" --arg run "$run_id" --arg ami "$ami_id" \
@@ -3321,10 +3370,55 @@ continue_global_b_snapshot_operation() {
   printf 'run_id=%s\nb_snapshot_operation=%s\nsource_deleted=false\napplication_started=false\n' "$run_id" "$global_b_snapshot_operation"
 }
 
+prepare_global_b_mac_snapshot_operation() {
+  local clean="$temp_dir/state-clean.json" head="$temp_dir/mac-snapshot-state-clean-head.json"
+  local exact="$temp_dir/mac-snapshot-state-clean.json" version
+  [[ -f "$clean" && -n "${state_clean_key:-}" && -n "${state_version_id:-}" && -n "${state_object_sha256:-}" ]] \
+    || fail "Mac snapshot restore requires the latest completed teardown and empty-state receipt"
+  aws s3api head-object --bucket "$evidence_bucket" --key "$state_clean_key" --region "$AWS_REGION" --no-cli-pager > "$head"
+  version=$(jq -er '.VersionId' "$head")
+  aws s3api get-object --bucket "$evidence_bucket" --key "$state_clean_key" --version-id "$version" "$exact" \
+    --region "$AWS_REGION" --no-cli-pager > "$temp_dir/mac-snapshot-state-clean-get.json"
+  [[ "$(sha256_file "$clean")" == "$(sha256_file "$exact")" && \
+    "$(jq -er '.VersionId' "$temp_dir/mac-snapshot-state-clean-get.json")" == "$version" ]] \
+    || fail "Latest clean-state evidence changed after its teardown-chain validation"
+  jq -n --arg bucket "$evidence_bucket" --arg key "$state_clean_key" --arg version "$version" \
+    --arg sha "$(sha256_file "$exact")" --argjson bytes "$(wc -c < "$exact" | tr -d ' ')" --rawfile raw "$exact" \
+    '{reference:{bucket:$bucket,key:$key,versionId:$version,sha256:$sha,bytes:$bytes},rawUtf8:$raw}' \
+    > "$temp_dir/mac-snapshot-retirement.json"
+  jq -n --arg run "$run_id" --argjson fence "$resource_fencing_token" --arg commit "$(git -C "$repo_root" rev-parse HEAD)" \
+    --argjson source "$global_b_snapshot_provenance" --slurpfile retirement "$temp_dir/mac-snapshot-retirement.json" \
+    --arg stateKey "$lab_state_key" --arg stateVersion "$state_version_id" --arg stateSha "$state_object_sha256" \
+    --argjson started "$(date +%s)" --argjson expires "$expires_at" --argjson approved "$approved_execution_deadline_epoch" '
+      {schemaVersion:1,kind:"global-b-mac-snapshot-restore-operation",operationId:("mac-restore-"+($fence|tostring)),
+       runId:$run,resourceFence:$fence,executionCommit:$commit,targetIdentifier:("airbob-"+$run),
+       sourceProvenance:{key:$source.key,versionId:$source.version_id,sha256:$source.sha256,bytes:$source.bytes},
+       retirementReference:($retirement[0].reference|del(.bucket)),
+       emptyState:{key:$stateKey,versionId:$stateVersion,sha256:$stateSha},
+       window:{startedAtEpoch:$started,expiresAt:$expires,approvedDeadlineEpoch:$approved}}' > "$temp_dir/mac-snapshot-operation.json"
+}
+
+capture_global_b_mac_snapshot_restore() {
+  write_current_lease_file "$temp_dir/mac-snapshot-lease.json"
+  run_supervised_mutation "Mac snapshot first available observation and restore event" \
+    python3 "$script_dir/growth_b_mac_snapshot_controller.py" capture-restore --source "$dataset_manifest" \
+    --operation "$temp_dir/mac-snapshot-operation.json" --retirement "$temp_dir/mac-snapshot-retirement.json" \
+    --lease "$temp_dir/mac-snapshot-lease.json" --output "$temp_dir/mac-snapshot-restore"
+  jq -er '.restoreReference | "B_MAC_SNAPSHOT_RESTORE_KEY=\(.key)\nB_MAC_SNAPSHOT_RESTORE_VERSION_ID=\(.versionId)\nB_MAC_SNAPSHOT_RESTORE_SHA256=\(.sha256)"' \
+    "$temp_dir/mac-snapshot-restore/result.json"
+}
+
 write_global_b_snapshot_admission() {
   local proof="$temp_dir/b-snapshot-admission.json" config="$temp_dir/b-snapshot-admission-config.json"
   local key="data-bootstrap/$run_id/b-snapshot-admission-$fencing_token.json" version
   assert_lease
+  if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+    write_current_lease_file "$temp_dir/mac-snapshot-lease.json"
+    python3 "$script_dir/growth_b_mac_snapshot_controller.py" admit --source "$dataset_manifest" \
+      --operation "$temp_dir/mac-snapshot-operation.json" --retirement "$temp_dir/mac-snapshot-retirement.json" \
+      --lease "$temp_dir/mac-snapshot-lease.json" --output "$temp_dir/mac-snapshot-admission"
+    return
+  fi
   jq -n --arg path "$dataset_manifest" --arg sha "$dataset_manifest_sha256" \
     --arg target "airbob-$run_id" --arg table "$lease_table" --arg lock "$lease_lock_id" \
     --arg owner "$lease_owner" --arg run "$run_id" --argjson fence "$fencing_token" \
@@ -3796,10 +3890,28 @@ AIRBOB_B_NATIVE_OPERATION
   printf 'run_id=%s\nb_service_stage=%s\nexpires_at=%s\n' "$run_id" "$native_stage" "$expires_at"
 }
 
+retain_running_lab_power() {
+  local output="$temp_dir/retained-lab-power-output.json" addresses="$temp_dir/retained-lab-power-addresses.txt"
+  prepare_lab_backend
+  run_terraform_command "Terraform retained power state" -chdir="$lab_root" output -json > "$output"
+  if jq -e '.lab_power.value != null' "$output" >/dev/null; then
+    jq -e '.lab_power.value.phase == "running" and .lab_power.value.request.phase == "running"' "$output" >/dev/null \
+      || fail "Lab is paused or changing power state; use airbob-lab resume before services"
+    lab_power_request=$(jq -ce '.lab_power.value.request' "$output")
+  else
+    run_terraform_command "Terraform power control presence" -chdir="$lab_root" state list > "$addresses"
+    if grep -Eq '^aws_ec2_instance_state[.]power(\[|$)|^terraform_data[.]rds_power$' "$addresses"; then
+      fail "Power controls exist without their retained output; inspect power status before services"
+    fi
+    lab_power_request=null
+  fi
+}
+
 continue_global_b_services() {
   local stage=${B_SERVICE_STAGE:-dependencies} original="$temp_dir/b-prepared-operator.json"
   local receipt="$temp_dir/b-service-readiness.json" head="$temp_dir/b-service-readiness-head.json"
   local receipt_key receipt_version receipt_sha old_dataset
+  retain_running_lab_power
   if [[ "$stage" == snapshot-verify ]]; then
     continue_global_b_snapshot_service
     return
@@ -3832,6 +3944,7 @@ continue_global_b_services() {
   rds_snapshot_source_run_id=$(jq -r '.rdsSnapshotSourceRunId // ""' "$original")
   rds_snapshot_source_resource_id=$(jq -r '.rdsSnapshotSourceResourceId // ""' "$original")
   global_b_snapshot_provenance=$(jq -c '.globalBSnapshotProvenance // null' "$original")
+  global_b_snapshot_source_mode=$(jq -r '.globalBSnapshotSourceMode // "verified-global-b-snapshot"' "$original")
   old_dataset=$(jq -er '.datasetRelease' "$original")
   [[ "${DATASET_RELEASE:-}" == "$old_dataset" && "${BUNDLE_COMMIT:-}" == "$(jq -er '.bundleCommit' "$original")" &&
     "${IMAGE_DIGEST:-}" == "$(jq -er '.imageDigest' "$original")" ]] || fail "B continuation must retain the prepared dataset and application tuple"
@@ -3858,11 +3971,17 @@ import growth_b_mac_service as mac
 mac.validate_source(service.read(sys.argv[2]), service.read(sys.argv[5]), service.read(sys.argv[6]),
     service.read(sys.argv[4]), original=service.read(sys.argv[3]), original_sha=service.sha(sys.argv[3]))
 AIRBOB_MAC_SERVICE_SOURCE
+  elif jq -e '.preparation.sourceMode == "mac-snapshot-counts-ddl"' "$temp_dir/dataset-manifest.json" >/dev/null; then
+    [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl && "$rds_instance_class" == db.t3.small ]] \
+      || fail "Mac snapshot service must retain its new small RDS operation"
+    python3 "$script_dir/growth_b_mac_snapshot_controller.py" validate-service --manifest "$temp_dir/dataset-manifest.json" \
+      --original "$original" --output "$temp_dir/mac-snapshot-service-source" >/dev/null
   fi
   validate_workflow_deadline_budget; validate_up_credential_budget
   validate_retained_global_b_execution_deadline "$original"
   start_mutation_guard
   prepare_lab_backend; recover_prior_terraform_lock; assert_state_run_identity required
+  retain_running_lab_power
   verify_oci_authority before-b-service
   phase2=$(run_terraform_command "Terraform retained B topology" -chdir="$lab_root" output -json phase2_contract)
   phase3=$(run_terraform_command "Terraform retained B RDS class" -chdir="$lab_root" output -json phase3_contract)
@@ -3872,7 +3991,7 @@ AIRBOB_MAC_SERVICE_SOURCE
   global_b_readiness_receipt=null
   if [[ "$stage" == bootstrap ]]; then
     global_b_service_bootstrap_enabled=true
-    jq -e '.preparation.sourceMode == "mac-sql-postcheck" or .search.restoreReceipt != null' "$temp_dir/dataset-manifest.json" >/dev/null \
+    jq -e '.preparation.sourceMode == "mac-sql-postcheck" or .preparation.sourceMode == "mac-snapshot-counts-ddl" or .search.restoreReceipt != null' "$temp_dir/dataset-manifest.json" >/dev/null \
       || fail "B bootstrap requires its actual native S3 search restore receipt"
   elif [[ "$stage" == application ]]; then
     receipt_key="data-bootstrap/$run_id/$dataset_release-service-$global_b_service_release.json"
@@ -3919,7 +4038,7 @@ AIRBOB_MAC_SERVICE_SOURCE
     asg_name=$(jq -er '.auto_scaling_group_name' <<<"$phase4")
     target_group_arn=$(jq -er '.target_group_arn' <<<"$phase4")
     aws_alb_dns_name=$(jq -er '.alb_dns_name' <<<"$phase4")
-    if jq -e '.preparation.sourceMode == "mac-sql-postcheck"' "$temp_dir/dataset-manifest.json" >/dev/null; then
+    if jq -e '.preparation.sourceMode == "mac-sql-postcheck" or .preparation.sourceMode == "mac-snapshot-counts-ddl"' "$temp_dir/dataset-manifest.json" >/dev/null; then
       wait_for_application 1800
     else
       wait_for_application
@@ -3992,7 +4111,11 @@ case "$action" in
     [[ "$mode:$policy" != scaling:integrated-smoke ]] || fail "scaling requires isolated-read"
     [[ "$cache_enabled" == true || "$cache_enabled" == false ]] || fail "CACHE_ENABLED must be true or false"
     [[ "$load_generator_enabled" == true || "$load_generator_enabled" == false ]] || fail "LOAD_GENERATOR_ENABLED must be true or false"
-    [[ "$ttl_hours" =~ ^[1-9][0-9]?$ && "$ttl_hours" -le 24 ]] || fail "TTL_HOURS must be 1-24"
+    if [[ "$global_b_snapshot_restore_only" == true && "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      [[ "$ttl_hours" =~ ^[1-9][0-9]{0,2}$ && "$ttl_hours" -le 168 ]] || fail "Mac snapshot TTL_HOURS must be 1-168"
+    else
+      [[ "$ttl_hours" =~ ^[1-9][0-9]?$ && "$ttl_hours" -le 24 ]] || fail "TTL_HOURS must be 1-24"
+    fi
     [[ "$ttl_hours" -ge 6 ]] \
       || fail "initial qualification requires TTL_HOURS of at least 6"
     [[ "$mode" != scaling || "$request_target" =~ ^[1-9][0-9]*$ ]] || fail "scaling requires REQUEST_TARGET"
@@ -4059,6 +4182,9 @@ case "$action" in
     fi
     resource_fencing_token=$fencing_token
     assert_reusable_or_absent_state
+    if [[ "$global_b_snapshot_restore_only" == true && "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      prepare_global_b_mac_snapshot_operation
+    fi
     verify_oci_authority before-create
     manifest="$temp_dir/operator.json"
     jq -n --arg runId "$run_id" --arg expiresAt "$expires_at" --argjson fencingToken "$resource_fencing_token" \
@@ -4081,9 +4207,15 @@ case "$action" in
       mv "$temp_dir/operator-b.json" "$manifest"
     fi
     if [[ "$global_b_snapshot_restore_only" == true ]]; then
-      jq --argjson provenance "$global_b_snapshot_provenance" '. + {globalBSnapshotRestoreOnly:true,globalBSnapshotProvenance:$provenance}' \
+      jq --argjson provenance "$global_b_snapshot_provenance" --arg sourceMode "$global_b_snapshot_source_mode" \
+        '. + {globalBSnapshotRestoreOnly:true,globalBSnapshotProvenance:$provenance,globalBSnapshotSourceMode:$sourceMode}' \
         "$manifest" > "$temp_dir/operator-b-snapshot.json"
       mv "$temp_dir/operator-b-snapshot.json" "$manifest"
+      if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+        jq --slurpfile operation "$temp_dir/mac-snapshot-operation.json" '. + {globalBMacSnapshotOperation:$operation[0]}' \
+          "$manifest" > "$temp_dir/operator-b-mac-snapshot.json"
+        mv "$temp_dir/operator-b-mac-snapshot.json" "$manifest"
+      fi
     fi
     if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then
       jq --argjson deadline "$approved_execution_deadline_epoch" --arg class "$rds_instance_class" \
@@ -4126,6 +4258,11 @@ case "$action" in
     fi
     write_tfvars services false "$probe_instance_id"
     apply_lab # deployment_phase=services
+    if [[ "$global_b_snapshot_restore_only" == true && "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+      # Capture the first post-apply RDS observation before other RDS reads or
+      # CloudTrail's eventual-consistency wait can inflate the restore timer.
+      capture_global_b_mac_snapshot_restore
+    fi
     phase2=$(run_terraform_command "Terraform Phase 2 services output" \
       -chdir="$lab_root" output -json phase2_contract)
     phase3=$(run_terraform_command "Terraform Phase 3 data output" \
@@ -4142,9 +4279,15 @@ case "$action" in
         "$run_id" "$fencing_token" "$expires_at"
       exit 0
     fi
-    debezium_instance_id=$(jq -er '.services.debezium' <<<"$phase2")
     if [[ "$global_b_snapshot_restore_only" == true ]]; then
       current_stage=b-snapshot-target-created
+      if [[ "$global_b_snapshot_source_mode" == mac-snapshot-counts-ddl ]]; then
+        write_terraform_output_evidence required
+        up_in_progress=false
+        printf 'run_id=%s\nfencing_token=%s\nexpires_at=%s\nb_snapshot_target_created=true\nmac_counts_ddl_required=true\n' \
+          "$run_id" "$fencing_token" "$expires_at"
+        exit 0
+      fi
       # Pin a public, minimal CloudTrail event before the separate preparation
       # operation is reviewed. That operation never issues another RDS restore.
       run_supervised_mutation "B actual snapshot restore event capture" \
@@ -4158,6 +4301,7 @@ case "$action" in
         "$run_id" "$fencing_token" "$expires_at"
       exit 0
     fi
+    debezium_instance_id=$(jq -er '.services.debezium' <<<"$phase2")
     if [[ "$global_b_prepare_only" == true ]]; then
       current_stage=b-data-only-receipt
       verify_global_b_receipt
@@ -4228,6 +4372,7 @@ case "$action" in
     manifest="$temp_dir/operator.json"
     read_run_manifest "$run_id" "$manifest"
     global_b_snapshot_restore_only=$(jq -r '.globalBSnapshotRestoreOnly // false' "$manifest")
+    global_b_snapshot_source_mode=$(jq -r '.globalBSnapshotSourceMode // "verified-global-b-snapshot"' "$manifest")
     global_b_snapshot_provenance=$(jq -c '.globalBSnapshotProvenance // null' "$manifest")
     [[ "$global_b_snapshot_restore_only" == true || "$global_b_snapshot_restore_only" == false ]] || fail "Invalid B snapshot selector"
     [[ "$action:$global_b_snapshot_restore_only" != switch:true ]] || fail "B snapshot-only runs cannot switch DNS"

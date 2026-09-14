@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "kind": "airbob-lab-config",
+  "profile": "admin-eeoos",
+  "githubRepository": "eeoos/airbob",
+  "sourceProvenance": {
+    "key": "datasets/global-growth-b-b0fbda4d12511eeb-mac-snapshots/airbob-dataset-b-20260914-mac-b0fbda4d/source-d5b1b11b3c4b8e8790f6f4205eb30dfb7b3f2c3452ac21785ace1d74094e1a1c.json",
+    "versionId": "WBIauRA7LA7LBzr4KM3sPqjYJhvSaeGm",
+    "sha256": "d5b1b11b3c4b8e8790f6f4205eb30dfb7b3f2c3452ac21785ace1d74094e1a1c",
+    "bytes": 61346
+  },
+  "bundleManifestVersionId": "k5AwE3T1VNMgnGHE.C1JeKomRakljBTp",
+  "ttlHours": 24,
+  "approvedDeadlineEpoch": null,
+  "evidenceDirectory": "~/.local/state/airbob-lab"
+}

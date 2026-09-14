@@ -30,7 +30,8 @@ locals {
   growth_b_snapshot_core = try(local.growth_b_snapshot_provenance.contract, null)
   growth_b_snapshot_tool_sources = { for name in ["growth_b_aws_restore.py", "growth_b_aws_contract.py", "growth_b_contract.py",
   "growth_b_runtime.py", "growth_b_inventory.py", "growth_b_snapshot.py"] : name => filesha256("${path.module}/../scripts/${name}") }
-  growth_b_snapshot_valid = !local.services_enabled || try(
+  growth_b_snapshot_valid = var.global_b_snapshot_source_mode == "mac-snapshot-counts-ddl" ? local.growth_b_mac_snapshot_valid : local.growth_b_legacy_snapshot_valid
+  growth_b_legacy_snapshot_valid = !local.services_enabled || try(
     local.growth_b_snapshot_selected && var.database_bootstrap == "snapshot" && var.rds_engine_version == "8.4.11" &&
     (var.global_b_snapshot_provenance.key == "datasets/${var.dataset_release}-aws-snapshots/${var.rds_snapshot_identifier}/provenance-${var.global_b_snapshot_provenance.sha256}.json" ||
     can(regex("^data-bootstrap/${var.rds_snapshot_source_run_id}/${var.dataset_release}-snapshot/[a-z0-9][a-z0-9-]{2,47}/snapshot-provenance[.]json$", var.global_b_snapshot_provenance.key))) &&
