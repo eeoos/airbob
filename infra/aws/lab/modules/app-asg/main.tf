@@ -74,6 +74,7 @@ resource "aws_autoscaling_group" "app" {
   protect_from_scale_in     = false
   force_delete              = true
   wait_for_capacity_timeout = "0"
+  suspended_processes       = var.suspended_processes
 
   enabled_metrics = [
     "GroupDesiredCapacity",

@@ -1,3 +1,31 @@
+variable "lab_power" {
+  description = "Explicit local pause/resume request; null leaves normal services unchanged."
+  type = object({
+    operation_id                 = string
+    phase                        = string
+    app_instance_id              = string
+    rds_resource_id              = string
+    identity_sha256              = string
+    original_suspended_processes = set(string)
+    deadline_epoch               = number
+    evidence_directory           = string
+    lease                        = object({ table = string, lockName = string, owner = string, runId = string, command = string, fencingToken = number })
+  })
+  default = null
+  validation {
+    condition = var.lab_power == null ? true : (
+      can(regex("^[a-z0-9][a-z0-9-]{2,47}$", var.lab_power.operation_id)) &&
+      contains(["fenced", "writers-stopped", "stopped", "dependencies-running", "connect-running", "app-running", "running"], var.lab_power.phase) &&
+      can(regex("^i-[0-9a-f]{17}$", var.lab_power.app_instance_id)) && can(regex("^db-[A-Z0-9]+$", var.lab_power.rds_resource_id)) &&
+      can(regex("^[0-9a-f]{64}$", var.lab_power.identity_sha256)) &&
+      startswith(var.lab_power.evidence_directory, "/") && var.lab_power.deadline_epoch <= tonumber(var.expires_at) &&
+      var.lab_power.lease.runId == var.run_id && var.lab_power.lease.command == "up" &&
+      length(setsubtract(var.lab_power.original_suspended_processes, toset(["Launch", "Terminate", "HealthCheck", "ReplaceUnhealthy", "AZRebalance", "AlarmNotification", "ScheduledActions", "AddToLoadBalancer", "InstanceRefresh"]))) == 0
+    )
+    error_message = "Power control needs a bounded same-run request and the captured original ASG processes."
+  }
+}
+
 variable "account_id" {
   description = "AWS account that may contain ephemeral Airbob lab resources."
   type        = string
