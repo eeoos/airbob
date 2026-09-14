@@ -90,6 +90,47 @@ class RdsPower(unittest.TestCase):
         self.aws.state = 'starting'; self.aws.transition = 'available'; self.execute()
         self.assertEqual(self.aws.mutations(), [])
 
+    def test_start_waits_through_enhanced_monitoring_until_available(self):
+        observed = []; call = self.aws.call
+        def monitoring_start(*args):
+            response = call(*args)
+            if args[:2] == ('rds', 'start-db-instance'):
+                self.aws.transition = 'configuring-enhanced-monitoring'
+            elif args[:2] == ('rds', 'describe-db-instances'):
+                observed.append(response['DBInstances'][0]['DBInstanceStatus'])
+                if observed[-1] == 'starting': self.aws.transition = 'available'
+            return response
+        with patch.object(self.aws, 'call', side_effect=monitoring_start):
+            result = self.execute()
+        self.assertEqual(observed[-3:], ['starting', 'configuring-enhanced-monitoring', 'available'])
+        self.assertEqual(result['state'], 'RDS_POWER_VERIFIED')
+        self.assertEqual(result['observedAtEpoch'], 1800000020)
+        self.assertEqual([x[1] for x in self.aws.mutations()], ['start-db-instance'])
+
+    def test_existing_start_intent_waits_for_monitoring_without_resubmission(self):
+        self.aws.error = rds.Rejected('AWS_CALL_FAILED')
+        with self.assertRaisesRegex(rds.Rejected, 'DEADLINE'): self.execute()
+        intent = next(self.directory.glob('*-intent.json')); original = intent.read_bytes()
+        self.request['deadlineEpoch'] = self.clock.now() + 60
+        self.request['lease']['fencingToken'] += 1
+        self.aws.error = None; self.aws.state = 'configuring-enhanced-monitoring'
+        def monitoring_finishes(delay):
+            self.clock.sleep(delay); self.aws.state = 'available'
+        result = rds.execute(self.request, self.aws, now=self.clock.now, sleep=monitoring_finishes)
+        self.assertEqual(result['state'], 'RDS_POWER_VERIFIED')
+        self.assertEqual([x[1] for x in self.aws.mutations()], ['start-db-instance'])
+        self.assertFalse(result['apiResubmitted'])
+        self.assertEqual(intent.read_bytes(), original)
+
+    def test_failed_and_unrelated_states_still_reject_without_mutation(self):
+        for state in ('failed', 'incompatible-parameters', 'incompatible-network',
+                      'inaccessible-encryption-credentials', 'deleting'):
+            with self.subTest(state=state):
+                self.aws.state = state
+                with self.assertRaisesRegex(rds.Rejected, '^RDS_STATE_UNSUPPORTED$'): self.execute()
+        self.assertEqual(self.aws.mutations(), [])
+        self.assertEqual(list(self.directory.iterdir()), [])
+
     def test_stop_and_stopping_wait_are_symmetric(self):
         self.request['desiredState'] = 'stopped'; self.aws.state = 'available'; self.execute()
         self.assertEqual(len(self.aws.mutations()), 1); self.assertEqual(self.aws.mutations()[0][1], 'stop-db-instance')
