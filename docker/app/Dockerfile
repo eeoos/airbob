@@ -7,4 +7,4 @@ EXPOSE 8080
 
 ENV JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
 ENV JAVA_OPTS=""
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
