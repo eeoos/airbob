@@ -2747,9 +2747,22 @@ run "foundation_contract" {
           jsondecode(policy.document).Statement
         ]) : statement
         if try(statement.Condition.Null["aws:RequestTag/FencingToken"] == "false", false)
-      ]) == 29
+      ]) == 28 &&
+      length([
+        for statement in flatten([
+          for policy in values(local.lab_operator_managed_policies) :
+          jsondecode(policy.document).Statement
+        ]) : statement
+        if try(
+          statement.Action == "autoscaling:CreateOrUpdateTags" &&
+          statement.Condition.Null["aws:ResourceTag/FencingToken"] == "false" &&
+          statement.Condition.StringEqualsIfExists["aws:RequestTag/FencingToken"] == "$${aws:ResourceTag/FencingToken}" &&
+          !contains(keys(statement.Condition.Null), "aws:RequestTag/FencingToken"),
+          false,
+        )
+      ]) == 1
     )
-    error_message = "All twenty-nine tag-gated EC2/IAM/RDS/SSM/ASG/ELB creation statements must require the orchestration fencing token."
+    error_message = "The twenty-eight creation statements require a requested fence; existing ASG tag updates require the current fence and bind any supplied fence to it."
   }
 
   assert {
