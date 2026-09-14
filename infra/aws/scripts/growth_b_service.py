@@ -366,6 +366,13 @@ def bootstrap_dependencies(manifest, endpoint, redis_image, aws, db, secret_dir,
     kafka('kafka-topics', '--create', '--topic', unique_topics[0], '--partitions', '1', '--replication-factor', '1', '--config', 'retention.ms=-1', '--config', 'retention.bytes=-1')
     kafka('kafka-topics', '--create', '--topic', unique_topics[1], '--partitions', '1', '--replication-factor', '1', '--config', 'retention.ms=86400000')
     require(int(db.scalar('SELECT COUNT(*) FROM mysql.user WHERE user=' + db.literal(cdc['username']), False)) == 0, 'CDC database identity already exists')
+    # Keep the saved CDC position usable across a planned 12-hour night pause.
+    db.guard(force=True); live_guard()
+    db.execute("CALL mysql.rds_set_configuration('binlog retention hours', 24);", False)
+    retention = [row for row in db.rows('CALL mysql.rds_show_configuration()', False)
+                 if row.get('name') == 'binlog retention hours']
+    require(len(retention) == 1 and type(retention[0].get('value')) is int and retention[0]['value'] == 24,
+            'RDS binlog retention must be exactly 24 hours before CDC startup')
     password = secrets.token_urlsafe(36)
     # Account/auth grammar accepts string literals, not Database.literal()'s
     # CONVERT expression. Both generated tokens have a closed ASCII alphabet.
@@ -400,7 +407,7 @@ def bootstrap_dependencies(manifest, endpoint, redis_image, aws, db, secret_dir,
     require(all(actual.get(key) == value for key, value in desired.items()), 'Live CDC configuration differs')
     require(int(db.scalar('SELECT COUNT(*) FROM outbox')) == 0, 'Service admission source changed')
     del password, desired, actual
-    return {'redisSeparate': True, 'redisReset': False, 'cdc': cdc, 'cdcRunning': True,
+    return {'redisSeparate': True, 'redisReset': False, 'cdc': cdc, 'cdcRunning': True, 'binlogRetentionHours': retention[0]['value'],
             'heartbeatObserved': True, 'topics': list(TOPICS), 'writersStopped': True}
 
 

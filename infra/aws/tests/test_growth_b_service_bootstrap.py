@@ -13,8 +13,10 @@ import growth_b_search as search
 
 
 class Bootstrap(unittest.TestCase):
-    def execute(self, *, changed_fingerprint=False, reused_cdc=False, invalid_runtime=False):
+    def execute(self, *, changed_fingerprint=False, reused_cdc=False, invalid_runtime=False,
+                retention_rows=None, retention_error=False):
         self.events = []
+        if retention_rows is None: retention_rows = [{'name': 'binlog retention hours', 'value': 24, 'description': 'Binlog retention'}]
         manifest = fixture()
         prepared_bytes = b'{}\n'
         import hashlib
@@ -44,7 +46,15 @@ class Bootstrap(unittest.TestCase):
                 if 'MAX(CAST(version' in sql: return '28'
                 return '0'
             def literal(inner, value): return "'" + value + "'"
-            def execute(inner, sql, *args): self.events.append(('sql-write', sql.split(' ')[0]))
+            def rows(inner, sql, database=True):
+                self.assertEqual('CALL mysql.rds_show_configuration()', sql); self.assertFalse(database)
+                self.events.append(('sql-read', sql)); return retention_rows
+            def execute(inner, sql, database=True):
+                self.events.append(('sql-write', sql.split(' ')[0]))
+                if sql.startswith('CALL'):
+                    self.assertEqual("CALL mysql.rds_set_configuration('binlog retention hours', 24);", sql)
+                    self.assertFalse(database)
+                    if retention_error: raise ValueError('RDS_RETENTION_SET_FAILED')
         class ES:
             def __init__(inner, *_): pass
             def api(inner, *_): return {'cluster_uuid': 'cluster-b'}
@@ -116,6 +126,7 @@ class Bootstrap(unittest.TestCase):
         self.assertEqual(service.READY, result['state'])
         self.assertTrue(result['heartbeatObserved']); self.assertFalse(result['applicationStarted'])
         self.assertFalse(result['deploymentReady']); self.assertFalse(result['redisReset'])
+        self.assertEqual(24, result['binlogRetentionHours'])
         encoded = json.dumps(result)
         self.assertNotIn('database.password', encoded)
         kinds = [item[0] for item in self.events]
@@ -123,6 +134,31 @@ class Bootstrap(unittest.TestCase):
         self.assertLess(kinds.index('search-full'), kinds.index('sql-write'))
         self.assertLess(kinds.index('runtime-proof'), kinds.index('sql-write'))
         self.assertEqual(runtime_projection(fixture()), result['appRuntime'])
+        set_at = self.events.index(('sql-write', 'CALL'))
+        read_at = self.events.index(('sql-read', 'CALL mysql.rds_show_configuration()'))
+        create_at = self.events.index(('sql-write', 'CREATE'))
+        self.assertLess(set_at, read_at); self.assertLess(read_at, create_at)
+        self.assertLess(create_at, self.events.index(('connect', 'POST', '/connectors')))
+
+    def test_retention_readback_must_be_one_exact_24_hour_value_before_cdc(self):
+        row = {'name': 'binlog retention hours', 'value': 24}
+        values = [[], [{'name': 'different setting', 'value': 24}], [row, row]] + [
+            [{'name': 'binlog retention hours', 'value': value}] for value in (None, 0, 12, 48, '24', 24.0, True)]
+        for rows in values:
+            with self.subTest(rows=rows):
+                with self.assertRaisesRegex(ValueError, 'RDS binlog retention must be exactly 24 hours'):
+                    self.execute(retention_rows=rows)
+                self.assert_no_new_cdc()
+
+    def test_retention_set_failure_prevents_readback_or_cdc_creation(self):
+        with self.assertRaisesRegex(ValueError, '^RDS_RETENTION_SET_FAILED$'):
+            self.execute(retention_error=True)
+        self.assertNotIn(('sql-read', 'CALL mysql.rds_show_configuration()'), self.events)
+        self.assert_no_new_cdc()
+
+    def assert_no_new_cdc(self):
+        self.assertFalse(any(e[:2] in (('sql-write', 'CREATE'), ('sql-write', 'GRANT'), ('connect', 'POST'))
+            or (e[0] == 'aws' and e[1][:2] == ('secretsmanager', 'put-secret-value')) for e in self.events))
 
     def test_invalid_runtime_proof_prevents_database_or_cdc_writes(self):
         with self.assertRaisesRegex(ValueError, 'Runtime binding byte inventory differs'): self.execute(invalid_runtime=True)
