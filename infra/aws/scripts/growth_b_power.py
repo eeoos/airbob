@@ -358,7 +358,7 @@ class Runner:
         app = identity['instances']['app']['InstanceId']
         command = "curl --connect-timeout 2 --max-time 10 --fail --silent http://127.0.0.1:8080/actuator/health/readiness | jq -e '.status==\"UP\"' >/dev/null"
         while time.time() < self.deadline:
-            self.heartbeat(); self.inspect(state, identity)
+            self.heartbeat(); self.inspect(state, identity, healthy=True)
             target = self.aws.call('elbv2', 'describe-target-health', '--target-group-arn', p4['target_group_arn'])['TargetHealthDescriptions']
             if len(target) == 1 and target[0]['Target']['Id'] == app and target[0]['TargetHealth']['State'] == 'healthy':
                 if self.read_command(app, command): return

@@ -174,6 +174,7 @@ class MemoryRunner(power.Runner):
         self.suspended = ['ScheduledActions']; self.app = 'i-' + 'a' * 17
         self.host_states = {name: 'running' for name in power.HOSTS}; self.volume_override = None
         self.readiness_status = 'Success'; self.fail_phase = None; self.applied = []
+        self.app_health = 'Healthy'
         request = self.rds_request({'operation_id': 'initial-read', 'evidence_directory': str(directory)})
         self.db = FakeAws(request, 'available'); self.aws = self
 
@@ -189,7 +190,7 @@ class MemoryRunner(power.Runner):
         if args[0] in {'rds', 'dynamodb', 'sts'}: return self.db.call(*args)
         if args[:2] == ('autoscaling', 'describe-auto-scaling-groups'):
             return {'AutoScalingGroups': [{'AutoScalingGroupName': p4['auto_scaling_group_name'], 'MinSize': 1,
-                'MaxSize': 1, 'DesiredCapacity': 1, 'Instances': [{'InstanceId': self.app, 'LifecycleState': 'InService', 'HealthStatus': 'Healthy'}],
+                'MaxSize': 1, 'DesiredCapacity': 1, 'Instances': [{'InstanceId': self.app, 'LifecycleState': 'InService', 'HealthStatus': self.app_health}],
                 'LaunchTemplate': {'LaunchTemplateId': 'lt-owned', 'Version': '1'},
                 'SuspendedProcesses': [{'ProcessName': name} for name in self.suspended]}]}
         if args[:2] == ('autoscaling', 'describe-scaling-activities'): return {'Activities': []}
@@ -307,6 +308,14 @@ class PowerOrchestration(unittest.TestCase):
         self.assertEqual(set(self.runner.suspended), power.PROCESSES)
         self.assertNotIn('running', self.runner.applied)
         self.assertFalse(any(json.loads(p.read_bytes()).get('state') == 'POWER_RESUMED' for p in self.directory.rglob('result.json')))
+
+    def test_asg_unhealthy_never_unfences_even_when_alb_and_app_checks_pass(self):
+        self.runner.operate('pause'); self.runner.app_health = 'Unhealthy'
+        with self.assertRaisesRegex(power.Rejected, 'RUNNING_HEALTHY_SOURCE_REQUIRED'):
+            self.runner.operate('resume')
+        self.assertEqual(set(self.runner.suspended), power.PROCESSES)
+        self.assertEqual(set(self.runner.host_states.values()), {'running'})
+        self.assertNotIn('running', self.runner.applied)
 
     def test_status_distinguishes_absent_from_partial_and_never_acquires_lease(self):
         initial_token = self.runner.token
