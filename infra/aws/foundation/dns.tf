@@ -32,6 +32,8 @@ resource "aws_route53_zone" "private" {
 
   lifecycle {
     prevent_destroy = true
+    # Lab state owns its temporary VPC association independently of this anchor.
+    ignore_changes = [vpc]
   }
 }
 

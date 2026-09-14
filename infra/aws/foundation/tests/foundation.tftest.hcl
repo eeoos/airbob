@@ -1124,6 +1124,7 @@ run "foundation_contract" {
         "ec2:DisassociateAddress",
         "ec2:DisassociateRouteTable",
         "ec2:ModifyLaunchTemplate",
+        "ec2:ModifySecurityGroupRules",
         "ec2:RevokeSecurityGroupEgress",
         "ec2:RevokeSecurityGroupIngress",
       ]) &&

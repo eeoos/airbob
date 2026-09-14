@@ -380,6 +380,15 @@ locals {
     images_env            = local.phase2_images_env, docker_compose_version = local.docker_compose_version
     docker_compose_sha256 = local.docker_compose_sha256, runtime_contract = ""
   }) : ""
+
+  # SSM can register while cloud-init is still installing Docker. Wait for its
+  # completion marker before the bundle installer starts another dnf process.
+  growth_b_connect_bundle_command = var.global_b_services && local.services_enabled ? join("\n", [
+    "set -euo pipefail",
+    "for attempt in $(seq 1 120); do test -f /var/lib/airbob/b-host-ready && break; sleep 5; done",
+    "test -f /var/lib/airbob/b-host-ready",
+    local.growth_b_connect_bundle,
+  ]) : ""
 }
 
 resource "aws_vpc_security_group_ingress_rule" "growth_b_cdc_application" {
@@ -424,7 +433,7 @@ resource "aws_ssm_document" "growth_b_connect_bundle" {
   document_type   = "Command"
   document_format = "JSON"
   content = jsonencode({ schemaVersion = "2.2", description = "Install Connect bundle on retained B preparation host", mainSteps = [{
-    action = "aws:runShellScript", name = "installRetainedConnectBundle", inputs = { timeoutSeconds = "2400", runCommand = [local.growth_b_connect_bundle] }
+    action = "aws:runShellScript", name = "installRetainedConnectBundle", inputs = { timeoutSeconds = "2400", runCommand = [local.growth_b_connect_bundle_command] }
   }] })
   tags = merge(local.ephemeral_tags, { Service = "debezium" })
 }
