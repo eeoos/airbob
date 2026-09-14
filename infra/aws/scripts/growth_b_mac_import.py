@@ -53,6 +53,19 @@ def need(value, code):
         raise MacImportError(code)
 
 
+def failure_code(error):
+    if isinstance(error, MacImportError):
+        return error.code
+    if isinstance(error, ValueError):
+        return {
+            'Database fence connection was lost': 'DATABASE_FENCE_CONNECTION_LOST',
+            'Database fence check timed out': 'DATABASE_FENCE_CHECK_TIMED_OUT',
+            'Database restore fence was lost or held elsewhere': 'DATABASE_FENCE_OWNERSHIP_LOST',
+            'Bounded subprocess deadline expired': 'DATABASE_QUERY_TIMED_OUT',
+        }.get(str(error), 'LOCAL_IMPORT_UNCONFIRMED')
+    return 'LOCAL_IMPORT_UNCONFIRMED'
+
+
 def utc():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
@@ -145,6 +158,7 @@ def binding(args):
             'caBundlePath': str(args.ca_bundle), 'caBundleSha256': args.ca_sha256,
             'mysqlClient': str(args.mysql_client), 'expectedServerUuid': args.expected_server_uuid,
             'engineVersion': ENGINE, 'importClass': CLASS, 'allocatedStorageGiB': 100,
+            'mysqlProtocolCompression': 'zstd', 'mysqlZstdLevel': 3,
             'sqlElapsedTimeoutSeconds': None, 'schema': SCHEMA}
 
 
@@ -259,6 +273,7 @@ class Database(restore.Database):
                 '--skip-reconnect', '--protocol=TCP', '--host=' + self.args.endpoint,
                 '--port=' + str(self.args.tunnel_port), '--ssl-mode=VERIFY_IDENTITY',
                 '--ssl-ca=' + str(self.args.ca_bundle), '--connect-timeout=10',
+                '--compression-algorithms=zstd', '--zstd-compression-level=3',
                 '--default-character-set=utf8mb4', '--batch', '--raw', '--unbuffered'] + ([SCHEMA] if database else [])
 
 
@@ -388,7 +403,7 @@ def run(args):
                         record(completed_path, complete)
                     except BaseException as error:
                         record(args.output / 'import-unconfirmed.json', {'state': 'SQL_IMPORT_UNCONFIRMED_NO_REPLAY',
-                               'binding': expected, 'recordedAt': utc(), 'closedCode': error.code if isinstance(error, MacImportError) else 'SQL_IMPORT_OR_CHECKPOINT_UNCONFIRMED',
+                               'binding': expected, 'recordedAt': utc(), 'closedCode': failure_code(error),
                                'partialDatabaseRetained': True, 'automaticReplayAllowed': False})
                         raise
                 try:
@@ -411,7 +426,7 @@ def run(args):
                 except BaseException as error:
                     record(args.output / ('postcheck-failed-' + uuid.uuid4().hex + '.json'),
                            {'state': 'SQL_IMPORTED_POSTCHECK_FAILED', 'recordedAt': utc(), 'binding': expected,
-                            'closedCode': error.code if isinstance(error, MacImportError) else 'POSTCHECK_UNCONFIRMED',
+                            'closedCode': failure_code(error),
                             'sqlImportReceiptPreserved': True, 'automaticReplayAllowed': False})
                     raise
 
@@ -439,7 +454,7 @@ def main(argv=None):
         print(json.dumps(result, sort_keys=True))
         return 0
     except BaseException as error:
-        code = error.code if isinstance(error, MacImportError) else 'LOCAL_IMPORT_UNCONFIRMED'
+        code = failure_code(error)
         print(json.dumps({'state': 'MAC_IMPORT_CLOSED', 'closedCode': code,
                           'authenticationRefreshRequired': code == 'AWS_AUTHENTICATION_REQUIRED',
                           'automaticReplayAllowed': False}))
