@@ -4038,11 +4038,9 @@ AIRBOB_MAC_SERVICE_SOURCE
     asg_name=$(jq -er '.auto_scaling_group_name' <<<"$phase4")
     target_group_arn=$(jq -er '.target_group_arn' <<<"$phase4")
     aws_alb_dns_name=$(jq -er '.alb_dns_name' <<<"$phase4")
-    if jq -e '.preparation.sourceMode == "mac-sql-postcheck" or .preparation.sourceMode == "mac-snapshot-counts-ddl"' "$temp_dir/dataset-manifest.json" >/dev/null; then
-      wait_for_application 1800
-    else
-      wait_for_application
-    fi
+    # First B startup may seed all published inventory before readiness opens.
+    # The existing lease watchdog and immutable resource expiry still bound it.
+    wait_for_application 18000
     curl --fail --silent --show-error --max-time 30 --connect-to "api.airbob.cloud:443:$aws_alb_dns_name:443" \
       https://api.airbob.cloud/actuator/health/readiness | jq -e '.status=="UP"' >/dev/null \
       || fail "B application ALB readiness did not open"
