@@ -1,9 +1,11 @@
 """Offline native-power plans and real state-aware RDS request/journal tests."""
 import contextlib
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,7 +16,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
 import growth_b_power as power
 import growth_b_rds_power as rds
-from test_global_b_infrastructure import attribute
+from test_global_b_infrastructure import attribute, block
 from test_growth_b_mac_service import mac_fixture
 
 
@@ -169,12 +171,15 @@ class MemoryRunner(power.Runner):
     def __init__(self, test, directory):
         self.directory = directory; self.lab = power.LAB
         self.operator, self.manifest, self.state = ready_fixture(test)
-        self.contract = {'evidence_bucket_name': 'evidence', 'dataset_bucket_name': 'dataset'}
+        self.contract = {'evidence_bucket_name': 'evidence', 'dataset_bucket_name': 'dataset',
+            'state_bucket_name': 'state', 'lab_state_key': 'airbob/lab/terraform.tfstate'}
         self.deadline = 1800001000; self.clock = Clock(); self.token = 80; self.lease = None
         self.suspended = ['ScheduledActions']; self.app = 'i-' + 'a' * 17
         self.host_states = {name: 'running' for name in power.HOSTS}; self.volume_override = None
         self.readiness_status = 'Success'; self.fail_phase = None; self.applied = []
         self.app_health = 'Healthy'
+        self.reorder_check_results = False; self.pull_count = 0; self.version_suffix = ''
+        self.planned_variables = []
         request = self.rds_request({'operation_id': 'initial-read', 'evidence_directory': str(directory)})
         self.db = FakeAws(request, 'available'); self.aws = self
 
@@ -187,6 +192,10 @@ class MemoryRunner(power.Runner):
 
     def call(self, *args):
         out = power.outputs(self.state); p2, p4 = out['phase2_contract'], out['phase4_contract']
+        if args[:2] == ('s3api', 'head-object'):
+            raw = rds.encoded(self.state)
+            return {'VersionId': 'state-' + str(self.state['serial']) + self.version_suffix,
+                'ETag': '"' + hashlib.sha256(raw).hexdigest() + '"', 'ContentLength': len(raw)}
         if args[0] in {'rds', 'dynamodb', 'sts'}: return self.db.call(*args)
         if args[:2] == ('autoscaling', 'describe-auto-scaling-groups'):
             return {'AutoScalingGroups': [{'AutoScalingGroupName': p4['auto_scaling_group_name'], 'MinSize': 1,
@@ -211,7 +220,12 @@ class MemoryRunner(power.Runner):
         raise AssertionError('Unexpected cloud operation ' + repr(args[:2]))
 
     def initialize(self): return self.pull()
-    def pull(self): return copy.deepcopy(self.state)
+    def pull(self):
+        self.pull_count += 1; value = copy.deepcopy(self.state)
+        if self.reorder_check_results and self.pull_count % 2:
+            value['check_results'] = list(reversed(value['check_results']))
+        self.last_state_pull_sha256 = hashlib.sha256(rds.encoded(value)).hexdigest()
+        return value
     def heartbeat(self): pass
 
     @contextlib.contextmanager
@@ -231,6 +245,7 @@ class MemoryRunner(power.Runner):
         phase = selected['lab_power']['phase'] if selected.get('lab_power') else 'access'
         if selected['alb_ingress_cidr'] != power.resources(self.state)[power.INGRESS]['cidr_ipv4']: phase = 'access'
         if args[0] == 'plan':
+            self.planned_variables.append(copy.deepcopy(selected))
             changes = []
             target = sorted(selected['lab_power']['original_suspended_processes']) if phase == 'running' else sorted(power.PROCESSES)
             if phase == 'access': changes.append((power.INGRESS, 'update'))
@@ -330,6 +345,47 @@ class PowerOrchestration(unittest.TestCase):
                 self.runner.operate('resume')
         self.assertEqual(set(self.runner.suspended), power.PROCESSES)
         self.assertNotIn('running', self.runner.applied)
+
+    def test_pull_serialization_order_change_is_evidence_not_backend_mutation(self):
+        self.runner.state['check_results'] = [{'config_addr': 'var.run_id'}, {'config_addr': 'var.global_b_services'}]
+        self.runner.reorder_check_results = True
+        self.assertEqual(self.runner.operate('access', '8.8.8.8/32')['state'], 'USER_ACCESS_UPDATED')
+        result = json.loads(next(self.directory.glob('access-*/access-result-*.json')).read_bytes())
+        self.assertNotEqual(result['beforeStateSha256'], result['planRecheckStateSha256'])
+        self.assertIn('VersionId', result['backendBefore'])
+
+    def test_changed_backend_version_after_plan_rejects_before_apply(self):
+        original = self.runner.tf
+        def changed(*args):
+            result = original(*args)
+            if args[0] == 'plan': self.runner.version_suffix = '-external-change'
+            return result
+        with patch.object(self.runner, 'tf', side_effect=changed):
+            with self.assertRaisesRegex(power.Rejected, 'SOURCE_OR_STATE_CHANGED_AFTER_PLAN'):
+                self.runner.operate('access', '8.8.8.8/32')
+        self.assertEqual(self.runner.applied, [])
+
+    def test_actual_power_tfvars_satisfy_production_service_lease_validations(self):
+        self.runner.operate('access', '8.8.8.8/32')
+        value = self.runner.planned_variables[0]
+        self.assertEqual(value['global_b_lease_owner'], self.runner.lease['owner'])
+        self.assertEqual(value['global_b_lease_fencing_token'], self.runner.lease['fencingToken'])
+        self.assertEqual(value['fencing_token'], 76)
+        source = (power.LAB / 'variables.tf').read_text()
+        names = {'global_b_services', 'global_b_lease_fencing_token'}
+        hcl = ''.join('variable "' + name + '" {\n' + block(source, 'variable', name) for name in sorted(names))
+        references = set(re.findall(r'var\.([A-Za-z_0-9]+)', hcl)) - names
+        hcl += ''.join('variable "' + name + '" { default = ' + json.dumps(value[name]) + ' }\n' for name in sorted(references))
+        # Only actual variable blocks/values: no backend, provider, data or resources.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / 'main.tf').write_text(hcl)
+            for changes, success in (({}, True), ({'global_b_lease_owner': ''}, False), ({'global_b_lease_fencing_token': 0}, False)):
+                varfile = root / 'input.tfvars.json'
+                varfile.write_text(json.dumps({k: changes.get(k, value[k]) for k in names | references}))
+                result = subprocess.run(['terraform', '-chdir=' + str(root), 'plan', '-input=false', '-lock=false', '-no-color', '-var-file=' + str(varfile)],
+                    text=True, capture_output=True, timeout=20,
+                    env={'PATH': os.environ['PATH'], 'CHECKPOINT_DISABLE': '1', 'AWS_EC2_METADATA_DISABLED': 'true'})
+                self.assertEqual(result.returncode == 0, success, result.stderr)
 
     def test_status_distinguishes_absent_from_partial_and_never_acquires_lease(self):
         initial_token = self.runner.token
@@ -446,6 +502,7 @@ class PowerPlan(unittest.TestCase):
 
     def test_reconstruct_reuses_actual_mac_receipt_fixture_and_current_ingress(self):
         producer, manifest, _, _, _, _ = mac_fixture(self)
+        producer.op['globalBSnapshotSourceMode'] = 'mac-snapshot-counts-ddl'
         state = copy.deepcopy(producer.state_after); out = power.outputs(state)
         out['phase2_contract']['deployment_phase'] = 'data-ready'
         out['phase2_contract']['services'] = {k: 'i-' + str(n) * 17 for n, k in enumerate(sorted(power.HOSTS - {'nat', 'app'}), 1)}
@@ -463,6 +520,7 @@ class PowerPlan(unittest.TestCase):
         self.assertEqual(result['expires_at'], producer.op['expiresAt'])
         self.assertEqual(result['fencing_token'], 76)
         self.assertEqual(result['rds_instance_class'], 'db.t3.small')
+        self.assertEqual(result['global_b_snapshot_source_mode'], 'mac-snapshot-counts-ddl')
         self.assertFalse(result['global_b_import_from_mac']); self.assertFalse(result['global_b_service_bootstrap_enabled'])
         self.assertNotIn('RAW_STATE_MUST_STAY_IN_RAM', json.dumps(result))
         manifest['application']['image'] = 'changed'

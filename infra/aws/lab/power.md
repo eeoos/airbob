@@ -50,8 +50,12 @@ Requests and closed evidence are kept in `~/.local/state/airbob-lab/power` by
 default (`--evidence-directory` overrides it). Directories are 0700 and files
 0600. Raw state, plan/UI streams, cloud responses and logs stay in bounded RAM.
 The complete plan UI permits only power state entries and the existing ASG's
-suspension change; access permits only the HTTPS rule update. Source, input
-bytes and state are rechecked before apply. This is a same-input replan, **not
+suspension change; access permits only the HTTPS rule update. The current lease
+is supplied separately from the retained resource creation fence. Source and
+input bytes are rechecked before apply; the backend S3 VersionId, ETag and size
+must stay unchanged across state pulls and the plan. Each actual pull response
+has its own recorded SHA, since Terraform may reorder check results while
+serializing the same remote state. This is a same-input replan, **not
 a saved binary plan**. Terraform's backend lock and the existing orchestration
 lease remain active.
 

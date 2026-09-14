@@ -223,7 +223,22 @@ class Runner:
         if code:
             need(b'No state file was found' in error and not raw.strip(), 'TERRAFORM_STATE_UNAVAILABLE')
             return {'version': 4, 'lineage': 'absent', 'serial': 0, 'outputs': {}, 'resources': []}
+        self.last_state_pull_sha256 = hashlib.sha256(raw).hexdigest()
         return json.loads(raw)
+
+    def backend_version(self):
+        row = self.aws.call('s3api', 'head-object', '--bucket', self.contract['state_bucket_name'],
+            '--key', self.contract['lab_state_key'])
+        need(isinstance(row.get('VersionId'), str) and row['VersionId'] not in {'', 'null', 'None'}
+             and isinstance(row.get('ETag'), str) and row['ETag']
+             and type(row.get('ContentLength')) is int and row['ContentLength'] > 0, 'VERSIONED_BACKEND_STATE_REQUIRED')
+        return {key: row[key] for key in ('VersionId', 'ETag', 'ContentLength')}
+
+    def state_observation(self):
+        version = self.backend_version()
+        state = self.pull(); payload_sha = self.last_state_pull_sha256
+        need(self.backend_version() == version, 'BACKEND_CHANGED_DURING_STATE_PULL')
+        return state, version, payload_sha
 
     def lease_command(self, action, *tail):
         return self.command(['bash', str(SCRIPTS / 'orchestration-lease.sh'), action,
@@ -367,17 +382,18 @@ class Runner:
 
     def apply_phase(self, variables, phase, directory, identity):
         started = time.monotonic()
-        self.heartbeat(); before = self.pull(); self.inspect(before, identity)
-        source = source_sha(self.lab); state_sha = digest(before)
+        self.heartbeat(); before, backend_before, state_sha = self.state_observation(); self.inspect(before, identity)
+        source = source_sha(self.lab)
         suffix = str(self.lease['fencingToken'])
         path = directory / (phase + '-' + suffix + '.tfvars.json'); write_new(path, variables)
         raw = self.tf('plan', '-json', '-input=false', '-lock-timeout=60s', '-var-file=' + str(path))
         changes = validate_plan([json.loads(line) for line in raw.splitlines() if line], phase)
-        need(source_sha(self.lab) == source and digest(self.pull()) == state_sha
+        recheck, backend_recheck, recheck_sha = self.state_observation()
+        need(source_sha(self.lab) == source and backend_recheck == backend_before
              and path.read_bytes() == encoded(variables), 'SOURCE_OR_STATE_CHANGED_AFTER_PLAN')
-        self.heartbeat(); self.inspect(before, identity, healthy=phase == 'running')
+        self.heartbeat(); self.inspect(recheck, identity, healthy=phase == 'running')
         self.tf('apply', '-json', '-input=false', '-lock-timeout=60s', '-auto-approve', '-var-file=' + str(path))
-        after = self.pull(); _, ec2, rds, suspended = self.inspect(after, identity)
+        after, backend_after, after_sha = self.state_observation(); _, ec2, rds, suspended = self.inspect(after, identity)
         if phase == 'access':
             need(resources(after)[INGRESS]['cidr_ipv4'] == variables['alb_ingress_cidr'], 'USER_INGRESS_NOT_APPLIED')
         else:
@@ -387,7 +403,9 @@ class Runner:
         write_new(directory / (phase + '-result-' + suffix + '.json'), {'phase': phase, 'state': 'TERRAFORM_PHASE_VERIFIED',
             'planEvidenceKind': 'terraform-json-ui-with-state-source-recheck',
             'changes': changes, 'sourceSha256': source, 'beforeStateSha256': state_sha,
-            'afterStateSha256': digest(after), 'stateSerial': after['serial'], 'stateLineage': after['lineage'],
+            'planRecheckStateSha256': recheck_sha, 'afterStateSha256': after_sha,
+            'backendBefore': backend_before, 'backendAfter': backend_after,
+            'stateSerial': after['serial'], 'stateLineage': after['lineage'],
             'elapsedSeconds': round(time.monotonic() - started, 6),
             'observedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()})
         return after
@@ -421,6 +439,8 @@ class Runner:
             operator = self.pinned_json(self.contract['evidence_bucket_name'], 'runs/' + out['run_identity']['run_id'] + '/operator.json', attempt, 'operator.json')
             manifest = self.pinned_json(self.contract['dataset_bucket_name'], selected['manifest_key'], attempt, 'manifest.json', selected['manifest_sha256'], selected['manifest_version_id'])
             variables = reconstruct(operator, manifest, state)
+            variables.update(global_b_lease_owner=self.lease['owner'],
+                global_b_lease_fencing_token=self.lease['fencingToken'])
             identity, ec2, rds_state, suspended = self.inspect(state,
                 expected=active['target'] if active else None, healthy=not active and current in (None, 'running'))
             old_power = variables.get('lab_power')
