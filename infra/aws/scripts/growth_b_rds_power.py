@@ -134,7 +134,9 @@ def observe(aws, request):
         'ExpiresAt': str(request['expiresAt']), 'Project': 'airbob', 'Environment': 'performance-lab',
         'Stack': 'lab', 'ManagedBy': 'terraform', 'Persistence': 'ephemeral', 'Service': 'rds'}
     need(tags == required and len(tags) == len(row.get('TagList', [])), 'RDS_TAGS_CHANGED')
-    need(row.get('DBInstanceStatus') in {'available', 'stopped', 'starting', 'stopping'}, 'RDS_STATE_UNSUPPORTED')
+    # StartDBInstance can pass through Enhanced Monitoring configuration.
+    need(row.get('DBInstanceStatus') in {'available', 'stopped', 'starting', 'stopping',
+        'configuring-enhanced-monitoring'}, 'RDS_STATE_UNSUPPORTED')
     return row['DBInstanceStatus']
 
 
@@ -188,7 +190,8 @@ def execute(request, aws=None, *, now=time.time, sleep=time.sleep):
                 old = read_own(result_path)
                 need(old.get('bindingSha256') == binding and old.get('state') == 'RDS_POWER_VERIFIED', 'POWER_RESULT_CHANGED')
             return proof
-        need(state == ('starting' if desired == 'available' else 'stopping') or state == prior['initialState'],
+        waiting = {'starting', 'configuring-enhanced-monitoring'} if desired == 'available' else {'stopping'}
+        need(state in waiting or state == prior['initialState'],
              'RDS_STATE_CHANGED_DURING_WAIT')
         sleep(min(10, max(0, request['deadlineEpoch'] - now())))
 
