@@ -308,14 +308,19 @@ print(json.dumps({'pythonVersion':sys.version.split()[0],'count':len(names),'sta
                 if 'id=16102' in sql: return 1
                 return 0
             def rows(inner, sql, *_):
+                if sql == 'CALL mysql.rds_show_configuration()':
+                    self.events.append(('sql-read', sql))
+                    return [{'name': 'binlog retention hours', 'value': 24, 'description': 'Binlog retention'}]
                 self.assertEqual("SHOW SESSION STATUS LIKE 'Ssl_cipher'", sql)
                 return [{'Variable_name': 'Ssl_cipher', 'Value': 'TLS_AES_256_GCM_SHA384'}]
             literal = staticmethod(restore.Database.literal)
             def execute(inner, sql, *_):
                 # No SQL import, data DML, reset, or DELETE/DROP is permitted.
-                self.assertIn(sql.split()[0], ('CREATE', 'GRANT'))
+                self.assertIn(sql.split()[0], ('CALL', 'CREATE', 'GRANT'))
                 account = "'" + manifest['cdc']['username'] + "'@'%'"
-                if sql.startswith('CREATE'):
+                if sql.startswith('CALL'):
+                    self.assertEqual("CALL mysql.rds_set_configuration('binlog retention hours', 24);", sql)
+                elif sql.startswith('CREATE'):
                     self.assertRegex(sql, '^CREATE USER ' + account + " IDENTIFIED BY '[A-Za-z0-9_-]{48}' REQUIRE SSL;$")
                 else:
                     self.assertEqual('GRANT SELECT, RELOAD, LOCK TABLES, SHOW DATABASES, '
@@ -370,13 +375,15 @@ print(json.dumps({'pythonVersion':sys.version.split()[0],'count':len(names),'sta
         self.assertEqual(service.READY, result['state'])
         self.assertEqual(list(service.TOPICS), result['topics'])
         self.assertTrue(result['heartbeatObserved']); self.assertFalse(result['redisReset'])
+        self.assertEqual(24, result['binlogRetentionHours'])
         self.assertFalse(result['fullDatasetValidated']); self.assertFalse(result['sqlReplayed'])
         admitted = service.validate_readiness(result, self.manifest, self.context['manifestSha256'])
         self.assertTrue(admitted['applicationAdmitted']); self.assertFalse(admitted['deploymentReady'])
         kinds = [event[0] for event in self.events]
         alias = self.events.index(('es', 'POST', '/_aliases'))
         self.assertLess(alias, kinds.index('sql-write'))
-        self.assertEqual([('sql-write', 'CREATE'), ('sql-write', 'GRANT')], [e for e in self.events if e[0] == 'sql-write'])
+        self.assertEqual([('sql-write', 'CALL'), ('sql-write', 'CREATE'), ('sql-write', 'GRANT')],
+                         [e for e in self.events if e[0] == 'sql-write'])
         with self.assertRaisesRegex(ValueError, 'previously attempted'):
             service.bootstrap(self.manifest, self.context, self.root, self.root / 'bootstrap')
 

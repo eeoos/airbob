@@ -67,6 +67,12 @@ container deployment. The resource expiry is not extended. After restart,
 application/CDC/search business verification remains a separate check; a power
 receipt does not claim that it performed an API mutation/reset cycle.
 
+Fresh B service bootstrap sets RDS `binlog retention hours` to 24 and verifies
+the value before creating the CDC user and connector. Its readiness receipt
+records `binlogRetentionHours: 24`. Planned night pauses are up to 12 hours,
+leaving retention time for CDC to catch up after restart. This configuration
+does not restore already purged binlogs or extend the resource expiry.
+
 The Root operator performs the actual paid lifecycle exercises after normal
 service verification. Offline tests do not establish that those exercises have
 already happened. Future `start` commands use the normal explicitly selected
