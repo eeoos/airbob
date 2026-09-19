@@ -69,7 +69,7 @@ def inputs():
             'sha256': source_ref['sha256'], 'bytes': source_ref['bytes']},
         'live': [{'db_snapshot_arn': snap['arn'], 'db_instance_identifier': snap['sourceIdentifier'], 'status': 'available',
             'snapshot_type': 'manual', 'engine': 'mysql', 'engine_version': '8.4.11', 'encrypted': True,
-            'allocated_storage': 100, 'storage_type': 'gp3', 'iops': 3000, 'kms_key_id': snap['kmsKeyArn'], 'tags': snap['tags']}],
+            'allocated_storage': 100, 'storage_type': 'gp3', 'iops': 3000, 'kms_key_id': snap['kmsKeyArn'], 'tags': copy.deepcopy(snap['tags'])}],
         'instances': [target['target']['identifier']]}
     return manifest, proof, target, context, {'fencingToken': op['resourceFence'], 'expiresAt': str(op['window']['expiresAt'])}
 
@@ -125,6 +125,34 @@ class MacSnapshotInfrastructure(unittest.TestCase):
         ):
             with self.subTest(change=change):
                 self.assertFalse(self.evaluate(change)['valid'])
+
+    def test_snapshot_tag_map_requires_exact_saved_keys_and_values(self):
+        for change in (
+            lambda m, p, t, c, o: c['live'][0]['tags'].pop('SourceRunId'),
+            lambda m, p, t, c, o: c['live'][0]['tags'].update(Unreviewed='extra'),
+            lambda m, p, t, c, o: c['live'][0]['tags'].update(SourceRunId='lab-other-source'),
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(self.evaluate(change)['valid'])
+
+    def test_snapshot_tag_values_cannot_coerce_saved_numbers_or_booleans_to_strings(self):
+        for malformed, live_value in ((28, '28'), (True, 'true')):
+            for saved_value, expected in ((live_value, True), (malformed, False)):
+                def change(manifest, proof, target, context, operator):
+                    # Re-pin synthetic source bytes so this exercises tag value
+                    # types, rather than failing an unrelated source hash check.
+                    source = context['source']
+                    source['snapshot']['tags']['TypeCheck'] = saved_value
+                    context['live'][0]['tags']['TypeCheck'] = live_value
+                    selected = reference(mac.encoded(source), 'datasets/' + mac.DATASET + '-mac-snapshots/' +
+                        source['snapshot']['identifier'] + '/source-' + mac.digest(source) + '.json')
+                    context['reference'] = {'key': selected['key'], 'version_id': selected['versionId'],
+                        'sha256': selected['sha256'], 'bytes': selected['bytes']}
+                    manifest['preparation']['sourceProvenance'] = selected
+                    proof['sourceProvenance'] = selected
+                    target['sourceSha256'] = selected['sha256']
+                with self.subTest(saved_value=saved_value):
+                    self.assertEqual(expected, self.evaluate(change)['valid'])
 
     def test_target_cannot_reuse_source_identity_or_wrong_window(self):
         for change in (
