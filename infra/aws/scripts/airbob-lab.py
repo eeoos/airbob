@@ -321,7 +321,7 @@ class Lab:
         except importlib.metadata.PackageNotFoundError:raise Rejected('INSTALL_PINNED_PYMYSQL_1_1_2') from None
         need(version=='1.1.2','INSTALL_PINNED_PYMYSQL_1_1_2')
 
-    def dispatch(self,journal,label,inputs,deadline):
+    def dispatch(self,journal,label,inputs,deadline,*,require_success=True):
         repo=self.saved['githubRepository'];selected=inputs['expected_execution_commit']
         response=journal.read(label+'.dispatch.json')
         if response is None:
@@ -333,14 +333,14 @@ class Lab:
             journal.put(label+'.dispatch.json',response)
         run_id=response['workflow_run_id']
         while True:
-            need(time.time()<deadline,'WORKFLOW_WAIT_DEADLINE_RESOURCES_RETAINED')
             run=self.io.gh(repo,'actions/runs/'+str(run_id))
             need(run['id']==run_id and run['head_sha']==selected and run['head_branch']=='main'
                  and run['event']=='workflow_dispatch' and run['run_attempt']==1
                  and run['path']=='.github/workflows/'+WORKFLOW,'WORKFLOW_IDENTITY_CHANGED')
             if run['status']=='completed':
                 journal.put(label+'.completed.json',{k:run[k] for k in ('id','head_sha','head_branch','event','run_attempt','path','status','conclusion','created_at','updated_at')})
-                need(run['conclusion']=='success','WORKFLOW_FAILED_RESOURCES_RETAINED');return run
+                need(not require_success or run['conclusion']=='success','WORKFLOW_FAILED_RESOURCES_RETAINED');return run
+            need(time.time()<deadline,'WORKFLOW_WAIT_DEADLINE_RESOURCES_RETAINED')
             time.sleep(15)
 
     def base_inputs(self,source,main,deadline):
@@ -535,13 +535,13 @@ class Lab:
             need(intent['repository']==repo and intent['workflow']==WORKFLOW and intent['inputs']['expected_execution_commit']==active['main'],
                  'OWN_START_DISPATCH_IDENTITY_CHANGED')
             while True:
-                need(time.time()<deadline,'OWN_START_TERMINAL_NOT_CONFIRMED')
                 run=self.io.gh(repo,'actions/runs/'+str(run_id))
                 need(run['id']==run_id and run['head_sha']==active['main'] and run['head_branch']=='main'
                      and run['event']=='workflow_dispatch' and run['run_attempt']==1 and run['path']=='.github/workflows/'+WORKFLOW,
                      'OWN_START_WORKFLOW_IDENTITY_CHANGED')
                 if run['status']=='completed':
                     journal.put('settled-start-'+label+'.json',{k:run[k] for k in ('id','head_sha','status','conclusion')});break
+                need(time.time()<deadline,'OWN_START_TERMINAL_NOT_CONFIRMED')
                 cancel_name='cancel-start-'+label
                 if journal.read(cancel_name+'.intent.json') is None:
                     journal.put(cancel_name+'.intent.json',{'workflowRunId':run_id,'headSha':active['main']})
@@ -575,7 +575,7 @@ class Lab:
         intent=journal.read('down.intent.json');workflow=None;run=None
         if intent is not None:
             # Reuse the exact returned run, or fail closed on its unknown dispatch.
-            inputs=intent['inputs'];run=inputs['run_id'];workflow=self.dispatch(journal,'down',inputs,deadline)
+            inputs=intent['inputs'];run=inputs['run_id'];workflow=self.dispatch(journal,'down',inputs,deadline,require_success=False)
         else:
             _,state=self.backend()
             if self.power.resources(state):
@@ -584,10 +584,22 @@ class Lab:
                 inputs={'action':'down','run_id':run,'mode':'performance','policy':'isolated-read','dns_mode':'direct-only','force':False,
                     'expected_execution_commit':self.current_main(),'approved_execution_deadline_epoch':str(original['approvedExecutionDeadlineEpoch'])}
                 workflow=self.dispatch(journal,'down',inputs,deadline)
-        _,after=self.backend();need(not self.power.resources(after),'DESTROY_NOT_EMPTY')
+        _,after=self.backend()
+        reconciled=workflow is not None and workflow['conclusion']!='success'
+        need(not self.power.resources(after),'WORKFLOW_FAILED_RESOURCES_RETAINED' if reconciled else 'DESTROY_NOT_EMPTY')
+        if reconciled and 'run_identity' in after.get('outputs',{}):
+            output=after['outputs']['run_identity'];identity=output.get('value') if isinstance(output,dict) else None
+            need(isinstance(identity,dict) and identity.get('run_id')==run,'EMPTY_STATE_RUN_IDENTITY_CHANGED')
         self.retained_snapshot()
-        result={'state':'LAB_DESTROYED' if workflow else 'LAB_ABSENT','runId':run,
+        result={'state':'LAB_DESTROYED' if workflow and not reconciled else 'LAB_ABSENT','runId':run,
             'workflowRunId':workflow['id'] if workflow else None,'manualSnapshotPreserved':True,'foundationPreserved':True,'ociUnchangedByThisCommand':True}
+        if reconciled:
+            reconciliation={'state':'FAILED_DESTROY_RECONCILED_WITH_EMPTY_LAB','workflowRunId':workflow['id'],
+                'workflowConclusion':workflow['conclusion'],'runId':run,'cleanupPerformedByThisCommand':False,
+                'emptyState':{'lineage':after['lineage'],'serial':after['serial'],'canonicalSha256':sha(encoded(after))},
+                'manualSnapshotPreserved':True}
+            journal.put('reconciliation.json',reconciliation)
+            result.update(reconciledFailedWorkflow=True,workflowConclusion=workflow['conclusion'],cleanupPerformedByThisCommand=False)
         journal.put('result.json',result)
         for name in ('active-start.json','active-destroy.json'):
             if (self.base.path/name).exists():(self.base.path/name).unlink()

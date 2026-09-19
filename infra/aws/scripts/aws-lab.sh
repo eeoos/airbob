@@ -3096,7 +3096,7 @@ write_terraform_output_evidence() {
   if ! run_terraform_command "Terraform output evidence read" \
     -chdir="$lab_root" output -json > "$raw_outputs" 2>/dev/null ||
     ! jq -e '
-      (del(.global_b_preparation, .global_b_mac_import, .global_b_service, .global_b_snapshot) | keys | sort) == [
+      (del(.global_b_preparation, .global_b_mac_import, .global_b_service, .global_b_snapshot, .lab_power) | keys | sort) == [
         "persistent_resource_contract",
         "phase2_contract",
         "phase3_contract",
@@ -3123,7 +3123,8 @@ write_terraform_output_evidence() {
     --key "runs/$run_id/terraform-outputs.redacted.json" --body "$evidence" \
     --tagging Retention=summary --server-side-encryption AES256 \
     --content-type application/json --region "$AWS_REGION" --no-cli-pager >/dev/null
-  [[ "$output_status" == available || "$requirement" == best-effort ]]
+  [[ "$output_status" == available || "$requirement" == best-effort ]] \
+    || fail "Required Terraform output evidence is unavailable; no destroy was started"
 }
 
 wait_for_application() {
