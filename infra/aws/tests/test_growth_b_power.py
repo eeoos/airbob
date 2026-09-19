@@ -122,9 +122,52 @@ class RdsPower(unittest.TestCase):
         self.assertFalse(result['apiResubmitted'])
         self.assertEqual(intent.read_bytes(), original)
 
+    def test_start_waits_through_rebooting_until_available(self):
+        observed = []; call = self.aws.call
+        def rebooting_start(*args):
+            response = call(*args)
+            if args[:2] == ('rds', 'start-db-instance'):
+                self.aws.transition = 'rebooting'
+            elif args[:2] == ('rds', 'describe-db-instances'):
+                observed.append(response['DBInstances'][0]['DBInstanceStatus'])
+                if observed[-1] == 'starting': self.aws.transition = 'available'
+            return response
+        with patch.object(self.aws, 'call', side_effect=rebooting_start):
+            result = self.execute()
+        self.assertEqual(observed[-3:], ['starting', 'rebooting', 'available'])
+        self.assertEqual(result['state'], 'RDS_POWER_VERIFIED')
+        self.assertEqual(result['observedAtEpoch'], 1800000020)
+        self.assertEqual([x[1] for x in self.aws.mutations()], ['start-db-instance'])
+
+    def test_existing_start_intent_waits_for_rebooting_without_resubmission(self):
+        self.aws.error = rds.Rejected('AWS_CALL_FAILED')
+        with self.assertRaisesRegex(rds.Rejected, 'DEADLINE'): self.execute()
+        intent = next(self.directory.glob('*-intent.json')); original = intent.read_bytes()
+        self.request['deadlineEpoch'] = self.clock.now() + 60
+        self.request['lease']['fencingToken'] += 1
+        self.aws.error = None; self.aws.state = 'rebooting'
+        def reboot_finishes(delay):
+            self.clock.sleep(delay); self.aws.state = 'available'
+        result = rds.execute(self.request, self.aws, now=self.clock.now, sleep=reboot_finishes)
+        self.assertEqual(result['state'], 'RDS_POWER_VERIFIED')
+        self.assertEqual([x[1] for x in self.aws.mutations()], ['start-db-instance'])
+        self.assertFalse(result['apiResubmitted'])
+        self.assertEqual(intent.read_bytes(), original)
+
+    def test_stop_does_not_accept_rebooting_as_a_stop_transition(self):
+        self.request['desiredState'] = 'stopped'; self.aws.state = 'available'; call = self.aws.call
+        def reboot_during_stop(*args):
+            response = call(*args)
+            if args[:2] == ('rds', 'stop-db-instance'): self.aws.transition = 'rebooting'
+            return response
+        with patch.object(self.aws, 'call', side_effect=reboot_during_stop):
+            with self.assertRaisesRegex(rds.Rejected, '^RDS_STATE_CHANGED_DURING_WAIT$'): self.execute()
+        self.assertEqual([x[1] for x in self.aws.mutations()], ['stop-db-instance'])
+        self.assertEqual(list(self.directory.glob('*-result.json')), [])
+
     def test_failed_and_unrelated_states_still_reject_without_mutation(self):
         for state in ('failed', 'incompatible-parameters', 'incompatible-network',
-                      'inaccessible-encryption-credentials', 'deleting'):
+                      'inaccessible-encryption-credentials', 'deleting', 'creating', 'modifying', 'backing-up'):
             with self.subTest(state=state):
                 self.aws.state = state
                 with self.assertRaisesRegex(rds.Rejected, '^RDS_STATE_UNSUPPORTED$'): self.execute()
