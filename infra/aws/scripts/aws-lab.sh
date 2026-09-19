@@ -3400,6 +3400,7 @@ prepare_global_b_mac_snapshot_operation() {
 }
 
 capture_global_b_mac_snapshot_restore() {
+  local dataset_manifest="$temp_dir/dataset-manifest.json"
   write_current_lease_file "$temp_dir/mac-snapshot-lease.json"
   run_supervised_mutation "Mac snapshot first available observation and restore event" \
     python3 "$script_dir/growth_b_mac_snapshot_controller.py" capture-restore --source "$dataset_manifest" \
@@ -3410,6 +3411,7 @@ capture_global_b_mac_snapshot_restore() {
 }
 
 write_global_b_snapshot_admission() {
+  local dataset_manifest="$temp_dir/dataset-manifest.json"
   local proof="$temp_dir/b-snapshot-admission.json" config="$temp_dir/b-snapshot-admission-config.json"
   local key="data-bootstrap/$run_id/b-snapshot-admission-$fencing_token.json" version
   assert_lease

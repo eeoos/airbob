@@ -241,6 +241,75 @@ retain_running_lab_power() {''' + function + '\n}\nretain_running_lab_power\npri
 
 
 class MacSnapshotOperator(unittest.TestCase):
+    def run_snapshot_helpers(self, ambient, fail_admission=False):
+        source = (Path(__file__).resolve().parents[1]/'scripts/aws-lab.sh').read_text()
+        names = ('write_current_lease_file', 'write_global_b_snapshot_admission', 'capture_global_b_mac_snapshot_restore')
+        functions = '\n'.join(name+'() {'+source.split(name+'() {', 1)[1].split('\n}\n', 1)[0]+'\n}' for name in names)
+        setup = r'''set -euo pipefail
+global_b_snapshot_source_mode=mac-snapshot-counts-ddl
+script_dir=/synthetic/scripts
+run_id=lab-synthetic-snapshot
+fencing_token=201
+lease_table=synthetic-lease-table
+lease_lock_id=synthetic-lock
+lease_owner=synthetic-owner
+lease_command=up
+fail() { printf '%s\n' "$*" >&2; exit 23; }
+assert_lease() { printf '%s\n' lease-checked >> "$temp_dir/events"; }
+run_supervised_mutation() { shift; "$@"; }
+python3() {
+  [[ "$#" -eq 12 && "$1" == "$script_dir/growth_b_mac_snapshot_controller.py" ]] || exit 24
+  local mode=$2
+  shift 2
+  [[ "$1" == --source && "$2" == "$temp_dir/dataset-manifest.json" ]] || exit 25
+  [[ "$(cat "$2")" == '{"synthetic":true}' ]] || exit 26
+  shift 2
+  [[ "$1" == --operation && "$2" == "$temp_dir/mac-snapshot-operation.json" ]] || exit 27
+  shift 2
+  [[ "$1" == --retirement && "$2" == "$temp_dir/mac-snapshot-retirement.json" ]] || exit 28
+  shift 2
+  [[ "$1" == --lease && "$2" == "$temp_dir/mac-snapshot-lease.json" && -f "$2" ]] || exit 29
+  shift 2
+  [[ "$1" == --output ]] || exit 30
+  printf '%s\n' "$mode" >> "$temp_dir/events"
+  if [[ "$mode" == admit ]]; then
+    [[ "$2" == "$temp_dir/mac-snapshot-admission" ]] || exit 31
+    [[ "$FAIL_ADMISSION" == false ]] || return 32
+  elif [[ "$mode" == capture-restore ]]; then
+    [[ "$2" == "$temp_dir/mac-snapshot-restore" ]] || exit 33
+    mkdir "$2"
+    printf '%s\n' '{"restoreReference":{"key":"synthetic-key","versionId":"synthetic-version","sha256":"synthetic-sha"}}' > "$2/result.json"
+  else exit 34; fi
+}
+initial_release_scope() { local dataset_manifest="$temp_dir/dataset-manifest.json"; [[ -s "$dataset_manifest" ]]; }
+initial_release_scope
+unset dataset_manifest
+[[ "$AMBIENT" == unset ]] || dataset_manifest=/foreign/unverified.json
+'''
+        command = setup+functions+'\nwrite_global_b_snapshot_admission\ncapture_global_b_mac_snapshot_restore\n'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root/'dataset-manifest.json').write_text('{"synthetic":true}\n')
+            result = subprocess.run(['bash', '-c', command], env={**os.environ, 'temp_dir': directory,
+                'AMBIENT': ambient, 'FAIL_ADMISSION': str(fail_admission).lower()}, capture_output=True, text=True, timeout=10)
+            events = (root/'events').read_text().splitlines()
+            lease = json.loads((root/'mac-snapshot-lease.json').read_text())
+            self.assertEqual('lab-synthetic-snapshot', lease['runId']); self.assertEqual(201, lease['fencingToken'])
+            return result, events
+
+    def test_actual_snapshot_helpers_use_verified_path_after_release_local_scope_ends(self):
+        for ambient in ('unset', 'foreign'):
+            with self.subTest(ambient=ambient):
+                result, events = self.run_snapshot_helpers(ambient)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(['lease-checked', 'admit', 'capture-restore'], events)
+                self.assertIn('B_MAC_SNAPSHOT_RESTORE_KEY=synthetic-key', result.stdout)
+
+    def test_failed_actual_admission_does_not_continue_to_restore_capture(self):
+        result, events = self.run_snapshot_helpers('unset', fail_admission=True)
+        self.assertEqual(32, result.returncode, result.stderr)
+        self.assertEqual(['lease-checked', 'admit'], events)
+        self.assertNotIn('B_MAC_SNAPSHOT_RESTORE_KEY', result.stdout)
+
     def test_initial_mac_restore_observes_before_other_rds_reads_and_needs_no_connect_host(self):
         source = (Path(__file__).resolve().parents[1]/'scripts/aws-lab.sh').read_text()
         start = source.index('    current_stage=services-and-data-bootstrap\n')
