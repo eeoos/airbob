@@ -86,8 +86,9 @@ mock_provider "aws" {
     target          = aws_route53_zone.private
     override_during = plan
     values = {
-      arn     = "arn:aws:route53:::hostedzone/Z0987654321PRIVATE"
-      zone_id = "Z0987654321PRIVATE"
+      # Use the retained zone's actual ID length for managed-policy quotas.
+      arn     = "arn:aws:route53:::hostedzone/Z03194203TQJHOJ6SOAQC"
+      zone_id = "Z03194203TQJHOJ6SOAQC"
       name    = "lab.airbob.internal"
     }
   }
@@ -974,6 +975,61 @@ run "foundation_contract" {
   assert {
     condition = (
       toset(one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ManageTaggedLabAppInstanceRefresh"
+        ]).Action) == toset([
+        "autoscaling:StartInstanceRefresh",
+        "autoscaling:CancelInstanceRefresh",
+        "autoscaling:RollbackInstanceRefresh",
+      ]) &&
+      one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ManageTaggedLabAppInstanceRefresh"
+      ]).Effect == "Allow" &&
+      one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ManageTaggedLabAppInstanceRefresh"
+      ]).Resource == "arn:aws:autoscaling:ap-northeast-2:942632789808:autoScalingGroup:*:autoScalingGroupName/airbob-lab-*-app" &&
+      jsonencode(one([
+        for statement in local.lab_app_compute_statements : statement
+        if statement.Sid == "ManageTaggedLabAppInstanceRefresh"
+        ]).Condition) == jsonencode({
+        StringEquals = {
+          "aws:ResourceTag/Project"     = "airbob"
+          "aws:ResourceTag/Environment" = "performance-lab"
+          "aws:ResourceTag/Stack"       = "lab"
+          "aws:ResourceTag/ManagedBy"   = "terraform"
+          "aws:ResourceTag/Persistence" = "ephemeral"
+          "aws:ResourceTag/Service"     = "app"
+        }
+        Null = {
+          "aws:ResourceTag/ExpiresAt"    = "false"
+          "aws:ResourceTag/FencingToken" = "false"
+          "aws:ResourceTag/RunId"        = "false"
+        }
+      }) &&
+      alltrue([
+        for action in ["autoscaling:StartInstanceRefresh", "autoscaling:CancelInstanceRefresh", "autoscaling:RollbackInstanceRefresh"] :
+        length(flatten([
+          for policy in values(local.lab_operator_managed_policies) : [
+            for statement in jsondecode(policy.document).Statement : statement
+            if contains(try(tolist(statement.Action), [statement.Action]), action)
+          ]
+        ])) == 1
+      ]) &&
+      contains([
+        for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : jsonencode(statement)
+        ], jsonencode({
+          for key, value in one([for statement in local.lab_app_compute_statements : statement
+          if statement.Sid == "ManageTaggedLabAppInstanceRefresh"]) : key => value if key != "Sid"
+      }))
+    )
+    error_message = "Instance refresh must allow only Start, Cancel and Rollback on owned ephemeral app ASGs, with one exact grant in the attached compute-ssm-dns policy."
+  }
+
+  assert {
+    condition = (
+      toset(one([
         for statement in jsondecode(local.lab_data_compute_policy).Statement : statement
         if statement.Sid == "CreateRdsManagedMasterSecret"
         ]).Action) == toset([
@@ -1648,24 +1704,24 @@ run "foundation_contract" {
     condition = (
       one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "CreateTaggedLabDocument"
+        if try(statement.Sid, "") == "CreateTaggedLabDocument"
       ]).Action == "ssm:CreateDocument" &&
       one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "CreateTaggedLabDocument"
+        if try(statement.Sid, "") == "CreateTaggedLabDocument"
       ]).Resource == "arn:aws:ssm:ap-northeast-2:942632789808:document/airbob-lab-*" &&
       one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "CreateTaggedLabAssociation"
+        if try(statement.Sid, "") == "CreateTaggedLabAssociation"
       ]).Action == "ssm:CreateAssociation" &&
       one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "CreateTaggedLabAssociation"
+        if try(statement.Sid, "") == "CreateTaggedLabAssociation"
       ]).Resource == "arn:aws:ssm:ap-northeast-2:942632789808:association/*" &&
       alltrue([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement :
         statement.Condition == local.lab_ephemeral_create_tag_condition
-        if contains(["CreateTaggedLabDocument", "CreateTaggedLabAssociation"], statement.Sid)
+        if contains(["CreateTaggedLabDocument", "CreateTaggedLabAssociation"], try(statement.Sid, ""))
       ]) &&
       one([
         for statement in jsondecode(local.lab_network_core_create_policy).Statement : statement
@@ -1700,11 +1756,11 @@ run "foundation_contract" {
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement :
         !contains(try(tolist(statement.Action), [statement.Action]), "ssm:AddTagsToResource") &&
         !contains(try(tolist(statement.Action), [statement.Action]), "ssm:RemoveTagsFromResource")
-        if contains(["ManageTaggedLabDocument", "ManageTaggedLabAssociation"], statement.Sid)
+        if contains(["ManageTaggedLabDocument", "ManageTaggedLabAssociation"], try(statement.Sid, ""))
       ]) &&
       toset(one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "ManageTaggedLabDocument"
+        if try(statement.Sid, "") == "ManageTaggedLabDocument"
         ]).Action) == toset([
         "ssm:DeleteDocument",
         "ssm:DescribeDocumentPermission",
@@ -1713,11 +1769,11 @@ run "foundation_contract" {
       ]) &&
       one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "ManageTaggedLabDocument"
+        if try(statement.Sid, "") == "ManageTaggedLabDocument"
       ]).Resource == "arn:aws:ssm:ap-northeast-2:942632789808:document/airbob-lab-*" &&
       toset(one([
         for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-        if statement.Sid == "UseLabAssociationTargets"
+        if try(statement.Sid, "") == "UseLabAssociationTargets"
         ]).Action) == toset([
         "ssm:CreateAssociation",
         "ssm:UpdateAssociation",
@@ -1730,7 +1786,7 @@ run "foundation_contract" {
           "SendCommandsToLabInstances",
           ] : one([
             for statement in jsondecode(local.lab_compute_ssm_dns_policy).Statement : statement
-            if statement.Sid == sid
+            if try(statement.Sid, "") == sid
         ]).Condition == local.lab_ephemeral_resource_tag_condition
       ])
     )
