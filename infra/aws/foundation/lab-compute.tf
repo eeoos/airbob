@@ -1043,10 +1043,15 @@ locals {
 
   lab_compute_ssm_dns_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       for statement in local.lab_compute_ssm_dns_statements : statement
       if statement.Sid != "TagNewLabSsmOnCreate"
-    ]
+      ], [
+      # Keep the new grant beside ASG reads without changing existing grants.
+      # Omit only its optional Sid to fit the managed-policy quota.
+      for statement in local.lab_app_compute_statements : { for key, value in statement : key => value if key != "Sid" }
+      if statement.Sid == "ManageTaggedLabAppInstanceRefresh"
+    ])
   })
 
   lab_safety_mutation_policy = jsonencode({
@@ -1811,6 +1816,25 @@ locals {
       Condition = local.lab_ephemeral_resource_tag_condition
     },
     {
+      Sid    = "ManageTaggedLabAppInstanceRefresh"
+      Effect = "Allow"
+      Action = [
+        "autoscaling:StartInstanceRefresh",
+        "autoscaling:CancelInstanceRefresh",
+        "autoscaling:RollbackInstanceRefresh",
+      ]
+      Resource = "arn:aws:autoscaling:${var.aws_region}:${var.account_id}:autoScalingGroup:*:autoScalingGroupName/airbob-lab-*-app"
+      Condition = merge(
+        local.lab_ephemeral_resource_tag_condition,
+        {
+          StringEquals = merge(
+            local.lab_ephemeral_resource_tag_condition.StringEquals,
+            { "aws:ResourceTag/Service" = "app" },
+          )
+        },
+      )
+    },
+    {
       Sid    = "ManageLabAutoScalingTargetGroups"
       Effect = "Allow"
       Action = [
@@ -1902,6 +1926,7 @@ locals {
         "CreateTaggedLabHttpsListener",
         "ManageNamedLabTargetGroups",
         "ModifyNamedLabHttpsListeners",
+        "ManageTaggedLabAppInstanceRefresh",
       ], statement.Sid)
     ]
   })
