@@ -103,7 +103,7 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
       object_data = jsondecode(file("objects.json"))
       growth_b_snapshot_selected = var.database_bootstrap == "snapshot"
       growth_b_snapshot_provenance = jsondecode(file("snapshot-source.json"))
-      snapshot_live = jsondecode(file("snapshot-live.json"))
+      snapshot_live = [for snapshot in jsondecode(file("snapshot-live.json")) : merge(snapshot, { tags = tomap(snapshot.tags) })]
       snapshot_instances = jsondecode(file("snapshot-instances.json"))
     '''
     config += 'rds = ' + json.dumps([{'resource_id': manifest['rds']['resourceId'],

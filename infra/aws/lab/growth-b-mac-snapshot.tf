@@ -41,7 +41,7 @@ locals {
     data.aws_db_snapshot.dataset[0].encrypted && data.aws_db_snapshot.dataset[0].allocated_storage == 100 &&
     data.aws_db_snapshot.dataset[0].storage_type == "gp3" && data.aws_db_snapshot.dataset[0].iops == 3000 &&
     data.aws_db_snapshot.dataset[0].kms_key_id == local.growth_b_snapshot_provenance.snapshot.kmsKeyArn &&
-    data.aws_db_snapshot.dataset[0].tags == local.growth_b_snapshot_provenance.snapshot.tags &&
+    jsonencode(data.aws_db_snapshot.dataset[0].tags) == jsonencode(local.growth_b_snapshot_provenance.snapshot.tags) &&
     local.growth_b_snapshot_provenance.snapshot.restorePermissions == [] &&
     local.growth_b_snapshot_provenance.snapshot.sourceResourceId == var.rds_snapshot_source_resource_id,
     false,
