@@ -219,6 +219,127 @@ class FrontDoor(unittest.TestCase):
         self.assertEqual(321,result['workflowRunId']);self.assertEqual(1,gh.call_count)
         self.assertEqual('actions/runs/321',gh.call_args.args[1]);self.assertIsNone(self.lab.base.read('active-destroy.json'))
 
+    def failed_destroy(self):
+        active={'operationId':'destroy-failed','profile':self.lab.profile,
+            'configurationSha256':cli.sha(cli.encoded(self.saved)),'deadlineEpoch':1}
+        self.lab.base.put('active-destroy.json',active);journal=cli.Journal(self.lab.base.path/active['operationId'])
+        journal.put('down.intent.json',{'inputs':{'run_id':'lab-old','expected_execution_commit':'a'*40}})
+        journal.put('down.dispatch.json',{'workflow_run_id':321})
+        row={'id':321,'head_sha':'a'*40,'head_branch':'main','event':'workflow_dispatch','run_attempt':1,
+            'path':'.github/workflows/'+cli.WORKFLOW,'status':'completed','conclusion':'failure','created_at':'fixture','updated_at':'fixture'}
+        journal.put('down.completed.json',row)
+        self.lab.power=types.SimpleNamespace(resources=lambda value:value['resources'])
+        return journal,row
+
+    def test_expired_failed_destroy_reconciles_manual_empty_state_without_replay(self):
+        journal,row=self.failed_destroy()
+        before={path.name:path.read_bytes() for path in journal.path.iterdir()}
+        empty={'resources':[],'lineage':'same-backend-lineage','serial':596}
+        with patch.object(self.io,'gh',return_value=row,create=True) as gh, \
+             patch.object(self.lab,'current_main',side_effect=AssertionError('no new dispatch')), \
+             patch.object(self.lab,'backend',return_value=(None,empty)), \
+             patch.object(self.lab,'retained_snapshot',return_value=None) as snapshot:
+            result=self.lab.destroy()
+        self.assertEqual('LAB_ABSENT',result['state']);self.assertEqual('failure',result['workflowConclusion'])
+        self.assertTrue(result['reconciledFailedWorkflow']);self.assertFalse(result['cleanupPerformedByThisCommand'])
+        self.assertEqual(321,result['workflowRunId']);snapshot.assert_called_once_with()
+        self.assertEqual(1,gh.call_count);self.assertEqual('actions/runs/321',gh.call_args.args[1])
+        self.assertIsNone(self.lab.base.read('active-destroy.json'))
+        self.assertEqual(before,{name:(journal.path/name).read_bytes() for name in before})
+        proof=journal.read('reconciliation.json')
+        self.assertEqual({'lineage':empty['lineage'],'serial':596,'canonicalSha256':cli.sha(cli.encoded(empty))},proof['emptyState'])
+        self.assertFalse(proof['cleanupPerformedByThisCommand'])
+        self.assertNotIn('teardownFinalized',proof)
+
+    def test_failed_destroy_with_remaining_resources_keeps_original_failure_and_pointer(self):
+        journal,row=self.failed_destroy()
+        with patch.object(self.io,'gh',return_value=row,create=True), \
+             patch.object(self.lab,'backend',return_value=(None,{'resources':['retained-rds']})), \
+             patch.object(self.lab,'retained_snapshot',side_effect=AssertionError('not empty')), \
+             self.assertRaisesRegex(cli.Rejected,'WORKFLOW_FAILED_RESOURCES_RETAINED'):
+            self.lab.destroy()
+        self.assertIsNotNone(self.lab.base.read('active-destroy.json'))
+        self.assertEqual('failure',journal.read('down.completed.json')['conclusion'])
+        self.assertIsNone(journal.read('reconciliation.json'));self.assertIsNone(journal.read('result.json'))
+
+    def test_expired_destroy_reads_known_terminal_start_before_reconciling(self):
+        journal,down=self.failed_destroy();started=self.active_start()
+        started.put('restore.intent.json',{'repository':self.saved['githubRepository'],'workflow':cli.WORKFLOW,
+            'inputs':{'expected_execution_commit':'a'*40}})
+        started.put('restore.dispatch.json',{'workflow_run_id':123})
+        completed=down|{'id':123,'conclusion':'cancelled'}
+        with patch.object(self.io,'gh',side_effect=[completed,down],create=True) as gh, \
+             patch.object(self.io,'command',side_effect=AssertionError('terminal run must not be cancelled'),create=True), \
+             patch.object(self.lab,'backend',return_value=(None,{'resources':[],'outputs':{},'lineage':'fixture','serial':596})), \
+             patch.object(self.lab,'retained_snapshot',return_value=None):
+            result=self.lab.destroy()
+        self.assertEqual('LAB_ABSENT',result['state'])
+        self.assertEqual(['actions/runs/123','actions/runs/321'],[call.args[1] for call in gh.call_args_list])
+        self.assertEqual('cancelled',journal.read('settled-start-restore.json')['conclusion'])
+        self.assertIsNone(self.lab.base.read('active-start.json'))
+
+    def test_expired_destroy_cannot_cancel_or_skip_nonterminal_start(self):
+        journal,_=self.failed_destroy();started=self.active_start()
+        started.put('restore.intent.json',{'repository':self.saved['githubRepository'],'workflow':cli.WORKFLOW,
+            'inputs':{'expected_execution_commit':'a'*40}})
+        started.put('restore.dispatch.json',{'workflow_run_id':123})
+        pending={'id':123,'head_sha':'a'*40,'head_branch':'main','event':'workflow_dispatch','run_attempt':1,
+            'path':'.github/workflows/'+cli.WORKFLOW,'status':'in_progress','conclusion':None}
+        with patch.object(self.io,'gh',return_value=pending,create=True) as gh, \
+             patch.object(self.io,'command',side_effect=AssertionError('expired cancellation'),create=True), \
+             patch.object(self.lab,'backend',side_effect=AssertionError('start not terminal')), \
+             self.assertRaisesRegex(cli.Rejected,'OWN_START_TERMINAL_NOT_CONFIRMED'):
+            self.lab.destroy()
+        self.assertEqual(1,gh.call_count);self.assertIsNotNone(self.lab.base.read('active-start.json'))
+        self.assertIsNotNone(self.lab.base.read('active-destroy.json'));self.assertIsNone(journal.read('reconciliation.json'))
+
+    def test_failed_destroy_reconciliation_accepts_matching_retained_identity_output(self):
+        _,row=self.failed_destroy()
+        empty={'resources':[],'lineage':'fixture','serial':596,
+            'outputs':{'run_identity':{'value':{'run_id':'lab-old','resource_fencing_token':76}}}}
+        with patch.object(self.io,'gh',return_value=row,create=True), \
+             patch.object(self.lab,'backend',return_value=(None,empty)), \
+             patch.object(self.lab,'retained_snapshot',return_value=None):
+            self.assertEqual('LAB_ABSENT',self.lab.destroy()['state'])
+
+    def test_failed_destroy_reconciliation_rejects_different_or_invalid_present_identity(self):
+        journal,row=self.failed_destroy()
+        for identity in ({'run_id':'lab-other','resource_fencing_token':77},None):
+            empty={'resources':[],'outputs':{'run_identity':{'value':identity}}}
+            with self.subTest(identity=identity),patch.object(self.io,'gh',return_value=row,create=True), \
+                 patch.object(self.lab,'backend',return_value=(None,empty)), \
+                 patch.object(self.lab,'retained_snapshot',side_effect=AssertionError('identity changed')), \
+                 self.assertRaisesRegex(cli.Rejected,'EMPTY_STATE_RUN_IDENTITY_CHANGED'):
+                self.lab.destroy()
+            self.assertIsNotNone(self.lab.base.read('active-destroy.json'));self.assertIsNone(journal.read('reconciliation.json'))
+
+    def test_failed_destroy_does_not_retire_pointer_when_snapshot_verification_fails(self):
+        journal,row=self.failed_destroy()
+        with patch.object(self.io,'gh',return_value=row,create=True), \
+             patch.object(self.lab,'backend',return_value=(None,{'resources':[]})), \
+             patch.object(self.lab,'retained_snapshot',side_effect=cli.Rejected('SNAPSHOT_CHANGED')), \
+             self.assertRaisesRegex(cli.Rejected,'SNAPSHOT_CHANGED'):
+            self.lab.destroy()
+        self.assertIsNotNone(self.lab.base.read('active-destroy.json'));self.assertIsNone(journal.read('reconciliation.json'))
+
+    def test_expired_down_still_running_cannot_claim_empty_or_dispatch_again(self):
+        journal,row=self.failed_destroy();row=row|{'status':'in_progress','conclusion':None}
+        with patch.object(self.io,'gh',return_value=row,create=True) as gh, \
+             patch.object(self.lab,'backend',side_effect=AssertionError('run not terminal')), \
+             self.assertRaisesRegex(cli.Rejected,'WORKFLOW_WAIT_DEADLINE'):
+            self.lab.destroy()
+        self.assertEqual(1,gh.call_count);self.assertIsNotNone(self.lab.base.read('active-destroy.json'))
+        self.assertIsNone(journal.read('reconciliation.json'))
+
+    def test_unknown_down_dispatch_cannot_reconcile_even_if_state_would_be_empty(self):
+        journal,_=self.failed_destroy();(journal.path/'down.dispatch.json').unlink()
+        with patch.object(self.lab,'current_main',return_value='a'*40), \
+             patch.object(self.io,'gh',side_effect=AssertionError('must not redispatch'),create=True), \
+             patch.object(self.lab,'backend',side_effect=AssertionError('unknown workflow')), \
+             self.assertRaisesRegex(cli.Rejected,'WORKFLOW_DISPATCH_UNCONFIRMED_NO_RETRY'):
+            self.lab.destroy()
+        self.assertIsNotNone(self.lab.base.read('active-destroy.json'));self.assertIsNone(journal.read('reconciliation.json'))
+
     def test_ambiguous_put_reads_once_and_never_replays_missing_object(self):
         for phase in ('before','after'):
             with self.subTest(phase=phase):
