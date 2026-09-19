@@ -3,6 +3,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -10,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from test_growth_b_mac_snapshot import future_fixture, synthetic_counts
+from test_global_b_infrastructure import attribute, block
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import growth_b_mac_snapshot_controller as c
@@ -139,6 +141,40 @@ class MacSnapshotController(unittest.TestCase):
         after['snapshot_identifier'] = value['source']['snapshot']['identifier']
         plan['resource_changes'].append({'type': 'aws_instance', 'change': {'before': None, 'after': {'tags': {'Service': 'debezium'}}}})
         with self.assertRaises(ValueError): c.validate_plan(plan, value['source'])
+
+    def test_plan_accepts_nat_and_probe_tags_from_actual_terraform_modules(self):
+        lab = Path(__file__).resolve().parents[1] / 'lab'
+        probe = block((lab / 'network.tf').read_text(), 'module', 'egress_probe')
+        self.assertEqual('"./modules/service-ec2"', attribute(probe, 'source'))
+        host_names = re.findall(r'^    ([a-z][a-z0-9-]*) = \{$', attribute(probe, 'hosts'), re.MULTILINE)
+        self.assertEqual(['egress-probe'], host_names)
+        hosts = block((lab / 'modules/service-ec2/main.tf').read_text(), 'resource', 'aws_instance', 'this')
+        self.assertEqual('var.hosts', attribute(hosts, 'for_each'))
+        self.assertEqual('each.key', attribute(attribute(hosts, 'tags'), 'Service', 6))
+        nat = block((lab / 'modules/nat-instance/main.tf').read_text(), 'resource', 'aws_instance', 'this')
+        nat_service = json.loads(attribute(attribute(nat, 'tags'), 'Service', 4))
+        for action in ('create', 'no-op'):
+            rows = []
+            for service in [nat_service, *host_names]:
+                after = {'tags': {'Service': service}}
+                rows.append({'type': 'aws_instance', 'change': {'actions': [action],
+                    'before': None if action == 'create' else copy.deepcopy(after), 'after': after}})
+            with self.subTest(action=action):
+                self.assertEqual('MAC_SNAPSHOT_PLAN_VERIFIED', c.validate_plan({'resource_changes': rows}, fixture()['source'])['state'])
+
+    def test_plan_rejects_service_import_and_noncanonical_probe_tags_even_on_no_op(self):
+        for service in ('debezium', 'app', 'mysql', 'import', 'application', 'probe', 'unknown', None):
+            for action in ('create', 'no-op'):
+                after = {'tags': {} if service is None else {'Service': service}}
+                plan = {'resource_changes': [{'type': 'aws_instance', 'change': {'actions': [action],
+                    'before': None if action == 'create' else copy.deepcopy(after), 'after': after}}]}
+                with self.subTest(service=service, action=action), self.assertRaisesRegex(ValueError, 'MAC_RESTORE_HAS_NO_SERVICE_OR_IMPORT_HOST'):
+                    c.validate_plan(plan, fixture()['source'])
+
+    def test_plan_allows_probe_removal_after_egress_verification(self):
+        plan = {'resource_changes': [{'type': 'aws_instance', 'change': {'actions': ['delete'],
+            'before': {'tags': {'Service': 'egress-probe'}}, 'after': None}}]}
+        self.assertEqual('MAC_SNAPSHOT_PLAN_VERIFIED', c.validate_plan(plan, fixture()['source'])['state'])
 
     def test_service_rechecks_all_four_immutable_inputs_and_new_operator(self):
         value = fixture(); restored = c.mac.validate_restore(**value)

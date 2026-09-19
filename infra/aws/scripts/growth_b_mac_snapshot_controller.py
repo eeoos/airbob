@@ -201,7 +201,7 @@ def validate_plan(plan, source):
     for row in plan.get('resource_changes', []):
         after, before = row['change'].get('after'), row['change'].get('before')
         if row.get('type') == 'aws_instance' and after is not None:
-            need(after.get('tags', {}).get('Service') in ('nat', 'probe'), 'MAC_RESTORE_HAS_NO_SERVICE_OR_IMPORT_HOST')
+            need(after.get('tags', {}).get('Service') in ('nat', 'egress-probe'), 'MAC_RESTORE_HAS_NO_SERVICE_OR_IMPORT_HOST')
         if row.get('type') != 'aws_db_instance':
             continue
         need('delete' not in row['change']['actions'] and isinstance(after, dict)
