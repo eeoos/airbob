@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.actuate.health.Status;
@@ -56,11 +58,12 @@ class AccommodationInventoryStartupBootstrapTest {
 		assertThat(readiness.health().getStatus()).isEqualTo(Status.DOWN);
 	}
 
-	@Test
-	@DisplayName("test와 performance-lab만 disabled bootstrap을 명시적으로 우회한다")
-	void disabledBootstrapIsReadyOnlyForExplicitBypassProfiles() {
+	@ParameterizedTest
+	@ValueSource(strings = {"test", "performance-lab", "cache-benchmark"})
+	@DisplayName("격리된 읽기 전용 프로필만 disabled bootstrap을 명시적으로 우회한다")
+	void disabledBootstrapIsReadyOnlyForExplicitBypassProfiles(String profile) {
 		MockEnvironment environment = new MockEnvironment();
-		environment.setActiveProfiles("performance-lab");
+		environment.setActiveProfiles(profile);
 		AccommodationInventoryReadiness readiness =
 			new AccommodationInventoryReadiness(false, environment);
 

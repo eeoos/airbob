@@ -9,7 +9,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@Profile("read-model-benchmark")
+@Profile({"read-model-benchmark", "cache-benchmark"})
 @RequiredArgsConstructor
 public class AccommodationDetailBenchmarkService {
 

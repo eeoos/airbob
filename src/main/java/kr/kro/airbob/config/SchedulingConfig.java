@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!bulk-write-benchmark & !traffic-benchmark & !test")
+@Profile("!bulk-write-benchmark & !traffic-benchmark & !cache-benchmark & !test")
 @EnableScheduling
 public class SchedulingConfig {
 	public static final String DEFAULT_TASK_SCHEDULER = "taskScheduler";

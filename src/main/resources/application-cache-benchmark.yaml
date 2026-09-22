@@ -1,0 +1,96 @@
+# Append to dev or aws; use an already migrated database and a dedicated cache Redis.
+# This profile deliberately does not include performance-lab, whose dataset is pinned to V27.
+benchmark:
+  read-model:
+    enabled: true
+    token: ${BENCHMARK_READ_MODEL_TOKEN}
+
+spring:
+  datasource:
+    hikari:
+      read-only: true
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        show_sql: false
+        format_sql: false
+        generate_statistics: false
+  flyway:
+    # CacheBenchmarkFlywayConfiguration validates checksums and applied migrations only.
+    baseline-on-migrate: false
+    clean-disabled: true
+  kafka:
+    listener:
+      auto-startup: false
+    admin:
+      auto-create: false
+
+accommodation:
+  detail-cache:
+    enabled: ${ACCOMMODATION_DETAIL_CACHE_ENABLED:true}
+    invalidation:
+      kafka:
+        auto-startup: false
+  indexing:
+    bootstrap:
+      enabled: false
+    kafka:
+      auto-startup: false
+
+reservation:
+  inventory:
+    startup:
+      enabled: false
+    seed:
+      enabled: false
+    retention:
+      enabled: false
+
+payment:
+  toss:
+    enabled: false
+    secret-key: cache-benchmark-disabled
+    base-url: http://127.0.0.1
+
+google:
+  api:
+    enabled: false
+    key: cache-benchmark-disabled
+
+operator-alert:
+  kafka:
+    auto-startup: false
+  slack:
+    enabled: false
+
+cloud:
+  aws:
+    s3:
+      write-enabled: false
+      bucket: cache-benchmark-disabled
+  cloudfront:
+    domain: https://invalid.cache-benchmark
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    elasticsearch:
+      enabled: false
+
+logging:
+  level:
+    kr.kro.airbob: INFO
+    kr.kro.airbob.domain.auth.filter.SessionAuthFilter: WARN
+    org.hibernate.SQL: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"

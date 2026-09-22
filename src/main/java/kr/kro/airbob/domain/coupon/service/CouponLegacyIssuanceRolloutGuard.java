@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
  * Lua-only 운영 배포가 기존 Redisson 발급 쿠폰의 남은 재고를 고립시키지 않도록 시작을 차단한다.
  */
 @Component
-@Profile("(aws | oci) & !coupon-benchmark & !nplus1-benchmark & !read-model-benchmark")
+@Profile("(aws | oci) & !coupon-benchmark & !nplus1-benchmark & !read-model-benchmark & !cache-benchmark")
 @RequiredArgsConstructor
 public class CouponLegacyIssuanceRolloutGuard implements ApplicationRunner {
 

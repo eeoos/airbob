@@ -39,6 +39,20 @@ class SessionAuthFilterPublicPathTest {
 	}
 
 	@Test
+	@DisplayName("캐시 벤치마크가 아닌 일반 V1 상세 GET은 세션과 토큰 없이 공개된다")
+	void anonymousAccommodationDetailGetPassesFilterChain() throws Exception {
+		SessionAuthFilter filter = createFilter();
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/accommodations/42");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		filter.doFilter(request, response, chain);
+
+		assertThat(chain.getRequest()).isSameAs(request);
+		assertThat(response.getStatus()).isEqualTo(200);
+	}
+
+	@Test
 	@DisplayName("숙소 예약 가능 정보 GET은 익명 요청을 필터 체인에 전달한다")
 	void anonymousAccommodationAvailabilityGetPassesFilterChain() throws Exception {
 		SessionAuthFilter filter = createFilter();

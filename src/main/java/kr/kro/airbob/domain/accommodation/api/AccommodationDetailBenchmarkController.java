@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@Profile("read-model-benchmark")
+@Profile({"read-model-benchmark", "cache-benchmark"})
 @ConditionalOnProperty(prefix = "benchmark.read-model", name = "enabled", havingValue = "true")
 @RequestMapping("/api/v2/accommodations")
 public class AccommodationDetailBenchmarkController {

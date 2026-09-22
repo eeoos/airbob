@@ -9,7 +9,7 @@ import kr.kro.airbob.domain.accommodation.cache.messaging.event.AccommodationDet
 import kr.kro.airbob.messaging.infrastructure.kafka.IntegrationEventKafkaListenerContainerFactoryBuilder;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!traffic-benchmark")
+@Profile("!traffic-benchmark & !cache-benchmark")
 public class AccommodationDetailCacheKafkaConsumerConfiguration {
 
 	public static final String CONTAINER_FACTORY =
