@@ -51,7 +51,7 @@ public class CacheBenchmarkIsolationFilter extends OncePerRequestFilter {
 			filterChain.doFilter(request, response);
 			return;
 		}
-		if (!DETAIL_PATH.matcher(path).matches()) {
+		if (!DETAIL_PATH.matcher(path).matches() && !CacheBenchmarkRuntimeController.PATH.equals(path)) {
 			response.sendError(HttpServletResponse.SC_NOT_FOUND);
 			return;
 		}

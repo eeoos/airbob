@@ -3,6 +3,8 @@ package kr.kro.airbob.domain.accommodation.cache.config;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.util.Assert;
 
 /**
@@ -17,6 +19,7 @@ import org.springframework.util.Assert;
  * @param loadPermitTtl 캐시 쓰기 허가 토큰의 최대 유지 시간
  * @param redisConnectTimeout 캐시 Redis 연결 제한 시간
  * @param redisCommandTimeout 캐시 Redis 명령 제한 시간
+ * @param localLoadCoalescingEnabled JVM 요청 병합 여부. 비활성화는 cache-benchmark 대조군에만 허용
  */
 @ConfigurationProperties(prefix = "accommodation.detail-cache")
 public record AccommodationDetailCacheProperties(
@@ -29,8 +32,20 @@ public record AccommodationDetailCacheProperties(
 	Duration localLoadWait,
 	Duration loadPermitTtl,
 	Duration redisConnectTimeout,
-	Duration redisCommandTimeout
+	Duration redisCommandTimeout,
+	@DefaultValue("true") boolean localLoadCoalescingEnabled
 ) {
+	// 기존 호출자는 운영 기본값인 요청 병합을 사용한다.
+	public AccommodationDetailCacheProperties(
+		boolean enabled, Duration ttl, Duration ttlJitter, Duration negativeTtl, Duration negativeTtlJitter,
+		Duration lockWait, Duration localLoadWait, Duration loadPermitTtl,
+		Duration redisConnectTimeout, Duration redisCommandTimeout
+	) {
+		this(enabled, ttl, ttlJitter, negativeTtl, negativeTtlJitter, lockWait, localLoadWait,
+			loadPermitTtl, redisConnectTimeout, redisCommandTimeout, true);
+	}
+
+	@ConstructorBinding
 	public AccommodationDetailCacheProperties {
 		Assert.notNull(ttl, "accommodation.detail-cache.ttl must not be null");
 		Assert.notNull(ttlJitter, "accommodation.detail-cache.ttl-jitter must not be null");

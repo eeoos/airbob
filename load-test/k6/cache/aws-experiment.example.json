@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "runId": "lab-cache-example",
+  "experimentId": "cache-example",
+  "datasetId": "replace-with-sealed-v28-dataset-id",
+  "datasetSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "appImage": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "appCommit": "cccccccccccccccccccccccccccccccccccccccc",
+  "apps": ["i-11111111111111111", "i-22222222222222222"],
+  "redisInstanceId": "i-33333333333333333",
+  "loadGeneratorInstanceId": "i-44444444444444444",
+  "asgName": "airbob-lab-cache-example-app",
+  "alb": {
+    "arn": "arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:loadbalancer/app/airbob-lab-cache-example/aaaaaaaaaaaaaaaa",
+    "targetGroupArn": "arn:aws:elasticloadbalancing:ap-northeast-2:942632789808:targetgroup/airbob-lab-cache-example/bbbbbbbbbbbbbbbb",
+    "dnsName": "airbob-lab-cache-example-123.ap-northeast-2.elb.amazonaws.com",
+    "origin": "https://api.airbob.cloud"
+  },
+  "tokenParameter": "/airbob/performance-lab/cache-benchmark/lab-cache-example/token",
+  "accommodationIds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+  "scenarios": ["latency", "miss", "outage"],
+  "rounds": 2,
+  "durationSeconds": 30,
+  "warmupSeconds": 30,
+  "rate": 40,
+  "outageRate": 40,
+  "burst": 60,
+  "p95LimitMs": 100,
+  "errorRateLimit": 0,
+  "clientVUs": 2000,
+  "deadlineSeconds": 5400,
+  "capacity": {
+    "startRps": 100,
+    "ceilingRps": 20000,
+    "resolutionRps": 50,
+    "probeSeconds": 60,
+    "confirmSeconds": 300,
+    "repeats": 3
+  }
+}

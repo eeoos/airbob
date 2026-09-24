@@ -135,10 +135,10 @@ resource "aws_autoscaling_group" "app" {
     precondition {
       condition = (
         (!var.app_enabled && var.min_size == 0 && var.desired_capacity == 0 && var.max_size == 0) ||
-        (var.app_enabled && var.mode == "performance" && var.min_size == 1 && var.desired_capacity == 1 && var.max_size == 1) ||
+        (var.app_enabled && var.mode == "performance" && var.min_size == var.performance_instance_count && var.desired_capacity == var.performance_instance_count && var.max_size == var.performance_instance_count) ||
         (var.app_enabled && var.mode == "scaling" && var.min_size == 1 && var.desired_capacity == 1 && var.max_size == 4)
       )
-      error_message = "ASG capacity must be 0/0/0 while disabled, 1/1/1 for performance, or 1/1/4 for scaling."
+      error_message = "ASG capacity must be 0/0/0 while disabled, fixed at performance_instance_count for performance, or 1/1/4 for scaling."
     }
   }
 

@@ -91,10 +91,12 @@ public class AccommodationDetailCache {
 		}
 
 		// Redis miss라면 이미 진행 중인 fallback DB 조회에 합류해 추가 락과 조회를 피함
-		Optional<AccommodationDetailSnapshot> coalescedSnapshot = localLoadCoordinator.joinIfRunning(
-			accommodationId, () -> timedLoad(loader));
-		if (coalescedSnapshot.isPresent()) {
-			return coalescedSnapshot.get();
+		if (properties.localLoadCoalescingEnabled()) {
+			Optional<AccommodationDetailSnapshot> coalescedSnapshot = localLoadCoordinator.joinIfRunning(
+				accommodationId, () -> timedLoad(loader));
+			if (coalescedSnapshot.isPresent()) {
+				return coalescedSnapshot.get();
+			}
 		}
 
 		// Cache miss일 때 여러 서버 중 한 요청만 DB를 읽도록 숙소별 분산 락 사용
@@ -241,6 +243,10 @@ public class AccommodationDetailCache {
 		Long accommodationId,
 		Supplier<AccommodationDetailSnapshot> loader
 	) {
+		// 장애 조건을 유지한 채 병합 효과만 비교하는 benchmark 대조군.
+		if (!properties.localLoadCoalescingEnabled()) {
+			return localLoadCoordinator.loadDirect(() -> timedLoad(loader));
+		}
 		// 분산 락을 얻지 못한 경로에서는 stale write를 피하기 위해 캐시에 저장하지 않음
 		// 대신 같은 JVM에서 진행 중인 우회 DB 조회만 Future로 공유
 		return localLoadCoordinator.loadOrJoin(

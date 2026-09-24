@@ -810,6 +810,37 @@ class AccommodationDetailCacheTest {
 			AccommodationDetailCacheMetricRecorder.OperationResult.ERROR);
 	}
 
+	@Test
+	@DisplayName("benchmark 대조군은 Redis 장애를 유지하면서 동시 요청을 병합하지 않는다")
+	void benchmarkControlLoadsIndependentlyUnderTheSameRedisFailure() throws Exception {
+		var control = new AccommodationDetailCache(redisClient, redissonClient, objectMapper, metricRecorder, jitter,
+			new AccommodationDetailCacheProperties(true,
+				Duration.ofMinutes(10), Duration.ZERO, Duration.ofSeconds(45), Duration.ZERO,
+				Duration.ofSeconds(2), Duration.ofSeconds(5), Duration.ofSeconds(30),
+				Duration.ofSeconds(1), Duration.ofSeconds(1), false));
+		when(redisClient.get(CACHE_KEY)).thenThrow(new IllegalStateException("redis down"));
+		CountDownLatch bothLoaders = new CountDownLatch(2);
+		CountDownLatch releaseLoaders = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+		Supplier<AccommodationDetailSnapshot> loader = () -> {
+			loads.incrementAndGet();
+			bothLoaders.countDown();
+			await(releaseLoaders);
+			return snapshot(1L, "database");
+		};
+		var first = CompletableFuture.supplyAsync(() -> control.getOrLoad(1L, loader));
+		var second = CompletableFuture.supplyAsync(() -> control.getOrLoad(1L, loader));
+		try {
+			assertThat(bothLoaders.await(5, TimeUnit.SECONDS)).isTrue();
+		} finally {
+			releaseLoaders.countDown();
+		}
+		assertThat(first.get(5, TimeUnit.SECONDS)).isEqualTo(second.get(5, TimeUnit.SECONDS));
+		assertThat(loads).hasValue(2);
+		verify(redisClient, times(2)).get(CACHE_KEY);
+		verifyNoInteractions(redissonClient);
+	}
+
 	private String json(AccommodationDetailCacheValue value) throws Exception {
 		return objectMapper.writeValueAsString(value);
 	}

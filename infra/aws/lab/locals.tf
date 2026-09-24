@@ -142,11 +142,12 @@ locals {
   dependency_services_enabled        = local.legacy_services_enabled || (local.services_enabled && var.global_b_services)
   data_bootstrap_enabled             = local.services_enabled && !var.global_b_import_from_mac && !var.global_b_snapshot_restore_only && (!var.global_b_services || var.global_b_service_bootstrap_enabled)
 
-  bounded_name_prefix = "airbob-${substr(var.run_id, 0, 12)}-${substr(sha1(var.run_id), 0, 6)}"
+  bounded_name_prefix   = "airbob-${substr(var.run_id, 0, 12)}-${substr(sha1(var.run_id), 0, 6)}"
+  performance_app_count = var.cache_benchmark_enabled ? var.cache_benchmark_app_count : 1
   app_capacity = !var.app_enabled ? {
     min = 0, desired = 0, max = 0
     } : var.mode == "performance" ? {
-    min = 1, desired = 1, max = 1
+    min = local.performance_app_count, desired = local.performance_app_count, max = local.performance_app_count
     } : {
     min = 1, desired = 1, max = 4
   }

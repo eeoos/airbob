@@ -1,5 +1,118 @@
 # 숙소 상세 Redis 캐시 전후 비교
 
+AWS 실험의 오프라인 준비는 `make aws-cache-prepare`로 실행한다. AWS를 켜거나 호출하지 않는다.
+실제 리소스 준비, 최대 지속 RPS 탐색, 장애 복구 절차는
+[AWS 캐시 실험 가이드](../../../docs/performance/aws-cache-experiments.md)를 참고한다.
+로컬과 AWS는 `accommodation-detail-experiment.js`를 공유하며 환경 제어 실행기는 각각 분리한다.
+
+## 로컬 성능·경합·장애 실험
+
+기존 V2/V1 비교 외에 다음 실행기로 네 가지 성과의 로컬 측정 기반을 확인할 수 있다.
+
+```bash
+python3 load-test/k6/cache/run-local-experiments.py
+```
+
+이 실행기는 **같은 V1 API와 같은 JAR**에서 캐시 ON/OFF 또는 로컬 요청 병합 ON/OFF만
+전환한다. 아래의 기존 V2/V1 실행기와 결과를 섞지 않는다. 기존 V28 MySQL은 읽기만 하고,
+실험 소유의 Redis와 loopback 앱 프로세스를 생성한다. 원래 앱·일반 Redis·캐시 Redis에는
+종료·정지·초기화 명령을 보내지 않는다.
+
+| 실험 | 비교 조건 | 기록 |
+|---|---|---|
+| latency | 같은 고정 요청량, 캐시 OFF/ON | p95/p99, 오류율, 실제 SELECT·DB 로딩 수 |
+| capacity | 같은 앱 수와 JVM 설정, 단계별 요청량 | SLO 통과 최고 단계, 최초 미통과 단계, 실제 성공 RPS, 누락 |
+| miss | JVM·DB 예열 후 실험 Redis만 비우고 같은 숙소에 버스트 | 실제 DB 로딩·SELECT·캐시 적중·병합, 앱별 집계, 클라이언트 출발 편차 |
+| outage | 캐시 Redis를 pause한 상태에서 병합 OFF/ON | 지속 부하와 버스트 각각의 DB 로딩·병합률·p95·오류율, 복구 후 응답 동일성 |
+
+기본값은 앱 1대, 숙소 20개, 회차별 예열 5초·측정 15초, AB/BA 두 회차다.
+latency는 40 RPS, capacity는 40/100/200/400/800 RPS, outage는 40 RPS와 60 VU 버스트를
+각각 실행한다. 실험용 참고 SLO는 p95 100ms 이하, 오류율 0, 요청 누락 0,
+목표 RPS의 99% 이상 완료이며 서비스의 실제 운영 SLO라는 뜻은 아니다.
+앱마다 384MB heap, JVM ActiveProcessorCount=2, Tomcat 64 threads, Hikari 10 connections를
+동일하게 사용한다. ActiveProcessorCount는 JVM 병렬성 설정이며 CPU 사용량을 강제로 제한하지 않는다.
+
+```bash
+# 전체 흐름의 짧은 동작 점검
+python3 load-test/k6/cache/run-local-experiments.py \
+  --rounds 1 --duration 5 --warmup 2 --rates 40 100 --burst 30
+
+# 실제 Redis를 공유하는 앱 두 대에서 경합과 장애 경로 확인
+python3 load-test/k6/cache/run-local-experiments.py \
+  --apps 2 --scenarios miss outage --duration 15 --rounds 2
+
+# 판정 기준과 측정 구간을 명시한 처리량 탐색
+python3 load-test/k6/cache/run-local-experiments.py \
+  --scenarios latency capacity --p95-ms 100 --duration 30 --rates 40 100 200 400 800 1000
+```
+
+앱 수는 1~2대, 최대 부하 단계는 1000 RPS로 제한한다. 두 앱에는 k6가 요청을 균등 분배하며
+실제 ALB를 거치는 시험은 아니다. 부하 상한까지 통과하면 결과는 최고 확인 RPS의
+**하한(lower-bound-only)**이다. 이를 최대 처리량 또는 증가율로 바꾸어 쓰지 않는다.
+부하 발생기의 요청 누락이 있으면 서버 처리량 상한을 확정하지 않는다.
+DB 로딩은 애플리케이션의 loader 실행 지표이며 정상 상세 한 번은 SELECT 세 번으로 검증한다.
+동시 버스트는 클라이언트의 출발 시각을 맞추며, 모든 요청이 동시에 서버에 도착하거나
+모두 cache miss를 관측했다는 뜻은 아니다.
+
+병합 대조군은 cache-benchmark 프로필에서만
+`CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED=false`를 허용한다. 일반 실행은 기본적으로 병합을
+유지하며 이 설정으로 비활성화하면 시작을 거부한다. Redis 연결·명령 timeout은 두 대조군에서
+같은 설정을 유지한다. 원본 DB에 인위적인 지연을 넣지 않으므로 실제 병합 효과가 작게 나올 수도 있다.
+요청 병합 대기 제한과 그 이후 개별 조회 정책도 그대로 유지한다.
+
+결과는 `build/k6/cache-experiments/<실행 ID>/report.md`, `comparison.json`, 개별 k6 JSON,
+앱별 Prometheus 전후 snapshot과 로그에 저장한다. 중간 실패도 `incomplete` 상태와 이미 얻은
+결과를 남기고 실험 리소스를 정리한다. 앱·DB·부하 발생기가 같은 컴퓨터를 사용하므로
+로컬 수치를 AWS 최대 처리량으로 주장할 수 없다.
+
+Lua permit의 정합성은 부하 통계와 별개로 실제 Redis 경합 테스트를 사용한다.
+
+```bash
+./gradlew test --tests '*AccommodationDetailCacheInvalidationRaceIntegrationTest'
+python3 -m unittest discover -s load-test/k6/test -p 'test_cache_local*.py'
+```
+
+## 기존 로컬 Grafana에서 실험 보기
+
+실험은 캐시 초기화·Redis pause와 기존 앱의 작업이 섞이지 않도록 임시 Redis와 별도 JVM을 사용한다.
+기존 MySQL은 읽기 전용으로 재사용한다. 격리된 대상도 같은 Prometheus/Grafana에서 볼 수 있다.
+
+최초 한 번, 추가된 target 디렉터리 마운트와 수집 설정을 로컬 모니터링에 반영한다.
+이미 실행 중인 인프라는 그대로 두고 Prometheus 설정만 갱신하는 명령이다.
+
+```bash
+docker compose --profile monitoring up -d --no-deps prometheus
+```
+
+Grafana와 기존 Redis Exporter가 실행 중인 상태에서 다음 명령을 사용한다.
+
+```bash
+python3 load-test/k6/cache/run-local-experiments.py \
+  --grafana --apps 2 --scenarios latency miss outage \
+  --duration 30 --warmup 5 --rounds 1 --burst 60
+```
+
+[Grafana 실험 대시보드](http://127.0.0.1:3001/d/airbob-cache-experiments)를 열고 **실행 ID**와
+**조건**을 선택한다. 실행 중 출력되는 링크에는 현재 실행 ID가 포함된다.
+
+- 실시간 그래프: 요청량, DB 로딩, 캐시 처리 경로, 락 대기, Redis 조회 실패와 자원 사용량.
+- 완료된 측정 결과: 단계가 끝나면 k6 p95·오류율, DB 로딩·병합률 등 보고서와 동일한 수치를 표시.
+- 앱은 1초, Redis는 3초 간격으로 수집한다. 짧은 버스트의 순간 피크는 그래프에서 평활화될 수 있다.
+  실시간 그래프에는 예열도 포함되므로 전후 비교의 정확한 값은 완료된 결과와 report.md를 사용한다.
+- 실험 종료 후에도 Prometheus 보존 기간 동안 과거 데이터를 볼 수 있다. 시간 범위를 실행 시각에 맞춘다.
+- 기존 숙소 캐시 대시보드에서는 Environment를 cache-experiment로, 기존 Redis 대시보드에서는
+  namespace를 cache-experiment로 선택해도 된다.
+
+관측 모드는 실험 대상과 전용 Redis Exporter를 자동 등록하고 종료 시 자기 대상·Exporter만 정리한다.
+짧은 버스트도 수집되도록 각 측정이 끝난 후 측정 구간 밖에서 3초 기다린다. 원래 앱과 Redis는 변경하지 않는다.
+--grafana를 생략하면 기존 측정 방식이다. 관측 모드는 로컬 수집 부하가 추가되므로 report.md와
+run.json의 liveMonitoring 여부를 함께 기록하며, 관측 ON/OFF 결과를 같은 조건으로 비교하지 않는다.
+
+강제 종료로 target 파일이 남았다면 monitoring/prometheus/targets/에서 해당 실행 ID의 JSON만 제거한다.
+다른 실행의 파일이나 기존 모니터링 대상은 제거하지 않는다.
+
+## 기존 V2/V1 비교
+
 이 실험은 같은 앱에서 다음 두 메서드를 비교한다. 서버 캐시는 계속 켜 둔다.
 
 | 변형 | API | 실행 경로 |
@@ -7,7 +120,8 @@
 | before | `GET /api/v2/accommodations/{id}` | `AccommodationDetailBenchmarkController.findAccommodationBefore`, DB 직접 조회 |
 | after | `GET /api/v1/accommodations/{id}` | `AccommodationController.getAccommodation`, Redis 캐시 조회 |
 
-기존 `traffic/dataset-read.js`는 **V1 API 하나의 서버 캐시 설정 OFF/ON** 실험으로 유지한다. 이 디렉터리는 V2/V1 비교 전용이며, 두 실험의 결과를 섞지 않는다.
+기존 `traffic/dataset-read.js`는 **V1 API 하나의 서버 캐시 설정 OFF/ON** 실험으로 유지한다.
+아래 `run-local-comparison.py`는 V2/V1 비교용이며, 위 `run-local-experiments.py`와 결과를 섞지 않는다.
 
 ## 로컬 실행
 

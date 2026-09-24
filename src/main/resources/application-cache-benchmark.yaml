@@ -31,6 +31,7 @@ spring:
 accommodation:
   detail-cache:
     enabled: ${ACCOMMODATION_DETAIL_CACHE_ENABLED:true}
+    local-load-coalescing-enabled: ${CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED:true}
     invalidation:
       kafka:
         auto-startup: false

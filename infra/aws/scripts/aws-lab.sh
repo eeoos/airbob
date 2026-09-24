@@ -276,6 +276,14 @@ action=$1
 global_b_prepare_only=false
 global_b_import_from_mac=${B_IMPORT_FROM_MAC:-false}
 global_b_services=false
+cache_benchmark_enabled=${B_CACHE_BENCHMARK_ENABLED:-false}
+cache_benchmark_app_count=${B_CACHE_BENCHMARK_APPS:-1}
+[[ "$cache_benchmark_enabled" == true || "$cache_benchmark_enabled" == false ]] || fail "B_CACHE_BENCHMARK_ENABLED must be true or false"
+[[ "$cache_benchmark_app_count" =~ ^[1-4]$ ]] || fail "B_CACHE_BENCHMARK_APPS must be 1-4"
+if [[ "$cache_benchmark_enabled" == true ]]; then
+  [[ "$action" == services && "${B_SERVICE_STAGE:-dependencies}" == application ]] \
+    || fail "Cache measurement topology is only enabled through the admitted B application stage"
+fi
 global_b_cdc=false
 global_b_snapshot_service=false
 global_b_asg_probe=false
@@ -2249,13 +2257,14 @@ write_tfvars() {
     | jq --argjson selected "$global_b_prepare_only" --argjson macImport "$global_b_import_from_mac" --arg version "${dataset_manifest_version_id:-}" \
       --arg owner "${lease_owner:-}" --argjson services "$global_b_services" --arg serviceRelease "$global_b_service_release" \
       --argjson bootstrap "$global_b_service_bootstrap_enabled" --argjson readiness "$global_b_readiness_receipt" \
+      --argjson cacheBenchmark "$cache_benchmark_enabled" --argjson cacheApps "$cache_benchmark_app_count" \
       --argjson snapshotOnly "$global_b_snapshot_restore_only" --argjson provenance "$global_b_snapshot_provenance" \
       --arg sourceMode "$global_b_snapshot_source_mode" --argjson power "$lab_power_request" \
       --argjson operationFence "$fencing_token" --argjson resourceFence "${resource_fencing_token:-$fencing_token}" \
       '. + {global_b_prepare_only:$selected,global_b_import_from_mac:$macImport,global_b_services:$services,global_b_service_release:$serviceRelease,
         global_b_service_bootstrap_enabled:$bootstrap,global_b_readiness_receipt:$readiness,
         global_b_snapshot_restore_only:$snapshotOnly,global_b_snapshot_provenance:$provenance,global_b_snapshot_source_mode:$sourceMode,
-        lab_power:$power,
+        lab_power:$power,cache_benchmark_enabled:$cacheBenchmark,cache_benchmark_app_count:$cacheApps,
         global_b_manifest_version_id:(if $selected or $services then $version else "" end),
         global_b_lease_owner:(if $selected or $services then $owner else "" end),
         global_b_lease_fencing_token:(if $services then $operationFence else 0 end),
@@ -3939,6 +3948,7 @@ continue_global_b_services() {
   validate_retained_global_b_execution_deadline "$original"
   (( expires_at > $(date +%s) + LEASE_DEADLINE_SECONDS )) || fail "Original paid-resource TTL cannot cover the B service operation; it is not extended automatically"
   mode=performance; policy=integrated-smoke; dns_mode=direct-only; load_generator_enabled=false
+  [[ "$cache_benchmark_enabled" != true ]] || load_generator_enabled=true
   cache_enabled=$(jq -r '.cacheEnabled' "$original"); request_target=''
   ami_id=$(jq -er '.amiId' "$original"); oci_origin_ipv4=$(jq -er '.ociOriginIpv4' "$original")
   select_global_b_service_ingress "$original"
