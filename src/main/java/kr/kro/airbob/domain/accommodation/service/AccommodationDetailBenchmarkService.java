@@ -22,4 +22,11 @@ public class AccommodationDetailBenchmarkService {
 
 		return AccommodationResponse.DetailInfo.from(snapshot, isInWishlist);
 	}
+
+	@Transactional(readOnly = true)
+	public AccommodationResponse.DetailInfo findAccommodationBeforeReviewSummary(Long accommodationId, Long viewerId) {
+		AccommodationDetailSnapshot snapshot = detailReader.loadWithRawReviewSummary(accommodationId);
+		boolean isInWishlist = viewerId != null && detailReader.isInWishlist(accommodationId, viewerId);
+		return AccommodationResponse.DetailInfo.from(snapshot, isInWishlist);
+	}
 }

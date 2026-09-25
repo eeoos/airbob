@@ -31,7 +31,8 @@ class CacheBenchmarkIsolationFilterTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"/api/v1/accommodations/42", "/api/v2/accommodations/42"})
+	@ValueSource(strings = {"/api/v1/accommodations/42", "/api/v2/accommodations/42",
+		"/api/v2/accommodations/42/review-summary-before"})
 	void bothDetailReadsRequireTheSameValidToken(String path) throws Exception {
 		assertResult("GET", path, TOKEN, true, 200);
 		assertResult("GET", path, null, false, 403);

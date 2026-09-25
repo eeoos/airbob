@@ -28,7 +28,7 @@ public class CacheBenchmarkIsolationFilter extends OncePerRequestFilter {
 		"/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness",
 		"/actuator/prometheus"
 	);
-	private static final Pattern DETAIL_PATH = Pattern.compile("^/api/v[12]/accommodations/\\d+$");
+	private static final Pattern DETAIL_PATH = Pattern.compile("^/api/v[12]/accommodations/\\d+$|^/api/v2/accommodations/\\d+/review-summary-before$");
 
 	private final BenchmarkAccessGuard accessGuard;
 

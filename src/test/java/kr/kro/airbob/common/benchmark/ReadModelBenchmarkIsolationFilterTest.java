@@ -96,6 +96,9 @@ class ReadModelBenchmarkIsolationFilterTest {
 
 	private static Stream<String> targetPaths() {
 		return Stream.of(
+			"/api/v1/accommodations/42",
+			"/api/v2/accommodations/42",
+			"/api/v2/accommodations/42/review-summary-before",
 			"/api/v1/members/wishlists",
 			"/api/v2/members/wishlists",
 			"/api/v1/admin/stats/revenue",
@@ -108,7 +111,7 @@ class ReadModelBenchmarkIsolationFilterTest {
 			Arguments.of("POST", "/api/v1/members"),
 			Arguments.of("POST", "/api/v1/members/wishlists"),
 			Arguments.of("POST", "/api/v1/admin/stats/revenue/recompute"),
-			Arguments.of("GET", "/api/v1/accommodations/42"),
+			Arguments.of("GET", "/api/v1/accommodations/42/review-summary-before"),
 			Arguments.of("GET", "/api/v1/accommodations/42/reviews/summary"),
 			Arguments.of("GET", "/api/v2/accommodations/42/reviews/summary"),
 			Arguments.of("GET", "/actuator/info"),

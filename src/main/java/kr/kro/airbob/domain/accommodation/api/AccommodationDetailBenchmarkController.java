@@ -38,4 +38,15 @@ public class AccommodationDetailBenchmarkController {
 
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
+
+	@GetMapping("/{accommodationId}/review-summary-before")
+	public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> findAccommodationBeforeReviewSummary(
+		@PathVariable Long accommodationId,
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId(required = false) Long viewerId
+	) {
+		accessGuard.verify(benchmarkToken);
+		return ResponseEntity.ok(ApiResponse.success(
+			benchmarkService.findAccommodationBeforeReviewSummary(accommodationId, viewerId)));
+	}
 }

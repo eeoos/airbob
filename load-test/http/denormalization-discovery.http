@@ -13,6 +13,16 @@
 # 실행 예: SPRING_PROFILES_ACTIVE=dev,read-model-benchmark ./gradlew bootRun
 # 비밀값과 환경별 fixture 변수는 http-client.private.env.json에 둔다.
 
+### Accommodation review summary BEFORE - 캐시 없이 원본 리뷰 집계
+GET {{baseUrl}}/api/v2/accommodations/{{reviewAccommodationId}}/review-summary-before
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
+### Accommodation review summary AFTER - 캐시 없이 요약 테이블 조회
+GET {{baseUrl}}/api/v2/accommodations/{{reviewAccommodationId}}
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
 ### Login benchmark member for wishlist comparison
 # @name loginBenchmarkMember
 # @no-log

@@ -92,7 +92,7 @@ class SessionAuthFilterPublicPathTest {
 		SessionAuthFilter filter = createFilter();
 		MockHttpServletRequest request = new MockHttpServletRequest(
 			"GET",
-			"/api/v2/accommodations/42"
+			"/api/v2/accommodations/42/review-summary-before"
 		);
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();

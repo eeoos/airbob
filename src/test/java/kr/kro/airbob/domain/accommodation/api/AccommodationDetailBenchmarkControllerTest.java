@@ -62,6 +62,18 @@ class AccommodationDetailBenchmarkControllerTest {
 		ordered.verify(service).findAccommodationBefore(10L, 7L);
 	}
 
+	@Test
+	@DisplayName("리뷰 원본 집계 상세도 토큰을 검증한 뒤 호출한다")
+	void rawReviewSummaryRequiresToken() {
+		AccommodationDetailBenchmarkService service = mock(AccommodationDetailBenchmarkService.class);
+		var controller = new AccommodationDetailBenchmarkController(service, new BenchmarkAccessGuard("token"));
+		assertThatThrownBy(() -> controller.findAccommodationBeforeReviewSummary(10L, "wrong", null))
+			.isInstanceOf(kr.kro.airbob.common.exception.BaseException.class);
+		verifyNoInteractions(service);
+		controller.findAccommodationBeforeReviewSummary(10L, "token", null);
+		verify(service).findAccommodationBeforeReviewSummary(10L, null);
+	}
+
 	@Configuration(proxyBeanMethods = false)
 	@Import(AccommodationDetailBenchmarkController.class)
 	static class TestConfiguration {

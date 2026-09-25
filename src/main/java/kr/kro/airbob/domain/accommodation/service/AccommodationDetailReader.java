@@ -18,6 +18,7 @@ import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodat
 import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.member.dto.MemberResponse;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class AccommodationDetailReader {
 
 	private final AccommodationRepository accommodationRepository;
+	private final ReviewRepository reviewRepository;
 	private final AccommodationAmenityRepository accommodationAmenityRepository;
 	private final AccommodationImageRepository accommodationImageRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
@@ -35,10 +37,24 @@ public class AccommodationDetailReader {
 		PublicAccommodationDetailProjection projection = accommodationRepository
 			.findWithDetailsByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
 			.orElseThrow(AccommodationNotFoundException::new);
+		return toSnapshot(accommodationId, projection, ReviewResponse.ReviewSummary.of(
+			projection.totalReviewCount(), projection.averageRating()));
+	}
+
+	@Transactional(readOnly = true)
+	public AccommodationDetailSnapshot loadWithRawReviewSummary(Long accommodationId) {
+		PublicAccommodationDetailProjection projection = accommodationRepository
+			.findWithDetailsWithoutReviewSummaryByAccommodationIdAndStatus(accommodationId, AccommodationStatus.PUBLISHED)
+			.orElseThrow(AccommodationNotFoundException::new);
+		ReviewResponse.ReviewSummary summary = reviewRepository.findPublishedSummaryMap(List.of(accommodationId))
+			.getOrDefault(accommodationId, ReviewResponse.ReviewSummary.of(null, null));
+		return toSnapshot(accommodationId, projection, summary);
+	}
+
+	private AccommodationDetailSnapshot toSnapshot(Long accommodationId,
+		PublicAccommodationDetailProjection projection, ReviewResponse.ReviewSummary reviewSummary) {
 		List<AmenityResponse.AmenityInfo> amenities = loadAmenities(accommodationId);
 		List<ImageResponse.ImageInfo> images = loadImages(accommodationId);
-		ReviewResponse.ReviewSummary reviewSummary = ReviewResponse.ReviewSummary.of(
-			projection.totalReviewCount(), projection.averageRating());
 
 		return new AccommodationDetailSnapshot(
 			projection.id(),

@@ -23,6 +23,9 @@ public interface AccommodationRepositoryCustom {
         AccommodationStatus status
     );
 
+    Optional<PublicAccommodationDetailProjection> findWithDetailsWithoutReviewSummaryByAccommodationIdAndStatus(
+        Long accommodationId, AccommodationStatus status);
+
     Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(
         Long hostId,
         Long lastId,
