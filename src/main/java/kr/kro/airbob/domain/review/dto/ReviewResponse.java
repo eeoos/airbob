@@ -86,13 +86,5 @@ public class ReviewResponse {
 			);
 		}
 
-		// review 테이블 직접 집계(naive) 결과 매핑
-		public static ReviewSummary of(ReviewSummaryRow row) {
-			if (row == null) {
-				return of(null, null);
-			}
-			Integer totalCount = row.getTotalCount() == null ? null : row.getTotalCount().intValue();
-			return of(totalCount, row.getAverageRating());
-		}
 	}
 }

@@ -55,7 +55,6 @@ k6 run load-test/k6/test/traffic-benchmark-test.js
 
 - `accommodation-detail`
 - `review-list`
-- `review-summary`
 - `guest-reservations`
 - `wishlist-list`
 - `wishlist-accommodations`

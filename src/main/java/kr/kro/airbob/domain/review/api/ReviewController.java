@@ -99,14 +99,4 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 
-	// 반정규화 리뷰 요약을 조회
-	@GetMapping("/v1/accommodations/{accommodationId}/reviews/summary")
-	public ResponseEntity<ApiResponse<ReviewResponse.ReviewSummary>> findReviewSummary(
-		@PathVariable Long accommodationId) {
-
-		ReviewResponse.ReviewSummary response =
-			reviewService.findReviewSummary(accommodationId);
-
-		return ResponseEntity.ok(ApiResponse.success(response));
-	}
 }

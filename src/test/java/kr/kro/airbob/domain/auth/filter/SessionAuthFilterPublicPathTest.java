@@ -70,8 +70,8 @@ class SessionAuthFilterPublicPathTest {
 	}
 
 	@Test
-	@DisplayName("v2 리뷰 요약 GET은 익명 요청을 필터 체인에 전달한다")
-	void anonymousV2ReviewSummaryGetPassesFilterChain() throws Exception {
+	@DisplayName("삭제된 v2 리뷰 요약은 공개 경로에서 제외한다")
+	void removedReviewSummaryIsNotPublic() throws Exception {
 		SessionAuthFilter filter = createFilter();
 		MockHttpServletRequest request = new MockHttpServletRequest(
 			"GET",
@@ -82,8 +82,8 @@ class SessionAuthFilterPublicPathTest {
 
 		filter.doFilter(request, response, chain);
 
-		assertThat(chain.getRequest()).isSameAs(request);
-		assertThat(response.getStatus()).isEqualTo(200);
+		assertThat(chain.getRequest()).isNull();
+		assertThat(response.getStatus()).isEqualTo(401);
 	}
 
 	@Test

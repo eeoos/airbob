@@ -1,5 +1,9 @@
 # Manifest-bound read-model benchmark
 
+> 단독 리뷰 요약 API는 제거되었습니다. 아래 `REVIEW_SUMMARY_V1`과 `review-*` 실행 예시는
+> 이전 실험 기록이며 현재 실행할 수 없습니다. 기존 manifest와 SQL 증거 형식은 과거 결과
+> 검증을 위해 유지합니다. 숙소 응답의 리뷰 요약 비교는 각 API의 전용 before 경로를 사용합니다.
+
 이 harness는 `benchmark-dataset-v2`의 `read-model-v2` capsule을 그대로 실행한다. 숙소 ID,
 page size, cursor, 회원 이메일, 매출 날짜와 예상 행 수를 셸에서 정하지 않는다. 실행자는
 `TARGET_ID` 하나만 선택하고 k6가 manifest의 tagged query와 account binding을 강제한다.

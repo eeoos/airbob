@@ -1,45 +1,5 @@
-import {
-  buildReadModelTarget,
-  parseReadModelEvidenceContext,
-  parseReadModelRunConfig,
-  parseRequiredText,
-} from '../lib/read-model-benchmark.js';
-import { createReadModelBenchmark } from '../lib/read-model-runner.js';
-
-const MANIFEST_PATH = parseRequiredText(
-  __ENV.BENCHMARK_DATASET_MANIFEST,
-  'BENCHMARK_DATASET_MANIFEST',
+// 단독 리뷰 요약 API가 제거되어 이전 실험을 실행하지 않는다.
+// 기존 AWS runner에서도 HTTP 요청 전에 제거 사유를 확인할 수 있도록 진입점은 남긴다.
+throw new Error(
+  '리뷰 요약 단독 API는 제거되었습니다. 숙소 상세·위시리스트 숙소·최근 본 숙소의 반정규화 비교 API를 사용하세요.',
 );
-const CONTEXT_PATH = parseRequiredText(
-  __ENV.READ_MODEL_EVIDENCE_CONTEXT,
-  'READ_MODEL_EVIDENCE_CONTEXT',
-);
-const TARGET = buildReadModelTarget(
-  open(MANIFEST_PATH),
-  parseRequiredText(__ENV.TARGET_ID, 'TARGET_ID'),
-);
-if (TARGET.domain !== 'review') {
-  throw new Error('TARGET_ID must select REVIEW_SUMMARY_V1');
-}
-const CONTEXT = parseReadModelEvidenceContext(
-  open(CONTEXT_PATH),
-  TARGET,
-  __ENV.VARIANT,
-);
-const RUN = parseReadModelRunConfig(__ENV, TARGET, CONTEXT);
-const benchmark = createReadModelBenchmark({
-  ...RUN,
-  measurementSummary: RUN.mode === 'assemble'
-    ? JSON.parse(open(parseRequiredText(
-      __ENV.READ_MODEL_MEASUREMENT_SUMMARY,
-      'READ_MODEL_MEASUREMENT_SUMMARY',
-    )))
-    : null,
-});
-
-export const options = benchmark.options;
-export function assemble() { benchmark.assemble(); }
-export function setup() { return benchmark.setup(); }
-export function warmup(data) { benchmark.warmup(data); }
-export function measure(data) { benchmark.measure(data); }
-export function handleSummary(data) { return benchmark.handleSummary(data); }

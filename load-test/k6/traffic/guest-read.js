@@ -13,7 +13,6 @@ import {
 export const GUEST_TARGETS = [
   'accommodation-detail',
   'review-list',
-  'review-summary',
   'guest-reservations',
   'wishlist-list',
   'wishlist-accommodations',
@@ -73,16 +72,6 @@ export function buildGuestTarget(manifest, name, environment) {
       sourceRows: manifest.review.publishedReviewCount,
       authenticated: false,
       gaps: [],
-    };
-  }
-  if (name === 'review-summary') {
-    return {
-      name,
-      path: `/api/v1/accommodations/${manifest.review.accommodationId}/reviews/summary`,
-      requestName: 'GET /api/v1/accommodations/{accommodationId}/reviews/summary',
-      expectedRows: manifest.review.publishedReviewCount,
-      authenticated: false,
-      gaps: ['review-summary-expected-rating'],
     };
   }
   if (name === 'guest-reservations') {
@@ -148,14 +137,6 @@ export function matchesGuestTargetContract(target, payload, evaluationDate) {
           && Array.isArray(review.images)
           && review.images.length > 0
       ));
-    }
-    if (target.name === 'review-summary') {
-      const rating = payload?.data?.average_rating;
-      return payload?.success === true
-        && payload?.data?.total_count === target.expectedRows
-        && Number.isFinite(rating)
-        && rating >= 0
-        && rating <= 5;
     }
     if (target.name === 'guest-reservations') {
       return cursorContract(payload, 'reservations', target, (reservation) => (

@@ -26,7 +26,7 @@ public class ReadModelBenchmarkIsolationFilter extends OncePerRequestFilter {
 	private static final String RUNTIME_ASSERTION_PATH =
 		"/api/v2/benchmark/read-model/runtime-assertion";
 	private static final Pattern TARGET_PATH = Pattern.compile(
-		"^/api/v[12]/(?:accommodations/\\d+/reviews/summary|members/wishlists|admin/stats/revenue)$"
+		"^/api/v[12]/(?:members/wishlists|admin/stats/revenue)$"
 	);
 
 	private final BenchmarkAccessGuard accessGuard;

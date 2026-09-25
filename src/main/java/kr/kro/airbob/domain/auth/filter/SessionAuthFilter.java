@@ -53,8 +53,6 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         "/api/v1/accommodations/*/availability", // 숙소 예약 가능 정보
         "/api/v2/accommodations/*",          // 숙소 상세 read model benchmark
         "/api/v1/accommodations/*/reviews",  // 리뷰 목록
-        "/api/v1/accommodations/*/reviews/summary", // 리뷰 요약
-        "/api/v2/accommodations/*/reviews/summary", // read model benchmark 리뷰 요약
         "/api/v1/search/accommodations",     // 검색
         "/api/v1/common-codes/*",            // 공통 코드 조회(공개 상세/검색의 라벨·셀렉트박스). 관리 API(/admin/**)는 별도 보호
         // "/api/v1/search/recommendations"     // 인기 여행지 추천
