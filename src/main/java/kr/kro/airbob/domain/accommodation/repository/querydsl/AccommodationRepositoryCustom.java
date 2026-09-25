@@ -37,6 +37,9 @@ public interface AccommodationRepositoryCustom {
 	List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
 		List<Long> accommodationIds, AccommodationStatus status);
 
+	List<RecentlyViewedAccommodationProjection> findWithAddressWithoutReviewSummaryByIdInAndStatus(
+		List<Long> accommodationIds, AccommodationStatus status);
+
 	Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);
 
 	Page<Accommodation> findForIndexing(Pageable pageable);

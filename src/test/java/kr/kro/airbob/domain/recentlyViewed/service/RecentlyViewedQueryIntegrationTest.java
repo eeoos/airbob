@@ -3,6 +3,7 @@ package kr.kro.airbob.domain.recentlyViewed.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -13,6 +14,8 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
@@ -206,6 +209,69 @@ class RecentlyViewedQueryIntegrationTest {
 		assertThat(redis.hasKey(KEY)).isFalse();
 		statistics.clear();
 		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
+		assertThat(statistics.getPrepareStatementCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("리뷰 원본 조회는 요약 테이블 없이 같은 순서·찜·빈 요약을 반환하고 비공개 기록을 정리한다")
+	void rawSummaryMatchesContractWithoutReadingSummaryTable() throws Exception {
+		insertMixedHistory();
+		jdbc.update("""
+			INSERT INTO review (accommodation_id, member_id, rating, status, updated_at)
+			VALUES (31, 7, 5, 'PUBLISHED', NOW(6)), (31, 7, 5, 'PUBLISHED', NOW(6)),
+				(31, 7, 5, 'PUBLISHED', NOW(6)), (31, 7, 4, 'PUBLISHED', NOW(6)),
+				(31, 7, 1, 'DELETE', NOW(6)), (31, 7, 2, 'HIDDEN', NOW(6)),
+				(32, 7, 3, 'DELETE', NOW(6))
+			""");
+		Statistics statistics = prepareMeasurement();
+
+		var before = service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID);
+
+		assertContract(before);
+		assertHistoryCleaned();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
+		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains("from review")).count()).isOne();
+		assertThat(before).usingRecursiveComparison()
+			.withComparatorForType(BigDecimal::compareTo, BigDecimal.class).isEqualTo(service.getRecentlyViewed(MEMBER_ID));
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {1, 20, 100})
+	@DisplayName("최근 본 숙소가 늘어나도 원본 리뷰는 한 번만 집계한다")
+	void rawSummaryQueryCountIsConstant(int size) {
+		for (int offset = 0; offset < size; offset++) {
+			long id = 1000 + offset;
+			insertAccommodation(id, "PUBLISHED", 21L);
+			addHistory(KEY, id, "2026-09-06T00:00:00Z");
+			jdbc.update("INSERT INTO review (accommodation_id, member_id, rating, status, updated_at) VALUES (?, 7, 5, 'PUBLISHED', NOW(6))", id);
+			jdbc.update("""
+				INSERT INTO accommodation_review_summary (accommodation_id, total_review_count, rating_sum, average_rating, updated_at)
+				VALUES (?, 1, 5, 5.00, NOW(6))
+				""", id);
+		}
+		Statistics statistics = prepareMeasurement();
+		var before = service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID);
+		assertThat(before.accommodations()).hasSize(size);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
+		assertThat(before).usingRecursiveComparison()
+			.withComparatorForType(BigDecimal::compareTo, BigDecimal.class).isEqualTo(service.getRecentlyViewed(MEMBER_ID));
+	}
+
+	@Test
+	@DisplayName("원본 비교도 비공개 기록만 있으면 리뷰와 찜을 조회하지 않고 이후 빈 기록은 DB를 읽지 않는다")
+	void rawSummarySkipsEmptyAndUnavailableHistory() {
+		insertAccommodation(40, "UNPUBLISHED", 21L);
+		addHistory(KEY, 40, "2026-09-07T00:00:00Z");
+		addHistory(KEY, 999, "2026-09-06T00:00:00Z");
+		Statistics statistics = prepareMeasurement();
+		assertEmpty(service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID));
+		assertThat(statistics.getPrepareStatementCount()).isOne();
+		assertThat(redis.hasKey(KEY)).isFalse();
+		statistics.clear();
+		assertEmpty(service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID));
 		assertThat(statistics.getPrepareStatementCount()).isZero();
 	}
 

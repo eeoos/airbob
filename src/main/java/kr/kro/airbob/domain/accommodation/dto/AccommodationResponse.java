@@ -198,11 +198,17 @@ public class AccommodationResponse {
 		ReviewResponse.ReviewSummary reviewSummary,
 		Boolean isInWishlist
 	) {
+		public RecentlyViewedAccommodationInfo {
+			// 요약 행 유무와 관계없이 리뷰 없음은 다른 숙소 응답처럼 0건·0점으로 표현한다.
+			if (reviewSummary == null || Integer.valueOf(0).equals(reviewSummary.totalCount())) {
+				reviewSummary = ReviewResponse.ReviewSummary.of(null, null);
+			}
+		}
+
 		public static RecentlyViewedAccommodationInfo from(Instant viewedAt,
 			RecentlyViewedAccommodationProjection accommodation, boolean isInWishlist) {
-			// total_review_count는 NOT NULL이다. LEFT JOIN 결과가 null이면 요약 행이 없다.
-			ReviewResponse.ReviewSummary reviewSummary = accommodation.totalReviewCount() == null ? null
-				: ReviewResponse.ReviewSummary.of(accommodation.totalReviewCount(), accommodation.averageRating());
+			ReviewResponse.ReviewSummary reviewSummary = ReviewResponse.ReviewSummary.of(
+				accommodation.totalReviewCount(), accommodation.averageRating());
 			return RecentlyViewedAccommodationInfo.builder()
 				.viewedAt(viewedAt)
 				.accommodationId(accommodation.accommodationId())

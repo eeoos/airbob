@@ -36,6 +36,27 @@ Before는 상세·이미지·편의시설 조회에 원본 집계 1회를 더한
 목록이 늘어도 숙소마다 추가 쿼리를 실행하지 않는다. 비어 있지 않은 페이지는 Before 3회,
 After 2회 SELECT이며, 빈 페이지는 양쪽 모두 2회다. 권한·공개 상태·메모·커서 순서는 동일하다.
 
+## 최근 본 숙소
+
+| 구분 | GET 경로 |
+| --- | --- |
+| Before | `/api/v2/members/recently-viewed/review-summary-before` |
+| After | `/api/v1/members/recently-viewed` |
+
+`read-model-benchmark` 프로필과 `X-Benchmark-Token`, 같은 회원의 로그인 세션이 필요하다.
+기존 `/api/v2/members/recently-viewed`는 주소 N+1 비교용이므로 이번 Before로 사용하지 않는다.
+
+Redis에서 읽은 ID 중 공개 숙소의 리뷰만 한 번에 집계한다. 비어 있지 않은 유효 목록은
+Before 3회/After 2회 SELECT이며, 주소 조회·찜 여부·최근 순서·비공개 기록 정리를 공유한다.
+
+리뷰가 없는 경우에는 요약 행 유무에 따라 `null` 또는 0이 섞이던 응답을 **0건·0점**으로 통일했다.
+운영 API와 기존 N+1 비교 API에도 같은 응답 규칙을 적용한다.
+
+최근 본 기록은 측정 전에 준비한다. `read-model-benchmark`에서는 업무 쓰기를 차단하므로,
+일반 개발 프로필에서 해당 회원으로 숙소 열람 기록을 쌓은 뒤 비교 프로필로 전환한다.
+비공개·삭제된 숙소 기록은 GET 중 정리되므로, 양쪽 검증과 워밍업을 끝낸 뒤 안정된 목록으로 측정한다.
+일반 Redis의 최근 본 기록과 세션은 비우지 않는다.
+
 ## 측정 조건
 
 - 같은 DB 데이터와 인덱스, 같은 숙소·회원·요청률을 사용한다.

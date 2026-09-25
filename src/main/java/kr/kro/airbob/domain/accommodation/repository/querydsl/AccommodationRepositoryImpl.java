@@ -161,18 +161,33 @@ public class AccommodationRepositoryImpl implements AccommodationRepositoryCusto
     public List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
         List<Long> accommodationIds, AccommodationStatus status
     ) {
-        return jpaQueryFactory
+        return findRecentlyViewedAccommodations(accommodationIds, status, true);
+    }
+
+    @Override
+    public List<RecentlyViewedAccommodationProjection> findWithAddressWithoutReviewSummaryByIdInAndStatus(
+        List<Long> accommodationIds, AccommodationStatus status
+    ) {
+        return findRecentlyViewedAccommodations(accommodationIds, status, false);
+    }
+
+    private List<RecentlyViewedAccommodationProjection> findRecentlyViewedAccommodations(
+        List<Long> accommodationIds, AccommodationStatus status, boolean includeReviewSummary
+    ) {
+        JPAQuery<RecentlyViewedAccommodationProjection> query = jpaQueryFactory
             .select(new QRecentlyViewedAccommodationProjection(
                 accommodation.id, accommodation.name, accommodation.thumbnailUrl,
                 address.country, address.state, address.city, address.district,
-                accommodationReviewSummary.totalReviewCount,
-                accommodationReviewSummary.averageRating
+                includeReviewSummary ? accommodationReviewSummary.totalReviewCount : Expressions.nullExpression(Integer.class),
+                includeReviewSummary ? accommodationReviewSummary.averageRating : Expressions.nullExpression(BigDecimal.class)
             ))
             .from(accommodation)
-            .leftJoin(accommodation.address, address)
-            .leftJoin(accommodationReviewSummary)
-            .on(accommodationReviewSummary.accommodationId.eq(accommodation.id))
-            .where(
+            .leftJoin(accommodation.address, address);
+        if (includeReviewSummary) {
+            query.leftJoin(accommodationReviewSummary)
+                .on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
+        }
+        return query.where(
                 accommodation.id.in(accommodationIds),
                 accommodation.status.eq(status)
             )

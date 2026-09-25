@@ -4,7 +4,8 @@
 
 | 측정 목적 | 직접 실행할 진입점 | 상세 가이드 |
 |---|---|---|
-| 반정규화 before/after | `read-model/*-comparison.js` 3개 | [read-model/README.md](read-model/README.md) |
+| 위시리스트·매출 반정규화 before/after | `read-model/wishlist-comparison.js`, `read-model/revenue-stats-comparison.js` | [read-model/README.md](read-model/README.md) |
+| 숙소 응답의 리뷰 요약 반정규화 | [HTTP 요청 모음](../http/denormalization-discovery.http) | [리뷰 요약 비교 가이드](../../docs/performance/review-summary-denormalization.md) |
 | 최근 본 숙소 N+1 before/after | `nplus1-fixture-smoke.js`, `recently-viewed-nplus1-performance.js` | 이 문서의 N+1 절 |
 | 쿠폰 DB 조건부 UPDATE/Lua 발급 | `coupon-issuance-comparison.js` | [상위 load-test README](../README.md) |
 | 숙소 상세 Redis 캐시 V2(before)/V1(after) | `cache/run-local-comparison.py`, `cache/accommodation-detail-comparison.js` | [cache/README.md](cache/README.md) |
@@ -132,7 +133,7 @@ unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
 
 The token entered in the k6 terminal must be the same value used to start the application. The after GET itself does not require the token, but this script resets the deterministic v2 fixture before both variants, so the token is required for both runs.
 
-The three denormalized read-model comparisons have separate scripts and a Korean execution guide at [read-model/README.md](read-model/README.md).
+위시리스트·매출 집계 비교는 [read-model/README.md](read-model/README.md), 숙소 응답의 리뷰 요약 비교는 [전용 가이드](../../docs/performance/review-summary-denormalization.md)를 참고한다. 단독 리뷰 요약 API를 호출하던 실험은 종료했다.
 
 ## N+1 측정 후 서버 teardown
 

@@ -2,18 +2,18 @@
 
 > 단독 리뷰 요약 API는 제거되었습니다. 아래 `REVIEW_SUMMARY_V1`과 `review-*` 실행 예시는
 > 이전 실험 기록이며 현재 실행할 수 없습니다. 기존 manifest와 SQL 증거 형식은 과거 결과
-> 검증을 위해 유지합니다. 숙소 응답의 리뷰 요약 비교는 각 API의 전용 before 경로를 사용합니다.
+> 검증을 위해 유지합니다. 숙소 응답의 리뷰 요약 비교는 [전용 가이드](../../../docs/performance/review-summary-denormalization.md)의 API를 사용합니다.
 
 이 harness는 `benchmark-dataset-v2`의 `read-model-v2` capsule을 그대로 실행한다. 숙소 ID,
 page size, cursor, 회원 이메일, 매출 날짜와 예상 행 수를 셸에서 정하지 않는다. 실행자는
 `TARGET_ID` 하나만 선택하고 k6가 manifest의 tagged query와 account binding을 강제한다.
 
-지원 query kind는 다음 세 가지다.
+현재 위시리스트·매출 비교를 지원한다. 리뷰 요약 행은 과거 실험 형식으로만 남긴다.
 
 | query kind | target 예 | 비교 경로 |
 |---|---|---|
-| `REVIEW_SUMMARY_V1` | `review-hot`, `review-median`, `review-cold`, `review-empty` | v2 raw summary ↔ v1 summary table |
-| `WISHLIST_PAGE_V1` | hot/median/cold/empty first page, `wishlist-hot-deep` | v2 N+1 path ↔ v1 denormalized path |
+| `REVIEW_SUMMARY_V1` (실행 종료) | `review-hot`, `review-median`, `review-cold`, `review-empty` | v2 raw summary ↔ v1 summary table |
+| `WISHLIST_PAGE_V1` | hot/median/cold/empty first page, `wishlist-hot-deep` | v2 원본 개수·대표 이미지 조회 ↔ v1 사전 저장 값 조회 |
 | `REVENUE_RANGE_V1` | recent 1d/7d, medium, broad, empty, refund boundary | v2 ledger ↔ v1 daily stats |
 
 위시리스트와 매출 계정은 target의 ACTIVE MEMBER/ADMIN binding을 사용한다. 비밀번호만

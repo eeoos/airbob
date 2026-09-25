@@ -6,7 +6,7 @@
       "accommodation_name": "서울 하우스 33",
       "thumbnail_url": "/stay.jpg",
       "address_summary": { "country": null, "state": null, "city": null, "district": null },
-      "review_summary": null,
+      "review_summary": { "total_count": 0, "average_rating": 0 },
       "is_in_wishlist": false
     },
     {
@@ -15,7 +15,7 @@
       "accommodation_name": "서울 하우스 32",
       "thumbnail_url": "/stay.jpg",
       "address_summary": { "country": "대한민국", "state": null, "city": "서울", "district": "마포구" },
-      "review_summary": { "total_count": 0, "average_rating": 0.0 },
+      "review_summary": { "total_count": 0, "average_rating": 0 },
       "is_in_wishlist": false
     },
     {

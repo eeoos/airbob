@@ -24,6 +24,7 @@ import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAc
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
+import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class RecentlyViewedService {
 	private final RedisTemplate<String, String> redisTemplate;
 	private final AccommodationRepository accommodationRepository;
 	private final AccommodationReviewSummaryRepository summaryRepository;
+	private final ReviewRepository reviewRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
 
@@ -83,6 +85,15 @@ public class RecentlyViewedService {
 
 	@Transactional(readOnly = true)
 	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewed(Long memberId) {
+		return findRecentlyViewed(memberId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public AccommodationResponse.RecentlyViewedAccommodationInfos getRecentlyViewedBeforeReviewSummary(Long memberId) {
+		return findRecentlyViewed(memberId, true);
+	}
+
+	private AccommodationResponse.RecentlyViewedAccommodationInfos findRecentlyViewed(Long memberId, boolean rawReviewSummary) {
 		String key = RECENTLY_VIEWED_KEY_PREFIX + memberId;
 
 		Set<ZSetOperations.TypedTuple<String>> recentlyViewedWithScores = redisTemplate.opsForZSet()
@@ -101,9 +112,8 @@ public class RecentlyViewedService {
 			.collect(Collectors.toSet());
 
 		// DB에서 존재하는 숙소 정보만 조회
-		List<RecentlyViewedAccommodationProjection> accommodationsInDb = accommodationRepository
-			.findWithAddressAndReviewSummaryByIdInAndStatus(
-				new ArrayList<>(accommodationIdsFromRedis), AccommodationStatus.PUBLISHED);
+		List<RecentlyViewedAccommodationProjection> accommodationsInDb = loadAccommodations(
+			new ArrayList<>(accommodationIdsFromRedis), rawReviewSummary);
 		Map<Long, RecentlyViewedAccommodationProjection> accommodationMap = accommodationsInDb.stream()
 			.collect(Collectors.toMap(RecentlyViewedAccommodationProjection::accommodationId, projection -> projection));
 
@@ -142,6 +152,23 @@ public class RecentlyViewedService {
 			.filter(Objects::nonNull)
 			.toList();
 		return AccommodationResponse.RecentlyViewedAccommodationInfos.from(recentlyViewedAccommodationInfos);
+	}
+
+	private List<RecentlyViewedAccommodationProjection> loadAccommodations(List<Long> accommodationIds, boolean rawReviewSummary) {
+		if (!rawReviewSummary) {
+			return accommodationRepository.findWithAddressAndReviewSummaryByIdInAndStatus(
+				accommodationIds, AccommodationStatus.PUBLISHED);
+		}
+		var accommodations = accommodationRepository.findWithAddressWithoutReviewSummaryByIdInAndStatus(
+			accommodationIds, AccommodationStatus.PUBLISHED);
+		var summaries = reviewRepository.findPublishedSummaryMap(accommodations.stream()
+			.map(RecentlyViewedAccommodationProjection::accommodationId).toList());
+		return accommodations.stream().map(accommodation -> {
+			var summary = summaries.getOrDefault(accommodation.accommodationId(), ReviewResponse.ReviewSummary.of(null, null));
+			return new RecentlyViewedAccommodationProjection(accommodation.accommodationId(), accommodation.name(),
+				accommodation.thumbnailUrl(), accommodation.country(), accommodation.state(), accommodation.city(),
+				accommodation.district(), summary.totalCount(), summary.averageRating());
+		}).toList();
 	}
 
 	/**

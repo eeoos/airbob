@@ -6,6 +6,8 @@ import static org.mockito.Mockito.*;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockFilterChain;
@@ -16,6 +18,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 @DisplayName("세션 인증 필터 공개 경로 테스트")
 class SessionAuthFilterPublicPathTest {
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"/api/v2/members/wishlists/accommodations/42/review-summary-before",
+		"/api/v2/members/recently-viewed/review-summary-before"
+	})
+	@DisplayName("회원 목록 비교 API는 벤치마크 토큰이 있어도 로그인 세션을 요구한다")
+	void memberBenchmarksRequireSession(String path) throws Exception {
+		var request = new MockHttpServletRequest("GET", path);
+		request.addHeader("X-Benchmark-Token", "token");
+		var response = new MockHttpServletResponse();
+		var chain = new MockFilterChain();
+		createFilter().doFilter(request, response, chain);
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
 
 	@Test
 	@DisplayName("예약 쓰기 API는 익명 요청을 거절한다")
