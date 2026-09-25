@@ -4,6 +4,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +16,8 @@ import kr.kro.airbob.cursor.annotation.CursorParam;
 import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
+import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
+import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.domain.wishlist.service.WishlistBenchmarkService;
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 public class WishlistBenchmarkController {
 
 	private final WishlistBenchmarkService benchmarkService;
+	private final WishlistService wishlistService;
 	private final BenchmarkAccessGuard accessGuard;
 
 	@GetMapping
@@ -39,5 +43,17 @@ public class WishlistBenchmarkController {
 		WishlistResponse.WishlistInfos response =
 			benchmarkService.findWishlistsBefore(request, memberId, accommodationId);
 		return ResponseEntity.ok(ApiResponse.success(response));
+	}
+
+	@GetMapping("/accommodations/{wishlistId}/review-summary-before")
+	public ResponseEntity<ApiResponse<WishlistAccommodationResponse.WishlistAccommodationInfos>> findWishlistAccommodationsBeforeReviewSummary(
+		@PathVariable Long wishlistId,
+		@CursorParam CursorRequest.CursorPageRequest request,
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long memberId
+	) {
+		accessGuard.verify(benchmarkToken);
+		return ResponseEntity.ok(ApiResponse.success(
+			wishlistService.findWishlistAccommodationsBeforeReviewSummary(wishlistId, request, memberId)));
 	}
 }

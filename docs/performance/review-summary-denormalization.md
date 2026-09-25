@@ -22,6 +22,20 @@ Before는 상세·이미지·편의시설 조회에 원본 집계 1회를 더한
 익명 요청은 각각 4회/3회, 로그인 요청은 찜 확인이 추가되어 5회/4회 SELECT를 실행한다.
 이는 원본 배치 집계와 사전 집계 JOIN 방식의 전체 API 비용 비교다.
 
+## 위시리스트 안의 숙소 목록
+
+| 구분 | GET 경로 |
+| --- | --- |
+| Before | `/api/v2/members/wishlists/accommodations/{wishlistId}/review-summary-before?size=20` |
+| After | `/api/v1/members/wishlists/accommodations/{wishlistId}?size=20` |
+
+`read-model-benchmark` 프로필과 `X-Benchmark-Token`, 해당 위시리스트 소유자의 로그인 세션이 필요하다.
+`size`와 `cursor`를 양쪽에서 같게 전달한다. 위시리스트 목록 자체의 개수·대표 이미지 비교와는 별개다.
+
+숙소 페이지를 먼저 조회하고 그 페이지의 숙소 ID에 대해서만 원본 리뷰를 묶어서 집계한다.
+목록이 늘어도 숙소마다 추가 쿼리를 실행하지 않는다. 비어 있지 않은 페이지는 Before 3회,
+After 2회 SELECT이며, 빈 페이지는 양쪽 모두 2회다. 권한·공개 상태·메모·커서 순서는 동일하다.
+
 ## 측정 조건
 
 - 같은 DB 데이터와 인덱스, 같은 숙소·회원·요청률을 사용한다.

@@ -22,6 +22,8 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
 import kr.kro.airbob.domain.member.exception.MemberNotFoundException;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
+import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
@@ -46,6 +48,7 @@ public class WishlistService {
 
 	private final MemberRepository memberRepository;
 	private final WishlistRepository wishlistRepository;
+	private final ReviewRepository reviewRepository;
 	private final AccommodationRepository accommodationRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
@@ -208,19 +211,39 @@ public class WishlistService {
 	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodations(Long wishlistId,
 		CursorRequest.CursorPageRequest request, Long memberId) {
 
+		return findWishlistAccommodationPage(wishlistId, request, memberId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodationsBeforeReviewSummary(
+		Long wishlistId, CursorRequest.CursorPageRequest request, Long memberId) {
+		return findWishlistAccommodationPage(wishlistId, request, memberId, true);
+	}
+
+	private WishlistAccommodationResponse.WishlistAccommodationInfos findWishlistAccommodationPage(
+		Long wishlistId, CursorRequest.CursorPageRequest request, Long memberId, boolean rawReviewSummary) {
+
 		var wishlist = wishlistRepository.findDetailHeaderByIdAndStatus(wishlistId, WishlistStatus.ACTIVE)
 			.orElseThrow(WishlistNotFoundException::new);
 		if (!wishlist.memberId().equals(memberId)) {
 			throw new WishlistAccessDeniedException();
 		}
 
-		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice =
-			wishlistAccommodationRepository.findAccommodationsInWishlist(
-				wishlistId,
-				request.lastId(),
-				request.lastCreatedAt(),
-				PageRequest.of(0, request.size())
-			);
+		PageRequest pageable = PageRequest.of(0, request.size());
+		Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> slice = rawReviewSummary
+			? wishlistAccommodationRepository.findAccommodationsWithoutReviewSummaryInWishlist(
+				wishlistId, request.lastId(), request.lastCreatedAt(), pageable)
+			: wishlistAccommodationRepository.findAccommodationsInWishlist(
+				wishlistId, request.lastId(), request.lastCreatedAt(), pageable);
+		if (rawReviewSummary) {
+			// 페이지를 먼저 확정하고, 응답할 숙소의 리뷰만 한 번에 집계한다.
+			var summaries = reviewRepository.findPublishedSummaryMap(slice.getContent().stream()
+				.map(info -> info.accommodation().id()).toList());
+			slice = slice.map(info -> new WishlistAccommodationResponse.WishlistAccommodationInfo(
+				info.wishlistAccommodationId(), info.memo(), info.createdAt(), info.accommodation(),
+				info.addressSummary(), summaries.getOrDefault(info.accommodation().id(),
+					ReviewResponse.ReviewSummary.of(null, null)), info.isInWishlist()));
+		}
 
 		List<WishlistAccommodationResponse.WishlistAccommodationInfo> infos = slice.getContent();
 

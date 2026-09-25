@@ -35,6 +35,16 @@ Accept: application/json
   "password": "{{benchmarkPassword}}"
 }
 
+### Wishlist accommodations review summary BEFORE
+GET {{baseUrl}}/api/v2/members/wishlists/accommodations/{{wishlistId}}/review-summary-before?size=20
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
+### Wishlist accommodations review summary AFTER
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{wishlistId}}?size=20
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
 ### Wishlists AFTER - accommodation_count 및 representative_accommodation_id 조회
 # @name wishlistsAfter
 GET {{baseUrl}}/api/v1/members/wishlists?size=50

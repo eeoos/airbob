@@ -99,6 +99,8 @@ class ReadModelBenchmarkIsolationFilterTest {
 			"/api/v1/accommodations/42",
 			"/api/v2/accommodations/42",
 			"/api/v2/accommodations/42/review-summary-before",
+			"/api/v1/members/wishlists/accommodations/42",
+			"/api/v2/members/wishlists/accommodations/42/review-summary-before",
 			"/api/v1/members/wishlists",
 			"/api/v2/members/wishlists",
 			"/api/v1/admin/stats/revenue",

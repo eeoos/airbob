@@ -15,6 +15,9 @@ public interface WishlistAccommodationRepositoryCustom {
 		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable
 	);
 
+	Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> findAccommodationsWithoutReviewSummaryInWishlist(
+		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable);
+
 	Map<Long, Long> countByWishlistIds(List<Long> wishlistIds);
 	Set<Long> findAccommodationIdsByMemberIdAndAccommodationIds(Long memberId, List<Long> accommodationIds);
 
