@@ -29,11 +29,12 @@ class GrafanaDashboardConfigurationTest {
 			.contains("coupon_issue_duration_seconds_count")
 			.contains("coupon_issue_duration_seconds_bucket")
 			.contains("coupon_database_issue_duration_seconds_bucket")
-			.contains("coupon_lock_wait_duration_seconds_bucket")
-			.contains("coupon_lock_timeout_total")
 			.contains("coupon_lua_duration_seconds_bucket")
 			.contains("coupon_compensation_total")
 			.contains("result=\\\"success\\\"");
+
+		assertThat(expressions).doesNotContain("coupon_lock_");
+		assertThat(dashboard.path("templating").findValuesAsText("query")).contains("db,lua");
 
 		List<String> links = dashboard.path("links").findValuesAsText("url");
 		assertThat(links)

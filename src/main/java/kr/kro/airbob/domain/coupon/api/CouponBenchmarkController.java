@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
-import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponDbIssueService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -23,17 +23,17 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v2/coupons")
 public class CouponBenchmarkController {
 
-	private final CouponLockIssueService lockIssueService;
+	private final CouponDbIssueService dbIssueService;
 	private final BenchmarkAccessGuard accessGuard;
 
 	@PostMapping("/{couponId}/issue")
-	public ResponseEntity<ApiResponse<Void>> issueCouponWithLock(
+	public ResponseEntity<ApiResponse<Void>> issueCouponWithConditionalUpdate(
 		@PathVariable Long couponId,
 		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
 		@CurrentMemberId Long memberId
 	) {
 		accessGuard.verify(benchmarkToken);
-		lockIssueService.issue(couponId, memberId);
+		dbIssueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}
 }

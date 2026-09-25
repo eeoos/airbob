@@ -95,7 +95,6 @@ const outcomeCounters = {
   duplicate: new Counter('coupon_issue_duplicate_total'),
   not_issuable: new Counter('coupon_issue_not_issuable_total'),
   unprepared: new Counter('coupon_issue_unprepared_total'),
-  lock_timeout: new Counter('coupon_issue_lock_timeout_total'),
   unexpected: new Counter('coupon_issue_unexpected_total'),
 };
 const invalidSetupOutcomes = new Set(['duplicate', 'not_issuable', 'unprepared']);
@@ -196,7 +195,7 @@ export function handleSummary(data) {
     `requests=${requestCount} rps=${format(requestRate)} success=${outcomes.success} success_rps=${format(successRate)}`,
     `all duration(ms) p50=${format(duration['p(50)'])} p95=${format(duration['p(95)'])} p99=${format(duration['p(99)'])}`,
     `success duration(ms) p50=${format(successfulDuration['p(50)'])} p95=${format(successfulDuration['p(95)'])} p99=${format(successfulDuration['p(99)'])}`,
-    `outcomes success=${outcomes.success} sold_out=${outcomes.soldOut} duplicate=${outcomes.duplicate} not_issuable=${outcomes.notIssuable} unprepared=${outcomes.unprepared} lock_timeout=${outcomes.lockTimeout} unexpected=${outcomes.unexpected}`,
+    `outcomes success=${outcomes.success} sold_out=${outcomes.soldOut} duplicate=${outcomes.duplicate} not_issuable=${outcomes.notIssuable} unprepared=${outcomes.unprepared} unexpected=${outcomes.unexpected}`,
     `dropped_iterations=${droppedIterations}`,
     `result=${RESULT_PATH}`,
     '',

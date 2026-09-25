@@ -60,7 +60,7 @@ export function parseCouponSessionFixture(raw, expectedManifestSha256) {
 }
 
 export function parseVariant(raw) {
-  requireCondition(raw === 'lock' || raw === 'lua', 'VARIANT must be lock or lua');
+  requireCondition(raw === 'db' || raw === 'lua', 'VARIANT must be db or lua');
   return raw;
 }
 
@@ -130,7 +130,6 @@ export function classifyCouponIssueResponse(status, errorCode) {
     '409:CP003': 'duplicate',
     '409:CP005': 'not_issuable',
     '503:CP011': 'unprepared',
-    '503:CP012': 'lock_timeout',
   };
   return outcomes[`${status}:${errorCode}`] || 'unexpected';
 }
@@ -152,7 +151,6 @@ export function summarizeCouponBenchmarkMetrics(data) {
       duplicate: metricValue(data, 'coupon_issue_duplicate_total', 'count'),
       notIssuable: metricValue(data, 'coupon_issue_not_issuable_total', 'count'),
       unprepared: metricValue(data, 'coupon_issue_unprepared_total', 'count'),
-      lockTimeout: metricValue(data, 'coupon_issue_lock_timeout_total', 'count'),
       unexpected: metricValue(data, 'coupon_issue_unexpected_total', 'count'),
     },
     droppedIterations: metricValue(data, 'dropped_iterations', 'count'),

@@ -6,7 +6,7 @@
 |---|---|---|
 | 반정규화 before/after | `read-model/*-comparison.js` 3개 | [read-model/README.md](read-model/README.md) |
 | 최근 본 숙소 N+1 before/after | `nplus1-fixture-smoke.js`, `recently-viewed-nplus1-performance.js` | 이 문서의 N+1 절 |
-| 쿠폰 Redisson(before)/Lua(after) 발급 | `coupon-issuance-comparison.js` | [상위 load-test README](../README.md) |
+| 쿠폰 DB 조건부 UPDATE/Lua 발급 | `coupon-issuance-comparison.js` | [상위 load-test README](../README.md) |
 | 숙소 상세 Redis 캐시 V2(before)/V1(after) | `cache/run-local-comparison.py`, `cache/accommodation-detail-comparison.js` | [cache/README.md](cache/README.md) |
 
 직접 실행하지 않는 파일도 있다.

@@ -22,14 +22,14 @@ import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.common.exception.GlobalExceptionHandler;
 import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
-import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponDbIssueService;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Redisson 쿠폰 벤치마크 API 접근 제어 테스트")
+@DisplayName("DB 쿠폰 벤치마크 API 접근 제어 테스트")
 class CouponBenchmarkAccessTest {
 
 	@Mock
-	private CouponLockIssueService lockIssueService;
+	private CouponDbIssueService dbIssueService;
 	@Mock
 	private RedisTemplate<String, Object> redisTemplate;
 	@Mock
@@ -41,7 +41,7 @@ class CouponBenchmarkAccessTest {
 	void setUp() {
 		SessionAuthFilter sessionAuthFilter = new SessionAuthFilter(redisTemplate, new ObjectMapper());
 		CouponBenchmarkController controller = new CouponBenchmarkController(
-			lockIssueService,
+			dbIssueService,
 			new BenchmarkAccessGuard("secret-token")
 		);
 		mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -59,7 +59,7 @@ class CouponBenchmarkAccessTest {
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.error.code").value("M004"));
 
-		verifyNoInteractions(lockIssueService);
+		verifyNoInteractions(dbIssueService);
 	}
 
 	@Test
@@ -72,7 +72,7 @@ class CouponBenchmarkAccessTest {
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.error.code").value("B001"));
 
-		verifyNoInteractions(lockIssueService);
+		verifyNoInteractions(dbIssueService);
 	}
 
 	@Test
@@ -86,7 +86,7 @@ class CouponBenchmarkAccessTest {
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.error.code").value("B001"));
 
-		verifyNoInteractions(lockIssueService);
+		verifyNoInteractions(dbIssueService);
 	}
 
 	@Test
@@ -99,7 +99,7 @@ class CouponBenchmarkAccessTest {
 				.header(BenchmarkAccessGuard.HEADER_NAME, "secret-token"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true));
-		verify(lockIssueService).issue(1L, 10L);
+		verify(dbIssueService).issue(1L, 10L);
 	}
 
 	private void authenticate() {

@@ -1,16 +1,18 @@
-# 쿠폰 분산 락·Lua 비교 실행 가이드
+# 쿠폰 DB 조건부 UPDATE·Lua 비교 실행 가이드
 
 `coupon-issuance-comparison.js`는 아래 두 동기 API를 같은 부하 모델로 한 번에 하나씩 측정한다.
 
 - `VARIANT=lua`: `POST /api/v1/coupons/{couponId}/issue` — 운영 Lua 경로
-- `VARIANT=lock`: `POST /api/v2/coupons/{couponId}/issue` — Redisson 벤치마크 경로
+- `VARIANT=db`: `POST /api/v2/coupons/{couponId}/issue` — DB 조건부 UPDATE 벤치마크 경로
 
-두 API 모두 MySQL 발급 트랜잭션 커밋 뒤 `201 Created`를 반환한다. 이 테스트는 처리량과 p50/p95/p99뿐 아니라 매진, 중복, 설정 오류, 락 타임아웃을 분리해서 기록한다.
+두 API 모두 MySQL 발급 트랜잭션 커밋 뒤 `201 Created`를 반환한다. 이 테스트는 처리량과 p50/p95/p99뿐 아니라 매진, 중복, 설정 오류를 분리해서 기록한다.
+
+DB 경로는 재고·활성 상태·발급 기간·Redis 준비 이력 조건을 포함한 단일 UPDATE로 발급 수를 증가시키고, 중복 검사와 회원 쿠폰 INSERT를 같은 트랜잭션에서 처리한다. 중복 또는 INSERT 실패 시 수량 증가도 롤백한다. 발급 로직에서 Redis를 호출하지 않으며, 공통 세션 인증에는 기존 Redis 세션을 사용한다. Lua 경로도 성공 요청에서는 MySQL의 같은 쿠폰 행을 증가시키므로 성공 발급과 매진 응답의 처리량·지연을 따로 해석한다.
 
 ## 비교 전에 지켜야 할 조건
 
-1. 락과 Lua는 할인·재고·발급 기간이 같은 **서로 다른 쿠폰 ID**로 실행한다.
-2. 같은 쿠폰 ID에 두 URL을 섞지 않는다. Redis 준비가 DB에 기록됐거나 비정상 종료로 Redis 키만 남은 Lua 쿠폰은 서버도 락 경로를 거부한다.
+1. DB와 Lua는 할인·재고·발급 기간이 같은 **서로 다른 쿠폰 ID**로 실행한다.
+2. 같은 쿠폰 ID에 두 URL을 섞지 않는다. DB의 `redis_stock_prepared_at`이 있는 Lua 쿠폰은 조건부 UPDATE가 거부한다. DB 발급 이력이 생긴 쿠폰은 Lua 준비가 거부된다.
 3. 한 번 실행해 상태가 바뀐 쿠폰을 다음 측정에 재사용하지 않는다. 반복 측정마다 새 쿠폰을 만든다.
 4. 워밍업은 측정용 쿠폰의 재고를 소모하므로 반드시 별도의 폐기용 쿠폰으로 실행한다.
 5. 한 실행의 각 요청에는 서로 다른 회원의 유효한 `SESSION_ID`를 하나씩 사용한다. 한 회원의 세션 토큰을 여러 개 넣는 것도 중복 요청이므로 허용하지 않는다.
@@ -20,7 +22,7 @@
 
 ## 애플리케이션 실행 조건
 
-Lua 운영 경로는 일반 운영 프로필에서 그대로 사용한다. Redisson 비교 경로까지 같은 인스턴스에서 측정하려면 `coupon-benchmark` 프로필과 서버의 `BENCHMARK_READ_MODEL_TOKEN`을 함께 설정한다.
+Lua 운영 경로는 일반 운영 프로필에서 그대로 사용한다. DB 조건부 UPDATE 비교 경로까지 같은 인스턴스에서 측정하려면 `coupon-benchmark` 프로필과 서버의 `BENCHMARK_READ_MODEL_TOKEN`을 함께 설정한다.
 
 ```bash
 read -rsp 'Benchmark API token: ' BENCHMARK_READ_MODEL_TOKEN
@@ -28,8 +30,8 @@ export BENCHMARK_READ_MODEL_TOKEN
 SPRING_PROFILES_ACTIVE=dev,coupon-benchmark ./gradlew bootRun
 ```
 
-AWS에서도 lock variant를 호출할 인스턴스에 `coupon-benchmark`와 같은 토큰을 설정해야 한다. 일반 사용자 트래픽과 분리된 벤치마크 인스턴스에서만 이 프로필을 활성화한다.
-`SPRING_PROFILES_ACTIVE`는 `bootRun` 명령에만 적용하여 같은 셸의 후속 재시작에 `coupon-benchmark`가 남지 않게 한다. 토큰은 lock k6 요청에도 필요하므로 측정 중에는 export 상태를 유지한다.
+AWS에서도 db variant를 호출할 인스턴스에 `coupon-benchmark`와 같은 토큰을 설정해야 한다. 일반 사용자 트래픽과 분리된 벤치마크 인스턴스에서만 이 프로필을 활성화한다.
+`SPRING_PROFILES_ACTIVE`는 `bootRun` 명령에만 적용하여 같은 셸의 후속 재시작에 `coupon-benchmark`가 남지 않게 한다. 토큰은 db k6 요청에도 필요하므로 측정 중에는 export 상태를 유지한다.
 
 ### 운영 Lua 전환 시작 가드
 
@@ -100,15 +102,15 @@ rm build/coupon-account-password
 - 한 실행에 필요한 최소 세션 수는 k6 경계 스케줄 1건을 포함한 `ceil(RATE × DURATION(초)) + 1`이다. 부족하면 네트워크 요청을 보내기 전에 실행을 중단한다.
 - `SESSION_FIXTURE`에는 k6 스크립트 기준 상대 경로가 아니라 절대 경로를 넣는다.
 
-동일한 회원 모집단은 쿠폰 ID가 다른 락/Lua 실행에 다시 사용할 수 있다. 단, 한 실행 안에서는 회원당 요청이 한 건이어야 한다.
+동일한 회원 모집단은 쿠폰 ID가 다른 DB/Lua 실행에 다시 사용할 수 있다. 단, 한 실행 안에서는 회원당 요청이 한 건이어야 한다.
 
 ## 2. 쿠폰 생성과 Lua 재고 준비
 
 각 라운드마다 다음 네 캠페인을 같은 조건으로 만든다.
 
-- 락 워밍업 쿠폰
+- DB 워밍업 쿠폰
 - Lua 워밍업 쿠폰
-- 락 측정 쿠폰
+- DB 측정 쿠폰
 - Lua 측정 쿠폰
 
 Lua용 두 쿠폰은 발급 시작 전에 관리자 API를 한 번씩 호출한다.
@@ -119,9 +121,9 @@ curl -sS -X POST \
   "${BASE_URL}/api/v1/admin/coupons/${LUA_COUPON_ID}/stock/prepare"
 ```
 
-준비 API는 DB의 유한·무제한 발급 한도와 활성 상태·발급 기간을 Redis로 복제하고, DB에 `redis_stock_prepared_at`을 남긴다. 발급이 이미 시작됐어도 종료 전이고 `issued_quantity` 및 실제 `member_coupon` 행이 모두 0이면 준비할 수 있다. 비활성·종료·발급 이력·이전 준비 상태는 거부한다. 락 쿠폰에는 이 API를 호출하지 않는다.
+준비 API는 DB의 유한·무제한 발급 한도와 활성 상태·발급 기간을 Redis로 복제하고, DB에 `redis_stock_prepared_at`을 남긴다. 발급이 이미 시작됐어도 종료 전이고 `issued_quantity` 및 실제 `member_coupon` 행이 모두 0이면 준비할 수 있다. 비활성·종료·발급 이력·이전 준비 상태는 거부한다. DB 쿠폰에는 이 API를 호출하지 않는다.
 
-운영 API는 무제한 쿠폰도 준비하지만, lock/Lua의 재고 정합성과 처리량을 동일하게 비교하기 위해 이 벤치마크의 네 캠페인은 같은 양수 유한 수량으로 생성한다.
+운영 API는 무제한 쿠폰도 준비하지만, DB/Lua의 재고 정합성과 처리량을 동일하게 비교하기 위해 이 벤치마크의 네 캠페인은 같은 양수 유한 수량으로 생성한다.
 
 권장 순서는 `캠페인 생성 → Lua 캠페인 prepare → SESSION_ID 생성 → issueStartAt 도달 → k6 실행`이다. 발급 기간 경계 바로 위에서는 측정하지 않는다.
 
@@ -146,28 +148,28 @@ export BENCHMARK_READ_MODEL_TOKEN
 워밍업은 폐기용 쿠폰으로 짧게 실행한다.
 
 ```bash
-VARIANT=lock \
+VARIANT=db \
 PHASE=warmup \
-COUPON_ID="${LOCK_WARMUP_COUPON_ID}" \
-COUPON_STOCK="${LOCK_WARMUP_COUPON_STOCK}" \
+COUPON_ID="${DB_WARMUP_COUPON_ID}" \
+COUPON_STOCK="${DB_WARMUP_COUPON_STOCK}" \
 ROUND=1 \
 RUN_ORDER=1 \
 RATE=100 \
 DURATION=10s \
 PRE_ALLOCATED_VUS=100 \
 MAX_VUS=600 \
-RUN_LABEL=round-1-lock-warmup \
-K6_RESULT_PATH=build/k6/round-1-lock-warmup.json \
+RUN_LABEL=round-1-db-warmup \
+K6_RESULT_PATH=build/k6/round-1-db-warmup.json \
 k6 run load-test/k6/coupon-issuance-comparison.js
 ```
 
 측정용 쿠폰은 워밍업 뒤 처음 호출한다.
 
 ```bash
-VARIANT=lock \
+VARIANT=db \
 PHASE=measure \
-COUPON_ID="${LOCK_MEASURE_COUPON_ID}" \
-COUPON_STOCK="${LOCK_MEASURE_COUPON_STOCK}" \
+COUPON_ID="${DB_MEASURE_COUPON_ID}" \
+COUPON_STOCK="${DB_MEASURE_COUPON_STOCK}" \
 ROUND=1 \
 RUN_ORDER=1 \
 RATE=500 \
@@ -175,19 +177,19 @@ DURATION=30s \
 PRE_ALLOCATED_VUS=500 \
 MAX_VUS=3000 \
 P99_LIMIT_MS=5000 \
-RUN_LABEL=round-1-lock-measure \
-K6_RESULT_PATH=build/k6/round-1-lock-measure.json \
+RUN_LABEL=round-1-db-measure \
+K6_RESULT_PATH=build/k6/round-1-db-measure.json \
 k6 run load-test/k6/coupon-issuance-comparison.js
 ```
 
-Lua도 `VARIANT=lua`, 별도 쿠폰 ID, 고유 `RUN_LABEL`, 실제 순서에 맞는 `RUN_ORDER`로 실행하고 부하·재고 값은 동일하게 유지한다. 순서 편향을 줄이기 위해 1라운드는 `lock → lua`, 2라운드는 새 쿠폰들로 `lua → lock` 순서로 교차한다.
+Lua도 `VARIANT=lua`, 별도 쿠폰 ID, 고유 `RUN_LABEL`, 실제 순서에 맞는 `RUN_ORDER`로 실행하고 부하·재고 값은 동일하게 유지한다. 순서 편향을 줄이기 위해 1라운드는 `db → lua`, 2라운드는 새 쿠폰들로 `lua → db` 순서로 교차한다.
 
 주요 환경 변수:
 
 | 변수 | 의미 | 기본값 |
 |---|---|---:|
-| `VARIANT` | `lock` 또는 `lua` | 필수 |
-| `BENCHMARK_READ_MODEL_TOKEN` | lock v2 요청의 `X-Benchmark-Token`; lua에서는 사용하지 않음 | lock에서 필수 |
+| `VARIANT` | `db` 또는 `lua` | 필수 |
+| `BENCHMARK_READ_MODEL_TOKEN` | db v2 요청의 `X-Benchmark-Token`; lua에서는 사용하지 않음 | db에서 필수 |
 | `PHASE` | `warmup` 또는 `measure` | `measure` |
 | `COUPON_ID` | 이번 실행 전용 쿠폰 ID | 필수 |
 | `COUPON_STOCK` | 실행 시작 전 쿠폰 총재고 | 필수 |
@@ -213,27 +215,26 @@ Lua도 `VARIANT=lua`, 별도 쿠폰 ID, 고유 `RUN_LABEL`, 실제 순서에 맞
 - HTTP 요청 수와 실제 RPS
 - 전체 HTTP RPS와 성공 발급 RPS
 - 전체 동기 응답 지연과 성공 발급 전용 지연의 p50/p95/p99
-- `success`, `sold_out`, `duplicate`, `not_issuable`, `unprepared`, `lock_timeout`, `unexpected` 건수
+- `success`, `sold_out`, `duplicate`, `not_issuable`, `unprepared`, `unexpected` 건수
 - dropped iteration 수와 임계값 결과
 - 쿠폰 ID·총재고, 전략, 단계, 앱 버전·인스턴스 수, 라운드·순서, RATE/DURATION, VU 설정
 
 실제 세션 ID는 로그나 결과 JSON에 기록하지 않는다. 다음 응답은 설정 오류로 간주해 실행을 실패시킨다.
 
 - `CP003`: 서로 다른 세션이 같은 회원이거나 기존 발급 데이터가 남음
-- `CP005`: 발급 기간/활성 상태가 잘못됐거나 Lua 쿠폰을 락 URL로 호출함
+- `CP005`: 발급 기간/활성 상태가 잘못됐거나 Lua 쿠폰을 DB URL로 호출함
 - `CP011`: Lua 쿠폰 prepare 누락 또는 Redis 상태 유실
 - 알 수 없는 상태·오류 코드
 
-`CP002` 매진과 `CP012` 락 타임아웃은 비교 결과로 집계한다. 애플리케이션에서는 함께 다음 Micrometer 지표를 확인한다.
+`CP002` 매진은 비교 결과로 집계한다. 제거된 `CP012`를 포함한 알 수 없는 오류는 실행을 실패시킨다. 애플리케이션에서는 함께 다음 Micrometer 지표를 확인한다.
 
 - `coupon.issue.duration`
-- `coupon.lock.wait.duration`, `coupon.lock.timeout`
 - `coupon.lua.duration`
 - `coupon.database.issue.duration`
 - `coupon.compensation`
 - HikariCP 사용량과 DB 쿼리 지표
 
-API 경로 변경으로 Spring HTTP 메트릭의 `uri` 태그는 기존 suffix 경로와 이어지지 않는다. 전후 비교는 `coupon.issue.duration`, `coupon.lock.*`, `coupon.lua.duration`, `coupon.database.issue.duration`과 k6 결과 JSON을 기준으로 한다.
+v2 URL은 유지하지만 전략 태그는 `lock`에서 `db`로 변경됐다. 예전 Redisson 결과와 합치지 않고 `coupon.issue.duration`, `coupon.lua.duration`, `coupon.database.issue.duration`과 k6 결과 JSON을 기준으로 한다.
 
 ## 5. 실행 후 정합성 확인
 
@@ -276,24 +277,24 @@ Redis stock + Redis SCARD(issued) == total_quantity
 
 Lua 승인 직후 프로세스가 강제 종료되면 Redis 재고만 차감되고 DB 행이 없는 슬롯 누수가 남을 수 있다. 이번 동기 비교는 애플리케이션이 포착한 DB 실패는 보상하지만 Redis와 MySQL 사이의 분산 트랜잭션이나 강제 종료 복구까지 보장하지 않는다.
 
-prepare 도중 Redis 쓰기 뒤 DB 준비 이력 커밋이 실패하면 Redis 키만 남아 해당 쿠폰이 fail-closed 상태가 될 수 있다. 이 경우 락 URL로 우회하지 말고 캠페인을 새로 만들거나 별도의 검증된 운영 복구 절차를 사용한다. 락 경로의 측정값에는 이 상태를 차단하기 위한 Redis 키 존재 확인 1회가 포함된다.
+prepare 도중 Redis 쓰기 뒤 DB 준비 이력 커밋이 실패하면 Redis 키만 남을 수 있다. Lua 경로는 DB 준비 이력이 없어 영속화를 거부하고 보상을 시도한다. DB 경로는 Redis 키를 조회하지 않고 DB 준비 이력만 확인한다. 이 경우 두 URL을 섞어 측정하지 말고 새 캠페인을 사용한다.
 
 ## 6. 측정 후 서버 teardown
 
-k6 클라이언트 셸에서 토큰을 지우는 것만으로는 v2 Redisson API가 비활성화되지 않는다. 측정 후에는 서버 프로세스와 배포 설정을 별도로 정리한다.
+k6 클라이언트 셸에서 토큰을 지우는 것만으로는 v2 DB 조건부 UPDATE API가 비활성화되지 않는다. 측정 후에는 서버 프로세스와 배포 설정을 별도로 정리한다.
 
-### lock 쿠폰 종료 처리
+### DB 쿠폰 종료 처리
 
-Redisson으로 발급한 lock 워밍업·측정 쿠폰은 활성·Redis 미준비·DB 발급 이력 상태이므로 정상 AWS/OCI 시작 가드의 차단 대상이다. 결과와 정합성 증거를 먼저 저장한 뒤, benchmark JVM을 중지하기 전에 이번 실행의 **모든** lock 워밍업·측정 쿠폰에 ADMIN DELETE API를 호출해 명시적으로 비활성화한다. 라운드가 여러 개면 각 라운드의 ID에 모두 반복한다.
+DB 조건부 UPDATE로 발급한 DB 워밍업·측정 쿠폰은 활성·Redis 미준비·DB 발급 이력 상태이므로 정상 AWS/OCI 시작 가드의 차단 대상이다. 결과와 정합성 증거를 먼저 저장한 뒤, benchmark JVM을 중지하기 전에 이번 실행의 **모든** DB 워밍업·측정 쿠폰에 ADMIN DELETE API를 호출해 명시적으로 비활성화한다. 라운드가 여러 개면 각 라운드의 ID에 모두 반복한다.
 
 ```bash
 curl -fsS -X DELETE \
   -b "SESSION_ID=${ADMIN_SESSION_ID}" \
-  "${BASE_URL}/api/v1/admin/coupons/${LOCK_WARMUP_COUPON_ID}"
+  "${BASE_URL}/api/v1/admin/coupons/${DB_WARMUP_COUPON_ID}"
 
 curl -fsS -X DELETE \
   -b "SESSION_ID=${ADMIN_SESSION_ID}" \
-  "${BASE_URL}/api/v1/admin/coupons/${LOCK_MEASURE_COUPON_ID}"
+  "${BASE_URL}/api/v1/admin/coupons/${DB_MEASURE_COUPON_ID}"
 ```
 
 완전히 격리된 일회성 benchmark DB라면 이 API 처리 대신 DB 자체를 폐기해도 된다. 공유하거나 재사용할 DB에서는 쿠폰을 빠뜨리거나 가드를 우회하지 않는다. 처리 후 [운영 Lua 전환 시작 가드](#운영-lua-전환-시작-가드)의 SQL을 다시 실행해 결과가 0건인지 확인한 다음에만 정상 프로필을 재배포한다.
@@ -317,7 +318,7 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
 ```bash
 curl -i -X POST \
   -b "SESSION_ID=${VERIFY_SESSION_ID}" \
-  "${BASE_URL}/api/v2/coupons/${LOCK_MEASURE_COUPON_ID}/issue"
+  "${BASE_URL}/api/v2/coupons/${DB_MEASURE_COUPON_ID}/issue"
 # 기대 결과: HTTP/1.1 404
 ```
 
@@ -333,7 +334,7 @@ unset BENCHMARK_READ_MODEL_TOKEN
 
 Wishlist DELETE와 ReservationHistory INSERT 비교는 운영 DB와 분리된 전용 스키마에서만 실행한다. 서버는 느슨한 profile 환경 변수나 직접 `bootRun`으로 시작하지 않고 전용 launcher를 사용한다.
 
-ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상태 변경, 쿠폰 복원, history 쓰기만 비교한다. 예약용 외부 임시 재고나 분산 락은 측정 범위에 없으며, 앞의 쿠폰 발급 lock/Lua 비교와는 서로 다른 실험이다.
+ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상태 변경, 쿠폰 복원, history 쓰기만 비교한다. 예약용 외부 임시 재고나 분산 락은 측정 범위에 없으며, 앞의 쿠폰 발급 db/Lua 비교와는 서로 다른 실험이다.
 
 이 실험은 공용 AWS world를 수정하지 않는다. `bulk-expiration-history-v1`은 전용
 `*_bulk_write_benchmark` 스키마에서 요청마다 fixture를 생성·검증·삭제하는 로컬

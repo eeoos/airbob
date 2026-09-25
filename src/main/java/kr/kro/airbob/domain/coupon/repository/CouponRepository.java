@@ -32,7 +32,7 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 	List<CouponCampaignProjection> findCampaigns(@Param("now") LocalDateTime now);
 
 	/**
-	 * Lua 운영 경로로 전환할 수 없는 기존 Redisson 발급 쿠폰 수를 조회한다.
+	 * Lua 운영 경로로 전환할 수 없는 기존 DB 발급 쿠폰 수를 조회한다.
 	 * 준비 서비스와 같은 기준으로 발급 수와 실제 회원 쿠폰 행을 모두 확인한다.
 	 */
 	@Query("""
@@ -58,6 +58,23 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 	@Lock(LockModeType.PESSIMISTIC_READ)
 	@Query("select c from Coupon c where c.id = :id")
 	Optional<Coupon> findByIdForShare(@Param("id") Long id);
+
+	/**
+	 * DB 발급의 재고·기간·활성 상태·경로 검증과 수량 증가를 한 UPDATE로 수행한다.
+	 * 준비 트랜잭션과도 같은 쿠폰 행에서 직렬화되어 Lua 경로와 혼용되지 않는다.
+	 */
+	@Modifying(clearAutomatically = true)
+	@Query("""
+		update Coupon c
+		set c.issuedQuantity = c.issuedQuantity + 1
+		where c.id = :id
+		  and c.redisStockPreparedAt is null
+		  and c.isActive = true
+		  and c.issueStartAt <= :now
+		  and c.issueEndAt > :now
+		  and (c.totalQuantity is null or c.issuedQuantity < c.totalQuantity)
+		""")
+	int incrementIssuedQuantityIfIssuable(@Param("id") Long id, @Param("now") LocalDateTime now);
 
 	/**
 	 * 발급 수를 DB 레벨에서 원자적으로 증가시킨다.

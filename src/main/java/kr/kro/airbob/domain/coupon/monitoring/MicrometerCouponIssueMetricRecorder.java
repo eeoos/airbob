@@ -16,8 +16,6 @@ public class MicrometerCouponIssueMetricRecorder implements CouponIssueMetricRec
 
 	public static final String ISSUE_DURATION = "coupon.issue.duration";
 	public static final String DATABASE_DURATION = "coupon.database.issue.duration";
-	public static final String LOCK_WAIT_DURATION = "coupon.lock.wait.duration";
-	public static final String LOCK_TIMEOUT_TOTAL = "coupon.lock.timeout";
 	public static final String LUA_DURATION = "coupon.lua.duration";
 	public static final String COMPENSATION_TOTAL = "coupon.compensation";
 
@@ -38,19 +36,6 @@ public class MicrometerCouponIssueMetricRecorder implements CouponIssueMetricRec
 		timer(DATABASE_DURATION, "Coupon issue database transaction duration", ISSUE_SLOS,
 			"strategy", strategy.tagValue(), "result", result.tagValue())
 			.record(durationNanos, TimeUnit.NANOSECONDS);
-	}
-
-	@Override
-	public void recordLockWait(LockResult result, long durationNanos) {
-		timer(LOCK_WAIT_DURATION, "Redisson coupon lock acquisition wait duration", ISSUE_SLOS,
-			"result", result.tagValue())
-			.record(durationNanos, TimeUnit.NANOSECONDS);
-		if (result == LockResult.TIMEOUT) {
-			Counter.builder(LOCK_TIMEOUT_TOTAL)
-				.description("Number of Redisson coupon lock acquisition timeouts")
-				.register(meterRegistry)
-				.increment();
-		}
 	}
 
 	@Override

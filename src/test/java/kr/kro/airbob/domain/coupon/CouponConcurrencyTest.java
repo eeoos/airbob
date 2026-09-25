@@ -1,9 +1,12 @@
 package kr.kro.airbob.domain.coupon;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,9 +24,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,12 +48,13 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
-import kr.kro.airbob.domain.coupon.exception.CouponLockTimeoutException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
+import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
+import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.coupon.service.CouponLockIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponDbIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponRedisPreparationResult;
 import kr.kro.airbob.domain.coupon.service.CouponRedisStockManager;
@@ -71,7 +78,7 @@ class CouponConcurrencyTest {
 	private static final int COUPON_LIMIT = 10;
 
 	@Autowired
-	private CouponLockIssueService lockIssueService;
+	private CouponDbIssueService dbIssueService;
 	@Autowired
 	private CouponLuaIssueService luaIssueService;
 	@Autowired
@@ -121,7 +128,7 @@ class CouponConcurrencyTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
 	}
 
-	private Coupon lockCoupon;
+	private Coupon dbCoupon;
 	private Coupon luaCoupon;
 	private List<Member> members;
 
@@ -133,7 +140,7 @@ class CouponConcurrencyTest {
 		redissonClient.getKeys().deleteByPattern("coupon:*");
 
 		LocalDateTime now = timeProvider.now();
-		lockCoupon = couponRepository.save(coupon("분산 락 쿠폰", now));
+		dbCoupon = couponRepository.save(coupon("DB 조건부 UPDATE 쿠폰", now));
 		Coupon luaCampaign = coupon("Lua 쿠폰", now);
 		luaCampaign.markRedisStockPrepared(now.minusMinutes(1));
 		luaCoupon = couponRepository.save(luaCampaign);
@@ -164,15 +171,15 @@ class CouponConcurrencyTest {
 	}
 
 	@Test
-	@DisplayName("분산 락 경로는 동시 요청에서도 DB 재고 한도를 지킨다")
-	void lockPathPreservesIssuanceInvariants() throws InterruptedException {
-		Result result = runDistinctMemberRequests(lockCoupon.getId(), lockIssueService::issue);
+	@DisplayName("DB 조건부 UPDATE 경로는 동시 요청에서도 DB 재고 한도를 지킨다")
+	void dbPathPreservesIssuanceInvariants() throws InterruptedException {
+		Result result = runDistinctMemberRequests(dbCoupon.getId(), dbIssueService::issue);
 
 		assertThat(result.unexpectedFailures).isEmpty();
 		assertThat(result.success.get()).isEqualTo(COUPON_LIMIT);
-		assertThat(result.success.get() + result.soldOut.get() + result.lockTimeout.get())
+		assertThat(result.success.get() + result.soldOut.get())
 			.isEqualTo(THREAD_COUNT);
-		assertDatabaseInvariants(lockCoupon.getId());
+		assertDatabaseInvariants(dbCoupon.getId());
 	}
 
 	@Test
@@ -189,14 +196,106 @@ class CouponConcurrencyTest {
 	}
 
 	@Test
-	@DisplayName("분산 락 경로에서 같은 회원의 동시 요청은 한 건만 발급된다")
-	void lockPathIssuesOnlyOnceToSameMember() throws InterruptedException {
-		Result result = runSameMemberRequests(lockCoupon.getId(), members.getFirst().getId(), lockIssueService::issue);
+	@DisplayName("DB 조건부 UPDATE 경로에서 같은 회원의 동시 요청은 한 건만 발급된다")
+	void dbPathIssuesOnlyOnceToSameMember() throws InterruptedException {
+		Result result = runSameMemberRequests(dbCoupon.getId(), members.getFirst().getId(), dbIssueService::issue);
 
 		assertThat(result.unexpectedFailures).isEmpty();
 		assertThat(result.success.get()).isOne();
-		assertThat(memberCouponRepository.countByCouponId(lockCoupon.getId())).isOne();
-		assertDatabaseInvariants(lockCoupon.getId());
+		assertThat(result.duplicate.get()).isEqualTo(THREAD_COUNT - 1);
+		assertThat(memberCouponRepository.countByCouponId(dbCoupon.getId())).isOne();
+		assertDatabaseInvariants(dbCoupon.getId());
+	}
+
+	@Test
+	@DisplayName("회원 쿠폰 INSERT가 실패하면 조건부 UPDATE로 증가한 수량도 롤백한다")
+	void dbPathRollsBackQuantityWhenInsertFails() {
+		assertThatThrownBy(() -> dbIssueService.issue(dbCoupon.getId(), -1L))
+			.isInstanceOf(DataIntegrityViolationException.class);
+
+		assertThat(couponRepository.findById(dbCoupon.getId()).orElseThrow().getIssuedQuantity()).isZero();
+		assertThat(memberCouponRepository.countByCouponId(dbCoupon.getId())).isZero();
+		dbIssueService.issue(dbCoupon.getId(), members.getFirst().getId());
+		assertDatabaseInvariants(dbCoupon.getId());
+	}
+
+	@Test
+	@DisplayName("마지막 재고를 발급한 회원의 재요청은 매진보다 중복을 우선해 반환한다")
+	void dbDuplicateTakesPrecedenceAfterSoldOut() {
+		jdbcTemplate.update("update coupon set total_quantity = 1 where id = ?", dbCoupon.getId());
+		dbIssueService.issue(dbCoupon.getId(), members.getFirst().getId());
+
+		assertThatThrownBy(() -> dbIssueService.issue(dbCoupon.getId(), members.getFirst().getId()))
+			.isInstanceOf(CouponAlreadyIssuedException.class);
+		assertThatThrownBy(() -> dbIssueService.issue(dbCoupon.getId(), members.get(1).getId()))
+			.isInstanceOf(CouponSoldOutException.class);
+		assertDatabaseInvariants(dbCoupon.getId());
+	}
+
+	@Test
+	@DisplayName("무제한 쿠폰도 DB 조건부 UPDATE로 동시 발급한다")
+	void dbPathSupportsUnlimitedStock() throws InterruptedException {
+		jdbcTemplate.update("update coupon set total_quantity = null where id = ?", dbCoupon.getId());
+
+		Result result = runDistinctMemberRequests(dbCoupon.getId(), dbIssueService::issue);
+
+		assertThat(result.unexpectedFailures).isEmpty();
+		assertThat(result.success.get()).isEqualTo(THREAD_COUNT);
+		assertDatabaseInvariants(dbCoupon.getId());
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+		"true, -1, 0",  // 시작 전
+		"true, 0, 1",   // 시작 시각 포함
+		"true, 599, 1", // 종료 직전
+		"true, 600, 0", // 종료 시각 제외
+		"false, 1, 0"  // 비활성
+	})
+	@DisplayName("MySQL 조건부 UPDATE가 발급 기간 경계와 활성 상태를 검증한다")
+	void dbPathEnforcesIssuanceConditions(boolean active, int secondsAfterStart, int expectedCount) {
+		LocalDateTime start = timeProvider.now().withNano(0);
+		jdbcTemplate.update("""
+			update coupon set is_active = ?, issue_start_at = ?, issue_end_at = ? where id = ?
+			""", active, start, start.plusMinutes(10), dbCoupon.getId());
+		doAnswer(ignored -> start.plusSeconds(secondsAfterStart)).when(timeProvider).now();
+
+		if (expectedCount == 0) {
+			assertThatThrownBy(() -> dbIssueService.issue(dbCoupon.getId(), members.getFirst().getId()))
+				.isInstanceOf(CouponNotIssuableException.class);
+		} else {
+			dbIssueService.issue(dbCoupon.getId(), members.getFirst().getId());
+		}
+
+		assertThat(memberCouponRepository.countByCouponId(dbCoupon.getId())).isEqualTo(expectedCount);
+		assertDatabaseInvariants(dbCoupon.getId());
+	}
+
+	@Test
+	@DisplayName("존재하지 않거나 Lua 준비를 마친 쿠폰은 DB 경로로 발급하지 않는다")
+	void dbPathRejectsMissingAndRedisPreparedCoupons() {
+		assertThatThrownBy(() -> dbIssueService.issue(-1L, members.getFirst().getId()))
+			.isInstanceOf(CouponNotFoundException.class);
+		assertThatThrownBy(() -> dbIssueService.issue(luaCoupon.getId(), members.getFirst().getId()))
+			.isInstanceOf(CouponNotIssuableException.class);
+		assertThat(memberCouponRepository.countByCouponId(luaCoupon.getId())).isZero();
+		assertThat(couponRepository.findById(luaCoupon.getId()).orElseThrow().getIssuedQuantity()).isZero();
+	}
+
+	@Test
+	@DisplayName("Redis 준비 키만 남아도 DB 준비 이력이 없으면 Lua 저장을 막고 DB 발급은 Redis 없이 처리한다")
+	void dbPathUsesOnlyDurablePreparationMarker() {
+		long now = System.currentTimeMillis();
+		stockManager.prepare(dbCoupon.getId(), COUPON_LIMIT, now - 60_000, now + 600_000,
+			true, now + TimeUnit.DAYS.toMillis(7));
+		assertThatThrownBy(() -> luaIssueService.issue(dbCoupon.getId(), members.getFirst().getId()))
+			.isInstanceOf(CouponStockNotPreparedException.class);
+
+		clearInvocations(stockManager);
+		dbIssueService.issue(dbCoupon.getId(), members.getFirst().getId());
+
+		verifyNoInteractions(stockManager);
+		assertDatabaseInvariants(dbCoupon.getId());
 	}
 
 	@Test
@@ -213,8 +312,8 @@ class CouponConcurrencyTest {
 	}
 
 	@Test
-	@DisplayName("Redis 준비와 락 발급이 경계 시각에 겹쳐도 같은 쿠폰의 경로를 혼용하지 않는다")
-	void preparationAndLockIssuanceCannotMixAtIssueStart() throws Exception {
+	@DisplayName("Redis 준비와 DB 발급이 경계 시각에 겹쳐도 같은 쿠폰의 경로를 혼용하지 않는다")
+	void preparationAndDbIssuanceCannotMixAtIssueStart() throws Exception {
 		LocalDateTime issueStart = timeProvider.now().plusHours(1).withNano(0);
 		Coupon transitioningCoupon = couponRepository.save(Coupon.builder()
 			.name("준비 전환 쿠폰")
@@ -254,9 +353,9 @@ class CouponConcurrencyTest {
 			assertThat(preparationReachedRedis.await(5, TimeUnit.SECONDS)).isTrue();
 
 			currentTime.set(issueStart);
-			Future<Throwable> lockIssuance = executor.submit(() -> {
+			Future<Throwable> dbIssuance = executor.submit(() -> {
 				try {
-					lockIssueService.issue(transitioningCoupon.getId(), members.getFirst().getId());
+					dbIssueService.issue(transitioningCoupon.getId(), members.getFirst().getId());
 					return null;
 				} catch (Throwable throwable) {
 					return throwable;
@@ -264,11 +363,11 @@ class CouponConcurrencyTest {
 			});
 
 			Thread.sleep(200);
-			assertThat(lockIssuance).isNotDone();
+			assertThat(dbIssuance).isNotDone();
 			allowRedisPreparation.countDown();
 
 			preparation.get(10, TimeUnit.SECONDS);
-			assertThat(lockIssuance.get(10, TimeUnit.SECONDS))
+			assertThat(dbIssuance.get(10, TimeUnit.SECONDS))
 				.isInstanceOf(CouponNotIssuableException.class);
 			assertThat(memberCouponRepository.countByCouponId(transitioningCoupon.getId())).isZero();
 			assertThat(stockManager.remainingStock(transitioningCoupon.getId())).isEqualTo(COUPON_LIMIT);
@@ -322,8 +421,6 @@ class CouponConcurrencyTest {
 					result.soldOut.incrementAndGet();
 				} catch (CouponAlreadyIssuedException e) {
 					result.duplicate.incrementAndGet();
-				} catch (CouponLockTimeoutException e) {
-					result.lockTimeout.incrementAndGet();
 				} catch (Throwable e) {
 					result.unexpectedFailures.add(e);
 				} finally {
@@ -354,7 +451,9 @@ class CouponConcurrencyTest {
 			""", Integer.class, couponId);
 
 		assertThat(issuedCount).isEqualTo(refreshed.getIssuedQuantity().longValue());
-		assertThat(refreshed.getIssuedQuantity()).isLessThanOrEqualTo(refreshed.getTotalQuantity());
+		if (refreshed.getTotalQuantity() != null) {
+			assertThat(refreshed.getIssuedQuantity()).isLessThanOrEqualTo(refreshed.getTotalQuantity());
+		}
 		assertThat(duplicateMemberCount).isZero();
 	}
 
@@ -372,7 +471,6 @@ class CouponConcurrencyTest {
 		private final AtomicInteger success = new AtomicInteger();
 		private final AtomicInteger soldOut = new AtomicInteger();
 		private final AtomicInteger duplicate = new AtomicInteger();
-		private final AtomicInteger lockTimeout = new AtomicInteger();
 		private final ConcurrentLinkedQueue<Throwable> unexpectedFailures = new ConcurrentLinkedQueue<>();
 	}
 }

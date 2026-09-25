@@ -8,8 +8,6 @@ public interface CouponIssueMetricRecorder {
 
 	void recordDatabase(Strategy strategy, DatabaseResult result, long durationNanos);
 
-	void recordLockWait(LockResult result, long durationNanos);
-
 	void recordLua(LuaOperation operation, LuaResult result, long durationNanos);
 
 	void recordCompensation(CompensationResult result);
@@ -21,7 +19,7 @@ public interface CouponIssueMetricRecorder {
 	}
 
 	enum Strategy implements TaggedValue {
-		LOCK,
+		DB,
 		LUA
 	}
 
@@ -30,7 +28,6 @@ public interface CouponIssueMetricRecorder {
 		SOLD_OUT,
 		DUPLICATE,
 		NOT_ISSUABLE,
-		TIMEOUT,
 		UNPREPARED,
 		ERROR
 	}
@@ -38,13 +35,6 @@ public interface CouponIssueMetricRecorder {
 	enum DatabaseResult implements TaggedValue {
 		SUCCESS,
 		REJECTED,
-		ERROR
-	}
-
-	enum LockResult implements TaggedValue {
-		ACQUIRED,
-		TIMEOUT,
-		INTERRUPTED,
 		ERROR
 	}
 
