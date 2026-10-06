@@ -4,6 +4,10 @@
 Before는 `review`의 `PUBLISHED` 리뷰를 숙소별 `COUNT`, `ROUND(AVG(rating), 2)`로 집계하고,
 After는 `accommodation_review_summary`를 조회한다. 요약 테이블은 삭제하지 않는다.
 
+k6 실행은 [리뷰 요약 전후 측정 가이드](../../load-test/k6/review-summary/README.md)를 참고한다.
+`review-summary/run-comparison.mjs`가 세 API 중 하나를 선택해 전후 순서를 바꿔 반복하고,
+로그인·응답 검증·워밍업을 제외한 측정 결과와 회차별 개선율을 저장한다.
+
 ## 숙소 상세
 
 | 구분 | GET 경로 |
