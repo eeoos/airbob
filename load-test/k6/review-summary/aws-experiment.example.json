@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "experimentId": "review-summary-first",
+  "baseUrl": "https://api.airbob.cloud",
+  "aws": {
+    "region": "ap-northeast-2",
+    "albDnsName": "replace-lab-alb.ap-northeast-2.elb.amazonaws.com",
+    "appInstanceId": "i-00000000000000000",
+    "loadGeneratorInstanceId": "i-00000000000000001"
+  },
+  "app": {
+    "imageDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "sourceCommit": "0000000000000000000000000000000000000000",
+    "runId": "replace-lab-run",
+    "resourceFencingTokenSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "dataset": {
+    "id": "replace-v28-dataset",
+    "manifestSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "flywayVersion": 28
+  },
+  "load": {
+    "rates": [20, 50, 100],
+    "warmupSeconds": 30,
+    "measureSeconds": 60,
+    "rounds": 3,
+    "preAllocatedVUs": 200,
+    "maxVUs": 200
+  },
+  "cases": [
+    {"id": "detail-light", "target": "accommodation-detail", "accommodationId": 1, "publishedReviewCount": 20},
+    {"id": "detail-heavy", "target": "accommodation-detail", "accommodationId": 2, "publishedReviewCount": 200},
+    {"id": "wishlist-light", "target": "wishlist-accommodations", "wishlistId": 1, "pageSize": 20, "expectedRows": 20, "publishedReviewCount": 200, "authEnvPrefix": "RS_WISHLIST_LIGHT"},
+    {"id": "wishlist-heavy", "target": "wishlist-accommodations", "wishlistId": 2, "pageSize": 20, "expectedRows": 20, "publishedReviewCount": 4000, "authEnvPrefix": "RS_WISHLIST_HEAVY"},
+    {"id": "recent-light", "target": "recently-viewed", "expectedRows": 20, "publishedReviewCount": 200, "authEnvPrefix": "RS_RECENT_LIGHT"},
+    {"id": "recent-heavy", "target": "recently-viewed", "expectedRows": 20, "publishedReviewCount": 4000, "authEnvPrefix": "RS_RECENT_HEAVY"},
+    {"id": "recent-max-heavy", "target": "recently-viewed", "expectedRows": 100, "publishedReviewCount": 15000, "authEnvPrefix": "RS_RECENT_MAX_HEAVY"}
+  ]
+}

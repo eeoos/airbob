@@ -7,6 +7,8 @@ After는 `accommodation_review_summary`를 조회한다. 요약 테이블은 삭
 k6 실행은 [리뷰 요약 전후 측정 가이드](../../load-test/k6/review-summary/README.md)를 참고한다.
 `review-summary/run-comparison.mjs`가 세 API 중 하나를 선택해 전후 순서를 바꿔 반복하고,
 로그인·응답 검증·워밍업을 제외한 측정 결과와 회차별 개선율을 저장한다.
+AWS 환경용 오프라인 준비와 이후 실행 절차는 [AWS 측정 가이드](../../load-test/k6/review-summary/AWS.md)에 있다.
+준비 도구는 AWS에 접속하거나 실험을 실행하지 않는다.
 
 ## 숙소 상세
 

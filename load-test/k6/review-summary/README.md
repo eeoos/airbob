@@ -4,6 +4,9 @@
 `comparison.js`가 한 버전을 측정하고, `run-comparison.mjs`가 두 버전을 순서대로 반복한다.
 기존 단독 리뷰 요약 API 및 주소 N+1 비교 스크립트와는 별개다.
 
+AWS용 준비·실행은 [AWS 측정 가이드](AWS.md)를 참고한다. `aws.mjs prepare`는 로컬 파일만 만들며,
+실제 요청은 나중에 AWS 부하 발생기에서 `run`을 선택했을 때만 보낸다.
+
 ## 실행 전 준비
 
 - Node.js 20 이상과 k6가 필요하다. 로컬 검증에는 Node.js 20.14.0, k6 1.5.0을 사용했다.
@@ -124,6 +127,8 @@ TARGET=accommodation-detail ACCOMMODATION_ID=30 \
 | `RESULT_DIR` | `build/k6/review-summary` | 실행기가 만드는 결과 디렉터리의 부모 경로 |
 | `DATASET_LABEL` | `unspecified` | 직접 정한 데이터 구간 이름 |
 | `APP_REVISION` | `unspecified` | 실제 실행 중인 앱의 커밋 또는 이미지 식별자 |
+| `EXPECTED_REVIEW_COUNT` | 미지정 | 응답 대상 숙소들의 공개 리뷰 합계. 지정 시 행 수와 함께 검증 |
+| `TARGET_IP` | 미지정 | 원래 URL·TLS 호스트를 유지하면서 지정 IPv4로 접속. AWS 실행기가 실험 ALB 주소로 설정 |
 
 고정 요청률은 [k6 constant-arrival-rate](https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/constant-arrival-rate/)로 유지한다.
 워밍업 요청이 측정에 겹치지 않도록 요청 제한 시간보다 긴 [종료 유예 시간](https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/graceful-stop/)을 둔다.
@@ -157,6 +162,7 @@ build/k6/review-summary/<target>-<실행별 식별자>/
 ```
 
 개별 결과의 `measurement`에는 완료·성공·실패·누락 건수, 실제 완료 구간의 RPS, p50/p95/p99가 들어간다.
+`startedAt`·`finishedAt`은 측정 구간의 UTC 시각으로, 같은 구간의 DB·앱 모니터링과 대조할 때 사용한다.
 로그인·전후 응답 검증·워밍업은 이 지표에 포함되지 않는다. `responseHash`는 전체 응답 데이터의 비교용 해시이며,
 응답 원문·세션·비밀번호·토큰은 결과 파일에 기록하지 않는다. 편의시설 순서만 정규화하고 이미지와 목록 순서는 유지한다.
 
