@@ -105,6 +105,8 @@ for (const target of ['accommodation-detail', 'wishlist-accommodations', 'recent
       assert.equal(result.measurement.dropped, 0);
       assert.equal(result.measurement.errorRate, 0);
       assert.match(result.responseHash, /^[0-9a-f]{64}$/);
+      assert.ok(Number.isFinite(Date.parse(result.measurement.startedAt)));
+      assert.ok(Date.parse(result.measurement.finishedAt) > Date.parse(result.measurement.startedAt));
       const gets = observed.filter((row) => row.method === 'GET');
       assert.ok(gets.length > result.measurement.completed + 2); // 워밍업은 결과 표본에서 제외
       assert.ok(gets.every((row) => row.token && (target === 'accommodation-detail' ? !row.session : row.session)));
@@ -133,6 +135,18 @@ test('빈 목록을 의도하지 않았다면 잘못 준비된 최근 본 기록
     const result = await run({ TARGET: 'recently-viewed', EXPECTED_ROWS: '20', BENCHMARK_SESSION_ID: session });
     assert.notEqual(result.code, 0);
     assert.equal(observed.length, 2);
+  });
+});
+
+test('DNS에 없는 호스트도 지정 IP로 접속하고 잘못된 리뷰 합계는 부하 전에 거부한다', async () => {
+  await withServer('success', async ({ run, env, observed }) => {
+    const BASE_URL = env.BASE_URL.replace('127.0.0.1', 'review-summary.invalid');
+    const success = await run({ BASE_URL, TARGET_IP: '127.0.0.1', EXPECTED_REVIEW_COUNT: String(fixtures.detail.review_summary.total_count) });
+    assert.equal(success.code, 0, success.output);
+    const previous = observed.length;
+    const rejected = await run({ BASE_URL, TARGET_IP: '127.0.0.1', EXPECTED_REVIEW_COUNT: String(fixtures.detail.review_summary.total_count + 1) });
+    assert.notEqual(rejected.code, 0);
+    assert.equal(observed.length - previous, 2);
   });
 });
 

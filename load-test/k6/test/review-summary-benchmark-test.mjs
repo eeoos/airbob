@@ -25,6 +25,7 @@ function metricData() {
       [METRICS.success]: { values: { passes: 600, fails: 0 } },
       [METRICS.duration]: { values: { count: 600, med: 10, 'p(95)': 20, 'p(99)': 30, max: 40 } },
       [METRICS.completionTime]: { values: { max: 61000 } },
+      [METRICS.measureStart]: { values: { min: 1791291600000 } },
       'dropped_iterations{scenario:measure}': { values: { count: 0 } },
       // 로그인·워밍업이 느려도 측정 지연이나 처리량 계산에 섞이지 않는다.
       http_req_duration: { values: { med: 9999, 'p(95)': 9999 } },
@@ -67,6 +68,30 @@ test('워밍업의 진행 중 요청이 끝난 후 측정하고 측정 지표에
   assert.deepEqual(options.thresholds['dropped_iterations{scenario:measure}'], ['count==0']);
 });
 
+test('접속 IP만 고정하고 원래 URL과 TLS 호스트를 유지한다', () => {
+  const pinned = config({ BASE_URL: 'https://api.airbob.cloud', TARGET_IP: '10.0.1.25' });
+  assert.equal(pinned.baseUrl, 'https://api.airbob.cloud');
+  assert.deepEqual(buildOptions(pinned).hosts, { 'api.airbob.cloud': '10.0.1.25' });
+  assert.equal(buildOptions(config()).hosts, undefined);
+  assert.notEqual(buildOptions(pinned).insecureSkipTLSVerify, true);
+  for (const TARGET_IP of ['999.1.1.1', '1.2.3', '127.00.0.1', 'example.com', '1.2.3.4:443']) {
+    assert.throws(() => config({ TARGET_IP }));
+  }
+});
+
+test('행 수가 같아도 공개 리뷰 합계가 다르면 fixture 검증을 실패한다', () => {
+  for (const [c, data, total] of [
+    [config(), detail, detail.review_summary.total_count],
+    [wishlistConfig, wishlist, wishlist.wishlist_accommodations.reduce((n, row) => n + row.review_summary.total_count, 0)],
+    [recentConfig, recent, recent.accommodations.reduce((n, row) => n + row.review_summary.total_count, 0)],
+  ]) {
+    assert.equal(matchesContract({ ...c, expectedReviewCount: total }, { success: true, data }), true);
+    assert.equal(matchesContract({ ...c, expectedReviewCount: total + 1 }, { success: true, data }), false);
+  }
+  assert.equal(config({ EXPECTED_REVIEW_COUNT: '0' }).expectedReviewCount, 0);
+  assert.throws(() => config({ EXPECTED_REVIEW_COUNT: '-1' }));
+});
+
 test('저장소의 실제 응답 계약을 사용하고 빈 목록·중복·잘못된 평점을 구분한다', () => {
   for (const [c, data] of [[config(), detail], [wishlistConfig, wishlist], [recentConfig, recent]]) {
     assert.equal(matchesContract(c, { success: true, data }), true);
@@ -95,6 +120,7 @@ test('요약은 측정만 집계하고 지연된 마지막 요청과 세션 비�
   assert.equal(result.measurement.completed, 600);
   assert.equal(result.measurement.latencyMs.p95, 20);
   assert.equal(result.measurement.achievedRps, 600 / 61);
+  assert.equal(Date.parse(result.measurement.finishedAt) - Date.parse(result.measurement.startedAt), 61000);
   assert.equal(JSON.stringify(result).includes('private-session'), false);
   assert.equal(JSON.stringify(result).includes('test-token'), false);
 });
@@ -121,6 +147,7 @@ test('전후 조건 또는 응답이 달라지면 개선율을 계산하지 않�
   assert.equal(comparePair(before, after).latencyReductionPercent.p95, 50);
   for (const changed of [
     { ...after, responseHash: 'b'.repeat(64) }, { ...after, valid: false },
+    { ...after, targetIp: '10.0.1.25' },
     { ...after, load: { ...after.load, rate: 20 } }, { ...after, parameters: { ...after.parameters, targetId: 31 } },
   ]) assert.throws(() => comparePair(before, changed));
 });

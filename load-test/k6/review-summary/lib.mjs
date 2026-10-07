@@ -6,6 +6,7 @@ export const METRICS = {
   success: 'review_summary_success',
   duration: 'review_summary_duration',
   completionTime: 'review_summary_completion_ms',
+  measureStart: 'review_summary_measure_start_ms',
 };
 
 function requireCondition(condition, message) {
@@ -31,8 +32,11 @@ export function parseConfig(env) {
   requireCondition(TARGETS.includes(env.TARGET), `TARGET은 ${TARGETS.join(', ')} 중 하나입니다.`);
   requireCondition(['before', 'after'].includes(env.VARIANT), 'VARIANT는 before 또는 after입니다.');
   const baseUrl = (env.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const origin = /^https?:\/\/(?:\[[0-9a-fA-F:]+\]|[^\s/:?#@]+)(?::([1-9]\d{0,4}))?$/.exec(baseUrl);
-  requireCondition(origin && (!origin[1] || Number(origin[1]) <= 65535), 'BASE_URL에는 경로·인증정보가 없는 HTTP(S) origin을 지정하세요.');
+  const origin = /^https?:\/\/(\[[0-9a-fA-F:]+\]|[^\s/:?#@]+)(?::([1-9]\d{0,4}))?$/.exec(baseUrl);
+  requireCondition(origin && (!origin[2] || Number(origin[2]) <= 65535), 'BASE_URL에는 경로·인증정보가 없는 HTTP(S) origin을 지정하세요.');
+  const targetIp = env.TARGET_IP || null;
+  requireCondition(!targetIp || /^(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(targetIp)
+    && targetIp.split('.').every((part) => Number(part) <= 255), 'TARGET_IP에는 IPv4 주소를 지정하세요.');
   const token = env.BENCHMARK_READ_MODEL_TOKEN;
   requireCondition(typeof token === 'string' && /^[\x21-\x7e]+$/.test(token), 'BENCHMARK_READ_MODEL_TOKEN이 필요합니다.');
   const sessionId = env.BENCHMARK_SESSION_ID || null;
@@ -48,6 +52,8 @@ export function parseConfig(env) {
   const pageSize = env.TARGET === 'wishlist-accommodations' ? integer(env.PAGE_SIZE || '20', 'PAGE_SIZE', 1, 50) : null;
   const expectedRows = env.TARGET === 'accommodation-detail' ? 1
     : integer(env.EXPECTED_ROWS, 'EXPECTED_ROWS', 0, pageSize || 100);
+  const expectedReviewCount = env.EXPECTED_REVIEW_COUNT === undefined || env.EXPECTED_REVIEW_COUNT === ''
+    ? null : integer(env.EXPECTED_REVIEW_COUNT, 'EXPECTED_REVIEW_COUNT', 0);
   const cursor = env.TARGET === 'wishlist-accommodations' ? env.CURSOR || null : null;
   const rate = integer(env.RATE || '10', 'RATE');
   const warmupSeconds = durationSeconds(env.WARMUP_DURATION || '30s', 'WARMUP_DURATION');
@@ -60,8 +66,8 @@ export function parseConfig(env) {
   requireCondition(typeof env.RESULT_PATH === 'string' && env.RESULT_PATH.endsWith('.json')
     && !/[\r\n\0]/.test(env.RESULT_PATH), 'RESULT_PATH에 결과 JSON 경로를 지정하세요.');
   return {
-    target: env.TARGET, variant: env.VARIANT, baseUrl, token, sessionId, email, password,
-    targetId, pageSize, expectedRows, cursor, rate, warmupSeconds, measureSeconds,
+    target: env.TARGET, variant: env.VARIANT, baseUrl, hostname: origin[1], targetIp, token, sessionId, email, password,
+    targetId, pageSize, expectedRows, expectedReviewCount, cursor, rate, warmupSeconds, measureSeconds,
     timeoutSeconds, settleSeconds, preAllocatedVUs, maxVUs, resultPath: env.RESULT_PATH,
     datasetLabel: env.DATASET_LABEL || 'unspecified', appRevision: env.APP_REVISION || 'unspecified',
   };
@@ -90,6 +96,7 @@ export function buildOptions(config) {
     gracefulStop: `${gracefulSeconds}s`,
   });
   return {
+    ...(config.targetIp ? { hosts: { [config.hostname]: config.targetIp } } : {}),
     setupTimeout: `${config.timeoutSeconds * 3 + 10}s`,
     scenarios: {
       warmup: scenario('warmup', config.warmupSeconds, 0),
@@ -119,6 +126,7 @@ export function matchesContract(config, payload) {
   if (payload?.success !== true || !object(data)) return false;
   if (config.target === 'accommodation-detail') {
     return data.id === config.targetId && reviewSummary(data.review_summary)
+      && (config.expectedReviewCount === null || data.review_summary.total_count === config.expectedReviewCount)
       && Array.isArray(data.amenities) && Array.isArray(data.images)
       && object(data.address_summary) && object(data.host) && object(data.policy)
       && typeof data.is_in_wishlist === 'boolean';
@@ -137,6 +145,8 @@ export function matchesContract(config, payload) {
       && (wishlist ? id(row.accommodation?.id) && row.is_in_wishlist
         : typeof row.viewed_at === 'string' && Number.isFinite(Date.parse(row.viewed_at)));
   })) return false;
+  if (config.expectedReviewCount !== null
+    && rows.reduce((sum, row) => sum + row.review_summary.total_count, 0) !== config.expectedReviewCount) return false;
   if (!wishlist) return data.total_count === rows.length;
   const page = data.page_info;
   return typeof data.wishlist_name === 'string' && object(page) && page.current_size === rows.length
@@ -177,18 +187,22 @@ export function summarize(config, data) {
   const latency = { p50: duration.med, p95: duration['p(95)'], p99: duration['p(99)'], max: duration.max };
   if (!Object.values(latency).every(Number.isFinite)) reasons.push('missing-latency');
   const windowSeconds = Math.max(config.measureSeconds, (values(METRICS.completionTime).max || 0) / 1000);
+  const startedAtMs = values(METRICS.measureStart).min;
   // setup_data에 있는 세션 및 원본 응답은 결과 파일에 기록하지 않는다.
   return {
     schemaVersion: 1, target: config.target, variant: config.variant,
     datasetLabel: config.datasetLabel, appRevision: config.appRevision,
-    baseUrl: config.baseUrl, authenticated: Boolean(config.sessionId || config.email),
-    parameters: { targetId: config.targetId, pageSize: config.pageSize, cursor: config.cursor, expectedRows: config.expectedRows },
+    baseUrl: config.baseUrl, targetIp: config.targetIp, authenticated: Boolean(config.sessionId || config.email),
+    parameters: { targetId: config.targetId, pageSize: config.pageSize, cursor: config.cursor,
+      expectedRows: config.expectedRows, expectedReviewCount: config.expectedReviewCount },
     load: { rate: config.rate, warmupSeconds: config.warmupSeconds, measureSeconds: config.measureSeconds,
       timeoutSeconds: config.timeoutSeconds, settleSeconds: config.settleSeconds,
       preAllocatedVUs: config.preAllocatedVUs, maxVUs: config.maxVUs },
     responseHash: preflight?.responseHash || null,
     valid: reasons.length === 0, reasons,
     measurement: { started, completed, successful: success.passes || 0, failed, dropped,
+      startedAt: Number.isFinite(startedAtMs) ? new Date(startedAtMs).toISOString() : null,
+      finishedAt: Number.isFinite(startedAtMs) ? new Date(startedAtMs + windowSeconds * 1000).toISOString() : null,
       windowSeconds, achievedRps: completed / windowSeconds, errorRate: completed ? failed / completed : null,
       latencyMs: Object.fromEntries(Object.entries(latency).map(([key, value]) => [key, Number.isFinite(value) ? value : null])) },
   };
@@ -197,7 +211,7 @@ export function summarize(config, data) {
 export function comparePair(before, after) {
   requireCondition(before.valid && after.valid, '실패하거나 요청이 누락된 실행은 성능 개선 비교에서 제외합니다.');
   requireCondition(before.variant === 'before' && after.variant === 'after', '전후 결과의 버전이 올바르지 않습니다.');
-  for (const key of ['target', 'datasetLabel', 'appRevision', 'baseUrl', 'authenticated', 'parameters', 'load', 'responseHash']) {
+  for (const key of ['target', 'datasetLabel', 'appRevision', 'baseUrl', 'targetIp', 'authenticated', 'parameters', 'load', 'responseHash']) {
     requireCondition(canonicalJson(before[key]) === canonicalJson(after[key]), `전후 결과의 ${key}가 다릅니다.`);
   }
   const improvement = {};

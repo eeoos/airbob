@@ -12,6 +12,7 @@ const completed = new Counter(METRICS.completed);
 const success = new Rate(METRICS.success);
 const duration = new Trend(METRICS.duration, true);
 const completionTime = new Trend(METRICS.completionTime, true);
+const measureStart = new Trend(METRICS.measureStart);
 
 function responseHash(response) {
   try {
@@ -64,6 +65,7 @@ export function warmup(data) {
 
 export function measure(data) {
   const tags = { phase: 'measure' };
+  measureStart.add(execution.scenario.startTime, tags);
   started.add(1, tags);
   const response = getTarget(data.sessionId, config.variant, 'measure');
   duration.add(response.timings.duration, tags);
