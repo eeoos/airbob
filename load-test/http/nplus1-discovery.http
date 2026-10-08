@@ -51,7 +51,8 @@ X-Benchmark-Token: {{benchmarkToken}}
   ]
 }
 
-### Recently viewed AFTER - bulk queries (N=100, expected SELECT=3)
+### Recently viewed AFTER - DTO projection + wishlist (N=100, expected SELECT=2)
+# 숙소·주소·리뷰 요약 projection 1 + 위시리스트 1 = 2
 # @name recentlyViewedAfter
 GET {{baseUrl}}/api/v1/members/recently-viewed
 Accept: application/json

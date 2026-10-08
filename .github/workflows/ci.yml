@@ -129,6 +129,7 @@ jobs:
           k6 run --address '' load-test/k6/test/coupon-benchmark-fixture-test.js
           k6 run --address '' load-test/k6/test/dataset-read-target-test.js
           k6 run --address '' load-test/k6/test/read-model-benchmark-test.js
+          k6 run --address '' load-test/k6/test/recently-viewed-benchmark-test.js
           k6 run --address '' load-test/k6/test/reservation-history-insert-benchmark-test.js
           MODE=inspect ROLE=guest TARGET=accommodation-detail \
             RATE=1 DURATION=1s MIN_COMPLETED_SAMPLES=1 \
