@@ -64,6 +64,17 @@ export function parseVariant(raw) {
   return raw;
 }
 
+export function validateCouponWorkload(experiment, stock, rate, seconds) {
+  requireCondition(experiment === 'capacity' || experiment === 'scarcity',
+    'EXPERIMENT must be capacity or scarcity');
+  const plannedRequests = Math.ceil(rate * seconds);
+  requireCondition(experiment !== 'capacity' || stock >= plannedRequests + 1,
+    'capacity requires stock >= RATE * DURATION + 1');
+  requireCondition(experiment !== 'scarcity' || stock < plannedRequests,
+    'scarcity requires stock < RATE * DURATION');
+  return plannedRequests;
+}
+
 export function parsePhase(raw) {
   requireCondition(raw === 'warmup' || raw === 'measure', 'PHASE must be warmup or measure');
   return raw;
@@ -124,6 +135,9 @@ export function classifyCouponIssueResponse(status, errorCode) {
   if (status === 201) {
     return 'success';
   }
+  if (status === 401 || status === 403) {
+    return 'authentication';
+  }
 
   const outcomes = {
     '409:CP002': 'sold_out',
@@ -139,18 +153,29 @@ function metricValue(data, name, value, fallback = 0) {
 }
 
 export function summarizeCouponBenchmarkMetrics(data) {
+  const start = data.metrics?.coupon_request_started_at?.values?.min;
+  const end = data.metrics?.coupon_request_finished_at?.values?.max;
+  const seconds = Number.isFinite(start) && Number.isFinite(end) && end > start
+    ? (end - start) / 1000 : null;
   return {
+    measurementStartEpochMs: start ?? null,
+    measurementEndEpochMs: end ?? null,
+    measurementDurationSeconds: seconds,
     requestCount: metricValue(data, 'http_reqs', 'count'),
-    requestRate: metricValue(data, 'http_reqs', 'rate'),
-    successRate: metricValue(data, 'coupon_issue_success_total', 'rate'),
+    requestRate: seconds === null ? metricValue(data, 'http_reqs', 'rate')
+      : metricValue(data, 'http_reqs', 'count') / seconds,
+    successRate: seconds === null ? metricValue(data, 'coupon_issue_success_total', 'rate')
+      : metricValue(data, 'coupon_issue_success_total', 'count') / seconds,
     duration: data.metrics?.coupon_issue_duration?.values || {},
     successDuration: data.metrics?.coupon_issue_success_duration?.values || {},
+    soldOutDuration: data.metrics?.coupon_issue_sold_out_duration?.values || {},
     outcomes: {
       success: metricValue(data, 'coupon_issue_success_total', 'count'),
       soldOut: metricValue(data, 'coupon_issue_sold_out_total', 'count'),
       duplicate: metricValue(data, 'coupon_issue_duplicate_total', 'count'),
       notIssuable: metricValue(data, 'coupon_issue_not_issuable_total', 'count'),
       unprepared: metricValue(data, 'coupon_issue_unprepared_total', 'count'),
+      authentication: metricValue(data, 'coupon_issue_authentication_total', 'count'),
       unexpected: metricValue(data, 'coupon_issue_unexpected_total', 'count'),
     },
     droppedIterations: metricValue(data, 'dropped_iterations', 'count'),

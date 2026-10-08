@@ -11,7 +11,8 @@ import {
   parseVariant,
   requireSessionCapacity,
   summarizeCouponBenchmarkMetrics,
-} from '../lib/coupon-benchmark-fixture.js';
+  validateCouponWorkload,
+} from '../coupon/coupon-benchmark-fixture.js';
 
 export const options = {
   vus: 1,
@@ -116,6 +117,26 @@ export default function () {
     'enough sessions are accepted': () => requireSessionCapacity(sessions, 1, 2) === 3,
     'insufficient sessions are rejected': () => rejects(() => requireSessionCapacity(sessions, 2, 2)),
     'created response is success': () => classifyCouponIssueResponse(201) === 'success',
+    'authentication failure invalidates the fixture': () => (
+      classifyCouponIssueResponse(401, 'M004') === 'authentication'
+      && classifyCouponIssueResponse(403, 'B001') === 'authentication'
+    ),
+    'capacity reserves enough stock for every request': () => validateCouponWorkload('capacity', 11, 5, 2) === 10,
+    'capacity rejects exhausting stock': () => rejects(() => validateCouponWorkload('capacity', 10, 5, 2)),
+    'scarcity requires fewer coupons than requests': () => rejects(() => validateCouponWorkload('scarcity', 10, 5, 2)),
+    'scarcity accepts a sold-out workload': () => validateCouponWorkload('scarcity', 2, 5, 2) === 10,
+    'unknown experiment is rejected': () => rejects(() => validateCouponWorkload('mixed', 2, 5, 2)),
+    'total and successful RPS use the HTTP window including the final response': () => {
+      const result = summarizeCouponBenchmarkMetrics({ metrics: {
+        http_reqs: { values: { count: 20, rate: 99 } },
+        coupon_request_started_at: { values: { min: 1000 } },
+        coupon_request_finished_at: { values: { max: 5000 } },
+        coupon_issue_success_total: { values: { count: 8, rate: 99 } },
+        coupon_issue_sold_out_duration: { values: { 'p(95)': 2 } },
+      } });
+      return result.requestRate === 5 && result.successRate === 2 && result.measurementDurationSeconds === 4
+        && result.soldOutDuration['p(95)'] === 2;
+    },
     'sold out response is classified': () => classifyCouponIssueResponse(409, 'CP002') === 'sold_out',
     'removed lock timeout response is unexpected': () => (
       classifyCouponIssueResponse(503, 'CP012') === 'unexpected'

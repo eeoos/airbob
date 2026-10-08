@@ -15,12 +15,14 @@ import {
   parseVariant,
   requireSessionCapacity,
   summarizeCouponBenchmarkMetrics,
-} from './lib/coupon-benchmark-fixture.js';
+  validateCouponWorkload,
+} from './coupon-benchmark-fixture.js';
 import {
   findExperimentCapsule,
   parseBenchmarkDatasetManifest,
   requireAccountCapacity,
-} from './lib/benchmark-dataset-manifest.js';
+} from '../lib/benchmark-dataset-manifest.js';
+const { parseCouponAccountManifest } = require('./coupon-account-manifest.js');
 
 function requiredEnvironment(name) {
   return parseRequiredText(__ENV[name], name);
@@ -56,6 +58,8 @@ const RUN_ORDER = parsePositiveInteger(requiredEnvironment('RUN_ORDER'), 'RUN_OR
 const RATE = parsePositiveInteger(__ENV.RATE || '100', 'RATE');
 const DURATION = __ENV.DURATION || '30s';
 const DURATION_SECONDS = parseDurationSeconds(DURATION);
+const EXPERIMENT = __ENV.EXPERIMENT || 'scarcity';
+const PLANNED_REQUESTS = validateCouponWorkload(EXPERIMENT, COUPON_STOCK, RATE, DURATION_SECONDS);
 const PRE_ALLOCATED_VUS = parsePositiveInteger(
   __ENV.PRE_ALLOCATED_VUS || String(Math.max(50, RATE)),
   'PRE_ALLOCATED_VUS',
@@ -65,6 +69,7 @@ const MAX_VUS = parsePositiveInteger(
   'MAX_VUS',
 );
 const P99_LIMIT_MS = parsePositiveInteger(__ENV.P99_LIMIT_MS || '5000', 'P99_LIMIT_MS');
+const P95_LIMIT_MS = parsePositiveInteger(__ENV.P95_LIMIT_MS || '1000', 'P95_LIMIT_MS');
 const REQUEST_TIMEOUT = __ENV.REQUEST_TIMEOUT || '10s';
 const GRACEFUL_STOP = __ENV.GRACEFUL_STOP || '30s';
 const RESULT_PATH = __ENV.K6_RESULT_PATH
@@ -75,10 +80,25 @@ if (MAX_VUS < PRE_ALLOCATED_VUS) {
   throw new Error('MAX_VUS must be greater than or equal to PRE_ALLOCATED_VUS');
 }
 
-const benchmarkDatasetRaw = open(BENCHMARK_DATASET_MANIFEST);
-const benchmarkDataset = parseBenchmarkDatasetManifest(benchmarkDatasetRaw);
-const couponAccountCapsule = findExperimentCapsule(benchmarkDataset, 'coupon-accounts-v1');
-const BENCHMARK_DATASET_MANIFEST_SHA256 = crypto.sha256(benchmarkDatasetRaw, 'hex');
+// Parse the large account manifest once, then retain only compact reporting metadata per VU.
+const benchmarkDataset = new SharedArray('coupon-dataset-metadata', () => {
+  const raw = open(BENCHMARK_DATASET_MANIFEST);
+  const manifest = JSON.parse(raw).datasetVersion === 'coupon-accounts-v1'
+    ? parseCouponAccountManifest(raw) : parseBenchmarkDatasetManifest(raw);
+  const capsule = findExperimentCapsule(manifest, 'coupon-accounts-v1');
+  return [{
+    datasetVersion: manifest.datasetVersion,
+    worldVersion: manifest.world.version,
+    manifestSha256: crypto.sha256(raw, 'hex'),
+    sourceDataset: manifest.sourceDataset || null,
+    couponAccountCapsule: {
+      capsuleId: capsule.capsuleId,
+      accountPool: { capacity: capsule.accountPool.capacity },
+    },
+  }];
+})[0];
+const couponAccountCapsule = benchmarkDataset.couponAccountCapsule;
+const BENCHMARK_DATASET_MANIFEST_SHA256 = benchmarkDataset.manifestSha256;
 const sessions = new SharedArray('coupon-member-sessions', () => (
   parseCouponSessionFixture(open(SESSION_FIXTURE), BENCHMARK_DATASET_MANIFEST_SHA256)
 ));
@@ -87,6 +107,10 @@ requireAccountCapacity(couponAccountCapsule, REQUIRED_SESSIONS);
 
 const issueDuration = new Trend('coupon_issue_duration', true);
 const successDuration = new Trend('coupon_issue_success_duration', true);
+const soldOutDuration = new Trend('coupon_issue_sold_out_duration', true);
+const startedAt = new Trend('coupon_request_started_at');
+const finishedAt = new Trend('coupon_request_finished_at');
+const successful = new Rate('coupon_issue_success');
 const unexpectedRate = new Rate('coupon_issue_unexpected');
 const invalidSetupRate = new Rate('coupon_issue_invalid_setup');
 const outcomeCounters = {
@@ -95,14 +119,15 @@ const outcomeCounters = {
   duplicate: new Counter('coupon_issue_duplicate_total'),
   not_issuable: new Counter('coupon_issue_not_issuable_total'),
   unprepared: new Counter('coupon_issue_unprepared_total'),
+  authentication: new Counter('coupon_issue_authentication_total'),
   unexpected: new Counter('coupon_issue_unexpected_total'),
 };
-const invalidSetupOutcomes = new Set(['duplicate', 'not_issuable', 'unprepared']);
+const invalidSetupOutcomes = new Set(['duplicate', 'not_issuable', 'unprepared', 'authentication']);
 
 http.setResponseCallback(http.expectedStatuses(201, 409, 503));
 
 export const options = {
-  summaryTrendStats: ['avg', 'p(50)', 'p(95)', 'p(99)', 'max'],
+  summaryTrendStats: ['avg', 'min', 'p(50)', 'p(95)', 'p(99)', 'max', 'count'],
   scenarios: {
     coupon_issuance: {
       executor: 'constant-arrival-rate',
@@ -117,18 +142,33 @@ export const options = {
   },
   thresholds: {
     [`coupon_issue_duration{phase:${PHASE},variant:${VARIANT}}`]: [
-      `p(99)<${P99_LIMIT_MS}`,
+      `p(99)<=${P99_LIMIT_MS}`,
     ],
     [`coupon_issue_success_duration{phase:${PHASE},variant:${VARIANT}}`]: [
-      `p(99)<${P99_LIMIT_MS}`,
+      `p(95)<=${P95_LIMIT_MS}`,
+      `p(99)<=${P99_LIMIT_MS}`,
     ],
     [`coupon_issue_success_total{phase:${PHASE},variant:${VARIANT}}`]: ['count>0'],
     coupon_issue_unexpected: ['rate==0'],
     coupon_issue_invalid_setup: ['rate==0'],
     dropped_iterations: ['count==0'],
     http_req_failed: ['rate==0'],
+    ...(EXPERIMENT === 'capacity' ? {
+      coupon_issue_success: ['rate==1'],
+      coupon_issue_sold_out_total: ['count==0'],
+    } : {
+      [`coupon_issue_sold_out_duration{phase:${PHASE},variant:${VARIANT}}`]: [
+        `p(95)<=${P95_LIMIT_MS}`,
+        `p(99)<=${P99_LIMIT_MS}`,
+      ],
+      coupon_issue_sold_out_total: ['count>0'],
+    }),
   },
 };
+
+export function setup() {
+  for (const counter of Object.values(outcomeCounters)) counter.add(0);
+}
 
 function responseErrorCode(response) {
   if (response.status === 201) {
@@ -143,12 +183,15 @@ function responseErrorCode(response) {
 
 export default function () {
   const iteration = Number(exec.scenario.iterationInTest);
+  // Arrival-rate scheduling can start a final iteration just past the duration boundary.
+  if (iteration >= PLANNED_REQUESTS) return;
   const sessionId = sessions[iteration];
   if (!sessionId) {
     exec.test.abort(`SESSION_FIXTURE exhausted at iteration ${iteration}`);
   }
 
   const metricTags = { phase: PHASE, variant: VARIANT };
+  startedAt.add(Date.now());
   const response = http.post(
     `${BASE_URL}${ISSUE_TARGET.path}`,
     null,
@@ -162,13 +205,17 @@ export default function () {
       },
     },
   );
+  finishedAt.add(Date.now());
 
   const outcome = classifyCouponIssueResponse(response.status, responseErrorCode(response));
   const outcomeTags = { ...metricTags, outcome };
   issueDuration.add(response.timings.duration, outcomeTags);
   if (outcome === 'success') {
     successDuration.add(response.timings.duration, metricTags);
+  } else if (outcome === 'sold_out') {
+    soldOutDuration.add(response.timings.duration, metricTags);
   }
+  successful.add(outcome === 'success');
   outcomeCounters[outcome].add(1, metricTags);
   unexpectedRate.add(outcome === 'unexpected', metricTags);
   invalidSetupRate.add(invalidSetupOutcomes.has(outcome), metricTags);
@@ -191,7 +238,7 @@ export function handleSummary(data) {
   } = benchmark;
 
   const stdout = [
-    `coupon issuance: ${VARIANT}/${PHASE} coupon=${COUPON_ID} run=${RUN_LABEL}`,
+    `coupon issuance: ${EXPERIMENT}/${VARIANT}/${PHASE} coupon=${COUPON_ID} run=${RUN_LABEL}`,
     `requests=${requestCount} rps=${format(requestRate)} success=${outcomes.success} success_rps=${format(successRate)}`,
     `all duration(ms) p50=${format(duration['p(50)'])} p95=${format(duration['p(95)'])} p99=${format(duration['p(99)'])}`,
     `success duration(ms) p50=${format(successfulDuration['p(50)'])} p95=${format(successfulDuration['p(95)'])} p99=${format(successfulDuration['p(99)'])}`,
@@ -204,6 +251,11 @@ export function handleSummary(data) {
   const artifact = {
     metadata: {
       generatedAt: new Date().toISOString(),
+      experiment: EXPERIMENT,
+      plannedRequests: PLANNED_REQUESTS,
+      requestBudgetPolicy: 'at-most-planned-requests',
+      p95LimitMs: P95_LIMIT_MS,
+      p99LimitMs: P99_LIMIT_MS,
       runLabel: RUN_LABEL,
       baseUrl: BASE_URL,
       variant: VARIANT,
@@ -221,10 +273,11 @@ export function handleSummary(data) {
       requiredUniqueSessions: REQUIRED_SESSIONS,
       fixtureSessionCount: sessions.length,
       datasetVersion: benchmarkDataset.datasetVersion,
-      worldVersion: benchmarkDataset.world.version,
+      worldVersion: benchmarkDataset.worldVersion,
       couponAccountCapsule: couponAccountCapsule.capsuleId,
       couponAccountCapacity: couponAccountCapsule.accountPool.capacity,
       benchmarkDatasetManifestSha256: BENCHMARK_DATASET_MANIFEST_SHA256,
+      sourceDataset: benchmarkDataset.sourceDataset,
     },
     performance: benchmark,
     outcomes,
