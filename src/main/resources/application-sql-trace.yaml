@@ -1,0 +1,16 @@
+spring:
+  config:
+    activate:
+      on-profile: "dev & sql-trace & !aws & !oci & !performance-lab"
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        show_sql: false
+
+logging:
+  level:
+    org.hibernate.SQL: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"
+    airbob.sql.trace: INFO

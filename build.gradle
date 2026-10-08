@@ -87,7 +87,13 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	// MySQL JDBC 드라이버
+	compileOnly 'com.mysql:mysql-connector-j'
 	runtimeOnly 'com.mysql:mysql-connector-j'
+
+	// 로컬 SQL 진단 전용. 운영 bootJar에는 포함하지 않는다.
+	compileOnly 'p6spy:p6spy:3.9.1'
+	developmentOnly 'p6spy:p6spy:3.9.1'
+	testImplementation 'p6spy:p6spy:3.9.1'
 
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
