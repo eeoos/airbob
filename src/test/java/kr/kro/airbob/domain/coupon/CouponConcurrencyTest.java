@@ -46,8 +46,10 @@ import org.testcontainers.utility.DockerImageName;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
+import kr.kro.airbob.domain.coupon.dto.CouponBenchmarkFixture;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
+import kr.kro.airbob.domain.coupon.exception.CouponAlreadyPreparedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
@@ -55,6 +57,7 @@ import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.coupon.service.CouponDbIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponBenchmarkFixtureService;
 import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponRedisPreparationResult;
 import kr.kro.airbob.domain.coupon.service.CouponRedisStockManager;
@@ -79,6 +82,8 @@ class CouponConcurrencyTest {
 
 	@Autowired
 	private CouponDbIssueService dbIssueService;
+	@Autowired
+	private CouponBenchmarkFixtureService benchmarkFixtures;
 	@Autowired
 	private CouponLuaIssueService luaIssueService;
 	@Autowired
@@ -168,6 +173,48 @@ class CouponConcurrencyTest {
 		couponRepository.deleteAllInBatch();
 		memberRepository.deleteAllInBatch();
 		redissonClient.getKeys().deleteByPattern("coupon:*");
+	}
+
+	@Test
+	@DisplayName("실험 전용 DB 쿠폰의 발급 수를 확인하고 소유 실행만 종료한다")
+	void verifiesAndClosesOwnedDbFixture() {
+		var created = benchmarkFixtures.create(new CouponBenchmarkFixture.Create("run-a", "db-round-1", "db", 5, 120));
+		assertThat(benchmarkFixtures.state(created.couponId(), "run-a").issuedQuantity()).isZero();
+		dbIssueService.issue(created.couponId(), members.getFirst().getId());
+		var state = benchmarkFixtures.state(created.couponId(), "run-a");
+		assertThat(state.issuedQuantity()).isEqualTo(1);
+		assertThat(state.memberCouponCount()).isEqualTo(1);
+		assertThat(state.distinctMemberCount()).isEqualTo(1);
+		assertThat(state.redisPrepared()).isFalse();
+		assertThat(state.redisRemainingStock()).isNull();
+		assertThatThrownBy(() -> benchmarkFixtures.close(created.couponId(), "run-b"))
+			.isInstanceOf(CouponNotFoundException.class);
+		assertThatThrownBy(() -> benchmarkFixtures.state(dbCoupon.getId(), "run-a"))
+			.isInstanceOf(CouponNotFoundException.class);
+		assertThatThrownBy(() -> benchmarkFixtures.close(dbCoupon.getId(), "run-a"))
+			.isInstanceOf(CouponNotFoundException.class);
+		benchmarkFixtures.close(created.couponId(), "run-a");
+		assertThat(benchmarkFixtures.state(created.couponId(), "run-a").active()).isFalse();
+		assertThatThrownBy(() -> dbIssueService.issue(created.couponId(), members.get(1).getId()))
+			.isInstanceOf(CouponNotIssuableException.class);
+	}
+
+	@Test
+	@DisplayName("실험 전용 Lua 쿠폰의 Redis와 DB 발급 수를 함께 확인한다")
+	void verifiesOwnedLuaFixtureWithoutResettingIt() {
+		var created = benchmarkFixtures.create(new CouponBenchmarkFixture.Create("run-a", "lua-round-1", "lua", 5, 120));
+		stockPreparationService.prepare(created.couponId());
+		luaIssueService.issue(created.couponId(), members.getFirst().getId());
+		var state = benchmarkFixtures.state(created.couponId(), "run-a");
+		assertThat(state.issuedQuantity()).isEqualTo(1);
+		assertThat(state.memberCouponCount()).isEqualTo(1);
+		assertThat(state.distinctMemberCount()).isEqualTo(1);
+		assertThat(state.redisPrepared()).isTrue();
+		assertThat(state.redisRemainingStock()).isEqualTo(4);
+		assertThat(state.redisIssuedCount()).isEqualTo(1);
+		assertThatThrownBy(() -> benchmarkFixtures.close(created.couponId(), "run-a"))
+			.isInstanceOf(CouponAlreadyPreparedException.class);
+		assertThat(stockManager.remainingStock(created.couponId())).isEqualTo(4);
 	}
 
 	@Test
