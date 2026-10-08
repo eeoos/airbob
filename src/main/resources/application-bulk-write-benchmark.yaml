@@ -20,6 +20,31 @@ spring:
         show_sql: false
         format_sql: false
 
+# Isolate this database write experiment from consumers, search bootstrap and cache Redis I/O.
+# Both full-replacement variants still append the canonical cache-invalidation outbox event.
+accommodation:
+  indexing:
+    bootstrap:
+      enabled: false
+    kafka:
+      auto-startup: false
+  detail-cache:
+    enabled: false
+    invalidation:
+      kafka:
+        auto-startup: false
+
+operator-alert:
+  kafka:
+    auto-startup: false
+  slack:
+    enabled: false
+
+reservation:
+  inventory:
+    startup:
+      enabled: false
+
 logging:
   level:
     kr.kro.airbob.domain.reservation.scheduler.ReservationScheduler: ERROR

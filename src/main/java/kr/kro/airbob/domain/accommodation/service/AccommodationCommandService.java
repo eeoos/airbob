@@ -10,9 +10,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.kro.airbob.common.history.ChangeType;
@@ -93,6 +95,15 @@ public class AccommodationCommandService {
 
 	@Transactional
 	public void updateAccommodation(Long accommodationId, AccommodationRequest.Update request, Long memberId) {
+		updateAccommodationWithAmenityDeletion(
+			accommodationId, request, memberId, accommodationAmenityRepository::deleteByAccommodationIdInBulk);
+	}
+
+	// Keep validation, locks, history and invalidation identical when comparing deletion strategies.
+	@Transactional(propagation = Propagation.MANDATORY)
+	void updateAccommodationWithAmenityDeletion(
+		Long accommodationId, AccommodationRequest.Update request, Long memberId, LongConsumer deleteAmenities
+	) {
 		Accommodation accommodation = findByIdAndMemberIdAndStatusNot(accommodationId, memberId);
 		String previousTimeZoneId = accommodation.getTimeZoneId();
 
@@ -104,7 +115,7 @@ public class AccommodationCommandService {
 		accommodation.updateAccommodation(request);
 		updateLocation(accommodation, resolvedLocation);
 		updateOccupancyPolicy(accommodation, request.occupancyPolicyInfo());
-		updateAmenities(accommodation, amenityCountMap);
+		updateAmenities(accommodation, amenityCountMap, deleteAmenities);
 		if (accommodation.getStatus() == AccommodationStatus.PUBLISHED
 			&& !Objects.equals(previousTimeZoneId, accommodation.getTimeZoneId())) {
 			inventorySeedService.seedCurrentHorizon(accommodation);
@@ -377,12 +388,14 @@ public class AccommodationCommandService {
 	private record ResolvedLocation(Address address, ZoneId timeZone) {
 	}
 
-	private void updateAmenities(Accommodation accommodation, Map<String, Integer> amenityCountMap) {
+	private void updateAmenities(
+		Accommodation accommodation, Map<String, Integer> amenityCountMap, LongConsumer deleteAmenities
+	) {
 		if (amenityCountMap == null) {
 			return;
 		}
 
-		accommodationAmenityRepository.deleteByAccommodationIdInBulk(accommodation.getId());
+		deleteAmenities.accept(accommodation.getId());
 
 		if (!amenityCountMap.isEmpty()) {
 			saveValidAmenities(amenityCountMap, accommodation);

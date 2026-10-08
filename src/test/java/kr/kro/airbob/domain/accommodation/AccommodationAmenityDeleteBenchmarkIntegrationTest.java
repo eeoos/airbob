@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.flywaydb.core.Flyway;
@@ -15,6 +18,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -39,14 +45,17 @@ import org.testcontainers.utility.DockerImageName;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityManager;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
+import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.common.monitoring.SqlQueryType;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationMonitor;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkResponse;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Measurement;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Variant;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass;
@@ -77,7 +86,7 @@ import kr.kro.airbob.geo.dto.GeocodeResult;
 })
 @ActiveProfiles({"test", "bulk-write-benchmark"})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@DisplayName("AccommodationAmenity 삭제 Before 벤치마크 MySQL 통합 테스트")
+@DisplayName("AccommodationAmenity 삭제 Before/After 벤치마크 MySQL 통합 테스트")
 class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	private static final String INACTIVE_AMENITY_CODE = "INACTIVE_TEST_AMENITY";
 
@@ -113,6 +122,8 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	@Autowired private AccommodationAmenityDeleteAfterBenchmarkService afterService;
 	@Autowired private AccommodationCommandService accommodationCommandService;
 	@Autowired private JdbcTemplate jdbcTemplate;
+	@Autowired private ObjectMapper objectMapper;
+	@Autowired private KafkaListenerEndpointRegistry kafkaListeners;
 	@Autowired private TransactionTemplate transactionTemplate;
 	@Autowired private EntityManager entityManager;
 	@Autowired private BulkOperationMonitor bulkOperationMonitor;
@@ -137,6 +148,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	void tearDown() {
 		reset(accommodationAmenityRepository);
 		UserContext.clear();
+		jdbcTemplate.update("DELETE FROM outbox");
 		jdbcTemplate.update("DELETE FROM accommodation_amenity");
 		jdbcTemplate.update("DELETE FROM accommodation_history");
 		jdbcTemplate.update("DELETE FROM accommodation");
@@ -170,7 +182,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("full replacement는 N=0, 현실 경계, stress에서 N+R+5 SQL 공식과 상태 계약을 지킨다")
+	@DisplayName("full replacement는 N=0, 현실 경계, stress에서 N+R+6 SQL 공식과 상태 계약을 지킨다")
 	void fullReplacementMatchesSqlFormulaAcrossCardinalities() {
 		int activeCodeCount = activeAmenityCodes().size();
 
@@ -217,13 +229,14 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertThat(AopUtils.isAopProxy(afterService)).isTrue();
 	}
 
-	@Test
+	@ParameterizedTest
+	@EnumSource(Variant.class)
 	@DisplayName("null은 amenity를 유지하고 empty는 전부 삭제하며 populated는 대소문자·중복·0을 정확히 병합한다")
-	void preservesCurrentAmenityReplacementSemantics() {
+	void preservesCurrentAmenityReplacementSemantics(Variant variant) {
 		Fixture nullFixture = fixtureService.createFixture(ownerId, 3);
 		Map<String, Integer> oldMap = amenityMap(nullFixture.targetAccommodationId());
 
-		accommodationCommandService.updateAccommodation(
+		runFullReplacement(variant,
 			nullFixture.targetAccommodationId(),
 			update(null),
 			ownerId
@@ -233,7 +246,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(nullFixture);
 
 		Fixture emptyFixture = fixtureService.createFixture(ownerId, 3);
-		accommodationCommandService.updateAccommodation(
+		runFullReplacement(variant,
 			emptyFixture.targetAccommodationId(),
 			update(List.of()),
 			ownerId
@@ -253,7 +266,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			new AmenityRequest.AmenityInfo(second.toLowerCase(), 5)
 		);
 
-		accommodationCommandService.updateAccommodation(
+		runFullReplacement(variant,
 			populatedFixture.targetAccommodationId(),
 			update(request),
 			ownerId
@@ -265,9 +278,10 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(populatedFixture);
 	}
 
-	@Test
+	@ParameterizedTest
+	@EnumSource(Variant.class)
 	@DisplayName("DB에 존재하지만 비활성인 편의시설이 섞이면 전체 수정을 거부한다")
-	void rejectsInactiveAmenityAndPreservesExistingState() {
+	void rejectsInactiveAmenityAndPreservesExistingState(Variant variant) {
 		jdbcTemplate.update(
 			"DELETE FROM common_code WHERE group_code = 'AMENITY_TYPE' AND code = ?",
 			INACTIVE_AMENITY_CODE
@@ -297,7 +311,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			))
 			.build();
 
-		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
+		assertThatThrownBy(() -> runFullReplacement(variant,
 			fixture.targetAccommodationId(), request, ownerId
 		)).isInstanceOf(InvalidAccommodationAmenityException.class);
 
@@ -308,9 +322,10 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(fixture);
 	}
 
-	@Test
-	@DisplayName("predicate delete 뒤에도 managed parent와 address·occupancy·history 변경을 모두 commit한다")
-	void preservesManagedParentAndOwnedStateAfterPredicateDelete() {
+	@ParameterizedTest
+	@EnumSource(Variant.class)
+	@DisplayName("두 삭제 전략 모두 managed parent와 address·occupancy·history 변경을 commit한다")
+	void preservesManagedParentAndOwnedStateAfterPredicateDelete(Variant variant) {
 		Fixture fixture = fixtureService.createFixture(ownerId, 1);
 		when(geocodingService.getCoordinates(anyString()))
 			.thenReturn(GeocodeResult.success(37.5665, 126.9780, "Seoul", null));
@@ -329,7 +344,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			null
 		);
 
-		accommodationCommandService.updateAccommodation(fixture.targetAccommodationId(), request, ownerId);
+		runFullReplacement(variant, fixture.targetAccommodationId(), request, ownerId);
 
 		Map<String, Object> parent = parentSnapshot(fixture.targetAccommodationId());
 		assertThat(parent.get("name")).isEqualTo("managed parent after bulk delete");
@@ -539,8 +554,8 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("frozen Before full replacement INSERT flush 뒤 실패하면 derived delete와 INSERT를 rollback한다")
-	void rollsBackFrozenBeforeFullReplacementAfterDatabaseInsertFailure() {
+	@DisplayName("Before full replacement INSERT flush 뒤 실패하면 derived delete와 INSERT를 rollback한다")
+	void rollsBackBeforeFullReplacementAfterDatabaseInsertFailure() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 4);
 		Map<String, Integer> oldTarget = amenityMap(fixture.targetAccommodationId());
 		Map<String, Object> parentBefore = parentSnapshot(fixture.targetAccommodationId());
@@ -569,6 +584,85 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertThat(historySnapshots(fixture.targetAccommodationId())).isEqualTo(historyBefore);
 		assertThat(amenityMap(fixture.controlAccommodationId())).isEqualTo(controlBefore);
 		fixtureService.cleanup(fixture);
+	}
+
+	@ParameterizedTest
+	@EnumSource(Variant.class)
+	@DisplayName("두 교체 경로는 터키어 기본 Locale에서도 같은 코드를 저장한다")
+	void normalizesCodesInBothVariants(Variant variant) {
+		Fixture fixture = fixtureService.createFixture(ownerId, 1);
+		Locale previous = Locale.getDefault();
+		try {
+			Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+			runFullReplacement(variant, fixture.targetAccommodationId(),
+				update(List.of(new AmenityRequest.AmenityInfo("wifi", 2))), ownerId);
+			assertThat(amenityMap(fixture.targetAccommodationId())).containsExactlyEntriesOf(Map.of("WIFI", 2));
+		} finally {
+			Locale.setDefault(previous);
+			fixtureService.cleanup(fixture);
+		}
+	}
+
+	@Test
+	@DisplayName("outbox 검증은 누락된 무효화를 거부하고 cleanup은 다른 fixture의 이벤트를 보존한다")
+	void verifiesAndCleansOnlyOwnedOutboxEvents() {
+		Fixture control = fixtureService.createFixture(ownerId, 2);
+		Fixture target = fixtureService.createFixture(ownerId, 2);
+		runFullReplacement(Variant.AFTER, control.targetAccommodationId(), control.replacementRequest(), ownerId);
+		runFullReplacement(Variant.BEFORE, target.targetAccommodationId(), target.replacementRequest(), ownerId);
+		assertThat(fixtureService.verify(target, Measurement.FULL_REPLACEMENT).succeeded()).isTrue();
+		assertThat(countOutboxRows()).isEqualTo(2L);
+
+		jdbcTemplate.update("UPDATE outbox SET event_version = 'invalid' WHERE aggregate_id = ?",
+			Long.toString(target.targetAccommodationId()));
+		assertThat(fixtureService.verify(target, Measurement.FULL_REPLACEMENT).succeeded()).isFalse();
+		fixtureService.cleanup(target);
+		fixtureService.cleanup(target);
+		assertThat(countOutboxRows()).isEqualTo(1L);
+		assertThat(fixtureService.verify(control, Measurement.FULL_REPLACEMENT).succeeded()).isTrue();
+
+		jdbcTemplate.update("DELETE FROM outbox WHERE aggregate_id = ?", Long.toString(control.targetAccommodationId()));
+		assertThat(fixtureService.verify(control, Measurement.FULL_REPLACEMENT).succeeded()).isFalse();
+		fixtureService.cleanup(control);
+		assertThat(countOutboxRows()).isZero();
+	}
+
+	@Test
+	@DisplayName("벤치마크는 main/retry/DLT Kafka 소비자를 모두 정지 상태로 유지한다")
+	void keepsEveryKafkaListenerStopped() {
+		assertThat(kafkaListeners.getAllListenerContainers()).isNotEmpty()
+			.allSatisfy(container -> assertThat(container.isRunning()).isFalse());
+	}
+
+	@Test
+	@DisplayName("실제 서비스 응답을 k6 계약 검증용으로 내보내고 반복 측정 후 outbox 잔여물을 확인한다")
+	void exportsActualResponsesForClientContract() throws Exception {
+		var responses = new ArrayList<ApiResponse<AccommodationAmenityDeleteBenchmarkResponse>>();
+		for (Variant variant : Variant.values()) {
+			for (Measurement measurement : Measurement.values()) {
+				var response = benchmarkService.run(ownerId,
+					new AccommodationAmenityDeleteBenchmarkRequest(variant, measurement, 3));
+				assertThat(response.verificationSucceeded()).isTrue();
+				assertThat(countOutboxRows()).isZero();
+				responses.add(ApiResponse.success(response));
+			}
+		}
+		Path output = Path.of("build/contracts/bulk-delete-amenity-responses.json");
+		Files.createDirectories(output.getParent());
+		objectMapper.writerWithDefaultPrettyPrinter().writeValue(output.toFile(), responses);
+	}
+
+	private long countOutboxRows() {
+		return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM outbox", Long.class);
+	}
+
+	private void runFullReplacement(Variant variant, long accommodationId, AccommodationRequest.Update request,
+		long memberId) {
+		if (variant == Variant.BEFORE) {
+			beforeService.fullReplacement(accommodationId, request, memberId);
+		} else {
+			accommodationCommandService.updateAccommodation(accommodationId, request, memberId);
+		}
 	}
 
 	private void assertFullReplacement(int datasetSize, int activeCodeCount) {
@@ -600,10 +694,10 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertThat(response.operation().hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 3)
 			.containsEntry(SqlQueryType.DELETE, datasetSize)
-			.containsEntry(SqlQueryType.INSERT, replacementRows + 1)
+			.containsEntry(SqlQueryType.INSERT, replacementRows + 2)
 			.containsEntry(SqlQueryType.UPDATE, 1)
 			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, datasetSize + replacementRows + 5);
+			.containsEntry(SqlQueryType.TOTAL, datasetSize + replacementRows + 6);
 		assertNoJdbcBatchFields(response.operation().jdbcBatchCalls(),
 			response.operation().jdbcSubmittedRows(),
 			response.operation().jdbcConfiguredBatchSize(),

@@ -5,7 +5,7 @@
 
 ## Bulk write 벤치마크 서버 실행
 
-Wishlist DELETE와 ReservationHistory INSERT 비교는 운영 DB와 분리된 전용 스키마에서만 실행한다. 서버는 느슨한 profile 환경 변수나 직접 `bootRun`으로 시작하지 않고 전용 launcher를 사용한다.
+Wishlist DELETE, AccommodationAmenity DELETE, ReservationHistory INSERT 비교는 운영 DB와 분리된 전용 스키마에서만 실행한다. 서버는 느슨한 profile 환경 변수나 직접 `bootRun`으로 시작하지 않고 전용 launcher를 사용한다.
 
 ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상태 변경, 쿠폰 복원, history 쓰기만 비교한다. 예약용 외부 임시 재고나 분산 락은 측정 범위에 없으며, 앞의 쿠폰 발급 db/Lua 비교와는 서로 다른 실험이다.
 
@@ -26,6 +26,53 @@ load-test/k6/bulk-write/run-bulk-write-benchmark-server.sh
 ```
 
 launcher는 자격 증명을 명령 인자나 출력에 넣지 않고 자식 환경으로만 전달한다. 또한 `BENCHMARK_BULK_WRITE_ENABLED=true`, profile 순서 `dev,bulk-write-benchmark`, Hibernate `show_sql`/`format_sql`과 SQL/bind/동결 BEFORE logger의 `OFF`를 강제한다. 설정 우회를 막기 위해 추가 Gradle 인자를 받지 않는다. 측정 뒤 서버를 중지하고 실행 셸에서 `unset BENCHMARK_BULK_WRITE_TOKEN BENCHMARK_BULK_WRITE_ALLOWED_SCHEMA JDBC_REWRITE_BATCHED_STATEMENTS BENCHMARK_DATASET_MANIFEST`를 실행한다.
+
+### 삭제 비교의 측정 범위와 사전 검증
+
+편의시설 `FULL_REPLACEMENT`는 현재 숙소 수정 흐름을 공유하며 삭제 전략만 다르게 주입한다.
+양쪽 모두 동일한 부모 `FOR UPDATE` 잠금, 입력 검증, 새 편의시설 저장, SCD2 이력,
+캐시 무효화 outbox 기록, flush와 commit을 포함한다. 과거 서비스를 복사한 Before와
+현재 서비스를 비교하지 않는다. `DELETE_ONLY`는 편의시설 삭제 트랜잭션만 비교한다.
+
+`dev,bulk-write-benchmark`에서는 모든 Kafka 소비자, 검색 alias bootstrap, 재고 startup seed,
+스케줄러 및 숙소 상세 캐시 I/O를 비활성화한다. Redis는 로그인 세션에 여전히 필요하다.
+두 교체 경로의 canonical outbox INSERT는 유지하고, fixture 검증에서 정확한 무효화 이벤트를
+확인한 다음 해당 fixture의 이벤트만 정리한다. fixture 생성·검증·정리는 연산 시간에 포함하지 않는다.
+이 프로필의 DB/커밋 시간과 캐시 I/O를 포함한 운영 HTTP 지연은 구분해서 해석한다.
+전용 schema는 최신 마이그레이션과 `outbox` 테이블을 포함해야 하며 Debezium의 운영 캡처 대상에 넣지 않는다.
+
+`N`은 삭제할 기존 편의시설 수, `R`은 정규화·중복 합산 후 새로 저장할 코드 수다.
+DRAFT fixture에서 편의시설 외 필드를 변경하지 않는 현재 SQL 계약은 다음과 같다.
+
+| 측정 | Variant | SELECT | INSERT | UPDATE | DELETE | TOTAL |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| FULL_REPLACEMENT | Before | 3 | R + 2 | 1 | N | N + R + 6 |
+| FULL_REPLACEMENT | After | 2 | R + 2 | 1 | 1 | R + 6 |
+| DELETE_ONLY | Before | 1 | 0 | 0 | N | N + 1 |
+| DELETE_ONLY | After | 0 | 0 | 0 | 1 | 1 |
+
+INSERT의 `+2`는 이력 1개와 outbox 1개다. `N=R=30`이면 전체 교체 SQL은 66→36이다.
+기존 outbox 미포함 측정과 표본을 합치지 않는다. 실제 활성 코드 수를 초과한 `N`은
+`STRESS`로 분류하며 일반 숙소의 편의시설 개수와 구분한다.
+
+재측정 전에 Docker와 현재 TZDB를 지원하는 JDK 21로 다음 검증을 실행한다.
+로컬에서 확인한 호환 런타임은 Temurin 21.0.12.1이며, 과거 21.0.6 측정 환경은 현재
+시간대 검증을 통과하지 못한다. `JAVA_HOME`을 호환 런타임으로 지정한다.
+
+```bash
+./gradlew test --tests '*WishlistDelete*' --tests '*AccommodationAmenityDelete*' \
+  --tests '*AccommodationAmenityLifecycle*' --tests '*AccommodationCommandServiceTest' \
+  --tests '*BulkOperation*' --tests '*BulkWriteBenchmark*' --rerun-tasks
+node --test load-test/k6/test/bulk-delete-api-contract-test.mjs
+k6 run load-test/k6/test/bulk-write-benchmark-test.js
+k6 run load-test/k6/test/accommodation-amenity-delete-benchmark-test.js
+node --test load-test/k6/test/bulk-write-observations-test.mjs
+```
+
+MySQL 통합 테스트가 `build/contracts/bulk-delete-amenity-responses.json`에 실제 서비스의
+네 가지 응답을 직렬화하고, Node 검사가 이를 k6의 응답 검증기에 전달한다. 독립적인
+가짜 응답만으로 서버와 부하 발생기의 SQL 계약 불일치를 놓치지 않도록 연결해서 실행한다.
+파일이 없으면 Java 통합 테스트를 먼저 실행해야 한다.
 
 ### Bulk write raw observation 측정
 
@@ -90,6 +137,7 @@ export PHASE=measure
 export VARIANT=AFTER
 export RUN_ORDER=2
 export RAW_OBSERVATION_SAMPLES=10
+export DATASET_SIZE=1000
 export RUN_LABEL=wishlist-after-n1000-r1
 export RAW_OBSERVATION_RESULT_PATH=build/k6/bulk-write/wishlist-after-n1000-r1-observations.json
 load-test/k6/bulk-write/run-wishlist-delete-observations.sh
@@ -103,8 +151,9 @@ export VARIANT=AFTER
 export MEASUREMENT=FULL_REPLACEMENT
 export RUN_ORDER=2
 export RAW_OBSERVATION_SAMPLES=10
-export RUN_LABEL=amenity-full-after-n100-r1
-export RAW_OBSERVATION_RESULT_PATH=build/k6/bulk-write/amenity-full-after-n100-r1-observations.json
+export DATASET_SIZE=30
+export RUN_LABEL=amenity-full-after-n30-r1
+export RAW_OBSERVATION_RESULT_PATH=build/k6/bulk-write/amenity-full-after-n30-r1-observations.json
 load-test/k6/bulk-write/run-accommodation-amenity-delete-observations.sh
 ```
 

@@ -676,11 +676,11 @@ function validateDatabaseObservation(source, definition) {
     if (source.metadata.measurement === 'FULL_REPLACEMENT' && variant === 'BEFORE') {
       requireCondition(
         sql.SELECT === 3
-          && sql.INSERT === replacementRows + 1
+          && sql.INSERT === replacementRows + 2
           && sql.UPDATE === 1
           && sql.DELETE === datasetSize
           && sql.OTHER === 0
-          && sql.TOTAL === datasetSize + replacementRows + 5,
+          && sql.TOTAL === datasetSize + replacementRows + 6,
         'source AccommodationAmenity full-replacement observation is invalid',
       );
     } else if (source.metadata.measurement === 'DELETE_ONLY' && variant === 'BEFORE') {
@@ -696,11 +696,11 @@ function validateDatabaseObservation(source, definition) {
     } else if (source.metadata.measurement === 'FULL_REPLACEMENT') {
       requireCondition(
         sql.SELECT === 2
-          && sql.INSERT === replacementRows + 1
+          && sql.INSERT === replacementRows + 2
           && sql.UPDATE === 1
           && sql.DELETE === 1
           && sql.OTHER === 0
-          && sql.TOTAL === replacementRows + 5,
+          && sql.TOTAL === replacementRows + 6,
         'source AccommodationAmenity After full-replacement observation is invalid',
       );
     } else {

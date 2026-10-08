@@ -34,12 +34,12 @@ function operation(variant, measurement, datasetSize, activeCodeCount) {
     server_operation_ms: 1,
     hibernate_statements_by_type: {
 			SELECT: fullReplacement ? (before ? 3 : 2) : (before ? 1 : 0),
-			INSERT: fullReplacement ? replacementRows + 1 : 0,
+			INSERT: fullReplacement ? replacementRows + 2 : 0,
 			UPDATE: fullReplacement ? 1 : 0,
 			DELETE: before ? datasetSize : 1,
 			OTHER: 0,
 			TOTAL: fullReplacement
-				? (before ? datasetSize + replacementRows + 5 : replacementRows + 5)
+				? (before ? datasetSize + replacementRows + 6 : replacementRows + 6)
 				: (before ? datasetSize + 1 : 1),
     },
     jdbc_batch_calls: 0,
@@ -173,7 +173,7 @@ export default function () {
 			&& buildBulkWriteRequestBody(deleteAfterEmpty, ACCOMMODATION_AMENITY_DELETE_BENCHMARK)
 				=== '{"variant":"AFTER","measurement":"DELETE_ONLY","dataset_size":0}'
 	),
-		'Before full replacement validates the observed N+R+5 formula': () => (
+		'Before full replacement validates the observed N+R+6 formula': () => (
 			matchesBulkWriteResponseContract(
 				payload('BEFORE', 'FULL_REPLACEMENT', 31, 30),
         31,
