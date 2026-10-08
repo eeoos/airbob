@@ -35,6 +35,8 @@ public enum ErrorCode {
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
 	MEMBER_ROLE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "M007", "자신의 관리자 권한은 회수할 수 없습니다."),
 	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
+	BENCHMARK_RECENTLY_VIEWED_FIXTURE_INVALID(HttpStatus.BAD_REQUEST, "B002",
+		"N+1 측정에는 서로 다른 주소가 있는 공개 숙소가 필요합니다. 데이터와 manifest를 확인해 주세요."),
 
 
 	// accommodation
