@@ -9,6 +9,8 @@ spring:
         - performance-lab
       coupon-performance:
         - coupon-benchmark
+      bulk-delete-benchmark:
+        - bulk-write-benchmark
 
   task:
     scheduling:

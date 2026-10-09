@@ -88,12 +88,12 @@ function payload(overrides = {}, variant = 'BEFORE') {
 
 function accommodationAmenityPayload(variant, measurement, datasetSize = 0) {
 	const fullReplacement = measurement === 'FULL_REPLACEMENT';
-	const replacementRows = fullReplacement ? 0 : 0;
+	const replacementRows = 0;
 	const after = variant === 'AFTER';
 	const statements = fullReplacement
 		? (after
-			? { SELECT: 2, INSERT: 1, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 5 }
-			: { SELECT: 3, INSERT: 1, UPDATE: 1, DELETE: 0, OTHER: 0, TOTAL: 5 })
+			? { SELECT: 2, INSERT: 2, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 6 }
+			: { SELECT: 3, INSERT: 2, UPDATE: 1, DELETE: 0, OTHER: 0, TOTAL: 6 })
 		: (after
 			? { SELECT: 0, INSERT: 0, UPDATE: 0, DELETE: 1, OTHER: 0, TOTAL: 1 }
 			: { SELECT: 1, INSERT: 0, UPDATE: 0, DELETE: 0, OTHER: 0, TOTAL: 1 });

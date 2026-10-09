@@ -583,6 +583,7 @@ export function buildBulkWriteHeaders(benchmarkToken) {
 export function buildBulkWriteRequestParams({
   benchmarkToken,
   sessionId,
+  runtimeId,
   timeout,
   tags = {},
 }) {
@@ -593,7 +594,10 @@ export function buildBulkWriteRequestParams({
   requireCondition(isObject(tags), 'request tags must be an object');
   return {
     cookies: { SESSION_ID: sessionId },
-    headers: buildBulkWriteHeaders(benchmarkToken),
+    headers: {
+      ...buildBulkWriteHeaders(benchmarkToken),
+      ...(runtimeId ? { 'X-Bulk-Delete-Runtime-Id': runtimeId } : {}),
+    },
     redirects: 0,
     tags: { ...tags },
     timeout: parseRequiredPublicText(timeout, 'REQUEST_TIMEOUT'),
