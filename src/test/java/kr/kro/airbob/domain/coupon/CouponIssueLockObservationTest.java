@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
@@ -51,12 +52,19 @@ class CouponIssueLockObservationTest {
 					try (var result = sql.executeQuery("select connection_id()")) { result.next(); connectionId = result.getLong(1); }
 					sql.executeQuery("select * from coupon where id=1 for share nowait").close();
 					String columns = strategy.composite() ? "unit_no,unit_no" : "id,unit_no";
+					String select = "select " + columns + " from " + strategy.unitTable()
+						+ " where coupon_id=1 order by unit_no limit 1 for update skip locked";
+					Object explain;
+					try (var result = sql.executeQuery("explain format=json " + select)) {
+						assertThat(result.next()).isTrue();
+						explain = new ObjectMapper().readValue(result.getString(1), Map.class);
+					}
 					long key;
-					try (var result = sql.executeQuery("select " + columns + " from " + strategy.unitTable()
-						+ " where coupon_id=1 order by unit_no limit 1 for update skip locked")) {
+					try (var result = sql.executeQuery(select)) {
 						assertThat(result.next()).isTrue(); key = result.getLong(1);
 					}
 					var selected = locks(observer, connectionId);
+					var selectedSummary = transactionLockSummary(observer, connectionId);
 					var records = selected.stream().filter(row -> strategy.unitTable().equals(row.get("OBJECT_NAME"))
 						&& "RECORD".equals(row.get("LOCK_TYPE"))).toList();
 					assertThat(records).extracting(row -> row.get("INDEX_NAME")).contains("PRIMARY");
@@ -69,9 +77,12 @@ class CouponIssueLockObservationTest {
 					sql.executeUpdate("delete from " + strategy.unitTable() + " where coupon_id=1 and "
 						+ (strategy.composite() ? "unit_no" : "id") + "=" + key);
 					var consumed = locks(observer, connectionId);
+					var consumedSummary = transactionLockSummary(observer, connectionId);
 					sql.executeUpdate("insert into member_coupon(member_id,coupon_id,used,updated_at) values(1,1,false,now(6))");
 					observations.add(Map.of("variant", strategy.variant(), "afterSelect", selected,
-						"afterDelete", consumed, "afterInsert", locks(observer, connectionId)));
+						"afterDelete", consumed, "afterInsert", locks(observer, connectionId), "explain", explain,
+						"internalAfterSelect", selectedSummary, "internalAfterDelete", consumedSummary,
+						"internalAfterInsert", transactionLockSummary(observer, connectionId)));
 					transaction.rollback();
 				}
 			}
@@ -108,6 +119,22 @@ class CouponIssueLockObservationTest {
 		new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(output.toFile(),
 			Map.of("mysql", "8.4.11", "scope", "controlled SQL transactions; logical record locks, not lock memory or throughput",
 				"observations", observations, "emptyRangeBoundary", boundaries));
+	}
+
+	private Map<String, Object> transactionLockSummary(Connection observer, long connectionId) throws Exception {
+		try (var sql = observer.createStatement(); var result = sql.executeQuery("show engine innodb status")) {
+			assertThat(result.next()).isTrue();
+			for (String block : result.getString("Status").split("---TRANSACTION")) {
+				if (!block.contains("MySQL thread id " + connectionId + ",")) continue;
+				var matcher = Pattern.compile("(?m)^(\\d+) lock struct\\(s\\), heap size (\\d+), (\\d+) row lock\\(s\\).*$")
+					.matcher(block);
+				assertThat(matcher.find()).as("InnoDB transaction lock summary").isTrue();
+				return Map.of("lockStructs", Integer.parseInt(matcher.group(1)),
+					"heapSizeBytes", Integer.parseInt(matcher.group(2)),
+					"rowLocks", Integer.parseInt(matcher.group(3)), "rawSummary", matcher.group());
+			}
+		}
+		throw new AssertionError("Missing active transaction in InnoDB status: " + connectionId);
 	}
 
 	private List<Map<String, String>> locks(Connection observer, long connectionId) throws Exception {

@@ -29,8 +29,8 @@ class Preparation(unittest.TestCase):
             self.assertEqual(result['networkCallsPerformed'], 0)
             self.assertFalse(result['readyToExecute'])
             self.assertEqual(result['requiredUniqueSessions'], 180001)
-            self.assertEqual(result['maximumMeasuredRuns'], 108)
-            self.assertEqual(result['fixedWorkloadSecondsUpperBound'], 23760)
+            self.assertEqual(result['maximumMeasuredRuns'], 150)
+            self.assertEqual(result['fixedWorkloadSecondsUpperBound'], 33000)
             with tarfile.open(output / 'coupon-tools.tar.gz') as archive:
                 self.assertEqual(set(archive.getnames()), set(prepare_aws.SOURCES))
                 self.assertTrue(all('..' not in Path(name).parts and not name.startswith('/') for name in archive.getnames()))

@@ -3,6 +3,7 @@
 같은 앱에서 재고 카운터와 unit 소비를 비교한다. 모든 비교군은 MySQL 커밋 후 201을 반환한다.
 설계와 단계별 완료 기준은 [계획서](../../../docs/performance/coupon-skip-locked-benchmark-plan.md),
 배포 입력은 [AWS 가이드](AWS.md), 직접 실행은 [수동 가이드](MANUAL.md)를 참고한다.
+[2026-10-09 로컬 반복 측정 결과](../../../docs/performance/coupon-skip-locked-local-results.md)에 무효 회차까지 보존했다.
 
 ## 비교군과 고정 조건
 
@@ -14,7 +15,8 @@
 | `skip_composite_rr` (C) | 복합 키 unit DELETE | RR |
 | `skip_composite_rc` (E) | 복합 키 unit DELETE | RC |
 
-기본 비교는 A·B·D이다. B·C 사전 비교로 키 변경의 의미를 판단하고 C·E 확대 여부를 정한다.
+이번 계획과 AWS 설정 예제는 A·B·D·C·E 모두를 비교한다. B·C 사전 비교 자료도 보존한다.
+로컬 실행기의 variant 생략 기본값은 A·B·D이므로 다섯 방식은 아래처럼 명시한다.
 Lua 경로는 제거했다. Redis는 실제 세션 인증에 사용하며 재고를 저장하지 않는다.
 모든 비교군이 같은 `POST /api/v2/coupons/{id}/issue?variant=...`와 토큰·세션 검증을 거친다.
 쿠폰의 불변 `issue_strategy`와 요청 전략이 다르면 거부한다. A의 업무 트랜잭션 첫 SQL은 조건부 UPDATE다.
@@ -34,7 +36,8 @@ Lua 경로는 제거했다. Redis는 실제 세션 인증에 사용하며 재고
 `constant-arrival-rate`로 보내며 요청은 RPS × 시간 건으로 제한한다. 회원 세션은 경계 여유분 1개를 더 준비한다.
 다른 쿠폰 간에는 회원 풀을 재사용하지만 같은 쿠폰 안에서는 재사용하지 않는다.
 각 측정은 새 쿠폰과 별도 워밍업을 쓴다. 세 비교군의 여섯 순서는 ABD, BDA, DAB, ADB, DBA, BAD이다.
-두 비교군은 AB/BA, 네 비교군 이상도 회전·역순으로 위치 편향을 줄인다.
+두 비교군은 AB/BA, 다섯 비교군의 5라운드는 ABDCE, BDCEA, DCEAB, CEABD, EABDC로 각 위치를 한 번씩 차지한다.
+추가 라운드는 역방향 순서를 사용한다.
 
 - 모든 요청 결과를 성공·품절·중복·경합·인증·설정·예상 밖 오류로 분리한다.
 - 회원 쿠폰 수 = 고유 회원 수 = 성공 응답 수를 검증한다.
@@ -72,7 +75,9 @@ Docker, Java 21, Node, k6가 필요하다. 관측 모드는 macOS와 PyMySQL 1.1
 
 ```bash
 ./gradlew bootJar -x test -x generateAdoc -x asciidoctor -x copyDocument
-python3 load-test/k6/coupon/run_local_e2e.py --rate 50 --duration 20 --rounds 6 --observe
+python3 load-test/k6/coupon/run_local_e2e.py --rate 500 --duration 20 --rounds 5 --observe \
+  --variants db skip_surrogate_rr skip_surrogate_rc skip_composite_rr skip_composite_rc \
+  --client-vus 500 --cooldown 3
 ```
 
 Java의 시간대 데이터가 오래됐다면 최신 Java 21 경로를 `--java-home`으로 지정한다.
@@ -113,7 +118,8 @@ python3 load-test/k6/coupon/run_experiments.py --config /absolute/coupon-experim
 python3 load-test/k6/coupon/run_experiments.py --config /absolute/coupon-experiment.json --execute
 ```
 
-기본 예제는 A·B·D, 6라운드, 180초, 최대 1,000 RPS로 180,001명과 최대 108회 본 측정이 필요하다.
+기본 예제는 A·B·D·C·E, 5라운드, 180초, 최대 1,000 RPS로 180,001명과 최대 150회 본 측정이 필요하다.
+워밍업·대기를 포함한 고정 워크로드의 상한은 9시간 10분이며, 로그인·CloudWatch 대기는 별도다.
 AWS 실행 시간과 계정 준비 시간은 별도이므로 실제 환경에 맞춰 설정한다.
 토큰·비밀번호·세션은 0600 파일에 두고 설정에는 경로만 넣는다. 앱별 직접 metrics URL을 사용한다.
 소스·도구·설정 해시를 보존하며 변경하면 새 출력 경로를 쓴다.

@@ -47,15 +47,20 @@ def evidence(scenario='capacity', variant='db', rate=100):
 
 
 class Contracts(unittest.TestCase):
-    def test_default_three_variants_balance_positions_and_all_six_orders(self):
+    def test_comparison_orders_balance_positions(self):
         variants = list(contract.DEFAULT_VARIANTS)
         orders = [contract.order(n, variants) for n in range(1, 7)]
         self.assertEqual(len({tuple(row) for row in orders}), 6)
         for variant in variants:
             for position in range(3):
                 self.assertEqual(sum(row[position] == variant for row in orders), 2)
-        self.assertEqual(contract.plan(contract.validate(json.loads(
-            (COUPON / 'experiment.example.json').read_text())))['maximumMeasuredRuns'], 108)
+        example = contract.validate(json.loads((COUPON / 'experiment.example.json').read_text()))
+        self.assertEqual(contract.plan(example)['maximumMeasuredRuns'], 150)
+        self.assertEqual(example['variants'], list(contract.VARIANTS))
+        orders = [contract.order(n, example['variants']) for n in range(1, example['rounds'] + 1)]
+        for variant in example['variants']:
+            for position in range(5):
+                self.assertEqual(sum(row[position] == variant for row in orders), 1)
 
     def test_contention_is_an_slo_failure_not_sold_out_or_missing_inventory(self):
         data = evidence(variant='skip_surrogate_rr')

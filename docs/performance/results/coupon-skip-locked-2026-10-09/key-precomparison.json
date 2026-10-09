@@ -1,0 +1,1711 @@
+{
+  "schema": "coupon-local-evidence-v1",
+  "cohort": "key-precomparison",
+  "scope": "Local shared macOS host; not AWS, production experience, or a maximum-throughput result",
+  "aggregationPolicy": "Each group retains every measured round. Aggregate is omitted if any round is invalid. Cohorts are not pooled. Valid performance failures are included.",
+  "metadata": {
+    "scope": "local-coupon-comparison",
+    "environment": "local",
+    "variants": [
+      "skip_surrogate_rr",
+      "skip_composite_rr"
+    ],
+    "appJarSha256": "1946ae2566d1434781b6066014fa4953160af58c5c0bf7a85c37a7dc0af1022e",
+    "appCommit": "706dd6f0a4c53e076ceda8b8637673299b3431fe",
+    "sourceTreeDirty": false,
+    "mysqlVersion": "8.4.11",
+    "flywayVersion": "29",
+    "memberCount": 4002,
+    "rate": 50,
+    "durationSeconds": 20,
+    "rounds": 4,
+    "clientVUs": 200,
+    "cooldownSeconds": 3,
+    "p95LimitMs": 500,
+    "p99LimitMs": 1000,
+    "dockerResources": {
+      "cpus": 11,
+      "memoryBytes": 12526239744
+    },
+    "datasetScope": "new database with local coupon accounts only; not Global B",
+    "diagnoseRate": 200,
+    "capacityRates": null,
+    "scarcityRates": null,
+    "scarcityStock": null,
+    "scarcityVariants": null,
+    "runId": "local-20261009-183312-cd91",
+    "rawDirectory": "build/k6/coupon-local/local-20261009-183312-cd91",
+    "sourceRunSha256": "cb2dd761555cafad5806af7bbf9bcec908bc9ba3979da1db0b2961cbdc45a9db",
+    "status": "complete"
+  },
+  "cleanup": {
+    "applicationStopped": true,
+    "removedDisposableContainers": [
+      "a1273b1c4e97cb7deaef76e4255af7e2502662beae270b3cec51635de17c8b71",
+      "4b895f1a01ae2e02708ec8c98385b2714ffd693b71485d81e7811e836269e21c"
+    ],
+    "cleanupRequiredContainers": []
+  },
+  "groups": [
+    {
+      "scenario": "capacity",
+      "variant": "skip_composite_rr",
+      "measured": 4,
+      "valid": 4,
+      "passed": 4,
+      "allInventoryInvariantsPassed": true,
+      "requestCount": 16000,
+      "deadlocks": 0,
+      "aggregate": {
+        "successP95Ms": {
+          "median": 8.437249999999999,
+          "min": 6.890299999999999,
+          "max": 11.80714999999999
+        },
+        "successP99Ms": {
+          "median": 23.880639999999993,
+          "min": 17.970879999999994,
+          "max": 54.63965999999997
+        },
+        "soldOutP95Ms": null,
+        "requestRps": {
+          "median": 200.0300045006751,
+          "min": 200,
+          "max": 200.0300045006751
+        },
+        "mysqlAverageCpuCores": {
+          "median": 0.1434342746923323,
+          "min": 0.1352374534179579,
+          "max": 0.15062587582355372
+        }
+      },
+      "aggregateUnavailableReason": null,
+      "rounds": [
+        {
+          "round": 1,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 7.432,
+          "successP99Ms": 17.970879999999994,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.14186103467599084,
+          "hikariAcquireMeanMs": 0.0011250000000000149,
+          "invalidReasons": [],
+          "sloReasons": []
+        },
+        {
+          "round": 2,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 6.890299999999999,
+          "successP99Ms": 20.48402,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.1352374534179579,
+          "hikariAcquireMeanMs": 0.0005000000000000004,
+          "invalidReasons": [],
+          "sloReasons": []
+        },
+        {
+          "round": 3,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 9.442499999999995,
+          "successP99Ms": 27.27725999999998,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.14500751470867376,
+          "hikariAcquireMeanMs": 0.011500000000000066,
+          "invalidReasons": [],
+          "sloReasons": []
+        },
+        {
+          "round": 4,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 11.80714999999999,
+          "successP99Ms": 54.63965999999997,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.15062587582355372,
+          "hikariAcquireMeanMs": 0.031125000000000073,
+          "invalidReasons": [],
+          "sloReasons": []
+        }
+      ]
+    },
+    {
+      "scenario": "capacity",
+      "variant": "skip_surrogate_rr",
+      "measured": 4,
+      "valid": 4,
+      "passed": 4,
+      "allInventoryInvariantsPassed": true,
+      "requestCount": 16000,
+      "deadlocks": 0,
+      "aggregate": {
+        "successP95Ms": {
+          "median": 6.1402499999999955,
+          "min": 5.2335499999999975,
+          "max": 23.07069999999997
+        },
+        "successP99Ms": {
+          "median": 11.864699999999987,
+          "min": 10.917209999999992,
+          "max": 247.9071699999999
+        },
+        "soldOutP95Ms": null,
+        "requestRps": {
+          "median": 200.0350062511377,
+          "min": 199.35210565661598,
+          "max": 200.04000800160034
+        },
+        "mysqlAverageCpuCores": {
+          "median": 0.13586431197989166,
+          "min": 0.12573217237403528,
+          "max": 0.1962602746545924
+        }
+      },
+      "aggregateUnavailableReason": null,
+      "rounds": [
+        {
+          "round": 1,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 5.981949999999997,
+          "successP99Ms": 10.917209999999992,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.13909478309738935,
+          "hikariAcquireMeanMs": 0.0005000000000000004,
+          "invalidReasons": [],
+          "sloReasons": []
+        },
+        {
+          "round": 2,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 23.07069999999997,
+          "successP99Ms": 247.9071699999999,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.1962602746545924,
+          "hikariAcquireMeanMs": 1.35975,
+          "invalidReasons": [],
+          "sloReasons": []
+        },
+        {
+          "round": 3,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 5.2335499999999975,
+          "successP99Ms": 11.33035,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.12573217237403528,
+          "hikariAcquireMeanMs": 0.0011250000000000426,
+          "invalidReasons": [],
+          "sloReasons": []
+        },
+        {
+          "round": 4,
+          "valid": true,
+          "passed": true,
+          "requestCount": 4000,
+          "droppedIterations": 0,
+          "successP95Ms": 6.298549999999994,
+          "successP99Ms": 12.399049999999974,
+          "soldOutP95Ms": null,
+          "queryPerRequest": 7.0,
+          "rowLockWaits": 0,
+          "mysqlCpuCores": 0.13263384086239396,
+          "hikariAcquireMeanMs": 0.00037499999999979217,
+          "invalidReasons": [],
+          "sloReasons": []
+        }
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "label": "002-capacity-200-skip-surrogate-rr-r1-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_surrogate_rr",
+      "round": 1,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 2,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/002-capacity-200-skip-surrogate-rr-r1-measure/result.json",
+      "sourceResultSha256": "c68836650d879634c7263cea95325804a5b1507684093d747c3b0ca99bb06220",
+      "client": {
+        "measurementStartEpochMs": 1791538465648,
+        "measurementEndEpochMs": 1791538485644,
+        "measurementDurationSeconds": 19.996,
+        "requestCount": 4000,
+        "requestRate": 200.04000800160034,
+        "successRate": 200.04000800160034,
+        "duration": {
+          "min": 3.369,
+          "p(50)": 4.377,
+          "p(95)": 5.981949999999997,
+          "p(99)": 10.917209999999992,
+          "max": 41.337,
+          "count": 4000,
+          "avg": 4.701477999999996
+        },
+        "successDuration": {
+          "count": 4000,
+          "avg": 4.701477999999996,
+          "min": 3.369,
+          "p(50)": 4.377,
+          "p(95)": 5.981949999999997,
+          "p(99)": 10.917209999999992,
+          "max": 41.337
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 2,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_surrogate_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.60527783203125,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.0005000000000000004,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 24.75,
+          "minMemoryFreePercent": 35,
+          "k6MaxCpuPercent": 14.2,
+          "k6MaxRssBytes": 149798912
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.13909478309738935,
+            "blockReadBytes": 16384,
+            "blockWriteBytes": 154587136,
+            "peakSampleMemoryBytes": 520318976
+          },
+          "redis": {
+            "averageCpuCores": 0.009090509399081067,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12378112
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7996,
+            "accumulatedSeconds": 1.60128626211,
+            "meanMs": 0.2002609132203602,
+            "miscOperations": 3998,
+            "miscSeconds": 1.573407134685
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 38,
+            "accumulatedSeconds": 0.02937821292,
+            "meanMs": 0.7731108663157894,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 3147,
+            "accumulatedSeconds": 0.092122710345,
+            "meanMs": 0.029273184094375595,
+            "miscOperations": 154,
+            "miscSeconds": 0.0752063589
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 31395,
+            "accumulatedSeconds": 1.626056853345,
+            "meanMs": 0.051793497478738654,
+            "miscOperations": 13168,
+            "miscSeconds": 1.55700439947
+          }
+        ],
+        "gcPauseSeconds": 0.023
+      }
+    },
+    {
+      "label": "004-capacity-200-skip-composite-rr-r1-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_composite_rr",
+      "round": 1,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 4,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/004-capacity-200-skip-composite-rr-r1-measure/result.json",
+      "sourceResultSha256": "03bf4e87d1082bbe26ea32cd5247678eab827ab25c35788547d0a7b9909c69a9",
+      "client": {
+        "measurementStartEpochMs": 1791538512918,
+        "measurementEndEpochMs": 1791538532915,
+        "measurementDurationSeconds": 19.997,
+        "requestCount": 4000,
+        "requestRate": 200.0300045006751,
+        "successRate": 200.0300045006751,
+        "duration": {
+          "p(99)": 17.970879999999994,
+          "max": 43.912,
+          "count": 4000,
+          "avg": 4.705219250000003,
+          "min": 3.28,
+          "p(50)": 4.098,
+          "p(95)": 7.432
+        },
+        "successDuration": {
+          "p(95)": 7.432,
+          "p(99)": 17.970879999999994,
+          "max": 43.912,
+          "count": 4000,
+          "avg": 4.705219250000003,
+          "min": 3.28,
+          "p(50)": 4.098
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 4,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_composite_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.69286962890625,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.0011250000000000149,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 32.44,
+          "minMemoryFreePercent": 36,
+          "k6MaxCpuPercent": 10.2,
+          "k6MaxRssBytes": 147718144
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.14186103467599084,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 183541760,
+            "peakSampleMemoryBytes": 531992576
+          },
+          "redis": {
+            "averageCpuCores": 0.009222901380143521,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12775424
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7967,
+            "accumulatedSeconds": 1.68249816009,
+            "meanMs": 0.21118340154261328,
+            "miscOperations": 3983,
+            "miscSeconds": 1.65361692501
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 45,
+            "accumulatedSeconds": 0.040474472265,
+            "meanMs": 0.899432717,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 4188,
+            "accumulatedSeconds": 0.095727889935,
+            "meanMs": 0.02285766235315186,
+            "miscOperations": 137,
+            "miscSeconds": 0.079511814045
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 29802,
+            "accumulatedSeconds": 1.6240289346,
+            "meanMs": 0.05449395794241997,
+            "miscOperations": 12499,
+            "miscSeconds": 1.55281227768
+          }
+        ],
+        "gcPauseSeconds": 0.049000000000000016
+      }
+    },
+    {
+      "label": "006-capacity-200-skip-composite-rr-r2-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_composite_rr",
+      "round": 2,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 6,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/006-capacity-200-skip-composite-rr-r2-measure/result.json",
+      "sourceResultSha256": "cc7b864434ce5ac1e6c4521ccec4ba7309847eb29bdcbc1cd7027bfb5e320af8",
+      "client": {
+        "measurementStartEpochMs": 1791538560147,
+        "measurementEndEpochMs": 1791538580144,
+        "measurementDurationSeconds": 19.997,
+        "requestCount": 4000,
+        "requestRate": 200.0300045006751,
+        "successRate": 200.0300045006751,
+        "duration": {
+          "avg": 4.748609749999989,
+          "min": 3.312,
+          "p(50)": 4.157,
+          "p(95)": 6.890299999999999,
+          "p(99)": 20.48402,
+          "max": 53.817,
+          "count": 4000
+        },
+        "successDuration": {
+          "p(99)": 20.48402,
+          "max": 53.817,
+          "count": 4000,
+          "avg": 4.748609749999989,
+          "min": 3.312,
+          "p(50)": 4.157,
+          "p(95)": 6.890299999999999
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 6,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_composite_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.7078037109375,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.0005000000000000004,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 29.430000000000007,
+          "minMemoryFreePercent": 33,
+          "k6MaxCpuPercent": 16.5,
+          "k6MaxRssBytes": 148193280
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.1352374534179579,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 157016064,
+            "peakSampleMemoryBytes": 542695424
+          },
+          "redis": {
+            "averageCpuCores": 0.008761376740443166,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12767232
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7973,
+            "accumulatedSeconds": 1.573463069775,
+            "meanMs": 0.1973489363821648,
+            "miscOperations": 3986,
+            "miscSeconds": 1.5451219971
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 38,
+            "accumulatedSeconds": 0.031002880635,
+            "meanMs": 0.8158652798684211,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 3245,
+            "accumulatedSeconds": 0.07659896706,
+            "meanMs": 0.023605228677966102,
+            "miscOperations": 122,
+            "miscSeconds": 0.06401206683
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 29187,
+            "accumulatedSeconds": 1.49371823466,
+            "meanMs": 0.051177518575393155,
+            "miscOperations": 12236,
+            "miscSeconds": 1.43068783284
+          }
+        ],
+        "gcPauseSeconds": 0.04200000000000001
+      }
+    },
+    {
+      "label": "008-capacity-200-skip-surrogate-rr-r2-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_surrogate_rr",
+      "round": 2,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 8,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/008-capacity-200-skip-surrogate-rr-r2-measure/result.json",
+      "sourceResultSha256": "fec480cae54aed24c0d3a00cda7bbf4ede9e4aeb5c9145bfa4f60d35ebac267a",
+      "client": {
+        "measurementStartEpochMs": 1791538607617,
+        "measurementEndEpochMs": 1791538627682,
+        "measurementDurationSeconds": 20.065,
+        "requestCount": 4000,
+        "requestRate": 199.35210565661598,
+        "successRate": 199.35210565661598,
+        "duration": {
+          "avg": 11.238900499999996,
+          "min": 3.132,
+          "p(50)": 4.471,
+          "p(95)": 23.07069999999997,
+          "p(99)": 247.9071699999999,
+          "max": 415.812,
+          "count": 4000
+        },
+        "successDuration": {
+          "p(95)": 23.07069999999997,
+          "p(99)": 247.9071699999999,
+          "max": 415.812,
+          "count": 4000,
+          "avg": 11.238900499999996,
+          "min": 3.132,
+          "p(50)": 4.471
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 8,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_surrogate_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.93091015625,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 1.35975,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 25.620000000000005,
+          "minMemoryFreePercent": 33,
+          "k6MaxCpuPercent": 24.3,
+          "k6MaxRssBytes": 152715264
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.1962602746545924,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 213913600,
+            "peakSampleMemoryBytes": 553746432
+          },
+          "redis": {
+            "averageCpuCores": 0.013729273055425017,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12550144
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7911,
+            "accumulatedSeconds": 2.01453520869,
+            "meanMs": 0.25464988101251423,
+            "miscOperations": 3952,
+            "miscSeconds": 1.975915373445
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 50,
+            "accumulatedSeconds": 0.04422701448,
+            "meanMs": 0.8845402896,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 4936,
+            "accumulatedSeconds": 0.138454606575,
+            "meanMs": 0.028049960813411674,
+            "miscOperations": 166,
+            "miscSeconds": 0.116678382075
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 29110,
+            "accumulatedSeconds": 2.34262962774,
+            "meanMs": 0.08047508168120922,
+            "miscOperations": 11962,
+            "miscSeconds": 2.219883082695
+          }
+        ],
+        "gcPauseSeconds": 0.10800000000000001
+      }
+    },
+    {
+      "label": "010-capacity-200-skip-surrogate-rr-r3-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_surrogate_rr",
+      "round": 3,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 10,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/010-capacity-200-skip-surrogate-rr-r3-measure/result.json",
+      "sourceResultSha256": "4fec508fa76ae60f3812b1880b1364cf669c57e08f4957f7821087717569c1de",
+      "client": {
+        "measurementStartEpochMs": 1791538655028,
+        "measurementEndEpochMs": 1791538675024,
+        "measurementDurationSeconds": 19.996,
+        "requestCount": 4000,
+        "requestRate": 200.04000800160034,
+        "successRate": 200.04000800160034,
+        "duration": {
+          "p(99)": 11.33035,
+          "max": 39.74,
+          "count": 4000,
+          "avg": 4.354510499999998,
+          "min": 3.264,
+          "p(50)": 4.062,
+          "p(95)": 5.2335499999999975
+        },
+        "successDuration": {
+          "p(50)": 4.062,
+          "p(95)": 5.2335499999999975,
+          "p(99)": 11.33035,
+          "max": 39.74,
+          "count": 4000,
+          "avg": 4.354510499999998,
+          "min": 3.264
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 10,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_surrogate_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.571787109375,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.0011250000000000426,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 23.150000000000006,
+          "minMemoryFreePercent": 36,
+          "k6MaxCpuPercent": 9.7,
+          "k6MaxRssBytes": 148357120
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.12573217237403528,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 195637248,
+            "peakSampleMemoryBytes": 562274304
+          },
+          "redis": {
+            "averageCpuCores": 0.008191657217335177,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12800000
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7988,
+            "accumulatedSeconds": 1.42191363222,
+            "meanMs": 0.17800621334752129,
+            "miscOperations": 3993,
+            "miscSeconds": 1.40052159567
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 41,
+            "accumulatedSeconds": 0.02734540299,
+            "meanMs": 0.6669610485365853,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 3968,
+            "accumulatedSeconds": 0.07824499713,
+            "meanMs": 0.019719001292842743,
+            "miscOperations": 140,
+            "miscSeconds": 0.06632898354
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 29585,
+            "accumulatedSeconds": 1.428944438925,
+            "meanMs": 0.04829962612557039,
+            "miscOperations": 12482,
+            "miscSeconds": 1.37003956353
+          }
+        ],
+        "gcPauseSeconds": 0.02899999999999997
+      }
+    },
+    {
+      "label": "012-capacity-200-skip-composite-rr-r3-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_composite_rr",
+      "round": 3,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 12,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/012-capacity-200-skip-composite-rr-r3-measure/result.json",
+      "sourceResultSha256": "f47b1b0bdf7308891b675cbb3f6d52b83dbab63c37eefea3caee151124dc5fa5",
+      "client": {
+        "measurementStartEpochMs": 1791538702576,
+        "measurementEndEpochMs": 1791538722573,
+        "measurementDurationSeconds": 19.997,
+        "requestCount": 4000,
+        "requestRate": 200.0300045006751,
+        "successRate": 200.0300045006751,
+        "duration": {
+          "p(99)": 27.27725999999998,
+          "max": 72.439,
+          "count": 4000,
+          "avg": 5.2609092499999734,
+          "min": 3.258,
+          "p(50)": 4.251,
+          "p(95)": 9.442499999999995
+        },
+        "successDuration": {
+          "p(95)": 9.442499999999995,
+          "p(99)": 27.27725999999998,
+          "max": 72.439,
+          "count": 4000,
+          "avg": 5.2609092499999734,
+          "min": 3.258,
+          "p(50)": 4.251
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 12,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_composite_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.831875244140626,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.011500000000000066,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 23.11,
+          "minMemoryFreePercent": 34,
+          "k6MaxCpuPercent": 21.9,
+          "k6MaxRssBytes": 146243584
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.14500751470867376,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 192397312,
+            "peakSampleMemoryBytes": 571551744
+          },
+          "redis": {
+            "averageCpuCores": 0.00951041400133735,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12541952
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7956,
+            "accumulatedSeconds": 1.664802145395,
+            "meanMs": 0.20925114949660634,
+            "miscOperations": 3977,
+            "miscSeconds": 1.63905432048
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 43,
+            "accumulatedSeconds": 0.03136863258,
+            "meanMs": 0.7295030832558139,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 4186,
+            "accumulatedSeconds": 0.096040006065,
+            "meanMs": 0.02294314526158624,
+            "miscOperations": 146,
+            "miscSeconds": 0.07903343943
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 29123,
+            "accumulatedSeconds": 1.682128812915,
+            "meanMs": 0.05775946203739313,
+            "miscOperations": 12242,
+            "miscSeconds": 1.612370063565
+          }
+        ],
+        "gcPauseSeconds": 0.08799999999999997
+      }
+    },
+    {
+      "label": "014-capacity-200-skip-composite-rr-r4-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_composite_rr",
+      "round": 4,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 14,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/014-capacity-200-skip-composite-rr-r4-measure/result.json",
+      "sourceResultSha256": "2a8455bc301ed55ad310a5017e20d46b5aebcdcbe94d81c95321dda526e3fa88",
+      "client": {
+        "measurementStartEpochMs": 1791538749757,
+        "measurementEndEpochMs": 1791538769757,
+        "measurementDurationSeconds": 20,
+        "requestCount": 4000,
+        "requestRate": 200,
+        "successRate": 200,
+        "duration": {
+          "p(95)": 11.80714999999999,
+          "p(99)": 54.63965999999997,
+          "max": 85.344,
+          "count": 4000,
+          "avg": 5.874139999999998,
+          "min": 3.275,
+          "p(50)": 4.1884999999999994
+        },
+        "successDuration": {
+          "p(95)": 11.80714999999999,
+          "p(99)": 54.63965999999997,
+          "max": 85.344,
+          "count": 4000,
+          "avg": 5.874139999999998,
+          "min": 3.275,
+          "p(50)": 4.1884999999999994
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 14,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_composite_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.61776806640625,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.031125000000000073,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 39.58,
+          "minMemoryFreePercent": 35,
+          "k6MaxCpuPercent": 13.0,
+          "k6MaxRssBytes": 146096128
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.15062587582355372,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 186298368,
+            "peakSampleMemoryBytes": 582356992
+          },
+          "redis": {
+            "averageCpuCores": 0.009834502538382441,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 13041664
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7951,
+            "accumulatedSeconds": 1.87618457115,
+            "meanMs": 0.23596837770720663,
+            "miscOperations": 3974,
+            "miscSeconds": 1.84021797384
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 42,
+            "accumulatedSeconds": 0.037481903145,
+            "meanMs": 0.8924262653571428,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 4262,
+            "accumulatedSeconds": 0.10182151215,
+            "meanMs": 0.02389054719615204,
+            "miscOperations": 145,
+            "miscSeconds": 0.08778866058
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 28731,
+            "accumulatedSeconds": 1.987976032335,
+            "meanMs": 0.06919271979168842,
+            "miscOperations": 11987,
+            "miscSeconds": 1.871561481615
+          }
+        ],
+        "gcPauseSeconds": 0.08199999999999996
+      }
+    },
+    {
+      "label": "016-capacity-200-skip-surrogate-rr-r4-measure",
+      "phase": "measure",
+      "scenario": "capacity",
+      "variant": "skip_surrogate_rr",
+      "round": 4,
+      "rate": 200,
+      "durationSeconds": 20,
+      "stock": 4001,
+      "couponId": 16,
+      "passed": true,
+      "failures": [],
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      },
+      "sourceResult": "build/k6/coupon-local/local-20261009-183312-cd91/016-capacity-200-skip-surrogate-rr-r4-measure/result.json",
+      "sourceResultSha256": "6457274051837fda3e829a558f80587af178a0859f7662611001d003ddcb3baf",
+      "client": {
+        "measurementStartEpochMs": 1791538796824,
+        "measurementEndEpochMs": 1791538816821,
+        "measurementDurationSeconds": 19.997,
+        "requestCount": 4000,
+        "requestRate": 200.0300045006751,
+        "successRate": 200.0300045006751,
+        "duration": {
+          "min": 3.019,
+          "p(50)": 4.267,
+          "p(95)": 6.298549999999994,
+          "p(99)": 12.399049999999974,
+          "max": 37.816,
+          "count": 4000,
+          "avg": 4.629386000000009
+        },
+        "successDuration": {
+          "max": 37.816,
+          "count": 4000,
+          "avg": 4.629386000000009,
+          "min": 3.019,
+          "p(50)": 4.267,
+          "p(95)": 6.298549999999994,
+          "p(99)": 12.399049999999974
+        },
+        "soldOutDuration": {},
+        "outcomes": {
+          "success": 4000,
+          "soldOut": 0,
+          "duplicate": 0,
+          "notIssuable": 0,
+          "unprepared": 0,
+          "contended": 0,
+          "authentication": 0,
+          "unexpected": 0
+        },
+        "droppedIterations": 0
+      },
+      "server": {
+        "requests": 4000,
+        "queries": 28000,
+        "scope": "Hibernate statements on the measured issue route; not all DB work"
+      },
+      "state": {
+        "coupon_id": 16,
+        "run_id": "local-20261009-183312-cd91",
+        "variant": "skip_surrogate_rr",
+        "stock": 4001,
+        "issued_quantity": 4000,
+        "member_coupon_count": 4000,
+        "distinct_member_count": 4000,
+        "legacy_issued_quantity": null,
+        "stock_prepared": true,
+        "remaining_unit_count": 1,
+        "active": true
+      },
+      "inventoryInvariantPassed": true,
+      "diagnostics": {
+        "status": "complete",
+        "errors": [],
+        "samplesWithinHttpWindow": 10,
+        "counterWindowSeconds": 23.61789404296875,
+        "counterWindowScope": "brackets k6, including initialization and final drain; no other business workload",
+        "sharedLocalHost": true,
+        "rowLocks": {
+          "waits": 0,
+          "accumulatedWaitSeconds": 0.0,
+          "meanWaitMs": null,
+          "scope": "cumulative across transactions; not wall-clock or CPU time",
+          "observedTargets": {}
+        },
+        "deadlocks": 0,
+        "hikari": {
+          "acquisitions": 8000.0,
+          "acquireMeanMs": 0.00037499999999979217,
+          "timeouts": 0.0,
+          "maxConnections": 10.0,
+          "pendingMax": 0.0,
+          "pendingSampleMean": 0.0,
+          "pendingSampleFraction": 0.0
+        },
+        "host": {
+          "systemSamples": 2,
+          "k6Samples": 10,
+          "maxCpuPercent": 39.58,
+          "minMemoryFreePercent": 32,
+          "k6MaxCpuPercent": 10.8,
+          "k6MaxRssBytes": 148553728
+        },
+        "containers": {
+          "mysql": {
+            "averageCpuCores": 0.13263384086239396,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 234819584,
+            "peakSampleMemoryBytes": 590987264
+          },
+          "redis": {
+            "averageCpuCores": 0.008545935536538178,
+            "blockReadBytes": 0,
+            "blockWriteBytes": 0,
+            "peakSampleMemoryBytes": 12775424
+          }
+        },
+        "fileIo": [
+          {
+            "event": "wait/io/file/sql/binlog",
+            "operations": 7988,
+            "accumulatedSeconds": 1.6577455032,
+            "meanMs": 0.20752948212318478,
+            "miscOperations": 3994,
+            "miscSeconds": 1.63239980058
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_dblwr_file",
+            "operations": 56,
+            "accumulatedSeconds": 0.05308365456,
+            "meanMs": 0.9479224028571428,
+            "miscOperations": 0,
+            "miscSeconds": 0.0
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_data_file",
+            "operations": 5862,
+            "accumulatedSeconds": 0.12812388039,
+            "meanMs": 0.021856683792221086,
+            "miscOperations": 191,
+            "miscSeconds": 0.11207987388
+          },
+          {
+            "event": "wait/io/file/innodb/innodb_log_file",
+            "operations": 29853,
+            "accumulatedSeconds": 1.5421847778,
+            "meanMs": 0.05165928977992161,
+            "miscOperations": 12532,
+            "miscSeconds": 1.480991413095
+          }
+        ],
+        "gcPauseSeconds": 0.03600000000000003
+      }
+    }
+  ],
+  "warmups": [
+    {
+      "label": "001-capacity-100-skip-surrogate-rr-r1-warmup",
+      "sourceResultSha256": "58b69402e3d162c1c2168fe48da432dc2b81b47e6a58a5b8a6509b69cc921d2a",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "003-capacity-100-skip-composite-rr-r1-warmup",
+      "sourceResultSha256": "9692a70376275661fc790a993f5683cb307bd61641f4c1c2a9147cb621c49d55",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "005-capacity-100-skip-composite-rr-r2-warmup",
+      "sourceResultSha256": "685cd7458ed56a42c6cc3bea694e9b284eaaf731c766a56e44b9fd3517fdbebe",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "007-capacity-100-skip-surrogate-rr-r2-warmup",
+      "sourceResultSha256": "f7ddbf6ffcfc4c7490ddbfcc9ef364ffa9af843822ff206113700f774f92ed8e",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "009-capacity-100-skip-surrogate-rr-r3-warmup",
+      "sourceResultSha256": "6e16ca360e99e8b67c8abd17ccede9061adb4ef046b9df295cfa0de35a197136",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "011-capacity-100-skip-composite-rr-r3-warmup",
+      "sourceResultSha256": "492cd1948f2e18324ea8c34a8a47fc5612d08362d43a0a24239d089feacd2d74",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "013-capacity-100-skip-composite-rr-r4-warmup",
+      "sourceResultSha256": "34e643360f572d16dfe31d2b2d0ab55471b6a0680531245d854ec97ca618f4ab",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    },
+    {
+      "label": "015-capacity-100-skip-surrogate-rr-r4-warmup",
+      "sourceResultSha256": "35749e14d70fd6982709140f049ee9016a4d6b0294df73de8b0836a80a9dc204",
+      "requestCount": 1000,
+      "outcomes": {
+        "success": 1000,
+        "soldOut": 0,
+        "duplicate": 0,
+        "notIssuable": 0,
+        "unprepared": 0,
+        "contended": 0,
+        "authentication": 0,
+        "unexpected": 0
+      },
+      "inventoryInvariantPassed": true,
+      "evaluation": {
+        "valid": true,
+        "sloPassed": true,
+        "invalidReasons": [],
+        "sloReasons": []
+      }
+    }
+  ]
+}

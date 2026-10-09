@@ -14,7 +14,7 @@
     "http://app-1.lab.airbob.internal:8080/actuator/prometheus",
     "http://app-2.lab.airbob.internal:8080/actuator/prometheus"
   ],
-  "rounds": 6,
+  "rounds": 5,
   "warmupSeconds": 10,
   "durationSeconds": 180,
   "cooldownSeconds": 15,
@@ -40,6 +40,8 @@
   "variants": [
     "db",
     "skip_surrogate_rr",
-    "skip_surrogate_rc"
+    "skip_surrogate_rc",
+    "skip_composite_rr",
+    "skip_composite_rc"
   ]
 }
