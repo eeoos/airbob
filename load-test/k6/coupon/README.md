@@ -76,7 +76,8 @@ python3 load-test/k6/coupon/run_local_e2e.py --rate 50 --duration 20 --rounds 6 
 ```
 
 Java의 시간대 데이터가 오래됐다면 최신 Java 21 경로를 `--java-home`으로 지정한다.
-`--observe`는 두 시나리오에 DB·풀·호스트 관측을 붙인다. 호스트 표본을 확보하려면 20초 이상을 권장한다.
+`--observe`는 두 시나리오에 DB·풀·호스트 관측을 붙이며 최대 2,000 RPS를 지원한다.
+관측 모드는 각 측정 전 별도 쿠폰으로 최대 100 RPS·10초 워밍업을 수행한다. 호스트 표본을 확보하려면 20초 이상을 권장한다.
 원본은 `build/k6/coupon-local/{runId}/`의 `local-results.json`, `run.json`, 실행별 JSON과 보고서에 남는다.
 JAR 해시, 실제 MySQL 설정, 다른 컨테이너, 실제 로컬 회원 manifest를 기록한다.
 앱·부하 발생기·Docker가 한 호스트를 공유하는 결과이므로 AWS 성능으로 사용하지 않는다.

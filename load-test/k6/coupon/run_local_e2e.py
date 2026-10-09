@@ -367,7 +367,7 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
 def run(args):
     scarcity_rates = getattr(args, 'scarcity_rates', None)
     observed = bool(getattr(args, 'observe', False) or args.diagnose_rate or scarcity_rates)
-    require(1 <= args.rate <= 100 and 5 <= args.duration <= (180 if observed else 60)
+    require(1 <= args.rate <= (2000 if observed else 100) and 5 <= args.duration <= (180 if observed else 60)
             and 1 <= args.rounds <= 6, 'Invalid local workload')
     if observed:
         require(args.duration >= 10, 'Local diagnosis requires at least 10 seconds (including warmup session capacity)')
@@ -606,7 +606,8 @@ def run(args):
                 for scenario in ('capacity', 'scarcity'):
                     for round_number in range(1, args.rounds + 1):
                         for variant in order(round_number, getattr(args, 'variants', DEFAULT_VARIANTS)):
-                            subject.measure(variant, 'capacity', min(10, args.rate), 5, round_number, sessions, 'warmup')
+                            subject.measure(variant, 'capacity', min(100 if observed else 10, args.rate),
+                                            10 if observed else 5, round_number, sessions, 'warmup')
                             time.sleep(args.cooldown)
                             subject.measure(variant, scenario, args.rate, args.duration, round_number, sessions)
             subject.status = 'complete'

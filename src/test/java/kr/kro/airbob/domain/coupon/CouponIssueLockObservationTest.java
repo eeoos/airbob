@@ -29,6 +29,7 @@ class CouponIssueLockObservationTest {
 		Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
 			.locations("classpath:db/migration").load().migrate();
 		List<Map<String, Object>> observations = new ArrayList<>();
+		List<Map<String, Object>> boundaries = new ArrayList<>();
 		try (var observer = DriverManager.getConnection(MYSQL.getJdbcUrl(), "root", MYSQL.getPassword());
 			var setup = observer.createStatement()) {
 			setup.executeUpdate("""
@@ -74,11 +75,39 @@ class CouponIssueLockObservationTest {
 					transaction.rollback();
 				}
 			}
+			setup.executeUpdate("insert into coupon (id,name,discount_type,discount_value,is_active,total_quantity,issued_quantity,issue_start_at,issue_end_at,usable_from,usable_until,updated_at) "
+				+ "select 2,'empty',discount_type,discount_value,is_active,2,0,issue_start_at,issue_end_at,usable_from,usable_until,updated_at from coupon where id=1");
+			setup.executeUpdate("insert into coupon (id,name,discount_type,discount_value,is_active,total_quantity,issued_quantity,issue_start_at,issue_end_at,usable_from,usable_until,updated_at) "
+				+ "select 3,'next',discount_type,discount_value,is_active,2,0,issue_start_at,issue_end_at,usable_from,usable_until,updated_at from coupon where id=1");
+			for (var strategy : CouponIssueStrategy.values()) {
+				if (strategy == CouponIssueStrategy.DB) continue;
+				boolean rc = strategy.name().endsWith("_RC");
+				try (var reader = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+					var writer = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+					var read = reader.createStatement(); var insert = writer.createStatement()) {
+					reader.setTransactionIsolation(rc ? Connection.TRANSACTION_READ_COMMITTED : Connection.TRANSACTION_REPEATABLE_READ);
+					reader.setAutoCommit(false);
+					try (var result = read.executeQuery("select unit_no from " + strategy.unitTable()
+						+ " where coupon_id=2 order by unit_no limit 1 for update skip locked")) {
+						assertThat(result.next()).isFalse();
+					}
+					insert.execute("set session innodb_lock_wait_timeout=1");
+					String sql = "insert into " + strategy.unitTable() + " (coupon_id,unit_no) values(3,1)";
+					if (rc) assertThat(insert.executeUpdate(sql)).isEqualTo(1);
+					else assertThatThrownBy(() -> insert.executeUpdate(sql)).isInstanceOf(java.sql.SQLException.class)
+						.satisfies(error -> assertThat(((java.sql.SQLException)error).getErrorCode()).isEqualTo(1205));
+					boundaries.add(Map.of("variant", strategy.variant(), "emptyCouponId", 2, "insertCouponId", 3,
+						"insertBlockedByEmptyRange", !rc));
+					reader.rollback();
+					insert.executeUpdate("delete from " + strategy.unitTable() + " where coupon_id=3");
+				}
+			}
 		}
 		Path output = Path.of("build/reports/coupon/lock-observation.json");
 		Files.createDirectories(output.getParent());
 		new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(output.toFile(),
-			Map.of("mysql", "8.4.11", "scope", "one isolated transaction; logical record locks, not lock memory or throughput", "observations", observations));
+			Map.of("mysql", "8.4.11", "scope", "controlled SQL transactions; logical record locks, not lock memory or throughput",
+				"observations", observations, "emptyRangeBoundary", boundaries));
 	}
 
 	private List<Map<String, String>> locks(Connection observer, long connectionId) throws Exception {
