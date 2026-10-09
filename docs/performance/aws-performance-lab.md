@@ -52,10 +52,12 @@ V27, and the resulting release binds the inventory table, published timezone
 preflight, and exact schema fingerprint. A failed V25+ cutover is roll-forward
 only; the lab does not start or roll back to a pre-inventory application.
 
-The application schema now includes V28, which removes quote expiry. The
+The application schema now includes V29 coupon units after V28 quote expiry removal. The
 `performance-lab` profile pins Flyway target `27` so starting a new application
 image does not change the verified dataset schema or bootstrap receipt. This
-dataset remains for the existing isolated read/coupon experiments. Reservation
+dataset remains tied to its compatible pinned image for existing isolated read experiments.
+New coupon experiments require a separately migrated and verified V29 derivative dataset
+and the coupon-performance profile; see load-test/k6/coupon/AWS.md. Reservation
 quote creation and checkout require the V28 application schema and are tested
 outside this V27 lab. A future lab schema upgrade needs a matching new dataset
 release and validation contract; it must not rewrite the published V27 release.
@@ -64,7 +66,7 @@ Phase 3 now binds one manifest SHA to an ephemeral RDS instance and runs the
 ordered bootstrap from the Debezium host: database import and Flyway/schema
 fingerprints, optional read-only Elasticsearch S3 snapshot restore into a
 dataset-versioned physical index followed by a verified atomic write-alias cutover, both Redis
-resets plus declared coupon preparation, the exact 12 canonical Kafka
+resets with empty couponPreparation (legacy Lua preparation is rejected), the exact 12 canonical Kafka
 main/retry/DLT topics at three partitions each, then a
 Debezium `no_data` connector. A separate `data-ready` Terraform transition
 accepts only the resulting exact S3 receipt. RDS-managed and Debezium passwords

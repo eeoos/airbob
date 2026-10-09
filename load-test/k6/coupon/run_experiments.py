@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run coupon A/B experiments on an already running, isolated AWS lab."""
 import argparse
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import hashlib
 import json
 import math
@@ -17,7 +19,7 @@ import time
 import urllib.error
 import urllib.request
 
-from coupon_experiment import capacity_summary, evaluate, fingerprint, order, plan, require, validate
+from coupon_experiment import capacity_summary, evaluate, fingerprint, order, plan, require, validate, inventory_failures
 from coupon_monitoring import HTTP, GeneratorMonitor, cloudwatch_cpu, delta, snapshot
 
 HERE = Path(__file__).resolve().parent
@@ -71,7 +73,7 @@ def check_inputs(c):
     manifest_hash = manifest_contract(c, needed)
     manifest = json.loads(Path(c['benchmarkDatasetManifest']).read_text())
     require(manifest.get('datasetVersion') == 'coupon-accounts-v1',
-            'AWS coupon-performance requires a V28 coupon-accounts-v1 manifest bound to the restored dataset')
+            'AWS coupon-performance requires a V29 coupon-accounts-v1 manifest bound to the restored dataset')
     credential(c['adminSessionFile'])
     credential(c['benchmarkTokenFile'])
     if c['accountPasswordFile'] is not None:
@@ -145,7 +147,7 @@ def aggregates(rows):
 
 
 def render(report):
-    lines = ['# 쿠폰 DB 조건부 UPDATE / Redis Lua 측정', '',
+    lines = ['# 쿠폰 DB 조건부 UPDATE / SKIP LOCKED 측정', '',
              f"실행 상태: {report['status']} · 앱: `{report['appVersion']}`", '',
              '최대치는 충분한 재고에서 모든 라운드가 기준을 만족한 **설정 RPS 단계**다. '
              '`lower-bound-only`는 상한을 찾지 못했다는 뜻이다.', '',
@@ -178,7 +180,7 @@ class Runner:
     def report(self):
         value = {'schemaVersion': 1, 'runId': self.c['runId'], 'configurationSha256': fingerprint(self.c),
                  'appVersion': self.c['appVersion'], 'status': self.status, 'error': self.error,
-                 'capacity': {v: capacity_summary(self.rows, v, self.c) for v in ('db', 'lua')},
+                 'capacity': {v: capacity_summary(self.rows, v, self.c) for v in self.c['variants']},
                  'aggregates': aggregates(self.rows), 'runs': self.rows, 'fixtures': self.fixtures}
         save(self.output / 'report.json', value)
         (self.output / 'REPORT.ko.md').write_text(render(value))
@@ -205,7 +207,7 @@ class Runner:
         # No automatic POST retries: a timed-out creation might already have committed.
         created = self.api('POST', FIXTURES, {'run_id': self.c['runId'], 'label': label,
                                            'variant': variant, 'stock': stock, 'lifetime_seconds': seconds + 300})
-        entry.update(couponId=created['coupon_id'], issueEndAt=created['issue_end_at'], status='created')
+        entry.update(couponId=created['coupon_id'], issueStartAt=created['issue_start_at'], issueEndAt=created['issue_end_at'], status='created')
         self.report()
         return entry
 
@@ -213,24 +215,20 @@ class Runner:
         return self.api('GET', f"{FIXTURES}/{fixture['couponId']}?run_id={self.c['runId']}")
 
     def close(self, fixture):
-        if fixture['variant'] == 'db':
-            self.api('DELETE', f"{FIXTURES}/{fixture['couponId']}?run_id={self.c['runId']}")
-            fixture['status'] = 'closed'
-        else:
-            fixture['status'] = 'retained-until-expiry'
+        self.api('DELETE', f"{FIXTURES}/{fixture['couponId']}?run_id={self.c['runId']}")
+        fixture['status'] = 'closed'
         self.report()
 
     def prepare(self, fixture):
-        if fixture['variant'] == 'lua':
-            self.api('POST', f"/api/v1/admin/coupons/{fixture['couponId']}/stock/prepare")
         state = self.state(fixture)
-        require(state['issued_quantity'] == state['member_coupon_count'] == state['distinct_member_count'] == 0
-                and state['stock'] == fixture['stock'] and state['variant'] == fixture['variant']
-                and state['run_id'] == self.c['runId'] and state['active'], 'Fixture was not empty or is not owned by this run')
-        require(state['redis_prepared'] == (fixture['variant'] == 'lua'), 'Wrong fixture preparation mode')
-        if fixture['variant'] == 'lua':
-            require(state['redis_remaining_stock'] == fixture['stock'] and state['redis_issued_count'] == 0,
-                    'Lua fixture was not empty')
+        require(not inventory_failures(state, fixture['variant'], fixture['stock'], 0)
+                and state['run_id'] == self.c['runId'] and state['active'],
+                'Fixture was not prepared or is not owned by this run')
+        # DATETIME coupon periods are Seoul wall time; preparation already committed in create().
+        start = datetime.fromisoformat(fixture['issueStartAt']).replace(tzinfo=ZoneInfo('Asia/Seoul')).timestamp()
+        wait = max(0.0, start - time.time() + 0.1)
+        require(wait < 30, 'Fixture opening is unexpectedly far in the future')
+        time.sleep(wait)
 
     def on_k6_started(self, process):
         """Local diagnostics can observe this exact process without inspecting its credentials."""
@@ -280,13 +278,13 @@ class Runner:
         seconds = self.c['warmupSeconds'] if phase == 'warmup' else self.c['durationSeconds']
         scenario = 'capacity' if phase == 'warmup' else scenario
         stock = rate * seconds + 1 if scenario == 'capacity' else math.floor(rate * seconds * self.c['stockRatio'])
-        label = f'{self.sequence:03d}-{scenario}-{rate}-r{round_number}-{variant}-{phase}'
+        label = f'{self.sequence:03d}-{scenario}-{rate}-r{round_number}-{variant}-{phase}'.replace('_', '-')
         directory = self.output / label
         directory.mkdir()
         fixture = self.create(variant, label, stock, seconds)
         try:
             self.prepare(fixture)
-            route = '/api/v2/coupons/{couponId}/issue' if variant == 'db' else '/api/v1/coupons/{couponId}/issue'
+            route = '/api/v2/coupons/{couponId}/issue'
             before = snapshot(self.c['appMetricsUrls'], route) if phase == 'measure' else None
             if before is not None:
                 save(directory / 'sql-before.json', before)
@@ -351,12 +349,12 @@ class Runner:
 
     def workloads(self, sessions):
         for scenario, rates in [('capacity', self.c['capacityRates']), ('scarcity', self.c['comparisonRates'])]:
-            active = {'db', 'lua'}
+            active = set(self.c['variants'])
             for rate in rates:
                 if not active:
                     break
                 for round_number in range(1, self.c['rounds'] + 1):
-                    for variant in order(round_number):
+                    for variant in order(round_number, self.c['variants']):
                         if variant not in active:
                             continue
                         session_path = sessions.ensure()

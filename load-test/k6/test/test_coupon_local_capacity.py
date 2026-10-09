@@ -70,15 +70,15 @@ class CapacitySearch(unittest.TestCase):
             calls.append((variant, rate, round_number))
             return rows(rate <= (150 if variant == 'db' else 250))[0]
         subject.measure.side_effect = measure
-        args = SimpleNamespace(capacity_rates=[100, 200, 400], rounds=2, duration=20, cooldown=0, refine_step=25)
+        args = SimpleNamespace(variants=['db', 'skip_surrogate_rr'], capacity_rates=[100, 200, 400], rounds=2, duration=20, cooldown=0, refine_step=25)
         with patch.object(local.time, 'sleep'):
             local.search_capacity(subject, args, '/unused-sessions')
-        self.assertEqual(calls[:4], [('db', 100, 1), ('lua', 100, 1), ('lua', 100, 2), ('db', 100, 2)])
+        self.assertEqual(calls[:4], [('db', 100, 1), ('skip_surrogate_rr', 100, 1), ('skip_surrogate_rr', 100, 2), ('db', 100, 2)])
         self.assertNotIn(('db', 400, 1), calls)
         self.assertEqual(subject.bounds['db']['highestConfirmedTargetRps'], 150)
         self.assertEqual(subject.bounds['db']['firstFailingTargetRps'], 175)
-        self.assertEqual(subject.bounds['lua']['highestConfirmedTargetRps'], 250)
-        self.assertEqual(subject.bounds['lua']['firstFailingTargetRps'], 275)
+        self.assertEqual(subject.bounds['skip_surrogate_rr']['highestConfirmedTargetRps'], 250)
+        self.assertEqual(subject.bounds['skip_surrogate_rr']['firstFailingTargetRps'], 275)
 
 
 if __name__ == '__main__':

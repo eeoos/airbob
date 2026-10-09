@@ -176,7 +176,7 @@ jq -se \
     .mysql.expectedTableRows.flyway_schema_history == 27 and .mysql.expectedTableRows.outbox == 0 and
     .mysql.expectedTableRows.accommodation_inventory_day == 0 and
     all(.mysql.expectedTableRows | to_entries[]; (.key | test("^[a-z][a-z0-9_]{0,63}$")) and (.value | type == "number" and floor == . and . >= 0)) and
-    (.couponPreparation | type == "array") and (.kafka.topics | type == "array" and length == 12) and
+    (.couponPreparation == []) and (.kafka.topics | type == "array" and length == 12) and
     (.search |
       if .enabled == false then
         exact(["enabled"])

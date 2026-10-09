@@ -78,6 +78,6 @@ class CouponResponseJsonTest {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity());
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity().longValue());
 	}
 }

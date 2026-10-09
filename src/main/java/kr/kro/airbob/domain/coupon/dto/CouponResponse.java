@@ -27,7 +27,6 @@ public class CouponResponse {
 		LocalDateTime usableFrom,
 		LocalDateTime usableUntil,
 		Integer totalQuantity,
-		Integer issuedQuantity,
 		CouponIssuanceStatus issuanceStatus
 	) {
 		public static CouponInfo of(CouponCampaignProjection coupon, LocalDateTime now) {
@@ -44,7 +43,6 @@ public class CouponResponse {
 				coupon.usableFrom(),
 				coupon.usableUntil(),
 				coupon.totalQuantity(),
-				coupon.issuedQuantity(),
 				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.issuedQuantity(), now));
 		}
 	}

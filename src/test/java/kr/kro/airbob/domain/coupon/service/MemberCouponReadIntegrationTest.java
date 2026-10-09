@@ -86,7 +86,7 @@ class MemberCouponReadIntegrationTest {
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
 	@MockitoBean private CouponTimeProvider timeProvider;
-	@MockitoBean private CouponRedisStockManager stockManager;
+	@MockitoBean private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository stockManager;
 
 	@BeforeEach
 	void fixture() {
@@ -253,7 +253,7 @@ class MemberCouponReadIntegrationTest {
 		String sql = sqlCapture.statements.getFirst();
 		String selected = sql.substring("select ".length(), sql.indexOf(" from "));
 		assertThat(selected).doesNotContain(".member_id", ".reservation_id", ".used_at", ".issue_start_at",
-			".issue_end_at", ".total_quantity", ".issued_quantity", ".redis_stock_prepared_at", ".created_at",
+			".issue_end_at", ".total_quantity", ".issued_quantity", ".stock_prepared_at", ".created_at",
 			".updated_at", ".created_by", ".updated_by");
 		assertThat(sql).contains(" join coupon ").doesNotContain(" join member ", " for update", " for share");
 		verifyNoInteractions(stockManager);

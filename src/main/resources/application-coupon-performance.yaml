@@ -1,4 +1,4 @@
-# Existing V28 dataset only. This profile includes coupon-benchmark via application.yaml.
+# Existing V29 dataset only. This profile includes coupon-benchmark via application.yaml.
 spring:
   datasource:
     hikari:

@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -32,7 +31,6 @@ import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 class CouponQueryServiceTest {
 
 	private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 20, 9, 30);
-	private static final long REDIS_NOW_MILLIS = Instant.parse("2026-08-20T00:30:00Z").toEpochMilli();
 
 	@Mock
 	private CouponRepository couponRepository;
@@ -41,7 +39,7 @@ class CouponQueryServiceTest {
 	@Mock
 	private CouponTimeProvider timeProvider;
 	@Mock
-	private CouponRedisStockManager stockManager;
+	private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository units;
 
 	private CouponQueryService service;
 
@@ -51,16 +49,16 @@ class CouponQueryServiceTest {
 			couponRepository,
 			memberCouponRepository,
 			timeProvider,
-			stockManager);
+			units);
 	}
 
 	@Test
-	@DisplayName("쿠폰 캠페인 상태는 발급 Lua와 동일한 Redis 시각으로 계산한다")
+	@DisplayName("쿠폰 캠페인 상태는 발급과 동일한 MySQL 시각으로 계산한다")
 	void findsCouponCampaignsWithIssuanceStatus() {
 		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100, 0));
 		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100, 10));
-		when(stockManager.currentEpochMillis()).thenReturn(REDIS_NOW_MILLIS);
-		when(timeProvider.fromEpochMilli(REDIS_NOW_MILLIS)).thenReturn(NOW);
+		when(units.databaseNow()).thenReturn(NOW);
+
 		when(couponRepository.findCampaigns(NOW)).thenReturn(List.of(upcoming, open));
 
 		CouponResponse.CouponInfos response = service.findCouponCampaigns();
@@ -71,8 +69,8 @@ class CouponQueryServiceTest {
 				tuple(2L, CouponIssuanceStatus.UPCOMING),
 				tuple(1L, CouponIssuanceStatus.OPEN));
 		verify(timeProvider, never()).now();
-		verify(stockManager).currentEpochMillis();
-		verify(timeProvider).fromEpochMilli(REDIS_NOW_MILLIS);
+		verify(units).databaseNow();
+
 		verifyNoInteractions(memberCouponRepository);
 	}
 
@@ -93,7 +91,7 @@ class CouponQueryServiceTest {
 				tuple(2L, MemberCouponStatus.USED),
 				tuple(1L, MemberCouponStatus.AVAILABLE));
 		verify(timeProvider).now();
-		verifyNoInteractions(couponRepository, stockManager);
+		verifyNoInteractions(couponRepository, units);
 	}
 
 	private Coupon coupon(Long id, LocalDateTime issueStartAt, int totalQuantity, int issuedQuantity) {
@@ -123,6 +121,6 @@ class CouponQueryServiceTest {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity());
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity().longValue());
 	}
 }

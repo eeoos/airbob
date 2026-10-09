@@ -82,8 +82,22 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - Startup seeds and verifies every published accommodation before readiness opens. Publish and
   timezone changes seed in the business transaction; rolling maintenance inserts only missing days.
 - There is no external distributed reservation lock or best-effort Redis hold.
-- Redis remains in use for sessions, caches, recently viewed accommodations, and coupon stock; do
+- Redis remains in use for sessions, caches, recently viewed accommodations; do
   not confuse those uses with reservation authority.
+
+### Coupon issuance
+
+- New coupons have positive finite quantities, validated in the application. Historical nullable
+  quantity and issued_quantity remain for migration compatibility and the conditional-UPDATE benchmark.
+- Default issuance uses surrogate-key MySQL units and REPEATABLE_READ. A unit DELETE and member_coupon
+  INSERT commit in one transaction. Never update the shared coupon counter on a SKIP LOCKED path.
+- Empty SKIP LOCKED results require a fresh-snapshot check: CP002 is sold out, CP012 is retryable contention.
+- Before issue_start_at only, preparation/quantity changes/discard lock the coupon first. After start,
+  no quantity changes or restocking. UNIQUE(member_id,coupon_id) and whole-transaction rollback prevent duplicates.
+- The protected coupon-benchmark profile supports immutable db and surrogate/composite RR/RC variants.
+  See docs/performance/coupon-skip-locked-benchmark-plan.md and load-test/k6/coupon/README.md.
+- Stop old Lua writers and reconcile/archive preparation evidence before V29; do not reuse Redis timestamps
+  as proof of MySQL stock, auto-reseed an issued campaign, or roll back to a Lua binary after V29.
 
 ### Payment confirmation and cancellation
 
@@ -168,7 +182,8 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V28.
+- Current schema history is V1 through V29. V29 introduces coupon issue units and immutable issue strategy,
+  renames stock_prepared_at, and blocks unreconciled Redis coupon preparation.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.

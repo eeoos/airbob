@@ -70,8 +70,9 @@ class CouponPeriodMigrationIntegrationTest {
 			assertThat(columnExists(connection, "coupon", "end_date")).isFalse();
 			assertThat(columnNullable(connection, "coupon", "issue_start_at")).isFalse();
 			assertThat(columnNullable(connection, "coupon", "issue_end_at")).isFalse();
-			assertThat(columnExists(connection, "coupon", "redis_stock_prepared_at")).isTrue();
-			assertThat(columnNullable(connection, "coupon", "redis_stock_prepared_at")).isTrue();
+			assertThat(columnExists(connection, "coupon", "redis_stock_prepared_at")).isFalse();
+			assertThat(columnExists(connection, "coupon", "stock_prepared_at")).isTrue();
+			assertThat(columnNullable(connection, "coupon", "stock_prepared_at")).isTrue();
 		}
 	}
 

@@ -8,12 +8,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.service.CouponDbIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
+import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -25,15 +30,22 @@ public class CouponBenchmarkController {
 
 	private final CouponDbIssueService dbIssueService;
 	private final BenchmarkAccessGuard accessGuard;
+	private final CouponSkipLockedIssueService skipLockedIssueService;
+	private final CouponIssueUnitRepository units;
 
 	@PostMapping("/{couponId}/issue")
 	public ResponseEntity<ApiResponse<Void>> issueCouponWithConditionalUpdate(
 		@PathVariable Long couponId,
 		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
-		@CurrentMemberId Long memberId
+		@CurrentMemberId Long memberId,
+		@RequestParam(defaultValue = "db") String variant
 	) {
 		accessGuard.verify(benchmarkToken);
-		dbIssueService.issue(couponId, memberId);
+		CouponIssueStrategy strategy = CouponIssueStrategy.fromVariant(variant);
+		// Identical immutable routing read for every variant, outside A's business transaction.
+		if (units.strategy(couponId) != strategy) throw new CouponNotIssuableException();
+		if (strategy == CouponIssueStrategy.DB) dbIssueService.issue(couponId, memberId);
+		else skipLockedIssueService.issue(couponId, memberId, strategy);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}
 }

@@ -17,7 +17,7 @@ import tempfile
 import time
 import urllib.request
 
-from coupon_experiment import order, require
+from coupon_experiment import order, require, inventory_failures, DEFAULT_VARIANTS, VARIANTS
 from coupon_monitoring import HTTP, delta, snapshot
 from run_experiments import HERE, ROOT, Runner, save
 
@@ -100,13 +100,13 @@ class LocalRunner(Runner):
                                       and host.get('minMemoryFreePercent', 0) >= 15))
         save(directory / 'generator.json', generator)
         artifact['metadata'].update(scope=self.scope(),
-                                    datasetScope='local coupon accounts only; manifest is a contract template, not Global B')
+                                    datasetScope='local coupon accounts only; source manifest records this disposable V29 database')
         save(directory / 'client.json', artifact)
         return artifact, generator, code
 
     def measure(self, variant, scenario, rate, seconds, round_number, sessions, phase='measure'):
         self.sequence += 1
-        label = f'{self.sequence:03d}-{scenario}-{rate}-{variant}-r{round_number}-{phase}'
+        label = f'{self.sequence:03d}-{scenario}-{rate}-{variant}-r{round_number}-{phase}'.replace('_', '-')
         stock = rate * seconds + 1 if scenario == 'capacity' else max(1, rate * seconds // 10)
         if scenario == 'scarcity' and self.scarcity_stock is not None:
             stock = self.scarcity_stock
@@ -115,8 +115,7 @@ class LocalRunner(Runner):
         fixture = self.create(variant, label, stock, seconds)
         try:
             self.prepare(fixture)
-            version = '2' if variant == 'db' else '1'
-            route = '/api/v' + version + '/coupons/{couponId}/issue'
+            route = '/api/v2/coupons/{couponId}/issue'
             before = snapshot(self.c['appMetricsUrls'], route)
             save(directory / 'sql-before.json', before)
             artifact, generator, code = self.k6(fixture, sessions, scenario, rate, seconds, round_number, phase, directory)
@@ -141,15 +140,10 @@ class LocalRunner(Runner):
                 invalid.append('fixture-or-authentication-error')
             if outcomes['unexpected']:
                 failed.append('unexpected-outcome')
-            issued = state['issued_quantity']
-            if not (issued == state['member_coupon_count'] == state['distinct_member_count'] == outcomes['success']
-                    and 0 <= issued <= stock and state['stock'] == stock):
-                invalid.append('database-invariant')
-            if variant == 'lua' and not (state['redis_prepared'] and state['redis_remaining_stock'] == stock - issued
-                                        and state['redis_issued_count'] == issued):
-                invalid.append('redis-invariant')
-            if variant == 'db' and state['redis_prepared']:
-                invalid.append('db-used-redis-stock')
+            issued = state['member_coupon_count']
+            invalid.extend(inventory_failures(state, variant, stock, outcomes['success']))
+            if outcomes.get('contended', 0):
+                failed.append('retryable-contention')
             if scenario == 'capacity' and outcomes['success'] != p['requestCount']:
                 failed.append('capacity-not-all-success')
             if scenario == 'capacity' and outcomes['soldOut']:
@@ -214,8 +208,8 @@ def compare_scarcity(subject, args, sessions):
     """Keep stock fixed across rates and retain every paired repetition, including failures."""
     for rate in args.scarcity_rates:
         for round_number in range(1, args.rounds + 1):
-            for variant in order(round_number):
-                if variant not in getattr(args, 'scarcity_variants', ('db', 'lua')):
+            for variant in order(round_number, getattr(args, 'variants', DEFAULT_VARIANTS)):
+                if variant not in (getattr(args, 'scarcity_variants', None) or getattr(args, 'variants', DEFAULT_VARIANTS)):
                     continue
                 subject.measure(variant, 'capacity', min(100, args.scarcity_rates[0]), 10,
                                 round_number, sessions, 'warmup')
@@ -258,12 +252,12 @@ def refinement_rate(bound, step):
 
 def search_capacity(subject, args, sessions):
     subject.bounds = {v: {'status': 'not-measured', 'highestConfirmedTargetRps': None,
-                          'firstFailingTargetRps': None} for v in ('db', 'lua')}
+                          'firstFailingTargetRps': None} for v in getattr(args, 'variants', DEFAULT_VARIANTS)}
 
     def stage(targets):
         measured = {v: [] for v in targets}
         for round_number in range(1, args.rounds + 1):
-            for variant in order(round_number):
+            for variant in order(round_number, getattr(args, 'variants', DEFAULT_VARIANTS)):
                 if variant not in targets:
                     continue
                 subject.measure(variant, 'capacity', min(20, min(args.capacity_rates)), 5,
@@ -312,7 +306,7 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
                   '20초 등의 짧은 실행을 최대 지속 처리량으로 해석하지 않는다.', '']
     if metadata.get('scarcityConfirmation'):
         confirmation = metadata['scarcityConfirmation']
-        lines += [f"추가 확인: DB/Lua를 {confirmation['rate']} RPS·{confirmation['seconds']}초씩 "
+        lines += [f"추가 확인: 비교군를 {confirmation['rate']} RPS·{confirmation['seconds']}초씩 "
                   f"{confirmation['rounds']}회 먼저 측정한 뒤 위 단계를 실행했다.", '']
     if bounds:
         lines += ['| 방식 | 판정 | 반복 통과 RPS | 반복 실패 RPS | 미확정 RPS |',
@@ -365,16 +359,16 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
                   'DB 파일 I/O는 MySQL 계측이며 물리 디스크 전체의 포화 여부를 직접 뜻하지 않는다.', '']
     lines += ['', 'SQL 수는 발급 경로에서 기록한 Hibernate SQL 문장 수다. '
               '워밍업·로그인·쿠폰 생성·사후 검증 쿼리는 포함하지 않는다.',
-              'DB/Redis 발급 수, 회원별 중복 여부, 요청 누락, 실제 서버 요청 수와 k6 요청 수의 일치를 검증했다.',
+              '회원 쿠폰·남은 unit 수, 회원별 중복 여부, 요청 누락, 실제 서버 요청 수와 k6 요청 수의 일치를 검증했다.',
               'RDS CPU는 로컬에서 측정하지 않았다. 결과의 p95/p99는 이번 로컬 실행에서 관측한 값이다.', '']
     (output / 'REPORT.ko.md').write_text('\n'.join(lines))
 
 
 def run(args):
     scarcity_rates = getattr(args, 'scarcity_rates', None)
-    observed = bool(args.diagnose_rate or scarcity_rates)
+    observed = bool(getattr(args, 'observe', False) or args.diagnose_rate or scarcity_rates)
     require(1 <= args.rate <= 100 and 5 <= args.duration <= (180 if observed else 60)
-            and 1 <= args.rounds <= 3, 'Invalid local workload')
+            and 1 <= args.rounds <= 6, 'Invalid local workload')
     if observed:
         require(args.duration >= 10, 'Local diagnosis requires at least 10 seconds (including warmup session capacity)')
         import pymysql  # Optional dependency; fail before creating infrastructure if unavailable.
@@ -538,9 +532,13 @@ def run(args):
             for name, value in [('admin-session', cookie['SESSION_ID'].value), ('token', token), ('password', password)]:
                 (private / name).write_text(value)
                 (private / name).chmod(0o600)
-            manifest = json.loads((ROOT / 'infra/aws/tests/fixtures/benchmark-dataset-v2.json').read_text())
-            capsule = next(c for c in manifest['capsules'] if c['capsuleId'] == 'coupon-accounts-v1')
-            capsule['accountPool'] = {'capacity': count, 'emails': emails}
+            source_path = output / 'local-source-dataset.json'
+            save(source_path, {'scope': 'local-coupon-only', 'flywayVersion': 29,
+                               'mysqlVersion': sql('SELECT VERSION();'), 'accountCount': count})
+            manifest = {'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
+                        'sourceDataset': {'id': run_id, 'flywayVersion': 29,
+                                          'manifestSha256': hashlib.sha256(source_path.read_bytes()).hexdigest()},
+                        'accountPool': {'capacity': count, 'emails': emails}}
             manifest_path = output / 'local-contract-manifest.json'
             save(manifest_path, manifest)
             sessions = private / 'sessions.json'
@@ -553,7 +551,7 @@ def run(args):
                                env=environment() | {'AIRBOB_SESSION_PREPARATION_TEST_MODE': '1'})
             print(f'Real login sessions ready: {count}', flush=True)
             c = json.loads((HERE / 'experiment.example.json').read_text())
-            c.update(runId=run_id, baseUrl=origin, appInstanceCount=1, appVersion=command(['git', 'rev-parse', 'HEAD']),
+            c.update(variants=list(args.variants), runId=run_id, baseUrl=origin, appInstanceCount=1, appVersion=command(['git', 'rev-parse', 'HEAD']),
                      benchmarkDatasetManifest=str(manifest_path), adminSessionFile=str(private / 'admin-session'),
                      benchmarkTokenFile=str(private / 'token'), clientVUs=args.client_vus,
                      appMetricsUrls=[origin + '/actuator/prometheus'],
@@ -561,14 +559,14 @@ def run(args):
             subject = LocalRunner(c, output, bool(args.capacity_rates), diagnostic_context,
                                   args.scarcity_stock if scarcity_rates else None)
             subject.manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-            metadata = {'scope': 'local-real-http-validation', 'appJarSha256': hashlib.sha256(jar.read_bytes()).hexdigest(),
+            metadata = {'scope': 'local-coupon-comparison', 'environment': 'local', 'variants': list(args.variants), 'appJarSha256': hashlib.sha256(jar.read_bytes()).hexdigest(),
                         'appCommit': c['appVersion'], 'sourceTreeDirty': bool(command(['git', 'status', '--porcelain'])),
                         'mysqlVersion': sql('SELECT VERSION();'),
                         'flywayVersion': sql('SELECT version FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 1;'),
                         'memberCount': int(sql('SELECT COUNT(*) FROM member;')), 'mysqlContainer': mysql_id,
                         'redisContainer': redis_id, 'origin': origin, 'rate': args.rate, 'durationSeconds': args.duration,
                         'rounds': args.rounds, 'javaExecutable': java, 'capacityRates': args.capacity_rates,
-                        'refineStep': args.refine_step, 'clientVUs': args.client_vus,
+                        'refineStep': args.refine_step, 'clientVUs': args.client_vus, 'cooldownSeconds': args.cooldown,
                         'diagnoseRate': args.diagnose_rate,
                         'scarcityRates': scarcity_rates,
                         'scarcityStock': args.scarcity_stock if scarcity_rates else None,
@@ -588,7 +586,7 @@ def run(args):
                 if confirmation_rate:
                     confirmation = argparse.Namespace(**vars(args))
                     confirmation.scarcity_rates = [confirmation_rate]
-                    confirmation.scarcity_variants = ['db', 'lua']
+                    confirmation.scarcity_variants = list(args.variants)
                     confirmation.duration = args.scarcity_confirm_duration
                     confirmation.rounds = args.scarcity_confirm_rounds
                     compare_scarcity(subject, confirmation, sessions)
@@ -597,7 +595,7 @@ def run(args):
                 search_capacity(subject, args, sessions)
             elif args.diagnose_rate:
                 for round_number in range(1, args.rounds + 1):
-                    for variant in order(round_number):
+                    for variant in order(round_number, getattr(args, 'variants', DEFAULT_VARIANTS)):
                         subject.measure(variant, 'capacity', min(100, args.diagnose_rate), 10,
                                         round_number, sessions, 'warmup')
                         time.sleep(args.cooldown)
@@ -607,7 +605,7 @@ def run(args):
             else:
                 for scenario in ('capacity', 'scarcity'):
                     for round_number in range(1, args.rounds + 1):
-                        for variant in order(round_number):
+                        for variant in order(round_number, getattr(args, 'variants', DEFAULT_VARIANTS)):
                             subject.measure(variant, 'capacity', min(10, args.rate), 5, round_number, sessions, 'warmup')
                             time.sleep(args.cooldown)
                             subject.measure(variant, scenario, args.rate, args.duration, round_number, sessions)
@@ -650,7 +648,7 @@ if __name__ == '__main__':
     mode.add_argument('--diagnose-rate', type=int, help='Fixed capacity RPS with local DB, pool and host observations')
     mode.add_argument('--scarcity-rates', type=int, nargs='+', help='Fixed-stock comparison with local observations')
     parser.add_argument('--scarcity-stock', type=int, default=1000, help='Stock shared by all scarcity RPS steps')
-    parser.add_argument('--scarcity-variants', nargs='+', choices=['db', 'lua'], default=['db', 'lua'],
+    parser.add_argument('--variants', '--scarcity-variants', dest='variants', nargs='+', choices=VARIANTS, default=list(DEFAULT_VARIANTS),
                         help='Variants to probe; previous failures remain in their original reports')
     parser.add_argument('--scarcity-confirm-rate', type=int, help='First confirm this RPS with both variants')
     parser.add_argument('--scarcity-confirm-duration', type=int, default=60)
@@ -660,6 +658,7 @@ if __name__ == '__main__':
     parser.add_argument('--cooldown', type=int, default=3, help='Pause between trials in seconds')
     parser.add_argument('--p95-limit-ms', type=int, default=500)
     parser.add_argument('--p99-limit-ms', type=int, default=1000)
+    parser.add_argument('--observe', action='store_true', help='Observe DB, pool, containers and shared host in both scenarios')
     parser.add_argument('--java-home', help='Current Java 21 with the time-zone data required by Airbob')
     args = parser.parse_args()
     os.umask(0o077)

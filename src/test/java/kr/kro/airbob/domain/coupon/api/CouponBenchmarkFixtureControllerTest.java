@@ -31,7 +31,8 @@ import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.coupon.dto.CouponBenchmarkFixture;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.service.CouponBenchmarkFixtureService;
-import kr.kro.airbob.domain.coupon.service.CouponRedisStockManager;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
 import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
@@ -91,7 +92,7 @@ class CouponBenchmarkFixtureControllerTest {
 	@Test
 	void returnsCreatedIdUsingApplicationJsonConvention() throws Exception {
 		authenticate(true);
-		given(service.create(any())).willReturn(new CouponBenchmarkFixture.Created(12L, "run-a", "db", 10, LocalDateTime.now()));
+		given(service.create(any())).willReturn(new CouponBenchmarkFixture.Created(12L, "run-a", "db", 10, LocalDateTime.now(), LocalDateTime.now().plusMinutes(2)));
 		mvc.perform(post(PATH).cookie(new Cookie("SESSION_ID", "session"))
 			.header(BenchmarkAccessGuard.HEADER_NAME, "secret-token").contentType(MediaType.APPLICATION_JSON).content(REQUEST))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.data.coupon_id").value(12));
@@ -112,8 +113,8 @@ class CouponBenchmarkFixtureControllerTest {
 		var runner = new ApplicationContextRunner()
 			.withUserConfiguration(CouponBenchmarkFixtureController.class, CouponBenchmarkFixtureService.class, BenchmarkAccessGuard.class)
 			.withBean(CouponRepository.class, () -> mock(CouponRepository.class))
-			.withBean(CouponRedisStockManager.class, () -> mock(CouponRedisStockManager.class))
-			.withBean(CouponTimeProvider.class, () -> mock(CouponTimeProvider.class))
+			.withBean(CouponIssueUnitRepository.class, () -> mock(CouponIssueUnitRepository.class))
+			.withBean(CouponStockPreparationService.class, () -> mock(CouponStockPreparationService.class))
 			.withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class));
 		runner.withPropertyValues("benchmark.read-model.enabled=true").run(context -> assertThat(context)
 			.doesNotHaveBean(CouponBenchmarkFixtureController.class).doesNotHaveBean(CouponBenchmarkFixtureService.class));

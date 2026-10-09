@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
@@ -26,6 +27,13 @@ public class CouponAdminController {
 
 	private final CouponService couponService;
 	private final CouponStockPreparationService preparationService;
+
+	@PatchMapping("/v1/admin/coupons/{couponId}/quantity")
+	public ResponseEntity<ApiResponse<Void>> changeQuantity(@PathVariable Long couponId,
+		@Valid @RequestBody CouponRequest.Quantity request) {
+		couponService.changeQuantity(couponId, request.totalQuantity());
+		return ResponseEntity.ok(ApiResponse.success());
+	}
 
 	@PostMapping("/v1/admin/coupons")
 	public ResponseEntity<ApiResponse<Void>> createCoupon(@RequestBody CouponRequest.Create request) {

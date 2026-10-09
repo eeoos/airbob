@@ -1,4 +1,4 @@
-// A small, dataset-bound account list for V28 / Global B coupon experiments.
+// A small, dataset-bound account list for V29 / Global B coupon experiments.
 // CommonJS is supported by both Node (session preparation) and k6.
 'use strict';
 
@@ -17,7 +17,7 @@ function parseCouponAccountManifest(raw) {
   requireValue(exactKeys(source, ['id', 'manifestSha256', 'flywayVersion']), 'invalid source dataset');
   requireValue(typeof source.id === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/.test(source.id), 'invalid dataset id');
   requireValue(typeof source.manifestSha256 === 'string' && /^[a-f0-9]{64}$/.test(source.manifestSha256), 'invalid dataset hash');
-  requireValue(source.flywayVersion === 28, 'V28 dataset required');
+  requireValue(source.flywayVersion === 29, 'V29 dataset required');
   const pool = value.accountPool;
   requireValue(exactKeys(pool, ['capacity', 'emails']), 'invalid account pool');
   requireValue(Number.isSafeInteger(pool.capacity) && pool.capacity > 0 && pool.capacity <= 20000000,

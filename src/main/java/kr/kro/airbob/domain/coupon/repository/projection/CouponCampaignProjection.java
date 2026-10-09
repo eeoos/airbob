@@ -17,6 +17,6 @@ public record CouponCampaignProjection(
 	LocalDateTime usableFrom,
 	LocalDateTime usableUntil,
 	Integer totalQuantity,
-	Integer issuedQuantity
+	Long issuedQuantity
 ) {
 }

@@ -30,7 +30,7 @@ import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
-import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,7 +39,7 @@ class CouponControllerTest {
 	@Mock
 	private CouponQueryService couponQueryService;
 	@Mock
-	private CouponLuaIssueService luaIssueService;
+	private CouponSkipLockedIssueService issueService;
 
 	private MockMvc mockMvc;
 
@@ -50,7 +50,7 @@ class CouponControllerTest {
 			.findAndRegisterModules()
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
-			new CouponController(couponQueryService, luaIssueService))
+			new CouponController(couponQueryService, issueService))
 			.setCustomArgumentResolvers(new CurrentMemberIdArgumentResolver())
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();
@@ -62,13 +62,13 @@ class CouponControllerTest {
 	}
 
 	@Test
-	@DisplayName("운영 발급 URL은 Lua 서비스로 발급하고 201을 반환한다")
-	void issuesCouponWithLua() throws Exception {
+	@DisplayName("운영 발급 URL은 SKIP LOCKED 서비스로 발급하고 201을 반환한다")
+	void issuesCouponWithSkipLocked() throws Exception {
 		mockMvc.perform(post("/api/v1/coupons/1/issue"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true));
 
-		verify(luaIssueService).issue(1L, 10L);
+		verify(issueService).issue(1L, 10L);
 	}
 
 	@Test
@@ -88,7 +88,6 @@ class CouponControllerTest {
 			issueStartAt,
 			issueStartAt.plusDays(30),
 			100,
-			0,
 			CouponIssuanceStatus.UPCOMING);
 		when(couponQueryService.findCouponCampaigns())
 			.thenReturn(new CouponResponse.CouponInfos(List.of(info)));

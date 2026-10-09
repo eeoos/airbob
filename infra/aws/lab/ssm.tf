@@ -12,9 +12,6 @@ locals {
     "set -euo pipefail",
     "umask 077",
     "install -d -m 700 /opt/airbob/bootstrap-helpers",
-    "cat > /opt/airbob/bootstrap-helpers/coupon_prepare.lua <<'AIRBOB_COUPON_LUA'",
-    file("${path.module}/../../../src/main/resources/lua/coupon_prepare.lua"),
-    "AIRBOB_COUPON_LUA",
     "cat > /opt/airbob/bootstrap-helpers/bootstrap-data.sh.gz.b64 <<'AIRBOB_BOOTSTRAP_DATA'",
     base64gzip(file("${path.module}/../scripts/bootstrap-data.sh")),
     "AIRBOB_BOOTSTRAP_DATA",
@@ -27,7 +24,6 @@ locals {
     "base64 --decode /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh.gz.b64 | gzip --decompress > /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh",
     "printf '%s  %s\\n' '${filesha256("${path.module}/../scripts/compute-target-fingerprint.sh")}' /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh | sha256sum --check --status",
     "chmod 700 /opt/airbob/bootstrap-helpers/compute-target-fingerprint.sh",
-    "chmod 600 /opt/airbob/bootstrap-helpers/coupon_prepare.lua",
     "export AIRBOB_REGION='${var.aws_region}'",
     "export AIRBOB_RUN_ID='${var.run_id}'",
     "export AIRBOB_DATASET_BUCKET='${local.lab_contract.dataset_bucket_name}'",
@@ -41,7 +37,6 @@ locals {
     "export AIRBOB_RDS_MASTER_SECRET_ARN='${module.rds[0].master_secret_arn}'",
     "export AIRBOB_DEBEZIUM_SECRET_ARN='${aws_secretsmanager_secret.debezium[0].arn}'",
     "export AIRBOB_ELASTICSEARCH_IMAGE_DIGEST='${split("@", var.infra_image_references["ELASTICSEARCH_IMAGE"])[1]}'",
-    "export AIRBOB_COUPON_LUA_FILE=/opt/airbob/bootstrap-helpers/coupon_prepare.lua",
     "/opt/airbob/bootstrap-helpers/bootstrap-data.sh",
   ]) : ""
 }

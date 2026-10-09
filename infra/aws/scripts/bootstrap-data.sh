@@ -139,7 +139,7 @@ required_environment=(
   AIRBOB_DATASET_RELEASE AIRBOB_DATASET_MANIFEST_SHA256 AIRBOB_DATABASE_BOOTSTRAP
   AIRBOB_RDS_ENDPOINT AIRBOB_RDS_RESOURCE_ID AIRBOB_RDS_ENGINE_VERSION
   AIRBOB_RDS_MASTER_SECRET_ARN AIRBOB_DEBEZIUM_SECRET_ARN
-  AIRBOB_ELASTICSEARCH_IMAGE_DIGEST AIRBOB_COUPON_LUA_FILE
+  AIRBOB_ELASTICSEARCH_IMAGE_DIGEST
 )
 for environment_name in "${required_environment[@]}"; do
   [[ -n "${!environment_name:-}" ]] || { printf 'missing bootstrap environment: %s\n' "$environment_name" >&2; exit 1; }
@@ -148,7 +148,6 @@ case "$AIRBOB_DATABASE_BOOTSTRAP" in dump|snapshot) ;; *) printf '%s\n' 'unsuppo
 [[ "$AIRBOB_DATASET_RELEASE" =~ ^[a-z0-9][a-z0-9._-]{2,63}$ ]] || { printf '%s\n' 'unsafe dataset release' >&2; exit 1; }
 [[ "$AIRBOB_DATASET_MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] || { printf '%s\n' 'unsafe dataset manifest digest' >&2; exit 1; }
 [[ "$AIRBOB_ELASTICSEARCH_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { printf '%s\n' 'unsafe Elasticsearch image digest' >&2; exit 1; }
-[[ -f "$AIRBOB_COUPON_LUA_FILE" && ! -L "$AIRBOB_COUPON_LUA_FILE" ]] || { printf '%s\n' 'trusted coupon helper is missing' >&2; exit 1; }
 
 command -v aws >/dev/null 2>&1 || { printf '%s\n' 'AWS CLI is required' >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { printf '%s\n' 'jq is required' >&2; exit 1; }
@@ -260,6 +259,7 @@ jq -e --arg release "$AIRBOB_DATASET_RELEASE" --arg profile "$profile_version" -
   def sha: type=="string" and test("^[0-9a-f]{64}$");
   def exact($wanted): type=="object" and keys==($wanted|sort);
   .schemaVersion==2 and .datasetRelease==$release and .releaseKind=="pipeline-rehearsal" and
+  .couponPreparation == [] and
   (keys)==["couponPreparation","datasetRelease","datasetRunId","kafka","mysql","releaseKind","releaseTuple","schemaVersion","search","source"] and
   (.releaseTuple|keys)==["attestationSha256","baseWorldFingerprintSha256","calibrationSha256","calibrationVersion","databaseFingerprintSha256","datasetVersion","distributionFingerprintSha256","dumpSha256","finalWorldFingerprintSha256","generatorVersion","inventoryFingerprintSha256","manifestSha256","migrationChecksumSha256","profileVersion","qualificationSha256","schemaFingerprintSha256","specSha256","targetFingerprintSha256","validatorSha256","worldVersion"] and
   .releaseTuple.datasetVersion=="benchmark-dataset-v2" and .releaseTuple.worldVersion=="world-v2" and
@@ -1069,36 +1069,13 @@ redis_cli() {
 }
 redis_cli 6379 FLUSHDB >/dev/null
 redis_cli 6380 FLUSHDB >/dev/null
-coupon_count=$(jq '.couponPreparation | length' "$manifest")
-while IFS=$'\t' read -r coupon_id expected_quantity; do
-  [[ "$coupon_id" =~ ^[1-9][0-9]*$ && "$expected_quantity" =~ ^[0-9]+$ ]] \
-    || { printf '%s\n' 'unsafe coupon preparation contract' >&2; exit 1; }
-  coupon_row=$(mysql_exec airbobdb --execute="
-    SELECT id, total_quantity,
-           UNIX_TIMESTAMP(issue_start_at) * 1000,
-           UNIX_TIMESTAMP(issue_end_at) * 1000,
-           IF(is_active, 1, 0),
-           (UNIX_TIMESTAMP(issue_end_at) + 604800) * 1000,
-           issued_quantity,
-           IF(redis_stock_prepared_at IS NULL, 0, 1)
-    FROM coupon WHERE id = $coupon_id;
-  ")
-  IFS=$'\t' read -r actual_id total_quantity issue_start issue_end active expires_at issued_quantity already_prepared <<<"$coupon_row"
-  [[ "$actual_id" == "$coupon_id" && "$total_quantity" == "$expected_quantity" && "$active" == 1 && "$issued_quantity" == 0 && "$already_prepared" == 0 ]] \
-    || { printf 'coupon preparation invariant failed: %s\n' "$coupon_id" >&2; exit 1; }
-  prepare_result=$(docker run --rm --network host \
-    --volume "$AIRBOB_COUPON_LUA_FILE:/tmp/coupon_prepare.lua:ro" "$redis_image" \
-    redis-cli --host redis-general.lab.airbob.internal --port 6379 --raw \
-    --eval /tmp/coupon_prepare.lua "coupon:{$coupon_id}:meta" "coupon:{$coupon_id}:issued" , \
-    "$total_quantity" "$issue_start" "$issue_end" 1 "$expires_at" 0)
-  [[ "$prepare_result" == 1 ]] || { printf 'coupon preparation failed: %s\n' "$coupon_id" >&2; exit 1; }
-  mysql_exec airbobdb --execute="UPDATE coupon SET redis_stock_prepared_at = UTC_TIMESTAMP(6) WHERE id = $coupon_id" >/dev/null
-done < <(jq -r '.couponPreparation[] | [.couponId, .quantity] | @tsv' "$manifest")
-[[ "$(redis_cli 6379 DBSIZE | tr -d '\r')" == "$coupon_count" ]] \
-  || { printf '%s\n' 'general Redis contains undeclared bootstrap keys' >&2; exit 1; }
+# New releases do not prepare coupon inventory in Redis. Nonempty legacy preparation
+# contracts are rejected before any import by the manifest validation above.
+[[ "$(redis_cli 6379 DBSIZE | tr -d '\r')" == 0 ]] \
+  || { printf '%s\n' 'general Redis must start empty' >&2; exit 1; }
 [[ "$(redis_cli 6380 DBSIZE | tr -d '\r')" == 0 ]] \
   || { printf '%s\n' 'detail-cache Redis must start empty' >&2; exit 1; }
-redis_state=$([[ "$coupon_count" -eq 0 ]] && printf empty || printf coupon-prepared)
+redis_state=empty
 
 debezium_compose=/opt/airbob/release/infra/aws/bundles/debezium/compose.yml
 compose=(docker compose --env-file /etc/airbob/images.env -f "$debezium_compose")

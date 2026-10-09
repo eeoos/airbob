@@ -55,17 +55,17 @@ export default function () {
       dropped_iterations: { values: { count: 0 } },
     },
   });
-  const luaTarget = buildCouponIssueTarget('lua', 1);
+  const skipTarget = buildCouponIssueTarget('skip_surrogate_rr', 1, 'secret-token');
   const dbTarget = buildCouponIssueTarget('db', 1, ' secret-token ');
 
   check(sessions, {
-    'lua uses the production v1 endpoint': () => (
-      luaTarget.path === '/api/v1/coupons/1/issue'
-      && luaTarget.metricName === 'POST /api/v1/coupons/{couponId}/issue'
-      && Object.keys(luaTarget.headers).length === 0
+    'skip uses the same benchmark endpoint and token': () => (
+      skipTarget.path === '/api/v2/coupons/1/issue?variant=skip_surrogate_rr'
+      && skipTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
+      && skipTarget.headers['X-Benchmark-Token'] === 'secret-token'
     ),
     'db uses the benchmark v2 endpoint and trimmed token': () => (
-      dbTarget.path === '/api/v2/coupons/1/issue'
+      dbTarget.path === '/api/v2/coupons/1/issue?variant=db'
       && dbTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
       && dbTarget.headers['X-Benchmark-Token'] === 'secret-token'
     ),
@@ -75,9 +75,7 @@ export default function () {
     'db rejects a blank benchmark token': () => rejects(() => (
       buildCouponIssueTarget('db', 1, ' ')
     )),
-    'lua does not require a benchmark token': () => (
-      buildCouponIssueTarget('lua', 1).path === '/api/v1/coupons/1/issue'
-    ),
+    'skip requires a benchmark token': () => rejects(() => buildCouponIssueTarget('skip_surrogate_rr', 1)),
     'valid fixture returns sessions': (value) => value.length === 3,
     'malformed fixture is rejected': () => rejects(() => parseCouponSessionFixture('{', manifestSha256)),
     'wrong dataset version is rejected': () => rejects(() => parseCouponSessionFixture(JSON.stringify({
@@ -102,7 +100,8 @@ export default function () {
     }), manifestSha256)),
     'db variant is accepted': () => parseVariant('db') === 'db',
     'removed lock variant is rejected': () => rejects(() => parseVariant('lock')),
-    'lua variant is accepted': () => parseVariant('lua') === 'lua',
+    'Lua is removed': () => rejects(() => parseVariant('lua')),
+    'all unit strategies are accepted': () => ['skip_surrogate_rr', 'skip_surrogate_rc', 'skip_composite_rr', 'skip_composite_rc'].every(v => parseVariant(v) === v),
     'unknown variant is rejected': () => rejects(() => parseVariant('enum-strategy')),
     'measure phase is accepted': () => parsePhase('measure') === 'measure',
     'unknown phase is rejected': () => rejects(() => parsePhase('mixed')),
@@ -138,8 +137,8 @@ export default function () {
         && result.soldOutDuration['p(95)'] === 2;
     },
     'sold out response is classified': () => classifyCouponIssueResponse(409, 'CP002') === 'sold_out',
-    'removed lock timeout response is unexpected': () => (
-      classifyCouponIssueResponse(503, 'CP012') === 'unexpected'
+    'contention is separate from sold out': () => (
+      classifyCouponIssueResponse(503, 'CP012') === 'contended'
     ),
     'wrong status and code pair is unexpected': () => (
       classifyCouponIssueResponse(409, 'CP012') === 'unexpected'

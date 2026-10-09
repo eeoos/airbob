@@ -108,6 +108,7 @@ def summary(before, after, samples, errors, performance):
     result['rowLocks'] = {'waits': waits, 'accumulatedWaitSeconds': lock_ms / 1000,
                           'meanWaitMs': lock_ms / waits if waits else None,
                           'scope': 'cumulative across transactions; not wall-clock or CPU time'}
+    result['deadlocks'] = difference(before, after, 'deadlockCount')
     acquire_n = difference(before['app'], after['app'], 'hikaricp_connections_acquire_seconds_count')
     acquire_s = difference(before['app'], after['app'], 'hikaricp_connections_acquire_seconds_sum')
     result['hikari'] = {'acquisitions': acquire_n,
@@ -199,13 +200,19 @@ class LocalDiagnostics:
                                 for k, v in self.context['containers'].items()},
                  'host': host_snapshot(pids, system)}
         if full:
+            value['deadlockCount'] = int(self.query(
+                "SELECT COUNT AS count FROM information_schema.innodb_metrics WHERE NAME='lock_deadlocks'")[0]['count'])
+            if value['deadlockCount']:
+                status = self.query('SHOW ENGINE INNODB STATUS')[0]['Status']
+                match = re.search(r'LATEST DETECTED DEADLOCK\n(.*?)\n------------\nTRANSACTIONS', status, re.S)
+                value['latestDeadlock'] = match[1] if match else None
             value['fileIo'] = self.query('''SELECT EVENT_NAME, COUNT_STAR, SUM_TIMER_WAIT, COUNT_MISC, SUM_TIMER_MISC
                 FROM performance_schema.file_summary_by_event_name
                 WHERE EVENT_NAME LIKE 'wait/io/file/innodb/%%' OR EVENT_NAME LIKE 'wait/io/file/sql/binlog%%' ''')
             rows = self.query('''SELECT DIGEST, DIGEST_TEXT, COUNT_STAR, SUM_TIMER_WAIT
                   FROM performance_schema.events_statements_summary_by_digest WHERE SCHEMA_NAME = 'coupon_local' ''')
             value['statements'] = [r for r in rows if r['DIGEST_TEXT'] and
-                                   (re.search(r'`(?:coupon|member_coupon)`', r['DIGEST_TEXT'])
+                                   (re.search(r'`(?:coupon|member_coupon|coupon_issue_unit|coupon_issue_unit_composite)`', r['DIGEST_TEXT'])
                                     or r['DIGEST_TEXT'] == 'COMMIT')]
         value['collectionMs'] = (time.monotonic() - start) * 1000
         return value

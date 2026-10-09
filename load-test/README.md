@@ -1,6 +1,6 @@
 # 부하 테스트
 
-- 쿠폰 DB 조건부 UPDATE / Redis Lua: [k6/coupon/README.md](k6/coupon/README.md)
+- 쿠폰 DB 조건부 UPDATE / MySQL SKIP LOCKED: [k6/coupon/README.md](k6/coupon/README.md)
 - 캐시·조회 등 전체 k6 실험 목록: [k6/README.md](k6/README.md)
 - 위시리스트·편의시설 삭제 로컬/AWS 반복 비교: [벌크 삭제 실행 안내](k6/bulk-write/BENCHMARK.md)
 

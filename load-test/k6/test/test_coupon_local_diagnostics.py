@@ -13,7 +13,7 @@ def evidence():
     app = {'process_start_time_seconds': 1, 'hikaricp_connections_acquire_seconds_count': 0,
            'hikaricp_connections_acquire_seconds_sum': 0, 'hikaricp_connections_timeout_total': 0,
            'hikaricp_connections_max': 10, 'hikaricp_connections_pending': 0, 'jvm_gc_pause_seconds_sum': 0}
-    before = {'timestampMs': 0, 'app': app, 'mysql': {'Innodb_row_lock_waits': 0, 'Innodb_row_lock_time': 0},
+    before = {'timestampMs': 0, 'deadlockCount': 0, 'app': app, 'mysql': {'Innodb_row_lock_waits': 0, 'Innodb_row_lock_time': 0},
               'containers': {'mysql': {'cpuUsageNs': 0, 'blockReadBytes': 0, 'blockWriteBytes': 0,
                                        'memoryBytes': 100}}, 'fileIo': [], 'statements': []}
     after = copy.deepcopy(before)

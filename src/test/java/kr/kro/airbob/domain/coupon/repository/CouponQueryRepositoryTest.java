@@ -135,13 +135,13 @@ class CouponQueryRepositoryTest {
 		boolean active,
 		LocalDateTime issueStartAt,
 		LocalDateTime issueEndAt,
-		LocalDateTime redisStockPreparedAt
+		LocalDateTime stockPreparedAt
 	) {
 		jdbc.update("""
 			INSERT INTO coupon (
 			  name, discount_type, discount_value,
 			  issue_start_at, issue_end_at, usable_from, usable_until,
-			  is_active, total_quantity, issued_quantity, redis_stock_prepared_at,
+			  is_active, total_quantity, issued_quantity, stock_prepared_at,
 			  created_at, updated_at
 			) VALUES (?, 'FIXED_AMOUNT', 10000, ?, ?, ?, ?, ?, 100, 0, ?, NOW(6), NOW(6))
 			""",
@@ -151,7 +151,7 @@ class CouponQueryRepositoryTest {
 			issueStartAt,
 			issueEndAt.plusDays(30),
 			active,
-			redisStockPreparedAt);
+			stockPreparedAt);
 		return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 	}
 

@@ -24,7 +24,9 @@ import run_experiments as runner
 
 
 def config():
-    return json.loads((COUPON / 'experiment.example.json').read_text())
+    value = json.loads((COUPON / 'experiment.example.json').read_text())
+    value.update(rounds=2, variants=['db', 'skip_surrogate_rr'])
+    return value
 
 
 def evidence(scenario='capacity', variant='db', rate=100):
@@ -33,9 +35,9 @@ def evidence(scenario='capacity', variant='db', rate=100):
     stock = n + 1 if scenario == 'capacity' else n // 10
     issued = n if scenario == 'capacity' else stock
     state = {'stock': stock, 'issued_quantity': issued, 'member_coupon_count': issued,
-             'distinct_member_count': issued, 'redis_prepared': variant == 'lua',
-             'redis_remaining_stock': stock - issued if variant == 'lua' else None,
-             'redis_issued_count': issued if variant == 'lua' else None}
+             'distinct_member_count': issued, 'variant': variant, 'stock_prepared': variant != 'db',
+             'remaining_unit_count': stock - issued if variant != 'db' else None,
+             'legacy_issued_quantity': issued if variant == 'db' else None}
     artifact = {'metadata': {'experiment': scenario, 'rate': rate, 'couponStock': stock, 'variant': variant},
                 'performance': {'requestCount': n, 'droppedIterations': 0, 'successRate': issued / c['durationSeconds'],
                                 'successDuration': {'p(95)': 20, 'p(99)': 30},
@@ -45,6 +47,27 @@ def evidence(scenario='capacity', variant='db', rate=100):
 
 
 class Contracts(unittest.TestCase):
+    def test_default_three_variants_balance_positions_and_all_six_orders(self):
+        variants = list(contract.DEFAULT_VARIANTS)
+        orders = [contract.order(n, variants) for n in range(1, 7)]
+        self.assertEqual(len({tuple(row) for row in orders}), 6)
+        for variant in variants:
+            for position in range(3):
+                self.assertEqual(sum(row[position] == variant for row in orders), 2)
+        self.assertEqual(contract.plan(contract.validate(json.loads(
+            (COUPON / 'experiment.example.json').read_text())))['maximumMeasuredRuns'], 108)
+
+    def test_contention_is_an_slo_failure_not_sold_out_or_missing_inventory(self):
+        data = evidence(variant='skip_surrogate_rr')
+        data[0]['performance']['outcomes'].update(success=17999, contended=1)
+        for key in ('issued_quantity', 'member_coupon_count', 'distinct_member_count'):
+            data[5][key] -= 1
+        data[5]['remaining_unit_count'] += 1
+        result = contract.evaluate(*data)
+        self.assertTrue(result['valid'])
+        self.assertFalse(result['sloPassed'])
+        self.assertIn('retryable-contention', result['sloReasons'])
+
     def test_plan_is_offline_and_accounts_for_unique_members(self):
         c = contract.validate(config())
         self.assertEqual(contract.plan(c)['requiredUniqueSessions'], 180001)
@@ -66,7 +89,7 @@ class Contracts(unittest.TestCase):
 
     def test_accepts_both_valid_scenarios(self):
         for scenario in ('capacity', 'scarcity'):
-            for variant in ('db', 'lua'):
+            for variant in contract.VARIANTS:
                 self.assertTrue(contract.evaluate(*evidence(scenario, variant))['sloPassed'])
 
     def test_sold_out_is_not_successful_capacity(self):
@@ -93,16 +116,16 @@ class Contracts(unittest.TestCase):
         data[7]['healthy'] = False
         self.assertFalse(contract.evaluate(*data)['valid'])
 
-    def test_db_and_redis_invariants_catch_lost_or_duplicate_issuance(self):
+    def test_counter_and_unit_invariants_catch_lost_or_duplicate_issuance(self):
         for key in ('issued_quantity', 'member_coupon_count', 'distinct_member_count'):
             data = evidence()
             data[5][key] -= 1
             self.assertIn('database-issuance-invariant', contract.evaluate(*data)['invalidReasons'])
-        data = evidence(variant='lua')
-        data[5]['redis_remaining_stock'] = None
-        self.assertIn('redis-issuance-invariant', contract.evaluate(*data)['invalidReasons'])
-        data = evidence(variant='lua')
-        data[5]['redis_issued_count'] -= 1
+        data = evidence(variant='skip_surrogate_rr')
+        data[5]['remaining_unit_count'] = None
+        self.assertIn('unit-issuance-invariant', contract.evaluate(*data)['invalidReasons'])
+        data = evidence(variant='skip_surrogate_rr')
+        data[5]['remaining_unit_count'] += 1
         self.assertFalse(contract.evaluate(*data)['valid'])
 
     def test_latency_and_completed_throughput_fail_slo_without_faking_invalid_load(self):
@@ -213,10 +236,10 @@ class Orchestration(unittest.TestCase):
                                  'evaluation': {'valid': True, 'sloPassed': not (variant == 'db' and rate >= 200)}})
         with patch.object(subject, 'case', side_effect=case), patch.object(runner.time, 'sleep'):
             subject.workloads(Mock())
-        self.assertEqual(calls[:4], [('capacity', 100, 1, 'db'), ('capacity', 100, 1, 'lua'),
-                                     ('capacity', 100, 2, 'lua'), ('capacity', 100, 2, 'db')])
+        self.assertEqual(calls[:4], [('capacity', 100, 1, 'db'), ('capacity', 100, 1, 'skip_surrogate_rr'),
+                                     ('capacity', 100, 2, 'skip_surrogate_rr'), ('capacity', 100, 2, 'db')])
         self.assertNotIn(('capacity', 300, 1, 'db'), calls)
-        self.assertIn(('capacity', 300, 1, 'lua'), calls)
+        self.assertIn(('capacity', 300, 1, 'skip_surrogate_rr'), calls)
         self.assertIn(('scarcity', 200, 1, 'db'), calls)
         self.assertEqual(len(calls), 14)
 
@@ -248,20 +271,20 @@ class Orchestration(unittest.TestCase):
                 close.assert_called_once_with(fixture)
                 self.assertTrue(list(Path(directory).glob('*/sql-after.json')))
 
-    def test_cleanup_does_not_reset_lua_stock(self):
+    def test_cleanup_closes_unit_fixture_without_resetting_stock(self):
         with tempfile.TemporaryDirectory() as directory:
             subject = runner.Runner(config(), Path(directory))
-            fixture = {'couponId': 12, 'variant': 'lua'}
+            fixture = {'couponId': 12, 'variant': 'skip_surrogate_rr'}
             with patch.object(subject, 'api') as api:
                 subject.close(fixture)
-                api.assert_not_called()
-            self.assertEqual(fixture['status'], 'retained-until-expiry')
+                api.assert_called_once()
+            self.assertEqual(fixture['status'], 'closed')
 
-    def test_create_journal_preserves_id_before_lua_preparation(self):
+    def test_create_journal_preserves_prepared_fixture_id(self):
         with tempfile.TemporaryDirectory() as directory:
             subject = runner.Runner(config(), Path(directory))
-            with patch.object(subject, 'api', return_value={'coupon_id': 12, 'issue_end_at': '2026-09-25T10:00:00'}) as api:
-                subject.create('lua', 'case-1', 100, 180)
+            with patch.object(subject, 'api', return_value={'coupon_id': 12, 'issue_start_at': '2026-09-25T09:00:00', 'issue_end_at': '2026-09-25T10:00:00'}) as api:
+                subject.create('skip_surrogate_rr', 'case-1', 100, 180)
             self.assertEqual(api.call_count, 1)
             value = json.loads((Path(directory) / 'report.json').read_text())
             self.assertEqual(value['fixtures'][0]['couponId'], 12)
@@ -320,11 +343,11 @@ class K6HttpSmoke(unittest.TestCase):
             c.update(benchmarkDatasetManifest=str(manifest), benchmarkTokenFile=str(token))
             self.assertEqual(runner.manifest_contract(c, 5), manifest_hash)
             for scenario, server_stock, status, manifest_kind in [('capacity', 5, 201, 'legacy'), ('scarcity', 1, 201, 'legacy'),
-                    ('capacity', 1, 201, 'legacy'), ('capacity', 5, 401, 'legacy'), ('capacity', 5, 201, 'v28')]:
+                    ('capacity', 1, 201, 'legacy'), ('capacity', 5, 401, 'legacy'), ('capacity', 5, 201, 'v29')]:
                 with self.subTest(scenario=scenario, server_stock=server_stock, status=status, manifest=manifest_kind):
-                    if manifest_kind == 'v28':
+                    if manifest_kind == 'v29':
                         manifest.write_text(json.dumps({'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
-                            'sourceDataset': {'id': 'global-b-test', 'manifestSha256': 'c' * 64, 'flywayVersion': 28},
+                            'sourceDataset': {'id': 'global-b-test', 'manifestSha256': 'c' * 64, 'flywayVersion': 29},
                             'accountPool': capsule['accountPool']}))
                         manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest()
                         fixture_json = json.loads(sessions.read_text())
@@ -363,12 +386,12 @@ class K6HttpSmoke(unittest.TestCase):
                     self.assertGreaterEqual(p['requestCount'], 3)
                     self.assertEqual(sum(p['outcomes'].values()), p['requestCount'])
                     self.assertEqual(len({r[1] for r in requests}), len(requests))
-                    self.assertTrue(all(r[0] == '/api/v2/coupons/1/issue' and r[2] == 'test-benchmark-token' for r in requests))
+                    self.assertTrue(all(r[0] == '/api/v2/coupons/1/issue?variant=db' and r[2] == 'test-benchmark-token' for r in requests))
                     self.assertGreater(p['measurementEndEpochMs'], p['measurementStartEpochMs'])
                     self.assertNotIn('fake-session', (target / 'client.json').read_text())
                     self.assertNotIn('test-benchmark-token', (target / 'k6.log').read_text())
-                    if manifest_kind == 'v28':
-                        self.assertEqual(artifact['metadata']['sourceDataset']['flywayVersion'], 28)
+                    if manifest_kind == 'v29':
+                        self.assertEqual(artifact['metadata']['sourceDataset']['flywayVersion'], 29)
                     self.assertEqual(code, 99 if status == 401 or scenario == 'capacity' and server_stock == 1 else 0)
                     if status == 401:
                         self.assertEqual(p['outcomes']['authentication'], p['requestCount'])
