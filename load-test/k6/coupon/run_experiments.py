@@ -247,10 +247,14 @@ class Runner:
                   'K6_RESULT_PATH': directory / 'client.json', 'K6_NO_USAGE_REPORT': 'true',
                   'K6_WEB_DASHBOARD': 'false', 'REQUEST_TIMEOUT': '10s', 'GRACEFUL_STOP': '30s'}
         env.update({k: str(v) for k, v in values.items()})
+        script = 'coupon-issuance-comparison.js'
+        if self.c.get('localWorkload'):
+            env['WORKLOAD_SPEC'] = json.dumps(self.c['localWorkload'])
+            script = 'coupon-scenarios.js'
         save(directory / 'k6-options.json', {})
         with (directory / 'k6.log').open('w') as log, GeneratorMonitor() as monitor:
             process = subprocess.Popen(['k6', 'run', '--quiet', '--address', '', '--config', str(directory / 'k6-options.json'),
-                                        str(HERE / 'coupon-issuance-comparison.js')],
+                                        str(Path(self.c.get('scriptDirectory', HERE)) / script)],
                                        stdout=log, stderr=log, env=env)
             try:
                 self.on_k6_started(process)

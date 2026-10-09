@@ -73,6 +73,27 @@ process_cpu_usage NaN
         self.assertEqual(result['hikari']['pendingSampleFraction'], 0.5)
         self.assertEqual(result['rowLocks']['observedTargets']['coupon/PRIMARY/X,REC_NOT_GAP']['samples'], 2)
 
+    def test_connection_usage_and_active_sessions_keep_units_and_sample_window(self):
+        data = evidence()
+        data[0]['app'].update(hikaricp_connections_usage_seconds_count=10, hikaricp_connections_usage_seconds_sum=1)
+        data[1]['app'].update(hikaricp_connections_usage_seconds_count=110, hikaricp_connections_usage_seconds_sum=3)
+        for sample in data[2]:
+            inside = 1000 <= sample['timestampMs'] <= 119000
+            sample['app'].update(hikaricp_connections_active=8 if inside else 100,
+                                 hikaricp_connections_idle=2 if inside else 100)
+            sample['mysql'].update(Threads_running=4 if inside else 100, Threads_connected=12)
+        result = summary(*data)
+        self.assertEqual(result['hikari']['usageMeanMs'], 20)
+        self.assertEqual(result['hikari']['activeMax'], 8)
+        self.assertEqual(result['hikari']['idleSampleMean'], 2)
+        self.assertEqual(result['mysqlSessions']['Threads_running']['max'], 4)
+        self.assertEqual(result['mysqlSessions']['Threads_connected']['sampleMean'], 12)
+
+    def test_missing_connection_usage_is_not_reported_as_zero(self):
+        result = summary(*evidence())
+        self.assertNotIn('usageMeanMs', result['hikari'])
+        self.assertIsNone(result['hikari']['activeMax'])
+
     def test_missing_observations_and_sample_failures_are_incomplete(self):
         for change in ('samples', 'host', 'errors'):
             data = evidence()

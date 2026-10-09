@@ -15,7 +15,7 @@ from coupon_experiment import require
 
 STATUS = ('Innodb_row_lock_time', 'Innodb_row_lock_waits', 'Innodb_row_lock_current_waits',
           'Innodb_data_reads', 'Innodb_data_writes', 'Innodb_data_fsyncs', 'Innodb_data_read',
-          'Innodb_data_written', 'Innodb_os_log_written', 'Threads_running')
+          'Innodb_data_written', 'Innodb_os_log_written', 'Threads_running', 'Threads_connected')
 APP_PREFIXES = ('hikaricp_', 'process_cpu_', 'system_cpu_', 'jvm_gc_pause_seconds_',
                 'jvm_memory_used_bytes', 'tomcat_threads_', 'process_start_time_seconds')
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -115,10 +115,23 @@ def summary(before, after, samples, errors, performance):
                         'acquireMeanMs': acquire_s * 1000 / acquire_n if acquire_n else None,
                         'timeouts': difference(before['app'], after['app'], 'hikaricp_connections_timeout_total'),
                         'maxConnections': after['app']['hikaricp_connections_max']}
+    usage_count = 'hikaricp_connections_usage_seconds_count'
+    usage_sum = 'hikaricp_connections_usage_seconds_sum'
+    if usage_count in before['app'] and usage_sum in before['app']:
+        n = difference(before['app'], after['app'], usage_count)
+        result['hikari']['usageMeanMs'] = difference(before['app'], after['app'], usage_sum) * 1000 / n if n else None
     if inside:
         pending = [s['app']['hikaricp_connections_pending'] for s in inside]
         result['hikari'].update(pendingMax=max(pending), pendingSampleMean=statistics.mean(pending),
                                pendingSampleFraction=sum(p > 0 for p in pending) / len(pending))
+        for name in ('active', 'idle'):
+            values = [s['app'][f'hikaricp_connections_{name}'] for s in inside
+                      if f'hikaricp_connections_{name}' in s['app']]
+            result['hikari'][name + 'SampleMean'] = statistics.mean(values) if values else None
+            result['hikari'][name + 'Max'] = max(values) if values else None
+        result['mysqlSessions'] = {name: {'max': max(values), 'sampleMean': statistics.mean(values)}
+            for name in ('Threads_running', 'Threads_connected')
+            if (values := [s['mysql'][name] for s in inside if name in s['mysql']])}
         groups = {}
         for sample in inside:
             for row in sample['lockWaits']:

@@ -104,6 +104,50 @@ python3 load-test/k6/coupon/run_local_e2e.py --scarcity-rates 200 400 --scarcity
 진단은 MySQL 잠금 대기, SQL digest, 파일 I/O, 컨테이너 CPU, Hikari 획득·대기·타임아웃, JVM GC,
 호스트 CPU·메모리, k6 CPU·RSS를 기록한다. 누락 관측을 0으로 취급하지 않는다.
 
+### 풀 10 고정과 시나리오 확장
+
+풀 크기 선정은 별도 실험으로 보류했다. 로컬 실행은 maximumPoolSize/minimumIdle 10을 명시하고
+실제 Hikari max 값이 다른 측정을 거부한다. 풀 점유 시간 평균, active/idle 표본과 MySQL 실행 세션 수도 기록한다.
+획득·점유 시간 평균을 p95/p99로 해석하지 않는다. 공유 호스트의 처리 경계를 운영 환경의 최대 성능으로 제시하지 않는다.
+
+```bash
+# C: 모든 RPS에 같은 초기 재고, 요청 누락을 상한으로 오인하지 않는 탐색
+python3 load-test/k6/coupon/run_local_e2e.py --capacity-rates 100 250 500 750 1000 \
+  --capacity-stock 20001 --duration 20 --rounds 2 --refine-step 100 --client-vus 1000 \
+  --variants db skip_surrogate_rr skip_surrogate_rc skip_composite_rr skip_composite_rc
+# B/A/경계 시나리오: 요청량은 먼저 C의 결과를 보고 계획 파일에 명시한다.
+python3 load-test/k6/coupon/run_local_e2e.py --workload-plan /absolute/local-workloads.json \
+  --rounds 2 --client-vus 1000 --cooldown 3 \
+  --variants db skip_surrogate_rr skip_surrogate_rc skip_composite_rr skip_composite_rc
+```
+
+계획 파일은 `schemaVersion: 1`과 `cases` 배열을 갖는다. 각 case는 `name`, `scenario`, `stock`,
+`segments: [{name, rate, seconds}]`를 지정한다. `scenario`는 capacity/scarcity/duplicate 중 하나다.
+capacity 재고는 모든 구간의 예정 요청 합보다 커야 한다. 각 실행의 모든 구간은 같은 쿠폰을 사용한다.
+급증은 서로 다른 요청률의 constant-arrival-rate 구간을 이어 붙인다. 늦은 응답은 요청 시작 구간에 남는다.
+`segments`별 예정 요청만큼 회원 인덱스를 분리해 구간 전환이 중복 발급으로 변하지 않게 한다.
+executor의 `dropped_iterations`는 사용자 정의 `segment` 태그 대신 기본 `scenario` 태그로 분리하고,
+구간 합계가 전체 누락과 일치하는지 검사한다. HTTP 수·지연은 요청을 시작한 `segment` 기준이다.
+처리율의 분모는 해당 구간의 첫 요청 시작부터 마지막 응답 완료까지다. 특히 짧은 5초 구간에서는
+마지막 응답 지연도 99% 처리율 판정에 영향을 주므로 지연·요청 수·후속 회복 결과와 함께 읽는다.
+
+duplicate는 단일 구간과 `uniqueMembers`, `duplicateBurst`를 지정한다. 같은 회원에게 burst만큼 연속 요청한 뒤
+다음 회원으로 넘어가며, 모든 회원을 순회하면 반복한다. 회원 수보다 재고를 많이 준비해 품절과 중복을 섞지 않는다.
+단일 capacity/scarcity 구간에는 `otherPreparation: {stock, count, intervalSeconds}`를 지정할 수 있다.
+같은 전략의 다른 캠페인을 측정 중 만들고, 준비 완료 시간·재고와 발급 구간의 겹침을 검증한다.
+전체 DB 관측에는 준비 작업도 포함되므로 발급만 실행한 결과와 별도 시나리오로 비교한다.
+scarcity에서는 재고 소진 뒤에도 요청을 계속 보내며 다음 캠페인을 준비할 수 있다.
+빈 unit 범위 조회와 이웃 캠페인 INSERT의 실제 경합을 관찰하며, 잠금을 인위적으로 유지하지 않는다.
+
+각 실행의 source/k6에 스크립트 사본을 보존하며 k6와 세션 준비는 이 사본을 사용한다.
+회원·관리자 세션은 측정 밖에서 갱신한다. 세션 값·비밀번호·토큰은 저장소에 넣지 않는다.
+실행 완료는 SLO 통과와 별개이며, 중단·무효·실패 실행도 삭제하지 않는다.
+
+완료된 큰 부하 단계에서 경계 탐색만 별도 실행할 때는 `--refine-from /absolute/local-results.json`을 쓴다.
+같은 `--capacity-stock`, 시간, 반복 수, VU 수, SLO와 JAR 해시를 검사하며 `--capacity-rates`에는 계정 준비를 위한
+최고 요청률을 지정한다. 이전의 경계 관측을 출발점으로 사용하되 새 앱·일회성 DB라는 사실과 원본 해시를 기록한다.
+이미 끝난 단계와 부분 실행을 다시 합산하지 않는다. `--refine-step`은 멈출 구간 폭이며 후보는 양끝의 중간값이다.
+
 ## AWS 준비와 실행
 
 같은 digest 이미지, V29 검증 완료 데이터, 앱 수·Hikari·DB/Redis 사양, 부하 발생기를 고정한다.
