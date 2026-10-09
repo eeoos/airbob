@@ -1,13 +1,17 @@
 import http from 'k6/http';
-import { check } from 'k6';
+import { check, fail } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
-import { parseBenchmarkManifest } from './lib/benchmark-manifest.js';
 import {
   authenticatedParams,
   benchmarkHeaders,
   loginBenchmarkAccount,
   resetRecentlyViewed,
 } from './lib/benchmark-fixture.js';
+import {
+  assertRecentlyViewedPreflight,
+  matchesRecentlyViewedFixture,
+  parseRecentlyViewedBenchmarkManifest,
+} from './lib/recently-viewed-benchmark.js';
 
 if (!__ENV.BENCHMARK_MANIFEST) {
   throw new Error('BENCHMARK_MANIFEST is required');
@@ -25,7 +29,7 @@ const TARGETS = {
 };
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
-const manifest = parseBenchmarkManifest(open(__ENV.BENCHMARK_MANIFEST));
+const manifest = parseRecentlyViewedBenchmarkManifest(open(__ENV.BENCHMARK_MANIFEST));
 const BENCHMARK_EMAIL = __ENV.BENCHMARK_EMAIL || manifest.account.email;
 const BENCHMARK_TOKEN = __ENV.BENCHMARK_READ_MODEL_TOKEN.trim();
 const VARIANT = __ENV.VARIANT || 'before';
@@ -61,6 +65,7 @@ if (!Number.isInteger(PRE_ALLOCATED_VUS) || PRE_ALLOCATED_VUS <= 0) {
 if (!Number.isFinite(WARMUP_SETTLE_SECONDS) || WARMUP_SETTLE_SECONDS < 0) {
   throw new Error('WARMUP_SETTLE_SECONDS must be zero or greater');
 }
+const expectedIds = manifest.recentlyViewed.accommodationIds.slice(0, EXPECTED_ROWS);
 
 function parseDurationSeconds(raw, variableName) {
   const unitSeconds = { ms: 0.001, s: 1, m: 60, h: 3600 };
@@ -116,7 +121,7 @@ export const options = {
     'http_req_failed{phase:measure}': ['rate==0'],
     'dropped_iterations{scenario:measure}': ['count==0'],
   },
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)'],
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
 };
 
 export function setup() {
@@ -132,6 +137,22 @@ export function setup() {
     datasetSize: EXPECTED_ROWS,
     benchmarkToken: BENCHMARK_TOKEN,
   });
+  const payloads = {};
+  for (const variant of ['before', 'after']) {
+    const path = TARGETS[variant];
+    const params = authenticatedParams(sessionId, {
+      phase: 'validation', variant, name: `GET ${path}`,
+    });
+    if (variant === 'before') {
+      params.headers = benchmarkHeaders(BENCHMARK_TOKEN);
+    }
+    const response = http.get(`${BASE_URL}${path}`, params);
+    if (response.status !== 200) {
+      fail(`${variant} preflight failed with HTTP ${response.status}`);
+    }
+    payloads[variant] = parsePayload(response);
+  }
+  assertRecentlyViewedPreflight(payloads.before, payloads.after, expectedIds);
   return { sessionId };
 }
 
@@ -154,15 +175,12 @@ function requestTarget(data, phase) {
   }
   const response = http.get(`${BASE_URL}${targetPath}`, params);
   const payload = parsePayload(response);
-  const rows = payload && payload.data && payload.data.accommodations;
-  const hasExpectedRows = Array.isArray(rows)
-    && rows.length === EXPECTED_ROWS
-    && payload.data.total_count === EXPECTED_ROWS;
-  const success = response.status === 200 && hasExpectedRows;
+  const hasExpectedFixture = matchesRecentlyViewedFixture(payload, expectedIds);
+  const success = response.status === 200 && hasExpectedFixture;
 
   check(response, {
     [`${VARIANT} returns HTTP 200`]: (res) => res.status === 200,
-    [`${VARIANT} returns ${EXPECTED_ROWS} rows`]: () => hasExpectedRows,
+    [`${VARIANT} preserves ${EXPECTED_ROWS} fixture IDs and latest-first order`]: () => hasExpectedFixture,
   }, tags);
 
   if (phase === 'measure') {
@@ -192,9 +210,12 @@ export function handleSummary(data) {
   const successful = Number((success && success.values.passes) || 0);
   const latency = (trend && trend.values) || {};
   const result = {
+    dataset_version: manifest.datasetVersion,
+    dataset_id: manifest.datasetId || null,
     variant: VARIANT,
     endpoint: targetPath,
     expected_rows: EXPECTED_ROWS,
+    expected_select_queries_per_request: VARIANT === 'before' ? EXPECTED_ROWS + 3 : 2,
     configured_rate_per_second: RATE,
     warmup_duration: WARMUP_DURATION,
     measure_duration: MEASURE_DURATION,
@@ -211,6 +232,7 @@ export function handleSummary(data) {
       median: finiteOrNull(latency.med),
       p90: finiteOrNull(latency['p(90)']),
       p95: finiteOrNull(latency['p(95)']),
+      p99: finiteOrNull(latency['p(99)']),
       max: finiteOrNull(latency.max),
     },
   };

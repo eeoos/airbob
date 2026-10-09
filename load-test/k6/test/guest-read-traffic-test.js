@@ -40,7 +40,6 @@ const manifest = {
 const expectedGuestTargets = [
   'accommodation-detail',
   'review-list',
-  'review-summary',
   'guest-reservations',
   'wishlist-list',
   'wishlist-accommodations',
@@ -73,7 +72,6 @@ function cursorPayload(collection, rows, hasNext) {
 export default function () {
   const detail = buildGuestTarget(manifest, 'accommodation-detail', {});
   const reviews = buildGuestTarget(manifest, 'review-list', { PAGE_SIZE: '20' });
-  const reviewSummary = buildGuestTarget(manifest, 'review-summary', {});
   const reservations = buildGuestTarget(manifest, 'guest-reservations', { PAGE_SIZE: '50' });
   const wishlists = buildGuestTarget(manifest, 'wishlist-list', { PAGE_SIZE: '20' });
   const wishlistAccommodations = buildGuestTarget(
@@ -114,8 +112,6 @@ export default function () {
     'review targets use the manifest review id and row contract': () => (
       reviews.path === '/api/v1/accommodations/901/reviews?size=20&sortType=LATEST'
         && reviews.expectedRows === 20
-        && reviewSummary.path === '/api/v1/accommodations/901/reviews/summary'
-        && reviewSummary.expectedRows === 201
     ),
     'authenticated targets use manifest filters and ids': () => (
       reservations.path === '/api/v1/profile/guest/reservations?size=50&filterType=PAST'
@@ -139,6 +135,7 @@ export default function () {
         'reservation-quote',
         'reservation-create',
         'reservation-checkout',
+        'review-summary',
         'unknown',
       ].every((target) => rejects(() => (
         buildGuestTarget(manifest, target, {})
@@ -169,16 +166,6 @@ export default function () {
           cursorPayload('reviews', reviewRows, false),
           '2025-01-01',
         )
-    ),
-    'review summary contract validates total and rating range': () => (
-      matchesGuestTargetContract(reviewSummary, {
-        success: true,
-        data: { total_count: 201, average_rating: 4.5 },
-      }, '2025-01-01')
-        && !matchesGuestTargetContract(reviewSummary, {
-          success: true,
-          data: { total_count: 201, average_rating: 6 },
-        }, '2025-01-01')
     ),
     'guest reservation contract validates past rows and omits host status': () => (
       matchesGuestTargetContract(

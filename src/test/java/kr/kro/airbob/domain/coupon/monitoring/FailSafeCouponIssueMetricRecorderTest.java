@@ -25,8 +25,6 @@ class FailSafeCouponIssueMetricRecorderTest {
 				CouponIssueMetricRecorder.Strategy.LUA,
 				CouponIssueMetricRecorder.DatabaseResult.SUCCESS,
 				1L);
-		doThrow(new IllegalStateException("lock metric failure"))
-			.when(delegate).recordLockWait(CouponIssueMetricRecorder.LockResult.ACQUIRED, 1L);
 		doThrow(new IllegalStateException("lua metric failure"))
 			.when(delegate).recordLua(
 				CouponIssueMetricRecorder.LuaOperation.ISSUE,
@@ -43,9 +41,6 @@ class FailSafeCouponIssueMetricRecorderTest {
 		assertThatCode(() -> recorder.recordDatabase(
 			CouponIssueMetricRecorder.Strategy.LUA,
 			CouponIssueMetricRecorder.DatabaseResult.SUCCESS,
-			1L)).doesNotThrowAnyException();
-		assertThatCode(() -> recorder.recordLockWait(
-			CouponIssueMetricRecorder.LockResult.ACQUIRED,
 			1L)).doesNotThrowAnyException();
 		assertThatCode(() -> recorder.recordLua(
 			CouponIssueMetricRecorder.LuaOperation.ISSUE,

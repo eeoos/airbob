@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@Profile("!traffic-benchmark")
+@Profile("!traffic-benchmark & !cache-benchmark")
 public class OperatorAlertKafkaListener {
 
 	private final IntegrationEventCodec codec;

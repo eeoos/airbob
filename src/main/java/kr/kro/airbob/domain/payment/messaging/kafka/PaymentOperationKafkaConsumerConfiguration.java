@@ -9,7 +9,7 @@ import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionReq
 import kr.kro.airbob.messaging.infrastructure.kafka.IntegrationEventKafkaListenerContainerFactoryBuilder;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!traffic-benchmark")
+@Profile("!traffic-benchmark & !cache-benchmark")
 public class PaymentOperationKafkaConsumerConfiguration {
 
 	public static final String CONTAINER_FACTORY =

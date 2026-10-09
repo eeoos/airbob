@@ -39,7 +39,6 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 import kr.kro.airbob.domain.reservation.repository.ReservationRepository;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
-import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
 import kr.kro.airbob.domain.review.entity.Review;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
 import kr.kro.airbob.domain.review.entity.ReviewStatus;
@@ -204,14 +203,6 @@ public class ReviewService {
 		);
 
 		return new ReviewResponse.ReviewInfos(reviewInfos, pageInfo);
-	}
-
-	// 운영 읽기 경로(after): 반정규화 요약 테이블만 조회한다.
-	@Transactional(readOnly = true)
-	public ReviewResponse.ReviewSummary findReviewSummary(Long accommodationId) {
-		AccommodationReviewSummary summary = summaryRepository.findByAccommodationId(accommodationId)
-			.orElse(null);
-		return ReviewResponse.ReviewSummary.of(summary);
 	}
 
 	@Transactional

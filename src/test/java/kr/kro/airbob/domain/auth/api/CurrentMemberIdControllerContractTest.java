@@ -66,7 +66,7 @@ class CurrentMemberIdControllerContractTest {
 			required(AccommodationController.class, "getHostAccommodations"),
 			required(AccommodationController.class, "getHostAccommodationDetail"),
 			required(AuthController.class, "getMyInfo"),
-			required(CouponBenchmarkController.class, "issueCouponWithLock"),
+			required(CouponBenchmarkController.class, "issueCouponWithConditionalUpdate"),
 			required(CouponController.class, "issueCoupon"),
 			required(CouponController.class, "findMyCoupons"),
 			required(PaymentController.class, "confirmPayment"),

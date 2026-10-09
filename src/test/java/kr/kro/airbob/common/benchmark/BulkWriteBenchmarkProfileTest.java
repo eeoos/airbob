@@ -68,7 +68,7 @@ class BulkWriteBenchmarkProfileTest {
 	void profileAndPropertyCreateGuards() {
 		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(SCHEMA);
 		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(SCHEMA)))
-			.thenReturn(8);
+			.thenReturn(9);
 
 		contextRunner
 			.withInitializer(context -> context.getEnvironment().setActiveProfiles("bulk-write-benchmark"))
@@ -101,7 +101,7 @@ class BulkWriteBenchmarkProfileTest {
 	void resolvedBenchmarkConfigDisablesSqlOutputWithExactProfileOrder() {
 		when(jdbcOperations.queryForObject("SELECT DATABASE()", String.class)).thenReturn(SCHEMA);
 		when(jdbcOperations.queryForObject(anyString(), eq(Integer.class), eq(SCHEMA)))
-			.thenReturn(8);
+			.thenReturn(9);
 
 		configDataRunner
 			.withPropertyValues(
@@ -113,6 +113,19 @@ class BulkWriteBenchmarkProfileTest {
 			.run(context -> {
 				assertThat(context.getEnvironment().getActiveProfiles())
 					.containsExactly("dev", "bulk-write-benchmark");
+				for (String property : java.util.List.of(
+					"spring.kafka.listener.auto-startup",
+					"accommodation.indexing.bootstrap.enabled",
+					"accommodation.indexing.kafka.auto-startup",
+					"accommodation.detail-cache.invalidation.kafka.auto-startup",
+					"accommodation.detail-cache.enabled",
+					"operator-alert.kafka.auto-startup",
+					"operator-alert.slack.enabled",
+					"reservation.inventory.startup.enabled"
+				)) {
+					assertThat(context.getEnvironment().getProperty(property, Boolean.class))
+						.as(property).isFalse();
+				}
 				assertThat(context.getEnvironment().getProperty(
 					"spring.jpa.properties.hibernate.show_sql", Boolean.class
 				)).isFalse();

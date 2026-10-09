@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import kr.kro.airbob.common.benchmark.bulkwrite.BulkWriteBenchmarkDatabaseGuard;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationMonitor;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationHistoryRepository;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
@@ -72,6 +73,7 @@ class AccommodationAmenityDeleteBenchmarkProfileTest {
 		@Bean JdbcTemplate jdbcTemplate() { return mock(JdbcTemplate.class); }
 		@Bean CommonCodeService commonCodeService() { return mock(CommonCodeService.class); }
 		@Bean Clock clock() { return Clock.systemUTC(); }
+		@Bean IntegrationEventCodec integrationEventCodec() { return mock(IntegrationEventCodec.class); }
 		@Bean BulkOperationMonitor bulkOperationMonitor() { return mock(BulkOperationMonitor.class); }
 		@Bean BulkWriteBenchmarkDatabaseGuard databaseGuard() {
 			return mock(BulkWriteBenchmarkDatabaseGuard.class);

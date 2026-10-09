@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.coupon.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,7 @@ import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
+import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
 import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
@@ -40,26 +42,24 @@ class CouponIssueTransactionServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private CouponTimeProvider timeProvider;
-	@Mock
-	private CouponRedisStockManager stockManager;
 
 	private CouponIssueTransactionService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new CouponIssueTransactionService(
-			couponRepository, memberCouponRepository, memberRepository, timeProvider, stockManager);
+			couponRepository, memberCouponRepository, memberRepository, timeProvider);
 	}
 
 	@Test
-	@DisplayName("락 경로는 발급 가능 상태, 회원 중복, 재고 순서로 검증한다")
+	@DisplayName("DB 경로는 발급 가능 상태, 회원 중복, 재고 순서로 검증한다")
 	void duplicateTakesPrecedenceOverSoldOut() {
 		Coupon soldOut = coupon(true, 10, 10);
-		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(soldOut));
+		when(couponRepository.findById(1L)).thenReturn(Optional.of(soldOut));
 		when(timeProvider.now()).thenReturn(NOW);
 		when(memberCouponRepository.existsByMemberIdAndCouponId(10L, 1L)).thenReturn(true);
 
-		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
+		assertThatThrownBy(() -> service.issueWithConditionalUpdate(1L, 10L))
 			.isInstanceOf(CouponAlreadyIssuedException.class);
 		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
@@ -67,52 +67,58 @@ class CouponIssueTransactionServiceTest {
 	@Test
 	@DisplayName("발급 불가 상태는 회원 중복이나 재고보다 먼저 거절한다")
 	void notIssuableTakesPrecedenceOverDuplicate() {
+		when(timeProvider.now()).thenReturn(NOW);
 		Coupon inactive = coupon(false, 10, 10);
-		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactive));
+		when(couponRepository.findById(1L)).thenReturn(Optional.of(inactive));
 
-		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
+		assertThatThrownBy(() -> service.issueWithConditionalUpdate(1L, 10L))
 			.isInstanceOf(CouponNotIssuableException.class);
 		verify(memberCouponRepository, never()).existsByMemberIdAndCouponId(10L, 1L);
 	}
 
 	@Test
-	@DisplayName("락 경로의 발급 수 증가와 회원 쿠폰 저장은 같은 트랜잭션 메서드에서 수행한다")
-	void issuesUnderLock() {
-		Coupon coupon = coupon(true, 10, 0);
+	@DisplayName("조건부 UPDATE 성공 여부로 발급하고 증가 후 조회한 마지막 재고도 허용한다")
+	void issuesWithConditionalUpdate() {
+		Coupon coupon = coupon(true, 10, 10);
 		Member member = org.mockito.Mockito.mock(Member.class);
-		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
 		when(timeProvider.now()).thenReturn(NOW);
+		when(couponRepository.incrementIssuedQuantityIfIssuable(1L, NOW)).thenReturn(1);
+		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
 		when(memberRepository.getReferenceById(10L)).thenReturn(member);
 
-		service.issueUnderLock(1L, 10L);
+		service.issueWithConditionalUpdate(1L, 10L);
 
-		verify(couponRepository).incrementIssuedQuantity(1L);
-		verify(memberCouponRepository).save(any(MemberCoupon.class));
-		verify(couponRepository).findByIdForUpdate(1L);
+		var order = inOrder(couponRepository, memberCouponRepository);
+		order.verify(couponRepository).incrementIssuedQuantityIfIssuable(1L, NOW);
+		order.verify(couponRepository).findById(1L);
+		order.verify(memberCouponRepository).existsByMemberIdAndCouponId(10L, 1L);
+		order.verify(memberCouponRepository).save(any(MemberCoupon.class));
+		verify(couponRepository, never()).findByIdForUpdate(1L);
+		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	@Test
-	@DisplayName("Redis 재고를 준비한 쿠폰은 락 경로로 발급하지 않는다")
-	void rejectsRedisPreparedCampaignOnLockPath() {
+	@DisplayName("Redis 재고를 준비한 쿠폰은 DB 경로로 발급하지 않는다")
+	void rejectsRedisPreparedCampaignOnDbPath() {
+		when(timeProvider.now()).thenReturn(NOW);
 		Coupon coupon = coupon(true, 10, 0);
 		coupon.markRedisStockPrepared(NOW.minusHours(1));
-		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
+		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
 
-		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
+		assertThatThrownBy(() -> service.issueWithConditionalUpdate(1L, 10L))
 			.isInstanceOf(CouponNotIssuableException.class);
 		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	@Test
-	@DisplayName("DB 준비 이력이 롤백되어도 Redis 준비 키가 있으면 락 경로로 발급하지 않는다")
-	void rejectsOrphanedRedisPreparationOnLockPath() {
-		Coupon coupon = coupon(true, 10, 0);
-		when(couponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
-		when(stockManager.isPrepared(1L)).thenReturn(true);
+	@DisplayName("조건부 UPDATE가 0행이면 발급 기록을 만들지 않고 매진으로 응답한다")
+	void rejectsWhenConditionalUpdateDoesNotReserveStock() {
+		when(timeProvider.now()).thenReturn(NOW);
+		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon(true, 10, 10)));
 
-		assertThatThrownBy(() -> service.issueUnderLock(1L, 10L))
-			.isInstanceOf(CouponNotIssuableException.class);
-		verify(couponRepository, never()).incrementIssuedQuantity(1L);
+		assertThatThrownBy(() -> service.issueWithConditionalUpdate(1L, 10L))
+			.isInstanceOf(CouponSoldOutException.class);
+		verify(memberCouponRepository, never()).save(any(MemberCoupon.class));
 	}
 
 	@Test

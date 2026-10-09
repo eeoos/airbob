@@ -35,6 +35,8 @@ public enum ErrorCode {
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
 	MEMBER_ROLE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "M007", "자신의 관리자 권한은 회수할 수 없습니다."),
 	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
+	BENCHMARK_RECENTLY_VIEWED_FIXTURE_INVALID(HttpStatus.BAD_REQUEST, "B002",
+		"N+1 측정에는 서로 다른 주소가 있는 공개 숙소가 필요합니다. 데이터와 manifest를 확인해 주세요."),
 
 
 	// accommodation
@@ -123,7 +125,6 @@ public enum ErrorCode {
 	COUPON_ALREADY_PREPARED(HttpStatus.CONFLICT, "CP009", "이미 준비된 쿠폰은 다시 준비하거나 발급 설정을 변경할 수 없습니다."),
 	COUPON_STOCK_PREPARATION_NOT_ALLOWED(HttpStatus.CONFLICT, "CP010", "현재 상태에서는 쿠폰 재고를 준비할 수 없습니다."),
 	COUPON_STOCK_NOT_PREPARED(HttpStatus.SERVICE_UNAVAILABLE, "CP011", "쿠폰 재고가 준비되지 않았습니다."),
-	COUPON_LOCK_TIMEOUT(HttpStatus.SERVICE_UNAVAILABLE, "CP012", "쿠폰 발급 요청이 몰려 잠금 획득에 실패했습니다. 잠시 후 다시 시도해주세요."),
 
 	// image
 	IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "I001", "이미지 업로드 중 오류가 발생했습니다."),

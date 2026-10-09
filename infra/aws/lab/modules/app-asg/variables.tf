@@ -64,6 +64,15 @@ variable "app_enabled" {
   type = bool
 }
 
+variable "performance_instance_count" {
+  type    = number
+  default = 1
+  validation {
+    condition     = contains([1, 2, 3, 4], var.performance_instance_count)
+    error_message = "Performance comparisons require 1-4 fixed instances."
+  }
+}
+
 variable "min_size" {
   type = number
 }

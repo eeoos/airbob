@@ -17,6 +17,32 @@ scrape_configs:
       - targets:
           - localhost:9090
 
+  # Optional local experiment targets are owned and removed by run-local-experiments.py.
+  - job_name: cache-experiment-app
+    scrape_interval: 1s
+    scrape_timeout: 1s
+    metrics_path: /actuator/prometheus
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/cache-experiment-*-apps.json]
+        refresh_interval: 1s
+    relabel_configs:
+      - target_label: job
+        replacement: airbob
+
+  - job_name: cache-experiment-runner
+    scrape_interval: 1s
+    scrape_timeout: 1s
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/cache-experiment-*-runner.json]
+        refresh_interval: 1s
+
+  - job_name: cache-experiment-redis
+    scrape_interval: 3s
+    scrape_timeout: 2s
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/cache-experiment-*-redis.json]
+        refresh_interval: 1s
+
   - job_name: redis-general
     static_configs:
       - targets:

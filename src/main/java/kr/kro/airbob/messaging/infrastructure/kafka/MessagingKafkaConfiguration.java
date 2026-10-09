@@ -21,7 +21,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!traffic-benchmark")
+@Profile("!traffic-benchmark & !cache-benchmark")
 @EnableKafkaRetryTopic
 public class MessagingKafkaConfiguration {
 

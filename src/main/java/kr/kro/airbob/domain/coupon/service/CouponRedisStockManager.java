@@ -156,6 +156,10 @@ public class CouponRedisStockManager {
 		return (long)redisTime.getSeconds() * 1_000L + redisTime.getMicroseconds() / 1_000L;
 	}
 
+	public long issuedMemberCount(Long couponId) {
+		return redissonClient.getSet(issuedKey(couponId), StringCodec.INSTANCE).size();
+	}
+
 	static String metaKey(Long couponId) {
 		return "coupon:{" + couponId + "}:meta";
 	}

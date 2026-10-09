@@ -188,10 +188,10 @@ export const ACCOMMODATION_AMENITY_DELETE_BENCHMARK = Object.freeze({
       ? (fullReplacement
         ? counts.SELECT === 3
           && counts.DELETE === datasetSize
-          && counts.INSERT === replacementRows + 1
+          && counts.INSERT === replacementRows + 2
           && counts.UPDATE === 1
           && counts.OTHER === 0
-          && counts.TOTAL === datasetSize + replacementRows + 5
+          && counts.TOTAL === datasetSize + replacementRows + 6
         : counts.SELECT === 1
           && counts.DELETE === datasetSize
           && counts.INSERT === 0
@@ -201,10 +201,10 @@ export const ACCOMMODATION_AMENITY_DELETE_BENCHMARK = Object.freeze({
       : (fullReplacement
         ? counts.SELECT === 2
           && counts.DELETE === 1
-          && counts.INSERT === replacementRows + 1
+          && counts.INSERT === replacementRows + 2
           && counts.UPDATE === 1
           && counts.OTHER === 0
-          && counts.TOTAL === replacementRows + 5
+          && counts.TOTAL === replacementRows + 6
         : counts.SELECT === 0
           && counts.DELETE === 1
           && counts.INSERT === 0

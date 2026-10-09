@@ -129,6 +129,7 @@ jobs:
           k6 run --address '' load-test/k6/test/coupon-benchmark-fixture-test.js
           k6 run --address '' load-test/k6/test/dataset-read-target-test.js
           k6 run --address '' load-test/k6/test/read-model-benchmark-test.js
+          k6 run --address '' load-test/k6/test/recently-viewed-benchmark-test.js
           k6 run --address '' load-test/k6/test/reservation-history-insert-benchmark-test.js
           MODE=inspect ROLE=guest TARGET=accommodation-detail \
             RATE=1 DURATION=1s MIN_COMPLETED_SAMPLES=1 \
@@ -139,6 +140,7 @@ jobs:
             k6 run --address '' load-test/k6/test/guest-read-traffic-test.js
           node load-test/k6/test/prepare-benchmark-sessions-test.js
           node load-test/k6/test/prepare-coupon-sessions-test.js
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s load-test/k6/test -p 'test_coupon_*.py' -v
           node load-test/k6/test/bulk-write-observations-test.mjs
           node load-test/k6/test/read-model-observations-test.mjs
           node load-test/k6/test/traffic-result-aggregation-test.mjs

@@ -28,12 +28,16 @@ import kr.kro.airbob.domain.commoncode.dto.CommonCodeResponse;
 import kr.kro.airbob.domain.commoncode.service.CommonCodeService;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.history.HistoryConstants;
+import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
+import kr.kro.airbob.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Measurement;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
+import kr.kro.airbob.messaging.event.IntegrationEventCodec;
+import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
 
 @Service
 @Profile("bulk-write-benchmark")
@@ -46,15 +50,18 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 	private final JdbcTemplate jdbcTemplate;
 	private final CommonCodeService commonCodeService;
 	private final Clock clock;
+	private final IntegrationEventCodec eventCodec;
 
 	public AccommodationAmenityDeleteBenchmarkFixtureService(
 		JdbcTemplate jdbcTemplate,
 		CommonCodeService commonCodeService,
-		Clock clock
+		Clock clock,
+		IntegrationEventCodec eventCodec
 	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.commonCodeService = commonCodeService;
 		this.clock = clock;
+		this.eventCodec = eventCodec;
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -143,6 +150,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 			&& replacementMap.equals(expectedMap)
 			&& targetParentPreserved
 			&& historyEffectMatched
+			&& cacheInvalidationMatched(fixture, measurement)
 			&& controlAccommodationPreserved
 			&& controlAmenitiesPreserved;
 
@@ -164,6 +172,13 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 		if (fixture == null) {
 			return;
 		}
+		var descriptor = AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR;
+		jdbcTemplate.update("""
+			DELETE FROM outbox
+			WHERE destination = ? AND aggregate_type = ? AND event_type = ?
+			  AND aggregate_id IN (?, ?)
+			""", descriptor.destination(), descriptor.aggregateType(), descriptor.eventType(),
+			Long.toString(fixture.targetAccommodationId()), Long.toString(fixture.controlAccommodationId()));
 		jdbcTemplate.update(
 			"DELETE FROM accommodation_amenity WHERE accommodation_id IN (?, ?)",
 			fixture.targetAccommodationId(),
@@ -185,6 +200,41 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 			throw new IllegalArgumentException("datasetSize must be between 0 and "
 				+ AccommodationAmenityDeleteBenchmarkRequest.MAX_DATASET_SIZE);
 		}
+	}
+
+	private boolean cacheInvalidationMatched(Fixture fixture, Measurement measurement) {
+		List<Map<String, Object>> targetEvents = cacheInvalidations(fixture.targetAccommodationId());
+		if (!cacheInvalidations(fixture.controlAccommodationId()).isEmpty()) {
+			return false;
+		}
+		if (measurement == Measurement.DELETE_ONLY) {
+			return targetEvents.isEmpty();
+		}
+		if (targetEvents.size() != 1) {
+			return false;
+		}
+		var descriptor = AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR;
+		var row = targetEvents.getFirst();
+		try {
+			var envelope = eventCodec.decode((String)row.get("payload"), descriptor,
+				AccommodationDetailCacheInvalidationRequestedV1.class);
+			return envelope.payload().accommodationId().equals(fixture.targetAccommodationId())
+				&& envelope.payload().reason() == AccommodationDetailCacheInvalidationReason.ACCOMMODATION
+				&& envelope.eventId().toString().equals(row.get("event_id"))
+				&& descriptor.eventVersion().equals(row.get("event_version"))
+				&& Long.toString(fixture.targetAccommodationId()).equals(row.get("partition_key"));
+		} catch (InvalidIntegrationEventException invalidEvent) {
+			return false;
+		}
+	}
+
+	private List<Map<String, Object>> cacheInvalidations(long accommodationId) {
+		var descriptor = AccommodationDetailCacheInvalidationRequestedV1.DESCRIPTOR;
+		return jdbcTemplate.queryForList("""
+			SELECT event_id, event_version, partition_key, payload FROM outbox
+			WHERE destination = ? AND aggregate_type = ? AND event_type = ? AND aggregate_id = ?
+			""", descriptor.destination(), descriptor.aggregateType(), descriptor.eventType(),
+			Long.toString(accommodationId));
 	}
 
 	private void validateAdminOwner(long ownerId) {

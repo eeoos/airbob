@@ -744,4 +744,11 @@ function requireAccountCapacity(capsule, requiredCapacity) {
   return requiredCapacity;
 }
 
-module.exports = { parseBenchmarkDatasetManifest };
+module.exports = {
+  parseBenchmarkDatasetManifest(raw) {
+    const value = JSON.parse(raw);
+    return value.datasetVersion === 'coupon-accounts-v1'
+      ? require('./coupon-account-manifest.js').parseCouponAccountManifest(value)
+      : parseBenchmarkDatasetManifest(raw);
+  },
+};

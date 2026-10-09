@@ -2,8 +2,9 @@ package kr.kro.airbob.domain.review.dto;
 
 import java.math.BigDecimal;
 
-// review 테이블 직접 집계(naive, 성능 비교용 "before") 결과 매핑 프로젝션.
+/** 숙소별 게시 리뷰 원본 집계 결과. */
 public interface ReviewSummaryRow {
+	Long getAccommodationId();
 	Long getTotalCount();
 	BigDecimal getAverageRating();
 }

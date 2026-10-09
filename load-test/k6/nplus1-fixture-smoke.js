@@ -11,6 +11,7 @@ import {
   resetRecentlyViewed,
   smokeCheckManifestTargets,
 } from './lib/benchmark-fixture.js';
+import { matchesRecentlyViewedFixture } from './lib/recently-viewed-benchmark.js';
 
 if (!__ENV.BENCHMARK_MANIFEST) {
   throw new Error('BENCHMARK_MANIFEST is required');
@@ -59,7 +60,7 @@ export function setup() {
     benchmarkToken: __ENV.BENCHMARK_READ_MODEL_TOKEN,
   });
 
-  return { sessionId, expectedRows: datasetSize };
+  return { sessionId, expectedIds: manifest.recentlyViewed.accommodationIds.slice(0, datasetSize) };
 }
 
 export default function (data) {
@@ -80,8 +81,12 @@ export default function (data) {
   });
   check(response, {
     'recently viewed returns 200': (res) => res.status === 200,
-    'recently viewed returns requested rows': (res) => (
-      res.json('data.total_count') === data.expectedRows
-    ),
+    'recently viewed preserves requested IDs and latest-first order': (res) => {
+      try {
+        return matchesRecentlyViewedFixture(res.json(), data.expectedIds);
+      } catch (_) {
+        return false;
+      }
+    },
   });
 }

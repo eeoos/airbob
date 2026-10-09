@@ -24,7 +24,7 @@ public class AccommodationInventoryReadiness implements HealthIndicator {
 	) {
 		this.bootstrapRequired = bootstrapRequired;
 		boolean explicitReadOnlyBypass = !bootstrapRequired
-			&& environment.acceptsProfiles(Profiles.of("test", "performance-lab"));
+			&& environment.acceptsProfiles(Profiles.of("test", "performance-lab", "cache-benchmark"));
 		this.ready = new AtomicBoolean(explicitReadOnlyBypass);
 	}
 

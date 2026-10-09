@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.context.annotation.Profile;
-import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import kr.kro.airbob.domain.accommodation.cache.messaging.kafka.AccommodationDetailCacheInvalidationKafkaListener;
 import kr.kro.airbob.domain.accommodation.cache.messaging.kafka.AccommodationDetailCacheKafkaConsumerConfiguration;
@@ -25,8 +25,8 @@ import kr.kro.airbob.search.messaging.kafka.AccommodationSearchRefreshListener;
 @DisplayName("도메인 Kafka 프로파일 경계 계약")
 class DomainKafkaProfileContractTest {
 
-	private static final String TRAFFIC_BENCHMARK_EXCLUSION = "!traffic-benchmark";
 	private static final List<Class<?>> DOMAIN_KAFKA_BEAN_TYPES = List.of(
+		MessagingKafkaConfiguration.class,
 		PaymentOperationExecutionListener.class,
 		PaymentOperationKafkaConsumerConfiguration.class,
 		PaymentOperationKafkaRetryPublisherConfiguration.class,
@@ -41,17 +41,21 @@ class DomainKafkaProfileContractTest {
 		AccommodationDetailCacheKafkaRetryPublisherConfiguration.class
 	);
 
-	@Test
-	void excludesEveryDomainKafkaBeanFromTrafficBenchmark() {
-		assertThat(DOMAIN_KAFKA_BEAN_TYPES).allSatisfy(beanType -> {
-			Profile profile = AnnotatedElementUtils.findMergedAnnotation(beanType, Profile.class);
-
-			assertThat(profile)
-				.as("%s profile", beanType.getSimpleName())
-				.isNotNull();
-			assertThat(profile.value())
-				.as("%s profile expressions", beanType.getSimpleName())
-				.containsExactly(TRAFFIC_BENCHMARK_EXCLUSION);
-		});
+	@ParameterizedTest
+	@ValueSource(strings = {"traffic-benchmark", "cache-benchmark"})
+	void excludesEveryDomainKafkaBeanFromReadOnlyBenchmarks(String profile) {
+		new ApplicationContextRunner()
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
+			.withUserConfiguration(DOMAIN_KAFKA_BEAN_TYPES.toArray(Class<?>[]::new))
+			.withPropertyValues(
+				"spring.kafka.listener.auto-startup=true",
+				"operator-alert.kafka.auto-startup=true",
+				"accommodation.indexing.kafka.auto-startup=true",
+				"accommodation.detail-cache.invalidation.kafka.auto-startup=true")
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				assertThat(DOMAIN_KAFKA_BEAN_TYPES).allSatisfy(beanType ->
+					assertThat(context).doesNotHaveBean(beanType));
+			});
 	}
 }

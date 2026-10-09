@@ -9,7 +9,7 @@ import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@Profile("read-model-benchmark")
+@Profile({"read-model-benchmark", "cache-benchmark"})
 @RequiredArgsConstructor
 public class AccommodationDetailBenchmarkService {
 
@@ -20,6 +20,13 @@ public class AccommodationDetailBenchmarkService {
 		AccommodationDetailSnapshot snapshot = detailReader.load(accommodationId);
 		boolean isInWishlist = viewerId != null && detailReader.isInWishlist(accommodationId, viewerId);
 
+		return AccommodationResponse.DetailInfo.from(snapshot, isInWishlist);
+	}
+
+	@Transactional(readOnly = true)
+	public AccommodationResponse.DetailInfo findAccommodationBeforeReviewSummary(Long accommodationId, Long viewerId) {
+		AccommodationDetailSnapshot snapshot = detailReader.loadWithRawReviewSummary(accommodationId);
+		boolean isInWishlist = viewerId != null && detailReader.isInWishlist(accommodationId, viewerId);
 		return AccommodationResponse.DetailInfo.from(snapshot, isInWishlist);
 	}
 }

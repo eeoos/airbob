@@ -23,6 +23,9 @@ public interface AccommodationRepositoryCustom {
         AccommodationStatus status
     );
 
+    Optional<PublicAccommodationDetailProjection> findWithDetailsWithoutReviewSummaryByAccommodationIdAndStatus(
+        Long accommodationId, AccommodationStatus status);
+
     Slice<HostAccommodationProjection> findMyAccommodationsByHostIdWithCursor(
         Long hostId,
         Long lastId,
@@ -32,6 +35,9 @@ public interface AccommodationRepositoryCustom {
     );
 
 	List<RecentlyViewedAccommodationProjection> findWithAddressAndReviewSummaryByIdInAndStatus(
+		List<Long> accommodationIds, AccommodationStatus status);
+
+	List<RecentlyViewedAccommodationProjection> findWithAddressWithoutReviewSummaryByIdInAndStatus(
 		List<Long> accommodationIds, AccommodationStatus status);
 
 	Optional<HostAccommodationDetailProjection> findWithDetailsByIdAndHostId(Long accommodationId, Long hostId);

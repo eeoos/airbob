@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Internal Micrometer diagnostics for comparing synchronous coupon issuance with Redisson locking and Redis Lua. Use k6 output as the authoritative client RPS and latency record.",
+  "description": "Internal Micrometer diagnostics for comparing synchronous coupon issuance with database conditional updates and Redis Lua. Use k6 output as the authoritative client RPS and latency record.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -275,7 +275,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Request result mix by strategy. Use this to detect sold-out, duplicate, timeout and error responses that would distort an all-outcome latency.",
+      "description": "Request result mix by strategy. Use this to detect sold-out, duplicate and error responses that would distort an all-outcome latency.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -563,127 +563,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Redisson lock acquisition wait for acquired locks. This metric is intrinsically lock-only and therefore has no strategy label.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "decimals": 3,
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 31
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.50,\n  sum by (le) (\n    rate(coupon_lock_wait_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"acquired\"}[$__rate_interval])\n  )\n)",
-          "instant": false,
-          "legendFormat": "p50",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.95,\n  sum by (le) (\n    rate(coupon_lock_wait_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"acquired\"}[$__rate_interval])\n  )\n)",
-          "instant": false,
-          "legendFormat": "p95",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.99,\n  sum by (le) (\n    rate(coupon_lock_wait_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", result=\"acquired\"}[$__rate_interval])\n  )\n)",
-          "instant": false,
-          "legendFormat": "p99",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "title": "Lock-acquired wait latency p50 / p95 / p99",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
       "description": "Redis Lua admission latency for approved issuances. Approval precedes database persistence, so use it as a diagnostic rather than the final result.",
       "fieldConfig": {
         "defaults": {
@@ -738,8 +617,8 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
-        "x": 12,
+        "w": 24,
+        "x": 0,
         "y": 31
       },
       "id": 8,
@@ -805,81 +684,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Any timeout means a request failed to acquire the coupon lock within the configured wait time.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 10
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 0,
-        "y": 40
-      },
-      "id": 9,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(increase(coupon_lock_timeout_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}[$__range])) or vector(0)",
-          "instant": true,
-          "legendFormat": "timeouts",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Lock timeouts in selected range",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
       "description": "Compensation runs when Redis approved an issuance but database persistence failed. no_op, meta_missing and error require investigation.",
       "fieldConfig": {
         "defaults": {
@@ -904,8 +708,8 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 12,
-        "x": 6,
+        "w": 16,
+        "x": 0,
         "y": 40
       },
       "id": 10,
@@ -978,8 +782,8 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 6,
-        "x": 18,
+        "w": 8,
+        "x": 16,
         "y": 40
       },
       "id": 11,
@@ -1094,7 +898,7 @@
         "type": "query"
       },
       {
-        "allValue": ".*",
+        "allValue": "db|lua",
         "current": {
           "selected": true,
           "text": [
@@ -1113,8 +917,8 @@
         "options": [
           {
             "selected": false,
-            "text": "lock",
-            "value": "lock"
+            "text": "db",
+            "value": "db"
           },
           {
             "selected": false,
@@ -1122,7 +926,7 @@
             "value": "lua"
           }
         ],
-        "query": "lock,lua",
+        "query": "db,lua",
         "skipUrlSync": false,
         "type": "custom"
       }
@@ -1155,6 +959,6 @@
   "timezone": "browser",
   "title": "Airbob - Coupon Issuance Comparison",
   "uid": "airbob-coupon-issuance",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

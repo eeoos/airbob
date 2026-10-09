@@ -1,9 +1,19 @@
 spring:
   jpa:
+    show-sql: false
     properties:
       hibernate:
         # 주소 지연 로딩 N+1을 배치 조회가 가리지 않도록 측정할 때만 비활성화
         default_batch_fetch_size: 0
+        show_sql: false
+        format_sql: false
+
+# SQL 출력 비용을 측정에서 제외한다. StatementInspector 기반 쿼리 지표는 계속 수집한다.
+logging:
+  level:
+    org.hibernate.SQL: "OFF"
+    org.hibernate.type.descriptor.sql: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
 
 benchmark:
   read-model:

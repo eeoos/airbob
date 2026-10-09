@@ -1,11 +1,15 @@
 package kr.kro.airbob.domain.recentlyViewed.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.LongStream;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
@@ -13,6 +17,8 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
@@ -43,15 +49,21 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
+import kr.kro.airbob.common.exception.BaseException;
+import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfos;
 
-@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
+@DataJpaTest(showSql = false, properties = {
+	"spring.jpa.properties.hibernate.generate_statistics=true",
+	"benchmark.read-model.token=test-token"
+})
 @Testcontainers
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "nplus1-benchmark"})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
 @Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class,
+	RecentlyViewedBenchmarkFixtureService.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")
@@ -81,6 +93,7 @@ class RecentlyViewedQueryIntegrationTest {
 	}
 
 	@Autowired private RecentlyViewedService service;
+	@Autowired private RecentlyViewedBenchmarkFixtureService fixtureService;
 	@Autowired private StringRedisTemplate redis;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private ObjectMapper objectMapper;
@@ -180,6 +193,93 @@ class RecentlyViewedQueryIntegrationTest {
 		assertHistoryCleaned();
 	}
 
+	@ParameterizedTest(name = "최근 본 숙소 {0}개: before=N+3 SELECT, after=2 SELECT")
+	@ValueSource(ints = {1, 20, 50, 100})
+	void benchmarkFixtureReproducesAddressNPlusOneAndPreservesTheResponse(int size) {
+		List<Long> ids = LongStream.range(1_000, 1_000 + size).boxed().toList();
+		jdbc.update("""
+			INSERT INTO wishlist (id, name, member_id, status, updated_at)
+			VALUES (51, '벤치마크 여행', 7, 'ACTIVE', NOW(6))
+			""");
+		for (long id : ids) {
+			jdbc.update("""
+				INSERT INTO address (id, country, city, district, updated_at)
+				VALUES (?, '대한민국', '서울', '마포구', NOW(6))
+				""", id + 1_000);
+			insertAccommodation(id, "PUBLISHED", id + 1_000);
+			jdbc.update("""
+				INSERT INTO accommodation_review_summary
+					(accommodation_id, total_review_count, rating_sum, average_rating, updated_at)
+				VALUES (?, 2, 9, 4.50, NOW(6))
+				""", id);
+			if (id % 2 == 0) {
+				jdbc.update("""
+					INSERT INTO wishlist_accommodation (id, wishlist_id, accommodation_id, updated_at)
+					VALUES (?, 51, ?, NOW(6))
+					""", id + 2_000, id);
+			}
+		}
+		addHistory(KEY, 999, "2026-09-06T00:00:00Z");
+		addHistory(OTHER_KEY, 999, "2026-09-06T00:00:00Z");
+
+		fixtureService.replaceFixture(MEMBER_ID, ids);
+
+		var history = redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1);
+		assertThat(history).extracting(ZSetOperations.TypedTuple::getValue)
+			.containsExactlyElementsOf(ids.stream().map(String::valueOf).toList());
+		assertThat(redis.getExpire(KEY)).isBetween(Duration.ofDays(6).toSeconds(), Duration.ofDays(7).toSeconds());
+		assertThat(entityManagerFactory.unwrap(SessionFactory.class)
+			.getSessionFactoryOptions().getDefaultBatchFetchSize()).isZero();
+
+		Statistics statistics = prepareMeasurement();
+		RecentlyViewedAccommodationInfos before = service.getRecentlyViewedBefore(MEMBER_ID);
+
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(size + 3);
+		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains(" from address ")))
+			.hasSize(size);
+		assertThat(before.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
+			.containsExactlyElementsOf(ids);
+		assertThat(before.totalCount()).isEqualTo(size);
+
+		// before가 적재한 엔티티가 after 측정에 영향을 주지 않도록 영속성 컨텍스트를 비운다.
+		statistics = prepareMeasurement();
+		RecentlyViewedAccommodationInfos after = service.getRecentlyViewed(MEMBER_ID);
+
+		assertCardRead(statistics);
+		assertThat(after).isEqualTo(before);
+		assertThat(redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1)).isEqualTo(history);
+		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("999");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"MISSING", "DRAFT", "UNPUBLISHED", "DELETED", "NO_ADDRESS", "SHARED_ADDRESS"})
+	void invalidBenchmarkFixturePreservesExistingHistory(String invalidCase) {
+		insertAccommodation(31, "PUBLISHED", 21L);
+		jdbc.update("""
+			INSERT INTO address (id, country, city, district, updated_at)
+			VALUES (22, '대한민국', '서울', '마포구', NOW(6))
+			""");
+		if (!invalidCase.equals("MISSING")) {
+			String status = List.of("DRAFT", "UNPUBLISHED", "DELETED").contains(invalidCase)
+				? invalidCase : "PUBLISHED";
+			Long addressId = switch (invalidCase) {
+				case "NO_ADDRESS" -> null;
+				case "SHARED_ADDRESS" -> 21L;
+				default -> 22L;
+			};
+			insertAccommodation(32, status, addressId);
+		}
+		addHistory(KEY, 777, "2026-09-06T00:00:00Z");
+		addHistory(OTHER_KEY, 888, "2026-09-06T00:00:00Z");
+
+		assertThatThrownBy(() -> fixtureService.replaceFixture(MEMBER_ID, List.of(31L, 32L)))
+			.isInstanceOfSatisfying(BaseException.class, exception -> assertThat(exception.getErrorCode())
+				.isEqualTo(ErrorCode.BENCHMARK_RECENTLY_VIEWED_FIXTURE_INVALID));
+
+		assertThat(redis.opsForZSet().reverseRange(KEY, 0, -1)).containsExactly("777");
+		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("888");
+	}
+
 	@Test
 	@DisplayName("기록이 없으면 DB 조회를 하지 않는다")
 	void emptyHistoryDoesNotReadDatabase() {
@@ -206,6 +306,69 @@ class RecentlyViewedQueryIntegrationTest {
 		assertThat(redis.hasKey(KEY)).isFalse();
 		statistics.clear();
 		assertEmpty(service.getRecentlyViewed(MEMBER_ID));
+		assertThat(statistics.getPrepareStatementCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("리뷰 원본 조회는 요약 테이블 없이 같은 순서·찜·빈 요약을 반환하고 비공개 기록을 정리한다")
+	void rawSummaryMatchesContractWithoutReadingSummaryTable() throws Exception {
+		insertMixedHistory();
+		jdbc.update("""
+			INSERT INTO review (accommodation_id, member_id, rating, status, updated_at)
+			VALUES (31, 7, 5, 'PUBLISHED', NOW(6)), (31, 7, 5, 'PUBLISHED', NOW(6)),
+				(31, 7, 5, 'PUBLISHED', NOW(6)), (31, 7, 4, 'PUBLISHED', NOW(6)),
+				(31, 7, 1, 'DELETE', NOW(6)), (31, 7, 2, 'HIDDEN', NOW(6)),
+				(32, 7, 3, 'DELETE', NOW(6))
+			""");
+		Statistics statistics = prepareMeasurement();
+
+		var before = service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID);
+
+		assertContract(before);
+		assertHistoryCleaned();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(statistics.getEntityLoadCount()).isZero();
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
+		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains("from review")).count()).isOne();
+		assertThat(before).usingRecursiveComparison()
+			.withComparatorForType(BigDecimal::compareTo, BigDecimal.class).isEqualTo(service.getRecentlyViewed(MEMBER_ID));
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {1, 20, 100})
+	@DisplayName("최근 본 숙소가 늘어나도 원본 리뷰는 한 번만 집계한다")
+	void rawSummaryQueryCountIsConstant(int size) {
+		for (int offset = 0; offset < size; offset++) {
+			long id = 1000 + offset;
+			insertAccommodation(id, "PUBLISHED", 21L);
+			addHistory(KEY, id, "2026-09-06T00:00:00Z");
+			jdbc.update("INSERT INTO review (accommodation_id, member_id, rating, status, updated_at) VALUES (?, 7, 5, 'PUBLISHED', NOW(6))", id);
+			jdbc.update("""
+				INSERT INTO accommodation_review_summary (accommodation_id, total_review_count, rating_sum, average_rating, updated_at)
+				VALUES (?, 1, 5, 5.00, NOW(6))
+				""", id);
+		}
+		Statistics statistics = prepareMeasurement();
+		var before = service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID);
+		assertThat(before.accommodations()).hasSize(size);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
+		assertThat(before).usingRecursiveComparison()
+			.withComparatorForType(BigDecimal::compareTo, BigDecimal.class).isEqualTo(service.getRecentlyViewed(MEMBER_ID));
+	}
+
+	@Test
+	@DisplayName("원본 비교도 비공개 기록만 있으면 리뷰와 찜을 조회하지 않고 이후 빈 기록은 DB를 읽지 않는다")
+	void rawSummarySkipsEmptyAndUnavailableHistory() {
+		insertAccommodation(40, "UNPUBLISHED", 21L);
+		addHistory(KEY, 40, "2026-09-07T00:00:00Z");
+		addHistory(KEY, 999, "2026-09-06T00:00:00Z");
+		Statistics statistics = prepareMeasurement();
+		assertEmpty(service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID));
+		assertThat(statistics.getPrepareStatementCount()).isOne();
+		assertThat(redis.hasKey(KEY)).isFalse();
+		statistics.clear();
+		assertEmpty(service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID));
 		assertThat(statistics.getPrepareStatementCount()).isZero();
 	}
 

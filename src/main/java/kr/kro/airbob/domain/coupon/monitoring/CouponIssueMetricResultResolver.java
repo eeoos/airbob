@@ -1,7 +1,6 @@
 package kr.kro.airbob.domain.coupon.monitoring;
 
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
-import kr.kro.airbob.domain.coupon.exception.CouponLockTimeoutException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
 import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
@@ -20,9 +19,6 @@ public final class CouponIssueMetricResultResolver {
 		}
 		if (exception instanceof CouponNotIssuableException) {
 			return CouponIssueMetricRecorder.IssueResult.NOT_ISSUABLE;
-		}
-		if (exception instanceof CouponLockTimeoutException) {
-			return CouponIssueMetricRecorder.IssueResult.TIMEOUT;
 		}
 		if (exception instanceof CouponStockNotPreparedException) {
 			return CouponIssueMetricRecorder.IssueResult.UNPREPARED;

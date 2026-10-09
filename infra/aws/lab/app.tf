@@ -102,6 +102,7 @@ module "app_asg" {
   runtime_revision                    = local.app_runtime_revision
   mode                                = var.mode
   app_enabled                         = var.app_enabled
+  performance_instance_count          = local.performance_app_count
   min_size                            = local.app_capacity.min
   desired_capacity                    = local.app_capacity.desired
   max_size                            = local.app_capacity.max

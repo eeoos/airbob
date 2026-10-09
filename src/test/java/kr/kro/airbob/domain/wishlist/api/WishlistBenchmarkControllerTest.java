@@ -17,6 +17,7 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.cursor.dto.CursorResponse;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
 import kr.kro.airbob.domain.wishlist.service.WishlistBenchmarkService;
+import kr.kro.airbob.domain.wishlist.service.WishlistService;
 
 @DisplayName("위시리스트 before 벤치마크 API 테스트")
 class WishlistBenchmarkControllerTest {
@@ -55,7 +56,7 @@ class WishlistBenchmarkControllerTest {
 	void delegatesWithAuthenticatedMember() {
 		WishlistBenchmarkService service = mock(WishlistBenchmarkService.class);
 		BenchmarkAccessGuard guard = mock(BenchmarkAccessGuard.class);
-		WishlistBenchmarkController controller = new WishlistBenchmarkController(service, guard);
+		WishlistBenchmarkController controller = new WishlistBenchmarkController(service, mock(WishlistService.class), guard);
 		CursorRequest.CursorPageRequest request =
 			CursorRequest.CursorPageRequest.builder().size(20).build();
 		WishlistResponse.WishlistInfos expected = new WishlistResponse.WishlistInfos(
@@ -69,6 +70,20 @@ class WishlistBenchmarkControllerTest {
 		verify(service).findWishlistsBefore(request, 7L, 25L);
 	}
 
+	@Test
+	@DisplayName("리뷰 원본 집계는 토큰 검증 후 로그인 회원과 커서를 전달한다")
+	void rawReviewSummaryRequiresTokenAndPreservesMember() {
+		var service = mock(WishlistService.class);
+		var controller = new WishlistBenchmarkController(mock(WishlistBenchmarkService.class), service,
+			new BenchmarkAccessGuard("token"));
+		var request = CursorRequest.CursorPageRequest.builder().size(20).build();
+		assertThatThrownBy(() -> controller.findWishlistAccommodationsBeforeReviewSummary(42L, request, "wrong", 7L))
+			.isInstanceOf(kr.kro.airbob.common.exception.BaseException.class);
+		verifyNoInteractions(service);
+		controller.findWishlistAccommodationsBeforeReviewSummary(42L, request, "token", 7L);
+		verify(service).findWishlistAccommodationsBeforeReviewSummary(42L, request, 7L);
+	}
+
 	@Configuration(proxyBeanMethods = false)
 	@Import(WishlistBenchmarkController.class)
 	static class TestConfiguration {
@@ -77,6 +92,9 @@ class WishlistBenchmarkControllerTest {
 		WishlistBenchmarkService wishlistBenchmarkService() {
 			return mock(WishlistBenchmarkService.class);
 		}
+
+		@Bean
+		WishlistService wishlistService() { return mock(WishlistService.class); }
 
 		@Bean
 		BenchmarkAccessGuard benchmarkAccessGuard() {

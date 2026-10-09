@@ -9,6 +9,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.env.MutablePropertySources;
@@ -56,15 +58,18 @@ class RecentlyViewedBenchmarkControllerTest {
 				.hasSingleBean(RecentlyViewedBenchmarkController.class));
 	}
 
-	@Test
-	@DisplayName("N+1 측정 프로필은 재현 API를 열고 batch fetch를 비활성화한다")
-	void nplus1BenchmarkProfileIsolatesTheAddressNPlusOneBaseline() throws IOException {
+	@ParameterizedTest
+	@ValueSource(strings = {"dev", "aws"})
+	@DisplayName("N+1 측정 프로필은 기본 프로필의 batch fetch와 SQL 출력을 비활성화한다")
+	void nplus1BenchmarkProfileIsolatesTheAddressNPlusOneBaseline(String baseProfile) throws IOException {
 		List<PropertySource<?>> sources = new YamlPropertySourceLoader().load(
 			"nplus1-benchmark",
 			new ClassPathResource("application-nplus1-benchmark.yaml")
 		);
 		MutablePropertySources propertySources = new MutablePropertySources();
 		sources.forEach(propertySources::addLast);
+		new YamlPropertySourceLoader().load(baseProfile, new ClassPathResource("application-" + baseProfile + ".yaml"))
+			.forEach(propertySources::addLast);
 		PropertySourcesPropertyResolver resolver = new PropertySourcesPropertyResolver(propertySources);
 
 		assertThat(resolver.getProperty("benchmark.read-model.enabled", Boolean.class)).isTrue();
@@ -72,6 +77,12 @@ class RecentlyViewedBenchmarkControllerTest {
 			"spring.jpa.properties.hibernate.default_batch_fetch_size",
 			Integer.class
 		)).isZero();
+		assertThat(resolver.getProperty("spring.jpa.show-sql", Boolean.class)).isFalse();
+		assertThat(resolver.getProperty("spring.jpa.properties.hibernate.show_sql", Boolean.class)).isFalse();
+		assertThat(resolver.getProperty("spring.jpa.properties.hibernate.format_sql", Boolean.class)).isFalse();
+		assertThat(resolver.getProperty("logging.level.org.hibernate.SQL")).isEqualTo("OFF");
+		assertThat(resolver.getProperty("logging.level.org.hibernate.type.descriptor.sql")).isEqualTo("OFF");
+		assertThat(resolver.getProperty("logging.level.org.hibernate.orm.jdbc.bind")).isEqualTo("OFF");
 	}
 
 	@Test

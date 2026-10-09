@@ -2,6 +2,11 @@
 
 Airbob는 HTTP 요청 단위로 Hibernate/JPA SQL 실행 횟수를 수집해 Prometheus metric으로 노출한다. 목적은 N+1 후보 API를 찾고, fetch join/entity graph/batch size 같은 개선 전후의 쿼리 수 변화를 같은 조건에서 측정하는 것이다.
 
+쿼리 수는 SQL 로그를 파싱하지 않고 Hibernate `StatementInspector`에서 센다. `show_sql=false`와 `org.hibernate.SQL=OFF`여도 지표는 유지된다.
+최근 본 숙소 비교는 [k6 실행 가이드](../load-test/k6/README.md#recently-viewed-n1-beforeafter-comparison)를 따른다.
+`nplus1-benchmark`에서 서로 다른 주소의 공개 숙소 N개를 준비하면 v2 before는 N+3회, v1 after는 2회 SELECT가 기대된다.
+정확한 횟수 비교에는 쿼리 수 p95의 버킷 보간값 대신 `_sum / _count` 증가량으로 구한 요청당 평균을 사용한다.
+
 ## Scope
 
 - 포함: Spring MVC 요청 스레드에서 Hibernate가 실행하는 JPA/QueryDSL SQL

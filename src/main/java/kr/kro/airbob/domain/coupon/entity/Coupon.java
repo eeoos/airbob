@@ -68,7 +68,7 @@ public class Coupon extends BaseEntity {
 	// 발급 한도 (null = 무제한)
 	private Integer totalQuantity;
 
-	// 현재 발급 수 (락/Lua 발급 경로의 DB 정합성 기준)
+	// 현재 발급 수 (DB/Lua 발급 경로의 DB 정합성 기준)
 	@Column(nullable = false)
 	private Integer issuedQuantity;
 

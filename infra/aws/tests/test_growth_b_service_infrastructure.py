@@ -14,7 +14,7 @@ LAB = ROOT / 'infra/aws/lab'
 
 
 def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=None, database_bootstrap='dump', object_change=None,
-             preparation_document=None, retained_operator=None, snapshot_context=None):
+             preparation_document=None, retained_operator=None, snapshot_context=None, cache_benchmark=False, load_generator=False):
     snapshot_context = snapshot_context or {}
     manifest = manifest or fixture()
     proof = proof or receipt(manifest)
@@ -65,7 +65,8 @@ def evaluate(manifest=None, proof=None, mode='service', *, preparation_extra=Non
         'rds_snapshot_source_resource_id': snapshot_context.get('sourceResourceId', ''),
         'global_b_service_bootstrap_enabled': True, 'database_bootstrap': database_bootstrap, 'rds_engine_version': '8.4.11',
         'global_b_snapshot_provenance': snapshot_context.get('reference', {'sha256': 'd' * 64}),
-        'mode': 'performance', 'dns_mode': 'direct-only', 'load_generator_enabled': False,
+        'mode': 'performance', 'dns_mode': 'direct-only', 'load_generator_enabled': load_generator,
+        'cache_benchmark_enabled': cache_benchmark,
         'dataset_release': manifest['datasetId'], 'run_id': manifest['runId'], 'global_b_service_release': manifest['serviceRelease'],
         'dataset_manifest_sha256': manifest_sha, 'global_b_manifest_version_id': 'manifest-v1',
         'account_id': '942632789808', 'aws_region': 'ap-northeast-2', 'app_image_reference': manifest['application']['image'],
@@ -166,6 +167,12 @@ class ServiceInfrastructure(unittest.TestCase):
     def test_actual_hcl_admits_b_and_exact_readiness(self):
         result = evaluate()
         self.assertTrue(result['valid']); self.assertTrue(result['ready'])
+
+    def test_load_generation_requires_explicit_cache_measurement_selection(self):
+        self.assertFalse(evaluate(load_generator=True)['valid'])
+        self.assertTrue(evaluate(load_generator=True, cache_benchmark=True)['valid'])
+        manifest = fixture(); manifest['mysql']['flywayVersion'] = 27
+        self.assertFalse(evaluate(manifest, load_generator=True, cache_benchmark=True)['valid'])
 
     def test_hcl_rejects_wrong_preparation_or_legacy_engine(self):
         manifest = fixture(); manifest['mysql']['flywayVersion'] = 27

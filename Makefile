@@ -1,4 +1,28 @@
 .PHONY: aws-up aws-status aws-switch aws-down aws-discovery lab-start lab-pause lab-resume lab-destroy lab-status lab-access
+.PHONY: aws-cache-prepare aws-cache-run aws-cache-recover
+.PHONY: aws-coupon-prepare
+
+COUPON_CONFIG ?= load-test/k6/coupon/experiment.example.json
+COUPON_PREPARED ?= build/k6/coupon-aws/prepared
+
+CACHE_CONFIG ?= load-test/k6/cache/aws-experiment.example.json
+CACHE_PREPARED ?= build/k6/cache-aws/prepared
+CACHE_OUTPUT ?= build/k6/cache-aws/results
+
+# Offline packaging only; does not call AWS, Terraform, Docker or k6.
+aws-cache-prepare:
+	python3 load-test/k6/cache/run-aws-experiments.py prepare --config "$(CACHE_CONFIG)" --output "$(CACHE_PREPARED)"
+
+# Existing, running lab required. These targets never provision or power on EC2/RDS.
+aws-cache-run:
+	python3 load-test/k6/cache/run-aws-experiments.py run --prepared "$(CACHE_PREPARED)" --output "$(CACHE_OUTPUT)"
+
+aws-cache-recover:
+	python3 load-test/k6/cache/run-aws-experiments.py recover --output "$(CACHE_OUTPUT)"
+
+# Offline packaging only. Never provisions, deploys, logs in, or sends load.
+aws-coupon-prepare:
+	python3 load-test/k6/coupon/prepare_aws.py bundle --config "$(COUPON_CONFIG)" --output "$(COUPON_PREPARED)"
 
 # Daily operation of the saved B baseline; optional CLI flags go in LAB_ARGS.
 LAB_PYTHON ?= $(if $(wildcard .local/airbob-lab/venv/bin/python),.local/airbob-lab/venv/bin/python,python3)

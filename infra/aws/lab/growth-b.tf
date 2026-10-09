@@ -173,7 +173,7 @@ locals {
   growth_b_cdc_suffix = try(substr(sha256("${var.run_id}:${local.dataset_manifest.rds.serverUuid}"), 0, 20), "")
   growth_b_service_manifest_valid = !local.services_enabled || try(
     var.global_b_services && !var.global_b_prepare_only && contains(["dump", "snapshot"], var.database_bootstrap) && var.rds_engine_version == "8.4.11" &&
-    var.mode == "performance" && var.dns_mode == "direct-only" && !var.load_generator_enabled &&
+    var.mode == "performance" && var.dns_mode == "direct-only" && (!var.load_generator_enabled || var.cache_benchmark_enabled) &&
     sha256(local.dataset_manifest_body) == var.dataset_manifest_sha256 &&
     data.aws_s3_object.dataset_manifest[0].version_id == var.global_b_manifest_version_id &&
     toset(keys(local.dataset_manifest)) == toset(["schemaVersion", "kind", "datasetId", "runId", "serviceRelease", "account", "region",

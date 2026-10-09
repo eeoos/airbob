@@ -9,7 +9,7 @@ import kr.kro.airbob.domain.payment.messaging.event.PaymentOperationExecutionReq
 import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!traffic-benchmark")
+@Profile("!traffic-benchmark & !cache-benchmark")
 public class PaymentOperationKafkaRetryPublisherConfiguration {
 
 	@Bean

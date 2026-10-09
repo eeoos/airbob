@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.util.Assert;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("performance-lab")
+@Profile({"performance-lab", "cache-benchmark"})
 @EnableConfigurationProperties({RedisProperties.class, AccommodationDetailRedisProperties.class})
 public class PerformanceLabRedisEndpointConfiguration {
 
@@ -26,7 +26,7 @@ public class PerformanceLabRedisEndpointConfiguration {
 			boolean sameEndpoint = generalHost.equals(cacheHost)
 				&& general.getPort() == cache.port();
 			Assert.state(!sameEndpoint,
-				"performance-lab requires distinct general and accommodation cache Redis endpoints");
+				"performance-lab/cache-benchmark requires distinct general and accommodation cache Redis endpoints");
 		};
 	}
 

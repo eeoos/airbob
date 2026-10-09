@@ -32,7 +32,7 @@ resource "aws_ec2_instance_state" "power" {
 
   lifecycle {
     precondition {
-      condition     = var.global_b_services && var.app_enabled && var.deployment_phase == "data-ready" && var.mode == "performance" && !var.load_generator_enabled && !var.global_b_service_bootstrap_enabled && var.global_b_readiness_receipt != null
+      condition     = var.global_b_services && var.app_enabled && var.deployment_phase == "data-ready" && var.mode == "performance" && (!var.load_generator_enabled || (var.cache_benchmark_enabled && local.power_phase == "running")) && !var.global_b_service_bootstrap_enabled && var.global_b_readiness_receipt != null
       error_message = "Power control requires the existing ready B application, without another bootstrap."
     }
     precondition {

@@ -260,11 +260,11 @@ function accommodationAmenitySourceArtifact({
 	const sql = measurement === 'FULL_REPLACEMENT' && variant === 'BEFORE'
 		? {
       SELECT: 3,
-      INSERT: replacementRows + 1,
+      INSERT: replacementRows + 2,
       UPDATE: 1,
       DELETE: datasetSize,
       OTHER: 0,
-      TOTAL: datasetSize + replacementRows + 5,
+      TOTAL: datasetSize + replacementRows + 6,
     }
 		: measurement === 'DELETE_ONLY' && variant === 'BEFORE'
 			? {
@@ -278,11 +278,11 @@ function accommodationAmenitySourceArtifact({
 			: measurement === 'FULL_REPLACEMENT'
 				? {
 				SELECT: 2,
-				INSERT: replacementRows + 1,
+				INSERT: replacementRows + 2,
 				UPDATE: 1,
 				DELETE: 1,
 				OTHER: 0,
-				TOTAL: replacementRows + 5,
+				TOTAL: replacementRows + 6,
 				}
 				: {
 				SELECT: 0,
@@ -554,7 +554,7 @@ test('aggregates AccommodationAmenity measurements without pooling workload clas
       datasetSize: 30,
       activeCodeCount: 30,
       workloadClass: 'REALISTIC',
-      expectedSql: { SELECT: 3, INSERT: 31, UPDATE: 1, DELETE: 30, OTHER: 0, TOTAL: 65 },
+      expectedSql: { SELECT: 3, INSERT: 32, UPDATE: 1, DELETE: 30, OTHER: 0, TOTAL: 66 },
     },
 		{
 			parentLabel: 'amenity-full-after-n30-r1',
@@ -563,7 +563,7 @@ test('aggregates AccommodationAmenity measurements without pooling workload clas
 			datasetSize: 30,
 			activeCodeCount: 30,
 			workloadClass: 'REALISTIC',
-			expectedSql: { SELECT: 2, INSERT: 31, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 35 },
+			expectedSql: { SELECT: 2, INSERT: 32, UPDATE: 1, DELETE: 1, OTHER: 0, TOTAL: 36 },
 		},
 		{
 			parentLabel: 'amenity-delete-after-n0-r1',

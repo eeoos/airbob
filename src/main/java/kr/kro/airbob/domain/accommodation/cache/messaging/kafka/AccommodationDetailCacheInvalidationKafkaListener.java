@@ -24,7 +24,7 @@ import kr.kro.airbob.messaging.infrastructure.kafka.KafkaRetryHeaders;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@Profile("!traffic-benchmark")
+@Profile("!traffic-benchmark & !cache-benchmark")
 @RequiredArgsConstructor
 public class AccommodationDetailCacheInvalidationKafkaListener {
 

@@ -5,6 +5,8 @@ import static org.mockito.BDDMockito.*;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,9 +22,10 @@ class AccommodationDetailBenchmarkControllerTest {
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(TestConfiguration.class);
 
-	@Test
+	@ParameterizedTest
+	@ValueSource(strings = {"read-model-benchmark", "cache-benchmark"})
 	@DisplayName("프로필과 설정이 모두 활성화된 경우에만 before API를 노출한다")
-	void requiresProfileAndProperty() {
+	void requiresProfileAndProperty(String profile) {
 		contextRunner.run(context -> assertThat(context)
 			.doesNotHaveBean(AccommodationDetailBenchmarkController.class));
 		contextRunner
@@ -30,11 +33,11 @@ class AccommodationDetailBenchmarkControllerTest {
 			.run(context -> assertThat(context)
 				.doesNotHaveBean(AccommodationDetailBenchmarkController.class));
 		contextRunner
-			.withInitializer(context -> context.getEnvironment().setActiveProfiles("read-model-benchmark"))
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
 			.run(context -> assertThat(context)
 				.doesNotHaveBean(AccommodationDetailBenchmarkController.class));
 		contextRunner
-			.withInitializer(context -> context.getEnvironment().setActiveProfiles("read-model-benchmark"))
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
 			.withPropertyValues("benchmark.read-model.enabled=true")
 			.run(context -> assertThat(context)
 				.hasSingleBean(AccommodationDetailBenchmarkController.class));
@@ -57,6 +60,18 @@ class AccommodationDetailBenchmarkControllerTest {
 		var ordered = inOrder(guard, service);
 		ordered.verify(guard).verify("benchmark-token");
 		ordered.verify(service).findAccommodationBefore(10L, 7L);
+	}
+
+	@Test
+	@DisplayName("리뷰 원본 집계 상세도 토큰을 검증한 뒤 호출한다")
+	void rawReviewSummaryRequiresToken() {
+		AccommodationDetailBenchmarkService service = mock(AccommodationDetailBenchmarkService.class);
+		var controller = new AccommodationDetailBenchmarkController(service, new BenchmarkAccessGuard("token"));
+		assertThatThrownBy(() -> controller.findAccommodationBeforeReviewSummary(10L, "wrong", null))
+			.isInstanceOf(kr.kro.airbob.common.exception.BaseException.class);
+		verifyNoInteractions(service);
+		controller.findAccommodationBeforeReviewSummary(10L, "token", null);
+		verify(service).findAccommodationBeforeReviewSummary(10L, null);
 	}
 
 	@Configuration(proxyBeanMethods = false)

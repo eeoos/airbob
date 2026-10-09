@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -426,6 +427,60 @@ class WishlistDetailQueryIntegrationTest {
 			WISHLIST_ID, CursorPageRequest.builder().size(20).build(), OTHER_MEMBER_ID))
 			.isInstanceOf(WishlistNotFoundException.class);
 		assertHeaderOnlyRead(statistics);
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {1, 3, 20})
+	@DisplayName("원본 집계는 페이지와 커서를 보존하고 페이지마다 리뷰를 한 번만 조회한다")
+	void rawSummaryMatchesEveryPageWithoutReadingSummaryTable(int pageSize) {
+		for (int offset = 0; offset < 4; offset++) {
+			long accommodationId = 31 + offset;
+			insertAccommodation(accommodationId, "PUBLISHED");
+			insertItem(501 + offset, WISHLIST_ID, accommodationId);
+			if (offset % 2 == 0) {
+				insertReviewSummary(accommodationId, 3, 13, "4.33");
+				jdbc.update("""
+					INSERT INTO review (accommodation_id, member_id, rating, status, updated_at)
+					VALUES (?, 7, 5, 'PUBLISHED', NOW(6)), (?, 7, 4, 'PUBLISHED', NOW(6)),
+						(?, 7, 4, 'PUBLISHED', NOW(6)), (?, 7, 1, 'DELETE', NOW(6)), (?, 7, 2, 'HIDDEN', NOW(6))
+					""", accommodationId, accommodationId, accommodationId, accommodationId, accommodationId);
+			}
+		}
+		CursorPageRequest request = CursorPageRequest.builder().size(pageSize).build();
+		List<Long> ids = new ArrayList<>();
+		do {
+			var after = service.findWishlistAccommodations(WISHLIST_ID, request, OWNER_ID);
+			Statistics statistics = prepareMeasurement();
+			var before = service.findWishlistAccommodationsBeforeReviewSummary(WISHLIST_ID, request, OWNER_ID);
+
+			assertThat(before).usingRecursiveComparison()
+				.withComparatorForType(BigDecimal::compareTo, BigDecimal.class).isEqualTo(after);
+			assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+			assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
+			assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains("from review")).count()).isOne();
+			ids.addAll(before.wishlistAccommodations().stream().map(WishlistAccommodationInfo::wishlistAccommodationId).toList());
+			if (!before.pageInfo().hasNext()) {
+				break;
+			}
+			CursorData cursor = cursorDecoder.decode(before.pageInfo().nextCursor(), CursorData.class);
+			request = CursorPageRequest.builder().size(pageSize).lastId(cursor.id()).lastCreatedAt(cursor.lastCreatedAt()).build();
+		} while (true);
+		assertThat(ids).containsExactly(504L, 503L, 502L, 501L);
+	}
+
+	@Test
+	@DisplayName("비교용 조회도 타인 접근을 먼저 차단하고 빈 페이지의 집계는 생략한다")
+	void rawSummaryPreservesAccessAndSkipsEmptyAggregation() {
+		var request = CursorPageRequest.builder().size(20).build();
+		Statistics statistics = prepareMeasurement();
+		assertThatThrownBy(() -> service.findWishlistAccommodationsBeforeReviewSummary(WISHLIST_ID, request, OTHER_MEMBER_ID))
+			.isInstanceOf(WishlistAccessDeniedException.class);
+		assertThat(statistics.getPrepareStatementCount()).isOne();
+
+		statistics = prepareMeasurement();
+		assertEmpty(service.findWishlistAccommodationsBeforeReviewSummary(WISHLIST_ID, request, OWNER_ID));
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("from review"));
 	}
 
 	private WishlistAccommodationInfos findFirstPage(int size) {

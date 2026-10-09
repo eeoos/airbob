@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "runId": "coupon-comparison-01",
+  "baseUrl": "https://coupon-lab.example.com",
+  "appVersion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "appInstanceCount": 2,
+  "benchmarkDatasetManifest": "/home/ssm-user/coupon/benchmark-dataset.json",
+  "sessionFixture": "/home/ssm-user/coupon/private/sessions.json",
+  "accountPasswordFile": "/home/ssm-user/coupon/private/account-password",
+  "adminSessionFile": "/home/ssm-user/coupon/private/admin-session",
+  "benchmarkTokenFile": "/home/ssm-user/coupon/private/benchmark-token",
+  "appMetricsUrls": [
+    "http://app-1.lab.airbob.internal:8080/actuator/prometheus",
+    "http://app-2.lab.airbob.internal:8080/actuator/prometheus"
+  ],
+  "rounds": 2,
+  "warmupSeconds": 10,
+  "durationSeconds": 180,
+  "cooldownSeconds": 15,
+  "comparisonRates": [100, 500],
+  "stockRatio": 0.1,
+  "capacityRates": [100, 250, 500, 1000],
+  "p95LimitMs": 500,
+  "p99LimitMs": 1000,
+  "clientVUs": 1000,
+  "cpu": {
+    "region": "ap-northeast-2",
+    "dbInstanceIdentifier": "replace-with-isolated-lab-rds",
+    "waitSeconds": 180
+  }
+}

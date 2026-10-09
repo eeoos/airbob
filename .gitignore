@@ -82,6 +82,7 @@ jacoco.exec
 # Coupon load-test secrets and generated artifacts
 /load-test/fixtures/coupon-sessions.json
 /load-test/results/
+/monitoring/prometheus/targets/cache-experiment-*.json
 
 # Gradle build info (추가)
 .gradle/

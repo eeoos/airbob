@@ -3,10 +3,9 @@ package kr.kro.airbob.domain.coupon.monitoring;
 import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.CompensationResult.COMPENSATED;
 import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.DatabaseResult.ERROR;
 import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueResult.SUCCESS;
-import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.LockResult.TIMEOUT;
 import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.LuaOperation.ISSUE;
 import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.LuaResult.SOLD_OUT;
-import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.Strategy.LOCK;
+import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.Strategy.DB;
 import static kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.Strategy.LUA;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,11 +35,11 @@ class MicrometerCouponIssueMetricRecorderTest {
 	@Test
 	@DisplayName("발급 전체 지연과 DB 지연을 전략·결과별 Timer로 기록한다")
 	void recordsIssueAndDatabaseDurations() {
-		recorder.recordIssue(LOCK, SUCCESS, Duration.ofMillis(120).toNanos());
+		recorder.recordIssue(DB, SUCCESS, Duration.ofMillis(120).toNanos());
 		recorder.recordDatabase(LUA, ERROR, Duration.ofMillis(80).toNanos());
 
 		Timer issueTimer = meterRegistry.find(MicrometerCouponIssueMetricRecorder.ISSUE_DURATION)
-			.tags("strategy", "lock", "result", "success")
+			.tags("strategy", "db", "result", "success")
 			.timer();
 		Timer databaseTimer = meterRegistry.find(MicrometerCouponIssueMetricRecorder.DATABASE_DURATION)
 			.tags("strategy", "lua", "result", "error")
@@ -54,24 +53,14 @@ class MicrometerCouponIssueMetricRecorderTest {
 	}
 
 	@Test
-	@DisplayName("락 대기·타임아웃과 Lua 실행 결과를 별도 지표로 기록한다")
-	void recordsLockAndLuaMetrics() {
-		recorder.recordLockWait(TIMEOUT, Duration.ofSeconds(5).toNanos());
+	@DisplayName("Lua 실행 결과를 별도 지표로 기록한다")
+	void recordsLuaMetrics() {
 		recorder.recordLua(ISSUE, SOLD_OUT, Duration.ofMillis(2).toNanos());
 
-		Timer lockTimer = meterRegistry.find(MicrometerCouponIssueMetricRecorder.LOCK_WAIT_DURATION)
-			.tag("result", "timeout")
-			.timer();
-		Counter timeoutCounter = meterRegistry.find(MicrometerCouponIssueMetricRecorder.LOCK_TIMEOUT_TOTAL)
-			.counter();
 		Timer luaTimer = meterRegistry.find(MicrometerCouponIssueMetricRecorder.LUA_DURATION)
 			.tags("operation", "issue", "result", "sold_out")
 			.timer();
 
-		assertThat(lockTimer).isNotNull();
-		assertThat(lockTimer.totalTime(TimeUnit.SECONDS)).isEqualTo(5.0);
-		assertThat(timeoutCounter).isNotNull();
-		assertThat(timeoutCounter.count()).isOne();
 		assertThat(luaTimer).isNotNull();
 		assertThat(luaTimer.count()).isOne();
 	}
@@ -91,9 +80,8 @@ class MicrometerCouponIssueMetricRecorderTest {
 	@Test
 	@DisplayName("쿠폰 ID와 회원 ID는 어떤 쿠폰 발급 메트릭 태그에도 포함하지 않는다")
 	void neverUsesHighCardinalityIdentifierTags() {
-		recorder.recordIssue(LOCK, SUCCESS, 1L);
+		recorder.recordIssue(DB, SUCCESS, 1L);
 		recorder.recordDatabase(LUA, ERROR, 1L);
-		recorder.recordLockWait(TIMEOUT, 1L);
 		recorder.recordLua(ISSUE, SOLD_OUT, 1L);
 		recorder.recordCompensation(COMPENSATED);
 

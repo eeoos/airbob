@@ -1,0 +1,183 @@
+const DATASET_VERSION = 'coupon-issuance-v2';
+
+function requireCondition(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+export function parseRequiredText(raw, name) {
+  requireCondition(
+    typeof raw === 'string' && raw.trim().length > 0,
+    `${name} is required`,
+  );
+  return raw.trim();
+}
+
+export function parseCouponSessionFixture(raw, expectedManifestSha256) {
+  let fixture;
+  try {
+    fixture = JSON.parse(raw);
+  } catch (_) {
+    throw new Error('SESSION_FIXTURE must contain valid JSON');
+  }
+
+  requireCondition(
+    fixture !== null && typeof fixture === 'object' && !Array.isArray(fixture),
+    'SESSION_FIXTURE root must be an object',
+  );
+  requireCondition(
+    fixture.datasetVersion === DATASET_VERSION,
+    `SESSION_FIXTURE.datasetVersion must equal ${DATASET_VERSION}`,
+  );
+  requireCondition(
+    typeof expectedManifestSha256 === 'string'
+      && /^[0-9a-f]{64}$/.test(expectedManifestSha256),
+    'expected benchmark dataset manifest SHA-256 is invalid',
+  );
+  requireCondition(
+    fixture.benchmarkDatasetManifestSha256 === expectedManifestSha256,
+    'SESSION_FIXTURE does not match BENCHMARK_DATASET_MANIFEST',
+  );
+  requireCondition(
+    Array.isArray(fixture.sessions) && fixture.sessions.length > 0,
+    'SESSION_FIXTURE.sessions must be a non-empty array',
+  );
+
+  const sessions = fixture.sessions.map((sessionId, index) => {
+    requireCondition(
+      typeof sessionId === 'string' && sessionId.trim().length > 0,
+      `SESSION_FIXTURE.sessions[${index}] must be a non-empty string`,
+    );
+    return sessionId.trim();
+  });
+  requireCondition(
+    new Set(sessions).size === sessions.length,
+    'SESSION_FIXTURE.sessions must contain unique session IDs',
+  );
+
+  return sessions;
+}
+
+export function parseVariant(raw) {
+  requireCondition(raw === 'db' || raw === 'lua', 'VARIANT must be db or lua');
+  return raw;
+}
+
+export function validateCouponWorkload(experiment, stock, rate, seconds) {
+  requireCondition(experiment === 'capacity' || experiment === 'scarcity',
+    'EXPERIMENT must be capacity or scarcity');
+  const plannedRequests = Math.ceil(rate * seconds);
+  requireCondition(experiment !== 'capacity' || stock >= plannedRequests + 1,
+    'capacity requires stock >= RATE * DURATION + 1');
+  requireCondition(experiment !== 'scarcity' || stock < plannedRequests,
+    'scarcity requires stock < RATE * DURATION');
+  return plannedRequests;
+}
+
+export function parsePhase(raw) {
+  requireCondition(raw === 'warmup' || raw === 'measure', 'PHASE must be warmup or measure');
+  return raw;
+}
+
+export function parsePositiveInteger(raw, name) {
+  const value = Number(raw);
+  requireCondition(Number.isInteger(value) && value > 0, `${name} must be a positive integer`);
+  return value;
+}
+
+export function buildCouponIssueTarget(variant, couponId, benchmarkToken) {
+  const parsedVariant = parseVariant(variant);
+  const parsedCouponId = parsePositiveInteger(couponId, 'COUPON_ID');
+
+  if (parsedVariant === 'lua') {
+    return {
+      path: `/api/v1/coupons/${parsedCouponId}/issue`,
+      metricName: 'POST /api/v1/coupons/{couponId}/issue',
+      headers: {},
+    };
+  }
+
+  const token = parseRequiredText(benchmarkToken, 'BENCHMARK_READ_MODEL_TOKEN');
+  return {
+    path: `/api/v2/coupons/${parsedCouponId}/issue`,
+    metricName: 'POST /api/v2/coupons/{couponId}/issue',
+    headers: { 'X-Benchmark-Token': token },
+  };
+}
+
+export function parseDurationSeconds(raw) {
+  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(raw || '');
+  requireCondition(Boolean(match), 'DURATION must use one unit, for example 30s or 2m');
+
+  const value = Number(match[1]);
+  const unitSeconds = {
+    ms: 0.001,
+    s: 1,
+    m: 60,
+    h: 3600,
+  }[match[2]];
+  const seconds = value * unitSeconds;
+  requireCondition(Number.isFinite(seconds) && seconds > 0, 'DURATION must be greater than zero');
+  return seconds;
+}
+
+export function requireSessionCapacity(sessions, rate, durationSeconds) {
+  const required = Math.ceil(rate * durationSeconds) + 1;
+  requireCondition(
+    sessions.length >= required,
+    `SESSION_FIXTURE needs at least ${required} unique sessions for this run`,
+  );
+  return required;
+}
+
+export function classifyCouponIssueResponse(status, errorCode) {
+  if (status === 201) {
+    return 'success';
+  }
+  if (status === 401 || status === 403) {
+    return 'authentication';
+  }
+
+  const outcomes = {
+    '409:CP002': 'sold_out',
+    '409:CP003': 'duplicate',
+    '409:CP005': 'not_issuable',
+    '503:CP011': 'unprepared',
+  };
+  return outcomes[`${status}:${errorCode}`] || 'unexpected';
+}
+
+function metricValue(data, name, value, fallback = 0) {
+  return data.metrics?.[name]?.values?.[value] ?? fallback;
+}
+
+export function summarizeCouponBenchmarkMetrics(data) {
+  const start = data.metrics?.coupon_request_started_at?.values?.min;
+  const end = data.metrics?.coupon_request_finished_at?.values?.max;
+  const seconds = Number.isFinite(start) && Number.isFinite(end) && end > start
+    ? (end - start) / 1000 : null;
+  return {
+    measurementStartEpochMs: start ?? null,
+    measurementEndEpochMs: end ?? null,
+    measurementDurationSeconds: seconds,
+    requestCount: metricValue(data, 'http_reqs', 'count'),
+    requestRate: seconds === null ? metricValue(data, 'http_reqs', 'rate')
+      : metricValue(data, 'http_reqs', 'count') / seconds,
+    successRate: seconds === null ? metricValue(data, 'coupon_issue_success_total', 'rate')
+      : metricValue(data, 'coupon_issue_success_total', 'count') / seconds,
+    duration: data.metrics?.coupon_issue_duration?.values || {},
+    successDuration: data.metrics?.coupon_issue_success_duration?.values || {},
+    soldOutDuration: data.metrics?.coupon_issue_sold_out_duration?.values || {},
+    outcomes: {
+      success: metricValue(data, 'coupon_issue_success_total', 'count'),
+      soldOut: metricValue(data, 'coupon_issue_sold_out_total', 'count'),
+      duplicate: metricValue(data, 'coupon_issue_duplicate_total', 'count'),
+      notIssuable: metricValue(data, 'coupon_issue_not_issuable_total', 'count'),
+      unprepared: metricValue(data, 'coupon_issue_unprepared_total', 'count'),
+      authentication: metricValue(data, 'coupon_issue_authentication_total', 'count'),
+      unexpected: metricValue(data, 'coupon_issue_unexpected_total', 'count'),
+    },
+    droppedIterations: metricValue(data, 'dropped_iterations', 'count'),
+  };
+}

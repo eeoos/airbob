@@ -11,7 +11,8 @@ import {
   parseVariant,
   requireSessionCapacity,
   summarizeCouponBenchmarkMetrics,
-} from '../lib/coupon-benchmark-fixture.js';
+  validateCouponWorkload,
+} from '../coupon/coupon-benchmark-fixture.js';
 
 export const options = {
   vus: 1,
@@ -55,7 +56,7 @@ export default function () {
     },
   });
   const luaTarget = buildCouponIssueTarget('lua', 1);
-  const lockTarget = buildCouponIssueTarget('lock', 1, ' secret-token ');
+  const dbTarget = buildCouponIssueTarget('db', 1, ' secret-token ');
 
   check(sessions, {
     'lua uses the production v1 endpoint': () => (
@@ -63,16 +64,16 @@ export default function () {
       && luaTarget.metricName === 'POST /api/v1/coupons/{couponId}/issue'
       && Object.keys(luaTarget.headers).length === 0
     ),
-    'lock uses the benchmark v2 endpoint and trimmed token': () => (
-      lockTarget.path === '/api/v2/coupons/1/issue'
-      && lockTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
-      && lockTarget.headers['X-Benchmark-Token'] === 'secret-token'
+    'db uses the benchmark v2 endpoint and trimmed token': () => (
+      dbTarget.path === '/api/v2/coupons/1/issue'
+      && dbTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
+      && dbTarget.headers['X-Benchmark-Token'] === 'secret-token'
     ),
-    'lock rejects a missing benchmark token': () => rejects(() => (
-      buildCouponIssueTarget('lock', 1)
+    'db rejects a missing benchmark token': () => rejects(() => (
+      buildCouponIssueTarget('db', 1)
     )),
-    'lock rejects a blank benchmark token': () => rejects(() => (
-      buildCouponIssueTarget('lock', 1, ' ')
+    'db rejects a blank benchmark token': () => rejects(() => (
+      buildCouponIssueTarget('db', 1, ' ')
     )),
     'lua does not require a benchmark token': () => (
       buildCouponIssueTarget('lua', 1).path === '/api/v1/coupons/1/issue'
@@ -99,7 +100,8 @@ export default function () {
       benchmarkDatasetManifestSha256: manifestSha256,
       sessions: ['session-a', 'session-a'],
     }), manifestSha256)),
-    'lock variant is accepted': () => parseVariant('lock') === 'lock',
+    'db variant is accepted': () => parseVariant('db') === 'db',
+    'removed lock variant is rejected': () => rejects(() => parseVariant('lock')),
     'lua variant is accepted': () => parseVariant('lua') === 'lua',
     'unknown variant is rejected': () => rejects(() => parseVariant('enum-strategy')),
     'measure phase is accepted': () => parsePhase('measure') === 'measure',
@@ -115,9 +117,29 @@ export default function () {
     'enough sessions are accepted': () => requireSessionCapacity(sessions, 1, 2) === 3,
     'insufficient sessions are rejected': () => rejects(() => requireSessionCapacity(sessions, 2, 2)),
     'created response is success': () => classifyCouponIssueResponse(201) === 'success',
+    'authentication failure invalidates the fixture': () => (
+      classifyCouponIssueResponse(401, 'M004') === 'authentication'
+      && classifyCouponIssueResponse(403, 'B001') === 'authentication'
+    ),
+    'capacity reserves enough stock for every request': () => validateCouponWorkload('capacity', 11, 5, 2) === 10,
+    'capacity rejects exhausting stock': () => rejects(() => validateCouponWorkload('capacity', 10, 5, 2)),
+    'scarcity requires fewer coupons than requests': () => rejects(() => validateCouponWorkload('scarcity', 10, 5, 2)),
+    'scarcity accepts a sold-out workload': () => validateCouponWorkload('scarcity', 2, 5, 2) === 10,
+    'unknown experiment is rejected': () => rejects(() => validateCouponWorkload('mixed', 2, 5, 2)),
+    'total and successful RPS use the HTTP window including the final response': () => {
+      const result = summarizeCouponBenchmarkMetrics({ metrics: {
+        http_reqs: { values: { count: 20, rate: 99 } },
+        coupon_request_started_at: { values: { min: 1000 } },
+        coupon_request_finished_at: { values: { max: 5000 } },
+        coupon_issue_success_total: { values: { count: 8, rate: 99 } },
+        coupon_issue_sold_out_duration: { values: { 'p(95)': 2 } },
+      } });
+      return result.requestRate === 5 && result.successRate === 2 && result.measurementDurationSeconds === 4
+        && result.soldOutDuration['p(95)'] === 2;
+    },
     'sold out response is classified': () => classifyCouponIssueResponse(409, 'CP002') === 'sold_out',
-    'lock timeout response is classified': () => (
-      classifyCouponIssueResponse(503, 'CP012') === 'lock_timeout'
+    'removed lock timeout response is unexpected': () => (
+      classifyCouponIssueResponse(503, 'CP012') === 'unexpected'
     ),
     'wrong status and code pair is unexpected': () => (
       classifyCouponIssueResponse(409, 'CP012') === 'unexpected'

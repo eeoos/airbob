@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@Profile("read-model-benchmark")
+@Profile({"read-model-benchmark", "cache-benchmark"})
 @ConditionalOnProperty(prefix = "benchmark.read-model", name = "enabled", havingValue = "true")
 @RequestMapping("/api/v2/accommodations")
 public class AccommodationDetailBenchmarkController {
@@ -37,5 +37,16 @@ public class AccommodationDetailBenchmarkController {
 			benchmarkService.findAccommodationBefore(accommodationId, viewerId);
 
 		return ResponseEntity.ok(ApiResponse.success(response));
+	}
+
+	@GetMapping("/{accommodationId}/review-summary-before")
+	public ResponseEntity<ApiResponse<AccommodationResponse.DetailInfo>> findAccommodationBeforeReviewSummary(
+		@PathVariable Long accommodationId,
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId(required = false) Long viewerId
+	) {
+		accessGuard.verify(benchmarkToken);
+		return ResponseEntity.ok(ApiResponse.success(
+			benchmarkService.findAccommodationBeforeReviewSummary(accommodationId, viewerId)));
 	}
 }
