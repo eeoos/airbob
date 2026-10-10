@@ -131,6 +131,8 @@ jobs:
           k6 run --address '' load-test/k6/test/read-model-benchmark-test.js
           k6 run --address '' load-test/k6/test/recently-viewed-benchmark-test.js
           k6 run --address '' load-test/k6/test/reservation-history-insert-benchmark-test.js
+          k6 run --address '' load-test/k6/test/bulk-write-benchmark-test.js
+          k6 run --address '' load-test/k6/test/accommodation-amenity-delete-benchmark-test.js
           MODE=inspect ROLE=guest TARGET=accommodation-detail \
             RATE=1 DURATION=1s MIN_COMPLETED_SAMPLES=1 \
             ROUND=1 RUN_ORDER=1 RUN_LABEL=guest-test \
@@ -141,6 +143,7 @@ jobs:
           node load-test/k6/test/prepare-benchmark-sessions-test.js
           node load-test/k6/test/prepare-coupon-sessions-test.js
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s load-test/k6/test -p 'test_coupon_*.py' -v
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s load-test/k6/test -p 'test_bulk_delete_*.py' -v
           node load-test/k6/test/bulk-write-observations-test.mjs
           node load-test/k6/test/read-model-observations-test.mjs
           node load-test/k6/test/traffic-result-aggregation-test.mjs
@@ -151,7 +154,12 @@ jobs:
           bash load-test/k6/test/run-aws-discovery-test.sh
 
       - name: Build and Test
+        env:
+          BULK_DELETE_VERIFY_RUNNER: 'true'
         run: ./gradlew clean build
+
+      - name: Verify bulk-delete API responses against k6 contracts
+        run: node --test load-test/k6/test/bulk-delete-api-contract-test.mjs
 
       - name: Verify AWS performance-lab application contracts
         run: |

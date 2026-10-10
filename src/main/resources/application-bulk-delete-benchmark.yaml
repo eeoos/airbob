@@ -1,0 +1,58 @@
+# Opt-in delete experiment on a pre-migrated disposable V28 database.
+# application.yaml also activates bulk-write-benchmark (API, token, schema and Flyway guards).
+benchmark:
+  bulk-delete:
+    app-commit: ${BENCHMARK_APP_COMMIT}
+    image-digest: ${BENCHMARK_IMAGE_DIGEST:local}
+
+spring:
+  datasource:
+    hikari:
+      read-only: false
+  jpa:
+    open-in-view: false
+    show-sql: false
+    hibernate:
+      ddl-auto: none
+  kafka:
+    admin:
+      auto-create: false
+
+reservation:
+  inventory:
+    seed:
+      enabled: false
+    retention:
+      enabled: false
+
+payment:
+  toss:
+    enabled: false
+    secret-key: bulk-delete-benchmark-disabled
+    base-url: http://127.0.0.1
+
+google:
+  api:
+    enabled: false
+    key: bulk-delete-benchmark-disabled
+
+cloud:
+  aws:
+    s3:
+      write-enabled: false
+      bucket: bulk-delete-benchmark-disabled
+  cloudfront:
+    domain: https://invalid.bulk-delete-benchmark
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  health:
+    elasticsearch:
+      enabled: false
+
+logging:
+  level:
+    kr.kro.airbob.domain.auth.filter.SessionAuthFilter: WARN

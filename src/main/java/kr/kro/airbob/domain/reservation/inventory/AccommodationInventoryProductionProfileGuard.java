@@ -33,7 +33,8 @@ public class AccommodationInventoryProductionProfileGuard implements Initializin
 
 	@Override
 	public void afterPropertiesSet() {
-		if (environment.acceptsProfiles(Profiles.of("performance-lab", "cache-benchmark", "coupon-performance"))) {
+		if (environment.acceptsProfiles(Profiles.of("performance-lab", "cache-benchmark", "coupon-performance",
+			"bulk-delete-benchmark"))) {
 			return;
 		}
 		if (!startupEnabled || !seedEnabled) {

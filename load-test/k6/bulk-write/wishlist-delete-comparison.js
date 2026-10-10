@@ -3,6 +3,7 @@ import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 
 import { loginBenchmarkAccount } from '../lib/benchmark-fixture.js';
+import { verifyBulkDeleteRuntime, logoutBulkDeleteSession } from '../lib/bulk-delete-runtime.js';
 import {
   BULK_WRITE_CANDIDATE,
   BULK_WRITE_ENDPOINT,
@@ -69,14 +70,23 @@ function recordOperation(data) {
 }
 
 export function setup() {
-  return {
-    sessionId: loginBenchmarkAccount({
-      baseUrl: RUN.baseUrl,
-      email: BENCHMARK_EMAIL,
-      password: TEST_PASSWORD,
-      redirects: 0,
-    }),
-  };
+  const sessionId = loginBenchmarkAccount({
+    baseUrl: RUN.baseUrl,
+    email: BENCHMARK_EMAIL,
+    password: TEST_PASSWORD,
+    redirects: 0,
+  });
+  try {
+    verifyBulkDeleteRuntime(RUN, sessionId, __ENV);
+  } catch (error) {
+    logoutBulkDeleteSession(RUN, { sessionId }, __ENV);
+    throw error;
+  }
+  return { sessionId };
+}
+
+export function teardown(data) {
+  logoutBulkDeleteSession(RUN, data, __ENV);
 }
 
 export default function (setupData) {
@@ -88,6 +98,7 @@ export default function (setupData) {
     }),
     buildBulkWriteRequestParams({
       benchmarkToken: RUN.benchmarkToken,
+      runtimeId: __ENV.BULK_DELETE_RUNTIME_ID,
       sessionId: setupData.sessionId,
       timeout: RUN.requestTimeout,
       tags: {

@@ -2,6 +2,7 @@
 
 - 쿠폰 DB 조건부 UPDATE / Redis Lua: [k6/coupon/README.md](k6/coupon/README.md)
 - 캐시·조회 등 전체 k6 실험 목록: [k6/README.md](k6/README.md)
+- 위시리스트·편의시설 삭제 로컬/AWS 반복 비교: [벌크 삭제 실행 안내](k6/bulk-write/BENCHMARK.md)
 
 ## Bulk write 벤치마크 서버 실행
 
@@ -11,9 +12,14 @@ ReservationHistory INSERT 실험은 MySQL cleanup 트랜잭션 안의 예약 상
 
 이 실험은 공용 AWS world를 수정하지 않는다. `bulk-expiration-history-v1`은 전용
 `*_bulk_write_benchmark` 스키마에서 요청마다 fixture를 생성·검증·삭제하는 로컬
-쓰기 프로토콜이다. 서버 guard와 fixture preflight는 AWS/OCI profile, 다른 스키마,
+쓰기 프로토콜이다. 기존 `bulk-write-benchmark`의 서버 guard와 fixture preflight는 AWS/OCI profile, 다른 스키마,
 기존 만료 대상 예약을 거부한다. launcher는 manifest의 최대 bucket과 맞도록 한 번의
 cleanup 상한을 2,000으로 고정한다.
+
+두 DELETE 실험의 AWS 실행에는 별도 `bulk-delete-benchmark` 프로필을 사용한다.
+이 프로필은 전용 V28 스키마를 검사하고 예약 이력 INSERT를 포함한 일반 쓰기 API를 차단한다.
+아래 기존 launcher와 달리 [공통 실행기](k6/bulk-write/BENCHMARK.md)는 로컬과 AWS에서
+동일한 워밍업·AB/BA 반복·서버 설정 확인·결과 비교를 제공한다.
 
 ```bash
 read -rsp 'Bulk write benchmark token: ' BENCHMARK_BULK_WRITE_TOKEN

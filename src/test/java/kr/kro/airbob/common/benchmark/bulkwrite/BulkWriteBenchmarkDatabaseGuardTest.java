@@ -112,6 +112,26 @@ class BulkWriteBenchmarkDatabaseGuardTest {
 		verifyNoInteractions(jdbcOperations);
 	}
 
+	@Test
+	void awsDeleteProfileRequiresAnAlreadyMigratedV28DisposableSchema() {
+		JdbcOperations jdbc = mock(JdbcOperations.class);
+		MockEnvironment environment = new MockEnvironment();
+		environment.setActiveProfiles("aws", "bulk-delete-benchmark", "bulk-write-benchmark");
+		when(jdbc.queryForObject("SELECT DATABASE()", String.class)).thenReturn(ALLOWED_SCHEMA);
+		when(jdbc.queryForObject(anyString(), eq(Integer.class), eq(ALLOWED_SCHEMA))).thenReturn(9);
+		when(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0", Integer.class))
+			.thenReturn(0);
+		when(jdbc.queryForObject(BulkWriteBenchmarkDatabaseGuard.SCHEMA_VERSION_QUERY, String.class)).thenReturn("27");
+		assertDatabaseRejected(guard(jdbc, environment, ALLOWED_SCHEMA));
+		when(jdbc.queryForObject(BulkWriteBenchmarkDatabaseGuard.SCHEMA_VERSION_QUERY, String.class)).thenReturn("28");
+		assertThatCode(guard(jdbc, environment, ALLOWED_SCHEMA)::afterPropertiesSet).doesNotThrowAnyException();
+		when(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0", Integer.class))
+			.thenReturn(1);
+		assertDatabaseRejected(guard(jdbc, environment, ALLOWED_SCHEMA));
+		environment.setActiveProfiles("oci", "bulk-delete-benchmark", "bulk-write-benchmark");
+		assertDatabaseRejected(guard(jdbc, environment, ALLOWED_SCHEMA));
+	}
+
 	private void assertInvalidAllowedSchema(String allowedSchema) {
 		JdbcOperations jdbcOperations = mock(JdbcOperations.class);
 

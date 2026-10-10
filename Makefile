@@ -1,6 +1,11 @@
 .PHONY: aws-up aws-status aws-switch aws-down aws-discovery lab-start lab-pause lab-resume lab-destroy lab-status lab-access
 .PHONY: aws-cache-prepare aws-cache-run aws-cache-recover
 .PHONY: aws-coupon-prepare
+.PHONY: bulk-delete-plan bulk-delete-run aws-bulk-delete-prepare
+
+BULK_DELETE_CONFIG ?= load-test/k6/bulk-write/local-experiment.example.json
+BULK_DELETE_AWS_CONFIG ?= load-test/k6/bulk-write/aws-experiment.example.json
+BULK_DELETE_PREPARED ?= build/k6/bulk-delete-aws/prepared
 
 COUPON_CONFIG ?= load-test/k6/coupon/experiment.example.json
 COUPON_PREPARED ?= build/k6/coupon-aws/prepared
@@ -23,6 +28,16 @@ aws-cache-recover:
 # Offline packaging only. Never provisions, deploys, logs in, or sends load.
 aws-coupon-prepare:
 	python3 load-test/k6/coupon/prepare_aws.py bundle --config "$(COUPON_CONFIG)" --output "$(COUPON_PREPARED)"
+
+bulk-delete-plan:
+	python3 load-test/k6/bulk-write/run-experiments.py plan --config "$(BULK_DELETE_CONFIG)"
+
+bulk-delete-run:
+	python3 load-test/k6/bulk-write/run-experiments.py run --config "$(BULK_DELETE_CONFIG)"
+
+# Offline bundle only. Deployment and provisioning remain separate from workload execution.
+aws-bulk-delete-prepare:
+	python3 load-test/k6/bulk-write/run-experiments.py prepare --config "$(BULK_DELETE_AWS_CONFIG)" --output "$(BULK_DELETE_PREPARED)"
 
 # Daily operation of the saved B baseline; optional CLI flags go in LAB_ARGS.
 LAB_PYTHON ?= $(if $(wildcard .local/airbob-lab/venv/bin/python),.local/airbob-lab/venv/bin/python,python3)
