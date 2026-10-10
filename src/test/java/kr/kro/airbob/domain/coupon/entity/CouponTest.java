@@ -3,12 +3,15 @@ package kr.kro.airbob.domain.coupon.entity;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
+import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 
 class CouponTest {
 
@@ -16,6 +19,29 @@ class CouponTest {
 	private static final LocalDateTime ISSUE_END = ISSUE_START.plusMinutes(10);
 	private static final LocalDateTime USABLE_FROM = ISSUE_START;
 	private static final LocalDateTime USABLE_UNTIL = ISSUE_START.plusDays(30);
+
+	@Test
+	void storesExplicitInputInstantsAsUtcAndComparesPreparedUpdatesInUtc() {
+		var start = OffsetDateTime.parse("2027-01-01T00:30:00.123456+09:00").toInstant();
+		var end = start.plusSeconds(600);
+		var until = start.plusSeconds(86400);
+		var coupon = Coupon.of(new CouponRequest.Create("UTC coupon", null, DiscountType.FIXED_AMOUNT,
+			1000, null, null, start, end, start, until, true, 10));
+		assertThat(coupon.getIssueStartAt()).isEqualTo("2026-12-31T15:30:00.123456");
+		assertThat(coupon.getIssueEndAt().toInstant(ZoneOffset.UTC)).isEqualTo(end);
+		assertThat(coupon.getUsableFrom().toInstant(ZoneOffset.UTC)).isEqualTo(start);
+		assertThat(coupon.getUsableUntil().toInstant(ZoneOffset.UTC)).isEqualTo(until);
+		var unchanged = new CouponRequest.Update(null, null, null, null, null, null,
+			start, end, null, null, null, null);
+		assertThat(coupon.changesPreparedIssuanceConfiguration(unchanged)).isFalse();
+		var changed = new CouponRequest.Update(null, null, null, null, null, null,
+			start.plusSeconds(60), null, null, until.plusSeconds(60), null, null);
+		assertThat(coupon.changesPreparedIssuanceConfiguration(changed)).isTrue();
+		coupon.updateWithDto(changed);
+		assertThat(coupon.getIssueStartAt().toInstant(ZoneOffset.UTC)).isEqualTo(start.plusSeconds(60));
+		assertThat(coupon.getIssueEndAt().toInstant(ZoneOffset.UTC)).isEqualTo(end);
+		assertThat(coupon.getUsableUntil().toInstant(ZoneOffset.UTC)).isEqualTo(until.plusSeconds(60));
+	}
 
 	private Coupon coupon(DiscountType type, int value, Integer minPayment, Integer maxDiscount) {
 		return Coupon.builder()

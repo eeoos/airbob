@@ -1,25 +1,20 @@
 package kr.kro.airbob.domain.coupon.service;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class CouponTimeProvider {
 
-	private static final ZoneId COUPON_ZONE = ZoneId.of("Asia/Seoul");
+	private final Clock clock;
 
 	public LocalDateTime now() {
-		return LocalDateTime.now(COUPON_ZONE);
-	}
-
-	public long toEpochMilli(LocalDateTime dateTime) {
-		return dateTime.atZone(COUPON_ZONE).toInstant().toEpochMilli();
-	}
-
-	public LocalDateTime fromEpochMilli(long epochMillis) {
-		return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), COUPON_ZONE);
+		return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 	}
 }

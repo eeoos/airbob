@@ -7,7 +7,7 @@ Redis Lua와 무제한 쿠폰은 새 생성·실험에서 지원하지 않는다
 
 ## 1. 고유 회원 세션 fixture 준비
 
-실제 ACTIVE 회원 목록을 V29 소스 manifest에 연결하는 방법은 [AWS 가이드](AWS.md)를 따른다.
+실제 ACTIVE 회원 목록을 V30 소스 manifest에 연결하는 방법은 [AWS 가이드](AWS.md)를 따른다.
 관리자와 실험 회원을 분리하고, 토큰·비밀번호·세션은 0600 파일로 보관한다.
 
 ```bash
@@ -29,7 +29,8 @@ node load-test/k6/coupon/prepare-coupon-sessions.js \
 fixture API에 `run_id`, `label`, `variant`, `stock`, `lifetime_seconds`를 보낸다.
 응답의 `coupon_id`, `issue_start_at`, `issue_end_at`을 기록한다.
 SKIP unit 생성은 이 요청의 트랜잭션에 포함되고 완료 후 2초 뒤 발급을 열도록 예약한다.
-발급 시작 시각은 Asia/Seoul의 DATETIME이다. 준비 상태 확인 후 시작을 기다린다.
+발급 시작 시각은 UTC `Z`가 포함된 ISO 8601 instant이다. 준비 상태 확인 후 해당 시각을 기다린다.
+실행기는 시간대 없는 응답을 거부하며 실행 컴퓨터의 시간대로 재해석하지 않는다.
 stock/prepare를 또 호출하거나 같은 쿠폰에 다른 전략을 섞지 않는다.
 
 운영 관리에서는 발급 전 양의 총수량 증감과 폐기만 허용한다. 준비 완료 후 증량은 뒤 번호 추가,
@@ -117,3 +118,11 @@ V29는 Redis 준비 시각이 하나라도 남아 있으면 중단하며, 자동
 실험 단계에는 기존 total_quantity nullable과 A 카운터를 유지하며 양수 CHECK를 추가하지 않는다.
 V29 실패 뒤에는 부분 적용 여부를 조사한 뒤 운영자가 Flyway 복구 절차를 수행한다.
 보존된 V28 원본을 덮어쓰거나 원본 manifest의 버전 숫자만 바꾸지 않는다.
+
+## V30 UTC 전환
+
+쿠폰 업무 DATETIME과 사용 시각은 UTC로 저장·비교하고, API는 UTC `Z`를 반환한다.
+기존 서울 업무 값만 9시간 빼며 이미 UTC인 감사 시각과 재고·발급 이력은 보존한다.
+쿠폰을 사용하는 예약·결제 경로까지 구버전 reader/writer를 중지하고, UTC 응답을 한국 시간으로
+표시하는 프론트와 함께 전환한다. [쿠폰 시간 계약](../../../docs/coupon-time-contract.md)을 따른다.
+V30 이후 V29 애플리케이션을 재가동하지 않는다. 과거 V29 측정 자료는 해당 바이너리·실행기를 그대로 보존한다.

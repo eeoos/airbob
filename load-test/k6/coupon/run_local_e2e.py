@@ -162,7 +162,7 @@ class LocalRunner(Runner):
                                       and host.get('minMemoryFreePercent', 0) >= 15))
         save(directory / 'generator.json', generator)
         artifact['metadata'].update(scope=self.scope(),
-                                    datasetScope='local coupon accounts only; source manifest records this disposable V29 database')
+                                    datasetScope='local coupon accounts only; source manifest records this disposable V30 database')
         save(directory / 'client.json', artifact)
         return artifact, generator, code
 
@@ -682,6 +682,8 @@ def run(args):
                     time.sleep(0.5)
                 raise ValueError('Local Airbob startup timed out; inspect ' + log_name)
             origin = start_application('application.log')
+            require(sql('SELECT version FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 1;') == '30',
+                    'Local coupon binary must use Flyway V30 and UTC coupon instants')
             print('Real Airbob ready: ' + origin, flush=True)
             diagnostic_context = None
             if observed:
@@ -717,10 +719,10 @@ def run(args):
                 (private / name).write_text(value)
                 (private / name).chmod(0o600)
             source_path = output / 'local-source-dataset.json'
-            save(source_path, {'scope': 'local-coupon-only', 'flywayVersion': 29,
+            save(source_path, {'scope': 'local-coupon-only', 'flywayVersion': 30,
                                'mysqlVersion': sql('SELECT VERSION();'), 'accountCount': count})
             manifest = {'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
-                        'sourceDataset': {'id': run_id, 'flywayVersion': 29,
+                        'sourceDataset': {'id': run_id, 'flywayVersion': 30,
                                           'manifestSha256': hashlib.sha256(source_path.read_bytes()).hexdigest()},
                         'accountPool': {'capacity': count, 'emails': emails}}
             manifest_path = output / 'local-contract-manifest.json'

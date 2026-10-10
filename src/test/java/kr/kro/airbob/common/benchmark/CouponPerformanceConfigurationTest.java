@@ -59,7 +59,7 @@ class CouponPerformanceConfigurationTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"28", "29", "30"})
+	@ValueSource(strings = {"28", "29", "30", "31"})
 	void validatesTheRestoredSchemaWithoutApplyingMigrations(String version) {
 		runner.run(context -> {
 			Flyway flyway = mock(Flyway.class);
@@ -69,7 +69,7 @@ class CouponPerformanceConfigurationTest {
 			when(info.current()).thenReturn(current);
 			when(current.getVersion()).thenReturn(MigrationVersion.fromVersion(version));
 			var strategy = context.getBean(FlywayMigrationStrategy.class);
-			if (version.equals("29")) {
+			if (version.equals("30")) {
 				strategy.migrate(flyway);
 			} else {
 				assertThatThrownBy(() -> strategy.migrate(flyway)).isInstanceOf(IllegalStateException.class);

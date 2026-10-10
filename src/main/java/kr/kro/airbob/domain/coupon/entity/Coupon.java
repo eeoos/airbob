@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import kr.kro.airbob.common.domain.BaseEntity;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
 import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
+import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.dto.CouponRequest;
 import kr.kro.airbob.domain.coupon.exception.CouponInvalidConfigurationException;
@@ -53,6 +54,7 @@ public class Coupon extends BaseEntity {
 	// 정률 할인 시 최대 할인 금액 상한
 	private Integer maxDiscountAmount;
 
+	// Business timestamps are stored and compared as UTC; the API exposes UTC instants and the frontend formats them.
 	@Column(nullable = false)
 	private LocalDateTime issueStartAt;
 
@@ -91,10 +93,10 @@ public class Coupon extends BaseEntity {
 			.discountValue(dto.discountValue())
 			.minPaymentPrice(dto.minPaymentPrice())
 			.maxDiscountAmount(dto.maxDiscountAmount())
-			.issueStartAt(dto.issueStartAt())
-			.issueEndAt(dto.issueEndAt())
-			.usableFrom(dto.usableFrom())
-			.usableUntil(dto.usableUntil())
+			.issueStartAt(CouponTime.toUtc(dto.issueStartAt()))
+			.issueEndAt(CouponTime.toUtc(dto.issueEndAt()))
+			.usableFrom(CouponTime.toUtc(dto.usableFrom()))
+			.usableUntil(CouponTime.toUtc(dto.usableUntil()))
 			.isActive(dto.isActive())
 			.totalQuantity(dto.totalQuantity())
 			.issuedQuantity(0)
@@ -108,10 +110,10 @@ public class Coupon extends BaseEntity {
 		if (dto.discountValue() != null) this.discountValue = dto.discountValue();
 		if (dto.minPaymentPrice() != null) this.minPaymentPrice = dto.minPaymentPrice();
 		if (dto.maxDiscountAmount() != null) this.maxDiscountAmount = dto.maxDiscountAmount();
-		if (dto.issueStartAt() != null) this.issueStartAt = dto.issueStartAt();
-		if (dto.issueEndAt() != null) this.issueEndAt = dto.issueEndAt();
-		if (dto.usableFrom() != null) this.usableFrom = dto.usableFrom();
-		if (dto.usableUntil() != null) this.usableUntil = dto.usableUntil();
+		if (dto.issueStartAt() != null) this.issueStartAt = CouponTime.toUtc(dto.issueStartAt());
+		if (dto.issueEndAt() != null) this.issueEndAt = CouponTime.toUtc(dto.issueEndAt());
+		if (dto.usableFrom() != null) this.usableFrom = CouponTime.toUtc(dto.usableFrom());
+		if (dto.usableUntil() != null) this.usableUntil = CouponTime.toUtc(dto.usableUntil());
 		if (dto.isActive() != null) this.isActive = dto.isActive();
 		if (dto.totalQuantity() != null) this.totalQuantity = dto.totalQuantity();
 	}
@@ -125,8 +127,8 @@ public class Coupon extends BaseEntity {
 	}
 
 	public boolean changesPreparedIssuanceConfiguration(CouponRequest.Update dto) {
-		return differs(dto.issueStartAt(), issueStartAt)
-			|| differs(dto.issueEndAt(), issueEndAt)
+		return differs(CouponTime.toUtc(dto.issueStartAt()), issueStartAt)
+			|| differs(CouponTime.toUtc(dto.issueEndAt()), issueEndAt)
 			|| differs(dto.isActive(), isActive)
 			|| differs(dto.totalQuantity(), totalQuantity);
 	}

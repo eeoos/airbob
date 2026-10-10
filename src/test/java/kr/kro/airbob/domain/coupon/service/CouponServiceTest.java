@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.coupon.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import kr.kro.airbob.domain.coupon.common.*;
@@ -20,7 +21,7 @@ class CouponServiceTest {
 			.totalQuantity(10).issuedQuantity(0).isActive(true).build();
 		when(coupons.findByIdForUpdate(1L)).thenReturn(Optional.of(coupon));
 		when(units.databaseNow()).thenReturn(now);
-		var request = new CouponRequest.Update(null,null,null,null,null,null,now.plusDays(1),null,null,null,null,20);
+		var request = new CouponRequest.Update(null,null,null,null,null,null,now.plusDays(1).toInstant(ZoneOffset.UTC),null,null,null,null,20);
 		assertThatThrownBy(() -> service.updateCoupon(request, 1L)).isInstanceOf(CouponConfigurationLockedException.class);
 		assertThat(coupon.getTotalQuantity()).isEqualTo(10);
 		verify(units, never()).insertRange(anyLong(), any(), anyInt(), anyInt());

@@ -1,9 +1,11 @@
 package kr.kro.airbob.domain.coupon.dto;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
+import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.common.MemberCouponStatus;
 import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
@@ -22,10 +24,10 @@ public class CouponResponse {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime issueStartAt,
-		LocalDateTime issueEndAt,
-		LocalDateTime usableFrom,
-		LocalDateTime usableUntil,
+		Instant issueStartAt,
+		Instant issueEndAt,
+		Instant usableFrom,
+		Instant usableUntil,
 		Integer totalQuantity,
 		CouponIssuanceStatus issuanceStatus
 	) {
@@ -38,10 +40,10 @@ public class CouponResponse {
 				coupon.discountValue(),
 				coupon.minPaymentPrice(),
 				coupon.maxDiscountAmount(),
-				coupon.issueStartAt(),
-				coupon.issueEndAt(),
-				coupon.usableFrom(),
-				coupon.usableUntil(),
+				CouponTime.toInstant(coupon.issueStartAt()),
+				CouponTime.toInstant(coupon.issueEndAt()),
+				CouponTime.toInstant(coupon.usableFrom()),
+				CouponTime.toInstant(coupon.usableUntil()),
 				coupon.totalQuantity(),
 				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.issuedQuantity(), now));
 		}
@@ -61,8 +63,8 @@ public class CouponResponse {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime usableFrom,
-		LocalDateTime usableUntil,
+		Instant usableFrom,
+		Instant usableUntil,
 		MemberCouponStatus status
 	) {
 		public static MemberCouponInfo of(MemberCouponProjection coupon, LocalDateTime now) {
@@ -74,8 +76,8 @@ public class CouponResponse {
 				coupon.discountValue(),
 				coupon.minPaymentPrice(),
 				coupon.maxDiscountAmount(),
-				coupon.usableFrom(),
-				coupon.usableUntil(),
+				CouponTime.toInstant(coupon.usableFrom()),
+				CouponTime.toInstant(coupon.usableUntil()),
 				MemberCouponStatus.resolve(coupon.used(), coupon.active(), coupon.usableFrom(),
 					coupon.usableUntil(), now));
 		}

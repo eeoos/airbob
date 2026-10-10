@@ -67,7 +67,7 @@ def prepare(config, output):
         cloudwatchWaitSecondsUpperBound=measured * c['cpu']['waitSeconds'],
         loginPreparationIncludedInEstimate=False,
         appProfiles=['aws', 'coupon-performance', 'coupon-benchmark'],
-        requiredInputs=['deployed image containing the recorded app sources', 'already restored and verified V29 dataset',
+        requiredInputs=['deployed image containing the recorded app sources', 'already restored and verified V30 dataset',
                         'matching real coupon account manifest and password/session fixture',
                         'lab-only HTTPS origin; direct private app metrics URLs; matching RDS identifier',
                         'shared benchmark token and ACTIVE ADMIN session', 'dedicated Linux load generator with pinned k6',
@@ -99,9 +99,9 @@ def accounts(dataset_id, source_manifest, emails_path, output):
     versions = [source.get('flywayVersion'), source.get('mysql', {}).get('flywayVersion'),
                 source.get('world', {}).get('flywayVersion')]
     versions = [str(version) for version in versions if version is not None]
-    require(versions and set(versions) == {'29'}, 'Source dataset must declare Flyway V29')
+    require(versions and set(versions) == {'30'}, 'Source dataset must declare Flyway V30')
     result = {'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
-              'sourceDataset': {'id': dataset_id, 'manifestSha256': hashlib.sha256(raw).hexdigest(), 'flywayVersion': 29},
+              'sourceDataset': {'id': dataset_id, 'manifestSha256': hashlib.sha256(raw).hexdigest(), 'flywayVersion': 30},
               'accountPool': {'capacity': len(emails), 'emails': emails}}
     write(Path(output), result)
     return {'sourceDataset': result['sourceDataset'], 'capacity': len(emails), 'createdAccounts': 0,

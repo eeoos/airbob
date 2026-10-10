@@ -61,7 +61,7 @@ import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 @DisplayName("내 쿠폰 목록 MySQL 조회 계약")
 class MemberCouponReadIntegrationTest {
 
-	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 12, 0);
+	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 3, 0); // UTC = Seoul 12:00
 	private static final long MEMBER_ID = 7L;
 
 	@Container
@@ -124,15 +124,15 @@ class MemberCouponReadIntegrationTest {
 
 	@ParameterizedTest
 	@CsvSource({
-		"false, true, 2026-09-08T11:59:59.999999, UPCOMING",
-		"false, true, 2026-09-08T12:00:00, AVAILABLE",
-		"false, true, 2026-09-08T12:59:59.999999, AVAILABLE",
-		"false, true, 2026-09-08T13:00:00, EXPIRED",
-		"false, false, 2026-09-08T13:00:00, EXPIRED",
-		"false, false, 2026-09-08T11:59:59.999999, UNAVAILABLE",
-		"false, false, 2026-09-08T12:00:00, UNAVAILABLE",
-		"true, false, 2026-09-08T13:00:00, USED",
-		"true, false, 2026-09-08T11:59:59.999999, USED"
+		"false, true, 2026-09-08T02:59:59.999999, UPCOMING",
+		"false, true, 2026-09-08T03:00:00, AVAILABLE",
+		"false, true, 2026-09-08T03:59:59.999999, AVAILABLE",
+		"false, true, 2026-09-08T04:00:00, EXPIRED",
+		"false, false, 2026-09-08T04:00:00, EXPIRED",
+		"false, false, 2026-09-08T02:59:59.999999, UNAVAILABLE",
+		"false, false, 2026-09-08T03:00:00, UNAVAILABLE",
+		"true, false, 2026-09-08T04:00:00, USED",
+		"true, false, 2026-09-08T02:59:59.999999, USED"
 	})
 	@DisplayName("시작 포함·종료 제외 경계와 사용 완료→만료→비활성→사용 예정 우선순위를 지킨다")
 	void preservesStatusBoundariesAndPrecedence(boolean used, boolean active, LocalDateTime now,
@@ -206,7 +206,7 @@ class MemberCouponReadIntegrationTest {
 		Statistics statistics = prepareMeasurement();
 		assertThat(service.findMyCoupons(MEMBER_ID).infos()).containsExactly(
 			new CouponResponse.MemberCouponInfo(12L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE,
-				15, null, 15000, NOW.minusDays(1), NOW.plusDays(1), MemberCouponStatus.AVAILABLE));
+				15, null, 15000, NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusDays(1).toInstant(java.time.ZoneOffset.UTC), MemberCouponStatus.AVAILABLE));
 		assertRead(statistics);
 
 		assertThat(memberCouponRepository.reuseByReservationId(88L, NOW)).isEqualTo(1);

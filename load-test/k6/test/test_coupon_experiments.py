@@ -47,6 +47,25 @@ def evidence(scenario='capacity', variant='db', rate=100):
 
 
 class Contracts(unittest.TestCase):
+    def test_fixture_wait_preserves_explicit_offsets_and_rejects_naive_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            subject = runner.Runner(config(), Path(directory))
+            state = {'variant': 'db', 'stock_prepared': False,
+                     'stock': 10, 'issued_quantity': 0, 'member_coupon_count': 0,
+                     'distinct_member_count': 0, 'legacy_issued_quantity': 0,
+                     'remaining_unit_count': None, 'run_id': subject.c['runId'], 'active': True}
+            for opening in ('2026-09-25T00:00:00Z', '2026-09-25T09:00:00+09:00'):
+                fixture = {'variant': 'db', 'stock': 10, 'issueStartAt': opening}
+                with self.subTest(opening=opening), patch.object(subject, 'state', return_value=state), \
+                        patch.object(runner.time, 'time', return_value=1790294398), \
+                        patch.object(runner.time, 'sleep') as sleep:
+                    subject.prepare(fixture)
+                    sleep.assert_called_once_with(2.1)
+            fixture['issueStartAt'] = '2026-09-25T09:00:00'
+            with patch.object(subject, 'state', return_value=state), \
+                    self.assertRaisesRegex(ValueError, 'explicit offset'):
+                subject.prepare(fixture)
+
     def test_comparison_orders_balance_positions(self):
         variants = list(contract.DEFAULT_VARIANTS)
         orders = [contract.order(n, variants) for n in range(1, 7)]
@@ -298,7 +317,7 @@ class Orchestration(unittest.TestCase):
     def test_create_journal_preserves_prepared_fixture_id(self):
         with tempfile.TemporaryDirectory() as directory:
             subject = runner.Runner(config(), Path(directory))
-            with patch.object(subject, 'api', return_value={'coupon_id': 12, 'issue_start_at': '2026-09-25T09:00:00', 'issue_end_at': '2026-09-25T10:00:00'}) as api:
+            with patch.object(subject, 'api', return_value={'coupon_id': 12, 'issue_start_at': '2026-09-25T00:00:00Z', 'issue_end_at': '2026-09-25T01:00:00Z'}) as api:
                 subject.create('skip_surrogate_rr', 'case-1', 100, 180)
             self.assertEqual(api.call_count, 1)
             value = json.loads((Path(directory) / 'report.json').read_text())
@@ -359,13 +378,13 @@ class K6HttpSmoke(unittest.TestCase):
             self.assertEqual(runner.manifest_contract(c, 5), manifest_hash)
             cases = [('capacity', 5, 201, 'legacy', 'db'), ('scarcity', 1, 201, 'legacy', 'db'),
                      ('capacity', 1, 201, 'legacy', 'db'), ('capacity', 5, 401, 'legacy', 'db'),
-                     ('capacity', 5, 201, 'v29', 'db')]
-            cases.extend(('capacity', 5, 201, 'v29', variant) for variant in contract.VARIANTS if variant != 'db')
+                     ('capacity', 5, 201, 'v30', 'db')]
+            cases.extend(('capacity', 5, 201, 'v30', variant) for variant in contract.VARIANTS if variant != 'db')
             for scenario, server_stock, status, manifest_kind, variant in cases:
                 with self.subTest(scenario=scenario, server_stock=server_stock, status=status, manifest=manifest_kind, variant=variant):
-                    if manifest_kind == 'v29':
+                    if manifest_kind == 'v30':
                         manifest.write_text(json.dumps({'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
-                            'sourceDataset': {'id': 'global-b-test', 'manifestSha256': 'c' * 64, 'flywayVersion': 29},
+                            'sourceDataset': {'id': 'global-b-test', 'manifestSha256': 'c' * 64, 'flywayVersion': 30},
                             'accountPool': capsule['accountPool']}))
                         manifest_hash = hashlib.sha256(manifest.read_bytes()).hexdigest()
                         fixture_json = json.loads(sessions.read_text())
@@ -409,8 +428,8 @@ class K6HttpSmoke(unittest.TestCase):
                     self.assertGreater(p['measurementEndEpochMs'], p['measurementStartEpochMs'])
                     self.assertNotIn('fake-session', (target / 'client.json').read_text())
                     self.assertNotIn('test-benchmark-token', (target / 'k6.log').read_text())
-                    if manifest_kind == 'v29':
-                        self.assertEqual(artifact['metadata']['sourceDataset']['flywayVersion'], 29)
+                    if manifest_kind == 'v30':
+                        self.assertEqual(artifact['metadata']['sourceDataset']['flywayVersion'], 30)
                     self.assertEqual(code, 99 if status == 401 or scenario == 'capacity' and server_stock == 1 else 0)
                     if status == 401:
                         self.assertEqual(p['outcomes']['authentication'], p['requestCount'])

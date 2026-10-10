@@ -16,6 +16,7 @@ import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import lombok.RequiredArgsConstructor;
 
+/** API commands carry instants; entity values and database comparisons use UTC. */
 @Service
 @RequiredArgsConstructor
 public class CouponService {

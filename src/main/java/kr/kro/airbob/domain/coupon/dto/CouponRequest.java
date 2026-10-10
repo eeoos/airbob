@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.coupon.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -19,14 +19,13 @@ public class CouponRequest {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime issueStartAt,
-		LocalDateTime issueEndAt,
-		LocalDateTime usableFrom,
-		LocalDateTime usableUntil,
+		Instant issueStartAt,
+		Instant issueEndAt,
+		Instant usableFrom,
+		Instant usableUntil,
 		Boolean isActive,
 		Integer totalQuantity
 	) {
-
 	}
 
 	public record Update(
@@ -36,13 +35,12 @@ public class CouponRequest {
 		Integer discountValue,
 		Integer minPaymentPrice,
 		Integer maxDiscountAmount,
-		LocalDateTime issueStartAt,
-		LocalDateTime issueEndAt,
-		LocalDateTime usableFrom,
-		LocalDateTime usableUntil,
+		Instant issueStartAt,
+		Instant issueEndAt,
+		Instant usableFrom,
+		Instant usableUntil,
 		Boolean isActive,
 		Integer totalQuantity
 	) {
-
 	}
 }

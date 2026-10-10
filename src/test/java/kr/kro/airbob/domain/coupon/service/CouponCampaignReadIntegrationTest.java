@@ -65,7 +65,7 @@ import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 @DisplayName("발급 쿠폰 목록 MySQL 조회 계약")
 class CouponCampaignReadIntegrationTest {
 
-	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 12, 0);
+	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 3, 0); // UTC = Seoul 12:00
 
 	@Container
 	private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4.11")
@@ -203,7 +203,7 @@ class CouponCampaignReadIntegrationTest {
 
 		assertThat(service.findCouponCampaigns().infos()).containsExactly(new CouponResponse.CouponInfo(
 			10L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE, 15, null, 15000,
-			NOW.minusDays(1), NOW.plusHours(1), NOW.minusDays(1), NOW.plusMonths(1),
+			NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusHours(1).toInstant(java.time.ZoneOffset.UTC), NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusMonths(1).toInstant(java.time.ZoneOffset.UTC),
 			1, CouponIssuanceStatus.SOLD_OUT));
 		assertRead(statistics);
 	}

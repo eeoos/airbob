@@ -32,8 +32,8 @@ public class CouponIssueUnitStore {
 	}
 
 	public LocalDateTime databaseNow() {
-		// Coupon DATETIME values use Asia/Seoul. UTC_TIMESTAMP is independent of session/server time zones.
-		return coupons.findDatabaseUtcNow().plusHours(9);
+		// Coupon DATETIME values are UTC. This query is independent of the DB session time zone.
+		return coupons.findDatabaseUtcNow();
 	}
 
 	public CouponIssueStrategy strategy(long couponId) {

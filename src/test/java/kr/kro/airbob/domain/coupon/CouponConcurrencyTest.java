@@ -71,6 +71,14 @@ class CouponConcurrencyTest {
 	@Autowired jakarta.persistence.EntityManagerFactory entityManagerFactory;
 	List<Member> users;
 
+	@Test
+	void databaseClockUsesUtcWithoutAddingSeoulOffset() {
+		var before = LocalDateTime.now(java.time.ZoneOffset.UTC).minusSeconds(1);
+		var databaseNow = units.databaseNow();
+		var after = LocalDateTime.now(java.time.ZoneOffset.UTC).plusSeconds(1);
+		assertThat(databaseNow).isBetween(before, after);
+	}
+
 	@BeforeEach void setUp() {
 		jdbc.update("delete from coupon_issue_unit");
 		jdbc.update("delete from coupon_issue_unit_composite");

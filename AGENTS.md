@@ -89,6 +89,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 
 - New coupons have positive finite quantities, validated in the application. Historical nullable
   quantity and issued_quantity remain for migration compatibility and the conditional-UPDATE benchmark.
+- Coupon business timestamps are stored/compared as UTC. API dates are `Instant` values with `Z`;
+  the frontend formats them in `Asia/Seoul`. V30 converts legacy Seoul business values only; audit
+  timestamps were already UTC. Stop pre-V30 readers/writers before cutover and roll forward only.
 - Default issuance uses surrogate-key MySQL units and REPEATABLE_READ. A unit DELETE and member_coupon
   INSERT commit in one transaction. Never update the shared coupon counter on a SKIP LOCKED path.
 - Empty SKIP LOCKED results require a fresh-snapshot check: CP002 is sold out, CP012 is retryable contention.
@@ -185,8 +188,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V29. V29 introduces coupon issue units and immutable issue strategy,
-  renames stock_prepared_at, and blocks unreconciled Redis coupon preparation.
+- Current schema history is V1 through V30. V29 introduces coupon issue units and immutable issue strategy,
+  renames stock_prepared_at, and blocks unreconciled Redis coupon preparation. V30 normalizes
+  coupon business timestamps to UTC; see docs/coupon-time-contract.md for the coordinated API cutover.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.

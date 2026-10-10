@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.coupon.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -18,7 +18,7 @@ public final class CouponBenchmarkFixture {
 	) { }
 
 	public record Created(Long couponId, String runId, String variant, Integer stock,
-		LocalDateTime issueStartAt, LocalDateTime issueEndAt) { }
+		Instant issueStartAt, Instant issueEndAt) { }
 
 	public record State(Long couponId, String runId, String variant, Integer stock,
 		long issuedQuantity, long memberCouponCount, long distinctMemberCount,

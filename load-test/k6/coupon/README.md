@@ -91,7 +91,7 @@ RDS CPU는 HTTP 구간에 완전히 포함되는 1분 버킷만 사용한다.
 ## 로컬 검증과 반복 측정
 
 Docker, Java 21, Node, k6가 필요하다. 관측 모드는 macOS와 PyMySQL 1.1.2가 필요하다.
-새 MySQL 8.4.11·Redis 7.2 컨테이너와 실제 앱을 실행하고 V29 마이그레이션·회원 생성·로그인·HTTP 발급을 수행한다.
+새 MySQL 8.4.11·Redis 7.2 컨테이너와 실제 앱을 실행하고 V30까지 마이그레이션·회원 생성·로그인·HTTP 발급을 수행한다.
 기존 개발 DB·Redis는 사용하지 않으며 종료 시 자신이 생성한 자원만 정리한다.
 
 ```bash
@@ -198,9 +198,9 @@ maximumPoolSize와 minimumIdle은 모두 후보 크기로 맞춰 연결 생성 �
 
 ## AWS 준비와 실행
 
-같은 digest 이미지, V29 검증 완료 데이터, 앱 수·Hikari·DB/Redis 사양, 부하 발생기를 고정한다.
-`aws,coupon-performance` 프로필은 시작 시 V29를 **검증만** 하며 마이그레이션을 실행하지 않는다.
-V28 원본을 보존한 파생 데이터셋에 V29를 별도로 적용하고 새 manifest를 만들어야 한다.
+같은 digest 이미지, V30 검증 완료 데이터, 앱 수·Hikari·DB/Redis 사양, 부하 발생기를 고정한다.
+`aws,coupon-performance` 프로필은 시작 시 V30을 **검증만** 하며 마이그레이션을 실행하지 않는다.
+V28 원본을 보존한 파생 데이터셋에 V29와 V30을 별도로 적용하고 새 manifest를 만들어야 한다.
 
 ```bash
 make aws-coupon-prepare

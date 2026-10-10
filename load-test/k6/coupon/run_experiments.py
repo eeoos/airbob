@@ -2,7 +2,6 @@
 """Run coupon A/B experiments on an already running, isolated AWS lab."""
 import argparse
 from datetime import datetime
-from zoneinfo import ZoneInfo
 import hashlib
 import json
 import math
@@ -73,7 +72,7 @@ def check_inputs(c):
     manifest_hash = manifest_contract(c, needed)
     manifest = json.loads(Path(c['benchmarkDatasetManifest']).read_text())
     require(manifest.get('datasetVersion') == 'coupon-accounts-v1',
-            'AWS coupon-performance requires a V29 coupon-accounts-v1 manifest bound to the restored dataset')
+            'AWS coupon-performance requires a V30 coupon-accounts-v1 manifest bound to the restored dataset')
     credential(c['adminSessionFile'])
     credential(c['benchmarkTokenFile'])
     if c['accountPasswordFile'] is not None:
@@ -224,8 +223,11 @@ class Runner:
         require(not inventory_failures(state, fixture['variant'], fixture['stock'], 0)
                 and state['run_id'] == self.c['runId'] and state['active'],
                 'Fixture was not prepared or is not owned by this run')
-        # DATETIME coupon periods are Seoul wall time; preparation already committed in create().
-        start = datetime.fromisoformat(fixture['issueStartAt']).replace(tzinfo=ZoneInfo('Asia/Seoul')).timestamp()
+        # The API returns an instant; never interpret it using the runner's local timezone.
+        instant = datetime.fromisoformat(fixture['issueStartAt'].replace('Z', '+00:00'))
+        require(instant.tzinfo is not None and instant.utcoffset() is not None,
+                'Fixture opening must include UTC Z or an explicit offset')
+        start = instant.timestamp()
         wait = max(0.0, start - time.time() + 0.1)
         require(wait < 30, 'Fixture opening is unexpectedly far in the future')
         time.sleep(wait)

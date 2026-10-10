@@ -7,7 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,7 @@ class CouponControllerTest {
 		UserContext.set(new UserInfo(10L));
 		ObjectMapper objectMapper = new ObjectMapper()
 			.findAndRegisterModules()
+			.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mockMvc = MockMvcBuilders.standaloneSetup(
 			new CouponController(couponQueryService, issueService))
@@ -74,7 +76,7 @@ class CouponControllerTest {
 	@Test
 	@DisplayName("쿠폰 캠페인 목록에 현재 발급 상태를 포함한다")
 	void findsCouponCampaigns() throws Exception {
-		LocalDateTime issueStartAt = LocalDateTime.of(2026, 8, 20, 10, 0);
+		Instant issueStartAt = Instant.parse("2026-08-20T01:00:00Z");
 		CouponResponse.CouponInfo info = new CouponResponse.CouponInfo(
 			1L,
 			"오전 10시 선착순 쿠폰",
@@ -84,9 +86,9 @@ class CouponControllerTest {
 			50_000,
 			null,
 			issueStartAt,
-			issueStartAt.plusMinutes(10),
+			issueStartAt.plus(10, ChronoUnit.MINUTES),
 			issueStartAt,
-			issueStartAt.plusDays(30),
+			issueStartAt.plus(30, ChronoUnit.DAYS),
 			100,
 			CouponIssuanceStatus.UPCOMING);
 		when(couponQueryService.findCouponCampaigns())
@@ -95,6 +97,7 @@ class CouponControllerTest {
 		mockMvc.perform(get("/api/v1/coupons"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.infos[0].id").value(1L))
+			.andExpect(jsonPath("$.data.infos[0].issue_start_at").value("2026-08-20T01:00:00Z"))
 			.andExpect(jsonPath("$.data.infos[0].issuance_status").value("UPCOMING"));
 
 		verify(couponQueryService).findCouponCampaigns();
@@ -103,7 +106,7 @@ class CouponControllerTest {
 	@Test
 	@DisplayName("로그인 회원이 발급받은 쿠폰 목록을 조회한다")
 	void findsMyCoupons() throws Exception {
-		LocalDateTime usableFrom = LocalDateTime.of(2026, 8, 20, 10, 0);
+		Instant usableFrom = Instant.parse("2026-08-20T01:00:00Z");
 		CouponResponse.MemberCouponInfo info = new CouponResponse.MemberCouponInfo(
 			1L,
 			"오전 10시 선착순 쿠폰",
@@ -113,7 +116,7 @@ class CouponControllerTest {
 			50_000,
 			null,
 			usableFrom,
-			usableFrom.plusDays(30),
+			usableFrom.plus(30, ChronoUnit.DAYS),
 			MemberCouponStatus.AVAILABLE);
 		when(couponQueryService.findMyCoupons(10L))
 			.thenReturn(new CouponResponse.MemberCouponInfos(List.of(info)));
@@ -121,6 +124,7 @@ class CouponControllerTest {
 		mockMvc.perform(get("/api/v1/members/me/coupons"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.infos[0].coupon_id").value(1L))
+			.andExpect(jsonPath("$.data.infos[0].usable_from").value("2026-08-20T01:00:00Z"))
 			.andExpect(jsonPath("$.data.infos[0].status").value("AVAILABLE"));
 
 		verify(couponQueryService).findMyCoupons(10L);

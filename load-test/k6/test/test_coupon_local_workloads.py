@@ -94,7 +94,7 @@ class ScenarioHttp(unittest.TestCase):
             root = Path(temporary)
             manifest = root / 'manifest.json'
             manifest.write_text(json.dumps({'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
-                'sourceDataset': {'id': 'local-contract', 'flywayVersion': 29, 'manifestSha256': 'a' * 64},
+                'sourceDataset': {'id': 'local-contract', 'flywayVersion': 30, 'manifestSha256': 'a' * 64},
                 'accountPool': {'capacity': 41, 'emails': [f'test-{i}@coupon.local' for i in range(41)]}}))
             sha = hashlib.sha256(manifest.read_bytes()).hexdigest()
             sessions = root / 'sessions.json'

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.dto.CouponBenchmarkFixture;
+import kr.kro.airbob.domain.coupon.common.CouponTime;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
@@ -44,7 +45,8 @@ public class CouponBenchmarkFixtureService {
 		var start = units.databaseNow().plusSeconds(2);
 		coupon.scheduleIssuance(start, start.plusSeconds(request.lifetimeSeconds()));
 		return new CouponBenchmarkFixture.Created(coupon.getId(), request.runId(), strategy.variant(),
-			coupon.getTotalQuantity(), coupon.getIssueStartAt(), coupon.getIssueEndAt());
+			coupon.getTotalQuantity(), CouponTime.toInstant(coupon.getIssueStartAt()),
+			CouponTime.toInstant(coupon.getIssueEndAt()));
 	}
 
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
