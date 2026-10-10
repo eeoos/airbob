@@ -115,6 +115,8 @@ def summary(before, after, samples, errors, performance):
                         'acquireMeanMs': acquire_s * 1000 / acquire_n if acquire_n else None,
                         'timeouts': difference(before['app'], after['app'], 'hikaricp_connections_timeout_total'),
                         'maxConnections': after['app']['hikaricp_connections_max']}
+    if 'hikaricp_connections_min' in after['app']:
+        result['hikari']['minConnections'] = after['app']['hikaricp_connections_min']
     usage_count = 'hikaricp_connections_usage_seconds_count'
     usage_sum = 'hikaricp_connections_usage_seconds_sum'
     if usage_count in before['app'] and usage_sum in before['app']:
@@ -240,7 +242,7 @@ class LocalDiagnostics:
             self.before = self.capture(full=True, system=True)
             # Fail before the workload if essential observations cannot be collected.
             for key in ('hikaricp_connections_acquire_seconds_count', 'hikaricp_connections_acquire_seconds_sum',
-                        'hikaricp_connections_pending', 'hikaricp_connections_max',
+                        'hikaricp_connections_pending', 'hikaricp_connections_max', 'hikaricp_connections_min',
                         'hikaricp_connections_timeout_total', 'jvm_gc_pause_seconds_sum'):
                 require(key in self.before['app'], 'Missing app diagnostic: ' + key)
             require(set(STATUS) <= self.before['mysql'].keys(), 'Missing MySQL diagnostic status')

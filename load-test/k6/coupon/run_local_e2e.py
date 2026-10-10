@@ -23,6 +23,7 @@ from coupon_experiment import order, require, inventory_failures, DEFAULT_VARIAN
 from coupon_monitoring import HTTP, delta, snapshot
 from run_experiments import HERE, ROOT, Runner, save, FIXTURES
 from local_diagnostics import LocalDiagnostics
+from local_pool_sizing import pool_properties, pool_observation_failures, validate_pool_comparison, compare_pools
 
 
 def environment():
@@ -63,6 +64,8 @@ class LocalRunner(Runner):
         self.preparation_stop = None
 
     def scope(self):
+        if self.metadata and self.metadata.get('poolSizes'):
+            return 'local-pool-size-comparison'
         if self.metadata and self.metadata.get('workloadPlan'):
             return 'local-multi-scenario-comparison'
         if self.capacity_search:
@@ -196,8 +199,9 @@ class LocalRunner(Runner):
             invalid, failed = [], []
             if self.latest_diagnostics and not generator['healthy']:
                 invalid.append('local-host-pressure-or-missing-diagnostics')
-            if self.latest_diagnostics and self.latest_diagnostics['hikari']['maxConnections'] != 10:
-                invalid.append('unexpected-hikari-pool-size')
+            if self.latest_diagnostics:
+                invalid.extend(pool_observation_failures(self.latest_diagnostics,
+                                                        self.c.get('hikariMaximumPoolSize', 10)))
             if workload and workload.get('otherPreparation'):
                 successful_preparations = [event for event in self.preparation_events
                     if p['measurementStartEpochMs'] <= event.get('startedAtEpochMs', 0)
@@ -247,6 +251,8 @@ class LocalRunner(Runner):
                 failed.append('k6-threshold-failed')
             failures = invalid + failed
             row = {'label': label, 'phase': phase, 'scenario': scenario, 'variant': variant, 'round': round_number,
+                   'hikariMaximumPoolSize': self.c.get('hikariMaximumPoolSize', 10),
+                   'poolCohort': self.c.get('poolCohort'),
                    'rate': rate, 'durationSeconds': seconds, 'stock': stock, 'couponId': fixture['couponId'],
                    'client': p, 'server': sql, 'state': state, 'generator': generator,
                    'diagnostics': self.latest_diagnostics,
@@ -258,7 +264,7 @@ class LocalRunner(Runner):
             self.rows.append(row)
             save(directory / 'result.json', row)
             self.report()
-            print(f"{label}: requests={p['requestCount']} success={issued} soldOut={outcomes['soldOut']} "
+            print(f"{label}: pool={row['hikariMaximumPoolSize']} requests={p['requestCount']} success={issued} soldOut={outcomes['soldOut']} "
                   f"request_rps={p['requestRate']:.2f} success_p95={p['successDuration'].get('p(95)', 0):.2f} "
                   f"sold_out_p95={p['soldOutDuration'].get('p(95)', 0):.2f} "
                   f"dropped={p['droppedIterations']} passed={not failures} reasons={','.join(failures)}", flush=True)
@@ -384,7 +390,8 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
              f'실행 상태: {status}', '',
              f"앱 JAR SHA-256: `{metadata['appJarSha256']}`", '',
              f"MySQL {metadata['mysqlVersion']}, Flyway V{metadata['flywayVersion']}, "
-             f"앱 1대, Hikari 10, heap 512 MiB. 부하 발생기와 앱은 같은 로컬 호스트다.", '',
+             f"앱 1대, Hikari {metadata.get('poolSizes') or metadata.get('hikariMaximumPoolSize', 10)}, "
+             f"heap 512 MiB. 부하 발생기와 앱은 같은 로컬 호스트다.", '',
              '회원과 쿠폰만 넣은 일회성 DB다. 대규모 B 데이터는 적재하지 않았다. '
              'manifest는 기존 테스트 계약 형식에 로컬 회원 풀을 넣은 입력이며 B 데이터 적재의 증거가 아니다.', '',
              (f"본 측정 시나리오별 시간 × {metadata['rounds']}라운드, " if metadata.get('workloadPlan') else
@@ -423,13 +430,19 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
                   '`inconclusive`는 요청 누락·준비/관측 오류로 상한 판정 불가를 뜻한다.',
                   '20~60초 탐색 결과는 짧은 구간의 관측치다. 이력서용 최대 지속 처리량은 독립된 부하 발생기와 '
                   '더 긴 측정으로 다시 검증한다. 기존 개발 컨테이너는 그대로 둔다.', '']
-    lines += ['| 실험 | 목표 RPS | 시간 s | 라운드 | 방식 | 요청 | 성공 RPS | 누락 | SQL 수 | 성공 p95 ms | 성공 p99 ms | 검증 |',
-              '|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|']
+    if metadata.get('poolSizes'):
+        lines += ['', '풀별 maximumPoolSize와 minimumIdle은 같은 값이다. 매 풀 비교 차례마다 앱을 재시작하고 '
+                  '각 본 측정 전에 별도 쿠폰으로 워밍업한다. 풀과 RPS 실행 순서는 라운드별로 회전한다.',
+                  '앱 JAR·DB·Redis는 동일하며 세션 준비는 측정 밖이다. 이전 쿠폰과 발급 이력은 비활성 상태로 '
+                  '남으므로 데이터 누적 영향까지 제거한 실험은 아니다. run.json의 poolCohorts에 순서와 시작 상태를 기록한다.', '']
+    lines += ['| 실험 | 목표 RPS | 시간 s | 라운드 | 풀 | 방식 | 요청 | 성공 RPS | 누락 | SQL 수 | 성공 p95 ms | 성공 p99 ms | 검증 |',
+              '|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|']
     for row in rows:
         if row['phase'] != 'measure':
             continue
         p = row['client']
-        lines.append(f"| {row['scenario']} | {row['rate']} | {row['durationSeconds']} | {row['round']} | {row['variant']} | {p['requestCount']} | "
+        lines.append(f"| {row['scenario']} | {row['rate']} | {row['durationSeconds']} | {row['round']} | "
+                     f"{row.get('hikariMaximumPoolSize', metadata.get('hikariMaximumPoolSize', 10))} | {row['variant']} | {p['requestCount']} | "
                      f"{p['successRate']:.2f} | {p['droppedIterations']} | {row['server']['queries']} | "
                      f"{p['successDuration'].get('p(95)', 0):.2f} | {p['successDuration'].get('p(99)', 0):.2f} | "
                      f"{'통과' if row['passed'] else ', '.join(row['failures'])} |")
@@ -465,11 +478,12 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
                   '행 잠금 시간은 여러 트랜잭션의 대기 시간 합계다. 벽시계 시간이나 CPU 사용량이 아니다. '
                   '카운터 차이는 k6 시작 전부터 종료 후까지이며 초기화·마지막 응답 처리도 포함한다. '
                   '대기자 수·CPU·메모리는 실제 HTTP 측정 구간의 표본이다.', '',
-                  '| 목표 RPS | 시간 s | 방식 | 라운드 | 행 잠금 대기 횟수 | 평균 잠금 대기 ms | 커넥션 획득 평균 ms | 커넥션 대기 최대 | DB 평균 CPU 코어 | 관측 |',
-                  '|---:|---:|---|---:|---:|---:|---:|---:|---:|---|']
+                  '| 목표 RPS | 시간 s | 풀 | 방식 | 라운드 | 행 잠금 대기 횟수 | 평균 잠금 대기 ms | 커넥션 획득 평균 ms | 커넥션 대기 최대 | DB 평균 CPU 코어 | 관측 |',
+                  '|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|']
         for r in diagnosed:
             d = r['diagnostics']
-            lines.append(f"| {r['rate']} | {r['durationSeconds']} | {r['variant']} | {r['round']} | {d['rowLocks']['waits']} | "
+            lines.append(f"| {r['rate']} | {r['durationSeconds']} | {r.get('hikariMaximumPoolSize', metadata.get('hikariMaximumPoolSize', 10))} | "
+                         f"{r['variant']} | {r['round']} | {d['rowLocks']['waits']} | "
                          f"{(d['rowLocks']['meanWaitMs'] or 0):.2f} | {(d['hikari']['acquireMeanMs'] or 0):.2f} | "
                          f"{d['hikari'].get('pendingMax', '—')} | {d['containers']['mysql']['averageCpuCores']:.2f} | "
                          f"{d['status']} |")
@@ -488,9 +502,14 @@ def run(args):
     if getattr(args, 'workload_plan', None):
         from local_workloads import validate_plan
         workload_plan = validate_plan(json.loads(Path(args.workload_plan).read_text()))
+    pool_sizes = getattr(args, 'pool_sizes', None)
+    pool_size = pool_sizes[0] if pool_sizes else getattr(args, 'pool_size', 10)
+    pool_properties(pool_size)
+    if pool_sizes is not None:
+        validate_pool_comparison(pool_sizes, workload_plan, args.rounds, args.variants)
     scarcity_rates = getattr(args, 'scarcity_rates', None)
     observed = bool(getattr(args, 'observe', False) or args.diagnose_rate or scarcity_rates
-                    or getattr(args, 'capacity_rates', None) or workload_plan)
+                    or getattr(args, 'capacity_rates', None) or workload_plan or pool_size != 10)
     require(1 <= args.rate <= (2000 if observed else 100) and 5 <= args.duration <= (180 if observed else 60)
             and 1 <= args.rounds <= 6, 'Invalid local workload')
     if observed:
@@ -540,7 +559,9 @@ def run(args):
         prior = json.loads(previous.read_text())
         require(prior_run['variants'] == list(args.variants) and prior_run['capacityStock'] == capacity_stock
                 and prior_run['durationSeconds'] == args.duration and prior_run['rounds'] == args.rounds
-                and prior_run['hikariMaximumPoolSize'] == 10 and prior_run['clientVUs'] == args.client_vus
+                and prior_run['hikariMaximumPoolSize'] == pool_size
+                and prior_run.get('hikariMinimumIdle', prior_run['hikariMaximumPoolSize']) == pool_size
+                and prior_run['clientVUs'] == args.client_vus
                 and prior_run['p95LimitMs'] == args.p95_limit_ms and prior_run['p99LimitMs'] == args.p99_limit_ms
                 and prior_run['appJarSha256'] == hashlib.sha256((ROOT / 'build/libs/airbob.jar').read_bytes()).hexdigest(),
                 'Refinement source differs from fixed workload/application conditions')
@@ -561,6 +582,8 @@ def run(args):
     run_id = 'local-' + time.strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(2)
     output = ROOT / 'build/k6/coupon-local' / run_id
     output.mkdir(parents=True, mode=0o700)
+    jar = output / 'application.jar'
+    shutil.copy2(ROOT / 'build/libs/airbob.jar', jar)
     source = output / 'source' / 'k6'
     # k6 reads scripts anew each trial; pin them before startup so edits cannot alter a running cohort.
     shutil.copytree(HERE, source / 'coupon', ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
@@ -607,8 +630,7 @@ def run(args):
             properties = {
                 'spring.datasource.url': f'jdbc:mysql://127.0.0.1:{port(mysql_id, 3306)}/coupon_local?allowPublicKeyRetrieval=true&useSSL=false',
                 'spring.datasource.username': 'coupon_app', 'spring.datasource.password': db_password,
-                'spring.datasource.hikari.maximum-pool-size': '10',
-                'spring.datasource.hikari.minimum-idle': '10',
+                **pool_properties(pool_size),
                 'spring.data.redis.host': '127.0.0.1', 'spring.data.redis.port': port(redis_id, 6379),
                 'spring.jpa.open-in-view': 'false', 'spring.jpa.show-sql': 'false',
                 'spring.flyway.baseline-on-migrate': 'false',
@@ -636,29 +658,29 @@ def run(args):
             }
             config_path = private / 'local.properties'
             config_path.write_text('\n'.join(k + '=' + v for k, v in properties.items()) + '\n')
-            jar = ROOT / 'build/libs/airbob.jar'
-            log_path = output / 'application.log'
             env = environment() | {'SPRING_PROFILES_ACTIVE': 'test,coupon-benchmark',
                                    'BENCHMARK_READ_MODEL_TOKEN': token, 'AWS_EC2_METADATA_DISABLED': 'true'}
-            with log_path.open('w') as log:
-                app = subprocess.Popen([java, '-Xms512m', '-Xmx512m', '-Duser.timezone=UTC', '-jar', str(jar),
-                                        '--spring.config.additional-location=file:' + str(config_path),
-                                        '--server.address=127.0.0.1', '--server.port=0'], cwd=ROOT, env=env,
-                                       stdout=log, stderr=subprocess.STDOUT)
-            origin = None
-            for _ in range(240):
-                require(app.poll() is None, 'Local Airbob stopped; inspect application.log')
-                matches = re.findall(r'Tomcat started on port (\d+)', log_path.read_text(errors='replace'))
-                if matches:
-                    origin = 'http://127.0.0.1:' + matches[-1]
-                    try:
-                        request(origin, '/actuator/health')
-                        break
-                    except (OSError, ValueError):
-                        pass
-                time.sleep(0.5)
-            else:
-                raise ValueError('Local Airbob startup timed out; inspect application.log')
+            def start_application(log_name, server_port=0):
+                nonlocal app
+                log_path = output / log_name
+                with log_path.open('w') as log:
+                    app = subprocess.Popen([java, '-Xms512m', '-Xmx512m', '-Duser.timezone=UTC', '-jar', str(jar),
+                                            '--spring.config.additional-location=file:' + str(config_path),
+                                            '--server.address=127.0.0.1', f'--server.port={server_port}'], cwd=ROOT, env=env,
+                                           stdout=log, stderr=subprocess.STDOUT)
+                for _ in range(240):
+                    require(app.poll() is None, 'Local Airbob stopped; inspect ' + log_name)
+                    matches = re.findall(r'Tomcat started on port (\d+)', log_path.read_text(errors='replace'))
+                    if matches:
+                        started_origin = 'http://127.0.0.1:' + matches[-1]
+                        try:
+                            request(started_origin, '/actuator/health')
+                            return started_origin
+                        except (OSError, ValueError):
+                            pass
+                    time.sleep(0.5)
+                raise ValueError('Local Airbob startup timed out; inspect ' + log_name)
+            origin = start_application('application.log')
             print('Real Airbob ready: ' + origin, flush=True)
             diagnostic_context = None
             if observed:
@@ -676,7 +698,7 @@ def run(args):
                                       'containers': {'mysql': mysql_id, 'redis': redis_id}}
                 save(output / 'mysql-observation-settings.json', {'variables': sql(
                     "SHOW GLOBAL VARIABLES WHERE Variable_name IN ('performance_schema','innodb_flush_log_at_trx_commit',"
-                    "'sync_binlog','log_bin','innodb_buffer_pool_size');"), 'fileInstruments': sql(
+                    "'sync_binlog','log_bin','innodb_buffer_pool_size','max_connections');"), 'fileInstruments': sql(
                     "SELECT NAME,ENABLED,TIMED FROM performance_schema.setup_instruments "
                     "WHERE NAME LIKE 'wait/io/file/innodb/%' OR NAME LIKE 'wait/io/file/sql/binlog%';")})
             request(origin, '/api/v1/members', {'email': 'admin@coupon.local', 'password': password, 'nickname': 'coupon-admin'})
@@ -743,6 +765,7 @@ def run(args):
                      benchmarkTokenFile=str(private / 'token'), clientVUs=args.client_vus,
                      appMetricsUrls=[origin + '/actuator/prometheus'],
                      scriptDirectory=str(source / 'coupon'),
+                     hikariMaximumPoolSize=pool_size,
                      p95LimitMs=args.p95_limit_ms, p99LimitMs=args.p99_limit_ms)
             subject = LocalRunner(c, output, bool(args.capacity_rates), diagnostic_context,
                                   args.scarcity_stock if scarcity_rates else None, capacity_stock)
@@ -757,10 +780,12 @@ def run(args):
                         'rate': args.rate if not workload_plan else None,
                         'durationSeconds': args.duration if not workload_plan else None,
                         'rounds': args.rounds, 'javaExecutable': java, 'capacityRates': args.capacity_rates,
-                        'hikariMaximumPoolSize': 10, 'hikariMinimumIdle': 10,
+                        'hikariMaximumPoolSize': None if pool_sizes else pool_size,
+                        'hikariMinimumIdle': None if pool_sizes else pool_size,
+                        'poolSizes': pool_sizes, 'poolCohorts': [],
                         'workloadPlan': workload_plan,
                         'capacityRefinementSource': refinement_source,
-                        'capacityStock': capacity_stock, 'poolSizingExperiment': False,
+                        'capacityStock': capacity_stock, 'poolSizingExperiment': bool(pool_sizes or pool_size != 10),
                         'harnessSha256': harness_hashes, 'harnessSnapshot': str(source),
                         'refineStep': args.refine_step, 'clientVUs': args.client_vus, 'cooldownSeconds': args.cooldown,
                         'diagnoseRate': args.diagnose_rate,
@@ -779,7 +804,32 @@ def run(args):
             save(output / 'run.json', metadata)
             subject.metadata = metadata
             sessions = current_sessions
-            if workload_plan:
+            def restart_for_pool(cohort):
+                nonlocal origin
+                size = cohort['poolSize']
+                app.terminate()
+                try:
+                    app.wait(timeout=20)
+                except subprocess.TimeoutExpired:
+                    app.kill()
+                    app.wait()
+                properties.update(pool_properties(size))
+                config_path.write_text('\n'.join(k + '=' + v for k, v in properties.items()) + '\n')
+                origin = start_application(f"application-pool-{cohort['cohort']:02d}-{size}.log",
+                                           int(origin.rsplit(':', 1)[1]))
+                diagnostic_context.update(appPid=app.pid, metricsUrl=origin + '/actuator/prometheus')
+                subject.c.update(baseUrl=origin, appMetricsUrls=[origin + '/actuator/prometheus'],
+                                 hikariMaximumPoolSize=size, poolCohort=cohort['cohort'])
+                metadata['poolCohorts'].append({k: v for k, v in cohort.items() if k != 'cases'} | {
+                    'caseOrder': [case['name'] for case in cohort['cases']], 'appPid': app.pid,
+                    'readyAtEpochMs': time.time() * 1000,
+                    'priorMemberCouponRows': int(sql('SELECT COUNT(*) FROM member_coupon;')),
+                    'priorSurrogateUnitRows': int(sql('SELECT COUNT(*) FROM coupon_issue_unit;'))})
+                save(output / 'run.json', metadata)
+                print(f"Pool cohort {cohort['cohort']}: round={cohort['round']} pool={size}; application restarted", flush=True)
+            if pool_sizes:
+                compare_pools(subject, args, sessions, workload_plan, restart_for_pool)
+            elif workload_plan:
                 for case in workload_plan['cases']:
                     for round_number in range(1, args.rounds + 1):
                         for variant in order(round_number, args.variants):
@@ -875,6 +925,8 @@ if __name__ == '__main__':
     parser.add_argument('--p95-limit-ms', type=int, default=500)
     parser.add_argument('--p99-limit-ms', type=int, default=1000)
     parser.add_argument('--observe', action='store_true', help='Observe DB, pool, containers and shared host in both scenarios')
+    parser.add_argument('--pool-size', type=int, default=10, help='Local Hikari maximum/minimumIdle (1..64, default 10)')
+    parser.add_argument('--pool-sizes', type=int, nargs='+', help='Compare pools with app restarts; requires one variant and workload plan')
     parser.add_argument('--java-home', help='Current Java 21 with the time-zone data required by Airbob')
     args = parser.parse_args()
     os.umask(0o077)
