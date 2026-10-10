@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "checks": [
+    "JAR/build provenance and frozen harness hashes match",
+    "HTTP/server counts and outcome sums agree",
+    "No oversell or duplicate member issuance",
+    "Committed issuance plus remaining stock equals original quantity",
+    "Hikari maximum/minimumIdle 10 observed",
+    "Measured capacity SQL/request is baseline 4 or SKIP 6",
+    "One connection acquisition per actual request",
+    "All experiments complete and disposable resources cleaned"
+  ],
+  "totals": {
+    "measuredTrials": 46,
+    "warmupTrials": 46,
+    "actualRequests": 577360,
+    "plannedRequests": 594920,
+    "droppedIterations": 17563,
+    "validTrials": 33,
+    "passedTrials": 25,
+    "deadlocks": 0,
+    "outcomes": {
+      "success": 577360,
+      "soldOut": 0,
+      "duplicate": 0,
+      "notIssuable": 0,
+      "unprepared": 0,
+      "contended": 0,
+      "authentication": 0,
+      "unexpected": 0
+    }
+  },
+  "rawRecords": 841,
+  "sourceRecords": 66
+}

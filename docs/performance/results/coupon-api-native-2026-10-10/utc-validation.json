@@ -1,0 +1,277 @@
+{
+  "summary": {
+    "tests": 250,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "suite": "kr.kro.airbob.domain.coupon.CouponIssueLockObservationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponServiceTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.CouponConcurrencyTest",
+      "tests": 52,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.common.benchmark.CouponPerformanceConfigurationTest",
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.migration.CouponPeriodMigrationIntegrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponStockPreparationServiceTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "쿠폰 조회 저장소 테스트",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.CouponRestoreTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandServiceIntegrationTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.migration.CouponIssueUnitMigrationIntegrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "쿠폰 사용 서비스 테스트",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponQueryServiceTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "쿠폰 벤치마크 API 접근 제어와 고정 전략 테스트",
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponDbIssueServiceTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.migration.CouponUtcMigrationIntegrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "발급 쿠폰 목록 MySQL 조회 계약",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.api.CouponControllerTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.payment.service.PaymentOperationFinalizerIntegrationTest",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.common.benchmark.CouponPerformanceIsolationFilterTest",
+      "tests": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "쿠폰 DB 벤치마크 빈 프로필 테스트",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.CouponUsageConcurrencyTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.entity.CouponTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.entity.MemberCouponTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "DB 쿠폰 벤치마크 API 테스트",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.monitoring.MicrometerCouponIssueMetricRecorderTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.api.CouponAdminControllerTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "내 쿠폰 목록 MySQL 조회 계약",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.monitoring.FailSafeCouponIssueMetricRecorderTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.api.CouponBenchmarkFixtureControllerTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponTimeProviderTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponIssueTransactionServiceTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "kr.kro.airbob.domain.coupon.service.CouponIssueFailureClassifierTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "쿠폰 캠페인·보유 쿠폰 프론트 공유 JSON 계약",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "scope": "UTC backend and frontend changes; distinct suites aggregated from initial run and the two repaired-suite reruns",
+  "frontend": {
+    "commit": "a484c5a8c1dce2e56a5a71631aa24bb2dcd4323b",
+    "node": "24.19.0",
+    "typecheck": "passed",
+    "typecheckE2e": "passed",
+    "lintStrict": "passed",
+    "e2eLint": "passed",
+    "format": "passed",
+    "unitTests": 120,
+    "browserTests": 6,
+    "browserTimezones": [
+      "Asia/Seoul",
+      "UTC",
+      "America/Los_Angeles"
+    ]
+  },
+  "harness": {
+    "pythonDistinctTests": 64,
+    "note": "63 unchanged cases passed initially; affected test file rerun passed all 26 cases after fixing the new test fixture",
+    "k6Fixture": "passed",
+    "sessionPreparationNode": "passed"
+  },
+  "sharedContractSha256": {
+    "coupon-campaigns.json": "2fb878dffe8d74003d4fd870adde1921f82143715fc19f67044b60e9ba5ab195",
+    "member-coupons.json": "008f3aa9bfd9929bf7a702fa23c8b3c3dfb6f3dde2836edbfb80c7b50d2332d4"
+  },
+  "logsSha256": {
+    "utc-harness-tests.log": "21f4158fc80f827df142ade3848fab2b2d37efdfbc5e4710bfed836f26cad93c",
+    "utc-harness-recheck.log": "340ba5a7e69c926053b6f336e9f01648d0f5769b4e9479100827d23ab89ed816",
+    "utc-backend-recheck.log": "84c826892dc24e4c195d6a7261aa312deed9fa02f8bda49f210a2aeec519e5c8",
+    "utc-backend-tests.log": "d401115cb5618c7eb53e9a131855a56e0e1745f1d8c98928abfea2168d7af27a",
+    "utc-harness-k6-tests.log": "8e849ecf0089a5d3035900264ddf65c28938921014bee66d151bb3de062a35b0",
+    "utc-session-preparation-node-test.log": "14fd2de866cabf544a2bc573ef72198e9128ad036d6efea6b35c472c609d0b21"
+  },
+  "backendCommit": "bb25caa324f25952690f83c5a68d5e375398ae2e"
+}
