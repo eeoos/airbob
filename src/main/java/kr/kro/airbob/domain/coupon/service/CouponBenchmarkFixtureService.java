@@ -14,7 +14,7 @@ import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.dto.CouponBenchmarkFixture;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponBenchmarkFixtureService {
 	private final CouponRepository couponRepository;
 	private final CouponStockPreparationService preparation;
-	private final CouponIssueUnitRepository units;
+	private final CouponIssueUnitStore units;
 	private final JdbcTemplate jdbcTemplate;
 
 	@Transactional

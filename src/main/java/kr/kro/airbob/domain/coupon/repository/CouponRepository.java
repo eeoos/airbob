@@ -18,6 +18,12 @@ import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjectio
 @Repository
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
+	@Query(value = "select utc_timestamp(6)", nativeQuery = true)
+	LocalDateTime findDatabaseUtcNow();
+
+	@Query(value = "select issue_strategy from coupon where id = :id", nativeQuery = true)
+	Optional<String> findIssueStrategy(@Param("id") Long id);
+
 	@Query("""
 		select new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection(
 			c.id, c.name, c.description, c.discountType, c.discountValue, c.minPaymentPrice,

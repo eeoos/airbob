@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
 
+import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
@@ -41,7 +42,8 @@ public class CouponIssueTransactionService {
 		Coupon coupon = couponRepository.findById(couponId)
 			.orElseThrow(CouponNotFoundException::new);
 
-		if (coupon.isStockPrepared()
+		// Reject a mismatched benchmark route inside this transaction; any counter change rolls back.
+		if (coupon.getIssueStrategy() != CouponIssueStrategy.DB || coupon.isStockPrepared()
 			|| !Boolean.TRUE.equals(coupon.getIsActive()) || !coupon.isIssueOpen(now)) {
 			throw new CouponNotIssuableException();
 		}

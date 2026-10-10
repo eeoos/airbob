@@ -95,6 +95,9 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - Before issue_start_at only, preparation/quantity changes/discard lock the coupon first. After start,
   no quantity changes or restocking. UNIQUE(member_id,coupon_id) and whole-transaction rollback prevent duplicates.
 - The protected coupon-benchmark profile supports immutable db and surrogate/composite RR/RC variants.
+  Each variant has a fixed `/api/v2/coupons/{couponId}/issue/{strategy}` endpoint. Validate the stored
+  strategy inside the issuance transaction without a separate benchmark routing query. Unit reads and
+  deletes use Spring Data JPA native queries; preparation retains bounded JDBC multi-row inserts.
   See docs/performance/coupon-skip-locked-benchmark-plan.md and load-test/k6/coupon/README.md.
 - Stop old Lua writers and reconcile/archive preparation evidence before V29; do not reuse Redis timestamps
   as proof of MySQL stock, auto-reseed an issued campaign, or roll back to a Lua binary after V29.

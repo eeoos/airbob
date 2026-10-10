@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
@@ -133,6 +134,7 @@ class CouponIssueTransactionServiceTest {
 			.isActive(active)
 			.totalQuantity(totalQuantity)
 			.issuedQuantity(issuedQuantity)
+			.issueStrategy(CouponIssueStrategy.DB)
 			.build();
 	}
 }

@@ -39,7 +39,7 @@ class CouponQueryServiceTest {
 	@Mock
 	private CouponTimeProvider timeProvider;
 	@Mock
-	private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository units;
+	private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore units;
 
 	private CouponQueryService service;
 

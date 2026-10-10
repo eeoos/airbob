@@ -70,7 +70,8 @@ Lua 구현 제거와 준비 시각 컬럼 변경은 그때까지 미루지 않�
 - 각 실험 쿠폰은 생성 시 비교군을 고정한다. 다른 구현으로 같은 쿠폰을 발급하거나 중간에 전략을 바꾸는 요청은 거부한다.
 - Lua 비교군은 제거한다. 기존 코드와 결과는 Git 이력·원본 결과로 남긴다.
 
-실험 비교군 확인을 위한 공통 처리는 A의 업무 트랜잭션 밖에서 수행하여 첫 조건부 UPDATE 순서를 유지한다.
+토큰·세션 검증은 업무 트랜잭션 밖에서 수행한다. 고정 API와 저장된 전략의 일치 여부는
+기존 업무 조회 결과로 확인하며 A의 첫 조건부 UPDATE 순서를 유지한다.
 공통 진입 검증이나 계측 비용이 추가되면 모든 비교군에 같은 조건으로 적용하고 SQL 차이를 기록한다.
 
 A에서 최종 선택한 방식으로의 변화는 전체 발급 모델의 개선으로 평가한다.
@@ -96,7 +97,7 @@ B와 C의 차이는 PK뿐 아니라 클러스터링, 보조 인덱스 크기와 
 | `total_quantity` | 실험 중 기존 INT NULL 보존. 새 생성·수량 변경과 모든 fixture는 1 이상의 필수 수량을 사용. 운영 전환 시 기존 NULL 데이터를 정리한 뒤 INT NOT NULL로 변경 |
 | `issued_quantity` | 기존 컬럼과 A의 증가 쿼리를 보존. 모든 SKIP LOCKED 경로는 재고 판단·증가·집계 기준으로 사용하지 않음 |
 | `stock_prepared_at` | 기존 `redis_stock_prepared_at`을 이 이름으로 변경. DATETIME(6) NULL 유지. 새 모델에서는 최초 MySQL unit 준비 완료를 나타냄 |
-| `issue_strategy` | 생성 시 확정하는 불변 전략. 기본 SKIP_SURROGATE_RR, 실험 fixture에서만 다른 전략 선택. 요청 variant와 일치 검증 |
+| `issue_strategy` | 생성 시 확정하는 불변 전략. 기본 SKIP_SURROGATE_RR, 실험 fixture에서만 다른 전략 선택. 고정 API의 전략과 업무 트랜잭션 안에서 일치 검증 |
 | 기간·활성·할인·감사 컬럼 | 기존 구조 유지 |
 
 새 SKIP LOCKED 경로는 양의 총수량과 준비 완료 표시를 발급의 필수 조건으로 요구한다.
@@ -106,7 +107,13 @@ B와 C의 차이는 PK뿐 아니라 클러스터링, 보조 인덱스 크기와 
 Java 필드도 `redisStockPreparedAt`에서 `stockPreparedAt`으로 변경하고 준비 상태 메서드·JPQL·DTO·테스트를 함께 맞춘다.
 A의 기존 `redis_stock_prepared_at IS NULL` 조건은 `stock_prepared_at IS NULL`로 바꾼다.
 A의 쿠폰은 unit 준비를 하지 않아 NULL을 유지하고, SKIP LOCKED 쿠폰은 준비 완료 후 값을 갖는다.
-전략 혼용 차단은 별도의 비교군 검증으로도 보장하며 준비 시각만으로 전략을 추론하지 않는다.
+비교 API는 방식별 경로로 분리하며 선행 전략 조회를 하지 않는다. 이미 읽는 쿠폰으로 전략 혼용을
+업무 트랜잭션 안에서 차단하고, A도 불일치 시 조건부 UPDATE를 포함해 롤백한다.
+준비 시각만으로 전략을 추론하지 않는다. 경로별 계측 계약은 load-test/k6/coupon/README.md를 따른다.
+
+unit의 읽기·삭제 SQL은 대리 키와 복합 키 각각의 Spring Data JPA 저장소에서 native query로 실행한다.
+발급 시에는 엔티티 대신 키 projection을 반환하고, 준비의 JDBC 다중 INSERT는 유지한다.
+쿠폰 검증 뒤 재고 확보, DB 시각 별도 조회, 시도 종료 뒤 새 트랜잭션 재확인의 경계는 바꾸지 않는다.
 
 이름 변경만으로 기존 Redis 준비 이력이 MySQL 준비 이력으로 바뀌지는 않는다.
 실험용 새 쿠폰은 NULL에서 시작해 unit 생성과 준비 시각을 같은 트랜잭션에 기록한다.

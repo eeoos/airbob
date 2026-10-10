@@ -92,9 +92,10 @@ export function buildCouponIssueTarget(variant, couponId, benchmarkToken) {
   const parsedCouponId = parsePositiveInteger(couponId, 'COUPON_ID');
 
   const token = parseRequiredText(benchmarkToken, 'BENCHMARK_READ_MODEL_TOKEN');
+  const route = `/api/v2/coupons/{couponId}/issue/${parsedVariant.replace(/_/g, '-')}`;
   return {
-    path: `/api/v2/coupons/${parsedCouponId}/issue?variant=${parsedVariant}`,
-    metricName: 'POST /api/v2/coupons/{couponId}/issue',
+    path: route.replace('{couponId}', String(parsedCouponId)),
+    metricName: `POST ${route}`,
     headers: { 'X-Benchmark-Token': token },
   };
 }

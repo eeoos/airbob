@@ -18,8 +18,29 @@
 이번 계획과 AWS 설정 예제는 A·B·D·C·E 모두를 비교한다. B·C 사전 비교 자료도 보존한다.
 로컬 실행기의 variant 생략 기본값은 A·B·D이므로 다섯 방식은 아래처럼 명시한다.
 Lua 경로는 제거했다. Redis는 실제 세션 인증에 사용하며 재고를 저장하지 않는다.
-모든 비교군이 같은 `POST /api/v2/coupons/{id}/issue?variant=...`와 토큰·세션 검증을 거친다.
-쿠폰의 불변 `issue_strategy`와 요청 전략이 다르면 거부한다. A의 업무 트랜잭션 첫 SQL은 조건부 UPDATE다.
+비교군별 고정 API를 사용하며 토큰·세션 검증은 동일하다. 아래 경로는 모두 POST다.
+
+| variant | 경로 |
+|---|---|
+| `db` | `/api/v2/coupons/{couponId}/issue/db` |
+| `skip_surrogate_rr` | `/api/v2/coupons/{couponId}/issue/skip-surrogate-rr` |
+| `skip_surrogate_rc` | `/api/v2/coupons/{couponId}/issue/skip-surrogate-rc` |
+| `skip_composite_rr` | `/api/v2/coupons/{couponId}/issue/skip-composite-rr` |
+| `skip_composite_rc` | `/api/v2/coupons/{couponId}/issue/skip-composite-rc` |
+
+기존 `.../issue?variant=...` API는 제거했다. 발급 전 별도 전략 조회는 없으며, 이미 읽는 쿠폰의
+불변 `issue_strategy`를 업무 트랜잭션 안에서 검증한다. A는 조건부 UPDATE를 첫 SQL로 유지하고
+전략 불일치 시 카운터 변경까지 롤백한다. SKIP은 unit 확보 전에 잠금 조회한 쿠폰으로 검증한다.
+SQL 계측과 다른 캠페인 준비 시점 관측도 각 고정 경로를 사용한다.
+
+운영 V1 API는 최종 전략 선정 전까지 저장된 전략으로 라우팅한다. 이번 비교용 API 변경으로
+이 라우팅 비용까지 측정한 것으로 해석하지 않는다. 과거 자료의 선행 조회 포함 SQL·성능 수치는
+그대로 보존하며, 변경한 코드의 성능은 새 바이너리로 별도 측정해야 한다.
+
+unit 잠금 조회·소비·잔여 재고 조회·감량은 키별 Spring Data JPA 저장소의 네이티브 쿼리로 수행한다.
+`CouponIssueUnitStore`는 비교군의 저장소 선택과 기존 준비 작업을 연결한다. 준비 시 500행씩 넣는
+JdbcTemplate 다중 INSERT와 OSIV의 오래된 쿠폰을 비우는 `EntityManager.clear()`는 기존 동작을 유지한다.
+DB 시각의 별도 조회와 실패한 시도를 끝낸 뒤 새 트랜잭션으로 재확인하는 순서도 유지한다.
 
 새 쿠폰은 양의 유한 수량만 지원한다. SKIP LOCKED는 공용 카운터를 갱신하지 않는다.
 빈 unit 조회 뒤 새 스냅샷에서 중복·유효성·잔여 재고를 확인한다. 재고가 남은 경합은 제한 재시도 후

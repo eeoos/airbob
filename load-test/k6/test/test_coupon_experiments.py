@@ -158,6 +158,14 @@ class Contracts(unittest.TestCase):
 
 
 class Monitoring(unittest.TestCase):
+    def test_fixed_issue_routes_reject_unknown_variants(self):
+        for variant, suffix in {'db': 'db', 'skip_surrogate_rr': 'skip-surrogate-rr',
+                'skip_surrogate_rc': 'skip-surrogate-rc', 'skip_composite_rr': 'skip-composite-rr',
+                'skip_composite_rc': 'skip-composite-rc'}.items():
+            self.assertEqual(contract.issue_route(variant), '/api/v2/coupons/{couponId}/issue/' + suffix)
+        with self.assertRaises(ValueError):
+            contract.issue_route('lua')
+
     def test_route_scoped_statement_count_includes_zero_query_requests(self):
         raw = '''# HELP ignored irrelevant
 process_start_time_seconds 1000
@@ -216,10 +224,12 @@ class Orchestration(unittest.TestCase):
             with patch.object(subject, 'create', return_value=fixture), patch.object(subject, 'prepare'), \
                     patch.object(subject, 'k6', return_value=(data[0], {'healthy': True}, 0)), \
                     patch.object(subject, 'state', return_value=data[5]), patch.object(subject, 'close') as close, \
-                    patch.object(runner, 'snapshot', side_effect=[before, after]), patch.object(runner.time, 'sleep'), \
+                    patch.object(runner, 'snapshot', side_effect=[before, after]) as snapshots, patch.object(runner.time, 'sleep'), \
                     patch.object(runner, 'cloudwatch_cpu', return_value={'averagePercent': 25}):
                 subject.case('db', 'capacity', 100, 1, '/sessions')
                 close.assert_called_once_with(fixture)
+                self.assertEqual([call.args[1] for call in snapshots.call_args_list],
+                                 ['/api/v2/coupons/{couponId}/issue/db'] * 2)
             report = json.loads((Path(directory) / 'report.json').read_text())
             self.assertTrue(report['runs'][0]['evaluation']['sloPassed'])
             self.assertEqual(report['aggregates'][0]['queries']['median'], 54000)
@@ -347,9 +357,12 @@ class K6HttpSmoke(unittest.TestCase):
             token.chmod(0o600)
             c.update(benchmarkDatasetManifest=str(manifest), benchmarkTokenFile=str(token))
             self.assertEqual(runner.manifest_contract(c, 5), manifest_hash)
-            for scenario, server_stock, status, manifest_kind in [('capacity', 5, 201, 'legacy'), ('scarcity', 1, 201, 'legacy'),
-                    ('capacity', 1, 201, 'legacy'), ('capacity', 5, 401, 'legacy'), ('capacity', 5, 201, 'v29')]:
-                with self.subTest(scenario=scenario, server_stock=server_stock, status=status, manifest=manifest_kind):
+            cases = [('capacity', 5, 201, 'legacy', 'db'), ('scarcity', 1, 201, 'legacy', 'db'),
+                     ('capacity', 1, 201, 'legacy', 'db'), ('capacity', 5, 401, 'legacy', 'db'),
+                     ('capacity', 5, 201, 'v29', 'db')]
+            cases.extend(('capacity', 5, 201, 'v29', variant) for variant in contract.VARIANTS if variant != 'db')
+            for scenario, server_stock, status, manifest_kind, variant in cases:
+                with self.subTest(scenario=scenario, server_stock=server_stock, status=status, manifest=manifest_kind, variant=variant):
                     if manifest_kind == 'v29':
                         manifest.write_text(json.dumps({'schemaVersion': 1, 'datasetVersion': 'coupon-accounts-v1',
                             'sourceDataset': {'id': 'global-b-test', 'manifestSha256': 'c' * 64, 'flywayVersion': 29},
@@ -378,10 +391,10 @@ class K6HttpSmoke(unittest.TestCase):
                         c['baseUrl'] = f'http://127.0.0.1:{server.server_port}'
                         subject = runner.Runner(c, directory)
                         subject.manifest_hash, subject.sequence = manifest_hash, 1
-                        target = directory / f'{scenario}-{server_stock}-{status}-{manifest_kind}'
+                        target = directory / f'{scenario}-{server_stock}-{status}-{manifest_kind}-{variant}'
                         target.mkdir()
                         fixture = {'couponId': 1, 'stock': 5 if scenario == 'capacity' else 1,
-                                   'variant': 'db', 'label': target.name}
+                                   'variant': variant, 'label': target.name}
                         try:
                             artifact, _, code = subject.k6(fixture, sessions, scenario, 2, 2, 1, 'measure', target)
                         finally:
@@ -391,7 +404,8 @@ class K6HttpSmoke(unittest.TestCase):
                     self.assertGreaterEqual(p['requestCount'], 3)
                     self.assertEqual(sum(p['outcomes'].values()), p['requestCount'])
                     self.assertEqual(len({r[1] for r in requests}), len(requests))
-                    self.assertTrue(all(r[0] == '/api/v2/coupons/1/issue?variant=db' and r[2] == 'test-benchmark-token' for r in requests))
+                    expected_path = contract.issue_route(variant).replace('{couponId}', '1')
+                    self.assertTrue(all(r[0] == expected_path and r[2] == 'test-benchmark-token' for r in requests))
                     self.assertGreater(p['measurementEndEpochMs'], p['measurementStartEpochMs'])
                     self.assertNotIn('fake-session', (target / 'client.json').read_text())
                     self.assertNotIn('test-benchmark-token', (target / 'k6.log').read_text())

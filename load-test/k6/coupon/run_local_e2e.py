@@ -19,7 +19,7 @@ import threading
 import time
 import urllib.request
 
-from coupon_experiment import order, require, inventory_failures, DEFAULT_VARIANTS, VARIANTS
+from coupon_experiment import order, require, inventory_failures, issue_route, DEFAULT_VARIANTS, VARIANTS
 from coupon_monitoring import HTTP, delta, snapshot
 from run_experiments import HERE, ROOT, Runner, save, FIXTURES
 from local_diagnostics import LocalDiagnostics
@@ -99,13 +99,14 @@ class LocalRunner(Runner):
         self.preparation_events = []
         preparation = (self.workload or {}).get('otherPreparation') if phase == 'measure' else None
         if preparation:
-            request_baseline = snapshot(self.c['appMetricsUrls'], '/api/v2/coupons/{couponId}/issue')[0]['requests']
+            route = issue_route(fixture['variant'])
+            request_baseline = snapshot(self.c['appMetricsUrls'], route)[0]['requests']
             self.preparation_stop = threading.Event()
             def prepare_other():
                 try:
                     # Start relative to the first issuance, excluding k6 VM initialization.
                     while not self.preparation_stop.wait(0.25):
-                        count = snapshot(self.c['appMetricsUrls'], '/api/v2/coupons/{couponId}/issue')[0]['requests']
+                        count = snapshot(self.c['appMetricsUrls'], route)[0]['requests']
                         if count > request_baseline:
                             break
                     for index in range(preparation['count']):
@@ -184,7 +185,7 @@ class LocalRunner(Runner):
         fixture = self.create(variant, label, stock, seconds)
         try:
             self.prepare(fixture)
-            route = '/api/v2/coupons/{couponId}/issue'
+            route = issue_route(variant)
             before = snapshot(self.c['appMetricsUrls'], route)
             save(directory / 'sql-before.json', before)
             artifact, generator, code = self.k6(fixture, sessions, scenario, rate, seconds, round_number, phase, directory)

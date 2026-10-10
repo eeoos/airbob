@@ -86,7 +86,7 @@ class MemberCouponReadIntegrationTest {
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
 	@MockitoBean private CouponTimeProvider timeProvider;
-	@MockitoBean private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository stockManager;
+	@MockitoBean private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore stockManager;
 
 	@BeforeEach
 	void fixture() {

@@ -28,7 +28,7 @@ import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.IssueRes
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.RetryReason;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricRecorder.Strategy;
 import kr.kro.airbob.domain.coupon.monitoring.CouponIssueMetricResultResolver;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
@@ -38,7 +38,7 @@ import kr.kro.airbob.domain.member.repository.MemberRepository;
 public class CouponSkipLockedIssueService {
 	private final PlatformTransactionManager transactionManager;
 	private final CouponRepository coupons;
-	private final CouponIssueUnitRepository units;
+	private final CouponIssueUnitStore units;
 	private final MemberCouponRepository memberCoupons;
 	private final MemberRepository members;
 	private final CouponIssueMetricRecorder metrics;
@@ -46,7 +46,7 @@ public class CouponSkipLockedIssueService {
 	private final long retryBudgetNanos;
 
 	public CouponSkipLockedIssueService(PlatformTransactionManager transactionManager, CouponRepository coupons,
-		CouponIssueUnitRepository units, MemberCouponRepository memberCoupons, MemberRepository members,
+		CouponIssueUnitStore units, MemberCouponRepository memberCoupons, MemberRepository members,
 		CouponIssueMetricRecorder metrics, @Value("${coupon.issue.max-attempts:3}") int maxAttempts,
 		@Value("${coupon.issue.retry-budget-ms:250}") long retryBudgetMillis) {
 		Assert.isTrue(maxAttempts >= 1 && maxAttempts <= 10, "coupon.issue.max-attempts must be 1..10");

@@ -89,7 +89,7 @@ class CouponCampaignReadIntegrationTest {
 	@Autowired private EntityManagerFactory entityManagerFactory;
 	@Autowired private SqlCapture sqlCapture;
 	@MockitoSpyBean private CouponTimeProvider timeProvider;
-	@MockitoBean private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository units;
+	@MockitoBean private kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore units;
 
 	@BeforeEach
 	void setUp() {

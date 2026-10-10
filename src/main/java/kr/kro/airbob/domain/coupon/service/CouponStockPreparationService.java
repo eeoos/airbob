@@ -7,7 +7,7 @@ import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.exception.CouponAlreadyPreparedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
 import kr.kro.airbob.domain.coupon.exception.CouponStockPreparationNotAllowedException;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponStockPreparationService {
 	private final CouponRepository couponRepository;
 	private final MemberCouponRepository memberCouponRepository;
-	private final CouponIssueUnitRepository units;
+	private final CouponIssueUnitStore units;
 
 	@Transactional
 	public void prepare(Long couponId) {

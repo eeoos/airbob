@@ -11,7 +11,7 @@ import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.exception.CouponConfigurationLockedException;
 import kr.kro.airbob.domain.coupon.exception.CouponInvalidConfigurationException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotFoundException;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponService {
 	private final CouponRepository couponRepository;
 	private final MemberCouponRepository memberCouponRepository;
-	private final CouponIssueUnitRepository units;
+	private final CouponIssueUnitStore units;
 
 	@Transactional
 	public void createCoupon(CouponRequest.Create dto) {

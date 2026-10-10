@@ -19,7 +19,7 @@ import time
 import urllib.error
 import urllib.request
 
-from coupon_experiment import capacity_summary, evaluate, fingerprint, order, plan, require, validate, inventory_failures
+from coupon_experiment import capacity_summary, evaluate, fingerprint, order, plan, require, validate, inventory_failures, issue_route
 from coupon_monitoring import HTTP, GeneratorMonitor, cloudwatch_cpu, delta, snapshot
 
 HERE = Path(__file__).resolve().parent
@@ -288,7 +288,7 @@ class Runner:
         fixture = self.create(variant, label, stock, seconds)
         try:
             self.prepare(fixture)
-            route = '/api/v2/coupons/{couponId}/issue'
+            route = issue_route(variant)
             before = snapshot(self.c['appMetricsUrls'], route) if phase == 'measure' else None
             if before is not None:
                 save(directory / 'sql-before.json', before)

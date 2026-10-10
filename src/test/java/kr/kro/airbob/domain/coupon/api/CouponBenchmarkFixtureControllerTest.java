@@ -31,7 +31,7 @@ import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.coupon.dto.CouponBenchmarkFixture;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.service.CouponBenchmarkFixtureService;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
 import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
 import kr.kro.airbob.domain.member.common.MemberRole;
@@ -113,7 +113,7 @@ class CouponBenchmarkFixtureControllerTest {
 		var runner = new ApplicationContextRunner()
 			.withUserConfiguration(CouponBenchmarkFixtureController.class, CouponBenchmarkFixtureService.class, BenchmarkAccessGuard.class)
 			.withBean(CouponRepository.class, () -> mock(CouponRepository.class))
-			.withBean(CouponIssueUnitRepository.class, () -> mock(CouponIssueUnitRepository.class))
+			.withBean(CouponIssueUnitStore.class, () -> mock(CouponIssueUnitStore.class))
 			.withBean(CouponStockPreparationService.class, () -> mock(CouponStockPreparationService.class))
 			.withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class));
 		runner.withPropertyValues("benchmark.read-model.enabled=true").run(context -> assertThat(context)

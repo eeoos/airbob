@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.repository.MemberCouponRepository;
-import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitRepository;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -18,7 +18,7 @@ public class CouponQueryService {
 	private final CouponRepository couponRepository;
 	private final MemberCouponRepository memberCouponRepository;
 	private final CouponTimeProvider timeProvider;
-	private final CouponIssueUnitRepository units;
+	private final CouponIssueUnitStore units;
 
 	@Transactional(readOnly = true)
 	public CouponResponse.CouponInfos findCouponCampaigns() {

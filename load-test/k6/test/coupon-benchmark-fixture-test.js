@@ -59,16 +59,24 @@ export default function () {
   const dbTarget = buildCouponIssueTarget('db', 1, ' secret-token ');
 
   check(sessions, {
-    'skip uses the same benchmark endpoint and token': () => (
-      skipTarget.path === '/api/v2/coupons/1/issue?variant=skip_surrogate_rr'
-      && skipTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
+    'skip uses its fixed benchmark endpoint and token': () => (
+      skipTarget.path === '/api/v2/coupons/1/issue/skip-surrogate-rr'
+      && skipTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue/skip-surrogate-rr'
       && skipTarget.headers['X-Benchmark-Token'] === 'secret-token'
     ),
     'db uses the benchmark v2 endpoint and trimmed token': () => (
-      dbTarget.path === '/api/v2/coupons/1/issue?variant=db'
-      && dbTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue'
+      dbTarget.path === '/api/v2/coupons/1/issue/db'
+      && dbTarget.metricName === 'POST /api/v2/coupons/{couponId}/issue/db'
       && dbTarget.headers['X-Benchmark-Token'] === 'secret-token'
     ),
+    'all five APIs have distinct paths and stable metric names': () => Object.entries({
+      db: 'db', skip_surrogate_rr: 'skip-surrogate-rr', skip_surrogate_rc: 'skip-surrogate-rc',
+      skip_composite_rr: 'skip-composite-rr', skip_composite_rc: 'skip-composite-rc',
+    }).every(([variant, suffix]) => {
+      const target = buildCouponIssueTarget(variant, 17, 'secret-token');
+      return target.path === `/api/v2/coupons/17/issue/${suffix}`
+        && target.metricName === `POST /api/v2/coupons/{couponId}/issue/${suffix}`;
+    }),
     'db rejects a missing benchmark token': () => rejects(() => (
       buildCouponIssueTarget('db', 1)
     )),

@@ -14,6 +14,11 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def issue_route(variant):
+    require(variant in VARIANTS, 'Invalid coupon issue variant')
+    return '/api/v2/coupons/{couponId}/issue/' + variant.replace('_', '-')
+
+
 def positive(value, name, maximum):
     require(type(value) is int and 0 < value <= maximum, 'Invalid ' + name)
 

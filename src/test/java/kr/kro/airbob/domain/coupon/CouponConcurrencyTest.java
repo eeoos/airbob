@@ -65,7 +65,7 @@ class CouponConcurrencyTest {
 	@Autowired CouponRepository coupons;
 	@Autowired MemberCouponRepository memberCoupons;
 	@Autowired MemberRepository members;
-	@MockitoSpyBean CouponIssueUnitRepository units;
+	@MockitoSpyBean CouponIssueUnitStore units;
 	@Autowired JdbcTemplate jdbc;
 	@Autowired DataSource dataSource;
 	@Autowired jakarta.persistence.EntityManagerFactory entityManagerFactory;
@@ -111,6 +111,33 @@ class CouponConcurrencyTest {
 		Coupon coupon = campaign(strategy, 4, true);
 		assertThatThrownBy(() -> issue(coupon, Long.MAX_VALUE)).isInstanceOf(DataIntegrityViolationException.class);
 		assertInventory(coupon, 0);
+		issue(coupon, users.getFirst().getId());
+		assertInventory(coupon, 1);
+	}
+
+	@ParameterizedTest @EnumSource(value = CouponIssueStrategy.class, names = "DB", mode = EnumSource.Mode.EXCLUDE)
+	void conditionalUpdateRollsBackWhenUnpreparedCouponBelongsToSkipLocked(CouponIssueStrategy strategy) {
+		Coupon coupon = unprepared(strategy, 4);
+		open(coupon);
+		// The first UPDATE can increment this row; rejection must roll back the whole transaction.
+		assertThatThrownBy(() -> baseline.issue(coupon.getId(), users.getFirst().getId()))
+			.isInstanceOf(CouponNotIssuableException.class);
+		assertThat(coupons.findById(coupon.getId()).orElseThrow().getIssuedQuantity()).isZero();
+		assertThat(memberCoupons.countByCouponId(coupon.getId())).isZero();
+		assertThat(units.count(coupon.getId(), strategy)).isZero();
+	}
+
+	@ParameterizedTest @EnumSource(CouponIssueStrategy.class)
+	void fixedStrategyRejectsOtherCampaignStrategiesWithoutConsumingStock(CouponIssueStrategy stored) {
+		Coupon coupon = campaign(stored, 4, true);
+		for (CouponIssueStrategy requested : CouponIssueStrategy.values()) {
+			if (requested == stored) continue;
+			assertThatThrownBy(() -> {
+				if (requested == CouponIssueStrategy.DB) baseline.issue(coupon.getId(), users.getFirst().getId());
+				else skip.issue(coupon.getId(), users.getFirst().getId(), requested);
+			}).isInstanceOf(CouponNotIssuableException.class);
+			assertInventory(coupon, 0);
+		}
 		issue(coupon, users.getFirst().getId());
 		assertInventory(coupon, 1);
 	}
@@ -234,7 +261,8 @@ class CouponConcurrencyTest {
 		List<String> observed = new ArrayList<>();
 		doAnswer(call -> { observed.add(jdbc.queryForObject("select @@transaction_isolation", String.class)); return call.callRealMethod(); })
 			.when(units).lockAvailable(coupon.getId(), strategy);
-		issue(coupon, users.getFirst().getId());
+		skip.issue(coupon.getId(), users.getFirst().getId(), strategy);
+		verify(units, never()).strategy(anyLong());
 		assertThat(observed).containsExactly(strategy.name().endsWith("_RC") ? "READ-COMMITTED" : "REPEATABLE-READ");
 		assertInventory(coupon, 1);
 	}
