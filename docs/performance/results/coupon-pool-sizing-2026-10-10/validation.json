@@ -1,0 +1,20 @@
+{
+  "pythonContracts": {
+    "distinctTests": 62,
+    "failures": 0,
+    "skipped": 0,
+    "logSha256": "6d9cf49edb49ac111b47f279f1a1f08ecda8b4d8e80056a7609b713443900f75",
+    "command": "python3 -m unittest discover -s load-test/k6/test -p 'test_coupon_*.py'"
+  },
+  "postChangeFocusedPoolTests": {
+    "tests": 6,
+    "failures": 0
+  },
+  "applicationBuild": {
+    "command": "./gradlew bootJar -x test -x asciidoctor -x copyDocument",
+    "status": "passed",
+    "commit": "a93b48ea89ef52460b2d5fe878b77d315e15a165"
+  },
+  "applicationSourceModified": false,
+  "scope": "Pool sizing runner validation. No new full Java suite or production benchmark."
+}

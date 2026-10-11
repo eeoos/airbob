@@ -1,0 +1,87 @@
+{
+  "scope": "Completed local validation; full-suite and targeted runs are distinct invocations",
+  "fullSuiteInitial": {
+    "tests": 1849,
+    "passed": 1846,
+    "failures": 2,
+    "skipped": 1
+  },
+  "originalFailingClasses": [
+    "kr.kro.airbob.migration.CouponPeriodMigrationIntegrationTest",
+    "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest"
+  ],
+  "targetedAfterRepairs": {
+    "tests": 182,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "lockBoundaryRetest": {
+    "tests": 1,
+    "failures": 0,
+    "note": "Same lock-observation test expanded with RR/RC empty-range boundary assertions, then rerun"
+  },
+  "combinedClassResults": {
+    "tests": 1858,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "combinedClassResultsCaveat": "Union of initial full-suite classes and later targeted class results; not one final whole-suite invocation",
+  "pythonHarnessTests": {
+    "tests": 46,
+    "failures": 0
+  },
+  "additionalPassedChecks": [
+    "k6 fixture contract",
+    "Node session preparation contract",
+    "AWS bootstrap contract",
+    "terraform fmt -check infra/aws/lab/ssm.tf",
+    "bash -n changed scripts",
+    "git diff --check"
+  ],
+  "localLogs": [
+    {
+      "path": "/tmp/coupon-final-tests.log",
+      "sha256": "148b20c7fd0587f694f941a11d154b90071e9fc251b9340495ed121260b96f04"
+    },
+    {
+      "path": "/tmp/coupon-lock-boundary-test.log",
+      "sha256": "252628a3949d040447334e113e6f62ec52b2957836fe269a01f20c40aaeb6b21"
+    },
+    {
+      "path": "/tmp/coupon-python-tests.log",
+      "sha256": "d57953115901ee87995ef7a078f71c17cd9bbf67f9847ef28ff58d075458ef1a"
+    },
+    {
+      "path": "/tmp/coupon-k6-contract.log",
+      "sha256": "21f49c0297290c61c14f0f1e60a6c8ebb3986621478d0ce4353eaf52a87313fb"
+    },
+    {
+      "path": "/tmp/coupon-session-tests.log",
+      "sha256": "14fd2de866cabf544a2bc573ef72198e9128ad036d6efea6b35c472c609d0b21"
+    },
+    {
+      "path": "/tmp/coupon-aws-bootstrap-tests.log",
+      "sha256": "88f0f473a7183d9ee78fa63ec75ea51119c9d1eded81ea194c5842013d081e76"
+    },
+    {
+      "path": "/tmp/coupon-final-python-tests.log",
+      "sha256": "02f11814d769433d263846a84f773cb502cba4b675acdaada79372306649eeb9"
+    },
+    {
+      "path": "/tmp/coupon-final-lock-observation.log",
+      "sha256": "f4e2996dd3fc7451cef084913b2a1522575654f2a1b52cf4a724192ad0da0bed"
+    }
+  ],
+  "pythonHarnessFinalRevalidation": {
+    "tests": 46,
+    "failures": 0,
+    "scope": "Five-variant example configuration, balanced order, offline bundle and existing harness contracts"
+  },
+  "lockObservationFinalRevalidation": {
+    "tests": 1,
+    "failures": 0,
+    "scope": "Real MySQL EXPLAIN, data_locks, SHOW ENGINE INNODB STATUS and empty-range boundary checks"
+  }
+}

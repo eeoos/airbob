@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,8 @@ import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.coupon.dto.CouponBenchmarkFixture;
 import kr.kro.airbob.domain.coupon.repository.CouponRepository;
 import kr.kro.airbob.domain.coupon.service.CouponBenchmarkFixtureService;
-import kr.kro.airbob.domain.coupon.service.CouponRedisStockManager;
+import kr.kro.airbob.domain.coupon.repository.CouponIssueUnitStore;
+import kr.kro.airbob.domain.coupon.service.CouponStockPreparationService;
 import kr.kro.airbob.domain.coupon.service.CouponTimeProvider;
 import kr.kro.airbob.domain.member.common.MemberRole;
 import kr.kro.airbob.domain.member.entity.MemberStatus;
@@ -53,7 +54,8 @@ class CouponBenchmarkFixtureControllerTest {
 
 	@BeforeEach
 	void setup() {
-		var mapper = new ObjectMapper().findAndRegisterModules().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+		var mapper = new ObjectMapper().findAndRegisterModules()
+			.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 		mvc = MockMvcBuilders.standaloneSetup(new CouponBenchmarkFixtureController(service, new BenchmarkAccessGuard("secret-token")))
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -91,10 +93,11 @@ class CouponBenchmarkFixtureControllerTest {
 	@Test
 	void returnsCreatedIdUsingApplicationJsonConvention() throws Exception {
 		authenticate(true);
-		given(service.create(any())).willReturn(new CouponBenchmarkFixture.Created(12L, "run-a", "db", 10, LocalDateTime.now()));
+		given(service.create(any())).willReturn(new CouponBenchmarkFixture.Created(12L, "run-a", "db", 10, Instant.parse("2026-10-10T01:00:00Z"), Instant.parse("2026-10-10T01:02:00Z")));
 		mvc.perform(post(PATH).cookie(new Cookie("SESSION_ID", "session"))
 			.header(BenchmarkAccessGuard.HEADER_NAME, "secret-token").contentType(MediaType.APPLICATION_JSON).content(REQUEST))
-			.andExpect(status().isCreated()).andExpect(jsonPath("$.data.coupon_id").value(12));
+			.andExpect(status().isCreated()).andExpect(jsonPath("$.data.coupon_id").value(12))
+			.andExpect(jsonPath("$.data.issue_start_at").value("2026-10-10T01:00:00Z"));
 		verify(service).create(new CouponBenchmarkFixture.Create("run-a", "db-round-1", "db", 10, 120));
 	}
 
@@ -112,8 +115,8 @@ class CouponBenchmarkFixtureControllerTest {
 		var runner = new ApplicationContextRunner()
 			.withUserConfiguration(CouponBenchmarkFixtureController.class, CouponBenchmarkFixtureService.class, BenchmarkAccessGuard.class)
 			.withBean(CouponRepository.class, () -> mock(CouponRepository.class))
-			.withBean(CouponRedisStockManager.class, () -> mock(CouponRedisStockManager.class))
-			.withBean(CouponTimeProvider.class, () -> mock(CouponTimeProvider.class))
+			.withBean(CouponIssueUnitStore.class, () -> mock(CouponIssueUnitStore.class))
+			.withBean(CouponStockPreparationService.class, () -> mock(CouponStockPreparationService.class))
 			.withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class));
 		runner.withPropertyValues("benchmark.read-model.enabled=true").run(context -> assertThat(context)
 			.doesNotHaveBean(CouponBenchmarkFixtureController.class).doesNotHaveBean(CouponBenchmarkFixtureService.class));

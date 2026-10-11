@@ -3,67 +3,19 @@ package kr.kro.airbob.domain.coupon.monitoring;
 import java.util.Locale;
 
 public interface CouponIssueMetricRecorder {
-
 	void recordIssue(Strategy strategy, IssueResult result, long durationNanos);
-
 	void recordDatabase(Strategy strategy, DatabaseResult result, long durationNanos);
-
-	void recordLua(LuaOperation operation, LuaResult result, long durationNanos);
-
-	void recordCompensation(CompensationResult result);
+	void recordRetry(Strategy strategy, RetryReason reason);
 
 	interface TaggedValue {
-		default String tagValue() {
-			return ((Enum<?>)this).name().toLowerCase(Locale.ROOT);
-		}
+		default String tagValue() { return ((Enum<?>)this).name().toLowerCase(Locale.ROOT); }
 	}
-
 	enum Strategy implements TaggedValue {
-		DB,
-		LUA
+		DB, SKIP_SURROGATE_RR, SKIP_SURROGATE_RC, SKIP_COMPOSITE_RR, SKIP_COMPOSITE_RC
 	}
-
 	enum IssueResult implements TaggedValue {
-		SUCCESS,
-		SOLD_OUT,
-		DUPLICATE,
-		NOT_ISSUABLE,
-		UNPREPARED,
-		ERROR
+		SUCCESS, SOLD_OUT, DUPLICATE, NOT_ISSUABLE, UNPREPARED, CONTENDED, ERROR
 	}
-
-	enum DatabaseResult implements TaggedValue {
-		SUCCESS,
-		REJECTED,
-		ERROR
-	}
-
-	enum LuaOperation implements TaggedValue {
-		PREPARE,
-		ISSUE,
-		COMPENSATE
-	}
-
-	enum LuaResult implements TaggedValue {
-		PREPARED,
-		ALREADY_PREPARED,
-		APPROVED,
-		SOLD_OUT,
-		DUPLICATE,
-		NOT_STARTED,
-		ENDED,
-		UNPREPARED,
-		INACTIVE,
-		COMPENSATED,
-		NO_OP,
-		META_MISSING,
-		ERROR
-	}
-
-	enum CompensationResult implements TaggedValue {
-		COMPENSATED,
-		NO_OP,
-		META_MISSING,
-		ERROR
-	}
+	enum DatabaseResult implements TaggedValue { SUCCESS, REJECTED, RETRY, ERROR }
+	enum RetryReason implements TaggedValue { EMPTY_UNIT, DEADLOCK, LOCK_TIMEOUT, POLICY_LOCK_BUSY }
 }

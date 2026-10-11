@@ -17,7 +17,6 @@ import kr.kro.airbob.config.SchedulingConfig;
 import kr.kro.airbob.domain.accommodation.api.AccommodationDetailBenchmarkController;
 import kr.kro.airbob.domain.accommodation.service.AccommodationDetailBenchmarkService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationDetailReader;
-import kr.kro.airbob.domain.coupon.service.CouponLegacyIssuanceRolloutGuard;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryProductionProfileGuard;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryReadiness;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryRetentionScheduler;
@@ -51,8 +50,7 @@ class CacheBenchmarkProfileConfigurationTest {
 			AccommodationInventoryStartupBootstrap.class,
 			AccommodationInventorySeedScheduler.class,
 			AccommodationInventoryRetentionScheduler.class,
-			AccommodationIndexAliasReadiness.class,
-			CouponLegacyIssuanceRolloutGuard.class
+			AccommodationIndexAliasReadiness.class
 		)
 		.withBean(AccommodationDetailReader.class, () -> mock(AccommodationDetailReader.class))
 		.withBean(AccommodationIndexAliasBootstrap.class, () -> mock(AccommodationIndexAliasBootstrap.class));
@@ -99,7 +97,6 @@ class CacheBenchmarkProfileConfigurationTest {
 			assertThat(context).doesNotHaveBean(AccommodationInventoryStartupBootstrap.class);
 			assertThat(context).doesNotHaveBean(AccommodationInventorySeedScheduler.class);
 			assertThat(context).doesNotHaveBean(AccommodationInventoryRetentionScheduler.class);
-			assertThat(context).doesNotHaveBean(CouponLegacyIssuanceRolloutGuard.class);
 			assertThat(context.getBean(AccommodationInventoryReadiness.class).health().getStatus())
 				.isEqualTo(Status.UP);
 			assertThat(context.getBean(AccommodationIndexAliasReadiness.class).shouldAutoStart()).isFalse();

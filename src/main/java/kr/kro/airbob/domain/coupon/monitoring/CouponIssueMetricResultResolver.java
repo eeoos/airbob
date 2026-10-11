@@ -4,6 +4,7 @@ import kr.kro.airbob.domain.coupon.exception.CouponAlreadyIssuedException;
 import kr.kro.airbob.domain.coupon.exception.CouponNotIssuableException;
 import kr.kro.airbob.domain.coupon.exception.CouponSoldOutException;
 import kr.kro.airbob.domain.coupon.exception.CouponStockNotPreparedException;
+import kr.kro.airbob.domain.coupon.exception.CouponIssueContendedException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 public final class CouponIssueMetricResultResolver {
 
 	public static CouponIssueMetricRecorder.IssueResult issueResult(RuntimeException exception) {
+		if (exception instanceof CouponIssueContendedException) return CouponIssueMetricRecorder.IssueResult.CONTENDED;
 		if (exception instanceof CouponSoldOutException) {
 			return CouponIssueMetricRecorder.IssueResult.SOLD_OUT;
 		}

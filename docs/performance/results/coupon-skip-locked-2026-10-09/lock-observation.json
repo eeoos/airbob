@@ -1,0 +1,704 @@
+{
+  "scope" : "controlled SQL transactions; logical record locks, not lock memory or throughput",
+  "observations" : [ {
+    "afterSelect" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "uk_coupon_issue_unit_coupon_unit",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1, 1"
+    } ],
+    "explain" : {
+      "query_block" : {
+        "select_id" : 1,
+        "cost_info" : {
+          "query_cost" : "0.45"
+        },
+        "ordering_operation" : {
+          "using_filesort" : false,
+          "table" : {
+            "table_name" : "coupon_issue_unit",
+            "access_type" : "ref",
+            "possible_keys" : [ "uk_coupon_issue_unit_coupon_unit" ],
+            "key" : "uk_coupon_issue_unit_coupon_unit",
+            "used_key_parts" : [ "coupon_id" ],
+            "key_length" : "8",
+            "ref" : [ "const" ],
+            "rows_examined_per_scan" : 2,
+            "rows_produced_per_join" : 2,
+            "filtered" : "100.00",
+            "using_index" : true,
+            "cost_info" : {
+              "read_cost" : "0.25",
+              "eval_cost" : "0.20",
+              "prefix_cost" : "0.45",
+              "data_read_per_join" : "48"
+            },
+            "used_columns" : [ "id", "coupon_id", "unit_no" ]
+          }
+        }
+      }
+    },
+    "internalAfterDelete" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 3,
+      "rawSummary" : "5 lock struct(s), heap size 1128, 3 row lock(s), undo log entries 1",
+      "lockStructs" : 5
+    },
+    "internalAfterSelect" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 3,
+      "rawSummary" : "5 lock struct(s), heap size 1128, 3 row lock(s)",
+      "lockStructs" : 5
+    },
+    "internalAfterInsert" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 4,
+      "rawSummary" : "8 lock struct(s), heap size 1128, 4 row lock(s), undo log entries 2",
+      "lockStructs" : 8
+    },
+    "variant" : "skip_surrogate_rr",
+    "afterInsert" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "uk_coupon_issue_unit_coupon_unit",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1, 1"
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "member_coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    } ],
+    "afterDelete" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "uk_coupon_issue_unit_coupon_unit",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1, 1"
+    } ]
+  }, {
+    "afterSelect" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "uk_coupon_issue_unit_coupon_unit",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1, 1"
+    } ],
+    "explain" : {
+      "query_block" : {
+        "select_id" : 1,
+        "cost_info" : {
+          "query_cost" : "0.45"
+        },
+        "ordering_operation" : {
+          "using_filesort" : false,
+          "table" : {
+            "table_name" : "coupon_issue_unit",
+            "access_type" : "ref",
+            "possible_keys" : [ "uk_coupon_issue_unit_coupon_unit" ],
+            "key" : "uk_coupon_issue_unit_coupon_unit",
+            "used_key_parts" : [ "coupon_id" ],
+            "key_length" : "8",
+            "ref" : [ "const" ],
+            "rows_examined_per_scan" : 2,
+            "rows_produced_per_join" : 2,
+            "filtered" : "100.00",
+            "using_index" : true,
+            "cost_info" : {
+              "read_cost" : "0.25",
+              "eval_cost" : "0.20",
+              "prefix_cost" : "0.45",
+              "data_read_per_join" : "48"
+            },
+            "used_columns" : [ "id", "coupon_id", "unit_no" ]
+          }
+        }
+      }
+    },
+    "internalAfterDelete" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 3,
+      "rawSummary" : "5 lock struct(s), heap size 1128, 3 row lock(s), undo log entries 1",
+      "lockStructs" : 5
+    },
+    "internalAfterSelect" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 3,
+      "rawSummary" : "5 lock struct(s), heap size 1128, 3 row lock(s)",
+      "lockStructs" : 5
+    },
+    "internalAfterInsert" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 4,
+      "rawSummary" : "8 lock struct(s), heap size 1128, 4 row lock(s), undo log entries 2",
+      "lockStructs" : 8
+    },
+    "variant" : "skip_surrogate_rc",
+    "afterInsert" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "uk_coupon_issue_unit_coupon_unit",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1, 1"
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "member_coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    } ],
+    "afterDelete" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit",
+      "INDEX_NAME" : "uk_coupon_issue_unit_coupon_unit",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1, 1"
+    } ]
+  }, {
+    "afterSelect" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1"
+    } ],
+    "explain" : {
+      "query_block" : {
+        "select_id" : 1,
+        "cost_info" : {
+          "query_cost" : "0.45"
+        },
+        "ordering_operation" : {
+          "using_filesort" : false,
+          "table" : {
+            "table_name" : "coupon_issue_unit_composite",
+            "access_type" : "ref",
+            "possible_keys" : [ "PRIMARY" ],
+            "key" : "PRIMARY",
+            "used_key_parts" : [ "coupon_id" ],
+            "key_length" : "8",
+            "ref" : [ "const" ],
+            "rows_examined_per_scan" : 2,
+            "rows_produced_per_join" : 2,
+            "filtered" : "100.00",
+            "using_index" : true,
+            "cost_info" : {
+              "read_cost" : "0.25",
+              "eval_cost" : "0.20",
+              "prefix_cost" : "0.45",
+              "data_read_per_join" : "32"
+            },
+            "used_columns" : [ "coupon_id", "unit_no" ]
+          }
+        }
+      }
+    },
+    "internalAfterDelete" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 2,
+      "rawSummary" : "4 lock struct(s), heap size 1128, 2 row lock(s), undo log entries 1",
+      "lockStructs" : 4
+    },
+    "internalAfterSelect" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 2,
+      "rawSummary" : "4 lock struct(s), heap size 1128, 2 row lock(s)",
+      "lockStructs" : 4
+    },
+    "internalAfterInsert" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 3,
+      "rawSummary" : "7 lock struct(s), heap size 1128, 3 row lock(s), undo log entries 2",
+      "lockStructs" : 7
+    },
+    "variant" : "skip_composite_rr",
+    "afterInsert" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1"
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "member_coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    } ],
+    "afterDelete" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1"
+    } ]
+  }, {
+    "afterSelect" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1"
+    } ],
+    "explain" : {
+      "query_block" : {
+        "select_id" : 1,
+        "cost_info" : {
+          "query_cost" : "0.45"
+        },
+        "ordering_operation" : {
+          "using_filesort" : false,
+          "table" : {
+            "table_name" : "coupon_issue_unit_composite",
+            "access_type" : "ref",
+            "possible_keys" : [ "PRIMARY" ],
+            "key" : "PRIMARY",
+            "used_key_parts" : [ "coupon_id" ],
+            "key_length" : "8",
+            "ref" : [ "const" ],
+            "rows_examined_per_scan" : 2,
+            "rows_produced_per_join" : 2,
+            "filtered" : "100.00",
+            "using_index" : true,
+            "cost_info" : {
+              "read_cost" : "0.25",
+              "eval_cost" : "0.20",
+              "prefix_cost" : "0.45",
+              "data_read_per_join" : "32"
+            },
+            "used_columns" : [ "coupon_id", "unit_no" ]
+          }
+        }
+      }
+    },
+    "internalAfterDelete" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 2,
+      "rawSummary" : "4 lock struct(s), heap size 1128, 2 row lock(s), undo log entries 1",
+      "lockStructs" : 4
+    },
+    "internalAfterSelect" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 2,
+      "rawSummary" : "4 lock struct(s), heap size 1128, 2 row lock(s)",
+      "lockStructs" : 4
+    },
+    "internalAfterInsert" : {
+      "heapSizeBytes" : 1128,
+      "rowLocks" : 3,
+      "rawSummary" : "7 lock struct(s), heap size 1128, 3 row lock(s), undo log entries 2",
+      "lockStructs" : 7
+    },
+    "variant" : "skip_composite_rc",
+    "afterInsert" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1"
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "member",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "member_coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    } ],
+    "afterDelete" : [ {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IS",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "S,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1"
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : null,
+      "LOCK_TYPE" : "TABLE",
+      "LOCK_MODE" : "IX",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : null
+    }, {
+      "OBJECT_NAME" : "coupon_issue_unit_composite",
+      "INDEX_NAME" : "PRIMARY",
+      "LOCK_TYPE" : "RECORD",
+      "LOCK_MODE" : "X,REC_NOT_GAP",
+      "LOCK_STATUS" : "GRANTED",
+      "LOCK_DATA" : "1, 1"
+    } ]
+  } ],
+  "mysql" : "8.4.11",
+  "emptyRangeBoundary" : [ {
+    "variant" : "skip_surrogate_rr",
+    "emptyCouponId" : 2,
+    "insertCouponId" : 3,
+    "insertBlockedByEmptyRange" : true
+  }, {
+    "variant" : "skip_surrogate_rc",
+    "emptyCouponId" : 2,
+    "insertCouponId" : 3,
+    "insertBlockedByEmptyRange" : false
+  }, {
+    "variant" : "skip_composite_rr",
+    "emptyCouponId" : 2,
+    "insertCouponId" : 3,
+    "insertBlockedByEmptyRange" : true
+  }, {
+    "variant" : "skip_composite_rc",
+    "emptyCouponId" : 2,
+    "insertCouponId" : 3,
+    "insertBlockedByEmptyRange" : false
+  } ]
+}

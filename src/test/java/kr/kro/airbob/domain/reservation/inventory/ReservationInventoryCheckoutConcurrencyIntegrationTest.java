@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -470,7 +469,7 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 	}
 
 	private Coupon issueFixedCoupon(Member member, int discountAmount) {
-		LocalDateTime couponNow = LocalDateTime.ofInstant(NOW, ZoneId.of(TIME_ZONE_ID));
+		LocalDateTime couponNow = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
 		Coupon coupon = couponRepository.save(Coupon.builder()
 			.name(discountAmount + "원 할인")
 			.discountType(DiscountType.FIXED_AMOUNT)

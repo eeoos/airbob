@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "checks": {
+    "httpAccounting": true,
+    "inventory": true,
+    "fixedPool": true,
+    "fixedJarAndSources": true,
+    "restoration": true,
+    "noUnexpectedOutcomes": true
+  },
+  "totals": {
+    "measuredTrials": 200,
+    "warmupTrials": 200,
+    "actualRequests": 2756721,
+    "plannedRequests": 2812500,
+    "droppedIterations": 55766,
+    "validTrials": 168,
+    "passedTrials": 155,
+    "deadlocks": 0,
+    "outcomes": {
+      "success": 2384285,
+      "soldOut": 249975,
+      "duplicate": 122461,
+      "notIssuable": 0,
+      "unprepared": 0,
+      "contended": 0,
+      "authentication": 0,
+      "unexpected": 0
+    }
+  }
+}

@@ -22,7 +22,7 @@ import kr.kro.airbob.domain.coupon.repository.projection.MemberCouponProjection;
 @DisplayName("쿠폰 캠페인·보유 쿠폰 프론트 공유 JSON 계약")
 class CouponResponseJsonTest {
 
-	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 12, 0);
+	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 8, 3, 0); // UTC = Seoul 12:00
 
 	@Autowired private ObjectMapper objectMapper;
 
@@ -78,6 +78,6 @@ class CouponResponseJsonTest {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity());
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity().longValue());
 	}
 }

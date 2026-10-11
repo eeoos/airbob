@@ -39,6 +39,7 @@ class CouponPerformanceConfigurationTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"spring.kafka.listener.auto-startup=true", "spring.kafka.admin.auto-create=true",
+		"spring.jpa.open-in-view=true",
 		"reservation.inventory.startup.enabled=true", "payment.toss.enabled=true",
 		"cloud.aws.s3.write-enabled=true", "spring.datasource.hikari.read-only=true", "spring.flyway.enabled=false"})
 	void rejectsEnvironmentOverridesThatBreakTheExperiment(String property) {
@@ -58,7 +59,7 @@ class CouponPerformanceConfigurationTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"27", "28"})
+	@ValueSource(strings = {"28", "29", "30", "31"})
 	void validatesTheRestoredSchemaWithoutApplyingMigrations(String version) {
 		runner.run(context -> {
 			Flyway flyway = mock(Flyway.class);
@@ -68,7 +69,7 @@ class CouponPerformanceConfigurationTest {
 			when(info.current()).thenReturn(current);
 			when(current.getVersion()).thenReturn(MigrationVersion.fromVersion(version));
 			var strategy = context.getBean(FlywayMigrationStrategy.class);
-			if (version.equals("28")) {
+			if (version.equals("30")) {
 				strategy.migrate(flyway);
 			} else {
 				assertThatThrownBy(() -> strategy.migrate(flyway)).isInstanceOf(IllegalStateException.class);

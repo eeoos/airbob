@@ -8,12 +8,11 @@
       "discount_value": 10000,
       "min_payment_price": 50000,
       "max_discount_amount": null,
-      "usable_from": "2026-09-07T12:00:00",
-      "usable_until": "2026-10-08T12:00:00",
-      "issue_start_at": "2026-09-08T13:00:00",
-      "issue_end_at": "2026-09-09T12:00:00",
+      "usable_from": "2026-09-07T03:00:00Z",
+      "usable_until": "2026-10-08T03:00:00Z",
+      "issue_start_at": "2026-09-08T04:00:00Z",
+      "issue_end_at": "2026-09-09T03:00:00Z",
       "total_quantity": 10,
-      "issued_quantity": 0,
       "issuance_status": "UPCOMING"
     },
     {
@@ -24,12 +23,11 @@
       "discount_value": 10000,
       "min_payment_price": 50000,
       "max_discount_amount": null,
-      "usable_from": "2026-09-07T12:00:00",
-      "usable_until": "2026-10-08T12:00:00",
-      "issue_start_at": "2026-09-07T12:00:00",
-      "issue_end_at": "2026-09-09T12:00:00",
+      "usable_from": "2026-09-07T03:00:00Z",
+      "usable_until": "2026-10-08T03:00:00Z",
+      "issue_start_at": "2026-09-07T03:00:00Z",
+      "issue_end_at": "2026-09-09T03:00:00Z",
       "total_quantity": 10,
-      "issued_quantity": 0,
       "issuance_status": "OPEN"
     },
     {
@@ -40,12 +38,11 @@
       "discount_value": 10000,
       "min_payment_price": 50000,
       "max_discount_amount": null,
-      "usable_from": "2026-09-07T12:00:00",
-      "usable_until": "2026-10-08T12:00:00",
-      "issue_start_at": "2026-09-07T12:00:00",
-      "issue_end_at": "2026-09-09T12:00:00",
+      "usable_from": "2026-09-07T03:00:00Z",
+      "usable_until": "2026-10-08T03:00:00Z",
+      "issue_start_at": "2026-09-07T03:00:00Z",
+      "issue_end_at": "2026-09-09T03:00:00Z",
       "total_quantity": 10,
-      "issued_quantity": 10,
       "issuance_status": "SOLD_OUT"
     }
   ]

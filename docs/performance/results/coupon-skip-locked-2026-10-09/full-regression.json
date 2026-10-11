@@ -1,0 +1,2143 @@
+{
+  "classes": {
+    "\uacf5\ud1b5 integration-event Kafka \uc124\uc815": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.auth.api.CurrentMemberIdControllerContractTest": {
+      "tests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponIssueLockObservationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.api.ReservationControllerTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc774\ubbf8\uc9c0 \uc11c\ube44\uc2a4 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc815\uc0b0 \uc2dc\uac04 \uc815\ucc45 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationTransactionService \ud14c\uc2a4\ud2b8": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c9\uc778 alias Elasticsearch bootstrap": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.AwsKafkaDebeziumBundleConfigurationTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud638\uc2a4\ud2b8 \uc219\uc18c \ubaa9\ub85d projection MySQL \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "V25-V27 accommodation inventory day migrations": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.monitoring.OutboxCleanupMetricsTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c\uc640 \uc608\uc57d \uc2dc\uac04 \ubaa8\ub378 \ub9c8\uc774\uadf8\ub808\uc774\uc158 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacf5\ud1b5 \ucf54\ub4dc \uc11c\ube44\uc2a4 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ubca4\uce58\ub9c8\ud06c \uacf5\ud1b5 \ud1a0\ud070 \uac00\ub4dc \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub300\ub7c9 \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c Flyway \ubcf4\ud638 \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponServiceTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.entity.PaymentOperationResolutionTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "description getter \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub300\ub7c9 \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c disposable DB \uc2dc\uc791 \uac00\ub4dc \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.accommodation.service.PublicAccommodationDetailReadIntegrationTest": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.config.PerformanceLabProfileConfigurationTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Payment \uc5d4\ud2f0\ud2f0 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationRecoveryServiceIntegrationTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacb0\uc81c \uac70\ub798 \uc2dc\uac01 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ubca4\uce58\ub9c8\ud06c \ud504\ub85c\ud544 \uacf5\ud1b5 \uc811\uadfc \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \uc870\ud68c\u00b7\ubb34\ud6a8\ud654 \uacbd\ud569 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Accommodation inventory startup bootstrap": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.api.PaymentOperationAdminControllerTest": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponConcurrencyTest": {
+      "tests": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.infrastructure.jpa.JpaOutboxWriterTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uc751\ub2f5 JSON \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uc0dd\uc131 \uc694\uccad \uac80\uc99d \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucffc\ub9ac \ubaa8\ub2c8\ud130\ub9c1 JPA \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationInventorySeedPolicy": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc774\ubbf8\uc9c0 \uc11c\ube44\uc2a4 \ud2b8\ub79c\uc7ad\uc158 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Wishlist \uc0ad\uc81c Before/After \ubca4\uce58\ub9c8\ud06c \uc624\ucf00\uc2a4\ud2b8\ub808\uc774\ud130 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.auth.api.AuthControllerTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.exception.ErrorCodeContractTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc704\uc2dc\ub9ac\uc2a4\ud2b8 \ubc18\uc815\uaddc\ud654(\uac1c\uc218/\ub300\ud45c \uc378\ub124\uc77c) \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationAmenity \uc0ad\uc81c Before \ubca4\uce58\ub9c8\ud06c MySQL \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.event.IntegrationEventCodecTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.exception.GlobalExceptionHandlerMvcTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.CouponPerformanceConfigurationTest": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc774\ubbf8\uc9c0 \uc800\uc7a5\uc18c \ucffc\ub9ac \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc77c\uc77c \ub9e4\ucd9c \uc0ac\uc804\uc9d1\uacc4(daily_revenue_stats) \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "SQL \ucffc\ub9ac \ud0c0\uc785 \ubd84\ub958 \ud14c\uc2a4\ud2b8": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.CouponPeriodMigrationIntegrationTest": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc138\uc158 Redis \uc800\uc7a5\uc18c \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationAmenity \uc0ad\uc81c \uc0dd\uba85\uc8fc\uae30 \uacc4\uc57d \ud2b9\uc131 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "operator alert atomic outbox append": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkProfileTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationManualResolutionRecorderTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.alert.monitoring.OperatorAlertMetricsTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponStockPreparationServiceTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.api.PaymentOperationControllerTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.infrastructure.KafkaConnectRegistrationScriptTest": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.auth.service.SessionIssuanceServiceTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \ub17c\ub9ac \uc0c1\ud0dc \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Reservation \uc815\ucc45 \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucd5c\uadfc \ubcf8 \uc219\uc18c N+1 \ubca4\uce58\ub9c8\ud06c API \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.PaymentOperationMigrationIntegrationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentCancellationCommandServiceTest": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 \uc870\ud68c \uc800\uc7a5\uc18c \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.geo.impl.GoogleGeocodingServiceTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationScheduler \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.service.ReservationPaymentReadQueryIntegrationTest": {
+      "tests": 44,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc704\uc2dc\ub9ac\uc2a4\ud2b8 before \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Accommodation inventory retention service": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "operator alert outbox publisher": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.config.PerformanceLabRedisEndpointConfigurationTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "MySQL 8.4 bounded inventory batch seed and throughput": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucee4\uc11c \ud398\uc774\uc9c0 \uc815\ubcf4 \uc0dd\uc131 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.event.IntegrationEventDestinationTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationHistory IDENTITY INSERT Before \ubc8c\ud06c \uc4f0\uae30 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.auth.service.AuthServiceTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "fromDescription \uba54\uc11c\ub4dc \ud14c\uc2a4\ud2b8": {
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc77d\uae30 \ubaa8\ub378 \ubca4\uce58\ub9c8\ud06c v2 \uad00\ub9ac\uc790 \uacbd\ub85c \ubcf4\ud638 \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d QueryDSL \uc800\uc7a5\uc18c \ud14c\uc2a4\ud2b8": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacb0\uc81c \uc2b9\uc778 \uc7ac\uace0 \uacbd\uacc4 \ub3d9\uc2dc\uc131": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc774\ub825 \ud14c\uc774\ube14 SCD2 \ub3d9\uc791 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uc6d0\ubcf8 \uc870\ud68c\uae30 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucee4\uc11c argument resolver MVC \ub4f1\ub85d \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uc0dd\uc131 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.service.ReservationCheckInCutoffContractTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud604\uc7ac \ud68c\uc6d0 ID argument resolver \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Accommodation inventory retention scheduler": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uc0dd\uc131 \ud2b8\ub79c\uc7ad\uc158 \ud14c\uc2a4\ud2b8": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc774\ubbf8\uc9c0 \uc800\uc7a5\uc18c \ud2b8\ub79c\uc7ad\uc158 \uc774\ubca4\ud2b8 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationQuoteCleanupScheduler \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc77c\uc77c \ub9e4\ucd9c before \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandServiceTest": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc0c1\ud0dc \uc804\uc774 \ud14c\uc2a4\ud2b8": {
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.scheduler.PaymentOperationRecoverySchedulerTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.accommodation.cache.messaging.kafka.AccommodationDetailCacheInvalidationKafkaListenerTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud638\uc2a4\ud2b8 \uc815\uc0b0 \uc11c\ube44\uc2a4 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \ubcf4\uc720 API \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub9ac\ubdf0 \uc694\uc57d \uc870\ud68c before \uc9c1\uc811 \uc9d1\uacc4\uc640 after \ubc18\uc815\uaddc\ud654 \uacb0\uacfc \uc77c\uce58 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c9\uc778 \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponRestoreTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacb0\uc81c \uc0c1\ud0dc \uc870\ud68c Location CORS \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.geo.impl.TimeZoneRuntimeCompatibilityTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.service.GuestReservationListReadQueryIntegrationTest": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Slack operator alert gateway": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucee4\uc11c \uc694\uccad HTTP \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.monitoring.PaymentOperationHealthRefreshSchedulerTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.AirbobApplicationTests": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "\ub9ac\ubdf0 \uc694\uc57d before \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \ub85c\uceec \ub2e8\uc77c \uc870\ud68c \uc870\uc815\uc790 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \ud604\uc9c0 \ub0a0\uc9dc \uae30\uc900 \uc608\uc57d \uac00\ub2a5 \uae30\uac04 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.LegacyEventSchemaRemovalIntegrationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 \ubb38\uc11c \ube4c\ub354 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud68c\uc6d0 \uad00\ub9ac\uc790 API \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub3c4\uba54\uc778 Kafka \ud504\ub85c\ud30c\uc77c \uacbd\uacc4 \uacc4\uc57d": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uc138\uc158 \uc778\uc99d \uacbd\uacc4 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationQueryServiceTest": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "V23 \uc608\uc57d \uacac\uc801 \ub9c8\uc774\uadf8\ub808\uc774\uc158": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.infrastructure.MessagingDeploymentContractTest": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationHistory JDBC batch writer unit test": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationInventorySeedScheduler": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "payment-operation Kafka \uaca9\ub9ac \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewCommandServiceIntegrationTest": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "SQL \ucffc\ub9ac StatementInspector \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.infrastructure.KafkaConnectMonitorScriptTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationCommandServiceTest": {
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.config.RestClientConfigTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.repository.PaymentOperationManualReviewRepositoryIntegrationTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc704\uc2dc\ub9ac\uc2a4\ud2b8 \uc0c1\uc138 \uc870\ud68c \uacc4\uc57d MySQL \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucd5c\uadfc \ubcf8 \uc219\uc18c \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc6d4 \uc815\uc0b0 \uc2a4\ucf00\uc904\ub7ec \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc138\uc158 \uc778\uc99d \ud544\ud130 \uacf5\uac1c \uacbd\ub85c \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.CouponIssueUnitMigrationIntegrationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.dto.PaymentRequestValidationTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uacac\uc801 \uc5d4\ud2f0\ud2f0 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.member.service.MemberProfileReadQueryIntegrationTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationAmenity \uc0ad\uc81c Before \ubca4\uce58\ub9c8\ud06c \uc624\ucf00\uc2a4\ud2b8\ub808\uc774\ud130 \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.monitoring.PaymentOperationHealthMetricsTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ubc8c\ud06c \uc5f0\uc0b0 \ubaa8\ub2c8\ud130 \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucd5c\uadfc \ubcf8 \uc219\uc18c \uc870\ud68c \uacc4\uc57d MySQL\u00b7Redis \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc704\uc2dc\ub9ac\uc2a4\ud2b8 \ubaa9\ub85d\u00b7\uc800\uc7a5 \uc120\ud0dd MySQL \uc870\ud68c \uacc4\uc57d": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationQuoteCleanupService \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud329\ud1a0\ub9ac \uba54\uc11c\ub4dc \ud14c\uc2a4\ud2b8": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc870\ud68c \uc11c\ube44\uc2a4 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d hold \uc815\ucc45 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud638\uc2a4\ud2b8 \ud3b8\uc9d1 \uc815\ucc45 JSON \uacc4\uc57d": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uad00\ub9ac\uc790 \uc778\uac00 \uc778\ud130\uc149\ud130 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \ub3d9\uc2dc\uc131 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub300\ub7c9 \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c \uc804\uc6a9 \ud1a0\ud070 \uac00\ub4dc \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.dto.ErrorResponseTest": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 \uc0ac\uc6a9 \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 \uc2a4\ub0c5\uc0f7 \ub9ac\ub354": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationHistory JDBC batch writer MySQL integration test": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucd5c\uadfc \ubcf8 \uc219\uc18c \ubca4\uce58\ub9c8\ud06c fixture \uc694\uccad \uac80\uc99d \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Micrometer \ucffc\ub9ac \uce74\uc6b4\ud2b8 \uba54\ud2b8\ub9ad \uae30\ub85d \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.api.PaymentControllerTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponQueryServiceTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub9cc\ub8cc cleanup\uacfc \ub0a0\uc9dc \uc7ac\uace0 checkout\uc758 \uc2e4\uc81c MySQL \uacbd\ud569": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uc870\ud68c \ucffc\ub9ac \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryProductionProfileGuardTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.gateway.PaymentProviderCommandTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DB \ucfe0\ud3f0 \ubca4\uce58\ub9c8\ud06c API \uc811\uadfc \uc81c\uc5b4 \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponDbIssueServiceTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.ReservationCheckoutIdempotencyMigrationIntegrationTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.monitoring.OutboxHealthMetricsTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.infrastructure.OciDeploymentContractTest": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.AwsRedisBundleConfigurationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uba85\ub839 \uc11c\ube44\uc2a4 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 26,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Reservation \uc5d4\ud2f0\ud2f0 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.gateway.PaymentConfirmationFailureClassifierTest": {
+      "tests": 37,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.AwsAppBundleConfigurationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub9ac\ubdf0 \uc694\uc57d \uc6d0\uc790\uc801 \uac31\uc2e0(\ub099\uad00\uc801 \ub77d \u2192 upsert) \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.config.RedisConfigTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uac80\uc0c9 \uc11c\ube44\uc2a4 \uc7a5\uc560 \uc751\ub2f5 \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.infrastructure.jdbc.MysqlOutboxCleanupRepositoryIntegrationTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 refresh Kafka listener": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uacb0\uc81c \uc2dc\ub3c4 \uc815\ucc45 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 refresh \ubc1c\ud589 \uacc4\uc57d": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.member.service.MemberAdminServiceTest": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uacac\uc801\u00b7checkout API \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc2e4\uc81c MySQL inventory rolling seed": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc77d\uae30 \ud2b8\ub798\ud53d \ubca4\uce58\ub9c8\ud06c \ud504\ub85c\ud544 \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "operator alert integration event contract": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.ReadModelRuntimeAssertionServiceTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ubc1c\uae09 \ucfe0\ud3f0 \ubaa9\ub85d MySQL \uc870\ud68c \uacc4\uc57d": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.api.CouponControllerTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "findPaymentByPaymentKey \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "payment-operation Kafka \uc18c\ube44\uc790 \ud14c\uc2a4\ud2b8": {
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucffc\ub9ac \uce74\uc6b4\ud2b8 \ubaa8\ub2c8\ud130\ub9c1 \uad6c\uc131 \uc694\uc18c \ud750\ub984 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.monitoring.PaymentOperationRecoveryMetricsTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc Micrometer \uc9c0\ud45c \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc9c1\uc811 availability \uc810\uc720 \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationFinalizerIntegrationTest": {
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uc751\ub2f5 \uc2dc\uac04\ub300 \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.CouponPerformanceIsolationFilterTest": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationHistory IDENTITY INSERT Before \ubca4\uce58\ub9c8\ud06c \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Accommodation \uc5d4\ud2f0\ud2f0 \ub9e4\ud551 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationHistory INSERT \ubc8c\ud06c \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc2e4\uc81c MySQL \uc608\uc57d hold \ud574\uc81c\uc640 V1 \uacb0\uc81c \uc2dc\ub3c4 \uacbd\uacc4": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc694\uccad\ubcc4 \ucffc\ub9ac \uce74\uc6b4\ud2b8 \ucee8\ud14d\uc2a4\ud2b8 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 refresh Kafka \uaca9\ub9ac \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \ubb34\ud6a8\ud654 \ud2b8\ub79c\uc7ad\uc158 \uc774\ubca4\ud2b8 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c9\uc778 alias readiness": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc808\ub300 \uc2dc\uac01 API \uc751\ub2f5 \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub300\ub7c9 \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c cross-origin \ucc28\ub2e8 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub9ac\ubdf0 \uc11c\ube44\uc2a4 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 DB \ubca4\uce58\ub9c8\ud06c \ube48 \ud504\ub85c\ud544 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.ReservationCancellationCutoffContractTest": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucee4\uc11c \uc778\ucf54\ub529\uacfc \ub514\ucf54\ub529 \ud14c\uc2a4\ud2b8": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc608\uc57d \uac00\ub2a5 \uc815\ubcf4 API \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.image.service.S3ImageUploaderGuardTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "operator alert Kafka listener": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponUsageConcurrencyTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.config.AccommodationDetailRedisConfigTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.ReadModelBenchmarkIsolationFilterTest": {
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Wishlist \uc0ad\uc81c \ubc8c\ud06c \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.alert.infrastructure.slack.OperatorAlertConfigurationTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "TossPaymentsAdapter tests": {
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.entity.CouponTest": {
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucffc\ub9ac \uce74\uc6b4\ud2b8 \uc778\ud130\uc149\ud130 \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.entity.MemberCouponTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.wishlist.api.WishlistMembershipApiTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc2a4\ucf00\uc904\ub7ec \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.ManualPaymentResolutionMigrationIntegrationTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "MySQL 8.4 \uc2dc\uac04 \uacbd\uacc4: \uacac\uc801\u00b7checkout\u00b7\ub0a0\uc9dc \uc7ac\uace0\u00b7\uc0c1\uc138\u00b7\uac80\uc0c9 \uc6d0\ubcf8": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacf5\ud1b5 \ucf54\ub4dc \uad00\ub9ac \uc11c\ube44\uc2a4 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "V28 \uc608\uc57d \uacac\uc801 \uc720\ud6a8\uae30\uac04 \uc81c\uac70 \ub9c8\uc774\uadf8\ub808\uc774\uc158": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc2e4\uc81c MySQL \uc608\uc57d \uacac\uc801\u00b7V1 checkout \ud750\ub984": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "findPaymentByOrderId \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc815\uc0b0 \uc751\ub2f5 JSON \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.application.OutboxCleanupServiceTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "from \uba54\uc11c\ub4dc \ud14c\uc2a4\ud2b8": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Reservation \uacb0\uc81c \uc2dc\ub3c4 \ud1a0\ud070 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFenceIntegrationTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationAmenity \uc0ad\uc81c \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DB \ucfe0\ud3f0 \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "operator alert Kafka isolation": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc815\ucc45 \uc800\uc7a5 \ud6c4 \ud638\uc2a4\ud2b8 \uc870\ud68c MySQL \uacc4\uc57d": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 before \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationAmenity \uc0ad\uc81c \ubca4\uce58\ub9c8\ud06c \uc804\uccb4 \uc811\uadfc \uacbd\uacc4 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc77c\uc77c \ub9e4\ucd9c \uc9d1\uacc4 \uc2a4\ucf00\uc904\ub7ec \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.accommodation.service.HostAccommodationDetailReadIntegrationTest": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.accommodation.cache.PerformanceLabRedisEndpointIsolationIntegrationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.monitoring.MicrometerCouponIssueMetricRecorderTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 \uc751\ub2f5 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.dto.PaymentOperationAdminRequestValidationTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.alert.application.OperatorAlertRequestTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.config.JpaAuditingConfigTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.ReservationConcurrencyTest": {
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc815\uc0b0 \uc0dd\uc131 \ub3d9\uc2dc\uc131 \ud14c\uc2a4\ud2b8(\uc6d4 \ub2e8\uc704 \ubd84\uc0b0 \ub77d)": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationLeaseServiceTest": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.MessagingOrchestrationMigrationIntegrationTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 Cache-Aside \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 30,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.ReadModelRuntimeAssertionControllerTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.service.HostReservationListReadQueryIntegrationTest": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.AwsElasticsearchBundleConfigurationTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.idempotency.ReservationCheckoutIdentityTest": {
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacf5\ud1b5 \ucf54\ub4dc \uad00\ub9ac\uc790 API \ud14c\uc2a4\ud2b8": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.api.CouponAdminControllerTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub9cc\ub8cc \uc608\uc57d cleanup \uc800\uc7a5\uc18c \ud1b5\ud569 \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.GlobalTemporalContractTest": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacf5\ud1b5 \ucf54\ub4dc \uc11c\ube44\uc2a4 \ub2e8\uc704 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacf5\ud1b5 \ucf54\ub4dc \uad00\ub9ac \uc11c\ube44\uc2a4 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c9\uc778 Kafka \uc7ac\uc0c9\uc778 \uc911\uc9c0 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \ubcf4\uc720 \uba85\ub839 \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationHistory INSERT \ubc8c\ud06c \uc4f0\uae30 API \uc804\uccb4 \uc811\uadfc \uacbd\uacc4 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.configuration.OutboxCleanupConfigurationTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.monitoring.OperationalHealthSnapshotRepositoryIntegrationTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \ud3b8\uc758\uc2dc\uc124 \uc0ad\uc81c Before \ubca4\uce58\ub9c8\ud06c \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub300\ub7c9 \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c \ud504\ub85c\ud544 \ubc0f property \uaca9\ub9ac \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uacac\uc801 \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub0b4 \ucfe0\ud3f0 \ubaa9\ub85d MySQL \uc870\ud68c \uacc4\uc57d": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uac00\uaca9 \uacc4\uc0b0 \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ReservationInventoryService": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uac80\uc0c9 \uc694\uccad \uac80\uc99d \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.monitoring.FailSafeCouponIssueMetricRecorderTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.api.CouponBenchmarkFixtureControllerTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationInventoryDayRepository error classification": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d quote cleanup \uc800\uc7a5\uc18c MySQL \ud1b5\ud569 \uacc4\uc57d \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uac00\ub2a5 \uae30\uac04 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc2e4\uc81c MySQL inventory concurrent seed": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "canonical outbox package boundary": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacf5\ud1b5 Kafka retry \ud5e4\ub354 \uacbd\uacc4": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.search.reindex.AccommodationReindexContractTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "MVC-JPA-Prometheus \ucffc\ub9ac \uce74\uc6b4\ud2b8 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc2e4\uc81c MySQL \ub0a0\uc9dc \uc7ac\uace0 checkout \ub3d9\uc2dc\uc131": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Wishlist \uc0ad\uc81c \ubc8c\ud06c \uc4f0\uae30 API \uc804\uccb4 \uc811\uadfc \uacbd\uacc4 \ud14c\uc2a4\ud2b8": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "Wishlist \uc0ad\uc81c Before/After \ubc8c\ud06c \uc4f0\uae30 \ube44\uad50 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \ubb34\ud6a8\ud654 Kafka \uaca9\ub9ac \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \ucffc\ub9ac \uc218 \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponTimeProviderTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.reservation.service.ReservationHistoryInsertBeforeBenchmarkServiceProfileTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.search.reindex.AccommodationReindexScriptTest": {
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationManualReviewQueryServiceTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \ucde8\uc18c \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.monitoring.OutboxHealthRefreshSchedulerTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uacb0\uc81c \uc751\ub2f5 \uc2dc\uac04 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uac1c\ubc1c \ud504\ub85c\ud544 \ubaa8\ub2c8\ud130\ub9c1 \uc124\uc815 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponIssueTransactionServiceTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 \uce90\uc2dc \uac12 JSON \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.member.service.MemberServiceTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.RedisMonitoringConfigurationTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.ReadModelRuntimeAssertionAccessTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationReadQueryIntegrationTest": {
+      "tests": 23,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.PaymentOperationFlowIntegrationTest": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.messaging.outbox.infrastructure.scheduling.OutboxCleanupSchedulerTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationExecutorTest": {
+      "tests": 32,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.entity.PaymentOperationTest": {
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucd5c\uadfc \ubcf8 \uc219\uc18c \ubca4\uce58\ub9c8\ud06c fixture \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.service.PaymentOperationLeaseServiceIntegrationTest": {
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest": {
+      "tests": 4,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.geo.impl.TimeShapeTimeZoneResolverTest": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.payment.infrastructure.lock.MysqlPaymentOperationExecutionFenceTest": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub300\ub7c9 \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c scheduling \uaca9\ub9ac \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "AccommodationInventorySeedService": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ubc8c\ud06c \uc4f0\uae30 \ubca4\uce58\ub9c8\ud06c \uacb0\uacfc \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ExpiredReservationCleanupService \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.AwsMonitoringBundleConfigurationTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc0c1\uc138 before \ubca4\uce58\ub9c8\ud06c \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 \ucea0\ud398\uc778\u00b7\ubcf4\uc720 \ucfe0\ud3f0 \ud504\ub860\ud2b8 \uacf5\uc720 JSON \uacc4\uc57d": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc608\uc57d \uc219\ubc15 \uac00\uaca9 \uc815\ucc45 \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ud68c\uc6d0 \uc5ed\ud560 \uad00\ub9ac \ud1b5\ud569 \ud14c\uc2a4\ud2b8": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\uc219\uc18c \uc608\uc57d\uc6a9 \uacbd\ub7c9 \uc870\ud68c \ud14c\uc2a4\ud2b8": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "scope": "full suite before updating two obsolete Lua/schema expectations",
+  "targetedRevalidation": {
+    "kr.kro.airbob.domain.coupon.CouponIssueLockObservationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponServiceTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponConcurrencyTest": {
+      "tests": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.CouponPerformanceConfigurationTest": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.CouponPeriodMigrationIntegrationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponStockPreparationServiceTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 \uc870\ud68c \uc800\uc7a5\uc18c \ud14c\uc2a4\ud2b8": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponRestoreTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.migration.CouponIssueUnitMigrationIntegrationTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 \uc0ac\uc6a9 \uc11c\ube44\uc2a4 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponQueryServiceTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DB \ucfe0\ud3f0 \ubca4\uce58\ub9c8\ud06c API \uc811\uadfc \uc81c\uc5b4 \ud14c\uc2a4\ud2b8": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponDbIssueServiceTest": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ubc1c\uae09 \ucfe0\ud3f0 \ubaa9\ub85d MySQL \uc870\ud68c \uacc4\uc57d": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.api.CouponControllerTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.benchmark.CouponPerformanceIsolationFilterTest": {
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 DB \ubca4\uce58\ub9c8\ud06c \ube48 \ud504\ub85c\ud544 \ud14c\uc2a4\ud2b8": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.CouponUsageConcurrencyTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.entity.CouponTest": {
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.entity.MemberCouponTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "DB \ucfe0\ud3f0 \ubca4\uce58\ub9c8\ud06c API \ud14c\uc2a4\ud2b8": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.monitoring.MicrometerCouponIssueMetricRecorderTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.api.CouponAdminControllerTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ub0b4 \ucfe0\ud3f0 \ubaa9\ub85d MySQL \uc870\ud68c \uacc4\uc57d": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.monitoring.FailSafeCouponIssueMetricRecorderTest": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.api.CouponBenchmarkFixtureControllerTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponTimeProviderTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponIssueTransactionServiceTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.common.monitoring.GrafanaDashboardConfigurationTest": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "kr.kro.airbob.domain.coupon.service.CouponIssueFailureClassifierTest": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "\ucfe0\ud3f0 \ucea0\ud398\uc778\u00b7\ubcf4\uc720 \ucfe0\ud3f0 \ud504\ub860\ud2b8 \uacf5\uc720 JSON \uacc4\uc57d": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "combinedFinalCounts": {
+    "tests": 1858,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  }
+}

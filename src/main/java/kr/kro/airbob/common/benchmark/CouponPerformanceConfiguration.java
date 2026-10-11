@@ -18,8 +18,8 @@ public class CouponPerformanceConfiguration {
 		return flyway -> {
 			flyway.validate();
 			var current = flyway.info().current();
-			Assert.state(current != null && "28".equals(current.getVersion().getVersion()),
-				"coupon-performance requires an already migrated V28 dataset");
+			Assert.state(current != null && "30".equals(current.getVersion().getVersion()),
+				"coupon-performance requires an already migrated V30 dataset");
 		};
 	}
 
@@ -30,7 +30,7 @@ public class CouponPerformanceConfiguration {
 				"cache-benchmark", "read-model-benchmark", "bulk-write-benchmark", "nplus1-benchmark")),
 				"coupon-performance must run without other experiment profiles");
 			for (String setting : new String[] {
-				"spring.datasource.hikari.read-only", "spring.kafka.listener.auto-startup",
+				"spring.datasource.hikari.read-only", "spring.jpa.open-in-view", "spring.kafka.listener.auto-startup",
 				"spring.kafka.admin.auto-create", "operator-alert.kafka.auto-startup",
 				"accommodation.indexing.kafka.auto-startup", "accommodation.indexing.bootstrap.enabled",
 				"accommodation.detail-cache.invalidation.kafka.auto-startup",

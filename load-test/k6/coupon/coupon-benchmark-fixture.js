@@ -60,7 +60,8 @@ export function parseCouponSessionFixture(raw, expectedManifestSha256) {
 }
 
 export function parseVariant(raw) {
-  requireCondition(raw === 'db' || raw === 'lua', 'VARIANT must be db or lua');
+  requireCondition(['db', 'skip_surrogate_rr', 'skip_surrogate_rc', 'skip_composite_rr', 'skip_composite_rc'].includes(raw),
+    'VARIANT must be a supported MySQL coupon strategy');
   return raw;
 }
 
@@ -90,18 +91,11 @@ export function buildCouponIssueTarget(variant, couponId, benchmarkToken) {
   const parsedVariant = parseVariant(variant);
   const parsedCouponId = parsePositiveInteger(couponId, 'COUPON_ID');
 
-  if (parsedVariant === 'lua') {
-    return {
-      path: `/api/v1/coupons/${parsedCouponId}/issue`,
-      metricName: 'POST /api/v1/coupons/{couponId}/issue',
-      headers: {},
-    };
-  }
-
   const token = parseRequiredText(benchmarkToken, 'BENCHMARK_READ_MODEL_TOKEN');
+  const route = `/api/v2/coupons/{couponId}/issue/${parsedVariant.replace(/_/g, '-')}`;
   return {
-    path: `/api/v2/coupons/${parsedCouponId}/issue`,
-    metricName: 'POST /api/v2/coupons/{couponId}/issue',
+    path: route.replace('{couponId}', String(parsedCouponId)),
+    metricName: `POST ${route}`,
     headers: { 'X-Benchmark-Token': token },
   };
 }
@@ -144,6 +138,7 @@ export function classifyCouponIssueResponse(status, errorCode) {
     '409:CP003': 'duplicate',
     '409:CP005': 'not_issuable',
     '503:CP011': 'unprepared',
+    '503:CP012': 'contended',
   };
   return outcomes[`${status}:${errorCode}`] || 'unexpected';
 }
@@ -175,6 +170,7 @@ export function summarizeCouponBenchmarkMetrics(data) {
       duplicate: metricValue(data, 'coupon_issue_duplicate_total', 'count'),
       notIssuable: metricValue(data, 'coupon_issue_not_issuable_total', 'count'),
       unprepared: metricValue(data, 'coupon_issue_unprepared_total', 'count'),
+      contended: metricValue(data, 'coupon_issue_contended_total', 'count'),
       authentication: metricValue(data, 'coupon_issue_authentication_total', 'count'),
       unexpected: metricValue(data, 'coupon_issue_unexpected_total', 'count'),
     },

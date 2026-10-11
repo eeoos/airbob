@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
 import kr.kro.airbob.domain.coupon.service.CouponDbIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
 
 @DisplayName("DB 쿠폰 벤치마크 API 테스트")
 class CouponBenchmarkControllerTest {
@@ -60,7 +61,7 @@ class CouponBenchmarkControllerTest {
 	void verifiesTokenBeforeDelegation() {
 		CouponDbIssueService service = mock(CouponDbIssueService.class);
 		BenchmarkAccessGuard guard = mock(BenchmarkAccessGuard.class);
-		CouponBenchmarkController controller = new CouponBenchmarkController(service, guard);
+		CouponBenchmarkController controller = new CouponBenchmarkController(service, guard, mock(CouponSkipLockedIssueService.class));
 
 		var response = controller.issueCouponWithConditionalUpdate(1L, "secret-token", 7L);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -72,6 +73,7 @@ class CouponBenchmarkControllerTest {
 	@Configuration(proxyBeanMethods = false)
 	@Import(CouponBenchmarkController.class)
 	static class TestConfiguration {
+		@Bean CouponSkipLockedIssueService skip() { return mock(CouponSkipLockedIssueService.class); }
 
 		@Bean
 		CouponDbIssueService couponDbIssueService() {
