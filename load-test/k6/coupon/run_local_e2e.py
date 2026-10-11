@@ -24,6 +24,8 @@ from coupon_monitoring import HTTP, delta, snapshot
 from run_experiments import HERE, ROOT, Runner, save, FIXTURES
 from local_diagnostics import LocalDiagnostics
 from local_pool_sizing import pool_properties, pool_observation_failures, validate_pool_comparison, compare_pools
+from local_isolation import (POOL_ISOLATION, POOL_SESSIONS_SQL, pool_sessions, verify_pool_sessions,
+                             validate_matched_isolation, compare_matched_isolation)
 
 
 def environment():
@@ -64,6 +66,8 @@ class LocalRunner(Runner):
         self.preparation_stop = None
 
     def scope(self):
+        if self.metadata and self.metadata.get('matchedPoolIsolation'):
+            return 'local-matched-isolation-scenario-comparison'
         if self.metadata and self.metadata.get('poolSizes'):
             return 'local-pool-size-comparison'
         if self.metadata and self.metadata.get('workloadPlan'):
@@ -254,6 +258,8 @@ class LocalRunner(Runner):
             row = {'label': label, 'phase': phase, 'scenario': scenario, 'variant': variant, 'round': round_number,
                    'hikariMaximumPoolSize': self.c.get('hikariMaximumPoolSize', 10),
                    'poolCohort': self.c.get('poolCohort'),
+                   'hikariTransactionIsolation': self.c.get('hikariTransactionIsolation'),
+                   'isolationCohort': self.c.get('isolationCohort'),
                    'rate': rate, 'durationSeconds': seconds, 'stock': stock, 'couponId': fixture['couponId'],
                    'client': p, 'server': sql, 'state': state, 'generator': generator,
                    'diagnostics': self.latest_diagnostics,
@@ -436,6 +442,10 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
                   '각 본 측정 전에 별도 쿠폰으로 워밍업한다. 풀과 RPS 실행 순서는 라운드별로 회전한다.',
                   '앱 JAR·DB·Redis는 동일하며 세션 준비는 측정 밖이다. 이전 쿠폰과 발급 이력은 비활성 상태로 '
                   '남으므로 데이터 누적 영향까지 제거한 실험은 아니다. run.json의 poolCohorts에 순서와 시작 상태를 기록한다.', '']
+    if metadata.get('matchedPoolIsolation'):
+        lines += ['', '각 후보마다 앱을 재시작해 Hikari 기본 격리 수준을 트랜잭션 격리 수준에 맞췄다. '
+                  '실제 앱 연결 전체의 격리 수준 확인 결과는 run.json의 isolationCohorts에 보존한다. '
+                  '품절 재확인과 관리자 준비의 명시적 RR 트랜잭션은 그대로이며, RC 풀에서 이 경로의 전환 비용은 남는다.', '']
     lines += ['| 실험 | 목표 RPS | 시간 s | 라운드 | 풀 | 방식 | 요청 | 성공 RPS | 누락 | SQL 수 | 성공 p95 ms | 성공 p99 ms | 검증 |',
               '|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---|']
     for row in rows:
@@ -493,6 +503,8 @@ def write_report(output, metadata, rows, bounds=None, status='complete'):
                   'DB 파일 I/O는 MySQL 계측이며 물리 디스크 전체의 포화 여부를 직접 뜻하지 않는다.', '']
     lines += ['', 'SQL 수는 발급 경로에서 기록한 Hibernate SQL 문장 수다. '
               '워밍업·로그인·쿠폰 생성·사후 검증 쿼리는 포함하지 않는다.',
+              '드라이버의 격리 수준 조회·변경 명령도 Hibernate SQL 수에서 제외된다. '
+              '이 명령의 측정 구간 증분은 diagnostics.json의 driverIsolation에 별도로 기록한다.',
               '회원 쿠폰·남은 unit 수, 회원별 중복 여부, 요청 누락, 실제 서버 요청 수와 k6 요청 수의 일치를 검증했다.',
               'RDS CPU는 로컬에서 측정하지 않았다. 결과의 p95/p99는 이번 로컬 실행에서 관측한 값이다.', '']
     (output / 'REPORT.ko.md').write_text('\n'.join(lines))
@@ -504,6 +516,9 @@ def run(args):
         from local_workloads import validate_plan
         workload_plan = validate_plan(json.loads(Path(args.workload_plan).read_text()))
     pool_sizes = getattr(args, 'pool_sizes', None)
+    matched_isolation = getattr(args, 'match_pool_isolation', False)
+    if matched_isolation:
+        validate_matched_isolation(workload_plan, pool_sizes)
     pool_size = pool_sizes[0] if pool_sizes else getattr(args, 'pool_size', 10)
     pool_properties(pool_size)
     if pool_sizes is not None:
@@ -516,6 +531,8 @@ def run(args):
     if observed:
         require(args.duration >= 10, 'Local diagnosis requires at least 10 seconds (including warmup session capacity)')
         import pymysql  # Optional dependency; fail before creating infrastructure if unavailable.
+        from pymysql._auth import _have_cryptography
+        require(_have_cryptography, 'Local MySQL observation requires PyMySQL[rsa]==1.1.2')
         require(os.uname().sysname == 'Darwin', 'Local diagnosis currently uses macOS host observations')
     if args.diagnose_rate:
         require(1 <= args.diagnose_rate <= 2000, 'Invalid diagnosis rate')
@@ -699,6 +716,15 @@ def run(args):
                                       'metricsUrl': origin + '/actuator/prometheus', 'appPid': app.pid,
                                       'dockerSocket': docker_endpoint.removeprefix('unix://'),
                                       'containers': {'mysql': mysql_id, 'redis': redis_id}}
+                # Exercise fresh caching_sha2_password authentication before preparing thousands of logins.
+                with pymysql.connect(host='127.0.0.1', port=diagnostic_context['mysqlPort'],
+                                     user='coupon_observer', password=observer_password, autocommit=True,
+                                     connect_timeout=5, read_timeout=5, write_timeout=5) as observer:
+                    with observer.cursor() as cursor:
+                        cursor.execute('SELECT COUNT(*) FROM performance_schema.threads')
+                        require(cursor.fetchone()[0] > 0, 'Local observer cannot read performance_schema')
+                save(output / 'observer-auth-preflight.json', {'status': 'passed',
+                     'scope': 'Fresh MySQL observer authentication and performance_schema read before session setup'})
                 save(output / 'mysql-observation-settings.json', {'variables': sql(
                     "SHOW GLOBAL VARIABLES WHERE Variable_name IN ('performance_schema','innodb_flush_log_at_trx_commit',"
                     "'sync_binlog','log_bin','innodb_buffer_pool_size','max_connections');"), 'fileInstruments': sql(
@@ -786,6 +812,7 @@ def run(args):
                         'hikariMaximumPoolSize': None if pool_sizes else pool_size,
                         'hikariMinimumIdle': None if pool_sizes else pool_size,
                         'poolSizes': pool_sizes, 'poolCohorts': [],
+                        'matchedPoolIsolation': matched_isolation, 'isolationCohorts': [],
                         'workloadPlan': workload_plan,
                         'capacityRefinementSource': refinement_source,
                         'capacityStock': capacity_stock, 'poolSizingExperiment': bool(pool_sizes or pool_size != 10),
@@ -807,22 +834,23 @@ def run(args):
             save(output / 'run.json', metadata)
             subject.metadata = metadata
             sessions = current_sessions
-            def restart_for_pool(cohort):
+            def restart_application(log_name, changed_properties):
                 nonlocal origin
-                size = cohort['poolSize']
                 app.terminate()
                 try:
                     app.wait(timeout=20)
                 except subprocess.TimeoutExpired:
                     app.kill()
                     app.wait()
-                properties.update(pool_properties(size))
+                properties.update(changed_properties)
                 config_path.write_text('\n'.join(k + '=' + v for k, v in properties.items()) + '\n')
-                origin = start_application(f"application-pool-{cohort['cohort']:02d}-{size}.log",
-                                           int(origin.rsplit(':', 1)[1]))
+                origin = start_application(log_name, int(origin.rsplit(':', 1)[1]))
                 diagnostic_context.update(appPid=app.pid, metricsUrl=origin + '/actuator/prometheus')
-                subject.c.update(baseUrl=origin, appMetricsUrls=[origin + '/actuator/prometheus'],
-                                 hikariMaximumPoolSize=size, poolCohort=cohort['cohort'])
+                subject.c.update(baseUrl=origin, appMetricsUrls=[origin + '/actuator/prometheus'])
+            def restart_for_pool(cohort):
+                size = cohort['poolSize']
+                restart_application(f"application-pool-{cohort['cohort']:02d}-{size}.log", pool_properties(size))
+                subject.c.update(hikariMaximumPoolSize=size, poolCohort=cohort['cohort'])
                 metadata['poolCohorts'].append({k: v for k, v in cohort.items() if k != 'cases'} | {
                     'caseOrder': [case['name'] for case in cohort['cases']], 'appPid': app.pid,
                     'readyAtEpochMs': time.time() * 1000,
@@ -830,8 +858,31 @@ def run(args):
                     'priorSurrogateUnitRows': int(sql('SELECT COUNT(*) FROM coupon_issue_unit;'))})
                 save(output / 'run.json', metadata)
                 print(f"Pool cohort {cohort['cohort']}: round={cohort['round']} pool={size}; application restarted", flush=True)
+            def restart_for_isolation(cohort):
+                restart_application(f"application-isolation-{cohort['cohort']:02d}-{cohort['variant']}.log",
+                                    {POOL_ISOLATION: cohort['transactionIsolation']})
+                expected = cohort['transactionIsolation'].removeprefix('TRANSACTION_').replace('_', '-')
+                # Read the app connections themselves, not the observer's session or the server global default.
+                for _ in range(30):
+                    observed_sessions = pool_sessions(sql(POOL_SESSIONS_SQL))
+                    if observed_sessions == {expected: pool_size}:
+                        break
+                    time.sleep(0.5)
+                metadata['isolationCohorts'].append({k: v for k, v in cohort.items() if k != 'cases'} | {
+                    'caseOrder': [case['name'] for case in cohort['cases']], 'appPid': app.pid,
+                    'readyAtEpochMs': time.time() * 1000, 'observedPoolSessions': observed_sessions,
+                    'priorMemberCouponRows': int(sql('SELECT COUNT(*) FROM member_coupon;')),
+                    'priorSurrogateUnitRows': int(sql('SELECT COUNT(*) FROM coupon_issue_unit;'))})
+                save(output / 'run.json', metadata)
+                verify_pool_sessions(observed_sessions, cohort['variant'], pool_size)
+                subject.c.update(hikariTransactionIsolation=cohort['transactionIsolation'],
+                                 isolationCohort=cohort['cohort'])
+                print(f"Isolation cohort {cohort['cohort']}: {cohort['variant']} {expected} pool={pool_size}; "
+                      'application restarted and all pool sessions verified', flush=True)
             if pool_sizes:
                 compare_pools(subject, args, sessions, workload_plan, restart_for_pool)
+            elif matched_isolation:
+                compare_matched_isolation(subject, args, sessions, workload_plan, restart_for_isolation)
             elif workload_plan:
                 for case in workload_plan['cases']:
                     for round_number in range(1, args.rounds + 1):
@@ -930,6 +981,8 @@ if __name__ == '__main__':
     parser.add_argument('--observe', action='store_true', help='Observe DB, pool, containers and shared host in both scenarios')
     parser.add_argument('--pool-size', type=int, default=10, help='Local Hikari maximum/minimumIdle (1..64, default 10)')
     parser.add_argument('--pool-sizes', type=int, nargs='+', help='Compare pools with app restarts; requires one variant and workload plan')
+    parser.add_argument('--match-pool-isolation', action='store_true',
+                        help='Restart per variant with matching Hikari isolation; requires workload plan and fixed pool size')
     parser.add_argument('--java-home', help='Current Java 21 with the time-zone data required by Airbob')
     args = parser.parse_args()
     os.umask(0o077)

@@ -90,7 +90,8 @@ RDS CPU는 HTTP 구간에 완전히 포함되는 1분 버킷만 사용한다.
 
 ## 로컬 검증과 반복 측정
 
-Docker, Java 21, Node, k6가 필요하다. 관측 모드는 macOS와 PyMySQL 1.1.2가 필요하다.
+Docker, Java 21, Node, k6가 필요하다. 관측 모드는 macOS와 `PyMySQL[rsa]==1.1.2`가 필요하다.
+`rsa` 추가 의존성은 일회성 MySQL의 `caching_sha2_password` 계측 계정 인증에 사용한다.
 새 MySQL 8.4.11·Redis 7.2 컨테이너와 실제 앱을 실행하고 V30까지 마이그레이션·회원 생성·로그인·HTTP 발급을 수행한다.
 기존 개발 DB·Redis는 사용하지 않으며 종료 시 자신이 생성한 자원만 정리한다.
 
@@ -169,6 +170,54 @@ scarcity에서는 재고 소진 뒤에도 요청을 계속 보내며 다음 캠�
 같은 `--capacity-stock`, 시간, 반복 수, VU 수, SLO와 JAR 해시를 검사하며 `--capacity-rates`에는 계정 준비를 위한
 최고 요청률을 지정한다. 이전의 경계 관측을 출발점으로 사용하되 새 앱·일회성 DB라는 사실과 원본 해시를 기록한다.
 이미 끝난 단계와 부분 실행을 다시 합산하지 않는다. `--refine-step`은 멈출 구간 폭이며 후보는 양끝의 중간값이다.
+
+### V30 시나리오 재검증 · 2026-10-10
+
+`local-scenarios-recheck-20261010.json`은 기존 7개 시나리오에 재고가 남은 상태에서 다른 캠페인을
+준비하는 경우를 추가한다. 고정한 V30 JAR, 앱 1개, Hikari maximum/minimumIdle 10,
+실제 세션 39,001개로 5개 방식을 각각 5회 비교한다. 예정 본 측정은 200회, HTTP 2,812,500건이다.
+
+수정된 계획은 `--match-pool-isolation`을 사용한다. 조건부 UPDATE·RR 후보는
+`spring.datasource.hikari.transaction-isolation=TRANSACTION_REPEATABLE_READ`, RC 후보는
+`TRANSACTION_READ_COMMITTED`로 앱을 각각 재시작한다. 후보 하나의 모든 시나리오를 실행한 뒤
+다음 후보로 넘어가며, 첫 후보도 로그인 준비 후 재시작한다. 본 측정 전에 실제 앱 연결 10개 모두의
+격리 수준을 `performance_schema.variables_by_thread`에서 확인한다.
+
+`@Transactional(isolation=...)`과 현재 `TransactionTemplate.setIsolationLevel(...)`은 모두
+트랜잭션에 필요한 격리 수준을 지정한다. 풀 기본값과 다르면 시작할 때 변경하고 종료할 때 복구하므로
+어노테이션으로 바꾸는 것만으로 전환 비용이 사라지지는 않는다. 이번 수정은 비교군별 **풀 기본값**을
+맞추는 것이다. 품절/경합 판별의 새 RR 트랜잭션과 RR을 명시한 관리자 준비 경로는 그대로이므로,
+RC 풀에서도 해당 경로의 전환은 남을 수 있다. `diagnostics.json`의 `driverIsolation`에
+Hibernate SQL 집계에 포함되지 않는 격리 수준 조회·변경 명령의 측정 구간 증분을 따로 기록한다.
+[Spring 6.2.14의 연결 준비·복구 구현](https://github.com/spring-projects/spring-framework/blob/v6.2.14/spring-jdbc/src/main/java/org/springframework/jdbc/datasource/DataSourceUtils.java#L207-L244)에서도
+현재 격리 수준이 다를 때 변경하고 이전 값을 복구하는 것을 확인할 수 있다.
+
+수정 전 RR 기본 풀에서 측정한 V30 결과 20회는 중단된 별도 실험이다. 원본과 누적 드라이버 관측을
+`build/k6/coupon-scenario-recheck-20261010-retry1/`에 보존하며 새 비교의 5회 반복에 합산하지 않는다.
+
+이번 반복은 한 DB에서 `--rounds 5`를 실행하지 않는다. 아래와 같이 `--rounds 1`을 다섯 번 실행해
+반복마다 앱·MySQL·Redis를 새로 만들고, `--variants` 순서를 한 칸씩 회전한다.
+첫 순서는 DB → 대리 RR → 대리 RC → 복합 RR → 복합 RC다. 각 후보가 각 실행 위치에 한 번씩 온다.
+각 반복 안에서 완료된 캠페인 이력이 쌓이는 영향과 직전 후보의 영향까지 제거한 설계는 아니다.
+
+```bash
+# 반복 1. 반복 2~5는 variants를 왼쪽으로 한 칸씩 회전하고 같은 JAR를 사용한다.
+python3 load-test/k6/coupon/run_local_e2e.py \
+  --workload-plan load-test/k6/coupon/local-scenarios-recheck-20261010.json \
+  --rounds 1 --client-vus 1000 --cooldown 3 --pool-size 10 --match-pool-isolation \
+  --variants db skip_surrogate_rr skip_surrogate_rc skip_composite_rr skip_composite_rc
+```
+
+계획 파일의 선택 기준은 결과를 보기 전에 고정했다. 정합성, 같은 부하의 반복 SLO 통과 여부,
+실질적인 지연 차이 순서로 판단한다. 지연 우위를 주장하려면 다섯 회차가 모두 유효하고,
+동일 반복의 비교에서 p95가 20% 및 5ms 이상 개선되는 경우가 적어도 네 번 있어야 하며
+p99나 정합성의 악화가 없어야 한다. 마지막 한 장의 성공 지연 하나를 백분위 성능 근거로 쓰지 않는다.
+차이가 분명하지 않으면 기존 대리 키 RR을 유지하고, 이 실험으로 우열을 입증하지 못했다고 기록한다.
+
+모든 무효·성능 실패 원본을 보존한다. 한 반복의 호스트 압력/관측 누락 무효 비율이 20%를 초과하면
+후속 반복을 중단해 환경 문제를 다시 진단한다. 이 중단을 DB 처리량 상한으로 해석하지 않는다.
+개발용 컨테이너의 일시 중지는 사용자 승인을 받은 이번 실행의 환경 조치이며 일반 실행기의 동작이 아니다.
+실행 전 켜져 있던 정확한 컨테이너 ID를 기록하고 정상 종료·실패·중단 시 복구한다.
 
 ### 커넥션 풀 10·20·30 비교
 

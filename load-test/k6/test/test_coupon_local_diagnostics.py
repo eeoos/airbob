@@ -64,6 +64,22 @@ process_cpu_usage NaN
         self.assertEqual(result['fileIo'][0]['meanMs'], 10)
         self.assertEqual(result['statements'][0]['meanMs'], 200)
 
+    def test_driver_commands_use_trial_deltas_and_missing_instrumentation_is_not_zero(self):
+        data = evidence()
+        self.assertIsNone(summary(*data)['driverIsolation']['setCommands'])
+        for boundary in data[:2]:
+            boundary['driverIsolationCaptured'] = True
+            boundary['statements'].append({'DIGEST': 'isolation-set',
+                'DIGEST_TEXT': 'SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED',
+                'COUNT_STAR': 10, 'SUM_TIMER_WAIT': 1000})
+        data[1]['statements'][-1].update(COUNT_STAR=14, SUM_TIMER_WAIT=2000)
+        result = summary(*data)['driverIsolation']
+        self.assertEqual(result, {'captured': True, 'setCommands': 4, 'readCommands': 0})
+        data[1]['statements'][-1].update(COUNT_STAR=10, SUM_TIMER_WAIT=1000)
+        self.assertEqual(summary(*data)['driverIsolation']['setCommands'], 0)
+        data[1]['driverIsolationCaptured'] = False
+        self.assertIsNone(summary(*data)['driverIsolation']['setCommands'])
+
     def test_only_http_window_samples_drive_peaks_and_targets(self):
         data = evidence()
         data[2][0]['app']['hikaricp_connections_pending'] = 1000

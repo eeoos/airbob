@@ -12,6 +12,7 @@ import time
 import urllib.request
 
 from coupon_experiment import require
+from local_isolation import driver_isolation_kind
 
 STATUS = ('Innodb_row_lock_time', 'Innodb_row_lock_waits', 'Innodb_row_lock_current_waits',
           'Innodb_data_reads', 'Innodb_data_writes', 'Innodb_data_fsyncs', 'Innodb_data_read',
@@ -178,6 +179,13 @@ def summary(before, after, samples, errors, performance):
         if n:
             result['statements'].append({'sqlTemplate': row['DIGEST_TEXT'], 'count': n,
                                         'meanMs': difference(first, row, 'SUM_TIMER_WAIT') / 1e9 / n})
+    # Older evidence did not include driver isolation commands; missing must never mean zero.
+    captured = before.get('driverIsolationCaptured') and after.get('driverIsolationCaptured')
+    result['driverIsolation'] = {'captured': bool(captured), 'setCommands': None, 'readCommands': None}
+    if captured:
+        for kind, field in (('set', 'setCommands'), ('read', 'readCommands')):
+            result['driverIsolation'][field] = sum(r['count'] for r in result['statements']
+                                                   if driver_isolation_kind(r['sqlTemplate']) == kind)
     result['gcPauseSeconds'] = difference(before['app'], after['app'], 'jvm_gc_pause_seconds_sum')
     return result
 
@@ -228,7 +236,14 @@ class LocalDiagnostics:
                   FROM performance_schema.events_statements_summary_by_digest WHERE SCHEMA_NAME = 'coupon_local' ''')
             value['statements'] = [r for r in rows if r['DIGEST_TEXT'] and
                                    (re.search(r'`(?:coupon|member_coupon|coupon_issue_unit|coupon_issue_unit_composite)`', r['DIGEST_TEXT'])
-                                    or r['DIGEST_TEXT'] == 'COMMIT')]
+                                    or r['DIGEST_TEXT'] == 'COMMIT' or driver_isolation_kind(r['DIGEST_TEXT']))]
+            consumers = self.query("SELECT NAME, ENABLED FROM performance_schema.setup_consumers "
+                                   "WHERE NAME IN ('global_instrumentation','thread_instrumentation',"
+                                   "'events_statements_current','statements_digest')")
+            instruments = self.query("SELECT NAME, ENABLED FROM performance_schema.setup_instruments "
+                                     "WHERE NAME IN ('statement/sql/select','statement/sql/set_option')")
+            value['driverIsolationCaptured'] = (len(consumers) == 4 and len(instruments) == 2
+                                                and all(r['ENABLED'] == 'YES' for r in consumers + instruments))
         value['collectionMs'] = (time.monotonic() - start) * 1000
         return value
 
@@ -246,6 +261,7 @@ class LocalDiagnostics:
                         'hikaricp_connections_timeout_total', 'jvm_gc_pause_seconds_sum'):
                 require(key in self.before['app'], 'Missing app diagnostic: ' + key)
             require(set(STATUS) <= self.before['mysql'].keys(), 'Missing MySQL diagnostic status')
+            require(self.before['driverIsolationCaptured'], 'MySQL driver isolation statement instrumentation disabled')
             self.stream = (self.directory / 'diagnostic-samples.ndjson').open('w')
             self.thread = threading.Thread(target=self.sample, daemon=True)
             self.thread.start()
