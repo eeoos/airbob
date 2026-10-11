@@ -14,12 +14,14 @@ import socket
 import ssl
 import subprocess
 import tarfile
+import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
 
 from aws_cache_contract import ACCOUNT, REGION, HERE, ROOT, local, need, validate
+from aws_cache_diagnostics import metric_values
 
 
 def command(argv, *, env=None, timeout=60, log=None):
@@ -51,6 +53,7 @@ def env_file(path):
 
 def measurement_metrics(raw):
     names = {'accommodation_detail_cache_request_total', 'accommodation_detail_cache_load_duration_seconds_count',
+             'accommodation_detail_cache_lock_wait_duration_seconds_count',
              'accommodation_detail_cache_redis_operation_total', 'app_query_per_request_queries_count',
              'app_query_per_request_count', 'app_query_per_request_queries_sum', 'app_query_per_request_sum'}
     lines = []
@@ -58,7 +61,8 @@ def measurement_metrics(raw):
         name = re.split(r'[\s{]', line, maxsplit=1)[0]
         if name not in names: continue
         if name.startswith('app_query_') and 'path="/api/v1/accommodations/{accommodationId}"' not in line: continue
-        if name == 'accommodation_detail_cache_redis_operation_total' and ('operation="get"' not in line or 'result="error"' not in line): continue
+        if name == 'accommodation_detail_cache_redis_operation_total' and (
+                'result="error"' not in line or not any('operation="' + op + '"' in line for op in ('get', 'put'))): continue
         lines.append(line)
     return '\n'.join(lines) + '\n'
 
@@ -85,14 +89,15 @@ def instance_identity():
     return identity['instanceId']
 
 
-def benchmark_env(original, secret, variant):
+def benchmark_env(original, secret, variant, *, hikari_maximum_pool_size=None):
     # Preserve JDBC TLS credentials and dependency endpoints, but remove profile/command overrides.
     result = {k: v for k, v in original.items() if k not in {
         'SPRING_PROFILES_INCLUDE', 'SPRING_APPLICATION_JSON', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS'}}
     result.update(SPRING_PROFILES_ACTIVE='aws,cache-benchmark', SPRING_FLYWAY_TARGET='28',
         BENCHMARK_READ_MODEL_TOKEN=secret,
         ACCOMMODATION_DETAIL_CACHE_ENABLED=str(variant != 'cache-off').lower(),
-        CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED=str(variant != 'coalescing-off').lower(),
+        CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED=str(variant not in ('coalescing-off', 'lock-off', 'lock-on')).lower(),
+        CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED=str(variant != 'lock-off').lower(),
         SPRING_DATASOURCE_HIKARI_READ_ONLY='true', SPRING_KAFKA_LISTENER_AUTO_STARTUP='false',
         OPERATOR_ALERT_KAFKA_AUTO_STARTUP='false', ACCOMMODATION_INDEXING_AUTO_STARTUP='false',
         ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP='false',
@@ -103,6 +108,10 @@ def benchmark_env(original, secret, variant):
         SPRING_CLOUD_AWS_CREDENTIALS_SECRET_KEY='dummy', AWS_REGION=REGION,
         SPRING_CLOUD_AWS_REGION_STATIC=REGION,
         ACCOMMODATION_DETAIL_CACHE_TTL='10m', ACCOMMODATION_DETAIL_CACHE_TTL_JITTER='2m')
+    if hikari_maximum_pool_size is not None:
+        need(type(hikari_maximum_pool_size) is int and 10 <= hikari_maximum_pool_size <= 40,
+             'Invalid diagnostic Hikari pool size')
+        result['SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE'] = str(hikari_maximum_pool_size)
     need(result.get('REDIS_HOST') == 'redis-general.lab.airbob.internal' and result.get('REDIS_PORT') == '6379'
          and result.get('ACCOMMODATION_DETAIL_CACHE_REDIS_HOST') == 'redis-cache.lab.airbob.internal'
          and result.get('ACCOMMODATION_DETAIL_CACHE_REDIS_PORT') == '6380', 'Dedicated Redis separation required')
@@ -173,48 +182,106 @@ class Host:
         need(len(ids) == 1, 'Exactly one ' + service + ' container required')
         return json.loads(command(['docker', 'inspect', ids[0]]))[0]
 
-    def app_compose(self, environment):
-        args = ['docker', 'compose', '--env-file', '/etc/airbob/images.env',
+    def app_compose(self, environment, restoring=False):
+        images = Path('/etc/airbob/images.env') if restoring else self.root / 'benchmark-images.env'
+        args = ['docker', 'compose', '--env-file', str(images),
                 '-f', '/opt/airbob/release/infra/aws/bundles/app/compose.yml']
         if Path('/etc/airbob/b-app-compose.yml').is_file():
             args += ['-f', '/etc/airbob/b-app-compose.yml']
+        if not restoring:
+            # The read-only profile accepts GET only; wget --spider sends HEAD.
+            health = self.root / 'benchmark-compose.json'
+            write(health, {'services': {'app': {'healthcheck': {
+                'test': ['CMD', 'wget', '-q', '-O', '/dev/null',
+                         'http://localhost:8080/actuator/health']}}}})
+            args += ['-f', str(health)]
         # Existing project is retained, including RDS trust mounts and CPU/memory limits.
         args += ['--project-name', self.state['composeProject']]
+        # An explicitly handed-off initializing app was never ready before the
+        # experiment. Restore its image/env/running state without claiming readiness.
+        wait_ready = not (restoring and self.state.get('originalReadiness') == 'initializing')
+        start = ['up', '--detach', '--no-deps', '--force-recreate']
+        if wait_ready:
+            start += ['--wait', '--wait-timeout', '300']
         with (self.root / 'app-control.log').open('a') as stream:
-            command(args + ['up', '--detach', '--no-deps', '--force-recreate', '--wait',
-                            '--wait-timeout', '300', 'app'],
-                    env=os.environ | {'APP_ENV_FILE': str(environment)}, timeout=340, log=stream)
+            command(args + start + ['app'],
+                    env=os.environ | {'APP_ENV_FILE': str(environment), 'APP_IMAGE': env_file(images)['APP_IMAGE']},
+                    timeout=340, log=stream)
+
+    def benchmark_image(self):
+        # The already published image is selected by digest; credentials stay on this host.
+        registry = self.c['appImage'].split('/')[0]
+        with tempfile.TemporaryDirectory(prefix='image-auth-', dir=self.root) as directory, \
+                (self.root / 'image-pull.log').open('a') as stream:
+            password = command(['aws', '--region', REGION, 'ecr', 'get-login-password'])
+            environment = os.environ | {'DOCKER_CONFIG': directory}
+            login = subprocess.run(['docker', 'login', '--username', 'AWS', '--password-stdin', registry],
+                                   input=password, text=True, stdout=stream, stderr=stream,
+                                   env=environment, timeout=30)
+            need(login.returncode == 0, 'ECR image read authentication failed')
+            command(['docker', 'pull', self.c['appImage']], env=environment, log=stream, timeout=300)
+        image = json.loads(command(['docker', 'image', 'inspect', self.c['appImage']]))[0]
+        need(image['Config']['Labels'].get('org.opencontainers.image.revision') == self.c['appCommit'],
+             'Benchmark image commit differs')
+        return image['Id']
 
     def variant(self, variant):
-        need(self.instance in self.c['apps'] and variant in {'cache-off', 'cache-on', 'coalescing-off', 'coalescing-on'},
+        need(self.instance in self.c['apps'] and variant in {
+                 'cache-off', 'cache-on', 'coalescing-off', 'coalescing-on', 'lock-off', 'lock-on'},
              'Invalid application operation')
         original_path = Path('/etc/airbob/app.env')
         original = env_file(original_path)
-        need(env_file(Path('/etc/airbob/images.env'))['APP_IMAGE'] == self.c['appImage'], 'Application image changed')
+        image_path = Path('/etc/airbob/images.env')
+        original_images = env_file(image_path)
+        baseline = self.c.get('originalApplication', {'appImage': self.c['appImage'], 'appCommit': self.c['appCommit']})
+        need(original_images['APP_IMAGE'] == baseline['appImage'], 'Original application image changed')
         current = self.container('app')
-        need(current['Config']['Image'] == self.c['appImage'], 'Running image differs from the experiment image')
-        revision = json.loads(command(['docker', 'image', 'inspect', self.c['appImage']]))[0]['Config']['Labels']
-        need(revision.get('org.opencontainers.image.revision') == self.c['appCommit'], 'Application commit differs')
         original_sha = hashlib.sha256(original_path.read_bytes()).hexdigest()
+        images_sha = hashlib.sha256(image_path.read_bytes()).hexdigest()
         if not self.state:
+            need(current['Config']['Image'] == baseline['appImage'], 'Running original image differs')
+            revision = json.loads(command(['docker', 'image', 'inspect', baseline['appImage']]))[0]['Config']['Labels']
+            need(revision.get('org.opencontainers.image.revision') == baseline['appCommit'], 'Original application commit differs')
             need('cache-benchmark' not in original.get('SPRING_PROFILES_ACTIVE', ''), 'Original app must not be an unfinished experiment')
             need(not any(e.startswith('SPRING_PROFILES_ACTIVE=') and 'cache-benchmark' in e
                          for e in current['Config']['Env']), 'Another cache experiment is still running')
+            readiness = 'ready'
+            if self.c.get('allowInitializingOriginal', False):
+                marker = json.loads(Path('/etc/airbob/cache-benchmark-handoff.json').read_text())
+                need(marker.get('kind') == 'cache-benchmark-handoff' and marker.get('runId') == self.c['runId']
+                     and marker.get('containerId') == current['Id'] and marker.get('imageId') == current['Image']
+                     and marker.get('originalEnvSha256') == original_sha
+                     and marker.get('originalImagesSha256') == images_sha, 'Initializing handoff identity differs')
+                health = current['State'].get('Health', {}).get('Status')
+                need(current['State']['Running'] and health in ('healthy', 'starting'), 'Original handoff app is not running')
+                readiness = 'initializing' if health == 'starting' else 'ready'
             self.state = {'kind': 'app', 'originalEnvSha256': original_sha,
+                          'originalImagesSha256': images_sha, 'originalImageId': current['Image'],
+                          'originalReadiness': readiness,
                           'composeProject': current['Config']['Labels']['com.docker.compose.project'],
                           'imageId': current['Image'], 'restored': False}
             self.save()
             self.watchdog(self.c['deadlineSeconds'])
+            self.state['imageId'] = self.benchmark_image()
+            self.save()
+        else:
+            need(current['Config']['Image'] == self.c['appImage'] and current['Image'] == self.state['imageId'],
+                 'Benchmark image changed between variants')
         need(not self.state.get('restored') and self.state['originalEnvSha256'] == original_sha,
              'Original runtime changed; refusing to overwrite it')
-        values = benchmark_env(original, token(self.c), variant)
+        need(self.state['originalImagesSha256'] == images_sha, 'Original image environment changed')
+        values = benchmark_env(original, token(self.c), variant,
+                               hikari_maximum_pool_size=self.c.get('hikariMaximumPoolSize'))
+        images = original_images | {'APP_IMAGE': self.c['appImage']}
+        write(self.root / 'benchmark-images.env', ''.join(k + '=' + v + '\n' for k, v in images.items()))
         path = self.root / 'benchmark.env'
         write(path, ''.join(k + '=' + v + '\n' for k, v in values.items()))
         self.app_compose(path)
         applied = self.container('app')
         need(applied['Image'] == self.state['imageId'], 'Image changed during the comparison')
         active = dict(entry.split('=', 1) for entry in applied['Config']['Env'] if '=' in entry)
-        for key in ('SPRING_PROFILES_ACTIVE', 'ACCOMMODATION_DETAIL_CACHE_ENABLED', 'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED'):
+        for key in ('SPRING_PROFILES_ACTIVE', 'ACCOMMODATION_DETAIL_CACHE_ENABLED',
+                    'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED', 'CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED'):
             need(active.get(key) == values[key], 'Variant configuration was not applied')
         self.state['variant'] = variant
         self.save()
@@ -227,11 +294,17 @@ class Host:
         local.base.preflight('http://127.0.0.1:8080', values['BENCHMARK_READ_MODEL_TOKEN'], self.c['accommodationIds'], None)
         runtime = local.base.get_json('http://127.0.0.1:8080', '/api/v2/benchmark/cache-runtime',
                                       values['BENCHMARK_READ_MODEL_TOKEN'])
-        need(runtime['flyway_version'] == '28' and runtime['cache_enabled'] == (variant != 'cache-off')
-             and runtime['coalescing_enabled'] == (variant != 'coalescing-off')
+        local.validate_runtime_policy(runtime, variant != 'cache-off',
+            variant not in ('coalescing-off', 'lock-off', 'lock-on'), variant != 'lock-off',
+            require_lock_control=variant in ('lock-off', 'lock-on'))
+        need(runtime['flyway_version'] == '28'
              and runtime['ttl_seconds'] == 600 and runtime['ttl_jitter_seconds'] == 120,
              'Runtime schema or cache policy differs from the experiment')
+        pool_size = self.snapshot()['diagnosticMetrics'].get('hikaricp_connections_max')
+        need(pool_size is not None and ('hikariMaximumPoolSize' not in self.c
+             or pool_size == self.c['hikariMaximumPoolSize']), 'Actual Hikari pool size differs')
         return {'imageId': applied['Image'], 'instanceId': self.instance, 'variant': variant,
+                'hikariMaximumPoolSize': pool_size,
                 'runtime': runtime, 'cpuQuota': applied['HostConfig']['NanoCpus'], 'memoryBytes': applied['HostConfig']['Memory']}
 
     def snapshot(self):
@@ -242,7 +315,10 @@ class Host:
             raw = response.read().decode()
         filtered = measurement_metrics(raw)
         need(len(filtered) < 18000, 'Snapshot exceeds the bounded SSM response')
-        return {'prometheus': filtered, 'containerId': app['Id']}
+        result = {'prometheus': filtered, 'containerId': app['Id'],
+                  'sampledAtEpochMs': time.time() * 1000, 'diagnosticMetrics': metric_values(raw)}
+        need(len(json.dumps(result)) < 22000, 'App observation exceeds the bounded SSM response')
+        return result
 
     def redis(self, action):
         need(self.instance == self.c['redisInstanceId'], 'Not the selected Redis host')
@@ -277,13 +353,30 @@ class Host:
             path = Path('/etc/airbob/app.env')
             need(hashlib.sha256(path.read_bytes()).hexdigest() == self.state['originalEnvSha256'],
                  'Original environment changed; manual recovery required')
-            self.app_compose(path)
-            need(self.container('app')['Image'] == self.state['imageId'], 'Recovery image mismatch')
+            need(hashlib.sha256(Path('/etc/airbob/images.env').read_bytes()).hexdigest()
+                 == self.state['originalImagesSha256'], 'Original image environment changed; manual recovery required')
+            self.app_compose(path, restoring=True)
+            original = self.container('app')
+            need(original['Image'] == self.state['originalImageId'], 'Recovery image mismatch')
+            if self.state.get('originalReadiness') == 'initializing':
+                need(original['State']['Running'], 'Original initializing app did not start')
+            if self.c.get('allowInitializingOriginal', False):
+                # The restored container has a new ID. Preserve the verified
+                # handoff across subsequent OFF/ON experiments on this same lab.
+                write(Path('/etc/airbob/cache-benchmark-handoff.json'), {
+                    'kind': 'cache-benchmark-handoff', 'runId': self.c['runId'],
+                    'containerId': original['Id'], 'imageId': original['Image'],
+                    'originalEnvSha256': self.state['originalEnvSha256'],
+                    'originalImagesSha256': self.state['originalImagesSha256'],
+                    'observedAtEpoch': int(time.time())})
             self.state['restored'] = True
             self.save()
             (self.root / 'benchmark.env').unlink(missing_ok=True)
+            (self.root / 'benchmark-images.env').unlink(missing_ok=True)
             self.cancel_watchdog()
-        return {'recovered': True, 'instanceId': self.instance}
+        return {'recovered': True, 'instanceId': self.instance,
+                'originalReadiness': self.state.get('originalReadiness'),
+                'readinessVerified': self.state.get('kind') == 'app' and self.state.get('originalReadiness', 'ready') == 'ready'}
 
     def stop_generator(self, expected=None):
         need(self.instance == self.c['loadGeneratorInstanceId'], 'Wrong generator recovery host')
@@ -333,9 +426,10 @@ class Host:
                                    headers={'X-Benchmark-Token': secret})
                 response = connection.getresponse()
                 need(response.status == 200, 'ALB preflight response failed')
-                body = json.loads(response.read())
+                raw = response.read().decode()
+                body = json.loads(raw)
                 need(body.get('success') is True and body['data']['id'] == identifier, 'Invalid fixture response')
-                return local.base.canonical_detail(body['data'])
+                return {'data': local.base.canonical_detail(body['data']), 'body': raw}
             finally:
                 connection.close()
 
@@ -345,8 +439,11 @@ class Host:
             previous = json.loads(fixture_path.read_text()) if fixture_path.exists() else None
             for identifier in c['accommodationIds']:
                 before, after = get(2, identifier), get(1, identifier)
-                need(before == after, 'Before/after response mismatch')
-                entries.append({'id': identifier, 'data': before})
+                need(before['data'] == after['data'], 'Before/after response mismatch')
+                entry = {'id': identifier, 'data': before['data']}
+                if c.get('responseCheck', 'canonical') == 'body':
+                    entry['responseBody'] = after['body']
+                entries.append(entry)
             fixture = {'schemaVersion': 1, 'datasetId': c['datasetId'], 'accommodations': entries}
             need(previous is None or previous == fixture, 'Dataset changed between variants')
             write(fixture_path, fixture)
@@ -354,6 +451,11 @@ class Host:
 
         label = args['label']
         need(re.fullmatch('[a-z0-9-]{1,110}', label) and args['kind'] in ('rate', 'burst'), 'Invalid generator phase')
+        ramp_seconds = args.get('rampSeconds', 0)
+        need(type(ramp_seconds) is int and 0 <= ramp_seconds <= 60
+             and (not ramp_seconds or (args['kind'] == 'rate' and 'capacity' in c['scenarios']
+                  and ramp_seconds == c['capacity'].get('rampSeconds', 0))), 'Invalid generator ramp')
+        execution_seconds = args['seconds'] + ramp_seconds
         result_path = self.root / (label + '.json')
         need(fixture_path.is_file() and not result_path.exists(), 'Fixture missing or repeated phase label')
         executable = str(self.root / 'tools/k6')
@@ -365,7 +467,9 @@ class Host:
             'EXPERIMENT_KIND': args['kind'], 'CACHE_BENCHMARK_FIXTURE': str(fixture_path),
             'RESULT_PATH': str(result_path), 'BENCHMARK_READ_MODEL_TOKEN': secret,
             'RATE': str(args['rate']), 'SECONDS': str(args['seconds']), 'BURST': str(c['burst']),
-            'VUS': str(c['clientVUs']), 'DISTRIBUTION': args['distribution'], 'K6_NO_USAGE_REPORT': 'true'}
+            'RAMP_SECONDS': str(ramp_seconds),
+            'VUS': str(c['clientVUs']), 'DISTRIBUTION': args['distribution'], 'K6_NO_USAGE_REPORT': 'true',
+            'EXPERIMENT_RESPONSE_CHECK': c.get('responseCheck', 'canonical')}
         samples, stop = [], threading.Event()
 
         def resources():
@@ -392,8 +496,8 @@ class Host:
                 try:
                     active = {'pid': process.pid, 'startTicks': Path('/proc/' + str(process.pid) + '/stat').read_text().split()[21]}
                     write(self.root / 'active-k6.json', active)
-                    self.watchdog(args['seconds'] + 45, {'generator': active})
-                    code = process.wait(timeout=args['seconds'] + 45)
+                    self.watchdog(execution_seconds + 45, {'generator': active})
+                    code = process.wait(timeout=execution_seconds + 45)
                     need(code in (0, 99), 'k6 execution failed')
                 finally:
                     if process.poll() is None:
@@ -416,7 +520,8 @@ class Host:
         result.update(albAddress=address, clientVUs=c['clientVUs'], distribution=args['distribution'],
                       generator={'maxCpuPercent': max(s['cpuPercent'] for s in selected),
                                  'minAvailableMemoryPercent': min(s['availableMemoryPercent'] for s in selected),
-                                 'sampleCount': len(selected), 'window': 'requests' if window else 'whole-process'})
+                                 'sampleCount': len(selected),
+                                 'window': ('measurement' if ramp_seconds else 'requests') if window else 'whole-process'})
         write(self.root / (label + '-generator.json'), samples)
         write(result_path, result)
         return result

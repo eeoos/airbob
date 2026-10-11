@@ -17,9 +17,11 @@ import uuid
 import zlib
 
 from aws_cache_contract import ACCOUNT, REGION, BUCKET, ROOT, HERE, digest, evaluate, capacity_search, validate, need
+from aws_cache_diagnostics import AppSampler, summarize as summarize_apps
 
 SOURCES = [
     'load-test/k6/cache/aws_cache_host.py', 'load-test/k6/cache/aws_cache_contract.py',
+    'load-test/k6/cache/aws_cache_diagnostics.py',
     'load-test/k6/cache/run-local-experiments.py', 'load-test/k6/cache/run-local-comparison.py',
     'load-test/k6/cache/accommodation-detail-experiment.js',
     'load-test/k6/lib/cache-experiment-config.js', 'load-test/k6/lib/accommodation-cache-benchmark.js',
@@ -60,7 +62,8 @@ def prepare(config, output):
                        'restore original application environments and Redis', 'save evidence'],
         'capacity': config['capacity'],
         'requirements': ['existing V28 dataset and published IDs from its sealed manifest',
-            'app image containing cache-benchmark and local-coalescing control already deployed',
+            'digest-pinned published app image containing cache-benchmark and local-coalescing control',
+            'explicit original application identity when temporarily selecting a different benchmark image',
             'one external 64-hex SecureString token shared by app and load-generator roles',
             'separate load generator can download the checksum-pinned k6 release', 'all hosts support Python 3 and systemd',
             'fixed app ASG, healthy ALB targets, enough resource lifetime for the experiment',
@@ -237,17 +240,27 @@ class Runner:
             'metadata': self.c, 'sourcePlan': json.loads((self.prepared / 'plan.json').read_text()),
             'capacity': self.capacities, 'results': self.results, 'recoveryErrors': self.recovery_errors})
         lines = ['# AWS 숙소 상세 캐시 실험', '', '상태: ' + state, '',
-                 '| 실험 | 조건 | 요청 | p95(ms) | DB 로딩 | 병합률 | 오류율 | 누락 |',
-                 '|---|---|---:|---:|---:|---:|---:|---:|']
+                 '처리량 판정: ' + self.c.get('capacityCriterion', 'latency-slo') + '.',
+                 'latency-slo는 p95 기준까지 적용한다. completed-load는 오류·누락 없이 목표 요청을 처리하는지 확인하며 응답 시간 기준 충족을 뜻하지 않는다.', '',
+                 '| 실험 | 조건 | 설정 RPS | 성공 RPS | 요청 | p95(ms) | DB 로딩 | 병합률 | 오류율 | 누락 |',
+                 '|---|---|---:|---:|---:|---:|---:|---:|---:|---:|']
+        if self.c.get('allowInitializingOriginal', False):
+            lines[4:4] = ['원본 앱의 초기화 중 전환을 명시적으로 허용한 실험이다. 원본 이미지·환경·실행 상태 복구와 일반 서비스 readiness는 구분하며, 앱별 recovered-*.json에 확인 범위를 기록한다.', '']
         for r in self.results:
             p95 = r['latencyMs']['p95']
-            lines.append('| ' + r['label'] + ' | ' + r['variant'] + ' | ' + str(r['completed']) + ' | '
+            lines.append('| ' + r['label'] + ' | ' + r['variant'] + ' | ' + str(r.get('configuredRate', '-'))
+                + ' | ' + str(round(r['successRps'], 2)) + ' | ' + str(r['completed']) + ' | '
                 + (str(round(p95, 2)) if isinstance(p95, (int, float)) else 'missing') + ' | ' + str(int(r['server']['loads'])) + ' | '
                 + format(r['server']['coalescingRatio'], '.2%') + ' | ' + format(r['errorRate'], '.2%')
                 + ' | ' + str(r['dropped']) + ' |')
         lines += ['', '처리량은 confirmed-boundary인 경우에만 반복 검증한 경계다. lower-bound-only는 확인한 하한이다.',
                   '버스트는 클라이언트 동시 출발 조건이며 단일 DB 로딩을 보장하지 않는다.', '',
                   '```json', json.dumps(self.capacities, indent=2), '```']
+        if self.c['capacity'].get('rampSeconds', 0) and 'capacity' in self.c['scenarios']:
+            lines += ['', '처리량 단계는 같은 k6 프로세스에서 1 RPS부터 목표 RPS까지 '
+                      + str(self.c['capacity']['rampSeconds']) + '초간 증가시킨 뒤 유지한다.',
+                      '요청·성공 RPS·p95·앱 CPU 표본은 유지 구간 기준이다. DB 로딩·SELECT·누적 앱 타이머는 램프를 포함한 전체 구간이며 전체 요청 수는 JSON의 totalCompleted에 기록한다.',
+                      '램프 중 응답 오류와 전체 구간의 요청 누락도 통과를 막는다. 발생기 자원 판정은 유지 구간을 사용한다.']
         (self.output / 'report.md').write_text('\n'.join(lines) + '\n')
 
     def healthy(self):
@@ -282,32 +295,46 @@ class Runner:
             futures = {i: pool.submit(self.transport.action, i, 'recover', timeout=360, cleanup=True)
                        for i in self.c['apps'] if i in self.installed}
             for instance, future in futures.items():
-                try: future.result()
+                try: write(self.output / ('recovered-' + instance + '.json'), future.result())
                 except Exception: self.recovery_errors.append(instance)
 
     def generator(self, args):
         return self.transport.action(self.c['loadGeneratorInstanceId'], 'generator', args,
-                                     timeout=args.get('seconds', 30) + 90)
+                                     timeout=args.get('seconds', 30) + args.get('rampSeconds', 0) + 90)
 
-    def warm(self, label):
+    def warm(self, label, rate=None, seconds=None):
         self.transport.action(self.c['redisInstanceId'], 'flush')
         self.generator({'action': 'preflight'})
         result = self.generator({'action': 'measure', 'label': label + '-warmup', 'kind': 'rate',
-            'rate': min(40, self.c['rate']), 'seconds': self.c['warmupSeconds'], 'distribution': 'uniform'})
+            'rate': min(40, self.c['rate']) if rate is None else rate,
+            'seconds': self.c['warmupSeconds'] if seconds is None else seconds, 'distribution': 'uniform'})
+        write(self.output / (label + '-warmup.json'), result)
         need(result['errorRate'] == 0 and result['dropped'] == 0, 'Warm-up failed')
 
     def measure(self, label, scenario, variant, rate=None, seconds=None, kind='rate'):
         self.assert_lease()
         before = [self.transport.action(i, 'snapshot') for i in self.c['apps']]
-        result = self.generator({'action': 'measure', 'label': label, 'kind': kind,
-            'rate': rate or self.c['rate'], 'seconds': seconds or self.c['durationSeconds'],
-            'distribution': 'uniform' if scenario == 'capacity' else 'same-key'})
+        sampler = AppSampler(self.transport, self.c['apps'], self.output / (label + '-app-samples.ndjson')) if scenario == 'capacity' else None
+        with sampler if sampler is not None else contextlib.nullcontext():
+            result = self.generator({'action': 'measure', 'label': label, 'kind': kind,
+                'rate': rate or self.c['rate'], 'seconds': seconds or self.c['durationSeconds'],
+                'rampSeconds': self.c['capacity'].get('rampSeconds', 0) if scenario == 'capacity' else 0,
+                'distribution': 'uniform' if scenario == 'capacity' else 'same-key'})
         after = [self.transport.action(i, 'snapshot') for i in self.c['apps']]
         need([r['containerId'] for r in before] == [r['containerId'] for r in after], 'App restarted during measurement')
         for index, pair in enumerate(zip(before, after)):
             for phase, row in zip(('start', 'end'), pair):
                 (self.output / (label + '-app-' + str(index) + '-' + phase + '.prom')).write_text(row['prometheus'])
+                write(self.output / (label + '-app-' + str(index) + '-' + phase + '.json'), row)
         result = evaluate(result, [r['prometheus'] for r in before], [r['prometheus'] for r in after], variant, scenario, self.c)
+        if sampler is not None:
+            result['requestCriteriaPassed'] = result['capacityPassed']
+            result['appDiagnostics'] = summarize_apps(before, after, sampler.samples, sampler.errors, result)
+            write(self.output / (label + '-app-diagnostics.json'), result['appDiagnostics'])
+            if result['appDiagnostics']['status'] != 'complete':
+                result['evidenceReasons'].append('incomplete-app-diagnostics')
+                result['sloPassed'] = False
+                result['capacityPassed'] = False
         result['label'] = label
         self.results.append(result)
         write(self.output / (label + '.json'), result)
@@ -330,6 +357,13 @@ class Runner:
                         self.warm(label)
                         if scenario == 'miss': self.transport.action(c['redisInstanceId'], 'flush')
                         self.measure(label, scenario, variant, kind='burst' if scenario == 'miss' else 'rate')
+            if 'stampede' in c['scenarios']:
+                for variant in (['lock-off', 'lock-on'] if round_number % 2 else ['lock-on', 'lock-off']):
+                    self.variant(variant)
+                    label = variant + '-r' + str(round_number) + '-stampede'
+                    self.warm(label)
+                    self.transport.action(c['redisInstanceId'], 'flush')
+                    self.measure(label, 'stampede', variant, kind='burst')
             if 'outage' in c['scenarios']:
                 for variant in (['coalescing-off', 'coalescing-on'] if round_number % 2 else ['coalescing-on', 'coalescing-off']):
                     self.variant(variant)
@@ -344,16 +378,30 @@ class Runner:
                     self.generator({'action': 'preflight'})
         if 'capacity' in c['scenarios']:
             # Run one search per variant; each candidate boundary has its own repeated confirmation.
-            for variant in ('cache-off', 'cache-on'):
+            for variant in c.get('capacityVariants', ['cache-off', 'cache-on']):
                 self.variant(variant)
+                for index, stage in enumerate(c['capacity'].get('conditioningStages', []), start=1):
+                    self.warm(variant + '-conditioning-' + str(index), stage['rps'], stage['seconds'])
                 count = 0
                 def observe(rate, seconds, phase, repeat):
                     nonlocal count
                     count += 1
                     label = variant + '-capacity-' + str(count) + '-' + phase + '-' + str(rate) + '-r' + str(repeat)
-                    self.warm(label)
+                    self.warm(label, min(rate, c['capacity'].get('warmupRps', min(40, c['rate']))))
                     return self.measure(label, 'capacity', variant, rate=rate, seconds=seconds)
-                self.capacities.append({'variant': variant, **capacity_search(c, observe)})
+                if 'capacityProbeRates' in c:
+                    rates = c['capacityProbeRates']
+                    for repeat in range(1, c['rounds'] + 1):
+                        for rate in rates if repeat % 2 else reversed(rates):
+                            observe(rate, c['capacity']['probeSeconds'], 'fixed-probe', repeat)
+                    # A selected grid is evidence for diagnosis/refinement, not
+                    # an automatically established server capacity boundary.
+                    self.capacities.append({'variant': variant, 'status': 'fixed-rate-observations',
+                        'criterion': c.get('capacityCriterion', 'latency-slo'),
+                        'rates': rates, 'rounds': c['rounds'], 'observations': count,
+                        'highestConfirmedRps': None})
+                else:
+                    self.capacities.append({'variant': variant, **capacity_search(c, observe)})
                 self.save('running')
 
     def execute(self):
@@ -402,7 +450,7 @@ class Runner:
         need(not self.recovery_errors, 'Recovery incomplete; use recover with this result directory')
         # Only public config/measurement evidence is exported; host runtime env and tokens never leave hosts.
         for path in self.output.iterdir():
-            if path.suffix not in ('.json', '.md', '.prom'): continue
+            if path.suffix not in ('.json', '.md', '.prom', '.ndjson'): continue
             self.aws.call('s3api', 'put-object', '--bucket', BUCKET,
                 '--key', 'measurements/' + self.c['runId'] + '/' + self.c['experimentId'] + '/' + path.name,
                 '--body', str(path), '--tagging', 'Retention=raw', '--server-side-encryption', 'AES256', '--if-none-match', '*')

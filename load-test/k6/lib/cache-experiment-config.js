@@ -3,6 +3,9 @@ export function experimentTarget(env) {
   const require = (ok, message) => { if (!ok) throw new Error(message); };
   const scope = env.EXPERIMENT_ENVIRONMENT || 'local';
   require(['local', 'aws'].includes(scope), 'Unknown experiment environment');
+  const localCapacity = env.LOCAL_CAPACITY_DIAGNOSTICS === 'true';
+  require(!env.LOCAL_CAPACITY_DIAGNOSTICS || localCapacity, 'Invalid local capacity mode');
+  require(!localCapacity || scope === 'local', 'Local capacity mode cannot change AWS limits');
   const origins = JSON.parse(env.EXPERIMENT_ORIGINS || '[]');
   require(Array.isArray(origins) && origins.length > 0 && origins.length <= 4, 'Origins required');
   let hosts = {};
@@ -21,7 +24,9 @@ export function experimentTarget(env) {
       && !/^(0|127|169\.254)\./.test(ip), 'Verified ALB IPv4 override required');
   }
   return { scope, origins, hosts,
-    limits: scope === 'local'
+    limits: localCapacity
+      ? { rate: 20000, seconds: 600, burst: 300, vus: 4000 }
+      : scope === 'local'
       ? { rate: 2000, seconds: 120, burst: 300, vus: 1000 }
       : { rate: 20000, seconds: 1800, burst: 1000, vus: 20000 } };
 }

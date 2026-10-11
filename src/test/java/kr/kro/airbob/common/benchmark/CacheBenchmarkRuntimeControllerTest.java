@@ -34,7 +34,7 @@ class CacheBenchmarkRuntimeControllerTest {
 	private final AccommodationDetailCacheProperties properties = new AccommodationDetailCacheProperties(
 		true, Duration.ofMinutes(10), Duration.ofMinutes(2), Duration.ofSeconds(45), Duration.ofSeconds(15),
 		Duration.ofSeconds(2), Duration.ofSeconds(5), Duration.ofSeconds(30), Duration.ofSeconds(1),
-		Duration.ofSeconds(1), false);
+		Duration.ofSeconds(1), false, false);
 	private final CacheBenchmarkRuntimeController controller =
 		new CacheBenchmarkRuntimeController(guard, properties, flyway);
 
@@ -54,6 +54,7 @@ class CacheBenchmarkRuntimeControllerTest {
 			.andExpect(jsonPath("$.flyway_version").value("28"))
 			.andExpect(jsonPath("$.cache_enabled").value(true))
 			.andExpect(jsonPath("$.coalescing_enabled").value(false))
+			.andExpect(jsonPath("$.distributed_lock_enabled").value(false))
 			.andExpect(jsonPath("$.ttl_seconds").value(600))
 			.andExpect(jsonPath("$.redis_command_timeout_ms").value(1000))
 			.andExpect(jsonPath("$.password").doesNotExist())

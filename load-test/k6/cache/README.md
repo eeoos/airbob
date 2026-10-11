@@ -7,13 +7,13 @@ AWS 실험의 오프라인 준비는 `make aws-cache-prepare`로 실행한다. A
 
 ## 로컬 성능·경합·장애 실험
 
-기존 V2/V1 비교 외에 다음 실행기로 네 가지 성과의 로컬 측정 기반을 확인할 수 있다.
+기존 V2/V1 비교 외에 다음 실행기로 성능·경합·장애 경로를 비교할 수 있다.
 
 ```bash
 python3 load-test/k6/cache/run-local-experiments.py
 ```
 
-이 실행기는 **같은 V1 API와 같은 JAR**에서 캐시 ON/OFF 또는 로컬 요청 병합 ON/OFF만
+이 실행기는 **같은 V1 API와 같은 JAR**에서 캐시, 분산 락·Double Check 또는 로컬 요청 병합을
 전환한다. 아래의 기존 V2/V1 실행기와 결과를 섞지 않는다. 기존 V28 MySQL은 읽기만 하고,
 실험 소유의 Redis와 loopback 앱 프로세스를 생성한다. 원래 앱·일반 Redis·캐시 Redis에는
 종료·정지·초기화 명령을 보내지 않는다.
@@ -23,6 +23,7 @@ python3 load-test/k6/cache/run-local-experiments.py
 | latency | 같은 고정 요청량, 캐시 OFF/ON | p95/p99, 오류율, 실제 SELECT·DB 로딩 수 |
 | capacity | 같은 앱 수와 JVM 설정, 단계별 요청량 | SLO 통과 최고 단계, 최초 미통과 단계, 실제 성공 RPS, 누락 |
 | miss | JVM·DB 예열 후 실험 Redis만 비우고 같은 숙소에 버스트 | 실제 DB 로딩·SELECT·캐시 적중·병합, 앱별 집계, 클라이언트 출발 편차 |
+| stampede | 캐시 ON·로컬 병합 OFF로 고정, 분산 락·Double Check OFF/ON | 앱별 DB 로딩·락 시도·재확인 적중·p95·오류율 |
 | outage | 캐시 Redis를 pause한 상태에서 병합 OFF/ON | 지속 부하와 버스트 각각의 DB 로딩·병합률·p95·오류율, 복구 후 응답 동일성 |
 
 기본값은 앱 1대, 숙소 20개, 회차별 예열 5초·측정 15초, AB/BA 두 회차다.
@@ -71,6 +72,121 @@ Lua permit의 정합성은 부하 통계와 별개로 실제 Redis 경합 테스
 ./gradlew test --tests '*AccommodationDetailCacheInvalidationRaceIntegrationTest'
 python3 -m unittest discover -s load-test/k6/test -p 'test_cache_local*.py'
 ```
+
+## 분산 락과 장애 시 요청 병합을 따로 비교하기
+
+`miss`는 기존 캐시 전체 OFF/ON 비교를 유지한다. 분산 락과 Double Check의 기여를
+분리하려면 새 `stampede`를 명시적으로 선택한다. 기본 시나리오에는 자동 추가하지 않는다.
+
+| 시나리오 / 조건 | 캐시 | 분산 락 + Double Check | JVM 요청 병합 | Redis |
+|---|---|---|---|---|
+| stampede / lock-off | ON | OFF | OFF | 정상 |
+| stampede / lock-on | ON | ON | OFF | 정상 |
+| outage / coalescing-off | ON | ON | OFF | 응답 불능 |
+| outage / coalescing-on | ON | ON | ON | 응답 불능 |
+
+```bash
+# 분산 락: 같은 Redis를 공유하는 앱 2대, 전체 60건 버스트로 먼저 확인
+python3 load-test/k6/cache/run-local-experiments.py \
+  --apps 2 --scenarios stampede --burst 60 --rounds 3
+
+# JVM 요청 병합: 앱 1대에서 Redis 장애 조건을 고정해 비교
+python3 load-test/k6/cache/run-local-experiments.py \
+  --apps 1 --scenarios outage --burst 60 --rounds 3
+```
+
+분산 락 대조군은 `cache-benchmark` 프로필의
+`CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED=false`로 락 시도와 miss 후 재확인을 생략한다.
+기본값은 `true`이고, 일반 프로필에서 `accommodation.detail-cache.distributed-lock-enabled=false`를
+설정하면 시작을 거부한다. 별도 API나 복제한 DB 쿼리를 사용하지 않는다.
+실제 바인딩된 락/병합 값을 runtime 응답으로 확인하므로 이 기능이 없는 오래된 JAR/이미지는
+`stampede` 실행에 사용할 수 없다.
+
+각 회차는 순서를 교대하고, JVM·DB 예열 후 전용 캐시를 비운 다음 버스트를 보낸다.
+DB 쿼리·payload·TTL·Lua permit 정책은 양쪽에서 유지한다. 락 OFF에서는 여러 loader가
+permit을 덮어쓸 수 있어 **저장 시점에 유효한 permit을 가진 조회만 저장한다**. 따라서 이 대조군은
+현재 구현에서 락·Double Check를 제거한 조건이며, permit 없는 단순 Cache-Aside와 같다고 해석하지 않는다.
+이러한 permit 경합이 캐시가 채워지는 시점과 후속 miss 수에 미치는 영향도 비교에 포함된다.
+
+`comparison.json`의 `instances`와 `server`에 앱별/합산 DB 로딩, `locks`, `outcomes.hit_after_wait`를 남긴다.
+락 OFF에서 각 앱의 DB 로딩, 락 ON에서 각 앱의 락 시도와 전체 재확인 적중이 관측되어야 한다.
+한 앱만 참여하거나 경합이 관측되지 않으면 측정 근거 부족으로 표시한다. 더 큰 버스트로 예비 확인한 뒤
+본 비교의 요청 수를 고정한다. N건 버스트는 N건의 동시 cache miss나 DB 로딩 N회를 보장하지 않는다.
+
+`outage`에서는 첫 Redis 조회 실패 시 분산 락을 건너뛰므로 같은 timeout 조건의 병합 효과를 확인한다.
+앱 2대 실험은 필요하면 추가하되 병합은 각 JVM 안에서만 일어나며, DB 로딩이 전체 1회나 앱당 1회가 된다고
+가정하지 않는다. 모든 비교에서 실제 DB 로딩과 함께 p95·오류율·완료 요청 수를 기록한다.
+
+## 로컬 한계 처리량과 병목 함께 확인하기
+
+`run-local-capacity.py`는 같은 V1 API·JAR에서 캐시 OFF/ON을 비교하며, 각 측정 구간에
+커넥션 풀·앱·MySQL·Redis·부하 발생기 관측을 추가한다. macOS와 로컬 Docker를 사용한다.
+기존 짧은 검증의 부하 상한은 유지하고, 이 실행기만 최대 20,000 RPS·600초 구간을 허용한다.
+AWS에 접근하거나 기존 DB·Redis를 초기화하지 않는다.
+
+```bash
+# 먼저 넓은 간격으로 통과/미통과 구간 찾기
+python3 load-test/k6/cache/run-local-capacity.py --grafana \
+  --apps 1 --rates 100 250 500 1000 2000 4000 8000 16000 \
+  --duration 30 --warmup 10 --rounds 1
+
+# 찾은 구간 안의 RPS를 좁혀 더 긴 구간에서 반복 확인
+python3 load-test/k6/cache/run-local-capacity.py --grafana \
+  --apps 1 --variants cache-off --rates 1000 1250 1500 \
+  --duration 120 --warmup 10 --rounds 3
+```
+
+두 번째 명령의 RPS는 절차 예시이며 측정된 한계가 아니다. OFF/ON 각각 통과·미통과 구간을
+찾고 반복 결과가 일관적인지 확인한다. 기본 비교 기준은 p95 100ms 이하, 오류·누락 0,
+목표 RPS의 99% 이상 완료다. 운영 SLO에서 도출한 값이 아니라 명시적인 실험 기준이다.
+최상위 단계를 통과하면 더 높은 단계가 필요하며, 짧은 1회 탐색 결과로 최대 지속 처리량을 확정하지 않는다.
+각 부하 단계는 기본적으로 `min(목표 RPS, 1000)`의 요청량으로 먼저 예열한다.
+`--warmup-rate-cap`으로 이 상한을 조절하며 실제 예열 결과도 별도 JSON에 남긴다.
+초기 JVM 준비와 각 단계의 예열은 측정 구간에서 제외한다.
+
+`--pool-size`는 기본 10이며 4~40을 지원한다. 풀 대기가 병목 후보일 때 같은 요청량에서
+풀 크기만 바꾸는 추가 진단에 사용한다. 캐시 개선율은 같은 풀 크기·앱 수·부하에서 비교한다.
+`--client-vus`는 기본 512이며 진단 모드에서 최대 4,000까지 지원한다.
+VU 수는 고정 요청률을 바꾸지 않으며, 응답을 기다리는 요청을 유지할 여유를 조절한다.
+VU를 늘렸을 때 부하 발생기 메모리·CPU도 함께 확인한다. VU 부족이나 부하 발생기 자원 부족으로 요청이 누락되면
+서버 상한으로 확정하지 않고 클라이언트 조건을 점검한다.
+다른 k6 프로세스가 실행 중이면 시작을 거부한다. 측정 도중 다른 k6가 관측돼도
+`competing-load-generator`로 표시해 서버 한계 판정에서 제외한다. 다른 부하 테스트·빌드와
+동시에 실행하지 않으며, 이 실행기는 다른 작업의 프로세스를 종료하지 않는다.
+`requestCriteriaPassed`는 p95·오류·누락·성공 RPS 기준만의 결과다. 한계 탐색의 `sloPassed`에는
+관측 유효성도 반영한다. 요청 기준을 만족해도 공유 호스트 CPU 압박 등으로 서버 상한 판정이
+제한될 수 있으므로 두 값과 `capacityObservationReasons`를 함께 읽는다.
+
+한계 탐색의 기본 `--response-check body`는 예열 전에 응답을 기존 DB 응답과 의미적으로
+대조한 뒤, 측정 중 **모든 응답의 본문 전체**를 확인된 문자열과 비교한다. k6가 요청마다
+JSON 전체를 정렬·재직렬화하는 비용을 줄이면서 응답 누락·변조 검증은 유지한다.
+본문의 표현이 달라져도 실패하므로 응답이 안정적인 고정 fixture에서만 사용한다.
+기존 비교 방식은 `--response-check canonical`로 선택한다. 양쪽은 같은 검증 방식을 사용한다.
+AWS와 기존 짧은 실험의 기본 검증 방식은 바뀌지 않는다.
+검증 데이터의 파일 읽기·파싱은 `SharedArray` 내부에서 한 번 수행하고, 각 요청은 해당 숙소의
+비교 문자열만 가져온다. 가상 사용자마다 전체 fixture 객체를 중복 보관하지 않는다.
+([k6 SharedArray 문서](https://grafana.com/docs/k6/latest/javascript-api/k6-data/sharedarray/))
+
+결과는 기존 `build/k6/cache-experiments/<실행 ID>/` 아래에 저장된다. 각 단계의
+`*-diagnostics/summary.json`에는 커넥션 획득·보유 시간, 풀 대기 표본, GC, SQL digest의
+실행 시간·읽은 행 수, 컨테이너 CPU, 앱/k6 프로세스·호스트 자원이 남는다.
+`samples.ndjson`과 전후 snapshot으로 요약 근거도 확인할 수 있다.
+앱/컨테이너 CPU는 전후 전체 구간과 HTTP 구간 내부 표본 간 차이를 구분하고,
+호스트의 실제 swap-in/out 속도도 기록한다. 스왑 누적 사용량만으로 현재 병목을 단정하지 않는다.
+`--jfr`를 추가하면 실험 소유 JVM의 JFR 기록도 남긴다. 프로파일링을 켠 실행은 원인 분석용으로
+구분하고, 최종 처리량 확인은 프로파일링 없이 반복한다. 실행 당시 측정 소스도
+`source-snapshots/`에 보존한다.
+
+지연의 위치를 구분하기 위한 별도 진단에는 `--trace-latency --jfr`를 사용할 수 있다.
+실험 소유 Redis에 PING과 앱 liveness 요청을 각각 약 초당 10회 보내고, 독립적인 왕복 시간·
+실행 지연을 NDJSON에 기록한다. k6 로그에는 Go GC 기록과 정렬용 프로세스 시작 시각도 남긴다.
+이 옵션을 켠 실행은 추가 관측 부하가 있으므로 최종 처리량 확인과 구분한다.
+
+DB/컨테이너 누적 지표의 구간에는 k6 초기화·마지막 응답 대기가 포함된다. 대기·호스트 자원
+표본은 실제 HTTP 시작~완료 구간만 요약한다. MySQL 지표는 다른 클라이언트 활동도 포함하며,
+진단 수집 자체의 비용과 로컬 장비 공유 영향을 AWS 성능으로 해석하지 않는다.
+CPU 1코어는 논리 CPU 하나를 완전히 사용한 시간이고, JVM `ActiveProcessorCount=2`는 CPU 제한이 아니다.
+호스트 CPU 90% 이상·메모리 여유 15% 미만·진단 누락은 처리량 판정을 불확정으로 남긴다.
 
 ## 기존 로컬 Grafana에서 실험 보기
 

@@ -6,7 +6,7 @@ resource "aws_instance" "this" {
   iam_instance_profile        = var.instance_profile_name
   associate_public_ip_address = true
   source_dest_check           = true
-  monitoring                  = true
+  monitoring                  = var.detailed_monitoring
   user_data                   = var.user_data
   user_data_replace_on_change = true
 

@@ -2,6 +2,7 @@ package kr.kro.airbob.domain.accommodation.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ class AccommodationDetailCacheConcurrencyIntegrationTest {
 		.withExposedPorts(6379);
 
 	private static LettuceConnectionFactory connectionFactory;
+	private static AccommodationDetailRedisClient redisClient;
 	private static RedissonClient redissonClient;
 	private static AccommodationDetailCache cache;
 
@@ -55,7 +57,7 @@ class AccommodationDetailCacheConcurrencyIntegrationTest {
 		connectionFactory.afterPropertiesSet();
 		StringRedisTemplate redisTemplate = new StringRedisTemplate(connectionFactory);
 		redisTemplate.afterPropertiesSet();
-		AccommodationDetailRedisClient redisClient = new AccommodationDetailRedisClient(
+		redisClient = new AccommodationDetailRedisClient(
 			redisTemplate, connectionFactory);
 
 		Config redissonConfig = new Config();
@@ -131,6 +133,62 @@ class AccommodationDetailCacheConcurrencyIntegrationTest {
 		}
 
 		assertThat(loadCount).hasValue(1);
+	}
+
+	@Test
+	@DisplayName("락 OFF 대조군은 겹친 DB 조회를 병합하지 않고 유효 permit의 결과로 캐시를 채운다")
+	void unlockedControlLoadsConcurrentlyAndSubsequentRequestHitsRealRedis() throws Exception {
+		var unusedLockClient = mock(RedissonClient.class);
+		var properties = new AccommodationDetailCacheProperties(true,
+			Duration.ofMinutes(10), Duration.ZERO, Duration.ofSeconds(45), Duration.ZERO,
+			Duration.ofSeconds(5), Duration.ofSeconds(5), Duration.ofSeconds(30),
+			Duration.ofSeconds(1), Duration.ofSeconds(1), false, false);
+		var first = new AccommodationDetailCache(redisClient, unusedLockClient,
+			new ObjectMapper().findAndRegisterModules(), mock(AccommodationDetailCacheMetricRecorder.class),
+			new AccommodationDetailCacheJitter(), properties);
+		var second = new AccommodationDetailCache(redisClient, unusedLockClient,
+			new ObjectMapper().findAndRegisterModules(), mock(AccommodationDetailCacheMetricRecorder.class),
+			new AccommodationDetailCacheJitter(), properties);
+		int requestCount = 12;
+		CountDownLatch loadersStarted = new CountDownLatch(requestCount);
+		CountDownLatch finishLoads = new CountDownLatch(1);
+		AtomicInteger loads = new AtomicInteger();
+
+		try (ExecutorService executor = Executors.newFixedThreadPool(requestCount)) {
+			List<Future<AccommodationDetailSnapshot>> futures = new ArrayList<>();
+			for (int index = 0; index < requestCount; index++) {
+				var instance = index % 2 == 0 ? first : second;
+				futures.add(executor.submit(() -> instance.getOrLoad(1L, () -> {
+					loads.incrementAndGet();
+					loadersStarted.countDown();
+					try {
+						if (!finishLoads.await(10, TimeUnit.SECONDS)) {
+							throw new IllegalStateException("loader release timed out");
+						}
+					} catch (InterruptedException exception) {
+						Thread.currentThread().interrupt();
+						throw new IllegalStateException(exception);
+					}
+					return snapshot();
+				})));
+			}
+			try {
+				// 모든 permit 발급/DB 조회를 겹치게 하는 기능 검증이며 성능 측정용 지연이 아니다.
+				assertThat(loadersStarted.await(5, TimeUnit.SECONDS)).isTrue();
+			} finally {
+				finishLoads.countDown();
+			}
+			for (var future : futures) {
+				assertThat(future.get(5, TimeUnit.SECONDS)).isEqualTo(snapshot());
+			}
+		}
+		assertThat(loads).hasValue(requestCount);
+		for (var instance : List.of(first, second)) {
+			assertThat(instance.getOrLoad(1L, () -> {
+				throw new AssertionError("The valid permit must have populated the shared cache");
+			})).isEqualTo(snapshot());
+		}
+		verifyNoInteractions(unusedLockClient);
 	}
 
 	private static AccommodationDetailSnapshot snapshot() {

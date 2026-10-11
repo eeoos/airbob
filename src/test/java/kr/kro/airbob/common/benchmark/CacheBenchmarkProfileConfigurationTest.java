@@ -69,9 +69,25 @@ class CacheBenchmarkProfileConfigurationTest {
 			assertThat(context).hasSingleBean(AccommodationDetailBenchmarkService.class);
 			assertThat(context).hasSingleBean(PerformanceLabRedisEndpointConfiguration.class);
 			assertThat(environment.getProperty("accommodation.detail-cache.enabled", Boolean.class)).isTrue();
+			assertThat(environment.getProperty("accommodation.detail-cache.distributed-lock-enabled", Boolean.class))
+				.isTrue();
 			assertThat(environment.getProperty("spring.datasource.hikari.read-only", Boolean.class)).isTrue();
 			assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
 			context.getBean(BenchmarkAccessGuard.class).verify("cache-test-token");
+		});
+	}
+
+	@Test
+	void benchmarkSwitchesBindIndependentlyThroughEnvironmentVariables() {
+		runner.withPropertyValues("CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED=false",
+			"CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED=false").run(context -> {
+			assertThat(context).hasNotFailed();
+			var environment = context.getEnvironment();
+			assertThat(environment.getProperty("accommodation.detail-cache.enabled", Boolean.class)).isTrue();
+			assertThat(environment.getProperty("accommodation.detail-cache.distributed-lock-enabled", Boolean.class))
+				.isFalse();
+			assertThat(environment.getProperty("accommodation.detail-cache.local-load-coalescing-enabled", Boolean.class))
+				.isFalse();
 		});
 	}
 

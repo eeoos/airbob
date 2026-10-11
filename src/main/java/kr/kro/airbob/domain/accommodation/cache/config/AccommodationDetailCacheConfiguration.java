@@ -19,6 +19,8 @@ public class AccommodationDetailCacheConfiguration {
 	) {
 		Assert.state(properties.localLoadCoalescingEnabled() || environment.matchesProfiles("cache-benchmark"),
 			"Disabling accommodation detail local load coalescing requires cache-benchmark profile");
+		Assert.state(properties.distributedLockEnabled() || environment.matchesProfiles("cache-benchmark"),
+			"Disabling accommodation detail distributed lock requires cache-benchmark profile");
 		return new AccommodationDetailCacheJitter();
 	}
 }

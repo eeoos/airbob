@@ -102,7 +102,16 @@ export function parseCacheBenchmarkFixture(raw) {
     requireCondition(isObject(entry.data) && entry.data.id === entry.id,
       'fixture data.id must match its accommodation id');
     ids.add(entry.id);
-    return { id: entry.id, canonicalData: canonicalAccommodationData(entry.data) };
+    const canonicalData = canonicalAccommodationData(entry.data);
+    if (entry.responseBody !== undefined) {
+      requireCondition(typeof entry.responseBody === 'string', 'responseBody must be a string');
+      const envelope = JSON.parse(entry.responseBody);
+      requireCondition(envelope?.success === true
+        && canonicalAccommodationData(envelope.data) === canonicalData,
+      'responseBody must describe the verified fixture data');
+    }
+    return { id: entry.id, canonicalData,
+      ...(entry.responseBody === undefined ? {} : { responseBody: entry.responseBody }) };
   });
   return {
     datasetId: fixture.datasetId,

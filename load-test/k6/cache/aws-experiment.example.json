@@ -31,6 +31,7 @@
   "clientVUs": 2000,
   "deadlineSeconds": 5400,
   "capacity": {
+    "warmupRps": 100,
     "startRps": 100,
     "ceilingRps": 20000,
     "resolutionRps": 50,

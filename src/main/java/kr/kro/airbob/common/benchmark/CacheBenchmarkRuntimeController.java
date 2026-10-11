@@ -28,11 +28,13 @@ public class CacheBenchmarkRuntimeController {
 		accessGuard.verify(token);
 		var current = flyway.info().current();
 		return new RuntimeInfo(current == null ? null : current.getVersion().toString(), properties.enabled(),
-			properties.localLoadCoalescingEnabled(), properties.ttl().toSeconds(), properties.ttlJitter().toSeconds(),
+			properties.localLoadCoalescingEnabled(), properties.distributedLockEnabled(),
+			properties.ttl().toSeconds(), properties.ttlJitter().toSeconds(),
 			properties.redisCommandTimeout().toMillis(), properties.localLoadWait().toMillis());
 	}
 
 	public record RuntimeInfo(String flywayVersion, boolean cacheEnabled, boolean coalescingEnabled,
-		long ttlSeconds, long ttlJitterSeconds, long redisCommandTimeoutMs, long localLoadWaitMs) {
+		boolean distributedLockEnabled, long ttlSeconds, long ttlJitterSeconds,
+		long redisCommandTimeoutMs, long localLoadWaitMs) {
 	}
 }
