@@ -1,0 +1,2 @@
+# Keep generated coupon measurements collapsed in pull request reviews.
+docs/performance/results/coupon-*/**/*.json linguist-generated=true
