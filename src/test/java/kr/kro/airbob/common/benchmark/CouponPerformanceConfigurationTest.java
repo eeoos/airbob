@@ -10,12 +10,14 @@ import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.actuate.health.Status;
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import kr.kro.airbob.config.SchedulingConfig;
 import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryProductionProfileGuard;
+import kr.kro.airbob.domain.reservation.inventory.AccommodationInventoryReadiness;
 
 class CouponPerformanceConfigurationTest {
 
@@ -23,7 +25,8 @@ class CouponPerformanceConfigurationTest {
 		.withInitializer(new ConfigDataApplicationContextInitializer())
 		.withPropertyValues("spring.profiles.active=aws,coupon-performance", "BENCHMARK_READ_MODEL_TOKEN=test-token")
 		.withUserConfiguration(CouponPerformanceConfiguration.class, CouponPerformanceIsolationFilter.class,
-			SchedulingConfig.class, AccommodationInventoryProductionProfileGuard.class);
+			SchedulingConfig.class, AccommodationInventoryProductionProfileGuard.class,
+			AccommodationInventoryReadiness.class);
 
 	@Test
 	void includesCouponApiWithoutStartingBackgroundWorkOrOtherExperiments() {
@@ -34,6 +37,8 @@ class CouponPerformanceConfigurationTest {
 			assertThat(context).hasSingleBean(CouponPerformanceIsolationFilter.class);
 			assertThat(context.getEnvironment().getProperty("spring.flyway.target")).isNull();
 			assertThat(context.getEnvironment().getProperty("spring.datasource.hikari.read-only")).isEqualTo("false");
+			assertThat(context.getBean(AccommodationInventoryReadiness.class).health().getStatus())
+				.isEqualTo(Status.UP);
 		});
 	}
 
