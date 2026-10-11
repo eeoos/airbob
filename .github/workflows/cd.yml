@@ -238,6 +238,7 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: read
+      packages: read
     steps:
       - name: Checkout reviewed deployment assets
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -246,8 +247,8 @@ jobs:
 
       - name: Login to GHCR
         env:
-          GHCR_PAT: ${{ secrets.GHCR_PAT }}
-        run: printf '%s' "$GHCR_PAT" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Synchronize reviewed OCI deployment assets
         run: sh scripts/sync-oci-deployment-assets.sh "$GITHUB_WORKSPACE" "$HOME/airbob"
