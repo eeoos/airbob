@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Micrometer diagnostics for conditional UPDATE and MySQL SKIP LOCKED coupon issuance. k6 records client RPS and latency; member coupons and remaining units verify inventory.",
+  "description": "Compare conditional UPDATE / RR with surrogate and composite MySQL SKIP LOCKED / RR / RC. Separate final issuance results from transaction attempts, retryable conditions and shared pool pressure. k6 remains the client-side throughput and latency record.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -37,18 +37,18 @@
   "panels": [
     {
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "content": "### Measurement contract\n- Compare **success-only end-to-end RPS and p99**. Fast sold-out or duplicate responses must not make a strategy look faster.\n- With the current 15 s Prometheus scrape interval, run each measured variant for **at least 2–5 minutes**. The k6 JSON remains the exact client-side result.\n- Run one coupon campaign/variant at a time and pin the exact time range. Prometheus `increase()` values and histogram quantiles are estimates; verify final member-coupon/unit invariants separately.",
+        "content": "### 5개 전략 비교\n`db` = 조건부 UPDATE / RR · `skip_surrogate_rr` / `skip_surrogate_rc` = 대리 키 / RR·RC · `skip_composite_rr` / `skip_composite_rc` = 복합 키 / RR·RC\n\n- **성공 RPS·성공 지연**으로 발급 성능을 비교하고, **전체 처리 RPS·최종 결과**로 품절·중복·경합 응답을 함께 확인한다. 최종 `contended`는 **503/CP012**, `sold_out`은 **409/CP002**, `duplicate`는 **409/CP003**이다.\n- 위 지표는 **발급 서비스 호출** 범위다. 인증·컨트롤러·네트워크를 포함하는 전체 요청 RPS와 지연은 **k6** 결과로 확인한다. DB 지연은 커넥션 획득과 커밋/롤백을 포함한 **발급 시도 1회**이며, 별도의 재고 재확인 트랜잭션은 포함하지 않는다.\n- **환경·인스턴스·시간 범위**를 고정하고 한 캠페인씩 측정한다. 동일 전략의 여러 캠페인은 합산된다. 여러 전략을 선택하면 같은 차트에서 비교할 수 있다. 아래 풀·CPU 패널은 **인스턴스 공용 지표**로 Strategy 필터를 적용하지 않는다.\n- 기본 수집 주기는 15초다. 지속 비교에는 충분한 관측 구간을 확보하고, 짧은 burst는 k6 원본을 함께 본다. `rate`·`increase`·백분위수는 추정치이며, 재고 정합성은 **남은 unit + 회원 쿠폰 = 총수량**(조건부 UPDATE는 카운터 = 회원 쿠폰)으로 별도 검증한다. 표본 없음은 0으로 채우지 않는다.",
         "mode": "markdown"
       },
       "pluginVersion": "13.1.0",
-      "title": "How to read this dashboard",
+      "title": "Conditional UPDATE vs MySQL SKIP LOCKED",
       "transparent": true,
       "type": "text"
     },
@@ -57,7 +57,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Headline throughput comparison. Only final successful issuances are included.",
+      "description": "Completed service calls with final result=success. One committed issuance per sample; excludes sold-out, duplicate and contended results. This is not offered traffic or all HTTP requests.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -111,9 +111,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 8,
+        "w": 6,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -154,7 +154,104 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Headline internal latency comparison. This excludes sold-out, duplicate and other fast rejection paths.",
+      "description": "All completed issuance service calls, including success, sold_out, duplicate, contended, not_issuable, unprepared and error. Authentication failures before service entry are excluded. Compare with k6 offered/completed request counts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (strategy) (rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{strategy}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "All-outcome issuance service RPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Successful service-call latency, including issuance attempts, retry backoff and any fresh-snapshot classification. Excludes authentication, controller/network overhead and the V1 strategy lookup. Use k6 for client latency; do not subtract histogram quantiles from DB-attempt quantiles.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -208,9 +305,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 16,
-        "x": 8,
-        "y": 4
+        "w": 12,
+        "x": 12,
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -275,7 +372,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Request result mix by strategy. Use this to detect sold-out, duplicate and error responses that would distort an all-outcome latency.",
+      "description": "Exactly one final result per service call: success; sold_out (409/CP002); duplicate (409/CP003); contended (503/CP012); not_issuable; unprepared; error. Final contention is distinct from a failed attempt that later succeeds or becomes sold out.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -305,7 +402,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -329,9 +426,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 14,
+        "w": 12,
         "x": 0,
-        "y": 13
+        "y": 17
       },
       "id": 4,
       "options": {
@@ -364,7 +461,7 @@
           "refId": "A"
         }
       ],
-      "title": "Outcome RPS mix",
+      "title": "Final issuance outcomes RPS",
       "type": "timeseries"
     },
     {
@@ -372,7 +469,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Prometheus increase() is extrapolated at range boundaries. Treat k6 counters and post-run invariant checks as the exact experiment record.",
+      "description": "Estimated completed service-call counts by final result, not current stock or coupon.issued_quantity. Prometheus increase() extrapolates boundaries; use k6 and DB invariant checks for exact counts.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -396,9 +493,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 10,
-        "x": 14,
-        "y": 13
+        "w": 12,
+        "x": 12,
+        "y": 17
       },
       "id": 5,
       "options": {
@@ -434,7 +531,7 @@
           "refId": "A"
         }
       ],
-      "title": "Outcome counts in selected range",
+      "title": "Final outcome counts in selected range",
       "type": "bargauge"
     },
     {
@@ -442,7 +539,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Database transaction latency for successful coupon persistence. Compare this with end-to-end latency to locate coordination overhead.",
+      "description": "Successful issuance transaction attempt, including connection acquisition and commit. A retried service call can have multiple DB attempts. The separate fresh-snapshot classification transaction is not recorded here. These quantiles are not additive with service-call quantiles.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -496,9 +593,9 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 24,
+        "w": 12,
         "x": 0,
-        "y": 22
+        "y": 26
       },
       "id": 6,
       "options": {
@@ -555,7 +652,7 @@
           "refId": "C"
         }
       ],
-      "title": "Successful database transaction latency p50 / p95 / p99",
+      "title": "Successful DB attempt latency p50 / p95 / p99",
       "type": "timeseries"
     },
     {
@@ -563,7 +660,201 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Rolled-back attempts with a retryable condition, including empty-unit reads later classified as sold out or duplicate. This is not the number of extra attempts.",
+      "description": "Each issuance transaction attempt records success, rejected, retry or error. Multiple attempts can belong to one service call. The fresh-snapshot classification query is not an issuance attempt; DB result=retry is not the final CP012 response.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (strategy, result) (rate(coupon_database_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{strategy}} / {{result}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB attempt outcomes per second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Rolled-back attempts before fresh-snapshot classification: empty_unit, deadlock, lock_timeout, policy_lock_busy. An empty unit may become sold_out, duplicate or contention. These are conditions, not the number of extra attempts, final errors or proof of a deadlock. Missing series are not filled with zero.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (strategy, reason) (rate(coupon_issue_retryable_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{strategy}} / {{reason}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Retryable conditions per second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Rolled-back attempts before fresh-snapshot classification: empty_unit, deadlock, lock_timeout, policy_lock_busy. An empty unit may become sold_out, duplicate or contention. These are conditions, not the number of extra attempts, final errors or proof of a deadlock. Missing series are not filled with zero. Counts are Prometheus increase() estimates.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -586,10 +877,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 28
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 35
       },
       "id": 10,
       "options": {
@@ -625,8 +916,519 @@
           "refId": "A"
         }
       ],
-      "title": "Retryable conditions by strategy and reason",
+      "title": "Retryable condition counts in selected range",
       "type": "bargauge"
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Shared instance diagnostics - Environment / Instance / Pool, independent of Strategy",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Compare active connections with the configured maximum for the same instance and pool.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 45
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "hikaricp_connections_active{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", pool=~\"$pool\"}",
+          "instant": false,
+          "legendFormat": "{{environment}} / {{instance}} / {{pool}} active",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "hikaricp_connections_max{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", pool=~\"$pool\"}",
+          "instant": false,
+          "legendFormat": "{{environment}} / {{instance}} / {{pool}} max",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "HikariCP active / maximum connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Threads waiting to acquire a connection. Pending requests together with active=max indicate pool pressure, not by themselves a recommendation to increase the pool.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 45
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "hikaricp_connections_pending{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", pool=~\"$pool\"}",
+          "instant": false,
+          "legendFormat": "{{environment}} / {{instance}} / {{pool}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HikariCP pending requests",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Rate of acquisition duration sum divided by acquisition count. This is a mean, not p95/p99; no acquisition samples remain undefined.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 3,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 45
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (environment, instance, pool) (rate(hikaricp_connections_acquire_seconds_sum{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", pool=~\"$pool\"}[$__rate_interval]))\n/\nsum by (environment, instance, pool) (rate(hikaricp_connections_acquire_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", pool=~\"$pool\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{environment}} / {{instance}} / {{pool}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HikariCP mean connection acquisition time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Connection acquisition timeouts. A timeout series without samples remains absent.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (environment, instance, pool) (rate(hikaricp_connections_timeout_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", pool=~\"$pool\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{environment}} / {{instance}} / {{pool}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HikariCP acquisition timeouts per second",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. JVM process CPU, not MySQL/RDS CPU. Pool and Strategy selections do not filter this panel; pair DB CPU evidence from the experiment with this signal.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit",
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "process_cpu_usage{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}",
+          "instant": false,
+          "legendFormat": "{{environment}} / {{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Application process CPU usage",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -635,6 +1437,8 @@
     "airbob",
     "coupon",
     "benchmark",
+    "mysql",
+    "skip-locked",
     "prometheus"
   ],
   "templating": {
@@ -716,7 +1520,7 @@
             "$__all"
           ]
         },
-        "description": "Coupon issuance implementation under comparison.",
+        "description": "Five fixed benchmark variants. Labels are metric strategy values; V2 API suffixes use hyphens.",
         "hide": 0,
         "includeAll": true,
         "label": "Strategy",
@@ -725,33 +1529,66 @@
         "options": [
           {
             "selected": false,
-            "text": "db",
+            "text": "Conditional UPDATE / RR",
             "value": "db"
           },
           {
             "selected": false,
-            "text": "skip_surrogate_rr",
+            "text": "SKIP LOCKED / Surrogate / RR",
             "value": "skip_surrogate_rr"
           },
           {
             "selected": false,
-            "text": "skip_surrogate_rc",
+            "text": "SKIP LOCKED / Surrogate / RC",
             "value": "skip_surrogate_rc"
           },
           {
             "selected": false,
-            "text": "skip_composite_rr",
+            "text": "SKIP LOCKED / Composite / RR",
             "value": "skip_composite_rr"
           },
           {
             "selected": false,
-            "text": "skip_composite_rc",
+            "text": "SKIP LOCKED / Composite / RC",
             "value": "skip_composite_rc"
           }
         ],
-        "query": "db,skip_surrogate_rr,skip_surrogate_rc,skip_composite_rr,skip_composite_rc",
+        "query": "Conditional UPDATE / RR : db,SKIP LOCKED / Surrogate / RR : skip_surrogate_rr,SKIP LOCKED / Surrogate / RC : skip_surrogate_rc,SKIP LOCKED / Composite / RR : skip_composite_rr,SKIP LOCKED / Composite / RC : skip_composite_rc",
         "skipUrlSync": false,
         "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(hikaricp_connections_max{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}, pool)",
+        "description": "Shared application connection pools. Only the HikariCP panels use this filter.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Pool",
+        "multi": true,
+        "name": "pool",
+        "options": [],
+        "query": {
+          "query": "label_values(hikaricp_connections_max{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\"}, pool)",
+          "refId": "PrometheusVariableQueryEditor-Pool"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
@@ -782,6 +1619,6 @@
   "timezone": "browser",
   "title": "Airbob - Coupon Issuance Comparison",
   "uid": "airbob-coupon-issuance",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

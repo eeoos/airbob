@@ -73,6 +73,28 @@ SQL 수는 해당 HTTP 경로의 Hibernate 문장 수이며 native unit SQL도 �
 커밋·격리 수준 설정·로그인·준비·사후 검증은 포함하지 않는다. SQL 개수를 CPU 비용으로 환산하지 않는다.
 RDS CPU는 HTTP 구간에 완전히 포함되는 1분 버킷만 사용한다.
 
+## Grafana 관측
+
+`Airbob - Coupon Issuance Comparison` (`uid=airbob-coupon-issuance`)은
+[대시보드 JSON](../../../monitoring/grafana/dashboards/airbob-coupon-issuance.json)으로 관리한다.
+Strategy에서 조건부 UPDATE/RR와 SKIP LOCKED의 대리 키·복합 키/RR·RC를 선택한다.
+비교할 환경·인스턴스·시간 범위를 고정하고, 같은 전략의 캠페인은 한 번에 하나씩 측정한다.
+캠페인별 라벨은 없으므로 같은 전략의 동시 발급은 합산된다.
+
+| 패널 | 해석 |
+|---|---|
+| Successful issuance RPS / All-outcome issuance service RPS | 최종 성공과 모든 최종 결과의 처리량을 분리한다. 인증 단계에서 거절된 HTTP 요청은 포함하지 않는다. |
+| Successful issuance latency | 재시도·대기·새 스냅샷 재확인을 포함한 서비스 내부 지연이다. V1의 선행 전략 조회와 HTTP·인증·네트워크 시간은 제외되므로 클라이언트 지연은 k6로 확인한다. |
+| Final issuance outcomes | `contended`(503/CP012), `sold_out`(409/CP002), `duplicate`(409/CP003)를 별개로 표시한다. |
+| DB attempt latency / outcomes | 커넥션 획득과 커밋/롤백까지 포함한 발급 시도 단위다. 별도의 새 스냅샷 판정 트랜잭션은 제외된다. |
+| Retryable conditions | `empty_unit`, `deadlock`, `lock_timeout`, `policy_lock_busy` 발생을 표시한다. 추가 시도 횟수나 최종 경합 응답 수와 같지 않다. |
+| HikariCP / process CPU | 환경·인스턴스 공용 지표다. Strategy 선택으로 필터링하지 않으며 풀 패널에만 Pool 선택을 적용한다. 획득 시간은 평균이고, CPU는 DB가 아닌 JVM 프로세스 기준이다. |
+
+기본 Prometheus 수집 주기는 15초다. 짧은 burst와 정확한 요청 수·성공 지연은 k6 원본으로 확인한다.
+Grafana의 `rate`, `increase`, 히스토그램 백분위수는 구간 추정치이며, 표본 없음은 0으로 채우지 않는다.
+지연 백분위수를 서로 빼서 단계별 시간을 구하지 않는다. 재고 정합성은 실험 후 DB 검증을 기준으로 한다.
+운영 Grafana는 배포된 main의 파일을 사용하므로, PR의 대시보드는 해당 파일이 배포된 뒤 반영된다.
+
 ## 실험용 API
 
 쿠폰 전용 프로필과 활성 설정, `X-Benchmark-Token`, ADMIN 세션으로 fixture를 관리한다.
