@@ -455,17 +455,21 @@ class PowerOrchestration(unittest.TestCase):
         self.assertEqual(value['global_b_lease_owner'], self.runner.lease['owner'])
         self.assertEqual(value['global_b_lease_fencing_token'], self.runner.lease['fencingToken'])
         self.assertEqual(value['fencing_token'], 76)
-        source = (power.LAB / 'variables.tf').read_text()
-        names = {'global_b_services', 'global_b_lease_fencing_token'}
+        source = (power.LAB / 'variables.tf').read_text() + (power.LAB / 'cache-benchmark.tf').read_text()
+        names = {'global_b_services', 'global_b_lease_fencing_token', 'cache_benchmark_enabled'}
+        # Normal power operations omit the opt-in flag; exercise its real Terraform default.
+        self.assertNotIn('cache_benchmark_enabled', value)
         hcl = ''.join('variable "' + name + '" {\n' + block(source, 'variable', name) for name in sorted(names))
         references = set(re.findall(r'var\.([A-Za-z_0-9]+)', hcl)) - names
         hcl += ''.join('variable "' + name + '" { default = ' + json.dumps(value[name]) + ' }\n' for name in sorted(references))
         # Only actual variable blocks/values: no backend, provider, data or resources.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'main.tf').write_text(hcl)
-            for changes, success in (({}, True), ({'global_b_lease_owner': ''}, False), ({'global_b_lease_fencing_token': 0}, False)):
+            for changes, success in (({}, True), ({'global_b_lease_owner': ''}, False),
+                    ({'global_b_lease_fencing_token': 0}, False), ({'load_generator_enabled': True}, False),
+                    ({'load_generator_enabled': True, 'cache_benchmark_enabled': True}, True)):
                 varfile = root / 'input.tfvars.json'
-                varfile.write_text(json.dumps({k: changes.get(k, value[k]) for k in names | references}))
+                varfile.write_text(json.dumps({k: value[k] for k in names | references if k in value} | changes))
                 result = subprocess.run(['terraform', '-chdir=' + str(root), 'plan', '-input=false', '-lock=false', '-no-color', '-var-file=' + str(varfile)],
                     text=True, capture_output=True, timeout=20,
                     env={'PATH': os.environ['PATH'], 'CHECKPOINT_DISABLE': '1', 'AWS_EC2_METADATA_DISABLED': 'true'})

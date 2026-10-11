@@ -305,7 +305,7 @@ class ServiceContract(unittest.TestCase):
                 resource_fencing_token='62', ami_id='ami-0123456789abcdef0', bundle_commit='c'*40, bundle_sha256='b'*64,
                 infra_image_references='{}', app_image_reference='image@sha256:'+'d'*64, mode='performance', policy='integrated-smoke',
                 cache_enabled='true', request_target='', load_generator_enabled='false', dataset_release='global-growth-b-'+'a'*16,
-                cache_benchmark_enabled='false', cache_benchmark_app_count='1',
+                cache_benchmark_enabled='false', cache_benchmark_app_count='1', cache_benchmark_existing_app_handoff='false',
                 dataset_manifest_sha256='e'*64, database_bootstrap='dump', global_b_prepare_only='false', global_b_import_from_mac='false',
                 global_b_services='true', global_b_snapshot_restore_only='false', global_b_snapshot_provenance='null', global_b_service_release='service-01', global_b_service_bootstrap_enabled='false',
                 global_b_snapshot_source_mode='verified-global-b-snapshot', lab_power_request='null',
@@ -314,16 +314,28 @@ class ServiceContract(unittest.TestCase):
                 rds_engine_version='8.4.11', rds_instance_class='db.t3.small', dns_mode='direct-only', alb_ingress_cidr='203.0.113.1/32')
             prefix = 'set -euo pipefail\n' + '\n'.join(key+'='+shlex.quote(value) for key,value in values.items()) + '\n'
             result = subprocess.run(['bash'], input=prefix+function+'write_tfvars services false i-0123456789abcdef0\ncat "$current_tfvars"\n',
-                text=True, capture_output=True, check=True)
+                text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
             data = json.loads(result.stdout)
             self.assertEqual(62, data['fencing_token']); self.assertEqual(99, data['global_b_lease_fencing_token'])
             self.assertEqual('owner/current', data['global_b_lease_owner']); self.assertTrue(data['global_b_services'])
             self.assertFalse(data['app_enabled']); self.assertEqual('1999999999', data['expires_at'])
             self.assertFalse(data['cache_benchmark_enabled'])
             self.assertEqual(1, data['cache_benchmark_app_count'])
+            self.assertFalse(data['cache_benchmark_existing_app_handoff'])
             self.assertEqual('db.t3.small', data['rds_instance_class'])
             self.assertEqual('verified-global-b-snapshot', data['global_b_snapshot_source_mode'])
             self.assertIsNone(data['lab_power'])
+            handoff = (prefix + 'cache_benchmark_enabled=true\ncache_benchmark_app_count=2\n'
+                + 'cache_benchmark_existing_app_handoff=true\nload_generator_enabled=true\n' + function
+                + 'write_tfvars data-ready true i-0123456789abcdef0\ncat "$current_tfvars"\n')
+            selected = json.loads(subprocess.run(['bash'], input=handoff, text=True, capture_output=True, check=True).stdout)
+            self.assertTrue(selected['cache_benchmark_enabled'])
+            self.assertTrue(selected['cache_benchmark_existing_app_handoff'])
+            self.assertTrue(selected['app_enabled'])
+            self.assertTrue(selected['load_generator_enabled'])
+            self.assertEqual(2, selected['cache_benchmark_app_count'])
+            self.assertEqual(62, selected['fencing_token']); self.assertEqual(99, selected['global_b_lease_fencing_token'])
             large = prefix+'rds_instance_class=db.m6i.large\n'+function+'write_tfvars services false i-0123456789abcdef0\ncat "$current_tfvars"\n'
             selected = json.loads(subprocess.run(['bash'], input=large, text=True, capture_output=True, check=True).stdout)
             self.assertEqual('db.m6i.large', selected['rds_instance_class'])
