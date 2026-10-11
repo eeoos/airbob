@@ -63,8 +63,9 @@ class BulkDeleteBenchmarkHttpIntegrationTest {
 
 	@DynamicPropertySource
 	static void properties(DynamicPropertyRegistry registry) {
+		// Keep this benchmark on its immutable V28 schema as application migrations advance.
 		Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
-			.locations("classpath:db/migration").load().migrate();
+			.locations("classpath:db/migration").target("28").load().migrate();
 		registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
 		registry.add("spring.datasource.username", MYSQL::getUsername);
 		registry.add("spring.datasource.password", MYSQL::getPassword);
