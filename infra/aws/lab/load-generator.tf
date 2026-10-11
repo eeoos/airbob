@@ -7,6 +7,8 @@ module "load_generator" {
   subnet_id             = module.network.public_subnet_ids.primary
   security_group_id     = module.security.security_group_ids.loadgen
   instance_profile_name = aws_iam_instance_profile.host["loadgen"].name
+  # Cache experiments collect one-second CPU/memory samples on the generator.
+  detailed_monitoring = !var.cache_benchmark_enabled
   user_data = templatefile("${path.module}/templates/load-generator-user-data.sh.tftpl", {
     region           = var.aws_region
     runtime_revision = local.app_runtime_revision

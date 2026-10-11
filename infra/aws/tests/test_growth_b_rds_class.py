@@ -333,6 +333,27 @@ class SelectionAndPlan(unittest.TestCase):
 
 
 class OperatorClass(unittest.TestCase):
+    def test_plan_arguments_work_with_bash_nounset_without_optional_provenance(self):
+        source = (Path(gate.__file__).parent / 'aws-lab.sh').read_text().split('apply_lab() {', 1)[1]
+        section = source.split('  if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true || "$global_b_services" == true ]]; then', 1)[1]
+        section = section.split('  if [[ "$global_b_prepare_only" == true || "$global_b_snapshot_restore_only" == true ]]; then', 1)[0]
+        section = section.rsplit('  fi', 1)[0]
+        for snapshot in ('false', 'true'):
+            with self.subTest(snapshot=snapshot), tempfile.TemporaryDirectory() as directory:
+                env = os.environ | {'global_b_snapshot_restore_only': snapshot,
+                    'global_b_snapshot_source_mode': 'verified-global-b-snapshot',
+                    'plan_json': '/plan.json', 'rds_instance_class': gate.DEFAULT,
+                    'script_dir': '/scripts', 'temp_dir': directory, 'dataset_manifest_sha256': 'a' * 64}
+                script = ('set -euo pipefail\nfail() { exit 1; }\n'
+                          'python3() { printf "%s\\n" "$@" > "$temp_dir/args"; }\n'
+                          'check_plan() {\n' + section + '\n}\ncheck_plan\n')
+                result = subprocess.run(['bash', '-c', script], env=env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(0, result.returncode, result.stderr)
+                expected = ['/scripts/growth_b_rds_class.py', 'plan', '--rds', '/plan.json', '--instance-class', gate.DEFAULT]
+                if snapshot == 'true':
+                    expected += ['--provenance', directory + '/dataset-manifest.json', '--provenance-sha256', 'a' * 64]
+                self.assertEqual(expected, (Path(directory) / 'args').read_text().splitlines())
+
     def run_shell(self, body, *, selected=gate.LARGE, original=None, **extra):
         scripts = Path(gate.__file__).parent
         source = (scripts / 'aws-lab.sh').read_text()

@@ -11,13 +11,22 @@ from test_global_b_infrastructure import ROOT, LAB, attribute, block
 def evaluate(variables, data_ready=True):
     source = (LAB / 'cache-benchmark.tf').read_text()
     condition = attribute(block(source, 'check', 'cache_benchmark_topology'), 'condition', indent=4)
+    service_condition = attribute(block((LAB / 'variables.tf').read_text(), 'variable', 'global_b_services'),
+                                  'condition', indent=4)
+    variables = {'global_b_prepare_only': False, 'database_bootstrap': 'snapshot',
+                 'global_b_snapshot_provenance': {'sha256': 'a' * 64},
+                 'dataset_release': 'global-growth-b-' + 'a' * 16,
+                 'global_b_service_release': 'service-cache-test',
+                 'global_b_manifest_version_id': 'manifest-v1',
+                 'global_b_lease_owner': 'local/cache-test'} | variables
     locals_source = (LAB / 'locals.tf').read_text()
     capacity = attribute(locals_source, 'app_capacity')
     count = attribute(locals_source, 'performance_app_count')
     code = ''.join('variable "' + key + '" { default = ' + json.dumps(value) + ' }\n'
                    for key, value in variables.items())
     code += ('locals {\n power_phase = var.lab_power == null ? "inactive" : var.lab_power.phase\n data_ready = ' + str(data_ready).lower() + '\n performance_app_count = ' + count
-             + '\n valid = ' + condition + '\n capacity = ' + capacity + '\n}\n')
+             + '\n topology_valid = ' + condition + '\n service_valid = ' + service_condition
+             + '\n valid = local.topology_valid && local.service_valid\n capacity = ' + capacity + '\n}\n')
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / 'main.tf').write_text(code)
         result = subprocess.run(['terraform', '-chdir=' + tmp, 'console', '-no-color'],
@@ -30,6 +39,7 @@ def evaluate(variables, data_ready=True):
 class CacheInfrastructureTest(unittest.TestCase):
     def values(self):
         return {'cache_benchmark_enabled': True, 'cache_benchmark_app_count': 2, 'global_b_services': True,
+                'cache_benchmark_existing_app_handoff': False,
                 'app_enabled': True, 'load_generator_enabled': True, 'global_b_service_bootstrap_enabled': False,
                 'mode': 'performance', 'dns_mode': 'direct-only', 'lab_power': None}
 
@@ -43,6 +53,11 @@ class CacheInfrastructureTest(unittest.TestCase):
         self.assertTrue(result['valid'])
         self.assertEqual(result['capacity'], {'min': 1, 'desired': 1, 'max': 1})
 
+    def test_service_admission_requires_explicit_benchmark_for_generator(self):
+        self.assertFalse(evaluate(self.values() | {'cache_benchmark_enabled': False})['valid'])
+        self.assertFalse(evaluate(self.values() | {'global_b_prepare_only': True})['valid'])
+        self.assertFalse(evaluate(self.values() | {'global_b_snapshot_provenance': None})['valid'])
+
     def test_bootstrap_scaling_public_cutover_and_missing_app_are_rejected(self):
         for change in ({'global_b_services': False}, {'app_enabled': False}, {'load_generator_enabled': False},
                        {'global_b_service_bootstrap_enabled': True}, {'mode': 'scaling'}, {'dns_mode': 'cutover'},
@@ -50,6 +65,8 @@ class CacheInfrastructureTest(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertFalse(evaluate(self.values() | change)['valid'])
         self.assertFalse(evaluate(self.values(), data_ready=False)['valid'])
+        self.assertFalse(evaluate(self.values() | {'cache_benchmark_enabled': False,
+                                                  'cache_benchmark_existing_app_handoff': True})['valid'])
 
     def test_alb_ingress_is_limited_to_current_generator_public_ipv4(self):
         source = block((LAB / 'cache-benchmark.tf').read_text(), 'resource',

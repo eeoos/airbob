@@ -474,7 +474,7 @@ variable "global_b_services" {
   default     = false
   validation {
     condition = !var.global_b_services || (
-      !var.global_b_prepare_only && !var.load_generator_enabled && var.mode == "performance" &&
+      !var.global_b_prepare_only && (!var.load_generator_enabled || var.cache_benchmark_enabled) && var.mode == "performance" &&
       var.dns_mode == "direct-only" && (var.database_bootstrap == "dump" || (var.database_bootstrap == "snapshot" && var.global_b_snapshot_provenance != null)) &&
       can(regex("^global-growth-b-[0-9a-f]{16}$", var.dataset_release)) &&
       can(regex("^[a-z0-9][a-z0-9-]{2,47}$", var.global_b_service_release)) &&
@@ -482,7 +482,7 @@ variable "global_b_services" {
       !contains(["null", "None"], var.global_b_manifest_version_id) &&
       can(regex("^[A-Za-z0-9._:@/-]{3,128}$", var.global_b_lease_owner))
     )
-    error_message = "B services require a separate immutable B service release, MySQL 8.4.11, dump/direct-only/performance, live lease owner, and no load generator. B snapshot restoration requires its separate provenance contract."
+    error_message = "B services require a separate immutable B service release, MySQL 8.4.11, dump/direct-only/performance and a live lease owner. A load generator requires explicit cache benchmark selection. B snapshot restoration requires its separate provenance contract."
   }
 }
 

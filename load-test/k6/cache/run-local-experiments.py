@@ -91,11 +91,25 @@ def evidence_reasons(result, observed, variant, scenario):
     return reasons
 
 
+CAPACITY_MIN_LOAD_RATIO = .99
+
+
+def offered_load_observation(result):
+    # Arrival-rate executors stop by time, not by an exact iteration count.
+    # Apply the already-required 99% delivered-rate criterion to volume too.
+    # Report any nominal shortfall; never turn it into fictitious requests.
+    nominal = result['requestedSamples']
+    return {'minimumCompletedForOfferedLoad': math.ceil(nominal * CAPACITY_MIN_LOAD_RATIO),
+            'offeredLoadRatio': result['completed'] / nominal if nominal > 0 else 0,
+            'nominalRequestShortfall': max(0, nominal - result['completed'])}
+
+
 def qualifies(result, p95_ms, error_rate):
-    return (not result['evidenceReasons'] and result['completed'] >= result['requestedSamples']
+    minimum_count = offered_load_observation(result)['minimumCompletedForOfferedLoad']
+    return (not result['evidenceReasons'] and result['completed'] >= minimum_count
             and result['dropped'] == 0 and result['errorRate'] <= error_rate
             and result['latencyMs']['p95'] <= p95_ms
-            and result['successRps'] >= result['configuredRate'] * .99)
+            and result['successRps'] >= result['configuredRate'] * CAPACITY_MIN_LOAD_RATIO)
 
 
 def capacity_bound(rows):
@@ -103,9 +117,10 @@ def capacity_bound(rows):
     failed = [row['configuredRate'] for row in rows if not row['sloPassed']]
     lower = max(passed) if passed else None
     # A failed generator schedule is not proof of the server's capacity ceiling.
-    invalid = any(row['evidenceReasons'] or row['dropped'] for row in rows)
-    return {'highestPassingRps': lower, 'firstNonPassingRps': min(failed) if failed else None,
-            'status': 'inconclusive' if invalid else ('bracketed-on-grid' if failed else 'lower-bound-only')}
+    invalid = any(row['evidenceReasons'] or row['dropped'] or row.get('capacityObservationReasons') for row in rows)
+    status = 'inconclusive' if invalid or not rows else (
+        'bracketed-on-grid' if passed and failed else 'upper-bound-only' if failed else 'lower-bound-only')
+    return {'highestPassingRps': lower, 'firstNonPassingRps': min(failed) if failed else None, 'status': status}
 
 
 def client_vus(rate, p95_ms, outage):
@@ -152,7 +167,7 @@ class LocalLab:
             'keys': args.keys, 'endpoint': '/api/v1/accommodations/{id}', 'rounds': args.rounds,
             'selection': 'first-published-ids-local-validation',
             'javaExecutable': self.java, 'heapMbPerApp': 384, 'activeProcessorCountPerJvm': 2,
-            'tomcatThreadsPerApp': 64, 'hikariConnectionsPerApp': 10,
+            'tomcatThreadsPerApp': 64, 'hikariConnectionsPerApp': getattr(args, 'pool_size', 10),
             'p95LimitMs': args.p95_ms, 'errorRateLimit': args.error_rate,
             'rates': args.rates, 'durationSeconds': args.duration, 'warmupSeconds': args.warmup,
             'burstRequests': args.burst, 'fault': 'docker-pause-owned-cache-redis',
@@ -257,7 +272,7 @@ class LocalLab:
                     'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED': str(coalescing).lower(),
                     'ACCOMMODATION_DETAIL_CACHE_REDIS_HOST': '127.0.0.1',
                     'ACCOMMODATION_DETAIL_CACHE_REDIS_PORT': self.redis_port,
-                    'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE': '10',
+                    'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE': str(getattr(self.args, 'pool_size', 10)),
                     'SERVER_TOMCAT_THREADS_MAX': '64', 'SERVER_TOMCAT_THREADS_MIN_SPARE': '8',
                     'AWS_ACCESS_KEY_ID': 'dummy', 'AWS_SECRET_ACCESS_KEY': 'dummy',
                     'AWS_EC2_METADATA_DISABLED': 'true', 'AWS_REGION': 'ap-northeast-2',
@@ -342,6 +357,7 @@ class LocalLab:
         if kind == 'burst' and result['completed'] != self.args.burst:
             result['evidenceReasons'].append('incomplete-burst')
         if scenario == 'capacity':
+            result.update(offered_load_observation(result))
             result['sloPassed'] = qualifies(result, self.args.p95_ms, self.args.error_rate)
         write_json(self.output / (label + '.json'), result)
         self.results.append(result)
@@ -407,6 +423,8 @@ class LocalLab:
             if ordinary:
                 for round_number in range(1, self.args.rounds + 1):
                     variants = ['cache-off', 'cache-on'] if round_number % 2 else ['cache-on', 'cache-off']
+                    variants = [variant for variant in variants
+                                if variant in getattr(self.args, 'variants', ['cache-off', 'cache-on'])]
                     for variant in variants:
                         label = variant + '-r' + str(round_number)
                         with self.group(label, cache_enabled=variant == 'cache-on'):
@@ -416,7 +434,7 @@ class LocalLab:
                             if 'capacity' in ordinary:
                                 for rate in self.args.rates:
                                     prefix = label + '-capacity-' + str(rate)
-                                    self.warm(prefix, min(rate, 80))
+                                    self.warm(prefix, min(rate, getattr(self.args, 'warmup_rate_cap', 80)))
                                     result = self.measure(prefix, 'capacity', variant, round_number,
                                                           rate=rate, distribution='uniform')
                                     if not result['sloPassed']:

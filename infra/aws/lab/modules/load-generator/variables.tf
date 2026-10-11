@@ -18,6 +18,12 @@ variable "instance_profile_name" {
   type = string
 }
 
+variable "detailed_monitoring" {
+  type        = bool
+  default     = true
+  description = "Enable one-minute EC2 metrics when the operator role has MonitorInstances permission."
+}
+
 variable "user_data" {
   type = string
 }

@@ -72,6 +72,77 @@ Lua permit의 정합성은 부하 통계와 별개로 실제 Redis 경합 테스
 python3 -m unittest discover -s load-test/k6/test -p 'test_cache_local*.py'
 ```
 
+## 로컬 한계 처리량과 병목 함께 확인하기
+
+`run-local-capacity.py`는 같은 V1 API·JAR에서 캐시 OFF/ON을 비교하며, 각 측정 구간에
+커넥션 풀·앱·MySQL·Redis·부하 발생기 관측을 추가한다. macOS와 로컬 Docker를 사용한다.
+기존 짧은 검증의 부하 상한은 유지하고, 이 실행기만 최대 20,000 RPS·600초 구간을 허용한다.
+AWS에 접근하거나 기존 DB·Redis를 초기화하지 않는다.
+
+```bash
+# 먼저 넓은 간격으로 통과/미통과 구간 찾기
+python3 load-test/k6/cache/run-local-capacity.py --grafana \
+  --apps 1 --rates 100 250 500 1000 2000 4000 8000 16000 \
+  --duration 30 --warmup 10 --rounds 1
+
+# 찾은 구간 안의 RPS를 좁혀 더 긴 구간에서 반복 확인
+python3 load-test/k6/cache/run-local-capacity.py --grafana \
+  --apps 1 --variants cache-off --rates 1000 1250 1500 \
+  --duration 120 --warmup 10 --rounds 3
+```
+
+두 번째 명령의 RPS는 절차 예시이며 측정된 한계가 아니다. OFF/ON 각각 통과·미통과 구간을
+찾고 반복 결과가 일관적인지 확인한다. 기본 비교 기준은 p95 100ms 이하, 오류·누락 0,
+목표 RPS의 99% 이상 완료다. 운영 SLO에서 도출한 값이 아니라 명시적인 실험 기준이다.
+최상위 단계를 통과하면 더 높은 단계가 필요하며, 짧은 1회 탐색 결과로 최대 지속 처리량을 확정하지 않는다.
+각 부하 단계는 기본적으로 `min(목표 RPS, 1000)`의 요청량으로 먼저 예열한다.
+`--warmup-rate-cap`으로 이 상한을 조절하며 실제 예열 결과도 별도 JSON에 남긴다.
+초기 JVM 준비와 각 단계의 예열은 측정 구간에서 제외한다.
+
+`--pool-size`는 기본 10이며 4~40을 지원한다. 풀 대기가 병목 후보일 때 같은 요청량에서
+풀 크기만 바꾸는 추가 진단에 사용한다. 캐시 개선율은 같은 풀 크기·앱 수·부하에서 비교한다.
+`--client-vus`는 기본 512이며 진단 모드에서 최대 4,000까지 지원한다.
+VU 수는 고정 요청률을 바꾸지 않으며, 응답을 기다리는 요청을 유지할 여유를 조절한다.
+VU를 늘렸을 때 부하 발생기 메모리·CPU도 함께 확인한다. VU 부족이나 부하 발생기 자원 부족으로 요청이 누락되면
+서버 상한으로 확정하지 않고 클라이언트 조건을 점검한다.
+다른 k6 프로세스가 실행 중이면 시작을 거부한다. 측정 도중 다른 k6가 관측돼도
+`competing-load-generator`로 표시해 서버 한계 판정에서 제외한다. 다른 부하 테스트·빌드와
+동시에 실행하지 않으며, 이 실행기는 다른 작업의 프로세스를 종료하지 않는다.
+`requestCriteriaPassed`는 p95·오류·누락·성공 RPS 기준만의 결과다. 한계 탐색의 `sloPassed`에는
+관측 유효성도 반영한다. 요청 기준을 만족해도 공유 호스트 CPU 압박 등으로 서버 상한 판정이
+제한될 수 있으므로 두 값과 `capacityObservationReasons`를 함께 읽는다.
+
+한계 탐색의 기본 `--response-check body`는 예열 전에 응답을 기존 DB 응답과 의미적으로
+대조한 뒤, 측정 중 **모든 응답의 본문 전체**를 확인된 문자열과 비교한다. k6가 요청마다
+JSON 전체를 정렬·재직렬화하는 비용을 줄이면서 응답 누락·변조 검증은 유지한다.
+본문의 표현이 달라져도 실패하므로 응답이 안정적인 고정 fixture에서만 사용한다.
+기존 비교 방식은 `--response-check canonical`로 선택한다. 양쪽은 같은 검증 방식을 사용한다.
+AWS와 기존 짧은 실험의 기본 검증 방식은 바뀌지 않는다.
+검증 데이터의 파일 읽기·파싱은 `SharedArray` 내부에서 한 번 수행하고, 각 요청은 해당 숙소의
+비교 문자열만 가져온다. 가상 사용자마다 전체 fixture 객체를 중복 보관하지 않는다.
+([k6 SharedArray 문서](https://grafana.com/docs/k6/latest/javascript-api/k6-data/sharedarray/))
+
+결과는 기존 `build/k6/cache-experiments/<실행 ID>/` 아래에 저장된다. 각 단계의
+`*-diagnostics/summary.json`에는 커넥션 획득·보유 시간, 풀 대기 표본, GC, SQL digest의
+실행 시간·읽은 행 수, 컨테이너 CPU, 앱/k6 프로세스·호스트 자원이 남는다.
+`samples.ndjson`과 전후 snapshot으로 요약 근거도 확인할 수 있다.
+앱/컨테이너 CPU는 전후 전체 구간과 HTTP 구간 내부 표본 간 차이를 구분하고,
+호스트의 실제 swap-in/out 속도도 기록한다. 스왑 누적 사용량만으로 현재 병목을 단정하지 않는다.
+`--jfr`를 추가하면 실험 소유 JVM의 JFR 기록도 남긴다. 프로파일링을 켠 실행은 원인 분석용으로
+구분하고, 최종 처리량 확인은 프로파일링 없이 반복한다. 실행 당시 측정 소스도
+`source-snapshots/`에 보존한다.
+
+지연의 위치를 구분하기 위한 별도 진단에는 `--trace-latency --jfr`를 사용할 수 있다.
+실험 소유 Redis에 PING과 앱 liveness 요청을 각각 약 초당 10회 보내고, 독립적인 왕복 시간·
+실행 지연을 NDJSON에 기록한다. k6 로그에는 Go GC 기록과 정렬용 프로세스 시작 시각도 남긴다.
+이 옵션을 켠 실행은 추가 관측 부하가 있으므로 최종 처리량 확인과 구분한다.
+
+DB/컨테이너 누적 지표의 구간에는 k6 초기화·마지막 응답 대기가 포함된다. 대기·호스트 자원
+표본은 실제 HTTP 시작~완료 구간만 요약한다. MySQL 지표는 다른 클라이언트 활동도 포함하며,
+진단 수집 자체의 비용과 로컬 장비 공유 영향을 AWS 성능으로 해석하지 않는다.
+CPU 1코어는 논리 CPU 하나를 완전히 사용한 시간이고, JVM `ActiveProcessorCount=2`는 CPU 제한이 아니다.
+호스트 CPU 90% 이상·메모리 여유 15% 미만·진단 누락은 처리량 판정을 불확정으로 남긴다.
+
 ## 기존 로컬 Grafana에서 실험 보기
 
 실험은 캐시 초기화·Redis pause와 기존 앱의 작업이 섞이지 않도록 임시 Redis와 별도 JVM을 사용한다.

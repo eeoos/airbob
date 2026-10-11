@@ -101,6 +101,11 @@ class CapacityTest(unittest.TestCase):
 
     def test_empty_capacity_has_no_fabricated_zero(self):
         self.assertIsNone(runner.capacity_bound([])['highestPassingRps'])
+        self.assertEqual(runner.capacity_bound([])['status'], 'inconclusive')
+
+    def test_no_passing_step_does_not_claim_a_bracket(self):
+        rows = [result() | {'configuredRate': 1000, 'sloPassed': False}]
+        self.assertEqual(runner.capacity_bound(rows)['status'], 'upper-bound-only')
 
 
 if __name__ == '__main__':

@@ -15,13 +15,19 @@ variable "cache_benchmark_app_count" {
   }
 }
 
+variable "cache_benchmark_existing_app_handoff" {
+  type        = bool
+  default     = false
+  description = "Verify retained B app runtimes for a protected cache experiment without repeating their ordinary readiness wait."
+}
+
 check "cache_benchmark_topology" {
   assert {
-    condition = !var.cache_benchmark_enabled || (
+    condition = (!var.cache_benchmark_existing_app_handoff || var.cache_benchmark_enabled) && (!var.cache_benchmark_enabled || (
       var.global_b_services && local.data_ready && var.app_enabled && var.load_generator_enabled &&
       !var.global_b_service_bootstrap_enabled && var.mode == "performance" && var.dns_mode == "direct-only" &&
       (var.lab_power == null || local.power_phase == "running")
-    )
+    ))
     error_message = "Cache measurement requires an admitted V28 B app, fixed performance topology and a separate load generator."
   }
 }
