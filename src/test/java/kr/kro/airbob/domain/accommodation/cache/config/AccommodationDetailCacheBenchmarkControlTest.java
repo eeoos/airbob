@@ -19,12 +19,37 @@ class AccommodationDetailCacheBenchmarkControlTest {
 			"accommodation.detail-cache.redis-command-timeout=1s");
 
 	@Test
-	void normalProfileKeepsCoalescingByDefault() {
+	void normalProfileKeepsCoalescingAndDistributedLockByDefault() {
 		runner.run(context -> {
 			assertThat(context).hasNotFailed();
 			assertThat(context.getBean(AccommodationDetailCacheProperties.class).localLoadCoalescingEnabled())
 				.isTrue();
+			assertThat(context.getBean(AccommodationDetailCacheProperties.class).distributedLockEnabled()).isTrue();
 		});
+	}
+
+	@Test
+	void normalProfileCannotDisableDistributedLock() {
+		runner.withPropertyValues("accommodation.detail-cache.distributed-lock-enabled=false")
+			.run(context -> {
+				assertThat(context).hasFailed();
+				assertThat(context.getStartupFailure()).hasRootCauseMessage(
+					"Disabling accommodation detail distributed lock requires cache-benchmark profile");
+			});
+	}
+
+	@Test
+	void benchmarkCanDisableBothProtectionsWhileKeepingTheCacheEnabled() {
+		runner.withPropertyValues("spring.profiles.active=cache-benchmark",
+			"accommodation.detail-cache.local-load-coalescing-enabled=false",
+			"accommodation.detail-cache.distributed-lock-enabled=false")
+			.run(context -> {
+				assertThat(context).hasNotFailed();
+				var properties = context.getBean(AccommodationDetailCacheProperties.class);
+				assertThat(properties.enabled()).isTrue();
+				assertThat(properties.distributedLockEnabled()).isFalse();
+				assertThat(properties.localLoadCoalescingEnabled()).isFalse();
+			});
 	}
 
 	@Test

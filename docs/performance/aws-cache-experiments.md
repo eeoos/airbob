@@ -119,11 +119,24 @@ ALB가 요청을 분배하므로 앱별 요청 수가 정확히 같다고 가정
 |---|---|---|
 | `latency` | 같은 RPS에서 캐시 OFF/ON. 두 회차의 순서 교대 | p95·오류율·DB 로딩 |
 | `miss` | JVM·DB 예열 후 전용 캐시만 비우고 같은 숙소 버스트 | 앱별/합산 실제 DB 로딩·SELECT·p95 |
+| `stampede` | 캐시 ON·병합 OFF 고정, 분산 락·Double Check OFF/ON, 예열 후 캐시 비우기 | 앱별/합산 DB 로딩·락 시도·재확인 적중·p95·오류율 |
 | `outage` | 전용 캐시 Redis pause, 병합 OFF/ON에서 지속 부하와 버스트 | DB 로딩·병합률·p95·오류율·복구 검증 |
 | `capacity` | 지수 증가 탐색 → 통과/실패 사이 세분화 → 양쪽 경계 반복 측정 | 반복 검증한 지속 RPS 범위 또는 미확정 사유 |
 
 Lua permit은 성능 측정 항목에 포함하지 않는다. 기본 예제는 `latency`, `miss`, `outage`만 선택한다.
 실험마다 새 `experimentId`와 새 출력 경로를 사용한다. 서버 응답 전체를 fixture와 비교하므로 데이터가 바뀌면 유효한 비교로 인정하지 않는다.
+
+`stampede`는 `scenarios: ["stampede"]`로 선택하며, 기존 `miss`의 캐시 전체 OFF/ON 비교와 구분한다.
+양쪽 모두 로컬 병합을 끄고 `lock-off` / `lock-on`만 비교한다. 같은 Redis를 공유하는 앱 2대로
+측정하고 각 앱의 실제 참여·락 시도와 `hit_after_wait`를 확인한다. 설정의 `burst`는 두 앱을 합친 요청 수다.
+ALB가 정확히 절반씩 나누거나 모든 요청이 동시에 miss를 볼 것이라고 가정하지 않는다.
+`/api/v2/benchmark/cache-runtime`에 `distributed_lock_enabled`가 없는 기존 이미지는 이 실험을 거부한다.
+새 기능을 포함한 동일 digest의 이미지가 두 대조군에 필요하며, `prepare`는 이미지를 게시하거나 교체하지 않는다.
+
+`outage`의 `coalescing-off` / `coalescing-on`은 기존대로 제공한다. JVM 병합 효과는 앱 1대로 먼저
+측정할 수 있고, 앱 2대는 배포 구성을 추가 검증할 때 사용한다. 두 조건의 Redis 장애와 timeout은 같다.
+두 실험의 상세 조건과 permit 유지에 따른 해석 범위는
+[분산 락과 요청 병합 비교](../../load-test/k6/cache/README.md#분산-락과-장애-시-요청-병합을-따로-비교하기)를 참고한다.
 
 ## 최대 지속 처리량
 

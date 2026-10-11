@@ -7,13 +7,13 @@ AWS 실험의 오프라인 준비는 `make aws-cache-prepare`로 실행한다. A
 
 ## 로컬 성능·경합·장애 실험
 
-기존 V2/V1 비교 외에 다음 실행기로 네 가지 성과의 로컬 측정 기반을 확인할 수 있다.
+기존 V2/V1 비교 외에 다음 실행기로 성능·경합·장애 경로를 비교할 수 있다.
 
 ```bash
 python3 load-test/k6/cache/run-local-experiments.py
 ```
 
-이 실행기는 **같은 V1 API와 같은 JAR**에서 캐시 ON/OFF 또는 로컬 요청 병합 ON/OFF만
+이 실행기는 **같은 V1 API와 같은 JAR**에서 캐시, 분산 락·Double Check 또는 로컬 요청 병합을
 전환한다. 아래의 기존 V2/V1 실행기와 결과를 섞지 않는다. 기존 V28 MySQL은 읽기만 하고,
 실험 소유의 Redis와 loopback 앱 프로세스를 생성한다. 원래 앱·일반 Redis·캐시 Redis에는
 종료·정지·초기화 명령을 보내지 않는다.
@@ -23,6 +23,7 @@ python3 load-test/k6/cache/run-local-experiments.py
 | latency | 같은 고정 요청량, 캐시 OFF/ON | p95/p99, 오류율, 실제 SELECT·DB 로딩 수 |
 | capacity | 같은 앱 수와 JVM 설정, 단계별 요청량 | SLO 통과 최고 단계, 최초 미통과 단계, 실제 성공 RPS, 누락 |
 | miss | JVM·DB 예열 후 실험 Redis만 비우고 같은 숙소에 버스트 | 실제 DB 로딩·SELECT·캐시 적중·병합, 앱별 집계, 클라이언트 출발 편차 |
+| stampede | 캐시 ON·로컬 병합 OFF로 고정, 분산 락·Double Check OFF/ON | 앱별 DB 로딩·락 시도·재확인 적중·p95·오류율 |
 | outage | 캐시 Redis를 pause한 상태에서 병합 OFF/ON | 지속 부하와 버스트 각각의 DB 로딩·병합률·p95·오류율, 복구 후 응답 동일성 |
 
 기본값은 앱 1대, 숙소 20개, 회차별 예열 5초·측정 15초, AB/BA 두 회차다.
@@ -71,6 +72,50 @@ Lua permit의 정합성은 부하 통계와 별개로 실제 Redis 경합 테스
 ./gradlew test --tests '*AccommodationDetailCacheInvalidationRaceIntegrationTest'
 python3 -m unittest discover -s load-test/k6/test -p 'test_cache_local*.py'
 ```
+
+## 분산 락과 장애 시 요청 병합을 따로 비교하기
+
+`miss`는 기존 캐시 전체 OFF/ON 비교를 유지한다. 분산 락과 Double Check의 기여를
+분리하려면 새 `stampede`를 명시적으로 선택한다. 기본 시나리오에는 자동 추가하지 않는다.
+
+| 시나리오 / 조건 | 캐시 | 분산 락 + Double Check | JVM 요청 병합 | Redis |
+|---|---|---|---|---|
+| stampede / lock-off | ON | OFF | OFF | 정상 |
+| stampede / lock-on | ON | ON | OFF | 정상 |
+| outage / coalescing-off | ON | ON | OFF | 응답 불능 |
+| outage / coalescing-on | ON | ON | ON | 응답 불능 |
+
+```bash
+# 분산 락: 같은 Redis를 공유하는 앱 2대, 전체 60건 버스트로 먼저 확인
+python3 load-test/k6/cache/run-local-experiments.py \
+  --apps 2 --scenarios stampede --burst 60 --rounds 3
+
+# JVM 요청 병합: 앱 1대에서 Redis 장애 조건을 고정해 비교
+python3 load-test/k6/cache/run-local-experiments.py \
+  --apps 1 --scenarios outage --burst 60 --rounds 3
+```
+
+분산 락 대조군은 `cache-benchmark` 프로필의
+`CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED=false`로 락 시도와 miss 후 재확인을 생략한다.
+기본값은 `true`이고, 일반 프로필에서 `accommodation.detail-cache.distributed-lock-enabled=false`를
+설정하면 시작을 거부한다. 별도 API나 복제한 DB 쿼리를 사용하지 않는다.
+실제 바인딩된 락/병합 값을 runtime 응답으로 확인하므로 이 기능이 없는 오래된 JAR/이미지는
+`stampede` 실행에 사용할 수 없다.
+
+각 회차는 순서를 교대하고, JVM·DB 예열 후 전용 캐시를 비운 다음 버스트를 보낸다.
+DB 쿼리·payload·TTL·Lua permit 정책은 양쪽에서 유지한다. 락 OFF에서는 여러 loader가
+permit을 덮어쓸 수 있어 **저장 시점에 유효한 permit을 가진 조회만 저장한다**. 따라서 이 대조군은
+현재 구현에서 락·Double Check를 제거한 조건이며, permit 없는 단순 Cache-Aside와 같다고 해석하지 않는다.
+이러한 permit 경합이 캐시가 채워지는 시점과 후속 miss 수에 미치는 영향도 비교에 포함된다.
+
+`comparison.json`의 `instances`와 `server`에 앱별/합산 DB 로딩, `locks`, `outcomes.hit_after_wait`를 남긴다.
+락 OFF에서 각 앱의 DB 로딩, 락 ON에서 각 앱의 락 시도와 전체 재확인 적중이 관측되어야 한다.
+한 앱만 참여하거나 경합이 관측되지 않으면 측정 근거 부족으로 표시한다. 더 큰 버스트로 예비 확인한 뒤
+본 비교의 요청 수를 고정한다. N건 버스트는 N건의 동시 cache miss나 DB 로딩 N회를 보장하지 않는다.
+
+`outage`에서는 첫 Redis 조회 실패 시 분산 락을 건너뛰므로 같은 timeout 조건의 병합 효과를 확인한다.
+앱 2대 실험은 필요하면 추가하되 병합은 각 JVM 안에서만 일어나며, DB 로딩이 전체 1회나 앱당 1회가 된다고
+가정하지 않는다. 모든 비교에서 실제 DB 로딩과 함께 p95·오류율·완료 요청 수를 기록한다.
 
 ## 로컬 한계 처리량과 병목 함께 확인하기
 

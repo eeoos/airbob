@@ -53,6 +53,7 @@ def env_file(path):
 
 def measurement_metrics(raw):
     names = {'accommodation_detail_cache_request_total', 'accommodation_detail_cache_load_duration_seconds_count',
+             'accommodation_detail_cache_lock_wait_duration_seconds_count',
              'accommodation_detail_cache_redis_operation_total', 'app_query_per_request_queries_count',
              'app_query_per_request_count', 'app_query_per_request_queries_sum', 'app_query_per_request_sum'}
     lines = []
@@ -60,7 +61,8 @@ def measurement_metrics(raw):
         name = re.split(r'[\s{]', line, maxsplit=1)[0]
         if name not in names: continue
         if name.startswith('app_query_') and 'path="/api/v1/accommodations/{accommodationId}"' not in line: continue
-        if name == 'accommodation_detail_cache_redis_operation_total' and ('operation="get"' not in line or 'result="error"' not in line): continue
+        if name == 'accommodation_detail_cache_redis_operation_total' and (
+                'result="error"' not in line or not any('operation="' + op + '"' in line for op in ('get', 'put'))): continue
         lines.append(line)
     return '\n'.join(lines) + '\n'
 
@@ -94,7 +96,8 @@ def benchmark_env(original, secret, variant, *, hikari_maximum_pool_size=None):
     result.update(SPRING_PROFILES_ACTIVE='aws,cache-benchmark', SPRING_FLYWAY_TARGET='28',
         BENCHMARK_READ_MODEL_TOKEN=secret,
         ACCOMMODATION_DETAIL_CACHE_ENABLED=str(variant != 'cache-off').lower(),
-        CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED=str(variant != 'coalescing-off').lower(),
+        CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED=str(variant not in ('coalescing-off', 'lock-off', 'lock-on')).lower(),
+        CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED=str(variant != 'lock-off').lower(),
         SPRING_DATASOURCE_HIKARI_READ_ONLY='true', SPRING_KAFKA_LISTENER_AUTO_STARTUP='false',
         OPERATOR_ALERT_KAFKA_AUTO_STARTUP='false', ACCOMMODATION_INDEXING_AUTO_STARTUP='false',
         ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP='false',
@@ -223,7 +226,8 @@ class Host:
         return image['Id']
 
     def variant(self, variant):
-        need(self.instance in self.c['apps'] and variant in {'cache-off', 'cache-on', 'coalescing-off', 'coalescing-on'},
+        need(self.instance in self.c['apps'] and variant in {
+                 'cache-off', 'cache-on', 'coalescing-off', 'coalescing-on', 'lock-off', 'lock-on'},
              'Invalid application operation')
         original_path = Path('/etc/airbob/app.env')
         original = env_file(original_path)
@@ -276,7 +280,8 @@ class Host:
         applied = self.container('app')
         need(applied['Image'] == self.state['imageId'], 'Image changed during the comparison')
         active = dict(entry.split('=', 1) for entry in applied['Config']['Env'] if '=' in entry)
-        for key in ('SPRING_PROFILES_ACTIVE', 'ACCOMMODATION_DETAIL_CACHE_ENABLED', 'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED'):
+        for key in ('SPRING_PROFILES_ACTIVE', 'ACCOMMODATION_DETAIL_CACHE_ENABLED',
+                    'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED', 'CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED'):
             need(active.get(key) == values[key], 'Variant configuration was not applied')
         self.state['variant'] = variant
         self.save()
@@ -289,8 +294,10 @@ class Host:
         local.base.preflight('http://127.0.0.1:8080', values['BENCHMARK_READ_MODEL_TOKEN'], self.c['accommodationIds'], None)
         runtime = local.base.get_json('http://127.0.0.1:8080', '/api/v2/benchmark/cache-runtime',
                                       values['BENCHMARK_READ_MODEL_TOKEN'])
-        need(runtime['flyway_version'] == '28' and runtime['cache_enabled'] == (variant != 'cache-off')
-             and runtime['coalescing_enabled'] == (variant != 'coalescing-off')
+        local.validate_runtime_policy(runtime, variant != 'cache-off',
+            variant not in ('coalescing-off', 'lock-off', 'lock-on'), variant != 'lock-off',
+            require_lock_control=variant in ('lock-off', 'lock-on'))
+        need(runtime['flyway_version'] == '28'
              and runtime['ttl_seconds'] == 600 and runtime['ttl_jitter_seconds'] == 120,
              'Runtime schema or cache policy differs from the experiment')
         pool_size = self.snapshot()['diagnosticMetrics'].get('hikaricp_connections_max')

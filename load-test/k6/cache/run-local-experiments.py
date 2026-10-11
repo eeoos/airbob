@@ -44,13 +44,19 @@ def server_observation(before_text, after_text):
         'loadErrors': delta(['accommodation_detail_cache_load_duration_seconds_count'], {'result': 'error'}),
         'redisGetErrors': delta(['accommodation_detail_cache_redis_operation_total'],
                                 {'operation': 'get', 'result': 'error'}),
+        'redisPutErrors': delta(['accommodation_detail_cache_redis_operation_total'],
+                                {'operation': 'put', 'result': 'error'}),
+        'locks': {result: delta(['accommodation_detail_cache_lock_wait_duration_seconds_count'], {'result': result})
+                  for result in ['acquired', 'timeout', 'interrupted', 'error']},
         'outcomes': outcomes,
     }
 
 
 def aggregate_observations(observations):
     totals = {key: sum(row[key] for row in observations)
-              for key in ['requests', 'selects', 'loads', 'loadErrors', 'redisGetErrors']}
+              for key in ['requests', 'selects', 'loads', 'loadErrors', 'redisGetErrors', 'redisPutErrors']}
+    totals['locks'] = {key: sum(row['locks'][key] for row in observations)
+                       for key in observations[0]['locks']}
     totals['outcomes'] = {key: sum(row['outcomes'][key] for row in observations)
                           for key in observations[0]['outcomes']}
     totals['coalesced'] = totals['outcomes']['coalesced']
@@ -88,7 +94,46 @@ def evidence_reasons(result, observed, variant, scenario):
                 reasons.append('redis-hit-during-outage')
             if variant == 'coalescing-off' and (observed['coalesced'] or observed['loads'] != result['completed']):
                 reasons.append('uncoalesced-control-not-proven')
+    if scenario == 'stampede':
+        reasons.extend(stampede_evidence_reasons(result, observed, variant))
     return reasons
+
+
+def stampede_evidence_reasons(result, observed, variant):
+    reasons = []
+    if result['errorRate'] or observed['loadErrors']:
+        reasons.append('stampede-response-or-load-error')
+    if observed['redisGetErrors'] or observed['redisPutErrors'] or observed['locks']['error']:
+        reasons.append('stampede-redis-or-lock-error')
+    if observed['outcomes']['coalesced'] or observed['outcomes']['negative_coalesced']:
+        reasons.append('stampede-local-coalescing-not-disabled')
+    if observed['loads'] < 1:
+        reasons.append('cold-cache-not-proven')
+    instances = result['instances']
+    if any(row['requests'] == 0 for row in instances):
+        reasons.append('stampede-app-not-participating')
+    if variant == 'lock-off':
+        if sum(observed['locks'].values()) or observed['outcomes']['hit_after_wait']:
+            reasons.append('unlocked-control-not-proven')
+        if any(row['loads'] == 0 for row in instances):
+            reasons.append('stampede-miss-not-observed-on-every-app')
+    elif variant == 'lock-on':
+        if any(sum(row['locks'].values()) == 0 for row in instances):
+            reasons.append('stampede-lock-not-observed-on-every-app')
+        if observed['outcomes']['hit_after_wait'] == 0:
+            reasons.append('stampede-double-check-hit-not-observed')
+    else:
+        reasons.append('invalid-stampede-variant')
+    return reasons
+
+
+def validate_runtime_policy(runtime, cache_enabled, coalescing, distributed_lock, *, require_lock_control=False):
+    require(runtime['cache_enabled'] is cache_enabled and runtime['coalescing_enabled'] is coalescing,
+            'Runtime cache/coalescing policy differs from the experiment')
+    # Old images can still run the existing comparisons, but cannot establish the new lock comparison.
+    if require_lock_control or 'distributed_lock_enabled' in runtime:
+        require(runtime.get('distributed_lock_enabled') is distributed_lock,
+                'Runtime distributed lock control missing or differs from the experiment')
 
 
 CAPACITY_MIN_LOAD_RATIO = .99
@@ -257,7 +302,7 @@ class LocalLab:
         return [origin for _, origin, _ in self.apps]
 
     @contextmanager
-    def group(self, label, cache_enabled, coalescing=True):
+    def group(self, label, cache_enabled, coalescing=True, distributed_lock=True):
         self.flush()
         try:
             if self.monitor:
@@ -270,6 +315,7 @@ class LocalLab:
                     'SPRING_DATASOURCE_PASSWORD': self.settings['SPRING_DATASOURCE_PASSWORD'].strip(),
                     'ACCOMMODATION_DETAIL_CACHE_ENABLED': str(cache_enabled).lower(),
                     'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED': str(coalescing).lower(),
+                    'CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED': str(distributed_lock).lower(),
                     'ACCOMMODATION_DETAIL_CACHE_REDIS_HOST': '127.0.0.1',
                     'ACCOMMODATION_DETAIL_CACHE_REDIS_PORT': self.redis_port,
                     'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE': str(getattr(self.args, 'pool_size', 10)),
@@ -286,6 +332,10 @@ class LocalLab:
                 self.apps.append((process, None, stream))
                 origin = base.wait_for_app(process, path)
                 self.apps[-1] = (process, origin, stream)
+                runtime = base.get_json(origin, '/api/v2/benchmark/cache-runtime', self.token)
+                validate_runtime_policy(runtime, cache_enabled, coalescing, distributed_lock,
+                                        require_lock_control=label.startswith(('lock-off-', 'lock-on-')))
+                write_json(self.output / (label + '-app-' + str(index) + '-runtime.json'), runtime)
                 for version in [1, 2]:
                     try:
                         base.get_json(origin, '/api/v' + str(version) + '/accommodations/' + str(self.ids[0]))
@@ -383,7 +433,7 @@ class LocalLab:
                    {'metadata': self.metadata, 'state': state, 'capacity': capacities, 'results': self.results})
         lines = ['# 숙소 상세 캐시 로컬 실험', '',
                  '- 범위: 로컬 동작·부하 검증. 클라이언트·앱·DB가 같은 장비를 공유하며 AWS 결과가 아님.',
-                 '- 같은 V1 API·JAR·앱 수·JVM 설정·DB를 유지하고 캐시 또는 로컬 요청 병합만 전환.',
+                 '- 같은 V1 API·JAR·앱 수·JVM 설정·DB를 유지하고 캐시, 분산 락·Double Check 또는 로컬 병합을 전환.',
                  '- 최대 처리량 판정: p95 ≤ ' + str(self.args.p95_ms) + 'ms, 오류율 ≤ '
                  + str(self.args.error_rate) + ', 요청 누락 0, 목표 RPS의 99% 이상 완료.',
                  '- 부하 상한까지 통과한 경우 최대 처리량을 확정하거나 증가율을 계산하지 않음.',
@@ -443,6 +493,16 @@ class LocalLab:
                                 self.warm(label + '-miss')
                                 self.flush()
                                 self.measure(label + '-miss', 'miss', variant, round_number, kind='burst')
+            if 'stampede' in self.args.scenarios:
+                for round_number in range(1, self.args.rounds + 1):
+                    variants = ['lock-off', 'lock-on'] if round_number % 2 else ['lock-on', 'lock-off']
+                    for variant in variants:
+                        label = variant + '-r' + str(round_number)
+                        with self.group(label, cache_enabled=True, coalescing=False,
+                                        distributed_lock=variant == 'lock-on'):
+                            self.warm(label)
+                            self.flush()
+                            self.measure(label + '-stampede', 'stampede', variant, round_number, kind='burst')
             if 'outage' in self.args.scenarios:
                 for round_number in range(1, self.args.rounds + 1):
                     variants = ['coalescing-off', 'coalescing-on'] if round_number % 2 else ['coalescing-on', 'coalescing-off']
@@ -503,7 +563,7 @@ def main():
     parser.add_argument('--burst', type=int, default=60)
     parser.add_argument('--p95-ms', type=float, default=100)
     parser.add_argument('--error-rate', type=float, default=0)
-    parser.add_argument('--scenarios', nargs='+', choices=['latency', 'capacity', 'miss', 'outage'],
+    parser.add_argument('--scenarios', nargs='+', choices=['latency', 'capacity', 'miss', 'stampede', 'outage'],
                         default=['latency', 'capacity', 'miss', 'outage'])
     args = parser.parse_args()
     require(5 <= args.keys <= 200 and 1 <= args.rounds <= 3, 'Invalid key/round bound')

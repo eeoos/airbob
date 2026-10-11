@@ -74,7 +74,7 @@ def validate(c, *, executing=False):
     need(isinstance(keys, list) and 5 <= len(keys) <= 200 and len(keys) == len(set(keys))
          and all(type(i) is int and 0 < i < 2**53 for i in keys), 'Published accommodation IDs required')
     need(isinstance(c['scenarios'], list) and 0 < len(c['scenarios']) == len(set(c['scenarios']))
-         and set(c['scenarios']) <= {'latency', 'miss', 'outage', 'capacity'}, 'Invalid scenarios')
+         and set(c['scenarios']) <= {'latency', 'miss', 'stampede', 'outage', 'capacity'}, 'Invalid scenarios')
     bounds = {'rounds': (1, 3), 'durationSeconds': (5, 300), 'warmupSeconds': (5, 60),
               'rate': (1, 20000), 'outageRate': (1, 1000), 'burst': (2, 1000),
               'clientVUs': (80, 20000), 'deadlineSeconds': (1200, 5400)}

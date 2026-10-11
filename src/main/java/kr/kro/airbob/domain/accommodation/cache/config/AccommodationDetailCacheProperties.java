@@ -20,6 +20,7 @@ import org.springframework.util.Assert;
  * @param redisConnectTimeout 캐시 Redis 연결 제한 시간
  * @param redisCommandTimeout 캐시 Redis 명령 제한 시간
  * @param localLoadCoalescingEnabled JVM 요청 병합 여부. 비활성화는 cache-benchmark 대조군에만 허용
+ * @param distributedLockEnabled 분산 락과 획득 후 재확인 여부. 비활성화는 cache-benchmark 대조군에만 허용
  */
 @ConfigurationProperties(prefix = "accommodation.detail-cache")
 public record AccommodationDetailCacheProperties(
@@ -33,7 +34,8 @@ public record AccommodationDetailCacheProperties(
 	Duration loadPermitTtl,
 	Duration redisConnectTimeout,
 	Duration redisCommandTimeout,
-	@DefaultValue("true") boolean localLoadCoalescingEnabled
+	@DefaultValue("true") boolean localLoadCoalescingEnabled,
+	@DefaultValue("true") boolean distributedLockEnabled
 ) {
 	// 기존 호출자는 운영 기본값인 요청 병합을 사용한다.
 	public AccommodationDetailCacheProperties(
@@ -43,6 +45,15 @@ public record AccommodationDetailCacheProperties(
 	) {
 		this(enabled, ttl, ttlJitter, negativeTtl, negativeTtlJitter, lockWait, localLoadWait,
 			loadPermitTtl, redisConnectTimeout, redisCommandTimeout, true);
+	}
+
+	public AccommodationDetailCacheProperties(
+		boolean enabled, Duration ttl, Duration ttlJitter, Duration negativeTtl, Duration negativeTtlJitter,
+		Duration lockWait, Duration localLoadWait, Duration loadPermitTtl,
+		Duration redisConnectTimeout, Duration redisCommandTimeout, boolean localLoadCoalescingEnabled
+	) {
+		this(enabled, ttl, ttlJitter, negativeTtl, negativeTtlJitter, lockWait, localLoadWait,
+			loadPermitTtl, redisConnectTimeout, redisCommandTimeout, localLoadCoalescingEnabled, true);
 	}
 
 	@ConstructorBinding

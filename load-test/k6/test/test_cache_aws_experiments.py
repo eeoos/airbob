@@ -36,6 +36,41 @@ def row(rate, passed=True, **changes):
 
 
 class PlanTest(unittest.TestCase):
+    def test_stampede_scenario_prepares_offline(self):
+        c = config() | {'scenarios': ['stampede'], 'rounds': 3}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(runner.Aws, 'call', side_effect=AssertionError('No AWS')):
+            directory = runner.prepare(c, Path(tmp) / 'prepared')
+            self.assertEqual(json.loads((directory / 'config.json').read_text())['scenarios'], ['stampede'])
+
+    def test_stampede_alternates_controls_and_flushes_after_warmup_before_each_burst(self):
+        c = config() | {'scenarios': ['stampede'], 'rounds': 2}
+        run = runner.Runner(c, '/unused', '/unused-output', Mock())
+        calls = []
+        run.variant = lambda variant: calls.append(('variant', variant))
+        run.warm = lambda label: calls.append(('warm', label))
+        run.transport.action = lambda instance, action: calls.append((action, instance))
+        run.measure = lambda label, scenario, variant, **kw: calls.append(('measure', variant, scenario, kw['kind']))
+        run.measurements()
+        variants = ['lock-off', 'lock-on', 'lock-on', 'lock-off']
+        self.assertEqual([entry[1] for entry in calls if entry[0] == 'variant'], variants)
+        self.assertEqual([entry[0] for entry in calls], ['variant', 'warm', 'flush', 'measure'] * 4)
+        self.assertEqual([entry[1:] for entry in calls if entry[0] == 'measure'],
+                         [(v, 'stampede', 'burst') for v in variants])
+
+    def test_outage_still_compares_coalescing_off_on_under_the_same_pause(self):
+        c = config() | {'scenarios': ['outage'], 'rounds': 1}
+        run = runner.Runner(c, '/unused', '/unused-output', Mock())
+        run.variant, run.warm, run.measure, run.generator = Mock(), Mock(), Mock(), Mock()
+        run.transport.action = Mock()
+        run.measurements()
+        self.assertEqual([call.args[0] for call in run.variant.call_args_list], ['coalescing-off', 'coalescing-on'])
+        self.assertEqual([call.args[1] for call in run.transport.action.call_args_list],
+                         ['pause', 'unpause', 'pause', 'unpause'])
+        self.assertEqual([call.args[2] for call in run.measure.call_args_list],
+                         ['coalescing-off'] * 2 + ['coalescing-on'] * 2)
+        self.assertEqual([call.kwargs.get('kind', 'rate') for call in run.measure.call_args_list],
+                         ['rate', 'burst', 'rate', 'burst'])
+
     def test_prepare_is_offline_and_bundle_contains_exact_shared_sources(self):
         with tempfile.TemporaryDirectory() as tmp, \
              patch('subprocess.run', side_effect=AssertionError('No external programs during prepare')), \
@@ -293,6 +328,17 @@ class CapacityTest(unittest.TestCase):
 
 
 class HostPolicyTest(unittest.TestCase):
+    def test_stampede_control_changes_only_lock_and_disables_coalescing_in_both_groups(self):
+        before = host.benchmark_env(self.original(), 'test-secret', 'lock-off')
+        after = host.benchmark_env(self.original(), 'test-secret', 'lock-on')
+        self.assertEqual({key for key in before if before[key] != after[key]},
+                         {'CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED'})
+        self.assertEqual(before['CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED'], 'false')
+        self.assertEqual(after['CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED'], 'true')
+        for values in (before, after):
+            self.assertEqual(values['ACCOMMODATION_DETAIL_CACHE_ENABLED'], 'true')
+            self.assertEqual(values['CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED'], 'false')
+
     def test_pool_diagnostic_changes_only_the_temporary_environment(self):
         original = self.original() | {'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE': '10'}
         saved = copy.deepcopy(original)
@@ -321,6 +367,7 @@ class HostPolicyTest(unittest.TestCase):
         changed = {k for k in before if before[k] != after[k]}
         self.assertEqual(changed, {'CACHE_BENCHMARK_LOCAL_COALESCING_ENABLED'})
         self.assertEqual(before['ACCOMMODATION_DETAIL_CACHE_ENABLED'], 'true')
+        self.assertEqual(before['CACHE_BENCHMARK_DISTRIBUTED_LOCK_ENABLED'], 'true')
         self.assertEqual(before['SPRING_DATASOURCE_URL'], self.original()['SPRING_DATASOURCE_URL'])
         self.assertEqual(before['SPRING_DATASOURCE_PASSWORD'], self.original()['SPRING_DATASOURCE_PASSWORD'])
         self.assertEqual(before['SPRING_KAFKA_LISTENER_AUTO_STARTUP'], 'false')
@@ -516,13 +563,17 @@ class HostPolicyTest(unittest.TestCase):
             'accommodation_detail_cache_request_total{result="loaded"} 2',
             'accommodation_detail_cache_load_duration_seconds_count{result="success"} 2',
             'accommodation_detail_cache_load_duration_seconds_bucket{le="1.0"} 100',
+            'accommodation_detail_cache_lock_wait_duration_seconds_count{result="acquired"} 60',
             'app_query_per_request_queries_count{path="/api/v1/accommodations/{accommodationId}"} 2',
             'app_query_per_request_queries_count{path="/api/v2/accommodations/{accommodationId}"} 100',
             'accommodation_detail_cache_redis_operation_total{operation="get",result="error"} 0',
+            'accommodation_detail_cache_redis_operation_total{operation="put",result="error"} 0',
             'accommodation_detail_cache_redis_operation_total{operation="set",result="success"} 2'])
         filtered = host.measurement_metrics(raw)
         self.assertIn('result="loaded"', filtered)
         self.assertIn('duration_seconds_count', filtered)
+        self.assertIn('lock_wait_duration_seconds_count', filtered)
+        self.assertIn('operation="put",result="error"', filtered)
         self.assertNotIn('bucket', filtered)
         self.assertNotIn('/api/v2/', filtered)
         self.assertNotIn('operation="set"', filtered)

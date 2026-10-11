@@ -841,6 +841,59 @@ class AccommodationDetailCacheTest {
 		verifyNoInteractions(redissonClient);
 	}
 
+	@Test
+	@DisplayName("락 OFF 대조군은 첫 miss 이후 재확인 없이 DB를 읽고 같은 permit과 TTL로 저장한다")
+	void lockControlSkipsLockAndDoubleCheckButKeepsCacheWrites() throws Exception {
+		var control = cacheWithoutLock();
+		var expected = snapshot(1L, "database");
+		when(redisClient.get(CACHE_KEY)).thenReturn(null);
+		when(jitter.nextMillis(120_001L)).thenReturn(123L);
+
+		assertThat(control.getOrLoad(1L, () -> expected)).isEqualTo(expected);
+
+		verify(redisClient, times(1)).get(CACHE_KEY);
+		verifyNoInteractions(redissonClient);
+		verify(redisClient).execute(any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY)),
+			any(String.class), eq("30000"));
+		verify(redisClient).execute(any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY)),
+			any(String.class), eq("600123"), eq(json(AccommodationDetailCacheValue.found(expected))));
+		verify(metricRecorder).recordRequest(AccommodationDetailCacheMetricRecorder.RequestResult.LOADED);
+	}
+
+	@Test
+	@DisplayName("락 OFF 대조군에서도 캐시 hit는 DB 조회를 생략한다")
+	void lockControlKeepsPositiveCacheHits() throws Exception {
+		var expected = snapshot(1L, "cached");
+		when(redisClient.get(CACHE_KEY)).thenReturn(json(AccommodationDetailCacheValue.found(expected)));
+		assertThat(cacheWithoutLock().getOrLoad(1L, () -> {
+			throw new AssertionError("A hit must not load from DB");
+		})).isEqualTo(expected);
+		verifyNoInteractions(redissonClient);
+		verify(metricRecorder).recordRequest(AccommodationDetailCacheMetricRecorder.RequestResult.HIT);
+	}
+
+	@Test
+	@DisplayName("락 OFF 대조군도 동일한 TTL로 404를 캐시한다")
+	void lockControlKeepsNegativeCacheWrites() {
+		when(redisClient.get(CACHE_KEY)).thenReturn(null);
+		assertThatThrownBy(() -> cacheWithoutLock().getOrLoad(1L, () -> {
+			throw new AccommodationNotFoundException();
+		})).isInstanceOf(AccommodationNotFoundException.class);
+		verify(redisClient, times(1)).get(CACHE_KEY);
+		verifyNoInteractions(redissonClient);
+		verify(redisClient).execute(any(RedisScript.class), eq(List.of(LOAD_PERMIT_KEY, CACHE_KEY)),
+			any(String.class), eq("45000"), any(String.class));
+		verify(metricRecorder).recordRequest(AccommodationDetailCacheMetricRecorder.RequestResult.NEGATIVE_LOADED);
+	}
+
+	private AccommodationDetailCache cacheWithoutLock() {
+		return new AccommodationDetailCache(redisClient, redissonClient, objectMapper, metricRecorder, jitter,
+			new AccommodationDetailCacheProperties(true,
+				Duration.ofMinutes(10), Duration.ofMinutes(2), Duration.ofSeconds(45), Duration.ofSeconds(15),
+				Duration.ofSeconds(2), Duration.ofSeconds(5), Duration.ofSeconds(30),
+				Duration.ofSeconds(1), Duration.ofSeconds(1), false, false));
+	}
+
 	private String json(AccommodationDetailCacheValue value) throws Exception {
 		return objectMapper.writeValueAsString(value);
 	}

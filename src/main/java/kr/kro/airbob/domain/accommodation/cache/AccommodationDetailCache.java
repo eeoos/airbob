@@ -86,8 +86,16 @@ public class AccommodationDetailCache {
 			case CacheLookup.Failure<AccommodationDetailSnapshot>() -> {
 				return loadWithoutCache(accommodationId, loader);
 			}
-			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> { // MISS인 경우 분산 락 진입
+			case CacheLookup.Miss<AccommodationDetailSnapshot>() -> {
 			}
+		}
+
+		// benchmark 대조군: 첫 miss 이후 락과 재확인만 생략하고 기존 permit/저장 정책을 유지
+		if (!properties.distributedLockEnabled()) {
+			String loadPermit = redisStore.acquireLoadPermit(accommodationId);
+			return loadPermit != null
+				? loadAndCache(accommodationId, loadPermit, loader)
+				: loadWithoutCache(accommodationId, loader);
 		}
 
 		// Redis miss라면 이미 진행 중인 fallback DB 조회에 합류해 추가 락과 조회를 피함

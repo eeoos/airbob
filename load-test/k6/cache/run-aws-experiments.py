@@ -357,6 +357,13 @@ class Runner:
                         self.warm(label)
                         if scenario == 'miss': self.transport.action(c['redisInstanceId'], 'flush')
                         self.measure(label, scenario, variant, kind='burst' if scenario == 'miss' else 'rate')
+            if 'stampede' in c['scenarios']:
+                for variant in (['lock-off', 'lock-on'] if round_number % 2 else ['lock-on', 'lock-off']):
+                    self.variant(variant)
+                    label = variant + '-r' + str(round_number) + '-stampede'
+                    self.warm(label)
+                    self.transport.action(c['redisInstanceId'], 'flush')
+                    self.measure(label, 'stampede', variant, kind='burst')
             if 'outage' in c['scenarios']:
                 for variant in (['coalescing-off', 'coalescing-on'] if round_number % 2 else ['coalescing-on', 'coalescing-off']):
                     self.variant(variant)
