@@ -44,7 +44,7 @@
       },
       "id": 1,
       "options": {
-        "content": "### Measurement contract\n- Compare **success-only end-to-end RPS and p99**. Fast sold-out or duplicate responses must not make a strategy look faster.\n- With the current 15 s Prometheus scrape interval, run each measured variant for **at least 2\u20135 minutes**. The k6 JSON remains the exact client-side result.\n- Run one coupon campaign/variant at a time and pin the exact time range. Prometheus `increase()` values and histogram quantiles are estimates; verify final member-coupon/unit invariants separately.",
+        "content": "### Measurement contract\n- Compare **success-only end-to-end RPS and p99**. Fast sold-out or duplicate responses must not make a strategy look faster.\n- With the current 15 s Prometheus scrape interval, run each measured variant for **at least 2–5 minutes**. The k6 JSON remains the exact client-side result.\n- Run one coupon campaign/variant at a time and pin the exact time range. Prometheus `increase()` values and histogram quantiles are estimates; verify final member-coupon/unit invariants separately.",
         "mode": "markdown"
       },
       "pluginVersion": "13.1.0",
@@ -238,7 +238,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(\n  0.50,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
-          "legendFormat": "p50 \u00b7 {{strategy}}",
+          "legendFormat": "p50 · {{strategy}}",
           "range": true,
           "refId": "A"
         },
@@ -250,7 +250,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(\n  0.95,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
-          "legendFormat": "p95 \u00b7 {{strategy}}",
+          "legendFormat": "p95 · {{strategy}}",
           "range": true,
           "refId": "B"
         },
@@ -262,7 +262,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(\n  0.99,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
-          "legendFormat": "p99 \u00b7 {{strategy}}",
+          "legendFormat": "p99 · {{strategy}}",
           "range": true,
           "refId": "C"
         }
@@ -359,7 +359,7 @@
           "editorMode": "code",
           "expr": "sum by (strategy, result) (\n  rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval])\n)",
           "instant": false,
-          "legendFormat": "{{strategy}} \u00b7 {{result}}",
+          "legendFormat": "{{strategy}} · {{result}}",
           "range": true,
           "refId": "A"
         }
@@ -429,7 +429,7 @@
           "editorMode": "code",
           "expr": "sum by (strategy, result) (\n  increase(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__range])\n)",
           "instant": true,
-          "legendFormat": "{{strategy}} \u00b7 {{result}}",
+          "legendFormat": "{{strategy}} · {{result}}",
           "range": false,
           "refId": "A"
         }
@@ -526,7 +526,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(\n  0.50,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
-          "legendFormat": "p50 \u00b7 {{strategy}}",
+          "legendFormat": "p50 · {{strategy}}",
           "range": true,
           "refId": "A"
         },
@@ -538,7 +538,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(\n  0.95,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
-          "legendFormat": "p95 \u00b7 {{strategy}}",
+          "legendFormat": "p95 · {{strategy}}",
           "range": true,
           "refId": "B"
         },
@@ -550,7 +550,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(\n  0.99,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
-          "legendFormat": "p99 \u00b7 {{strategy}}",
+          "legendFormat": "p99 · {{strategy}}",
           "range": true,
           "refId": "C"
         }
