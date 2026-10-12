@@ -51,17 +51,18 @@ X-Benchmark-Token: {{benchmarkToken}}
   ]
 }
 
-### Recently viewed AFTER - DTO projection + wishlist (N=100, expected SELECT=2)
-# 숙소·주소·리뷰 요약 projection 1 + 위시리스트 1 = 2
+### Recently viewed AFTER - DTO projection + raw review aggregation (N=100, expected SELECT=3)
+# 숙소·주소 projection 1 + 원본 리뷰 집계 1 + 위시리스트 1 = 3
 # @name recentlyViewedAfter
-GET {{baseUrl}}/api/v1/members/recently-viewed
+GET {{baseUrl}}/api/v2/members/recently-viewed/nplus1-after
 Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
 
 ### Recently viewed BEFORE - address lazy-loading N+1 (N=100, expected SELECT=103)
-# 숙소 1 + 주소 N + 리뷰 요약 1 + 위시리스트 1 = N+3
+# 숙소 1 + 주소 N + 원본 리뷰 집계 1 + 위시리스트 1 = N+3
 # Requires the nplus1-benchmark profile so batch fetch does not hide the N+1.
 # @name recentlyViewedBefore
-GET {{baseUrl}}/api/v2/members/recently-viewed
+GET {{baseUrl}}/api/v2/members/recently-viewed/nplus1-before
 Accept: application/json
 X-Benchmark-Token: {{benchmarkToken}}
 

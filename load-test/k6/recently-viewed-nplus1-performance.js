@@ -9,6 +9,7 @@ import {
 } from './lib/benchmark-fixture.js';
 import {
   assertRecentlyViewedPreflight,
+  matchesRecentlyViewedData,
   matchesRecentlyViewedFixture,
   parseRecentlyViewedBenchmarkManifest,
 } from './lib/recently-viewed-benchmark.js';
@@ -16,16 +17,16 @@ import {
 if (!__ENV.BENCHMARK_MANIFEST) {
   throw new Error('BENCHMARK_MANIFEST is required');
 }
-if (!__ENV.TEST_PASSWORD || !__ENV.TEST_PASSWORD.trim()) {
-  throw new Error('TEST_PASSWORD is required');
+if (!(__ENV.BENCHMARK_SESSION_ID || '').trim() && !(__ENV.TEST_PASSWORD || '').trim()) {
+  throw new Error('TEST_PASSWORD or BENCHMARK_SESSION_ID is required');
 }
 if (!__ENV.BENCHMARK_READ_MODEL_TOKEN || !__ENV.BENCHMARK_READ_MODEL_TOKEN.trim()) {
   throw new Error('BENCHMARK_READ_MODEL_TOKEN is required');
 }
 
 const TARGETS = {
-  before: '/api/v2/members/recently-viewed',
-  after: '/api/v1/members/recently-viewed',
+  before: '/api/v2/members/recently-viewed/nplus1-before',
+  after: '/api/v2/members/recently-viewed/nplus1-after',
 };
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
@@ -43,6 +44,7 @@ const PRE_ALLOCATED_VUS = Number(
   __ENV.PRE_ALLOCATED_VUS || Math.max(20, Math.ceil(RATE * 10)),
 );
 const RESULT_PATH = __ENV.K6_RESULT_PATH;
+const REQUEST_TIMEOUT = __ENV.REQUEST_TIMEOUT || '5s';
 const targetPath = TARGETS[VARIANT];
 
 if (!targetPath) {
@@ -102,6 +104,7 @@ function arrivalRateScenario(exec, duration, startTime) {
     timeUnit: '1s',
     duration,
     preAllocatedVUs: PRE_ALLOCATED_VUS,
+    maxVUs: PRE_ALLOCATED_VUS,
     gracefulStop: `${SCENARIO_GRACEFUL_STOP_SECONDS}s`,
   };
   if (startTime) {
@@ -125,7 +128,7 @@ export const options = {
 };
 
 export function setup() {
-  const sessionId = loginBenchmarkAccount({
+  const sessionId = (__ENV.BENCHMARK_SESSION_ID || '').trim() || loginBenchmarkAccount({
     baseUrl: BASE_URL,
     email: BENCHMARK_EMAIL,
     password: __ENV.TEST_PASSWORD,
@@ -143,9 +146,8 @@ export function setup() {
     const params = authenticatedParams(sessionId, {
       phase: 'validation', variant, name: `GET ${path}`,
     });
-    if (variant === 'before') {
-      params.headers = benchmarkHeaders(BENCHMARK_TOKEN);
-    }
+    params.headers = benchmarkHeaders(BENCHMARK_TOKEN);
+    params.timeout = REQUEST_TIMEOUT;
     const response = http.get(`${BASE_URL}${path}`, params);
     if (response.status !== 200) {
       fail(`${variant} preflight failed with HTTP ${response.status}`);
@@ -153,7 +155,7 @@ export function setup() {
     payloads[variant] = parsePayload(response);
   }
   assertRecentlyViewedPreflight(payloads.before, payloads.after, expectedIds);
-  return { sessionId };
+  return { sessionId, expectedData: payloads.before.data };
 }
 
 function parsePayload(response) {
@@ -170,17 +172,18 @@ function requestTarget(data, phase) {
     data.sessionId,
     { ...tags, name: `GET ${targetPath}` },
   );
-  if (VARIANT === 'before') {
-    params.headers = benchmarkHeaders(BENCHMARK_TOKEN);
-  }
+  params.headers = benchmarkHeaders(BENCHMARK_TOKEN);
+  params.timeout = REQUEST_TIMEOUT;
   const response = http.get(`${BASE_URL}${targetPath}`, params);
   const payload = parsePayload(response);
   const hasExpectedFixture = matchesRecentlyViewedFixture(payload, expectedIds);
-  const success = response.status === 200 && hasExpectedFixture;
+  const hasExpectedData = matchesRecentlyViewedData(payload, data.expectedData);
+  const success = response.status === 200 && hasExpectedFixture && hasExpectedData;
 
   check(response, {
     [`${VARIANT} returns HTTP 200`]: (res) => res.status === 200,
     [`${VARIANT} preserves ${EXPECTED_ROWS} fixture IDs and latest-first order`]: () => hasExpectedFixture,
+    [`${VARIANT} preserves the complete preflight response data`]: () => hasExpectedData,
   }, tags);
 
   if (phase === 'measure') {
@@ -215,10 +218,14 @@ export function handleSummary(data) {
     variant: VARIANT,
     endpoint: targetPath,
     expected_rows: EXPECTED_ROWS,
-    expected_select_queries_per_request: VARIANT === 'before' ? EXPECTED_ROWS + 3 : 2,
+    review_summary_source: 'raw-review-aggregation',
+    expected_select_queries_per_request: VARIANT === 'before' ? EXPECTED_ROWS + 3 : 3,
     configured_rate_per_second: RATE,
     warmup_duration: WARMUP_DURATION,
     measure_duration: MEASURE_DURATION,
+    request_timeout: REQUEST_TIMEOUT,
+    pre_allocated_vus: PRE_ALLOCATED_VUS,
+    max_vus: PRE_ALLOCATED_VUS,
     requests: {
       attempted,
       successful,

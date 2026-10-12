@@ -90,21 +90,23 @@ unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
 
 ## Recently viewed N+1 before/after comparison
 
-`recently-viewed-nplus1-performance.js`는 주소 지연 로딩 기준선과 현재 DTO 프로젝션 구현을 비교한다.
-after에는 주소 N+1 제거, 리뷰 요약 JOIN, 조회 컬럼 축소, 엔티티 로딩 제거 효과가 함께 포함된다.
+`recently-viewed-nplus1-performance.js`는 원본 리뷰 집계를 유지한 채 주소 지연 로딩과 DTO 프로젝션 + 주소 JOIN을 비교한다.
+두 경로 모두 원본 리뷰를 같은 쿼리로 일괄 집계하며, 요약 테이블은 조회하지 않는다.
+after에는 주소 N+1 제거, 조회 컬럼 축소, 엔티티 로딩 제거 효과가 함께 포함된다.
+N+1 after는 리뷰 요약 반정규화 before와 같은 서비스 구현을 사용한다. 일반 V1 API는 요약 테이블을 사용하므로 이 비교의 after로 쓰지 않는다.
 기본 프로필의 batch fetch 100을 측정 프로필에서 0으로 바꾸므로, 결과에 이 재현 조건을 함께 기록한다.
 
 | variant | GET 경로 | SELECT 구성 |
 |---|---|---|
-| before | `/api/v2/members/recently-viewed` | 숙소 1 + 주소 N + 리뷰 요약 1 + 찜 1 = N+3 |
-| after | `/api/v1/members/recently-viewed` | 숙소·주소·리뷰 요약 projection 1 + 찜 1 = 2 |
+| before | `/api/v2/members/recently-viewed/nplus1-before` | 숙소 1 + 주소 N + 원본 리뷰 집계 1 + 찜 1 = N+3 |
+| after | `/api/v2/members/recently-viewed/nplus1-after` | 숙소·주소 projection 1 + 원본 리뷰 집계 1 + 찜 1 = 3 |
 
 | 최근 본 숙소 N | before | after |
 |---:|---:|---:|
-| 1 | 4 | 2 |
-| 20 | 23 | 2 |
-| 50 | 53 | 2 |
-| 100 | 103 | 2 |
+| 1 | 4 | 3 |
+| 20 | 23 | 3 |
+| 50 | 53 | 3 |
+| 100 | 103 | 3 |
 
 최근 본 기록을 수동으로 클릭해서 만들 필요는 없다. 각 k6 실행은 다음 순서로 준비하고 측정한다.
 
@@ -113,7 +115,7 @@ after에는 주소 N+1 제거, 리뷰 요약 JOIN, 조회 컬럼 축소, 엔티�
 3. 인증된 fixture PUT이 MySQL에서 모든 숙소의 공개 상태와 서로 다른 주소를 확인한다. DB 데이터는 변경하지 않는다.
 4. 검증 후 해당 회원의 `recently_viewed:{memberId}` ZSET을 전체 교체한다. 첫 ID가 가장 최근이고 점수는 1ms 간격이며 TTL은 7일이다.
 5. 같은 기록에 before와 after GET을 각각 한 번 호출한다. ID·순서·건수·조회 시각을 확인하고 주소·리뷰·찜을 포함한 전체 응답 데이터가 같은지 검사한다. 불일치하면 워밍업 전에 실행을 중단한다.
-6. 선택한 variant만 워밍업하고, 종료 대기와 안정화 시간 후 고정 RPS로 측정한다. 매 응답의 ID·최근 순서·건수와 HTTP 상태를 확인한다.
+6. 선택한 variant만 워밍업하고, 종료 대기와 안정화 시간 후 고정 RPS로 측정한다. 매 응답의 ID·최근 순서·건수·전체 응답 데이터와 HTTP 상태를 확인한다.
 
 **MySQL 숙소 데이터와 로그인 계정 자체는 미리 준비되어 있어야 한다.** fixture PUT은 기존 ETL 데이터로 Redis 조회 기록을 만드는 API다.
 ETL fixture를 사용할 때 DB dump와 `nplus1-v1` manifest는 같은 ETL 실행에서 나온 쌍을 사용한다. 주소가 없거나 공유된 경우, 미공개·삭제·없는 숙소가 포함된 경우에는 `B002`가 발생한다.
@@ -171,7 +173,10 @@ k6 run load-test/k6/recently-viewed-nplus1-performance.js
 unset TEST_PASSWORD BENCHMARK_READ_MODEL_TOKEN
 ```
 
-The token entered in the k6 terminal must be the same value used to start the application. The after GET itself does not require the token, but this script resets the deterministic v2 fixture before both variants, so the token is required for both runs.
+두 GET과 fixture PUT 모두 로그인 세션과 앱의 `BENCHMARK_READ_MODEL_TOKEN`을 요구한다. 기본 프로필에서는 두 GET 모두 노출하지 않는다.
+미리 준비한 전용 계정의 유효한 세션이 있으면 `TEST_PASSWORD` 대신 `BENCHMARK_SESSION_ID`를 전달할 수 있다.
+이 경우 로그인만 생략하며 fixture 검증·교체와 일반 세션 인증은 그대로 수행한다. 세션 값은 결과 파일에 저장하지 않는다.
+요청 제한 시간은 `REQUEST_TIMEOUT=5s`, VU 사전 할당과 상한은 모두 `PRE_ALLOCATED_VUS`로 고정한다.
 
 N에 따른 증가도 확인하려면 위 두 명령의 `EXPECTED_ROWS`를 1, 20, 50, 100으로 바꿔 실행하고 결과 파일명에도 N을 넣는다.
 manifest의 `recentlyViewed.maxRows` 이내만 사용할 수 있다. 안정적인 지연시간 비교에는 측정 시간을 늘리고 before→after와 after→before 순서를 바꿔 반복한다.
@@ -208,8 +213,8 @@ bash load-test/k6/run-recently-viewed-comparison.sh
 `application-nplus1-benchmark.yaml`은 `show_sql`과 Hibernate SQL/bind 로그를 끈다.
 `SqlQueryStatementInspector` → 요청별 카운터 → Micrometer는 로그와 독립적으로 동작하므로 Grafana에서 계속 관찰할 수 있다.
 
-- `Airbob - API Query Count` 대시보드에서 method=`GET`, query type=`SELECT`, path를 위 v2/v1 경로로 선택한다.
-- `Average queries per request`에서 N=100일 때 before=103, after=2를 확인한다. 쿼리 수의 p95는 버킷 보간값이므로 정확히 103이나 2가 아닐 수 있다.
+- `Airbob - API Query Count` 대시보드에서 method=`GET`, query type=`SELECT`, path를 위 두 v2 경로로 선택한다.
+- `Average queries per request`에서 N=100일 때 before=103, after=3을 확인한다. 쿼리 수의 p95는 버킷 보간값이므로 정확히 103이나 3이 아닐 수 있다.
 - Grafana 없이도 `/actuator/prometheus`의 `app_query_per_request_queries_sum`과 `_count`를 읽을 수 있다. 동일 경로의 요청 전후 `sum 증가량 / count 증가량`이 평균 SELECT 횟수다.
 - k6의 `validation`, `warmup`, `measure` 태그는 서버에 전달되지 않는다. 이 비교 스크립트의 사전 GET과 워밍업도 서버 지표에 포함되므로 Grafana 지연시간은 측정 시간대로 제한한다. fixture PUT도 GET과 분리한다. 단일 GET만 보내는 위 smoke 스크립트는 기존 동작을 유지한다.
 
@@ -224,6 +229,7 @@ Docker가 실행 중인 환경에서 실제 MySQL·Redis로 N별 쿼리 수, 응
 ```bash
 ./gradlew test --tests '*RecentlyViewed*'
 K6_NO_USAGE_REPORT=true k6 run --address '' load-test/k6/test/recently-viewed-benchmark-test.js
+node --test load-test/k6/test/recently-viewed-performance-test.mjs
 ```
 
 위시리스트·매출 집계 비교는 [read-model/README.md](read-model/README.md), 숙소 응답의 리뷰 요약 비교는 [전용 가이드](../../docs/performance/review-summary-denormalization.md)를 참고한다. 단독 리뷰 요약 API를 호출하던 실험은 종료했다.
@@ -251,7 +257,7 @@ SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
 ```bash
 curl -i \
   -b "SESSION_ID=${VERIFY_SESSION_ID}" \
-  "${BASE_URL}/api/v2/members/recently-viewed"
+  "${BASE_URL}/api/v2/members/recently-viewed/nplus1-before"
 # 기대 결과: HTTP/1.1 404
 ```
 

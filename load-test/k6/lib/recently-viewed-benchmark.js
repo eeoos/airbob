@@ -56,6 +56,11 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+export function matchesRecentlyViewedData(payload, expectedData) {
+  return payload !== null && typeof payload === 'object'
+    && payload.data !== undefined && canonicalJson(payload.data) === canonicalJson(expectedData);
+}
+
 export function assertRecentlyViewedPreflight(before, after, expectedIds) {
   for (const [variant, payload] of [['before', before], ['after', after]]) {
     if (!matchesRecentlyViewedFixture(payload, expectedIds)) {
@@ -63,7 +68,7 @@ export function assertRecentlyViewedPreflight(before, after, expectedIds) {
     }
   }
   // Both GETs read the same fixture without resetting it, so viewed_at must also match.
-  if (canonicalJson(before.data) !== canonicalJson(after.data)) {
+  if (!matchesRecentlyViewedData(after, before.data)) {
     throw new Error('recently viewed before/after response data differ');
   }
 }

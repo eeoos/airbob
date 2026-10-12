@@ -56,7 +56,8 @@ After 2회 SELECT이며, 빈 페이지는 양쪽 모두 2회다. 권한·공개 
 | After | `/api/v1/members/recently-viewed` |
 
 `read-model-benchmark` 프로필과 `X-Benchmark-Token`, 같은 회원의 로그인 세션이 필요하다.
-기존 `/api/v2/members/recently-viewed`는 주소 N+1 비교용이므로 이번 Before로 사용하지 않는다.
+`/api/v2/members/recently-viewed/nplus1-before`는 주소 N+1이 남아 있으므로 이번 Before로 사용하지 않는다.
+N+1 비교의 `/nplus1-after`는 이번 Before와 같은 원본 리뷰 집계 구현을 사용한다.
 
 Redis에서 읽은 ID 중 공개 숙소의 리뷰만 한 번에 집계한다. 비어 있지 않은 유효 목록은
 Before 3회/After 2회 SELECT이며, 주소 조회·찜 여부·최근 순서·비공개 기록 정리를 공유한다.
