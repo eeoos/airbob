@@ -1,0 +1,14 @@
+{
+  "capturedAtEpoch": 1791781245.510943,
+  "appInstanceId": "i-0892058a3feb01e85",
+  "appCount": 1,
+  "asgSuspendedProcesses": [],
+  "albTargetHealthy": true,
+  "runningK6": 0,
+  "ownedObserverStopped": true,
+  "resourcesPreserved": true,
+  "resourceExpiryTagsChanged": false,
+  "temporaryMeasurementAuthorization": 1791785844,
+  "appRestartProtectionChange": "SuspendProcesses was denied; no ASG setting was changed. App restart and restoration succeeded with existing health policy.",
+  "leaseReleased": 194
+}

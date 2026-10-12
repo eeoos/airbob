@@ -1,0 +1,30 @@
+{
+  "awsRegion": "ap-northeast-2",
+  "appInstanceType": "c6i.large",
+  "loadGeneratorInstanceType": "c6i.xlarge",
+  "dbInstanceClass": "db.t3.small",
+  "db": {
+    "db": "airbobdb",
+    "serverUuid": "7c7b8ee3-c518-11f1-a5d5-02ffeb65ab8b",
+    "version": "8.4.11",
+    "bufferPoolBytes": 536870912
+  },
+  "image": "942632789808.dkr.ecr.ap-northeast-2.amazonaws.com/airbob-repo@sha256:bd5a786c730a8a86109d359df4928a68c56e7967c32811d566e55e8b681bea4d",
+  "sourceCommit": "43edf992227af2ae628ac0d83815c56722cf34b8",
+  "appMemoryBytes": 3221225472,
+  "appNanoCpus": 2000000000,
+  "jvmOptions": "-Xms1536m -Xmx1536m -XX:+UseG1GC",
+  "hikari": {
+    "SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE": "10",
+    "SPRING_DATASOURCE_HIKARI_TRANSACTION_ISOLATION": "TRANSACTION_REPEATABLE_READ",
+    "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE": "10",
+    "SPRING_DATASOURCE_HIKARI_READ_ONLY": "false"
+  },
+  "schemaVersion": 30,
+  "cacheEnabled": false,
+  "publicDnsChanged": false,
+  "databaseWrites": false,
+  "activeProfiles": "aws,traffic-benchmark,read-model-benchmark",
+  "nodeVersion": "22.23.2",
+  "k6Version": "1.5.0"
+}

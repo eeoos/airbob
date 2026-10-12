@@ -1,0 +1,1012 @@
+{
+  "datasetId": "aws-v30-review-summary-20261012",
+  "schemaVersion": 30,
+  "discoverySha256": "c679d2146206d01ecb1a078a648cd594135494fcef497f05d586fb2f3e439772",
+  "dbIdentity": [
+    {
+      "db": "airbobdb",
+      "serverUuid": "7c7b8ee3-c518-11f1-a5d5-02ffeb65ab8b",
+      "version": "8.4.11",
+      "bufferPoolBytes": 536870912
+    }
+  ],
+  "flyway": [
+    {
+      "version": "1",
+      "script": "V1__init.sql",
+      "checksum": 1885198608,
+      "success": true
+    },
+    {
+      "version": "2",
+      "script": "V2__add_daily_revenue_stats.sql",
+      "checksum": -1242445639,
+      "success": true
+    },
+    {
+      "version": "3",
+      "script": "V3__add_wishlist_denormalized_columns.sql",
+      "checksum": -266990732,
+      "success": true
+    },
+    {
+      "version": "4",
+      "script": "V4__drop_review_summary_version.sql",
+      "checksum": 679297627,
+      "success": true
+    },
+    {
+      "version": "5",
+      "script": "V5__add_settlement.sql",
+      "checksum": -187297497,
+      "success": true
+    },
+    {
+      "version": "6",
+      "script": "V6__add_common_code.sql",
+      "checksum": 1657595110,
+      "success": true
+    },
+    {
+      "version": "7",
+      "script": "V7__amenity_to_common_code.sql",
+      "checksum": 721107214,
+      "success": true
+    },
+    {
+      "version": "8",
+      "script": "V8__drop_unused_price_discount_tables.sql",
+      "checksum": -917803992,
+      "success": true
+    },
+    {
+      "version": "9",
+      "script": "V9__rename_discount_policy_to_coupon.sql",
+      "checksum": 333644557,
+      "success": true
+    },
+    {
+      "version": "10",
+      "script": "V10__add_member_coupon.sql",
+      "checksum": 2051922823,
+      "success": true
+    },
+    {
+      "version": "11",
+      "script": "V11__add_coupon_usage_to_reservation.sql",
+      "checksum": -679014961,
+      "success": true
+    },
+    {
+      "version": "12",
+      "script": "V12__drop_legacy_event_domain.sql",
+      "checksum": -1886365150,
+      "success": true
+    },
+    {
+      "version": "13",
+      "script": "V13__split_coupon_issue_and_usage_periods.sql",
+      "checksum": -1825870728,
+      "success": true
+    },
+    {
+      "version": "14",
+      "script": "V14__persist_redis_coupon_preparation.sql",
+      "checksum": -1701175782,
+      "success": true
+    },
+    {
+      "version": "15",
+      "script": "V15__add_accommodation_time_zone.sql",
+      "checksum": 1850284457,
+      "success": true
+    },
+    {
+      "version": "16",
+      "script": "V16__migrate_reservation_time_model.sql",
+      "checksum": -534222623,
+      "success": true
+    },
+    {
+      "version": "17",
+      "script": "V17__add_payment_operation.sql",
+      "checksum": -89472705,
+      "success": true
+    },
+    {
+      "version": "18",
+      "script": "V18__refactor_messaging_orchestration.sql",
+      "checksum": -480661179,
+      "success": true
+    },
+    {
+      "version": "19",
+      "script": "V19__add_manual_payment_resolution_actor.sql",
+      "checksum": 1278904915,
+      "success": true
+    },
+    {
+      "version": "20",
+      "script": "V20__add_manual_payment_resolution_state.sql",
+      "checksum": -1097796102,
+      "success": true
+    },
+    {
+      "version": "21",
+      "script": "V21__index_expired_reservation_cleanup.sql",
+      "checksum": -676135567,
+      "success": true
+    },
+    {
+      "version": "22",
+      "script": "V22__add_reservation_checkout_idempotency.sql",
+      "checksum": -159784189,
+      "success": true
+    },
+    {
+      "version": "23",
+      "script": "V23__add_reservation_quote.sql",
+      "checksum": -832587982,
+      "success": true
+    },
+    {
+      "version": "24",
+      "script": "V24__add_reservation_payment_attempt.sql",
+      "checksum": 896686711,
+      "success": true
+    },
+    {
+      "version": "25",
+      "script": "V25__guard_reservation_inventory_cutover.sql",
+      "checksum": -1610075359,
+      "success": true
+    },
+    {
+      "version": "26",
+      "script": "V26__create_accommodation_inventory_day.sql",
+      "checksum": 2025907024,
+      "success": true
+    },
+    {
+      "version": "27",
+      "script": "V27__index_accommodation_inventory_seed_scan.sql",
+      "checksum": 2060444093,
+      "success": true
+    },
+    {
+      "version": "28",
+      "script": "V28__remove_reservation_quote_expiry.sql",
+      "checksum": 856928380,
+      "success": true
+    },
+    {
+      "version": "29",
+      "script": "V29__introduce_coupon_issue_units.sql",
+      "checksum": -212890679,
+      "success": true
+    },
+    {
+      "version": "30",
+      "script": "V30__normalize_coupon_business_timestamps_to_utc.sql",
+      "checksum": -519361184,
+      "success": true
+    }
+  ],
+  "detail": {
+    "id": 324693,
+    "reviews": 225,
+    "average": 4.7
+  },
+  "wishlist": {
+    "id": 236192,
+    "memberId": 2141427,
+    "storedCount": 199,
+    "firstPageRows": [
+      {
+        "membershipId": 1314877,
+        "accommodationId": 549521,
+        "reviews": 8,
+        "createdAt": "2026-03-31T14:55:31"
+      },
+      {
+        "membershipId": 1314946,
+        "accommodationId": 590680,
+        "reviews": 11,
+        "createdAt": "2026-03-31T14:55:26"
+      },
+      {
+        "membershipId": 1315015,
+        "accommodationId": 494413,
+        "reviews": 7,
+        "createdAt": "2026-03-31T14:55:21"
+      },
+      {
+        "membershipId": 1314893,
+        "accommodationId": 410434,
+        "reviews": 7,
+        "createdAt": "2026-03-31T14:46:30"
+      },
+      {
+        "membershipId": 1314962,
+        "accommodationId": 370724,
+        "reviews": 3,
+        "createdAt": "2026-03-31T14:46:25"
+      },
+      {
+        "membershipId": 1314909,
+        "accommodationId": 362408,
+        "reviews": 31,
+        "createdAt": "2026-03-31T14:37:29"
+      },
+      {
+        "membershipId": 1315047,
+        "accommodationId": 154933,
+        "reviews": 4,
+        "createdAt": "2026-03-31T14:37:19"
+      },
+      {
+        "membershipId": 1314925,
+        "accommodationId": 134960,
+        "reviews": 19,
+        "createdAt": "2026-03-31T14:28:28"
+      },
+      {
+        "membershipId": 1314994,
+        "accommodationId": 397694,
+        "reviews": 3,
+        "createdAt": "2026-03-31T14:28:23"
+      },
+      {
+        "membershipId": 1315063,
+        "accommodationId": 546459,
+        "reviews": 16,
+        "createdAt": "2026-03-31T14:28:18"
+      },
+      {
+        "membershipId": 1314872,
+        "accommodationId": 448979,
+        "reviews": 1,
+        "createdAt": "2026-03-31T14:19:32"
+      },
+      {
+        "membershipId": 1314941,
+        "accommodationId": 243539,
+        "reviews": 1,
+        "createdAt": "2026-03-31T14:19:27"
+      },
+      {
+        "membershipId": 1315010,
+        "accommodationId": 555902,
+        "reviews": 1,
+        "createdAt": "2026-03-31T14:19:22"
+      },
+      {
+        "membershipId": 1314888,
+        "accommodationId": 630383,
+        "reviews": 14,
+        "createdAt": "2026-03-31T14:10:31"
+      },
+      {
+        "membershipId": 1314957,
+        "accommodationId": 554924,
+        "reviews": 2,
+        "createdAt": "2026-03-31T14:10:26"
+      },
+      {
+        "membershipId": 1315026,
+        "accommodationId": 642154,
+        "reviews": 11,
+        "createdAt": "2026-03-31T14:10:21"
+      },
+      {
+        "membershipId": 1314904,
+        "accommodationId": 22959,
+        "reviews": 11,
+        "createdAt": "2026-03-31T14:01:30"
+      },
+      {
+        "membershipId": 1314973,
+        "accommodationId": 678833,
+        "reviews": 5,
+        "createdAt": "2026-03-31T14:01:25"
+      },
+      {
+        "membershipId": 1315042,
+        "accommodationId": 547256,
+        "reviews": 7,
+        "createdAt": "2026-03-31T14:01:20"
+      },
+      {
+        "membershipId": 1314989,
+        "accommodationId": 579798,
+        "reviews": 4,
+        "createdAt": "2026-03-31T13:52:24"
+      },
+      {
+        "membershipId": 1315058,
+        "accommodationId": 211963,
+        "reviews": 1,
+        "createdAt": "2026-03-31T13:52:19"
+      },
+      {
+        "membershipId": 1314936,
+        "accommodationId": 571006,
+        "reviews": 195,
+        "createdAt": "2026-03-31T13:43:28"
+      },
+      {
+        "membershipId": 1315005,
+        "accommodationId": 512322,
+        "reviews": 0,
+        "createdAt": "2026-03-31T13:43:23"
+      },
+      {
+        "membershipId": 1314883,
+        "accommodationId": 380148,
+        "reviews": 20,
+        "createdAt": "2026-03-31T13:34:32"
+      },
+      {
+        "membershipId": 1314952,
+        "accommodationId": 433507,
+        "reviews": 0,
+        "createdAt": "2026-03-31T13:34:27"
+      },
+      {
+        "membershipId": 1315021,
+        "accommodationId": 620760,
+        "reviews": 28,
+        "createdAt": "2026-03-31T13:34:22"
+      },
+      {
+        "membershipId": 1314899,
+        "accommodationId": 348697,
+        "reviews": 6,
+        "createdAt": "2026-03-31T13:25:31"
+      },
+      {
+        "membershipId": 1315037,
+        "accommodationId": 550504,
+        "reviews": 5,
+        "createdAt": "2026-03-31T13:25:21"
+      },
+      {
+        "membershipId": 1314915,
+        "accommodationId": 365607,
+        "reviews": 32,
+        "createdAt": "2026-03-31T13:16:30"
+      },
+      {
+        "membershipId": 1314984,
+        "accommodationId": 398959,
+        "reviews": 60,
+        "createdAt": "2026-03-31T13:16:25"
+      },
+      {
+        "membershipId": 1315053,
+        "accommodationId": 492743,
+        "reviews": 43,
+        "createdAt": "2026-03-31T13:16:20"
+      },
+      {
+        "membershipId": 1314931,
+        "accommodationId": 600209,
+        "reviews": 0,
+        "createdAt": "2026-03-31T13:07:29"
+      },
+      {
+        "membershipId": 1315000,
+        "accommodationId": 470343,
+        "reviews": 9,
+        "createdAt": "2026-03-31T13:07:24"
+      },
+      {
+        "membershipId": 1315069,
+        "accommodationId": 43107,
+        "reviews": 7,
+        "createdAt": "2026-03-31T13:07:19"
+      },
+      {
+        "membershipId": 1314947,
+        "accommodationId": 485096,
+        "reviews": 6,
+        "createdAt": "2026-03-31T12:58:28"
+      },
+      {
+        "membershipId": 1314894,
+        "accommodationId": 327664,
+        "reviews": 1,
+        "createdAt": "2026-03-31T12:49:32"
+      },
+      {
+        "membershipId": 1314963,
+        "accommodationId": 208855,
+        "reviews": 9,
+        "createdAt": "2026-03-31T12:49:27"
+      },
+      {
+        "membershipId": 1315032,
+        "accommodationId": 211108,
+        "reviews": 11,
+        "createdAt": "2026-03-31T12:49:22"
+      },
+      {
+        "membershipId": 1314910,
+        "accommodationId": 146413,
+        "reviews": 48,
+        "createdAt": "2026-03-31T12:40:31"
+      },
+      {
+        "membershipId": 1314979,
+        "accommodationId": 706322,
+        "reviews": 125,
+        "createdAt": "2026-03-31T12:40:26"
+      },
+      {
+        "membershipId": 1314926,
+        "accommodationId": 517918,
+        "reviews": 77,
+        "createdAt": "2026-03-31T12:31:30"
+      },
+      {
+        "membershipId": 1315064,
+        "accommodationId": 56997,
+        "reviews": 28,
+        "createdAt": "2026-03-31T12:31:20"
+      },
+      {
+        "membershipId": 1314873,
+        "accommodationId": 10380,
+        "reviews": 1,
+        "createdAt": "2026-03-31T12:22:34"
+      },
+      {
+        "membershipId": 1314942,
+        "accommodationId": 621323,
+        "reviews": 17,
+        "createdAt": "2026-03-31T12:22:29"
+      },
+      {
+        "membershipId": 1314889,
+        "accommodationId": 180239,
+        "reviews": 1,
+        "createdAt": "2026-03-31T12:13:33"
+      },
+      {
+        "membershipId": 1315027,
+        "accommodationId": 470431,
+        "reviews": 14,
+        "createdAt": "2026-03-31T12:13:23"
+      },
+      {
+        "membershipId": 1314905,
+        "accommodationId": 553809,
+        "reviews": 2,
+        "createdAt": "2026-03-31T12:04:32"
+      },
+      {
+        "membershipId": 1315043,
+        "accommodationId": 667830,
+        "reviews": 114,
+        "createdAt": "2026-03-31T12:04:22"
+      },
+      {
+        "membershipId": 1314921,
+        "accommodationId": 84829,
+        "reviews": 13,
+        "createdAt": "2026-03-31T11:55:31"
+      },
+      {
+        "membershipId": 1314990,
+        "accommodationId": 351239,
+        "reviews": 6,
+        "createdAt": "2026-03-31T11:55:26"
+      }
+    ],
+    "pageReviewCount": 1045
+  },
+  "recent": [
+    {
+      "id": 324693,
+      "reviews": 225,
+      "average": 4.7
+    },
+    {
+      "id": 420353,
+      "reviews": 213,
+      "average": 4.65
+    },
+    {
+      "id": 554691,
+      "reviews": 211,
+      "average": 4.69
+    },
+    {
+      "id": 27512,
+      "reviews": 205,
+      "average": 4.73
+    },
+    {
+      "id": 572673,
+      "reviews": 204,
+      "average": 4.68
+    },
+    {
+      "id": 86494,
+      "reviews": 195,
+      "average": 4.76
+    },
+    {
+      "id": 319188,
+      "reviews": 195,
+      "average": 4.8
+    },
+    {
+      "id": 571006,
+      "reviews": 195,
+      "average": 4.74
+    },
+    {
+      "id": 409907,
+      "reviews": 190,
+      "average": 4.76
+    },
+    {
+      "id": 292122,
+      "reviews": 188,
+      "average": 4.66
+    },
+    {
+      "id": 367770,
+      "reviews": 188,
+      "average": 4.72
+    },
+    {
+      "id": 400054,
+      "reviews": 185,
+      "average": 4.64
+    },
+    {
+      "id": 196746,
+      "reviews": 183,
+      "average": 4.77
+    },
+    {
+      "id": 459529,
+      "reviews": 176,
+      "average": 4.71
+    },
+    {
+      "id": 303663,
+      "reviews": 175,
+      "average": 4.47
+    },
+    {
+      "id": 17588,
+      "reviews": 173,
+      "average": 4.72
+    },
+    {
+      "id": 328674,
+      "reviews": 173,
+      "average": 4.69
+    },
+    {
+      "id": 601657,
+      "reviews": 171,
+      "average": 4.73
+    },
+    {
+      "id": 336757,
+      "reviews": 170,
+      "average": 4.71
+    },
+    {
+      "id": 358074,
+      "reviews": 169,
+      "average": 4.82
+    },
+    {
+      "id": 393329,
+      "reviews": 167,
+      "average": 4.71
+    },
+    {
+      "id": 342179,
+      "reviews": 165,
+      "average": 4.67
+    },
+    {
+      "id": 369423,
+      "reviews": 165,
+      "average": 4.76
+    },
+    {
+      "id": 386946,
+      "reviews": 164,
+      "average": 4.72
+    },
+    {
+      "id": 341802,
+      "reviews": 163,
+      "average": 4.7
+    },
+    {
+      "id": 187570,
+      "reviews": 162,
+      "average": 4.6
+    },
+    {
+      "id": 326068,
+      "reviews": 162,
+      "average": 4.62
+    },
+    {
+      "id": 455134,
+      "reviews": 162,
+      "average": 4.75
+    },
+    {
+      "id": 428762,
+      "reviews": 160,
+      "average": 4.71
+    },
+    {
+      "id": 620563,
+      "reviews": 160,
+      "average": 4.76
+    },
+    {
+      "id": 317185,
+      "reviews": 158,
+      "average": 4.78
+    },
+    {
+      "id": 411872,
+      "reviews": 157,
+      "average": 4.75
+    },
+    {
+      "id": 378008,
+      "reviews": 156,
+      "average": 4.77
+    },
+    {
+      "id": 325946,
+      "reviews": 155,
+      "average": 4.69
+    },
+    {
+      "id": 351306,
+      "reviews": 155,
+      "average": 4.73
+    },
+    {
+      "id": 412497,
+      "reviews": 155,
+      "average": 4.81
+    },
+    {
+      "id": 196625,
+      "reviews": 153,
+      "average": 4.59
+    },
+    {
+      "id": 378460,
+      "reviews": 152,
+      "average": 4.71
+    },
+    {
+      "id": 338638,
+      "reviews": 151,
+      "average": 4.74
+    },
+    {
+      "id": 509217,
+      "reviews": 151,
+      "average": 4.75
+    },
+    {
+      "id": 406510,
+      "reviews": 150,
+      "average": 4.66
+    },
+    {
+      "id": 423775,
+      "reviews": 149,
+      "average": 4.68
+    },
+    {
+      "id": 553380,
+      "reviews": 149,
+      "average": 4.67
+    },
+    {
+      "id": 497782,
+      "reviews": 148,
+      "average": 4.63
+    },
+    {
+      "id": 542275,
+      "reviews": 148,
+      "average": 4.74
+    },
+    {
+      "id": 300886,
+      "reviews": 147,
+      "average": 4.76
+    },
+    {
+      "id": 332058,
+      "reviews": 147,
+      "average": 4.64
+    },
+    {
+      "id": 420733,
+      "reviews": 146,
+      "average": 4.71
+    },
+    {
+      "id": 456113,
+      "reviews": 146,
+      "average": 4.72
+    },
+    {
+      "id": 458087,
+      "reviews": 146,
+      "average": 4.73
+    },
+    {
+      "id": 507349,
+      "reviews": 146,
+      "average": 4.68
+    },
+    {
+      "id": 39434,
+      "reviews": 145,
+      "average": 4.74
+    },
+    {
+      "id": 181763,
+      "reviews": 145,
+      "average": 4.59
+    },
+    {
+      "id": 354902,
+      "reviews": 145,
+      "average": 4.64
+    },
+    {
+      "id": 377487,
+      "reviews": 145,
+      "average": 4.77
+    },
+    {
+      "id": 84592,
+      "reviews": 144,
+      "average": 4.66
+    },
+    {
+      "id": 419107,
+      "reviews": 144,
+      "average": 4.64
+    },
+    {
+      "id": 639508,
+      "reviews": 144,
+      "average": 4.67
+    },
+    {
+      "id": 406284,
+      "reviews": 143,
+      "average": 4.78
+    },
+    {
+      "id": 326898,
+      "reviews": 142,
+      "average": 4.53
+    },
+    {
+      "id": 334905,
+      "reviews": 142,
+      "average": 4.76
+    },
+    {
+      "id": 347596,
+      "reviews": 142,
+      "average": 4.77
+    },
+    {
+      "id": 478058,
+      "reviews": 142,
+      "average": 4.61
+    },
+    {
+      "id": 624267,
+      "reviews": 142,
+      "average": 4.63
+    },
+    {
+      "id": 390208,
+      "reviews": 141,
+      "average": 4.81
+    },
+    {
+      "id": 495048,
+      "reviews": 141,
+      "average": 4.74
+    },
+    {
+      "id": 28792,
+      "reviews": 140,
+      "average": 4.71
+    },
+    {
+      "id": 361876,
+      "reviews": 140,
+      "average": 4.79
+    },
+    {
+      "id": 325372,
+      "reviews": 139,
+      "average": 4.68
+    },
+    {
+      "id": 327787,
+      "reviews": 139,
+      "average": 4.77
+    },
+    {
+      "id": 329528,
+      "reviews": 139,
+      "average": 4.78
+    },
+    {
+      "id": 339481,
+      "reviews": 139,
+      "average": 4.76
+    },
+    {
+      "id": 384758,
+      "reviews": 139,
+      "average": 4.65
+    },
+    {
+      "id": 228643,
+      "reviews": 138,
+      "average": 4.7
+    },
+    {
+      "id": 362792,
+      "reviews": 138,
+      "average": 4.62
+    },
+    {
+      "id": 365400,
+      "reviews": 138,
+      "average": 4.68
+    },
+    {
+      "id": 437238,
+      "reviews": 138,
+      "average": 4.77
+    },
+    {
+      "id": 446731,
+      "reviews": 138,
+      "average": 4.65
+    },
+    {
+      "id": 481471,
+      "reviews": 138,
+      "average": 4.61
+    },
+    {
+      "id": 496602,
+      "reviews": 138,
+      "average": 4.78
+    },
+    {
+      "id": 579979,
+      "reviews": 138,
+      "average": 4.74
+    },
+    {
+      "id": 293933,
+      "reviews": 137,
+      "average": 4.56
+    },
+    {
+      "id": 331086,
+      "reviews": 137,
+      "average": 4.71
+    },
+    {
+      "id": 346236,
+      "reviews": 137,
+      "average": 4.61
+    },
+    {
+      "id": 415956,
+      "reviews": 137,
+      "average": 4.63
+    },
+    {
+      "id": 499883,
+      "reviews": 137,
+      "average": 4.74
+    },
+    {
+      "id": 564187,
+      "reviews": 137,
+      "average": 4.71
+    },
+    {
+      "id": 327836,
+      "reviews": 136,
+      "average": 4.7
+    },
+    {
+      "id": 346058,
+      "reviews": 136,
+      "average": 4.65
+    },
+    {
+      "id": 399520,
+      "reviews": 136,
+      "average": 4.68
+    },
+    {
+      "id": 471326,
+      "reviews": 136,
+      "average": 4.72
+    },
+    {
+      "id": 515199,
+      "reviews": 136,
+      "average": 4.68
+    },
+    {
+      "id": 669334,
+      "reviews": 136,
+      "average": 4.74
+    },
+    {
+      "id": 397427,
+      "reviews": 135,
+      "average": 4.7
+    },
+    {
+      "id": 431471,
+      "reviews": 135,
+      "average": 4.75
+    },
+    {
+      "id": 481160,
+      "reviews": 135,
+      "average": 4.81
+    },
+    {
+      "id": 17521,
+      "reviews": 134,
+      "average": 4.74
+    },
+    {
+      "id": 268782,
+      "reviews": 134,
+      "average": 4.73
+    },
+    {
+      "id": 385659,
+      "reviews": 134,
+      "average": 4.72
+    },
+    {
+      "id": 411358,
+      "reviews": 134,
+      "average": 4.66
+    }
+  ],
+  "dbMutations": false,
+  "selection": "Highest review sum among first pages of 200 largest existing active wishlists; 100 most reviewed published accommodations for recent"
+}
