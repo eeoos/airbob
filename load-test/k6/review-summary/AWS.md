@@ -50,8 +50,9 @@ node load-test/k6/review-summary/aws.mjs prepare \
 
 1. 현재 세 API의 Before 경로와 런타임 검증 API가 포함된 앱 이미지를 기존 GitHub OIDC 경로로 발행한다.
    같은 digest 고정 이미지로 Before/After를 측정한다. 이전 단독 리뷰 요약 API용 AWS 실행기는 사용하지 않는다.
-2. 현재 코드에 맞는 **V28 실험 DB**를 별도로 준비하고 `flyway_schema_history`와 데이터 manifest를 확인한다.
-   기존 V27 실험 자료를 V28로 표시해 재사용하지 않는다. 실행기는 migration·데이터 복원·인덱스 변경을 하지 않는다.
+2. 현재 코드에 맞는 **V30 실험 DB**의 `flyway_schema_history`와 데이터 manifest를 확인한다.
+   이전 스키마의 실험 자료를 V30으로 표시해 재사용하지 않는다. 이미 V30으로 올린 실험 DB는
+   실제 마이그레이션 기록과 데이터 증거를 확인해 사용한다. 실행기는 migration·데이터 복원·인덱스 변경을 하지 않는다.
 3. 실험용 ALB의 정상 타깃을 **고정 앱 1대**로 맞추고, 같은 리전에 별도 Linux 부하 발생기를 준비한다.
    ALB 접근은 기존 Lab 규칙대로 허용한다. 앱/발생기 ID·태그·실행 수명·이미지 digest·DB 연결은 운영 절차에서 확인한다.
    설정에 쓴 ID만으로 이 AWS 자원 검증이 자동 완료되는 것은 아니다.
@@ -59,8 +60,9 @@ node load-test/k6/review-summary/aws.mjs prepare \
    DB·Redis·Elasticsearch·Kafka 연결 값은 기존 실험 환경을 유지하며 일반 Redis와 상세 캐시 Redis를 분리한다.
    원본 환경은 보존하고 측정 종료 후 복구한다. 이 파일은 B 서비스 자동 배포 옵션을 추가하는 것이 아니다.
 5. 앱은 `aws,traffic-benchmark,read-model-benchmark` 프로필로 시작한다. 현재 코드에서는 `performance-lab`도 활성화된다.
-   V28임을 먼저 확인하고 Flyway 자동 실행을 끈다. 상세 캐시·SQL 출력 로그·백그라운드 작업·외부 쓰기를 비활성화한다.
+   V30임을 먼저 확인하고 Flyway 자동 실행을 끈다. 상세 캐시·SQL 출력 로그·백그라운드 작업·외부 쓰기를 비활성화한다.
    로그인은 회원 행 잠금을 사용하므로 풀 전체를 강제로 read-only로 설정하지 않는다.
+   재고 생성을 끈 이 실험에서는 readiness 그룹을 `readinessState`로 제한한다.
 6. 앱의 `AIRBOB_RUN_ID`, 기존 자원 fence의 `AIRBOB_RESOURCE_FENCING_TOKEN_SHA256`, 실제 `AIRBOB_APP_INSTANCE_ID`를 설정한다.
    `AIRBOB_RUNTIME_REVISION`은 선택한 이미지 digest에서 `sha256:`를 뺀 값으로 맞춘다.
    벤치마크 토큰은 앱과 발생기 호스트에만 제공하고 설정 JSON·준비물·Git에 넣지 않는다.

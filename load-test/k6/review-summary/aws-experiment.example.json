@@ -16,9 +16,9 @@
     "resourceFencingTokenSha256": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "dataset": {
-    "id": "replace-v28-dataset",
+    "id": "replace-v30-dataset",
     "manifestSha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "flywayVersion": 28
+    "flywayVersion": 30
   },
   "load": {
     "rates": [20, 50, 100],

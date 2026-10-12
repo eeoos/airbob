@@ -44,7 +44,7 @@ export function validateConfig(input) {
   need(/^sha256:[a-f0-9]{64}$/.test(c.app.imageDigest) && /^[a-f0-9]{40}$/.test(c.app.sourceCommit)
     && /^[a-z0-9][a-z0-9-]{2,31}$/.test(c.app.runId) && hash(c.app.resourceFencingTokenSha256), '앱 이미지·커밋·Lab 실행 식별자를 확인하세요.');
   keys(c.dataset, ['id', 'manifestSha256', 'flywayVersion']);
-  need(slug(c.dataset.id) && hash(c.dataset.manifestSha256) && c.dataset.flywayVersion === 28, '이번 비교에는 확인된 V28 데이터와 manifest 해시가 필요합니다.');
+  need(slug(c.dataset.id) && hash(c.dataset.manifestSha256) && c.dataset.flywayVersion === 30, '이번 비교에는 현재 앱과 호환되는 V30 데이터와 manifest 해시가 필요합니다.');
   keys(c.load, ['rates', 'warmupSeconds', 'measureSeconds', 'rounds', 'preAllocatedVUs', 'maxVUs']);
   need(Array.isArray(c.load.rates) && c.load.rates.length > 0 && c.load.rates.length <= 10
     && new Set(c.load.rates).size === c.load.rates.length && c.load.rates.every((v) => integer(v, 1, 1000))
@@ -95,7 +95,7 @@ export function prepare(input, destination) {
     scheduledSecondsPerCaseAndRate: c.load.rounds * 2 * (c.load.warmupSeconds + 8 + c.load.measureSeconds),
     timingNote: '로그인·런타임 검증·종료 유예 시간은 별도. 한 번에 --case 하나와 --rate 하나만 실행.',
     commands: c.cases.flatMap((item) => c.load.rates.map((rate) => ({ case: item.id, rate }))),
-    requiredBeforeRun: ['현재 코드의 digest 고정 앱 이미지와 V28 DB 확인', '고정 앱 1대와 별도 Linux 부하 발생기',
+    requiredBeforeRun: ['현재 코드의 digest 고정 앱 이미지와 V30 DB 확인', '고정 앱 1대와 별도 Linux 부하 발생기',
       'Lab 운영 절차의 측정 lease·수명·대상 자원 확인', '실험 ALB만 가리키는 DNS와 접근 권한',
       '같은 데이터셋의 실제 숙소·위시리스트·최근 본 기록과 리뷰 합계', '호스트 밖으로 내보내지 않는 벤치마크 토큰과 계정 인증',
       '기존 DB 모니터링과 UTC 시각 동기화'],
