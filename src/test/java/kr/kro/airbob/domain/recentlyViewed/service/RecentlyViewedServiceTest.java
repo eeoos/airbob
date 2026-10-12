@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +34,6 @@ import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
-import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 
@@ -48,7 +48,7 @@ class RecentlyViewedServiceTest {
 	@Mock
 	private AccommodationRepository accommodationRepository;
 	@Mock
-	private AccommodationReviewSummaryRepository summaryRepository;
+	private ReviewRepository reviewRepository;
 	@Mock
 	private WishlistAccommodationRepository wishlistAccommodationRepository;
 
@@ -59,8 +59,7 @@ class RecentlyViewedServiceTest {
 		recentlyViewedService = new RecentlyViewedService(
 			redisTemplate,
 			accommodationRepository,
-			summaryRepository,
-			mock(ReviewRepository.class),
+			reviewRepository,
 			wishlistAccommodationRepository
 		);
 		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
@@ -80,7 +79,7 @@ class RecentlyViewedServiceTest {
 		when(zSetOperations.reverseRangeWithScores("recently_viewed:7", 0, -1)).thenReturn(recentlyViewed);
 		when(accommodationRepository.findByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED)))
 			.thenReturn(List.of(first, second));
-		when(summaryRepository.findByAccommodationIdIn(anyList())).thenReturn(List.of());
+		when(reviewRepository.findPublishedSummaryMap(anyList())).thenReturn(Map.of());
 		when(wishlistAccommodationRepository.findAccommodationIdsByMemberIdAndAccommodationIds(
 			eq(memberId), anyList())).thenReturn(Set.of(2L));
 
@@ -97,13 +96,12 @@ class RecentlyViewedServiceTest {
 			.extracting(AccommodationResponse.RecentlyViewedAccommodationInfo::viewedAt)
 			.containsExactly(Instant.ofEpochMilli(2_000L), Instant.ofEpochMilli(1_000L));
 		verify(accommodationRepository).findByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED));
-		verify(summaryRepository).findByAccommodationIdIn(anyList());
+		verify(reviewRepository).findPublishedSummaryMap(anyList());
 		verify(wishlistAccommodationRepository)
 			.findAccommodationIdsByMemberIdAndAccommodationIds(eq(memberId), anyList());
 		verify(accommodationRepository, never())
 			.findWithAddressAndReviewSummaryByIdInAndStatus(anyList(), eq(AccommodationStatus.PUBLISHED));
 		verify(accommodationRepository, never()).findByIdAndStatus(anyLong(), eq(AccommodationStatus.PUBLISHED));
-		verify(summaryRepository, never()).findByAccommodationId(anyLong());
 		verify(wishlistAccommodationRepository, never())
 			.existsByWishlist_Member_IdAndAccommodation_Id(anyLong(), anyLong());
 	}

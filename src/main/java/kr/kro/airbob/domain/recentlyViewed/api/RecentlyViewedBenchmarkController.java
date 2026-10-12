@@ -20,7 +20,7 @@ import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 최근 본 숙소 fixture 준비와 주소 지연 로딩 N+1 기준선 재현을 위한 벤치마크 전용 API
+ * 원본 리뷰 집계를 유지한 채 주소 N+1 개선 전후를 비교하는 벤치마크 전용 API
  */
 @RestController
 @RequiredArgsConstructor
@@ -43,7 +43,7 @@ public class RecentlyViewedBenchmarkController {
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 
-	@GetMapping("/api/v2/members/recently-viewed")
+	@GetMapping("/api/v2/members/recently-viewed/nplus1-before")
 	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewedBefore(
 		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
 		@CurrentMemberId Long memberId
@@ -51,6 +51,18 @@ public class RecentlyViewedBenchmarkController {
 		accessGuard.verify(benchmarkToken);
 		AccommodationResponse.RecentlyViewedAccommodationInfos response =
 			recentlyViewedService.getRecentlyViewedBefore(memberId);
+		return ResponseEntity.ok(ApiResponse.success(response));
+	}
+
+	@GetMapping("/api/v2/members/recently-viewed/nplus1-after")
+	public ResponseEntity<ApiResponse<AccommodationResponse.RecentlyViewedAccommodationInfos>> getRecentlyViewedAfter(
+		@RequestHeader(value = BenchmarkAccessGuard.HEADER_NAME, required = false) String benchmarkToken,
+		@CurrentMemberId Long memberId
+	) {
+		accessGuard.verify(benchmarkToken);
+		// 반정규화 Before와 같은 구현을 사용해 두 비교의 중간 단계를 일치시킨다.
+		AccommodationResponse.RecentlyViewedAccommodationInfos response =
+			recentlyViewedService.getRecentlyViewedBeforeReviewSummary(memberId);
 		return ResponseEntity.ok(ApiResponse.success(response));
 	}
 }

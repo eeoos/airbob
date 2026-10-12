@@ -22,7 +22,9 @@ class SessionAuthFilterPublicPathTest {
 	@ParameterizedTest
 	@ValueSource(strings = {
 		"/api/v2/members/wishlists/accommodations/42/review-summary-before",
-		"/api/v2/members/recently-viewed/review-summary-before"
+		"/api/v2/members/recently-viewed/review-summary-before",
+		"/api/v2/members/recently-viewed/nplus1-before",
+		"/api/v2/members/recently-viewed/nplus1-after"
 	})
 	@DisplayName("회원 목록 비교 API는 벤치마크 토큰이 있어도 로그인 세션을 요구한다")
 	void memberBenchmarksRequireSession(String path) throws Exception {
