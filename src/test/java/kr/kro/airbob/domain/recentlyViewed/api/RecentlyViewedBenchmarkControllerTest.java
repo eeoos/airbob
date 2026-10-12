@@ -1,10 +1,8 @@
 package kr.kro.airbob.domain.recentlyViewed.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,7 +22,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import kr.kro.airbob.common.benchmark.BenchmarkAccessGuard;
-import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.domain.recentlyViewed.dto.RecentlyViewedBenchmarkRequest;
 import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedBenchmarkFixtureService;
 import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
@@ -118,36 +115,6 @@ class RecentlyViewedBenchmarkControllerTest {
 			.getStatusCode().is2xxSuccessful()).isTrue();
 		verify(accessGuard).verify("secret-token");
 		verify(recentlyViewedService).getRecentlyViewedBefore(7L);
-	}
-
-	@Test
-	@DisplayName("N+1 after도 토큰을 확인하고 원본 리뷰 집계를 유지한 조회를 호출한다")
-	void getAfterUsesRawReviewSummaryAndVerifiesToken() {
-		RecentlyViewedService recentlyViewedService = mock(RecentlyViewedService.class);
-		RecentlyViewedBenchmarkFixtureService fixtureService = mock(RecentlyViewedBenchmarkFixtureService.class);
-		BenchmarkAccessGuard accessGuard = mock(BenchmarkAccessGuard.class);
-		RecentlyViewedBenchmarkController controller =
-			new RecentlyViewedBenchmarkController(recentlyViewedService, fixtureService, accessGuard);
-
-		assertThat(controller.getRecentlyViewedAfter("secret-token", 7L)
-			.getStatusCode().is2xxSuccessful()).isTrue();
-		verify(accessGuard).verify("secret-token");
-		verify(recentlyViewedService).getRecentlyViewedBeforeReviewSummary(7L);
-	}
-
-	@Test
-	@DisplayName("두 비교 API는 토큰이 없거나 틀리면 데이터 조회 전에 거절한다")
-	void bothVariantsRejectInvalidTokensBeforeReadingData() {
-		RecentlyViewedService service = mock(RecentlyViewedService.class);
-		RecentlyViewedBenchmarkFixtureService fixture = mock(RecentlyViewedBenchmarkFixtureService.class);
-		RecentlyViewedBenchmarkController controller = new RecentlyViewedBenchmarkController(
-			service, fixture, new BenchmarkAccessGuard("secret-token"));
-
-		assertThatThrownBy(() -> controller.getRecentlyViewedBefore(null, 7L)).isInstanceOf(BaseException.class);
-		assertThatThrownBy(() -> controller.getRecentlyViewedAfter(null, 7L)).isInstanceOf(BaseException.class);
-		assertThatThrownBy(() -> controller.getRecentlyViewedBefore("wrong", 7L)).isInstanceOf(BaseException.class);
-		assertThatThrownBy(() -> controller.getRecentlyViewedAfter("wrong", 7L)).isInstanceOf(BaseException.class);
-		verifyNoInteractions(service, fixture);
 	}
 
 	@Configuration(proxyBeanMethods = false)

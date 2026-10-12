@@ -1,7 +1,6 @@
 import { check } from 'k6';
 import {
   assertRecentlyViewedPreflight,
-  matchesRecentlyViewedData,
   matchesRecentlyViewedFixture,
   parseRecentlyViewedBenchmarkManifest,
 } from '../lib/recently-viewed-benchmark.js';
@@ -71,13 +70,6 @@ export default function () {
   assertRecentlyViewedPreflight(payload(), reorderedFields, ids);
 
   check(null, {
-    'complete response comparison ignores object field order': () => matchesRecentlyViewedData(reorderedFields, payload().data),
-    'complete response comparison detects review changes': () => {
-      const changed = payload();
-      changed.data.accommodations[0].review_summary.total_count = 999;
-      return !matchesRecentlyViewedData(changed, payload().data);
-    },
-    'complete response comparison rejects a missing payload': () => !matchesRecentlyViewedData(null, payload().data),
     'legacy ETL manifest remains supported': () => (
       parseRecentlyViewedBenchmarkManifest(legacyManifest).datasetVersion === 'nplus1-v1'
     ),

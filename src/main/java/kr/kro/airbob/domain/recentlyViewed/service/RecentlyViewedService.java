@@ -22,6 +22,8 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
+import kr.kro.airbob.domain.review.entity.AccommodationReviewSummary;
+import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
 import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class RecentlyViewedService {
 
 	private final RedisTemplate<String, String> redisTemplate;
 	private final AccommodationRepository accommodationRepository;
+	private final AccommodationReviewSummaryRepository summaryRepository;
 	private final ReviewRepository reviewRepository;
 	private final WishlistAccommodationRepository wishlistAccommodationRepository;
 
@@ -170,7 +173,6 @@ public class RecentlyViewedService {
 
 	/**
 	 * 숙소 엔티티의 주소를 DTO 변환 시 지연 로딩해 N+1 기준선을 재현
-	 * 리뷰는 After와 동일하게 원본을 일괄 집계해 반정규화 효과를 제외
 	 * 실제 N회 조회는 nplus1-benchmark 프로필에서 batch fetch를 끈 상태로 측정
 	 */
 	@Transactional(readOnly = true)
@@ -202,7 +204,7 @@ public class RecentlyViewedService {
 			.map(String::valueOf)
 			.toList();
 		List<Long> existingIdList = new ArrayList<>(existingIdsInDb);
-		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = reviewRepository.findPublishedSummaryMap(existingIdList);
+		Map<Long, ReviewResponse.ReviewSummary> reviewSummaryMap = getReviewSummaryMap(existingIdList);
 		Map<Long, Boolean> wishlistMap = getWishlistMap(memberId, existingIdList);
 
 		List<AccommodationResponse.RecentlyViewedAccommodationInfo> accommodationInfos = recentlyViewedWithScores.stream()
@@ -242,4 +244,14 @@ public class RecentlyViewedService {
 			));
 	}
 
+	private Map<Long, ReviewResponse.ReviewSummary> getReviewSummaryMap(List<Long> accommodationIds) {
+		List<AccommodationReviewSummary> summaries = summaryRepository.findByAccommodationIdIn(
+			accommodationIds);
+
+		return summaries.stream()
+			.collect(Collectors.toMap(
+				AccommodationReviewSummary::getAccommodationId,
+				ReviewResponse.ReviewSummary::of
+			));
+	}
 }

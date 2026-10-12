@@ -5,8 +5,7 @@ set -euo pipefail
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 project_root=$(cd "$script_dir/../.." && pwd)
 : "${BENCHMARK_MANIFEST:?Set BENCHMARK_MANIFEST to a fixture manifest from the target database}"
-[[ -n "${TEST_PASSWORD:-}" || -n "${BENCHMARK_SESSION_ID:-}" ]] \
-  || { echo 'Set TEST_PASSWORD or an existing dedicated BENCHMARK_SESSION_ID' >&2; exit 1; }
+: "${TEST_PASSWORD:?Set TEST_PASSWORD to the benchmark account password}"
 : "${BENCHMARK_READ_MODEL_TOKEN:?Set BENCHMARK_READ_MODEL_TOKEN to the benchmark token configured on the app}"
 [[ -f "$BENCHMARK_MANIFEST" ]] || { echo 'Benchmark manifest does not exist' >&2; exit 1; }
 command -v k6 >/dev/null

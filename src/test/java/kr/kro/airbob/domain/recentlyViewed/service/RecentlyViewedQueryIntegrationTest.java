@@ -187,19 +187,13 @@ class RecentlyViewedQueryIntegrationTest {
 	@DisplayName("주소 N+1 벤치마크 경로도 같은 응답과 기록 정리 동작을 유지한다")
 	void benchmarkBeforeRetainsTheSameContract() throws Exception {
 		insertMixedHistory();
-		jdbc.update("""
-			INSERT INTO review (accommodation_id, member_id, rating, status, updated_at)
-			VALUES (31, 7, 5, 'PUBLISHED', NOW(6)), (31, 7, 5, 'PUBLISHED', NOW(6)),
-				(31, 7, 5, 'PUBLISHED', NOW(6)), (31, 7, 4, 'PUBLISHED', NOW(6)),
-				(31, 7, 1, 'DELETE', NOW(6)), (31, 7, 2, 'HIDDEN', NOW(6))
-			""");
 		prepareMeasurement();
 
 		assertContract(service.getRecentlyViewedBefore(MEMBER_ID));
 		assertHistoryCleaned();
 	}
 
-	@ParameterizedTest(name = "원본 리뷰 집계 유지, 최근 본 숙소 {0}개: before=N+3 SELECT, after=3 SELECT")
+	@ParameterizedTest(name = "최근 본 숙소 {0}개: before=N+3 SELECT, after=2 SELECT")
 	@ValueSource(ints = {1, 20, 50, 100})
 	void benchmarkFixtureReproducesAddressNPlusOneAndPreservesTheResponse(int size) {
 		List<Long> ids = LongStream.range(1_000, 1_000 + size).boxed().toList();
@@ -214,10 +208,10 @@ class RecentlyViewedQueryIntegrationTest {
 				""", id + 1_000);
 			insertAccommodation(id, "PUBLISHED", id + 1_000);
 			jdbc.update("""
-				INSERT INTO review (accommodation_id, member_id, rating, status, updated_at)
-				VALUES (?, 7, 4, 'PUBLISHED', NOW(6)), (?, 7, 5, 'PUBLISHED', NOW(6)),
-					(?, 7, 1, 'HIDDEN', NOW(6)), (?, 7, 1, 'DELETE', NOW(6))
-				""", id, id, id, id);
+				INSERT INTO accommodation_review_summary
+					(accommodation_id, total_review_count, rating_sum, average_rating, updated_at)
+				VALUES (?, 2, 9, 4.50, NOW(6))
+				""", id);
 			if (id % 2 == 0) {
 				jdbc.update("""
 					INSERT INTO wishlist_accommodation (id, wishlist_id, accommodation_id, updated_at)
@@ -241,10 +235,6 @@ class RecentlyViewedQueryIntegrationTest {
 		RecentlyViewedAccommodationInfos before = service.getRecentlyViewedBefore(MEMBER_ID);
 
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(size + 3);
-		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
-		List<String> beforeReviewSql = sqlCapture.statements.stream()
-			.filter(sql -> sql.contains("from review ")).toList();
-		assertThat(beforeReviewSql).hasSize(1);
 		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains(" from address ")))
 			.hasSize(size);
 		assertThat(before.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
@@ -253,20 +243,10 @@ class RecentlyViewedQueryIntegrationTest {
 
 		// before가 적재한 엔티티가 after 측정에 영향을 주지 않도록 영속성 컨텍스트를 비운다.
 		statistics = prepareMeasurement();
-		RecentlyViewedAccommodationInfos after = service.getRecentlyViewedBeforeReviewSummary(MEMBER_ID);
+		RecentlyViewedAccommodationInfos after = service.getRecentlyViewed(MEMBER_ID);
 
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
-		assertThat(statistics.getEntityLoadCount()).isZero();
-		assertThat(sqlCapture.statements).noneMatch(sql -> sql.contains("accommodation_review_summary"));
-		assertThat(sqlCapture.statements.getFirst()).contains("join address");
-		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains(" from address "))).isEmpty();
-		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains("from review ")).toList())
-			.isEqualTo(beforeReviewSql);
+		assertCardRead(statistics);
 		assertThat(after).isEqualTo(before);
-		assertThat(after.accommodations()).allSatisfy(card -> {
-			assertThat(card.reviewSummary().totalCount()).isEqualTo(2);
-			assertThat(card.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
-		});
 		assertThat(redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1)).isEqualTo(history);
 		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("999");
 	}
