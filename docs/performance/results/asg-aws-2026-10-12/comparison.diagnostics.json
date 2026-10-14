@@ -1,0 +1,218 @@
+[
+  {
+    "label": "fixed-one",
+    "badP95BucketSeconds": 900,
+    "badP95Buckets": [
+      {
+        "startSeconds": 900,
+        "seconds": 30,
+        "p95ms": 700
+      },
+      {
+        "startSeconds": 930,
+        "seconds": 30,
+        "p95ms": 794
+      },
+      {
+        "startSeconds": 960,
+        "seconds": 30,
+        "p95ms": 803
+      },
+      {
+        "startSeconds": 990,
+        "seconds": 30,
+        "p95ms": 803
+      },
+      {
+        "startSeconds": 1020,
+        "seconds": 30,
+        "p95ms": 821
+      },
+      {
+        "startSeconds": 1050,
+        "seconds": 30,
+        "p95ms": 807
+      },
+      {
+        "startSeconds": 1080,
+        "seconds": 30,
+        "p95ms": 813
+      },
+      {
+        "startSeconds": 1110,
+        "seconds": 30,
+        "p95ms": 792
+      },
+      {
+        "startSeconds": 1140,
+        "seconds": 30,
+        "p95ms": 790
+      },
+      {
+        "startSeconds": 1170,
+        "seconds": 30,
+        "p95ms": 798
+      },
+      {
+        "startSeconds": 1200,
+        "seconds": 30,
+        "p95ms": 803
+      },
+      {
+        "startSeconds": 1230,
+        "seconds": 30,
+        "p95ms": 794
+      },
+      {
+        "startSeconds": 1260,
+        "seconds": 30,
+        "p95ms": 806
+      },
+      {
+        "startSeconds": 1290,
+        "seconds": 30,
+        "p95ms": 799
+      },
+      {
+        "startSeconds": 1320,
+        "seconds": 30,
+        "p95ms": 788
+      },
+      {
+        "startSeconds": 1350,
+        "seconds": 30,
+        "p95ms": 805
+      },
+      {
+        "startSeconds": 1380,
+        "seconds": 30,
+        "p95ms": 802
+      },
+      {
+        "startSeconds": 1410,
+        "seconds": 30,
+        "p95ms": 802
+      },
+      {
+        "startSeconds": 1440,
+        "seconds": 30,
+        "p95ms": 782
+      },
+      {
+        "startSeconds": 1470,
+        "seconds": 30,
+        "p95ms": 803
+      },
+      {
+        "startSeconds": 1500,
+        "seconds": 30,
+        "p95ms": 821
+      },
+      {
+        "startSeconds": 1530,
+        "seconds": 30,
+        "p95ms": 820
+      },
+      {
+        "startSeconds": 1560,
+        "seconds": 30,
+        "p95ms": 789
+      },
+      {
+        "startSeconds": 1590,
+        "seconds": 30,
+        "p95ms": 794
+      },
+      {
+        "startSeconds": 1620,
+        "seconds": 30,
+        "p95ms": 812
+      },
+      {
+        "startSeconds": 1650,
+        "seconds": 30,
+        "p95ms": 813
+      },
+      {
+        "startSeconds": 1680,
+        "seconds": 30,
+        "p95ms": 808
+      },
+      {
+        "startSeconds": 1710,
+        "seconds": 30,
+        "p95ms": 810
+      },
+      {
+        "startSeconds": 1740,
+        "seconds": 30,
+        "p95ms": 801
+      },
+      {
+        "startSeconds": 1770,
+        "seconds": 30,
+        "p95ms": 808
+      }
+    ],
+    "asgObservationCoverage": {
+      "complete": true,
+      "maximumRegularSampleGapSeconds": 60,
+      "gaps": [],
+      "secondsWithoutRegularObservation": 0
+    }
+  },
+  {
+    "label": "cpu-50",
+    "badP95BucketSeconds": 150,
+    "badP95Buckets": [
+      {
+        "startSeconds": 810,
+        "seconds": 30,
+        "p95ms": 2583
+      },
+      {
+        "startSeconds": 840,
+        "seconds": 30,
+        "p95ms": 1951
+      },
+      {
+        "startSeconds": 870,
+        "seconds": 30,
+        "p95ms": 1436
+      },
+      {
+        "startSeconds": 1050,
+        "seconds": 30,
+        "p95ms": 2202
+      },
+      {
+        "startSeconds": 1080,
+        "seconds": 30,
+        "p95ms": 1099
+      }
+    ],
+    "asgObservationCoverage": {
+      "complete": true,
+      "maximumRegularSampleGapSeconds": 60,
+      "gaps": [],
+      "secondsWithoutRegularObservation": 0
+    }
+  },
+  {
+    "label": "cpu-50-slow-start-120",
+    "badP95BucketSeconds": 0,
+    "badP95Buckets": [],
+    "asgObservationCoverage": {
+      "complete": false,
+      "maximumRegularSampleGapSeconds": 60,
+      "gaps": [
+        {
+          "startSeconds": 3394.244799852371,
+          "endSeconds": 3600.0,
+          "fullGapSeconds": 556.2099180221558
+        }
+      ],
+      "secondsWithoutRegularObservation": 205.75520014762878
+    }
+  }
+]

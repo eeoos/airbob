@@ -1,0 +1,13 @@
+{
+  "sha256": "950f8a07148c14dbf048895a3a5e3569f444fe8b34f33941772aed5531d5fd2b",
+  "bytes": 3544744,
+  "compressedBytes": 195404,
+  "files": 203,
+  "cohorts": [
+    "probe-r2-composite-rr",
+    "probe-r2-composite-rc",
+    "probe-r2-db"
+  ],
+  "compressedSha256": "17dcfeaed66d26e1f4ad598581113af00fea13ee395d672662b678f65aadcb89",
+  "path": "raw/exploration-2.json.zlib"
+}

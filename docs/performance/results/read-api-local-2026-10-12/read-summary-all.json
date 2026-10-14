@@ -1,0 +1,618 @@
+[
+  {
+    "id": "reviews-hot-latest",
+    "status": "complete",
+    "timesMs": [
+      16.0,
+      1.94,
+      1.09
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "reviews-hot-highest",
+    "status": "complete",
+    "timesMs": [
+      1.54,
+      2.2,
+      1.18
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "reviews-hot-lowest",
+    "status": "complete",
+    "timesMs": [
+      9.57,
+      0.702,
+      0.851
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "reviews-typical-latest",
+    "status": "complete",
+    "timesMs": [
+      6.54,
+      0.0876,
+      0.0892
+    ],
+    "rows": [
+      10.0,
+      10.0,
+      10.0
+    ]
+  },
+  {
+    "id": "reviews-typical-highest",
+    "status": "complete",
+    "timesMs": [
+      0.1,
+      0.42,
+      0.087
+    ],
+    "rows": [
+      10.0,
+      10.0,
+      10.0
+    ]
+  },
+  {
+    "id": "reviews-typical-lowest",
+    "status": "complete",
+    "timesMs": [
+      0.113,
+      0.0769,
+      0.0913
+    ],
+    "rows": [
+      10.0,
+      10.0,
+      10.0
+    ]
+  },
+  {
+    "id": "reviews-hot-latest-cursor",
+    "status": "complete",
+    "timesMs": [
+      6.51,
+      0.531,
+      0.576
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "review-images",
+    "status": "complete",
+    "timesMs": [
+      1.28,
+      0.0325,
+      0.0334
+    ],
+    "rows": [
+      5.0,
+      5.0,
+      5.0
+    ]
+  },
+  {
+    "id": "accommodation-detail",
+    "status": "complete",
+    "timesMs": [
+      8.3e-05,
+      0.000126,
+      0.000209
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "detail-images",
+    "status": "complete",
+    "timesMs": [
+      2.22,
+      0.0265,
+      0.0178
+    ],
+    "rows": [
+      2.0,
+      2.0,
+      2.0
+    ]
+  },
+  {
+    "id": "detail-amenities",
+    "status": "complete",
+    "timesMs": [
+      1.37,
+      0.0254,
+      0.0252
+    ],
+    "rows": [
+      22.0,
+      22.0,
+      22.0
+    ]
+  },
+  {
+    "id": "detail-wishlist-exists",
+    "status": "complete",
+    "timesMs": [
+      2.75,
+      0.0215,
+      0.025
+    ],
+    "rows": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "id": "host-detail",
+    "status": "complete",
+    "timesMs": [
+      0.000208,
+      8.4e-05,
+      8.3e-05
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "host-list-all",
+    "status": "complete",
+    "timesMs": [
+      9.35,
+      3.98,
+      4.87
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "host-list-published",
+    "status": "complete",
+    "timesMs": [
+      4.09,
+      3.38,
+      3.44
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "host-list-unpublished",
+    "status": "complete",
+    "timesMs": [
+      29.5,
+      10.5,
+      12.2
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "host-list-cursor",
+    "status": "complete",
+    "timesMs": [
+      10.1,
+      3.43,
+      2.93
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "wishlist-list-hot",
+    "status": "complete",
+    "timesMs": [
+      1.5,
+      0.0369,
+      0.0462
+    ],
+    "rows": [
+      2.0,
+      2.0,
+      2.0
+    ]
+  },
+  {
+    "id": "wishlist-items-hot",
+    "status": "complete",
+    "timesMs": [
+      12.1,
+      0.312,
+      0.351
+    ],
+    "rows": [
+      21.0,
+      21.0,
+      21.0
+    ]
+  },
+  {
+    "id": "wishlist-list-typical",
+    "status": "complete",
+    "timesMs": [
+      0.304,
+      0.0309,
+      0.0279
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "wishlist-items-typical",
+    "status": "complete",
+    "timesMs": [
+      3.16,
+      0.446,
+      0.65
+    ],
+    "rows": [
+      5.0,
+      5.0,
+      5.0
+    ]
+  },
+  {
+    "id": "wishlist-list-membership",
+    "status": "complete",
+    "timesMs": [
+      66.4,
+      0.0631,
+      0.33
+    ],
+    "rows": [
+      2.0,
+      2.0,
+      2.0
+    ]
+  },
+  {
+    "id": "wishlist-header",
+    "status": "complete",
+    "timesMs": [
+      8.4e-05,
+      4.1e-05,
+      8.4e-05
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "wishlist-membership",
+    "status": "complete",
+    "timesMs": [
+      4.2e-05,
+      8.2e-05,
+      0.000167
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "recently-viewed-100",
+    "status": "complete",
+    "timesMs": [
+      33.0,
+      0.58,
+      0.957
+    ],
+    "rows": [
+      100.0,
+      100.0,
+      100.0
+    ]
+  },
+  {
+    "id": "recently-viewed-wishlist",
+    "status": "complete",
+    "timesMs": [
+      0.486,
+      0.0477,
+      0.0438
+    ],
+    "rows": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "id": "recently-viewed-wishlist-exists-candidate",
+    "status": "complete",
+    "timesMs": [
+      3.95,
+      0.703,
+      0.719
+    ],
+    "rows": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "id": "coupon-campaigns-current",
+    "status": "complete",
+    "timesMs": [
+      0.0654,
+      0.0653,
+      0.066
+    ],
+    "rows": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "id": "member-coupons",
+    "status": "complete",
+    "timesMs": [
+      10.8,
+      0.198,
+      0.194
+    ],
+    "rows": [
+      57.0,
+      57.0,
+      57.0
+    ]
+  },
+  {
+    "id": "revenue-day",
+    "status": "complete",
+    "timesMs": [
+      6.35,
+      3.36,
+      3.23
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "revenue-week",
+    "status": "complete",
+    "timesMs": [
+      50.8,
+      43.7,
+      42.2
+    ],
+    "rows": [
+      7.0,
+      7.0,
+      7.0
+    ]
+  },
+  {
+    "id": "revenue-month",
+    "status": "complete",
+    "timesMs": [
+      333.0,
+      188.0,
+      195.0
+    ],
+    "rows": [
+      31.0,
+      31.0,
+      31.0
+    ]
+  },
+  {
+    "id": "settlement-host-list",
+    "status": "complete",
+    "timesMs": [
+      1.57,
+      0.0283,
+      0.0277
+    ],
+    "rows": [
+      12.0,
+      12.0,
+      12.0
+    ]
+  },
+  {
+    "id": "settlement-host-summary",
+    "status": "complete",
+    "timesMs": [
+      0.898,
+      0.185,
+      0.357
+    ],
+    "rows": [
+      2.0,
+      2.0,
+      2.0
+    ]
+  },
+  {
+    "id": "settlement-admin-all",
+    "status": "complete",
+    "timesMs": [
+      3616.0,
+      1173.0,
+      1190.0
+    ],
+    "rows": [
+      191621.0,
+      191621.0,
+      191621.0
+    ]
+  },
+  {
+    "id": "settlement-admin-pending",
+    "status": "complete",
+    "timesMs": [
+      1249.0,
+      1233.0,
+      1067.0
+    ],
+    "rows": [
+      38386.0,
+      38386.0,
+      38386.0
+    ]
+  },
+  {
+    "id": "settlement-admin-paid",
+    "status": "complete",
+    "timesMs": [
+      1114.0,
+      1258.0,
+      1264.0
+    ],
+    "rows": [
+      153235.0,
+      153235.0,
+      153235.0
+    ]
+  },
+  {
+    "id": "settlement-detail-lines",
+    "status": "complete",
+    "timesMs": [
+      1612.0,
+      52.2,
+      50.0
+    ],
+    "rows": [
+      340.0,
+      340.0,
+      340.0
+    ]
+  },
+  {
+    "id": "auth-me",
+    "status": "complete",
+    "timesMs": [
+      0.000125,
+      4.1e-05,
+      4.2e-05
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "common-code-group",
+    "status": "complete",
+    "timesMs": [
+      8.3e-05,
+      4.1e-05,
+      0.000166
+    ],
+    "rows": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "id": "common-codes-public",
+    "status": "complete",
+    "timesMs": [
+      0.0794,
+      0.049,
+      0.0539
+    ],
+    "rows": [
+      30.0,
+      30.0,
+      30.0
+    ]
+  },
+  {
+    "id": "common-codes-admin",
+    "status": "complete",
+    "timesMs": [
+      0.0312,
+      0.0307,
+      0.113
+    ],
+    "rows": [
+      30.0,
+      30.0,
+      30.0
+    ]
+  },
+  {
+    "id": "common-groups-admin",
+    "status": "complete",
+    "timesMs": [
+      0.0305,
+      0.0158,
+      0.0135
+    ],
+    "rows": [
+      2.0,
+      2.0,
+      2.0
+    ]
+  },
+  {
+    "id": "admin-auth",
+    "status": "complete",
+    "timesMs": [
+      0.000167,
+      0.000125,
+      0.000125
+    ],
+    "rows": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+]

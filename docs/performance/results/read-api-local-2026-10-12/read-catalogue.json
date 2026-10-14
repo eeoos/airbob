@@ -1,0 +1,266 @@
+[
+  {
+    "id": "reviews-hot-latest",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=324693 AND r.status='PUBLISHED' ORDER BY r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "accommodation=324693; page size=20"
+  },
+  {
+    "id": "reviews-hot-highest",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=324693 AND r.status='PUBLISHED' ORDER BY r.rating DESC,r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "accommodation=324693; page size=20"
+  },
+  {
+    "id": "reviews-hot-lowest",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=324693 AND r.status='PUBLISHED' ORDER BY r.rating ASC,r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "accommodation=324693; page size=20"
+  },
+  {
+    "id": "reviews-typical-latest",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=1 AND r.status='PUBLISHED' ORDER BY r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "accommodation=1; page size=20"
+  },
+  {
+    "id": "reviews-typical-highest",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=1 AND r.status='PUBLISHED' ORDER BY r.rating DESC,r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "accommodation=1; page size=20"
+  },
+  {
+    "id": "reviews-typical-lowest",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=1 AND r.status='PUBLISHED' ORDER BY r.rating ASC,r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "accommodation=1; page size=20"
+  },
+  {
+    "id": "reviews-hot-latest-cursor",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT r.id,r.rating,r.content,r.created_at,m.id,m.nickname,m.thumbnail_image_url FROM review r JOIN member m ON m.id=r.member_id WHERE r.accommodation_id=324693 AND r.status='PUBLISHED' AND (r.created_at<'2020-12-06 19:00:00.000000' OR (r.created_at='2020-12-06 19:00:00.000000' AND r.id<267811)) ORDER BY r.created_at DESC,r.id DESC LIMIT 21",
+    "note": "cursor chosen from the 100th existing review; SQL has no OFFSET"
+  },
+  {
+    "id": "review-images",
+    "api": "GET /api/v1/accommodations/{id}/reviews",
+    "sql": "SELECT ri.* FROM review_image ri WHERE ri.review_id IN (4063639,3919229,3762760,3897053,3626760,3938860,3904876,3916047,3628367,3230304,3466580,3312001,2937711,3300408,2957218,2709556,3023806,2987009,2577098,2674179)",
+    "note": "batch images of 20 response reviews"
+  },
+  {
+    "id": "accommodation-detail",
+    "api": "GET /api/v1/accommodations/{id}",
+    "sql": "SELECT a.id,a.name,a.description,a.type,a.base_price,a.currency,a.check_in_time,a.check_out_time,a.time_zone_id,d.country,d.state,d.city,d.district,d.latitude,d.longitude,m.id,m.nickname,m.thumbnail_image_url,p.max_occupancy,p.infant_occupancy,p.pet_occupancy,s.total_review_count,s.average_rating FROM accommodation a LEFT JOIN address d ON d.id=a.address_id LEFT JOIN occupancy_policy p ON p.id=a.occupancy_policy_id LEFT JOIN member m ON m.id=a.member_id LEFT JOIN accommodation_review_summary s ON s.accommodation_id=a.id WHERE a.id=324693 AND a.status='PUBLISHED'",
+    "note": "cache miss"
+  },
+  {
+    "id": "detail-images",
+    "api": "accommodation detail / host detail",
+    "sql": "SELECT id,image_url FROM accommodation_image WHERE accommodation_id=324693 ORDER BY id",
+    "note": ""
+  },
+  {
+    "id": "detail-amenities",
+    "api": "accommodation detail / host detail",
+    "sql": "SELECT amenity_code,count FROM accommodation_amenity WHERE accommodation_id=324693",
+    "note": ""
+  },
+  {
+    "id": "detail-wishlist-exists",
+    "api": "GET /api/v1/accommodations/{id}",
+    "sql": "SELECT wa.id FROM wishlist_accommodation wa JOIN wishlist w ON w.id=wa.wishlist_id WHERE w.member_id=2988439 AND wa.accommodation_id=324693 LIMIT 1",
+    "note": "logged-in viewer; derived exists query shape"
+  },
+  {
+    "id": "host-detail",
+    "api": "GET /api/v1/profile/host/accommodations/{id}",
+    "sql": "SELECT a.id,a.name,a.description,a.type,a.base_price,a.currency,a.check_in_time,a.check_out_time,a.time_zone_id,d.country,d.state,d.city,d.district,d.street,d.detail,d.postal_code,p.max_occupancy,p.infant_occupancy,p.pet_occupancy FROM accommodation a LEFT JOIN address d ON d.id=a.address_id LEFT JOIN occupancy_policy p ON p.id=a.occupancy_policy_id WHERE a.id=16102 AND a.member_id=6675",
+    "note": ""
+  },
+  {
+    "id": "host-list-all",
+    "api": "GET /api/v1/profile/host/accommodations",
+    "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "host-list-published",
+    "api": "GET /api/v1/profile/host/accommodations",
+    "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' AND a.status='PUBLISHED' ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "host-list-unpublished",
+    "api": "GET /api/v1/profile/host/accommodations",
+    "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' AND a.status='UNPUBLISHED' ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "host-list-cursor",
+    "api": "GET /api/v1/profile/host/accommodations",
+    "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' AND (a.created_at<'2025-05-06 13:24:46.000000' OR (a.created_at='2025-05-06 13:24:46.000000' AND a.id<20694)) ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+    "note": "cursor chosen at existing item 1000"
+  },
+  {
+    "id": "wishlist-list-hot",
+    "api": "GET /api/v1/members/wishlists",
+    "sql": "SELECT w.id,w.name,w.created_at,w.accommodation_count,a.thumbnail_url,NULL FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id WHERE w.member_id=2988439 AND w.status='ACTIVE' ORDER BY w.created_at DESC,w.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "wishlist-items-hot",
+    "api": "GET /api/v1/members/wishlists/accommodations/{id}",
+    "sql": "SELECT wa.id,wa.memo,a.id,a.name,a.thumbnail_url,d.country,d.state,d.city,d.district,s.average_rating,s.total_review_count,wa.created_at FROM wishlist_accommodation wa JOIN accommodation a ON a.id=wa.accommodation_id JOIN address d ON d.id=a.address_id LEFT JOIN accommodation_review_summary s ON s.accommodation_id=a.id WHERE wa.wishlist_id=9634 AND a.status='PUBLISHED' ORDER BY wa.created_at DESC,wa.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "wishlist-list-typical",
+    "api": "GET /api/v1/members/wishlists",
+    "sql": "SELECT w.id,w.name,w.created_at,w.accommodation_count,a.thumbnail_url,NULL FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id WHERE w.member_id=1294543 AND w.status='ACTIVE' ORDER BY w.created_at DESC,w.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "wishlist-items-typical",
+    "api": "GET /api/v1/members/wishlists/accommodations/{id}",
+    "sql": "SELECT wa.id,wa.memo,a.id,a.name,a.thumbnail_url,d.country,d.state,d.city,d.district,s.average_rating,s.total_review_count,wa.created_at FROM wishlist_accommodation wa JOIN accommodation a ON a.id=wa.accommodation_id JOIN address d ON d.id=a.address_id LEFT JOIN accommodation_review_summary s ON s.accommodation_id=a.id WHERE wa.wishlist_id=39 AND a.status='PUBLISHED' ORDER BY wa.created_at DESC,wa.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "wishlist-list-membership",
+    "api": "GET /api/v1/members/wishlists?accommodationId=...",
+    "sql": "SELECT w.id,w.name,w.created_at,w.accommodation_count,a.thumbnail_url,wa.id FROM wishlist w LEFT JOIN accommodation a ON a.id=w.representative_accommodation_id LEFT JOIN wishlist_accommodation wa ON wa.wishlist_id=w.id AND wa.accommodation_id=324693 WHERE w.member_id=2988439 AND w.status='ACTIVE' ORDER BY w.created_at DESC,w.id DESC LIMIT 21",
+    "note": ""
+  },
+  {
+    "id": "wishlist-header",
+    "api": "GET /api/v1/members/wishlists/accommodations/{id}",
+    "sql": "SELECT id,member_id,name FROM wishlist WHERE id=9634 AND status='ACTIVE'",
+    "note": ""
+  },
+  {
+    "id": "wishlist-membership",
+    "api": "GET /api/v1/members/wishlists/membership",
+    "sql": "SELECT CAST(EXISTS(SELECT 1 FROM wishlist_accommodation wa JOIN wishlist w ON w.id=wa.wishlist_id WHERE w.member_id=2988439 AND w.status='ACTIVE' AND wa.accommodation_id=324693) AS SIGNED),CAST(EXISTS(SELECT 1 FROM wishlist w WHERE w.id=9634 AND w.member_id=2988439 AND w.status='ACTIVE') AS SIGNED),CAST(EXISTS(SELECT 1 FROM wishlist_accommodation wa JOIN wishlist w ON w.id=wa.wishlist_id WHERE w.id=9634 AND w.member_id=2988439 AND w.status='ACTIVE' AND wa.accommodation_id=324693) AS SIGNED)",
+    "note": ""
+  },
+  {
+    "id": "recently-viewed-100",
+    "api": "GET /api/v1/members/recently-viewed",
+    "sql": "SELECT a.id,a.name,a.thumbnail_url,d.country,d.state,d.city,d.district,s.total_review_count,s.average_rating FROM accommodation a LEFT JOIN address d ON d.id=a.address_id LEFT JOIN accommodation_review_summary s ON s.accommodation_id=a.id WHERE a.id IN (324693,420353,554691,27512,572673,86494,319188,571006,409907,292122,367770,400054,196746,459529,303663,17588,328674,601657,336757,358074,393329,342179,369423,386946,341802,187570,326068,455134,428762,620563,317185,411872,378008,325946,351306,412497,196625,378460,338638,509217,406510,423775,553380,497782,542275,300886,332058,420733,456113,458087,507349,39434,181763,354902,377487,84592,419107,639508,406284,326898,334905,347596,478058,624267,390208,495048,28792,361876,325372,327787,329528,339481,384758,228643,362792,365400,437238,446731,481471,496602,579979,293933,331086,346236,415956,499883,564187,327836,346058,399520,471326,515199,669334,397427,431471,481160,17521,268782,385659,411358) AND a.status='PUBLISHED'",
+    "note": "100 existing popular-review accommodations; constructed input, not sampled Redis traffic"
+  },
+  {
+    "id": "recently-viewed-wishlist",
+    "api": "GET /api/v1/members/recently-viewed",
+    "sql": "SELECT wa.accommodation_id FROM wishlist_accommodation wa JOIN wishlist w ON w.id=wa.wishlist_id JOIN member m ON m.id=w.member_id JOIN accommodation a ON a.id=wa.accommodation_id WHERE m.id=2988439 AND a.id IN (324693,420353,554691,27512,572673,86494,319188,571006,409907,292122,367770,400054,196746,459529,303663,17588,328674,601657,336757,358074,393329,342179,369423,386946,341802,187570,326068,455134,428762,620563,317185,411872,378008,325946,351306,412497,196625,378460,338638,509217,406510,423775,553380,497782,542275,300886,332058,420733,456113,458087,507349,39434,181763,354902,377487,84592,419107,639508,406284,326898,334905,347596,478058,624267,390208,495048,28792,361876,325372,327787,329528,339481,384758,228643,362792,365400,437238,446731,481471,496602,579979,293933,331086,346236,415956,499883,564187,327836,346058,399520,471326,515199,669334,397427,431471,481160,17521,268782,385659,411358) AND a.status='PUBLISHED'",
+    "note": ""
+  },
+  {
+    "id": "recently-viewed-wishlist-exists-candidate",
+    "api": "candidate SQL for recently-viewed membership",
+    "sql": "SELECT a.id FROM accommodation a WHERE a.id IN (324693,420353,554691,27512,572673,86494,319188,571006,409907,292122,367770,400054,196746,459529,303663,17588,328674,601657,336757,358074,393329,342179,369423,386946,341802,187570,326068,455134,428762,620563,317185,411872,378008,325946,351306,412497,196625,378460,338638,509217,406510,423775,553380,497782,542275,300886,332058,420733,456113,458087,507349,39434,181763,354902,377487,84592,419107,639508,406284,326898,334905,347596,478058,624267,390208,495048,28792,361876,325372,327787,329528,339481,384758,228643,362792,365400,437238,446731,481471,496602,579979,293933,331086,346236,415956,499883,564187,327836,346058,399520,471326,515199,669334,397427,431471,481160,17521,268782,385659,411358) AND a.status='PUBLISHED' AND EXISTS (SELECT 1 FROM wishlist w JOIN wishlist_accommodation wa ON wa.wishlist_id=w.id WHERE w.member_id=2988439 AND wa.accommodation_id=a.id)",
+    "note": "same set semantics; no ACTIVE filter added"
+  },
+  {
+    "id": "coupon-campaigns-current",
+    "api": "GET /api/v1/coupons",
+    "sql": "SELECT c.id,c.name,c.description,c.discount_type,c.discount_value,c.min_payment_price,c.max_discount_amount,c.issue_start_at,c.issue_end_at,c.usable_from,c.usable_until,c.total_quantity,(SELECT COUNT(mc.id) FROM member_coupon mc WHERE mc.coupon_id=c.id) FROM coupon c WHERE c.is_active=true AND c.stock_prepared_at IS NOT NULL AND c.issue_end_at>UTC_TIMESTAMP(6) ORDER BY c.issue_start_at DESC,c.id DESC",
+    "note": "local campaign readiness is recorded; do not infer populated performance from an empty result"
+  },
+  {
+    "id": "member-coupons",
+    "api": "GET /api/v1/members/me/coupons",
+    "sql": "SELECT c.id,c.name,c.description,c.discount_type,c.discount_value,c.min_payment_price,c.max_discount_amount,c.usable_from,c.usable_until,mc.used,c.is_active FROM member_coupon mc JOIN coupon c ON c.id=mc.coupon_id WHERE mc.member_id=1594731 ORDER BY mc.created_at DESC,mc.id DESC",
+    "note": ""
+  },
+  {
+    "id": "revenue-day",
+    "api": "GET /api/v1/admin/stats/revenue",
+    "sql": "SELECT stat_date,SUM(gross_amount),SUM(refund_amount),SUM(net_amount),SUM(payment_count),SUM(refund_count) FROM daily_revenue_stats WHERE stat_date BETWEEN '2026-03-31' AND '2026-03-31' GROUP BY stat_date ORDER BY stat_date",
+    "note": ""
+  },
+  {
+    "id": "revenue-week",
+    "api": "GET /api/v1/admin/stats/revenue",
+    "sql": "SELECT stat_date,SUM(gross_amount),SUM(refund_amount),SUM(net_amount),SUM(payment_count),SUM(refund_count) FROM daily_revenue_stats WHERE stat_date BETWEEN '2026-03-25' AND '2026-03-31' GROUP BY stat_date ORDER BY stat_date",
+    "note": ""
+  },
+  {
+    "id": "revenue-month",
+    "api": "GET /api/v1/admin/stats/revenue",
+    "sql": "SELECT stat_date,SUM(gross_amount),SUM(refund_amount),SUM(net_amount),SUM(payment_count),SUM(refund_count) FROM daily_revenue_stats WHERE stat_date BETWEEN '2026-03-01' AND '2026-03-31' GROUP BY stat_date ORDER BY stat_date",
+    "note": ""
+  },
+  {
+    "id": "settlement-host-list",
+    "api": "GET /api/v1/profile/host/settlements",
+    "sql": "SELECT * FROM settlement WHERE host_id=6675 AND settlement_month BETWEEN '2025-04-01' AND '2026-03-01' ORDER BY settlement_month",
+    "note": ""
+  },
+  {
+    "id": "settlement-host-summary",
+    "api": "GET /api/v1/profile/host/settlements/summary",
+    "sql": "SELECT status,COALESCE(SUM(payout_amount),0),COUNT(*) FROM settlement WHERE host_id=6675 GROUP BY status",
+    "note": ""
+  },
+  {
+    "id": "settlement-admin-all",
+    "api": "GET /api/v1/admin/settlements",
+    "sql": "SELECT * FROM settlement WHERE settlement_month='2026-03-01' ORDER BY host_id",
+    "note": "existing API has no pagination"
+  },
+  {
+    "id": "settlement-admin-pending",
+    "api": "GET /api/v1/admin/settlements",
+    "sql": "SELECT * FROM settlement WHERE settlement_month='2026-03-01' AND status='PENDING' ORDER BY host_id",
+    "note": "existing API has no pagination"
+  },
+  {
+    "id": "settlement-admin-paid",
+    "api": "GET /api/v1/admin/settlements",
+    "sql": "SELECT * FROM settlement WHERE settlement_month='2026-03-01' AND status='PAID' ORDER BY host_id",
+    "note": "existing API has no pagination"
+  },
+  {
+    "id": "settlement-detail-lines",
+    "api": "GET /api/v1/profile/host/settlements/{id}",
+    "sql": "SELECT t.accommodation_id,t.accommodation_name,SUM(t.gross),SUM(t.refund),SUM(t.gross)-SUM(t.refund) FROM (SELECT a.id accommodation_id,a.name accommodation_name,COALESCE(pt.amount,0) gross,0 refund FROM payment_transaction pt JOIN reservation r ON r.id=pt.reservation_id JOIN accommodation a ON a.id=r.accommodation_id WHERE a.member_id=6675 AND pt.transaction_type='CONFIRM' AND DATE(pt.created_at) BETWEEN '2026-03-01' AND '2026-03-31' UNION ALL SELECT a.id,a.name,0,COALESCE(pt.cancel_amount,0) FROM payment_transaction pt JOIN reservation r ON r.id=pt.reservation_id JOIN accommodation a ON a.id=r.accommodation_id WHERE a.member_id=6675 AND pt.transaction_type IN ('CANCEL','PARTIAL_CANCEL') AND DATE(COALESCE(pt.canceled_at,pt.created_at)) BETWEEN '2026-03-01' AND '2026-03-31') t GROUP BY t.accommodation_id,t.accommodation_name ORDER BY t.accommodation_id",
+    "note": "settlement endpoint includes ledger joins; reservation/payment APIs themselves excluded"
+  },
+  {
+    "id": "auth-me",
+    "api": "GET /api/v1/auth/me",
+    "sql": "SELECT id,email,nickname FROM member WHERE id=2988439 AND status='ACTIVE'",
+    "note": "EXPLAIN only, no profile payload exported"
+  },
+  {
+    "id": "common-code-group",
+    "api": "public common-code loader",
+    "sql": "SELECT * FROM common_code_group WHERE group_code='AMENITY_TYPE'",
+    "note": ""
+  },
+  {
+    "id": "common-codes-public",
+    "api": "GET /api/v1/common-codes/{group}",
+    "sql": "SELECT * FROM common_code WHERE group_code='AMENITY_TYPE' AND is_active=true ORDER BY sort_order",
+    "note": "cache miss"
+  },
+  {
+    "id": "common-codes-admin",
+    "api": "GET /api/v1/admin/common-codes/{group}",
+    "sql": "SELECT * FROM common_code WHERE group_code='AMENITY_TYPE' ORDER BY sort_order",
+    "note": ""
+  },
+  {
+    "id": "common-groups-admin",
+    "api": "GET /api/v1/admin/common-code-groups",
+    "sql": "SELECT * FROM common_code_group ORDER BY group_code",
+    "note": ""
+  },
+  {
+    "id": "admin-auth",
+    "api": "all admin read endpoints",
+    "sql": "SELECT id FROM member WHERE id=2988439 AND status='ACTIVE' AND role='ADMIN' LIMIT 1",
+    "note": ""
+  }
+]

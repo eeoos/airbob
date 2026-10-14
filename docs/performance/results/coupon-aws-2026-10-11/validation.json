@@ -1,0 +1,2127 @@
+{
+  "verified": true,
+  "bundles": [
+    {
+      "path": "raw/conditioned-round-1.json.zlib",
+      "sha256": "3357f0c580cbddf5c8a2076c3896dfbe9d115ca8da2dd441f2b841fd26a0d0ce"
+    },
+    {
+      "path": "raw/exploration-2.json.zlib",
+      "sha256": "17dcfeaed66d26e1f4ad598581113af00fea13ee395d672662b678f65aadcb89"
+    },
+    {
+      "path": "raw/focused-additional-round-1.json.zlib",
+      "sha256": "2c4cd21bf506b4b020fa7fea702c7d5bf5f05e47700a3b865cc6e0c02920f9dd"
+    },
+    {
+      "path": "raw/qualification-and-exploration-1.json.zlib",
+      "sha256": "3eb59b62e693f2a9eaefa7e6c9f23c672b2e81a9d371964d6bd30ad4837bc216"
+    },
+    {
+      "path": "raw/steady500-round-1.json.zlib",
+      "sha256": "7224ed08df7f65269c7ce544774f8dcc563c0336b529c615cea2afa47a175cdd"
+    },
+    {
+      "path": "raw/steady500-round-2.json.zlib",
+      "sha256": "cc2362c95ce85f28a30f2acd90ec571407deba8694bd77fd27c8110839ee9d4f"
+    },
+    {
+      "path": "raw/steady500-round-3.json.zlib",
+      "sha256": "24844cfe1a4fc47147de626915181381e2e0da5da1b4c9047202cac5daf7f376"
+    },
+    {
+      "path": "raw/sustained-initial-round.json.zlib",
+      "sha256": "cf5a218405fd9ce8d9310db71fca7c9f39a2a652d760dcf925fba605fccc66c2"
+    },
+    {
+      "path": "raw/warmup-diagnostic.json.zlib",
+      "sha256": "b70557f3f781600095216f33c75601aeefb2cc9354873555fead91290fca1c56"
+    }
+  ],
+  "cohorts": [
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "conditioned-r1-db",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r1-db",
+      "status": "incomplete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "qualify-success",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r1-db",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r2-db",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r3-db",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "sustain-r1-db",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rc",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    },
+    {
+      "runId": "warmup-diagnostic-surrogate-rr",
+      "status": "complete",
+      "openFixtures": []
+    }
+  ],
+  "trialCountIncludingWarmups": 235,
+  "measuredTrials": 91,
+  "checks": [
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "001-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "002-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "003-capacity-100-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "004-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "005-scarcity-250-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "006-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "007-scarcity-100-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "008-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "009-duplicate-250-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "010-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "011-scarcity-250-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "012-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rc",
+      "label": "013-capacity-400-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "001-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "002-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "003-capacity-100-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "004-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "005-scarcity-250-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "006-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "007-scarcity-100-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "008-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "009-duplicate-250-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "010-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "011-scarcity-250-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "012-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "additional-r1-surrogate-rr",
+      "label": "013-capacity-400-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rc",
+      "label": "001-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rc",
+      "label": "002-capacity-600-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rc",
+      "label": "003-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rc",
+      "label": "004-capacity-600-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rr",
+      "label": "001-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rr",
+      "label": "002-capacity-600-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rr",
+      "label": "003-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-composite-rr",
+      "label": "004-capacity-600-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-db",
+      "label": "001-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-db",
+      "label": "002-capacity-125-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-db",
+      "label": "003-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-db",
+      "label": "004-capacity-125-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rc",
+      "label": "001-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rc",
+      "label": "002-capacity-600-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rc",
+      "label": "003-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rc",
+      "label": "004-capacity-600-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rr",
+      "label": "001-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rr",
+      "label": "002-capacity-600-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rr",
+      "label": "003-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "conditioned-r1-surrogate-rr",
+      "label": "004-capacity-600-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "001-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "002-capacity-100-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "003-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "004-capacity-200-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "005-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "006-capacity-400-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "007-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rc",
+      "label": "008-capacity-800-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "001-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "002-capacity-100-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "003-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "004-capacity-200-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "005-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "006-capacity-400-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "007-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-composite-rr",
+      "label": "008-capacity-800-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-db",
+      "label": "001-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-db",
+      "label": "002-capacity-100-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-db",
+      "label": "003-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-db",
+      "label": "004-capacity-200-r1-db-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "001-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "002-capacity-100-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "003-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "004-capacity-200-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "005-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "006-capacity-400-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "007-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rc",
+      "label": "008-capacity-800-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "001-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "002-capacity-100-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "003-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "004-capacity-200-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "005-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "006-capacity-400-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "007-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r1-surrogate-rr",
+      "label": "008-capacity-800-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "001-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "002-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "003-capacity-400-r2-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "004-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "005-capacity-500-r2-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "006-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "007-capacity-600-r2-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "008-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rc",
+      "label": "009-capacity-700-r2-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "001-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "002-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "003-capacity-400-r2-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "004-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "005-capacity-500-r2-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "006-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "007-capacity-600-r2-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "008-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-composite-rr",
+      "label": "009-capacity-700-r2-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "001-capacity-100-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "002-capacity-100-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "003-capacity-100-r2-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "004-capacity-100-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "005-capacity-125-r2-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "006-capacity-100-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-db",
+      "label": "007-capacity-150-r2-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "001-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "002-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "003-capacity-400-r2-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "004-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "005-capacity-500-r2-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "006-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "007-capacity-600-r2-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "008-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rc",
+      "label": "009-capacity-700-r2-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "001-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "002-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "003-capacity-400-r2-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "004-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "005-capacity-500-r2-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "006-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "007-capacity-600-r2-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "008-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "probe-r2-surrogate-rr",
+      "label": "009-capacity-700-r2-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "001-capacity-10-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "002-duplicate-20-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "003-capacity-10-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "004-scarcity-20-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "005-capacity-10-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "006-duplicate-20-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "007-capacity-10-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "008-scarcity-20-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "009-capacity-10-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "010-duplicate-20-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "011-capacity-10-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "012-scarcity-20-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "013-capacity-10-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "014-duplicate-20-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "015-capacity-10-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "016-scarcity-20-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "017-capacity-10-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "018-duplicate-20-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "019-capacity-10-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-edge",
+      "label": "020-scarcity-20-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "001-capacity-10-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "002-capacity-10-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "003-capacity-10-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "004-capacity-10-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "005-capacity-10-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "006-capacity-10-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "007-capacity-10-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "008-capacity-10-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "009-capacity-10-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "qualify-success",
+      "label": "010-capacity-10-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rc",
+      "label": "001-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rc",
+      "label": "002-capacity-500-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rc",
+      "label": "003-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rc",
+      "label": "004-capacity-500-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rr",
+      "label": "001-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rr",
+      "label": "002-capacity-500-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rr",
+      "label": "003-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-composite-rr",
+      "label": "004-capacity-500-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-db",
+      "label": "001-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-db",
+      "label": "002-capacity-125-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-db",
+      "label": "003-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-db",
+      "label": "004-capacity-125-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rc",
+      "label": "001-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rc",
+      "label": "002-capacity-500-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rc",
+      "label": "003-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rc",
+      "label": "004-capacity-500-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rr",
+      "label": "001-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rr",
+      "label": "002-capacity-500-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rr",
+      "label": "003-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r1-surrogate-rr",
+      "label": "004-capacity-500-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rc",
+      "label": "001-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rc",
+      "label": "002-capacity-500-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rc",
+      "label": "003-capacity-100-r2-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rc",
+      "label": "004-capacity-500-r2-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rr",
+      "label": "001-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rr",
+      "label": "002-capacity-500-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rr",
+      "label": "003-capacity-100-r2-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-composite-rr",
+      "label": "004-capacity-500-r2-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-db",
+      "label": "001-capacity-100-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-db",
+      "label": "002-capacity-125-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-db",
+      "label": "003-capacity-100-r2-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-db",
+      "label": "004-capacity-125-r2-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rc",
+      "label": "001-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rc",
+      "label": "002-capacity-500-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rc",
+      "label": "003-capacity-100-r2-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rc",
+      "label": "004-capacity-500-r2-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rr",
+      "label": "001-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rr",
+      "label": "002-capacity-500-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rr",
+      "label": "003-capacity-100-r2-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r2-surrogate-rr",
+      "label": "004-capacity-500-r2-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rc",
+      "label": "001-capacity-100-r3-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rc",
+      "label": "002-capacity-500-r3-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rc",
+      "label": "003-capacity-100-r3-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rc",
+      "label": "004-capacity-500-r3-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rr",
+      "label": "001-capacity-100-r3-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rr",
+      "label": "002-capacity-500-r3-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rr",
+      "label": "003-capacity-100-r3-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-composite-rr",
+      "label": "004-capacity-500-r3-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-db",
+      "label": "001-capacity-100-r3-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-db",
+      "label": "002-capacity-125-r3-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-db",
+      "label": "003-capacity-100-r3-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-db",
+      "label": "004-capacity-125-r3-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rc",
+      "label": "001-capacity-100-r3-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rc",
+      "label": "002-capacity-500-r3-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rc",
+      "label": "003-capacity-100-r3-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rc",
+      "label": "004-capacity-500-r3-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rr",
+      "label": "001-capacity-100-r3-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rr",
+      "label": "002-capacity-500-r3-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rr",
+      "label": "003-capacity-100-r3-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "steady500-r3-surrogate-rr",
+      "label": "004-capacity-500-r3-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rc",
+      "label": "001-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rc",
+      "label": "002-capacity-100-r1-skip-composite-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rc",
+      "label": "003-capacity-600-r1-skip-composite-rc-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rr",
+      "label": "001-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rr",
+      "label": "002-capacity-100-r1-skip-composite-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-composite-rr",
+      "label": "003-capacity-600-r1-skip-composite-rr-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-db",
+      "label": "001-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-db",
+      "label": "002-capacity-100-r1-db-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-db",
+      "label": "003-capacity-125-r1-db-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rc",
+      "label": "001-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rc",
+      "label": "002-capacity-100-r1-skip-surrogate-rc-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rc",
+      "label": "003-capacity-600-r1-skip-surrogate-rc-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rr",
+      "label": "001-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rr",
+      "label": "002-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "sustain-r1-surrogate-rr",
+      "label": "003-capacity-600-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "warmup-diagnostic-surrogate-rr",
+      "label": "001-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "warmup-diagnostic-surrogate-rr",
+      "label": "002-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "warmup-diagnostic-surrogate-rr",
+      "label": "003-capacity-600-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": false,
+      "sloPassed": false,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "warmup-diagnostic-surrogate-rr",
+      "label": "004-capacity-100-r1-skip-surrogate-rr-warmup",
+      "phase": "warmup",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    },
+    {
+      "runId": "warmup-diagnostic-surrogate-rr",
+      "label": "005-capacity-600-r1-skip-surrogate-rr-measure",
+      "phase": "measure",
+      "valid": true,
+      "sloPassed": true,
+      "inventoryFailures": []
+    }
+  ]
+}

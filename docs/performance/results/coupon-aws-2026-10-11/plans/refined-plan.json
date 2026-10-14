@@ -1,0 +1,43 @@
+{
+  "recordedAt": "2026-10-11T11:32:02.609189+00:00",
+  "phase": "Refined 20-second exploration, repetition 2",
+  "basis": "All four SKIP LOCKED variants passed 400 RPS and failed offered-load/SLO criteria at 800 in repetition 1. Conditional UPDATE passed 100; 200 overloaded and lost some app scrapes. Original failures are retained.",
+  "cohortOrder": [
+    "skip_surrogate_rr",
+    "skip_surrogate_rc",
+    "skip_composite_rr",
+    "skip_composite_rc",
+    "db"
+  ],
+  "unitRates": [
+    400,
+    500,
+    600,
+    700
+  ],
+  "dbRates": [
+    100,
+    125,
+    150,
+    175
+  ],
+  "seconds": 20,
+  "round": 2,
+  "stopAtFirstSloFailure": true,
+  "applicationImageUnchanged": true,
+  "laterConfirmation": "Select the highest shared passing refined rate for the four unit variants and the passing boundary rate for DB. Confirm each for 120 seconds across five rotated rounds; do not describe a short probe or overloaded response rate as validated capacity.",
+  "cohortWarmup": {
+    "seconds": 60,
+    "rate": 100,
+    "requests": 6000,
+    "separateCampaign": true,
+    "beforeAllMeasuredCases": true,
+    "perCaseWarmupRetained": "100 RPS for 10 seconds"
+  },
+  "protocolAmendment": {
+    "recordedAt": "2026-10-11T11:34:18.198415+00:00",
+    "beforeRefinementExecution": true,
+    "basis": "The first freshly restarted DB warmup had p95 1505.6 ms, while its next 100 RPS measured trial passed at 40.3 ms and the next warmup at 20.8 ms. Add a fixed 60-second cohort warmup for all five variants to reduce startup transients before higher starting rates. Original coarse probes stay separate.",
+    "failedTrials": "Missing app scrapes or a preparation delayed beyond the workload still mark a trial invalid. Retain that failed trial and allow subsequent independent cases; no thresholds or outcomes are relaxed."
+  }
+}
