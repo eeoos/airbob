@@ -1,23 +1,49 @@
 # Airbob
 
+## 프로젝트 소개
+
 숙소 조회·위시리스트·리뷰·쿠폰 기능을 제공하는 백엔드 프로젝트입니다.
 2025년 6~7월 3인 팀으로 개발한 뒤, 개인 고도화 과정에서 조회 병목과 동시 요청·장애 상황을 재현하며 구조를 개선했습니다.
 
 [Airbob](https://www.airbob.cloud/)
 
-Java 21 · Spring Boot 3.5.8 · JPA · QueryDSL · MySQL · Redis
+Java · Spring Boot · JPA · QueryDSL · MySQL · Redis
 
-## 조회 구조
+## 주요 개선 성과 요약
 
-숙소 상세는 Redis 캐시를 먼저 확인하고, 캐시에 없으면 MySQL에서 조회합니다. 캐시 성능 실험에서는 세션·최근 본 숙소를 저장하는 Redis와 상세 캐시 Redis를 분리했습니다.
+| 개선 항목 | 개선 전 → 후 | 측정 조건 |
+|---|---|---|
+| 숙소 상세 캐시 | 처리량 **1,100 → 5,000 RPS** | 앱 1대, 숙소 20개 반복 조회 |
+| 캐시 동시 미스 대응 | DB 로딩 **300 → 1회** | 앱 2대, 같은 숙소에 300건 버스트 |
+| Redis 장애 시 요청 병합 | DB 로딩 **300 → 19회** | 앱 1대, 같은 숙소에 300건 버스트 |
+| 쿠폰 발급 경합 완화 | 기준을 통과한 부하 **125 → 500 RPS** | 앱 1대, 각 부하에서 120초씩 3회 |
+| 최근 본 숙소 N+1 제거 | SELECT **102 → 2회**, p95 **83 → 21ms** | 숙소 100개 조회 |
+| 위시리스트 벌크 삭제 | DELETE **1,000 → 1회** | 위시리스트에 담긴 숙소 1,000개 삭제 |
+| 리뷰 집계 요약 테이블 | p95 **18.42 → 11.03ms** | 위시리스트 숙소 50개, 20 RPS, 3회 중앙값 |
+| ALB·ASG 자동 확장 | p95 **803 → 7ms** | 6,000 RPS·15분, 앱 1대 고정 대비 2→4대 확장, 각 1회 |
+
+각 행은 별도 실험의 결과입니다. DB 로딩은 숙소 상세 데이터를 읽는 로더의 실행 횟수이며, 로딩 한 번에 여러 SQL이 실행될 수 있습니다.
+
+## 시스템 아키텍처
+
+MySQL에 원본 데이터와 outbox 이벤트를 저장하고, Redis를 세션·최근 본 숙소·상세 캐시에 사용합니다. 숙소·이미지·리뷰가 변경되면 커밋 직후 캐시를 무효화하고, Debezium·Kafka로 전달된 이벤트를 통해 삭제를 다시 수행합니다.
+
+아래는 조회와 캐시 무효화에 관련된 구성입니다. 캐시 성능 실험에서는 세션·최근 본 숙소를 저장하는 Redis와 상세 캐시 Redis를 분리했습니다.
 
 ```mermaid
-flowchart LR
+flowchart TB
     User["사용자"] --> API["Spring Boot API"]
     API --> Session[("Redis<br/>세션 · 최근 본 숙소")]
     API --> Detail["숙소 상세 조회"]
     Detail -->|"캐시 확인"| Cache[("상세 캐시 Redis")]
-    Detail -->|"캐시 미스 · Redis 장애"| DB[("MySQL<br/>숙소 · 이미지 · 리뷰 요약")]
+    Detail -->|"캐시 미스 · Redis 장애"| DB[("MySQL<br/>원본 데이터 · 리뷰 요약 · outbox")]
+    API --> Change["숙소 · 이미지 · 리뷰 변경"]
+    Change -->|"데이터와 이벤트 함께 저장"| DB
+    Change -.->|"커밋 직후 무효화"| Cache
+    DB -->|"outbox 변경 감지"| CDC["Debezium"]
+    CDC --> Kafka["Kafka<br/>캐시 무효화 이벤트"]
+    Kafka --> Consumer["Spring Boot<br/>캐시 무효화 소비자"]
+    Consumer -->|"캐시 · permit 삭제"| Cache
 
     classDef primary fill:#dbeafe,stroke:#2563eb,color:#172554
     classDef derived fill:#ecfdf5,stroke:#059669,color:#064e3b
@@ -25,7 +51,98 @@ flowchart LR
     class Cache derived
 ```
 
-## 숙소 상세 캐시
+### 프로젝트 구조
+
+주요 개선에 관련된 패키지입니다. 캐시의 로딩·무효화 코드는 숙소 도메인에 두고, 공통 이벤트 형식과 outbox 저장 코드는 `messaging`에 두었습니다.
+
+```text
+src/main/java/kr/kro/airbob/
+├── common/                     공통 응답·예외·쿼리 계측
+├── config/                     웹·JPA·Redis 설정
+├── domain/
+│   ├── accommodation/          숙소 조회·변경
+│   │   └── cache/              캐시 로딩·요청 병합·무효화
+│   ├── coupon/                 쿠폰 재고·발급
+│   ├── member/                 회원·최근 본 숙소
+│   ├── review/                 리뷰·숙소별 리뷰 요약
+│   └── wishlist/               위시리스트
+└── messaging/
+    ├── event/                  공통 이벤트 형식·직렬화
+    └── outbox/                 트랜잭션 내 이벤트 저장
+```
+
+### ERD
+
+리뷰 집계와 쿠폰 발급에 관련된 테이블·주요 컬럼입니다.
+
+<details>
+<summary>리뷰와 숙소별 집계</summary>
+
+```mermaid
+erDiagram
+    member ||--o{ review : "작성"
+    accommodation ||--o{ review : "리뷰"
+    accommodation ||--o| accommodation_review_summary : "집계"
+    member {
+        bigint id PK
+    }
+    accommodation {
+        bigint id PK
+    }
+    review {
+        bigint id PK
+        bigint member_id FK
+        bigint accommodation_id FK
+        int rating
+        varchar status
+    }
+    accommodation_review_summary {
+        bigint accommodation_id PK,FK
+        int total_review_count
+        bigint rating_sum
+        decimal average_rating
+    }
+```
+
+리뷰 수·평점 합계·평균은 원본 리뷰와 같은 트랜잭션에서 갱신합니다.
+
+</details>
+
+<details>
+<summary>쿠폰 재고와 발급 내역</summary>
+
+```mermaid
+erDiagram
+    coupon ||--o{ coupon_issue_unit : "미사용 재고"
+    coupon ||--o{ member_coupon : "발급"
+    member ||--o{ member_coupon : "보유"
+    member {
+        bigint id PK
+    }
+    coupon {
+        bigint id PK
+        int total_quantity
+        varchar issue_strategy
+    }
+    coupon_issue_unit {
+        bigint id PK
+        bigint coupon_id FK
+        int unit_no
+    }
+    member_coupon {
+        bigint id PK
+        bigint member_id FK
+        bigint coupon_id FK
+    }
+```
+
+발급 시 재고 행을 삭제하고 발급 내역을 함께 저장합니다. `coupon_issue_unit(coupon_id, unit_no)`와 `member_coupon(member_id, coupon_id)`에는 각각 유니크 제약이 있습니다.
+
+</details>
+
+## 핵심 기술적 의사결정
+
+### 숙소 상세 캐시
 
 캐시를 적용하면 반복 조회의 DB 비용은 줄어듭니다. 하지만 캐시가 비어 있을 때 같은 숙소로 요청이 몰리거나, Redis 장애로 요청이 DB에 우회하면 중복 조회가 다시 발생합니다. 이 두 상황은 조정할 수 있는 범위가 다릅니다.
 
@@ -39,7 +156,7 @@ flowchart LR
 
 Redis를 사용할 수 없는 경로에서는 [같은 JVM 안의 요청을 병합](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailLocalLoadCoordinator.java)합니다. 서로 다른 앱의 조회까지 합칠 수는 없으며, 선행 조회 대기가 설정된 상한을 넘으면 해당 요청은 독립적으로 DB를 조회합니다. 이 경로는 캐시에 결과를 쓰지 않습니다.
 
-### 캐시를 삭제한 뒤에도 예전 값이 돌아올 수 있다
+#### 캐시를 삭제한 뒤에도 예전 값이 돌아올 수 있다
 
 조회 A가 DB에서 예전 데이터를 읽고 캐시 저장 직전에 멈췄다고 가정합니다. 그사이 변경 B가 DB를 수정하고 캐시를 삭제해도, A가 뒤늦게 예전 값을 저장하면 다음 요청부터 다시 오래된 데이터를 읽게 됩니다.
 
@@ -67,11 +184,11 @@ sequenceDiagram
 
 permit 비교와 저장을 별도 요청으로 나누면 그 사이에 무효화가 끼어들 수 있어 [하나의 Lua 연산](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailRedisStore.java)으로 처리합니다. 무효화보다 늦게 끝난 조회가 캐시를 다시 채우지 못하는지는 [경합 테스트](src/test/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailCacheInvalidationRaceIntegrationTest.java)로 확인합니다. 이미 시작한 조회에는 이전 데이터가 반환될 수 있지만, 그 결과가 캐시에 남아 후속 요청에 반복 제공되는 것을 막습니다.
 
-### 무효화 자체가 실패했을 때의 복구
+#### 무효화 자체가 실패했을 때의 복구
 
 숙소·이미지·리뷰 변경과 함께 outbox 이벤트를 저장하고, 커밋 직후 캐시를 삭제합니다. 프로세스 종료나 Redis 장애로 삭제를 놓치면 Kafka 소비자가 outbox에 남은 변경을 전달받아 다시 삭제를 시도합니다. 커밋 직후 삭제는 반영 지연을 줄이고, outbox는 실패한 삭제를 재시도할 수 있게 합니다.
 
-## 쿠폰 동시 발급
+### 쿠폰 동시 발급
 
 조건부 UPDATE는 수량을 안전하게 증가시킬 수 있지만, 같은 쿠폰의 모든 요청이 하나의 카운터 행을 수정합니다. 해당 행의 잠금이 커밋까지 유지되므로 동시 요청이 늘수록 같은 지점에 대기가 쌓입니다.
 
@@ -101,7 +218,7 @@ flowchart LR
 
 [발급 트랜잭션](src/main/java/kr/kro/airbob/domain/coupon/service/CouponSkipLockedIssueService.java)에서는 쿠폰 정책을 공유 잠금으로 확인한 뒤, 선택한 재고 행의 DELETE와 `member_coupon` INSERT를 함께 커밋합니다. 회원·쿠폰 유니크 제약을 위반하거나 저장이 실패하면 재고 삭제도 롤백됩니다.
 
-### 빈 조회와 품절을 구분하기
+#### 빈 조회와 품절을 구분하기
 
 마지막 재고를 다른 트랜잭션이 잠그고 있다면, `SKIP LOCKED` 조회에는 아무것도 나오지 않을 수 있습니다. 그 트랜잭션이 롤백할 가능성이 있으므로 이 결과만으로 품절을 확정할 수 없습니다.
 
@@ -115,7 +232,7 @@ flowchart LR
 
 같은 AWS 환경의 앱 1대에서 조건부 UPDATE 125 RPS, 대리 키 RR 500 RPS가 각각 120초씩 3회 기준을 통과했습니다. 성공 p95 중앙값은 각각 57.6ms와 56.9ms였습니다. ([실험 결과](docs/performance/results/coupon-aws-2026-10-11/README.md))
 
-## 쿼리 관측과 리뷰 집계
+### 쿼리 관측과 리뷰 집계
 
 [HTTP 요청 단위로 Hibernate SQL 발생 횟수](docs/query-count-monitoring.md)를 집계하고 응답 시간과 함께 관측했습니다. 최근 본 숙소의 주소 접근에 따른 추가 SELECT는 DTO 프로젝션과 JOIN으로, 위시리스트 삭제의 개별 DELETE는 벌크 삭제로 줄였습니다.
 
@@ -147,7 +264,7 @@ flowchart LR
 
 요청별 SQL 계측은 Hibernate를 거치는 범위입니다. 직접 JDBC나 백그라운드 작업은 이 지표에 포함되지 않으므로 필요한 실험에서는 MySQL 실행계획과 statement digest를 함께 확인합니다.
 
-## ALB·ASG 자동 확장
+### ALB·ASG 자동 확장
 
 AWS 실험 환경에서는 CPU 목표 50%로 앱을 1~4대 자동 확장·축소했습니다. 증설된 앱이 요청을 받기 시작한 직후 CPU와 응답 지연이 높아지는 구간을 관측해, ALB Slow Start 120초로 신규 앱의 요청 비중을 점진적으로 늘렸습니다.
 
