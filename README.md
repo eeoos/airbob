@@ -2,12 +2,12 @@
 
 ## 프로젝트 소개
 
-숙소 조회·위시리스트·리뷰·쿠폰 기능을 제공하는 백엔드 프로젝트입니다.
+숙소 조회·위시리스트·리뷰·쿠폰 기능을 제공하는 백엔드 프로젝트입니다. <br>
 2025년 6~7월 3인 팀으로 개발한 뒤, 개인 고도화 과정에서 조회 병목과 동시 요청·장애 상황을 재현하며 구조를 개선했습니다.
 
-[Airbob](https://www.airbob.cloud/)
-
 Java · Spring Boot · JPA · QueryDSL · MySQL · Redis
+
+Website: [Airbob](https://www.airbob.cloud/)
 
 ## 주요 개선 성과 요약
 
@@ -47,32 +47,9 @@ flowchart LR
 
 ### 인프라 구성
 
-#### OCI 서비스 배포
-
-백엔드는 OCI 인스턴스 한 대에서 Docker Compose로 실행합니다. Nginx가 HTTPS 요청을 받아 Spring Boot로 전달하며, MySQL·Redis·Elasticsearch도 같은 인스턴스에 배치했습니다. GitHub Actions에서 빌드한 이미지를 GHCR에 올리고 서버에서 받아 배포합니다.
-
-```mermaid
-flowchart LR
-    Client["웹 클라이언트"] -->|"HTTPS · api.airbob.cloud"| Nginx
-    Actions["GitHub Actions"] -->|"이미지 빌드 · 게시"| GHCR["GHCR"]
-    GHCR -.->|"이미지 배포"| App
-    subgraph OCI["OCI 인스턴스 · Docker Compose"]
-        Nginx["Nginx"] --> App["Spring Boot"]
-        App --> DB[("MySQL")]
-        App --> General[("Redis<br/>세션<br/>최근 본 숙소")]
-        App --> Cache[("Redis<br/>숙소 상세 캐시")]
-        App --> Search[("Elasticsearch")]
-        Prometheus["Prometheus"] -.->|"메트릭 수집"| App
-        Grafana["Grafana"] --> Prometheus
-    end
-    App -->|"이미지 업로드"| Storage[("AWS S3")]
-    Client -->|"이미지 조회"| CDN["CloudFront"]
-    CDN --> Storage
-```
-
 #### AWS 성능·자동 확장 실험
 
-성능 실험은 OCI와 분리한 AWS 환경에서 진행했습니다. 부하 발생기와 앱을 별도 EC2에 배치하고, MySQL은 RDS로 분리했습니다. 일반 Redis와 상세 캐시 Redis도 각각 별도 EC2에서 실행했습니다.
+성능 실험은 AWS 환경에서 진행했습니다. 부하 발생기와 앱을 별도 EC2에 배치하고, MySQL은 RDS로 분리했습니다. 일반 Redis와 상세 캐시 Redis도 각각 별도 EC2에서 실행했습니다.
 
 아래는 자동 확장 실험에 사용한 구성입니다. 앱은 단일 AZ에서 1~4대로 조절했고, CPU 목표 50%와 ALB Slow Start 120초를 적용해 신규 앱으로 요청이 배분되는 과정을 측정했습니다.
 
