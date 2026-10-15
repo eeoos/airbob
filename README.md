@@ -26,119 +26,74 @@ Java · Spring Boot · JPA · QueryDSL · MySQL · Redis
 
 ## 시스템 아키텍처
 
-MySQL에 원본 데이터와 outbox 이벤트를 저장하고, Redis를 세션·최근 본 숙소·상세 캐시에 사용합니다. 숙소·이미지·리뷰가 변경되면 커밋 직후 캐시를 무효화하고, Debezium·Kafka로 전달된 이벤트를 통해 삭제를 다시 수행합니다.
+### 서비스 구성
 
-아래는 조회와 캐시 무효화에 관련된 구성입니다. 캐시 성능 실험에서는 세션·최근 본 숙소를 저장하는 Redis와 상세 캐시 Redis를 분리했습니다.
-
-```mermaid
-flowchart TB
-    User["사용자"] --> API["Spring Boot API"]
-    API --> Session[("Redis<br/>세션 · 최근 본 숙소")]
-    API --> Detail["숙소 상세 조회"]
-    Detail -->|"캐시 확인"| Cache[("상세 캐시 Redis")]
-    Detail -->|"캐시 미스 · Redis 장애"| DB[("MySQL<br/>원본 데이터 · 리뷰 요약 · outbox")]
-    API --> Change["숙소 · 이미지 · 리뷰 변경"]
-    Change -->|"데이터와 이벤트 함께 저장"| DB
-    Change -.->|"커밋 직후 무효화"| Cache
-    DB -->|"outbox 변경 감지"| CDC["Debezium"]
-    CDC --> Kafka["Kafka<br/>캐시 무효화 이벤트"]
-    Kafka --> Consumer["Spring Boot<br/>캐시 무효화 소비자"]
-    Consumer -->|"캐시 · permit 삭제"| Cache
-
-    classDef primary fill:#dbeafe,stroke:#2563eb,color:#172554
-    classDef derived fill:#ecfdf5,stroke:#059669,color:#064e3b
-    class DB primary
-    class Cache derived
-```
-
-### 프로젝트 구조
-
-주요 개선에 관련된 패키지입니다. 캐시의 로딩·무효화 코드는 숙소 도메인에 두고, 공통 이벤트 형식과 outbox 저장 코드는 `messaging`에 두었습니다.
-
-```text
-src/main/java/kr/kro/airbob/
-├── common/                     공통 응답·예외·쿼리 계측
-├── config/                     웹·JPA·Redis 설정
-├── domain/
-│   ├── accommodation/          숙소 조회·변경
-│   │   └── cache/              캐시 로딩·요청 병합·무효화
-│   ├── coupon/                 쿠폰 재고·발급
-│   ├── member/                 회원·최근 본 숙소
-│   ├── review/                 리뷰·숙소별 리뷰 요약
-│   └── wishlist/               위시리스트
-└── messaging/
-    ├── event/                  공통 이벤트 형식·직렬화
-    └── outbox/                 트랜잭션 내 이벤트 저장
-```
-
-### ERD
-
-리뷰 집계와 쿠폰 발급에 관련된 테이블·주요 컬럼입니다.
-
-<details>
-<summary>리뷰와 숙소별 집계</summary>
+웹 클라이언트가 Spring Boot API를 호출하고, 하나의 백엔드 애플리케이션에서 회원·숙소·리뷰·위시리스트·쿠폰 기능을 처리합니다. 업무 데이터는 MySQL에 저장하며, Redis는 세션·최근 본 숙소·상세 캐시에, Elasticsearch는 숙소 검색에 사용합니다. 이미지는 S3에 저장하고 CloudFront로 제공합니다.
 
 ```mermaid
-erDiagram
-    member ||--o{ review : "작성"
-    accommodation ||--o{ review : "리뷰"
-    accommodation ||--o| accommodation_review_summary : "집계"
-    member {
-        bigint id PK
-    }
-    accommodation {
-        bigint id PK
-    }
-    review {
-        bigint id PK
-        bigint member_id FK
-        bigint accommodation_id FK
-        int rating
-        varchar status
-    }
-    accommodation_review_summary {
-        bigint accommodation_id PK,FK
-        int total_review_count
-        bigint rating_sum
-        decimal average_rating
-    }
+flowchart LR
+    Web["웹 클라이언트"] -->|"REST API"| API
+    subgraph Backend["Spring Boot 백엔드"]
+        API["API · 세션 인증"] --> Service["회원 · 숙소 · 리뷰<br/>위시리스트 · 쿠폰"]
+        Service --> Repository["JPA · QueryDSL"]
+    end
+    Repository --> MySQL[("MySQL<br/>업무 데이터")]
+    Service --> Redis[("Redis<br/>세션 · 캐시<br/>최근 본 숙소")]
+    Service --> ES[("Elasticsearch<br/>숙소 검색")]
+    Service -->|"이미지 업로드"| S3[("S3")]
+    Web -->|"이미지 조회"| CDN["CloudFront"]
+    CDN --> S3
 ```
 
-리뷰 수·평점 합계·평균은 원본 리뷰와 같은 트랜잭션에서 갱신합니다.
+### 인프라 구성
 
-</details>
+#### OCI 서비스 배포
 
-<details>
-<summary>쿠폰 재고와 발급 내역</summary>
+백엔드는 OCI 인스턴스 한 대에서 Docker Compose로 실행합니다. Nginx가 HTTPS 요청을 받아 Spring Boot로 전달하며, MySQL·Redis·Elasticsearch도 같은 인스턴스에 배치했습니다. GitHub Actions에서 빌드한 이미지를 GHCR에 올리고 서버에서 받아 배포합니다.
 
 ```mermaid
-erDiagram
-    coupon ||--o{ coupon_issue_unit : "미사용 재고"
-    coupon ||--o{ member_coupon : "발급"
-    member ||--o{ member_coupon : "보유"
-    member {
-        bigint id PK
-    }
-    coupon {
-        bigint id PK
-        int total_quantity
-        varchar issue_strategy
-    }
-    coupon_issue_unit {
-        bigint id PK
-        bigint coupon_id FK
-        int unit_no
-    }
-    member_coupon {
-        bigint id PK
-        bigint member_id FK
-        bigint coupon_id FK
-    }
+flowchart LR
+    Client["웹 클라이언트"] -->|"HTTPS · api.airbob.cloud"| Nginx
+    Actions["GitHub Actions"] -->|"이미지 빌드 · 게시"| GHCR["GHCR"]
+    GHCR -.->|"이미지 배포"| App
+    subgraph OCI["OCI 인스턴스 · Docker Compose"]
+        Nginx["Nginx"] --> App["Spring Boot"]
+        App --> DB[("MySQL")]
+        App --> General[("Redis<br/>세션<br/>최근 본 숙소")]
+        App --> Cache[("Redis<br/>숙소 상세 캐시")]
+        App --> Search[("Elasticsearch")]
+        Prometheus["Prometheus"] -.->|"메트릭 수집"| App
+        Grafana["Grafana"] --> Prometheus
+    end
+    App -->|"이미지 업로드"| Storage[("AWS S3")]
+    Client -->|"이미지 조회"| CDN["CloudFront"]
+    CDN --> Storage
 ```
 
-발급 시 재고 행을 삭제하고 발급 내역을 함께 저장합니다. `coupon_issue_unit(coupon_id, unit_no)`와 `member_coupon(member_id, coupon_id)`에는 각각 유니크 제약이 있습니다.
+#### AWS 성능·자동 확장 실험
 
-</details>
+성능 실험은 OCI와 분리한 AWS 환경에서 진행했습니다. 부하 발생기와 앱을 별도 EC2에 배치하고, MySQL은 RDS로 분리했습니다. 일반 Redis와 상세 캐시 Redis도 각각 별도 EC2에서 실행했습니다.
+
+아래는 자동 확장 실험에 사용한 구성입니다. 앱은 단일 AZ에서 1~4대로 조절했고, CPU 목표 50%와 ALB Slow Start 120초를 적용해 신규 앱으로 요청이 배분되는 과정을 측정했습니다.
+
+```mermaid
+flowchart LR
+    subgraph AWS["AWS 실험 VPC"]
+        subgraph Public["퍼블릭 서브넷"]
+            Load["EC2 · k6<br/>부하 발생기"] -->|"HTTPS"| ALB["Application Load Balancer"]
+        end
+        subgraph Private["프라이빗 서브넷"]
+            ALB -->|"Slow Start 120초"| ASG["EC2 Auto Scaling Group<br/>Spring Boot · 1~4대<br/>단일 AZ"]
+            ASG --> RDS[("RDS · MySQL")]
+            ASG --> RedisGeneral[("EC2 · 일반 Redis")]
+            ASG --> RedisCache[("EC2 · 상세 캐시 Redis")]
+            Monitoring["EC2 · 모니터링<br/>Prometheus · Grafana"] -.->|"메트릭 수집"| ASG
+        end
+    end
+    ASG -.->|"CPU 지표"| CW["CloudWatch"]
+    CW -.->|"목표 CPU 50%"| ASG
+    ECR["Amazon ECR"] -.->|"동일 이미지 배포"| ASG
+```
 
 ## 핵심 기술적 의사결정
 
@@ -174,7 +129,7 @@ sequenceDiagram
     DB-->>A: 변경 전 데이터
     Note over A: 캐시 저장 직전 지연
 
-    B->>DB: 업무 변경 + outbox 저장 · COMMIT
+    B->>DB: 업무 데이터 변경 · COMMIT
     B->>R: after-commit 무효화
     Note over R: Lua로 캐시와 permit을 함께 삭제
 
@@ -183,10 +138,6 @@ sequenceDiagram
 ```
 
 permit 비교와 저장을 별도 요청으로 나누면 그 사이에 무효화가 끼어들 수 있어 [하나의 Lua 연산](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailRedisStore.java)으로 처리합니다. 무효화보다 늦게 끝난 조회가 캐시를 다시 채우지 못하는지는 [경합 테스트](src/test/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailCacheInvalidationRaceIntegrationTest.java)로 확인합니다. 이미 시작한 조회에는 이전 데이터가 반환될 수 있지만, 그 결과가 캐시에 남아 후속 요청에 반복 제공되는 것을 막습니다.
-
-#### 무효화 자체가 실패했을 때의 복구
-
-숙소·이미지·리뷰 변경과 함께 outbox 이벤트를 저장하고, 커밋 직후 캐시를 삭제합니다. 프로세스 종료나 Redis 장애로 삭제를 놓치면 Kafka 소비자가 outbox에 남은 변경을 전달받아 다시 삭제를 시도합니다. 커밋 직후 삭제는 반영 지연을 줄이고, outbox는 실패한 삭제를 재시도할 수 있게 합니다.
 
 ### 쿠폰 동시 발급
 
