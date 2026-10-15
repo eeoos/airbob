@@ -1,0 +1,16 @@
+{
+  "asg": {
+    "MinSize": 1,
+    "DesiredCapacity": 1,
+    "MaxSize": 1,
+    "DefaultInstanceWarmup": 180,
+    "HealthCheckGracePeriod": 18000
+  },
+  "policyCount": 0,
+  "launchTemplateVersion": 2,
+  "launchTemplateAppImageDigests": [
+    "sha256:442574616c6e5572ee7c9493ccd9ec59eeed629188371a6384513816d589be70"
+  ],
+  "launchTemplateUserDataSha256": "8cac2203cd86a984ba806a7411ed59d43739007403fda6950f7d4de296d4a209",
+  "runningAppImageDigest": "sha256:bd5a786c730a8a86109d359df4928a68c56e7967c32811d566e55e8b681bea4d"
+}

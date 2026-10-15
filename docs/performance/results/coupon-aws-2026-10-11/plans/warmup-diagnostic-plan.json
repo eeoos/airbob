@@ -1,0 +1,23 @@
+{
+  "recordedAt": "2026-10-11T12:35:19.630268+00:00",
+  "phase": "One bounded diagnostic of first and subsequent target-load trials in the same application process",
+  "reason": "Three 600-RPS sustained trials failed after low-rate warmup. The surrogate RR inner statement rate was only 514/536 RPS early, caught up at 634/654, then held about 599. Separate initial-transient effects from a persistent throughput boundary before choosing the final steady-state protocol.",
+  "applicationChanges": false,
+  "sloChanges": false,
+  "roundOneMustFinishFirst": true,
+  "interpretation": "This pair is diagnostic, not a final capacity or key/isolation superiority claim. A difference cannot by itself distinguish JVM JIT, application caches, thread initialization and database-cache effects. Preserve both outcomes.",
+  "nextDecision": "If the subsequent trial passes, define an explicit target-load conditioning stage for all steady-state variants before a new five-round series. If it still fails, select a lower target from the retained exploration. Do not pool initial and revised protocols.",
+  "cohorts": [
+    {
+      "name": "warmup-diagnostic-surrogate-rr",
+      "variant": "skip_surrogate_rr",
+      "rates": [
+        600,
+        600
+      ],
+      "seconds": 120,
+      "round": 1,
+      "cohortWarmupSeconds": 60
+    }
+  ]
+}

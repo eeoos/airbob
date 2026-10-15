@@ -267,6 +267,32 @@ maximumPoolSize와 minimumIdle은 모두 후보 크기로 맞춰 연결 생성 �
 요청 누락·호스트 압력 회차도 보존하며, 설정 불일치·인증·재고 정합성 오류는 후속 실행을 중단한다.
 이 실험은 공용 풀 크기의 로컬 민감도 확인이며, 전용 풀 격리 효과나 운영 최적 크기를 확정하지 않는다.
 
+## 캠페인 목록 COUNT / EXISTS 로컬 비교
+
+발급 전략 비교와 별개로, 목록 응답의 OPEN/SOLD_OUT 판정을 발급 내역 COUNT와 남은 unit EXISTS로 비교한다.
+V1은 기존 COUNT를 유지한다. 비교 경로는 `coupon-benchmark` 프로필과
+`benchmark.read-model.enabled=true`에서만 등록되며 세션과 `X-Benchmark-Token`을 요구한다.
+
+- `GET /api/v2/coupons/campaigns/count`: 기존 조회 서비스
+- `GET /api/v2/coupons/campaigns/exists`: 전략별 재고 존재 여부를 조회하는 후보
+
+```bash
+./gradlew bootJar -x test -x generateAdoc -x asciidoctor -x copyDocument
+python3 load-test/k6/coupon/run-campaign-read-local.py \
+  --output build/k6/coupon-campaign-read-new --java-home /path/to/current/java21 \
+  --rounds 3 --rate 50 --seconds 15
+```
+
+실행기는 별도 MySQL·Redis·앱을 준비하고 종료 시 자신이 만든 자원을 삭제한다.
+네 SKIP 전략별 10,000장 캠페인에서 발급 0·5,000·9,999·10,000장 상태를 비교하며,
+실제 V1 응답과의 일치, 요청별 응답 해시, JDBC SQL, DB 실행 수와 HTTP 요청 수의 일치를 확인한다.
+로컬에 `mysql:8.4.11`, `redis:7.2-alpine` 이미지와 k6, Python 3, 최신 Java 21이 필요하다.
+실행 중 비밀값은 임시 파일에만 두며 기존 개발 DB에는 접속하지 않는다.
+
+[2026-10-12 결과와 한계](../../../docs/performance/results/read-api-local-2026-10-12/README.md)에
+모든 회차와 제외한 실행의 근거를 보존했다. 이 경로는 `test,coupon-benchmark`에서 검증했으며,
+발급용 `coupon-performance` 허용 목록에는 추가하지 않았다.
+
 ## AWS 준비와 실행
 
 같은 digest 이미지, V30 검증 완료 데이터, 앱 수·Hikari·DB/Redis 사양, 부하 발생기를 고정한다.

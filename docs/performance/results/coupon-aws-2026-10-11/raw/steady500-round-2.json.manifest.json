@@ -1,0 +1,15 @@
+{
+  "sha256": "14786141e9999eb4f68fc180fde35a7b5acd12ffc470bdb9b79ebce4ca759bb9",
+  "bytes": 3862061,
+  "compressedBytes": 248043,
+  "files": 165,
+  "cohorts": [
+    "steady500-r2-surrogate-rr",
+    "steady500-r2-surrogate-rc",
+    "steady500-r2-composite-rr",
+    "steady500-r2-composite-rc",
+    "steady500-r2-db"
+  ],
+  "compressedSha256": "cc2362c95ce85f28a30f2acd90ec571407deba8694bd77fd27c8110839ee9d4f",
+  "path": "raw/steady500-round-2.json.zlib"
+}

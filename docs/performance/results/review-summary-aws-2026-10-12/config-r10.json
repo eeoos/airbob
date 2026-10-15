@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "example": false,
+  "experimentId": "review-summary-20261012-r10",
+  "baseUrl": "https://api.airbob.cloud",
+  "aws": {
+    "region": "ap-northeast-2",
+    "albDnsName": "airbob-lab-38103621-8fca82-alb-1013937892.ap-northeast-2.elb.amazonaws.com",
+    "appInstanceId": "i-0892058a3feb01e85",
+    "loadGeneratorInstanceId": "i-08bf7919c12dbfd41"
+  },
+  "app": {
+    "imageDigest": "sha256:bd5a786c730a8a86109d359df4928a68c56e7967c32811d566e55e8b681bea4d",
+    "sourceCommit": "43edf992227af2ae628ac0d83815c56722cf34b8",
+    "runId": "lab-38103621463-1",
+    "resourceFencingTokenSha256": "79d6eaa2676189eb927f2e16a70091474078e2117c3fc607d35cdc6b591ef355"
+  },
+  "dataset": {
+    "id": "aws-v30-review-summary-20261012",
+    "manifestSha256": "2c7ee8edb104ecb97b793ac9bf3770cd5a6b1bc4a7a3d9146d8e801b2655c603",
+    "flywayVersion": 30
+  },
+  "load": {
+    "rates": [
+      10
+    ],
+    "warmupSeconds": 30,
+    "measureSeconds": 60,
+    "rounds": 3,
+    "preAllocatedVUs": 80,
+    "maxVUs": 80
+  },
+  "cases": [
+    {
+      "id": "recent-heavy-100",
+      "target": "recently-viewed",
+      "expectedRows": 100,
+      "publishedReviewCount": 15384,
+      "authEnvPrefix": "RS_RECENT"
+    }
+  ]
+}

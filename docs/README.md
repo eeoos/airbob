@@ -10,6 +10,10 @@
 - [B 데이터 규모와 검증 근거 해시](performance/global-b-evidence-summary.json)
 - [AWS 성능 실험 환경 운영](performance/aws-performance-lab.md)
 
+## 조회 성능 분석
+
+- [로컬 조회 API 실행계획·인덱스 및 쿠폰 COUNT/EXISTS 비교](performance/results/read-api-local-2026-10-12/README.md)
+
 ## 서비스 운영
 
 - [예약 재고 준비와 스키마 전환](reservation-inventory-cutover.md)

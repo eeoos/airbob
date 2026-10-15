@@ -1,0 +1,24 @@
+{
+  "allRequestMetricIntegrityPassed": true,
+  "identicalHarnessAndFixture": true,
+  "labels": [
+    "fixed-one",
+    "cpu-50",
+    "cpu-50-slow-start-120"
+  ],
+  "noPrivateSnapshotsCopied": true,
+  "asgObservationCoverageCompleteByArm": {
+    "fixed-one": true,
+    "cpu-50": true,
+    "cpu-50-slow-start-120": false
+  },
+  "archiveJsonDecoded": true,
+  "httpRequestCountsReconciled": true,
+  "allLocalMarkdownLinksResolve": true,
+  "frozenHarnessHashesVerified": true,
+  "credentialPatternScanPassed": true,
+  "plotVisuallyInspected": true,
+  "evidenceRetrievalLeaseReleased": true,
+  "independentReadOnlyReviewCompleted": true,
+  "phaseBoundaryTimingDifferenceDisclosed": true
+}

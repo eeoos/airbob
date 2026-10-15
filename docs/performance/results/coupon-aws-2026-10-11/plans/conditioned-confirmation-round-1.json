@@ -1,0 +1,61 @@
+{
+  "phase": "AWS steady-state confirmation with explicit target-load conditioning",
+  "round": 1,
+  "cohorts": [
+    {
+      "name": "conditioned-r1-db",
+      "variant": "db",
+      "rates": [
+        125
+      ],
+      "seconds": 120,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 120
+    },
+    {
+      "name": "conditioned-r1-surrogate-rr",
+      "variant": "skip_surrogate_rr",
+      "rates": [
+        600
+      ],
+      "seconds": 120,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 120
+    },
+    {
+      "name": "conditioned-r1-surrogate-rc",
+      "variant": "skip_surrogate_rc",
+      "rates": [
+        600
+      ],
+      "seconds": 120,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 120
+    },
+    {
+      "name": "conditioned-r1-composite-rr",
+      "variant": "skip_composite_rr",
+      "rates": [
+        600
+      ],
+      "seconds": 120,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 120
+    },
+    {
+      "name": "conditioned-r1-composite-rc",
+      "variant": "skip_composite_rc",
+      "rates": [
+        600
+      ],
+      "seconds": 120,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 120
+    }
+  ]
+}

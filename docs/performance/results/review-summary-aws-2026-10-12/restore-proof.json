@@ -1,0 +1,15 @@
+{
+  "restored": true,
+  "sameEnvironment": true,
+  "sameImage": true,
+  "health": {
+    "status": "UP",
+    "groups": [
+      "liveness",
+      "readiness"
+    ]
+  },
+  "profiles": "aws,coupon-performance",
+  "flywayTarget": "30",
+  "poolSize": "10"
+}

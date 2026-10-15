@@ -1,0 +1,6046 @@
+{
+  "selection": "five cities, 200 deterministic samples each; first 40 per city are designated hot, not observed popularity",
+  "cities": [
+    {
+      "city": "Clark County, NV",
+      "listings": 15843
+    },
+    {
+      "city": "Broward County",
+      "listings": 15117
+    },
+    {
+      "city": "Austin",
+      "listings": 13677
+    },
+    {
+      "city": "San Diego",
+      "listings": 11875
+    },
+    {
+      "city": "Nashville",
+      "listings": 8514
+    }
+  ],
+  "hotCount": 200,
+  "hotTrafficShare": 0.8,
+  "accommodations": [
+    {
+      "id": 88314,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 492402,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 717920,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 9
+    },
+    {
+      "id": 279187,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 406827,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 266287,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 503001,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 631151,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 410531,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 185855,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 7
+    },
+    {
+      "id": 631423,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 18
+    },
+    {
+      "id": 220320,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 94366,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 713452,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 86670,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 696947,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 268398,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 614874,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 169389,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 81870,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 16
+    },
+    {
+      "id": 59609,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 141757,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 543742,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 40909,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 7
+    },
+    {
+      "id": 504197,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 18
+    },
+    {
+      "id": 573571,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 670160,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 16
+    },
+    {
+      "id": 565867,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 278832,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 142574,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 353655,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 263749,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 687496,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 228483,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 239795,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 162651,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 640679,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 660455,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 27
+    },
+    {
+      "id": 712703,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 218926,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 491202,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 635951,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 7
+    },
+    {
+      "id": 530140,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 95414,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 333362,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 55
+    },
+    {
+      "id": 301023,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 121331,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 620735,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 410043,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 13
+    },
+    {
+      "id": 182655,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 604962,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 606919,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 40
+    },
+    {
+      "id": 382662,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 191143,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 181055,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 175816,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 497194,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 641421,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 660076,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 48416,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 673631,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 249908,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 598587,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 474806,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 195784,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 639289,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 7
+    },
+    {
+      "id": 284683,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 65074,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 567844,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 452358,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 21
+    },
+    {
+      "id": 460019,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 541213,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 542068,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 20
+    },
+    {
+      "id": 148810,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 672538,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 603633,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 195812,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 130176,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 721642,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 620664,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 399810,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 7
+    },
+    {
+      "id": 237944,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 37370,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 10
+    },
+    {
+      "id": 570995,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 11
+    },
+    {
+      "id": 94614,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 110779,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 8
+    },
+    {
+      "id": 86779,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 84379,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 633551,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 187927,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 632751,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 96214,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 532449,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 12
+    },
+    {
+      "id": 402555,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 602562,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 712229,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 411243,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 400155,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 488870,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 493370,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 593156,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 637823,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 390374,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 37279,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 6
+    },
+    {
+      "id": 146957,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 76633,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 385286,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 575878,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 606786,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 14
+    },
+    {
+      "id": 250650,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 663304,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 542139,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 361137,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 443564,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 324690,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 27882,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 171564,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 22282,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 464841,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 266863,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 98679,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 303423,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 87579,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 402027,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 19
+    },
+    {
+      "id": 310335,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 86302,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 613674,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 34
+    },
+    {
+      "id": 284844,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 100766,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 592356,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 353892,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 74233,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 619486,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 118082,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 614290,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 652645,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 20
+    },
+    {
+      "id": 68348,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 25
+    },
+    {
+      "id": 172364,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 58500,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 558930,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 271775,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 674960,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 75541,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 551677,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 263332,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 268924,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 363114,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 289095,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 243565,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 575820,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 77010,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 22
+    },
+    {
+      "id": 167923,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 596498,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 8
+    },
+    {
+      "id": 571129,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 68219,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 570752,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 385933,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 30953,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 622264,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 12
+    },
+    {
+      "id": 421028,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 32
+    },
+    {
+      "id": 483714,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 458589,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 21
+    },
+    {
+      "id": 494802,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 501401,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 20
+    },
+    {
+      "id": 309947,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 275498,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 431414,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 202177,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 303151,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 639835,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 416838,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 37
+    },
+    {
+      "id": 494794,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 370221,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 605186,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 493994,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 142157,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 273375,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 515388,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 24
+    },
+    {
+      "id": 616799,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 546830,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 156948,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 154933,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 343338,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 152019,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 451451,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 299183,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 588491,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 639380,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 263640,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 17
+    },
+    {
+      "id": 68662,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 143206,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 371170,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 358931,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 18
+    },
+    {
+      "id": 709878,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 39745,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 688916,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 7
+    },
+    {
+      "id": 189860,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 519850,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 602141,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 18
+    },
+    {
+      "id": 466024,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 22
+    },
+    {
+      "id": 120060,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 74986,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 11
+    },
+    {
+      "id": 632372,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 530118,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 111521,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 201626,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 593007,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 481737,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 593575,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 493753,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 225978,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 180676,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 9
+    },
+    {
+      "id": 17476,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 10
+    },
+    {
+      "id": 625916,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 29
+    },
+    {
+      "id": 644594,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 9
+    },
+    {
+      "id": 520107,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 8
+    },
+    {
+      "id": 138812,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 701567,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 401776,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 277710,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 266406,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 497883,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 8
+    },
+    {
+      "id": 654729,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 559755,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 615987,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 21
+    },
+    {
+      "id": 648652,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 248247,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 478124,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 14
+    },
+    {
+      "id": 40465,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 378629,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 259058,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 67940,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 645536,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 174208,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 167165,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 274462,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 603598,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 525341,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 173297,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 593948,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 226345,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 304334,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 509100,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 219612,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 612918,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 47081,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 32515,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 408454,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 21
+    },
+    {
+      "id": 418542,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 185142,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 262299,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 705053,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 17
+    },
+    {
+      "id": 388763,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 21
+    },
+    {
+      "id": 628365,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 197505,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 56
+    },
+    {
+      "id": 686017,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 600924,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 76491,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 707502,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 434652,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 21
+    },
+    {
+      "id": 469987,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 505135,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 81544,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 207238,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 604456,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 254980,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 180585,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 173922,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 175159,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 7
+    },
+    {
+      "id": 713382,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 402285,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 146018,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 565021,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 145618,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 311397,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 132685,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 246300,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 165146,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 10
+    },
+    {
+      "id": 647515,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 376533,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 359172,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 63637,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 568011,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 178512,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 9
+    },
+    {
+      "id": 206988,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 179260,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 544722,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 16
+    },
+    {
+      "id": 547559,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 8
+    },
+    {
+      "id": 667564,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 675072,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 38090,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 19
+    },
+    {
+      "id": 274667,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 218888,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 278895,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 125551,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 624155,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 326366,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 309727,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 266995,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 509305,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 729017,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 8
+    },
+    {
+      "id": 496262,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 287556,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 529020,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 496619,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 32
+    },
+    {
+      "id": 294240,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 45684,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 134335,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 616766,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 450384,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 40
+    },
+    {
+      "id": 723950,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 16
+    },
+    {
+      "id": 539067,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 687469,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 211859,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 336228,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 29
+    },
+    {
+      "id": 126309,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 472082,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 11
+    },
+    {
+      "id": 483825,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 299507,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 316576,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 24
+    },
+    {
+      "id": 715318,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 80541,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 417172,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 9
+    },
+    {
+      "id": 189372,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 716518,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 93257,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 728634,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 387353,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 529403,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 211950,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 628069,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 52755,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 448043,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 10
+    },
+    {
+      "id": 412196,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 8
+    },
+    {
+      "id": 55955,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 5
+    },
+    {
+      "id": 555565,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 21
+    },
+    {
+      "id": 286991,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 547501,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 3
+    },
+    {
+      "id": 403389,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 583737,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 417934,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 27418,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 291425,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 2
+    },
+    {
+      "id": 38363,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 222057,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 701633,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 113275,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 26
+    },
+    {
+      "id": 118863,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 130222,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 99775,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 21
+    },
+    {
+      "id": 537837,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 8
+    },
+    {
+      "id": 490775,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 35007,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 88018,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 45577,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 6
+    },
+    {
+      "id": 95987,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 216080,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 4
+    },
+    {
+      "id": 479836,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 1
+    },
+    {
+      "id": 152244,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 173268,
+      "country": "United States",
+      "city": "Clark County, NV",
+      "reviews": 0
+    },
+    {
+      "id": 630772,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 222671,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 519959,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 36553,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 14
+    },
+    {
+      "id": 71386,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 492021,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 681700,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 181104,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 416860,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 403376,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 203754,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 601741,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 13
+    },
+    {
+      "id": 557093,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 394887,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 108883,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 656752,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 493083,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 169401,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 149724,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 251835,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 676477,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 720392,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 157624,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 384898,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 306734,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 581825,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 10
+    },
+    {
+      "id": 480803,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 326518,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 170497,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 437471,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 324118,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 91178,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 488415,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 314222,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 227145,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 239045,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 101903,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 285621,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 519016,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 429478,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 454981,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 8
+    },
+    {
+      "id": 419742,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 15
+    },
+    {
+      "id": 508672,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 15
+    },
+    {
+      "id": 451381,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 217376,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 33
+    },
+    {
+      "id": 527233,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 263099,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 199442,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 327611,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 33644,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 497336,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 219231,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 199513,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 525210,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 48
+    },
+    {
+      "id": 589562,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 15961,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 26
+    },
+    {
+      "id": 688573,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 210955,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 145887,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 219743,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 284570,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 559376,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 140863,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 272933,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 291482,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 244272,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 594886,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 165434,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 564221,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 231294,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 645115,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 14
+    },
+    {
+      "id": 177450,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 174250,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 302588,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 575445,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 361971,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 359226,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 25
+    },
+    {
+      "id": 679639,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 579428,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 248316,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 62763,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 224982,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 354764,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 22
+    },
+    {
+      "id": 513593,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 264678,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 85186,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 200481,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 42260,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 258154,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 53404,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 50204,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 17
+    },
+    {
+      "id": 169376,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 645733,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 7
+    },
+    {
+      "id": 567775,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 277067,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 28186,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 456012,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 7
+    },
+    {
+      "id": 147537,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 562791,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 637238,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 607579,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 437674,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 635638,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 637643,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 529552,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 24
+    },
+    {
+      "id": 512805,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 708132,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 687143,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 19
+    },
+    {
+      "id": 486374,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 394066,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 726201,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 614366,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 514177,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 13
+    },
+    {
+      "id": 584078,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 318469,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 208759,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 500930,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 14
+    },
+    {
+      "id": 184016,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 131864,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 8
+    },
+    {
+      "id": 425741,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 224518,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 550488,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 20
+    },
+    {
+      "id": 251185,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 590867,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 526615,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 3
+    },
+    {
+      "id": 642286,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 142482,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 198064,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 32333,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 9
+    },
+    {
+      "id": 702875,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 464679,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 8
+    },
+    {
+      "id": 376110,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 10
+    },
+    {
+      "id": 476714,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 565224,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 6
+    },
+    {
+      "id": 347558,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 37
+    },
+    {
+      "id": 566156,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 622392,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 13
+    },
+    {
+      "id": 549517,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 391278,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 22
+    },
+    {
+      "id": 192034,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 104811,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 11
+    },
+    {
+      "id": 16522,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 506804,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 5
+    },
+    {
+      "id": 607815,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 130750,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 12
+    },
+    {
+      "id": 602215,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 19734,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 238957,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 2
+    },
+    {
+      "id": 432563,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 17
+    },
+    {
+      "id": 623642,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 311330,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 632554,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 184850,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 4
+    },
+    {
+      "id": 201109,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 497975,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 13
+    },
+    {
+      "id": 310442,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 636826,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 489875,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 0
+    },
+    {
+      "id": 65320,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 13
+    },
+    {
+      "id": 667901,
+      "country": "United States",
+      "city": "Broward County",
+      "reviews": 1
+    },
+    {
+      "id": 406392,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 17
+    },
+    {
+      "id": 441547,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 590991,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 542161,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 187292,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 8
+    },
+    {
+      "id": 45258,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 9
+    },
+    {
+      "id": 697489,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 540013,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 9
+    },
+    {
+      "id": 362666,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 16
+    },
+    {
+      "id": 653514,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 171147,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 158906,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 361066,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 601648,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 633509,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 8
+    },
+    {
+      "id": 721239,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 97437,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 364082,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 192269,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 468399,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 148786,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 124969,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 652882,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 18
+    },
+    {
+      "id": 549193,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 29
+    },
+    {
+      "id": 393157,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 290571,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 6
+    },
+    {
+      "id": 599918,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 11
+    },
+    {
+      "id": 554693,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 21
+    },
+    {
+      "id": 545585,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 332033,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 15
+    },
+    {
+      "id": 187876,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 454365,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 21
+    },
+    {
+      "id": 546455,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 6
+    },
+    {
+      "id": 667668,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 476549,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 46
+    },
+    {
+      "id": 75924,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 489983,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 342877,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 9
+    },
+    {
+      "id": 369436,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 60649,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 668005,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 443808,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 391287,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 10
+    },
+    {
+      "id": 51201,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 568766,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 644736,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 255035,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 80615,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 707121,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 504716,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 564994,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 429571,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 511972,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 339711,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 18
+    },
+    {
+      "id": 228621,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 709445,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 397018,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 207260,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 215776,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 729343,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 539262,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 433852,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 608149,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 595510,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 12
+    },
+    {
+      "id": 90320,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 615232,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 614032,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 9
+    },
+    {
+      "id": 460698,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 234702,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 552384,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 505447,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 597462,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 385556,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 358554,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 182185,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 147218,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 266025,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 67918,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 464575,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 19
+    },
+    {
+      "id": 270841,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 142911,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 40534,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 103090,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 208897,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 84386,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 22
+    },
+    {
+      "id": 664616,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 656557,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 166069,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 12
+    },
+    {
+      "id": 168404,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 358709,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 546759,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 157421,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 644148,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 324766,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 8
+    },
+    {
+      "id": 573487,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 590936,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 350489,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 488610,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 7
+    },
+    {
+      "id": 171492,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 627755,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 198135,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 596536,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 9
+    },
+    {
+      "id": 30219,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 20
+    },
+    {
+      "id": 339066,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 109710,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 12
+    },
+    {
+      "id": 685138,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 506461,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 206265,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 416751,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 224449,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 580929,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 226432,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 405047,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 6
+    },
+    {
+      "id": 189751,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 686212,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 584403,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 556888,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 190900,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 80033,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 362790,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 9
+    },
+    {
+      "id": 516154,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 27
+    },
+    {
+      "id": 224411,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 404664,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 229207,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 329021,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 196409,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 151970,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 654574,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 7
+    },
+    {
+      "id": 66814,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 344251,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 44
+    },
+    {
+      "id": 645662,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 5
+    },
+    {
+      "id": 545473,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 7
+    },
+    {
+      "id": 410596,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 21
+    },
+    {
+      "id": 375619,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 267552,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 1
+    },
+    {
+      "id": 564556,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 6
+    },
+    {
+      "id": 528995,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 143914,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 269544,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 114907,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 692630,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 670981,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 272994,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 183759,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 220457,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 419922,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 410734,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 3
+    },
+    {
+      "id": 523453,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 33
+    },
+    {
+      "id": 503776,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 12
+    },
+    {
+      "id": 101763,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 18
+    },
+    {
+      "id": 523121,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 13
+    },
+    {
+      "id": 458685,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 514860,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 212880,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 654840,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 53861,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 642556,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 4
+    },
+    {
+      "id": 51913,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 2
+    },
+    {
+      "id": 553558,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 31
+    },
+    {
+      "id": 216189,
+      "country": "United States",
+      "city": "Austin",
+      "reviews": 0
+    },
+    {
+      "id": 136804,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 591175,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 28
+    },
+    {
+      "id": 513046,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 39
+    },
+    {
+      "id": 113028,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 678568,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 19
+    },
+    {
+      "id": 448665,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 56
+    },
+    {
+      "id": 449465,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 17
+    },
+    {
+      "id": 368636,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 540855,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 365129,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 730284,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 125754,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 236628,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 716237,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 262390,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 670293,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 317059,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 618007,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 7
+    },
+    {
+      "id": 176897,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 410954,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 697250,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 20478,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 400842,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 487371,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 10
+    },
+    {
+      "id": 719128,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 308250,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 22078,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 407642,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 638273,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 21729,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 7
+    },
+    {
+      "id": 608532,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 306317,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 204531,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 10
+    },
+    {
+      "id": 93429,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 36936,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 337324,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 29
+    },
+    {
+      "id": 696473,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 239114,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 95829,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 111944,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 612940,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 30
+    },
+    {
+      "id": 19793,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 13
+    },
+    {
+      "id": 145711,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 622197,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 123593,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 537890,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 8
+    },
+    {
+      "id": 552869,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 45
+    },
+    {
+      "id": 277515,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 6
+    },
+    {
+      "id": 575711,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 26
+    },
+    {
+      "id": 493286,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 249242,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 341809,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 16
+    },
+    {
+      "id": 668309,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 7
+    },
+    {
+      "id": 71228,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 6
+    },
+    {
+      "id": 672496,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 506113,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 19
+    },
+    {
+      "id": 604702,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 293932,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 196123,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 338714,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 22
+    },
+    {
+      "id": 139523,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 308055,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 708440,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 284356,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 415151,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 11
+    },
+    {
+      "id": 59384,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 484625,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 16
+    },
+    {
+      "id": 21157,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 698769,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 32
+    },
+    {
+      "id": 716411,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 491948,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 582803,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 7
+    },
+    {
+      "id": 414772,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 6
+    },
+    {
+      "id": 596467,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 19
+    },
+    {
+      "id": 296263,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 521815,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 30733,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 284775,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 495041,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 17
+    },
+    {
+      "id": 509254,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 283391,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 158766,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 673958,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 15
+    },
+    {
+      "id": 179331,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 479502,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 15
+    },
+    {
+      "id": 454031,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 400589,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 8
+    },
+    {
+      "id": 365374,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 15
+    },
+    {
+      "id": 235891,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 7
+    },
+    {
+      "id": 571990,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 182122,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 26618,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 177185,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 96011,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 622442,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 232048,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 230033,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 9
+    },
+    {
+      "id": 630426,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 313242,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 94163,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 53285,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 451893,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 20
+    },
+    {
+      "id": 497391,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 25
+    },
+    {
+      "id": 477820,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 7
+    },
+    {
+      "id": 108391,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 677817,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 352273,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 261114,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 70836,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 8
+    },
+    {
+      "id": 604183,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 160105,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 325695,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 170561,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 153536,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 654949,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 10
+    },
+    {
+      "id": 21687,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 560133,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 6
+    },
+    {
+      "id": 343546,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 599582,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 557872,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 713890,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 166926,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 64071,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 473171,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 124081,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 672346,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 596802,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 485949,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 6
+    },
+    {
+      "id": 310513,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 514931,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 27440,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 198973,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 683477,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 258684,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 283062,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 192165,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 289874,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 436849,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 49
+    },
+    {
+      "id": 511643,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 21949,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 357115,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 30
+    },
+    {
+      "id": 70150,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 606997,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 13
+    },
+    {
+      "id": 546353,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 674678,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 276216,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 8
+    },
+    {
+      "id": 325517,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 721902,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 208770,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 2
+    },
+    {
+      "id": 695156,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 585251,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 586558,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 638156,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 0
+    },
+    {
+      "id": 670595,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 23
+    },
+    {
+      "id": 82513,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 727070,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 136744,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 5
+    },
+    {
+      "id": 424461,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 3
+    },
+    {
+      "id": 80113,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 1
+    },
+    {
+      "id": 709760,
+      "country": "United States",
+      "city": "San Diego",
+      "reviews": 4
+    },
+    {
+      "id": 666013,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 264006,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 554538,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 659544,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 17
+    },
+    {
+      "id": 605891,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 478456,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 639450,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 338063,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 539641,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 187542,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 49
+    },
+    {
+      "id": 439115,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 21
+    },
+    {
+      "id": 387575,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 56397,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 115567,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 639073,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 701902,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 487220,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 408505,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 79687,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 724555,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 205731,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 604124,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 10
+    },
+    {
+      "id": 504647,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 338132,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 537999,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 357230,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 533090,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 254139,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 505885,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 26099,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 169604,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 647748,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 646548,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 45912,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 334670,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 21
+    },
+    {
+      "id": 306531,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 526744,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 12
+    },
+    {
+      "id": 717649,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 239240,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 195358,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 7
+    },
+    {
+      "id": 47284,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 684338,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 510977,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 42
+    },
+    {
+      "id": 31110,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 127423,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 329553,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 8
+    },
+    {
+      "id": 438041,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 11
+    },
+    {
+      "id": 494733,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 235275,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 460594,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 299075,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 587771,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 62
+    },
+    {
+      "id": 628412,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 613945,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 590283,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 14
+    },
+    {
+      "id": 678735,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 20
+    },
+    {
+      "id": 254161,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 411796,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 221187,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 567356,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 544301,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 149102,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 278182,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 703233,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 394878,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 139946,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 200309,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 420507,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 10
+    },
+    {
+      "id": 200772,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 222525,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 202709,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 436811,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 306954,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 275802,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 467936,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 573774,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 250127,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 142620,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 55568,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 28
+    },
+    {
+      "id": 547835,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 16
+    },
+    {
+      "id": 362111,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 719086,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 11
+    },
+    {
+      "id": 477971,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 50
+    },
+    {
+      "id": 563241,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 330344,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 377591,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 41
+    },
+    {
+      "id": 645498,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 689913,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 127917,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 580066,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 403173,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 154083,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 20
+    },
+    {
+      "id": 330636,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 8
+    },
+    {
+      "id": 403508,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 287862,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 557537,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 144634,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 666267,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 143834,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 179318,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 86285,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 531823,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 619408,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 296343,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 457887,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 499005,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 24
+    },
+    {
+      "id": 298627,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 224438,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 663283,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 485454,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 20
+    },
+    {
+      "id": 204745,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 491939,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 27
+    },
+    {
+      "id": 390946,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 11
+    },
+    {
+      "id": 306163,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 380959,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 605059,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 724253,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 719304,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 625891,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 178140,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 162840,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 632787,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 7
+    },
+    {
+      "id": 622691,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 18
+    },
+    {
+      "id": 364477,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 18
+    },
+    {
+      "id": 531396,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 15
+    },
+    {
+      "id": 254462,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 455240,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 277435,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 1
+    },
+    {
+      "id": 177624,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 524989,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 18
+    },
+    {
+      "id": 648577,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 17
+    },
+    {
+      "id": 380564,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 16553,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 12
+    },
+    {
+      "id": 483560,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 312541,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 610309,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 718942,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 20
+    },
+    {
+      "id": 610200,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 203578,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 564785,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 15
+    },
+    {
+      "id": 295926,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 21384,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 519098,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 58206,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 6
+    },
+    {
+      "id": 550220,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 21
+    },
+    {
+      "id": 505491,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 9
+    },
+    {
+      "id": 388396,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 22
+    },
+    {
+      "id": 552729,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 513987,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 12
+    },
+    {
+      "id": 564813,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 3
+    },
+    {
+      "id": 658804,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 168941,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 22
+    },
+    {
+      "id": 586288,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 16
+    },
+    {
+      "id": 654869,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    },
+    {
+      "id": 419794,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 7
+    },
+    {
+      "id": 244818,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 2
+    },
+    {
+      "id": 637599,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 5
+    },
+    {
+      "id": 601047,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 13
+    },
+    {
+      "id": 623210,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 4
+    },
+    {
+      "id": 658792,
+      "country": "United States",
+      "city": "Nashville",
+      "reviews": 0
+    }
+  ],
+  "fixtureSha256": "0267efa776ad49864154de1f77bd201dc7758aa7d2435c6846616641ff855950",
+  "fixtureProof": {
+    "at": "2026-10-12T09:50:59.311Z",
+    "alb": "airbob-lab-38103621-8fca82-alb-1013937892.ap-northeast-2.elb.amazonaws.com",
+    "ips": [
+      "54.117.36.42",
+      "43.203.74.216"
+    ],
+    "count": 1000,
+    "distinct": 1000,
+    "fixtureSha256": "0267efa776ad49864154de1f77bd201dc7758aa7d2435c6846616641ff855950",
+    "twoPassExactBodies": true,
+    "meanResponseBytes": 2434.361,
+    "minResponseBytes": 1018,
+    "maxResponseBytes": 3677
+  },
+  "businessDbMutations": 0
+}
