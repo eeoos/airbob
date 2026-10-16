@@ -21,11 +21,12 @@ class SessionAuthFilterPublicPathTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {
+		"/api/v2/accommodations/42/review-summary-before",
 		"/api/v2/members/wishlists/accommodations/42/review-summary-before",
 		"/api/v2/members/recently-viewed/review-summary-before"
 	})
-	@DisplayName("회원 목록 비교 API는 벤치마크 토큰이 있어도 로그인 세션을 요구한다")
-	void memberBenchmarksRequireSession(String path) throws Exception {
+	@DisplayName("삭제된 리뷰 요약 비교 경로는 벤치마크 토큰이 있어도 익명 공개 경로가 아니다")
+	void removedReviewSummaryBenchmarksAreNotPublic(String path) throws Exception {
 		var request = new MockHttpServletRequest("GET", path);
 		request.addHeader("X-Benchmark-Token", "token");
 		var response = new MockHttpServletResponse();
@@ -110,7 +111,7 @@ class SessionAuthFilterPublicPathTest {
 		SessionAuthFilter filter = createFilter();
 		MockHttpServletRequest request = new MockHttpServletRequest(
 			"GET",
-			"/api/v2/accommodations/42/review-summary-before"
+			"/api/v2/accommodations/42"
 		);
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();

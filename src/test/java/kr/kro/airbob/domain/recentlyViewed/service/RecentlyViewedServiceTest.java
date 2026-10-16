@@ -34,7 +34,6 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
 import kr.kro.airbob.domain.accommodation.entity.Address;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationRepository;
 import kr.kro.airbob.domain.review.repository.AccommodationReviewSummaryRepository;
-import kr.kro.airbob.domain.review.repository.ReviewRepository;
 import kr.kro.airbob.domain.wishlist.repository.WishlistAccommodationRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,7 +59,6 @@ class RecentlyViewedServiceTest {
 			redisTemplate,
 			accommodationRepository,
 			summaryRepository,
-			mock(ReviewRepository.class),
 			wishlistAccommodationRepository
 		);
 		when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);

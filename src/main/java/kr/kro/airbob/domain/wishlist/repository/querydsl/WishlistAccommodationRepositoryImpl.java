@@ -8,7 +8,6 @@ import static kr.kro.airbob.domain.wishlist.entity.QWishlist.*;
 import static kr.kro.airbob.domain.wishlist.entity.QWishlistAccommodation.*;
 
 import java.time.LocalDateTime;
-import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import org.springframework.data.domain.SliceImpl;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.group.GroupBy;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAQuery;
 
@@ -41,17 +39,6 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 	public Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> findAccommodationsInWishlist(Long wishlistId,
 		Long lastId, LocalDateTime lastCreatedAt, Pageable pageable) {
 
-		return findAccommodationPage(wishlistId, lastId, lastCreatedAt, pageable, true);
-	}
-
-	@Override
-	public Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> findAccommodationsWithoutReviewSummaryInWishlist(
-		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable) {
-		return findAccommodationPage(wishlistId, lastId, lastCreatedAt, pageable, false);
-	}
-
-	private Slice<WishlistAccommodationResponse.WishlistAccommodationInfo> findAccommodationPage(
-		Long wishlistId, Long lastId, LocalDateTime lastCreatedAt, Pageable pageable, boolean includeReviewSummary) {
 		JPAQuery<WishlistAccommodationResponse.WishlistAccommodationInfo> query = queryFactory
 			.select(new QWishlistAccommodationResponse_WishlistAccommodationInfo(
 				wishlistAccommodation.id,
@@ -63,17 +50,15 @@ public class WishlistAccommodationRepositoryImpl implements WishlistAccommodatio
 				address.state,
 				address.city,
 				address.district,
-				includeReviewSummary ? accommodationReviewSummary.averageRating : Expressions.nullExpression(BigDecimal.class),
-				includeReviewSummary ? accommodationReviewSummary.totalReviewCount : Expressions.nullExpression(Integer.class),
+				accommodationReviewSummary.averageRating,
+				accommodationReviewSummary.totalReviewCount,
 				wishlistAccommodation.createdAt
 			))
 			.from(wishlistAccommodation)
 			.join(wishlistAccommodation.accommodation, accommodation)
-			.join(accommodation.address, address);
-		if (includeReviewSummary) {
-			query.leftJoin(accommodationReviewSummary)
+			.join(accommodation.address, address)
+			.leftJoin(accommodationReviewSummary)
 				.on(accommodationReviewSummary.accommodationId.eq(accommodation.id));
-		}
 		List<WishlistAccommodationResponse.WishlistAccommodationInfo> content = query.where(
 				wishlistAccommodation.wishlist.id.eq(wishlistId),
 				accommodation.status.eq(AccommodationStatus.PUBLISHED),
