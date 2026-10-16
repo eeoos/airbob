@@ -43,7 +43,7 @@ Tags:
 
 Histogram bucket은 Prometheus에서 여러 인스턴스 bucket을 합산할 수 있도록 `publishPercentileHistogram()` 기반으로 내보낸다. client-side `publishPercentiles()`는 사용하지 않는다.
 
-현재 명시 bucket은 `1, 3, 5, 10, 20, 50, 100, 200, 250, 500, 1000`이고 `maximumExpectedValue`도 `1000`이다. 따라서 R=201 benchmark 경계를 넘는 요청도 `+Inf`에만 들어가지 않고 유한한 bucket에 기록된다. Micrometer 1.15는 SLO boundary 0을 허용하지 않지만, `record(0)`은 가능하므로 쿼리 0회 요청도 표본으로 들어간다.
+현재 명시 bucket은 `1, 3, 5, 10, 20, 50, 100, 200, 250, 500, 1000`이고 `maximumExpectedValue`도 `1000`이다. 따라서 201개 쿼리를 실행하는 요청도 `+Inf`에만 들어가지 않고 유한한 bucket에 기록된다. Micrometer 1.15는 SLO boundary 0을 허용하지 않지만, `record(0)`은 가능하므로 쿼리 0회 요청도 표본으로 들어간다.
 
 ## PromQL
 

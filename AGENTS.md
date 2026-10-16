@@ -174,7 +174,8 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   P6Spy read tracing runs with `dev` only, excluding `aws`, `oci` and `test`.
 - Preserved AWS resource-management tools target their compatible digest-pinned historical images
   and immutable datasets. The V27 launcher pins Flyway explicitly; do not substitute the current
-  application image or silently migrate a recorded dataset.
+  application image or silently migrate a recorded dataset. Application startup always verifies
+  ordinary readiness; the retired measurement handoff must not bypass it.
 - AWS performance-lab infrastructure and immutable image assets live under `infra/aws/`. Keep
   image references digest-pinned, secrets out of the repository and rendered bundles, and ECR
   publication authenticated through GitHub OIDC.

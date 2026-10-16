@@ -72,7 +72,7 @@ class MicrometerQueryCountMetricRecorderTest {
 
 	@Test
 	@DisplayName("201개 쿼리 표본을 +Inf가 아닌 유한한 Prometheus bucket에 기록한다")
-	void recordsBenchmarkBoundaryInFinitePrometheusBucket() {
+	void recordsLargeQueryCountInFinitePrometheusBucket() {
 		PrometheusMeterRegistry prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 		MicrometerQueryCountMetricRecorder prometheusRecorder =
 			new MicrometerQueryCountMetricRecorder(prometheusRegistry);

@@ -39,7 +39,6 @@ def evaluate(variables, data_ready=True):
 class CacheInfrastructureTest(unittest.TestCase):
     def values(self):
         return {'cache_benchmark_enabled': True, 'cache_benchmark_app_count': 2, 'global_b_services': True,
-                'cache_benchmark_existing_app_handoff': False,
                 'app_enabled': True, 'load_generator_enabled': True, 'global_b_service_bootstrap_enabled': False,
                 'mode': 'performance', 'dns_mode': 'direct-only', 'lab_power': None}
 
@@ -65,8 +64,6 @@ class CacheInfrastructureTest(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertFalse(evaluate(self.values() | change)['valid'])
         self.assertFalse(evaluate(self.values(), data_ready=False)['valid'])
-        self.assertFalse(evaluate(self.values() | {'cache_benchmark_enabled': False,
-                                                  'cache_benchmark_existing_app_handoff': True})['valid'])
 
     def test_alb_ingress_is_limited_to_current_generator_public_ipv4(self):
         source = block((LAB / 'cache-benchmark.tf').read_text(), 'resource',

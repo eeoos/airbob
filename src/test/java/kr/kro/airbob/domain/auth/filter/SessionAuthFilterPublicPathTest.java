@@ -6,8 +6,6 @@ import static org.mockito.Mockito.*;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockFilterChain;
@@ -18,23 +16,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 @DisplayName("세션 인증 필터 공개 경로 테스트")
 class SessionAuthFilterPublicPathTest {
-
-	@ParameterizedTest
-	@ValueSource(strings = {
-		"/api/v2/accommodations/42/review-summary-before",
-		"/api/v2/members/wishlists/accommodations/42/review-summary-before",
-		"/api/v2/members/recently-viewed/review-summary-before"
-	})
-	@DisplayName("삭제된 리뷰 요약 비교 경로는 벤치마크 토큰이 있어도 익명 공개 경로가 아니다")
-	void removedReviewSummaryBenchmarksAreNotPublic(String path) throws Exception {
-		var request = new MockHttpServletRequest("GET", path);
-		request.addHeader("X-Benchmark-Token", "token");
-		var response = new MockHttpServletResponse();
-		var chain = new MockFilterChain();
-		createFilter().doFilter(request, response, chain);
-		assertThat(response.getStatus()).isEqualTo(401);
-		assertThat(chain.getRequest()).isNull();
-	}
 
 	@Test
 	@DisplayName("예약 쓰기 API는 익명 요청을 거절한다")
@@ -58,7 +39,7 @@ class SessionAuthFilterPublicPathTest {
 	}
 
 	@Test
-	@DisplayName("캐시 벤치마크가 아닌 일반 V1 상세 GET은 세션과 토큰 없이 공개된다")
+	@DisplayName("숙소 상세 GET은 익명 요청을 필터 체인에 전달한다")
 	void anonymousAccommodationDetailGetPassesFilterChain() throws Exception {
 		SessionAuthFilter filter = createFilter();
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/accommodations/42");
@@ -86,23 +67,6 @@ class SessionAuthFilterPublicPathTest {
 
 		assertThat(chain.getRequest()).isSameAs(request);
 		assertThat(response.getStatus()).isEqualTo(200);
-	}
-
-	@Test
-	@DisplayName("삭제된 v2 리뷰 요약은 공개 경로에서 제외한다")
-	void removedReviewSummaryIsNotPublic() throws Exception {
-		SessionAuthFilter filter = createFilter();
-		MockHttpServletRequest request = new MockHttpServletRequest(
-			"GET",
-			"/api/v2/accommodations/42/reviews/summary"
-		);
-		MockHttpServletResponse response = new MockHttpServletResponse();
-		MockFilterChain chain = new MockFilterChain();
-
-		filter.doFilter(request, response, chain);
-
-		assertThat(chain.getRequest()).isNull();
-		assertThat(response.getStatus()).isEqualTo(401);
 	}
 
 	@Test

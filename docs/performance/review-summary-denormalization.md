@@ -80,7 +80,7 @@ Before 3회/After 2회 SELECT이며, 주소 조회·찜 여부·최근 순서·�
 - 로그인·데이터 준비·응답 검증 시간은 측정에서 제외한다.
 - 결과는 읽기 성능 비교다. 리뷰 생성·수정·삭제 때 요약을 유지하는 쓰기 비용은 포함하지 않는다.
 
-기존 `review-summary-comparison.js`는 삭제된 API를 호출하지 않고 종료한다.
+`review-summary-comparison.js` 실행기도 제거했다. 과거 실행기는 위에 기록한 커밋에서 확인한다.
 과거 AWS `REVIEW_SUMMARY_V1` manifest·SQL 증거를 새 API 결과에 그대로 재사용하면 안 된다.
 
 ## 로컬 측정 결과 (2026-10-06)
