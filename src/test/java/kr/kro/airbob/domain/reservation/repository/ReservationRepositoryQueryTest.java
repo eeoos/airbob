@@ -344,9 +344,8 @@ class ReservationRepositoryQueryTest {
 			cutoff.plus(1, ChronoUnit.MICROS));
 		reservationRepository.flush();
 
-		assertThat(reservationRepository.findAllByStatusAndExpiresAtLessThanEqual(
-			ReservationStatus.PAYMENT_PENDING, cutoff
-		)).containsExactlyInAnyOrder(before, exact);
+		assertThat(reservationRepository.findExpiredPendingBatchForCleanup(cutoff, 100))
+			.containsExactlyInAnyOrder(before, exact);
 	}
 
 	@Test

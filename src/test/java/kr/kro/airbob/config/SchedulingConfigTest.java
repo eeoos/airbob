@@ -9,8 +9,10 @@ import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerConta
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
+import kr.kro.airbob.AirbobApplication;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.infrastructure.kafka.MessagingKafkaConfiguration;
 import kr.kro.airbob.search.messaging.kafka.AccommodationSearchKafkaConsumerConfiguration;
@@ -45,6 +47,23 @@ class SchedulingConfigTest {
 				() -> mock(ConcurrentKafkaListenerContainerFactoryConfigurer.class)
 			)
 			.withBean(IntegrationEventCodec.class, () -> mock(IntegrationEventCodec.class));
+
+	@Test
+	@DisplayName("일반 프로필에서는 스케줄러를 활성화한다")
+	void defaultProfileEnablesScheduling() {
+		new ApplicationContextRunner()
+			.withUserConfiguration(SchedulingConfig.class)
+			.run(context -> {
+				assertThat(context).hasSingleBean(SchedulingConfig.class);
+				assertThat(context).hasBean("org.springframework.context.annotation.internalScheduledAnnotationProcessor");
+			});
+	}
+
+	@Test
+	@DisplayName("애플리케이션 진입점은 스케줄러를 전역 활성화하지 않는다")
+	void applicationEntryPointDoesNotEnableScheduling() {
+		assertThat(AirbobApplication.class.isAnnotationPresent(EnableScheduling.class)).isFalse();
+	}
 
 	@Test
 	@DisplayName("test 프로필에서는 스케줄러를 활성화하지 않는다")

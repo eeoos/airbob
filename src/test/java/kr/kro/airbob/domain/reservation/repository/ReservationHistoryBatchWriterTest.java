@@ -16,10 +16,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -29,9 +30,6 @@ import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import kr.kro.airbob.common.history.ChangeType;
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationContext;
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationContextHolder;
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationSnapshot;
 import kr.kro.airbob.domain.reservation.entity.ReservationHistory;
 import kr.kro.airbob.domain.reservation.entity.ReservationStatus;
 
@@ -44,11 +42,6 @@ class ReservationHistoryBatchWriterTest {
 	@Mock private PreparedStatement statement;
 	@Captor private ArgumentCaptor<BatchPreparedStatementSetter> batchSetterCaptor;
 
-	@AfterEach
-	void tearDown() {
-		BulkOperationContextHolder.clear();
-	}
-
 	@Test
 	@DisplayName("0 이하 batch 크기를 거부한다")
 	void rejectsNonPositiveBatchSize() {
@@ -57,64 +50,49 @@ class ReservationHistoryBatchWriterTest {
 	}
 
 	@Test
-	@DisplayName("5행을 batch 크기 2로 제출하면 3회와 5행을 기록한다")
-	void recordsChunkStatistics() {
+	@DisplayName("5행을 batch 크기 2로 나누어 2행, 2행, 1행씩 저장한다")
+	void writesChunksWithConfiguredSize() {
 		given(jdbcTemplate.batchUpdate(anyString(), any(BatchPreparedStatementSetter.class)))
 			.willReturn(new int[] {1, 1}, new int[] {1, 1}, new int[] {1});
 		ReservationHistoryBatchWriter writer = new ReservationHistoryBatchWriter(jdbcTemplate, 2);
-		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
-		BulkOperationContextHolder.initContext(context);
 
 		writer.writeAll(histories(5), HISTORY_CREATED_AT);
-		BulkOperationSnapshot snapshot = context.snapshot(BulkOperationSnapshot.Outcome.SUCCESS, 1L);
-
-		assertThat(snapshot.jdbcBatchCalls()).isEqualTo(3);
-		assertThat(snapshot.jdbcSubmittedRows()).isEqualTo(5);
-		assertThat(snapshot.jdbcConfiguredBatchSize()).isEqualTo(2);
-		assertThat(snapshot.jdbcAffectedRows()).isEqualTo(5);
+		then(jdbcTemplate).should(times(3)).batchUpdate(anyString(), batchSetterCaptor.capture());
+		assertThat(batchSetterCaptor.getAllValues())
+			.extracting(BatchPreparedStatementSetter::getBatchSize)
+			.containsExactly(2, 2, 1);
 	}
 
 	@Test
-	@DisplayName("SUCCESS_NO_INFO가 포함되면 affected rows를 알 수 없음으로 기록한다")
-	void recordsUnknownAffectedRows() {
+	@DisplayName("드라이버가 영향 행 수를 알리지 않아도 SUCCESS_NO_INFO는 성공으로 처리한다")
+	void acceptsSuccessWithoutAffectedRowCount() {
 		given(jdbcTemplate.batchUpdate(anyString(), any(BatchPreparedStatementSetter.class)))
 			.willReturn(new int[] {Statement.SUCCESS_NO_INFO});
 		ReservationHistoryBatchWriter writer = new ReservationHistoryBatchWriter(jdbcTemplate, 2);
-		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
-		BulkOperationContextHolder.initContext(context);
-
-		writer.writeAll(histories(1), HISTORY_CREATED_AT);
-
-		assertThat(context.snapshot(BulkOperationSnapshot.Outcome.SUCCESS, 1L).jdbcAffectedRows())
-			.isNull();
+		assertThatCode(() -> writer.writeAll(histories(1), HISTORY_CREATED_AT)).doesNotThrowAnyException();
 	}
 
-	@Test
-	@DisplayName("EXECUTE_FAILED 결과는 데이터 무결성 예외로 전환한다")
-	void rejectsExecuteFailedResult() {
+	@ParameterizedTest
+	@ValueSource(ints = {Statement.EXECUTE_FAILED, -99})
+	@DisplayName("실패 또는 알 수 없는 음수 결과는 데이터 무결성 예외로 전환한다")
+	void rejectsFailedOrUnrecognizedResult(int updateCount) {
 		given(jdbcTemplate.batchUpdate(anyString(), any(BatchPreparedStatementSetter.class)))
-			.willReturn(new int[] {Statement.EXECUTE_FAILED});
+			.willReturn(new int[] {updateCount});
 		ReservationHistoryBatchWriter writer = new ReservationHistoryBatchWriter(jdbcTemplate, 2);
-		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
-		BulkOperationContextHolder.initContext(context);
 
 		assertThatThrownBy(() -> writer.writeAll(histories(1), HISTORY_CREATED_AT))
 			.isInstanceOf(DataIntegrityViolationException.class);
-		assertThat(context.snapshot(BulkOperationSnapshot.Outcome.FAILURE, 1L).jdbcBatchCalls()).isZero();
 	}
 
 	@Test
-	@DisplayName("제출 행과 다른 update count 길이는 해당 chunk를 기록하지 않고 실패한다")
+	@DisplayName("제출 행 수와 JDBC 결과 개수가 다르면 실패한다")
 	void rejectsMismatchedUpdateCounts() {
 		given(jdbcTemplate.batchUpdate(anyString(), any(BatchPreparedStatementSetter.class)))
 			.willReturn(new int[] {1});
 		ReservationHistoryBatchWriter writer = new ReservationHistoryBatchWriter(jdbcTemplate, 2);
-		BulkOperationContext context = new BulkOperationContext("expired-reservation-cleanup-after");
-		BulkOperationContextHolder.initContext(context);
 
 		assertThatThrownBy(() -> writer.writeAll(histories(2), HISTORY_CREATED_AT))
 			.isInstanceOf(DataIntegrityViolationException.class);
-		assertThat(context.snapshot(BulkOperationSnapshot.Outcome.FAILURE, 1L).jdbcBatchCalls()).isZero();
 	}
 
 	@Test

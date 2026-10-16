@@ -6,10 +6,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationContext;
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationContextHolder;
-import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationSnapshot;
-
 @DisplayName("SQL 쿼리 StatementInspector 테스트")
 class SqlQueryStatementInspectorTest {
 
@@ -18,7 +14,6 @@ class SqlQueryStatementInspectorTest {
 	@AfterEach
 	void tearDown() {
 		QueryCountContextHolder.clear();
-		BulkOperationContextHolder.clear();
 	}
 
 	@Test
@@ -45,16 +40,13 @@ class SqlQueryStatementInspectorTest {
 
 		assertThat(inspectedSql).isSameAs(sql);
 		assertThat(QueryCountContextHolder.getContext()).isNull();
-		assertThat(BulkOperationContextHolder.getContext()).isNull();
 	}
 
 	@Test
-	@DisplayName("HTTP 요청과 벌크 컨텍스트가 함께 있으면 같은 SQL을 각각 한 번씩 누적한다")
-	void incrementsRequestAndBulkContextsTogether() {
-		QueryCountContext requestContext = new QueryCountContext("DELETE", "/api/v2/admin/benchmarks/bulk-write");
-		BulkOperationContext bulkContext = new BulkOperationContext("test-bulk-operation");
+	@DisplayName("Hibernate 주석이 있는 벌크 DELETE도 요청 쿼리 수에 한 번 누적한다")
+	void countsCommentedDeleteStatement() {
+		QueryCountContext requestContext = new QueryCountContext("DELETE", "/api/v1/wishlists");
 		QueryCountContextHolder.initContext(requestContext);
-		BulkOperationContextHolder.initContext(bulkContext);
 		String sql = "/* Hibernate */ delete from wishlist_accommodation where wishlist_id = ?";
 
 		String inspectedSql = inspector.inspect(sql);
@@ -63,12 +55,5 @@ class SqlQueryStatementInspectorTest {
 		QueryCountSnapshot requestSnapshot = requestContext.snapshot();
 		assertThat(requestSnapshot.countOf(SqlQueryType.DELETE)).isEqualTo(1);
 		assertThat(requestSnapshot.countOf(SqlQueryType.TOTAL)).isEqualTo(1);
-
-		BulkOperationSnapshot bulkSnapshot = bulkContext.snapshot(
-			BulkOperationSnapshot.Outcome.SUCCESS,
-			1L
-		);
-		assertThat(bulkSnapshot.hibernateStatementCount(SqlQueryType.DELETE)).isEqualTo(1);
-		assertThat(bulkSnapshot.hibernateStatementCount(SqlQueryType.TOTAL)).isEqualTo(1);
 	}
 }

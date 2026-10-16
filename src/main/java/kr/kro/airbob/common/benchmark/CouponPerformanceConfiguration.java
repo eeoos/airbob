@@ -27,7 +27,7 @@ public class CouponPerformanceConfiguration {
 	InitializingBean couponPerformanceSettingsGuard(Environment environment) {
 		return () -> {
 			Assert.state(!environment.acceptsProfiles(Profiles.of("performance-lab", "traffic-benchmark",
-				"cache-benchmark", "read-model-benchmark", "bulk-write-benchmark")),
+				"cache-benchmark", "read-model-benchmark")),
 				"coupon-performance must run without other experiment profiles");
 			for (String setting : new String[] {
 				"spring.datasource.hikari.read-only", "spring.jpa.open-in-view", "spring.kafka.listener.auto-startup",
