@@ -30,7 +30,7 @@ Website: [Airbob](https://www.airbob.cloud/) <br>
 <summary>주요 도시 검색 결과</summary>
     
 - [코펜하겐](https://www.airbob.cloud/search?destination=Copenhagen)
-- [지로나](https://www.airbob.cloud/search?destination=Girona)
+- [바르셀로나](https://www.airbob.cloud/search?destination=Barcelona)
 - [토론토](https://www.airbob.cloud/search?destination=Toronto)
 
     
