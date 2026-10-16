@@ -13,7 +13,7 @@ def evidence():
     app = {'process_start_time_seconds': 1, 'hikaricp_connections_acquire_seconds_count': 0,
            'hikaricp_connections_acquire_seconds_sum': 0, 'hikaricp_connections_timeout_total': 0,
            'hikaricp_connections_max': 10, 'hikaricp_connections_pending': 0, 'jvm_gc_pause_seconds_sum': 0}
-    before = {'timestampMs': 0, 'app': app, 'mysql': {'Innodb_row_lock_waits': 0, 'Innodb_row_lock_time': 0},
+    before = {'timestampMs': 0, 'deadlockCount': 0, 'app': app, 'mysql': {'Innodb_row_lock_waits': 0, 'Innodb_row_lock_time': 0},
               'containers': {'mysql': {'cpuUsageNs': 0, 'blockReadBytes': 0, 'blockWriteBytes': 0,
                                        'memoryBytes': 100}}, 'fileIo': [], 'statements': []}
     after = copy.deepcopy(before)
@@ -64,6 +64,22 @@ process_cpu_usage NaN
         self.assertEqual(result['fileIo'][0]['meanMs'], 10)
         self.assertEqual(result['statements'][0]['meanMs'], 200)
 
+    def test_driver_commands_use_trial_deltas_and_missing_instrumentation_is_not_zero(self):
+        data = evidence()
+        self.assertIsNone(summary(*data)['driverIsolation']['setCommands'])
+        for boundary in data[:2]:
+            boundary['driverIsolationCaptured'] = True
+            boundary['statements'].append({'DIGEST': 'isolation-set',
+                'DIGEST_TEXT': 'SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED',
+                'COUNT_STAR': 10, 'SUM_TIMER_WAIT': 1000})
+        data[1]['statements'][-1].update(COUNT_STAR=14, SUM_TIMER_WAIT=2000)
+        result = summary(*data)['driverIsolation']
+        self.assertEqual(result, {'captured': True, 'setCommands': 4, 'readCommands': 0})
+        data[1]['statements'][-1].update(COUNT_STAR=10, SUM_TIMER_WAIT=1000)
+        self.assertEqual(summary(*data)['driverIsolation']['setCommands'], 0)
+        data[1]['driverIsolationCaptured'] = False
+        self.assertIsNone(summary(*data)['driverIsolation']['setCommands'])
+
     def test_only_http_window_samples_drive_peaks_and_targets(self):
         data = evidence()
         data[2][0]['app']['hikaricp_connections_pending'] = 1000
@@ -72,6 +88,27 @@ process_cpu_usage NaN
         self.assertEqual(result['hikari']['pendingMax'], 8)
         self.assertEqual(result['hikari']['pendingSampleFraction'], 0.5)
         self.assertEqual(result['rowLocks']['observedTargets']['coupon/PRIMARY/X,REC_NOT_GAP']['samples'], 2)
+
+    def test_connection_usage_and_active_sessions_keep_units_and_sample_window(self):
+        data = evidence()
+        data[0]['app'].update(hikaricp_connections_usage_seconds_count=10, hikaricp_connections_usage_seconds_sum=1)
+        data[1]['app'].update(hikaricp_connections_usage_seconds_count=110, hikaricp_connections_usage_seconds_sum=3)
+        for sample in data[2]:
+            inside = 1000 <= sample['timestampMs'] <= 119000
+            sample['app'].update(hikaricp_connections_active=8 if inside else 100,
+                                 hikaricp_connections_idle=2 if inside else 100)
+            sample['mysql'].update(Threads_running=4 if inside else 100, Threads_connected=12)
+        result = summary(*data)
+        self.assertEqual(result['hikari']['usageMeanMs'], 20)
+        self.assertEqual(result['hikari']['activeMax'], 8)
+        self.assertEqual(result['hikari']['idleSampleMean'], 2)
+        self.assertEqual(result['mysqlSessions']['Threads_running']['max'], 4)
+        self.assertEqual(result['mysqlSessions']['Threads_connected']['sampleMean'], 12)
+
+    def test_missing_connection_usage_is_not_reported_as_zero(self):
+        result = summary(*evidence())
+        self.assertNotIn('usageMeanMs', result['hikari'])
+        self.assertIsNone(result['hikari']['activeMax'])
 
     def test_missing_observations_and_sample_failures_are_incomplete(self):
         for change in ('samples', 'host', 'errors'):

@@ -39,13 +39,13 @@ class ScarcityComparison(unittest.TestCase):
                     'client': {'outcomes': {'unexpected': 0}}}
 
         subject.measure.side_effect = measure
-        args = SimpleNamespace(scarcity_rates=[500, 3000], rounds=2, duration=20, cooldown=0)
+        args = SimpleNamespace(variants=['db', 'skip_surrogate_rr'], scarcity_rates=[500, 3000], rounds=2, duration=20, cooldown=0)
         with patch.object(local.time, 'sleep'):
             local.compare_scarcity(subject, args, '/unused-sessions')
         measured = [c for c in calls if c[-1] == 'measure']
         self.assertEqual([(v, r, n) for v, _, r, _, n, _ in measured],
-                         [('db', 500, 1), ('lua', 500, 1), ('lua', 500, 2), ('db', 500, 2),
-                          ('db', 3000, 1), ('lua', 3000, 1), ('lua', 3000, 2), ('db', 3000, 2)])
+                         [('db', 500, 1), ('skip_surrogate_rr', 500, 1), ('skip_surrogate_rr', 500, 2), ('db', 500, 2),
+                          ('db', 3000, 1), ('skip_surrogate_rr', 3000, 1), ('skip_surrogate_rr', 3000, 2), ('db', 3000, 2)])
         self.assertTrue(all(c[1] == 'scarcity' and c[3] == 20 for c in measured))
         self.assertEqual(len([c for c in calls if c[1] == 'capacity' and c[-1] == 'warmup']), 8)
 
@@ -53,7 +53,7 @@ class ScarcityComparison(unittest.TestCase):
         subject = Mock()
         subject.measure.return_value = {'evaluation': {'invalidReasons': ['database-invariant']},
                                         'client': {'outcomes': {'unexpected': 0}}}
-        args = SimpleNamespace(scarcity_rates=[500, 3000], rounds=2, duration=20, cooldown=0)
+        args = SimpleNamespace(variants=['db', 'skip_surrogate_rr'], scarcity_rates=[500, 3000], rounds=2, duration=20, cooldown=0)
         with patch.object(local.time, 'sleep'), self.assertRaisesRegex(ValueError, 'database-invariant'):
             local.compare_scarcity(subject, args, '/unused-sessions')
         self.assertEqual(subject.measure.call_count, 2)
@@ -62,12 +62,12 @@ class ScarcityComparison(unittest.TestCase):
         subject = Mock()
         subject.measure.return_value = {'evaluation': {'invalidReasons': ['incomplete-offered-load']},
                                         'client': {'outcomes': {'unexpected': 5}}}
-        args = SimpleNamespace(scarcity_rates=[3000], scarcity_variants=['lua'],
+        args = SimpleNamespace(variants=['db', 'skip_surrogate_rr'], scarcity_rates=[3000], scarcity_variants=['skip_surrogate_rr'],
                                rounds=3, duration=20, cooldown=0)
         with patch.object(local.time, 'sleep'):
             local.compare_scarcity(subject, args, '/unused-sessions')
         self.assertEqual(subject.measure.call_count, 6)
-        self.assertTrue(all(c.args[0] == 'lua' for c in subject.measure.call_args_list))
+        self.assertTrue(all(c.args[0] == 'skip_surrogate_rr' for c in subject.measure.call_args_list))
 
 
 if __name__ == '__main__':

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.common.DiscountType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.entity.MemberCoupon;
@@ -61,7 +62,6 @@ class CouponIssueTransactionServiceTest {
 
 		assertThatThrownBy(() -> service.issueWithConditionalUpdate(1L, 10L))
 			.isInstanceOf(CouponAlreadyIssuedException.class);
-		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	@Test
@@ -94,7 +94,6 @@ class CouponIssueTransactionServiceTest {
 		order.verify(memberCouponRepository).existsByMemberIdAndCouponId(10L, 1L);
 		order.verify(memberCouponRepository).save(any(MemberCoupon.class));
 		verify(couponRepository, never()).findByIdForUpdate(1L);
-		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	@Test
@@ -102,12 +101,11 @@ class CouponIssueTransactionServiceTest {
 	void rejectsRedisPreparedCampaignOnDbPath() {
 		when(timeProvider.now()).thenReturn(NOW);
 		Coupon coupon = coupon(true, 10, 0);
-		coupon.markRedisStockPrepared(NOW.minusHours(1));
+		coupon.markStockPrepared(NOW.minusHours(1));
 		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
 
 		assertThatThrownBy(() -> service.issueWithConditionalUpdate(1L, 10L))
 			.isInstanceOf(CouponNotIssuableException.class);
-		verify(couponRepository, never()).incrementIssuedQuantity(1L);
 	}
 
 	@Test
@@ -121,31 +119,7 @@ class CouponIssueTransactionServiceTest {
 		verify(memberCouponRepository, never()).save(any(MemberCoupon.class));
 	}
 
-	@Test
-	@DisplayName("Lua 승인 후에는 Redis가 검증한 재고를 다시 차감하지 않고 DB 결과만 저장한다")
-	void persistsApprovedIssue() {
-		Coupon coupon = coupon(true, 10, 10);
-		coupon.markRedisStockPrepared(NOW.minusHours(1));
-		Member member = org.mockito.Mockito.mock(Member.class);
-		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
-		when(memberRepository.getReferenceById(10L)).thenReturn(member);
 
-		service.persistApprovedIssue(1L, 10L);
-
-		verify(couponRepository).incrementIssuedQuantity(1L);
-		verify(memberCouponRepository).save(any(MemberCoupon.class));
-	}
-
-	@Test
-	@DisplayName("DB 준비 이력이 없는 쿠폰은 Lua 승인 결과도 저장하지 않는다")
-	void rejectsLuaPersistenceWithoutPreparationMarker() {
-		Coupon coupon = coupon(true, 10, 0);
-		when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
-
-		assertThatThrownBy(() -> service.persistApprovedIssue(1L, 10L))
-			.isInstanceOf(CouponStockNotPreparedException.class);
-		verify(couponRepository, never()).incrementIssuedQuantity(1L);
-	}
 
 	private Coupon coupon(boolean active, int totalQuantity, int issuedQuantity) {
 		return Coupon.builder()
@@ -160,6 +134,7 @@ class CouponIssueTransactionServiceTest {
 			.isActive(active)
 			.totalQuantity(totalQuantity)
 			.issuedQuantity(issuedQuantity)
+			.issueStrategy(CouponIssueStrategy.DB)
 			.build();
 	}
 }

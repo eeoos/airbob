@@ -1,0 +1,120 @@
+{
+  "reviewHot": {
+    "sql": "SELECT accommodation_id,total_review_count FROM accommodation_review_summary ORDER BY total_review_count DESC LIMIT 3",
+    "rows": [
+      [
+        "324693",
+        "225"
+      ],
+      [
+        "420353",
+        "213"
+      ],
+      [
+        "554691",
+        "211"
+      ]
+    ]
+  },
+  "reviewTypical": {
+    "sql": "SELECT accommodation_id,total_review_count FROM accommodation_review_summary WHERE total_review_count BETWEEN 5 AND 10 ORDER BY accommodation_id LIMIT 1",
+    "rows": [
+      [
+        "1",
+        "10"
+      ]
+    ]
+  },
+  "wishlistHot": {
+    "sql": "SELECT id,member_id,accommodation_count FROM wishlist WHERE status='ACTIVE' ORDER BY accommodation_count DESC,id LIMIT 3",
+    "rows": [
+      [
+        "9634",
+        "2988439",
+        "200"
+      ],
+      [
+        "68382",
+        "912606",
+        "200"
+      ],
+      [
+        "75646",
+        "849105",
+        "200"
+      ]
+    ]
+  },
+  "wishlistTypical": {
+    "sql": "SELECT id,member_id,accommodation_count FROM wishlist WHERE status='ACTIVE' AND accommodation_count=5 ORDER BY id LIMIT 1",
+    "rows": [
+      [
+        "39",
+        "1294543",
+        "5"
+      ]
+    ]
+  },
+  "hostHot": {
+    "sql": "SELECT member_id,COUNT(*) n FROM accommodation GROUP BY member_id ORDER BY n DESC LIMIT 3",
+    "rows": [
+      [
+        "6675",
+        "2591"
+      ],
+      [
+        "11053",
+        "804"
+      ],
+      [
+        "45474",
+        "759"
+      ]
+    ]
+  },
+  "couponOwnerHot": {
+    "sql": "SELECT member_id,COUNT(*) n FROM member_coupon GROUP BY member_id ORDER BY n DESC LIMIT 3",
+    "rows": [
+      [
+        "1594731",
+        "57"
+      ],
+      [
+        "873007",
+        "56"
+      ],
+      [
+        "46429",
+        "55"
+      ]
+    ]
+  },
+  "statsLast": {
+    "sql": "SELECT stat_date FROM daily_revenue_stats ORDER BY stat_date DESC LIMIT 1",
+    "rows": [
+      [
+        "2026-03-31"
+      ]
+    ]
+  },
+  "settlementLast": {
+    "sql": "SELECT settlement_month FROM settlement ORDER BY settlement_month DESC LIMIT 1",
+    "rows": [
+      [
+        "2026-03-01"
+      ]
+    ]
+  },
+  "couponReadiness": {
+    "sql": "SELECT issue_strategy,COUNT(*),SUM(stock_prepared_at IS NOT NULL),MIN(issue_start_at),MAX(issue_end_at) FROM coupon GROUP BY issue_strategy",
+    "rows": [
+      [
+        "SKIP_SURROGATE_RR",
+        "120",
+        "0",
+        "2016-03-31 15:00:00.000000",
+        "2026-03-31 15:00:00.000000"
+      ]
+    ]
+  }
+}

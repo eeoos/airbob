@@ -4,12 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 
 class GrafanaDashboardConfigurationTest {
 
@@ -28,17 +31,75 @@ class GrafanaDashboardConfigurationTest {
 		assertThat(expressions)
 			.contains("coupon_issue_duration_seconds_count")
 			.contains("coupon_issue_duration_seconds_bucket")
+			.contains("coupon_database_issue_duration_seconds_count")
 			.contains("coupon_database_issue_duration_seconds_bucket")
-			.contains("coupon_lua_duration_seconds_bucket")
-			.contains("coupon_compensation_total")
+			.contains("coupon_issue_retryable_total")
 			.contains("result=\\\"success\\\"");
 
-		assertThat(expressions).doesNotContain("coupon_lock_");
-		assertThat(dashboard.path("templating").findValuesAsText("query")).contains("db,lua");
+		assertThat(expressions).doesNotContain("coupon_lock_", "coupon_lua_", "coupon_compensation_");
+		JsonNode strategy = dashboard.path("templating").path("list").findParents("name").stream()
+			.filter(variable -> "strategy".equals(variable.path("name").asText()))
+			.findFirst().orElseThrow();
+		List<String> variants = Arrays.stream(CouponIssueStrategy.values())
+			.map(CouponIssueStrategy::variant).toList();
+		assertThat(strategy.path("options").findValuesAsText("value")).containsExactlyElementsOf(variants);
+		assertThat(Arrays.asList(strategy.path("allValue").asText().split("\\|")))
+			.containsExactlyElementsOf(variants);
+		assertThat(Arrays.stream(strategy.path("query").asText().split(","))
+			.map(option -> option.split(" : ", 2)[1]).toList()).containsExactlyElementsOf(variants);
 
 		List<String> links = dashboard.path("links").findValuesAsText("url");
 		assertThat(links)
 			.contains("/d/spring_boot_21", "/d/airbob-query-count");
+	}
+
+	@Test
+	void couponDashboardSeparatesFinalIssuancesFromAttemptsAndSharedPoolPressure() throws IOException {
+		JsonNode dashboard = readDashboard("airbob-coupon-issuance.json");
+		assertThat(panel(dashboard, "Successful issuance RPS").path("targets").get(0).path("expr").asText())
+			.contains("coupon_issue_duration_seconds_count", "result=\"success\"");
+		assertThat(panel(dashboard, "All-outcome issuance service RPS").path("targets").get(0)
+			.path("expr").asText()).contains("coupon_issue_duration_seconds_count").doesNotContain("result=");
+		assertThat(panel(dashboard, "DB attempt outcomes per second").path("targets").get(0)
+			.path("expr").asText()).contains("coupon_database_issue_duration_seconds_count", "strategy, result");
+		assertThat(panel(dashboard, "Retryable conditions per second").path("targets").get(0)
+			.path("expr").asText()).contains("coupon_issue_retryable_total", "strategy, reason");
+
+		for (JsonNode panel : dashboard.path("panels")) {
+			for (JsonNode target : panel.path("targets")) {
+				String expression = target.path("expr").asText();
+				assertThat(expression).contains("environment=~\"$environment\"", "instance=~\"$instance\"");
+				if (expression.contains("hikaricp_")) {
+					assertThat(expression).contains("pool=~\"$pool\"").doesNotContain("strategy=");
+				} else if (expression.contains("coupon_")) {
+					assertThat(expression).contains("strategy=~\"$strategy\"");
+				}
+			}
+		}
+	}
+
+	@Test
+	void couponDashboardPanelsDoNotOverlap() throws IOException {
+		JsonNode panels = readDashboard("airbob-coupon-issuance.json").path("panels");
+		for (int i = 0; i < panels.size(); i++) {
+			JsonNode a = panels.get(i).path("gridPos");
+			for (int j = i + 1; j < panels.size(); j++) {
+				JsonNode b = panels.get(j).path("gridPos");
+				boolean overlap = a.path("x").asInt() < b.path("x").asInt() + b.path("w").asInt()
+					&& b.path("x").asInt() < a.path("x").asInt() + a.path("w").asInt()
+					&& a.path("y").asInt() < b.path("y").asInt() + b.path("h").asInt()
+					&& b.path("y").asInt() < a.path("y").asInt() + a.path("h").asInt();
+				assertThat(overlap).as("%s overlaps %s", panels.get(i).path("title"), panels.get(j).path("title"))
+					.isFalse();
+			}
+		}
+	}
+
+	private JsonNode panel(JsonNode dashboard, String title) {
+		for (JsonNode panel : dashboard.path("panels")) {
+			if (title.equals(panel.path("title").asText())) return panel;
+		}
+		throw new AssertionError("Missing dashboard panel: " + title);
 	}
 
 	@Test

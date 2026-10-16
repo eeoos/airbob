@@ -1,0 +1,16 @@
+{
+  "recordedAt": "2026-10-11T15:32:46.525613+00:00",
+  "reason": "User requested a proportionate comparison and selected completing three sustained rounds plus one six-scenario round on surrogate RR and RC.",
+  "authorizedSelection": "3회차 완료 후 대리 키 RR·RC 추가 시나리오만 1회씩 진행",
+  "sustainedRounds": 3,
+  "additionalVariants": [
+    "skip_surrogate_rr",
+    "skip_surrogate_rc"
+  ],
+  "additionalRepetitions": 1,
+  "allSixExistingAdditionalCases": true,
+  "unchangedWorkloadSha256": "44de3a9c5c2a72574a9108b305004f3b901cffedff7d4d61e3087e15e05b5f4c",
+  "retainPriorResults": true,
+  "claimFivePassingRepetitions": false,
+  "planChangeBeforeUnexecutedTrials": true
+}

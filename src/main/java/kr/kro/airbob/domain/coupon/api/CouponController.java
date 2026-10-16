@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
-import kr.kro.airbob.domain.coupon.service.CouponLuaIssueService;
+import kr.kro.airbob.domain.coupon.service.CouponSkipLockedIssueService;
 import kr.kro.airbob.domain.coupon.service.CouponQueryService;
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class CouponController {
 
 	private final CouponQueryService couponQueryService;
-	private final CouponLuaIssueService luaIssueService;
+	private final CouponSkipLockedIssueService issueService;
 
 	@GetMapping("/v1/coupons")
 	public ResponseEntity<ApiResponse<CouponResponse.CouponInfos>> findCouponCampaigns() {
@@ -44,7 +44,7 @@ public class CouponController {
 	public ResponseEntity<ApiResponse<Void>> issueCoupon(
 		@PathVariable Long couponId,
 		@CurrentMemberId Long memberId) {
-		luaIssueService.issue(couponId, memberId);
+		issueService.issue(couponId, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success());
 	}
 }

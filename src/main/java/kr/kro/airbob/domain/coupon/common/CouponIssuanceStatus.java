@@ -8,11 +8,11 @@ public enum CouponIssuanceStatus {
 	SOLD_OUT;
 
 	public static CouponIssuanceStatus resolve(LocalDateTime issueStartAt, Integer totalQuantity,
-		Integer issuedQuantity, LocalDateTime now) {
+		Number issuedQuantity, LocalDateTime now) {
 		if (now.isBefore(issueStartAt)) {
 			return UPCOMING;
 		}
-		if (totalQuantity != null && issuedQuantity >= totalQuantity) {
+		if (totalQuantity != null && issuedQuantity.longValue() >= totalQuantity) {
 			return SOLD_OUT;
 		}
 		return OPEN;

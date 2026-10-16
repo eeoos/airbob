@@ -29,8 +29,8 @@ class Preparation(unittest.TestCase):
             self.assertEqual(result['networkCallsPerformed'], 0)
             self.assertFalse(result['readyToExecute'])
             self.assertEqual(result['requiredUniqueSessions'], 180001)
-            self.assertEqual(result['maximumMeasuredRuns'], 24)
-            self.assertEqual(result['fixedWorkloadSecondsUpperBound'], 5280)
+            self.assertEqual(result['maximumMeasuredRuns'], 150)
+            self.assertEqual(result['fixedWorkloadSecondsUpperBound'], 33000)
             with tarfile.open(output / 'coupon-tools.tar.gz') as archive:
                 self.assertEqual(set(archive.getnames()), set(prepare_aws.SOURCES))
                 self.assertTrue(all('..' not in Path(name).parts and not name.startswith('/') for name in archive.getnames()))
@@ -42,11 +42,11 @@ class Preparation(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 prepare_aws.prepare(c, output)
 
-    def test_account_manifest_binds_existing_emails_to_exact_v28_source_bytes(self):
+    def test_account_manifest_binds_existing_emails_to_exact_v30_source_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, emails, output = root / 'source.json', root / 'emails.json', root / 'accounts.json'
-            source.write_text('{"mysql":{"flywayVersion":28},"datasetId":"global-b-test"}\n')
+            source.write_text('{"mysql":{"flywayVersion":30},"datasetId":"global-b-test"}\n')
             emails.write_text('["coupon-a@airbob.cloud", "coupon-b@airbob.cloud"]')
             with patch.object(subprocess, 'run', side_effect=AssertionError('no commands')), \
                     patch.object(socket, 'socket', side_effect=AssertionError('no network')):
@@ -58,18 +58,19 @@ class Preparation(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 prepare_aws.accounts('global-b-test', source, emails, output)
 
-    def test_rejects_duplicate_accounts_and_v27_source(self):
+    def test_rejects_duplicate_accounts_and_pre_utc_source(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, emails = root / 'source.json', root / 'emails.json'
-            source.write_text('{"mysql":{"flywayVersion":28}}')
+            source.write_text('{"mysql":{"flywayVersion":30}}')
             emails.write_text('["same@airbob.cloud", "same@airbob.cloud"]')
             with self.assertRaises(ValueError):
                 prepare_aws.accounts('global-b-test', source, emails, root / 'out.json')
             emails.write_text('["same@airbob.cloud"]')
-            source.write_text('{"mysql":{"flywayVersion":27}}')
-            with self.assertRaisesRegex(ValueError, 'V28'):
-                prepare_aws.accounts('global-b-test', source, emails, root / 'out.json')
+            for version in (27, 29):
+                source.write_text(json.dumps({'mysql': {'flywayVersion': version}}))
+                with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'V30'):
+                    prepare_aws.accounts('global-b-test', source, emails, root / 'out.json')
 
     def test_local_input_check_does_not_login_or_call_aws(self):
         c = json.loads((COUPON / 'experiment.example.json').read_text())
@@ -77,7 +78,7 @@ class Preparation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, emails, manifest = root / 'source.json', root / 'emails.json', root / 'accounts.json'
-            source.write_text('{"mysql":{"flywayVersion":28}}')
+            source.write_text('{"mysql":{"flywayVersion":30}}')
             emails.write_text(json.dumps([f'member-{i}@airbob.cloud' for i in range(121)]))
             prepare_aws.accounts('global-b-test', source, emails, manifest)
             c['benchmarkDatasetManifest'] = str(manifest)

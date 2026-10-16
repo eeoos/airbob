@@ -1,0 +1,525 @@
+{
+  "verified": true,
+  "aggregation": "Median of three per-trial p95 values for each variant; not pooled request percentile",
+  "totalMeasuredRequests": 18009,
+  "failedRequests": 0,
+  "droppedRequests": 0,
+  "invalidTrials": [
+    {
+      "file": "results/measure/recent-heavy-100/recently-viewed-GPtPNH/1-before.json",
+      "rate": 20,
+      "reasons": [
+        "response-errors"
+      ],
+      "measurement": {
+        "started": 1201,
+        "completed": 1201,
+        "successful": 1199,
+        "failed": 2,
+        "dropped": 0,
+        "startedAt": "2026-10-12T04:45:27.748Z",
+        "finishedAt": "2026-10-12T04:46:31.100Z",
+        "windowSeconds": 63.352,
+        "achievedRps": 18.95757040030307,
+        "errorRate": 0.0016652789342214821,
+        "latencyMs": {
+          "p50": 1819.716942,
+          "p95": 3437.204937,
+          "p99": 3624.78798,
+          "max": 5001.06305
+        }
+      }
+    }
+  ],
+  "cases": {
+    "detail-heavy": {
+      "p95BeforeMedianMs": 10.264975849999999,
+      "p95AfterMedianMs": 8.60973375,
+      "reductionPercent": 16.12514363587128,
+      "p95BeforeRangeMs": [
+        9.937527,
+        11.271290999999998
+      ],
+      "p95AfterRangeMs": [
+        7.70140745,
+        12.738147
+      ],
+      "trials": {
+        "after": [
+          {
+            "case": "detail-heavy",
+            "round": 1,
+            "variant": "after",
+            "rate": 20,
+            "file": "results/measure/detail-heavy/accommodation-detail-1JJu3J/1-after.json",
+            "sha256": "e9cf4f4ebf3b9c67e8f82a705b35aba5938a59d713fc7bec7b7f6bfe191d89d5",
+            "started": 1200,
+            "completed": 1200,
+            "successful": 1200,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:27:27.906Z",
+            "finishedAt": "2026-10-12T04:28:27.906Z",
+            "windowSeconds": 60,
+            "achievedRps": 20,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 7.2343165,
+              "p95": 8.60973375,
+              "p99": 17.618855439999994,
+              "max": 110.439532
+            }
+          },
+          {
+            "case": "detail-heavy",
+            "round": 2,
+            "variant": "after",
+            "rate": 20,
+            "file": "results/measure/detail-heavy/accommodation-detail-1JJu3J/2-after.json",
+            "sha256": "374ae7dda72f0dcce0fb28f684542b0f5291bfd825c7ac23e5fd1ea42c1a46e5",
+            "started": 1201,
+            "completed": 1201,
+            "successful": 1201,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:29:06.012Z",
+            "finishedAt": "2026-10-12T04:30:06.020Z",
+            "windowSeconds": 60.008,
+            "achievedRps": 20.013998133582188,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 7.232106,
+              "p95": 12.738147,
+              "p99": 88.270889,
+              "max": 278.67
+            }
+          },
+          {
+            "case": "detail-heavy",
+            "round": 3,
+            "variant": "after",
+            "rate": 20,
+            "file": "results/measure/detail-heavy/accommodation-detail-1JJu3J/3-after.json",
+            "sha256": "e8aa710209529ff3c6107c6e3fbc5a4363909b0800e7bab455444a3f2474f5c2",
+            "started": 1200,
+            "completed": 1200,
+            "successful": 1200,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:34:00.334Z",
+            "finishedAt": "2026-10-12T04:35:00.334Z",
+            "windowSeconds": 60,
+            "achievedRps": 20,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 6.9088575,
+              "p95": 7.70140745,
+              "p99": 15.346949599999979,
+              "max": 72.342829
+            }
+          }
+        ],
+        "before": [
+          {
+            "case": "detail-heavy",
+            "round": 1,
+            "variant": "before",
+            "rate": 20,
+            "file": "results/measure/detail-heavy/accommodation-detail-1JJu3J/1-before.json",
+            "sha256": "0d5154d765f1cf5d5eeb94eff23c44e8f64939b289b86842d010196a7644bbc4",
+            "started": 1200,
+            "completed": 1200,
+            "successful": 1200,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:25:49.794Z",
+            "finishedAt": "2026-10-12T04:26:49.794Z",
+            "windowSeconds": 60,
+            "achievedRps": 20,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 9.61399,
+              "p95": 11.271290999999998,
+              "p99": 20.082400839999995,
+              "max": 118.07744
+            }
+          },
+          {
+            "case": "detail-heavy",
+            "round": 2,
+            "variant": "before",
+            "rate": 20,
+            "file": "results/measure/detail-heavy/accommodation-detail-1JJu3J/2-before.json",
+            "sha256": "4b454ebd2fb306cb0508916b55fe95279363c3f443ed2ef3962a36d8a8657dfd",
+            "started": 1201,
+            "completed": 1201,
+            "successful": 1201,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:30:44.121Z",
+            "finishedAt": "2026-10-12T04:31:44.130Z",
+            "windowSeconds": 60.009,
+            "achievedRps": 20.013664616974122,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 8.718346,
+              "p95": 9.937527,
+              "p99": 16.740231,
+              "max": 89.123033
+            }
+          },
+          {
+            "case": "detail-heavy",
+            "round": 3,
+            "variant": "before",
+            "rate": 20,
+            "file": "results/measure/detail-heavy/accommodation-detail-1JJu3J/3-before.json",
+            "sha256": "eb2c9293d09abb13f770ae0672fccac056c8530dd375633531836202e543d907",
+            "started": 1200,
+            "completed": 1200,
+            "successful": 1200,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:32:22.230Z",
+            "finishedAt": "2026-10-12T04:33:22.230Z",
+            "windowSeconds": 60,
+            "achievedRps": 20,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 8.691583000000001,
+              "p95": 10.264975849999999,
+              "p99": 14.260158649999996,
+              "max": 87.385528
+            }
+          }
+        ]
+      }
+    },
+    "wishlist-heavy-50": {
+      "p95BeforeMedianMs": 18.42077,
+      "p95AfterMedianMs": 11.027313,
+      "reductionPercent": 40.13652523754437,
+      "p95BeforeRangeMs": [
+        17.862965,
+        19.770199099999985
+      ],
+      "p95AfterRangeMs": [
+        11.010626549999998,
+        11.091089
+      ],
+      "trials": {
+        "after": [
+          {
+            "case": "wishlist-heavy-50",
+            "round": 1,
+            "variant": "after",
+            "rate": 20,
+            "file": "results/measure/wishlist-heavy-50/wishlist-accommodations-euBKaf/1-after.json",
+            "sha256": "a4db32eee9a2580814799c59b069a778c851fae00c15a7cd3f9d15ea51818d47",
+            "started": 1201,
+            "completed": 1201,
+            "successful": 1201,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:37:16.793Z",
+            "finishedAt": "2026-10-12T04:38:16.802Z",
+            "windowSeconds": 60.009,
+            "achievedRps": 20.013664616974122,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 9.121602,
+              "p95": 11.027313,
+              "p99": 33.609362,
+              "max": 103.863708
+            }
+          },
+          {
+            "case": "wishlist-heavy-50",
+            "round": 2,
+            "variant": "after",
+            "rate": 20,
+            "file": "results/measure/wishlist-heavy-50/wishlist-accommodations-euBKaf/2-after.json",
+            "sha256": "4230e7cf632f1206b3cd902cda2a1dca66fc6edaeab629e3af1d2124ea49a8a7",
+            "started": 1200,
+            "completed": 1200,
+            "successful": 1200,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:38:54.941Z",
+            "finishedAt": "2026-10-12T04:39:54.941Z",
+            "windowSeconds": 60,
+            "achievedRps": 20,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 9.1579205,
+              "p95": 11.010626549999998,
+              "p99": 22.043096659999975,
+              "max": 74.565525
+            }
+          },
+          {
+            "case": "wishlist-heavy-50",
+            "round": 3,
+            "variant": "after",
+            "rate": 20,
+            "file": "results/measure/wishlist-heavy-50/wishlist-accommodations-euBKaf/3-after.json",
+            "sha256": "0a17721c5774f2ffa66d22d8e8896cf8f450cad92a937951cecd05210c3d99fe",
+            "started": 1201,
+            "completed": 1201,
+            "successful": 1201,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:43:49.346Z",
+            "finishedAt": "2026-10-12T04:44:49.355Z",
+            "windowSeconds": 60.009,
+            "achievedRps": 20.013664616974122,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 9.0249,
+              "p95": 11.091089,
+              "p99": 20.897269,
+              "max": 122.458633
+            }
+          }
+        ],
+        "before": [
+          {
+            "case": "wishlist-heavy-50",
+            "round": 1,
+            "variant": "before",
+            "rate": 20,
+            "file": "results/measure/wishlist-heavy-50/wishlist-accommodations-euBKaf/1-before.json",
+            "sha256": "f9bc923e0e48c621d9b58111963e9d7164a96fe3453629ac8d0753ac9b96608d",
+            "started": 1200,
+            "completed": 1200,
+            "successful": 1200,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:35:38.664Z",
+            "finishedAt": "2026-10-12T04:36:38.664Z",
+            "windowSeconds": 60,
+            "achievedRps": 20,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 15.496711000000001,
+              "p95": 19.770199099999985,
+              "p99": 40.91871605999997,
+              "max": 116.711736
+            }
+          },
+          {
+            "case": "wishlist-heavy-50",
+            "round": 2,
+            "variant": "before",
+            "rate": 20,
+            "file": "results/measure/wishlist-heavy-50/wishlist-accommodations-euBKaf/2-before.json",
+            "sha256": "cc6d7acb2720e729db2afa834814454cd780bbb6c7bdce56cc08199f89f2bd43",
+            "started": 1201,
+            "completed": 1201,
+            "successful": 1201,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:40:33.065Z",
+            "finishedAt": "2026-10-12T04:41:33.082Z",
+            "windowSeconds": 60.017,
+            "achievedRps": 20.010996884216137,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 15.233468,
+              "p95": 17.862965,
+              "p99": 45.291464,
+              "max": 113.02886
+            }
+          },
+          {
+            "case": "wishlist-heavy-50",
+            "round": 3,
+            "variant": "before",
+            "rate": 20,
+            "file": "results/measure/wishlist-heavy-50/wishlist-accommodations-euBKaf/3-before.json",
+            "sha256": "5aaa72179532916a53429d5cf90ce44a5519065936bf99e226bfcd48edec8a9d",
+            "started": 1201,
+            "completed": 1201,
+            "successful": 1201,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:42:11.209Z",
+            "finishedAt": "2026-10-12T04:43:11.225Z",
+            "windowSeconds": 60.016,
+            "achievedRps": 20.011330311916822,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 15.0988,
+              "p95": 18.42077,
+              "p99": 35.576826,
+              "max": 200.769569
+            }
+          }
+        ]
+      }
+    },
+    "recent-heavy-100": {
+      "p95BeforeMedianMs": 104.231349,
+      "p95AfterMedianMs": 14.089036299999998,
+      "reductionPercent": 86.48291858910892,
+      "p95BeforeRangeMs": [
+        100.05684959999995,
+        118.41132
+      ],
+      "p95AfterRangeMs": [
+        13.8453567,
+        14.679257
+      ],
+      "trials": {
+        "after": [
+          {
+            "case": "recent-heavy-100",
+            "round": 1,
+            "variant": "after",
+            "rate": 10,
+            "file": "results/measure-r10/recent-heavy-100/recently-viewed-KCyqfV/1-after.json",
+            "sha256": "7dde3467b077bde7e83ff0d5b6159b7c7a7b569d879827722892b4bd59305688",
+            "started": 601,
+            "completed": 601,
+            "successful": 601,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:51:22.560Z",
+            "finishedAt": "2026-10-12T04:52:22.573Z",
+            "windowSeconds": 60.013,
+            "achievedRps": 10.01449685901388,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 12.065738,
+              "p95": 14.679257,
+              "p99": 41.211928,
+              "max": 75.350886
+            }
+          },
+          {
+            "case": "recent-heavy-100",
+            "round": 2,
+            "variant": "after",
+            "rate": 10,
+            "file": "results/measure-r10/recent-heavy-100/recently-viewed-KCyqfV/2-after.json",
+            "sha256": "91657c9faa2d06beb5b3c890c4f42ea100c1a106afcc4c56a6fe0ac695890d1c",
+            "started": 600,
+            "completed": 600,
+            "successful": 600,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:53:00.772Z",
+            "finishedAt": "2026-10-12T04:54:00.772Z",
+            "windowSeconds": 60,
+            "achievedRps": 10,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 12.1500725,
+              "p95": 14.089036299999998,
+              "p99": 32.83524761999997,
+              "max": 103.420609
+            }
+          },
+          {
+            "case": "recent-heavy-100",
+            "round": 3,
+            "variant": "after",
+            "rate": 10,
+            "file": "results/measure-r10/recent-heavy-100/recently-viewed-KCyqfV/3-after.json",
+            "sha256": "d8ac28d2978e74f8bce961b33edd3bff2a382b7b71edd4e5bb5cde6ef867f37e",
+            "started": 600,
+            "completed": 600,
+            "successful": 600,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:57:55.421Z",
+            "finishedAt": "2026-10-12T04:58:55.421Z",
+            "windowSeconds": 60,
+            "achievedRps": 10,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 12.039880499999999,
+              "p95": 13.8453567,
+              "p99": 19.00311635999998,
+              "max": 95.719014
+            }
+          }
+        ],
+        "before": [
+          {
+            "case": "recent-heavy-100",
+            "round": 1,
+            "variant": "before",
+            "rate": 10,
+            "file": "results/measure-r10/recent-heavy-100/recently-viewed-KCyqfV/1-before.json",
+            "sha256": "86eea93207df9afbd76763185997b239013f8e59ebf82fbc7494d7ff33ff25a4",
+            "started": 601,
+            "completed": 601,
+            "successful": 601,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:49:44.285Z",
+            "finishedAt": "2026-10-12T04:50:44.363Z",
+            "windowSeconds": 60.078,
+            "achievedRps": 10.00366190618862,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 76.867207,
+              "p95": 118.41132,
+              "p99": 192.359373,
+              "max": 312.008702
+            }
+          },
+          {
+            "case": "recent-heavy-100",
+            "round": 2,
+            "variant": "before",
+            "rate": 10,
+            "file": "results/measure-r10/recent-heavy-100/recently-viewed-KCyqfV/2-before.json",
+            "sha256": "98f33979da1ef7b1618571daee52bbef844a07c5b321451ab776d1ffa503f6cd",
+            "started": 601,
+            "completed": 601,
+            "successful": 601,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:54:38.960Z",
+            "finishedAt": "2026-10-12T04:55:39.037Z",
+            "windowSeconds": 60.077,
+            "achievedRps": 10.003828420194084,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 76.542001,
+              "p95": 104.231349,
+              "p99": 296.270076,
+              "max": 407.380602
+            }
+          },
+          {
+            "case": "recent-heavy-100",
+            "round": 3,
+            "variant": "before",
+            "rate": 10,
+            "file": "results/measure-r10/recent-heavy-100/recently-viewed-KCyqfV/3-before.json",
+            "sha256": "5d643364831dde28221a71a56515a48c6d74897dd21c1162dc2be009a5e3132c",
+            "started": 600,
+            "completed": 600,
+            "successful": 600,
+            "failed": 0,
+            "dropped": 0,
+            "startedAt": "2026-10-12T04:56:17.235Z",
+            "finishedAt": "2026-10-12T04:57:17.235Z",
+            "windowSeconds": 60,
+            "achievedRps": 10,
+            "errorRate": 0,
+            "latencyMs": {
+              "p50": 76.4741275,
+              "p95": 100.05684959999995,
+              "p99": 268.86841891999984,
+              "max": 363.135946
+            }
+          }
+        ]
+      }
+    }
+  }
+}

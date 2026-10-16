@@ -955,8 +955,12 @@ assert_contains "$lab_root/ssm.tf" 'filesha256("${path.module}/../scripts/bootst
 if grep -Fq 'file("${path.module}/../scripts/verify-dataset-release.sh")' "$lab_root/ssm.tf"; then
   fail "aggregate release verifier must not be embedded in the SSM document"
 fi
+assert_contains "$bootstrap" '.couponPreparation == []'
+if grep -Fq 'coupon_prepare.lua' "$lab_root/ssm.tf" "$bootstrap"; then
+  fail "removed coupon Lua helper must not be embedded or invoked"
+fi
 compressed_bootstrap_bytes=$(gzip -c "$bootstrap" | base64 | wc -c | tr -d '[:space:]')
-embedded_document_bytes=$((compressed_bootstrap_bytes + $(wc -c < "$repo_root/src/main/resources/lua/coupon_prepare.lua") + 6000))
+embedded_document_bytes=$((compressed_bootstrap_bytes + 6000))
 [[ "$embedded_document_bytes" -le 45000 ]] || fail "Phase 3 bootstrap exceeds the 45KB SSM document payload budget"
 
 "$repo_root/infra/aws/tests/dataset-release-test.sh" >/dev/null

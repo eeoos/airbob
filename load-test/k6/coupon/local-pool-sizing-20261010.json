@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "pool-capacity-500",
+      "scenario": "capacity",
+      "stock": 30001,
+      "segments": [{"name": "steady", "rate": 500, "seconds": 20}]
+    },
+    {
+      "name": "pool-capacity-1000",
+      "scenario": "capacity",
+      "stock": 30001,
+      "segments": [{"name": "steady", "rate": 1000, "seconds": 20}]
+    },
+    {
+      "name": "pool-capacity-1500",
+      "scenario": "capacity",
+      "stock": 30001,
+      "segments": [{"name": "steady", "rate": 1500, "seconds": 20}]
+    }
+  ]
+}

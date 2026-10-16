@@ -5,10 +5,18 @@ import math
 import re
 from urllib.parse import urlsplit
 
+VARIANTS = ('db', 'skip_surrogate_rr', 'skip_surrogate_rc', 'skip_composite_rr', 'skip_composite_rc')
+DEFAULT_VARIANTS = VARIANTS[:3]
+
 
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def issue_route(variant):
+    require(variant in VARIANTS, 'Invalid coupon issue variant')
+    return '/api/v2/coupons/{couponId}/issue/' + variant.replace('_', '-')
 
 
 def positive(value, name, maximum):
@@ -21,7 +29,7 @@ def validate(config, executing=False):
                 'benchmarkDatasetManifest', 'sessionFixture', 'accountPasswordFile', 'adminSessionFile',
                 'benchmarkTokenFile', 'appMetricsUrls', 'rounds', 'warmupSeconds', 'durationSeconds',
                 'cooldownSeconds', 'comparisonRates', 'stockRatio', 'capacityRates', 'p95LimitMs',
-                'p99LimitMs', 'clientVUs', 'cpu'}
+                'p99LimitMs', 'clientVUs', 'cpu', 'variants'}
     require(set(c) == required and c['schemaVersion'] == 1, 'Invalid configuration fields')
     require(type(c['example']) is bool and (not executing or not c['example']), 'Replace the example configuration')
     require(re.fullmatch(r'[a-z0-9][a-z0-9-]{0,47}', c['runId']) is not None, 'Invalid runId')
@@ -33,7 +41,10 @@ def validate(config, executing=False):
     require(not executing or urlsplit(c['baseUrl']).scheme == 'https', 'AWS execution requires a lab-only HTTPS origin')
     require(re.fullmatch(r'[0-9a-f]{40}|[^\s]+@sha256:[0-9a-f]{64}', c['appVersion']) is not None,
             'appVersion must be an exact commit or image digest')
-    for key, maximum in {'appInstanceCount': 8, 'rounds': 5, 'warmupSeconds': 60,
+    require(isinstance(c['variants'], list) and 2 <= len(c['variants']) <= len(VARIANTS)
+            and len(set(c['variants'])) == len(c['variants'])
+            and all(v in VARIANTS for v in c['variants']), 'Invalid variants')
+    for key, maximum in {'appInstanceCount': 8, 'rounds': 12, 'warmupSeconds': 60,
                          'durationSeconds': 900, 'clientVUs': 20000,
                          'p95LimitMs': 30000, 'p99LimitMs': 30000}.items():
         positive(c[key], key, maximum)
@@ -67,14 +78,35 @@ def plan(c):
     capacity = maximum * max(c['durationSeconds'], c['warmupSeconds']) + 1
     return {'schemaVersion': 1, 'runId': c['runId'], 'requiredUniqueSessions': capacity,
             'rounds': c['rounds'], 'measurementSeconds': c['durationSeconds'],
-            'maximumMeasuredRuns': c['rounds'] * 2 * (len(c['comparisonRates']) + len(c['capacityRates'])),
+            'maximumMeasuredRuns': c['rounds'] * len(c['variants']) * (len(c['comparisonRates']) + len(c['capacityRates'])),
+            'variants': c['variants'],
             'capacityRates': c['capacityRates'], 'comparisonRates': c['comparisonRates'],
             'scenarios': ['capacity', 'scarcity'], 'createsAwsResources': False,
             'capacityInterpretation': 'highest repeatedly passing configured rate; ceiling is a lower bound'}
 
 
-def order(round_number):
-    return ['db', 'lua'] if round_number % 2 else ['lua', 'db']
+def order(round_number, variants=DEFAULT_VARIANTS):
+    values = list(variants)
+    require(values and len(set(values)) == len(values) and all(v in VARIANTS for v in values), 'Invalid variants')
+    block, offset = divmod(round_number - 1, len(values))
+    if block % 2:
+        values = values[:1] + list(reversed(values[1:]))
+    return values[offset:] + values[:offset]
+
+
+def inventory_failures(state, variant, stock, successes):
+    issued = state['member_coupon_count']
+    failures = []
+    if not (issued == state['issued_quantity'] == state['distinct_member_count'] == successes
+            and 0 <= issued <= stock and state['stock'] == stock and state['variant'] == variant):
+        failures.append('database-issuance-invariant')
+    if variant == 'db':
+        if state['stock_prepared'] or state['legacy_issued_quantity'] != issued or state['remaining_unit_count'] is not None:
+            failures.append('conditional-update-invariant')
+    elif not (state['stock_prepared'] and state['legacy_issued_quantity'] is None
+              and state['remaining_unit_count'] == stock - issued):
+        failures.append('unit-issuance-invariant')
+    return failures
 
 
 def evaluate(artifact, c, scenario, rate, stock, state, server, generator):
@@ -95,16 +127,8 @@ def evaluate(artifact, c, scenario, rate, stock, state, server, generator):
         invalid.append('server-client-count-mismatch')
     if not generator.get('healthy', False):
         invalid.append('load-generator-pressure-or-missing-data')
-    issued = state['issued_quantity']
-    if not (issued == state['member_coupon_count'] == state['distinct_member_count'] == outcomes['success']
-            and 0 <= issued <= stock and state['stock'] == stock):
-        invalid.append('database-issuance-invariant')
-    if m['variant'] == 'lua':
-        if not (state['redis_prepared'] and state.get('redis_remaining_stock') == stock - issued
-                and state.get('redis_issued_count') == issued):
-            invalid.append('redis-issuance-invariant')
-    elif state['redis_prepared']:
-        invalid.append('db-campaign-was-prepared-in-redis')
+    issued = state['member_coupon_count']
+    invalid.extend(inventory_failures(state, m['variant'], stock, outcomes['success']))
     if scenario == 'capacity' and outcomes['soldOut']:
         invalid.append('capacity-stock-exhausted')
     if scenario == 'capacity' and outcomes['success'] != n:
@@ -113,6 +137,8 @@ def evaluate(artifact, c, scenario, rate, stock, state, server, generator):
         invalid.append('scarcity-was-not-exercised')
     if outcomes['unexpected']:
         failed.append('unexpected-response')
+    if outcomes.get('contended', 0):
+        failed.append('retryable-contention')
     successful = p['successDuration']
     for percentile, key in (('p(95)', 'p95LimitMs'), ('p(99)', 'p99LimitMs')):
         value = successful.get(percentile)

@@ -1,0 +1,19 @@
+{
+  "sha256": "e6a00e9fb108d0478bea737fb7ba1a52f8b896e95cee39e8232f2d26af8ffcd3",
+  "bytes": 11429560,
+  "compressedBytes": 598635,
+  "files": 681,
+  "cohorts": [
+    "qualify-success",
+    "qualify-edge",
+    "probe-r1-db",
+    "probe-r1-surrogate-rr",
+    "probe-r1-surrogate-rc",
+    "probe-r1-composite-rr",
+    "probe-r1-composite-rc",
+    "probe-r2-surrogate-rr",
+    "probe-r2-surrogate-rc"
+  ],
+  "compressedSha256": "3eb59b62e693f2a9eaefa7e6c9f23c672b2e81a9d371964d6bd30ad4837bc216",
+  "path": "raw/qualification-and-exploration-1.json.zlib"
+}

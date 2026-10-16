@@ -119,6 +119,7 @@ const outcomeCounters = {
   duplicate: new Counter('coupon_issue_duplicate_total'),
   not_issuable: new Counter('coupon_issue_not_issuable_total'),
   unprepared: new Counter('coupon_issue_unprepared_total'),
+  contended: new Counter('coupon_issue_contended_total'),
   authentication: new Counter('coupon_issue_authentication_total'),
   unexpected: new Counter('coupon_issue_unexpected_total'),
 };
@@ -217,7 +218,7 @@ export default function () {
   }
   successful.add(outcome === 'success');
   outcomeCounters[outcome].add(1, metricTags);
-  unexpectedRate.add(outcome === 'unexpected', metricTags);
+  unexpectedRate.add(outcome === 'unexpected' || outcome === 'contended', metricTags);
   invalidSetupRate.add(invalidSetupOutcomes.has(outcome), metricTags);
 }
 

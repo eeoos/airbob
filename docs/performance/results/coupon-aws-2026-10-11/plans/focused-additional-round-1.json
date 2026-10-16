@@ -1,0 +1,32 @@
+{
+  "phase": "AWS focused additional scenarios after user-authorized three sustained rounds",
+  "round": 1,
+  "workloadPlanSha256": "44de3a9c5c2a72574a9108b305004f3b901cffedff7d4d61e3087e15e05b5f4c",
+  "cohorts": [
+    {
+      "name": "additional-r1-surrogate-rr",
+      "variant": "skip_surrogate_rr",
+      "rates": [
+        400
+      ],
+      "seconds": 60,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 0,
+      "workloadPlan": "additional-scenarios-plan.json"
+    },
+    {
+      "name": "additional-r1-surrogate-rc",
+      "variant": "skip_surrogate_rc",
+      "rates": [
+        400
+      ],
+      "seconds": 60,
+      "round": 1,
+      "cohortWarmupSeconds": 60,
+      "conditioningSeconds": 0,
+      "workloadPlan": "additional-scenarios-plan.json"
+    }
+  ],
+  "scopeDecision": "user-scoped-final-plan.json"
+}

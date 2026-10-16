@@ -427,6 +427,11 @@ fi
 
 sed -n '/^  deploy-oci:/,$p' "$repo_root/.github/workflows/cd.yml" > "$temp_dir/deploy-oci.yml"
 assert_contains "$temp_dir/deploy-oci.yml" 'needs: publish-oci-image'
+assert_contains "$temp_dir/deploy-oci.yml" '      packages: read'
+assert_contains "$temp_dir/deploy-oci.yml" 'GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}'
+assert_contains "$temp_dir/deploy-oci.yml" '"$GHCR_TOKEN" | docker login ghcr.io'
+assert_contains "$temp_dir/deploy-oci.yml" ' --password-stdin'
+assert_not_contains "$temp_dir/deploy-oci.yml" 'GHCR_PAT|packages: write'
 assert_not_contains "$temp_dir/deploy-oci.yml" 'publish-ecr-image|AWS_IMAGE_PUBLISHER_ROLE_ARN'
 sed -n '/^  publish-oci-image:/,/^  publish-ecr-image:/p' "$repo_root/.github/workflows/cd.yml" > "$temp_dir/publish-oci.yml"
 assert_contains "$temp_dir/publish-oci.yml" 'needs: build-app'

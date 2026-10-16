@@ -32,7 +32,7 @@ class CouponPeriodMigrationIntegrationTest {
 		.withPassword("airbob");
 
 	@Test
-	@DisplayName("기존 쿠폰 기간을 발급 기간과 사용 기간 양쪽에 보존한다")
+	@DisplayName("기존 서울 쿠폰 기간의 순간을 발급·사용 기간의 UTC 값으로 보존한다")
 	void copiesLegacyPeriodIntoIssueAndUsagePeriods() throws SQLException {
 		Flyway.configure()
 			.dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
@@ -58,10 +58,10 @@ class CouponPeriodMigrationIntegrationTest {
 			statement.setLong(1, couponId);
 			try (ResultSet result = statement.executeQuery()) {
 				assertThat(result.next()).isTrue();
-				assertThat(result.getTimestamp("issue_start_at").toLocalDateTime()).isEqualTo(LEGACY_START);
-				assertThat(result.getTimestamp("issue_end_at").toLocalDateTime()).isEqualTo(LEGACY_END);
-				assertThat(result.getTimestamp("usable_from").toLocalDateTime()).isEqualTo(LEGACY_START);
-				assertThat(result.getTimestamp("usable_until").toLocalDateTime()).isEqualTo(LEGACY_END);
+				assertThat(result.getTimestamp("issue_start_at").toLocalDateTime()).isEqualTo(LEGACY_START.minusHours(9));
+				assertThat(result.getTimestamp("issue_end_at").toLocalDateTime()).isEqualTo(LEGACY_END.minusHours(9));
+				assertThat(result.getTimestamp("usable_from").toLocalDateTime()).isEqualTo(LEGACY_START.minusHours(9));
+				assertThat(result.getTimestamp("usable_until").toLocalDateTime()).isEqualTo(LEGACY_END.minusHours(9));
 			}
 		}
 
@@ -70,8 +70,9 @@ class CouponPeriodMigrationIntegrationTest {
 			assertThat(columnExists(connection, "coupon", "end_date")).isFalse();
 			assertThat(columnNullable(connection, "coupon", "issue_start_at")).isFalse();
 			assertThat(columnNullable(connection, "coupon", "issue_end_at")).isFalse();
-			assertThat(columnExists(connection, "coupon", "redis_stock_prepared_at")).isTrue();
-			assertThat(columnNullable(connection, "coupon", "redis_stock_prepared_at")).isTrue();
+			assertThat(columnExists(connection, "coupon", "redis_stock_prepared_at")).isFalse();
+			assertThat(columnExists(connection, "coupon", "stock_prepared_at")).isTrue();
+			assertThat(columnNullable(connection, "coupon", "stock_prepared_at")).isTrue();
 		}
 	}
 

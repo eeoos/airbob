@@ -1,300 +1,229 @@
-<h1 align="center">Airbob Backend Server</h1>
+# Airbob
 
-<p align="center">
-  Airbnb형 숙소 예약 서비스를 Spring Boot로 구현하고, 예약·결제·검색 색인을 장애 복구가 가능한 비동기 구조로 발전시킨 프로젝트입니다.
-</p>
+## 프로젝트 소개
 
-<p align="center">
-  🌐 <a href="https://www.airbob.cloud/" target="_blank"><b>https://airbob.cloud</b></a>
-</p>
+숙소 검색·예약·위시리스트·리뷰 기능을 제공하는 숙박 예약 플랫폼입니다.
 
-## Demo
+2025년 6~7월 3인 팀으로 개발했으며, 프로젝트 종료 후에는 개인적으로
+학습한 내용을 적용하고 다양한 트래픽·장애 상황을 재현하며
+성능 병목과 정합성 문제를 분석하고 개선했습니다.
 
-- 테스트 계정: `test@test.com` / `123123123`
-- [로마 숙소](https://www.airbob.cloud/search?destination=%EC%9D%B4%ED%83%88%EB%A6%AC%EC%95%84+%EB%A1%9C%EB%A7%88&lat=41.8967068&lng=12.4822025&topLeftLat=42.05054624539585&topLeftLng=12.34170704408109&bottomRightLat=41.76959604595655&bottomRightLng=12.73028878823088&adultOccupancy=1&childOccupancy=0&infantOccupancy=0&petOccupancy=0)
-- [하와이 숙소](https://www.airbob.cloud/search?adultOccupancy=1&childOccupancy=0&infantOccupancy=0&petOccupancy=0&destination=%EB%AF%B8%EA%B5%AD+%ED%95%98%EC%99%80%EC%9D%B4&lat=19.8986819&lng=-155.6658568&topLeftLat=22.37&topLeftLng=-160.53&bottomRightLat=18.55&bottomRightLng=-154.48)
+- **팀 개발:** 숙소 후기·위시리스트·최근 본 숙소 기능 개발
+- **개인 고도화:** 숙소 상세 조회 캐시·쿠폰 발급·쿼리 최적화·인프라 개선
 
-예약·결제 시연:
+Java · Spring Boot · JPA · QueryDSL · MySQL · Redis
 
-![Airbob 예약 결제 시연](https://github.com/user-attachments/assets/59449a2b-1588-4e90-8933-85bcd30bddae)
+Website: [Airbob](https://www.airbob.cloud/) <br>
 
-## Tech Stack
+<details>
+<summary>체험 계정</summary>
 
-- Java 21, Spring Boot 3.5.8, Spring Data JPA, QueryDSL
-- MySQL 8, Flyway V1~V28
-- Redis: 세션, 최근 본 숙소, 쿠폰 재고, 조회 캐시
-- Apache Kafka, Debezium Outbox Event Router
-- Elasticsearch, Nori analyzer, versioned index alias
-- Testcontainers, Gradle, k6
-- Docker Compose, Prometheus, Grafana, AWS S3·CloudFront
+- GUEST:
+    - 이메일: demo@airbob.test
+    - 비밀번호: airbobdemo213
+- HOST:
+    - 이메일: host@airbob.test
+    - 비밀번호: airbobhost213
+</details>
 
-## 핵심 문제와 현재 해법
+<details>
+<summary>주요 도시 검색 결과</summary>
+    
+- [코펜하겐](https://www.airbob.cloud/search?destination=Copenhagen)
+- [바르셀로나](https://www.airbob.cloud/search?destination=Barcelona)
+- [토론토](https://www.airbob.cloud/search?destination=Toronto)
 
-### 예약 중복: 날짜별 MySQL inventory를 단일 진실의 원천으로 사용
+    
+</details>
+    
+## 주요 개선 성과 요약
+아래 결과는 실제 운영 트래픽이 아닌, AWS 환경에서 재현한 부하 테스트를 기반으로 합니다.
+| 개선 항목 | 개선 전 → 후 | 측정 조건 |
+|---|---|---|
+| 숙소 상세 캐시 | 처리량 **1,100 → 5,000 RPS** | 앱 1대, 숙소 20개 반복 조회 |
+| 캐시 동시 미스 대응 | DB 로딩 **300 → 1회** | 앱 2대, 같은 숙소에 300건 버스트 |
+| Redis 장애 시 요청 병합 | DB 로딩 **300 → 19회** | 앱 1대, 같은 숙소에 300건 버스트 |
+| 쿠폰 발급 경합 완화 | 처리 가능 부하 **125 → 500** RPS | 앱 1대, 각 부하에서 120초씩 3회 |
+| 최근 본 숙소 N+1 제거 | SELECT **102 → 2회**, p95 **83 → 21ms** | 숙소 100개 조회 |
+| 위시리스트 벌크 삭제 | DELETE **1,000 → 1회** | 위시리스트에 담긴 숙소 1,000개 삭제 |
+| 리뷰 집계 요약 테이블 | p95 **18.42 → 11.03ms** | 위시리스트 숙소 50개, 20 RPS, 3회 중앙값 |
+| ALB·ASG 자동 확장 | p95 **803 → 7ms** | 6,000 RPS·15분, 앱 1대 고정 대비 2→4대 확장, 각 1회 |
 
-검색·요청사항·쿠폰 입력 중에는 재고를 잡지 않습니다. quote로 현재 가격과 가능 여부를
-확인하고, 사용자가 결제로 이동할 때 멱등 checkout이 예약과 15분 hold를 같은 트랜잭션에서
-만듭니다. quote에는 시간 경과에 따른 만료가 없으며, checkout에서 현재 숙소·일정·인원·가격·
-쿠폰·재고를 다시 검증합니다. 조건이 달라졌다면 결제를 시작하지 않고 변경 사항을 안내합니다.
-checkout 응답의 서버 시각과 hold 절대 만료시각이 기준이므로 클라이언트 타이머가 재고의
-권위가 되지 않습니다. 명시적 hold 해제와 결제 실패·복구에 따른 재고 처리도 유지합니다.
+각 행은 별도 실험의 결과입니다. DB 로딩은 숙소 상세 데이터를 읽는 로더의 실행 횟수이며, 로딩 한 번에 여러 SQL이 실행될 수 있습니다.
 
-quote 응답에는 `quote_expires_at`이 없습니다. 사용한 견적의 재사용은 차단하고, 같은 checkout
-멱등 키는 기존 예약을 반환합니다. 견적 데이터는 별도 보존 정책(`reservation.quote.retention`,
-기본 30일)에 따라 정리되며, 삭제된 견적은 새로 요청해야 합니다.
+## 목차
 
-공개 쓰기 API는 V1 하나로 통일했습니다. `POST /api/v1/reservation-quotes`로 견적을 만든 뒤
-`Idempotency-Key`와 `quote_uid`로 `POST /api/v1/reservations`를 호출합니다. 유료 예약은
-`POST /api/v1/reservations/{reservationUid}/payment-attempts`가 발급한 토큰을
-`POST /api/v1/payments/confirm`에 반드시 전달해야 합니다. 날짜·가격·쿠폰을 직접 받던 예약
-생성 body와 예약 전용 V2 경로는 제공하지 않습니다.
+- [시스템 아키텍처](#시스템-아키텍처)
+- [숙소 상세 캐시](#숙소-상세-캐시)
+- [쿠폰 동시 발급](#쿠폰-동시-발급)
+- [쿼리 관측과 리뷰 집계](#쿼리-관측과-리뷰-집계)
+- [ALB·ASG 자동 확장](#albasg-자동-확장)
 
-숙박일 `[checkIn, checkOut)`은 `accommodation_inventory_day`의 날짜 행으로 미리 준비합니다.
-checkout은 요청한 날짜 행만 PK 순서로 `FOR UPDATE NOWAIT`하고, 모두 사용 가능할 때에만 한
-reservation owner에게 원자적으로 할당합니다. 결제 대기는 `HOLD(expiresAt)`, 결제 시작 이후와
-확정·취소 처리 중은 `OCCUPIED`입니다. 만료된 HOLD는 새 checkout이 같은 잠금 안에서 인수할 수
-있고, 오래된 cleanup은 여전히 자신이 소유한 HOLD만 해제합니다.
+## 시스템 아키텍처
 
-`NOWAIT` 잠금 경합은 기다리지 않고 `503/R025`와 `Retry-After`를 반환합니다. 재시도 시 날짜가
-이미 할당됐다면 `R002`로 응답합니다. 여러 인스턴스가 실행돼도 최종 판정은 MySQL 날짜 행과
-트랜잭션이 담당합니다. Redis는 세션·캐시·쿠폰 같은 별도 용도에 남아 있지만 예약 정합성 락으로
-사용하지 않습니다.
+### 서비스 구성
 
-- 권위 트랜잭션: [ReservationTransactionService.java](src/main/java/kr/kro/airbob/domain/reservation/service/ReservationTransactionService.java)
-- 날짜 inventory 전이: [ReservationInventoryService.java](src/main/java/kr/kro/airbob/domain/reservation/inventory/ReservationInventoryService.java)
-- seed·readiness: [AccommodationInventoryStartupBootstrap.java](src/main/java/kr/kro/airbob/domain/reservation/inventory/AccommodationInventoryStartupBootstrap.java)
-- 동일 날짜 300개 요청 회귀 테스트: [ReservationConcurrencyTest.java](src/test/java/kr/kro/airbob/domain/reservation/ReservationConcurrencyTest.java)
+![Airbob 서비스 구성도](https://github.com/user-attachments/assets/5403df04-380b-4ec4-874e-c4e6c6176a16)
+
+### 인프라 구성
+
+애플리케이션 서버는 **c6i.large**(2 vCPU, 4 GiB)를 사용했습니다. CPU 크레딧을 사용하지 않는 인스턴스를 선택해, 장시간 부하에서도 크레딧 소진에 따른 성능 제한 없이 캐시·쿼리 개선과 Scale-Out에 따른 처리량·응답 시간 변화를 비교하고자 했습니다.
+
+![AWS 인프라 구성도 · AZ 분산 배치안](https://github.com/user-attachments/assets/afde963c-b9ff-4ba5-a7bc-b33818ac7b4d)
+> AWS 프리티어 크레딧 소진 이후에는 OCI에서 Docker Compose로 서비스를 운영하고 있습니다.  
+> 성능 실험이 필요할 때 이미지의 AWS 환경을 구성해 사용합니다.
+
+### ERD
+
+![Airbob ERD](https://github.com/user-attachments/assets/f72c32f1-82a2-47ba-93e4-524f5e78d0ef)
+
+> 가독성을 위해 이력(history) 테이블은 생략했습니다.
+
+## 기술적 의사결정
+
+### 숙소 상세 캐시
+
+캐시를 적용하면 반복 조회의 DB 비용은 줄어들지만, 캐시가 비어 있을 때 같은 숙소로 요청이 몰리거나, Redis 장애로 요청이 DB에 우회하면 중복 조회가 다시 발생합니다.
+
+| 상황 | 조정 방법 | 적용 범위 |
+|---|---|---|
+| Redis 정상 · 캐시 미스 | 숙소별 분산 락을 획득한 뒤 캐시 재확인 | 여러 앱 인스턴스의 캐시 로딩 |
+| Redis 조회 실패 · 락 획득 실패 | 같은 숙소의 진행 중인 조회 결과를 `CompletableFuture`로 공유 | 같은 JVM 안의 DB 우회 조회 |
+| DB 조회 중 데이터 변경 | 조회 시작 시 발급한 permit이 유효할 때만 캐시 저장 | 무효화 이전 조회의 뒤늦은 캐시 쓰기 |
+
+락을 얻은 요청도 캐시를 다시 확인합니다. 기다리는 동안 앞선 요청이 값을 채웠다면 DB 조회를 생략할 수 있기 때문입니다. 락 대기 시간 초과 시에도 캐시를 한 번 더 확인한 뒤 우회 여부를 결정합니다.
+
+Redis를 사용할 수 없는 경로에서는 [같은 JVM 안의 요청을 병합](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailLocalLoadCoordinator.java)합니다. 서로 다른 앱의 조회까지 합칠 수는 없으며, 선행 조회 대기가 설정된 상한을 넘으면 해당 요청은 독립적으로 DB를 조회합니다. 이 경로는 캐시에 결과를 쓰지 않습니다.
+
+#### 캐시를 삭제한 뒤에도 예전 값이 돌아올 수 있다
+
+조회 A가 DB에서 예전 데이터를 읽고 캐시 저장 직전에 멈췄다고 가정합니다. 그사이 변경 B가 DB를 수정하고 캐시를 삭제해도, A가 뒤늦게 예전 값을 저장하면 다음 요청부터 다시 오래된 데이터를 읽게 됩니다.
+
+이를 막기 위해 DB 조회 전에 고유한 쓰기 허가인 `permit`을 Redis에 기록합니다. 무효화는 캐시와 permit을 함께 삭제하고, 조회 결과 저장은 permit 비교와 쓰기를 하나의 Lua 연산으로 수행합니다.
 
 ```mermaid
 sequenceDiagram
-    actor A as 사용자 A
-    actor B as 사용자 B
-    participant API as Reservation API
+    participant A as 조회 A
+    participant R as 상세 캐시 Redis
     participant DB as MySQL
+    participant B as 변경 B
 
-    par 같은 숙소·날짜 요청
-        A->>API: quote 기반 checkout
-        B->>API: quote 기반 checkout
-    end
-    API->>DB: published accommodation FOR SHARE NOWAIT
-    API->>DB: A - requested inventory days FOR UPDATE NOWAIT
-    API->>DB: B - same inventory days NOWAIT → busy
-    API->>DB: A - reservation INSERT + days=HOLD + COMMIT
-    API-->>B: 503 R025 또는 재시도 시 R002
-    API-->>A: PAYMENT_PENDING + holdExpiresAt
+    A->>R: 캐시 미스 확인 · permit P 등록
+    A->>DB: 숙소 상세 조회
+    DB-->>A: 변경 전 데이터
+    Note over A: 캐시 저장 직전 지연
+
+    B->>DB: 업무 데이터 변경 · COMMIT
+    B->>R: after-commit 무효화
+    Note over R: Lua로 캐시와 permit을 함께 삭제
+
+    A->>R: permit P가 일치하면 결과 저장
+    R-->>A: permit이 사라졌으므로 저장 거부
 ```
 
-### 결제 승인·취소: 비동기 PaymentOperation 오케스트레이션
+permit 비교와 저장을 별도 요청으로 나누면 그 사이에 무효화가 끼어들 수 있어 [하나의 Lua 연산](src/main/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailRedisStore.java)으로 처리합니다. 무효화보다 늦게 끝난 조회가 캐시를 다시 채우지 못하는지는 [경합 테스트](src/test/java/kr/kro/airbob/domain/accommodation/cache/AccommodationDetailCacheInvalidationRaceIntegrationTest.java)로 확인합니다. 이미 시작한 조회에는 이전 데이터가 반환될 수 있지만, 그 결과가 캐시에 남아 후속 요청에 반복 제공되는 것을 막습니다.
 
-승인과 유료 예약 취소는 같은 `PaymentOperation` 상태 머신을 사용합니다. API 트랜잭션은
-예약 상태와 작업·outbox 행만 원자적으로 저장하고 HTTP 202를 반환합니다. worker는
-operation UID 단위 MySQL 실행 펜스를 획득하고 generation과 lease를 검증해 작업을 claim한
-뒤 DB 트랜잭션 밖에서 Toss Payments를 호출하며, 결과를 새 트랜잭션에서 원장·예약·쿠폰·
-검색 refresh와 함께 확정한 후 펜스를 반납합니다.
+### 쿠폰 동시 발급
 
-- 명령 생성: [PaymentOperationCommandService.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationCommandService.java), [PaymentCancellationCommandService.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentCancellationCommandService.java)
-- 외부 호출 실행: [PaymentOperationExecutor.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationExecutor.java)
-- 원자적 결과 반영: [PaymentOperationFinalizer.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationFinalizer.java)
-- lease·generation 복구: [PaymentOperationRecoveryService.java](src/main/java/kr/kro/airbob/domain/payment/service/PaymentOperationRecoveryService.java)
-- 관리자 reconciliation: [PaymentOperationAdminController.java](src/main/java/kr/kro/airbob/domain/payment/api/PaymentOperationAdminController.java)
-- 운영 절차: [payment-operation-runbook.md](docs/payment-operation-runbook.md)
+조건부 UPDATE는 수량을 안전하게 증가시킬 수 있지만, 같은 쿠폰의 모든 요청이 하나의 카운터 행을 수정합니다. 해당 행의 잠금이 커밋까지 유지되므로 동시 요청이 늘수록 같은 지점에 대기가 쌓입니다.
 
-```mermaid
-sequenceDiagram
-    actor User as 사용자
-    participant API as Payment API
-    participant DB as MySQL
-    participant CDC as Debezium
-    participant Kafka
-    participant Worker as PaymentOperation worker
-    participant PG as Toss Payments
-
-    User->>API: 승인 또는 취소 요청
-    API->>DB: 예약 잠금 + PaymentOperation/outbox 저장
-    API-->>User: 202 operation UID
-    DB-->>CDC: committed outbox INSERT
-    CDC->>Kafka: PAYMENT_OPERATION.events
-    Kafka->>Worker: wake-up signal
-    Worker->>DB: generation 검증 + lease claim
-    Worker->>PG: confirm/cancel/inquiry (DB tx 밖)
-    PG-->>Worker: provider result
-    Worker->>DB: payment·ledger·reservation·refresh 원자 반영
-    alt 응답 유실·일시 장애
-        Worker->>DB: WAITING_RETRY 또는 inquiry 전환
-        DB->>DB: recovery가 새 generation/outbox 생성
-    else 자동 판정 불가
-        Worker->>DB: MANUAL_REVIEW + audit + operator alert
-    end
-```
-
-`QUEUED`, `EXECUTING`, `WAITING_RETRY`, `APPLIED`, `DECLINED`, `MANUAL_REVIEW`가
-현재의 durable 상태입니다. Kafka 레코드는 상태 자체가 아니라 작업 실행을 깨우는
-신호이며, DLT에서도 동일 generation의 `QUEUED` 작업만 한 번 다음 generation으로
-재발행합니다.
-
-### DB 커밋과 메시지 발행: canonical outbox
-
-모든 통합 이벤트는 `messaging.event`의 descriptor/envelope/codec 계약과 canonical outbox
-schema를 사용합니다. 일반 도메인 이벤트는 `OutboxWriter` 포트로, 동시 중복 제거가 필요한
-운영 알림은 alert 전용 idempotent appender로 같은 outbox에 기록합니다. 비즈니스 변경과
-outbox INSERT는 같은 MySQL 트랜잭션에 있고, Debezium EventRouter가 destination·partition
-key·headers를 Kafka 레코드로 변환합니다. 전달은 at-least-once이므로 consumer는 중복을
-전제로 합니다.
-EventRouter는 `TopicNameMatches` predicate로 source outbox topic에만 적용되며 Debezium
-heartbeat와 connector metadata 레코드는 transform을 우회합니다.
-
-- 이벤트 계약: [IntegrationEvent.java](src/main/java/kr/kro/airbob/messaging/event/IntegrationEvent.java), [IntegrationEventCodec.java](src/main/java/kr/kro/airbob/messaging/event/IntegrationEventCodec.java)
-- outbox writer: [JpaOutboxWriter.java](src/main/java/kr/kro/airbob/messaging/outbox/infrastructure/jpa/JpaOutboxWriter.java)
-- Debezium 설정: [outbox-connector.json](debezium-config/outbox-connector.json)
-- Connect 기동 검증: [register-connector.sh](docker/debezium/register-connector.sh)
-- topic bootstrap: [init-topics.sh](docker/kafka/init-topics.sh)
-- OCI 배포는 기존 producer를 닫고 Flyway migration을 먼저 적용한 뒤 새 connector를 등록합니다.
+수량만큼 미사용 재고 행을 미리 준비하고, 각 요청이 잠기지 않은 행 하나를 가져가도록 변경했습니다. `SKIP LOCKED`로 이미 잠긴 행을 건너뛰며, 발급 경로에서 공유 카운터를 갱신하지 않습니다.
 
 ```mermaid
 flowchart LR
-    S["Domain transaction"] --> O[("MySQL outbox")]
-    O -->|binlog INSERT| D["Debezium EventRouter"]
-    D --> P["PAYMENT_OPERATION.events"]
-    D --> I["ACCOMMODATION_INDEX.events"]
-    D --> C["ACCOMMODATION_CACHE.events"]
-    D --> A["OPERATOR_ALERT.events"]
-    P --> PW["Payment worker"]
-    I --> IW["Index refresh listener"]
-    C --> CW["Detail cache invalidation listener"]
-    A --> AW["Operator alert listener"]
+    subgraph Before["변경 전 · 카운터 행 공유"]
+        direction TB
+        BA["요청 A"] -->|"UPDATE"| Counter[("쿠폰 카운터 행")]
+        BB["요청 B"] -->|"같은 행 잠금 대기"| Counter
+        BC["요청 C"] -->|"같은 행 잠금 대기"| Counter
+    end
+    subgraph After["변경 후 · 개별 재고 행 확보"]
+        direction TB
+        AA["요청 A"] -->|"잠금 획득"| U1[("재고 1")]
+        AB["요청 B"] -.->|"잠긴 행 건너뜀"| U1
+        AB -->|"다음 재고 잠금"| U2[("재고 2")]
+        AC["요청 C"] -->|"잠기지 않은 재고"| U3[("재고 3")]
+    end
+    Before -->|"재고 단위 변경"| After
+    classDef hot fill:#fff1f2,stroke:#e11d48,color:#881337
+    classDef unit fill:#ecfdf5,stroke:#059669,color:#064e3b
+    class Counter hot
+    class U1,U2,U3 unit
 ```
 
-운영 topic은 다음 네 스트림 각각의 main, `.RETRY`, `.DLT`로 고정됩니다.
+[발급 트랜잭션](src/main/java/kr/kro/airbob/domain/coupon/service/CouponSkipLockedIssueService.java)에서는 쿠폰 정책을 공유 잠금으로 확인한 뒤, 선택한 재고 행의 DELETE와 `member_coupon` INSERT를 함께 커밋합니다. 회원·쿠폰 유니크 제약을 위반하거나 저장이 실패하면 재고 삭제도 롤백됩니다.
 
-- `PAYMENT_OPERATION.events`
-- `ACCOMMODATION_INDEX.events`
-- `ACCOMMODATION_CACHE.events`
-- `OPERATOR_ALERT.events`
+#### 빈 조회와 품절을 구분하기
 
-outbox 테이블에는 Kafka 전달 완료 column이 없습니다. 따라서 DB의 행 수·가장 오래된
-행은 delivery backlog가 아니라 retention footprint이며, 전달 상태는 Connect task,
-Debezium heartbeat, topic 입력과 consumer lag로 판단합니다. 자세한 내용은
-[outbox-operations.md](docs/outbox-operations.md)를 참고합니다.
+마지막 재고를 다른 트랜잭션이 잠그고 있다면, `SKIP LOCKED` 조회에는 아무것도 나오지 않을 수 있습니다. 그 트랜잭션이 롤백할 가능성이 있으므로 이 결과만으로 품절을 확정할 수 없습니다.
 
-### 검색 색인: 한 가지 refresh 신호와 MySQL snapshot
+1. 재고를 확보하지 못한 발급 시도를 롤백합니다.
+2. 새 트랜잭션의 스냅샷에서 중복 발급 여부·정책·잔여 재고를 다시 확인합니다.
+3. 재고가 없으면 품절(`CP002`), 재고가 남아 있으면 횟수와 시간 예산 안에서 재시도합니다. 한도를 넘기면 재시도 가능한 경합(`CP012`)으로 응답합니다.
 
-숙소·이미지·리뷰·예약 변경은 모두 `AccommodationSearchRefreshRequestedV1`로 수렴합니다.
-이벤트 payload는 숙소 UID만 전달하고, consumer가 현재 MySQL snapshot을 다시 구성합니다.
-현재 상태가 `PUBLISHED`면 문서를 완전히 덮어쓰고, 누락·미게시·삭제 상태면 Elasticsearch
-문서를 제거합니다. 과거 이벤트가 늦게 도착해도 이벤트 시점의 데이터를 덮어쓰지 않습니다.
+마지막 재고를 다른 요청이 잠근 상태, 중복 발급, 저장 실패 시 재고 복구는 [MySQL 동시성 테스트](src/test/java/kr/kro/airbob/domain/coupon/CouponConcurrencyTest.java)에서 확인합니다.
 
-- refresh 이벤트: [AccommodationSearchRefreshRequestedV1.java](src/main/java/kr/kro/airbob/search/messaging/event/AccommodationSearchRefreshRequestedV1.java)
-- Kafka listener: [AccommodationSearchRefreshListener.java](src/main/java/kr/kro/airbob/search/messaging/kafka/AccommodationSearchRefreshListener.java)
-- MySQL snapshot: [AccommodationSearchSnapshotReader.java](src/main/java/kr/kro/airbob/search/service/AccommodationSearchSnapshotReader.java)
-- ES save/delete: [AccommodationIndexingService.java](src/main/java/kr/kro/airbob/search/service/AccommodationIndexingService.java)
-- alias bootstrap: [ElasticsearchAccommodationIndexAliasBootstrap.java](src/main/java/kr/kro/airbob/search/infrastructure/elasticsearch/ElasticsearchAccommodationIndexAliasBootstrap.java)
-- 운영 절차: [accommodation-indexing-operations.md](docs/accommodation-indexing-operations.md), [logstash-reindex.md](docs/logstash-reindex.md)
+현재 기본값은 대리 키와 `REPEATABLE_READ`입니다. 복합 키 및 `READ_COMMITTED`도 비교했지만 기존 선택을 바꿀 만큼 일관된 이점을 확인하지 못했습니다. 재고 수량에 비례하는 저장 공간과 사전 준비 비용이 필요하며, 발급 시작 후에는 수량 변경이나 재입고를 허용하지 않습니다.
+
+같은 AWS 환경의 앱 1대에서 조건부 UPDATE 125 RPS, 대리 키 RR 500 RPS가 각각 120초씩 3회 기준을 통과했습니다. 성공 p95 중앙값은 각각 57.6ms와 56.9ms였습니다.
+
+### 쿼리 관측과 리뷰 집계
+
+HTTP 요청 단위로 Hibernate SQL 발생 횟수를 집계하고 응답 시간과 함께 관측했습니다. 최근 본 숙소의 주소 접근에 따른 추가 SELECT는 DTO 프로젝션과 JOIN으로, 위시리스트 삭제의 개별 DELETE는 벌크 삭제로 줄였습니다.
+
+리뷰 집계는 다른 종류의 문제였습니다. 이미 여러 숙소의 리뷰를 묶어 한 번에 조회해도, 매 요청마다 원본 리뷰를 읽고 COUNT·AVG를 계산하는 비용이 남았습니다. 이 경우에는 쿼리 횟수와 함께 실행 시간·읽은 행 수를 봐야 했습니다.
 
 ```mermaid
 flowchart LR
-    C["숙소·이미지·리뷰·예약 변경"] --> O[("outbox refresh V1")]
-    O --> D["Debezium"]
-    D --> K["ACCOMMODATION_INDEX.events"]
-    K --> L["AccommodationSearchRefreshListener"]
-    L --> M[("MySQL current snapshot")]
-    M -->|PUBLISHED| E["ES alias write index: save"]
-    M -->|missing/unpublished/deleted| X["ES alias write index: delete"]
-    K --> R[".RETRY"]
-    R --> Q[".DLT + durable operator alert"]
+    subgraph Before["원본 리뷰를 매번 집계"]
+        direction TB
+        BQ["목록 조회 요청"] --> BR[("원본 리뷰")]
+        BR --> BA["숙소별 COUNT · AVG"]
+        BA --> BO["목록 응답"]
+    end
+    subgraph After["변경 시 요약 갱신 · 조회 시 JOIN"]
+        direction TB
+        Change["리뷰 생성 · 수정 · 삭제"] --> TX["같은 DB 트랜잭션"]
+        TX --> AR[("원본 리뷰 변경")]
+        TX --> Summary[("숙소별 리뷰 요약 증분 갱신")]
+        AQ["목록 조회 요청"] --> Join["숙소 + 요약 JOIN"]
+        Summary --> Join
+        Join --> AO["목록 응답"]
+    end
+    Before -->|"집계 시점 변경"| After
 ```
 
-전체 재색인은 live index를 직접 덮지 않습니다. 같은 mapping으로 version index를 만든 뒤
-검증하고 alias를 원자 전환하며, bootstrap은 alias가 정확히 하나의 write index를 가리키는지
-확인한 뒤 consumer를 시작합니다.
+요약 테이블에 리뷰 수·평점 합계·평균을 유지하고, [리뷰 변경과 요약 갱신](src/main/java/kr/kro/airbob/domain/review/repository/AccommodationReviewSummaryRepository.java)을 같은 트랜잭션에서 처리합니다. 반복 읽기의 계산은 줄어들지만, 리뷰를 쓸 때 요약 갱신 비용이 추가되고 같은 숙소의 요약 행에서 경합이 생길 수 있습니다.
 
-### 숙소 상세 캐시: 커밋 직후 삭제 + durable 재시도
+위시리스트 숙소 50개·20 RPS의 AWS 비교에서 3회 p95 중앙값은 **18.42ms → 11.03ms**였습니다. 최근 본 숙소의 N+1 제거와 리뷰 요약 적용은 각각 따로 측정했습니다. 
 
-숙소·이미지·리뷰 변경은 `AccommodationDetailCacheInvalidationPublisher` 포트 하나를
-호출합니다. outbox adapter가 원본 트랜잭션에 `AccommodationDetailCacheInvalidationRequestedV1`을
-기록하고 로컬 after-commit 이벤트도 함께 예약합니다. 정상 경로에서는 커밋 직후 빠르게
-삭제하고, Redis 장애나 프로세스 종료로 놓친 삭제는 `ACCOMMODATION_CACHE.events` 전용
-consumer가 retry/DLT를 거쳐 다시 수행합니다. 일반 Redis와 상세 캐시 Redis는 별도 연결을
-사용합니다.
+요청별 SQL 계측은 Hibernate를 거치는 범위입니다. 직접 JDBC나 백그라운드 작업은 이 지표에 포함되지 않으므로 필요한 실험에서는 MySQL 실행계획과 statement digest를 함께 확인합니다.
 
-- application port: [AccommodationDetailCacheInvalidationPublisher.java](src/main/java/kr/kro/airbob/domain/accommodation/cache/invalidation/AccommodationDetailCacheInvalidationPublisher.java)
-- outbox adapter: [OutboxAccommodationDetailCacheInvalidationPublisher.java](src/main/java/kr/kro/airbob/domain/accommodation/cache/messaging/outbox/OutboxAccommodationDetailCacheInvalidationPublisher.java)
-- Kafka listener: [AccommodationDetailCacheInvalidationKafkaListener.java](src/main/java/kr/kro/airbob/domain/accommodation/cache/messaging/kafka/AccommodationDetailCacheInvalidationKafkaListener.java)
+### ALB·ASG 자동 확장
 
-### 운영자 알림도 durable event로 처리
+AWS 실험 환경에서는 CPU 목표 50%로 앱을 1~4대 자동 확장·축소했습니다. 증설된 앱이 요청을 받기 시작한 직후 CPU와 응답 지연이 높아지는 구간을 관측해, ALB Slow Start 120초로 신규 앱의 요청 비중을 점진적으로 늘렸습니다.
 
-결제 manual review, payment/search/cache DLT 같은 운영 사건은 요청 스레드에서 Slack을 직접
-호출하지 않습니다. 원인 트랜잭션과 같은 outbox에 `OperatorAlertRequestedV1`을 기록하고
-전용 main/retry/DLT consumer가 전달합니다. 알림에는 닫힌 kind/summary와 안전한 source
-좌표만 포함합니다.
-
-- 이벤트와 계약: [OperatorAlertRequestedV1.java](src/main/java/kr/kro/airbob/messaging/alert/event/OperatorAlertRequestedV1.java)
-- durable enqueue: [OperatorAlertEnqueueService.java](src/main/java/kr/kro/airbob/messaging/alert/application/OperatorAlertEnqueueService.java)
-- Kafka delivery: [OperatorAlertKafkaListener.java](src/main/java/kr/kro/airbob/messaging/alert/infrastructure/kafka/OperatorAlertKafkaListener.java)
-- 운영 절차: [operator-alert-operations.md](docs/operator-alert-operations.md)
-
-## 그 밖의 구현
-
-- `@CursorParam`과 ArgumentResolver 기반 커서 페이지네이션
-- 리뷰 요약을 별도 테이블에 비정규화하고 원자적 증감으로 목록 집계 제거
-- 최근 본 숙소를 Redis Sorted Set으로 저장해 순서·trim·TTL 처리
-- 위시리스트 목록의 숙소 정보를 비정규화해 조회 fan-out 축소
-- 예약 만료 history의 `IDENTITY` N회 INSERT를 JDBC batch로 전환
-- 성능 실험용 profile과 k6 도구
-  - [load-test/README.md](load-test/README.md)
-
-## 패키지 구조
-
-```text
-kr.kro.airbob
-├── common/                 공통 응답·예외·감사·관측성
-├── config/                 Web, JPA, Redis, Elasticsearch, scheduling 설정
-├── cursor/                 커서 페이지네이션
-├── domain/
-│   ├── reservation/        DB-authoritative 예약·만료 cleanup
-│   ├── payment/            PaymentOperation, gateway, recovery, admin resolution
-│   ├── accommodation/      숙소 쓰기 모델과 상세 캐시 invalidation/messaging
-│   └── ...                 member, coupon, review, wishlist 등
-├── messaging/
-│   ├── event/              canonical integration-event 계약
-│   ├── outbox/             transactional outbox와 retention monitoring
-│   ├── alert/              durable operator-alert pipeline
-│   └── infrastructure/     공통 Kafka retry/header 인프라
-└── search/                 MySQL snapshot 기반 Elasticsearch 검색·색인
+```mermaid
+flowchart LR
+    Load["k6 부하 발생기"] --> ALB["ALB"]
+    ALB --> Existing["기존 앱"]
+    ALB -->|"Slow Start 120초"| New["신규 앱"]
+    Existing --> Metrics["CPU 관측"]
+    New --> Metrics
+    Metrics --> Policy["ASG<br/>목표 CPU 50% · 앱 1~4대"]
+    Policy -.->|"앱 수 조절"| Existing
+    Policy -.->|"앱 증설"| New
 ```
 
-## 로컬 실행
+ASG는 필요한 앱 수를 조절하고, Slow Start는 새로 등록된 앱에 요청이 배분되는 속도를 조절합니다.
 
-로컬 인프라는 `docker-compose.yml` 하나로 구성하며 MySQL 8.4.11을 사용합니다.
-`.env`에 기존 데이터 볼륨 이름(`AIRBOB_MYSQL_DATA_VOLUME`), MySQL 비밀번호 파일이 있는
-디렉터리(`AIRBOB_MYSQL_PRIVATE_DIR`), ES 스냅샷 디렉터리(`AIRBOB_NATIVE_REPOSITORY`)를 설정합니다.
-MySQL은 비밀번호 디렉터리의 `root-password` 파일을 읽습니다. 기존 데이터 볼륨을 연결할 때는
-그 DB의 비밀번호를 그대로 사용해야 합니다. `.env`와 비밀번호 파일은 Git에서 제외합니다.
+| 같은 부하 단계의 비교 | CPU 50% 정책 | CPU 50% + Slow Start 120초 |
+|---|---:|---:|
+| 증가 구간 p95 | 1,400ms | 155ms |
+| 증가 구간 완료 RPS | 3,401.3 | 3,499.7 |
+| 전체 60분 미시작 요청 | 68,487건 | 0건 |
 
-```bash
-# 외부 인프라 기동 및 topic/connector bootstrap
-docker compose up -d
+앱 1대 고정 구성과 최종 구성의 동일한 6,000 RPS·15분 피크 구간을 비교하면 p95는 **803ms → 7ms**, 완료 처리량은 **5,727.3 → 6,000.0 RPS**였습니다. 최종 구성은 해당 구간에 2대에서 4대로 확장했으며, 유입 감소 후에는 다시 1대로 돌아왔습니다.
 
-# 컴파일
-./gradlew compileJava
+각 구성은 1회 실행했고, 추가 앱이 준비된 시점과 실제 앱 수에도 차이가 있었습니다. 미시작 요청은 p95에 포함되지 않으므로 응답 시간과 완료 처리량, 앱 수를 함께 비교했습니다. 
 
-# 전체 테스트
-./gradlew test
-
-# 애플리케이션 실행
-./gradlew bootRun
-```
-
-테스트 profile은 Kafka listener 자동 기동과 scheduling을 비활성화합니다. MySQL·Redis·
-Elasticsearch 정합성 테스트는 Testcontainers를 사용합니다.
-
-## 운영 문서
-
-- [문서 목록](docs/README.md): 예약·결제·검색·메시징 운영과 ERD
-- [B 데이터셋 복원과 개발 환경 인수](docs/performance/global-b-operations.md)
-- [AWS 성능 실험 환경 운영](docs/performance/aws-performance-lab.md)
-
-## API Reference
-
-<p align="center">
-  🌐 <a href="https://fourth-surprise-78f.notion.site/20dde1bad162819b9b79fa6b322b00a6?v=20dde1bad1628104a934000c7f90b893" target="_blank"><b>Notion API 명세서</b></a>
-</p>

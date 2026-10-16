@@ -1,0 +1,512 @@
+[
+  {
+    "case": "detail-heavy",
+    "round": 1,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:27:32.623935778Z",
+    "windowFinishedAt": "2026-10-12T04:28:27.691592619Z",
+    "statements": [
+      {
+        "calls": 1101,
+        "totalPicoseconds": 426703812000,
+        "rowsExamined": 1101,
+        "rowsSent": 1101,
+        "digest": "db19ee2ea2f448d96dc127bb442d3d4dade5b3c6389272ade2d20c7687a14689",
+        "sqlText": "SELECT `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `description` , `a1_0` . `type` , `a1_0` . `base_price` , `a1_0` . `currency` , `a1_0` . `check_in_time` , `a1_0` . `check_out_time` , `a1_0` . `time_zone_id` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `a2_0` . `latitude` , `a2_0` . `longitude` , `m1_0` . `id` , `m1_0` . `nickname` , `m1_0` . `thumbnail_image_url` , `op1_0` . `max_occupancy` , `op1_0` . `infant_occupancy` , `op1_0` . `pet_occupancy` , `ars1_0` . `total_review_count` , `ars1_0` . `average_rating` FROM `accommodation` `a1_0` LEFT JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `occupancy_policy` `op1_0` ON `op1_0` . `id` = `a1_0` . `occupancy_policy_id` LEFT JOIN MEMBER `m1_0` ON `m1_0` . `id` = `a1_0` . `member_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `a1_0` . `id` WHERE `a1_0` . `id` = ? AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 0.3875602288828338,
+        "rowsExaminedPerCall": 1.0
+      }
+    ]
+  },
+  {
+    "case": "detail-heavy",
+    "round": 1,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:25:52.489460486Z",
+    "windowFinishedAt": "2026-10-12T04:26:47.565606273Z",
+    "statements": [
+      {
+        "calls": 1102,
+        "totalPicoseconds": 1359731196000,
+        "rowsExamined": 266684,
+        "rowsSent": 1102,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 1.2338758584392013,
+        "rowsExaminedPerCall": 242.0
+      }
+    ]
+  },
+  {
+    "case": "detail-heavy",
+    "round": 2,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:29:07.740861587Z",
+    "windowFinishedAt": "2026-10-12T04:30:02.820509492Z",
+    "statements": [
+      {
+        "calls": 1102,
+        "totalPicoseconds": 660757641000,
+        "rowsExamined": 1102,
+        "rowsSent": 1102,
+        "digest": "db19ee2ea2f448d96dc127bb442d3d4dade5b3c6389272ade2d20c7687a14689",
+        "sqlText": "SELECT `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `description` , `a1_0` . `type` , `a1_0` . `base_price` , `a1_0` . `currency` , `a1_0` . `check_in_time` , `a1_0` . `check_out_time` , `a1_0` . `time_zone_id` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `a2_0` . `latitude` , `a2_0` . `longitude` , `m1_0` . `id` , `m1_0` . `nickname` , `m1_0` . `thumbnail_image_url` , `op1_0` . `max_occupancy` , `op1_0` . `infant_occupancy` , `op1_0` . `pet_occupancy` , `ars1_0` . `total_review_count` , `ars1_0` . `average_rating` FROM `accommodation` `a1_0` LEFT JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `occupancy_policy` `op1_0` ON `op1_0` . `id` = `a1_0` . `occupancy_policy_id` LEFT JOIN MEMBER `m1_0` ON `m1_0` . `id` = `a1_0` . `member_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `a1_0` . `id` WHERE `a1_0` . `id` = ? AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 0.5995985852994555,
+        "rowsExaminedPerCall": 1.0
+      }
+    ]
+  },
+  {
+    "case": "detail-heavy",
+    "round": 2,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:30:47.875836863Z",
+    "windowFinishedAt": "2026-10-12T04:31:42.940581641Z",
+    "statements": [
+      {
+        "calls": 1101,
+        "totalPicoseconds": 1401851265000,
+        "rowsExamined": 266442,
+        "rowsSent": 1101,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 1.2732527384196186,
+        "rowsExaminedPerCall": 242.0
+      }
+    ]
+  },
+  {
+    "case": "detail-heavy",
+    "round": 3,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:34:03.099996928Z",
+    "windowFinishedAt": "2026-10-12T04:34:58.174763265Z",
+    "statements": [
+      {
+        "calls": 1101,
+        "totalPicoseconds": 442271286000,
+        "rowsExamined": 1101,
+        "rowsSent": 1101,
+        "digest": "db19ee2ea2f448d96dc127bb442d3d4dade5b3c6389272ade2d20c7687a14689",
+        "sqlText": "SELECT `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `description` , `a1_0` . `type` , `a1_0` . `base_price` , `a1_0` . `currency` , `a1_0` . `check_in_time` , `a1_0` . `check_out_time` , `a1_0` . `time_zone_id` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `a2_0` . `latitude` , `a2_0` . `longitude` , `m1_0` . `id` , `m1_0` . `nickname` , `m1_0` . `thumbnail_image_url` , `op1_0` . `max_occupancy` , `op1_0` . `infant_occupancy` , `op1_0` . `pet_occupancy` , `ars1_0` . `total_review_count` , `ars1_0` . `average_rating` FROM `accommodation` `a1_0` LEFT JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `occupancy_policy` `op1_0` ON `op1_0` . `id` = `a1_0` . `occupancy_policy_id` LEFT JOIN MEMBER `m1_0` ON `m1_0` . `id` = `a1_0` . `member_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `a1_0` . `id` WHERE `a1_0` . `id` = ? AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 0.40169962397820164,
+        "rowsExaminedPerCall": 1.0
+      }
+    ]
+  },
+  {
+    "case": "detail-heavy",
+    "round": 3,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:32:22.985904291Z",
+    "windowFinishedAt": "2026-10-12T04:33:18.050133806Z",
+    "statements": [
+      {
+        "calls": 1101,
+        "totalPicoseconds": 1379197183000,
+        "rowsExamined": 266442,
+        "rowsSent": 1101,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 1.2526768237965487,
+        "rowsExaminedPerCall": 242.0
+      }
+    ]
+  },
+  {
+    "case": "wishlist-heavy-50",
+    "round": 1,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:37:18.332951216Z",
+    "windowFinishedAt": "2026-10-12T04:38:13.401880078Z",
+    "statements": [
+      {
+        "calls": 1102,
+        "totalPicoseconds": 254352390000,
+        "rowsExamined": 1102,
+        "rowsSent": 1102,
+        "digest": "a66bd5e9308c63628b0bfb4c20df1b94221b9f51e2f48467b0366548df0358e3",
+        "sqlText": "SELECT `w1_0` . `name` , `w1_0` . `member_id` FROM `wishlist` `w1_0` WHERE `w1_0` . `id` = ? AND `w1_0` . `status` = ?",
+        "meanExecutionMs": 0.23080979128856627,
+        "rowsExaminedPerCall": 1.0
+      },
+      {
+        "calls": 1102,
+        "totalPicoseconds": 1949958603000,
+        "rowsExamined": 465044,
+        "rowsSent": 56202,
+        "digest": "5ae1df097680b943d2c1ee0847f95f18c34f66782b6e75e6a1afaadb034365da",
+        "sqlText": "SELECT `wa1_0` . `id` , `wa1_0` . `memo` , `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `ars1_0` . `average_rating` , `ars1_0` . `total_review_count` , `wa1_0` . `created_at` FROM `wishlist_accommodation` `wa1_0` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `wa1_0` . `accommodation_id` WHERE `wa1_0` . `wishlist_id` = ? AND `a1_0` . `status` = ? ORDER BY `wa1_0` . `created_at` DESC , `wa1_0` . `id` DESC LIMIT ?",
+        "meanExecutionMs": 1.7694724165154265,
+        "rowsExaminedPerCall": 422.0
+      }
+    ]
+  },
+  {
+    "case": "wishlist-heavy-50",
+    "round": 1,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:35:43.226891147Z",
+    "windowFinishedAt": "2026-10-12T04:36:38.290125976Z",
+    "statements": [
+      {
+        "calls": 1101,
+        "totalPicoseconds": 6344856988000,
+        "rowsExamined": 1294776,
+        "rowsSent": 51747,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 5.762812886466848,
+        "rowsExaminedPerCall": 1176.0
+      },
+      {
+        "calls": 1101,
+        "totalPicoseconds": 240163549000,
+        "rowsExamined": 1101,
+        "rowsSent": 1101,
+        "digest": "a66bd5e9308c63628b0bfb4c20df1b94221b9f51e2f48467b0366548df0358e3",
+        "sqlText": "SELECT `w1_0` . `name` , `w1_0` . `member_id` FROM `wishlist` `w1_0` WHERE `w1_0` . `id` = ? AND `w1_0` . `status` = ?",
+        "meanExecutionMs": 0.2181321970935513,
+        "rowsExaminedPerCall": 1.0
+      },
+      {
+        "calls": 1101,
+        "totalPicoseconds": 1699499315000,
+        "rowsExamined": 411774,
+        "rowsSent": 56151,
+        "digest": "b286bef0eb08663649fb34fd69832e7fc0770057442b74277b9f4c71f4df1f72",
+        "sqlText": "SELECT `wa1_0` . `id` , `wa1_0` . `memo` , `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , ?, ... , `wa1_0` . `created_at` FROM `wishlist_accommodation` `wa1_0` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` WHERE `wa1_0` . `wishlist_id` = ? AND `a1_0` . `status` = ? ORDER BY `wa1_0` . `created_at` DESC , `wa1_0` . `id` DESC LIMIT ?",
+        "meanExecutionMs": 1.5435961080835605,
+        "rowsExaminedPerCall": 374.0
+      }
+    ]
+  },
+  {
+    "case": "wishlist-heavy-50",
+    "round": 2,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:38:58.481322217Z",
+    "windowFinishedAt": "2026-10-12T04:39:53.558001480Z",
+    "statements": [
+      {
+        "calls": 1102,
+        "totalPicoseconds": 229865798000,
+        "rowsExamined": 1102,
+        "rowsSent": 1102,
+        "digest": "a66bd5e9308c63628b0bfb4c20df1b94221b9f51e2f48467b0366548df0358e3",
+        "sqlText": "SELECT `w1_0` . `name` , `w1_0` . `member_id` FROM `wishlist` `w1_0` WHERE `w1_0` . `id` = ? AND `w1_0` . `status` = ?",
+        "meanExecutionMs": 0.20858965335753177,
+        "rowsExaminedPerCall": 1.0
+      },
+      {
+        "calls": 1102,
+        "totalPicoseconds": 1931886109000,
+        "rowsExamined": 465044,
+        "rowsSent": 56202,
+        "digest": "5ae1df097680b943d2c1ee0847f95f18c34f66782b6e75e6a1afaadb034365da",
+        "sqlText": "SELECT `wa1_0` . `id` , `wa1_0` . `memo` , `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `ars1_0` . `average_rating` , `ars1_0` . `total_review_count` , `wa1_0` . `created_at` FROM `wishlist_accommodation` `wa1_0` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `wa1_0` . `accommodation_id` WHERE `wa1_0` . `wishlist_id` = ? AND `a1_0` . `status` = ? ORDER BY `wa1_0` . `created_at` DESC , `wa1_0` . `id` DESC LIMIT ?",
+        "meanExecutionMs": 1.7530726941923775,
+        "rowsExaminedPerCall": 422.0
+      }
+    ]
+  },
+  {
+    "case": "wishlist-heavy-50",
+    "round": 2,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:40:33.613844167Z",
+    "windowFinishedAt": "2026-10-12T04:41:28.679227655Z",
+    "statements": [
+      {
+        "calls": 1102,
+        "totalPicoseconds": 6459679809000,
+        "rowsExamined": 1295952,
+        "rowsSent": 51794,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 5.86177841107078,
+        "rowsExaminedPerCall": 1176.0
+      },
+      {
+        "calls": 1102,
+        "totalPicoseconds": 237733005000,
+        "rowsExamined": 1102,
+        "rowsSent": 1102,
+        "digest": "a66bd5e9308c63628b0bfb4c20df1b94221b9f51e2f48467b0366548df0358e3",
+        "sqlText": "SELECT `w1_0` . `name` , `w1_0` . `member_id` FROM `wishlist` `w1_0` WHERE `w1_0` . `id` = ? AND `w1_0` . `status` = ?",
+        "meanExecutionMs": 0.21572867967332124,
+        "rowsExaminedPerCall": 1.0
+      },
+      {
+        "calls": 1102,
+        "totalPicoseconds": 1729373876000,
+        "rowsExamined": 412148,
+        "rowsSent": 56202,
+        "digest": "b286bef0eb08663649fb34fd69832e7fc0770057442b74277b9f4c71f4df1f72",
+        "sqlText": "SELECT `wa1_0` . `id` , `wa1_0` . `memo` , `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , ?, ... , `wa1_0` . `created_at` FROM `wishlist_accommodation` `wa1_0` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` WHERE `wa1_0` . `wishlist_id` = ? AND `a1_0` . `status` = ? ORDER BY `wa1_0` . `created_at` DESC , `wa1_0` . `id` DESC LIMIT ?",
+        "meanExecutionMs": 1.5693047876588022,
+        "rowsExaminedPerCall": 374.0
+      }
+    ]
+  },
+  {
+    "case": "wishlist-heavy-50",
+    "round": 3,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:43:53.846229510Z",
+    "windowFinishedAt": "2026-10-12T04:44:48.902434256Z",
+    "statements": [
+      {
+        "calls": 1102,
+        "totalPicoseconds": 248795014000,
+        "rowsExamined": 1102,
+        "rowsSent": 1102,
+        "digest": "a66bd5e9308c63628b0bfb4c20df1b94221b9f51e2f48467b0366548df0358e3",
+        "sqlText": "SELECT `w1_0` . `name` , `w1_0` . `member_id` FROM `wishlist` `w1_0` WHERE `w1_0` . `id` = ? AND `w1_0` . `status` = ?",
+        "meanExecutionMs": 0.22576680036297642,
+        "rowsExaminedPerCall": 1.0
+      },
+      {
+        "calls": 1102,
+        "totalPicoseconds": 1991495842000,
+        "rowsExamined": 465044,
+        "rowsSent": 56202,
+        "digest": "5ae1df097680b943d2c1ee0847f95f18c34f66782b6e75e6a1afaadb034365da",
+        "sqlText": "SELECT `wa1_0` . `id` , `wa1_0` . `memo` , `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `ars1_0` . `average_rating` , `ars1_0` . `total_review_count` , `wa1_0` . `created_at` FROM `wishlist_accommodation` `wa1_0` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `wa1_0` . `accommodation_id` WHERE `wa1_0` . `wishlist_id` = ? AND `a1_0` . `status` = ? ORDER BY `wa1_0` . `created_at` DESC , `wa1_0` . `id` DESC LIMIT ?",
+        "meanExecutionMs": 1.8071650108892923,
+        "rowsExaminedPerCall": 422.0
+      }
+    ]
+  },
+  {
+    "case": "wishlist-heavy-50",
+    "round": 3,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:42:13.741490757Z",
+    "windowFinishedAt": "2026-10-12T04:43:08.799866586Z",
+    "statements": [
+      {
+        "calls": 1101,
+        "totalPicoseconds": 6545012361000,
+        "rowsExamined": 1294776,
+        "rowsSent": 51747,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 5.944607049046321,
+        "rowsExaminedPerCall": 1176.0
+      },
+      {
+        "calls": 1101,
+        "totalPicoseconds": 285444943000,
+        "rowsExamined": 1101,
+        "rowsSent": 1101,
+        "digest": "a66bd5e9308c63628b0bfb4c20df1b94221b9f51e2f48467b0366548df0358e3",
+        "sqlText": "SELECT `w1_0` . `name` , `w1_0` . `member_id` FROM `wishlist` `w1_0` WHERE `w1_0` . `id` = ? AND `w1_0` . `status` = ?",
+        "meanExecutionMs": 0.2592597120799274,
+        "rowsExaminedPerCall": 1.0
+      },
+      {
+        "calls": 1101,
+        "totalPicoseconds": 1848248116000,
+        "rowsExamined": 411774,
+        "rowsSent": 56151,
+        "digest": "b286bef0eb08663649fb34fd69832e7fc0770057442b74277b9f4c71f4df1f72",
+        "sqlText": "SELECT `wa1_0` . `id` , `wa1_0` . `memo` , `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , ?, ... , `wa1_0` . `created_at` FROM `wishlist_accommodation` `wa1_0` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` WHERE `wa1_0` . `wishlist_id` = ? AND `a1_0` . `status` = ? ORDER BY `wa1_0` . `created_at` DESC , `wa1_0` . `id` DESC LIMIT ?",
+        "meanExecutionMs": 1.6786994695731154,
+        "rowsExaminedPerCall": 374.0
+      }
+    ]
+  },
+  {
+    "case": "recent-heavy-100",
+    "round": 1,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:51:24.781172432Z",
+    "windowFinishedAt": "2026-10-12T04:52:19.833650233Z",
+    "statements": [
+      {
+        "calls": 550,
+        "totalPicoseconds": 1283826606000,
+        "rowsExamined": 0,
+        "rowsSent": 0,
+        "digest": "a4df8a6dd2969ba59f097bcebe3b77f506a966ac9113d6c1dfc7f91a3e43a6f7",
+        "sqlText": "SELECT `a1_0` . `id` FROM `wishlist_accommodation` `wa1_0` JOIN `wishlist` `w1_0` ON `w1_0` . `id` = `wa1_0` . `wishlist_id` JOIN MEMBER `m1_0` ON `m1_0` . `id` = `w1_0` . `member_id` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` WHERE `m1_0` . `id` = ? AND `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.334230192727273,
+        "rowsExaminedPerCall": 0.0
+      },
+      {
+        "calls": 550,
+        "totalPicoseconds": 1534564935000,
+        "rowsExamined": 165000,
+        "rowsSent": 55000,
+        "digest": "33907f54de35d046c566466c6261226a35b8b5d0847aa44dfb2748af0a2dfba9",
+        "sqlText": "SELECT `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `ars1_0` . `total_review_count` , `ars1_0` . `average_rating` FROM `accommodation` `a1_0` LEFT JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `a1_0` . `id` WHERE `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.790118063636364,
+        "rowsExaminedPerCall": 300.0
+      }
+    ]
+  },
+  {
+    "case": "recent-heavy-100",
+    "round": 1,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:49:44.668948883Z",
+    "windowFinishedAt": "2026-10-12T04:50:39.732232826Z",
+    "statements": [
+      {
+        "calls": 550,
+        "totalPicoseconds": 1276011617000,
+        "rowsExamined": 0,
+        "rowsSent": 0,
+        "digest": "a4df8a6dd2969ba59f097bcebe3b77f506a966ac9113d6c1dfc7f91a3e43a6f7",
+        "sqlText": "SELECT `a1_0` . `id` FROM `wishlist_accommodation` `wa1_0` JOIN `wishlist` `w1_0` ON `w1_0` . `id` = `wa1_0` . `wishlist_id` JOIN MEMBER `m1_0` ON `m1_0` . `id` = `w1_0` . `member_id` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` WHERE `m1_0` . `id` = ? AND `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.3200211218181814,
+        "rowsExaminedPerCall": 0.0
+      },
+      {
+        "calls": 550,
+        "totalPicoseconds": 37518448496000,
+        "rowsExamined": 9341750,
+        "rowsSent": 55000,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 68.21536090181817,
+        "rowsExaminedPerCall": 16985.0
+      }
+    ]
+  },
+  {
+    "case": "recent-heavy-100",
+    "round": 2,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:53:04.877085990Z",
+    "windowFinishedAt": "2026-10-12T04:53:59.931831242Z",
+    "statements": [
+      {
+        "calls": 551,
+        "totalPicoseconds": 1227285506000,
+        "rowsExamined": 0,
+        "rowsSent": 0,
+        "digest": "a4df8a6dd2969ba59f097bcebe3b77f506a966ac9113d6c1dfc7f91a3e43a6f7",
+        "sqlText": "SELECT `a1_0` . `id` FROM `wishlist_accommodation` `wa1_0` JOIN `wishlist` `w1_0` ON `w1_0` . `id` = `wa1_0` . `wishlist_id` JOIN MEMBER `m1_0` ON `m1_0` . `id` = `w1_0` . `member_id` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` WHERE `m1_0` . `id` = ? AND `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.227378413793103,
+        "rowsExaminedPerCall": 0.0
+      },
+      {
+        "calls": 551,
+        "totalPicoseconds": 1494234685000,
+        "rowsExamined": 165300,
+        "rowsSent": 55100,
+        "digest": "33907f54de35d046c566466c6261226a35b8b5d0847aa44dfb2748af0a2dfba9",
+        "sqlText": "SELECT `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `ars1_0` . `total_review_count` , `ars1_0` . `average_rating` FROM `accommodation` `a1_0` LEFT JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `a1_0` . `id` WHERE `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.711859682395644,
+        "rowsExaminedPerCall": 300.0
+      }
+    ]
+  },
+  {
+    "case": "recent-heavy-100",
+    "round": 2,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:54:39.971408735Z",
+    "windowFinishedAt": "2026-10-12T04:55:35.175326082Z",
+    "statements": [
+      {
+        "calls": 552,
+        "totalPicoseconds": 1569323997000,
+        "rowsExamined": 0,
+        "rowsSent": 0,
+        "digest": "a4df8a6dd2969ba59f097bcebe3b77f506a966ac9113d6c1dfc7f91a3e43a6f7",
+        "sqlText": "SELECT `a1_0` . `id` FROM `wishlist_accommodation` `wa1_0` JOIN `wishlist` `w1_0` ON `w1_0` . `id` = `wa1_0` . `wishlist_id` JOIN MEMBER `m1_0` ON `m1_0` . `id` = `w1_0` . `member_id` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` WHERE `m1_0` . `id` = ? AND `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.8429782554347827,
+        "rowsExaminedPerCall": 0.0
+      },
+      {
+        "calls": 552,
+        "totalPicoseconds": 37846845720000,
+        "rowsExamined": 9375720,
+        "rowsSent": 55200,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 68.56312630434782,
+        "rowsExaminedPerCall": 16985.0
+      }
+    ]
+  },
+  {
+    "case": "recent-heavy-100",
+    "round": 3,
+    "variant": "after",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:58:00.372228138Z",
+    "windowFinishedAt": "2026-10-12T04:58:50.418724982Z",
+    "statements": [
+      {
+        "calls": 500,
+        "totalPicoseconds": 1070184289000,
+        "rowsExamined": 0,
+        "rowsSent": 0,
+        "digest": "a4df8a6dd2969ba59f097bcebe3b77f506a966ac9113d6c1dfc7f91a3e43a6f7",
+        "sqlText": "SELECT `a1_0` . `id` FROM `wishlist_accommodation` `wa1_0` JOIN `wishlist` `w1_0` ON `w1_0` . `id` = `wa1_0` . `wishlist_id` JOIN MEMBER `m1_0` ON `m1_0` . `id` = `w1_0` . `member_id` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` WHERE `m1_0` . `id` = ? AND `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.140368578,
+        "rowsExaminedPerCall": 0.0
+      },
+      {
+        "calls": 500,
+        "totalPicoseconds": 1331844337000,
+        "rowsExamined": 150000,
+        "rowsSent": 50000,
+        "digest": "33907f54de35d046c566466c6261226a35b8b5d0847aa44dfb2748af0a2dfba9",
+        "sqlText": "SELECT `a1_0` . `id` , `a1_0` . `name` , `a1_0` . `thumbnail_url` , `a2_0` . `country` , `a2_0` . `state` , `a2_0` . `city` , `a2_0` . `district` , `ars1_0` . `total_review_count` , `ars1_0` . `average_rating` FROM `accommodation` `a1_0` LEFT JOIN `address` `a2_0` ON `a2_0` . `id` = `a1_0` . `address_id` LEFT JOIN `accommodation_review_summary` `ars1_0` ON `ars1_0` . `accommodation_id` = `a1_0` . `id` WHERE `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.663688674,
+        "rowsExaminedPerCall": 300.0
+      }
+    ]
+  },
+  {
+    "case": "recent-heavy-100",
+    "round": 3,
+    "variant": "before",
+    "scope": "Review/wishlist-related SQL only; not total API SQL cost",
+    "windowStartedAt": "2026-10-12T04:56:20.241238691Z",
+    "windowFinishedAt": "2026-10-12T04:57:15.330536994Z",
+    "statements": [
+      {
+        "calls": 551,
+        "totalPicoseconds": 1276880001000,
+        "rowsExamined": 0,
+        "rowsSent": 0,
+        "digest": "a4df8a6dd2969ba59f097bcebe3b77f506a966ac9113d6c1dfc7f91a3e43a6f7",
+        "sqlText": "SELECT `a1_0` . `id` FROM `wishlist_accommodation` `wa1_0` JOIN `wishlist` `w1_0` ON `w1_0` . `id` = `wa1_0` . `wishlist_id` JOIN MEMBER `m1_0` ON `m1_0` . `id` = `w1_0` . `member_id` JOIN `accommodation` `a1_0` ON `a1_0` . `id` = `wa1_0` . `accommodation_id` WHERE `m1_0` . `id` = ? AND `a1_0` . `id` IN (...) AND `a1_0` . `status` = ?",
+        "meanExecutionMs": 2.31738657168784,
+        "rowsExaminedPerCall": 0.0
+      },
+      {
+        "calls": 551,
+        "totalPicoseconds": 38511978242000,
+        "rowsExamined": 9358735,
+        "rowsSent": 55100,
+        "digest": "79da3ff2ccbbcd21200aad27864521490394145ed8f2513332b8123565ea01de",
+        "sqlText": "SELECT `accommodation_id` AS `accommodationId` , COUNT ( * ) AS `totalCount` , `ROUND` ( AVG ( `rating` ) , ? ) AS `averageRating` FROM `review` WHERE `accommodation_id` IN (...) AND STATUS = ? GROUP BY `accommodation_id`",
+        "meanExecutionMs": 69.89469735390199,
+        "rowsExaminedPerCall": 16985.0
+      }
+    ]
+  }
+]

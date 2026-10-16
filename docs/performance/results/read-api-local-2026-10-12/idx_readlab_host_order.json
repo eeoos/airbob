@@ -1,0 +1,186 @@
+{
+  "index": "idx_readlab_host_order",
+  "columns": "(member_id, created_at DESC, id DESC, status)",
+  "table": "accommodation",
+  "runs": [
+    {
+      "id": "host-list-all",
+      "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+      "responseHash": "a8c6cc664efece8c3ae2b74129264aea9a605bea7e580cffcf3449ce04799022",
+      "parity": true,
+      "samples": [
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=3.01..3.04 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=3.01..3.04 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1230 rows=2591) (actual time=2.99..2.99 rows=21 loops=1)\n            -> Filter: (a.`status` <> 'DELETED')  (cost=1230 rows=2591) (actual time=0.094..2.74 rows=2545 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1230 rows=2591) (actual time=0.0929..2.61 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00222..0.00224 rows=1 loops=21)",
+          "rootTotalMs": 3.04,
+          "round": 1,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=0.157..0.201 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=0.156..0.2 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` <> 'DELETED')  (cost=1230 rows=2591) (actual time=0.139..0.141 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00266..0.00267 rows=1 loops=21)",
+          "rootTotalMs": 0.201,
+          "round": 1,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=0.136..0.178 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=0.136..0.177 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` <> 'DELETED')  (cost=1230 rows=2591) (actual time=0.13..0.132 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00205..0.00206 rows=1 loops=21)",
+          "rootTotalMs": 0.178,
+          "round": 2,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=3.18..3.23 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=3.18..3.23 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1230 rows=2591) (actual time=3.16..3.17 rows=21 loops=1)\n            -> Filter: (a.`status` <> 'DELETED')  (cost=1230 rows=2591) (actual time=0.0951..2.95 rows=2545 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1230 rows=2591) (actual time=0.0943..2.82 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00276..0.00278 rows=1 loops=21)",
+          "rootTotalMs": 3.23,
+          "round": 2,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=2.92..2.96 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=2.92..2.96 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1230 rows=2591) (actual time=2.9..2.9 rows=21 loops=1)\n            -> Filter: (a.`status` <> 'DELETED')  (cost=1230 rows=2591) (actual time=0.088..2.68 rows=2545 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1230 rows=2591) (actual time=0.0872..2.55 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00248..0.0025 rows=1 loops=21)",
+          "rootTotalMs": 2.96,
+          "round": 3,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=0.127..0.167 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=0.126..0.166 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` <> 'DELETED')  (cost=1230 rows=2591) (actual time=0.121..0.122 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00195..0.00196 rows=1 loops=21)",
+          "rootTotalMs": 0.167,
+          "round": 3,
+          "candidate": true
+        }
+      ]
+    },
+    {
+      "id": "host-list-published",
+      "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' AND a.status='PUBLISHED' ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+      "responseHash": "a8c6cc664efece8c3ae2b74129264aea9a605bea7e580cffcf3449ce04799022",
+      "parity": true,
+      "samples": [
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=3.18..3.23 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=3.18..3.23 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1230 rows=2591) (actual time=3.17..3.17 rows=21 loops=1)\n            -> Filter: (a.`status` = 'PUBLISHED')  (cost=1230 rows=2591) (actual time=0.0732..2.94 rows=2339 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1230 rows=2591) (actual time=0.0724..2.74 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.0027..0.00272 rows=1 loops=21)",
+          "rootTotalMs": 3.23,
+          "round": 1,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=0.127..0.167 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=0.127..0.166 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` = 'PUBLISHED')  (cost=1230 rows=2591) (actual time=0.122..0.124 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00188..0.00189 rows=1 loops=21)",
+          "rootTotalMs": 0.167,
+          "round": 1,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=0.122..0.162 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=0.122..0.161 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` = 'PUBLISHED')  (cost=1230 rows=2591) (actual time=0.117..0.119 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00188..0.00189 rows=1 loops=21)",
+          "rootTotalMs": 0.162,
+          "round": 2,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=3.04..3.08 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=3.04..3.08 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1230 rows=2591) (actual time=3.03..3.03 rows=21 loops=1)\n            -> Filter: (a.`status` = 'PUBLISHED')  (cost=1230 rows=2591) (actual time=0.0806..2.83 rows=2339 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1230 rows=2591) (actual time=0.0798..2.63 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00188..0.00191 rows=1 loops=21)",
+          "rootTotalMs": 3.08,
+          "round": 2,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=2.92..2.96 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=2.92..2.96 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1230 rows=2591) (actual time=2.91..2.92 rows=21 loops=1)\n            -> Filter: (a.`status` = 'PUBLISHED')  (cost=1230 rows=2591) (actual time=0.0721..2.71 rows=2339 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1230 rows=2591) (actual time=0.0713..2.54 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00189..0.0019 rows=1 loops=21)",
+          "rootTotalMs": 2.96,
+          "round": 3,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=2777 rows=21) (actual time=0.149..0.188 rows=21 loops=1)\n    -> Nested loop left join  (cost=2777 rows=2591) (actual time=0.149..0.187 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` = 'PUBLISHED')  (cost=1230 rows=2591) (actual time=0.143..0.145 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.995 rows=1) (actual time=0.00187..0.00188 rows=1 loops=21)",
+          "rootTotalMs": 0.188,
+          "round": 3,
+          "candidate": true
+        }
+      ]
+    },
+    {
+      "id": "host-list-unpublished",
+      "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' AND a.status='UNPUBLISHED' ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+      "responseHash": "bb94a137da30ef8d8c9ad577aeff43b7cfbfede9348adb6683e03a7843f6c1da",
+      "parity": true,
+      "samples": [
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1836 rows=21) (actual time=3.13..3.17 rows=21 loops=1)\n    -> Nested loop left join  (cost=1836 rows=2591) (actual time=3.13..3.17 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1144 rows=2591) (actual time=3.12..3.12 rows=21 loops=1)\n            -> Filter: (a.`status` = 'UNPUBLISHED')  (cost=1144 rows=2591) (actual time=0.489..3.09 rows=206 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1144 rows=2591) (actual time=0.486..2.99 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.992 rows=1) (actual time=0.00199..0.00201 rows=1 loops=21)",
+          "rootTotalMs": 3.17,
+          "round": 1,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1836 rows=21) (actual time=0.178..0.217 rows=21 loops=1)\n    -> Nested loop left join  (cost=1836 rows=2591) (actual time=0.178..0.216 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` = 'UNPUBLISHED')  (cost=1144 rows=2591) (actual time=0.172..0.174 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.992 rows=1) (actual time=0.00187..0.00188 rows=1 loops=21)",
+          "rootTotalMs": 0.217,
+          "round": 1,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1836 rows=21) (actual time=0.171..0.215 rows=21 loops=1)\n    -> Nested loop left join  (cost=1836 rows=2591) (actual time=0.171..0.214 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` = 'UNPUBLISHED')  (cost=1144 rows=2591) (actual time=0.164..0.166 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.992 rows=1) (actual time=0.00215..0.00216 rows=1 loops=21)",
+          "rootTotalMs": 0.215,
+          "round": 2,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1836 rows=21) (actual time=2.71..2.75 rows=21 loops=1)\n    -> Nested loop left join  (cost=1836 rows=2591) (actual time=2.71..2.75 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1144 rows=2591) (actual time=2.7..2.71 rows=21 loops=1)\n            -> Filter: (a.`status` = 'UNPUBLISHED')  (cost=1144 rows=2591) (actual time=0.0827..2.67 rows=206 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1144 rows=2591) (actual time=0.0801..2.57 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.992 rows=1) (actual time=0.00196..0.00198 rows=1 loops=21)",
+          "rootTotalMs": 2.75,
+          "round": 2,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1836 rows=21) (actual time=2.76..2.8 rows=21 loops=1)\n    -> Nested loop left join  (cost=1836 rows=2591) (actual time=2.76..2.8 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1144 rows=2591) (actual time=2.76..2.76 rows=21 loops=1)\n            -> Filter: (a.`status` = 'UNPUBLISHED')  (cost=1144 rows=2591) (actual time=0.07..2.72 rows=206 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1144 rows=2591) (actual time=0.068..2.62 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.992 rows=1) (actual time=0.00198..0.002 rows=1 loops=21)",
+          "rootTotalMs": 2.8,
+          "round": 3,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1836 rows=21) (actual time=0.167..0.209 rows=21 loops=1)\n    -> Nested loop left join  (cost=1836 rows=2591) (actual time=0.166..0.208 rows=21 loops=1)\n        -> Index lookup on a using idx_readlab_host_order (member_id=6675), with index condition: (a.`status` = 'UNPUBLISHED')  (cost=1144 rows=2591) (actual time=0.16..0.162 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.992 rows=1) (actual time=0.00203..0.00205 rows=1 loops=21)",
+          "rootTotalMs": 0.209,
+          "round": 3,
+          "candidate": true
+        }
+      ]
+    },
+    {
+      "id": "host-list-cursor",
+      "sql": "SELECT a.id,a.name,a.thumbnail_url,a.status,a.type,d.country,d.state,d.city,d.district,a.created_at FROM accommodation a LEFT JOIN address d ON d.id=a.address_id WHERE a.member_id=6675 AND a.status<>'DELETED' AND (a.created_at<'2025-05-06 13:24:46.000000' OR (a.created_at='2025-05-06 13:24:46.000000' AND a.id<20694)) ORDER BY a.created_at DESC,a.id DESC LIMIT 21",
+      "responseHash": "5810ae5ec99aaec78fe82a3c49e33f548646951ba8aa773011b41049c3ebfade",
+      "parity": true,
+      "samples": [
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1861 rows=21) (actual time=2.78..2.82 rows=21 loops=1)\n    -> Nested loop left join  (cost=1861 rows=2591) (actual time=2.78..2.82 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1146 rows=2591) (actual time=2.77..2.78 rows=21 loops=1)\n            -> Filter: ((a.`status` <> 'DELETED') and ((a.created_at < TIMESTAMP'2025-05-06 13:24:46') or ((a.created_at = TIMESTAMP'2025-05-06 13:24:46') and (a.id < 20694))))  (cost=1146 rows=2591) (actual time=0.0722..2.64 rows=1545 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1146 rows=2591) (actual time=0.0704..2.45 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.99 rows=1) (actual time=0.00184..0.00186 rows=1 loops=21)",
+          "rootTotalMs": 2.82,
+          "round": 1,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1921 rows=21) (actual time=0.133..0.172 rows=21 loops=1)\n    -> Nested loop left join  (cost=1921 rows=1575) (actual time=0.133..0.171 rows=21 loops=1)\n        -> Index range scan on a using idx_readlab_host_order over (member_id = 6675 AND created_at = '2025-05-06 13:24:46.000000' AND 20694 < id) OR (member_id = 6675 AND '2025-05-06 13:24:46.000000' < created_at < NULL), with index condition: ((a.member_id = 6675) and (a.`status` <> 'DELETED') and ((a.created_at < TIMESTAMP'2025-05-06 13:24:46') or ((a.created_at = TIMESTAMP'2025-05-06 13:24:46') and (a.id < 20694))))  (cost=985 rows=1575) (actual time=0.126..0.128 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.99 rows=1) (actual time=0.00193..0.00194 rows=1 loops=21)",
+          "rootTotalMs": 0.172,
+          "round": 1,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1921 rows=21) (actual time=0.225..0.266 rows=21 loops=1)\n    -> Nested loop left join  (cost=1921 rows=1575) (actual time=0.224..0.264 rows=21 loops=1)\n        -> Index range scan on a using idx_readlab_host_order over (member_id = 6675 AND created_at = '2025-05-06 13:24:46.000000' AND 20694 < id) OR (member_id = 6675 AND '2025-05-06 13:24:46.000000' < created_at < NULL), with index condition: ((a.member_id = 6675) and (a.`status` <> 'DELETED') and ((a.created_at < TIMESTAMP'2025-05-06 13:24:46') or ((a.created_at = TIMESTAMP'2025-05-06 13:24:46') and (a.id < 20694))))  (cost=985 rows=1575) (actual time=0.216..0.218 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.99 rows=1) (actual time=0.00204..0.00206 rows=1 loops=21)",
+          "rootTotalMs": 0.266,
+          "round": 2,
+          "candidate": true
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1861 rows=21) (actual time=2.86..2.89 rows=21 loops=1)\n    -> Nested loop left join  (cost=1861 rows=2591) (actual time=2.86..2.89 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1146 rows=2591) (actual time=2.85..2.85 rows=21 loops=1)\n            -> Filter: ((a.`status` <> 'DELETED') and ((a.created_at < TIMESTAMP'2025-05-06 13:24:46') or ((a.created_at = TIMESTAMP'2025-05-06 13:24:46') and (a.id < 20694))))  (cost=1146 rows=2591) (actual time=0.0679..2.72 rows=1545 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1146 rows=2591) (actual time=0.066..2.52 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.99 rows=1) (actual time=0.00181..0.00182 rows=1 loops=21)",
+          "rootTotalMs": 2.89,
+          "round": 2,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1861 rows=21) (actual time=3.05..3.09 rows=21 loops=1)\n    -> Nested loop left join  (cost=1861 rows=2591) (actual time=3.05..3.09 rows=21 loops=1)\n        -> Sort: a.created_at DESC, a.id DESC, limit input to 21 row(s) per chunk  (cost=1146 rows=2591) (actual time=3.04..3.04 rows=21 loops=1)\n            -> Filter: ((a.`status` <> 'DELETED') and ((a.created_at < TIMESTAMP'2025-05-06 13:24:46') or ((a.created_at = TIMESTAMP'2025-05-06 13:24:46') and (a.id < 20694))))  (cost=1146 rows=2591) (actual time=0.0803..2.89 rows=1545 loops=1)\n                -> Index lookup on a using FK_accommodation_member_id (member_id=6675)  (cost=1146 rows=2591) (actual time=0.078..2.7 rows=2591 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.99 rows=1) (actual time=0.002..0.00201 rows=1 loops=21)",
+          "rootTotalMs": 3.09,
+          "round": 3,
+          "candidate": false
+        },
+        {
+          "tree": "-> Limit: 21 row(s)  (cost=1921 rows=21) (actual time=0.181..0.239 rows=21 loops=1)\n    -> Nested loop left join  (cost=1921 rows=1575) (actual time=0.18..0.237 rows=21 loops=1)\n        -> Index range scan on a using idx_readlab_host_order over (member_id = 6675 AND created_at = '2025-05-06 13:24:46.000000' AND 20694 < id) OR (member_id = 6675 AND '2025-05-06 13:24:46.000000' < created_at < NULL), with index condition: ((a.member_id = 6675) and (a.`status` <> 'DELETED') and ((a.created_at < TIMESTAMP'2025-05-06 13:24:46') or ((a.created_at = TIMESTAMP'2025-05-06 13:24:46') and (a.id < 20694))))  (cost=985 rows=1575) (actual time=0.171..0.176 rows=21 loops=1)\n        -> Single-row index lookup on d using PRIMARY (id=a.address_id)  (cost=0.99 rows=1) (actual time=0.00268..0.0027 rows=1 loops=21)",
+          "rootTotalMs": 0.239,
+          "round": 3,
+          "candidate": true
+        }
+      ]
+    }
+  ],
+  "scope": "temporary invisible index on existing local data; session-only optimizer switch",
+  "indexSizePages": "2151",
+  "cleanupConfirmed": true
+}

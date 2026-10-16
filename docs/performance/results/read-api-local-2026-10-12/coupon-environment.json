@@ -1,0 +1,39 @@
+{
+  "scope": "local synthetic campaign data; real Spring HTTP and MySQL",
+  "sameHost": true,
+  "stockPerCampaign": 10000,
+  "campaigns": [
+    "SKIP_SURROGATE_RR",
+    "SKIP_SURROGATE_RC",
+    "SKIP_COMPOSITE_RR",
+    "SKIP_COMPOSITE_RC"
+  ],
+  "rounds": 3,
+  "rate": 50,
+  "measureSeconds": 15,
+  "warmupSeconds": 5,
+  "javaHeapMiB": 512,
+  "hikariPool": 10,
+  "scenarios": [
+    "unissued",
+    "half",
+    "last-unit",
+    "sold-out"
+  ],
+  "digestSnapshotQuietSamples": 2,
+  "digestSnapshotIntervalMs": 100,
+  "runnerSha256": "82611fab0576f83019b8ec95d0486f61b0d775f0bfaabb4bc50f54095680b077",
+  "jarSha256": "c8cbb605da7fb077df3683ffdc63b54021a6475421cfdc6dd5f6240b37c744e0",
+  "sourceCommit": "4497af582ccf4b02694d250296b21182646db664",
+  "workingTreeChanges": true,
+  "javaVersion": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+  "mysqlImageId": "sha256:3466ba4a4828aa8d46fb7c3bc16b67b781c98413cf4ea0fac6feaa6e881faa26",
+  "redisImageId": "sha256:ccd6aa8d45ff3f033d6fa15b8cc1a50579f65c89f38cf9bb607a954c4f2128ed",
+  "database": {
+    "flyway": 30,
+    "version": "8.4.11",
+    "isolation": "REPEATABLE-READ",
+    "bufferPoolBytes": 268435456
+  },
+  "status": "complete"
+}

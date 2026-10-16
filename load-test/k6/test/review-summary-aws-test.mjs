@@ -23,7 +23,7 @@ function config() {
     appInstanceId: 'i-1234567890abcdef1', loadGeneratorInstanceId: 'i-1234567890abcdef2' });
   Object.assign(c.app, { imageDigest: `sha256:${'a'.repeat(64)}`, sourceCommit: 'b'.repeat(40),
     runId: 'review-test-run', resourceFencingTokenSha256: 'c'.repeat(64) });
-  Object.assign(c.dataset, { id: 'test-v28', manifestSha256: 'd'.repeat(64) });
+  Object.assign(c.dataset, { id: 'test-v30', manifestSha256: 'd'.repeat(64) });
   return c;
 }
 function proof(c, challenge) {
@@ -70,6 +70,9 @@ test('prepare는 DNS·HTTP·프로세스 실행 없이 파일과 해시만 생�
 test('예전 스키마·잘못된 대상·비밀 값·모호한 사례 설정을 거부한다', () => {
   for (const change of [
     (c) => { c.dataset.flywayVersion = 27; },
+    (c) => { c.dataset.flywayVersion = 28; },
+    (c) => { c.dataset.flywayVersion = 29; },
+    (c) => { c.dataset.flywayVersion = 31; },
     (c) => { c.baseUrl = 'https://production.example.com'; },
     (c) => { c.aws.albDnsName = 'api.airbob.cloud'; },
     (c) => { c.aws.loadGeneratorInstanceId = c.aws.appInstanceId; },

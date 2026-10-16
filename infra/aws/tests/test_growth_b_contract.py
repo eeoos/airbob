@@ -87,7 +87,7 @@ def private_account_fixture(bundle, environment):
 
 
 class ReleaseFixture:
-    def __init__(self, directory):
+    def __init__(self, directory, migration_dir):
         self.path = Path(directory)
         with gzip.open(self.path / 'airbob-growth.sql.gz', 'wb') as stream:
             stream.write(b'-- synthetic contract-only SQL\n')
@@ -129,7 +129,7 @@ class ReleaseFixture:
             'dump-integrity.json': contract.inspect_dump(self.path / 'airbob-growth.sql.gz'),
             'measurements.json': {'disk': {'schemaVersion': 2, 'samplingComplete': True, 'errors': [],
                     'maximumObservedDatasetSchemas': 1, 'maximumObservedMysqlContainers': 1, 'samples': samples}},
-            'migration-files.json': {p.name: contract.sha(p) for p in (ROOT / 'src/main/resources/db/migration').glob('V*__*.sql')},
+            'migration-files.json': {p.name: contract.sha(p) for p in migration_dir.glob('V*__*.sql')},
             'validation.json': {'passed': True, 'checkedRows': 'full-dataset', 'violations': {'ownership': 0}},
             'restore-validation.json': {'passed': True, 'checkedRows': 'full-dataset', 'violations': {'ownership': 0}}})
         self.values['timezone-qualification.json'] = timezone_fixture()
@@ -175,11 +175,20 @@ class ReleaseFixture:
 class ContractTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.fixture = ReleaseFixture(self.temp.name)
         self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        self.migration_dir = root / 'migrations'
+        self.migration_dir.mkdir()
+        # This release contract remains V28 even when the application adds migrations.
+        for version in range(1, 29):
+            migration, = (ROOT / 'src/main/resources/db/migration').glob(f'V{version}__*.sql')
+            shutil.copyfile(migration, self.migration_dir / migration.name)
+        release = root / 'release'
+        release.mkdir()
+        self.fixture = ReleaseFixture(release, self.migration_dir)
 
     def validate(self, **kwargs):
-        return contract.validate(self.fixture.path, self.fixture.manifest['datasetId'], ROOT/'src/main/resources/db/migration', **kwargs)
+        return contract.validate(self.fixture.path, self.fixture.manifest['datasetId'], self.migration_dir, **kwargs)
 
     def test_bounded_small_requires_explicit_opt_in(self):
         with self.assertRaises(ValueError): self.validate()
@@ -189,6 +198,25 @@ class ContractTest(unittest.TestCase):
         self.fixture.manifest.update(finalScaleSelected=True, datasetScale=contract.FINAL_SCALE)
         self.fixture.seal()
         with self.assertRaisesRegex(ValueError, 'selected B final'): self.validate()
+
+    def test_later_migration_is_rejected_even_after_resealing(self):
+        migration = self.migration_dir / 'V29__unqualified.sql'
+        migration.write_text('-- A new schema needs its own qualified dataset.\n')
+        self.fixture.values['migration-files.json'][migration.name] = contract.sha(migration)
+        self.fixture.seal()
+        with self.assertRaisesRegex(ValueError, 'Application migration bytes differ from V28'):
+            self.validate(allow_small=True)
+
+    def test_changed_application_migration_is_rejected(self):
+        migration = next(self.migration_dir.glob('V28__*.sql'))
+        migration.write_bytes(migration.read_bytes() + b'\n-- changed bytes\n')
+        with self.assertRaisesRegex(ValueError, 'Application migration bytes differ from V28'):
+            self.validate(allow_small=True)
+
+    def test_missing_application_migration_is_rejected(self):
+        next(self.migration_dir.glob('V28__*.sql')).unlink()
+        with self.assertRaisesRegex(ValueError, 'Application migration bytes differ from V28'):
+            self.validate(allow_small=True)
 
     def test_semantic_corruption_is_rejected_even_after_resealing_files(self):
         cases = [
@@ -219,13 +247,13 @@ class ContractTest(unittest.TestCase):
         ]
         for label, mutate in cases:
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
-                fixture = ReleaseFixture(directory)
+                fixture = ReleaseFixture(directory, self.migration_dir)
                 # BOUNDARY_ROWS is immutable protocol data, not an editable fixture alias.
                 fixture.values = copy.deepcopy(fixture.values)
                 mutate(fixture)
                 fixture.seal()
                 with self.assertRaises((ValueError, KeyError)):
-                    contract.validate(fixture.path, fixture.manifest['datasetId'], ROOT/'src/main/resources/db/migration', allow_small=True)
+                    contract.validate(fixture.path, fixture.manifest['datasetId'], self.migration_dir, allow_small=True)
 
     def test_truncated_gzip_rejected(self):
         path = self.fixture.path/'airbob-growth.sql.gz'

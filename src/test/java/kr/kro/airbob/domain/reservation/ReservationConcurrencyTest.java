@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -104,7 +103,7 @@ class ReservationConcurrencyTest {
 	private static final LocalDate WINDOW_START = LocalDate.of(2026, 8, 12);
 	private static final BookingWindow BOOKING_WINDOW = BookingWindow.startingOn(WINDOW_START);
 	private static final Instant NOW = Instant.parse("2026-08-12T00:00:00Z");
-	private static final LocalDateTime COUPON_NOW = LocalDateTime.ofInstant(NOW, ZoneId.of(TIME_ZONE_ID));
+	private static final LocalDateTime COUPON_NOW = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
 
 	@Autowired
 	private ReservationService reservationService;

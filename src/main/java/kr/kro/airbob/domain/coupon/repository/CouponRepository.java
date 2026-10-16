@@ -14,42 +14,56 @@ import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
+import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignAvailabilityProjection;
 
 @Repository
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
+
+	@Query(value = "select utc_timestamp(6)", nativeQuery = true)
+	LocalDateTime findDatabaseUtcNow();
+
+	@Query(value = "select issue_strategy from coupon where id = :id", nativeQuery = true)
+	Optional<String> findIssueStrategy(@Param("id") Long id);
 
 	@Query("""
 		select new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection(
 			c.id, c.name, c.description, c.discountType, c.discountValue, c.minPaymentPrice,
 			c.maxDiscountAmount, c.issueStartAt, c.issueEndAt, c.usableFrom, c.usableUntil,
-			c.totalQuantity, c.issuedQuantity)
+			c.totalQuantity,
+			(select count(mc.id) from MemberCoupon mc where mc.coupon = c))
 		from Coupon c
 		where c.isActive = true
-		  and c.redisStockPreparedAt is not null
+		  and c.stockPreparedAt is not null
 		  and c.issueEndAt > :now
 		order by c.issueStartAt desc, c.id desc
 		""")
 	List<CouponCampaignProjection> findCampaigns(@Param("now") LocalDateTime now);
 
-	/**
-	 * Lua 운영 경로로 전환할 수 없는 기존 DB 발급 쿠폰 수를 조회한다.
-	 * 준비 서비스와 같은 기준으로 발급 수와 실제 회원 쿠폰 행을 모두 확인한다.
-	 */
+	/** Read-only candidate; V1 keeps findCampaigns until the experiment is evaluated. */
 	@Query("""
-		select count(c)
+		select new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignAvailabilityProjection(
+			c.id, c.name, c.description, c.discountType, c.discountValue, c.minPaymentPrice,
+			c.maxDiscountAmount, c.issueStartAt, c.issueEndAt, c.usableFrom, c.usableUntil,
+			c.totalQuantity,
+			case
+			  when c.totalQuantity is null then true
+			  when c.issueStrategy in (
+			    kr.kro.airbob.domain.coupon.common.CouponIssueStrategy.SKIP_SURROGATE_RR,
+			    kr.kro.airbob.domain.coupon.common.CouponIssueStrategy.SKIP_SURROGATE_RC)
+			    then exists (select u.id from CouponIssueUnit u where u.couponId = c.id)
+			  when c.issueStrategy in (
+			    kr.kro.airbob.domain.coupon.common.CouponIssueStrategy.SKIP_COMPOSITE_RR,
+			    kr.kro.airbob.domain.coupon.common.CouponIssueStrategy.SKIP_COMPOSITE_RC)
+			    then exists (select u.id.couponId from CouponIssueUnitComposite u where u.id.couponId = c.id)
+			  else (select count(mc.id) from MemberCoupon mc where mc.coupon = c) < c.totalQuantity
+			end)
 		from Coupon c
 		where c.isActive = true
-		  and c.redisStockPreparedAt is null
-		  and (
-		    c.issuedQuantity > 0
-		    or exists (
-		      select mc.id
-		      from MemberCoupon mc
-		      where mc.coupon = c
-		    )
-		  )
+		  and c.stockPreparedAt is not null
+		  and c.issueEndAt > :now
+		order by c.issueStartAt desc, c.id desc
 		""")
-	long countActiveUnpreparedCouponsWithLegacyIssuances();
+	List<CouponCampaignAvailabilityProjection> findCampaignsWithRemainingUnits(@Param("now") LocalDateTime now);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select c from Coupon c where c.id = :id")
@@ -59,29 +73,23 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 	@Query("select c from Coupon c where c.id = :id")
 	Optional<Coupon> findByIdForShare(@Param("id") Long id);
 
+	@Query(value = "select * from coupon where id = :id for share nowait", nativeQuery = true)
+	Optional<Coupon> findByIdForShareNowait(@Param("id") Long id);
+
 	/**
 	 * DB 발급의 재고·기간·활성 상태·경로 검증과 수량 증가를 한 UPDATE로 수행한다.
-	 * 준비 트랜잭션과도 같은 쿠폰 행에서 직렬화되어 Lua 경로와 혼용되지 않는다.
+	 * unit 준비를 완료한 쿠폰은 이 경로에서 발급하지 않는다.
 	 */
 	@Modifying(clearAutomatically = true)
 	@Query("""
 		update Coupon c
 		set c.issuedQuantity = c.issuedQuantity + 1
 		where c.id = :id
-		  and c.redisStockPreparedAt is null
+		  and c.stockPreparedAt is null
 		  and c.isActive = true
 		  and c.issueStartAt <= :now
 		  and c.issueEndAt > :now
 		  and (c.totalQuantity is null or c.issuedQuantity < c.totalQuantity)
 		""")
 	int incrementIssuedQuantityIfIssuable(@Param("id") Long id, @Param("now") LocalDateTime now);
-
-	/**
-	 * 발급 수를 DB 레벨에서 원자적으로 증가시킨다.
-	 * Lua 경로에서 재고는 Redis 가 통제하므로, DB issuedQuantity 는
-	 * read-modify-write 대신 이 단일 UPDATE 로 정확히 누적한다.
-	 */
-	@Modifying(clearAutomatically = true)
-	@Query("update Coupon c set c.issuedQuantity = c.issuedQuantity + 1 where c.id = :id")
-	int incrementIssuedQuantity(@Param("id") Long id);
 }

@@ -1,0 +1,9 @@
+{
+  "recentCount" : 100,
+  "dbMutations" : false,
+  "wishlistId" : 236192,
+  "createdAt" : "2026-10-12T04:22:24.739481905Z",
+  "sessionMethod" : "Dedicated Redis session fixture; same production SessionAuthFilter and wishlist ownership check",
+  "recentMemberId" : 3000133,
+  "wishlistMemberId" : 2141427
+}
