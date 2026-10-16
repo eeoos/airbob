@@ -41,6 +41,10 @@ const expectedResponses = new SharedArray('verified-accommodation-responses', ()
 const fixtureSha256 = expectedResponses[0].fixtureSha256;
 const kind = __ENV.EXPERIMENT_KIND;
 need(['rate', 'burst'].includes(kind), 'EXPERIMENT_KIND must be rate or burst');
+const warmupOption = __ENV.EXPERIMENT_BURST_CONNECTION_WARMUP || 'false';
+need(['true', 'false'].includes(warmupOption), 'Invalid burst connection warmup');
+const warmConnections = warmupOption === 'true';
+need(!warmConnections || kind === 'burst', 'Connection warmup requires a burst');
 const rate = integer('RATE', 20);
 const seconds = integer('SECONDS', 15);
 const burst = integer('BURST', 60);
@@ -62,6 +66,13 @@ const started = new Trend('experiment_started_epoch_ms');
 const ended = new Trend('experiment_ended_epoch_ms');
 const rampCompleted = new Counter('experiment_ramp_completed');
 const rampErrors = new Counter('experiment_ramp_errors');
+const connectionWarmups = new Counter('experiment_connection_warmups');
+const connectionWarmupErrors = new Counter('experiment_connection_warmup_errors');
+const connectionWarmupLate = new Counter('experiment_connection_warmup_late');
+const reusedConnections = new Rate('experiment_reused_connection');
+const burstBlocked = new Trend('experiment_burst_blocked_ms', true);
+const burstConnecting = new Trend('experiment_burst_connecting_ms', true);
+const burstTls = new Trend('experiment_burst_tls_ms', true);
 export const options = {
   hosts: target.hosts,
   insecureSkipTLSVerify: false,
@@ -79,21 +90,37 @@ export const options = {
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(95)', 'p(99)'],
   // Threshold failures still produce evidence; the runner distinguishes SLO failure from invalid evidence.
   thresholds: { experiment_valid_response: ['rate==1'], dropped_iterations: ['count==0'],
+    ...(warmConnections ? { experiment_connection_warmup_errors: ['count==0'],
+      experiment_connection_warmup_late: ['count==0'], experiment_reused_connection: ['rate==1'] } : {}),
     ...(rampSeconds ? { experiment_ramp_errors: ['count==0'] } : {}) },
 };
 
 export function setup() {
   // This is a client release barrier, not a promise that all HTTP arrivals reach the server simultaneously.
-  return { releaseAt: Date.now() + (kind === 'burst' ? 1500 : 0) };
+  return { releaseAt: Date.now() + (kind === 'burst' ? (warmConnections ? 5000 : 1500) : 0) };
 }
 
 export default function (data) {
+  const index = execution.scenario.iterationInTest;
+  const origin = origins[(kind === 'burst' ? execution.vu.idInTest - 1 : index) % origins.length];
+  if (warmConnections) {
+    // Warm each VU's own connection without populating the accommodation cache.
+    // These health requests are excluded from measured API counters and latency.
+    const warmup = http.get(origin + '/actuator/health/liveness', {
+      redirects: 0, timeout: '3s', tags: { name: 'GET /actuator/health/liveness', phase: 'connection-warmup' },
+    });
+    let ready = false;
+    try { ready = warmup.status === 200 && warmup.json().status === 'UP'; } catch (_) { /* Fail closed below. */ }
+    const late = Date.now() >= data.releaseAt;
+    connectionWarmups.add(1);
+    connectionWarmupErrors.add(ready ? 0 : 1);
+    connectionWarmupLate.add(late ? 1 : 0);
+    need(ready && !late, 'Connection warmup failed or missed the release barrier');
+  }
   if (kind === 'burst') {
     const remaining = data.releaseAt - Date.now();
     if (remaining > 0) sleep(remaining / 1000);
   }
-  const index = execution.scenario.iterationInTest;
-  const origin = origins[(kind === 'burst' ? execution.vu.idInTest - 1 : index) % origins.length];
   // Burst/outage use one hot accommodation. Capacity uses a fixed round-robin fixture workload.
   const expected = expectedResponses[
     __ENV.DISTRIBUTION === 'uniform' ? index % expectedResponses.length : 0];
@@ -106,6 +133,12 @@ export default function (data) {
     timeout: '8s',
     tags: { name: 'GET /api/v1/accommodations/{id}', app: String(origins.indexOf(origin)) },
   });
+  if (warmConnections) {
+    reusedConnections.add(response.timings.connecting === 0 && response.timings.tls_handshaking === 0);
+    burstBlocked.add(response.timings.blocked);
+    burstConnecting.add(response.timings.connecting);
+    burstTls.add(response.timings.tls_handshaking);
+  }
   let correct = false;
   if (response.status === 200) {
     try {
@@ -181,6 +214,17 @@ export function handleSummary(data) {
     fixtureSha256,
     fixtureStorage: 'shared-array',
     responseCheck,
+    ...(warmConnections ? { burstConnectionWarmup: {
+      requests: values('experiment_connection_warmups').count || 0,
+      errors: values('experiment_connection_warmup_errors').count || 0,
+      late: values('experiment_connection_warmup_late').count || 0,
+      reused: values('experiment_reused_connection').passes || 0,
+      releaseDelayMs: 5000,
+      measuredTimingsMs: Object.fromEntries([
+        ['blocked', 'experiment_burst_blocked_ms'], ['connecting', 'experiment_burst_connecting_ms'],
+        ['tls', 'experiment_burst_tls_ms'],
+      ].map(([name, metric]) => [name, { p95: values(metric)['p(95)'] ?? null, max: values(metric).max ?? null }])),
+    } } : {}),
     ...(rampSeconds ? {
       ramp: { seconds: rampSeconds, startRate: 1, completed: rampCount, errors: rampErrorCount },
       totalCompleted: count + rampCount,

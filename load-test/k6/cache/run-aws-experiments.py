@@ -246,6 +246,8 @@ class Runner:
                  '|---|---|---:|---:|---:|---:|---:|---:|---:|---:|']
         if self.c.get('allowInitializingOriginal', False):
             lines[4:4] = ['원본 앱의 초기화 중 전환을 명시적으로 허용한 실험이다. 원본 이미지·환경·실행 상태 복구와 일반 서비스 readiness는 구분하며, 앱별 recovered-*.json에 확인 범위를 기록한다.', '']
+        if self.c.get('burstConnectionWarmup', False):
+            lines[4:4] = ['버스트 전 각 VU가 liveness 경로로 연결을 예열한다. 예열 요청은 API 요청·지연·DB 로딩 집계에서 제외하며, 모든 연결의 재사용과 출발 장벽 이전 예열 완료를 검증한다.', '']
         for r in self.results:
             p95 = r['latencyMs']['p95']
             lines.append('| ' + r['label'] + ' | ' + r['variant'] + ' | ' + str(r.get('configuredRate', '-'))
