@@ -197,33 +197,3 @@ export function smokeCheckManifestTargets({ baseUrl, sessionId, manifest }) {
     ),
   );
 }
-
-export function resetRecentlyViewed({
-  baseUrl,
-  sessionId,
-  accommodationIds,
-  datasetSize,
-  benchmarkToken,
-}) {
-  const response = http.put(
-    `${baseUrl}/api/v2/members/recently-viewed/fixture`,
-    buildRecentlyViewedFixtureBody({ accommodationIds, datasetSize }),
-    {
-      ...authenticatedParams(sessionId, {
-        phase: 'setup',
-        name: 'PUT /api/v2/members/recently-viewed/fixture',
-      }),
-      headers: benchmarkHeaders(benchmarkToken, { 'Content-Type': 'application/json' }),
-    },
-  );
-
-  if (response.status !== 200) {
-    fail(`recently viewed fixture replacement failed with HTTP ${response.status}`);
-  }
-}
-
-export function buildRecentlyViewedFixtureBody({ accommodationIds, datasetSize }) {
-  return JSON.stringify({
-    accommodation_ids: accommodationIds.slice(0, datasetSize),
-  });
-}

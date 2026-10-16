@@ -1,6 +1,6 @@
 package kr.kro.airbob.domain.wishlist.dto;
 
-public record WishlistDeleteBenchmarkVerification(
+public record WishlistDeleteVerification(
 	long verifiedRows,
 	boolean succeeded,
 	boolean targetWishlistDeleted,

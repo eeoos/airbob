@@ -221,18 +221,6 @@ public class AccommodationResponse {
 				.build();
 		}
 
-		public static RecentlyViewedAccommodationInfo from(Instant viewedAt, Accommodation accommodation,
-			ReviewResponse.ReviewSummary reviewSummary, boolean isInWishlist) {
-			return RecentlyViewedAccommodationInfo.builder()
-				.viewedAt(viewedAt)
-				.accommodationId(accommodation.getId())
-				.accommodationName(accommodation.getName())
-				.thumbnailUrl(accommodation.getThumbnailUrl())
-				.addressSummary(AddressResponse.AddressSummaryInfo.from(accommodation.getAddress()))
-				.reviewSummary(reviewSummary)
-				.isInWishlist(isInWishlist)
-				.build();
-		}
 	}
 
 	/**

@@ -25,9 +25,8 @@ class BenchmarkProfileConfigurationTest {
 		.withUserConfiguration(GuardConfiguration.class);
 
 	@Test
-	@DisplayName("N+1과 read-model 프로필은 동일한 read-model 활성화 및 토큰 설정을 사용한다")
+	@DisplayName("read-model과 coupon 프로필은 동일한 read-model 활성화 및 토큰 설정을 사용한다")
 	void benchmarkProfilesUseTheSameReadModelSettings() throws IOException {
-		assertReadModelSettings("application-nplus1-benchmark.yaml");
 		assertReadModelSettings("application-read-model-benchmark.yaml");
 		assertReadModelSettings("application-coupon-benchmark.yaml");
 	}

@@ -2,7 +2,7 @@ package kr.kro.airbob.domain.accommodation.dto;
 
 import java.util.Map;
 
-public record AccommodationAmenityDeleteBenchmarkVerification(
+public record AccommodationAmenityDeleteVerification(
 	long oldTargetRowsDeleted,
 	long oldTargetRowsVerified,
 	long replacementRowsVerified,
@@ -13,7 +13,7 @@ public record AccommodationAmenityDeleteBenchmarkVerification(
 	boolean controlAmenitiesPreserved,
 	boolean succeeded
 ) {
-	public AccommodationAmenityDeleteBenchmarkVerification {
+	public AccommodationAmenityDeleteVerification {
 		replacementMapVerified = Map.copyOf(replacementMapVerified);
 	}
 

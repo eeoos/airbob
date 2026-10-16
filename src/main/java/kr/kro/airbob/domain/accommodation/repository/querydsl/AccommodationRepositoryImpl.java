@@ -23,7 +23,6 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import kr.kro.airbob.domain.accommodation.entity.Accommodation;
 import kr.kro.airbob.domain.accommodation.entity.AccommodationStatus;
-import kr.kro.airbob.domain.accommodation.entity.QAddress;
 import kr.kro.airbob.domain.accommodation.repository.projection.RecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QRecentlyViewedAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.PublicAccommodationDetailProjection;
@@ -32,7 +31,6 @@ import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodatio
 import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.HostAccommodationDetailProjection;
 import kr.kro.airbob.domain.accommodation.repository.projection.QHostAccommodationDetailProjection;
-import kr.kro.airbob.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor

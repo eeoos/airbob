@@ -29,8 +29,6 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 		""";
 	private static final int REQUIRED_TABLE_COUNT = 9;
 	private static final String REQUIRED_SCHEMA_SUFFIX = "_bulk_write_benchmark";
-	static final String SCHEMA_VERSION_QUERY =
-		"SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank DESC LIMIT 1";
 	private static final String VALIDATION_ERROR_MESSAGE =
 		"Bulk-write benchmark database validation failed";
 
@@ -80,17 +78,6 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 		if (requiredTables == null || requiredTables != REQUIRED_TABLE_COUNT) {
 			throw validationFailure();
 		}
-		if (environment.acceptsProfiles(Profiles.of("bulk-delete-benchmark"))) {
-			try {
-				if (!"28".equals(jdbcOperations.queryForObject(SCHEMA_VERSION_QUERY, String.class))
-					|| !Integer.valueOf(0).equals(jdbcOperations.queryForObject(
-						"SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0", Integer.class))) {
-					throw validationFailure();
-				}
-			} catch (RuntimeException exception) {
-				throw validationFailure();
-			}
-		}
 		validated = true;
 	}
 
@@ -102,8 +89,7 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 
 	private boolean hasForbiddenCloudProfile() {
 		return environment.acceptsProfiles(Profiles.of("oci"))
-			|| (environment.acceptsProfiles(Profiles.of("aws"))
-				&& !environment.acceptsProfiles(Profiles.of("bulk-delete-benchmark")));
+			|| environment.acceptsProfiles(Profiles.of("aws"));
 	}
 
 	private boolean isValidAllowedSchema() {

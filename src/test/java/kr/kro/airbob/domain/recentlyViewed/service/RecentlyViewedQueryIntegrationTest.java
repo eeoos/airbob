@@ -1,9 +1,7 @@
 package kr.kro.airbob.domain.recentlyViewed.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,21 +46,18 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
-import kr.kro.airbob.common.exception.BaseException;
-import kr.kro.airbob.common.exception.ErrorCode;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfo;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse.RecentlyViewedAccommodationInfos;
 
 @DataJpaTest(showSql = false, properties = {
 	"spring.jpa.properties.hibernate.generate_statistics=true",
-	"benchmark.read-model.token=test-token"
+	"spring.jpa.properties.hibernate.default_batch_fetch_size=0"
 })
 @Testcontainers
-@ActiveProfiles({"test", "nplus1-benchmark"})
+@ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration({RedisAutoConfiguration.class, JacksonAutoConfiguration.class})
 @Import({ClockConfig.class, JpaAuditingConfig.class, QueryDslConfig.class, RecentlyViewedService.class,
-	RecentlyViewedBenchmarkFixtureService.class,
 	RecentlyViewedQueryIntegrationTest.ReadTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("최근 본 숙소 조회 계약 MySQL·Redis 통합 테스트")
@@ -92,7 +87,6 @@ class RecentlyViewedQueryIntegrationTest {
 	}
 
 	@Autowired private RecentlyViewedService service;
-	@Autowired private RecentlyViewedBenchmarkFixtureService fixtureService;
 	@Autowired private StringRedisTemplate redis;
 	@Autowired private JdbcTemplate jdbc;
 	@Autowired private ObjectMapper objectMapper;
@@ -182,23 +176,13 @@ class RecentlyViewedQueryIntegrationTest {
 		assertThat(redis.opsForZSet().reverseRange(KEY, 0, -1)).containsExactly("33", "31");
 	}
 
-	@Test
-	@DisplayName("주소 N+1 벤치마크 경로도 같은 응답과 기록 정리 동작을 유지한다")
-	void benchmarkBeforeRetainsTheSameContract() throws Exception {
-		insertMixedHistory();
-		prepareMeasurement();
-
-		assertContract(service.getRecentlyViewedBefore(MEMBER_ID));
-		assertHistoryCleaned();
-	}
-
-	@ParameterizedTest(name = "최근 본 숙소 {0}개: before=N+3 SELECT, after=2 SELECT")
+	@ParameterizedTest(name = "최근 본 숙소 {0}개: SELECT 2회 유지")
 	@ValueSource(ints = {1, 20, 50, 100})
-	void benchmarkFixtureReproducesAddressNPlusOneAndPreservesTheResponse(int size) {
+	void cardinalityDoesNotIncreaseQueriesOrChangeOrder(int size) {
 		List<Long> ids = LongStream.range(1_000, 1_000 + size).boxed().toList();
 		jdbc.update("""
 			INSERT INTO wishlist (id, name, member_id, status, updated_at)
-			VALUES (51, '벤치마크 여행', 7, 'ACTIVE', NOW(6))
+			VALUES (51, '여행', 7, 'ACTIVE', NOW(6))
 			""");
 		for (long id : ids) {
 			jdbc.update("""
@@ -218,65 +202,25 @@ class RecentlyViewedQueryIntegrationTest {
 					""", id + 2_000, id);
 			}
 		}
-		addHistory(KEY, 999, "2026-09-06T00:00:00Z");
 		addHistory(OTHER_KEY, 999, "2026-09-06T00:00:00Z");
-
-		fixtureService.replaceFixture(MEMBER_ID, ids);
-
+		for (int index = 0; index < ids.size(); index++) {
+			redis.opsForZSet().add(KEY, ids.get(index).toString(), 2_000D - index);
+		}
 		var history = redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1);
-		assertThat(history).extracting(ZSetOperations.TypedTuple::getValue)
-			.containsExactlyElementsOf(ids.stream().map(String::valueOf).toList());
-		assertThat(redis.getExpire(KEY)).isBetween(Duration.ofDays(6).toSeconds(), Duration.ofDays(7).toSeconds());
-		assertThat(entityManagerFactory.unwrap(SessionFactory.class)
-			.getSessionFactoryOptions().getDefaultBatchFetchSize()).isZero();
-
 		Statistics statistics = prepareMeasurement();
-		RecentlyViewedAccommodationInfos before = service.getRecentlyViewedBefore(MEMBER_ID);
-
-		assertThat(statistics.getPrepareStatementCount()).isEqualTo(size + 3);
-		assertThat(sqlCapture.statements.stream().filter(sql -> sql.contains(" from address ")))
-			.hasSize(size);
-		assertThat(before.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
-			.containsExactlyElementsOf(ids);
-		assertThat(before.totalCount()).isEqualTo(size);
-
-		// before가 적재한 엔티티가 after 측정에 영향을 주지 않도록 영속성 컨텍스트를 비운다.
-		statistics = prepareMeasurement();
 		RecentlyViewedAccommodationInfos after = service.getRecentlyViewed(MEMBER_ID);
 
 		assertCardRead(statistics);
-		assertThat(after).isEqualTo(before);
+		assertThat(after.accommodations()).extracting(RecentlyViewedAccommodationInfo::accommodationId)
+			.containsExactlyElementsOf(ids);
+		assertThat(after.totalCount()).isEqualTo(size);
+		assertThat(after.accommodations()).allSatisfy(card -> {
+			assertThat(card.isInWishlist()).isEqualTo(card.accommodationId() % 2 == 0);
+			assertThat(card.reviewSummary().totalCount()).isEqualTo(2);
+			assertThat(card.reviewSummary().averageRating()).isEqualByComparingTo("4.50");
+		});
 		assertThat(redis.opsForZSet().reverseRangeWithScores(KEY, 0, -1)).isEqualTo(history);
 		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("999");
-	}
-
-	@ParameterizedTest
-	@ValueSource(strings = {"MISSING", "DRAFT", "UNPUBLISHED", "DELETED", "NO_ADDRESS", "SHARED_ADDRESS"})
-	void invalidBenchmarkFixturePreservesExistingHistory(String invalidCase) {
-		insertAccommodation(31, "PUBLISHED", 21L);
-		jdbc.update("""
-			INSERT INTO address (id, country, city, district, updated_at)
-			VALUES (22, '대한민국', '서울', '마포구', NOW(6))
-			""");
-		if (!invalidCase.equals("MISSING")) {
-			String status = List.of("DRAFT", "UNPUBLISHED", "DELETED").contains(invalidCase)
-				? invalidCase : "PUBLISHED";
-			Long addressId = switch (invalidCase) {
-				case "NO_ADDRESS" -> null;
-				case "SHARED_ADDRESS" -> 21L;
-				default -> 22L;
-			};
-			insertAccommodation(32, status, addressId);
-		}
-		addHistory(KEY, 777, "2026-09-06T00:00:00Z");
-		addHistory(OTHER_KEY, 888, "2026-09-06T00:00:00Z");
-
-		assertThatThrownBy(() -> fixtureService.replaceFixture(MEMBER_ID, List.of(31L, 32L)))
-			.isInstanceOfSatisfying(BaseException.class, exception -> assertThat(exception.getErrorCode())
-				.isEqualTo(ErrorCode.BENCHMARK_RECENTLY_VIEWED_FIXTURE_INVALID));
-
-		assertThat(redis.opsForZSet().reverseRange(KEY, 0, -1)).containsExactly("777");
-		assertThat(redis.opsForZSet().reverseRange(OTHER_KEY, 0, -1)).containsExactly("888");
 	}
 
 	@Test

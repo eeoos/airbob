@@ -10,27 +10,22 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkRequest;
-import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteBenchmarkVerification;
+import kr.kro.airbob.domain.wishlist.dto.WishlistDeleteVerification;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 
-@Service
-@Profile("bulk-write-benchmark")
-@ConditionalOnProperty(prefix = "benchmark.bulk-write", name = "enabled", havingValue = "true")
-public class WishlistDeleteBenchmarkFixtureService {
+public class WishlistDeleteFixtureService {
+
+	public static final int MAX_DATASET_SIZE = 1000;
 
 	private final JdbcTemplate jdbcTemplate;
 
-	public WishlistDeleteBenchmarkFixtureService(JdbcTemplate jdbcTemplate) {
+	public WishlistDeleteFixtureService(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
 	}
 
@@ -91,7 +86,7 @@ public class WishlistDeleteBenchmarkFixtureService {
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-	public WishlistDeleteBenchmarkVerification verify(Fixture fixture) {
+	public WishlistDeleteVerification verify(Fixture fixture) {
 		Objects.requireNonNull(fixture, "fixture must not be null");
 
 		WishlistRow target = findWishlistOrNull(fixture.targetWishlistId());
@@ -126,7 +121,7 @@ public class WishlistDeleteBenchmarkFixtureService {
 			&& controlMembershipPreserved
 			&& accommodationsPreserved;
 
-		return new WishlistDeleteBenchmarkVerification(
+		return new WishlistDeleteVerification(
 			verifiedRows,
 			succeeded,
 			targetWishlistDeleted,
@@ -282,9 +277,9 @@ public class WishlistDeleteBenchmarkFixtureService {
 	}
 
 	private void validateDatasetSize(int datasetSize) {
-		if (datasetSize < 0 || datasetSize > WishlistDeleteBenchmarkRequest.MAX_DATASET_SIZE) {
+		if (datasetSize < 0 || datasetSize > MAX_DATASET_SIZE) {
 			throw new IllegalArgumentException("datasetSize must be between 0 and "
-				+ WishlistDeleteBenchmarkRequest.MAX_DATASET_SIZE);
+				+ MAX_DATASET_SIZE);
 		}
 	}
 

@@ -1,21 +1,6 @@
 export const ARTIFACT_SCHEMA_VERSION = 'bulk-write-benchmark-v1';
 
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
-const WISHLIST_DATA_FIELDS = [
-  'candidate',
-  'variant',
-  'dataset_size',
-  'expected_rows',
-  'verified_rows',
-  'verification_succeeded',
-  'target_wishlist_deleted',
-  'target_memberships_deleted',
-  'target_denormalized_state_preserved',
-  'control_wishlist_preserved',
-  'control_membership_preserved',
-  'accommodations_preserved',
-  'operation',
-];
 const OPERATION_FIELDS = [
   'operation_name',
   'outcome',
@@ -26,15 +11,6 @@ const OPERATION_FIELDS = [
   'jdbc_submitted_rows',
   'jdbc_configured_batch_size',
   'jdbc_affected_rows',
-];
-const WISHLIST_VERIFICATION_FIELDS = [
-  'verification_succeeded',
-  'target_wishlist_deleted',
-  'target_memberships_deleted',
-  'target_denormalized_state_preserved',
-  'control_wishlist_preserved',
-  'control_membership_preserved',
-  'accommodations_preserved',
 ];
 const RESERVATION_HISTORY_DATA_FIELDS = [
   'candidate',
@@ -60,47 +36,6 @@ const RESERVATION_HISTORY_VERIFICATION_FIELDS = [
   'history_snapshots_preserved',
   'history_audit_context_preserved',
 ];
-const ACCOMMODATION_AMENITY_DATA_FIELDS = [
-  'candidate',
-  'variant',
-  'measurement',
-  'workload_class',
-  'active_amenity_code_count',
-  'dataset_size',
-  'old_target_rows_expected',
-  'old_target_rows_deleted',
-  'old_target_rows_verified',
-  'replacement_rows_expected',
-  'replacement_rows_verified',
-  'replacement_map_expected',
-  'replacement_map_verified',
-  'target_parent_preserved',
-  'history_effect_matched',
-  'control_accommodation_preserved',
-  'control_amenities_preserved',
-  'verification_succeeded',
-  'operation',
-];
-
-export const WISHLIST_DELETE_BENCHMARK = Object.freeze({
-  candidate: 'WISHLIST_DELETE',
-  endpoint: '/api/v2/admin/benchmarks/bulk-write/wishlist-delete',
-  requestName: 'POST /api/v2/admin/benchmarks/bulk-write/wishlist-delete',
-  operationPrefix: 'wishlist-delete',
-  maximumDatasetSize: 1000,
-  supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
-  dataFields: Object.freeze(WISHLIST_DATA_FIELDS),
-  matchesData: (data, datasetSize) => (
-    data.expected_rows === datasetSize
-      && data.verified_rows === datasetSize
-      && WISHLIST_VERIFICATION_FIELDS.every((field) => data[field] === true)
-      && data.operation.jdbc_batch_calls === 0
-      && data.operation.jdbc_submitted_rows === 0
-      && data.operation.jdbc_configured_batch_size === null
-      && data.operation.jdbc_affected_rows === null
-  ),
-});
-
 export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   candidate: 'RESERVATION_HISTORY_INSERT',
   endpoint: '/api/v2/admin/benchmarks/bulk-write/reservation-history-insert',
@@ -148,111 +83,9 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   },
 });
 
-function mapsMatch(left, right) {
-  if (!isObject(left) || !isObject(right)) {
-    return false;
-  }
-  const leftKeys = Object.keys(left).sort();
-  const rightKeys = Object.keys(right).sort();
-  return leftKeys.length === rightKeys.length
-    && leftKeys.every((key, index) => (
-      key === rightKeys[index]
-      && Number.isSafeInteger(left[key])
-      && left[key] > 0
-      && left[key] === right[key]
-    ));
-}
-
-export const ACCOMMODATION_AMENITY_DELETE_BENCHMARK = Object.freeze({
-  candidate: 'ACCOMMODATION_AMENITY_DELETE',
-  endpoint: '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete',
-  requestName: 'POST /api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete',
-  operationPrefix: 'accommodation-amenity',
-  operationName: (variant, measurement) => (
-    measurement === 'FULL_REPLACEMENT'
-      ? `accommodation-amenity-full-replacement-${variant.toLowerCase()}`
-      : `accommodation-amenity-delete-only-${variant.toLowerCase()}`
-  ),
-  maximumDatasetSize: 100,
-  supportedVariants: Object.freeze(['BEFORE', 'AFTER']),
-  supportedMeasurements: Object.freeze(['FULL_REPLACEMENT', 'DELETE_ONLY']),
-  activeCodeMetric: 'bulk_write_active_amenity_code_count',
-  dataFields: Object.freeze(ACCOMMODATION_AMENITY_DATA_FIELDS),
-  matchesData: (data, datasetSize, variant, measurement) => {
-    const activeCodeCount = data.active_amenity_code_count;
-    const replacementRows = data.replacement_rows_expected;
-    const fullReplacement = measurement === 'FULL_REPLACEMENT';
-    const counts = data.operation.hibernate_statements_by_type;
-    const expectedWorkload = datasetSize <= activeCodeCount ? 'REALISTIC' : 'STRESS';
-    const sqlMatches = variant === 'BEFORE'
-      ? (fullReplacement
-        ? counts.SELECT === 3
-          && counts.DELETE === datasetSize
-          && counts.INSERT === replacementRows + 2
-          && counts.UPDATE === 1
-          && counts.OTHER === 0
-          && counts.TOTAL === datasetSize + replacementRows + 6
-        : counts.SELECT === 1
-          && counts.DELETE === datasetSize
-          && counts.INSERT === 0
-          && counts.UPDATE === 0
-          && counts.OTHER === 0
-          && counts.TOTAL === datasetSize + 1)
-      : (fullReplacement
-        ? counts.SELECT === 2
-          && counts.DELETE === 1
-          && counts.INSERT === replacementRows + 2
-          && counts.UPDATE === 1
-          && counts.OTHER === 0
-          && counts.TOTAL === replacementRows + 6
-        : counts.SELECT === 0
-          && counts.DELETE === 1
-          && counts.INSERT === 0
-          && counts.UPDATE === 0
-          && counts.OTHER === 0
-          && counts.TOTAL === 1);
-    return (variant === 'BEFORE' || variant === 'AFTER')
-      && data.measurement === measurement
-      && Number.isSafeInteger(activeCodeCount)
-      && activeCodeCount > 0
-      && data.workload_class === expectedWorkload
-      && data.old_target_rows_expected === datasetSize
-      && data.old_target_rows_deleted === datasetSize
-      && data.old_target_rows_verified === datasetSize
-      && Number.isSafeInteger(replacementRows)
-      && replacementRows >= 0
-      && replacementRows === data.replacement_rows_verified
-      && replacementRows === Object.keys(data.replacement_map_expected || {}).length
-      && mapsMatch(data.replacement_map_expected, data.replacement_map_verified)
-      && (fullReplacement
-        ? replacementRows === Math.min(datasetSize, activeCodeCount)
-        : replacementRows === 0)
-      && data.target_parent_preserved === true
-      && data.history_effect_matched === true
-      && data.control_accommodation_preserved === true
-      && data.control_amenities_preserved === true
-      && data.verification_succeeded === true
-      && data.operation.jdbc_batch_calls === 0
-      && data.operation.jdbc_submitted_rows === 0
-      && data.operation.jdbc_configured_batch_size === null
-      && data.operation.jdbc_affected_rows === null
-      && sqlMatches;
-  },
-});
-
-export function accommodationAmenityServerOperationMetricName(measurement) {
-  const parsed = parseBulkWriteMeasurement(
-    measurement,
-    ACCOMMODATION_AMENITY_DELETE_BENCHMARK,
-  );
-  return parsed === 'FULL_REPLACEMENT'
-    ? 'bulk_write_accommodation_amenity_full_replacement_server_operation_ms'
-    : 'bulk_write_accommodation_amenity_delete_only_server_operation_ms';
-}
-
-export const BULK_WRITE_ENDPOINT = WISHLIST_DELETE_BENCHMARK.endpoint;
-export const BULK_WRITE_REQUEST_NAME = WISHLIST_DELETE_BENCHMARK.requestName;
-export const BULK_WRITE_CANDIDATE = WISHLIST_DELETE_BENCHMARK.candidate;
+export const BULK_WRITE_ENDPOINT = RESERVATION_HISTORY_INSERT_BENCHMARK.endpoint;
+export const BULK_WRITE_REQUEST_NAME = RESERVATION_HISTORY_INSERT_BENCHMARK.requestName;
+export const BULK_WRITE_CANDIDATE = RESERVATION_HISTORY_INSERT_BENCHMARK.candidate;
 export const BULK_WRITE_HIBERNATE_METRICS = {
   SELECT: 'bulk_write_hibernate_select_statements',
   INSERT: 'bulk_write_hibernate_insert_statements',
@@ -413,7 +246,7 @@ export function parseSafeBaseUrl(raw) {
   return `${scheme}://${hostname}${normalizedPort}`;
 }
 
-export function parseDatasetSize(raw, benchmark = WISHLIST_DELETE_BENCHMARK) {
+export function parseDatasetSize(raw, benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK) {
   const definition = requireBenchmarkDefinition(benchmark);
   return parseCanonicalInteger(raw, 'DATASET_SIZE', 0, definition.maximumDatasetSize);
 }
@@ -427,7 +260,7 @@ export function parsePhase(raw) {
   return raw;
 }
 
-export function parseBulkWriteVariant(raw, benchmark = WISHLIST_DELETE_BENCHMARK) {
+export function parseBulkWriteVariant(raw, benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK) {
   const definition = requireBenchmarkDefinition(benchmark);
   requireCondition(
     definition.supportedVariants.includes(raw),
@@ -448,7 +281,7 @@ export function parseBulkWriteMeasurement(raw, benchmark) {
 
 export function bulkWriteOperationName(
   rawVariant,
-  benchmark = WISHLIST_DELETE_BENCHMARK,
+  benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
   rawMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
@@ -492,7 +325,7 @@ export function parseBulkWriteResultPath(raw, fallback) {
 
 export function parseBulkWriteRunConfig(
   environment,
-  benchmark = WISHLIST_DELETE_BENCHMARK,
+  benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const variant = parseBulkWriteVariant(environment.VARIANT, definition);
@@ -560,7 +393,7 @@ export function parseBulkWriteRunConfig(
 
 export function buildBulkWriteRequestBody(
   { variant, measurement, datasetSize },
-  benchmark = WISHLIST_DELETE_BENCHMARK,
+  benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const body = {
@@ -606,7 +439,7 @@ export function buildBulkWriteRequestParams({
 
 export function buildBulkWriteOptions(
   { variant, measurement, phase, samples },
-  benchmark = WISHLIST_DELETE_BENCHMARK,
+  benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const parsedVariant = parseBulkWriteVariant(variant, definition);
@@ -710,7 +543,7 @@ function durationUnitsMatch(nanos, millis) {
 export function matchesBulkWriteOperationContract(
   value,
   expectedVariant = 'BEFORE',
-  benchmark = WISHLIST_DELETE_BENCHMARK,
+  benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
   expectedMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
@@ -745,7 +578,7 @@ export function matchesBulkWriteResponseContract(
   payload,
   expectedDatasetSize,
   expectedVariant = 'BEFORE',
-  benchmark = WISHLIST_DELETE_BENCHMARK,
+  benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
   expectedMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
@@ -903,7 +736,7 @@ export function buildBulkWriteArtifact({
   k6Summary,
   generatedAt = new Date().toISOString(),
   sensitiveValues = [],
-}, benchmark = WISHLIST_DELETE_BENCHMARK) {
+}, benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK) {
   const definition = requireBenchmarkDefinition(benchmark);
   const performance = summarizeBulkWriteMetrics(k6Summary);
   const jdbc = summarizeJdbcMetrics(k6Summary);

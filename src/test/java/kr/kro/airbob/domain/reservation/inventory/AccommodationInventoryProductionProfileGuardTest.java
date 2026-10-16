@@ -36,6 +36,8 @@ class AccommodationInventoryProductionProfileGuardTest {
 			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
 		assertThatThrownBy(() -> guard(new String[] {"oci", "test"}, false, false)
 			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> guard(new String[] {"aws", "bulk-delete-benchmark"}, false, false)
+			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
 	}
 
 	@Test

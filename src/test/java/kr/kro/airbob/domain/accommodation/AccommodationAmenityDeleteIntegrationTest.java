@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -18,13 +16,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
@@ -45,20 +42,14 @@ import org.testcontainers.utility.DockerImageName;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityManager;
 import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.context.UserInfo;
-import kr.kro.airbob.common.dto.ApiResponse;
 import kr.kro.airbob.common.monitoring.SqlQueryType;
 import kr.kro.airbob.common.monitoring.bulkwrite.BulkOperationMonitor;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkResponse;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Measurement;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Variant;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass;
+import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteFixtureService.Measurement;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AddressRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
@@ -67,27 +58,20 @@ import kr.kro.airbob.domain.accommodation.entity.AccommodationAmenity;
 import kr.kro.airbob.domain.accommodation.exception.AccommodationNotFoundException;
 import kr.kro.airbob.domain.accommodation.exception.InvalidAccommodationAmenityException;
 import kr.kro.airbob.domain.accommodation.repository.AccommodationAmenityRepository;
-import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBeforeBenchmarkService;
-import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteAfterBenchmarkService;
-import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkFixtureService;
-import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkFixtureService.Fixture;
-import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteBenchmarkService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteFixtureService;
+import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteFixtureService.Fixture;
 import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 import kr.kro.airbob.geo.GeocodingService;
 import kr.kro.airbob.geo.dto.GeocodeResult;
 
 @Testcontainers
-@SpringBootTest(properties = {
-	"spring.cloud.aws.s3.enabled=false",
-	"benchmark.bulk-write.enabled=true",
-	"benchmark.bulk-write.token=amenity-integration-token-1234567890",
-	"benchmark.bulk-write.allowed-schema=airbob_bulk_write_benchmark"
-})
-@ActiveProfiles({"test", "bulk-write-benchmark"})
+@SpringBootTest(properties = "spring.cloud.aws.s3.enabled=false")
+@ActiveProfiles("test")
+@Import(AccommodationAmenityDeleteFixtureService.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@DisplayName("AccommodationAmenity 삭제 Before/After 벤치마크 MySQL 통합 테스트")
-class AccommodationAmenityDeleteBenchmarkIntegrationTest {
+@DisplayName("숙소 편의시설 교체 및 벌크 삭제 MySQL 통합 테스트")
+class AccommodationAmenityDeleteIntegrationTest {
 	private static final String INACTIVE_AMENITY_CODE = "INACTIVE_TEST_AMENITY";
 
 	@Container
@@ -116,13 +100,9 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
 	}
 
-	@Autowired private AccommodationAmenityDeleteBenchmarkService benchmarkService;
-	@Autowired private AccommodationAmenityDeleteBenchmarkFixtureService fixtureService;
-	@Autowired private AccommodationAmenityDeleteBeforeBenchmarkService beforeService;
-	@Autowired private AccommodationAmenityDeleteAfterBenchmarkService afterService;
+	@Autowired private AccommodationAmenityDeleteFixtureService fixtureService;
 	@Autowired private AccommodationCommandService accommodationCommandService;
 	@Autowired private JdbcTemplate jdbcTemplate;
-	@Autowired private ObjectMapper objectMapper;
 	@Autowired private KafkaListenerEndpointRegistry kafkaListeners;
 	@Autowired private TransactionTemplate transactionTemplate;
 	@Autowired private EntityManager entityManager;
@@ -141,7 +121,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 	@BeforeEach
 	void setUp() {
 		ownerId = insertAdminMember();
-		UserContext.set(new UserInfo(ownerId, "127.0.0.1", "BENCHMARK"));
+		UserContext.set(new UserInfo(ownerId, "127.0.0.1", "TEST"));
 	}
 
 	@AfterEach
@@ -181,20 +161,9 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(fixture);
 	}
 
-	@Test
-	@DisplayName("full replacement는 N=0, 현실 경계, stress에서 N+R+6 SQL 공식과 상태 계약을 지킨다")
-	void fullReplacementMatchesSqlFormulaAcrossCardinalities() {
-		int activeCodeCount = activeAmenityCodes().size();
-
-		assertFullReplacement(0, activeCodeCount);
-		assertFullReplacement(activeCodeCount, activeCodeCount);
-		assertFullReplacement(activeCodeCount + 1, activeCodeCount);
-
-		assertThat(AopUtils.isAopProxy(beforeService)).isTrue();
-	}
 
 	@Test
-	@DisplayName("After full replacement는 N=0, 현실 경계, stress에서 predicate DELETE SQL 공식과 상태 계약을 지킨다")
+	@DisplayName("편의시설 교체는 N=0, 현실 경계, stress에서 predicate DELETE SQL 공식과 상태 계약을 지킨다")
 	void fullReplacementAfterMatchesSqlFormulaAcrossCardinalities() {
 		int activeCodeCount = activeAmenityCodes().size();
 
@@ -205,20 +174,9 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertThat(AopUtils.isAopProxy(accommodationCommandService)).isTrue();
 	}
 
-	@Test
-	@DisplayName("delete-only 진단은 N=0, 현실 경계, stress에서 SELECT 1 + DELETE N 공식만 기록한다")
-	void deleteOnlyMatchesSqlFormulaAcrossCardinalities() {
-		int activeCodeCount = activeAmenityCodes().size();
-
-		assertDeleteOnly(0, activeCodeCount);
-		assertDeleteOnly(activeCodeCount, activeCodeCount);
-		assertDeleteOnly(activeCodeCount + 1, activeCodeCount);
-
-		assertThat(AopUtils.isAopProxy(beforeService)).isTrue();
-	}
 
 	@Test
-	@DisplayName("After delete-only는 N=0, 현실 경계, stress에서 항상 predicate DELETE 한 번을 기록한다")
+	@DisplayName("벌크 삭제는 N=0, 현실 경계, stress에서 항상 predicate DELETE 한 번을 기록한다")
 	void deleteOnlyAfterMatchesSqlFormulaAcrossCardinalities() {
 		int activeCodeCount = activeAmenityCodes().size();
 
@@ -226,17 +184,15 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertDeleteOnlyAfter(activeCodeCount, activeCodeCount);
 		assertDeleteOnlyAfter(activeCodeCount + 1, activeCodeCount);
 
-		assertThat(AopUtils.isAopProxy(afterService)).isTrue();
 	}
 
-	@ParameterizedTest
-	@EnumSource(Variant.class)
+	@Test
 	@DisplayName("null은 amenity를 유지하고 empty는 전부 삭제하며 populated는 대소문자·중복·0을 정확히 병합한다")
-	void preservesCurrentAmenityReplacementSemantics(Variant variant) {
+	void preservesCurrentAmenityReplacementSemantics() {
 		Fixture nullFixture = fixtureService.createFixture(ownerId, 3);
 		Map<String, Integer> oldMap = amenityMap(nullFixture.targetAccommodationId());
 
-		runFullReplacement(variant,
+		accommodationCommandService.updateAccommodation(
 			nullFixture.targetAccommodationId(),
 			update(null),
 			ownerId
@@ -246,7 +202,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(nullFixture);
 
 		Fixture emptyFixture = fixtureService.createFixture(ownerId, 3);
-		runFullReplacement(variant,
+		accommodationCommandService.updateAccommodation(
 			emptyFixture.targetAccommodationId(),
 			update(List.of()),
 			ownerId
@@ -266,7 +222,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			new AmenityRequest.AmenityInfo(second.toLowerCase(), 5)
 		);
 
-		runFullReplacement(variant,
+		accommodationCommandService.updateAccommodation(
 			populatedFixture.targetAccommodationId(),
 			update(request),
 			ownerId
@@ -278,10 +234,9 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(populatedFixture);
 	}
 
-	@ParameterizedTest
-	@EnumSource(Variant.class)
+	@Test
 	@DisplayName("DB에 존재하지만 비활성인 편의시설이 섞이면 전체 수정을 거부한다")
-	void rejectsInactiveAmenityAndPreservesExistingState(Variant variant) {
+	void rejectsInactiveAmenityAndPreservesExistingState() {
 		jdbcTemplate.update(
 			"DELETE FROM common_code WHERE group_code = 'AMENITY_TYPE' AND code = ?",
 			INACTIVE_AMENITY_CODE
@@ -311,7 +266,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			))
 			.build();
 
-		assertThatThrownBy(() -> runFullReplacement(variant,
+		assertThatThrownBy(() -> accommodationCommandService.updateAccommodation(
 			fixture.targetAccommodationId(), request, ownerId
 		)).isInstanceOf(InvalidAccommodationAmenityException.class);
 
@@ -322,10 +277,9 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(fixture);
 	}
 
-	@ParameterizedTest
-	@EnumSource(Variant.class)
-	@DisplayName("두 삭제 전략 모두 managed parent와 address·occupancy·history 변경을 commit한다")
-	void preservesManagedParentAndOwnedStateAfterPredicateDelete(Variant variant) {
+	@Test
+	@DisplayName("벌크 삭제 후 managed parent와 address·occupancy·history 변경을 commit한다")
+	void preservesManagedParentAndOwnedStateAfterPredicateDelete() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 1);
 		when(geocodingService.getCoordinates(anyString()))
 			.thenReturn(GeocodeResult.success(37.5665, 126.9780, "Seoul", null));
@@ -344,7 +298,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			null
 		);
 
-		runFullReplacement(variant, fixture.targetAccommodationId(), request, ownerId);
+		accommodationCommandService.updateAccommodation( fixture.targetAccommodationId(), request, ownerId);
 
 		Map<String, Object> parent = parentSnapshot(fixture.targetAccommodationId());
 		assertThat(parent.get("name")).isEqualTo("managed parent after bulk delete");
@@ -430,29 +384,14 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 				.contains("TOTAL=1"));
 	}
 
-	@Test
-	@DisplayName("delete-only 진단은 대상 숙소가 없어도 SELECT 1만 수행하고 정상 종료한다")
-	void deleteOnlyTreatsAbsentTargetAsNoOp() {
-		var snapshot = bulkOperationMonitor.monitor(
-			"accommodation-amenity-delete-only-absent-characterization",
-			() -> beforeService.deleteByAccommodationId(Long.MAX_VALUE)
-		);
-
-		assertThat(snapshot.hibernateStatementsByType())
-			.containsEntry(SqlQueryType.SELECT, 1)
-			.containsEntry(SqlQueryType.TOTAL, 1);
-		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.INSERT, 0)).isZero();
-		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.UPDATE, 0)).isZero();
-		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.DELETE, 0)).isZero();
-		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.OTHER, 0)).isZero();
-	}
 
 	@Test
-	@DisplayName("After delete-only는 대상이 없어도 predicate DELETE 한 번과 영향 행 0을 기록한다")
+	@DisplayName("벌크 삭제는 대상이 없어도 predicate DELETE 한 번과 영향 행 0을 기록한다")
 	void deleteOnlyAfterTreatsAbsentTargetAsOneStatementNoOp() {
 		var snapshot = bulkOperationMonitor.monitor(
 			"accommodation-amenity-delete-only-after-absent-characterization",
-			() -> assertThat(afterService.deleteByAccommodationId(Long.MAX_VALUE)).isZero()
+			() -> transactionTemplate.executeWithoutResult(status ->
+				assertThat(accommodationAmenityRepository.deleteByAccommodationIdInBulk(Long.MAX_VALUE)).isZero())
 		);
 
 		assertThat(snapshot.hibernateStatementsByType())
@@ -461,48 +400,7 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		assertThat(snapshot.hibernateStatementsByType().getOrDefault(SqlQueryType.SELECT, 0)).isZero();
 	}
 
-	@Test
-	@DisplayName("delete-only 검증은 부모와 현재 이력의 모든 영속 필드 변경을 탐지한다")
-	void deleteOnlyVerificationDetectsCompleteParentAndHistoryChanges() {
-		Fixture parentFixture = fixtureService.createFixture(ownerId, 1);
-		beforeService.deleteByAccommodationId(parentFixture.targetAccommodationId());
-		jdbcTemplate.update(
-			"UPDATE accommodation SET description = 'unexpected mutation' WHERE id = ?",
-			parentFixture.targetAccommodationId()
-		);
 
-		assertThat(fixtureService.verify(parentFixture, Measurement.DELETE_ONLY).succeeded()).isFalse();
-		fixtureService.cleanup(parentFixture);
-
-		Fixture historyFixture = fixtureService.createFixture(ownerId, 1);
-		beforeService.deleteByAccommodationId(historyFixture.targetAccommodationId());
-		jdbcTemplate.update(
-			"UPDATE accommodation_history SET source_system = 'MUTATED' WHERE id = ?",
-			historyFixture.targetHistoryId()
-		);
-
-		assertThat(fixtureService.verify(historyFixture, Measurement.DELETE_ONLY).succeeded()).isFalse();
-		fixtureService.cleanup(historyFixture);
-	}
-
-	@Test
-	@DisplayName("full replacement 검증은 새 UPDATE 이력의 전체 숙소 스냅샷 훼손을 탐지한다")
-	void fullReplacementVerificationDetectsIncompleteCurrentHistory() {
-		Fixture fixture = fixtureService.createFixture(ownerId, 1);
-		accommodationCommandService.updateAccommodation(
-			fixture.targetAccommodationId(),
-			fixture.replacementRequest(),
-			ownerId
-		);
-		jdbcTemplate.update("""
-			UPDATE accommodation_history
-			SET description = 'unexpected mutation'
-			WHERE accommodation_id = ? AND id <> ?
-			""", fixture.targetAccommodationId(), fixture.targetHistoryId());
-
-		assertThat(fixtureService.verify(fixture, Measurement.FULL_REPLACEMENT).succeeded()).isFalse();
-		fixtureService.cleanup(fixture);
-	}
 
 	@Test
 	@DisplayName("full replacement 이력은 fixture 생성 요청의 동적 source system과 client IP를 보존한다")
@@ -553,48 +451,15 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		fixtureService.cleanup(fixture);
 	}
 
+
 	@Test
-	@DisplayName("Before full replacement INSERT flush 뒤 실패하면 derived delete와 INSERT를 rollback한다")
-	void rollsBackBeforeFullReplacementAfterDatabaseInsertFailure() {
-		Fixture fixture = fixtureService.createFixture(ownerId, 4);
-		Map<String, Integer> oldTarget = amenityMap(fixture.targetAccommodationId());
-		Map<String, Object> parentBefore = parentSnapshot(fixture.targetAccommodationId());
-		List<Map<String, Object>> historyBefore = historySnapshots(fixture.targetAccommodationId());
-		Map<String, Integer> controlBefore = amenityMap(fixture.controlAccommodationId());
-
-		List<AmenityRequest.AmenityInfo> replacement = fixture.activeAmenityCodes().subList(0, 4)
-			.stream()
-			.map(code -> new AmenityRequest.AmenityInfo(code, 1))
-			.toList();
-		doAnswer(invocation -> {
-			Iterable<AccommodationAmenity> amenities = invocation.getArgument(0);
-			amenities.forEach(entityManager::persist);
-			entityManager.flush();
-			throw new IntentionalAmenitySaveFailure();
-		}).when(accommodationAmenityRepository).saveAll(any());
-
-		assertThatThrownBy(() -> beforeService.fullReplacement(
-			fixture.targetAccommodationId(),
-			update(replacement),
-			ownerId
-		)).isInstanceOf(IntentionalAmenitySaveFailure.class);
-
-		assertThat(amenityMap(fixture.targetAccommodationId())).isEqualTo(oldTarget);
-		assertThat(parentSnapshot(fixture.targetAccommodationId())).isEqualTo(parentBefore);
-		assertThat(historySnapshots(fixture.targetAccommodationId())).isEqualTo(historyBefore);
-		assertThat(amenityMap(fixture.controlAccommodationId())).isEqualTo(controlBefore);
-		fixtureService.cleanup(fixture);
-	}
-
-	@ParameterizedTest
-	@EnumSource(Variant.class)
-	@DisplayName("두 교체 경로는 터키어 기본 Locale에서도 같은 코드를 저장한다")
-	void normalizesCodesInBothVariants(Variant variant) {
+	@DisplayName("터키어 기본 Locale에서도 코드를 정규화한다")
+	void normalizesCodesUnderTurkishLocale() {
 		Fixture fixture = fixtureService.createFixture(ownerId, 1);
 		Locale previous = Locale.getDefault();
 		try {
 			Locale.setDefault(Locale.forLanguageTag("tr-TR"));
-			runFullReplacement(variant, fixture.targetAccommodationId(),
+			accommodationCommandService.updateAccommodation( fixture.targetAccommodationId(),
 				update(List.of(new AmenityRequest.AmenityInfo("wifi", 2))), ownerId);
 			assertThat(amenityMap(fixture.targetAccommodationId())).containsExactlyEntriesOf(Map.of("WIFI", 2));
 		} finally {
@@ -603,29 +468,6 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 		}
 	}
 
-	@Test
-	@DisplayName("outbox 검증은 누락된 무효화를 거부하고 cleanup은 다른 fixture의 이벤트를 보존한다")
-	void verifiesAndCleansOnlyOwnedOutboxEvents() {
-		Fixture control = fixtureService.createFixture(ownerId, 2);
-		Fixture target = fixtureService.createFixture(ownerId, 2);
-		runFullReplacement(Variant.AFTER, control.targetAccommodationId(), control.replacementRequest(), ownerId);
-		runFullReplacement(Variant.BEFORE, target.targetAccommodationId(), target.replacementRequest(), ownerId);
-		assertThat(fixtureService.verify(target, Measurement.FULL_REPLACEMENT).succeeded()).isTrue();
-		assertThat(countOutboxRows()).isEqualTo(2L);
-
-		jdbcTemplate.update("UPDATE outbox SET event_version = 'invalid' WHERE aggregate_id = ?",
-			Long.toString(target.targetAccommodationId()));
-		assertThat(fixtureService.verify(target, Measurement.FULL_REPLACEMENT).succeeded()).isFalse();
-		fixtureService.cleanup(target);
-		fixtureService.cleanup(target);
-		assertThat(countOutboxRows()).isEqualTo(1L);
-		assertThat(fixtureService.verify(control, Measurement.FULL_REPLACEMENT).succeeded()).isTrue();
-
-		jdbcTemplate.update("DELETE FROM outbox WHERE aggregate_id = ?", Long.toString(control.targetAccommodationId()));
-		assertThat(fixtureService.verify(control, Measurement.FULL_REPLACEMENT).succeeded()).isFalse();
-		fixtureService.cleanup(control);
-		assertThat(countOutboxRows()).isZero();
-	}
 
 	@Test
 	@DisplayName("벤치마크는 main/retry/DLT Kafka 소비자를 모두 정지 상태로 유지한다")
@@ -634,189 +476,46 @@ class AccommodationAmenityDeleteBenchmarkIntegrationTest {
 			.allSatisfy(container -> assertThat(container.isRunning()).isFalse());
 	}
 
-	@Test
-	@DisplayName("실제 서비스 응답을 k6 계약 검증용으로 내보내고 반복 측정 후 outbox 잔여물을 확인한다")
-	void exportsActualResponsesForClientContract() throws Exception {
-		var responses = new ArrayList<ApiResponse<AccommodationAmenityDeleteBenchmarkResponse>>();
-		for (Variant variant : Variant.values()) {
-			for (Measurement measurement : Measurement.values()) {
-				var response = benchmarkService.run(ownerId,
-					new AccommodationAmenityDeleteBenchmarkRequest(variant, measurement, 3));
-				assertThat(response.verificationSucceeded()).isTrue();
-				assertThat(countOutboxRows()).isZero();
-				responses.add(ApiResponse.success(response));
-			}
-		}
-		Path output = Path.of("build/contracts/bulk-delete-amenity-responses.json");
-		Files.createDirectories(output.getParent());
-		objectMapper.writerWithDefaultPrettyPrinter().writeValue(output.toFile(), responses);
-	}
 
 	private long countOutboxRows() {
 		return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM outbox", Long.class);
 	}
 
-	private void runFullReplacement(Variant variant, long accommodationId, AccommodationRequest.Update request,
-		long memberId) {
-		if (variant == Variant.BEFORE) {
-			beforeService.fullReplacement(accommodationId, request, memberId);
-		} else {
-			accommodationCommandService.updateAccommodation(accommodationId, request, memberId);
-		}
-	}
 
-	private void assertFullReplacement(int datasetSize, int activeCodeCount) {
-		var response = benchmarkService.run(
-			ownerId,
-			new AccommodationAmenityDeleteBenchmarkRequest(
-				Variant.BEFORE,
-				Measurement.FULL_REPLACEMENT,
-				datasetSize
-			)
-		);
-		int replacementRows = Math.min(datasetSize, activeCodeCount);
 
-		assertThat(response.activeAmenityCodeCount()).isEqualTo(activeCodeCount);
-		assertThat(response.workloadClass()).isEqualTo(
-			datasetSize <= activeCodeCount ? WorkloadClass.REALISTIC : WorkloadClass.STRESS
-		);
-		assertThat(response.oldTargetRowsExpected()).isEqualTo(datasetSize);
-		assertThat(response.oldTargetRowsDeleted()).isEqualTo(datasetSize);
-		assertThat(response.oldTargetRowsVerified()).isEqualTo(datasetSize);
-		assertThat(response.replacementRowsExpected()).isEqualTo(replacementRows);
-		assertThat(response.replacementRowsVerified()).isEqualTo(replacementRows);
-		assertThat(response.replacementMapVerified()).isEqualTo(response.replacementMapExpected());
-		assertThat(response.targetParentPreserved()).isTrue();
-		assertThat(response.historyEffectMatched()).isTrue();
-		assertThat(response.controlAccommodationPreserved()).isTrue();
-		assertThat(response.controlAmenitiesPreserved()).isTrue();
-		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.operation().hibernateStatementsByType())
-			.containsEntry(SqlQueryType.SELECT, 3)
-			.containsEntry(SqlQueryType.DELETE, datasetSize)
-			.containsEntry(SqlQueryType.INSERT, replacementRows + 2)
-			.containsEntry(SqlQueryType.UPDATE, 1)
-			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, datasetSize + replacementRows + 6);
-		assertNoJdbcBatchFields(response.operation().jdbcBatchCalls(),
-			response.operation().jdbcSubmittedRows(),
-			response.operation().jdbcConfiguredBatchSize(),
-			response.operation().jdbcAffectedRows());
-	}
 
-	private void assertDeleteOnly(int datasetSize, int activeCodeCount) {
-		var response = benchmarkService.run(
-			ownerId,
-			new AccommodationAmenityDeleteBenchmarkRequest(
-				Variant.BEFORE,
-				Measurement.DELETE_ONLY,
-				datasetSize
-			)
-		);
 
-		assertThat(response.activeAmenityCodeCount()).isEqualTo(activeCodeCount);
-		assertThat(response.oldTargetRowsExpected()).isEqualTo(datasetSize);
-		assertThat(response.oldTargetRowsDeleted()).isEqualTo(datasetSize);
-		assertThat(response.oldTargetRowsVerified()).isEqualTo(datasetSize);
-		assertThat(response.replacementRowsExpected()).isZero();
-		assertThat(response.replacementRowsVerified()).isZero();
-		assertThat(response.replacementMapVerified()).isEmpty();
-		assertThat(response.targetParentPreserved()).isTrue();
-		assertThat(response.historyEffectMatched()).isTrue();
-		assertThat(response.controlAccommodationPreserved()).isTrue();
-		assertThat(response.controlAmenitiesPreserved()).isTrue();
-		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.operation().hibernateStatementsByType())
-			.containsEntry(SqlQueryType.SELECT, 1)
-			.containsEntry(SqlQueryType.DELETE, datasetSize)
-			.containsEntry(SqlQueryType.INSERT, 0)
-			.containsEntry(SqlQueryType.UPDATE, 0)
-			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, datasetSize + 1);
-		assertNoJdbcBatchFields(response.operation().jdbcBatchCalls(),
-			response.operation().jdbcSubmittedRows(),
-			response.operation().jdbcConfiguredBatchSize(),
-			response.operation().jdbcAffectedRows());
-	}
 
-	private void assertFullReplacementAfter(int datasetSize, int activeCodeCount) {
-		var response = benchmarkService.run(
-			ownerId,
-			new AccommodationAmenityDeleteBenchmarkRequest(
-				Variant.AFTER,
-				Measurement.FULL_REPLACEMENT,
-				datasetSize
-			)
-		);
-		int replacementRows = Math.min(datasetSize, activeCodeCount);
 
-		assertThat(response.oldTargetRowsDeleted()).isEqualTo(datasetSize);
-		assertThat(response.oldTargetRowsVerified()).isEqualTo(datasetSize);
-		assertThat(response.replacementRowsExpected()).isEqualTo(replacementRows);
-		assertThat(response.replacementRowsVerified()).isEqualTo(replacementRows);
-		assertThat(response.replacementMapVerified()).isEqualTo(response.replacementMapExpected());
-		assertThat(response.targetParentPreserved()).isTrue();
-		assertThat(response.historyEffectMatched()).isTrue();
-		assertThat(response.controlAccommodationPreserved()).isTrue();
-		assertThat(response.controlAmenitiesPreserved()).isTrue();
-		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.operation().hibernateStatementsByType())
+	private void assertFullReplacementAfter(int size, int activeCodeCount) {
+		Fixture fixture = fixtureService.createFixture(ownerId, size);
+		var snapshot = bulkOperationMonitor.monitor("amenity-replacement-regression",
+			() -> accommodationCommandService.updateAccommodation(
+				fixture.targetAccommodationId(), fixture.replacementRequest(), ownerId));
+		var verification = fixtureService.verify(fixture, Measurement.FULL_REPLACEMENT);
+		int replacementRows = Math.min(size, activeCodeCount);
+		assertThat(verification.succeeded()).isTrue();
+		assertThat(verification.oldTargetRowsDeleted()).isEqualTo(size);
+		assertThat(verification.replacementRowsVerified()).isEqualTo(replacementRows);
+		assertThat(snapshot.hibernateStatementsByType())
 			.containsEntry(SqlQueryType.SELECT, 2)
 			.containsEntry(SqlQueryType.DELETE, 1)
 			.containsEntry(SqlQueryType.INSERT, replacementRows + 2)
-			.containsEntry(SqlQueryType.UPDATE, 1)
-			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, replacementRows + 6);
-		assertNoJdbcBatchFields(response.operation().jdbcBatchCalls(),
-			response.operation().jdbcSubmittedRows(),
-			response.operation().jdbcConfiguredBatchSize(),
-			response.operation().jdbcAffectedRows());
+			.containsEntry(SqlQueryType.UPDATE, 1);
+		fixtureService.cleanup(fixture);
 	}
 
-	private void assertDeleteOnlyAfter(int datasetSize, int activeCodeCount) {
-		var response = benchmarkService.run(
-			ownerId,
-			new AccommodationAmenityDeleteBenchmarkRequest(
-				Variant.AFTER,
-				Measurement.DELETE_ONLY,
-				datasetSize
-			)
-		);
-
-		assertThat(response.activeAmenityCodeCount()).isEqualTo(activeCodeCount);
-		assertThat(response.oldTargetRowsDeleted()).isEqualTo(datasetSize);
-		assertThat(response.oldTargetRowsVerified()).isEqualTo(datasetSize);
-		assertThat(response.replacementRowsExpected()).isZero();
-		assertThat(response.replacementRowsVerified()).isZero();
-		assertThat(response.replacementMapVerified()).isEmpty();
-		assertThat(response.targetParentPreserved()).isTrue();
-		assertThat(response.historyEffectMatched()).isTrue();
-		assertThat(response.controlAccommodationPreserved()).isTrue();
-		assertThat(response.controlAmenitiesPreserved()).isTrue();
-		assertThat(response.verificationSucceeded()).isTrue();
-		assertThat(response.operation().hibernateStatementsByType())
-			.containsEntry(SqlQueryType.SELECT, 0)
-			.containsEntry(SqlQueryType.DELETE, 1)
-			.containsEntry(SqlQueryType.INSERT, 0)
-			.containsEntry(SqlQueryType.UPDATE, 0)
-			.containsEntry(SqlQueryType.OTHER, 0)
-			.containsEntry(SqlQueryType.TOTAL, 1);
-		assertNoJdbcBatchFields(response.operation().jdbcBatchCalls(),
-			response.operation().jdbcSubmittedRows(),
-			response.operation().jdbcConfiguredBatchSize(),
-			response.operation().jdbcAffectedRows());
-	}
-
-	private void assertNoJdbcBatchFields(
-		int calls,
-		long rows,
-		Integer batchSize,
-		Long affectedRows
-	) {
-		assertThat(calls).isZero();
-		assertThat(rows).isZero();
-		assertThat(batchSize).isNull();
-		assertThat(affectedRows).isNull();
+	private void assertDeleteOnlyAfter(int size, int activeCodeCount) {
+		Fixture fixture = fixtureService.createFixture(ownerId, size);
+		var snapshot = bulkOperationMonitor.monitor("amenity-delete-regression",
+			() -> transactionTemplate.executeWithoutResult(status ->
+				assertThat(accommodationAmenityRepository.deleteByAccommodationIdInBulk(
+					fixture.targetAccommodationId())).isEqualTo(size)));
+		assertThat(fixtureService.verify(fixture, Measurement.DELETE_ONLY).succeeded()).isTrue();
+		assertThat(snapshot.hibernateStatementCount(SqlQueryType.SELECT)).isZero();
+		assertThat(snapshot.hibernateStatementCount(SqlQueryType.DELETE)).isOne();
+		assertThat(snapshot.hibernateStatementCount(SqlQueryType.TOTAL)).isOne();
+		fixtureService.cleanup(fixture);
 	}
 
 	private AccommodationRequest.Update update(List<AmenityRequest.AmenityInfo> amenities) {

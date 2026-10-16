@@ -7,20 +7,12 @@ if (( $# != 1 )); then
 fi
 
 candidate="$1"
-if [[ "$candidate" != 'RESERVATION_HISTORY_INSERT' \
-  && "$candidate" != 'WISHLIST_DELETE' \
-  && "$candidate" != 'ACCOMMODATION_AMENITY_DELETE' ]]; then
+if [[ "$candidate" != 'RESERVATION_HISTORY_INSERT' ]]; then
   printf 'bulk-write observation candidate is not allowlisted\n' >&2
   exit 2
 fi
 if [[ "${VARIANT:-}" != 'BEFORE' && "${VARIANT:-}" != 'AFTER' ]]; then
   printf 'VARIANT must be BEFORE or AFTER\n' >&2
-  exit 2
-fi
-if [[ "$candidate" == 'ACCOMMODATION_AMENITY_DELETE' \
-  && "${MEASUREMENT:-}" != 'FULL_REPLACEMENT' \
-  && "${MEASUREMENT:-}" != 'DELETE_ONLY' ]]; then
-  printf 'MEASUREMENT must be FULL_REPLACEMENT or DELETE_ONLY\n' >&2
   exit 2
 fi
 if [[ "${PHASE:-}" != 'measure' ]]; then
@@ -65,26 +57,12 @@ case "$candidate" in
       child_runner="${RESERVATION_HISTORY_RUNNER:-$trusted_child_runner}"
     fi
     ;;
-  WISHLIST_DELETE)
-    trusted_child_runner="$script_dir/run-wishlist-delete.sh"
-    if [[ "$test_mode" == '1' ]]; then
-      child_runner="${WISHLIST_DELETE_RUNNER:-$trusted_child_runner}"
-    fi
-    ;;
-  ACCOMMODATION_AMENITY_DELETE)
-    trusted_child_runner="$script_dir/run-accommodation-amenity-delete.sh"
-    if [[ "$test_mode" == '1' ]]; then
-      child_runner="${ACCOMMODATION_AMENITY_DELETE_RUNNER:-$trusted_child_runner}"
-    fi
-    ;;
 esac
 
 if [[ "$test_mode" == '1' ]]; then
   node_bin="${NODE_BIN:-node}"
 else
   if [[ -n "${RESERVATION_HISTORY_RUNNER+x}" \
-    || -n "${WISHLIST_DELETE_RUNNER+x}" \
-    || -n "${ACCOMMODATION_AMENITY_DELETE_RUNNER+x}" \
     || -n "${NODE_BIN+x}" ]]; then
     printf 'executable overrides require explicit test mode\n' >&2
     exit 2

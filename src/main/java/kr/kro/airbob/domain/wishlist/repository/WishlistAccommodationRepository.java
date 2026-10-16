@@ -72,7 +72,6 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 
 	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
 	List<WishlistAccommodation> findAllByWishlistId(Long wishlistId);
-	void deleteAllByWishlistId(Long wishlistId);
 	boolean existsByWishlistIdAndAccommodationId(Long wishlistId, Long accommodationId);
 	boolean existsByWishlist_Member_IdAndAccommodation_Id(Long memberId, Long accommodationId);
 }

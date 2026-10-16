@@ -14,12 +14,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,19 +27,19 @@ import kr.kro.airbob.common.context.UserContext;
 import kr.kro.airbob.common.history.HistoryConstants;
 import kr.kro.airbob.domain.accommodation.cache.AccommodationDetailCacheInvalidationReason;
 import kr.kro.airbob.domain.accommodation.cache.messaging.event.AccommodationDetailCacheInvalidationRequestedV1;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkRequest.Measurement;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification;
-import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteBenchmarkVerification.WorkloadClass;
+import kr.kro.airbob.domain.accommodation.service.AccommodationAmenityDeleteFixtureService.Measurement;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteVerification;
+import kr.kro.airbob.domain.accommodation.dto.AccommodationAmenityDeleteVerification.WorkloadClass;
 import kr.kro.airbob.domain.accommodation.dto.AccommodationRequest;
 import kr.kro.airbob.domain.accommodation.dto.AmenityRequest;
 import kr.kro.airbob.messaging.event.IntegrationEventCodec;
 import kr.kro.airbob.messaging.event.InvalidIntegrationEventException;
 
-@Service
-@Profile("bulk-write-benchmark")
-@ConditionalOnProperty(prefix = "benchmark.bulk-write", name = "enabled", havingValue = "true")
-public class AccommodationAmenityDeleteBenchmarkFixtureService {
+public class AccommodationAmenityDeleteFixtureService {
+
+	public static final int MAX_DATASET_SIZE = 100;
+
+	public enum Measurement { FULL_REPLACEMENT, DELETE_ONLY }
 
 	private static final LocalDateTime FOREVER = HistoryConstants.FOREVER;
 	private static final String FIXTURE_TIME_ZONE_ID = "UTC";
@@ -52,7 +49,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 	private final Clock clock;
 	private final IntegrationEventCodec eventCodec;
 
-	public AccommodationAmenityDeleteBenchmarkFixtureService(
+	public AccommodationAmenityDeleteFixtureService(
 		JdbcTemplate jdbcTemplate,
 		CommonCodeService commonCodeService,
 		Clock clock,
@@ -123,7 +120,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-	public AccommodationAmenityDeleteBenchmarkVerification verify(
+	public AccommodationAmenityDeleteVerification verify(
 		Fixture fixture,
 		Measurement measurement
 	) {
@@ -154,7 +151,7 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 			&& controlAccommodationPreserved
 			&& controlAmenitiesPreserved;
 
-		return new AccommodationAmenityDeleteBenchmarkVerification(
+		return new AccommodationAmenityDeleteVerification(
 			deletedOldRows,
 			deletedOldRows,
 			replacementRows,
@@ -196,9 +193,9 @@ public class AccommodationAmenityDeleteBenchmarkFixtureService {
 	}
 
 	private void validateDatasetSize(int datasetSize) {
-		if (datasetSize < 0 || datasetSize > AccommodationAmenityDeleteBenchmarkRequest.MAX_DATASET_SIZE) {
+		if (datasetSize < 0 || datasetSize > MAX_DATASET_SIZE) {
 			throw new IllegalArgumentException("datasetSize must be between 0 and "
-				+ AccommodationAmenityDeleteBenchmarkRequest.MAX_DATASET_SIZE);
+				+ MAX_DATASET_SIZE);
 		}
 	}
 
