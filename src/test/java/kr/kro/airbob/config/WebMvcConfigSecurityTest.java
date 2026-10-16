@@ -18,8 +18,8 @@ import kr.kro.airbob.domain.auth.filter.SessionAuthFilter;
 import kr.kro.airbob.domain.auth.interceptor.AdminAuthInterceptor;
 import kr.kro.airbob.domain.auth.resolver.CurrentMemberIdArgumentResolver;
 
-@DisplayName("읽기 모델 벤치마크 v2 관리자 경로 보호 설정 테스트")
-class WebMvcConfigBenchmarkProtectionTest {
+@DisplayName("MVC 인증 및 인가 설정 테스트")
+class WebMvcConfigSecurityTest {
 
 	@Test
 	@DisplayName("현재 회원 ID argument resolver를 MVC에 등록한다")
@@ -41,38 +41,8 @@ class WebMvcConfigBenchmarkProtectionTest {
 	}
 
 	@Test
-	@DisplayName("v2 쿠폰 benchmark API에 세션 인증을 적용한다")
-	void v2CouponBenchmarkPathUsesSessionAuthentication() {
-		WebMvcConfig config = new WebMvcConfig(
-			mock(CurrentMemberIdArgumentResolver.class),
-			List.of(mock(CursorParamArgumentResolver.class)),
-			mock(SessionAuthFilter.class),
-			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		);
-
-		assertThat(config.sessionFilter().getUrlPatterns())
-			.contains("/api/v2/coupons/*");
-	}
-
-	@Test
-	@DisplayName("v2 숙소 benchmark API에 세션 인증을 적용한다")
-	void v2AccommodationBenchmarkPathUsesSessionAuthentication() {
-		WebMvcConfig config = new WebMvcConfig(
-			mock(CurrentMemberIdArgumentResolver.class),
-			List.of(mock(CursorParamArgumentResolver.class)),
-			mock(SessionAuthFilter.class),
-			mock(AdminAuthInterceptor.class),
-			mock(QueryCountInterceptor.class)
-		);
-
-		assertThat(config.sessionFilter().getUrlPatterns())
-			.contains("/api/v2/accommodations/*");
-	}
-
-	@Test
-	@DisplayName("v2 매출 before API에 세션 인증과 ADMIN 인가를 모두 적용한다")
-	void v2AdminBenchmarkPathIsProtected() {
+	@DisplayName("관리자 API에 세션 인증과 ADMIN 인가를 모두 적용한다")
+	void adminPathIsProtected() {
 		AdminAuthInterceptor adminAuthInterceptor = mock(AdminAuthInterceptor.class);
 		WebMvcConfig config = new WebMvcConfig(
 			mock(CurrentMemberIdArgumentResolver.class),
@@ -83,7 +53,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 		);
 
 		assertThat(config.sessionFilter().getUrlPatterns())
-			.contains("/api/v2/admin/*");
+			.contains("/api/v1/*");
 
 		InspectableInterceptorRegistry registry = new InspectableInterceptorRegistry();
 		config.addInterceptors(registry);
@@ -95,7 +65,7 @@ class WebMvcConfigBenchmarkProtectionTest {
 			.orElseThrow();
 
 		assertThat(adminMapping.getIncludePathPatterns())
-			.contains("/api/v2/admin/**");
+			.contains("/api/v1/admin/**");
 	}
 
 	private static class InspectableInterceptorRegistry extends InterceptorRegistry {

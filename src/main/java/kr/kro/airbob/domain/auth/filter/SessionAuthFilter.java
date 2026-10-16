@@ -42,16 +42,10 @@ public class SessionAuthFilter extends OncePerRequestFilter {
         "/api/v1/members"      // 회원가입
     );
 
-    // POST 메서드일 때만 공개되며 각 컨트롤러가 별도 벤치마크 토큰을 검증하는 경로
-    private static final Set<String> PUBLIC_POST_PATHS = Set.of(
-        "/api/v2/benchmark/read-model/runtime-assertion"
-    );
-
     // GET 메서드일 때만 인증이 필요 없는 경로 목록
     private static final String[] PUBLIC_GET_PATHS = {
         "/api/v1/accommodations/*",          // 숙소 상세
         "/api/v1/accommodations/*/availability", // 숙소 예약 가능 정보
-        "/api/v2/accommodations/*",          // 캐시 적용 전 숙소 상세
         "/api/v1/accommodations/*/reviews",  // 리뷰 목록
         "/api/v1/search/accommodations",     // 검색
         "/api/v1/common-codes/*",            // 공통 코드 조회(공개 상세/검색의 라벨·셀렉트박스). 관리 API(/admin/**)는 별도 보호
@@ -72,9 +66,7 @@ public class SessionAuthFilter extends OncePerRequestFilter {
 
         // HTTP 메서드와 무관하게 항상 공개되는 경로
         boolean isPublicPath = PUBLIC_PATHS.stream()
-            .anyMatch(p -> pathMatcher.match(p, path))
-            || ("POST".equals(method) && PUBLIC_POST_PATHS.stream()
-                .anyMatch(p -> pathMatcher.match(p, path)));
+            .anyMatch(p -> pathMatcher.match(p, path));
 
         // GET 메서드일 때만 공개되는 경로
         boolean isPublicGet = "GET".equals(method) &&

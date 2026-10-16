@@ -1,28 +1,4 @@
-.PHONY: aws-up aws-status aws-switch aws-down aws-discovery lab-start lab-pause lab-resume lab-destroy lab-status lab-access
-.PHONY: aws-cache-prepare aws-cache-run aws-cache-recover
-.PHONY: aws-coupon-prepare
-
-COUPON_CONFIG ?= load-test/k6/coupon/experiment.example.json
-COUPON_PREPARED ?= build/k6/coupon-aws/prepared
-
-CACHE_CONFIG ?= load-test/k6/cache/aws-experiment.example.json
-CACHE_PREPARED ?= build/k6/cache-aws/prepared
-CACHE_OUTPUT ?= build/k6/cache-aws/results
-
-# Offline packaging only; does not call AWS, Terraform, Docker or k6.
-aws-cache-prepare:
-	python3 load-test/k6/cache/run-aws-experiments.py prepare --config "$(CACHE_CONFIG)" --output "$(CACHE_PREPARED)"
-
-# Existing, running lab required. These targets never provision or power on EC2/RDS.
-aws-cache-run:
-	python3 load-test/k6/cache/run-aws-experiments.py run --prepared "$(CACHE_PREPARED)" --output "$(CACHE_OUTPUT)"
-
-aws-cache-recover:
-	python3 load-test/k6/cache/run-aws-experiments.py recover --output "$(CACHE_OUTPUT)"
-
-# Offline packaging only. Never provisions, deploys, logs in, or sends load.
-aws-coupon-prepare:
-	python3 load-test/k6/coupon/prepare_aws.py bundle --config "$(COUPON_CONFIG)" --output "$(COUPON_PREPARED)"
+.PHONY: aws-up aws-status aws-switch aws-down lab-start lab-pause lab-resume lab-destroy lab-status lab-access
 
 # Daily operation of the saved B baseline; optional CLI flags go in LAB_ARGS.
 LAB_PYTHON ?= $(if $(wildcard .local/airbob-lab/venv/bin/python),.local/airbob-lab/venv/bin/python,python3)
@@ -58,11 +34,3 @@ aws-down:
 	AWS_REGION=ap-northeast-2 AWS_LAB_OPERATOR_SCOPE="$(or $(AWS_LAB_OPERATOR_SCOPE),direct)" \
 	RUN_ID="$(RUN_ID)" FORCE="$(or $(FORCE),false)" \
 	infra/aws/scripts/aws-lab.sh down
-
-aws-discovery:
-	AWS_REGION=ap-northeast-2 RUN_ID="$(RUN_ID)" TARGET="$(or $(TARGET),accommodation-detail)" \
-	RATE="$(RATE)" DURATION="$(DURATION)" WARMUP_DURATION="$(or $(WARMUP_DURATION),10s)" \
-	MIN_COMPLETED_SAMPLES="$(MIN_COMPLETED_SAMPLES)" ROUND="$(ROUND)" RUN_ORDER="$(RUN_ORDER)" \
-	APP_COMMIT="$(APP_COMMIT)" EXPECTED_SQL_CALLS_PER_REQUEST="$(EXPECTED_SQL_CALLS_PER_REQUEST)" \
-	RUN_LABEL="$(RUN_LABEL)" OCI_ORIGIN_IPV4="$(OCI_ORIGIN_IPV4)" \
-	load-test/k6/traffic/run-aws-discovery.sh

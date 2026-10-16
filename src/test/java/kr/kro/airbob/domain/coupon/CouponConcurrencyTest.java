@@ -33,9 +33,8 @@ import kr.kro.airbob.domain.member.entity.Member;
 import kr.kro.airbob.domain.member.repository.MemberRepository;
 
 @Testcontainers
-@SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "benchmark.read-model.enabled=true",
-	"benchmark.read-model.token=test-token", "spring.jpa.open-in-view=false"})
-@ActiveProfiles({"test", "coupon-benchmark"})
+@SpringBootTest(properties = {"spring.cloud.aws.s3.enabled=false", "spring.jpa.open-in-view=false"})
+@ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CouponConcurrencyTest {
 	@Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4.11");

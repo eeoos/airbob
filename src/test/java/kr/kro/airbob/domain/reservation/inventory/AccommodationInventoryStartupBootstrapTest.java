@@ -59,8 +59,8 @@ class AccommodationInventoryStartupBootstrapTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"test", "performance-lab"})
-	@DisplayName("격리된 읽기 전용 프로필만 disabled bootstrap을 명시적으로 우회한다")
+	@ValueSource(strings = {"test"})
+	@DisplayName("test 프로필만 disabled bootstrap을 명시적으로 우회한다")
 	void disabledBootstrapIsReadyOnlyForExplicitBypassProfiles(String profile) {
 		MockEnvironment environment = new MockEnvironment();
 		environment.setActiveProfiles(profile);

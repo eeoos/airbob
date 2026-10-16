@@ -5,46 +5,34 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.mock.env.MockEnvironment;
 
 class AccommodationInventoryProductionProfileGuardTest {
 
 	@Test
-	void awsAndOciRequireStartupAndRollingSeed() {
-		assertThatThrownBy(() -> guard("aws", false, true).afterPropertiesSet())
+	void rejectsDisabledStartupOrRollingSeed() {
+		assertThatThrownBy(() -> guard(false, true).afterPropertiesSet())
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("inventory startup and rolling seed");
-		assertThatThrownBy(() -> guard("oci", true, false).afterPropertiesSet())
+		assertThatThrownBy(() -> guard(true, false).afterPropertiesSet())
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("inventory startup and rolling seed");
 	}
 
 	@Test
-	void reservationCapableProductionProfilesAcceptTheRequiredLifecycle() {
-		assertThatCode(() -> guard("aws", true, true).afterPropertiesSet())
-			.doesNotThrowAnyException();
-		assertThatCode(() -> guard("oci", true, true).afterPropertiesSet())
+	void acceptsEnabledLifecycle() {
+		assertThatCode(() -> guard(true, true).afterPropertiesSet())
 			.doesNotThrowAnyException();
 	}
 
-	@Test
-	void onlyIsolatedReadOnlyProfilesRetainTheExplicitBypass() {
-		assertThatCode(() -> guard(new String[] {"aws", "performance-lab"}, false, false)
-			.afterPropertiesSet()).doesNotThrowAnyException();
-		assertThatThrownBy(() -> guard(new String[] {"aws", "cache-benchmark"}, false, false)
-			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
-		assertThatThrownBy(() -> guard(new String[] {"oci", "test"}, false, false)
-			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
-		assertThatThrownBy(() -> guard(new String[] {"aws", "bulk-delete-benchmark"}, false, false)
-			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
-	}
-
-	@Test
-	void productionContextFailsBeforeStartupWhenLifecycleIsDisabled() {
+	@ParameterizedTest
+	@ValueSource(strings = {"aws", "oci"})
+	void productionContextFailsBeforeStartupWhenLifecycleIsDisabled(String profile) {
 		new ApplicationContextRunner()
 			.withUserConfiguration(AccommodationInventoryProductionProfileGuard.class)
-			.withInitializer(context -> context.getEnvironment().setActiveProfiles("oci"))
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
 			.withPropertyValues(
 				"reservation.inventory.startup.enabled=false",
 				"reservation.inventory.seed.enabled=true")
@@ -56,38 +44,7 @@ class AccommodationInventoryProductionProfileGuardTest {
 			});
 	}
 
-	@Test
-	void performanceLabContextMayDisableTheLifecycleExplicitly() {
-		new ApplicationContextRunner()
-			.withUserConfiguration(AccommodationInventoryProductionProfileGuard.class)
-			.withInitializer(context ->
-				context.getEnvironment().setActiveProfiles("aws", "performance-lab"))
-			.withPropertyValues(
-				"reservation.inventory.startup.enabled=false",
-				"reservation.inventory.seed.enabled=false")
-			.run(context -> {
-				assertThat(context).hasNotFailed();
-				assertThat(context)
-					.hasSingleBean(AccommodationInventoryProductionProfileGuard.class);
-			});
-	}
-
-	private AccommodationInventoryProductionProfileGuard guard(
-		String profile,
-		boolean startupEnabled,
-		boolean seedEnabled
-	) {
-		return guard(new String[] {profile}, startupEnabled, seedEnabled);
-	}
-
-	private AccommodationInventoryProductionProfileGuard guard(
-		String[] profiles,
-		boolean startupEnabled,
-		boolean seedEnabled
-	) {
-		MockEnvironment environment = new MockEnvironment();
-		environment.setActiveProfiles(profiles);
-		return new AccommodationInventoryProductionProfileGuard(
-			environment, startupEnabled, seedEnabled);
+	private AccommodationInventoryProductionProfileGuard guard(boolean startupEnabled, boolean seedEnabled) {
+		return new AccommodationInventoryProductionProfileGuard(startupEnabled, seedEnabled);
 	}
 }

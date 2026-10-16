@@ -51,7 +51,7 @@ final class AccommodationDetailRedisStore {
 		""", Long.class);
 
 	// 운영 경로에서는 분산 락 안에서 토큰을 덮어써 발급
-	// 락 OFF benchmark도 같은 정책을 유지하므로 겹친 loader 중 현재 토큰의 소유자만 저장 가능
+	// 동시에 로드하더라도 현재 토큰의 소유자만 저장할 수 있다.
 	// TTL이 먼저 끝나면 후속 write가 거부되어 오래된 결과를 안전하게 버림
 	private static final DefaultRedisScript<Long> ACQUIRE_LOAD_PERMIT_SCRIPT = new DefaultRedisScript<>("""
 		redis.call('PSETEX', KEYS[1], ARGV[2], ARGV[1])

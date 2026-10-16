@@ -1,9 +1,7 @@
 package kr.kro.airbob.domain.wishlist.repository;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -44,31 +42,6 @@ public interface WishlistAccommodationRepository extends JpaRepository<WishlistA
 		""", nativeQuery = true)
 	MembershipProjection findMembership(@Param("memberId") Long memberId,
 		@Param("accommodationId") Long accommodationId, @Param("wishlistId") Long wishlistId);
-
-	public interface WishlistThumbnailInfo {
-		Long getWishlist_id();
-		String getThumbnail_url();
-	}
-
-	@Query(value = """
-		SELECT 
-			wishlist_id,
-			thumbnail_url
-		FROM (
-			SELECT 
-				wa.wishlist_id,
-				a.thumbnail_url,
-				ROW_NUMBER() OVER (
-					PARTITION BY wa.wishlist_id ORDER BY wa.created_at DESC, wa.id DESC
-				) as rn
-			FROM wishlist_accommodation wa
-			JOIN accommodation a ON wa.accommodation_id = a.id
-			WHERE wa.wishlist_id IN :wishlistIds
-			  AND a.status = 'PUBLISHED'
-		) ranked
-		WHERE rn = 1
-	""", nativeQuery = true)
-	List<WishlistThumbnailInfo> findLatestThumbnailUrlsByWishlistIds(@Param("wishlistIds") List<Long> wishlistIds);
 
 	Optional<WishlistAccommodation> findByIdAndWishlistMemberId(Long id, Long memberId);
 	List<WishlistAccommodation> findAllByWishlistId(Long wishlistId);

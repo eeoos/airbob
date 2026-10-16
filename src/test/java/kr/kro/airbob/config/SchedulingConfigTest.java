@@ -30,7 +30,7 @@ class SchedulingConfigTest {
 		new ApplicationContextRunner()
 			.withInitializer(new ConfigDataApplicationContextInitializer())
 			.withPropertyValues(
-				"spring.profiles.active=aws,performance-lab,test",
+				"spring.profiles.active=aws,test",
 				"spring.kafka.listener.auto-startup=true",
 				"operator-alert.kafka.auto-startup=true",
 				"accommodation.indexing.kafka.auto-startup=true",
@@ -72,20 +72,12 @@ class SchedulingConfigTest {
 	}
 
 	@Test
-	@DisplayName("traffic-benchmark 프로필에서는 스케줄러를 활성화하지 않는다")
-	void doesNotEnableSchedulingInTrafficBenchmarkProfile() {
-		profileContextRunner
-			.withPropertyValues("spring.profiles.active=traffic-benchmark")
-			.run(context -> assertThat(context).doesNotHaveBean(SchedulingConfig.class));
-	}
-
-	@Test
 	@DisplayName("integrated-smoke 안전 프로필은 스케줄러만 제외하고 Kafka 구성을 유지한다")
 	void integratedSmokeSafetyProfileDisablesSchedulingButRetainsKafka() {
 		integratedSmokeContextRunner.run(context -> {
 			assertThat(context).hasNotFailed();
 			assertThat(context.getEnvironment().getActiveProfiles())
-				.containsExactly("aws", "performance-lab", "test");
+				.containsExactly("aws", "test");
 			assertThat(context.getEnvironment().getProperty(
 				"spring.kafka.listener.auto-startup", Boolean.class)).isTrue();
 			assertThat(context.getEnvironment().getProperty(
@@ -105,10 +97,10 @@ class SchedulingConfigTest {
 	}
 
 	@Test
-	@DisplayName("performance-lab 프로필만 활성화하면 스케줄러를 유지한다")
-	void enablesSchedulingInPerformanceLabProfile() {
+	@DisplayName("운영 프로필에서는 스케줄러와 작업별 풀을 유지한다")
+	void enablesSchedulingInProductionProfile() {
 		profileContextRunner
-			.withPropertyValues("spring.profiles.active=performance-lab")
+			.withPropertyValues("spring.profiles.active=aws")
 			.run(context -> {
 				assertThat(context).hasSingleBean(SchedulingConfig.class);
 				assertThat(context).hasBean(SchedulingConfig.DEFAULT_TASK_SCHEDULER);

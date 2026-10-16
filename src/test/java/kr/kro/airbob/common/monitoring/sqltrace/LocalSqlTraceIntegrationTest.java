@@ -65,7 +65,7 @@ class LocalSqlTraceIntegrationTest {
 
 	@Test
 	void loggedSqlCanBeReplayedWithTheSameMicrosecondsBinaryAndEscapedValues() {
-		context("dev,sql-trace").run(application -> {
+		context("dev").run(application -> {
 			assertThat(application).hasNotFailed();
 			DataSource dataSource = application.getBean(DataSource.class);
 			assertThat(dataSource).isInstanceOf(HikariDataSource.class);
@@ -94,7 +94,7 @@ class LocalSqlTraceIntegrationTest {
 
 	@Test
 	void startupBackgroundLoginAndActuatorQueriesDoNotProduceTrace() {
-		context("dev,sql-trace").run(application -> {
+		context("dev").run(application -> {
 			assertThat(application).hasNotFailed();
 			JdbcTemplate jdbc = new JdbcTemplate(application.getBean(DataSource.class));
 			jdbc.queryForObject("SELECT ?", Integer.class, 1000);
@@ -107,8 +107,8 @@ class LocalSqlTraceIntegrationTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"dev", "dev,sql-trace,aws", "dev,sql-trace,oci", "dev,sql-trace,performance-lab"})
-	void ordinaryAndPerformanceEnvironmentsKeepTheOriginalDataSource(String profiles) {
+	@ValueSource(strings = {"test", "aws", "oci", "dev,aws", "dev,oci", "dev,test"})
+	void nonDevelopmentEnvironmentsKeepTheOriginalDataSource(String profiles) {
 		context(profiles).run(application -> {
 			assertThat(application).hasNotFailed();
 			assertThat(application.getBean(DataSource.class)).isInstanceOf(HikariDataSource.class);

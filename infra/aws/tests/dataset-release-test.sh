@@ -20,21 +20,8 @@ bash -n "$release_validator"
 bash -n "$validator_agreement_test"
 jq -e -f "$semantic_validator" "$fixture" >/dev/null || fail 'canonical v2 fixture was rejected'
 
-missing_k6_log="$temp_dir/missing-k6.log"
-if K6_BIN=airbob-intentionally-missing-k6 "$validator_agreement_test" \
-  >"$missing_k6_log" 2>&1; then
-  fail 'validator agreement wrapper silently skipped a missing k6 executable'
-fi
-grep -Fq 'k6 is required: airbob-intentionally-missing-k6' "$missing_k6_log" \
-  || fail 'validator agreement wrapper did not attribute the missing k6 failure'
-
-k6_install_line=$(grep -n 'name: Install pinned k6 for traffic contracts' "$ci_workflow" | cut -d: -f1)
-validator_agreement_line=$(grep -n 'bash infra/aws/tests/benchmark-dataset-v2-validator-test.sh' "$ci_workflow" | cut -d: -f1)
-[[ "$k6_install_line" =~ ^[0-9]+$ && "$validator_agreement_line" =~ ^[0-9]+$ \
-  && "$k6_install_line" -lt "$validator_agreement_line" ]] \
-  || fail 'CI must execute the validator agreement wrapper after pinned k6 installation'
-assert_contains "$ci_workflow" 'source infra/aws/toolchain.env'
-assert_contains "$ci_workflow" 'AIRBOB_K6_LINUX_AMD64_SHA256'
+"$validator_agreement_test" >/dev/null || fail 'dataset validation wrapper failed'
+assert_contains "$ci_workflow" 'bash infra/aws/tests/benchmark-dataset-v2-validator-test.sh'
 assert_contains "$ci_workflow" 'name: Verify Global B offline Python contracts (Python 3.12+)'
 assert_contains "$ci_workflow" 'sys.version_info >= (3, 12)'
 assert_contains "$ci_workflow" "python3 -m unittest discover -s infra/aws/tests -p 'test_growth_b_*.py' -v"

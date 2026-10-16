@@ -12,7 +12,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
-import kr.kro.airbob.domain.accommodation.api.AccommodationDetailBenchmarkController;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
@@ -21,7 +20,6 @@ import kr.kro.airbob.domain.recentlyViewed.api.RecentlyViewedController;
 import kr.kro.airbob.domain.reservation.api.ReservationController;
 import kr.kro.airbob.domain.review.api.ReviewController;
 import kr.kro.airbob.domain.settlement.api.SettlementController;
-import kr.kro.airbob.domain.wishlist.api.WishlistBenchmarkController;
 import kr.kro.airbob.domain.wishlist.api.WishlistController;
 import kr.kro.airbob.search.api.AccommodationSearchController;
 
@@ -49,7 +47,6 @@ class CurrentMemberIdControllerContractTest {
 
 	private static Stream<HandlerContract> currentMemberHandlers() {
 		return Stream.of(
-			optional(AccommodationDetailBenchmarkController.class, "findAccommodationBefore"),
 			required(AccommodationController.class, "registerAccommodation"),
 			required(AccommodationController.class, "updateAccommodation"),
 			required(AccommodationController.class, "publishAccommodation"),
@@ -87,7 +84,6 @@ class CurrentMemberIdControllerContractTest {
 			required(SettlementController.class, "getHostSettlements"),
 			required(SettlementController.class, "getHostSummary"),
 			required(SettlementController.class, "getHostSettlementDetail"),
-			required(WishlistBenchmarkController.class, "findWishlistsBefore"),
 			required(WishlistController.class, "createWishlist"),
 			required(WishlistController.class, "updateWishlist"),
 			required(WishlistController.class, "deleteWishlist"),

@@ -34,7 +34,6 @@ public enum ErrorCode {
 	HOST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M005", "숙소에 대한 수정/삭제 권한이 없는 호스트입니다."),
 	ADMIN_ACCESS_DENIED(HttpStatus.FORBIDDEN, "M006", "관리자 권한이 필요합니다."),
 	MEMBER_ROLE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "M007", "자신의 관리자 권한은 회수할 수 없습니다."),
-	BENCHMARK_ACCESS_DENIED(HttpStatus.FORBIDDEN, "B001", "벤치마크 접근 권한이 필요합니다."),
 
 	// accommodation
 	ACCOMMODATION_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "존재하지 않거나 삭제된 숙소입니다."),

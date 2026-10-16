@@ -104,9 +104,8 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   V31 copies only remaining composite units into the surrogate table, preserves member coupons,
   and drops the composite table and experiment columns. Never regenerate consumed stock.
   See docs/coupon-issuance-operations.md. Roll forward only after this schema cutover.
-- `coupon-benchmark` retains the separate read-query experiment only. `coupon-performance` requires
-  an already migrated V31 dataset and permits the final issuance/preparation routes. Historical
-  five-strategy measurements and harnesses require their recorded V30 source/image, not this app.
+- Retired coupon experiment endpoints and application profiles are removed. Historical measurements
+  require their recorded source/image and dataset, not the current application.
 - Stop old Lua writers and reconcile/archive preparation evidence before V29; do not reuse Redis timestamps
   as proof of MySQL stock, auto-reseed an issued campaign, or roll back to a Lua binary after V29.
 
@@ -168,12 +167,14 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 
 - Accommodation-detail cache code is isolated under
   `domain/accommodation/cache/{config,invalidation,messaging,monitoring,redis}`.
-- General Redis and the dedicated accommodation-cache Redis are separate dependencies. The
-  `performance-lab` profile must fail when they resolve to the same endpoint, and experiments may
-  flush only the dedicated cache Redis.
-- Same-image experiments toggle the accommodation-detail cache through configuration. Durable
-  invalidation must use the domain-owned canonical messaging adapter and
+- General Redis and the dedicated accommodation-cache Redis remain separate dependencies.
+  Durable invalidation uses the domain-owned canonical messaging adapter and
   `ACCOMMODATION_CACHE.events`; do not recreate root outbox or Kafka-consumer packages.
+- Application experiment profiles, comparison APIs and measurement runners are retired. Local
+  P6Spy read tracing runs with `dev` only, excluding `aws`, `oci` and `test`.
+- Preserved AWS resource-management tools target their compatible digest-pinned historical images
+  and immutable datasets. The V27 launcher pins Flyway explicitly; do not substitute the current
+  application image or silently migrate a recorded dataset.
 - AWS performance-lab infrastructure and immutable image assets live under `infra/aws/`. Keep
   image references digest-pinned, secrets out of the repository and rendered bundles, and ECR
   publication authenticated through GitHub OIDC.

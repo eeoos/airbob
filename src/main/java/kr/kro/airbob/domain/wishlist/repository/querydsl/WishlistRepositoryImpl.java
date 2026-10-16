@@ -18,7 +18,6 @@ import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAUpdateClause;
 
-import kr.kro.airbob.domain.wishlist.entity.Wishlist;
 import kr.kro.airbob.domain.wishlist.entity.WishlistStatus;
 import kr.kro.airbob.domain.wishlist.repository.projection.QWishlistSummaryProjection;
 import kr.kro.airbob.domain.wishlist.repository.projection.WishlistSummaryProjection;
@@ -85,28 +84,6 @@ public class WishlistRepositoryImpl implements WishlistRepositoryCustom {
 		if (hasNext) {
 			content.remove(pageable.getPageSize());
 		}
-		return new SliceImpl<>(content, pageable, hasNext);
-	}
-
-	@Override
-	public Slice<Wishlist> findByMemberIdAndStatusWithCursor(Long memberId, WishlistStatus status, Long lastId,
-		LocalDateTime lastCreatedAt, Pageable pageable) {
-		List<Wishlist> content = queryFactory
-			.selectFrom(wishlist)
-			.where(
-				wishlist.member.id.eq(memberId),
-				wishlist.status.eq(status),
-				cursorCondition(lastId, lastCreatedAt)
-			)
-			.orderBy(wishlist.createdAt.desc(), wishlist.id.desc())
-			.limit(pageable.getPageSize() + 1)
-			.fetch();
-
-		boolean hasNext = content.size() > pageable.getPageSize();
-		if (hasNext) {
-			content.remove(pageable.getPageSize());
-		}
-
 		return new SliceImpl<>(content, pageable, hasNext);
 	}
 

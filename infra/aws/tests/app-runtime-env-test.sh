@@ -30,6 +30,7 @@ write_valid_env() {
 # Blank lines and full-line comments are not keys.
 
 SPRING_PROFILES_ACTIVE=$profile
+SPRING_FLYWAY_TARGET=27
 SPRING_KAFKA_LISTENER_AUTO_STARTUP=$listener_auto_startup
 OPERATOR_ALERT_KAFKA_AUTO_STARTUP=$listener_auto_startup
 ACCOMMODATION_INDEXING_AUTO_STARTUP=$listener_auto_startup
@@ -264,6 +265,7 @@ done
 
 for key in \
   SPRING_PROFILES_ACTIVE \
+  SPRING_FLYWAY_TARGET \
   SPRING_KAFKA_LISTENER_AUTO_STARTUP \
   OPERATOR_ALERT_KAFKA_AUTO_STARTUP \
   ACCOMMODATION_INDEXING_AUTO_STARTUP \
@@ -331,5 +333,11 @@ if ! grep -Fq "$expected_config_field" "$compose_config"; then
   printf 'effective app datasource password did not preserve the verified bytes\n' >&2
   exit 1
 fi
+
+for invalid_target in 28 31 latest; do
+  fixture="$temp_dir/wrong-schema-$invalid_target.env"
+  replace_key SPRING_FLYWAY_TARGET "$invalid_target" "$valid_env" "$fixture"
+  expect_failure "immutable V27 schema target" "$fixture" integrated-smoke
+done
 
 printf 'app runtime env tests passed\n'

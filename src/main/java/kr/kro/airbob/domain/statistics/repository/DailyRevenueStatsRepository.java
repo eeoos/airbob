@@ -1,14 +1,12 @@
 package kr.kro.airbob.domain.statistics.repository;
 
 import java.time.LocalDate;
-import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import kr.kro.airbob.domain.statistics.dto.DailyRevenueRow;
 import kr.kro.airbob.domain.statistics.entity.DailyRevenueStats;
 import kr.kro.airbob.domain.statistics.entity.DailyRevenueStatsId;
 import kr.kro.airbob.domain.statistics.repository.querydsl.DailyRevenueStatsRepositoryCustom;
@@ -51,33 +49,4 @@ public interface DailyRevenueStatsRepository
 		GROUP BY t.accommodation_id
 		""", nativeQuery = true)
 	void aggregateForDate(@Param("d") LocalDate d);
-
-	// ===== 읽기 (after): 사전집계 테이블 일자별 롤업은 QueryDSL(DailyRevenueStatsRepositoryCustom) 제공 =====
-
-	// ===== 읽기 (before/naive): 원장에서 직접 집계 (UNION → native 필수, 사용자 성능 비교용 보존) =====
-
-	@Query(value = """
-		SELECT t.bucket_date AS statDate,
-			SUM(t.gross)  AS grossAmount,
-			SUM(t.refund) AS refundAmount,
-			SUM(t.gross) - SUM(t.refund) AS netAmount,
-			SUM(t.gcount) AS paymentCount,
-			SUM(t.rcount) AS refundCount
-		FROM (
-			SELECT DATE(pt.created_at) AS bucket_date,
-				COALESCE(pt.amount, 0) AS gross, 0 AS refund, 1 AS gcount, 0 AS rcount
-			FROM payment_transaction pt
-			WHERE pt.transaction_type = 'CONFIRM'
-			  AND DATE(pt.created_at) BETWEEN :from AND :to
-			UNION ALL
-			SELECT DATE(COALESCE(pt.canceled_at, pt.created_at)) AS bucket_date,
-				0, COALESCE(pt.cancel_amount, 0), 0, 1
-			FROM payment_transaction pt
-			WHERE pt.transaction_type IN ('CANCEL', 'PARTIAL_CANCEL')
-			  AND DATE(COALESCE(pt.canceled_at, pt.created_at)) BETWEEN :from AND :to
-		) t
-		GROUP BY t.bucket_date
-		ORDER BY t.bucket_date
-		""", nativeQuery = true)
-	List<DailyRevenueRow> findDailyRevenueFromLedgerNaive(@Param("from") LocalDate from, @Param("to") LocalDate to);
 }

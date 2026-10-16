@@ -1,5 +1,14 @@
 # API Query Count Monitoring
 
+## 로컬 SQL 추적
+
+`dev` 프로필에서는 기존 P6Spy SQL 추적이 자동으로 활성화된다. 별도 `sql-trace`
+프로필을 추가할 필요가 없다. 성공한 `/api/**` GET 요청의 SELECT를 실제 바인딩 값과
+JDBC 실행 시간으로 기록하며, 로그인·백그라운드·actuator 쿼리는 제외한다.
+중복 출력을 피하도록 Hibernate SQL 및 바인딩 로그는 끈다.
+`aws`, `oci`, `test`와 함께 활성화된 경우에는 SQL 추적 드라이버를 적용하지 않는다.
+일반 요청의 쿼리 수와 Prometheus/Grafana 모니터링은 계속 유지한다.
+
 Airbob는 HTTP 요청 단위로 Hibernate/JPA SQL 실행 횟수를 수집해 Prometheus metric으로 노출한다. 목적은 N+1 후보 API를 찾고, fetch join/entity graph/batch size 같은 개선 전후의 쿼리 수 변화를 같은 조건에서 측정하는 것이다.
 
 쿼리 수는 SQL 로그를 파싱하지 않고 Hibernate `StatementInspector`에서 센다. `show_sql=false`와 `org.hibernate.SQL=OFF`여도 지표는 유지된다.

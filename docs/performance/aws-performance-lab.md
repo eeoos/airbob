@@ -1,5 +1,10 @@
 # AWS Performance Lab — Application and Service Bundle Contracts
 
+> 2026-10-17: 앱 성능 측정은 종료했다. 현재 앱은 실험 전용 프로필과 비교 API를 제공하지 않는다.
+> 아래 리소스 관리 계약은 기존 데이터셋과 호환되는 고정 이미지를 대상으로 보존한다.
+> V27 실행기는 `SPRING_FLYWAY_TARGET=27`을 환경에 명시해 앱 프로필과 무관하게 스키마를 보호한다.
+> 현재 앱을 과거 실험 이미지 대신 사용하지 않는다. 신규 측정 도구는 별도로 구성한다.
+
 Cache measurements are complete. The cache-only application profile and runners are retained in
 `archive/cache-measurements-20261011`; use that version with its recorded image and dataset.
 See [cache measurement results](aws-cache-experiments.md). The shared AWS infrastructure below

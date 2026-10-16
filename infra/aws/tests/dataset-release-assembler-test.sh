@@ -8,7 +8,7 @@ assembler="$repo_root/infra/aws/scripts/assemble-dataset-release.sh"
 release_validator="$repo_root/infra/aws/scripts/verify-dataset-release.sh"
 semantic_validator="$repo_root/infra/aws/scripts/validate-benchmark-dataset-v2.jq"
 dataset_fixture="$repo_root/infra/aws/tests/fixtures/benchmark-dataset-v2.json"
-legacy_fixture="$repo_root/load-test/k6/test/fixtures/nplus1-v1.json"
+legacy_fixture="$repo_root/infra/aws/tests/fixtures/nplus1-v1.json"
 temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/airbob-v2-assembler-test.XXXXXX")
 
 cleanup() {

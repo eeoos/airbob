@@ -55,7 +55,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 			);
 
 		registry.addInterceptor(adminAuthInterceptor)
-			.addPathPatterns("/api/v1/admin/**", "/api/v2/admin/**");
+			.addPathPatterns("/api/v1/admin/**");
 	}
 
 	@Bean
@@ -63,13 +63,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 		log.info("sessionFilter");
 		FilterRegistrationBean<SessionAuthFilter> bean = new FilterRegistrationBean<>(sessionAuthFilter);
 
-		bean.addUrlPatterns(
-			"/api/v1/*",
-			"/api/v2/accommodations/*",
-			"/api/v2/members/*",
-			"/api/v2/admin/*",
-			"/api/v2/coupons/*"
-		);
+		bean.addUrlPatterns("/api/v1/*");
 
 		bean.setOrder(1);
 		return bean;

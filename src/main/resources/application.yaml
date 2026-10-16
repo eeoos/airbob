@@ -4,11 +4,6 @@ spring:
 
   profiles:
     active: dev
-    group:
-      traffic-benchmark:
-        - performance-lab
-      coupon-performance:
-        - coupon-benchmark
 
   task:
     scheduling:
@@ -185,11 +180,6 @@ accommodation:
         auto-startup: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_AUTO_STARTUP:true}
         attempts: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_ATTEMPTS:4}
         backoff-ms: ${ACCOMMODATION_DETAIL_CACHE_INVALIDATION_BACKOFF_MS:30000}
-
-benchmark:
-  read-model:
-    enabled: ${BENCHMARK_READ_MODEL_ENABLED:false}
-    token: ${BENCHMARK_READ_MODEL_TOKEN:}
 
 management:
   endpoint:

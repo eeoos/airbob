@@ -13,7 +13,6 @@ import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
 import kr.kro.airbob.domain.coupon.entity.Coupon;
 import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignProjection;
-import kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignAvailabilityProjection;
 
 @Repository
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
@@ -34,24 +33,6 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
 		order by c.issueStartAt desc, c.id desc
 		""")
 	List<CouponCampaignProjection> findCampaigns(@Param("now") LocalDateTime now);
-
-	/** Read-only candidate; V1 keeps findCampaigns until the experiment is evaluated. */
-	@Query("""
-		select new kr.kro.airbob.domain.coupon.repository.projection.CouponCampaignAvailabilityProjection(
-			c.id, c.name, c.description, c.discountType, c.discountValue, c.minPaymentPrice,
-			c.maxDiscountAmount, c.issueStartAt, c.issueEndAt, c.usableFrom, c.usableUntil,
-			c.totalQuantity,
-			case
-			  when c.totalQuantity is null then true
-			  else exists (select u.id from CouponIssueUnit u where u.couponId = c.id)
-			end)
-		from Coupon c
-		where c.isActive = true
-		  and c.stockPreparedAt is not null
-		  and c.issueEndAt > :now
-		order by c.issueStartAt desc, c.id desc
-		""")
-	List<CouponCampaignAvailabilityProjection> findCampaignsWithRemainingUnits(@Param("now") LocalDateTime now);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select c from Coupon c where c.id = :id")

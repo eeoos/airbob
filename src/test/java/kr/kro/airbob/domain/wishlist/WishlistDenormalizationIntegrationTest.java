@@ -29,23 +29,19 @@ import kr.kro.airbob.cursor.dto.CursorRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistAccommodationRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistRequest;
 import kr.kro.airbob.domain.wishlist.dto.WishlistResponse;
-import kr.kro.airbob.domain.wishlist.service.WishlistBenchmarkService;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.repository.AccommodationSearchRepository;
 
 @Testcontainers
 @SpringBootTest(properties = {
-	"spring.cloud.aws.s3.enabled=false",
-	"benchmark.read-model.enabled=true",
-	"benchmark.read-model.token=test-token"
+	"spring.cloud.aws.s3.enabled=false"
 })
-@ActiveProfiles({"test", "read-model-benchmark"})
+@ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("위시리스트 반정규화(개수/대표 썸네일) 통합 테스트")
 class WishlistDenormalizationIntegrationTest {
 
 	@Autowired private WishlistService wishlistService;
-	@Autowired private WishlistBenchmarkService benchmarkService;
 	@Autowired private JdbcTemplate jdbc;
 
 	@MockitoBean private ElasticsearchClient elasticsearchClient;
@@ -121,25 +117,26 @@ class WishlistDenormalizationIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("before 원시 집계와 after 반정규화 목록은 동일한 결과를 반환한다")
-	void beforeAndAfterReturnSameWishlistInfos() {
+	@DisplayName("위시리스트 목록은 요청한 숙소의 포함 여부를 반환한다")
+	void findsMembershipForRequestedAccommodation() {
 		add(acc1);
-		add(acc2);
+		long membershipId = add(acc2);
 		add(acc3);
 		CursorRequest.CursorPageRequest request =
 			CursorRequest.CursorPageRequest.builder().size(20).build();
 
-		WishlistResponse.WishlistInfos before =
-			benchmarkService.findWishlistsBefore(request, host, acc2);
 		WishlistResponse.WishlistInfos after =
 			wishlistService.findWishlists(request, host, acc2);
 
-		assertThat(before).isEqualTo(after);
+		assertThat(after.wishlists()).singleElement().satisfies(info -> {
+			assertThat(info.isContained()).isTrue();
+			assertThat(info.wishlistAccommodationId()).isEqualTo(membershipId);
+		});
 	}
 
 	@Test
-	@DisplayName("추가 시각이 같으면 before 대표 썸네일도 더 큰 연결 ID를 선택한다")
-	void beforeSelectsHigherWishlistAccommodationIdWhenCreatedAtTies() {
+	@DisplayName("추가 시각이 같으면 대표 썸네일은 더 큰 연결 ID를 선택한다")
+	void selectsHigherWishlistAccommodationIdWhenCreatedAtTies() {
 		long lowerId = add(acc1);
 		long higherId = add(acc2);
 		assertThat(jdbc.update(
@@ -151,14 +148,11 @@ class WishlistDenormalizationIntegrationTest {
 		CursorRequest.CursorPageRequest request =
 			CursorRequest.CursorPageRequest.builder().size(20).build();
 
-		WishlistResponse.WishlistInfos before =
-			benchmarkService.findWishlistsBefore(request, host, null);
 		WishlistResponse.WishlistInfos after =
 			wishlistService.findWishlists(request, host, null);
 
 		assertThat(higherId).isGreaterThan(lowerId);
-		assertThat(before).isEqualTo(after);
-		assertThat(before.wishlists().getFirst().thumbnailImageUrl()).isEqualTo("url-2");
+		assertThat(after.wishlists().getFirst().thumbnailImageUrl()).isEqualTo("url-2");
 	}
 
 	@Test
