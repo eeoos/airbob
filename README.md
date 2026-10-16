@@ -30,53 +30,27 @@ Website: [Airbob](https://www.airbob.cloud/)
 
 웹 클라이언트가 Spring Boot API를 호출하고, 하나의 백엔드 애플리케이션에서 회원·숙소·리뷰·위시리스트·쿠폰 기능을 처리합니다. 업무 데이터는 MySQL에 저장하며, Redis는 세션·최근 본 숙소·상세 캐시에, Elasticsearch는 숙소 검색에 사용합니다. 이미지는 S3에 저장하고 CloudFront로 제공합니다.
 
-```mermaid
-flowchart LR
-    Web["웹 클라이언트"] -->|"REST API"| API
-    subgraph Backend["Spring Boot 백엔드"]
-        API["API · 세션 인증"] --> Service["회원 · 숙소 · 리뷰<br/>위시리스트 · 쿠폰"]
-        Service --> Repository["JPA · QueryDSL"]
-    end
-    Repository --> MySQL[("MySQL<br/>업무 데이터")]
-    Service --> Redis[("Redis<br/>세션 · 캐시<br/>최근 본 숙소")]
-    Service --> ES[("Elasticsearch<br/>숙소 검색")]
-    Service -->|"이미지 업로드"| S3[("S3")]
-    Web -->|"이미지 조회"| CDN["CloudFront"]
-    CDN --> S3
-```
+![Airbob 서비스 구성도](https://github.com/user-attachments/assets/5403df04-380b-4ec4-874e-c4e6c6176a16)
 
 ### 인프라 구성
 
-#### AWS 성능·자동 확장 실험
+애플리케이션 서버는 **c6i.large**(2 vCPU, 4 GiB)를 사용했습니다. CPU 크레딧을 사용하지 않는 인스턴스를 선택해, 장시간 부하에서도 크레딧 소진에 따른 성능 제한 없이 캐시·쿼리 개선과 Scale-Out에 따른 처리량·응답 시간 변화를 비교하고자 했습니다.
 
-성능 실험은 AWS 환경에서 진행했습니다. 부하 발생기와 앱을 별도 EC2에 배치하고, MySQL은 RDS로 분리했습니다. 일반 Redis와 상세 캐시 Redis도 각각 별도 EC2에서 실행했습니다.
+![AWS 인프라 구성도 · AZ 분산 배치안](https://github.com/user-attachments/assets/afde963c-b9ff-4ba5-a7bc-b33818ac7b4d)
+> AWS 프리티어 크레딧 소진 이후에는 OCI에서 Docker Compose로 서비스를 운영하고 있습니다.  
+> 성능 실험이 필요할 때 이미지의 AWS 환경을 구성해 사용합니다.
 
-아래는 자동 확장 실험에 사용한 구성입니다. 앱은 단일 AZ에서 1~4대로 조절했고, CPU 목표 50%와 ALB Slow Start 120초를 적용해 신규 앱으로 요청이 배분되는 과정을 측정했습니다.
+### ERD
 
-```mermaid
-flowchart LR
-    subgraph AWS["AWS 실험 VPC"]
-        subgraph Public["퍼블릭 서브넷"]
-            Load["EC2 · k6<br/>부하 발생기"] -->|"HTTPS"| ALB["Application Load Balancer"]
-        end
-        subgraph Private["프라이빗 서브넷"]
-            ALB -->|"Slow Start 120초"| ASG["EC2 Auto Scaling Group<br/>Spring Boot · 1~4대<br/>단일 AZ"]
-            ASG --> RDS[("RDS · MySQL")]
-            ASG --> RedisGeneral[("EC2 · 일반 Redis")]
-            ASG --> RedisCache[("EC2 · 상세 캐시 Redis")]
-            Monitoring["EC2 · 모니터링<br/>Prometheus · Grafana"] -.->|"메트릭 수집"| ASG
-        end
-    end
-    ASG -.->|"CPU 지표"| CW["CloudWatch"]
-    CW -.->|"목표 CPU 50%"| ASG
-    ECR["Amazon ECR"] -.->|"동일 이미지 배포"| ASG
-```
+![Airbob ERD](https://github.com/user-attachments/assets/f72c32f1-82a2-47ba-93e4-524f5e78d0ef)
 
-## 핵심 기술적 의사결정
+> 가독성을 위해 이력(history) 테이블은 생략했습니다.
+
+## 기술적 의사결정
 
 ### 숙소 상세 캐시
 
-캐시를 적용하면 반복 조회의 DB 비용은 줄어듭니다. 하지만 캐시가 비어 있을 때 같은 숙소로 요청이 몰리거나, Redis 장애로 요청이 DB에 우회하면 중복 조회가 다시 발생합니다. 이 두 상황은 조정할 수 있는 범위가 다릅니다.
+캐시를 적용하면 반복 조회의 DB 비용은 줄어듭니다. 하지만 캐시가 비어 있을 때 같은 숙소로 요청이 몰리거나, Redis 장애로 요청이 DB에 우회하면 중복 조회가 다시 발생합니다.
 
 | 상황 | 조정 방법 | 적용 범위 |
 |---|---|---|
