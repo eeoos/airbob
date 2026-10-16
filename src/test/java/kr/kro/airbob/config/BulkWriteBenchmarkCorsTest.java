@@ -28,7 +28,7 @@ class BulkWriteBenchmarkCorsTest {
 
 	private static final String ALLOWED_ORIGIN = "http://localhost:3000";
 	private static final String BENCHMARK_PATH =
-		"/api/v2/admin/benchmarks/bulk-write/wishlist-delete";
+		"/api/v2/admin/benchmarks/bulk-write/reservation-history-insert";
 
 	private final CorsFilter corsFilter = createWebMvcConfig().corsFilter().getFilter();
 

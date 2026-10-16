@@ -83,9 +83,6 @@ export const RESERVATION_HISTORY_INSERT_BENCHMARK = Object.freeze({
   },
 });
 
-export const BULK_WRITE_ENDPOINT = RESERVATION_HISTORY_INSERT_BENCHMARK.endpoint;
-export const BULK_WRITE_REQUEST_NAME = RESERVATION_HISTORY_INSERT_BENCHMARK.requestName;
-export const BULK_WRITE_CANDIDATE = RESERVATION_HISTORY_INSERT_BENCHMARK.candidate;
 export const BULK_WRITE_HIBERNATE_METRICS = {
   SELECT: 'bulk_write_hibernate_select_statements',
   INSERT: 'bulk_write_hibernate_insert_statements',
@@ -133,12 +130,6 @@ function requireBenchmarkDefinition(benchmark) {
     typeof benchmark.operationPrefix === 'string' && benchmark.operationPrefix.length > 0,
     'bulk-write benchmark operation prefix is required',
   );
-  if (benchmark.operationName !== undefined) {
-    requireCondition(
-      typeof benchmark.operationName === 'function',
-      'bulk-write benchmark operation-name resolver is invalid',
-    );
-  }
   requireCondition(
     Number.isSafeInteger(benchmark.maximumDatasetSize)
       && benchmark.maximumDatasetSize >= 0,
@@ -153,13 +144,6 @@ function requireBenchmarkDefinition(benchmark) {
     Array.isArray(benchmark.dataFields) && typeof benchmark.matchesData === 'function',
     'bulk-write benchmark response contract is required',
   );
-  if (benchmark.supportedMeasurements !== undefined) {
-    requireCondition(
-      Array.isArray(benchmark.supportedMeasurements)
-        && benchmark.supportedMeasurements.length > 0,
-      'bulk-write benchmark measurements are required',
-    );
-  }
   if (benchmark.externalEffects !== undefined) {
     requireCondition(
       isObject(benchmark.externalEffects)
@@ -269,27 +253,12 @@ export function parseBulkWriteVariant(raw, benchmark = RESERVATION_HISTORY_INSER
   return raw;
 }
 
-export function parseBulkWriteMeasurement(raw, benchmark) {
-  const definition = requireBenchmarkDefinition(benchmark);
-  requireCondition(
-    definition.supportedMeasurements !== undefined
-      && definition.supportedMeasurements.includes(raw),
-    `MEASUREMENT must be ${definition.supportedMeasurements?.join(' or ')}`,
-  );
-  return raw;
-}
-
 export function bulkWriteOperationName(
   rawVariant,
   benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
-  rawMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const variant = parseBulkWriteVariant(rawVariant, definition);
-  if (definition.supportedMeasurements !== undefined) {
-    const measurement = parseBulkWriteMeasurement(rawMeasurement, definition);
-    return definition.operationName(variant, measurement);
-  }
   return `${definition.operationPrefix}-${variant.toLowerCase()}`;
 }
 
@@ -329,13 +298,7 @@ export function parseBulkWriteRunConfig(
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const variant = parseBulkWriteVariant(environment.VARIANT, definition);
-  const measurement = definition.supportedMeasurements === undefined
-    ? undefined
-    : parseBulkWriteMeasurement(
-      environment.MEASUREMENT || definition.supportedMeasurements[0],
-      definition,
-    );
-  const operationName = bulkWriteOperationName(variant, definition, measurement);
+  const operationName = bulkWriteOperationName(variant, definition);
   const phase = parsePhase(environment.PHASE || 'measure');
   const datasetSize = parseDatasetSize(environment.DATASET_SIZE, definition);
   const samples = parseSamples(environment.SAMPLES);
@@ -362,7 +325,6 @@ export function parseBulkWriteRunConfig(
     baseUrl: parseSafeBaseUrl(environment.BASE_URL || 'http://localhost:8080'),
     benchmarkToken,
     variant,
-    ...(measurement === undefined ? {} : { measurement }),
     phase,
     datasetSize,
     samples,
@@ -392,16 +354,13 @@ export function parseBulkWriteRunConfig(
 }
 
 export function buildBulkWriteRequestBody(
-  { variant, measurement, datasetSize },
+  { variant, datasetSize },
   benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const body = {
     variant: parseBulkWriteVariant(variant, definition),
   };
-  if (definition.supportedMeasurements !== undefined) {
-    body.measurement = parseBulkWriteMeasurement(measurement, definition);
-  }
   body.dataset_size = parseDatasetSize(datasetSize, definition);
   return JSON.stringify(body);
 }
@@ -416,7 +375,6 @@ export function buildBulkWriteHeaders(benchmarkToken) {
 export function buildBulkWriteRequestParams({
   benchmarkToken,
   sessionId,
-  runtimeId,
   timeout,
   tags = {},
 }) {
@@ -427,10 +385,7 @@ export function buildBulkWriteRequestParams({
   requireCondition(isObject(tags), 'request tags must be an object');
   return {
     cookies: { SESSION_ID: sessionId },
-    headers: {
-      ...buildBulkWriteHeaders(benchmarkToken),
-      ...(runtimeId ? { 'X-Bulk-Delete-Runtime-Id': runtimeId } : {}),
-    },
+    headers: buildBulkWriteHeaders(benchmarkToken),
     redirects: 0,
     tags: { ...tags },
     timeout: parseRequiredPublicText(timeout, 'REQUEST_TIMEOUT'),
@@ -438,16 +393,13 @@ export function buildBulkWriteRequestParams({
 }
 
 export function buildBulkWriteOptions(
-  { variant, measurement, phase, samples },
+  { variant, phase, samples },
   benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   const parsedVariant = parseBulkWriteVariant(variant, definition);
   const parsedPhase = parsePhase(phase);
   const parsedSamples = parseSamples(samples);
-  const parsedMeasurement = definition.supportedMeasurements === undefined
-    ? undefined
-    : parseBulkWriteMeasurement(measurement, definition);
   const scenarioName = `bulk_write_${parsedPhase}`;
 
   return {
@@ -464,7 +416,6 @@ export function buildBulkWriteOptions(
           candidate: definition.candidate,
           phase: parsedPhase,
           variant: parsedVariant,
-          ...(parsedMeasurement === undefined ? {} : { measurement: parsedMeasurement }),
         },
       },
     },
@@ -544,12 +495,11 @@ export function matchesBulkWriteOperationContract(
   value,
   expectedVariant = 'BEFORE',
   benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
-  expectedMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   let operationName;
   try {
-    operationName = bulkWriteOperationName(expectedVariant, definition, expectedMeasurement);
+    operationName = bulkWriteOperationName(expectedVariant, definition);
   } catch (_) {
     return false;
   }
@@ -579,18 +529,13 @@ export function matchesBulkWriteResponseContract(
   expectedDatasetSize,
   expectedVariant = 'BEFORE',
   benchmark = RESERVATION_HISTORY_INSERT_BENCHMARK,
-  expectedMeasurement = undefined,
 ) {
   const definition = requireBenchmarkDefinition(benchmark);
   let datasetSize;
   let variant;
-  let measurement;
   try {
     datasetSize = parseDatasetSize(expectedDatasetSize, definition);
     variant = parseBulkWriteVariant(expectedVariant, definition);
-    measurement = definition.supportedMeasurements === undefined
-      ? undefined
-      : parseBulkWriteMeasurement(expectedMeasurement, definition);
   } catch (_) {
     return false;
   }
@@ -609,8 +554,8 @@ export function matchesBulkWriteResponseContract(
   return data.candidate === definition.candidate
     && data.variant === variant
     && data.dataset_size === datasetSize
-    && matchesBulkWriteOperationContract(data.operation, variant, definition, measurement)
-    && definition.matchesData(data, datasetSize, variant, measurement);
+    && matchesBulkWriteOperationContract(data.operation, variant, definition)
+    && definition.matchesData(data, datasetSize, variant);
 }
 
 function metricValues(data, name) {
@@ -776,20 +721,11 @@ export function buildBulkWriteArtifact({
     generated_at: generatedAt,
     candidate: definition.candidate,
     variant: parseBulkWriteVariant(config.variant, definition),
-    ...(definition.supportedMeasurements === undefined
-      ? {}
-      : {
-        measurement: parseBulkWriteMeasurement(config.measurement, definition),
-        active_amenity_code_count: trendSummary(
-          k6Summary,
-          definition.activeCodeMetric,
-        ).median,
-      }),
     phase: parsePhase(config.phase),
     dataset_size: parseDatasetSize(config.datasetSize, definition),
     samples: parseSamples(config.samples),
     endpoint: definition.endpoint,
-    operation_name: bulkWriteOperationName(config.variant, definition, config.measurement),
+    operation_name: bulkWriteOperationName(config.variant, definition),
     run_label: parseRequiredPublicText(config.runLabel, 'RUN_LABEL'),
     round: parseCanonicalInteger(config.round, 'ROUND', 1, 1_000_000),
     run_order: parseCanonicalInteger(config.runOrder, 'RUN_ORDER', 1, 1_000_000),
@@ -807,16 +743,6 @@ export function buildBulkWriteArtifact({
     request_timeout: parseRequiredPublicText(config.requestTimeout, 'REQUEST_TIMEOUT'),
     ...benchmarkDatasetMetadata(config, definition),
   };
-  if (definition.supportedMeasurements !== undefined) {
-    requireCondition(
-      Number.isSafeInteger(metadata.active_amenity_code_count)
-        && metadata.active_amenity_code_count > 0,
-      'active amenity code count must be a positive integer',
-    );
-    metadata.workload_class = metadata.dataset_size <= metadata.active_amenity_code_count
-      ? 'REALISTIC'
-      : 'STRESS';
-  }
   const externalEffects = definition.externalEffects === undefined
     ? {}
     : {

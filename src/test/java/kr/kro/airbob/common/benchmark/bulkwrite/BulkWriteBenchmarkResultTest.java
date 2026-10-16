@@ -17,7 +17,7 @@ class BulkWriteBenchmarkResultTest {
 	@DisplayName("측정 snapshot을 모든 SQL 유형의 0값을 포함한 응답으로 변환한다")
 	void includesZeroStatementCounts() {
 		BulkOperationSnapshot snapshot = new BulkOperationSnapshot(
-			"wishlist-delete-before",
+			"test-bulk-operation",
 			BulkOperationSnapshot.Outcome.SUCCESS,
 			1_500_000,
 			Map.of(SqlQueryType.SELECT, 2, SqlQueryType.TOTAL, 2),

@@ -21,7 +21,6 @@ spring:
         format_sql: false
 
 # Isolate this database write experiment from consumers, search bootstrap and cache Redis I/O.
-# Both full-replacement variants still append the canonical cache-invalidation outbox event.
 accommodation:
   indexing:
     bootstrap:

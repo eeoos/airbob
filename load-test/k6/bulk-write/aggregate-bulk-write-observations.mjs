@@ -29,21 +29,6 @@ const BENCHMARKS = Object.freeze({
     datasetCapsuleId: 'bulk-expiration-history-v1',
     datasetTargetId: 'expired-payment-pending',
   }),
-  WISHLIST_DELETE: Object.freeze({
-    candidate: 'WISHLIST_DELETE',
-    endpoint: '/api/v2/admin/benchmarks/bulk-write/wishlist-delete',
-    operationPrefix: 'wishlist-delete',
-    maximumDatasetSize: 1000,
-    externalEffects: false,
-  }),
-  ACCOMMODATION_AMENITY_DELETE: Object.freeze({
-    candidate: 'ACCOMMODATION_AMENITY_DELETE',
-    endpoint: '/api/v2/admin/benchmarks/bulk-write/accommodation-amenity-delete',
-    operationPrefix: 'accommodation-amenity',
-    maximumDatasetSize: 100,
-    externalEffects: false,
-    measurements: true,
-  }),
 });
 const SQL_TYPES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER', 'TOTAL'];
 const METADATA_KEYS = [
@@ -83,11 +68,6 @@ const SHARED_METADATA_KEYS = [
   'mysql_version',
   'rewrite_batched_statements',
   'request_timeout',
-];
-const AMENITY_METADATA_KEYS = [
-  'measurement',
-  'workload_class',
-  'active_amenity_code_count',
 ];
 const DATASET_METADATA_KEYS = [
   'benchmark_dataset_version',
@@ -180,7 +160,6 @@ function metadataKeys(definition) {
   return [
     ...METADATA_KEYS,
     ...(definition.datasetCapsuleId === undefined ? [] : DATASET_METADATA_KEYS),
-    ...(definition.measurements ? AMENITY_METADATA_KEYS : []),
   ];
 }
 
@@ -188,7 +167,6 @@ function sharedMetadataKeys(definition) {
   return [
     ...SHARED_METADATA_KEYS,
     ...(definition.datasetCapsuleId === undefined ? [] : DATASET_METADATA_KEYS),
-    ...(definition.measurements ? AMENITY_METADATA_KEYS : []),
   ];
 }
 
@@ -373,37 +351,11 @@ function validateMetadata(metadata, parentLabel, sampleIndex, definition) {
       'source benchmark dataset binding is invalid',
     );
   }
-  if (definition.measurements) {
-    requireCondition(
-      metadata.measurement === 'FULL_REPLACEMENT' || metadata.measurement === 'DELETE_ONLY',
-      'source measurement is invalid',
-    );
-    requireCondition(
-      isPositiveInteger(metadata.active_amenity_code_count),
-      'source active amenity code count is invalid',
-    );
-    requireCondition(
-      metadata.workload_class
-        === (metadata.dataset_size <= metadata.active_amenity_code_count
-          ? 'REALISTIC'
-          : 'STRESS'),
-      'source workload class is invalid',
-    );
-    const measurementName = metadata.measurement === 'FULL_REPLACEMENT'
-      ? 'full-replacement'
-      : 'delete-only';
-    requireCondition(
-      metadata.operation_name
-        === `accommodation-amenity-${measurementName}-${metadata.variant.toLowerCase()}`,
-      'source operation name is invalid',
-    );
-  } else {
-    requireCondition(
-      metadata.operation_name
-        === `${definition.operationPrefix}-${metadata.variant.toLowerCase()}`,
-      'source operation name is invalid',
-    );
-  }
+  requireCondition(
+    metadata.operation_name
+      === `${definition.operationPrefix}-${metadata.variant.toLowerCase()}`,
+    'source operation name is invalid',
+  );
   requireCondition(
     metadata.run_label === `${parentLabel}-sample-${String(sampleIndex).padStart(3, '0')}`,
     'source child label is invalid',
@@ -501,21 +453,6 @@ function validateSuccessfulSummary(source, definition) {
       'source contains an unexpected external-effect metric',
     );
   }
-  if (definition.measurements) {
-    validateMetricValue(
-      source,
-      'bulk_write_active_amenity_code_count',
-      source.metadata.active_amenity_code_count,
-    );
-    const metricSuffix = source.metadata.measurement === 'FULL_REPLACEMENT'
-      ? 'full_replacement'
-      : 'delete_only';
-    validateMetricValue(
-      source,
-      `bulk_write_accommodation_amenity_${metricSuffix}_server_operation_ms`,
-      source.performance.server_operation_ms.median,
-    );
-  }
   SQL_TYPES.forEach((type) => {
     validateMetricCount(source, `bulk_write_hibernate_${type.toLowerCase()}_statements`, 1);
   });
@@ -588,10 +525,7 @@ function validateDatabaseObservation(source, definition) {
   );
 
   const { variant, dataset_size: datasetSize } = source.metadata;
-  const noJdbcActivity = definition.candidate === 'WISHLIST_DELETE'
-    || definition.candidate === 'ACCOMMODATION_AMENITY_DELETE'
-    || variant === 'BEFORE'
-    || datasetSize === 0;
+  const noJdbcActivity = variant === 'BEFORE' || datasetSize === 0;
   if (noJdbcActivity) {
     requireCondition(
       jdbc.batch_calls === 0
@@ -656,62 +590,6 @@ function validateDatabaseObservation(source, definition) {
           && sql.OTHER === 0
           && sql.TOTAL === (datasetSize === 0 ? 1 : datasetSize + 2),
         'source AFTER Hibernate observation is invalid',
-      );
-    }
-  } else if (definition.candidate === 'WISHLIST_DELETE') {
-    const expectedDeleteCount = datasetSize === 0
-      ? 0
-      : (variant === 'BEFORE' ? datasetSize : 1);
-    requireCondition(
-      sql.SELECT === 2
-        && sql.INSERT === 0
-        && sql.UPDATE === 1
-        && sql.DELETE === expectedDeleteCount
-        && sql.OTHER === 0
-        && sql.TOTAL === 3 + expectedDeleteCount,
-      'source Wishlist Hibernate observation is invalid',
-    );
-  } else {
-    const replacementRows = Math.min(datasetSize, source.metadata.active_amenity_code_count);
-    if (source.metadata.measurement === 'FULL_REPLACEMENT' && variant === 'BEFORE') {
-      requireCondition(
-        sql.SELECT === 3
-          && sql.INSERT === replacementRows + 2
-          && sql.UPDATE === 1
-          && sql.DELETE === datasetSize
-          && sql.OTHER === 0
-          && sql.TOTAL === datasetSize + replacementRows + 6,
-        'source AccommodationAmenity full-replacement observation is invalid',
-      );
-    } else if (source.metadata.measurement === 'DELETE_ONLY' && variant === 'BEFORE') {
-      requireCondition(
-        sql.SELECT === 1
-          && sql.INSERT === 0
-          && sql.UPDATE === 0
-          && sql.DELETE === datasetSize
-          && sql.OTHER === 0
-          && sql.TOTAL === datasetSize + 1,
-        'source AccommodationAmenity delete-only observation is invalid',
-      );
-    } else if (source.metadata.measurement === 'FULL_REPLACEMENT') {
-      requireCondition(
-        sql.SELECT === 2
-          && sql.INSERT === replacementRows + 2
-          && sql.UPDATE === 1
-          && sql.DELETE === 1
-          && sql.OTHER === 0
-          && sql.TOTAL === replacementRows + 6,
-        'source AccommodationAmenity After full-replacement observation is invalid',
-      );
-    } else {
-      requireCondition(
-        sql.SELECT === 0
-          && sql.INSERT === 0
-          && sql.UPDATE === 0
-          && sql.DELETE === 1
-          && sql.OTHER === 0
-          && sql.TOTAL === 1,
-        'source AccommodationAmenity After delete-only observation is invalid',
       );
     }
   }
@@ -877,13 +755,6 @@ function sharedMetadata(metadata, parentLabel, sampleCount, definition) {
       : Object.fromEntries(
         DATASET_METADATA_KEYS.map((key) => [key, metadata[key]]),
       )),
-    ...(definition.measurements
-      ? {
-        measurement: metadata.measurement,
-        workload_class: metadata.workload_class,
-        active_amenity_code_count: metadata.active_amenity_code_count,
-      }
-      : {}),
   };
 }
 
@@ -919,13 +790,6 @@ function normalizeSource(source, sourcePath, sampleIndex, definition) {
       sample_index: sampleIndex,
       source_path: sourcePath,
       variant: source.metadata.variant,
-      ...(definition.measurements
-        ? {
-          measurement: source.metadata.measurement,
-          workload_class: source.metadata.workload_class,
-          active_amenity_code_count: source.metadata.active_amenity_code_count,
-        }
-        : {}),
       dataset_size: source.metadata.dataset_size,
       round: source.metadata.round,
       run_order: source.metadata.run_order,

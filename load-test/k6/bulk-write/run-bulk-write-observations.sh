@@ -50,14 +50,10 @@ if [[ "$test_mode" != '0' && "$test_mode" != '1' ]]; then
   exit 2
 fi
 
-case "$candidate" in
-  RESERVATION_HISTORY_INSERT)
-    trusted_child_runner="$script_dir/run-reservation-history-insert.sh"
-    if [[ "$test_mode" == '1' ]]; then
-      child_runner="${RESERVATION_HISTORY_RUNNER:-$trusted_child_runner}"
-    fi
-    ;;
-esac
+trusted_child_runner="$script_dir/run-reservation-history-insert.sh"
+if [[ "$test_mode" == '1' ]]; then
+  child_runner="${RESERVATION_HISTORY_RUNNER:-$trusted_child_runner}"
+fi
 
 if [[ "$test_mode" == '1' ]]; then
   node_bin="${NODE_BIN:-node}"

@@ -41,7 +41,7 @@ class BulkOperationMonitorTest {
 			}
 		);
 
-		BulkOperationSnapshot snapshot = monitor.monitor("wishlist-delete-before", () -> {
+		BulkOperationSnapshot snapshot = monitor.monitor("test-bulk-operation", () -> {
 			BulkOperationContext context = BulkOperationContextHolder.getContext();
 			assertThat(context).isNotNull();
 
@@ -51,7 +51,7 @@ class BulkOperationMonitorTest {
 			context.recordJdbcBatch(1, 100, 1L);
 		});
 
-		assertThat(snapshot.operationName()).isEqualTo("wishlist-delete-before");
+		assertThat(snapshot.operationName()).isEqualTo("test-bulk-operation");
 		assertThat(snapshot.outcome()).isEqualTo(BulkOperationSnapshot.Outcome.SUCCESS);
 		assertThat(snapshot.executionTimeNanos()).isEqualTo(250L);
 		assertThat(snapshot.hibernateStatementCount(SqlQueryType.SELECT)).isEqualTo(1);
@@ -95,7 +95,7 @@ class BulkOperationMonitorTest {
 		);
 		IllegalStateException failure = new IllegalStateException("operation failed");
 
-		assertThatThrownBy(() -> monitor.monitor("wishlist-delete-before", () -> {
+		assertThatThrownBy(() -> monitor.monitor("test-bulk-operation", () -> {
 			BulkOperationContext context = BulkOperationContextHolder.getContext();
 			context.recordHibernateStatement(SqlQueryType.DELETE);
 			context.recordJdbcBatch(25, 100, 25L);
@@ -163,7 +163,7 @@ class BulkOperationMonitorTest {
 			}
 		);
 
-		BulkOperationSnapshot snapshot = monitor.monitor("wishlist-delete-before", () -> {
+		BulkOperationSnapshot snapshot = monitor.monitor("test-bulk-operation", () -> {
 		});
 
 		assertThat(snapshot.outcome()).isEqualTo(BulkOperationSnapshot.Outcome.SUCCESS);
@@ -180,7 +180,7 @@ class BulkOperationMonitorTest {
 		});
 
 		BulkOperationSnapshot bulkSnapshot = monitor.monitor(
-			"wishlist-delete-before",
+			"test-bulk-operation",
 			() -> inspector.inspect("delete from wishlist_accommodation where wishlist_id = ?")
 		);
 
@@ -201,7 +201,7 @@ class BulkOperationMonitorTest {
 			}
 		);
 
-		assertThatThrownBy(() -> monitor.monitor("wishlist-delete-before", () -> {
+		assertThatThrownBy(() -> monitor.monitor("test-bulk-operation", () -> {
 			throw operationFailure;
 		}))
 			.isSameAs(operationFailure);

@@ -52,7 +52,7 @@ class SqlQueryStatementInspectorTest {
 	@DisplayName("HTTP 요청과 벌크 컨텍스트가 함께 있으면 같은 SQL을 각각 한 번씩 누적한다")
 	void incrementsRequestAndBulkContextsTogether() {
 		QueryCountContext requestContext = new QueryCountContext("DELETE", "/api/v2/admin/benchmarks/bulk-write");
-		BulkOperationContext bulkContext = new BulkOperationContext("wishlist-delete-before");
+		BulkOperationContext bulkContext = new BulkOperationContext("test-bulk-operation");
 		QueryCountContextHolder.initContext(requestContext);
 		BulkOperationContextHolder.initContext(bulkContext);
 		String sql = "/* Hibernate */ delete from wishlist_accommodation where wishlist_id = ?";

@@ -22,12 +22,10 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 		FROM information_schema.tables
 		WHERE table_schema = ?
 		  AND table_name IN (
-		    'member', 'accommodation', 'wishlist', 'wishlist_accommodation',
-		    'accommodation_amenity', 'accommodation_history',
-		    'reservation', 'reservation_history', 'outbox'
+		    'member', 'accommodation', 'reservation', 'reservation_history', 'outbox'
 		  )
 		""";
-	private static final int REQUIRED_TABLE_COUNT = 9;
+	private static final int REQUIRED_TABLE_COUNT = 5;
 	private static final String REQUIRED_SCHEMA_SUFFIX = "_bulk_write_benchmark";
 	private static final String VALIDATION_ERROR_MESSAGE =
 		"Bulk-write benchmark database validation failed";
@@ -88,8 +86,7 @@ public class BulkWriteBenchmarkDatabaseGuard implements InitializingBean {
 	}
 
 	private boolean hasForbiddenCloudProfile() {
-		return environment.acceptsProfiles(Profiles.of("oci"))
-			|| environment.acceptsProfiles(Profiles.of("aws"));
+		return environment.acceptsProfiles(Profiles.of("aws", "oci"));
 	}
 
 	private boolean isValidAllowedSchema() {
