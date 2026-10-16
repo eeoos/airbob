@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import kr.kro.airbob.domain.accommodation.cache.messaging.kafka.AccommodationDetailCacheInvalidationKafkaListener;
@@ -41,11 +40,10 @@ class DomainKafkaProfileContractTest {
 		AccommodationDetailCacheKafkaRetryPublisherConfiguration.class
 	);
 
-	@ParameterizedTest
-	@ValueSource(strings = {"traffic-benchmark", "cache-benchmark"})
-	void excludesEveryDomainKafkaBeanFromReadOnlyBenchmarks(String profile) {
+	@Test
+	void excludesEveryDomainKafkaBeanFromReadOnlyBenchmarks() {
 		new ApplicationContextRunner()
-			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles("traffic-benchmark"))
 			.withUserConfiguration(DOMAIN_KAFKA_BEAN_TYPES.toArray(Class<?>[]::new))
 			.withPropertyValues(
 				"spring.kafka.listener.auto-startup=true",

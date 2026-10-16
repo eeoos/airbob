@@ -153,15 +153,12 @@ jobs:
           bash load-test/k6/test/run-bulk-write-benchmark-server-test.sh
           bash load-test/k6/test/run-aws-discovery-test.sh
 
-      - name: Verify cache benchmark tools
+      - name: Verify AWS cache experiment infrastructure
         env:
           K6_NO_USAGE_REPORT: 'true'
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           python3 -m unittest discover -s infra/aws/tests -p 'test_cache_*.py'
-          python3 -m unittest discover -s load-test/k6/test -p 'test_cache*.py'
-          k6 run --address '' load-test/k6/test/accommodation-cache-benchmark-test.js
-          k6 run --address '' load-test/k6/test/cache-experiment-config-test.js
 
       - name: Build and Test
         env:

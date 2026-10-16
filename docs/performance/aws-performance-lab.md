@@ -1,9 +1,9 @@
 # AWS Performance Lab — Application and Service Bundle Contracts
 
-Cache-specific offline preparation and the existing-host measurement runner are documented in
-[AWS cache experiments](aws-cache-experiments.md). Its opt-in B application topology adds a separate
-load generator and a fixed app count; the default remains unchanged. Preparation has no AWS side
-effects. The new runner and topology changes require live qualification before reporting AWS results.
+Cache measurements are complete. The cache-only application profile and runners are retained in
+`archive/cache-measurements-20261011`; use that version with its recorded image and dataset.
+See [cache measurement results](aws-cache-experiments.md). The shared AWS infrastructure below
+remains available for the other experiments; it does not make the retired profile available in a new image.
 
 ## Current status
 

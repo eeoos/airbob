@@ -9,7 +9,7 @@ import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplate
 import kr.kro.airbob.search.messaging.event.AccommodationSearchRefreshRequestedV1;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!traffic-benchmark & !cache-benchmark")
+@Profile("!traffic-benchmark")
 public class AccommodationSearchKafkaRetryPublisherConfiguration {
 
 	@Bean

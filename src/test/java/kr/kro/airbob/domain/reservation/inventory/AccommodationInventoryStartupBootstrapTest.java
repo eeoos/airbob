@@ -59,7 +59,7 @@ class AccommodationInventoryStartupBootstrapTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"test", "performance-lab", "cache-benchmark"})
+	@ValueSource(strings = {"test", "performance-lab"})
 	@DisplayName("격리된 읽기 전용 프로필만 disabled bootstrap을 명시적으로 우회한다")
 	void disabledBootstrapIsReadyOnlyForExplicitBypassProfiles(String profile) {
 		MockEnvironment environment = new MockEnvironment();

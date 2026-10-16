@@ -8,7 +8,9 @@
 | 숙소 응답의 리뷰 요약 반정규화 | [HTTP 요청 모음](../http/denormalization-discovery.http) | [리뷰 요약 비교 가이드](../../docs/performance/review-summary-denormalization.md) |
 | 최근 본 숙소 N+1 before/after | `nplus1-fixture-smoke.js`, `recently-viewed-nplus1-performance.js` | 이 문서의 N+1 절 |
 | 쿠폰 DB 조건부 UPDATE/SKIP LOCKED 발급 | `coupon/run_experiments.py`, `coupon/coupon-issuance-comparison.js` | [쿠폰 실험 가이드](coupon/README.md) |
-| 숙소 상세 Redis 캐시 V2(before)/V1(after) | `cache/run-local-comparison.py`, `cache/accommodation-detail-comparison.js` | [cache/README.md](cache/README.md) |
+
+숙소 상세 캐시 비교는 측정을 완료해 전용 실행기를 보관 버전으로 옮겼다.
+[결과와 재현 버전](../../docs/performance/aws-cache-experiments.md)을 참고한다.
 
 직접 실행하지 않는 파일도 있다.
 

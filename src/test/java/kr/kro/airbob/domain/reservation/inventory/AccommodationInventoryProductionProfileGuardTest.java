@@ -32,8 +32,8 @@ class AccommodationInventoryProductionProfileGuardTest {
 	void onlyIsolatedReadOnlyProfilesRetainTheExplicitBypass() {
 		assertThatCode(() -> guard(new String[] {"aws", "performance-lab"}, false, false)
 			.afterPropertiesSet()).doesNotThrowAnyException();
-		assertThatCode(() -> guard(new String[] {"aws", "cache-benchmark"}, false, false)
-			.afterPropertiesSet()).doesNotThrowAnyException();
+		assertThatThrownBy(() -> guard(new String[] {"aws", "cache-benchmark"}, false, false)
+			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
 		assertThatThrownBy(() -> guard(new String[] {"oci", "test"}, false, false)
 			.afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
 	}

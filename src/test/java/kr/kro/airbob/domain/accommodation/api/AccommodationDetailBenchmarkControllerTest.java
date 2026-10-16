@@ -5,8 +5,6 @@ import static org.mockito.BDDMockito.*;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,10 +20,9 @@ class AccommodationDetailBenchmarkControllerTest {
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
 		.withUserConfiguration(TestConfiguration.class);
 
-	@ParameterizedTest
-	@ValueSource(strings = {"read-model-benchmark", "cache-benchmark"})
+	@Test
 	@DisplayName("프로필과 설정이 모두 활성화된 경우에만 before API를 노출한다")
-	void requiresProfileAndProperty(String profile) {
+	void requiresProfileAndProperty() {
 		contextRunner.run(context -> assertThat(context)
 			.doesNotHaveBean(AccommodationDetailBenchmarkController.class));
 		contextRunner
@@ -33,11 +30,11 @@ class AccommodationDetailBenchmarkControllerTest {
 			.run(context -> assertThat(context)
 				.doesNotHaveBean(AccommodationDetailBenchmarkController.class));
 		contextRunner
-			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles("read-model-benchmark"))
 			.run(context -> assertThat(context)
 				.doesNotHaveBean(AccommodationDetailBenchmarkController.class));
 		contextRunner
-			.withInitializer(context -> context.getEnvironment().setActiveProfiles(profile))
+			.withInitializer(context -> context.getEnvironment().setActiveProfiles("read-model-benchmark"))
 			.withPropertyValues("benchmark.read-model.enabled=true")
 			.run(context -> assertThat(context)
 				.hasSingleBean(AccommodationDetailBenchmarkController.class));

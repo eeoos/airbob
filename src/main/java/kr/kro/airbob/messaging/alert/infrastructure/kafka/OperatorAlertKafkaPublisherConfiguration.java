@@ -9,7 +9,7 @@ import kr.kro.airbob.messaging.alert.event.OperatorAlertRequestedV1;
 import kr.kro.airbob.messaging.infrastructure.kafka.SanitizingRetryKafkaTemplateFactory;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("!traffic-benchmark & !cache-benchmark")
+@Profile("!traffic-benchmark")
 public class OperatorAlertKafkaPublisherConfiguration {
 
 	@Bean

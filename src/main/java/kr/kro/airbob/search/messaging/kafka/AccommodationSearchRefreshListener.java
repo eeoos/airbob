@@ -28,7 +28,7 @@ import kr.kro.airbob.search.service.AccommodationIndexingService;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@Profile("!traffic-benchmark & !cache-benchmark")
+@Profile("!traffic-benchmark")
 @RequiredArgsConstructor
 public class AccommodationSearchRefreshListener {
 

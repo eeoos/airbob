@@ -26,7 +26,7 @@ AWS 환경용 오프라인 준비와 이후 실행 절차는 [AWS 측정 가이�
 두 경로 모두 상세 캐시를 사용하지 않는다. 기존 V2 경로의 `Before`라는 이름은 **캐시 적용 전**을 뜻한다.
 리뷰 반정규화 실험에서는 이 경로가 After다. V1 상세 API와 비교하면 캐시 효과가 섞인다.
 
-`dev,read-model-benchmark` 또는 `dev,cache-benchmark` 프로필에서 실행하고
+`dev,read-model-benchmark` 프로필에서 실행하고
 `BENCHMARK_READ_MODEL_TOKEN`을 설정한다. 요청에는 `X-Benchmark-Token`을 전달한다.
 로그인 여부와 회원을 양쪽에서 같게 유지한다.
 
