@@ -1,14 +1,16 @@
 # 리뷰 요약 반정규화 비교
 
+> 측정 완료 기록이다. 현재 코드에서는 아래의 `review-summary-before` API와 원본 집계 경로를 제거했다.
+> 실험 코드·k6 도구·실행 절차는 커밋 `10893dfda93f38620751c30f10befef0709ddcb9`에 보존했다.
+> 아래 설명은 당시 비교 조건이며, 현재 앱의 실행 가이드가 아니다.
+
 리뷰 요약 단독 API 대신 화면에서 사용하는 전체 응답으로 비교한다.
 Before는 `review`의 `PUBLISHED` 리뷰를 숙소별 `COUNT`, `ROUND(AVG(rating), 2)`로 집계하고,
 After는 `accommodation_review_summary`를 조회한다. 요약 테이블은 삭제하지 않는다.
 
-k6 실행은 [리뷰 요약 전후 측정 가이드](../../load-test/k6/review-summary/README.md)를 참고한다.
-`review-summary/run-comparison.mjs`가 세 API 중 하나를 선택해 전후 순서를 바꿔 반복하고,
-로그인·응답 검증·워밍업을 제외한 측정 결과와 회차별 개선율을 저장한다.
-AWS 환경용 오프라인 준비와 이후 실행 절차는 [AWS 측정 가이드](../../load-test/k6/review-summary/AWS.md)에 있다.
-준비 도구는 AWS에 접속하거나 실험을 실행하지 않는다.
+측정 도구의 보존 위치는 [보관 안내](../../load-test/k6/review-summary/README.md)에 있다.
+당시 실행기는 세 API 중 하나를 선택해 전후 순서를 바꿔 반복하고,
+로그인·응답 검증·워밍업을 제외한 측정 결과와 회차별 개선율을 저장했다.
 
 2026-10-12 AWS 실측은 [측정 결과와 원본](results/review-summary-aws-2026-10-12/README.md)에 기록했다.
 3회 p95 중앙값은 위시리스트 50개(20 RPS) 18.42ms → 11.03ms, 최근 본 100개(10 RPS)

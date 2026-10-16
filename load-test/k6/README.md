@@ -5,7 +5,7 @@
 | 측정 목적 | 직접 실행할 진입점 | 상세 가이드 |
 |---|---|---|
 | 위시리스트·매출 반정규화 before/after | `read-model/wishlist-comparison.js`, `read-model/revenue-stats-comparison.js` | [read-model/README.md](read-model/README.md) |
-| 숙소 응답의 리뷰 요약 반정규화 | [HTTP 요청 모음](../http/denormalization-discovery.http) | [리뷰 요약 비교 가이드](../../docs/performance/review-summary-denormalization.md) |
+| 숙소 응답의 리뷰 요약 반정규화 (측정 완료) | [결과·도구 보관 안내](review-summary/README.md) | [비교 조건과 측정 기록](../../docs/performance/review-summary-denormalization.md) |
 | 최근 본 숙소 N+1 before/after | `nplus1-fixture-smoke.js`, `recently-viewed-nplus1-performance.js` | 이 문서의 N+1 절 |
 | 쿠폰 DB 조건부 UPDATE/SKIP LOCKED 발급 | `coupon/run_experiments.py`, `coupon/coupon-issuance-comparison.js` | [쿠폰 실험 가이드](coupon/README.md) |
 
@@ -228,7 +228,7 @@ Docker가 실행 중인 환경에서 실제 MySQL·Redis로 N별 쿼리 수, 응
 K6_NO_USAGE_REPORT=true k6 run --address '' load-test/k6/test/recently-viewed-benchmark-test.js
 ```
 
-위시리스트·매출 집계 비교는 [read-model/README.md](read-model/README.md), 숙소 응답의 리뷰 요약 비교는 [전용 가이드](../../docs/performance/review-summary-denormalization.md)를 참고한다. 단독 리뷰 요약 API를 호출하던 실험은 종료했다.
+위시리스트·매출 집계 비교는 [read-model/README.md](read-model/README.md), 리뷰 요약 비교는 종료되어 현재 앱에 Before API가 없다. [측정 기록](../../docs/performance/review-summary-denormalization.md)과 [이전 도구 보관 안내](review-summary/README.md)를 참고한다.
 
 ## N+1 측정 후 서버 teardown
 

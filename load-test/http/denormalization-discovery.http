@@ -1,28 +1,18 @@
-# Airbob denormalized read-model comparison - IntelliJ IDEA HTTP Client
+# Airbob wishlist-count / revenue read-model comparison - IntelliJ IDEA HTTP Client
+# 리뷰 요약 전후 비교는 종료됐다. docs/performance/review-summary-denormalization.md 참고.
 #
 # 실행 전:
 # 1. HTTP Client 환경에서 local 또는 aws를 선택한다.
 # 2. local은 dev,read-model-benchmark 프로필로 실행한다.
 #    aws의 before(v2)는 배포 앱에도 read-model-benchmark 프로필이 활성화돼 있어야 한다.
 # 3. BENCHMARK_READ_MODEL_TOKEN과 선택한 private env의 benchmarkToken을 같은 값으로 설정한다.
-# 4. reviewAccommodationId, wishlistId, revenueFrom/revenueTo에 해당 환경의 데이터를 지정한다.
-#    최근 본 숙소 기록은 비교 프로필로 전환하기 전에 준비한다.
+# 4. 로그인 계정과 revenueFrom/revenueTo에 해당 환경의 데이터를 지정한다.
 # 5. 각 AFTER/BEFORE 요청을 같은 조건에서 번갈아 실행한다.
 # 6. 15~30초 뒤 해당 환경의 Grafana 대시보드에서 확인한다.
 #
 # Local Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
 # 실행 예: SPRING_PROFILES_ACTIVE=dev,read-model-benchmark ./gradlew bootRun
 # 비밀값과 환경별 fixture 변수는 http-client.private.env.json에 둔다.
-
-### Accommodation review summary BEFORE - 캐시 없이 원본 리뷰 집계
-GET {{baseUrl}}/api/v2/accommodations/{{reviewAccommodationId}}/review-summary-before
-Accept: application/json
-X-Benchmark-Token: {{benchmarkToken}}
-
-### Accommodation review summary AFTER - 캐시 없이 요약 테이블 조회
-GET {{baseUrl}}/api/v2/accommodations/{{reviewAccommodationId}}
-Accept: application/json
-X-Benchmark-Token: {{benchmarkToken}}
 
 ### Login benchmark member for wishlist comparison
 # @name loginBenchmarkMember
@@ -35,26 +25,6 @@ Accept: application/json
   "email": "{{benchmarkEmail}}",
   "password": "{{benchmarkPassword}}"
 }
-
-### Wishlist accommodations review summary BEFORE
-GET {{baseUrl}}/api/v2/members/wishlists/accommodations/{{wishlistId}}/review-summary-before?size=20
-Accept: application/json
-X-Benchmark-Token: {{benchmarkToken}}
-
-### Wishlist accommodations review summary AFTER
-GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{wishlistId}}?size=20
-Accept: application/json
-X-Benchmark-Token: {{benchmarkToken}}
-
-### Recently viewed review summary BEFORE
-GET {{baseUrl}}/api/v2/members/recently-viewed/review-summary-before
-Accept: application/json
-X-Benchmark-Token: {{benchmarkToken}}
-
-### Recently viewed review summary AFTER
-GET {{baseUrl}}/api/v1/members/recently-viewed
-Accept: application/json
-X-Benchmark-Token: {{benchmarkToken}}
 
 ### Wishlists AFTER - accommodation_count 및 representative_accommodation_id 조회
 # @name wishlistsAfter
