@@ -149,7 +149,7 @@ class CouponCampaignReadIntegrationTest {
 		jdbc.update("UPDATE coupon SET is_active = false WHERE id = 10");
 		jdbc.update("UPDATE coupon SET stock_prepared_at = NULL WHERE id = 11");
 		jdbc.update("UPDATE coupon SET issue_end_at = ? WHERE id = 12", NOW);
-		jdbc.update("UPDATE coupon SET issued_quantity = 10, usable_until = ? WHERE id = 13", NOW);
+		jdbc.update("UPDATE coupon SET usable_until = ? WHERE id = 13", NOW);
 		insertIssued(13, 10);
 		jdbc.update("UPDATE coupon SET issue_start_at = ?, usable_from = ? WHERE id = 14",
 			NOW.plusMinutes(30), NOW.plusDays(2));
@@ -223,10 +223,10 @@ class CouponCampaignReadIntegrationTest {
 		jdbc.update("""
 			INSERT INTO coupon (id, name, discount_type, discount_value, min_payment_price,
 				issue_start_at, issue_end_at, usable_from, usable_until, is_active, total_quantity,
-				issued_quantity, stock_prepared_at, created_at, updated_at)
-			VALUES (?, ?, 'FIXED_AMOUNT', 10000, 50000, ?, ?, ?, ?, true, ?, ?, ?, ?, ?)
+				stock_prepared_at, created_at, updated_at)
+			VALUES (?, ?, 'FIXED_AMOUNT', 10000, 50000, ?, ?, ?, ?, true, ?, ?, ?, ?)
 			""", id, name, issueStart, issueEnd, NOW.minusDays(1), NOW.plusMonths(1),
-			totalQuantity, issuedQuantity, NOW.minusDays(2), NOW, NOW);
+			totalQuantity, NOW.minusDays(2), NOW, NOW);
 		insertIssued(id, issuedQuantity);
 	}
 

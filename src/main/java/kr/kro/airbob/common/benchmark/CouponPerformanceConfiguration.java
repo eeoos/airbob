@@ -18,8 +18,8 @@ public class CouponPerformanceConfiguration {
 		return flyway -> {
 			flyway.validate();
 			var current = flyway.info().current();
-			Assert.state(current != null && "30".equals(current.getVersion().getVersion()),
-				"coupon-performance requires an already migrated V30 dataset");
+			Assert.state(current != null && "31".equals(current.getVersion().getVersion()),
+				"coupon-performance requires an already migrated V31 dataset");
 		};
 	}
 

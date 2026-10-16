@@ -10,8 +10,6 @@ import javax.sql.DataSource;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -33,7 +31,6 @@ import kr.kro.airbob.config.ClockConfig;
 import kr.kro.airbob.config.JpaAuditingConfig;
 import kr.kro.airbob.config.QueryDslConfig;
 import kr.kro.airbob.domain.coupon.common.CouponIssuanceStatus;
-import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 import kr.kro.airbob.domain.coupon.dto.CouponResponse;
 
 @DataJpaTest
@@ -66,7 +63,6 @@ class CouponCampaignAvailabilityIntegrationTest {
 	@BeforeEach
 	void resetOwnedDatabase() {
 		jdbc.update("DELETE FROM coupon_issue_unit");
-		jdbc.update("DELETE FROM coupon_issue_unit_composite");
 		jdbc.update("DELETE FROM member_coupon");
 		jdbc.update("DELETE FROM coupon");
 		jdbc.update("DELETE FROM member");
@@ -78,13 +74,12 @@ class CouponCampaignAvailabilityIntegrationTest {
 		}
 	}
 
-	@ParameterizedTest
-	@EnumSource(value = CouponIssueStrategy.class, names = "DB", mode = EnumSource.Mode.EXCLUDE)
-	void preservesResponseForAllUnitStrategies(CouponIssueStrategy strategy) {
-		campaign(1, strategy, 0, NOW.minusDays(1));
-		campaign(2, strategy, 2, NOW.minusDays(1));
-		campaign(3, strategy, 3, NOW.minusDays(1));
-		campaign(4, strategy, 0, NOW.plusHours(1));
+	@Test
+	void preservesResponseForSurrogateUnits() {
+		campaign(1, 0, NOW.minusDays(1));
+		campaign(2, 2, NOW.minusDays(1));
+		campaign(3, 3, NOW.minusDays(1));
+		campaign(4, 0, NOW.plusHours(1));
 		assertThat(candidate(NOW)).isEqualTo(baseline(NOW));
 		assertThat(candidate(NOW)).extracting(CouponResponse.CouponInfo::issuanceStatus)
 			.containsExactly(CouponIssuanceStatus.UPCOMING, CouponIssuanceStatus.SOLD_OUT,
@@ -93,11 +88,11 @@ class CouponCampaignAvailabilityIntegrationTest {
 
 	@Test
 	void preservesVisibilityOrderingAndTimeBoundaries() {
-		for (int id = 1; id <= 6; id++) campaign(id, CouponIssueStrategy.SKIP_SURROGATE_RR, 0, NOW);
+		for (int id = 1; id <= 6; id++) campaign(id, 0, NOW);
 		jdbc.update("UPDATE coupon SET is_active = false WHERE id = 1");
 		jdbc.update("UPDATE coupon SET stock_prepared_at = NULL WHERE id = 2");
 		jdbc.update("UPDATE coupon SET issue_end_at = ? WHERE id = 3", NOW);
-		jdbc.update("UPDATE coupon SET issue_strategy = 'DB', stock_prepared_at = NULL WHERE id = 4");
+		jdbc.update("UPDATE coupon SET stock_prepared_at = NULL WHERE id = 4");
 		for (var time : List.of(NOW.minusNanos(1000), NOW, NOW.plusDays(3))) {
 			assertThat(candidate(time)).isEqualTo(baseline(time));
 		}
@@ -106,20 +101,19 @@ class CouponCampaignAvailabilityIntegrationTest {
 			.containsOnly(CouponIssuanceStatus.OPEN);
 	}
 
-	@ParameterizedTest
-	@EnumSource(value = CouponIssueStrategy.class, names = "DB", mode = EnumSource.Mode.EXCLUDE)
-	void uncommittedLastUnitDeletionAndRollbackDoNotReportSoldOut(CouponIssueStrategy strategy) throws Exception {
-		campaign(1, strategy, 2, NOW.minusDays(1));
+	@Test
+	void uncommittedLastUnitDeletionAndRollbackDoNotReportSoldOut() throws Exception {
+		campaign(1, 2, NOW.minusDays(1));
 		try (var writer = dataSource.getConnection()) {
 			writer.setAutoCommit(false);
-			consumeLast(writer, strategy);
+			consumeLast(writer);
 			assertOpenAndEqual();
 			writer.rollback();
 		}
 		assertOpenAndEqual();
 		try (var writer = dataSource.getConnection()) {
 			writer.setAutoCommit(false);
-			consumeLast(writer, strategy);
+			consumeLast(writer);
 			writer.commit();
 		}
 		assertThat(candidate(NOW)).isEqualTo(baseline(NOW));
@@ -127,10 +121,9 @@ class CouponCampaignAvailabilityIntegrationTest {
 			.satisfies(c -> assertThat(c.issuanceStatus()).isEqualTo(CouponIssuanceStatus.SOLD_OUT));
 	}
 
-	@ParameterizedTest
-	@EnumSource(value = CouponIssueStrategy.class, names = "DB", mode = EnumSource.Mode.EXCLUDE)
-	void bothQueriesObserveTheSameRepeatableReadSnapshotAcrossCommit(CouponIssueStrategy strategy) throws Exception {
-		campaign(1, strategy, 2, NOW.minusDays(1));
+	@Test
+	void bothQueriesObserveTheSameRepeatableReadSnapshotAcrossCommit() throws Exception {
+		campaign(1, 2, NOW.minusDays(1));
 		try (var writer = dataSource.getConnection()) {
 			writer.setAutoCommit(false);
 			var reader = new TransactionTemplate(transactionManager);
@@ -139,7 +132,7 @@ class CouponCampaignAvailabilityIntegrationTest {
 			reader.executeWithoutResult(status -> {
 				assertOpenAndEqual();
 				try {
-					consumeLast(writer, strategy);
+					consumeLast(writer);
 					writer.commit();
 				} catch (Exception failure) {
 					throw new IllegalStateException(failure);
@@ -158,10 +151,10 @@ class CouponCampaignAvailabilityIntegrationTest {
 		assertThat(candidate(NOW)).isEqualTo(baseline(NOW));
 	}
 
-	private void consumeLast(Connection writer, CouponIssueStrategy strategy) throws Exception {
+	private void consumeLast(Connection writer) throws Exception {
 		try (var statement = writer.createStatement()) {
 			statement.setQueryTimeout(3);
-			assertThat(statement.executeUpdate("DELETE FROM " + strategy.unitTable() + " WHERE coupon_id = 1")).isEqualTo(1);
+			assertThat(statement.executeUpdate("DELETE FROM coupon_issue_unit WHERE coupon_id = 1")).isEqualTo(1);
 			statement.executeUpdate("INSERT INTO member_coupon (coupon_id,member_id,used,created_at,updated_at) "
 				+ "VALUES (1,3,false,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))");
 		}
@@ -181,20 +174,20 @@ class CouponCampaignAvailabilityIntegrationTest {
 		return coupons.findCampaignsWithRemainingUnits(now).stream().map(c -> c.toResponse(now)).toList();
 	}
 
-	private void campaign(long id, CouponIssueStrategy strategy, int issued, LocalDateTime start) {
+	private void campaign(long id, int issued, LocalDateTime start) {
 		jdbc.update("""
 			INSERT INTO coupon (id,name,description,discount_type,discount_value,min_payment_price,
 				issue_start_at,issue_end_at,usable_from,usable_until,is_active,total_quantity,
-				issued_quantity,stock_prepared_at,issue_strategy,created_at,updated_at)
-			VALUES (?,?,'same response','FIXED_AMOUNT',10000,50000,?,?,?,?,true,3,0,?,?,?,?)
+				stock_prepared_at,created_at,updated_at)
+			VALUES (?,?,'same response','FIXED_AMOUNT',10000,50000,?,?,?,?,true,3,?,?,?)
 			""", id, "campaign-" + id, start, NOW.plusDays(2), NOW, NOW.plusDays(30),
-			NOW.minusDays(2), strategy.name(), NOW, NOW);
+			NOW.minusDays(2), NOW, NOW);
 		for (int member = 1; member <= issued; member++) {
 			jdbc.update("INSERT INTO member_coupon (coupon_id,member_id,used,created_at,updated_at) VALUES (?,?,false,?,?)",
 				id, member, NOW, NOW);
 		}
 		for (int unit = issued + 1; unit <= 3; unit++) {
-			jdbc.update("INSERT INTO " + strategy.unitTable() + " (coupon_id,unit_no) VALUES (?,?)", id, unit);
+			jdbc.update("INSERT INTO coupon_issue_unit (coupon_id,unit_no) VALUES (?,?)", id, unit);
 		}
 	}
 }

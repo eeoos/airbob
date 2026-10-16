@@ -137,5 +137,9 @@ class CouponControllerTest {
 			.andExpect(status().isNotFound());
 		mockMvc.perform(post("/api/v1/coupons/1/issue/lock"))
 			.andExpect(status().isNotFound());
+		for (String retired : List.of("db", "skip-surrogate-rr", "skip-surrogate-rc", "skip-composite-rr", "skip-composite-rc")) {
+			mockMvc.perform(post("/api/v2/coupons/1/issue/" + retired)).andExpect(status().isNotFound());
+		}
+		mockMvc.perform(post("/api/v1/admin/coupons/benchmark/fixtures")).andExpect(status().isNotFound());
 	}
 }

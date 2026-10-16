@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -12,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.kro.airbob.domain.coupon.common.CouponIssueStrategy;
 
 class GrafanaDashboardConfigurationTest {
 
@@ -20,10 +18,10 @@ class GrafanaDashboardConfigurationTest {
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	@Test
-	void couponIssuanceComparisonDashboardContainsTheBenchmarkMetrics() throws IOException {
+	void couponIssuanceDashboardContainsTheProductionMetrics() throws IOException {
 		JsonNode dashboard = readDashboard("airbob-coupon-issuance.json");
 
-		assertThat(dashboard.path("title").asText()).isEqualTo("Airbob - Coupon Issuance Comparison");
+		assertThat(dashboard.path("title").asText()).isEqualTo("Airbob - Coupon Issuance");
 		assertThat(dashboard.path("uid").asText()).isEqualTo("airbob-coupon-issuance");
 		assertPrometheusDatasourcesUseProvisionedUid(dashboard);
 
@@ -37,16 +35,9 @@ class GrafanaDashboardConfigurationTest {
 			.contains("result=\\\"success\\\"");
 
 		assertThat(expressions).doesNotContain("coupon_lock_", "coupon_lua_", "coupon_compensation_");
-		JsonNode strategy = dashboard.path("templating").path("list").findParents("name").stream()
-			.filter(variable -> "strategy".equals(variable.path("name").asText()))
-			.findFirst().orElseThrow();
-		List<String> variants = Arrays.stream(CouponIssueStrategy.values())
-			.map(CouponIssueStrategy::variant).toList();
-		assertThat(strategy.path("options").findValuesAsText("value")).containsExactlyElementsOf(variants);
-		assertThat(Arrays.asList(strategy.path("allValue").asText().split("\\|")))
-			.containsExactlyElementsOf(variants);
-		assertThat(Arrays.stream(strategy.path("query").asText().split(","))
-			.map(option -> option.split(" : ", 2)[1]).toList()).containsExactlyElementsOf(variants);
+		assertThat(dashboard.path("templating").path("list").findValuesAsText("name"))
+			.doesNotContain("strategy");
+		assertThat(expressions).doesNotContain("skip_composite", "skip_surrogate_rc");
 
 		List<String> links = dashboard.path("links").findValuesAsText("url");
 		assertThat(links)
@@ -72,7 +63,7 @@ class GrafanaDashboardConfigurationTest {
 				if (expression.contains("hikaricp_")) {
 					assertThat(expression).contains("pool=~\"$pool\"").doesNotContain("strategy=");
 				} else if (expression.contains("coupon_")) {
-					assertThat(expression).contains("strategy=~\"$strategy\"");
+					assertThat(expression).contains("strategy=\"skip_surrogate_rr\"");
 				}
 			}
 		}

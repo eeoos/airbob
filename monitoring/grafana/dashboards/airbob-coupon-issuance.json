@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Compare conditional UPDATE / RR with surrogate and composite MySQL SKIP LOCKED / RR / RC. Separate final issuance results from transaction attempts, retryable conditions and shared pool pressure. k6 remains the client-side throughput and latency record.",
+  "description": "Surrogate-key MySQL SKIP LOCKED issuance under REPEATABLE_READ. Separate completed issuances, transaction attempts, retryable conditions and shared pool pressure. k6 records client-side throughput and latency.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -48,7 +48,7 @@
         "mode": "markdown"
       },
       "pluginVersion": "13.1.0",
-      "title": "Conditional UPDATE vs MySQL SKIP LOCKED",
+      "title": "MySQL SKIP LOCKED - Surrogate / RR",
       "transparent": true,
       "type": "text"
     },
@@ -139,7 +139,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy) (\n  rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n)",
+          "expr": "sum by (strategy) (\n  rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n)",
           "instant": false,
           "legendFormat": "{{strategy}}",
           "range": true,
@@ -236,7 +236,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy) (rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum by (strategy) (rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\"}[$__rate_interval]))",
           "instant": false,
           "legendFormat": "{{strategy}}",
           "range": true,
@@ -251,7 +251,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Successful service-call latency, including issuance attempts, retry backoff and any fresh-snapshot classification. Excludes authentication, controller/network overhead and the V1 strategy lookup. Use k6 for client latency; do not subtract histogram quantiles from DB-attempt quantiles.",
+      "description": "Successful service-call latency, including issuance attempts, retry backoff and any fresh-snapshot classification. Excludes authentication, controller/network overhead. Use k6 for client latency; do not subtract histogram quantiles from DB-attempt quantiles.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -333,7 +333,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
+          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
           "legendFormat": "p50 · {{strategy}}",
           "range": true,
@@ -345,7 +345,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
           "legendFormat": "p95 · {{strategy}}",
           "range": true,
@@ -357,7 +357,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.99,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
+          "expr": "histogram_quantile(\n  0.99,\n  sum by (le, strategy) (\n    rate(coupon_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
           "legendFormat": "p99 · {{strategy}}",
           "range": true,
@@ -454,7 +454,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy, result) (\n  rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval])\n)",
+          "expr": "sum by (strategy, result) (\n  rate(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\"}[$__rate_interval])\n)",
           "instant": false,
           "legendFormat": "{{strategy}} · {{result}}",
           "range": true,
@@ -469,7 +469,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Estimated completed service-call counts by final result, not current stock or coupon.issued_quantity. Prometheus increase() extrapolates boundaries; use k6 and DB invariant checks for exact counts.",
+      "description": "Estimated completed service-call counts by final result, not current stock. Prometheus increase() extrapolates boundaries; use k6 and DB invariant checks for exact counts.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -524,7 +524,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy, result) (\n  increase(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__range])\n)",
+          "expr": "sum by (strategy, result) (\n  increase(coupon_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\"}[$__range])\n)",
           "instant": true,
           "legendFormat": "{{strategy}} · {{result}}",
           "range": false,
@@ -621,7 +621,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
+          "expr": "histogram_quantile(\n  0.50,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
           "legendFormat": "p50 · {{strategy}}",
           "range": true,
@@ -633,7 +633,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
           "legendFormat": "p95 · {{strategy}}",
           "range": true,
@@ -645,7 +645,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.99,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\", result=\"success\"}[$__rate_interval])\n  )\n)",
+          "expr": "histogram_quantile(\n  0.99,\n  sum by (le, strategy) (\n    rate(coupon_database_issue_duration_seconds_bucket{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\", result=\"success\"}[$__rate_interval])\n  )\n)",
           "instant": false,
           "legendFormat": "p99 · {{strategy}}",
           "range": true,
@@ -742,7 +742,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy, result) (rate(coupon_database_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum by (strategy, result) (rate(coupon_database_issue_duration_seconds_count{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\"}[$__rate_interval]))",
           "instant": false,
           "legendFormat": "{{strategy}} / {{result}}",
           "range": true,
@@ -839,7 +839,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy, reason) (rate(coupon_issue_retryable_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__rate_interval]))",
+          "expr": "sum by (strategy, reason) (rate(coupon_issue_retryable_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\"}[$__rate_interval]))",
           "instant": false,
           "legendFormat": "{{strategy}} / {{reason}}",
           "range": true,
@@ -909,7 +909,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (strategy, reason) (increase(coupon_issue_retryable_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=~\"$strategy\"}[$__range]))",
+          "expr": "sum by (strategy, reason) (increase(coupon_issue_retryable_total{job=\"airbob\", application=\"airbob-api\", environment=~\"$environment\", instance=~\"$instance\", strategy=\"skip_surrogate_rr\"}[$__range]))",
           "instant": true,
           "legendFormat": "{{strategy}} / {{reason}}",
           "range": false,
@@ -922,7 +922,7 @@
     {
       "id": 20,
       "type": "row",
-      "title": "Shared instance diagnostics - Environment / Instance / Pool, independent of Strategy",
+      "title": "Shared instance diagnostics - Environment / Instance / Pool, shared across application routes",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -937,7 +937,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Compare active connections with the configured maximum for the same instance and pool.",
+      "description": "Shared by all application routes on each selected instance; not attributable to coupon issuance alone. Compare active connections with the configured maximum for the same instance and pool.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1046,7 +1046,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Threads waiting to acquire a connection. Pending requests together with active=max indicate pool pressure, not by themselves a recommendation to increase the pool.",
+      "description": "Shared by all application routes on each selected instance; not attributable to coupon issuance alone. Threads waiting to acquire a connection. Pending requests together with active=max indicate pool pressure, not by themselves a recommendation to increase the pool.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1143,7 +1143,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Rate of acquisition duration sum divided by acquisition count. This is a mean, not p95/p99; no acquisition samples remain undefined.",
+      "description": "Shared by all application routes on each selected instance; not attributable to coupon issuance alone. Rate of acquisition duration sum divided by acquisition count. This is a mean, not p95/p99; no acquisition samples remain undefined.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1240,7 +1240,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. Connection acquisition timeouts. A timeout series without samples remains absent.",
+      "description": "Shared by all application routes on each selected instance; not attributable to coupon issuance alone. Connection acquisition timeouts. A timeout series without samples remains absent.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1337,7 +1337,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Shared by all application routes on each selected instance; not attributable to the selected strategy alone. JVM process CPU, not MySQL/RDS CPU. Pool and Strategy selections do not filter this panel; pair DB CPU evidence from the experiment with this signal.",
+      "description": "Shared by all application routes on each selected instance; not attributable to coupon issuance alone. JVM process CPU, not MySQL/RDS CPU. Pool selection does not filter this panel; pair DB CPU evidence from the experiment with this signal.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1510,54 +1510,6 @@
         "type": "query"
       },
       {
-        "allValue": "db|skip_surrogate_rr|skip_surrogate_rc|skip_composite_rr|skip_composite_rc",
-        "current": {
-          "selected": true,
-          "text": [
-            "All"
-          ],
-          "value": [
-            "$__all"
-          ]
-        },
-        "description": "Five fixed benchmark variants. Labels are metric strategy values; V2 API suffixes use hyphens.",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Strategy",
-        "multi": true,
-        "name": "strategy",
-        "options": [
-          {
-            "selected": false,
-            "text": "Conditional UPDATE / RR",
-            "value": "db"
-          },
-          {
-            "selected": false,
-            "text": "SKIP LOCKED / Surrogate / RR",
-            "value": "skip_surrogate_rr"
-          },
-          {
-            "selected": false,
-            "text": "SKIP LOCKED / Surrogate / RC",
-            "value": "skip_surrogate_rc"
-          },
-          {
-            "selected": false,
-            "text": "SKIP LOCKED / Composite / RR",
-            "value": "skip_composite_rr"
-          },
-          {
-            "selected": false,
-            "text": "SKIP LOCKED / Composite / RC",
-            "value": "skip_composite_rc"
-          }
-        ],
-        "query": "Conditional UPDATE / RR : db,SKIP LOCKED / Surrogate / RR : skip_surrogate_rr,SKIP LOCKED / Surrogate / RC : skip_surrogate_rc,SKIP LOCKED / Composite / RR : skip_composite_rr,SKIP LOCKED / Composite / RC : skip_composite_rc",
-        "skipUrlSync": false,
-        "type": "custom"
-      },
-      {
         "allValue": ".*",
         "current": {
           "selected": true,
@@ -1617,8 +1569,8 @@
     ]
   },
   "timezone": "browser",
-  "title": "Airbob - Coupon Issuance Comparison",
+  "title": "Airbob - Coupon Issuance",
   "uid": "airbob-coupon-issuance",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }

@@ -114,7 +114,6 @@ class CouponUsageConcurrencyTest {
 			.usableFrom(LocalDateTime.now().minusDays(1))
 			.usableUntil(LocalDateTime.now().plusDays(7))
 			.isActive(true)
-			.issuedQuantity(1)
 			.build());
 		memberCouponRepository.save(MemberCoupon.issue(member, coupon));
 	}

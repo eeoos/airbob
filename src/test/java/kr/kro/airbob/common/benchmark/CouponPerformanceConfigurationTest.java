@@ -74,7 +74,7 @@ class CouponPerformanceConfigurationTest {
 			when(info.current()).thenReturn(current);
 			when(current.getVersion()).thenReturn(MigrationVersion.fromVersion(version));
 			var strategy = context.getBean(FlywayMigrationStrategy.class);
-			if (version.equals("30")) {
+			if (version.equals("31")) {
 				strategy.migrate(flyway);
 			} else {
 				assertThatThrownBy(() -> strategy.migrate(flyway)).isInstanceOf(IllegalStateException.class);

@@ -1,5 +1,13 @@
 # 쿠폰 조건부 UPDATE / SKIP LOCKED 실험
 
+> 발급 비교 실험은 종료됐다. V31 앱은 대리 키 RR만 제공하며 아래 발급 비교 API와 fixture API는 제거됐다.
+> 이 문서의 발급 비교 명령은 측정 당시 V30 소스 `43edf992227af2ae628ac0d83815c56722cf34b8`와
+> 별도 V30 실험 DB에서 재현한다. 현재 앱이나 V31 DB에 과거 실행기를 연결하지 않는다.
+> [최종 AWS 결과](../../../docs/performance/results/coupon-aws-2026-10-11/README.md)와
+> [현재 발급 구조 및 V31 전환](../../../docs/coupon-issuance-operations.md)을 참고한다.
+> 별도의 쿠폰 조회 비교 API는 유지하며, 발급 전략별 분기는 제거했다.
+
+
 같은 앱에서 재고 카운터와 unit 소비를 비교한다. 모든 비교군은 MySQL 커밋 후 201을 반환한다.
 설계와 단계별 완료 기준은 [계획서](../../../docs/performance/coupon-skip-locked-benchmark-plan.md),
 배포 입력은 [AWS 가이드](AWS.md), 직접 실행은 [수동 가이드](MANUAL.md)를 참고한다.

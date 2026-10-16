@@ -21,20 +21,20 @@ public class MicrometerCouponIssueMetricRecorder implements CouponIssueMetricRec
 	private final MeterRegistry meterRegistry;
 
 	@Override
-	public void recordIssue(Strategy strategy, IssueResult result, long durationNanos) {
-		timer(ISSUE_DURATION, strategy, result.tagValue()).record(durationNanos, TimeUnit.NANOSECONDS);
+	public void recordIssue(IssueResult result, long durationNanos) {
+		timer(ISSUE_DURATION, result.tagValue()).record(durationNanos, TimeUnit.NANOSECONDS);
 	}
 	@Override
-	public void recordDatabase(Strategy strategy, DatabaseResult result, long durationNanos) {
-		timer(DATABASE_DURATION, strategy, result.tagValue()).record(durationNanos, TimeUnit.NANOSECONDS);
+	public void recordDatabase(DatabaseResult result, long durationNanos) {
+		timer(DATABASE_DURATION, result.tagValue()).record(durationNanos, TimeUnit.NANOSECONDS);
 	}
 	@Override
-	public void recordRetry(Strategy strategy, RetryReason reason) {
-		Counter.builder(RETRY_TOTAL).tags("strategy", strategy.tagValue(), "reason", reason.tagValue())
+	public void recordRetry(RetryReason reason) {
+		Counter.builder(RETRY_TOTAL).tags("strategy", "skip_surrogate_rr", "reason", reason.tagValue())
 			.register(meterRegistry).increment();
 	}
-	private Timer timer(String name, Strategy strategy, String result) {
-		return Timer.builder(name).tags("strategy", strategy.tagValue(), "result", result)
+	private Timer timer(String name, String result) {
+		return Timer.builder(name).tags("strategy", "skip_surrogate_rr", "result", result)
 			.publishPercentileHistogram().serviceLevelObjectives(SLOS).register(meterRegistry);
 	}
 }

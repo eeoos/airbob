@@ -32,17 +32,17 @@ class CouponResponseJsonTest {
 		List<Coupon> campaigns = List.of(
 			coupon(10, "발급 예정 쿠폰").issueStartAt(NOW.plusHours(1)).build(),
 			coupon(11, "발급 중 쿠폰").build(),
-			coupon(12, "매진 쿠폰").issuedQuantity(10).build());
+			coupon(12, "매진 쿠폰").build());
 
 		assertContract("coupon-campaigns.json", new CouponResponse.CouponInfos(campaigns.stream()
-			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon), NOW)).toList()));
+			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon, coupon.getId() == 12 ? 10L : 0L), NOW)).toList()));
 	}
 
 	@Test
 	@DisplayName("보유 쿠폰은 매진·발급 종료와 무관하게 사용 상태를 계산하고 기간 경계를 지킨다")
 	void memberContractSeparatesOwnershipFromCampaignAvailability() throws Exception {
 		List<MemberCouponProjection> owned = List.of(
-			owned(coupon(12, "매진 쿠폰").issuedQuantity(10).usableFrom(NOW).build(), false),
+			owned(coupon(12, "매진 쿠폰").usableFrom(NOW).build(), false),
 			owned(coupon(13, "사용 예정 쿠폰").usableFrom(NOW.plusHours(1)).build(), false),
 			owned(coupon(14, "사용 완료 쿠폰").build(), true),
 			owned(coupon(15, "만료 쿠폰").usableUntil(NOW).build(), false),
@@ -65,7 +65,7 @@ class CouponResponseJsonTest {
 			.discountValue(10_000).minPaymentPrice(50_000)
 			.issueStartAt(NOW.minusDays(1)).issueEndAt(NOW.plusDays(1))
 			.usableFrom(NOW.minusDays(1)).usableUntil(NOW.plusMonths(1))
-			.isActive(true).totalQuantity(10).issuedQuantity(0);
+			.isActive(true).totalQuantity(10);
 	}
 
 	private MemberCouponProjection owned(Coupon coupon, boolean used) {
@@ -74,10 +74,10 @@ class CouponResponseJsonTest {
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
 	}
 
-	private CouponCampaignProjection campaign(Coupon coupon) {
+	private CouponCampaignProjection campaign(Coupon coupon, long issuedQuantity) {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), coupon.getIssuedQuantity().longValue());
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), issuedQuantity);
 	}
 }

@@ -14,16 +14,16 @@ public class FailSafeCouponIssueMetricRecorder implements CouponIssueMetricRecor
 	private final MicrometerCouponIssueMetricRecorder delegate;
 
 	@Override
-	public void recordIssue(Strategy strategy, IssueResult result, long durationNanos) {
-		record("issue", () -> delegate.recordIssue(strategy, result, durationNanos));
+	public void recordIssue(IssueResult result, long durationNanos) {
+		record("issue", () -> delegate.recordIssue(result, durationNanos));
 	}
 	@Override
-	public void recordDatabase(Strategy strategy, DatabaseResult result, long durationNanos) {
-		record("database", () -> delegate.recordDatabase(strategy, result, durationNanos));
+	public void recordDatabase(DatabaseResult result, long durationNanos) {
+		record("database", () -> delegate.recordDatabase(result, durationNanos));
 	}
 	@Override
-	public void recordRetry(Strategy strategy, RetryReason reason) {
-		record("retryable", () -> delegate.recordRetry(strategy, reason));
+	public void recordRetry(RetryReason reason) {
+		record("retryable", () -> delegate.recordRetry(reason));
 	}
 	private void record(String metric, Runnable operation) {
 		try { operation.run(); }

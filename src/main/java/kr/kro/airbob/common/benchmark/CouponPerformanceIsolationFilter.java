@@ -20,12 +20,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class CouponPerformanceIsolationFilter extends OncePerRequestFilter {
 
-	private static final String FIXTURES = "/api/v1/admin/coupons/benchmark/fixtures";
 	private static final Pattern ISSUE = Pattern.compile("/api/v1/coupons/[1-9][0-9]*/issue");
-	private static final Pattern BENCHMARK_ISSUE = Pattern.compile(
-		"/api/v2/coupons/[1-9][0-9]*/issue/(db|skip-surrogate-rr|skip-surrogate-rc|skip-composite-rr|skip-composite-rc)");
 	private static final Pattern PREPARE = Pattern.compile("/api/v1/admin/coupons/[1-9][0-9]*/stock/prepare");
-	private static final Pattern FIXTURE = Pattern.compile(FIXTURES + "/[1-9][0-9]*");
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -35,11 +31,10 @@ public class CouponPerformanceIsolationFilter extends OncePerRequestFilter {
 		boolean allowed = switch (method) {
 			case "GET" -> path.equals("/actuator/health") || path.equals("/actuator/health/readiness")
 				|| path.equals("/actuator/health/liveness")
-				|| path.equals("/actuator/prometheus") || FIXTURE.matcher(path).matches();
+				|| path.equals("/actuator/prometheus");
 			case "POST" -> path.equals("/api/v1/auth/login") || path.equals("/api/v1/auth/logout")
-				|| path.equals(FIXTURES) || ISSUE.matcher(path).matches()
-				|| BENCHMARK_ISSUE.matcher(path).matches() || PREPARE.matcher(path).matches();
-			case "DELETE" -> FIXTURE.matcher(path).matches();
+				|| ISSUE.matcher(path).matches()
+				|| PREPARE.matcher(path).matches();
 			default -> false;
 		};
 		if (allowed) {

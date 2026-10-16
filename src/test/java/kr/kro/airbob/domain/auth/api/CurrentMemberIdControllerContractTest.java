@@ -15,7 +15,6 @@ import kr.kro.airbob.domain.accommodation.api.AccommodationAmenityDeleteBenchmar
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
 import kr.kro.airbob.domain.accommodation.api.AccommodationDetailBenchmarkController;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
-import kr.kro.airbob.domain.coupon.api.CouponBenchmarkController;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
 import kr.kro.airbob.domain.payment.api.PaymentOperationController;
@@ -66,11 +65,6 @@ class CurrentMemberIdControllerContractTest {
 			required(AccommodationController.class, "getHostAccommodations"),
 			required(AccommodationController.class, "getHostAccommodationDetail"),
 			required(AuthController.class, "getMyInfo"),
-			required(CouponBenchmarkController.class, "issueCouponWithConditionalUpdate"),
-			required(CouponBenchmarkController.class, "issueCouponWithSurrogateRr"),
-			required(CouponBenchmarkController.class, "issueCouponWithSurrogateRc"),
-			required(CouponBenchmarkController.class, "issueCouponWithCompositeRr"),
-			required(CouponBenchmarkController.class, "issueCouponWithCompositeRc"),
 			required(CouponController.class, "issueCoupon"),
 			required(CouponController.class, "findMyCoupons"),
 			required(PaymentController.class, "confirmPayment"),

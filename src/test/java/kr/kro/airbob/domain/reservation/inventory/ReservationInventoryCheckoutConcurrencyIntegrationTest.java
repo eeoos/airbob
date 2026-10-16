@@ -479,7 +479,6 @@ class ReservationInventoryCheckoutConcurrencyIntegrationTest {
 			.usableFrom(couponNow.minusDays(1))
 			.usableUntil(couponNow.plusDays(1))
 			.isActive(true)
-			.issuedQuantity(1)
 			.build());
 		memberCouponRepository.save(MemberCoupon.issue(member, coupon));
 		return coupon;

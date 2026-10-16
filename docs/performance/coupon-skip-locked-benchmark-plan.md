@@ -1,9 +1,9 @@
 # 쿠폰 발급 구조와 비교 기준
 
-기본 발급 방식은 MySQL unit 재고와 `REPEATABLE_READ`를 사용하는 대리 키 방식이다.
-조건부 UPDATE·복합 키·격리 수준 비교는 `coupon-benchmark`에서만 제공한다.
-실행 방법은 [쿠폰 실험 가이드](../../load-test/k6/coupon/README.md),
-결과는 [AWS 비교](results/coupon-aws-2026-10-11/README.md)와
+발급 방식은 MySQL unit 재고와 `REPEATABLE_READ`를 사용하는 대리 키 방식으로 확정했다.
+V31부터 조건부 UPDATE·RC·복합 키 발급 코드와 발급 비교 API를 제거한다.
+[현재 발급 구조와 V31 전환](../coupon-issuance-operations.md),
+[AWS 비교 결과](results/coupon-aws-2026-10-11/README.md),
 [로컬 검증 요약](coupon-skip-locked-local-results.md)을 참고한다.
 
 ## 발급과 재고
@@ -12,7 +12,7 @@
 - `coupon_issue_unit`의 PK는 `id`, `(coupon_id, unit_no)`는 UNIQUE다.
 - 쿠폰을 `FOR SHARE NOWAIT`로 읽고 준비·활성·발급 기간을 확인한다.
 - `FOR UPDATE SKIP LOCKED`로 unit을 확보한 뒤, unit DELETE와 `member_coupon` INSERT를 한 트랜잭션으로 커밋한다.
-- SKIP LOCKED 경로는 공유 `issued_quantity` 카운터를 변경하지 않는다.
+- 공유 발급 카운터 없이 재고 행을 소비하며, V31에서 `issued_quantity` 컬럼을 제거한다.
 - `UNIQUE(member_id, coupon_id)`와 전체 롤백으로 중복 발급·재고 유실을 막는다.
 - 빈 SKIP LOCKED 결과는 새 스냅샷에서 확인한다. 재고 없음은 `CP002`, 재고가 남은 경합은 재시도 가능한 `CP012`로 구분한다.
 
@@ -31,7 +31,11 @@
 
 변경 건수가 기대와 다르거나 작업이 실패하면 전체를 롤백한다.
 
-## 비교 계약
+## 종료된 비교 실험
+
+아래 계약은 V30 당시의 발급 비교 실험에 해당한다. 재현은
+[과거 실행 가이드](../../load-test/k6/coupon/README.md)에 기록된 소스·이미지와 별도 V30 DB를 사용한다.
+현재 앱에는 아래 전략별 발급 API가 없으며, `coupon-benchmark`에는 별도 조회 비교 API만 남는다.
 
 | 식별자 | 재고 방식 | 격리 수준 |
 |---|---|---|
@@ -56,6 +60,10 @@ V29 이후 Lua 바이너리로 되돌리지 않는다.
 
 V30은 쿠폰 업무 시각을 UTC로 변환한다. 이전 reader/writer를 중단하고 함께 전환하는 절차는
 [쿠폰 시간 계약](../coupon-time-contract.md)에 정리했다. 기존 마이그레이션은 수정하지 않는다.
+
+V31은 구버전 reader/writer 정지 후 남은 복합 키 재고만 대리 키 테이블로 옮기고, 복합 키 테이블과
+`issue_strategy`·`issued_quantity` 컬럼을 제거한다. 활성 조건부 UPDATE 캠페인은 먼저 종료해야 한다.
+소비된 재고를 재생성하지 않으며, 전환 후 이전 바이너리로 되돌리지 않는다.
 
 ## 검증 근거
 

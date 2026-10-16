@@ -56,7 +56,6 @@ class CouponTest {
 			.usableUntil(USABLE_UNTIL)
 			.isActive(true)
 			.totalQuantity(100)
-			.issuedQuantity(0)
 			.build();
 	}
 
@@ -124,13 +123,12 @@ class CouponTest {
 		LocalDateTime afterIssuance = ISSUE_END.plusDays(1);
 
 		assertThat(coupon.isIssueOpen(afterIssuance)).isFalse();
-		assertThat(coupon.isIssuable(afterIssuance)).isFalse();
 		assertThat(coupon.isUsable(afterIssuance)).isTrue();
 	}
 
 	@Test
-	@DisplayName("비활성 쿠폰은 기간 안이어도 발급하거나 사용할 수 없다")
-	void inactiveCouponIsNeitherIssuableNorUsable() {
+	@DisplayName("비활성 쿠폰은 기간 안이어도 사용할 수 없다")
+	void inactiveCouponIsNotUsable() {
 		Coupon inactive = Coupon.builder()
 			.name("비활성 쿠폰")
 			.discountType(DiscountType.FIXED_AMOUNT)
@@ -141,10 +139,8 @@ class CouponTest {
 			.usableUntil(USABLE_UNTIL)
 			.isActive(false)
 			.totalQuantity(100)
-			.issuedQuantity(0)
 			.build();
 
-		assertThat(inactive.isIssuable(ISSUE_START)).isFalse();
 		assertThat(inactive.isUsable(USABLE_FROM)).isFalse();
 	}
 
@@ -153,7 +149,7 @@ class CouponTest {
 	void upcomingIssuanceStatus() {
 		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
 
-		assertThat(coupon.issuanceStatus(ISSUE_START.minusNanos(1)))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), 0, ISSUE_START.minusNanos(1)))
 			.isEqualTo(CouponIssuanceStatus.UPCOMING);
 	}
 
@@ -162,7 +158,7 @@ class CouponTest {
 	void openIssuanceStatus() {
 		Coupon coupon = coupon(DiscountType.FIXED_AMOUNT, 5_000, null, null);
 
-		assertThat(coupon.issuanceStatus(ISSUE_START))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), 0, ISSUE_START))
 			.isEqualTo(CouponIssuanceStatus.OPEN);
 	}
 
@@ -179,10 +175,9 @@ class CouponTest {
 			.usableUntil(USABLE_UNTIL)
 			.isActive(true)
 			.totalQuantity(100)
-			.issuedQuantity(100)
 			.build();
 
-		assertThat(coupon.issuanceStatus(ISSUE_START))
+		assertThat(CouponIssuanceStatus.resolve(coupon.getIssueStartAt(), coupon.getTotalQuantity(), 100, ISSUE_START))
 			.isEqualTo(CouponIssuanceStatus.SOLD_OUT);
 	}
 }
