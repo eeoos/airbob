@@ -170,8 +170,12 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - General Redis and the dedicated accommodation-cache Redis remain separate dependencies.
   Durable invalidation uses the domain-owned canonical messaging adapter and
   `ACCOMMODATION_CACHE.events`; do not recreate root outbox or Kafka-consumer packages.
-- Application experiment profiles, comparison APIs and measurement runners are retired. Local
-  P6Spy read tracing runs with `dev` only, excluding `aws`, `oci` and `test`.
+- Application experiment profiles and comparison APIs are retired. Preserve historical load-test
+  scripts, fixtures and guides under `load-test/` as evidence of measurement methodology; their
+  original versions and hashes are recorded in `load-test/archive-source.json`. Reproduction needs
+  the app/image/dataset recorded in each result. Do not restore runtime comparison APIs or add
+  archived runners back to CI. Local P6Spy read tracing runs with `dev` only, excluding `aws`,
+  `oci` and `test`.
 - Preserved AWS resource-management tools target their compatible digest-pinned historical images
   and immutable datasets. The V27 launcher pins Flyway explicitly; do not substitute the current
   application image or silently migrate a recorded dataset. Application startup always verifies

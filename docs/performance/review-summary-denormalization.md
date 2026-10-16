@@ -1,14 +1,15 @@
 # 리뷰 요약 반정규화 비교
 
 > 측정 완료 기록이다. 현재 코드에서는 아래의 `review-summary-before` API와 원본 집계 경로를 제거했다.
-> 실험 코드·k6 도구·실행 절차는 커밋 `10893dfda93f38620751c30f10befef0709ddcb9`에 보존했다.
+> 당시 앱 비교 코드는 커밋 `10893dfda93f38620751c30f10befef0709ddcb9`에서 확인할 수 있고,
+> [측정 스크립트와 가이드](../../load-test/k6/review-summary/MEASUREMENT.md)는 현재 저장소에도 보존한다.
 > 아래 설명은 당시 비교 조건이며, 현재 앱의 실행 가이드가 아니다.
 
 리뷰 요약 단독 API 대신 화면에서 사용하는 전체 응답으로 비교한다.
 Before는 `review`의 `PUBLISHED` 리뷰를 숙소별 `COUNT`, `ROUND(AVG(rating), 2)`로 집계하고,
 After는 `accommodation_review_summary`를 조회한다. 요약 테이블은 삭제하지 않는다.
 
-측정 도구의 보존 위치는 [보관 안내](../../load-test/k6/review-summary/README.md)에 있다.
+측정 도구의 보존 위치는 [보관 안내](../../load-test/k6/review-summary/MEASUREMENT.md)에 있다.
 당시 실행기는 세 API 중 하나를 선택해 전후 순서를 바꿔 반복하고,
 로그인·응답 검증·워밍업을 제외한 측정 결과와 회차별 개선율을 저장했다.
 
@@ -80,7 +81,7 @@ Before 3회/After 2회 SELECT이며, 주소 조회·찜 여부·최근 순서·�
 - 로그인·데이터 준비·응답 검증 시간은 측정에서 제외한다.
 - 결과는 읽기 성능 비교다. 리뷰 생성·수정·삭제 때 요약을 유지하는 쓰기 비용은 포함하지 않는다.
 
-`review-summary-comparison.js` 실행기도 제거했다. 과거 실행기는 위에 기록한 커밋에서 확인한다.
+비교 스크립트는 측정 방법의 근거로 보관한다. 재현은 해당 결과에 기록된 앱 버전과 데이터셋을 사용한다.
 과거 AWS `REVIEW_SUMMARY_V1` manifest·SQL 증거를 새 API 결과에 그대로 재사용하면 안 된다.
 
 ## 로컬 측정 결과 (2026-10-06)

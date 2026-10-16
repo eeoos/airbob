@@ -1,8 +1,9 @@
 # 벌크 쓰기 실험 보관 안내
 
 위시리스트·편의시설 삭제와 예약 이력 INSERT의 Before/After 성능 비교를 마쳐
-비교용 API, fixture, 로컬·AWS 실행기, k6 집계 도구와 전용 프로필을 제거했다.
+애플리케이션의 비교용 API, fixture 생성 코드와 전용 프로필을 제거했다.
 현재 애플리케이션에는 최적화된 운영 구현을 유지한다.
+측정 방법을 설명하는 [부하 테스트 스크립트와 가이드](../../load-test/README.md)는 보존한다.
 
 - 위시리스트: `WishlistService.deleteWishlist()`의 `deleteAllInBatch()`.
 - 편의시설: `AccommodationCommandService.updateAccommodation()`에서

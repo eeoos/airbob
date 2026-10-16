@@ -1,8 +1,4 @@
-# AWS traffic benchmark vertical slice
+# 트래픽 측정 기록
 
-이 측정은 종료했으며 현재 브랜치에서 실행기와 비교용 앱 설정을 제거했다.
-
-- [정리 직전 문서](https://github.com/eeoos/airbob/blob/d21e3fe1e2a4cbfdcdacb9e54afb5ee8e235c83c/load-test/k6/traffic/README.md)
-- [측정 도구 전체](https://github.com/eeoos/airbob/tree/d21e3fe1e2a4cbfdcdacb9e54afb5ee8e235c83c/load-test)
-
-과거 결과는 측정 당시 커밋·이미지·데이터셋에 연결된다. 신규 측정은 별도로 구성한다.
+[당시 실행 가이드](MEASUREMENT.md)와 이 디렉터리의 원본 스크립트를 보존한다.
+[전체 측정 방법과 결과 안내](../../README.md)에서 버전과 재현 조건을 확인한다.

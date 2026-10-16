@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "example": true,
+  "environment": "aws",
+  "baseUrl": "https://bulk-delete.lab.example.invalid",
+  "runId": "bulk-delete-aws-001",
+  "appCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "imageDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "schemaLabel": "airbob_bulk_write_benchmark",
+  "poolSize": 10,
+  "rewriteBatchedStatements": true,
+  "rounds": 4,
+  "samples": 10,
+  "warmupSamples": 3,
+  "wishlistSizes": [10, 100, 1000],
+  "amenitySizes": [1, 10, 30],
+  "credentials": {
+    "emailFile": "/run/airbob-bulk-delete/email",
+    "passwordFile": "/run/airbob-bulk-delete/password",
+    "tokenFile": "/run/airbob-bulk-delete/token"
+  }
+}

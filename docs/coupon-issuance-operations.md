@@ -51,5 +51,5 @@ Grafana의 `Airbob - Coupon Issuance`는 성공·전체 결과, 발급 시도, �
 [AWS 결과 요약](performance/results/coupon-aws-2026-10-11/README.md)을 유지하며,
 원본 자료와 당시 실행 기록은 결과 문서의 보관본 링크에서 확인한다.
 당시 앱 소스는 `43edf992227af2ae628ac0d83815c56722cf34b8`, 스키마는 V30이다.
-[과거 실행기](../load-test/k6/coupon/README.md)는 해당 소스와 별도 V30 DB에서 사용한다.
+[과거 실행기](../load-test/k6/coupon/MEASUREMENT.md)는 해당 소스와 별도 V30 DB에서 사용한다.
 이번 정리 후 앱을 당시 이미지와 동일한 측정 대상이라고 표현하지 않는다.

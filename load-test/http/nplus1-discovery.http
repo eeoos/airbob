@@ -1,0 +1,156 @@
+# Airbob N+1 API requests - IntelliJ IDEA HTTP Client
+#
+# 사용 순서:
+# 1. HTTP Client 환경에서 local 또는 aws를 선택한다.
+# 2. BEFORE 측정 시 local은 dev,nplus1-benchmark로 실행한다.
+#    aws는 일반 트래픽을 받지 않는 별도 벤치마크 인스턴스에서만
+#    nplus1-benchmark 프로필을 활성화한다.
+# 3. Login 요청을 실행한다.
+# 4. Prepare recently viewed fixture 요청을 실행한다.
+# 5. 확인할 GET 요청을 실행한다.
+# 6. 15~30초 뒤 해당 환경의 Grafana 대시보드에서 확인한다.
+#
+# Local Grafana: http://localhost:3001/d/airbob-query-count/airbob-api-query-count
+# 로그인 성공 시 SESSION_ID cookie는 IntelliJ HTTP Client가 이후 요청에 자동 전송한다.
+# BEFORE 측정 실행 예: SPRING_PROFILES_ACTIVE=dev,nplus1-benchmark ./gradlew bootRun
+# nplus1-benchmark는 Hibernate batch fetch를 JVM 전체에서 끄므로 운영 트래픽 인스턴스에 활성화하지 않는다.
+# benchmarkToken은 애플리케이션의 BENCHMARK_READ_MODEL_TOKEN과 같은 값이어야 한다.
+
+### Login benchmark account
+# @name loginBenchmarkAccount
+# @no-log
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{benchmarkEmail}}",
+  "password": "{{benchmarkPassword}}"
+}
+
+### Prepare recently viewed fixture - latest first (N=100)
+# 이 PUT의 쿼리 수와 응답시간은 준비 트래픽이므로 before/after 비교에서 제외한다.
+# @name prepareRecentlyViewedFixture
+PUT {{baseUrl}}/api/v2/members/recently-viewed/fixture
+Content-Type: application/json
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
+{
+  "accommodation_ids": [
+    251, 252, 253, 254, 255, 256, 257, 258, 259, 260,
+    261, 262, 263, 264, 265, 266, 267, 268, 269, 270,
+    271, 272, 273, 274, 275, 276, 277, 278, 279, 280,
+    281, 282, 283, 284, 285, 286, 287, 288, 289, 290,
+    291, 292, 293, 294, 295, 296, 297, 298, 299, 300,
+    301, 302, 303, 304, 305, 306, 307, 308, 309, 310,
+    311, 312, 313, 314, 315, 316, 317, 318, 319, 320,
+    321, 322, 323, 324, 325, 326, 327, 328, 329, 330,
+    331, 332, 333, 334, 335, 336, 337, 338, 339, 340,
+    341, 342, 343, 344, 345, 346, 347, 348, 349, 350
+  ]
+}
+
+### Recently viewed AFTER - DTO projection + wishlist (N=100, expected SELECT=2)
+# 숙소·주소·리뷰 요약 projection 1 + 위시리스트 1 = 2
+# @name recentlyViewedAfter
+GET {{baseUrl}}/api/v1/members/recently-viewed
+Accept: application/json
+
+### Recently viewed BEFORE - address lazy-loading N+1 (N=100, expected SELECT=103)
+# 숙소 1 + 주소 N + 리뷰 요약 1 + 위시리스트 1 = N+3
+# Requires the nplus1-benchmark profile so batch fetch does not hide the N+1.
+# @name recentlyViewedBefore
+GET {{baseUrl}}/api/v2/members/recently-viewed
+Accept: application/json
+X-Benchmark-Token: {{benchmarkToken}}
+
+### Reviews - size 1
+# @name reviewsSize1
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews?size=1&sortType=LATEST
+Accept: application/json
+
+### Reviews - size 20
+# @name reviewsSize20
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews?size=20&sortType=LATEST
+Accept: application/json
+
+### Reviews - size 50
+# @name reviewsSize50
+GET {{baseUrl}}/api/v1/accommodations/{{reviewAccommodationId}}/reviews?size=50&sortType=LATEST
+Accept: application/json
+
+### Host accommodations - size 1
+# @name hostAccommodationsSize1
+GET {{baseUrl}}/api/v1/profile/host/accommodations?size=1&status=PUBLISHED
+Accept: application/json
+
+### Host accommodations - size 20
+# @name hostAccommodationsSize20
+GET {{baseUrl}}/api/v1/profile/host/accommodations?size=20&status=PUBLISHED
+Accept: application/json
+
+### Host accommodations - size 50
+# @name hostAccommodationsSize50
+GET {{baseUrl}}/api/v1/profile/host/accommodations?size=50&status=PUBLISHED
+Accept: application/json
+
+### Guest reservations - size 1
+# @name guestReservationsSize1
+GET {{baseUrl}}/api/v1/profile/guest/reservations?size=1&filterType=PAST
+Accept: application/json
+
+### Guest reservations - size 20
+# @name guestReservationsSize20
+GET {{baseUrl}}/api/v1/profile/guest/reservations?size=20&filterType=PAST
+Accept: application/json
+
+### Guest reservations - size 50
+# @name guestReservationsSize50
+GET {{baseUrl}}/api/v1/profile/guest/reservations?size=50&filterType=PAST
+Accept: application/json
+
+### Host reservations - size 1
+# @name hostReservationsSize1
+GET {{baseUrl}}/api/v1/profile/host/reservations?size=1&filterType=PAST
+Accept: application/json
+
+### Host reservations - size 20
+# @name hostReservationsSize20
+GET {{baseUrl}}/api/v1/profile/host/reservations?size=20&filterType=PAST
+Accept: application/json
+
+### Host reservations - size 50
+# @name hostReservationsSize50
+GET {{baseUrl}}/api/v1/profile/host/reservations?size=50&filterType=PAST
+Accept: application/json
+
+### Wishlists - size 1
+# @name wishlistsSize1
+GET {{baseUrl}}/api/v1/members/wishlists?size=1
+Accept: application/json
+
+### Wishlists - size 20
+# @name wishlistsSize20
+GET {{baseUrl}}/api/v1/members/wishlists?size=20
+Accept: application/json
+
+### Wishlists - size 50
+# @name wishlistsSize50
+GET {{baseUrl}}/api/v1/members/wishlists?size=50
+Accept: application/json
+
+### Wishlist accommodations - size 1
+# @name wishlistAccommodationsSize1
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{primaryWishlistId}}?size=1
+Accept: application/json
+
+### Wishlist accommodations - size 20
+# @name wishlistAccommodationsSize20
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{primaryWishlistId}}?size=20
+Accept: application/json
+
+### Wishlist accommodations - size 50
+# @name wishlistAccommodationsSize50
+GET {{baseUrl}}/api/v1/members/wishlists/accommodations/{{primaryWishlistId}}?size=50
+Accept: application/json
