@@ -10,9 +10,10 @@
 - [B 데이터 규모와 검증 근거 해시](performance/global-b-evidence-summary.json)
 - [AWS 성능 실험 환경 운영](performance/aws-performance-lab.md)
 
-## 조회 성능 분석
+## 성능 측정 결과
 
-- [로컬 조회 API 실행계획·인덱스 및 쿠폰 COUNT/EXISTS 비교](performance/results/read-api-local-2026-10-12/README.md)
+- [성능 측정 결과 모음](performance/results/README.md)
+- [숙소 상세 Redis 캐시](performance/aws-cache-experiments.md)
 
 ## 서비스 운영
 

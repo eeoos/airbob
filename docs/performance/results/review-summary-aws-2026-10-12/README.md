@@ -1,5 +1,7 @@
 # 리뷰 요약 반정규화 AWS 측정 결과
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12).
+
 2026년 10월 12일 기존 AWS 실험 자원에서 실제 화면 조회 API의 원본 리뷰 집계(Before)와 요약 테이블 조회(After)를 비교했다. 위시리스트와 최근 본 숙소는 세 회차 모두 빨라졌다. 상세 조회는 중앙값이 줄었지만 한 회차에서는 더 느렸다.
 
 ## 최종 결과
@@ -69,12 +71,12 @@ CloudWatch 파일은 실험 환경 확인용이다. 1분 버킷이 워밍업·Be
 - 앱 소스: `43edf992227af2ae628ac0d83815c56722cf34b8`.
 - 앱 이미지: `sha256:bd5a786c730a8a86109d359df4928a68c56e7967c32811d566e55e8b681bea4d`.
 - 측정 도구 V30 보정 커밋: `82c1ac12`.
-- [summary.json](summary.json): 최종 중앙값, 18개 정상 측정과 실패 실행.
-- [sql-analysis.json](sql-analysis.json): 측정 내부 구간의 SQL 증분과 계산값.
-- [dataset-manifest.json](dataset-manifest.json), [environment.json](environment.json): 실제 입력과 환경.
+- [summary.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/summary.json): 최종 중앙값, 18개 정상 측정과 실패 실행.
+- [sql-analysis.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/sql-analysis.json): 측정 내부 구간의 SQL 증분과 계산값.
+- [dataset-manifest.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/dataset-manifest.json), [environment.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/environment.json): 실제 입력과 환경.
 - `raw-results.json.gz`: k6 결과·회차 비교·런타임 검증·실패 기록을 경로별 JSON 객체로 보관.
 - `db-observations.ndjson.gz`, `harness-sources.ndjson.gz`: DB 표본과 실행·분석에 사용한 소스. Python `gzip.decompress`로 해제할 수 있다.
-- [restore-proof.json](restore-proof.json), [fixture-cleanup.json](fixture-cleanup.json), [post-run-verification.json](post-run-verification.json): 복구와 종료 검증.
+- [restore-proof.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/restore-proof.json), [fixture-cleanup.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/fixture-cleanup.json), [post-run-verification.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12/post-run-verification.json): 복구와 종료 검증.
 
 측정 종료 후 동일 이미지·동일 환경변수의 `aws,coupon-performance` 앱으로 복구했다. 임시 세션 2개와 이번에 만든 최근 본 기록을 정리했고, 부하 프로세스와 DB 관측기도 종료했다. ALB 대상 healthy와 앱 1대를 확인했으며 AWS 자원은 보존했다.
 

@@ -1,5 +1,7 @@
 # 로컬 조회 API 실행계획 분석과 쿠폰 조회 비교
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12).
+
 2026년 10월 12일 기존 로컬 MySQL 데이터에서 검색·예약·결제 API를 제외한 **조회 API 19개와 쿼리 형태 44개**를 분석했다. 호스트 숙소 목록의 정렬 인덱스와 정산 상세의 단일 조인·인덱스 순서 집계에서 결과를 보존하는 개선을 확인했다. 쿠폰 목록은 별도 일회성 DB와 실제 앱에서 `COUNT`와 재고 `EXISTS`를 비교했다.
 
 ## 추천 순서와 실험 범위
@@ -31,7 +33,7 @@
 - 실행계획용 연결은 읽기 전용이고 SELECT 시간 제한은 15초다. 업무 행은 수정하지 않았다. 최근 본 숙소는 실제 DB의 인기 리뷰 숙소 100개로 입력을 구성했으며 실제 Redis 이용 분포의 표본은 아니다.
 - 첫 관측과 반복 관측을 모두 보존했다. 버퍼 풀을 비우거나 콜드 캐시를 강제하지 않았다. const 테이블은 최적화 단계에서 읽을 수 있어 루트의 매우 작은 시간을 SQL 전체 지연으로 사용하지 않는다.
 
-환경·인덱스 정의는 [메타데이터](read-metadata.json), 입력 선정은 [대상](read-targets.json), 전체 SQL은 [쿼리 목록](read-catalogue.json), 원본 계획은 `read-plans.ndjson.gz`에 있다. `TABLE_ROWS`와 cardinality는 통계 추정값이다.
+환경·인덱스 정의는 [메타데이터](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/read-metadata.json), 입력 선정은 [대상](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/read-targets.json), 전체 SQL은 [쿼리 목록](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/read-catalogue.json), 원본 계획은 `read-plans.ndjson.gz`에 있다. `TABLE_ROWS`와 cardinality는 통계 추정값이다.
 
 ## 호스트 목록의 정렬과 조기 종료
 
@@ -73,7 +75,7 @@
 
 최초 진단의 비공개 조회는 `index_merge` 교집합으로 호스트 인덱스 2,591행과 상태 인덱스 약 58,440행을 읽고 약 12.2ms를 기록했다. 인덱스 생성 뒤 통계·캐시 상태가 달라진 비교 기준선은 단일 호스트 인덱스를 선택했다. **12.2ms를 위 표의 개선율 기준으로 섞지 않는다.** 위 표는 각각 인덱스를 만든 뒤 수행한 OFF/ON 비교다. 인덱스 제거가 통계와 캐시까지 이전 상태로 돌리는 것은 아니다.
 
-원본: [전체 정렬 후보](idx_readlab_host_order.json), [상태 선두 후보](idx_readlab_host_status_order.json).
+원본: [전체 정렬 후보](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/idx_readlab_host_order.json), [상태 선두 후보](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/idx_readlab_host_status_order.json).
 
 ## 정산 상세의 조인과 그룹핑
 
@@ -105,7 +107,7 @@ ORDER BY a.id;
 
 워밍업 뒤 순서를 교대해 5회씩 비교한 중앙값은 **49.0ms → 23.2ms**였다. 340개 숙소의 전체 결과와 순서가 같았다. 조인 단일화·날짜 조건·그룹 키 변경을 합친 효과이며, 그룹핑 최적화만의 단독 효과로 표시하지 않는다. 날짜의 월 경계·취소 시각 NULL·다양한 호스트에 대한 추가 회귀 검증 후 실제 저장소 쿼리에 적용하는 것이 다음 단계다.
 
-원본: [단일 조인 비교](settlement-detail-single-pass.json).
+원본: [단일 조인 비교](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/settlement-detail-single-pass.json).
 
 ## 쿠폰 목록의 실제 HTTP 비교
 
@@ -135,7 +137,7 @@ ORDER BY a.id;
 
 초기 준비 실행의 오래된 Java 시간대 데이터 오류와 general log의 BLOB→문자열 변환 오류를 수정했다. 이후 한 구간에서 서버·클라이언트 쿼리 수가 맞지 않아 실행을 중단했다. 해당 구간은 전후 스냅샷을 보존하지 못해 차이의 원인을 확정하지 않았다. 관측 원본과 두 번의 안정된 카운터 표본을 보존하도록 보강하고, 최종 전체 비교를 새 DB에서 다시 실행했다. 중단 실행과 짧은 계측 진단은 위 표에 합산하지 않았다. `excluded-runs.ndjson.gz`에 남아 있는 원본과 종료 상태를 보존했다.
 
-원본: [요약](coupon-summary.json), [회차별 결과](coupon-api-results.json), [실제 JDBC SQL](coupon-jdbc-sql.json), [환경](coupon-environment.json), [정리 확인](coupon-cleanup.json), `coupon-observations.ndjson.gz`.
+원본: [요약](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/coupon-summary.json), [회차별 결과](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/coupon-api-results.json), [실제 JDBC SQL](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/coupon-jdbc-sql.json), [환경](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/coupon-environment.json), [정리 확인](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/read-api-local-2026-10-12/coupon-cleanup.json), `coupon-observations.ndjson.gz`.
 
 ## 조회 API별 판정
 

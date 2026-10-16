@@ -1,5 +1,7 @@
 # API 분리·Spring Data native query 재측정 근거
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-api-native-2026-10-10).
+
 [상세 보고서](../../coupon-skip-locked-local-results.md)의 C·B 재측정 자료다.
 앱 커밋은 `b2c6ec6542413807ad9e2923b2ee3a3632bef579`, Flyway V29이고 JAR SHA-256은
 `05cd3f7ce7a2c4df3fc0197c4dbeebb5e816b68252b0fe50e3d18d084d57ef8f`다.

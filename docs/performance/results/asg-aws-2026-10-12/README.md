@@ -1,5 +1,7 @@
 # ALB·ASG 숙소 상세 조회 부하 측정
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12).
+
 2026년 10월 12일 AWS 실험 환경에서 앱 1대 고정, CPU 목표 50% 자동 확장, 같은 정책에 ALB slow start 120초를 적용한 구성을 각 1회 측정했다. 아래 수치는 완료된 실제 상세 조회 요청에서 계산했다.
 
 ## 핵심 결과
@@ -94,9 +96,9 @@ ASG warmup 180초는 InService 이후 확장 판단에 반영되는 지표의 �
 
 ## 원본과 재현 근거
 
-- [summary.json](summary.json): 단계별 수치·30초 버킷·정확한 시각·수집 무결성·실험 전 정한 기준.
-- [dataset-manifest.json](dataset-manifest.json), [environment.json](environment.json): 입력 ID·분포·이미지 digest·환경.
-- [original-configuration.json](original-configuration.json): 실험 시작 시 ASG와 Launch Template의 비밀값을 제외한 설정 요약.
+- [summary.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/summary.json): 단계별 수치·30초 버킷·정확한 시각·수집 무결성·실험 전 정한 기준.
+- [dataset-manifest.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/dataset-manifest.json), [environment.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/environment.json): 입력 ID·분포·이미지 digest·환경.
+- [original-configuration.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/original-configuration.json): 실험 시작 시 ASG와 Launch Template의 비밀값을 제외한 설정 요약.
 - `raw-results.json.gz`: 세 실행의 k6 원본 요약, 호스트 표본, CloudWatch, Prometheus, ASG 활동·설정·관측을 파일명별 JSON으로 저장했다.
 - 최종 후보의 결과 회수는 종료 보호 절차의 원복 이후 재개했다. 따라서 후보의 마지막 정책 조회는 비어 있다. 실험 중 정책은 별도로 저장한 초기 정책·alarm 설정과 측정 시간 안의 ASG 활동 기록으로 확인한다.
 - `harness-sources.json.gz`: 실제 사용한 부하 스크립트·수집기·분석기·설정. 실험 ID와 호스트 경로가 고정된 증거용 원본이다. 재실행 시 별도 승인 기한·실험 소유권·대상·응답 fixture를 새로 준비해야 한다.
@@ -108,6 +110,6 @@ ASG warmup 180초는 InService 이후 확장 판단에 반영되는 지표의 �
 
 부하 발생을 종료하고 기존 앱의 이미지·환경을 원복했다. 앱 1대가 정상 상태이고 ASG는 기존 1/1/1·정책 0개로 돌아왔다. 임시 시작 템플릿과 확장 정책을 제거하고 ALB slow start도 원래의 0초로 되돌렸다. 추가로 생성된 앱 6대는 종료 상태로 확인했다. 이는 실험 변경의 원복이며 기존 AWS 랩 전체를 삭제했다는 의미는 아니다.
 
-원복 검증은 [restore-proof.json](restore-proof.json), 관리 연결 중단과 결과 회수 경위는 [collection-note.json](collection-note.json)에 기록했다. 요청 지표는 정상 종료한 전체 실행의 원본으로 검증했고, ASG 관측 공백은 별도로 공개했다. 이번 보고서의 수치는 각 구성 1회 실행 결과다.
+원복 검증은 [restore-proof.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/restore-proof.json), 관리 연결 중단과 결과 회수 경위는 [collection-note.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/collection-note.json)에 기록했다. 요청 지표는 정상 종료한 전체 실행의 원본으로 검증했고, ASG 관측 공백은 별도로 공개했다. 이번 보고서의 수치는 각 구성 1회 실행 결과다.
 
-이력서에 사용할 간결한 문구는 [resume.md](resume.md)에 정리했다.
+이력서에 사용할 간결한 문구는 [resume.md](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/asg-aws-2026-10-12/resume.md)에 정리했다.

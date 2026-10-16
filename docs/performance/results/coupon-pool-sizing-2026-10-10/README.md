@@ -1,6 +1,8 @@
 # 쿠폰 커넥션 풀 10·20·30의 로컬 비교 근거
 
-[상세 보고서](../../coupon-skip-locked-local-results.md#풀-102030-비교--2026-10-10)의 원본 자료다.
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-pool-sizing-2026-10-10).
+
+[상세 보고서](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/coupon-skip-locked-local-results.md#풀-102030-비교--2026-10-10)의 원본 자료다.
 실행 ID는 `local-20261010-172347-6daa`이며 환경은 로컬 공유 호스트다.
 대리 키 RR, 앱 1개, 같은 JAR·DB 설정에서 maximumPoolSize/minimumIdle만 10/20/30으로 바꿨다.
 500/1,000/1,500 RPS를 20초씩 3회, 같은 초기 재고 30,001개로 측정했다.

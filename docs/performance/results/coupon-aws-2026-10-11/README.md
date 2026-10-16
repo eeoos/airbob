@@ -1,5 +1,7 @@
 # 쿠폰 발급 AWS 성능 비교 결과
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11).
+
 현재 요구사항에서는 **대리 키와 REPEATABLE_READ를 유지한다.** 공용 카운터를 갱신하는 조건부
 UPDATE의 행 잠금 병목은 SKIP LOCKED로 해소됐지만, 복합 키나 READ_COMMITTED로 바꿀 만큼
 일관된 성능 이점은 관측되지 않았다. 소진·중복·다른 캠페인 준비에서도 대리 키 RR과 RC는 모두
@@ -114,13 +116,13 @@ API를 측정했으므로 다른 업무가 함께 실행되는 전체 서비스 
 
 ## 원본과 재계산
 
-- [comparison.json](comparison.json): 최종 범위 27개 본 측정, 결과 코드, 지연, 준비 작업 및 판정.
-- [observed-summary.json](observed-summary.json): 초기 탐색·실패를 포함한 본 측정과 DB 관측 요약.
+- [comparison.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/comparison.json): 최종 범위 27개 본 측정, 결과 코드, 지연, 준비 작업 및 판정.
+- [observed-summary.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/observed-summary.json): 초기 탐색·실패를 포함한 본 측정과 DB 관측 요약.
 - [METHOD.ko.md](METHOD.ko.md): 예열 변경과 판정 규칙, 관측 구간, 사용자 범위 변경의 상세 기록.
 - `raw/`: 허용 목록으로 추출한 클라이언트·서버·재고·앱 관측 원본과 SHA-256 manifest.
 - `database.json.gz`, `diagnostics.json.gz`, `observations.json.gz`: DB 표본, 연결·SQL·JIT 진단, 환경 및 복구 근거.
 - `plans/`, `harness-sources.ndjson.gz`: 원래 계획과 조정한 계획, 실제 실행·분석 도구의 소스.
-- [validation.json](validation.json), [post-run-verification.json](post-run-verification.json): 원본 및 종료 검증.
+- [validation.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/validation.json), [post-run-verification.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/post-run-verification.json): 원본 및 종료 검증.
 - `SHA256SUMS`: 공개 파일의 무결성 확인용 해시.
 
 `raw/*.json.zlib`는 Python의 `zlib.decompress`로 풀면 `files` 객체에 원본 JSON들이 들어 있다.
@@ -139,4 +141,4 @@ API를 측정했으므로 다른 업무가 함께 실행되는 전체 서비스 
 유지한 것이며 이전 바이너리로 되돌리지 않았다.
 
 공개 묶음의 27개 본 측정과 재고 검증을 다시 계산한 결과는
-[publication-verification.json](publication-verification.json)에 보관했다.
+[publication-verification.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/publication-verification.json)에 보관했다.

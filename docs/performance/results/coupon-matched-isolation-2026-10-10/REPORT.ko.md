@@ -1,5 +1,7 @@
 # 쿠폰 발급 비교: 후보별 풀 기본 격리 수준 일치
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10).
+
 실행 상태: `complete`. 본 측정 200회, 유효 168회, 전체 기준 통과 155회.
 
 앱 1개·풀 10·동일 V30 JAR의 로컬 실험이다. RR 후보의 풀 기본값은 RR, RC 후보는 RC다. 각 후보마다 앱을 재시작하고 실제 연결 10개를 확인했다. 품절 재확인과 관리자 준비의 명시적 RR 트랜잭션은 유지했다.
@@ -66,4 +68,4 @@ JAR SHA-256: `612f6e5c694e9babcda302c3794064688a31df824fdc20f99bbe5f65adc5e10e`.
 이전 공용 RR 풀에서의 중단된 측정 20회와 소규모 설정 검증은 별도 원본으로 보존했고 위 비교에는 합산하지 않았다. Hibernate SQL 수와 드라이버의 격리 수준 변경 명령 수도 별도다.
 
 정합성·집계·설정·복구 검증 상태: `passed`.
-[전체 집계](comparison.json), [검증 결과](validation.json), [원본](raw.ndjson.gz), [실행 소스](harness-sources.ndjson.gz).
+[전체 집계](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10/comparison.json), [검증 결과](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10/validation.json), [원본](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10/raw.ndjson.gz), [실행 소스](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10/harness-sources.ndjson.gz).

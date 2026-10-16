@@ -1,5 +1,7 @@
 # 쿠폰 발급 AWS 측정: 실행 조건과 해석
 
+원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11).
+
 실제 종료 범위는 지속 부하 15개와 추가 시나리오 12개다. 원래 계획과 변경 근거를 함께
 남기며, 최종 수치와 선택은 README.md와 comparison.json을 기준으로 한다.
 
