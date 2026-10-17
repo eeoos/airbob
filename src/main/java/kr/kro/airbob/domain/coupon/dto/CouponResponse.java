@@ -46,7 +46,7 @@ public class CouponResponse {
 				CouponTime.toInstant(coupon.usableFrom()),
 				CouponTime.toInstant(coupon.usableUntil()),
 				coupon.totalQuantity(),
-				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.issuedQuantity(), now));
+				CouponIssuanceStatus.resolve(coupon.issueStartAt(), coupon.totalQuantity(), coupon.hasRemainingStock(), now));
 		}
 	}
 

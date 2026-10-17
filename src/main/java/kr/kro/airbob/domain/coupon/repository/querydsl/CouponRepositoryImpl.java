@@ -1,7 +1,7 @@
 package kr.kro.airbob.domain.coupon.repository.querydsl;
 
 import static kr.kro.airbob.domain.coupon.entity.QCoupon.coupon;
-import static kr.kro.airbob.domain.coupon.entity.QMemberCoupon.memberCoupon;
+import static kr.kro.airbob.domain.coupon.entity.QCouponIssueUnit.couponIssueUnit;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,9 +35,10 @@ public class CouponRepositoryImpl implements CouponRepositoryCustom {
 				coupon.id, coupon.name, coupon.description, coupon.discountType, coupon.discountValue,
 				coupon.minPaymentPrice, coupon.maxDiscountAmount, coupon.issueStartAt, coupon.issueEndAt,
 				coupon.usableFrom, coupon.usableUntil, coupon.totalQuantity,
-				JPAExpressions.select(memberCoupon.id.count())
-					.from(memberCoupon)
-					.where(memberCoupon.coupon.id.eq(coupon.id))))
+				JPAExpressions.selectOne()
+					.from(couponIssueUnit)
+					.where(couponIssueUnit.couponId.eq(coupon.id))
+					.exists()))
 			.from(coupon)
 			.where(
 				coupon.isActive.isTrue(),

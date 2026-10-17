@@ -73,8 +73,8 @@ class CouponQueryServiceTest {
 	@Test
 	@DisplayName("쿠폰 캠페인 상태는 발급과 동일한 MySQL 시각으로 계산한다")
 	void findsCouponCampaignsWithIssuanceStatus() {
-		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100), 0);
-		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100), 10);
+		CouponCampaignProjection upcoming = campaign(coupon(2L, NOW.plusDays(1), 100), false);
+		CouponCampaignProjection open = campaign(coupon(1L, NOW.minusMinutes(30), 100), true);
 		when(units.databaseNow()).thenReturn(NOW);
 
 		when(couponRepository.findCampaignsWithCursor(NOW, null, null, PageRequest.of(0, 20)))
@@ -122,8 +122,8 @@ class CouponQueryServiceTest {
 	void createsCampaignCursorFromLastReturnedIssueStart() {
 		LocalDateTime boundary = NOW.plusDays(2);
 		LocalDateTime issueStartAt = NOW.plusHours(1).withNano(123456000);
-		var first = campaign(coupon(15L, NOW.plusDays(1), 100), 0);
-		var last = campaign(coupon(7L, issueStartAt, 100), 0);
+		var first = campaign(coupon(15L, NOW.plusDays(1), 100), true);
+		var last = campaign(coupon(7L, issueStartAt, 100), true);
 		when(units.databaseNow()).thenReturn(NOW);
 		when(couponRepository.findCampaignsWithCursor(NOW, 19L, boundary, PageRequest.of(0, 2)))
 			.thenReturn(new SliceImpl<>(List.of(first, last), PageRequest.of(0, 2), true));
@@ -198,10 +198,10 @@ class CouponQueryServiceTest {
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
 	}
 
-	private CouponCampaignProjection campaign(Coupon coupon, long issuedQuantity) {
+	private CouponCampaignProjection campaign(Coupon coupon, boolean hasRemainingStock) {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), issuedQuantity);
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), hasRemainingStock);
 	}
 }

@@ -126,13 +126,16 @@ class CouponCampaignReadIntegrationTest {
 	}
 
 	@ParameterizedTest
-	@CsvSource({
+	@CsvSource(value = {
 		"-1, 10, 0, UPCOMING",
 		"0, 10, 0, OPEN",
+		"0, 10, 9, OPEN",
 		"0, 10, 10, SOLD_OUT",
 		"0, 10, 11, SOLD_OUT",
-		"-1, 10, 10, UPCOMING"
-	})
+		"-1, 10, 10, UPCOMING",
+		"0, NULL, 0, OPEN",
+		"-1, NULL, 0, UPCOMING"
+	}, nullValues = "NULL")
 	@DisplayName("MySQL 시각의 시작 경계와 매진·발급 예정 우선순위를 유지한다")
 	void preservesIssuanceStatus(long offsetMillis, Integer totalQuantity, int issuedQuantity,
 		CouponIssuanceStatus expected) {
@@ -158,7 +161,7 @@ class CouponCampaignReadIntegrationTest {
 		jdbc.update("UPDATE coupon SET stock_prepared_at = NULL WHERE id = 11");
 		jdbc.update("UPDATE coupon SET issue_end_at = ? WHERE id = 12", NOW);
 		jdbc.update("UPDATE coupon SET usable_until = ? WHERE id = 13", NOW);
-		insertIssued(13, 10);
+		issueCoupons(13, 10);
 		jdbc.update("UPDATE coupon SET issue_start_at = ?, usable_from = ? WHERE id = 14",
 			NOW.plusMinutes(30), NOW.plusDays(2));
 		Statistics statistics = prepareMeasurement();
@@ -194,15 +197,15 @@ class CouponCampaignReadIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("수량 증가와 현재 할인 정보 변경을 다음 조회에 반영한다")
-	void readsCurrentQuantityAndDiscountAfterChanges() {
+	@DisplayName("마지막 재고 소진과 현재 할인 정보 변경을 다음 조회에 반영한다")
+	void readsRemainingStockAndDiscountAfterChanges() {
 		insertCoupon(10, "원래 쿠폰", NOW.minusDays(1), NOW.plusHours(1), 1, 0);
 		Statistics statistics = prepareMeasurement();
 		assertThat(service.findCouponCampaigns(firstPage(20)).infos()).singleElement()
 			.satisfies(info -> assertThat(info.issuanceStatus()).isEqualTo(CouponIssuanceStatus.OPEN));
 		assertRead(statistics);
 
-		insertIssued(10, 1);
+		issueCoupons(10, 1);
 		jdbc.update("""
 			UPDATE coupon SET name = '정률 쿠폰', description = '최대 만오천 원', discount_type = 'PERCENTAGE',
 				discount_value = 15, min_payment_price = NULL, max_discount_amount = 15000 WHERE id = 10
@@ -213,6 +216,23 @@ class CouponCampaignReadIntegrationTest {
 			10L, "정률 쿠폰", "최대 만오천 원", DiscountType.PERCENTAGE, 15, null, 15000,
 			NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusHours(1).toInstant(java.time.ZoneOffset.UTC), NOW.minusDays(1).toInstant(java.time.ZoneOffset.UTC), NOW.plusMonths(1).toInstant(java.time.ZoneOffset.UTC),
 			1, CouponIssuanceStatus.SOLD_OUT));
+		assertRead(statistics);
+	}
+
+	@Test
+	@DisplayName("발급 내역 수와 무관하게 해당 캠페인의 남은 재고로 매진을 판정한다")
+	void derivesAvailabilityFromRemainingUnitsInsteadOfIssuedHistory() {
+		insertCoupon(10, "재고 있음", NOW, NOW.plusHours(1), 10, 9);
+		insertCoupon(11, "재고 없음", NOW, NOW.plusHours(1), 10, 10);
+		// 발급 이력을 제거해도 소비된 재고가 복원되지는 않는다.
+		jdbc.update("DELETE FROM member_coupon WHERE coupon_id IN (10, 11)");
+		Statistics statistics = prepareMeasurement();
+
+		var result = service.findCouponCampaigns(firstPage(20));
+
+		assertThat(result.infos()).extracting(CouponResponse.CouponInfo::id).containsExactly(11L, 10L);
+		assertThat(result.infos()).extracting(CouponResponse.CouponInfo::issuanceStatus)
+			.containsExactly(CouponIssuanceStatus.SOLD_OUT, CouponIssuanceStatus.OPEN);
 		assertRead(statistics);
 	}
 
@@ -269,6 +289,7 @@ class CouponCampaignReadIntegrationTest {
 		assertRead(statistics);
 
 		insertCoupon(13, "새 캠페인", NOW.plusSeconds(1), NOW.plusDays(1), 10, 0);
+		jdbc.update("DELETE FROM coupon_issue_unit WHERE coupon_id = 11");
 		jdbc.update("DELETE FROM coupon WHERE id = 11");
 		statistics = prepareMeasurement();
 
@@ -310,11 +331,17 @@ class CouponCampaignReadIntegrationTest {
 			VALUES (?, ?, 'FIXED_AMOUNT', 10000, 50000, ?, ?, ?, ?, true, ?, ?, ?, ?)
 			""", id, name, issueStart, issueEnd, NOW.minusDays(1), NOW.plusMonths(1),
 			totalQuantity, NOW.minusDays(2), NOW, NOW);
-		insertIssued(id, issuedQuantity);
+		if (totalQuantity != null) {
+			for (int unitNo = 1; unitNo <= totalQuantity; unitNo++) {
+				jdbc.update("INSERT INTO coupon_issue_unit (coupon_id, unit_no) VALUES (?, ?)", id, unitNo);
+			}
+		}
+		issueCoupons(id, issuedQuantity);
 	}
 
-	private void insertIssued(long couponId, int count) {
+	private void issueCoupons(long couponId, int count) {
 		for (int i = 0; i < count; i++) {
+			jdbc.update("DELETE FROM coupon_issue_unit WHERE coupon_id = ? AND unit_no = ?", couponId, i + 1);
 			long memberId = couponId * 1000 + i + 1;
 			jdbc.update("INSERT INTO member (id,email,nickname,role,status,created_at,updated_at) VALUES (?,?,'member','MEMBER','ACTIVE',?,?)",
 				memberId, "issued-" + memberId + "@test.com", NOW, NOW);
@@ -344,7 +371,8 @@ class CouponCampaignReadIntegrationTest {
 		String selected = sql.substring("select ".length(), sql.indexOf(" from "));
 		assertThat(selected).doesNotContain(".is_active", ".stock_prepared_at", ".created_at",
 			".updated_at", ".created_by", ".updated_by");
-		assertThat(sql).contains("limit ?").doesNotContain(" join ", " for update", " for share");
+		assertThat(sql).contains("exists", "from coupon_issue_unit", "limit ?")
+			.doesNotContain("count(", "member_coupon", " join ", " for update", " for share");
 		verify(units).databaseNow();
 
 		verify(timeProvider, never()).now();

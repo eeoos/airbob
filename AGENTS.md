@@ -97,12 +97,15 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - Before issue_start_at only, preparation/quantity changes/discard lock the coupon first. After start,
   no quantity changes or restocking. UNIQUE(member_id,coupon_id) and whole-transaction rollback prevent duplicates.
 - The only issuance endpoint is `/api/v1/coupons/{couponId}/issue`. There is no strategy lookup,
-  conditional-UPDATE issuance, RC issuance, or composite unit table. Unit reads and deletes use
+  conditional-UPDATE issuance, RC issuance, or composite unit table. Issuance unit reads and deletes use
   Spring Data JPA native queries; preparation retains bounded JDBC multi-row inserts.
 - Coupon campaign and owned-coupon lists use `@CursorParam` with a default size of 20 and maximum
   of 50. Campaign order is `(issue_start_at, coupon.id)` descending; owned-coupon order is
   `(created_at, member_coupon.id)` descending. V32 requires nonnull member-coupon creation times;
   reconcile historical NULLs from trusted issuance evidence before migration, never invent dates.
+- Campaign availability uses a correlated QueryDSL `EXISTS` on remaining `coupon_issue_unit` rows,
+  without counting issued member coupons or locking stock. Preserve UPCOMING precedence and the
+  historical nullable-quantity read contract; the issuance transaction revalidates availability.
 - Before V31, stop old application readers/writers and close active conditional-UPDATE campaigns.
   V31 copies only remaining composite units into the surrogate table, preserves member coupons,
   and drops the composite table and experiment columns. Never regenerate consumed stock.

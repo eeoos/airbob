@@ -36,7 +36,7 @@ class CouponResponseJsonTest {
 			coupon(12, "매진 쿠폰").build());
 
 		assertContract("coupon-campaigns.json", new CouponResponse.CouponInfos(campaigns.stream()
-			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon, coupon.getId() == 12 ? 10L : 0L), NOW)).toList(),
+			.map(coupon -> CouponResponse.CouponInfo.of(campaign(coupon, coupon.getId() != 12), NOW)).toList(),
 			new CursorResponse.PageInfo(false, null, campaigns.size())));
 	}
 
@@ -78,10 +78,10 @@ class CouponResponseJsonTest {
 			coupon.getMaxDiscountAmount(), coupon.getUsableFrom(), coupon.getUsableUntil(), used, coupon.getIsActive());
 	}
 
-	private CouponCampaignProjection campaign(Coupon coupon, long issuedQuantity) {
+	private CouponCampaignProjection campaign(Coupon coupon, boolean hasRemainingStock) {
 		return new CouponCampaignProjection(coupon.getId(), coupon.getName(), coupon.getDescription(),
 			coupon.getDiscountType(), coupon.getDiscountValue(), coupon.getMinPaymentPrice(),
 			coupon.getMaxDiscountAmount(), coupon.getIssueStartAt(), coupon.getIssueEndAt(),
-			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), issuedQuantity);
+			coupon.getUsableFrom(), coupon.getUsableUntil(), coupon.getTotalQuantity(), hasRemainingStock);
 	}
 }
