@@ -30,6 +30,7 @@ import kr.kro.airbob.domain.image.dto.ImageResponse;
 import kr.kro.airbob.domain.review.dto.ReviewRequest;
 import kr.kro.airbob.domain.review.dto.ReviewResponse;
 import kr.kro.airbob.domain.review.entity.ReviewSortType;
+import kr.kro.airbob.domain.review.service.ReviewImageService;
 import kr.kro.airbob.domain.review.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 
@@ -40,6 +41,7 @@ import lombok.RequiredArgsConstructor;
 public class ReviewController {
 
 	private final ReviewService reviewService;
+	private final ReviewImageService reviewImageService;
 
 	@Operation(operationId = "Review.createReview", summary = "리뷰 작성",
 		description = """
@@ -110,7 +112,7 @@ public class ReviewController {
 		@Parameter(description = "본인이 작성한 리뷰 ID", example = "201") @PathVariable Long reviewId,
 		@RequestParam("images") List<MultipartFile> images,
 		@CurrentMemberId Long memberId) {
-		ImageResponse.ImageUploadResult response = reviewService.uploadReviewImages(reviewId, images, memberId);
+		ImageResponse.ImageUploadResult response = reviewImageService.uploadReviewImages(reviewId, images, memberId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
 	}
 
@@ -128,7 +130,7 @@ public class ReviewController {
 		@Parameter(description = "이미지가 속한 리뷰 ID", example = "201") @PathVariable Long reviewId,
 		@Parameter(description = "리뷰 이미지 ID", example = "301") @PathVariable Long imageId,
 		@CurrentMemberId Long memberId) {
-		reviewService.deleteReviewImage(reviewId, imageId, memberId);
+		reviewImageService.deleteReviewImage(reviewId, imageId, memberId);
 		return ResponseEntity.ok(ApiResponse.success());
 	}
 

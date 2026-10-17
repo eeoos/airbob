@@ -159,6 +159,7 @@ import kr.kro.airbob.domain.recentlyViewed.service.RecentlyViewedService;
 import kr.kro.airbob.domain.reservation.service.ReservationHoldCommandService;
 import kr.kro.airbob.domain.reservation.service.ReservationQuoteService;
 import kr.kro.airbob.domain.reservation.service.ReservationService;
+import kr.kro.airbob.domain.review.service.ReviewImageService;
 import kr.kro.airbob.domain.review.service.ReviewService;
 import kr.kro.airbob.common.exception.BaseException;
 import kr.kro.airbob.common.exception.InvalidInputException;
@@ -223,6 +224,7 @@ import kr.kro.airbob.search.exception.SearchUnavailableException;
 	ReservationQuoteService.class,
 	ReservationService.class,
 	RevenueStatsService.class,
+	ReviewImageService.class,
 	ReviewService.class,
 	SettlementService.class,
 	WishlistService.class,
@@ -1548,13 +1550,14 @@ class ApiDocumentationTest {
 			assertThat(spec.path("paths").path(paths[index]).path(methods[index]).path("parameters").findValuesAsText("name"))
 				.doesNotContain("memberId", "member_id", "SESSION_ID");
 		}
-		verifyNoInteractions(context.getBean(ReviewService.class));
+		verifyNoInteractions(context.getBean(ReviewService.class), context.getBean(ReviewImageService.class));
 	}
 
 	@Test
 	void reviewDeletionAndImageDeletionHaveDifferentMissingResourceErrors() throws Exception {
 		JsonNode spec = specification("client");
 		ReviewService service = context.getBean(ReviewService.class);
+		ReviewImageService imageService = context.getBean(ReviewImageService.class);
 		String review = "/api/v1/reviews/{reviewId}", image = "/api/v1/reviews/{reviewId}/images/{imageId}";
 		for (String path : List.of(review, image)) {
 			assertThat(spec.path("paths").path(path).path("delete").has("requestBody")).isFalse();
@@ -1568,7 +1571,7 @@ class ApiDocumentationTest {
 		assertThat(spec.path("paths").path(image).path("delete").path("responses").has("404")).isFalse();
 		for (BaseException error : List.of(new ReviewAccessDeniedException(),
 			new InvalidInputException())) {
-			doThrow(error).when(service).deleteReviewImage(201L, 301L, 10L);
+			doThrow(error).when(imageService).deleteReviewImage(201L, 301L, 10L);
 			var response = mvc.perform(delete(image, 201, 301).cookie(SESSION))
 				.andExpect(status().is(error.getErrorCode().getStatus().value())).andReturn().getResponse();
 			assertDocumentedError(spec, image, "delete", Integer.toString(response.getStatus()), error.getErrorCode().getCode(), response.getContentAsString());
@@ -1587,7 +1590,7 @@ class ApiDocumentationTest {
 		String unsupported = mvc.perform(post(path, 201).cookie(SESSION).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
 		assertDocumentedError(spec, path, "post", "415", "C011", unsupported);
-		ReviewService service = context.getBean(ReviewService.class);
+		ReviewImageService service = context.getBean(ReviewImageService.class);
 		verifyNoInteractions(service);
 		when(service.uploadReviewImages(eq(201L), anyList(), eq(10L)))
 			.thenReturn(new ImageResponse.ImageUploadResult(List.of(new ImageResponse.ImageInfo(301L, "https://example.invalid/review.png"))));
