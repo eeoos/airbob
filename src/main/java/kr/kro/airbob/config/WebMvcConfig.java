@@ -89,7 +89,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
 		// 허용할 헤더
 		config.setAllowedHeaders(List.of("*"));
-		config.setExposedHeaders(List.of("Location"));
+		config.setExposedHeaders(List.of("Location", "Retry-After"));
 
 		// 브라우저가 preflight 결과를 캐싱할 시간 (1시간)
 		config.setMaxAge(3600L);

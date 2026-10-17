@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
@@ -250,13 +251,6 @@ class ApiDocumentationTest {
 	@Test
 	void exportValidatedContractsWithEveryRealControllerMapping() throws Exception {
 		Set<String> actual = new HashSet<>();
-		Set<String> explicitlyDocumented = new HashSet<>();
-		mappings.getHandlerMethods().forEach((mapping, handler) -> {
-			if (handler.hasMethodAnnotation(io.swagger.v3.oas.annotations.Operation.class)) {
-				mapping.getPatternValues().forEach(path -> mapping.getMethodsCondition().getMethods()
-					.forEach(method -> explicitlyDocumented.add(method + " " + path)));
-			}
-		});
 		mappings.getHandlerMethods().forEach((mapping, handler) -> mapping.getPatternValues().stream()
 			.filter(path -> path.startsWith("/api/v1/"))
 			.forEach(path -> mapping.getMethodsCondition().getMethods().forEach(method -> actual.add(method + " " + path))));
@@ -278,15 +272,12 @@ class ApiDocumentationTest {
 					var method = methods.next();
 					JsonNode operation = method.getValue();
 					assertThat(documented.add(method.getKey().toUpperCase() + " " + path.getKey())).isTrue();
-					if (explicitlyDocumented.contains(method.getKey().toUpperCase() + " " + path.getKey())) {
-						assertThat(operation.path("summary").asText()).isNotBlank();
-						assertThat(operation.path("description").asText()).isNotBlank();
-					}
+					assertThat(operation.path("summary").asText()).isNotBlank();
+					assertThat(operation.path("description").asText()).isNotBlank();
 					assertThat(operationIds.add(operation.path("operationId").asText())).isTrue();
 					assertSecurityMatchesRealFilter(path.getKey(), method.getKey(), operation);
 					for (JsonNode parameter : operation.path("parameters")) {
-						if (explicitlyDocumented.contains(method.getKey().toUpperCase() + " " + path.getKey())
-							&& parameter.path("in").asText().equals("query")) {
+						if (parameter.path("in").asText().equals("query")) {
 							assertThat(parameter.path("name").asText()).as(path.getKey()).isNotIn("memberId", "hostId", "actorMemberId", "cursorData");
 						}
 					}
@@ -2245,6 +2236,7 @@ class ApiDocumentationTest {
 		verifyNoInteractions(context.getBean(CommonCodeAdminService.class));
 	}
 
+
 	@Test
 	void settlementRejectsMalformedMonthsAndReversedBackfillBeforeInvokingServices() throws Exception {
 		allowDocumentationAdmin();
@@ -2481,6 +2473,98 @@ class ApiDocumentationTest {
 			}
 		}
 		verifyNoInteractions(context.getBean(RevenueStatsService.class));
+	}
+
+	@Test
+	void everyJsonBodyOperationDocumentsMalformedMissingAndUnsupportedBodies() throws Exception {
+		allowDocumentationAdmin();
+		for (String group : List.of("client", "admin")) {
+			JsonNode spec = specification(group);
+			var paths = spec.path("paths").fields();
+			while (paths.hasNext()) {
+				var path = paths.next();
+				var operations = path.getValue().fields();
+				while (operations.hasNext()) {
+					var operation = operations.next();
+					if (!operation.getValue().at("/requestBody/content").has("application/json")) {
+						continue;
+					}
+					String uri = documentationUri(path.getKey(), operation.getValue());
+					for (String json : List.of("", "{")) {
+						String body = mvc.perform(request(org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase()), uri)
+							.cookie(SESSION).header("Idempotency-Key", "documentation-checkout")
+							.contentType(MediaType.APPLICATION_JSON).content(json))
+							.andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+						assertDocumentedError(spec, path.getKey(), operation.getKey(), "400", "C001", body);
+					}
+					String unsupported = mvc.perform(request(org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase()), uri)
+						.cookie(SESSION).header("Idempotency-Key", "documentation-checkout")
+						.contentType(MediaType.TEXT_PLAIN).content("{}"))
+						.andExpect(status().isUnsupportedMediaType()).andReturn().getResponse().getContentAsString();
+					assertDocumentedError(spec, path.getKey(), operation.getKey(), "415", "C011", unsupported);
+				}
+			}
+		}
+	}
+
+	@Test
+	void everyProtectedOperationEnforcesTheDocumentedSessionAndAdminGuards() throws Exception {
+		for (String group : List.of("client", "admin")) {
+			JsonNode spec = specification(group);
+			var paths = spec.path("paths").fields();
+			while (paths.hasNext()) {
+				var path = paths.next();
+				var operations = path.getValue().fields();
+				while (operations.hasNext()) {
+					var operation = operations.next();
+					if (operation.getValue().path("security").isEmpty()) {
+						continue;
+					}
+					String uri = documentationUri(path.getKey(), operation.getValue());
+					var method = org.springframework.http.HttpMethod.valueOf(operation.getKey().toUpperCase());
+					String absent = mvc.perform(request(method, uri)).andExpect(status().isUnauthorized())
+						.andReturn().getResponse().getContentAsString();
+					assertDocumentedError(spec, path.getKey(), operation.getKey(), "401", "M004", absent);
+					String expired = mvc.perform(request(method, uri).cookie(new Cookie("SESSION_ID", "expired")))
+						.andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+					assertDocumentedError(spec, path.getKey(), operation.getKey(), "401", "M004", expired);
+					if (group.equals("admin")) {
+						String forbidden = mvc.perform(request(method, uri).cookie(SESSION))
+							.andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString();
+						assertDocumentedError(spec, path.getKey(), operation.getKey(), "403", "M006", forbidden);
+					}
+				}
+			}
+		}
+	}
+
+	@Test
+	void allowedFrontendOriginsCanReadTheDocumentedRetryAndLocationHeaders() throws Exception {
+		when(context.getBean(ReservationService.class).createPendingReservation(any(), anyLong(), any()))
+			.thenThrow(new ReservationInventoryBusyException(new IllegalStateException("test contention")));
+		var response = mvc.perform(post("/api/v1/reservations").cookie(SESSION)
+			.header("Origin", "https://www.airbob.cloud").header("Idempotency-Key", "checkout-00000001")
+			.contentType(MediaType.APPLICATION_JSON).content("{\"quote_uid\":\"00000000-0000-0000-0000-000000000010\"}"))
+			.andExpect(status().isServiceUnavailable()).andExpect(header().string("Retry-After", "1"))
+			.andExpect(header().string("Access-Control-Allow-Origin", "https://www.airbob.cloud"))
+			.andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+			.andReturn().getResponse();
+		assertThat(response.getHeader("Access-Control-Expose-Headers")).contains("Location", "Retry-After");
+	}
+
+	private String documentationUri(String path, JsonNode operation) {
+		String uri = path;
+		for (JsonNode parameter : operation.path("parameters")) {
+			if (!parameter.path("in").asText().equals("path")) {
+				continue;
+			}
+			String value = parameter.path("example").asText("101");
+			if (parameter.at("/schema/format").asText().equals("uuid")) {
+				value = DOCUMENTATION_OPERATION_ID.toString();
+			}
+			uri = uri.replace("{" + parameter.path("name").asText() + "}", value);
+		}
+		return uri;
 	}
 
 	private Settlement documentationSettlement() {

@@ -49,9 +49,9 @@ public class AccommodationController {
 
     @Operation(operationId = "Accommodation.registerAccommodation", summary = "숙소 초안 생성",
         description = """
-            로그인한 활성 회원 소유의 DRAFT 숙소를 생성합니다. 별도 호스트 역할이나 요청 본문은 필요하지 않습니다.
+            로그인한 활성 회원 소유의 DRAFT 숙소를 생성합니다.
             기본 체크인 시간은 15:00, 체크아웃 시간은 11:00입니다. 응답 data.id를 이후 수정·이미지 업로드·게시 경로에 사용합니다.
-            초안은 공개 조회와 검색에 노출되지 않습니다. 숙소 정보 수정 → 이미지 업로드 → 게시 순서로 진행합니다.
+            초안은 공개 조회와 검색에 노출되지 않습니다. 숙소 정보 수정 -> 이미지 업로드 -> 게시 순서로 진행합니다.
             """)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 완료", useReturnTypeSchema = true)
     @ApiErrors({
@@ -97,7 +97,7 @@ public class AccommodationController {
 
     @Operation(operationId = "Accommodation.publishAccommodation", summary = "숙소 게시",
         description = """
-            본인 소유 숙소를 PUBLISHED로 변경합니다. 요청 본문은 없습니다.
+            본인 소유 숙소를 PUBLISHED로 변경합니다.
             이름·설명·주소와 좌표·양수 기본 요금·숙소 유형·시간대·수용 인원 정책·체크인/체크아웃 시간이 필요하고 이미지가 최소 1장 있어야 합니다.
             주소의 좌표와 시간대는 숙소 수정 시 서버가 계산합니다. 필수 정보 누락은 400/A009와 error.errors의 field·reason, 이미지 부족은 400/A006으로 확인합니다.
             이미 게시된 숙소도 조건을 재검사한 뒤 200을 반환합니다. 다른 회원의 숙소와 삭제된 숙소는 404/A001입니다.
@@ -188,7 +188,7 @@ public class AccommodationController {
 
     @Operation(operationId = "Accommodation.deleteAccommodationImage", summary = "숙소 이미지 삭제",
         description = """
-            본인 소유 숙소의 이미지를 삭제합니다. imageId는 이미지 조회 또는 업로드 응답의 id입니다. 요청 본문은 없습니다.
+            본인 소유 숙소의 이미지를 삭제합니다. imageId는 이미지 조회 또는 업로드 응답의 id입니다.
             숙소 소유권이 없으면 404/A001, 이미지가 없으면 404/I004, 이미지가 다른 숙소에 속하면 400/C009입니다.
             대표 이미지를 삭제하면 남은 이미지 중 가장 작은 ID의 사진으로 바뀌며, 하나도 없으면 대표 이미지는 null입니다.
             마지막 이미지 삭제로 게시 상태가 자동 변경되지는 않습니다. 이후 게시 요청 시 최소 1장 조건을 다시 확인합니다.

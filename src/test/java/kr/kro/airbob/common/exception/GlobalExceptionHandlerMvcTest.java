@@ -30,6 +30,7 @@ import kr.kro.airbob.domain.payment.exception.PaymentOperationConflictException;
 import kr.kro.airbob.domain.payment.exception.PaymentOperationInvariantViolationException;
 import kr.kro.airbob.domain.reservation.exception.ReservationConflictException;
 import kr.kro.airbob.domain.reservation.exception.ReservationInventoryBusyException;
+import kr.kro.airbob.common.dto.ApiResponse;
 
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerMvcTest {
@@ -124,8 +125,27 @@ class GlobalExceptionHandlerMvcTest {
 			.doesNotContain(HARMLESS_REJECTED_VALUE);
 	}
 
+	@Test
+	void unsupportedHttpMethodsReturn405AndTheAllowedMethods() throws Exception {
+		mockMvc.perform(post("/test/errors/success"))
+			.andExpect(status().isMethodNotAllowed())
+			.andExpect(header().string("Allow", containsString("GET")))
+			.andExpect(jsonPath("$.error.code").value("C002"))
+			.andExpect(jsonPath("$.error.status").value(405));
+	}
+
+	@Test
+	void unsupportedResponseMediaTypeReturns406() throws Exception {
+		mockMvc.perform(get("/test/errors/success").accept(MediaType.TEXT_PLAIN))
+			.andExpect(status().isNotAcceptable());
+	}
+
 	@RestController
 	private static final class FailureController {
+		@GetMapping("/test/errors/success")
+		ApiResponse<String> success() {
+			return ApiResponse.success("ok");
+		}
 
 		@GetMapping("/test/errors/payment-invariant")
 		void paymentInvariant() {

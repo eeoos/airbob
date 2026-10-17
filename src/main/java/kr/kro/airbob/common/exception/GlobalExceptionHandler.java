@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -70,6 +71,13 @@ public class GlobalExceptionHandler {
 	protected ResponseEntity<ApiResponse<?>> handleUnsupportedMediaType() {
 		ErrorCode error = ErrorCode.UNSUPPORTED_MEDIA_TYPE;
 		return ResponseEntity.status(error.getStatus()).body(ApiResponse.error(ErrorResponse.of(error)));
+	}
+
+	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+	protected ResponseEntity<ApiResponse<?>> handleUnsupportedMethod(HttpRequestMethodNotSupportedException exception) {
+		ErrorCode error = ErrorCode.METHOD_NOT_ALLOWED;
+		return ResponseEntity.status(error.getStatus()).headers(exception.getHeaders())
+			.body(ApiResponse.error(ErrorResponse.of(error)));
 	}
 
 	@ExceptionHandler(TossPaymentException.class)

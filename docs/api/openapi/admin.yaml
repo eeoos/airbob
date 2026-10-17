@@ -2388,6 +2388,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
+        "415":
+          content:
+            application/json:
+              examples:
+                C011:
+                  summary: "지원하지 않는 요청 Content-Type입니다."
+                  value:
+                    error:
+                      code: "C011"
+                      errors: []
+                      message: "지원하지 않는 요청 Content-Type입니다."
+                      status: 415
+                    success: false
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: "오류 응답. examples에서 업무 오류 코드와 메시지를 확인합니다."
         "500":
           content:
             application/json:

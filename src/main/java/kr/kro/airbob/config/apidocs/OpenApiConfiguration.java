@@ -107,6 +107,10 @@ public class OpenApiConfiguration {
 				errors.addAll(Arrays.asList(declared.value()));
 			}
 			for (var parameter : handler.getMethodParameters()) {
+				if (parameter.hasParameterAnnotation(org.springframework.web.bind.annotation.RequestBody.class)) {
+					errors.add(ErrorCode.INVALID_INPUT_VALUE);
+					errors.add(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+				}
 				if (MultipartFile.class.equals(parameter.getParameterType())
 					|| MultipartFile.class.equals(ResolvableType.forMethodParameter(parameter).getGeneric(0).resolve())) {
 					RequestParam form = parameter.getParameterAnnotation(RequestParam.class);
