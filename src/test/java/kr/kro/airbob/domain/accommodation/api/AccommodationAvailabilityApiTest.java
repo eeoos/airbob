@@ -22,8 +22,6 @@ import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
 import java.time.format.DateTimeFormatter;
 
 import kr.kro.airbob.domain.accommodation.dto.AccommodationResponse;
-import kr.kro.airbob.domain.accommodation.service.AccommodationCommandService;
-import kr.kro.airbob.domain.accommodation.service.AccommodationImageService;
 import kr.kro.airbob.domain.accommodation.service.AccommodationQueryService;
 
 @DisplayName("숙소 예약 가능 정보 API 테스트")
@@ -39,11 +37,7 @@ class AccommodationAvailabilityApiTest {
 			.registerModule(new JavaTimeModule()
 				.addSerializer(LocalDate.class, new LocalDateSerializer(DateTimeFormatter.ISO_LOCAL_DATE)))
 			.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-		AccommodationController controller = new AccommodationController(
-			mock(AccommodationCommandService.class),
-			mock(AccommodationImageService.class),
-			accommodationQueryService
-		);
+		AccommodationController controller = new AccommodationController(accommodationQueryService);
 		mockMvc = MockMvcBuilders.standaloneSetup(controller)
 			.setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
 			.build();

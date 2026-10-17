@@ -12,6 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import kr.kro.airbob.domain.accommodation.api.AccommodationController;
+import kr.kro.airbob.domain.accommodation.api.AccommodationHostController;
 import kr.kro.airbob.domain.auth.annotation.CurrentMemberId;
 import kr.kro.airbob.domain.coupon.api.CouponController;
 import kr.kro.airbob.domain.payment.api.PaymentController;
@@ -47,16 +48,16 @@ class CurrentMemberIdControllerContractTest {
 
 	private static Stream<HandlerContract> currentMemberHandlers() {
 		return Stream.of(
-			required(AccommodationController.class, "registerAccommodation"),
-			required(AccommodationController.class, "updateAccommodation"),
-			required(AccommodationController.class, "publishAccommodation"),
-			required(AccommodationController.class, "unpublishAccommodation"),
-			required(AccommodationController.class, "deleteAccommodation"),
-			required(AccommodationController.class, "uploadAccommodationImages"),
-			required(AccommodationController.class, "deleteAccommodationImage"),
+			required(AccommodationHostController.class, "registerAccommodation"),
+			required(AccommodationHostController.class, "updateAccommodation"),
+			required(AccommodationHostController.class, "publishAccommodation"),
+			required(AccommodationHostController.class, "unpublishAccommodation"),
+			required(AccommodationHostController.class, "deleteAccommodation"),
+			required(AccommodationHostController.class, "uploadAccommodationImages"),
+			required(AccommodationHostController.class, "deleteAccommodationImage"),
 			optional(AccommodationController.class, "getAccommodation"),
-			required(AccommodationController.class, "getHostAccommodations"),
-			required(AccommodationController.class, "getHostAccommodationDetail"),
+			required(AccommodationHostController.class, "getHostAccommodations"),
+			required(AccommodationHostController.class, "getHostAccommodationDetail"),
 			required(AuthController.class, "getMyInfo"),
 			required(CouponController.class, "issueCoupon"),
 			required(CouponController.class, "findMyCoupons"),
