@@ -368,9 +368,10 @@ Environment `aws-image-publisher`, allow only `main`, and expose the applied
 foundation role ARN as `AWS_IMAGE_PUBLISHER_ROLE_ARN`. The AWS role trusts only
 `aud=sts.amazonaws.com` plus that Environment's exact reviewed OIDC `sub`.
 These settings are a one-time prerequisite; the repository does not fall back
-to static AWS access keys when they are absent. OCI publication and deployment
-are separate jobs, so an unconfigured or failed AWS publisher cannot block the
-always-on OCI deployment path.
+to static AWS access keys when they are absent. Current app images are published
+through the manual `aws-app-image.yml` workflow after CI succeeds for the reviewed
+main commit. OCI publication and deployment run in `cd.yml`, independently of the
+AWS publisher. Existing historical dataset launches retain their pinned images.
 Because none of the nineteen approved files requires hexadecimal character
 escapes, the gate rejects every `\xNN`, `\uXXXX`, and `\UXXXXXXXX` occurrence
 and every physical line ending in `\` before placeholder approval. It rejects
