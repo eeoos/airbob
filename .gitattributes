@@ -1,5 +1,5 @@
-# Keep generated coupon measurements collapsed in pull request reviews.
-docs/performance/results/coupon-*/**/*.json linguist-generated=true
+# Keep measurement evidence collapsed in pull request reviews.
+docs/performance/history/*.json linguist-generated=true
 
 # Exclude AWS infrastructure files from language statistics.
 infra/aws/** -linguist-detectable

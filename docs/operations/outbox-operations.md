@@ -11,13 +11,13 @@ binlog에서 읽어 Kafka로 전달한다.
 column이 없으므로 DB 행만 보고 전달 완료를 판정할 수 없다. consumer는 중복 wake-up
 signal을 처리할 수 있어야 한다.
 
-- 이벤트 계약: [`messaging/event`](../src/main/java/kr/kro/airbob/messaging/event)
-- outbox 구현: [`messaging/outbox`](../src/main/java/kr/kro/airbob/messaging/outbox)
-- connector 설정: [`docker/debezium/outbox-connector.json`](../docker/debezium/outbox-connector.json)
+- 이벤트 계약: [`messaging/event`](../../src/main/java/kr/kro/airbob/messaging/event)
+- outbox 구현: [`messaging/outbox`](../../src/main/java/kr/kro/airbob/messaging/outbox)
+- connector 설정: [`docker/debezium/outbox-connector.json`](../../docker/debezium/outbox-connector.json)
 
 ## Connect와 topic bootstrap
 
-broker 자동 topic 생성은 꺼져 있다. [`docker/kafka/init-topics.sh`](../docker/kafka/init-topics.sh)는
+broker 자동 topic 생성은 꺼져 있다. [`docker/kafka/init-topics.sh`](../../docker/kafka/init-topics.sh)는
 Connect 내부 topic, schema history, heartbeat와 다음 12개 비즈니스 topic을 먼저 만들고
 partition 수를 검증한다.
 
@@ -26,7 +26,7 @@ partition 수를 검증한다.
 - `ACCOMMODATION_CACHE.events`, `.RETRY`, `.DLT`
 - `OPERATOR_ALERT.events`, `.RETRY`, `.DLT`
 
-[`docker/debezium/register-connector.sh`](../docker/debezium/register-connector.sh)는 connector
+[`docker/debezium/register-connector.sh`](../../docker/debezium/register-connector.sh)는 connector
 config를 idempotent `PUT`으로 등록하고 connector와 적어도 하나의 task가 모두 `RUNNING`일
 때만 성공한다. 운영 secret에는 `DEBEZIUM_DATABASE_PASSWORD`가 반드시 있어야 한다.
 OCI 배포는 기존 app/ingress와 Debezium을 중지하고 Flyway V18~현재 migration을 먼저

@@ -2,7 +2,7 @@
 
 원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-skip-locked-2026-10-09).
 
-[보고서](../../coupon-skip-locked-local-results.md)의 근거다. AWS 결과가 아니다.
+[보고서](coupon-local-results.md)의 근거다. AWS 결과가 아니다.
 
 | 파일 | 범위 |
 |---|---|

@@ -7,7 +7,7 @@
 `prepare`는 **로컬 파일만 생성**한다. AWS·DNS·앱·DB에 접속하거나 자원을 만들지 않는다.
 `run`은 준비된 AWS 부하 발생기에서 명시적으로 실행한다.
 2026-10-12에 V30 환경에서 세 API를 실측했다. 입력·조건·실패 실행을 포함한 결과는
-[AWS 측정 결과](../../../docs/performance/results/review-summary-aws-2026-10-12/README.md)에 있다.
+[AWS 측정 결과](../../../docs/performance/review-summary.md)에 있다.
 세 API의 경로·응답 검증·전후 비교는 [기존 k6 스크립트](MEASUREMENT.md)를 그대로 사용한다.
 
 ## 지금: 오프라인 준비
@@ -49,8 +49,8 @@ node load-test/k6/review-summary/aws.mjs prepare \
 
 ## 나중에: AWS 환경 준비
 
-[기존 Lab 운영 절차](../../../docs/performance/aws-lab-quickstart.md)와
-[AWS 실험 경계](../../../docs/performance/aws-performance-lab.md)를 따른다.
+[기존 Lab 운영 절차](../../../docs/operations/aws-lab-quickstart.md)와
+[AWS 실험 경계](../../../docs/operations/aws-performance-lab.md)를 따른다.
 이 도구는 자원 생성, 앱 환경 전환·복구, SSM 배포, IAM 변경, measurement lease 획득·갱신을 자동화하지 않는다.
 운영자가 기존 운영 절차로 측정 lease를 유지하고, 다른 부하·배포·중지 작업과 겹치지 않게 실행한다.
 

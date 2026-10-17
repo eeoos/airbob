@@ -9,7 +9,7 @@
 | 측정 목적 | 직접 실행할 진입점 | 상세 가이드 |
 |---|---|---|
 | 위시리스트·매출 반정규화 before/after | `read-model/wishlist-comparison.js`, `read-model/revenue-stats-comparison.js` | [read-model/README.md](read-model/MEASUREMENT.md) |
-| 숙소 응답의 리뷰 요약 반정규화 | [HTTP 요청 모음](../http/denormalization-discovery.http) | [리뷰 요약 비교 가이드](../../docs/performance/review-summary-denormalization.md) |
+| 숙소 응답의 리뷰 요약 반정규화 | [HTTP 요청 모음](../http/denormalization-discovery.http) | [리뷰 요약 비교 가이드](../../docs/performance/history/review-summary-local.md) |
 | 최근 본 숙소 N+1 before/after | `nplus1-fixture-smoke.js`, `recently-viewed-nplus1-performance.js` | 이 문서의 N+1 절 |
 | 쿠폰 DB 조건부 UPDATE/SKIP LOCKED 발급 | `coupon/run_experiments.py`, `coupon/coupon-issuance-comparison.js` | [쿠폰 실험 가이드](coupon/MEASUREMENT.md) |
 | 숙소 상세 Redis 캐시 V2(before)/V1(after) | `cache/run-local-comparison.py`, `cache/accommodation-detail-comparison.js` | [cache/README.md](cache/MEASUREMENT.md) |
@@ -217,7 +217,7 @@ bash load-test/k6/run-recently-viewed-comparison.sh
 - Grafana 없이도 `/actuator/prometheus`의 `app_query_per_request_queries_sum`과 `_count`를 읽을 수 있다. 동일 경로의 요청 전후 `sum 증가량 / count 증가량`이 평균 SELECT 횟수다.
 - k6의 `validation`, `warmup`, `measure` 태그는 서버에 전달되지 않는다. 이 비교 스크립트의 사전 GET과 워밍업도 서버 지표에 포함되므로 Grafana 지연시간은 측정 시간대로 제한한다. fixture PUT도 GET과 분리한다. 단일 GET만 보내는 위 smoke 스크립트는 기존 동작을 유지한다.
 
-계측 범위와 PromQL은 [쿼리 수 모니터링 가이드](../../docs/query-count-monitoring.md)를 참고한다.
+계측 범위와 PromQL은 [쿼리 수 모니터링 가이드](../../docs/operations/query-count-monitoring.md)를 참고한다.
 SQL 문장 자체가 필요하면 별도의 진단 실행에서만 출력을 켜고, 지연시간 측정은 기본 벤치마크 설정으로 다시 실행한다.
 
 ### 자동 검증
@@ -230,7 +230,7 @@ Docker가 실행 중인 환경에서 실제 MySQL·Redis로 N별 쿼리 수, 응
 K6_NO_USAGE_REPORT=true k6 run --address '' load-test/k6/test/recently-viewed-benchmark-test.js
 ```
 
-위시리스트·매출 집계 비교는 [read-model/README.md](read-model/MEASUREMENT.md), 숙소 응답의 리뷰 요약 비교는 [전용 가이드](../../docs/performance/review-summary-denormalization.md)를 참고한다. 단독 리뷰 요약 API를 호출하던 실험은 종료했다.
+위시리스트·매출 집계 비교는 [read-model/README.md](read-model/MEASUREMENT.md), 숙소 응답의 리뷰 요약 비교는 [전용 가이드](../../docs/performance/history/review-summary-local.md)를 참고한다. 단독 리뷰 요약 API를 호출하던 실험은 종료했다.
 
 ## N+1 측정 후 서버 teardown
 

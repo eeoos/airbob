@@ -1,7 +1,7 @@
 # AWS performance-lab dataset releases
 
 Reservation inventory의 V25–V27 hard-cutover 전제는
-[`docs/reservation-inventory-cutover.md`](../../../docs/reservation-inventory-cutover.md)에도 정리되어 있다.
+[`docs/operations/reservation-inventory-cutover.md`](../../../docs/operations/reservation-inventory-cutover.md)에도 정리되어 있다.
 
 Dataset publication is a local producer responsibility of the dedicated
 `airbob-dataset-publisher` role, never the ephemeral lab Terraform role. The

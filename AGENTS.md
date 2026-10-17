@@ -103,7 +103,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - Before V31, stop old application readers/writers and close active conditional-UPDATE campaigns.
   V31 copies only remaining composite units into the surrogate table, preserves member coupons,
   and drops the composite table and experiment columns. Never regenerate consumed stock.
-  See docs/coupon-issuance-operations.md. Roll forward only after this schema cutover.
+  See docs/operations/coupon-issuance-operations.md. Roll forward only after this schema cutover.
 - Retired coupon experiment endpoints and application profiles are removed. Historical measurements
   require their recorded source/image and dataset, not the current application.
 - Stop old Lua writers and reconcile/archive preparation evidence before V29; do not reuse Redis timestamps
@@ -130,7 +130,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   must commit while holding the same execution fence.
 - `P007` means fence-protected work never started. Post-action lock/connection cleanup failures are
   logged with stable metadata and must not replace a committed result.
-- See `docs/payment-operation-runbook.md` before changing failure or rollback behavior.
+- See `docs/operations/payment-operation-runbook.md` before changing failure or rollback behavior.
 
 ### Messaging and outbox
 
@@ -161,7 +161,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   it deletes the document.
 - The `accommodations` alias must point to exactly one versioned write index. Alias bootstrap gates
   consumer startup; full reindex builds a new version index and atomically swaps the alias.
-- See `docs/accommodation-indexing-operations.md` and `docs/logstash-reindex.md`.
+- See `docs/operations/accommodation-indexing-operations.md` and `docs/operations/logstash-reindex.md`.
 
 ### Accommodation detail cache and AWS performance lab
 
@@ -185,7 +185,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
   publication authenticated through GitHub OIDC.
 - OCI deployment remains independent from the AWS experiment and retains the messaging,
   migration, and connector gates in `scripts/deploy-oci.sh`.
-- See `docs/performance/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
+- See `docs/operations/aws-performance-lab.md` and `infra/aws/bundles/README.md` before changing
   experiment topology or image publication.
 
 ### Durable operator alerts
@@ -201,7 +201,7 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
 - Current schema history is V1 through V31. V29 introduces coupon issue units and immutable issue strategy,
   renames stock_prepared_at, and blocks unreconciled Redis coupon preparation. V30 normalizes
-  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance; see docs/coupon-time-contract.md for the coordinated API cutover.
+  coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance; see docs/operations/coupon-time-contract.md for the coordinated API cutover.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.

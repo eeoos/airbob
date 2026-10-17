@@ -40,7 +40,7 @@ RR 후보는 RR 기본 풀, RC 후보는 RC 기본 풀을 사용하고 후보마
 남아 있었다. 원본 완료 결과와 정리 기록으로 상태를 확인한 뒤 기존 컨테이너 11개를 복구했다.
 상위 프로세스 종료 원인과 5회차 종료 코드는 미확인으로 남겼고 복구 전 상태도 보존했다.
 
-[전체 결과와 해석](results/coupon-matched-isolation-2026-10-10/REPORT.ko.md),
+[전체 결과와 해석](coupon-matched-isolation-2026-10-10.md),
 [정합성·설정·복구 검증](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10/validation.json),
 [회차별 집계](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-matched-isolation-2026-10-10/comparison.json).
 
@@ -50,9 +50,31 @@ RR 후보는 RR 기본 풀, RC 후보는 RC 기본 풀을 사용하고 후보마
 후보별 풀 기본값을 맞춘 위 재검증과 합산하지 않는다.
 로컬 호스트 압력 때문에 무효인 실행을 DB의 처리량 한계로 해석하지 않는다.
 
-- [풀 크기 비교](results/coupon-pool-sizing-2026-10-10/README.md)
-- [API 분리 후 비교](results/coupon-api-native-2026-10-10/README.md)
-- [급증·품절·중복 요청 시나리오](results/coupon-scenarios-2026-10-10/README.md)
-- [AWS 비교 결과](results/coupon-aws-2026-10-11/README.md)
+- [풀 크기 비교](coupon-pool-sizing-2026-10-10.md)
+- [API 분리 후 비교](coupon-api-native-2026-10-10.md)
+- [급증·품절·중복 요청 시나리오](coupon-scenarios-2026-10-10.md)
+- [AWS 비교 결과](../coupon.md)
 
 과거 회차별 표·SQL 계측·실행 순서는 [전체 기록](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/coupon-skip-locked-local-results.md)에 보존했다.
+
+## 당시 발급 비교 계약
+
+아래 계약은 V30 당시의 발급 비교 실험에 해당한다. 재현은
+[과거 실행 가이드](../../../load-test/k6/coupon/MEASUREMENT.md)에 기록된 소스·이미지와 별도 V30 DB를 사용한다.
+현재 앱에서는 아래 전략별 발급 API와 조회 비교 API, 실험 전용 프로필을 모두 제거했다.
+
+| 식별자 | 재고 방식 | 격리 수준 |
+|---|---|---|
+| `db` | 조건부 UPDATE·공유 카운터 | RR |
+| `skip_surrogate_rr` | 대리 키 unit | RR |
+| `skip_surrogate_rc` | 대리 키 unit | RC |
+| `skip_composite_rr` | 복합 키 unit | RR |
+| `skip_composite_rc` | 복합 키 unit | RC |
+
+- 쿠폰 생성 시 전략을 고정하고 `/api/v2/coupons/{couponId}/issue/{strategy}`에서 같은 전략만 허용한다.
+- 토큰 검증은 업무 트랜잭션 밖에서 수행한다. 전략 일치는 별도 라우팅 조회 없이 업무 조회 결과로 검증한다.
+- 조건부 UPDATE 기준선의 첫 DB 연산은 UPDATE다. SKIP LOCKED의 공유 잠금을 공통 전처리로 추가하지 않는다.
+- 비교할 때 앱·데이터·부하 조건을 고정하고 후보별 실제 풀 격리 수준을 기록한다.
+- 준비는 bounded JDBC 다중 INSERT, 발급 unit 조회·삭제는 Spring Data JPA native query를 사용한다.
+
+이전 구현 계획은 [측정 당시 보관본](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/coupon-skip-locked-benchmark-plan.md)에 남겼다.

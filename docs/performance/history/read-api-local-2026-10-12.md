@@ -19,9 +19,9 @@
 
 실제 적용 지점은 다음과 같다. 이번에는 후보 비교까지 수행했으며 영구 전환은 하지 않았다.
 
-- 호스트 목록: [AccommodationRepositoryImpl](../../../../src/main/java/kr/kro/airbob/domain/accommodation/repository/querydsl/AccommodationRepositoryImpl.java)의 조회 조건과 정렬에 맞는 새 Flyway 인덱스 마이그레이션. 기존 SQL은 유지할 수 있다.
-- 정산 상세: [SettlementRepository.findLineItems](../../../../src/main/java/kr/kro/airbob/domain/settlement/repository/SettlementRepository.java)의 UNION 집계를 단일 조인·조건부 합계로 교체하는 후보. 월 전체 정산 배치 쿼리와는 별개다.
-- 쿠폰 목록: [CouponRepository](../../../../src/main/java/kr/kro/airbob/domain/coupon/repository/CouponRepository.java)의 `findCampaignsWithRemainingUnits`와 별도 가용성 projection. 현재는 보호된 비교 경로에만 연결했다.
+- 호스트 목록: [AccommodationRepositoryImpl](../../../src/main/java/kr/kro/airbob/domain/accommodation/repository/querydsl/AccommodationRepositoryImpl.java)의 조회 조건과 정렬에 맞는 새 Flyway 인덱스 마이그레이션. 기존 SQL은 유지할 수 있다.
+- 정산 상세: [SettlementRepository.findLineItems](../../../src/main/java/kr/kro/airbob/domain/settlement/repository/SettlementRepository.java)의 UNION 집계를 단일 조인·조건부 합계로 교체하는 후보. 월 전체 정산 배치 쿼리와는 별개다.
+- 쿠폰 목록: [CouponRepository](../../../src/main/java/kr/kro/airbob/domain/coupon/repository/CouponRepository.java)의 `findCampaignsWithRemainingUnits`와 별도 가용성 projection. 현재는 보호된 비교 경로에만 연결했다.
 
 ## 기존 로컬 데이터와 진단 방법
 

@@ -80,7 +80,7 @@
       "source_path": "load-test/k6/README.md",
       "source_blob": "7a221f0fdd788d79295b32ccfef7ddc28d5dd4d5",
       "source_sha256": "0804c942b07c6bdd209c4c3890074ce267da0bbf8c9bb3e513e39572254030d6",
-      "restored_sha256": "cd793c9ccd9daee8d8c349753409426683333b460c6509ffec30031b21dbd18a",
+      "restored_sha256": "b26bf8274d6b2c41990343e4328e68a6868f93d82dce5ae239cb4c4758673dff",
       "mode": "100644",
       "documentation_adapted": true
     },
@@ -260,7 +260,7 @@
       "source_path": "load-test/k6/cache/README.md",
       "source_blob": "1c5886422645cdc85448bfa8104370faff63ee81",
       "source_sha256": "a8c0f05193901f99dc5935cd4881b84d5a25127ade6e439055e2028148dd44a0",
-      "restored_sha256": "f7395132ec542c9b339f819112824b12e804bfc44211a7d418383ec89239fab8",
+      "restored_sha256": "82ef2276b89d8146f9341078cebcb291b5bd8ec37ed9232d63e1cef068433905",
       "mode": "100644",
       "documentation_adapted": true
     },
@@ -386,7 +386,7 @@
       "source_path": "load-test/k6/coupon/AWS.md",
       "source_blob": "642671e5f8b4180ba39580af27018c013c419375",
       "source_sha256": "5d83e14a8ac9266047e5fe7237d4c865ca8a58cdb250848f6c9b86016992ff38",
-      "restored_sha256": "7025b6a5d63ba61164c24eeaa6080c21e0cec783dcb588aff1c393f7505a9c37",
+      "restored_sha256": "c018d11268ed304652b78b4e60cf580ede34707f47d3037df30ec34a2b59abc9",
       "mode": "100644",
       "documentation_adapted": true
     },
@@ -395,7 +395,7 @@
       "source_path": "load-test/k6/coupon/MANUAL.md",
       "source_blob": "99e9801df45873030733bdfb32f91a8c81f66ce5",
       "source_sha256": "ae00aad0c92f913500d31552cbd691c01671ccca8211e657383dc3aa0179a202",
-      "restored_sha256": "32d8abff4fa51f83e078cf2921154d16fba365da651cf15268c136e0271b488c",
+      "restored_sha256": "f9f4d9b4d6cb038d217e1b7385c1afa22736c37c0207811c09dc5154f8012e68",
       "mode": "100644",
       "documentation_adapted": true
     },
@@ -404,7 +404,7 @@
       "source_path": "load-test/k6/coupon/README.md",
       "source_blob": "aff02c2e4b22832d061169bfb8356744688d5140",
       "source_sha256": "e66bef967ec6a99033d0aded75496fe66c4e5e6a5f02fb7c64347877e94d5879",
-      "restored_sha256": "e2b1a9a7baf31a9db26af0bc5b791cfb88aa895954d351619e53d07c0535bf25",
+      "restored_sha256": "f09aa4c69243e1ce23b9b6c3821b2215f7e81e65ed88a4de4df56a4aaa2f1e9c",
       "mode": "100644",
       "documentation_adapted": true
     },
@@ -737,7 +737,7 @@
       "source_path": "load-test/k6/read-model/README.md",
       "source_blob": "5ffd9e43c18aa68210810e7692641ec44bdbceab",
       "source_sha256": "e3f2389b945200926e602c24a67435769c9813179ab0ada682d632819b1c265c",
-      "restored_sha256": "97e1edda26e35ad04c10c8cc76337b890d9aa1a788620f54ca06192f13f33797",
+      "restored_sha256": "3ab23c26c74c0d824d62f3c19e8a9a6bd3a29d3ad39225861b5533eff3d94f09",
       "mode": "100644",
       "documentation_adapted": true
     },
@@ -800,7 +800,7 @@
       "source_path": "load-test/k6/review-summary/AWS.md",
       "source_blob": "4d8335f7eb36c80b11c9a8cb3e9561b0b27a8767",
       "source_sha256": "9a47340e80ba0586861eaaa01f5b48b84f3ca84db8ce6443b6ef6d76f811b527",
-      "restored_sha256": "d93224c11ad7b46cd3d24d593b3f4e25762642f9806ceb0df478eb57fd90c181",
+      "restored_sha256": "92d4adeb3cba241e884aeeeab59e85162564a199b00ebf6e23bdfed6dde09621",
       "mode": "100644",
       "documentation_adapted": true
     },

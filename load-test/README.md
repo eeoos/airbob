@@ -22,7 +22,7 @@
 
 ## 스크립트와 결과를 함께 읽는 방법
 
-1. [측정 결과와 해석](../docs/performance/results/README.md)에서 환경, 앱 커밋, 이미지, 데이터셋, 유효 실행을 확인한다.
+1. [측정 결과와 해석](../docs/performance/README.md)에서 환경, 앱 커밋, 이미지, 데이터셋, 유효 실행을 확인한다.
 2. 해당 스크립트와 설정 파일에서 요청률·동시 사용자 수·워밍업·측정 시간·반복 순서를 확인한다.
 3. 응답 검증, 실패율·누락 요청 처리, p95 집계 방식과 결과 파일을 함께 확인한다.
 
@@ -40,5 +40,5 @@
 보관 기준 커밋과 개별 실측의 앱 커밋은 구분한다. 현재 운영 코드 기준의 새 측정은 별도로 구성한다.
 
 - [당시 전체 소스](https://github.com/eeoos/airbob/tree/8b3cc82b923347a0c6d781e3f0f755eb177e8b14/load-test)
-- [운영 구현의 벌크 쓰기 정리 기록](../docs/performance/bulk-write-history.md)
-- [현재 쿼리 모니터링과 로컬 SQL 추적](../docs/query-count-monitoring.md)
+- [벌크 쓰기 개선과 측정 범위](../docs/performance/bulk-write.md)
+- [현재 쿼리 모니터링과 로컬 SQL 추적](../docs/operations/query-count-monitoring.md)

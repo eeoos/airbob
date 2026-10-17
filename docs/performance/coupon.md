@@ -1,5 +1,7 @@
 # 쿠폰 발급 AWS 성능 비교 결과
 
+[현재 발급 구조와 전환 절차](../operations/coupon-issuance-operations.md) · [로컬 후보 검증](history/coupon-local-results.md) · [측정 스크립트](../../load-test/k6/coupon/MEASUREMENT.md)
+
 원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11).
 
 현재 요구사항에서는 **대리 키와 REPEATABLE_READ를 유지한다.** 공용 카운터를 갱신하는 조건부
@@ -118,7 +120,7 @@ API를 측정했으므로 다른 업무가 함께 실행되는 전체 서비스 
 
 - [comparison.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/comparison.json): 최종 범위 27개 본 측정, 결과 코드, 지연, 준비 작업 및 판정.
 - [observed-summary.json](https://github.com/eeoos/airbob/blob/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-aws-2026-10-11/observed-summary.json): 초기 탐색·실패를 포함한 본 측정과 DB 관측 요약.
-- [METHOD.ko.md](METHOD.ko.md): 예열 변경과 판정 규칙, 관측 구간, 사용자 범위 변경의 상세 기록.
+- [METHOD.ko.md](history/coupon-aws-method-2026-10-11.md): 예열 변경과 판정 규칙, 관측 구간, 사용자 범위 변경의 상세 기록.
 - `raw/`: 허용 목록으로 추출한 클라이언트·서버·재고·앱 관측 원본과 SHA-256 manifest.
 - `database.json.gz`, `diagnostics.json.gz`, `observations.json.gz`: DB 표본, 연결·SQL·JIT 진단, 환경 및 복구 근거.
 - `plans/`, `harness-sources.ndjson.gz`: 원래 계획과 조정한 계획, 실제 실행·분석 도구의 소스.

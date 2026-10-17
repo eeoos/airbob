@@ -24,7 +24,7 @@ class ScopeTests(unittest.TestCase):
             '.github/workflows/aws-growth-b-images.yml', 'infra/aws/images/global-b-runtime.json',
             'docker/aws-global-b-debezium/Dockerfile', 'infra/aws/bundles/debezium/compose.yml',
             'monitoring/prometheus/prometheus.aws.yml', 'infra/aws/scripts/growth_b_images.py',
-            'infra/aws/scripts/publish-ecr-image.sh', 'docs/performance/aws-performance-lab.md',
+            'infra/aws/scripts/publish-ecr-image.sh', 'docs/operations/aws-performance-lab.md',
             'docker/kafka/init-topics.sh', 'docker/debezium/register-connector.sh',
             'docker/debezium/monitor-connector.sh']))
 

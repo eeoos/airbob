@@ -31,7 +31,7 @@ Elasticsearch health는 single-node에서 허용되는 yellow 이상 상태로 �
 ## Reviewed asset 동기화
 
 CD는 deploy job에서도 commit을 checkout한 다음
-[sync-oci-deployment-assets.sh](../scripts/sync-oci-deployment-assets.sh)를 실행한다. 다음
+[sync-oci-deployment-assets.sh](../../scripts/sync-oci-deployment-assets.sh)를 실행한다. 다음
 경로만 $HOME/airbob의 managed deployment asset으로 동기화한다.
 
 - docker-compose.oci.yml
@@ -45,7 +45,7 @@ managed directory 안에서 저장소에서 삭제된 파일은 서버에서도 
 
 ## 정상 배포 순서
 
-[deploy-oci.sh](../scripts/deploy-oci.sh)는 항상 .env.oci와
+[deploy-oci.sh](../../scripts/deploy-oci.sh)는 항상 .env.oci와
 docker-compose.oci.yml을 명시해서 다음 순서로 실행한다.
 
 1. docker compose config --quiet

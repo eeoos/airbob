@@ -5,9 +5,10 @@
 # 쿠폰 조건부 UPDATE / SKIP LOCKED 실험
 
 같은 앱에서 재고 카운터와 unit 소비를 비교한다. 모든 비교군은 MySQL 커밋 후 201을 반환한다.
-설계와 단계별 완료 기준은 [계획서](../../../docs/performance/coupon-issuance-design.md),
-배포 입력은 [AWS 가이드](AWS-MEASUREMENT.md), 직접 실행은 [수동 가이드](MANUAL-MEASUREMENT.md)를 참고한다.
-[2026-10-09 로컬 반복 측정 결과](../../../docs/performance/coupon-skip-locked-local-results.md)에 무효 회차까지 보존했다.
+당시 비교 기준은 [비교 계약](../../../docs/performance/history/coupon-local-results.md#당시-발급-비교-계약),
+현재 발급 구조는 [쿠폰 운영](../../../docs/operations/coupon-issuance-operations.md)을 참고한다.
+배포 입력은 [AWS 가이드](AWS-MEASUREMENT.md), 직접 실행은 [수동 가이드](MANUAL-MEASUREMENT.md)에 있다.
+[2026-10-09 로컬 반복 측정 결과](../../../docs/performance/history/coupon-local-results.md)에 무효 회차까지 보존했다.
 
 ## 비교군과 고정 조건
 
@@ -293,7 +294,7 @@ python3 load-test/k6/coupon/run-campaign-read-local.py \
 로컬에 `mysql:8.4.11`, `redis:7.2-alpine` 이미지와 k6, Python 3, 최신 Java 21이 필요하다.
 실행 중 비밀값은 임시 파일에만 두며 기존 개발 DB에는 접속하지 않는다.
 
-[2026-10-12 결과와 한계](../../../docs/performance/results/read-api-local-2026-10-12/README.md)에
+[2026-10-12 결과와 한계](../../../docs/performance/history/read-api-local-2026-10-12.md)에
 모든 회차와 제외한 실행의 근거를 보존했다. 이 경로는 `test,coupon-benchmark`에서 검증했으며,
 발급용 `coupon-performance` 허용 목록에는 추가하지 않았다.
 

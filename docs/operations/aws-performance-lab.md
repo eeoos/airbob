@@ -1,16 +1,19 @@
-# AWS Performance Lab — Application and Service Bundle Contracts
+# AWS 고정 이미지·리소스 관리 계약
 
 > 2026-10-17: 앱 성능 측정은 종료했다. 현재 앱은 실험 전용 프로필과 비교 API를 제공하지 않는다.
 > 아래 리소스 관리 계약은 기존 데이터셋과 호환되는 고정 이미지를 대상으로 보존한다.
 > V27 실행기는 `SPRING_FLYWAY_TARGET=27`을 환경에 명시해 앱 프로필과 무관하게 스키마를 보호한다.
 > 현재 앱을 과거 실험 이미지 대신 사용하지 않는다. 신규 측정 도구는 별도로 구성한다.
 
+현재 명령 사용법은 [AWS 빠른 실행 안내](aws-lab-quickstart.md)를 따른다. 아래 프로필·정책 설명은
+기록된 고정 이미지의 계약이며, 현재 앱의 프로필 목록으로 사용하지 않는다.
+
 Cache measurements are complete. The cache-only application profile and runners are retained in
 `archive/cache-measurements-20261011`; use that version with its recorded image and dataset.
-See [cache measurement results](aws-cache-experiments.md). The shared AWS infrastructure below
+See [cache measurement results](../performance/cache.md). The shared AWS infrastructure below
 remains available for the other experiments; it does not make the retired profile available in a new image.
 
-## Current status
+## 보존 버전의 구현·검증 상태
 
 | Capability | Status |
 |---|---|
@@ -62,7 +65,7 @@ The application schema now includes V29 coupon units after V28 quote expiry remo
 image does not change the verified dataset schema or bootstrap receipt. This
 dataset remains tied to its compatible pinned image for existing isolated read experiments.
 New coupon experiments require a separately migrated and verified V29 derivative dataset
-and the coupon-performance profile; see load-test/k6/coupon/AWS.md. Reservation
+and the coupon-performance profile; see load-test/k6/coupon/AWS-MEASUREMENT.md. Reservation
 quote creation and checkout require the V28 application schema and are tested
 outside this V27 lab. A future lab schema upgrade needs a matching new dataset
 release and validation contract; it must not rewrite the published V27 release.

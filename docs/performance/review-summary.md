@@ -1,5 +1,7 @@
 # 리뷰 요약 반정규화 AWS 측정 결과
 
+[로컬 비교와 구현 설명](history/review-summary-local.md) · [N+1과 리뷰 요약의 단계별 비교](recently-viewed.md) · [측정 스크립트](../../load-test/k6/review-summary/MEASUREMENT.md)
+
 원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/review-summary-aws-2026-10-12).
 
 2026년 10월 12일 기존 AWS 실험 자원에서 실제 화면 조회 API의 원본 리뷰 집계(Before)와 요약 테이블 조회(After)를 비교했다. 위시리스트와 최근 본 숙소는 세 회차 모두 빨라졌다. 상세 조회는 중앙값이 줄었지만 한 회차에서는 더 느렸다.

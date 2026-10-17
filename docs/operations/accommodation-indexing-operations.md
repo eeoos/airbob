@@ -2,12 +2,12 @@
 
 숙소 검색 문서는 MySQL을 원본으로 삼고, Kafka 레코드는 “이 숙소 UID의 현재 상태를 다시
 읽어라”는 wake-up signal로만 사용한다. 숙소·이미지·리뷰·예약의 색인 관련 변경은 모두
-[`AccommodationSearchRefreshRequestedV1`](../src/main/java/kr/kro/airbob/search/messaging/event/AccommodationSearchRefreshRequestedV1.java)로
+[`AccommodationSearchRefreshRequestedV1`](../../src/main/java/kr/kro/airbob/search/messaging/event/AccommodationSearchRefreshRequestedV1.java)로
 수렴한다.
 
-[`AccommodationSearchRefreshListener`](../src/main/java/kr/kro/airbob/search/messaging/kafka/AccommodationSearchRefreshListener.java)가
+[`AccommodationSearchRefreshListener`](../../src/main/java/kr/kro/airbob/search/messaging/kafka/AccommodationSearchRefreshListener.java)가
 이벤트를 받은 뒤
-[`AccommodationSearchSnapshotReader`](../src/main/java/kr/kro/airbob/search/service/AccommodationSearchSnapshotReader.java)로
+[`AccommodationSearchSnapshotReader`](../../src/main/java/kr/kro/airbob/search/service/AccommodationSearchSnapshotReader.java)로
 현재 MySQL snapshot을 읽는다. 현재 `PUBLISHED`면 전체 문서를 저장하고, 누락·미게시·삭제
 상태면 Elasticsearch 문서를 제거한다. 이벤트 생성 당시의 숙소 필드를 payload로
 전달하지 않으므로 늦게 도착한 이벤트가 최신 문서를 과거 상태로 되돌리지 않는다.
@@ -29,7 +29,7 @@ topic 자동 생성은 운영에서 꺼져 있다. 배포 bootstrap이 다음 �
 ## Alias bootstrap과 listener readiness
 
 애플리케이션은 concrete index `accommodations`를 직접 쓰지 않는다. 시작 시
-[`ElasticsearchAccommodationIndexAliasBootstrap`](../src/main/java/kr/kro/airbob/search/infrastructure/elasticsearch/ElasticsearchAccommodationIndexAliasBootstrap.java)이
+[`ElasticsearchAccommodationIndexAliasBootstrap`](../../src/main/java/kr/kro/airbob/search/infrastructure/elasticsearch/ElasticsearchAccommodationIndexAliasBootstrap.java)이
 다음을 확인한다.
 
 1. `accommodations` alias가 정확히 하나의 `accommodations-v*` index를 가리킨다.

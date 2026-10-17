@@ -1,0 +1,382 @@
+{
+  "description": "보존한 AWS 측정 보고서에서 성능·조건·소스 해시만 발췌했다. 새 측정을 수행한 결과가 아니다.",
+  "measurements": [
+    {
+      "run": "20261012-raw-review",
+      "sourceReport": "airbob-artifacts/nplus1/20261012-raw-review/measurement-report.json",
+      "sourceReportSha256": "ed2ce2496a8f145c8e7941d05892abe6e71f40cc96fbe971d48a5a587cb480e0",
+      "source": {
+        "baseCommit": "43edf992227af2ae628ac0d83815c56722cf34b8",
+        "workingTreePatchSha256": "3fc834f1cf987f7d813ae967dd69250a7a39ffa38d55fe9de8d4443cdcf8e89e",
+        "jarSha256": "2d0dc1cbdeb48f2a5d9597e41174b55782f55e25517069ffbfb04e585adcc5b3"
+      },
+      "evidenceArchive": "airbob-artifacts/nplus1/20261012-raw-review/k6-evidence.tar.gz",
+      "evidenceArchiveSha256": "fc7ed0ecf0ab3e86864fa9ea6cb37062a177177bed037eae10026d0a34f73c5d",
+      "conditions": {
+        "rows": 100,
+        "distinctAddresses": 100,
+        "publishedReviewRows": 671,
+        "accommodationsWithReviews": 83,
+        "reviewSummarySource": "raw-review-aggregate",
+        "appInstances": 1,
+        "appInstanceType": "c6i.large",
+        "appCpu": 2,
+        "appMemoryGiB": 3,
+        "jvmHeapMiB": 1536,
+        "hikariPool": 10,
+        "dbInstanceType": "db.t3.small",
+        "mysqlVersion": "8.4.11",
+        "dbBufferPoolMiB": 512,
+        "loadgenInstanceType": "c6i.xlarge",
+        "k6Version": "1.5.0",
+        "batchFetchSize": 0,
+        "sqlLogging": "OFF",
+        "profiles": [
+          "aws",
+          "traffic-benchmark",
+          "nplus1-benchmark"
+        ]
+      },
+      "summary": {
+        "before": {
+          "requests": 10803,
+          "p50Ms": 62.639996,
+          "p95Ms": 83.82203709999999,
+          "p99Ms": 153.40752881999992,
+          "averageMs": 66.96132570193465,
+          "minMs": 55.724487,
+          "maxMs": 600.630383,
+          "rps": 20.005555555555556,
+          "individualP95Ms": [
+            77.834186,
+            85.894568,
+            88.007652
+          ],
+          "selectQueriesPerRequest": 103.0,
+          "errorRate": 0,
+          "droppedIterations": 0
+        },
+        "after": {
+          "requests": 10801,
+          "p50Ms": 16.590266,
+          "p95Ms": 21.062246,
+          "p99Ms": 38.264589,
+          "averageMs": 17.5732543146005,
+          "minMs": 15.291238,
+          "maxMs": 167.980439,
+          "rps": 20.001851851851853,
+          "individualP95Ms": [
+            20.573817099999996,
+            21.244125049999987,
+            21.735957
+          ],
+          "selectQueriesPerRequest": 3.0,
+          "errorRate": 0,
+          "droppedIterations": 0
+        }
+      },
+      "aggregation": "p95 recomputed from pooled measure-only raw duration samples; no averaging of run percentiles; pilot requests excluded",
+      "runs": [
+        {
+          "label": "round-1-after",
+          "variant": "after",
+          "rate": 20,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 3.0,
+          "valid": true
+        },
+        {
+          "label": "round-1-before",
+          "variant": "before",
+          "rate": 20,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 103.0,
+          "valid": true
+        },
+        {
+          "label": "round-2-after",
+          "variant": "after",
+          "rate": 20,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 3.0,
+          "valid": true
+        },
+        {
+          "label": "round-2-before",
+          "variant": "before",
+          "rate": 20,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 103.0,
+          "valid": true
+        },
+        {
+          "label": "round-3-after",
+          "variant": "after",
+          "rate": 20,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 3.0,
+          "valid": true
+        },
+        {
+          "label": "round-3-before",
+          "variant": "before",
+          "rate": 20,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 103.0,
+          "valid": true
+        }
+      ],
+      "queryCountScope": "validation+warmup+measure; dedicated route, constant fixture"
+    },
+    {
+      "run": "20261012-three-stages",
+      "sourceReport": "airbob-artifacts/nplus1/20261012-three-stages/measurement-report.json",
+      "sourceReportSha256": "77e12e7bd56d98cfc7d40b9016ee324f83d5301716d19e1ff0a175e2801d2727",
+      "source": {
+        "baseCommit": "43edf992227af2ae628ac0d83815c56722cf34b8",
+        "workingTreePatchSha256": "3fc834f1cf987f7d813ae967dd69250a7a39ffa38d55fe9de8d4443cdcf8e89e",
+        "jarSha256": "2d0dc1cbdeb48f2a5d9597e41174b55782f55e25517069ffbfb04e585adcc5b3"
+      },
+      "evidenceArchive": "airbob-artifacts/nplus1/20261012-three-stages/k6-evidence.tar.gz",
+      "evidenceArchiveSha256": "9fd23219c56014cfba5c3748087fdbdaeb6025b5b7c42544575609b31fc7c044",
+      "conditions": {
+        "stages": {
+          "before": "Address N+1 + raw-review aggregation",
+          "after": "Accommodation/address DTO JOIN + raw-review aggregation",
+          "denormalized": "Accommodation/address/review-summary DTO JOIN"
+        },
+        "expectedSelects": {
+          "before": 103,
+          "after": 3,
+          "denormalized": 2
+        },
+        "rows": 100,
+        "publishedReviews": 15384,
+        "rate": 10,
+        "warmupSeconds": 60,
+        "measureSeconds": 180,
+        "rounds": 3,
+        "orders": [
+          [
+            "before",
+            "after",
+            "denormalized"
+          ],
+          [
+            "after",
+            "denormalized",
+            "before"
+          ],
+          [
+            "denormalized",
+            "before",
+            "after"
+          ]
+        ],
+        "aggregation": "Pooled measure-only samples per stage; shared middle-stage p95 for both improvements",
+        "appInstances": 1,
+        "appInstanceType": "c6i.large",
+        "appContainerCpu": 2,
+        "appContainerMemoryGiB": 3,
+        "jvmHeapMiB": 1536,
+        "hikariPool": 10,
+        "dbInstanceType": "db.t3.small",
+        "mysqlVersion": "8.4.11",
+        "dbBufferPoolMiB": 512,
+        "loadgenInstanceType": "c6i.xlarge",
+        "k6Version": "1.5.0",
+        "batchFetchSize": 0,
+        "sqlLogging": "OFF",
+        "profiles": [
+          "aws",
+          "traffic-benchmark",
+          "nplus1-benchmark"
+        ]
+      },
+      "summary": {
+        "before": {
+          "requests": 5402,
+          "p50Ms": 127.70562100000001,
+          "p95Ms": 203.75692919999995,
+          "p99Ms": 407.21512328999927,
+          "averageMs": 140.15009592687895,
+          "minMs": 119.782176,
+          "maxMs": 708.404178,
+          "rps": 10.003703703703703,
+          "individualP95Ms": [
+            203.399068,
+            207.14004964999992,
+            201.128377
+          ],
+          "selectQueriesPerRequest": 103,
+          "errorRate": 0,
+          "droppedIterations": 0
+        },
+        "after": {
+          "requests": 5401,
+          "p50Ms": 77.913032,
+          "p95Ms": 99.897908,
+          "p99Ms": 191.500714,
+          "averageMs": 83.04923213886318,
+          "minMs": 74.926961,
+          "maxMs": 585.399459,
+          "rps": 10.001851851851852,
+          "individualP95Ms": [
+            98.750217,
+            99.64034969999999,
+            100.64482714999995
+          ],
+          "selectQueriesPerRequest": 3,
+          "errorRate": 0,
+          "droppedIterations": 0
+        },
+        "denormalized": {
+          "requests": 5401,
+          "p50Ms": 13.360218,
+          "p95Ms": 16.514379,
+          "p99Ms": 33.556233,
+          "averageMs": 14.187806825958155,
+          "minMs": 12.295549,
+          "maxMs": 177.218184,
+          "rps": 10.001851851851852,
+          "individualP95Ms": [
+            16.740439,
+            16.214135249999998,
+            16.90544485
+          ],
+          "selectQueriesPerRequest": 2,
+          "errorRate": 0,
+          "droppedIterations": 0
+        }
+      },
+      "aggregation": "Stage-level p95 recomputed from pooled measure-only raw samples; pilots/warmup/preflight excluded; shared middle stage used identically for both comparisons",
+      "runs": [
+        {
+          "label": "round-1-after",
+          "variant": "after",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 3.0,
+          "valid": true
+        },
+        {
+          "label": "round-1-before",
+          "variant": "before",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 103.0,
+          "valid": true
+        },
+        {
+          "label": "round-1-denormalized",
+          "variant": "denormalized",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 2.0,
+          "valid": true
+        },
+        {
+          "label": "round-2-after",
+          "variant": "after",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 3.0,
+          "valid": true
+        },
+        {
+          "label": "round-2-before",
+          "variant": "before",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 103.0,
+          "valid": true
+        },
+        {
+          "label": "round-2-denormalized",
+          "variant": "denormalized",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 2.0,
+          "valid": true
+        },
+        {
+          "label": "round-3-after",
+          "variant": "after",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 3.0,
+          "valid": true
+        },
+        {
+          "label": "round-3-before",
+          "variant": "before",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 103.0,
+          "valid": true
+        },
+        {
+          "label": "round-3-denormalized",
+          "variant": "denormalized",
+          "rate": 10,
+          "warmupSeconds": 60,
+          "measureSeconds": 180,
+          "observedSelectPerRequest": 2.0,
+          "valid": true
+        }
+      ],
+      "comparisons": {
+        "nplus1": {
+          "beforeStage": "before",
+          "afterStage": "after",
+          "beforeP95Ms": 203.75692919999995,
+          "afterP95Ms": 99.897908,
+          "p95ReductionPercent": 50.972019262253376,
+          "selectQueriesBefore": 103,
+          "selectQueriesAfter": 3,
+          "selectReductionPercent": 97.0873786407767
+        },
+        "reviewDenormalization": {
+          "beforeStage": "after",
+          "afterStage": "denormalized",
+          "beforeP95Ms": 99.897908,
+          "afterP95Ms": 16.514379,
+          "p95ReductionPercent": 83.46874391003263,
+          "selectQueriesBefore": 3,
+          "selectQueriesAfter": 2,
+          "selectReductionPercent": 33.333333333333336
+        },
+        "combined": {
+          "beforeStage": "before",
+          "afterStage": "denormalized",
+          "beforeP95Ms": 203.75692919999995,
+          "afterP95Ms": 16.514379,
+          "p95ReductionPercent": 91.89505894850323,
+          "selectQueriesBefore": 103,
+          "selectQueriesAfter": 2,
+          "selectReductionPercent": 98.05825242718447
+        }
+      },
+      "limitations": [
+        "Fixed review-heavy fixture, not a random sample of user traffic.",
+        "Read performance at fixed 10 RPS; no maximum-throughput or review-write-cost claim.",
+        "Earlier 671-review/20-RPS and 15384-review/10-RPS experiments remain separate; their values are not spliced into this comparison."
+      ],
+      "queryCountScope": "validation+warmup+measure; dedicated route, constant fixture"
+    }
+  ]
+}

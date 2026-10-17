@@ -2,7 +2,7 @@
 
 원본 계측 파일·설정·검증 기록: [측정 당시 보관본](https://github.com/eeoos/airbob/tree/a10b89a1bfdc173f3f327ed4657a1df2db14d2cd/docs/performance/results/coupon-scenarios-2026-10-10).
 
-[보고서](../../coupon-skip-locked-local-results.md)의 2026-10-10 추가 측정 자료다.
+[보고서](coupon-local-results.md)의 2026-10-10 추가 측정 자료다.
 2026-10-09의 고정 500 RPS 실험과 다른 실행 묶음이며 통계를 합치지 않는다.
 커넥션 풀 선정 실험은 보류한 상태로, 앱 1개·Hikari 최대/최소 유휴 10개를 고정했다.
 기존 JAR을 그대로 사용했고 AWS 자원이나 기존 개발용 컨테이너는 변경하지 않았다.

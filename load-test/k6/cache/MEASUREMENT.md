@@ -6,7 +6,7 @@
 
 AWS 실험의 오프라인 준비는 `make aws-cache-prepare`로 실행한다. AWS를 켜거나 호출하지 않는다.
 실제 리소스 준비, 최대 지속 RPS 탐색, 장애 복구 절차는
-[AWS 캐시 실험 가이드](../../../docs/performance/aws-cache-experiments.md)를 참고한다.
+[AWS 캐시 실험 가이드](../../../docs/performance/cache.md)를 참고한다.
 로컬과 AWS는 `accommodation-detail-experiment.js`를 공유하며 환경 제어 실행기는 각각 분리한다.
 
 ## 로컬 성능·경합·장애 실험
