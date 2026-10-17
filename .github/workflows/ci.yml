@@ -113,7 +113,9 @@ jobs:
         run: bash infra/aws/tests/mysql-init-script-test.sh
 
       - name: Verify immutable AWS image publication contracts
-        run: bash infra/aws/tests/image-publication-test.sh
+        run: |
+          bash infra/aws/tests/image-publication-test.sh
+          python3 -m unittest discover -s infra/aws/tests -p 'test_image_publication_scope.py'
 
       - name: Verify AWS foundation and Phase 2-4 Terraform contracts
         run: |
