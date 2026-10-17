@@ -182,6 +182,9 @@ import kr.kro.airbob.domain.wishlist.exception.WishlistAccommodationDuplicateExc
 import kr.kro.airbob.domain.wishlist.exception.WishlistNotFoundException;
 import kr.kro.airbob.domain.wishlist.service.WishlistService;
 import kr.kro.airbob.search.service.AccommodationSearchService;
+import kr.kro.airbob.search.dto.AccommodationSearchResponse;
+import kr.kro.airbob.search.document.AccommodationDocument;
+import kr.kro.airbob.search.exception.SearchUnavailableException;
 
 @SpringBootTest(classes = ApiDocumentationTest.MvcApplication.class, properties = {
 	"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"
@@ -385,6 +388,21 @@ class ApiDocumentationTest {
 			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(specification("client"), "/api/v1/profile/host/accommodations/{accommodationId}", "get", "200", body);
 		assertThat(mapper.readTree(body).at("/data/address/city").isNull()).isTrue();
+	}
+
+	@Test
+	void uploadsAndSearchDescribeBrowserInputs() throws Exception {
+		JsonNode spec = specification("client");
+		for (String path : List.of("/api/v1/accommodations/{accommodationId}/images", "/api/v1/reviews/{reviewId}/images")) {
+			JsonNode operation = spec.path("paths").path(path).path("post");
+			assertThat(operation.path("parameters").findValuesAsText("name")).doesNotContain("images");
+			assertThat(operation.path("requestBody").path("content").path("multipart/form-data")
+				.at("/schema/properties/images/items/format").asText()).isEqualTo("binary");
+		}
+		JsonNode search = spec.path("paths").path("/api/v1/search/accommodations").path("get");
+		assertThat(search.path("parameters").findValuesAsText("name"))
+			.contains("destination", "topLeftLat", "minPrice", "checkIn", "page", "size")
+			.doesNotContain("mapBounds", "searchRequest", "pageable", "valid", "validDateRange", "totalGuests", "sort");
 	}
 
 	@Test
@@ -1924,6 +1942,126 @@ class ApiDocumentationTest {
 		String empty = mvc.perform(get(path).cookie(SESSION)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 		validateResponse(spec, path, "get", "200", empty);
 		assertThat(mapper.readTree(empty)).isEqualTo(mapper.readTree("{\"success\":true,\"data\":{\"accommodations\":[],\"total_count\":0}}"));
+	}
+
+
+	@Test
+	void searchBindsCamelCaseFiltersIsoDatesAndOptionalSessionIdentity() throws Exception {
+		var service = context.getBean(AccommodationSearchService.class);
+		String path = "/api/v1/search/accommodations";
+		mvc.perform(get(path).param("destination", "서울").param("checkIn", "2027-01-10").param("checkOut", "2027-01-12")
+			.param("minPrice", "0").param("maxPrice", "200000").param("adultOccupancy", "2").param("childOccupancy", "1")
+			.param("infantOccupancy", "1").param("petOccupancy", "1").param("amenityTypes", "WIFI", "PARKING")
+			.param("accommodationTypes", "APT").param("topLeftLat", "38").param("topLeftLng", "126")
+			.param("bottomRightLat", "37").param("bottomRightLng", "128").param("memberId", "999"))
+			.andExpect(status().isOk());
+		verify(service).searchAccommodations(argThat(request -> request.getDestination().equals("서울")
+			&& request.getCheckIn().equals(LocalDate.parse("2027-01-10")) && request.getCheckOut().equals(LocalDate.parse("2027-01-12"))
+			&& request.getMinPrice() == 0 && request.getMaxPrice() == 200000 && request.getAdultOccupancy() == 2
+			&& request.getChildOccupancy() == 1 && request.getInfantOccupancy() == 1 && request.getPetOccupancy() == 1
+			&& request.getAmenityTypes().equals(List.of("WIFI", "PARKING")) && request.getAccommodationTypes().equals(List.of("APT"))),
+			argThat(bounds -> bounds.getTopLeftLat() == 38 && bounds.getTopLeftLng() == 126
+				&& bounds.getBottomRightLat() == 37 && bounds.getBottomRightLng() == 128),
+			argThat(page -> page.getPageNumber() == 0 && page.getPageSize() == 18), isNull());
+		mvc.perform(get(path).cookie(SESSION).param("memberId", "999")).andExpect(status().isOk());
+		verify(service).searchAccommodations(any(), any(), any(), eq(10L));
+		mvc.perform(get(path).cookie(new Cookie("SESSION_ID", "expired"))).andExpect(status().isOk());
+		verify(service, org.mockito.Mockito.times(2)).searchAccommodations(any(), any(), any(), isNull());
+		assertThat(specification("client").path("paths").path(path).path("get").path("security").isEmpty()).isTrue();
+	}
+
+	@Test
+	void searchNormalizesPageAndSizeWithoutAcceptingUserSort() throws Exception {
+		var service = context.getBean(AccommodationSearchService.class);
+		String path = "/api/v1/search/accommodations";
+		String[][] values = {{"-1", "0", "0"}, {"invalid", "invalid", "0"}, {"15", "100", "14"},
+			{"2147483647", "1", "14"}, {"2", "18", "2"}};
+		for (String[] value : values) {
+			mvc.perform(get(path).param("page", value[0]).param("size", value[1]).param("sort", "basePrice,asc"))
+				.andExpect(status().isOk());
+		}
+		var pages = org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+		verify(service, org.mockito.Mockito.times(values.length)).searchAccommodations(any(), any(), pages.capture(), isNull());
+		assertThat(pages.getAllValues()).extracting(page -> page.getPageNumber()).containsExactly(0, 0, 14, 14, 2);
+		assertThat(pages.getAllValues()).allSatisfy(page -> assertThat(page.getPageSize()).isEqualTo(18));
+	}
+
+	@Test
+	void searchRejectsMalformedFiltersBeforeCallingTheSearchEngine() throws Exception {
+		String path = "/api/v1/search/accommodations";
+		JsonNode spec = specification("client");
+		var requests = List.of(
+			get(path).param("minPrice", "-1"), get(path).param("minPrice", "not-a-number"),
+			get(path).param("minPrice", "2147483648"), get(path).param("minPrice", "100").param("maxPrice", "99"),
+			get(path).param("adultOccupancy", "-1"), get(path).param("childOccupancy", "-1"),
+			get(path).param("infantOccupancy", "-1"), get(path).param("petOccupancy", "-1"),
+			get(path).param("checkIn", "2027-01-10"), get(path).param("checkOut", "2027-01-12"),
+			get(path).param("checkIn", "2027-01-12").param("checkOut", "2027-01-12"),
+			get(path).param("checkIn", "2027-02-30").param("checkOut", "2027-03-01"),
+			get(path).param("topLeftLat", "38"), get(path).param("topLeftLat", "not-a-number"),
+			get(path).param("topLeftLat", "91").param("topLeftLng", "126").param("bottomRightLat", "37").param("bottomRightLng", "128"),
+			get(path).param("topLeftLat", "38").param("topLeftLng", "NaN").param("bottomRightLat", "37").param("bottomRightLng", "128"),
+			get(path).param("topLeftLat", "36").param("topLeftLng", "126").param("bottomRightLat", "37").param("bottomRightLng", "128"));
+		for (var request : requests) {
+			String response = mvc.perform(request).andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+			assertDocumentedError(spec, path, "get", "400", "C001", response);
+		}
+		verifyNoInteractions(context.getBean(AccommodationSearchService.class));
+	}
+
+
+	@Test
+	void searchDocumentsEveryFilterWithoutInternalOrRequiredCookieInputs() throws Exception {
+		JsonNode operation = specification("client").path("paths").path("/api/v1/search/accommodations").path("get");
+		assertThat(operation.has("requestBody")).isFalse();
+		assertThat(operation.path("parameters").findValuesAsText("name")).containsExactlyInAnyOrder(
+			"destination", "minPrice", "maxPrice", "checkIn", "checkOut", "adultOccupancy", "childOccupancy", "infantOccupancy", "petOccupancy",
+			"amenityTypes", "accommodationTypes", "topLeftLat", "topLeftLng", "bottomRightLat", "bottomRightLng", "page", "size");
+		for (JsonNode parameter : operation.path("parameters")) {
+			assertThat(parameter.path("description").asText()).isNotBlank();
+			assertThat(parameter.path("required").asBoolean()).isFalse();
+			if (Set.of("amenityTypes", "accommodationTypes").contains(parameter.path("name").asText())) {
+				assertThat(parameter.path("description").asText()).contains("미지원", "반영되지");
+			}
+			if (Set.of("checkIn", "checkOut").contains(parameter.path("name").asText())) {
+				assertThat(parameter.at("/schema/format").asText()).isEqualTo("date");
+			}
+		}
+		assertThat(operation.path("responses").properties()).extracting(Map.Entry::getKey).containsExactlyInAnyOrder("200", "400", "503", "500");
+	}
+
+	@Test
+	void searchResponsesMatchNullableIndexedFieldsEmptyPagesAndUnavailableErrors() throws Exception {
+		var service = context.getBean(AccommodationSearchService.class);
+		JsonNode spec = specification("client");
+		String path = "/api/v1/search/accommodations";
+		var card = AccommodationSearchResponse.AccommodationSearchInfo.from(AccommodationDocument.builder().accommodationId(101L).build(), false);
+		var page = new AccommodationSearchResponse.PageInfo(18, 0, 1, 1, true, true, false, false);
+		when(service.searchAccommodations(any(), any(), any(), isNull()))
+			.thenReturn(new AccommodationSearchResponse.AccommodationSearchInfos(List.of(card), page));
+		String response = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", response);
+		JsonNode item = mapper.readTree(response).at("/data/stay_search_result_listing/0");
+		for (String nullable : List.of("name", "accommodation_thumbnail_url", "type", "base_price", "currency")) {
+			assertThat(item.path(nullable).isNull()).isTrue();
+		}
+		assertThat(item.at("/coordinate/latitude").isNull()).isTrue();
+		assertThat(item.at("/address_summary/country").isNull()).isTrue();
+		assertThat(item.at("/review_summary/total_count").asInt()).isZero();
+		assertThat(item.at("/review_summary/average_rating").decimalValue()).isZero();
+		assertThat(item.path("is_in_wishlist").asBoolean()).isFalse();
+		assertThat(mapper.readTree(response).at("/data/page_info/is_first").asBoolean()).isTrue();
+		assertThat(mapper.readTree(response).at("/data/page_info/is_last").asBoolean()).isTrue();
+		when(service.searchAccommodations(any(), any(), any(), isNull()))
+			.thenReturn(new AccommodationSearchResponse.AccommodationSearchInfos(List.of(), AccommodationSearchResponse.PageInfo.fail(18, 0)));
+		String empty = mvc.perform(get(path)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		validateResponse(spec, path, "get", "200", empty);
+		assertThat(mapper.readTree(empty).at("/data/stay_search_result_listing").isEmpty()).isTrue();
+		assertThat(mapper.readTree(empty).at("/data/page_info/total_elements").asLong()).isZero();
+		when(service.searchAccommodations(any(), any(), any(), isNull())).thenThrow(new SearchUnavailableException(new java.io.IOException("synthetic unavailable")));
+		var unavailable = mvc.perform(get(path).param("destination", "서울")).andExpect(status().isServiceUnavailable()).andReturn().getResponse();
+		assertDocumentedError(spec, path, "get", "503", "SE001", unavailable.getContentAsString());
+		assertThat(unavailable.getHeader("Retry-After")).isNull();
 	}
 
 	private void allowDocumentationAdmin() {

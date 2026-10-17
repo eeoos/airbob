@@ -19,6 +19,42 @@ class AccommodationSearchRequestValidationTest {
 
 	private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
+	@ParameterizedTest
+	@MethodSource("invalidMapBounds")
+	void rejectsPartialOutOfRangeNonFiniteAndInvertedMapBounds(Double top, Double left, Double bottom, Double right) {
+		assertThat(validator.validate(bounds(top, left, bottom, right))).isNotEmpty();
+	}
+
+	private static Stream<Arguments> invalidMapBounds() {
+		return Stream.of(
+			Arguments.of(38.0, null, null, null),
+			Arguments.of(91.0, 126.0, 37.0, 128.0),
+			Arguments.of(38.0, -181.0, 37.0, 128.0),
+			Arguments.of(38.0, 126.0, -91.0, 128.0),
+			Arguments.of(38.0, 126.0, 37.0, 181.0),
+			Arguments.of(Double.NaN, 126.0, 37.0, 128.0),
+			Arguments.of(38.0, Double.POSITIVE_INFINITY, 37.0, 128.0),
+			Arguments.of(38.0, 126.0, Double.NEGATIVE_INFINITY, 128.0),
+			Arguments.of(38.0, 126.0, 37.0, Double.NaN),
+			Arguments.of(36.0, 126.0, 37.0, 128.0));
+	}
+
+	@Test
+	void allowsOmittedBoundsWorldBoundaryAndDateLineCrossing() {
+		assertThat(validator.validate(bounds(null, null, null, null))).isEmpty();
+		assertThat(validator.validate(bounds(90.0, -180.0, -90.0, 180.0))).isEmpty();
+		assertThat(validator.validate(bounds(10.0, 170.0, -10.0, -170.0))).isEmpty();
+	}
+
+	private AccommodationSearchRequest.MapBoundsDto bounds(Double top, Double left, Double bottom, Double right) {
+		var bounds = new AccommodationSearchRequest.MapBoundsDto();
+		bounds.setTopLeftLat(top);
+		bounds.setTopLeftLng(left);
+		bounds.setBottomRightLat(bottom);
+		bounds.setBottomRightLng(right);
+		return bounds;
+	}
+
 	@Test
 	@DisplayName("날짜의 과거 여부는 DTO가 아니라 숙소 현지 예약 창으로 검증한다")
 	void allowsPastDatesForAccommodationLocalDateValidation() {
