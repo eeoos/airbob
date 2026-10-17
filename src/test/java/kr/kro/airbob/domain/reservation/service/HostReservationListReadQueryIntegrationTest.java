@@ -13,6 +13,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
@@ -243,6 +246,68 @@ class HostReservationListReadQueryIntegrationTest {
 		assertThat(result.pageInfo()).isEqualTo(new PageInfo(false, null, 5));
 	}
 
+	@ParameterizedTest
+	@EnumSource(ReservationFilterType.class)
+	@NullSource
+	void filtersBeforeLimitingEvenWhenExcludedReservationsFillTheNewestPages(ReservationFilterType filter) {
+		LocalDate matchingDate = LocalDate.parse(filter == ReservationFilterType.PAST ? "2026-03-08" : "2026-11-01");
+		LocalDate otherPeriod = LocalDate.parse(filter == ReservationFilterType.PAST ? "2026-11-01" : "2026-03-08");
+		List<ReservationStatus> matchingStatuses = filter == ReservationFilterType.CANCELLED
+			? List.of(ReservationStatus.CANCELLED, ReservationStatus.EXPIRED)
+			: List.of(ReservationStatus.CONFIRMED, ReservationStatus.CANCELLATION_PENDING,
+				ReservationStatus.CANCELLATION_FAILED);
+		for (long id = 40; id <= 45; id++) {
+			insertReservation(id, id % 2 == 0 ? 30 : 31, id % 2 == 0 ? 20 : 21,
+				matchingStatuses.get((int)(id % matchingStatuses.size())), matchingDate);
+		}
+		for (long group = 0; group < 12; group++) {
+			long id = 100 + group * 5;
+			insertReservation(id, 32, 20, matchingStatuses.getFirst(), matchingDate);
+			insertReservation(id + 1, 30, 20, ReservationStatus.PAYMENT_PENDING, matchingDate);
+			insertReservation(id + 2, 31, 20, ReservationStatus.PAYMENT_PROCESSING, matchingDate);
+			ReservationStatus otherStatus = filter == null ? ReservationStatus.PAYMENT_PENDING
+				: filter == ReservationFilterType.CANCELLED ? ReservationStatus.CONFIRMED : ReservationStatus.CANCELLED;
+			insertReservation(id + 3, 30, 20, otherStatus, matchingDate);
+			insertReservation(id + 4, 31, 20, filter == null ? ReservationStatus.PAYMENT_PROCESSING
+				: ReservationStatus.CONFIRMED, otherPeriod);
+		}
+		jdbc.update("UPDATE reservation SET created_at = ? WHERE id >= 100", CREATED_AT.plusSeconds(1));
+
+		CursorData cursor = null;
+		List<String> traversed = new ArrayList<>();
+		for (int pageNumber = 0; pageNumber < 3; pageNumber++) {
+			HostReservationInfos page = find(10L, filter, cursor, 2);
+			assertThat(page.reservations()).extracting(HostReservationInfo::reservationUid)
+				.containsExactly(uid(45 - pageNumber * 2L), uid(44 - pageNumber * 2L));
+			assertThat(page.pageInfo().currentSize()).isEqualTo(2);
+			assertThat(page.pageInfo().hasNext()).isEqualTo(pageNumber < 2);
+			traversed.addAll(page.reservations().stream().map(HostReservationInfo::reservationUid).toList());
+			cursor = page.pageInfo().hasNext()
+				? cursorDecoder.decode(page.pageInfo().nextCursor(), CursorData.class) : null;
+		}
+		assertThat(traversed).doesNotHaveDuplicates();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class,
+		names = {"CONFIRMED", "CANCELLATION_PENDING", "CANCELLATION_FAILED"})
+	void checkoutInstantBelongsToPastAtMicrosecondPrecision(ReservationStatus status) {
+		LocalDate checkIn = LocalDate.parse("2026-09-07");
+		LocalDateTime nowUtc = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
+		for (long id = 40; id <= 42; id++) {
+			insertReservation(id, id % 2 == 0 ? 30 : 31, 20, status, checkIn);
+			jdbc.update("UPDATE reservation SET check_out_at = ? WHERE id = ?",
+				nowUtc.plusNanos((id - 41) * 1000), id);
+		}
+
+		HostReservationInfos upcoming = find(10L, ReservationFilterType.UPCOMING, null, 20);
+		assertThat(upcoming.reservations()).extracting(HostReservationInfo::reservationUid)
+			.containsExactly(uid(42));
+		HostReservationInfos past = find(10L, ReservationFilterType.PAST, null, 20);
+		assertThat(past.reservations()).extracting(HostReservationInfo::reservationUid)
+			.containsExactly(uid(41), uid(40));
+	}
+
 	private HostReservationInfos find(Long hostId, ReservationFilterType filter, CursorData cursor, int size) {
 		entityManager.flush();
 		entityManager.clear();
@@ -259,7 +324,27 @@ class HostReservationListReadQueryIntegrationTest {
 		assertThat(statistics.getEntityLoadCount()).isZero();
 		assertThat(sql).doesNotContain(" join address ", "payment_transaction", " join payment ",
 			".description", ".message", ".email", ".role", ".updated_at", ".created_by");
+		assertPageIsLimitedBeforeDisplayJoins(sql);
 		return result;
+	}
+
+	private void assertPageIsLimitedBeforeDisplayJoins(String sql) {
+		Matcher derivedPage = Pattern.compile(" from \\(\\s*select ").matcher(sql);
+		assertThat(derivedPage.find()).as("select page keys in a derived table").isTrue();
+		int innerFrom = sql.indexOf(" from ", derivedPage.end());
+		String pageProjection = sql.substring(derivedPage.end(), innerFrom);
+		assertThat(pageProjection.split(",")).hasSize(2);
+		assertThat(pageProjection).contains(".id", ".created_at");
+		int limit = sql.indexOf(" limit ", innerFrom);
+		assertThat(limit).as("limit candidate keys inside the derived table").isGreaterThan(innerFrom);
+		int pageEnd = sql.indexOf(')', limit);
+		String pageQuery = sql.substring(innerFrom, pageEnd);
+		assertThat(pageQuery).contains(" join accommodation ", ".member_id", ".status", " order by ")
+			.doesNotContain(" join member ", ".nickname", ".name", ".thumbnail_url", ".thumbnail_image_url");
+		String displayQuery = sql.substring(pageEnd);
+		assertThat(displayQuery).contains(" join reservation ", " join accommodation ", " join member ", " order by ");
+		assertThat(sql.lastIndexOf(" limit ")).isEqualTo(limit);
+		assertThat(sql).doesNotContain(" offset ", " for update", " for share");
 	}
 
 	private void insertReservation(long id, long accommodationId, long guestId, ReservationStatus status, LocalDate checkIn) {

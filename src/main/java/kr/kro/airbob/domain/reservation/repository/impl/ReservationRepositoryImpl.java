@@ -21,6 +21,7 @@ import org.springframework.data.domain.SliceImpl;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
+import jakarta.persistence.EntityManager;
 import kr.kro.airbob.domain.member.entity.QMember;
 import kr.kro.airbob.domain.reservation.dto.QReservationDateRange;
 import kr.kro.airbob.domain.reservation.dto.ReservationDateRange;
@@ -35,13 +36,16 @@ import kr.kro.airbob.domain.reservation.repository.projection.QGuestReservationL
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationDetailProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection;
 import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationDetailProjection;
-import kr.kro.airbob.domain.reservation.repository.projection.QHostReservationListProjection;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 
+	private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES =
+		List.of(CONFIRMED, CANCELLATION_PENDING, CANCELLATION_FAILED);
+
 	private final JPAQueryFactory queryFactory;
+	private final EntityManager entityManager;
 
 	private final QMember guestMember = new QMember("guestMember");
 
@@ -195,27 +199,52 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 	public Slice<HostReservationListProjection> findHostReservationsByHostIdWithCursor(Long hostId, Long lastId,
 		LocalDateTime lastCreatedAt, ReservationFilterType filterType, Instant now, Pageable pageable) {
 
-		List<HostReservationListProjection> content = queryFactory
-			.select(new QHostReservationListProjection(
-				reservation.id, reservation.reservationUid, reservation.reservationCode,
-				reservation.totalPrice, reservation.currency, reservation.guestCount,
-				reservation.checkInDate, reservation.checkOutDate, reservation.timeZoneId,
-				reservation.status, reservation.createdAt,
-				guestMember.id, guestMember.nickname, guestMember.thumbnailImageUrl,
-				accommodation.id, accommodation.name, accommodation.thumbnailUrl
-			))
-			.from(reservation)
-			.innerJoin(reservation.accommodation, accommodation)
-			.innerJoin(reservation.guest, guestMember)
-			.where(
-				accommodation.member.id.eq(hostId),
-				reservation.status.notIn(PAYMENT_PENDING, PAYMENT_PROCESSING),
-				buildHostReservationFilter(filterType, now),
-				cursorCondition(lastId, lastCreatedAt)
+		boolean hasCursor = lastId != null && lastCreatedAt != null;
+		String cursorFilter = hasCursor
+			? "and (candidate.createdAt < :lastCreatedAt or (candidate.createdAt = :lastCreatedAt and candidate.id < :lastId))"
+			: "";
+
+		// HQL 파생 테이블로 후보 제한 후 동일 SQL 스냅샷에서 표시 정보 조인
+		// 게스트 조인을 뒤로 미루기 위한 전제: guest_id NOT NULL 및 외래 키
+		var query = entityManager.createQuery("""
+			select new kr.kro.airbob.domain.reservation.repository.projection.HostReservationListProjection(
+				r.id, r.reservationUid, r.reservationCode, r.totalPrice, r.currency, r.guestCount,
+				r.checkInDate, r.checkOutDate, r.timeZoneId, r.status, r.createdAt,
+				guest.id, guest.nickname, guest.thumbnailImageUrl,
+				display.id, display.name, display.thumbnailUrl
 			)
-			.orderBy(reservation.createdAt.desc(), reservation.id.desc())
-			.limit(pageable.getPageSize() + 1)
-			.fetch();
+			from (
+				select candidate.id as id, candidate.createdAt as createdAt
+				from Reservation candidate
+				join candidate.accommodation owner
+				where owner.member.id = :hostId
+					and candidate.status not in :excludedStatuses
+					%s
+					%s
+				order by candidate.createdAt desc, candidate.id desc
+				limit :fetchLimit
+			) page
+			join Reservation r on r.id = page.id
+			join r.accommodation display
+			join r.guest guest
+			order by page.createdAt desc, page.id desc
+			""".formatted(buildHostReservationFilter(filterType), cursorFilter), HostReservationListProjection.class)
+			.setParameter("hostId", hostId)
+			.setParameter("excludedStatuses", List.of(PAYMENT_PENDING, PAYMENT_PROCESSING))
+			.setParameter("fetchLimit", Math.addExact(pageable.getPageSize(), 1));
+
+		if (hasCursor) {
+			query.setParameter("lastCreatedAt", lastCreatedAt);
+			query.setParameter("lastId", lastId);
+		}
+		if (filterType != null) {
+			query.setParameter("filterStatuses", filterType == ReservationFilterType.CANCELLED
+				? List.of(CANCELLED, EXPIRED) : ACTIVE_RESERVATION_STATUSES);
+			if (filterType != ReservationFilterType.CANCELLED) {
+				query.setParameter("now", now);
+			}
+		}
+		List<HostReservationListProjection> content = query.getResultList();
 
 		boolean hasNext = content.size() > pageable.getPageSize();
 		if (hasNext) {
@@ -280,24 +309,19 @@ public class ReservationRepositoryImpl implements ReservationRepositoryCustom {
 		}
 	}
 
-	private BooleanExpression buildHostReservationFilter(ReservationFilterType filterType, Instant now) {
+	private String buildHostReservationFilter(ReservationFilterType filterType) {
 		if (filterType == null) {
-			return null;
+			return "";
 		}
-		switch (filterType) {
-			case CANCELLED:
-				return reservation.status.in(CANCELLED, EXPIRED);
-			case PAST:
-				return activeReservationStatus().and(reservation.checkOutAt.loe(now));
-			case UPCOMING:
-				return activeReservationStatus().and(reservation.checkOutAt.gt(now));
-			default:
-				return null;
-		}
+		return switch (filterType) {
+			case CANCELLED -> "and candidate.status in :filterStatuses";
+			case PAST -> "and candidate.status in :filterStatuses and candidate.checkOutAt <= :now";
+			case UPCOMING -> "and candidate.status in :filterStatuses and candidate.checkOutAt > :now";
+		};
 	}
 
 	private BooleanExpression activeReservationStatus() {
-		return reservation.status.in(CONFIRMED, CANCELLATION_PENDING, CANCELLATION_FAILED);
+		return reservation.status.in(ACTIVE_RESERVATION_STATUSES);
 	}
 
 	private BooleanExpression inventoryOccupyingReservationStatus(Instant now) {

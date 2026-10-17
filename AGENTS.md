@@ -83,6 +83,10 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 - There is no external distributed reservation lock or best-effort Redis hold.
 - Redis remains in use for sessions, caches, recently viewed accommodations; do
   not confuse those uses with reservation authority.
+- Host reservation lists select cursor keys with ownership, status, checkout, and cursor filters
+  before `size + 1`, then join display fields in one HQL-derived-table SQL statement. Preserve
+  current accommodation ownership, outer ordering, and the nonnull guest foreign-key contract.
+  V33 covers the candidate scan with `(accommodation_id, created_at DESC, id DESC, status, check_out_at)`.
 
 ### Coupon issuance
 
@@ -212,11 +216,12 @@ Domain Kafka adapters live beside their domain; reusable contracts and infrastru
 ## Database
 
 - MySQL 8 with Flyway migrations under `src/main/resources/db/migration/`.
-- Current schema history is V1 through V32. V29 introduces coupon issue units and immutable issue strategy,
+- Current schema history is V1 through V33. V29 introduces coupon issue units and immutable issue strategy,
   renames stock_prepared_at, and blocks unreconciled Redis coupon preparation. V30 normalizes
   coupon business timestamps to UTC; V31 finalizes surrogate-key RR coupon issuance. V32 adds coupon
   cursor indexes and requires nonnull member_coupon.created_at after a missing-timestamp guard;
-  see docs/operations/coupon-time-contract.md for the coordinated API cutover.
+  see docs/operations/coupon-time-contract.md for the coordinated API cutover. V33 adds cursor
+  indexes for reservations, host accommodations, review sorting, wishlists, and wishlist details.
 - V17 introduced `payment_operation`; V18 established the canonical orchestration/outbox contract;
   V19-V20 added manual-resolution audit and reconciliation state.
 - V16-V20 were prepared before the initial ETL, so this cutover assumes an empty business database.
