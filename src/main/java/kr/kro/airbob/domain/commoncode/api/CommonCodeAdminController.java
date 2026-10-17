@@ -82,7 +82,7 @@ public class CommonCodeAdminController {
 
 	// 비활성 포함 전체 조회(관리 화면용)
 	@Operation(operationId = "CommonCodeAdmin.getAll", summary = "공통 코드 전체 조회",
-		description = "그룹 자체의 활성 여부와 관계없이 활성·비활성 코드 전체를 sort_order 오름차순으로 조회합니다. 같은 순서 값 안의 순서는 보장하지 않습니다. 페이지 구분과 조회 캐시는 없습니다. 그룹은 있지만 코드가 없으면 빈 배열, 그룹이 없으면 404/CC001입니다.")
+		description = "그룹 자체의 활성 여부와 관계없이 활성·비활성 코드 전체를 sort_order 오름차순으로 조회하며 같은 값이면 code 오름차순으로 정렬합니다. 페이지 구분과 조회 캐시는 없습니다. 그룹은 있지만 코드가 없으면 빈 배열, 그룹이 없으면 404/CC001입니다.")
 	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", useReturnTypeSchema = true)
 	@ApiErrors({
 		ErrorCode.COMMON_CODE_GROUP_NOT_FOUND

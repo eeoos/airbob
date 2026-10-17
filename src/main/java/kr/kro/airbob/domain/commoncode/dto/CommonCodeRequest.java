@@ -26,7 +26,7 @@ public class CommonCodeRequest {
 		@Schema(description = "설명. 생략·null이면 설명 없이 생성하며 빈 문자열도 허용합니다.", example = "시설 설명", nullable = true)
 		@Size(max = 255)
 		String description,
-		@Schema(description = "32비트 정렬 순서. 생략·null이면 0이며 음수도 허용합니다. 작은 값부터 조회하고 같은 값 안의 순서는 보장하지 않습니다.", example = "1", nullable = true)
+		@Schema(description = "32비트 정렬 순서. 생략·null이면 0이며 음수도 허용합니다. 작은 값부터 조회하고 같은 값이면 code 오름차순으로 정렬합니다.", example = "1", nullable = true)
 		Integer sortOrder,
 		@Schema(description = "코드 활성 여부. 생략·null이면 true. 공개 목록에는 그룹과 코드가 모두 활성인 항목만 표시하며 응답에서는 active라는 이름을 사용합니다.", example = "true", nullable = true)
 		Boolean isActive
@@ -49,7 +49,7 @@ public class CommonCodeRequest {
 		@Schema(description = "변경할 설명. 생략·null이면 유지, 빈 문자열이면 내용을 비웁니다.", example = "시설 설명", nullable = true)
 		@Size(max = 255)
 		String description,
-		@Schema(description = "변경할 32비트 정렬 순서. 생략·null이면 유지하며 0과 음수도 허용합니다.", example = "1", nullable = true)
+		@Schema(description = "변경할 32비트 정렬 순서. 생략·null이면 유지하며 0과 음수도 허용합니다. 작은 값부터 조회하고 같은 값이면 code 오름차순으로 정렬합니다.", example = "1", nullable = true)
 		Integer sortOrder,
 		@Schema(description = "변경할 코드 활성 여부. 생략·null이면 유지하며 false도 실제 변경값으로 처리합니다.", example = "true", nullable = true)
 		Boolean isActive
